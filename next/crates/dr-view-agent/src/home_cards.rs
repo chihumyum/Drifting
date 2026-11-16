@@ -9,6 +9,9 @@
 //! 90 minutes per book and device, and runs nothing without a model or with
 //! 主动建议 off. Opening a card shows its new conversation in the right
 //! sidebar's Agent; the card stays and reads 查看对话.
+//!
+//! Home shows the cards of the latest look only (at most four, those
+//! started included); while the Agent looks they stay, and hold still.
 
 use std::{
     collections::{HashMap, HashSet},
@@ -43,7 +46,10 @@ use serde_json::json;
 use crate::{
     AgentViews,
     connection::Connections,
-    controller::{AgentController, Subscription as RunSubscription, proactive::Suggestions},
+    controller::{
+        AgentController, Subscription as RunSubscription,
+        proactive::{CHECKIN_REQUEST_FAILED, Suggestions},
+    },
     hub::AgentHub,
 };
 
@@ -54,6 +60,17 @@ pub fn proactive_enabled(cx: &App) -> bool {
         Settings::read(cx).bool(registry::AGENT_PROACTIVE)
     } else {
         true
+    }
+}
+
+/// What 「没能看完最近的改动：{{error}}」 says after the colon. A request that
+/// did not complete says so with the existing words; anything else keeps
+/// the controller's own.
+pub fn checkin_error(error: &str, cx: &App) -> SharedString {
+    if error == CHECKIN_REQUEST_FAILED {
+        t(cx, dr_i18n::keys::settings::byok_provider::REQUEST_FAILED)
+    } else {
+        SharedString::from(error.to_owned())
     }
 }
 
@@ -68,6 +85,11 @@ pub struct HomeCards {
     starting: HashSet<String>,
     /// 没能开始: why a card's conversation did not start.
     failed: HashMap<String, String>,
+    /// 主动建议 as last handed to the controller.
+    enabled: Option<bool>,
+    /// A look asked of the controller here has not finished: it holds the
+    /// book's one suggestion operation, so a card or × waits for it.
+    looking: bool,
     /// Home asked for a look before the controller or the model's
     /// connection was ready (the app opening on Project Home): it is made
     /// once they are.
@@ -95,6 +117,8 @@ impl HomeCards {
             suggestions: None,
             starting: HashSet::new(),
             failed: HashMap::new(),
+            enabled: None,
+            looking: false,
             wants_look: false,
             loading: false,
             again: false,
@@ -117,10 +141,10 @@ impl HomeCards {
             this._subs
                 .push(cx.observe(&ws, |cards, _, cx| cards.follow_book(cx)));
         }
+        // Every settings write lands here; the controller (and through it
+        // every Agent view) hears only of 主动建议 changing.
         this._subs.push(cx.observe_global::<Settings>(|cards, cx| {
-            if let Some(controller) = &cards.controller {
-                controller.set_proactive_enabled(proactive_enabled(cx));
-            }
+            cards.hand_enabled(cx);
             cx.notify();
         }));
         this.follow_book(cx);
@@ -158,7 +182,9 @@ impl HomeCards {
             return;
         };
         let on = proactive_enabled(cx);
+        // Handed over before every look, whatever was handed last.
         controller.set_proactive_enabled(on);
+        self.enabled = Some(on);
         let Some(connections) = self.connections.as_ref().filter(|_| on) else {
             self.wants_look = false;
             return;
@@ -168,17 +194,68 @@ impl HomeCards {
         }
         self.wants_look = false;
         let config = connections.read(cx).run_config().ok();
-        // The controller accepts and owns the operation before returning.
-        drop(controller.trigger_suggestions(
+        // The controller accepts and owns the operation before returning;
+        // the cards only wait for it to finish.
+        let task = controller.trigger_suggestions(
             book.clone(),
             config,
             chrono::Utc::now().timestamp_millis(),
-        ));
+        );
+        self.looking = true;
+        let generation = self.generation;
+        cx.spawn(async move |this, cx| {
+            if let Err(error) = task.await {
+                log::debug!("the Agent did not look: {error}");
+            }
+            let _ = this.update(cx, |cards, cx| {
+                if cards.generation == generation {
+                    cards.looking = false;
+                    cx.notify();
+                }
+            });
+        })
+        .detach();
     }
 
-    /// The suggestion state last read (tests).
+    /// Hands 主动建议 to the controller when it changed since last handed.
+    fn hand_enabled(&mut self, cx: &App) {
+        let on = proactive_enabled(cx);
+        if let Some(controller) = &self.controller
+            && self.enabled != Some(on)
+        {
+            self.enabled = Some(on);
+            controller.set_proactive_enabled(on);
+        }
+    }
+
+    /// The suggestion state last read: the latest look's cards only (tests).
     pub fn suggestions(&self) -> Option<&Suggestions> {
         self.suggestions.as_ref()
+    }
+
+    /// Whether a look asked here is still under way (tests).
+    pub fn looking(&self) -> bool {
+        self.looking
+    }
+
+    /// Whether a card clicked here is starting its conversation (tests).
+    pub fn any_starting(&self) -> bool {
+        !self.starting.is_empty()
+    }
+
+    /// Nothing asked here is under way: no look, no read of the cards, no
+    /// card starting (tests).
+    pub fn settled(&self) -> bool {
+        !self.looking && !self.loading && !self.again && self.starting.is_empty()
+    }
+
+    /// The Agent is looking (the line above the cards): the look holds the
+    /// book's one suggestion operation, so the cards and their × hold still
+    /// as a card whose conversation is starting does.
+    fn checking(&self) -> bool {
+        self.suggestions
+            .as_ref()
+            .is_some_and(|s| s.state.active.is_some())
     }
 
     fn connected(&self, cx: &App) -> bool {
@@ -211,8 +288,9 @@ impl HomeCards {
         self._signal = None;
         self.controller = controller;
         self.reset();
+        self.enabled = None;
+        self.hand_enabled(cx);
         if let Some(controller) = &self.controller {
-            controller.set_proactive_enabled(proactive_enabled(cx));
             let (send, mut receive) = mpsc::unbounded();
             self._run_subscription = Some(controller.subscribe(Arc::new(move || {
                 let _ = send.unbounded_send(());
@@ -235,6 +313,7 @@ impl HomeCards {
         self.suggestions = None;
         self.starting.clear();
         self.failed.clear();
+        self.looking = false;
         self.loading = false;
         self.again = false;
     }
@@ -266,7 +345,16 @@ impl HomeCards {
                 }
                 cards.loading = false;
                 match result {
-                    Ok(suggestions) => {
+                    Ok(mut suggestions) => {
+                        // The latest look's cards only (at most four, those
+                        // started included): a card started from an earlier
+                        // look goes once a newer look is done. The store
+                        // keeps it (HC).
+                        let latest = suggestions.state.last_checkin_ms;
+                        suggestions
+                            .state
+                            .cards
+                            .retain(|card| Some(card.created_ms) == latest);
                         cards.failed.retain(|id, _| {
                             suggestions.state.cards.iter().any(|c| &c.card.id == id)
                         });
@@ -286,17 +374,54 @@ impl HomeCards {
     fn open(&mut self, card: &StoredCard, window: &mut Window, cx: &mut Context<Self>) {
         match &card.status {
             CardStatus::Started { conversation } => {
-                if let Ok(id) = ConversationId::parse(conversation) {
-                    self.reveal(id, window, cx);
-                }
+                self.view_conversation(ConversationId::parse(conversation).ok(), window, cx)
             }
             CardStatus::Starting { .. } => {}
             CardStatus::Open => self.start(card.card.id.clone(), window, cx),
         }
     }
 
+    /// 查看对话: the card's conversation, if it is still there; if it is
+    /// gone, the right sidebar opens on Agent with nothing chosen and the
+    /// card stays as it is.
+    fn view_conversation(
+        &mut self,
+        id: Option<ConversationId>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let (Some(controller), Some(book), Some(id)) =
+            (self.controller.clone(), self.book.clone(), id)
+        else {
+            self.reveal(None, window, cx);
+            return;
+        };
+        let generation = self.generation;
+        cx.spawn_in(window, async move |this, cx| {
+            let there = cx
+                .background_executor()
+                .spawn({
+                    let id = id.clone();
+                    async move { controller.has_conversation(&book, &id) }
+                })
+                .await
+                .unwrap_or_else(|error| {
+                    log::warn!("a card's conversation could not be read: {error}");
+                    false
+                });
+            let _ = this.update_in(cx, |cards, window, cx| {
+                if cards.generation == generation {
+                    cards.reveal(there.then_some(id), window, cx);
+                }
+            });
+        })
+        .detach();
+    }
+
     fn start(&mut self, card: String, window: &mut Window, cx: &mut Context<Self>) {
-        if self.starting.contains(&card) {
+        // A look under way holds the book's suggestion operation: the click
+        // waits for nothing and says nothing.
+        if self.starting.contains(&card) || self.looking || self.checking() {
             return;
         }
         let (Some(controller), Some(book), Some(connections)) = (
@@ -337,7 +462,7 @@ impl HomeCards {
                 }
                 cards.starting.remove(&card);
                 match result {
-                    Ok(id) => cards.reveal(id, window, cx),
+                    Ok(id) => cards.reveal(Some(id), window, cx),
                     Err(error) => {
                         cards.failed.insert(card, error);
                     }
@@ -350,8 +475,9 @@ impl HomeCards {
         cx.notify();
     }
 
-    /// The right sidebar opens on Agent, on `id`; Home does not move.
-    fn reveal(&mut self, id: ConversationId, window: &mut Window, cx: &mut Context<Self>) {
+    /// The right sidebar opens on Agent, on `id` (on whatever it shows
+    /// without one); Home does not move.
+    fn reveal(&mut self, id: Option<ConversationId>, window: &mut Window, cx: &mut Context<Self>) {
         let (Some(ws), Some(book)) = (self.ws.upgrade(), self.book.clone()) else {
             return;
         };
@@ -361,9 +487,14 @@ impl HomeCards {
         ws.update(cx, |ws, cx| {
             // A panel made for this reveal starts on the conversation the
             // book remembers.
-            ws.set_book_memory(crate::panel::MEMORY, json!(id.as_str()), cx);
+            if let Some(id) = &id {
+                ws.set_book_memory(crate::panel::MEMORY, json!(id.as_str()), cx);
+            }
             ws.reveal_companion(window, cx);
         });
+        let Some(id) = id else {
+            return;
+        };
         for panel in crate::panels(cx) {
             panel.update(cx, |panel, cx| {
                 panel.show_card_conversation(&self.ws, &book, id.clone(), cx)
@@ -376,7 +507,8 @@ impl HomeCards {
             return;
         };
         // A card whose conversation is starting stays until the start
-        // settles (the store keeps it too).
+        // settles (the store keeps it too); while the Agent looks, every
+        // card stays until the look is done.
         let starting = self.starting.contains(&card)
             || self.suggestions.as_ref().is_some_and(|s| {
                 s.state
@@ -384,7 +516,7 @@ impl HomeCards {
                     .iter()
                     .any(|c| c.card.id == card && matches!(c.status, CardStatus::Starting { .. }))
             });
-        if starting {
+        if starting || self.looking || self.checking() {
             return;
         }
         self.failed.remove(&card);
@@ -413,8 +545,11 @@ impl HomeCards {
         let theme = Theme::of(window, cx);
         let (p, s) = (theme.palette, theme.scale);
         let id = stored.card.id.clone();
-        let starting =
-            self.starting.contains(&id) || matches!(stored.status, CardStatus::Starting { .. });
+        // A card whose conversation is starting cannot be clicked; while the
+        // Agent looks, none can.
+        let starting = self.starting.contains(&id)
+            || matches!(stored.status, CardStatus::Starting { .. })
+            || self.checking();
         let started = matches!(stored.status, CardStatus::Started { .. });
         // Its entry: the entry's own mark, grey, and its name.
         let target = stored.card.target.as_ref().and_then(|target| {
@@ -441,14 +576,14 @@ impl HomeCards {
                     .child(entry.title.clone()),
             )
         });
-        let go = t(
-            cx,
-            if started {
-                k::OPEN_CONVERSATION
-            } else {
-                k::START
-            },
-        );
+        let (go, go_selector) = if started {
+            (
+                t(cx, k::OPEN_CONVERSATION),
+                format!("home-agent-card-open-conversation-{index}"),
+            )
+        } else {
+            (t(cx, k::START), format!("home-agent-card-start-{index}"))
+        };
         let stored_card = stored.clone();
         let label: SharedString = stored.card.title.clone().into();
         let body = glass::glass_box(
@@ -497,6 +632,7 @@ impl HomeCards {
         })
         .child(
             div()
+                .debug_selector(move || go_selector)
                 .mt_auto()
                 .pt(px(2.0))
                 .font_role(Role::Ui)
@@ -580,10 +716,11 @@ impl Render for HomeCards {
                     .child(t(cx, k::CHECKIN_RUNNING)),
             );
         } else if let Some(error) = &suggestions.state.error {
+            let error = checkin_error(error, cx);
             column = column.child(line("home-agent-check-failed").child(tf(
                 cx,
                 k::CHECKIN_FAILED,
-                &[("error", error)],
+                &[("error", &error)],
             )));
         }
         if !suggestions.state.cards.is_empty() {

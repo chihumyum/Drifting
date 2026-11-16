@@ -303,6 +303,43 @@ fn checkin_cas_cooldown_applies_after_failure_and_restart() {
     assert_eq!(ProactiveStore::load(&lib, &book).unwrap(), state);
 }
 
+/// HC: a check-in the author stopped leaves no error and gives the attempt
+/// back, so the next look is not held by the 90 minutes. Only the running
+/// ticket is cancelled.
+#[test]
+fn a_cancelled_checkin_keeps_no_error_and_does_not_count() {
+    let (_temp, lib, book, _nodes) = setup(Preset::Tiny);
+    let first = ProactiveStore::begin_checkin(&lib, &book, &start(0, "first", 100))
+        .unwrap()
+        .unwrap();
+    assert!(ProactiveStore::fail_checkin(&lib, &book, &first, "fixture failure").unwrap());
+    let state = ProactiveStore::load(&lib, &book).unwrap();
+    assert_eq!(state.last_attempt_ms, Some(100));
+    let later = 100 + CHECKIN_COOLDOWN_MS;
+    let ticket =
+        ProactiveStore::begin_checkin(&lib, &book, &start(state.revision, "second", later))
+            .unwrap()
+            .unwrap();
+    // A stale ticket cancels nothing.
+    assert!(!ProactiveStore::cancel_checkin(&lib, &book, &first, Some(100)).unwrap());
+    assert!(ProactiveStore::cancel_checkin(&lib, &book, &ticket, state.last_attempt_ms).unwrap());
+    let cancelled = ProactiveStore::load(&lib, &book).unwrap();
+    assert_eq!(cancelled.active, None);
+    assert_eq!(cancelled.error, None);
+    assert_eq!(cancelled.last_attempt_ms, Some(100));
+    assert!(!ProactiveStore::cancel_checkin(&lib, &book, &ticket, None).unwrap());
+    // The next look one minute later is not held by the cancelled one.
+    assert!(
+        ProactiveStore::begin_checkin(
+            &lib,
+            &book,
+            &start(cancelled.revision, "third", later + 60_000)
+        )
+        .unwrap()
+        .is_some()
+    );
+}
+
 #[test]
 fn card_claims_and_settlement_are_idempotent() {
     let (_temp, lib, book, nodes) = setup(Preset::Tiny);

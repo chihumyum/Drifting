@@ -315,6 +315,28 @@ impl ProactiveStore {
         })
     }
 
+    /// The author stopped the check-in (主动建议 turned off, or the app
+    /// closing): not a failure. No error is kept, and the attempt does not
+    /// count against the 90 minutes: `previous_attempt_ms` is what
+    /// `last_attempt_ms` was before [`Self::begin_checkin`].
+    pub fn cancel_checkin(
+        lib: &Library,
+        book: &BookId,
+        ticket: &SuggestionTicket,
+        previous_attempt_ms: Option<i64>,
+    ) -> Result<bool> {
+        Self::update(lib, book, |state| {
+            if !matches!(&state.active, Some(ActiveSuggestion::Checkin { ticket: current }) if current == ticket)
+            {
+                return Ok((false, false));
+            }
+            state.active = None;
+            state.last_attempt_ms = previous_attempt_ms;
+            state.error = None;
+            Ok((true, true))
+        })
+    }
+
     pub fn dismiss_card(lib: &Library, book: &BookId, card: &str) -> Result<bool> {
         Self::update(lib, book, |state| {
             let old = state.cards.len();

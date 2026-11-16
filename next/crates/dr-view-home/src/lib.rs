@@ -1,8 +1,8 @@
 //! Canonical Project Home (`kernel-v5.md` §2 & §3).
 mod agent_cards;
 mod project_template;
-mod structure_thumbnail;
 pub mod save_template;
+mod structure_thumbnail;
 pub mod v3;
 
 pub use agent_cards::{

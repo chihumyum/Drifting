@@ -1422,14 +1422,17 @@ impl Render for AgentPanel {
                         .as_ref()
                         .map(onboarding::build_starter_prompts)
                         .unwrap_or_default();
-                    content = content.child(t(
-                        cx,
-                        if prompts.is_empty() {
-                            k::empty::START
-                        } else {
-                            k::onboarding::TRY
-                        },
-                    ));
+                    // The empty conversation's first line sits right under
+                    // the memory buttons: no cards and no switch there (HC).
+                    content =
+                        content.child(div().debug_selector(|| "agent-empty".into()).child(t(
+                            cx,
+                            if prompts.is_empty() {
+                                k::empty::START
+                            } else {
+                                k::onboarding::TRY
+                            },
+                        )));
                     for (index, prompt) in prompts.iter().enumerate() {
                         let args: Vec<Arg<'_>> = prompt
                             .values
@@ -1457,7 +1460,13 @@ impl Render for AgentPanel {
                         );
                     }
                 }
-                None => content = content.child(t(cx, k::empty::START)),
+                None => {
+                    content = content.child(
+                        div()
+                            .debug_selector(|| "agent-empty".into())
+                            .child(t(cx, k::empty::START)),
+                    )
+                }
             }
         } else {
             if self.connections.read(cx).usable() == Some(false) {

@@ -6,7 +6,10 @@
 use std::{
     cell::RefCell,
     rc::Rc,
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
     time::{Duration, Instant},
 };
 
@@ -20,7 +23,7 @@ use dr_agent_providers::{
     oauth::OAuthEndpoints,
 };
 use dr_doc::v3::novel::{MOD_PROSE, TPL_CHAPTER};
-use dr_model::id::{BookId, new_uuid_v7};
+use dr_model::id::{BookId, ConversationId, new_uuid_v7};
 use dr_shell::{
     Services, Settings, SettingsFile, ShellInfo, Workspace,
     nav::{Open, Target},
@@ -30,7 +33,8 @@ use dr_shell::{
 use dr_testkit::seed::{self, Preset};
 use dr_view_agent::{
     connection::{Connections, PROVIDERS},
-    home_cards::HomeCards,
+    controller::proactive::CHECKIN_REQUEST_FAILED,
+    home_cards::{HomeCards, checkin_error},
     hub::AgentHub,
     tools::CompanionTools,
 };
@@ -96,9 +100,19 @@ impl Fixture {
 
     /// Cards an earlier look left (two hours ago: the 90 minutes are over).
     fn earlier_cards(&self, titles: &[&str]) {
+        self.cards_from(titles, 2 * 60 * 60 * 1000);
+    }
+
+    /// Cards a look left ten minutes ago: within the 90 minutes, so Home
+    /// coming to the front looks at nothing.
+    fn recent_cards(&self, titles: &[&str]) {
+        self.cards_from(titles, 10 * 60 * 1000);
+    }
+
+    fn cards_from(&self, titles: &[&str], ago_ms: i64) {
         let lib = self.lib.library();
         let state = ProactiveStore::load(lib, &self.book).unwrap();
-        let at = chrono::Utc::now().timestamp_millis() - 2 * 60 * 60 * 1000;
+        let at = chrono::Utc::now().timestamp_millis() - ago_ms;
         let ticket = ProactiveStore::begin_checkin(
             lib,
             &self.book,
@@ -132,6 +146,39 @@ impl Fixture {
             },
         )
         .unwrap();
+    }
+}
+
+impl Fixture {
+    /// The stored card at `index` started, on `conversation`; its id.
+    fn start_card(&self, index: usize, conversation: &ConversationId) -> String {
+        let lib = self.lib.library();
+        let card = self.stored().cards[index].card.id.clone();
+        let claim = ProactiveStore::claim_card(lib, &self.book, &card, &new_uuid_v7(), true)
+            .unwrap()
+            .unwrap();
+        assert!(
+            ProactiveStore::settle_card(lib, &self.book, &claim, Some(conversation.as_str()))
+                .unwrap()
+        );
+        card
+    }
+
+    /// A template's working copy: another project to open and come back
+    /// from.
+    fn another_project(&self) -> String {
+        let template = out(
+            &self.lib,
+            "project_template.save",
+            json!({"book": self.book.as_str(), "name": "合成模板"}),
+        )["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        out(&self.lib, "project_template.edit", json!({"id": template}))["book"]
+            .as_str()
+            .unwrap()
+            .to_owned()
     }
 }
 
@@ -203,6 +250,20 @@ impl Opened {
         })
     }
 
+    fn titles(&self, cx: &mut VisualTestContext) -> Vec<String> {
+        self.cards().read_with(cx, |c, _| {
+            c.suggestions()
+                .map(|s| s.state.cards.iter().map(|c| c.card.title.clone()).collect())
+                .unwrap_or_default()
+        })
+    }
+
+    /// Nothing the cards asked is under way (a look, a read, a start): a
+    /// signal, not a wait.
+    fn settled(&self, cx: &mut VisualTestContext) -> bool {
+        self.cards().read_with(cx, |c, _| c.settled())
+    }
+
     fn statuses(&self, cx: &mut VisualTestContext) -> Vec<CardStatus> {
         self.cards().read_with(cx, |c, _| {
             c.suggestions()
@@ -268,17 +329,6 @@ fn wait(
         }
         assert!(Instant::now() < deadline, "timed out: {stage}");
         std::thread::sleep(Duration::from_millis(3));
-    }
-}
-
-/// A few frames with nothing expected to change.
-fn settle(cx: &mut VisualTestContext) {
-    for _ in 0..25 {
-        cx.executor().advance_clock(Duration::from_millis(40));
-        cx.update(|window, _| window.refresh());
-        cx.run_until_parked();
-        cx.update(|window, cx| window.draw(cx).clear(cx));
-        std::thread::sleep(Duration::from_millis(4));
     }
 }
 
@@ -430,10 +480,9 @@ fn home_looks_once_shows_two_columns_and_a_card_opens_its_conversation(cx: &mut 
     // Within 90 minutes Home coming back asks, but nothing is looked at.
     let opened = f.stored().last_opened_ms;
     w.go_home(cx, &f.entry);
-    wait(cx, "the second ask", |_| {
-        f.stored().last_opened_ms != opened
+    wait(cx, "the second ask, done", |cx| {
+        f.stored().last_opened_ms != opened && w.settled(cx)
     });
-    settle(cx);
     assert_eq!(
         driver.requests().len(),
         1,
@@ -466,6 +515,19 @@ fn home_looks_once_shows_two_columns_and_a_card_opens_its_conversation(cx: &mut 
         unreachable!()
     };
     assert_eq!(w.card_count(cx), 3, "the card stays");
+    // It reads 查看对话 now.
+    wait(cx, "查看对话 on the card", |cx| {
+        cx.debug_bounds("home-agent-card-open-conversation-0")
+            .is_some()
+    });
+    assert!(cx.debug_bounds("home-agent-card-start-0").is_none());
+    assert!(cx.debug_bounds("home-agent-card-start-1").is_some());
+    cx.update(|_, cx| {
+        assert_eq!(
+            dr_shell::strings::t(cx, dr_i18n::keys::project_agent::OPEN_CONVERSATION).as_ref(),
+            "查看对话"
+        );
+    });
 
     // Elsewhere in the panel, then the card again: the same conversation.
     let panel = cx.update(|_, cx| dr_view_agent::panels(cx)[0].clone());
@@ -511,9 +573,35 @@ fn a_dismissed_card_stays_gone_and_a_failed_start_says_so(cx: &mut TestAppContex
         f.stored().cards.iter().all(|c| c.card.id != gone)
     });
     assert_eq!(driver.requests().len(), 1, "× starts nothing");
+    let opened = f.stored().last_opened_ms;
     w.go_home(cx, &f.entry);
-    settle(cx);
+    wait(cx, "Home again, its ask done", |cx| {
+        f.stored().last_opened_ms != opened && w.settled(cx)
+    });
     assert_eq!(w.card_count(cx), 1, "Home again: it does not come back");
+
+    // The project reopened (another project, then this one): still gone.
+    let other = f.another_project();
+    cx.update(|window, cx| w.ws.update(cx, |ws, cx| ws.open_book(&other, window, cx)));
+    wait(cx, "the other project", |cx| {
+        w.ws.read_with(cx, |ws, _| ws.book.id == other) && w.settled(cx)
+    });
+    cx.update(|window, cx| {
+        w.ws.update(cx, |ws, cx| ws.open_book(f.book.as_str(), window, cx))
+    });
+    wait(cx, "this project again, its cards read", |cx| {
+        w.ws.read_with(cx, |ws, _| ws.book.id == f.book.as_str())
+            && w.cards().read_with(cx, |c, _| c.suggestions().is_some())
+            && w.settled(cx)
+            && cx.debug_bounds("home-agent-card-0").is_some()
+    });
+    assert_eq!(
+        w.card_count(cx),
+        1,
+        "the project reopened: it does not come back"
+    );
+    assert!(cx.debug_bounds("home-agent-card-1").is_none());
+    assert!(f.stored().cards.iter().all(|c| c.card.id != gone));
 
     // A start that fails: the line under the card, and the card still Open.
     let controller = w.hub.read_with(cx, |h, _| h.controller.clone().unwrap());
@@ -558,7 +646,8 @@ fn the_switch_in_settings_turns_the_cards_off_and_on(cx: &mut TestAppContext) {
         {"title": "一张合成卡", "instruction": "合成任务。"}
     ]))]));
     let (w, cx) = open(cx, &f, driver.clone(), true, false);
-    settle(cx);
+    // Off, Home asks the controller nothing: nothing can look later.
+    assert!(!w.cards().read_with(cx, |c, _| c.looking()), "off: no ask");
     assert!(driver.requests().is_empty(), "off: no look");
     assert_eq!(f.stored().last_opened_ms, None, "nor any ask");
     assert!(cx.debug_bounds("v3-home-agent-cards").is_none());
@@ -567,7 +656,10 @@ fn the_switch_in_settings_turns_the_cards_off_and_on(cx: &mut TestAppContext) {
     cx.update(|_, cx| {
         Settings::update(cx, |s| s.set(registry::AGENT_PROACTIVE, true.into(), None)).unwrap();
     });
-    settle(cx);
+    assert!(
+        !w.cards().read_with(cx, |c, _| c.looking()),
+        "on: no ask yet"
+    );
     assert!(driver.requests().is_empty());
     w.go_home(cx, &f.entry);
     wait(cx, "cards after Home came back", |cx| {
@@ -599,8 +691,9 @@ fn without_a_model_nothing_runs_and_home_shows_nothing(cx: &mut TestAppContext) 
     let driver = Arc::new(ScriptedDriver::new(vec![]));
     let (w, cx) = open(cx, &f, driver.clone(), false, true);
     assert_eq!(w.connections.read_with(cx, |c, _| c.usable()), Some(false));
-    wait(cx, "the stored card read", |cx| w.card_count(cx) == 1);
-    settle(cx);
+    wait(cx, "the stored card read, the ask done", |cx| {
+        w.card_count(cx) == 1 && f.stored().last_opened_ms.is_some() && w.settled(cx)
+    });
     assert!(driver.requests().is_empty());
     assert!(cx.debug_bounds("v3-home-agent-cards").is_none());
     close(&w, cx, &f);
@@ -651,6 +744,17 @@ fn a_failed_look_says_so_and_keeps_the_cards(cx: &mut TestAppContext) {
         cx.debug_bounds("home-agent-check-failed").is_some()
     });
     assert_eq!(driver.requests().len(), 1);
+    // The line says it with the existing words, not the controller's.
+    assert_eq!(f.stored().error.as_deref(), Some(CHECKIN_REQUEST_FAILED));
+    cx.update(|_, cx| {
+        let words = checkin_error(CHECKIN_REQUEST_FAILED, cx);
+        assert_eq!(
+            words,
+            dr_shell::strings::t(cx, dr_i18n::keys::settings::byok_provider::REQUEST_FAILED)
+        );
+        assert_eq!(words.as_ref(), "请求失败（provider 不可用或网络问题）");
+        assert_eq!(checkin_error("另一种原因", cx).as_ref(), "另一种原因");
+    });
     assert!(cx.debug_bounds("home-agent-card-0").is_some());
     assert!(cx.debug_bounds("home-agent-checking").is_none());
     close(&w, cx, &f);
@@ -662,10 +766,9 @@ fn a_look_with_no_cards_leaves_nothing(cx: &mut TestAppContext) {
     let f = Fixture::new();
     let driver = Arc::new(ScriptedDriver::new(vec![look(json!([]))]));
     let (w, cx) = open(cx, &f, driver.clone(), true, true);
-    wait(cx, "the look done", |_| {
-        f.stored().last_checkin_ms.is_some()
+    wait(cx, "the look done", |cx| {
+        f.stored().last_checkin_ms.is_some() && w.settled(cx)
     });
-    settle(cx);
     assert_eq!(driver.requests().len(), 1);
     assert!(cx.debug_bounds("v3-home-agent-cards").is_none());
     close(&w, cx, &f);
@@ -698,10 +801,312 @@ fn the_agent_panel_does_not_look(cx: &mut TestAppContext) {
     });
     let panel = cx.update(|_, cx| dr_view_agent::panels(cx)[0].clone());
     panel.update(cx, |p, cx| p.new_conversation(cx));
+    wait(cx, "the empty conversation drawn", |cx| {
+        panel.read_with(cx, |p, _| p.is_settled() && p.snapshot().is_none())
+            && cx.debug_bounds("agent-empty").is_some()
+    });
     cx.deactivate_window();
     cx.update(|window, _| window.activate_window());
-    settle(cx);
+    wait(cx, "the window back", |cx| {
+        cx.update(|window, _| window.is_window_active())
+    });
+    // A look asked holds the book's suggestion operation until it is done
+    // and records the ask: neither is there.
+    let controller = w.hub.read_with(cx, |h, _| h.controller.clone().unwrap());
+    assert_eq!(controller.active_count(), 0, "nothing under way");
     assert_eq!(f.stored().last_opened_ms, opened, "nothing asked");
     assert_eq!(driver.requests().len(), 1);
+
+    // The empty conversation: the memory buttons, then its first line
+    // (one gap down), with no cards and no 主动建议 switch between, though
+    // the store holds an open card.
+    assert_eq!(f.stored().cards[0].status, CardStatus::Open);
+    let header = cx.debug_bounds("agent-continuity").unwrap();
+    let first = cx.debug_bounds("agent-empty").unwrap();
+    assert_eq!(first.top() - header.bottom(), px(12.0));
+    // Home's card (Home stays drawn under the page) is not in the panel.
+    if let Some(card) = cx.debug_bounds("home-agent-card-0") {
+        assert!(card.right() <= header.left(), "no card in the panel");
+    }
+    close(&w, cx, &f);
+}
+
+fn held_look(held: oneshot::Receiver<()>, cards: Value) -> Vec<Step> {
+    let mut steps = vec![Step::Wait(held)];
+    steps.extend(look(cards));
+    steps
+}
+
+/// While the Agent looks it holds the book's one suggestion operation: the
+/// cards and their × hold still, as a card whose conversation is starting
+/// does (no error line, no card taken away and put back). Once the look is
+/// done, its cards can be clicked.
+#[gpui::test]
+fn while_the_agent_looks_the_cards_and_their_dismiss_hold_still(cx: &mut TestAppContext) {
+    let f = Fixture::new();
+    f.earlier_cards(&["上一次的合成卡"]);
+    let (go, held) = oneshot::channel();
+    let driver = Arc::new(ScriptedDriver::new(vec![
+        held_look(
+            held,
+            json!([{"title": "这一次的合成卡", "instruction": "合成任务。"}]),
+        ),
+        reply("好。"),
+    ]));
+    let (w, cx) = open(cx, &f, driver.clone(), true, true);
+    wait(cx, "the line while it looks, the earlier card", |cx| {
+        cx.debug_bounds("home-agent-checking").is_some()
+            && cx.debug_bounds("home-agent-card-0").is_some()
+    });
+    let earlier = f.stored().cards[0].card.id.clone();
+
+    // The card: nothing starts (the click is not taken), nothing is said.
+    click_card(cx, "home-agent-card-0");
+    assert!(
+        !w.cards().read_with(cx, |c, _| c.any_starting()),
+        "the click is not taken"
+    );
+    cx.run_until_parked();
+    assert_eq!(w.statuses(cx), vec![CardStatus::Open]);
+    assert!(cx.debug_bounds("home-agent-card-failed-0").is_none());
+    assert_eq!(driver.requests().len(), 1, "only the look");
+
+    // Its ×: the card stays, on Home and in the store.
+    let b = cx.debug_bounds("home-agent-card-0").unwrap();
+    cx.simulate_click(
+        point(b.right() - px(18.0), b.top() + px(18.0)),
+        Modifiers::none(),
+    );
+    assert_eq!(w.card_count(cx), 1, "not taken away");
+    cx.run_until_parked();
+    cx.update(|window, cx| window.draw(cx).clear(cx));
+    assert!(cx.debug_bounds("home-agent-card-0").is_some());
+    assert!(f.stored().cards.iter().any(|c| c.card.id == earlier));
+
+    // The look done: its card, which can be clicked.
+    go.send(()).unwrap();
+    wait(cx, "this look's card", |cx| {
+        cx.debug_bounds("home-agent-checking").is_none()
+            && w.titles(cx) == ["这一次的合成卡"]
+            && w.settled(cx)
+    });
+    click_card(cx, "home-agent-card-0");
+    wait(cx, "started", |cx| {
+        matches!(w.statuses(cx)[..], [CardStatus::Started { .. }])
+    });
+    assert!(cx.debug_bounds("home-agent-card-failed-0").is_none());
+    assert_eq!(driver.requests().len(), 2);
+    close(&w, cx, &f);
+}
+
+/// Turning 主动建议 off while the Agent looks stops the look; that is no
+/// failure: on again, no failure line, and the stopped look does not count
+/// against the 90 minutes, so Home next coming to the front looks.
+#[gpui::test]
+fn turning_the_switch_off_while_it_looks_is_no_failure(cx: &mut TestAppContext) {
+    let f = Fixture::new();
+    f.earlier_cards(&["上一次的合成卡"]);
+    let attempt = f.stored().last_attempt_ms;
+    assert!(attempt.is_some());
+    let (go, held) = oneshot::channel::<()>();
+    let driver = Arc::new(ScriptedDriver::new(vec![
+        held_look(
+            held,
+            json!([{"title": "没看完的合成卡", "instruction": "合成任务。"}]),
+        ),
+        look(json!([{"title": "这一次的合成卡", "instruction": "合成任务。"}])),
+    ]));
+    let (w, cx) = open(cx, &f, driver.clone(), true, true);
+    wait(cx, "it looks", |cx| {
+        cx.debug_bounds("home-agent-checking").is_some()
+    });
+    cx.update(|_, cx| {
+        Settings::update(cx, |s| s.set(registry::AGENT_PROACTIVE, false.into(), None)).unwrap();
+    });
+    // The scripted stream notices the stop once its wait ends (a
+    // provider's stream ends at once).
+    drop(go);
+    wait(cx, "the look stopped", |cx| {
+        f.stored().active.is_none() && w.settled(cx)
+    });
+    let stored = f.stored();
+    assert_eq!(stored.error, None, "no failure kept");
+    assert_eq!(
+        stored.last_attempt_ms, attempt,
+        "the stopped look does not count"
+    );
+    assert_eq!(w.titles(cx), ["上一次的合成卡"]);
+
+    // On again: the earlier card, no failure line, nothing asked yet.
+    cx.update(|_, cx| {
+        Settings::update(cx, |s| s.set(registry::AGENT_PROACTIVE, true.into(), None)).unwrap();
+    });
+    wait(cx, "the earlier card again", |cx| {
+        cx.debug_bounds("home-agent-card-0").is_some()
+    });
+    assert!(cx.debug_bounds("home-agent-check-failed").is_none());
+    assert!(cx.debug_bounds("home-agent-checking").is_none());
+    assert!(!w.cards().read_with(cx, |c, _| c.looking()));
+    assert_eq!(driver.requests().len(), 1);
+
+    // Home next comes to the front: it looks.
+    w.go_home(cx, &f.entry);
+    wait(cx, "this look's card", |cx| {
+        w.titles(cx) == ["这一次的合成卡"]
+            && cx.debug_bounds("home-agent-checking").is_none()
+            && w.settled(cx)
+    });
+    assert_eq!(driver.requests().len(), 2, "the next Home looked");
+    assert!(cx.debug_bounds("home-agent-check-failed").is_none());
+    close(&w, cx, &f);
+}
+
+/// Home shows the latest look's cards only. Until a look is done the
+/// earlier look's stay, the started one too (查看对话); once it is done, a
+/// card started from the earlier look leaves Home (the store keeps it) and
+/// one started from this look stays, reading 查看对话.
+#[gpui::test]
+fn home_shows_only_the_latest_looks_cards(cx: &mut TestAppContext) {
+    let f = Fixture::new();
+    f.earlier_cards(&["上一次点过的卡", "上一次没点的卡"]);
+    let earlier = f.start_card(0, &ConversationId::new_v7());
+    let (go, held) = oneshot::channel();
+    let driver = Arc::new(ScriptedDriver::new(vec![
+        held_look(
+            held,
+            json!([{"title": "这一次的合成卡", "instruction": "合成任务。"}]),
+        ),
+        reply("好。"),
+    ]));
+    let (w, cx) = open(cx, &f, driver.clone(), true, true);
+    wait(cx, "the earlier look's cards while it looks", |cx| {
+        cx.debug_bounds("home-agent-checking").is_some()
+            && cx.debug_bounds("home-agent-card-1").is_some()
+    });
+    assert_eq!(w.titles(cx), ["上一次点过的卡", "上一次没点的卡"]);
+    assert!(
+        cx.debug_bounds("home-agent-card-open-conversation-0")
+            .is_some()
+    );
+    assert!(cx.debug_bounds("home-agent-card-start-1").is_some());
+
+    go.send(()).unwrap();
+    wait(cx, "this look's card only", |cx| {
+        cx.debug_bounds("home-agent-checking").is_none()
+            && w.titles(cx) == ["这一次的合成卡"]
+            && cx.debug_bounds("home-agent-card-1").is_none()
+            && w.settled(cx)
+    });
+    let stored = f.stored();
+    assert_eq!(stored.cards.len(), 2, "the store keeps the started card");
+    assert!(
+        stored
+            .cards
+            .iter()
+            .any(|c| c.card.id == earlier && matches!(c.status, CardStatus::Started { .. }))
+    );
+
+    click_card(cx, "home-agent-card-0");
+    wait(cx, "this look's card started, 查看对话", |cx| {
+        matches!(w.statuses(cx)[..], [CardStatus::Started { .. }])
+            && cx
+                .debug_bounds("home-agent-card-open-conversation-0")
+                .is_some()
+    });
+    assert!(cx.debug_bounds("home-agent-card-start-0").is_none());
+    assert!(cx.debug_bounds("home-agent-card-1").is_none());
+    close(&w, cx, &f);
+}
+
+/// Settings writes other than 主动建议 (a book's layout, a module's device
+/// memory, 主动建议 written unchanged) wake no Agent view, so nothing
+/// re-reads the database; 主动建议 changing wakes them once.
+#[gpui::test]
+fn other_settings_writes_wake_no_agent_view(cx: &mut TestAppContext) {
+    let f = Fixture::new();
+    let driver = Arc::new(ScriptedDriver::new(vec![look(json!([
+        {"title": "一张合成卡", "instruction": "合成任务。"}
+    ]))]));
+    let (w, cx) = open(cx, &f, driver.clone(), true, true);
+    wait(cx, "the card, nothing under way", |cx| {
+        cx.debug_bounds("home-agent-card-0").is_some() && w.settled(cx)
+    });
+    let controller = w.hub.read_with(cx, |h, _| h.controller.clone().unwrap());
+    let wakes = Arc::new(AtomicUsize::new(0));
+    let _probe = controller.subscribe(Arc::new({
+        let wakes = wakes.clone();
+        move || {
+            wakes.fetch_add(1, Ordering::SeqCst);
+        }
+    }));
+    let book = f.book.to_string();
+    cx.update(|_, cx| {
+        Settings::update(cx, |s| s.set_layout(&book, json!({"hc-probe": 1})));
+        Settings::set_device_memory(cx, "hc.probe", Some(json!(true)));
+        Settings::update(cx, |s| s.set(registry::AGENT_PROACTIVE, true.into(), None)).unwrap();
+    });
+    cx.run_until_parked();
+    assert_eq!(wakes.load(Ordering::SeqCst), 0, "no Agent view woken");
+
+    cx.update(|_, cx| {
+        Settings::update(cx, |s| s.set(registry::AGENT_PROACTIVE, false.into(), None)).unwrap();
+    });
+    assert_eq!(
+        wakes.load(Ordering::SeqCst),
+        1,
+        "主动建议 changing wakes them once"
+    );
+    close(&w, cx, &f);
+}
+
+/// 查看对话 on a card whose conversation is gone: the right sidebar opens on
+/// Agent with nothing chosen; the card stays as it is, and nothing is said.
+#[gpui::test]
+fn a_card_whose_conversation_is_gone_opens_agent_with_nothing_chosen(cx: &mut TestAppContext) {
+    let f = Fixture::new();
+    f.recent_cards(&["点过的合成卡"]);
+    let gone = ConversationId::new_v7();
+    f.start_card(0, &gone);
+    let driver = Arc::new(ScriptedDriver::new(vec![]));
+    let (w, cx) = open(cx, &f, driver.clone(), true, true);
+    wait(cx, "the card reading 查看对话", |cx| {
+        cx.debug_bounds("home-agent-card-open-conversation-0")
+            .is_some()
+            && w.settled(cx)
+    });
+    assert_eq!(w.companion(cx), None);
+    click_card(cx, "home-agent-card-0");
+    wait(cx, "the right sidebar on Agent, its panel read", |cx| {
+        w.ws.read_with(cx, |ws, _| {
+            ws.right.open
+                && ws
+                    .right
+                    .panes
+                    .panes
+                    .iter()
+                    .any(|p| p.tab == RightTab::Companion)
+        }) && cx.update(|_, cx| {
+            let panels = dr_view_agent::panels(cx);
+            !panels.is_empty() && panels.iter().all(|p| p.read(cx).is_settled())
+        })
+    });
+    assert_ne!(w.companion(cx).as_deref(), Some(gone.as_str()));
+    assert_ne!(
+        w.ws.read_with(cx, |ws, _| ws.book_memory("agent.conversation").cloned()),
+        Some(json!(gone.as_str())),
+        "nothing chosen for the book"
+    );
+    assert_eq!(
+        w.statuses(cx),
+        vec![CardStatus::Started {
+            conversation: gone.to_string()
+        }]
+    );
+    assert!(cx.debug_bounds("home-agent-card-failed-0").is_none());
+    assert!(
+        w.ws.read_with(cx, |ws, _| ws.nav.active_tab().is_none()),
+        "Home stays"
+    );
+    assert!(driver.requests().is_empty());
     close(&w, cx, &f);
 }

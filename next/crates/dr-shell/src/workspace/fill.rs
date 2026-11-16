@@ -173,7 +173,9 @@ impl Workspace {
         self.fill.progress(place)
     }
 
-    pub(super) fn fill_covers_paper(&self) -> bool {
+    /// A filled panel covers the paper (and Project Home under it): the
+    /// bottom one, or a side one not narrowed.
+    pub fn fill_covers_paper(&self) -> bool {
         match self.filled() {
             Some(FillPlace::Bottom) => true,
             Some(FillPlace::Left | FillPlace::Right) => self.fill.custom_width().is_none(),
