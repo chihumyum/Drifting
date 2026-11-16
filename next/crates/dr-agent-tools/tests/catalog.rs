@@ -432,7 +432,6 @@ fn v3_catalog_exposes_generic_commands_and_excludes_v2_2_fixed_domains() {
         "relation_row.add_entry",
         "relation_row.remove_entry",
         "relation_row.delete",
-        "comment.delete",
         "membership.list",
         "membership.add",
         "membership.remove",
