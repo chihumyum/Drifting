@@ -166,9 +166,6 @@
       "server_error": "Der Update-Dienst hat gerade ein Problem. Versuche es später erneut; die aktuelle Version funktioniert weiter."
     }
   },
-  "speech": {
-    "backlog": "Transkriptionsrückstand"
-  },
   "templateEditor": {
     "accept": "Einträge von anderswo aufnehmen",
     "action_name": "Aktionsname",

@@ -9,8 +9,6 @@ description = "M31 Agent companion, model connections and settled run lifecycle"
 
 [dependencies]
 anyhow.workspace = true
-base64.workspace = true
-cpal.workspace = true
 chrono.workspace = true
 dr-agent.workspace = true
 dr-agent-providers.workspace = true
@@ -31,7 +29,6 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
-tokio-util.workspace = true
 url.workspace = true
 uuid.workspace = true
 

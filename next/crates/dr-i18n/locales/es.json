@@ -249,8 +249,7 @@
     "empty": "Aún no hay relaciones en esta vista"
   },
   "editorOutline": {
-    "aria": "Esquema",
-    "hiddenItems": "{{count}} elementos lejanos; pasa el cursor para verlos"
+    "aria": "Esquema"
   },
   "editorTopBar": {
     "actions": {
@@ -1177,8 +1176,6 @@
       "ui_locale_desc": "Idioma de menús, botones y mensajes. Tu texto no se modifica."
     },
     "models": {
-      "speechDesc": "Credencial de transcripción para entrada de voz, separada de los proveedores de chat. Incluye nombres de elementos y ambientación para corregir nombres propios. Las solicitudes van directamente a Bailian y la clave solo queda en el llavero del sistema.",
-      "speechTitle": "Transcripción de voz",
       "title": "Los servicios a los que se conecta la IA de Drifting."
     },
     "privacy": {
@@ -1277,9 +1274,6 @@
     "restoreSuccess": "Se restauró la versión elegida. El estado anterior se guardó primero como una nueva captura.",
     "restoring": "Restaurando…",
     "title": "Capturas del historial · 30 días"
-  },
-  "speech": {
-    "backlog": "Transcripciones pendientes"
   },
   "storyGraph": {
     "edge": {
@@ -1670,20 +1664,6 @@
     "fillLeft": "Expandir barra izquierda",
     "fillRight": "Expandir barra derecha",
     "resizeFill": "Ajustar ancho del área expandida"
-  },
-  "voiceAgent": {
-    "error": {
-      "auth": "La clave de transcripción no es válida o ha caducado",
-      "micDenied": "Micrófono no disponible; revisa los permisos del sistema",
-      "noKey": "Sin clave de transcripción (Alibaba Cloud Bailian)",
-      "segmentRejected": "El servicio de transcripción rechazó este segmento",
-      "transcribeFailed": "Transcripción fallida; grabación conservada. Reintenta"
-    },
-    "record": "Iniciar grabación",
-    "recording": "Capturando",
-    "retry": "Reintentar transcripción",
-    "stopRecord": "Detener grabación",
-    "transcribing": "Transcribiendo…"
   },
   "windowCaption": {
     "close": "Cerrar",

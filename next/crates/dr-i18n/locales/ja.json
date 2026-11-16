@@ -247,8 +247,7 @@
     "empty": "このビューには関係がまだありません"
   },
   "editorOutline": {
-    "aria": "アウトライン",
-    "hiddenItems": "離れた項目{{count}}件・ホバーで表示"
+    "aria": "アウトライン"
   },
   "editorTopBar": {
     "actions": {
@@ -1161,8 +1160,6 @@
       "ui_locale_desc": "メニュー、ボタン、メッセージの言語です。執筆内容には影響しません。"
     },
     "models": {
-      "speechDesc": "上のチャット提供元とは別の、音声入力用認証情報です。固有名詞の補正のため作品の要素名や設定名を添えます。端末からBailianへ直接送信し、キーはシステムキーチェーンだけに保存します。",
-      "speechTitle": "音声文字起こし",
       "title": "DriftingのAI機能が接続するサービス。"
     },
     "privacy": {
@@ -1261,9 +1258,6 @@
     "restoreSuccess": "選択した版に復元しました。直前の状態は新しいスナップショットとして保存済みです。",
     "restoring": "復元中…",
     "title": "履歴スナップショット・30日間"
-  },
-  "speech": {
-    "backlog": "文字起こしの処理待ち"
   },
   "storyGraph": {
     "edge": {
@@ -1649,20 +1643,6 @@
     "fillLeft": "左サイドバーを広げる",
     "fillRight": "右サイドバーを広げる",
     "resizeFill": "広げた領域の幅を調整"
-  },
-  "voiceAgent": {
-    "error": {
-      "auth": "文字起こし用キーが無効か期限切れです",
-      "micDenied": "マイクを利用できません。システム権限を確認してください",
-      "noKey": "文字起こし用キー未設定（Alibaba Cloud Bailian）",
-      "segmentRejected": "文字起こしサービスがこの部分を拒否しました",
-      "transcribeFailed": "文字起こしに失敗しました。録音は保持しています。再試行できます"
-    },
-    "record": "録音開始",
-    "recording": "記録中",
-    "retry": "文字起こしを再試行",
-    "stopRecord": "録音停止",
-    "transcribing": "文字起こし中…"
   },
   "windowCaption": {
     "close": "閉じる",

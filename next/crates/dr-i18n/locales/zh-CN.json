@@ -245,8 +245,7 @@
     "empty": "当前视图尚无关联"
   },
   "editorOutline": {
-    "aria": "大纲",
-    "hiddenItems": "远处 {{count}} 个目录项，悬停展开"
+    "aria": "大纲"
   },
   "editorTopBar": {
     "actions": {
@@ -1155,8 +1154,6 @@
       "ui_locale_desc": "菜单、按钮与提示文字的语言，不影响你写的内容。"
     },
     "models": {
-      "speechDesc": "语音输入的转写凭据，独立于上方对话模型。转写会携带本项目的要素与设定名以纠正专有名词；请求从本机直连百炼，Key 仅存系统钥匙串。",
-      "speechTitle": "语音转写",
       "title": "AI 功能连接的服务。"
     },
     "privacy": {
@@ -1255,9 +1252,6 @@
     "restoreSuccess": "已恢复到所选版本。恢复前的状态已自动存为新快照。",
     "restoring": "恢复中…",
     "title": "历史快照 · 30 天"
-  },
-  "speech": {
-    "backlog": "转写积压"
   },
   "storyGraph": {
     "edge": {
@@ -1643,20 +1637,6 @@
     "fillLeft": "铺满左栏",
     "fillRight": "铺满右栏",
     "resizeFill": "拖动调铺满区的宽窄"
-  },
-  "voiceAgent": {
-    "error": {
-      "auth": "转写 Key 无效或已过期",
-      "micDenied": "无法访问麦克风，请检查系统权限",
-      "noKey": "尚未配置语音转写 Key（阿里云百炼）",
-      "segmentRejected": "这段录音被转写服务拒绝",
-      "transcribeFailed": "转写失败，录音仍保留，可重试"
-    },
-    "record": "开始录音",
-    "recording": "录音中",
-    "retry": "重试转写",
-    "stopRecord": "停止录音",
-    "transcribing": "转写中…"
   },
   "windowCaption": {
     "close": "关闭",

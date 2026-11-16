@@ -1,5 +1,5 @@
 {
-  "about": "K4 G2：lite 实际模块正文及全书的大纲；H1/H2/H3 点击后的真实输入与 F3 读回、撤销、模块选择、show_outline 刷新、关闭重开及全书重排后重新登记；正文复用 canonical seed 段落。 另核对实际统计面板的全书、条目、指定正文、非正文及素材范围，逐行数值与模块导航由实际面板永久测试核对，窗口核对范围入口；无截图或性能验收。；v3 切换后保留全部 canonical 验收步骤，旧产品回切尾段已退役。",
+  "about": "K4 G2：lite 实际模块正文及全书的大纲；H1/H2/H3 点击后的真实输入与 F3 读回、撤销、模块选择、show_outline 改了大纲照样列（OL）、关闭重开及全书重排后重新登记；正文复用 canonical seed 段落。 另核对实际统计面板的全书、条目、指定正文、非正文及素材范围，逐行数值与模块导航由实际面板永久测试核对，窗口核对范围入口；无截图或性能验收。；v3 切换后保留全部 canonical 验收步骤，旧产品回切尾段已退役。",
   "steps": [
     {
       "seed": "lite"
@@ -858,8 +858,9 @@
           "label": "Outline"
         },
         "timeout_ms": 15000,
-        "absent": true
-      }
+        "count": 1
+      },
+      "note": "OL (kernel-v5 §15 item 32): the outline lists every body's headings under its module; a template's show_outline no longer hides them."
     },
     {
       "app": "ui.find",
@@ -905,8 +906,26 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "Outline",
-        "absent": true
+        "label": "G2H${original.paragraphs.0.text}",
+        "role": "Link",
+        "within": {
+          "label": "Outline"
+        },
+        "timeout_ms": 15000,
+        "count": 1
+      },
+      "note": "OL (kernel-v5 §15 item 32): the outline lists every body's headings under its module; a template's show_outline no longer hides them."
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "G2H${original.paragraphs.3.text}",
+        "role": "Link",
+        "within": {
+          "label": "Outline"
+        },
+        "timeout_ms": 15000,
+        "count": 1
       }
     },
     {
@@ -959,8 +978,9 @@
           "label": "Outline"
         },
         "timeout_ms": 15000,
-        "absent": true
-      }
+        "count": 1
+      },
+      "note": "OL (kernel-v5 §15 item 32): the outline lists every body's headings under its module; a template's show_outline no longer hides them."
     },
     {
       "call": "entry_template.put_module",
@@ -1462,8 +1482,9 @@
           "label": "Outline"
         },
         "timeout_ms": 15000,
-        "absent": true
-      }
+        "count": 1
+      },
+      "note": "OL (kernel-v5 §15 item 32): the outline lists every body's headings under its module; a template's show_outline no longer hides them."
     },
     {
       "app": "ui.find",
@@ -1474,8 +1495,9 @@
           "label": "Outline"
         },
         "timeout_ms": 15000,
-        "absent": true
-      }
+        "count": 1
+      },
+      "note": "OL (kernel-v5 §15 item 32): the outline lists every body's headings under its module; a template's show_outline no longer hides them."
     },
     {
       "call": "entry_template.put_module",

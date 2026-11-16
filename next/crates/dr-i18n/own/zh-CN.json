@@ -157,9 +157,6 @@
       "server_error": "更新服务暂时出了问题，稍后再试。当前版本照常可用。"
     }
   },
-  "speech": {
-    "backlog": "转写积压"
-  },
   "templateEditor": {
     "accept": "收别处的条目",
     "action_name": "动作名",

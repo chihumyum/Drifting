@@ -122,7 +122,26 @@ pub struct EntryPage {
     /// entry: the page was open under another of the entry's targets). It
     /// is where the page reveals and what takes typing.
     asked: Option<String>,
+    /// The scroll's child that is the first section (after the head and
+    /// what is drawn under it), at the last render.
+    first_section: usize,
     _review_focus: Subscription,
+}
+
+/// Where an entry page's parts stand, by its last layout, for the outline
+/// rail (`workspace/outline.rs`): px below the top of the page's content,
+/// the page unscrolled.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PageGeometry {
+    /// How far the page is scrolled.
+    pub scroll: f64,
+    /// The height of what the page shows.
+    pub view: f64,
+    /// The height of the page's content.
+    pub total: f64,
+    /// Each section's top, as [`EntryPage::sections`]; `None` for one not
+    /// laid out yet.
+    pub sections: Vec<Option<f64>>,
 }
 impl EntryPage {
     pub fn new(host: PageViewHost, target: Target, cx: &mut Context<Self>) -> Self {
@@ -140,6 +159,7 @@ impl EntryPage {
             pinned: None,
             author_scrolled: Rc::default(),
             asked: None,
+            first_section: 0,
             _review_focus: review_focus,
         }
     }
@@ -236,6 +256,36 @@ impl EntryPage {
         } else if top < view.top() || bottom > view.bottom() {
             self.scroll.scroll_to_item(ix);
         }
+    }
+    /// Where the page and each section stand by the last layout (the
+    /// outline rail lists the page's modules by it); `None` before the page
+    /// has been laid out.
+    pub fn outline_geometry(&self) -> Option<PageGeometry> {
+        let view = self.scroll.bounds();
+        if view.size.height <= px(0.) {
+            return None;
+        }
+        let height = f64::from(f32::from(view.size.height));
+        let sections = (0..self.sections.len())
+            .map(|i| {
+                self.scroll
+                    .bounds_for_item(self.first_section + i)
+                    .map(|b| f64::from(f32::from(b.top() - view.top())))
+            })
+            .collect();
+        Some(PageGeometry {
+            scroll: f64::from(f32::from(-self.scroll.offset().y)).max(0.),
+            view: height,
+            total: f64::from(f32::from(self.scroll.max_offset().y)) + height,
+            sections,
+        })
+    }
+    /// Puts section `ix` (of [`Self::sections`]) at the top of the page:
+    /// the outline rail's module rows. The author took the page.
+    pub fn scroll_to_section(&mut self, ix: usize, cx: &mut Context<Self>) {
+        self.pinned = None;
+        self.scroll.scroll_to_top_of_item(self.first_section + ix);
+        cx.notify();
     }
     /// The requested module, otherwise the first prose editor, takes typing
     /// when its tab returns to the front. Placeholders use the page's handle.
@@ -1000,6 +1050,7 @@ impl Render for EntryPage {
                         }
                     }
                     let first_section = children.len();
+                    self.first_section = first_section;
                     for section in self.sections.clone() {
                         let element = match Block::of(&section.kind) {
                             Some(block) => {

@@ -218,6 +218,16 @@ impl ProseEditor {
         self.options.flow && !self.options.fit_content
     }
 
+    /// A flow editor's top below the top of its page's content, the page
+    /// unscrolled, by the last frame ([`crate::render::FlowState::page_top`]);
+    /// `None` before its first frame or without a page.
+    pub fn flow_page_top(&self) -> Option<f32> {
+        if !self.is_flow() {
+            return None;
+        }
+        self.flow.borrow().page_top
+    }
+
     pub fn set_extension(&mut self, extension: Rc<dyn ProseExtension>) {
         self.extension = Some(extension);
         self.list.remeasure();
@@ -539,6 +549,59 @@ impl ProseEditor {
                 offset_in_item: px(0.),
             });
         }
+        window.focus(&self.focus, cx);
+        self.reset_blink(cx);
+        cx.notify();
+    }
+
+    /// Puts the caret at the start of paragraph `line` of `chapter` and
+    /// that paragraph at the top of the view (of the page, for a flow
+    /// editor), as [`Self::jump_to_chapter`] does for a chapter.
+    pub fn jump_to_line(
+        &mut self,
+        chapter: usize,
+        line: usize,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let chapter = chapter.min(self.book.chapters.len() - 1);
+        let doc = &self.book.chapters[chapter].doc;
+        let line = line.min(doc.visible_lines().saturating_sub(1));
+        let at = doc.line_start(line);
+        self.cancel_composition();
+        self.set_selection_with(Selection::caret(chapter, at), false, cx);
+        let item = self.book.line_item(chapter, line);
+        if self.is_flow() {
+            let y = self.flow_doc_top(item);
+            let mut flow = self.flow.borrow_mut();
+            // Before the first frame the page goes there once it has one.
+            if !flow.scroll_doc_to(y, 0.) {
+                flow.reveal = Some(item);
+            }
+        } else {
+            self.list.scroll_to(ListOffset {
+                item_ix: item,
+                offset_in_item: px(0.),
+            });
+        }
+        window.focus(&self.focus, cx);
+        self.reset_blink(cx);
+        cx.notify();
+    }
+
+    /// Puts the caret at `offset` (scalars) of `chapter` and focuses the
+    /// editor without moving the view: the host has already put the text
+    /// where it wants it (the outline's module rows).
+    pub fn place_caret(
+        &mut self,
+        chapter: usize,
+        offset: usize,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let chapter = chapter.min(self.book.chapters.len() - 1);
+        self.cancel_composition();
+        self.set_selection_with(Selection::caret(chapter, offset), false, cx);
         window.focus(&self.focus, cx);
         self.reset_blink(cx);
         cx.notify();

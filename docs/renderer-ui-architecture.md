@@ -339,6 +339,22 @@ publishes the final ProseMirror state as one change, so an unconditional
 `addToHistory: false` on ID repair would exclude the user's format/split edit.
 Mount repair and explicitly excluded root edits remain outside undo history;
 user edits and their new block identities undo/redo together.
+
+Undo and redo put the selection back where their step recorded it: the caret
+after text an undo brings back, a deleted range selected again in its
+direction, the deletion point on redo. `patches/@tiptap__y-tiptap@3.0.8.patch`
+carries this, because upstream hands a step's selection to the binding only
+after the change has been rendered, so the caret kept its place and restored
+text landed after it (and the next unrelated Yjs change received that
+selection instead). The binding now reads the step from the undo manager while
+it renders the change. A step records the selection from before the first
+document change of a dispatch, not the one an appended repair such as
+`BlockId`'s starts from; a step created by an undo or redo records the
+selection that operation started from. A focused editor scrolls to the
+restored selection even when the author had scrolled away from the caret.
+`src/renderer/lib/editor-undo-selection.test.ts` runs the real sync and undo
+plugins over these cases.
+
 Initial no-autofocus session setup blurs only its own DOM synchronously; it never
 queues Tiptap's global-selection-clearing blur command after user interaction.
 The initialization save-suppression frame stays owned and cancellable.

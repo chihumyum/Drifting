@@ -249,8 +249,7 @@
     "empty": "Aucune relation dans cette vue pour le moment"
   },
   "editorOutline": {
-    "aria": "Plan",
-    "hiddenItems": "{{count}} éléments éloignés ; survolez pour afficher"
+    "aria": "Plan"
   },
   "editorTopBar": {
     "actions": {
@@ -1177,8 +1176,6 @@
       "ui_locale_desc": "Langue des menus, boutons et messages. Vos écrits ne sont pas modifiés."
     },
     "models": {
-      "speechDesc": "Identifiant de transcription vocale, distinct des fournisseurs de chat. Les noms d’éléments et de contexte du projet sont transmis pour corriger les noms propres. Les requêtes vont directement à Bailian ; la clé reste dans le trousseau système.",
-      "speechTitle": "Transcription vocale",
       "title": "Les services auxquels se connecte l’IA de Drifting."
     },
     "privacy": {
@@ -1277,9 +1274,6 @@
     "restoreSuccess": "Version sélectionnée restaurée. L’état précédent a d’abord été conservé dans un nouvel instantané.",
     "restoring": "Restauration…",
     "title": "Instantanés historiques · 30 jours"
-  },
-  "speech": {
-    "backlog": "Transcriptions en attente"
   },
   "storyGraph": {
     "edge": {
@@ -1670,20 +1664,6 @@
     "fillLeft": "Étendre le panneau gauche",
     "fillRight": "Étendre le panneau droit",
     "resizeFill": "Redimensionner la zone étendue"
-  },
-  "voiceAgent": {
-    "error": {
-      "auth": "Clé de transcription invalide ou expirée",
-      "micDenied": "Microphone indisponible ; vérifiez les autorisations système",
-      "noKey": "Clé de transcription absente (Alibaba Cloud Bailian)",
-      "segmentRejected": "Le service de transcription a refusé ce segment",
-      "transcribeFailed": "Échec de transcription ; enregistrement conservé. Réessayez"
-    },
-    "record": "Démarrer l’enregistrement",
-    "recording": "Capture",
-    "retry": "Réessayer la transcription",
-    "stopRecord": "Arrêter l’enregistrement",
-    "transcribing": "Transcription…"
   },
   "windowCaption": {
     "close": "Fermer",
