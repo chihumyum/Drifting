@@ -242,6 +242,36 @@ fn a_snapshot_restore_or_trash_cannot_merge_old_file_bytes() {
 }
 
 #[test]
+fn switching_templates_retires_the_previous_markdown_basis() {
+    let f = Fixture::new(Preset::Tiny);
+    let (id, doc) = f.chapter("换模板", "模板切换前写的字。");
+    f.pass().run().unwrap();
+    let path = find(f.out.path(), "换模板.md");
+    let edited = fs::read_to_string(&path)
+        .unwrap()
+        .replace("模板切换前写的", "旧模板的外部编辑");
+    fs::write(&path, &edited).unwrap();
+    f.call(
+        "entry.update",
+        json!({"book":f.book,"id":id,"template":"tpl-idea"}),
+    );
+    let report = f.pass().run().unwrap();
+    assert!(report.merged.is_empty());
+    assert_eq!(f.texts(&doc), ["模板切换前写的字。"]);
+    assert!(
+        fs::read_to_string(&path)
+            .unwrap()
+            .contains("模板切换前写的字。")
+    );
+    assert!(
+        report
+            .preserved
+            .iter()
+            .any(|path| fs::read_to_string(path).unwrap() == edited)
+    );
+}
+
+#[test]
 fn a_restored_library_does_not_read_its_replaced_librarys_markdown_as_edits() {
     let f = Fixture::new(Preset::Tiny);
     let (_, doc) = f.chapter("整库恢复", "备份里的字。");
