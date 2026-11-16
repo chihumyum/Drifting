@@ -87,7 +87,12 @@ pub struct Rendered {
     pub refresh: Option<Refresh>,
     pub reveal: Option<Reveal>,
     pub page_scroll: Option<GivePageScroll>,
+    /// Called when the shell takes the part away while it is still
+    /// wanted (the structure's floating panel closing), so what it holds
+    /// is stored rather than dropped. Not called when its thing is gone.
+    pub leave: Option<Leave>,
 }
+pub type Leave = Rc<dyn Fn(&mut App)>;
 impl Rendered {
     pub fn new(view: impl Into<AnyView>) -> Self {
         Self {
@@ -96,7 +101,12 @@ impl Rendered {
             refresh: None,
             reveal: None,
             page_scroll: None,
+            leave: None,
         }
+    }
+    pub fn on_leave(mut self, f: impl Fn(&mut App) + 'static) -> Self {
+        self.leave = Some(Rc::new(f));
+        self
     }
     pub fn focus(mut self, focus: FocusHandle) -> Self {
         self.focus = Some(focus);
@@ -125,8 +135,7 @@ type DisplayMaker = Rc<dyn Fn(LevelHost, &mut Window, &mut App) -> Rendered>;
 type ActionMaker =
     Rc<dyn Fn(&Target, &crate::pages::PageMenuHost, &App) -> Option<crate::pages::RunRow>>;
 type CardMaker = Rc<dyn Fn(&Target, &crate::pages::PageMenuHost, &App) -> crate::pages::CardRows>;
-type CompactTemplateEditor =
-    Rc<dyn Fn(PageViewHost, &str, crate::pages::RunRow, &mut Window, &mut App) -> Option<Rendered>>;
+type CompactTemplateEditor = Rc<dyn Fn(CompactTemplate, &mut Window, &mut App) -> Option<Rendered>>;
 type TemplateCreator = Rc<dyn Fn(PageViewHost, &mut Window, &mut App)>;
 type HeadMaker = Rc<dyn Fn(EntryHost, &mut Window, &mut App) -> Rendered>;
 type HeadPartMaker = Rc<dyn Fn(EntryHost, &mut Window, &mut App) -> Option<Rendered>>;
@@ -342,19 +351,37 @@ pub fn create_template(host: PageViewHost, window: &mut Window, cx: &mut App) {
     }
 }
 
+/// Opens a template's full editor, by its id.
+pub type OpenTemplate = Rc<dyn Fn(String, &mut Window, &mut App)>;
+/// A new template was stored under this id.
+pub type TemplateStored = Rc<dyn Fn(String, &mut App)>;
+
+/// What the structure's floating panel gives the settings-only template
+/// editor (`kernel-v5.md` §9 「在结构里改」).
+#[derive(Clone)]
+pub struct CompactTemplate {
+    pub page: PageViewHost,
+    /// The template; `None` for a new one, written only once the author
+    /// changes something in it.
+    pub template: Option<String>,
+    /// 「完整编辑」: opens the stored template's full editor.
+    pub full: OpenTemplate,
+    /// Esc in one of its fields: the panel closes.
+    pub close: crate::pages::RunRow,
+    /// A new template was stored under this id.
+    pub created: TemplateStored,
+}
+
 /// Registers the settings-only version of the template editor.
 pub fn add_compact_template_editor(
     cx: &mut App,
-    make: impl Fn(PageViewHost, &str, crate::pages::RunRow, &mut Window, &mut App) -> Option<Rendered>
-    + 'static,
+    make: impl Fn(CompactTemplate, &mut Window, &mut App) -> Option<Rendered> + 'static,
 ) {
     cx.default_global::<Registry>().compact_template_editor = Some(Rc::new(make));
 }
 
 pub fn compact_template_editor(
-    host: PageViewHost,
-    template: &str,
-    full: crate::pages::RunRow,
+    host: CompactTemplate,
     window: &mut Window,
     cx: &mut App,
 ) -> Option<Rendered> {
@@ -362,5 +389,5 @@ pub fn compact_template_editor(
         .try_global::<Registry>()?
         .compact_template_editor
         .clone()?;
-    make(host, template, full, window, cx)
+    make(host, window, cx)
 }

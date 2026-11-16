@@ -21,7 +21,7 @@ use super::{
 };
 use crate::{
     pages::PageViewHost,
-    strings::{t, tf},
+    strings::{t, tf, tp},
 };
 use dr_i18n::keys;
 use dr_ui::{
@@ -103,6 +103,11 @@ impl Sidebar {
         self.in_structure
     }
 
+    /// The 模板结构 view, once the left column has filled into it.
+    pub fn template_structure(&self) -> Option<Entity<super::template_structure::Structure>> {
+        self.template_structure.clone()
+    }
+
     pub fn enter_structure(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
         self.managing = None;
         self.slot = None;
@@ -117,15 +122,21 @@ impl Sidebar {
         }
     }
 
-    pub fn select_structure_template(
-        &mut self,
-        id: &str,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
+    /// A new template in the structure's floating panel (`kernel-v5.md`
+    /// §9): nothing is stored until the author changes something in it.
+    pub fn new_structure_template(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(structure) = &self.template_structure {
-            structure.update(cx, |view, cx| view.select_template(id, window, cx));
+            structure.update(cx, |view, cx| view.new_template(window, cx));
         }
+    }
+
+    /// Esc: closes the structure's floating panel. Whether one was open.
+    pub fn close_structure_panel(&mut self, cx: &mut Context<Self>) -> bool {
+        self.in_structure
+            && self
+                .template_structure
+                .as_ref()
+                .is_some_and(|structure| structure.update(cx, |view, cx| view.close_panel(cx)))
     }
 
     pub fn leave_fill(&mut self, cx: &mut Context<Self>) {
@@ -941,14 +952,18 @@ impl Sidebar {
         }
     }
 
-    /// The template collection is a summary with two entry points.
+    /// The template collection is a summary with two entry points
+    /// (`W12Template`: 「16 个模板 · 88 个条目」).
     fn templates(&self, window: &Window, cx: &mut Context<Self>) -> AnyElement {
         let theme = Theme::of(window, cx);
-        let count = self.host.book.v3().map_or(0, |book| {
-            book.templates
-                .iter()
-                .filter(|template| template.deleted_at.is_none())
-                .count()
+        let (count, entries) = self.host.book.v3().map_or((0, 0), |book| {
+            (
+                book.templates
+                    .iter()
+                    .filter(|template| template.deleted_at.is_none())
+                    .count(),
+                book.entries.len(),
+            )
         });
         let open = self.host.workspace.clone();
         let host = self.host.clone();
@@ -962,10 +977,24 @@ impl Sidebar {
             .p_2()
             .child(
                 div()
+                    .id("v5-template-collection-count")
+                    .debug_selector(|| "v5-template-collection-count".into())
                     .flex_1()
                     .min_w_0()
-                    .text_color(theme.palette.muted().solid())
-                    .child(tf(cx, keys::v5_fill::TEMPLATE_COUNT, &[("count", &count)])),
+                    .truncate()
+                    .font_role(Role::Index)
+                    .type_px(13.0, 18.0)
+                    .text_color(theme.palette.ink(3).solid())
+                    .child(format!(
+                        "{} · {}",
+                        tf(cx, keys::v5_fill::TEMPLATE_COUNT, &[("count", &count)]),
+                        tp(
+                            cx,
+                            keys::v5_fill::ENTRY_COUNT,
+                            entries as u64,
+                            &[("count", &entries)]
+                        )
+                    )),
             )
             .child(
                 IconButton::new("v5-open-structure", Icon::Fullscreen)
@@ -1041,7 +1070,7 @@ impl Render for Sidebar {
         let controls = if self.filled && self.in_structure {
             self.template_structure
                 .as_ref()
-                .map(|view| view.update(cx, |view, cx| view.header(cx)))
+                .map(|view| view.update(cx, |view, cx| view.header(window, cx)))
         } else {
             selected
                 .as_ref()
