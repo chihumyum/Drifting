@@ -212,8 +212,9 @@ pub async fn run_checkin_with_guidance(
     dr_model::id::check_id(&input.attempt_id).map_err(|e| Error::Protocol(e.to_string()))?;
     let mut config = (*input.config).clone();
     config.system_prompt = format!(
-        "{}\nResponse schema: {}",
+        "{}\n\n{}\nResponse schema: {}",
         STRUCTURE_CHECKIN_SYSTEM_PROMPT,
+        crate::guidance::PROJECT_GUIDANCE_RULE,
         checkin_schema()
     );
     config.web_search = false;

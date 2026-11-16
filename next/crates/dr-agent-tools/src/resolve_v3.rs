@@ -39,6 +39,8 @@ pub(crate) fn facade_schema_v3(name: &str, mut schema: Value) -> Value {
     }
     if let Some(properties) = schema["properties"].as_object_mut()
         && let Some((domain, verb)) = name.split_once('.')
+        // A saved project template is the library's, named by its id only.
+        && domain != "project_template"
     {
         for key in [
             "id",
@@ -454,6 +456,15 @@ pub(crate) fn resolve_v3(
                         let doc = resolve_document_v3(&cx, &json!(doc), true, true)?;
                         extra_subjects.insert(format!("prose:{doc}"));
                         targets.insert(doc);
+                    }
+                }
+                "project_template.save" => {
+                    // A template is credited to the account that exports it
+                    // (v5-tracks 第 48 条), not by the Agent.
+                    if obj.contains_key("credit") {
+                        return Err(invalid(
+                            "project_template.save takes no credit from the Agent: a template is credited to the account that exports it",
+                        ));
                     }
                 }
                 "entry.list" => {
@@ -1584,6 +1595,11 @@ pub(crate) fn coverage_v3(name: &str, args: &Value, output: &Value) -> Option<Ve
         "entry_history.version" => {
             if let Some(book) = args["book"].as_str() {
                 read.insert(format!("entry_history:{book}"));
+            }
+        }
+        "project_template.get" => {
+            if let Some(id) = output["summary"]["id"].as_str() {
+                read.insert(format!("project_template:{id}"));
             }
         }
         _ => return None,

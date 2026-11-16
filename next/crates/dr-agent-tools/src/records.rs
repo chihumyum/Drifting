@@ -38,6 +38,9 @@ pub(super) fn backing(subject: &str, name: &str, output: &Value) -> Backing {
     };
     match domain {
         "prose" | "history" | "layout" => Backing::Outside,
+        // A saved project template is a library document of its own: a
+        // save is held to the revision the turn read, not to the book.
+        "project_template" => Backing::Outside,
         "entry_history" => Backing::Document,
         // The set of entries is read as the order of the top level; each
         // listed entry is its own subject, with its own record.

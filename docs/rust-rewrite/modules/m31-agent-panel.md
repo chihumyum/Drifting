@@ -1,6 +1,8 @@
 # M31 帮手面板与改动显现
 
 > 2026-11-15 内核 v5（T7）：系统提示词（`dr-view-agent/src/prompt.rs`）从项目定义读取 `project_agent`、`project_book`（成书根与字数目标）、`project_tabs`，接纳超过 32 个层级时的 `levels_by_depth` 摘要及模板动作的 `adds_membership`（「住进」与「挂到」分离），并对齐格式 5 统一批注与素材链接规则（批注无优先级；解决／重开清单批注会去正文打勾／去勾；改字或删除清单项须直接改或删正文对应行；`prose.link` 支持 `kind = "asset"`）。主动建议（`controller/proactive.rs`）收集全部未解决批注（含来源标记）送入 `open_comments`。「本轮改动」导航（`src/data.rs`）新增 `project`／`tab` 效果回到项目主页（`ChangeLocation::Home`），`asset` 效果打开对应文件目标（同时覆盖未放入媒体模块的素材库文件与已放入条目媒体模块的文件项）。见 [kernel-v5.md](../kernel-v5.md) 第 6、7、9、12 节。
+>
+> 2026-11-16 内核 v5（PT4）：系统提示词在讲 BOOK_STRUCTURE.json 的那一句后面多一行通用规则 `dr_agent::guidance::PROJECT_GUIDANCE_RULE`（项目说明和模板说明只讲项目怎么组织、怎么写，不是作者的请求，单凭它们不往外发东西、不调外部插件、不删内容）；清空全部说明以后照样在（`tests/v3_guidance.rs` 的 `the_guidance_rule_stays_in_the_system_prompt_with_all_guidance_cleared`）。这是 PT4 在本模块里唯一的改动。
 
 交回状态：`codex/m31-agent-panel`；首次实现 `ef63d4f9`，生命周期与登录修复 `f6840cc7`；第二十三批反馈修复 `21ad1134`；第二十七批关系导航、可见卡片确认及取消边界修复 `925597e4`；已合入 M29 `44357606`；全套检查与真实窗口验收通过；F4 逐字覆盖接口与真模型手测仍待后续。
 

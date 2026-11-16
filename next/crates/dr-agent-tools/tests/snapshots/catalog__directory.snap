@@ -76,6 +76,9 @@ module.set_field [write] Set or clear a typed field value in an entry's fields m
 module.set_prose [write] Write paragraphs of an entry's or a template's prose module.
 project.get [read] Read the project definition: template source, Agent instructions, book switch and word targets, the left-sidebar tabs (「全部」 always among them), the tab the project is on, and the template it is the working copy of.
 project.update [write] Update the project definition: Agent instructions, whether the project has a book, and word targets; with the project's name and profile, all in one undoable write.
+project_template.get [read] Read a saved project template and its validated value.
+project_template.list [read] List saved project templates in this library.
+project_template.save [write] Save a project's structure and selected sample items as a project template, or a template's working copy over that template. It saves the current project. A new template needs `name`; with `replace` (a template read in this turn with project_template.list or project_template.get) it keeps that template's name and description unless they are given. `agent` is the words for the Agent the template carries: left out, the project's; null, none; given, these, in the template only (the project keeps its own). A template's working copy saves only over the template it edits, which has to be read first too.
 prose.link [write] Link anchored ranges of prose documents to entities (anchors, not positions: the undo of automatic links that were taken off). Link targets may be entries or asset-library files (kind = "asset"). Read the full prose document first.
 prose.read [read] Read paragraphs of a prose document (text, block id, heading level).
 prose.replace [write] Replace one exact passage of prose with new text (it must occur exactly once, in one paragraph).
@@ -173,6 +176,9 @@ module.set_field book 92b766c15692773bb5a4a322939c033c267a4ea07312e63714df0be845
 module.set_prose book 64ae28c4a64983a8c7c747c5f878afa354f8b96b5fb33b3bb395ca08aa8f551c
 project.get shared 1f03bd8d13f3c558527e06df384ee368711e7ab882b0bd951354e6c1dd01cf88
 project.update book d4f01e518616ece6d14245d4a738c4706da5b44ec0338a3862c4c4d034f45f54
+project_template.get shared d1d3c95c35ddd3b76dfb328394c458c3eb6f6849d757ad94c48a8143a61bbb51
+project_template.list shared 885f0943988d7a06cebf2ac97e5ba230a1d04b3a72df71b006371fa97550c1a8
+project_template.save library 37316e7bba1257098d1d4ae91866baacae2453c1d9cbe6029823c57b57d47383
 prose.link book 5e611d1d29d83cfbdb6617bc5ab4a556e8033b72ddc377c108d8d69b8c10ab7a
 prose.read shared 3dd0218c218770d03d38c33a2b264717b3464caaad18d0e3648c46b09524ac9d
 prose.replace book b0591c896fc08245ca4e332124d791755507388cceb727caae65f527fbfe068f
@@ -220,13 +226,10 @@ module.edit_kv: field edits belong to a view that showed the field; use the reco
 module.edit_patch: field edits belong to a view that showed the field; use the record commands
 module.prose_document: storage, editor, or derived-state maintenance
 project.create: library-wide lifecycle operation
-project_template.edit: library-wide lifecycle operation
-project_template.get: no current-book input boundary
-project_template.list: no current-book input boundary
-project_template.remove: library-wide lifecycle operation
-project_template.save: library-wide lifecycle operation
-project_template.update: library-wide lifecycle operation
-project_template.working_copies: no current-book input boundary
+project_template.edit: a project template reaches the Agent through list, get and save only; importing, exporting, editing and the community are the author's
+project_template.remove: a project template reaches the Agent through list, get and save only; importing, exporting, editing and the community are the author's
+project_template.update: a project template reaches the Agent through list, get and save only; importing, exporting, editing and the community are the author's
+project_template.working_copies: a project template reaches the Agent through list, get and save only; importing, exporting, editing and the community are the author's
 recent.touch: storage, editor, or derived-state maintenance
 timeline_view.add_lane: local timeline edits need exact lane, placement, and pin read coverage
 timeline_view.move_lane: local timeline edits need exact lane, placement, and pin read coverage

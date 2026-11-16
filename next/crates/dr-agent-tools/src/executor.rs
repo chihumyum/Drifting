@@ -199,6 +199,10 @@ struct TurnState {
     /// By document, or by `<book document> record <key>`.
     conflicts: HashMap<String, u32>,
     checkpointed: HashSet<String>,
+    /// Saved project templates (library documents, not the book's) this
+    /// turn read, by id, at the revision it was shown. A save replacing one
+    /// is held to it.
+    templates: HashMap<String, i64>,
 }
 
 impl TurnState {
@@ -566,6 +570,8 @@ impl AgentTools {
                 return Err(Error::Invalid("the tool session ended".into()));
             }
             let turn = turns.entry(key.clone()).or_default();
+            turn.templates
+                .extend(template_revisions(&call.name, &output));
             let paragraphs = |read: &mut ReadState| {
                 for block in output["paragraphs"].as_array().into_iter().flatten() {
                     if let (Some(id), Some(text)) =
@@ -670,7 +676,76 @@ impl AgentTools {
         key: &TurnKey,
         call: ResolvedCall,
     ) -> Result<Value> {
+        if call.name == "project_template.save" {
+            return self.save_project_template(ws, actor, key, call);
+        }
         self.write_with_checkpoint(ws, actor, key, call, || {})
+    }
+
+    /// `project_template.save` writes the library's template document; the
+    /// book is only read. [`Workspace::call_guarded`] holds no library
+    /// write, so the save is held here to what this turn read of the
+    /// template it replaces (`replace`, or the one a working copy edits):
+    /// read in this turn, and still at that revision just before the write.
+    /// A new template replaces nothing and needs no read. Nothing of the
+    /// book changes, so no checkpoint is taken.
+    fn save_project_template(
+        &self,
+        ws: &Workspace,
+        actor: &Actor,
+        key: &TurnKey,
+        call: ResolvedCall,
+    ) -> Result<Value> {
+        let replaced = match call.arguments["replace"].as_str() {
+            Some(id) => Some(id.to_owned()),
+            None => ws.working_copy_template(&key.book)?,
+        };
+        if let Some(id) = &replaced {
+            let subject = format!("project_template:{id}");
+            let seen = {
+                let turns = self.turns.lock().expect("tool observations");
+                let turn = turns.get(key);
+                if turn
+                    .and_then(|turn| turn.conflicts.get(&subject))
+                    .is_some_and(|count| *count >= 2)
+                {
+                    return Err(Error::ConflictLimit(subject));
+                }
+                turn.and_then(|turn| turn.templates.get(id)).copied()
+            }
+            .ok_or_else(|| Error::ReadRequired(subject.clone()))?;
+            let now = ws.call(actor, "project_template.get", json!({"id": id}))?;
+            if now["output"]["summary"]["revision"].as_i64() != Some(seen) {
+                let mut turns = self.turns.lock().expect("tool observations");
+                let turn = turns.entry(key.clone()).or_default();
+                turn.templates.remove(id);
+                turn.book.forget(&subject);
+                let count = turn.conflicts.entry(subject.clone()).or_default();
+                *count += 1;
+                return Err(if *count >= 2 {
+                    Error::ConflictLimit(subject)
+                } else {
+                    Error::Conflict(subject)
+                });
+            }
+        }
+        let result = ws
+            .call(actor, &call.name, call.arguments.clone())
+            .map_err(Error::from);
+        // What the save replaced, and the list it is in, are read again.
+        let mut turns = self.turns.lock().expect("tool observations");
+        let turn = turns.entry(key.clone()).or_default();
+        let saved = result
+            .as_ref()
+            .ok()
+            .and_then(|value| value["output"]["id"].as_str())
+            .map(str::to_owned);
+        for id in replaced.iter().chain(&saved) {
+            turn.templates.remove(id);
+            turn.book.forget(&format!("project_template:{id}"));
+        }
+        turn.book.forget("project_template:*");
+        result
     }
 
     fn write_with_checkpoint(
@@ -982,6 +1057,21 @@ impl AgentTools {
             }
             Err(error) => Err(error),
         }
+    }
+}
+
+/// The saved project templates a read showed, by id, at their revisions.
+fn template_revisions(name: &str, output: &Value) -> Vec<(String, i64)> {
+    let row = |row: &Value| Some((row["id"].as_str()?.to_owned(), row["revision"].as_i64()?));
+    match name {
+        "project_template.list" => output
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(row)
+            .collect(),
+        "project_template.get" => row(&output["summary"]).into_iter().collect(),
+        _ => Vec::new(),
     }
 }
 
