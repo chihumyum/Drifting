@@ -194,12 +194,16 @@ fn a_file_event_ingests_external_changes_without_advancing_the_app_writeback() {
     let changed = fs::read_to_string(&outside_path)
         .unwrap()
         .replace("早就", "刚刚");
-    fs::write(outside_path, changed).unwrap();
+    let temporary = outside_path.with_extension("new");
+    fs::write(&temporary, changed).unwrap();
+    fs::rename(temporary, &outside_path).unwrap();
     let start = std::time::Instant::now();
     while f.texts(&outside) != ["天色刚刚暗了。"] {
         assert!(
             start.elapsed() < Duration::from_secs(10),
-            "the file event did not merge"
+            "the file event did not merge: body {:?}, issues {:?}",
+            f.texts(&outside),
+            mirror.issues()
         );
         std::thread::sleep(Duration::from_millis(25));
     }
@@ -427,18 +431,21 @@ fn bad_or_recent_files_are_held_and_failed_preservation_cannot_overwrite() {
     f.pass().run().unwrap();
     assert_eq!(f.texts(&doc), ["她把门关了。"]);
 
-    fs::write(root.join(".drifting/preserved"), b"occupied").unwrap();
+    let blocked = root.join(".drifting/preserved");
+    fs::write(&blocked, b"occupied").unwrap();
     fs::write(&path, [0xff, 0xfe, 0xf8]).unwrap();
-    let result = f.pass().run();
+    let report = f.pass().run().unwrap();
     assert!(
-        result.as_ref().is_err()
-            || result
-                .unwrap()
-                .issues
-                .iter()
-                .any(|i| i.problem == Problem::NotUtf8)
+        report.issues.iter().any(|i| i.problem == Problem::Disk),
+        "{report:?}"
     );
     assert_eq!(fs::read(&path).unwrap(), [0xff, 0xfe, 0xf8]);
+    fs::remove_file(blocked).unwrap();
+    let report = f.pass().run().unwrap();
+    assert!(report.issues.iter().any(|i| i.problem == Problem::NotUtf8));
+    assert_eq!(report.preserved.len(), 1);
+    assert_eq!(fs::read(&report.preserved[0]).unwrap(), [0xff, 0xfe, 0xf8]);
+    assert!(fs::read_to_string(path).unwrap().contains("她把门关了。"));
 }
 
 #[test]

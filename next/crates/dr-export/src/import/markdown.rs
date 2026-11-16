@@ -827,7 +827,7 @@ fn keep_href(href: &str) -> Option<String> {
 /// line end, `\n` in a run a line break.
 fn inline(src: &str, defs: &Defs, images: &mut usize, mirror: bool) -> Vec<Run> {
     let nodes = nodes(src, defs, images, &Marks::default(), mirror);
-    flatten(nodes)
+    flatten(nodes, mirror)
 }
 
 fn nodes(src: &str, defs: &Defs, images: &mut usize, base: &Marks, mirror: bool) -> Vec<Node> {
@@ -1248,7 +1248,7 @@ fn literal(nodes: Vec<Node>) -> Vec<Node> {
         .collect()
 }
 
-fn flatten(nodes: Vec<Node>) -> Vec<Run> {
+fn flatten(nodes: Vec<Node>, preserve_edges: bool) -> Vec<Run> {
     let mut runs: Vec<Run> = Vec::new();
     let push = |text: String, m: &Marks, runs: &mut Vec<Run>| {
         if text.is_empty() {
@@ -1304,7 +1304,10 @@ fn flatten(nodes: Vec<Node>) -> Vec<Run> {
             },
         }
     }
-    // No spaces or line breaks at the paragraph's ends.
+    if preserve_edges {
+        return runs;
+    }
+    // The importer drops whitespace at the paragraph's ends.
     while let Some(first) = runs.first_mut() {
         let t = first.text.trim_start_matches([' ', '\n']).to_owned();
         if t.is_empty() {

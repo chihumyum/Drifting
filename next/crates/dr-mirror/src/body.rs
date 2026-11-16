@@ -306,7 +306,8 @@ pub fn line_with(p: &Para, links: &FileLinks<'_>) -> String {
                 .filter(|file| file.kind == AssetKind::Pdf)
                 .map_or(caption.as_str(), |file| file.name.as_str());
             let target = links.destination(asset).unwrap_or_default();
-            let alt = escape(&name.chars().collect::<Vec<_>>()).replace(LINE_BREAK, "<br>");
+            let alt =
+                escape(&name.chars().collect::<Vec<_>>(), true, true).replace(LINE_BREAK, "<br>");
             format!("![{alt}]({target})")
         }
         Kind::Table(rows) => render_table(rows, links),
@@ -729,11 +730,13 @@ fn is_punct(c: char) -> bool {
 
 /// Escaped text of one run of characters: Markdown punctuation, `&`, and
 /// what would start a bare link.
-fn escape(chars: &[char]) -> String {
+fn escape(chars: &[char], preserve_start: bool, preserve_end: bool) -> String {
     use std::fmt::Write as _;
     let mut out = String::with_capacity(chars.len());
     for (i, &c) in chars.iter().enumerate() {
-        if c.is_whitespace() && (c != ' ' || i == 0 || i + 1 == chars.len()) {
+        if c.is_whitespace()
+            && (c != ' ' || (preserve_start && i == 0) || (preserve_end && i + 1 == chars.len()))
+        {
             write!(out, "&#{};", c as u32).unwrap();
             continue;
         }
@@ -838,7 +841,7 @@ fn inline(chars: &[char], marks: &[Marks], links: &FileLinks<'_>, table: bool) -
             None => '<',
             Some(p) if styled(&p.marks) => '*',
             Some(p) => {
-                let e = escape(&p.text);
+                let e = escape(&p.text, false, false);
                 if first {
                     e.chars().next().unwrap_or(' ')
                 } else {
@@ -857,12 +860,16 @@ fn inline(chars: &[char], marks: &[Marks], links: &FileLinks<'_>, table: bool) -
         let mut value = if m.code {
             let code: String = p.text.iter().collect();
             if (table && code.contains(['|', '\\'])) || out.ends_with('`') {
-                format!("<code>{}</code>", escape(&p.text))
+                format!("<code>{}</code>", escape(&p.text, true, true))
             } else {
                 code_span(&code)
             }
         } else {
-            escape(&p.text)
+            escape(
+                &p.text,
+                styled(m) || k == 0,
+                styled(m) || k + 1 == pieces.len(),
+            )
         };
         let destination = m
             .file

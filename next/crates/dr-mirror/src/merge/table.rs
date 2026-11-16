@@ -176,7 +176,8 @@ fn apply_axis(
             .flatten()
             .next()
             .and_then(|&i| before[i].pos.as_ref());
-        let key = PosKey::between(predecessor.as_ref(), next)?;
+        let key = PosKey::between(predecessor.as_ref(), next)
+            .map_err(|error| loro::LoroError::ArgErr(format!("table position: {error}").into()))?;
         predecessor = Some(key.clone());
         let axis = if rows { 'r' } else { 'c' };
         let id = format!("{prefix}-{axis}{i}");
