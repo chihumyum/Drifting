@@ -354,7 +354,25 @@ fn drag_drop_onto_island_reuses_g2_prepare_drop_and_supports_undo(cx: &mut TestA
         .and_then(|m| m.commit(&lib))
         .expect("set accept=false");
 
-    let ov = mount_overview(&shell, vcx);
+    // A drop onto an island starts with a visible Island card. Relations
+    // also contains organising entries that only appear as graph endpoints.
+    mount_overview(&shell, vcx);
+    vcx.update(|_, cx| {
+        let sidebar = shell.read(cx).v3_sidebar.clone().unwrap();
+        sidebar.update(cx, |sidebar, cx| {
+            sidebar.choose_fill_layout(dr_shell::v3::tab_fill::FillLayout::Island, cx);
+        });
+    });
+    wait(vcx, |cx| {
+        cx.update(|_, cx| {
+            dr_view_element_overview::current(cx).is_some_and(|view| {
+                let view = view.read(cx);
+                view.layout_mode() == ElementLayoutMode::Isles && view.is_ready()
+            })
+        })
+    });
+    let ov =
+        vcx.update(|_, cx| dr_view_element_overview::current(cx).expect("mounted Island view"));
     vcx.update(|_, cx| {
         ov.update(cx, |v, cx| v.sync_workspace_book(cx));
     });
