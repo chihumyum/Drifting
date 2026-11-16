@@ -10,8 +10,11 @@ description = "Drifting's bookshelf (M01): the books in the library, new, rename
 [dependencies]
 anyhow.workspace = true
 chrono.workspace = true
+dr-doc.workspace = true
 dr-i18n.workspace = true
+dr-model.workspace = true
 dr-shell.workspace = true
+dr-store.workspace = true
 dr-ui.workspace = true
 dr-view-sea.workspace = true
 dr-view-shelf-art.workspace = true
@@ -21,10 +24,7 @@ gpui.workspace = true
 log.workspace = true
 
 [dev-dependencies]
-dr-doc = { path = "../dr-doc" }
-dr-model = { path = "../dr-model" }
 chrono.workspace = true
-dr-store.workspace = true
 dr-testkit.workspace = true
 dr-view-sea.workspace = true
 dr-view-shelf-art.workspace = true

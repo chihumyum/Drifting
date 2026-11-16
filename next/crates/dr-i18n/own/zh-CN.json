@@ -4,6 +4,7 @@
     "import": "导入项目",
     "importFile": "导入项目（.driftingproject）",
     "importLegacy": "导入 Drifting 0.1",
+    "importTemplate": "导入模板",
     "importTemplateFile": "导入模板（.driftingtemplate）",
     "library": "{{count}} 个项目 · {{words}}字",
     "libraryProjects": "{{count}} 个项目",
@@ -128,6 +129,21 @@
       "bodyWithoutBook": "这个项目（{{entries}}）会从全部项目里移走。30 天内可以在「最近删除」里恢复，之后永久删除。",
       "bodyWithoutChapters": "这个项目（{{words}} 字 · {{elements}} 个要素）会从全部项目里移走。30 天内可以在「最近删除」里恢复，之后永久删除。"
     }
+  },
+  "projectTemplates": {
+    "bookDailyTarget": "每日 {{words}} 字",
+    "bookOff": "关",
+    "bookOn": "开",
+    "bookWordTarget": "全书 {{words}} 字",
+    "builtin": "内置",
+    "deleteTitle": "删除模板「{{name}}」？",
+    "description": "描述",
+    "exportFile": "导出（.driftingtemplate）",
+    "leftRail": "左栏",
+    "myTemplates": "我的模板",
+    "overwrite": "覆盖…",
+    "structure": "结构",
+    "timePins": "时间钉"
   },
   "settings": {
     "appearance": {

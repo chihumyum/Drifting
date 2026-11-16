@@ -96,6 +96,7 @@
     "import": "Importar proyecto",
     "importFile": "Importar proyecto (.driftingproject)",
     "importLegacy": "Importar Drifting 0.1",
+    "importTemplate": "Importar plantilla",
     "importTemplateFile": "Importar plantilla (.driftingtemplate)",
     "libraryProjects_many": "{{count}} proyectos",
     "libraryProjects_one": "{{count}} proyecto",
@@ -842,6 +843,21 @@
       "restoreFailed": "No se pudo restaurar el proyecto. Reintenta.",
       "restoring": "Restaurando…"
     }
+  },
+  "projectTemplates": {
+    "bookDailyTarget": "Diario {{words}} palabras",
+    "bookOff": "Desactivado",
+    "bookOn": "Activado",
+    "bookWordTarget": "Libro {{words}} palabras",
+    "builtin": "Integrada",
+    "deleteTitle": "¿Eliminar la plantilla «{{name}}»?",
+    "description": "Descripción",
+    "exportFile": "Exportar (.driftingtemplate)",
+    "leftRail": "Barra lateral izquierda",
+    "myTemplates": "Mis plantillas",
+    "overwrite": "Sobrescribir…",
+    "structure": "Estructura",
+    "timePins": "Marcas de tiempo"
   },
   "referencesPanel": {
     "actions": {

@@ -96,6 +96,7 @@
     "import": "匯入專案",
     "importFile": "匯入專案（.driftingproject）",
     "importLegacy": "匯入 Drifting 0.1",
+    "importTemplate": "匯入範本",
     "importTemplateFile": "匯入範本（.driftingtemplate）",
     "libraryProjects_one": "{{count}} 個專案",
     "libraryProjects_other": "{{count}} 個專案",
@@ -826,6 +827,21 @@
       "restoreFailed": "無法還原作品，請重試。",
       "restoring": "正在還原…"
     }
+  },
+  "projectTemplates": {
+    "bookDailyTarget": "每日 {{words}} 字",
+    "bookOff": "關",
+    "bookOn": "開",
+    "bookWordTarget": "全書 {{words}} 字",
+    "builtin": "內建",
+    "deleteTitle": "刪除範本「{{name}}」？",
+    "description": "描述",
+    "exportFile": "匯出（.driftingtemplate）",
+    "leftRail": "左欄",
+    "myTemplates": "我的範本",
+    "overwrite": "覆蓋…",
+    "structure": "結構",
+    "timePins": "時間釘"
   },
   "referencesPanel": {
     "actions": {

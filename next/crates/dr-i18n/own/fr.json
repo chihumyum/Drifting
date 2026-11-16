@@ -4,6 +4,7 @@
     "import": "Importer un projet",
     "importFile": "Importer un projet (.driftingproject)",
     "importLegacy": "Importer Drifting 0.1",
+    "importTemplate": "Importer un modèle",
     "importTemplateFile": "Importer un modèle (.driftingtemplate)",
     "libraryProjects_many": "{{count}} projets",
     "libraryProjects_one": "{{count}} projet",
@@ -139,6 +140,21 @@
       "bodyWithoutBook": "Ce projet ({{entries}}) quitte Tous les projets. Restaurable 30 jours depuis les suppressions récentes, puis supprimé définitivement.",
       "bodyWithoutChapters": "Ce projet ({{words}} mots · {{elements}} éléments) quitte Tous les projets. Restaurable 30 jours depuis les suppressions récentes, puis supprimé définitivement."
     }
+  },
+  "projectTemplates": {
+    "bookDailyTarget": "Quotidien {{words}} mots",
+    "bookOff": "Désactivé",
+    "bookOn": "Activé",
+    "bookWordTarget": "Livre {{words}} mots",
+    "builtin": "Intégré",
+    "deleteTitle": "Supprimer le modèle « {{name}} » ?",
+    "description": "Description",
+    "exportFile": "Exporter (.driftingtemplate)",
+    "leftRail": "Barre latérale gauche",
+    "myTemplates": "Mes modèles",
+    "overwrite": "Écraser…",
+    "structure": "Structure",
+    "timePins": "Repères temporels"
   },
   "settings": {
     "appearance": {

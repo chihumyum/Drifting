@@ -96,6 +96,7 @@
     "import": "Importer un projet",
     "importFile": "Importer un projet (.driftingproject)",
     "importLegacy": "Importer Drifting 0.1",
+    "importTemplate": "Importer un modèle",
     "importTemplateFile": "Importer un modèle (.driftingtemplate)",
     "libraryProjects_many": "{{count}} projets",
     "libraryProjects_one": "{{count}} projet",
@@ -842,6 +843,21 @@
       "restoreFailed": "Impossible de restaurer le projet. Réessayez.",
       "restoring": "Restauration…"
     }
+  },
+  "projectTemplates": {
+    "bookDailyTarget": "Quotidien {{words}} mots",
+    "bookOff": "Désactivé",
+    "bookOn": "Activé",
+    "bookWordTarget": "Livre {{words}} mots",
+    "builtin": "Intégré",
+    "deleteTitle": "Supprimer le modèle « {{name}} » ?",
+    "description": "Description",
+    "exportFile": "Exporter (.driftingtemplate)",
+    "leftRail": "Barre latérale gauche",
+    "myTemplates": "Mes modèles",
+    "overwrite": "Écraser…",
+    "structure": "Structure",
+    "timePins": "Repères temporels"
   },
   "referencesPanel": {
     "actions": {

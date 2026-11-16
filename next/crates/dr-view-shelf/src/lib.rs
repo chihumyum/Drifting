@@ -33,14 +33,41 @@ pub mod data;
 pub mod format;
 mod jobs;
 pub mod projects;
+pub mod templates;
 mod view;
 
+pub use templates::{NewProjectModal, TemplatePick};
 pub use view::{
     ExportBook, ExportTemplate, ImportBook, ImportLegacyLibrary, ImportTemplate,
     PURGE_EXPIRED_AFTER, Shelf, ShelfDialog, SubmitDialog,
 };
 
-use gpui::{App, AppContext as _, KeyBinding};
+use std::rc::Rc;
+
+use gpui::{App, AppContext as _, Global, KeyBinding};
+
+type OnProjectCreated = Rc<dyn Fn(&str, &mut App)>;
+
+#[derive(Clone, Default)]
+struct ProjectCreatedSlot(Option<OnProjectCreated>);
+
+impl Global for ProjectCreatedSlot {}
+
+/// Registers a callback notified whenever a new project is created from the
+/// template-picker dialog (used by `dr-view-home` to select the new project's
+/// inline title on first open).
+pub fn set_on_project_created(cx: &mut App, hook: impl Fn(&str, &mut App) + 'static) {
+    cx.default_global::<ProjectCreatedSlot>().0 = Some(Rc::new(hook));
+}
+
+pub(crate) fn notify_project_created(book_id: &str, cx: &mut App) {
+    if let Some(hook) = cx
+        .try_global::<ProjectCreatedSlot>()
+        .and_then(|s| s.0.clone())
+    {
+        hook(book_id, cx);
+    }
+}
 
 /// Registers the bookshelf as the shell's start page, and its key: ⌘↵
 /// (Ctrl+↵) in a dialog creates or saves, kept by the shell's keymap.

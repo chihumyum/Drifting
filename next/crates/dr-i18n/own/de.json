@@ -4,6 +4,7 @@
     "import": "Projekt importieren",
     "importFile": "Projekt importieren (.driftingproject)",
     "importLegacy": "Drifting 0.1 importieren",
+    "importTemplate": "Vorlage importieren",
     "importTemplateFile": "Vorlage importieren (.driftingtemplate)",
     "libraryProjects_one": "{{count}} Projekt",
     "libraryProjects_other": "{{count}} Projekte",
@@ -137,6 +138,21 @@
       "bodyWithoutBook": "Dieses Projekt ({{entries}}) verlässt „Alle Projekte“. Es kann 30 Tage lang unter kürzlich Gelöscht wiederhergestellt werden; danach wird es endgültig gelöscht.",
       "bodyWithoutChapters": "Dieses Projekt ({{words}} Wörter · {{elements}} Elemente) verlässt „Alle Projekte“. Es kann 30 Tage lang unter kürzlich Gelöscht wiederhergestellt werden; danach wird es endgültig gelöscht."
     }
+  },
+  "projectTemplates": {
+    "bookDailyTarget": "Täglich {{words}} Wörter",
+    "bookOff": "Aus",
+    "bookOn": "Ein",
+    "bookWordTarget": "Gesamt {{words}} Wörter",
+    "builtin": "Integriert",
+    "deleteTitle": "Vorlage „{{name}}“ löschen?",
+    "description": "Beschreibung",
+    "exportFile": "Exportieren (.driftingtemplate)",
+    "leftRail": "Linke Seitenleiste",
+    "myTemplates": "Meine Vorlagen",
+    "overwrite": "Überschreiben…",
+    "structure": "Struktur",
+    "timePins": "Zeitmarken"
   },
   "settings": {
     "appearance": {
