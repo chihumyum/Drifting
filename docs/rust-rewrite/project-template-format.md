@@ -129,7 +129,7 @@
 `relation_types` 保存项目里定义的关系。展开时为每种定义生成新的 `RelationTypeId`，初始没有行。
 
 - `name` 是非空单行文本，按 `normalize_relation_type_name` 归一化后唯一。
-- `description` 是 `{ text, links: [{ start, end, entry }] }`，省略时为空。区间使用 Unicode 标量下标，左闭右开，按起点递增且不重叠。`entry` 是模板内存在的 `e…` 代号。另存时剔除指向未选条目的链接标记，保留文字；展开时换成新条目的 id。
+- `description` 是 `{ text, links: [{ start, end, entry }] }`，省略时为空。区间使用 Unicode 标量下标，左闭右开，按起点递增且不重叠。`entry` 是模板内存在的 `e…` 代号。另存时保留指向未选条目的链接原字。展开已选条目的链接时换成新 id。
 - `direction` 取 `"directed"` 或 `"symmetric"`。
 
 ## 7. 条目（`entries[]`）

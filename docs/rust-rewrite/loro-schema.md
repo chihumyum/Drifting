@@ -246,7 +246,7 @@ H1、H2、H3 三级同等对待，只叫 H1/H2/H3。
 
 | 根容器 | 类型 | 格式 5 内容 |
 | --- | --- | --- |
-| `meta` | LoroMap | 书名、梗概、创建时间、删除时间；创世写 `v = 5`、`book`、`relation_rows = true`；`level_lanes_cleared`（2026-11-16 DV2，布尔，只写 `true`）在旧泳道修复后或写泳道时记一笔 |
+| `meta` | LoroMap | 书名、梗概、创建时间、删除时间。创世写 `v = 5`、`book`、`relation_rows = true`。`level_lanes_cleared`（2026-11-16 DV2，布尔，只写 `true`）在旧泳道修复后或写泳道时记一笔 |
 | `project` | LoroMap | 项目定义：`source`（`{id, version, origin?, name?, credit?}`）、`agent`（`{name, description, instructions}`）、`book?`（`on`、`word_target`、`daily_word_target`；关着时目标留着；没有起点）、`tabs`（id → `{pos, mount}`；没有名字，「全部」是 `tab-all`） |
 | `entries` | LoroTree | 条目树；节点 meta 有 `id`、`title`、`mark`、`template`、`level`（缺键读作关）、`overrides`、`fields`、`kv:<模块 id>`、`media:<模块 id>`、`arrangement:<模块 id>`（条目自己的媒体模块摆法）、`primary`、时间戳；没有 `layout` |
 | `templates` | LoroMap | 模板 id → `{name, mark, color, agent, modules, level, linkable, settings, verbs, deleted_at}`；`settings` 含 `accept`、`home`、`default_template`、`display`、`auto_link`、`format_shortcuts`，没有 `kind`、`allow`、`lane` |

@@ -1383,12 +1383,12 @@ D（`d-data-layer`）交回时写（2026-11-15）；同日 DY（`dy-files-commen
 
 ### RD 交回：项目关系与带链接的短文字（2026-11-17）
 
-- **书目与书文件**。格式号仍为 5，书目创世版本升到 6。创世写 `meta.relation_rows = true`，不再生成「关联」；打开书目、接收书目更新及读取 `.driftingbook` 时检查当前形状。先前未发布的格式 5 开发库及书文件须用新版本从 0.1 源库重新导入。
+- **书目与书文件**。格式号仍为 5，书目创世版本升到 6。创世写 `meta.relation_rows = true`。打开书目、接收书目更新及读取 `.driftingbook` 时检查当前形状。先前未发布的格式 5 开发库及书文件须用新版本从 0.1 源库重新导入。
 - **共享形状**。`RelationTypeV3 { id, name, normalized_name, description, direction, created_at }` 与 `RelationRow { id, relation_type, left, right, created_at }`。左右两边是条目 id 的集合，Loro 按条目 id 存该条目所在的一边，支持多台设备分别往同一边追加。类型的方向取 `directed` 或 `symmetric`。同一边不产生配对。
 - **读写命令**。`relation_type.list { book, entry? }` 返回定义及 `rows: [{ id, left, right, created_at }]`、`pair_count`。可选 `entry` 只留包含该活条目的行。定义写入走 `relation_type.{create,rename,set_description,set_direction,delete}`。行写入走 `relation_row.{create_pair,add_entry,remove_entry,delete}`。加成员收 `{ book, id, entry, side }`，移出成员收 `{ book, id, entry }`。删完最后一行时同一次写入去掉定义并可一起撤销。彻底删除条目只清成员和空行。
-- **建一对**。`relation_row.create_pair { book, left, right, relation_type }` 的两头各是一个条目 id。也可以给 `new_type: { name, description?, direction? }`，同一步建定义和一对。返回 `{ id, relation_type, existing }`，`id` 是落到的行。已有对返回该行、`existing = true`，不写书目。按第 19 节的四步选行；同一步有多行时选创建时间最早的一行，再按 id 决定。换方向保留每行的左右。切成双向或同步后遇到重叠的对，计数和图上按同一种关系的一对去重，列表保留各行的 id 和成员。
-- **描述与批注**。读取 `description` 或 `body` 得到 `{ text, links: [{ start, end, entry }] }`，区间是从零开始的 Unicode 标量下标、左闭右开。写命令也接受纯字符串。显式链接带选中的条目 id；`Workspace::plan_entry_text_links(book, owner, draft)` 只算不写，接受同样的区间，沿用正文的名字/别名匹配、范围和自动链接设置。`owner` 是批注所挂条目，省略时按项目描述规划。读取链接时用当前条目标题和新的区间；目标不可见时显示存下的字，恢复后重现链接。清单/标记的投影从正文拷贝标记，不重新猜。关系描述与批注链接不进入正文提及或同段统计。
-- **模板、导入与 Agent**。模板定义只存 `name`、`description` 和 `direction`，描述的条目 id 换成模板代号，未选中条目的链接降级成文字。「写书」模板来源版本升到 5，模板文件格式维持 1。0.1 的可用配对按创建顺序走同一个选行函数，弃用的端点和旧定义字段见导入回执。Agent 和入站 MCP 使用同一命令目录。关系是项目共享数据，命令用书目撤销记录；条目快照的恢复不改其他条目共同参与的行。
+- **建一对**。`relation_row.create_pair { book, left, right, relation_type }` 的两头各是一个条目 id。也可以给 `new_type: { name, description?, direction? }`，同一步建定义和一对。返回 `{ id, relation_type, existing }`，`id` 是落到的行。已有对返回该行、`existing = true`，不写书目。按第 19 节的四步选行。同一步有多行时选创建时间最早的一行，再按 id 决定。换方向保留每行的左右。切成双向或同步后遇到重叠的对，计数和图上按同一种关系的一对去重，列表保留各行的 id 和成员。
+- **描述与批注**。读取 `description` 或 `body` 得到 `{ text, links: [{ start, end, entry }] }`，区间是从零开始的 Unicode 标量下标、左闭右开。写命令也接受纯字符串。显式链接带选中的条目 id。`Workspace::plan_entry_text_links(book, owner, draft)` 只算不写，接受同样的区间，沿用正文的名字/别名匹配、范围和自动链接设置。`owner` 是批注所挂条目，省略时按项目描述规划。读取链接时用当前条目标题和新的区间。目标不可见时显示存下的字，恢复后重现链接。清单/标记的投影从正文拷贝标记，不重新猜。关系描述与批注链接不进入正文提及或同段统计。
+- **模板、导入与 Agent**。模板定义只存 `name`、`description` 和 `direction`，描述的条目 id 换成模板代号，未选中条目的链接降级成文字。「写书」模板来源版本升到 5，模板文件格式维持 1。0.1 的可用配对按创建顺序走同一个选行函数，弃用的端点和旧定义字段见导入回执。Agent 和入站 MCP 使用同一命令目录。关系是项目共享数据，命令用书目撤销记录。条目快照的恢复不改其他条目共同参与的行。
 - **给 RL 的接口**。`BookViewV3::{relation_types,relations}` 返回当前可见的定义和行，`RelationRow::pairs` 展开跨边配对，`RelationDirection::pair` 提供按方向去重的键。关系图用这组只读接口。卡片、条目名字的连线、就地编辑和 @ 的候选界面由 RL 接入上面的命令和规划函数。
 
 ### 最终的接口名字
