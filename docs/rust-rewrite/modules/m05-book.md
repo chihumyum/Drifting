@@ -181,3 +181,11 @@ cargo run --release -p dr-editor --example book-bench -- --write
 反证：把整书视图里接住插入、⌘V、复制剪切、系统拖放、按章的斜杠菜单和扩展这几处临时拿掉，上面除了拖素材库那一条（它直接调新接口）都会失败；放回去全过。
 
 单章原有的放文件测试（`v5_files.rs`、`note.rs` 的表格和粘贴）照旧过，期望没动。
+
+## 内核 v5 · OL 整书视图的大纲先列模块（2026-11-16）
+
+大白话：整书视图的大纲里，每个条目（比如章）下面先列它铺进来的每篇正文的模块名，再列那一篇的 H1/H2/H3（作者：「列啊。层级的「全书视图」或者不管你叫什么，就是把层级下面的东西铺开展示。」kernel-v5 第 15 节第 32 条）。一个条目有两篇进成书的正文时，第二篇在大纲里是第一篇后面的又一行模块名，不再像一章那样另列。模板里的 `show_outline` 不再起作用，每篇都列标题。标题多到放不下时不收成「…」，大纲这一列自己滚，规矩和条目页一样。
+
+- 代码在外壳的 `workspace/outline.rs`（`book_rows`）；`BookEditor` 没改，模块名从章的文档 `body:<条目>/<模块>` 在模板里找。模块那一行是结构字体 10 px、在章（10.5 px）和 H1（9.5 px）之间；点它和点章一样走 `BookEditor::jump_to`，到那一篇正文的开头。
+- 外壳的做法、条目页的那一半和测试见 [f6-shell.md](../foundations/f6-shell.md) 末尾「内核 v5 · OL 大纲按模块列」；回归在 `dr-view-page/tests/v5_outline.rs` 的 `the_whole_book_lists_each_entrys_modules_then_their_headings`。
+
