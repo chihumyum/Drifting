@@ -293,12 +293,14 @@ fn a_lane_with_both_switches_holds_only_what_is_hung_on_it() {
     assert_eq!(hung_on(&e, &b, &act), vec![hung]);
 }
 
-/// A book in which 书稿 was put into a view before DV keeps what it
-/// stored: the old lane and the places of its chapters stay in the book,
-/// but the view does not show the lane, 书稿 orders its chapters by hand,
-/// and the book reads in that order. Writes that do not add it again
-/// (renaming the view, adding another lane) go through and keep it; taking
-/// it out works and changes no manual order.
+/// A lane that is only a level, stored in an open book (as 书稿 put into a
+/// view before DV; such a book is cleared of it once when it opens, DV2,
+/// `dr-testkit`'s `legacy_lanes`), keeps what it stored: the old lane and
+/// the places of its chapters stay in the book, but the view does not show
+/// the lane, 书稿 orders its chapters by hand, and the book reads in that
+/// order. Writes that do not add it again (renaming the view, adding another
+/// lane) go through and keep it; taking it out works and changes no manual
+/// order.
 #[test]
 fn an_old_lane_that_is_only_a_level_reads_as_not_in_the_view_and_nothing_is_lost() {
     let e = env();
@@ -482,4 +484,52 @@ fn saving_a_project_with_a_tab_on_a_view_leaves_that_tab_out() {
     assert_eq!(tabs.len(), shown_tabs - 1);
     assert!(tabs.iter().all(|t| t["mount"]["kind"] != "view"));
     assert!(tabs.iter().all(|t| t["mount_valid"] == true));
+}
+
+/// DV2 (`kernel-v5.md` §15 item 31): a new writing project, and one made
+/// from a project template, store nothing when they open again. Their view
+/// has no lane, so the book is not marked and there is nothing to clear;
+/// the first lane put in marks it in the same write, and it still opens
+/// without a write.
+#[test]
+fn the_writing_project_writes_nothing_when_it_opens_and_its_first_lane_marks_it() {
+    let mut e = env();
+    let b = e.book();
+    let saved = e.out(
+        "project_template.save",
+        json!({"book": b, "name": "写书另存"}),
+    );
+    let made = id(&e.out(
+        "project.create",
+        json!({"name": "从模板建", "template_id": saved["id"]}),
+    ));
+    let opens_quietly = |e: &mut Env| {
+        e.reopen();
+        let seq = e.ws().library().write_seq().unwrap();
+        for book in [&b, &made] {
+            for name in ["project.get", "entry.list", "timeline_view.list"] {
+                e.out(name, json!({"book": book}));
+            }
+        }
+        assert_eq!(e.ws().library().write_seq().unwrap(), seq);
+    };
+    opens_quietly(&mut e);
+    for book in [&b, &made] {
+        assert!(
+            stored(&e, book)["meta"]
+                .get("level_lanes_cleared")
+                .is_none()
+        );
+    }
+
+    let lines = root(&e, &b, "tpl-storylines");
+    let line = create(&e, &b, Some(&lines), "tpl-storyline", "主线");
+    let view = the_view(&e, &b);
+    e.call(
+        "timeline_view.add_lane",
+        json!({"book": b, "view": view, "lane": line}),
+    );
+    assert_eq!(stored(&e, &b)["meta"]["level_lanes_cleared"], true);
+    opens_quietly(&mut e);
+    assert_eq!(shown_lanes(&e, &b, &view), vec![line]);
 }

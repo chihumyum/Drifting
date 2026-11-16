@@ -779,13 +779,17 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "V3-TIMELINE-LANE-ENABLED",
-        "视图里的泳道是活着、开着「收别处的条目」的条目；只开着「层级」的条目不是泳道（2026-11-16 DV）。书里已经存着的只开层级的泳道读作不在视图里，数据留着",
-        [Command, Read],
-        "命令层用 dr_model::v3::check_timeline_lane 校验条目活着且 Entry::accepts_members，只查这次写入新加的泳道（timeline_view.put 不重查视图里原有的泳道）；读取时 effective_timeline_lanes 忽略不满足的条目，存着的泳道和位置不删",
+        "视图里的泳道是活着、开着「收别处的条目」的条目；只开着「层级」的条目不是泳道（2026-11-16 DV）。书里已经存着的只开层级的泳道读作不在视图里，数据留着；DV 以前的书打开时一次性清掉这种泳道（2026-11-16 DV2）",
+        [Command, Read, Repair],
+        "命令层用 dr_model::v3::check_timeline_lane 校验条目活着且 Entry::accepts_members，只查这次写入新加的泳道（timeline_view.put 不重查视图里原有的泳道）；读取时 effective_timeline_lanes 忽略不满足的条目，存着的泳道和位置不删。打开书时的确定性修复（dr-doc 的 repair_plan，来源 repair）：书里存着泳道、没有 meta.level_lanes_cleared 时，把 is_level_only_lane 的泳道连同住在它下面、没挂在这个视图别的泳道上的条目的位置从视图里拿掉，并记上 meta.level_lanes_cleared；写泳道（put_lane、set_lane_act_track、恢复泳道）时一起记上，所以只清一次",
         [
             "v3_timeline_lanes_and_placements_require_lane_membership",
             "an_entry_with_only_its_level_on_cannot_become_a_lane",
-            "an_old_lane_that_is_only_a_level_reads_as_not_in_the_view_and_nothing_is_lost"
+            "an_old_lane_that_is_only_a_level_reads_as_not_in_the_view_and_nothing_is_lost",
+            "a_level_only_lane_is_a_live_level_that_takes_nothing_from_elsewhere",
+            "a_book_without_the_mark_is_cleared_of_its_level_only_lanes_once_on_every_device",
+            "opening_a_book_clears_its_old_level_only_lane_once_and_leaves_the_rest",
+            "a_lane_turned_off_after_the_clearing_comes_back_when_turned_on_after_a_reopen"
         ]
     ),
     inv!(
