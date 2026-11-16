@@ -19,6 +19,8 @@ const sources = [
   'src/renderer/features/comments/CommentBodyEditor.tsx',
   'src/renderer/features/comments/review-stats-sand-glass.render.test.ts',
   'src/renderer/features/entities/hover/entity-hover-card-model.ts',
+  'src/renderer/domain/comment.ts',
+  'src/renderer/components/rightBars/EntityRelationPicker.tsx',
   'src/renderer/components/ui/HoverCard.tsx',
   'src/styles/comments-review.css', 'src/styles/ui-controls.css',
   'scripts/todo-edit-ui.html', 'scripts/todo-edit-ui.tsx',
@@ -32,7 +34,7 @@ const fingerprint = () => {
 const validate = (report) => {
   assert.equal(report.status, 'passed');
   assert.equal(report.fingerprint, fingerprint(), 'Review card action evidence is stale.');
-  assert.equal(Object.keys(report.checks).length, 23);
+  assert.equal(Object.keys(report.checks).length, 26);
   assert(Object.values(report.checks).every(value => value === true));
   assert.deepEqual(report.uncaughtErrors, []);
 };
@@ -82,6 +84,8 @@ if (process.argv.includes('--check')) {
     await client.Page.navigate({ url: server.resolvedUrls.local[0] + 'scripts/todo-edit-ui.html' }); await loaded;
     await until('!!document.querySelector("#panel article")');
     await check('desktopReviewListHasNoMoreButtons', '!document.querySelector("#review-sort .review-card__menu-button")');
+    await check('panelShowsTheDirectTargetAsAChip',
+      '!!document.querySelector(\'#panel .review-card__relations button[title="synthetic-node"]\')');
     for (const surface of ['panel', 'note']) {
       const card = `document.querySelector('#${surface} article')`;
       await check(`${surface}HasNoMoreButton`, `!${card}.querySelector('.review-card__menu-button')`);
@@ -93,6 +97,8 @@ if (process.argv.includes('--check')) {
       await key('F10', 'F10', 121, 8);
       await until('document.querySelector(".hover-card__row") === document.activeElement');
       await check(`${surface}ShiftF10OpensActions`, `document.querySelector('.hover-card').id === ${card}.getAttribute('aria-describedby') && ['Edit', 'Resolve', 'Delete'].every(label => [...document.querySelectorAll('.hover-card__row')].some(row => row.textContent.trim() === label))`);
+      await check(`${surface}OffersToRemoveTheDirectTarget`,
+        `[...document.querySelectorAll('.hover-card__row')].some(row => row.textContent.trim() === 'Remove link')`);
       await check(`${surface}ActionsUseFixedBodyPortal`, `document.querySelector('.hover-card').parentElement === document.body && getComputedStyle(document.querySelector('.hover-card')).position === 'fixed'`);
       await key('Escape', 'Escape', 27);
       await until('!document.querySelector(".hover-card")');
@@ -132,4 +138,4 @@ if (process.argv.includes('--check')) {
     rmSync(temporary, { recursive: true, force: true });
   }
 }
-console.log('Review card actions: 23 synthetic browser checks passed.');
+console.log('Review card actions: 26 synthetic browser checks passed.');

@@ -1,22 +1,25 @@
 import type { TFunction } from 'i18next';
 import { isChapter, isDrift } from '../../domain/book-node';
 import { commentBlockIds, getBlockSnapshotsFromAnchor, getSelectedTextFromAnchor, getTextAnchorFromAnchor, type Comment } from '../../domain/comment';
-import { isStructuralEntityKind, type EntityKind, type StructuralEntityKind } from '../../domain/entity-kinds';
+import { isCommentTargetKind, type CommentTargetKind, type EntityKind } from '../../domain/entity-kinds';
 import type { useDataStore } from '../../store/data-store';
 
 export interface CommentSourceRelation { toKind: EntityKind; toId: string }
-type SourceState = Pick<ReturnType<typeof useDataStore.getState>, 'bookNodes' | 'bookElements' | 'bookElementCategories' | 'storylines'>;
+type SourceState = Pick<ReturnType<typeof useDataStore.getState>, 'bookNodes' | 'bookElements' | 'bookElementCategories' | 'storylines'> & {
+  libraryItems?: ReturnType<typeof useDataStore.getState>['libraryItems'];
+};
 
 /** Metadata and creation snapshots only: hovering never loads or rewrites prose. */
 export function buildCommentSourcePreview(comment: Comment, relations: CommentSourceRelation[], state: SourceState, t: TFunction) {
   const targets = [
     ...(comment.targetKind && comment.targetId ? [{ toKind: comment.targetKind, toId: comment.targetId }] : []),
     ...relations,
-  ].filter((target, index, all): target is { toKind: StructuralEntityKind; toId: string } => isStructuralEntityKind(target.toKind)
+  ].filter((target, index, all): target is { toKind: CommentTargetKind; toId: string } => isCommentTargetKind(target.toKind)
     && all.findIndex((other) => other.toKind === target.toKind && other.toId === target.toId) === index);
   const entities = targets.map(({ toKind, toId }) => {
     const matches = (entity: { id: string; projectId: string }) => entity.id === toId && entity.projectId === comment.projectId;
     const node = toKind === 'node' ? state.bookNodes.find(matches) : undefined;
+    const material = toKind === 'library_item' ? state.libraryItems?.find(matches) : undefined;
     const entity = toKind === 'element' ? state.bookElements.find(matches)
       : toKind === 'category' ? state.bookElementCategories.find(matches)
         : toKind === 'storyline' ? state.storylines.find(matches) : undefined;
@@ -27,7 +30,8 @@ export function buildCommentSourcePreview(comment: Comment, relations: CommentSo
       isDrift: node ? isDrift(node) : false,
       kind: node ? t(isChapter(node) ? 'nodeEditor.folio.chapter' : 'nodeEditor.folio.drift') : t(`relationTypes.entityKinds.${toKind}`),
       name: node ? node.title.trim() || t('common.untitled')
-        : entity ? entity.name.trim() || t('common.untitled') : t('reviewPanel.sourceUnavailable'),
+        : material ? material.title.trim() || t('common.untitled')
+          : entity ? entity.name.trim() || t('common.untitled') : t('reviewPanel.sourceUnavailable'),
     };
   });
   const textAnchor = getTextAnchorFromAnchor(comment.anchorJson);

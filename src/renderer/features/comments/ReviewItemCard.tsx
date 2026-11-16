@@ -2,6 +2,7 @@ import { readAgentChatView } from '../../lib/agent/runtime/chat-view-state';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  canUnbindCommentTarget,
   commentColorKey,
   agentTaskConversationId,
   createPlainCommentDoc,
@@ -10,6 +11,7 @@ import {
   isNoteTaskTodo,
   type Comment,
 } from '../../domain/comment';
+import { isStructuralEntityKind } from '../../domain/entity-kinds';
 import type { EntityKind } from '../../lib/extensions/entity-link';
 import { getPlatformRuntime } from '../../platform/runtime';
 import { clearActiveCommentHighlight, selectCommentHighlight, setActiveCommentHighlight } from '../../lib/comment-highlight';
@@ -102,10 +104,19 @@ export function ReviewItemCard({
   const pointed = useProsePointedCard(comment.id, articleRef);
   // A card removed under the pointer never receives mouseleave.
   useEffect(() => () => clearActiveCommentHighlight(comment.id), [comment.id]);
-  const selectedRelations = useMemo(
-    () => new Set(relations.map((relation) => `${relation.toKind}:${relation.toId}`)),
-    [relations],
-  );
+  const canUnbindDirect = canUnbindCommentTarget(comment);
+  const directStructuralKey =
+    canUnbindDirect &&
+    comment.targetKind &&
+    comment.targetId &&
+    isStructuralEntityKind(comment.targetKind)
+      ? `${comment.targetKind}:${comment.targetId}`
+      : null;
+  const selectedRelations = useMemo(() => {
+    const keys = new Set(relations.map((relation) => `${relation.toKind}:${relation.toId}`));
+    if (directStructuralKey) keys.add(directStructuralKey);
+    return keys;
+  }, [directStructuralKey, relations]);
   const text = extractTextFromCommentBody(comment.bodyJson);
   const snapshots = getBlockSnapshotsFromAnchor(comment.anchorJson);
   const color = commentColorKey(comment);
@@ -196,6 +207,28 @@ export function ReviewItemCard({
     else setEditing(true);
   };
 
+  const handleAddRelation = (target: RelationTarget) => {
+    if (comment.kind === 'note' && !comment.targetKind && !comment.targetId) {
+      void run(() =>
+        commentUsecases.setCommentTarget(comment.id, {
+          targetKind: target.kind,
+          targetId: target.id,
+        }),
+      );
+      return;
+    }
+    if (comment.targetKind === target.kind && comment.targetId === target.id) return;
+    onAddRelation?.(target);
+  };
+
+  const handleRemoveRelation = (target: RelationTarget) => {
+    if (canUnbindDirect && comment.targetKind === target.kind && comment.targetId === target.id) {
+      void run(() => commentUsecases.unbindCommentTarget(comment.id));
+      return;
+    }
+    onRemoveRelation?.(target);
+  };
+
   const actions: HoverActionGroup[] = [
     {
       key: 'item',
@@ -235,6 +268,17 @@ export function ReviewItemCard({
                 ? commentUsecases.revertToNote(comment.id)
                 : commentUsecases.convertToTodo(comment.id)),
             },
+            ...(canUnbindDirect
+              ? [
+                  {
+                    key: 'unbind',
+                    label: t('relationPicker.removeRelation'),
+                    icon: { brush: 'close' as const },
+                    disabled: busy,
+                    onSelect: () => void run(() => commentUsecases.unbindCommentTarget(comment.id)),
+                  },
+                ]
+              : []),
           ],
     },
     {
@@ -393,8 +437,8 @@ export function ReviewItemCard({
             <EntityRelationPicker
               selected={selectedRelations}
               selectedChipMode="toggle"
-              onAdd={(target) => onAddRelation?.(target)}
-              onRemove={(target) => onRemoveRelation?.(target)}
+              onAdd={handleAddRelation}
+              onRemove={handleRemoveRelation}
               trailingAction={statusToggle}
             />
           ) : (

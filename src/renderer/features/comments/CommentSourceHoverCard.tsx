@@ -26,7 +26,7 @@ export function CommentSourceHoverCard({ comment, relations, anchor, id, pointer
   autoFocus?: boolean;
 }) {
   const { t } = useTranslation();
-  const state = useDataStoreFields('bookNodes', 'bookElements', 'bookElementCategories', 'storylines', 'primaryStorylineByNode');
+  const state = useDataStoreFields('bookNodes', 'bookElements', 'bookElementCategories', 'storylines', 'libraryItems', 'primaryStorylineByNode');
   // Each source is named by its sand mark; a patch keeps the kind's word.
   const source = useMemo(() => buildCommentSourcePreview(comment, relations, state, t), [comment, relations, state, t]);
 
