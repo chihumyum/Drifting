@@ -8,9 +8,9 @@
 
 配合 [kernel-v5.md 第 3 节](../kernel-v5.md) 与任务书 T3b：
 
-- **唯一入口搬到项目内左下角用户头像菜单（`dr-shell/src/account.rs`、`dr-shell/src/workspace/corner.rs`、`dr-view-export/src/lib.rs`）**：
+- **唯一入口搬到工作区的头像菜单（`dr-shell/src/account.rs`、`dr-shell/src/workspace/corner.rs`、`dr-view-export/src/lib.rs`）**：头像菜单是红绿灯右边那颗账户按钮落下来的菜单（`dr-shell/src/workspace/sidebar.rs` 的 `account_menu`）。
   - 去掉章节页右下角 `⋯` 与整本书页右下角 `⋯` 里的「导出成稿」，整本书页不再保留空 `⋯` 按钮；`Request::Manuscript` 收口为无参变体，不再支持从单章预设打开。
-  - 项目内左下角用户头像菜单（`workspace-account`）在「导入　MD · DOCX · TXT」正下方、「提交反馈」正上方新增「导出成稿」（图标 `Icon::ArrowOut`）；`全部项目` 书架头像菜单（`shelf-account`）不显示该项。
+  - 工作区的头像菜单（`workspace-account`）在「导入　MD · DOCX · TXT」正下方、「提交反馈」正上方新增「导出成稿」（图标 `Icon::ArrowOut`）；`全部项目` 书架头像菜单（`shelf-account`）不显示该项。
   - 去掉 `Workspace::open_export` 对 `project.book.is_none()` 的早退拦截，无「成书」项目照常可打开「导出成稿」。
 - **范围改为整棵住处树与「只导成书正文」开关（`dr-export/src/v3.rs`、`dr-view-export/src/manuscript.rs`、`dr-i18n`）**：
   - `dr_export::v3::Outline` 同时给出成书序列 `entries` 与完整住处树 `tree`（按 `BookStructureV3::children_of` 递归构建；归属／挂载不算子级，已进最近删除的条目除外）。
@@ -21,7 +21,18 @@
   - **层级标题与目录**：`Section::Chapter` 新增可选 `depth: Option<u8>`。手勾住处树时按树深输出逐层递减的标题字号与嵌套目录／书签（EPUB 嵌套 `nav.xhtml` / `toc.ncx` 与 `depth-0..5` 标题样式；Word 映射 `Heading1..Heading6` 且仅顶层分页使子条目紧随父层级；PDF 按树深缩放标题字号、缩进目录并生成嵌套书签树）；「只导成书正文」模式保持 `depth = None` 原有扁平行为。
 - **「内容」合并为单个「条目标题」开关（`dr-view-export/src/prefs.rs`、`dr-shell/src/export_memory.rs`）**：
   - 合并原双标题开关为单个「条目标题」（`entry_titles`，默认开，设置文件按项目持久化为 `entryTitles`）。应用不自动给条目编号；正文内 H1/H2/H3 始终照常导出。
-- **回归**：`dr-export/tests/v3.rs`（`tree_selection_exports_all_content_modules_with_tree_hierarchy_across_formats` 等 5 项）、`dr-view-export/tests/dialog.rs`、`dr-shell/tests/m41.rs`。
+- **2026-11-16 返修（审出来的问题和作者定的十六处里的三处）**：
+  - **范围树也列挂着的条目**（作者十乙，照左栏树，铺满第 56 条）：展开收别处条目的条目，先列住着的，再列挂着的（`TreeNode::hung`，`BookStructureV3::members_of` 的先后）；挂着的那几行没有收起箭头，缩进处画一条点线（一粒 1.5 px、每 3 px 一粒，`ink(4)`，不靠颜色）。勾那一行只勾挂在这里的这一处（`Options::hung` 记 `(宿主, 条目)`）；勾宿主连它下面住着的、挂着的一起勾；勾着的挂着的条目在宿主住着的那些后面再印一次，层级比宿主深一层；住处和挂处都勾了照印两次。宿主收起时挂着的行也收起。没开成书的项目打开时挂着的行也全勾着。
+  - **成书是空的**（九丙）：开着成书、「只导成书正文」开着而成书里没有正文时，开关下面一行「成书里还没有正文」（`k4Book.book_prose_empty`，九种语言）；开关照样开着，树照样灰，「导出」照样点不了。开关关掉以后（自己勾）不写这一行（原型只画了开着的样子，照最保守的做）。
+  - **选项印成界面上的字**：单选、多选里内置的那几个值（`draft`、`finished`、`discarded`、`drifting`、`resting`）照字段编辑器的 `option_label` 印本地文字，经 `Labels::options` 带进来；作者自己的选项照原样印。
+  - **只印模板定义了的字段**：从旧定义留下来的值是保留内容，不进成稿（原来用原始 key 当标签印出来）；没有模板的条目不印字段。
+  - **几个值怎么连**：照审阅卡引一个字段的值的连法（`dr_view_review::v3` 的 `format_field_value`，「、」），别称和多选都是。
+  - **字照定稿原型**：格式写「DOCX」（`Format::label`），按钮是「取消」（`common.cancel`）。
+  - 树最高 360 px（原型 340–360）。
+  - **无障碍**：每一行行尾的勾是这一行的复选框（`Role::CheckBox`，全勾 `Toggled::True`、部分勾 `Toggled::Mixed`、没勾 `False`）；收起箭头是按钮（`Role::Button`、`aria_expanded`，标签用现成的 `v3Levels.expand` / `v3Levels.collapse`「展开…」「折叠…」）。
+  - 开着成书的项目里关掉「只导成书正文」时，树上一开始什么都没勾：定稿原型画的就是这样（切到自己勾时勾的集合是空的），照旧不动。
+  - `manuscriptExport.chapterCount` 没人用了，从 `keys.txt` 删掉。
+- **回归**：`dr-export/tests/v3.rs`（`tree_selection_exports_all_content_modules_with_tree_hierarchy_across_formats`，2026-11-16 加 `choices_read_as_shown_only_defined_fields_print_and_hung_rows_print_again`；交回时说的「等 5 项」其实只新增了这 1 个测试函数，另外几项是改的旧测试）、`dr-view-export/tests/dialog.rs`（2026-11-16 加：「只导成书正文」开着时树点不动、成书是空的那一行、挂着的行）、`dr-shell/tests/m41.rs`（2026-11-16 加：从工作区头像菜单那一行打开导出；「全部项目」页的头像菜单、章和整书视图的「⋯」里都没有「导出成稿」）。
 
 ## 内核 v5 T3：单一成书顺序、去掉多处成书选择与正文嵌文件导出（2026-11-15）
 

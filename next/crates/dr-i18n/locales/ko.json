@@ -429,6 +429,7 @@
     }
   },
   "k4Book": {
+    "book_prose_empty": "책 본문이 아직 없습니다",
     "entry_count_other": "항목 {{count}}개",
     "entry_titles": "항목 제목",
     "entry_total": "항목 수",
@@ -474,8 +475,6 @@
     "bookInfo": "작품 정보",
     "bookTitle": "제목",
     "changeCover": "변경",
-    "chapterCount_one": "{{count}}개 장",
-    "chapterCount_other": "{{count}}개 장",
     "chooseCover": "이미지 선택",
     "contents": "내용",
     "cover": "표지",

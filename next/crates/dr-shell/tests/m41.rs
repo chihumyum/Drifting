@@ -162,3 +162,110 @@ fn bookless_project_opens_manuscript_export_with_whole_tree_selected(cx: &mut Te
         assert!(m.can_export(cx));
     });
 }
+
+fn draw(cx: &mut VisualTestContext) {
+    cx.update(|window, cx| {
+        window.refresh();
+        window.draw(cx).clear(cx);
+    });
+    cx.run_until_parked();
+}
+
+/// T3b: 「导出成稿」 is a row of the workspace's avatar menu, under 「导入」;
+/// pressing it opens the export over the workspace.
+#[gpui::test]
+fn the_workspace_avatar_menu_row_opens_the_export(cx: &mut TestAppContext) {
+    let (_dir, lib) = slow_clock();
+    let (view, cx) = setup(cx, lib);
+    cx.simulate_resize(gpui::size(gpui::px(1280.0), gpui::px(900.0)));
+    view.update(cx, |ws, cx| {
+        ws.account_open = true;
+        cx.notify();
+    });
+    draw(cx);
+    assert!(cx.debug_bounds("workspace-account-import").is_some());
+    let row = cx
+        .debug_bounds("workspace-account-export")
+        .expect("the workspace avatar menu has 「导出成稿」");
+    let import = cx.debug_bounds("workspace-account-import").unwrap();
+    assert!(row.origin.y > import.origin.y, "under 「导入」");
+    cx.simulate_click(row.center(), gpui::Modifiers::none());
+    wait_for(&view, cx, |ws, cx| {
+        dialog(ws).is_some_and(|d| d.read(cx).manuscript().is_some_and(|m| m.outline.is_some()))
+    });
+    assert!(view.read_with(cx, |ws, _| !ws.account_open));
+}
+
+/// T3b: 全部项目's avatar menu has no 「导出成稿」, and neither a chapter's
+/// nor the whole-book view's ⋯ has it.
+#[gpui::test]
+fn the_export_is_not_on_all_projects_nor_in_a_pages_more_menu(cx: &mut TestAppContext) {
+    let (_dir, lib) = slow_clock();
+    let (view, cx) = setup(cx, lib);
+    let export = cx.update(|_, cx| dr_shell::t(cx, dr_i18n::keys::manuscript_export::MENU));
+    // A chapter's ⋯ and the whole-book view's ⋯.
+    let (chapter, root) = view.read_with(cx, |ws, _| {
+        let v = ws.book.v3().unwrap();
+        (v.manuscript[0].entry.clone(), v.roots[0].clone())
+    });
+    for target in [
+        Target::Entry {
+            id: chapter.parse().unwrap(),
+            module: None,
+        },
+        Target::Book(root.parse().unwrap()),
+    ] {
+        let labels: Vec<String> = cx.update(|_, cx| {
+            let ws = view.clone();
+            let w = view.read(cx);
+            let host = dr_shell::pages::PageMenuHost {
+                workspace: ws.downgrade(),
+                library: w.library.clone(),
+                book_id: w.book_id.clone(),
+                book: w.book.clone(),
+            };
+            dr_shell::workspace::page_actions::page_actions(&ws, &host, &target, cx)
+                .into_iter()
+                .flat_map(|s| s.items)
+                .map(|i| i.label.to_string())
+                .collect()
+        });
+        assert!(
+            !labels.iter().any(|l| l.as_str() == export.as_ref()),
+            "{target:?}'s ⋯ has no 「导出成稿」: {labels:?}"
+        );
+    }
+    // 全部项目's avatar menu (the bookshelf draws it as `shelf-account`):
+    // 「导入」 and 「导出成稿」 are the workspace's alone.
+    let (_menu, mcx) = cx.cx.add_window_view(|_, _| AccountMenu("shelf-account"));
+    draw(mcx);
+    assert!(mcx.debug_bounds("shelf-account-export").is_none());
+    assert!(mcx.debug_bounds("shelf-account-import").is_none());
+    // The same menu drawn for a workspace has both.
+    let (_menu, wcx) = mcx
+        .cx
+        .add_window_view(|_, _| AccountMenu("workspace-account"));
+    draw(wcx);
+    assert!(wcx.debug_bounds("workspace-account-export").is_some());
+    assert!(wcx.debug_bounds("workspace-account-import").is_some());
+}
+
+/// The account menu by itself, as the bookshelf or a workspace draws it.
+struct AccountMenu(&'static str);
+
+impl gpui::Render for AccountMenu {
+    fn render(
+        &mut self,
+        window: &mut gpui::Window,
+        cx: &mut gpui::Context<Self>,
+    ) -> impl gpui::IntoElement {
+        use gpui::ParentElement as _;
+        gpui::div().child(dr_shell::account::menu(
+            self.0,
+            None,
+            std::rc::Rc::new(|_, _| {}),
+            window,
+            cx,
+        ))
+    }
+}

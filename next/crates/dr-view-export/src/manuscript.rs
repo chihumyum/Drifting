@@ -30,8 +30,8 @@ use keys::manuscript_export as mx;
 
 /// The dialog's width.
 pub const WIDTH: f32 = 520.0;
-/// The residence tree scrolls past this height.
-const TREE_MAX_HEIGHT: f32 = 260.0;
+/// The residence tree scrolls past this height (the prototype's 360).
+const TREE_MAX_HEIGHT: f32 = 360.0;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Busy {
@@ -57,6 +57,9 @@ pub struct ManuscriptState {
     pub only_book_prose: bool,
     /// Manually ticked entry IDs in the residence tree.
     pub selected: BTreeSet<String>,
+    /// Manually ticked rows of entries hung on another, `(host, member)`:
+    /// only that place of the entry, not where it lives.
+    pub selected_hung: BTreeSet<(String, String)>,
     /// Collapsed level IDs in the residence tree (all expanded on open).
     pub collapsed: BTreeSet<String>,
     /// Single 「条目标题」 switch (`kernel-v5` §3).
@@ -99,6 +102,7 @@ impl ManuscriptState {
             format: mine.format,
             only_book_prose: false,
             selected: BTreeSet::new(),
+            selected_hung: BTreeSet::new(),
             collapsed: BTreeSet::new(),
             entry_titles: mine.entry_titles,
             title,
@@ -158,9 +162,11 @@ impl ManuscriptState {
                 if outline.has_book {
                     self.only_book_prose = true;
                     self.selected.clear();
+                    self.selected_hung.clear();
                 } else {
                     self.only_book_prose = false;
                     self.selected = outline.tree_ids().into_iter().collect();
+                    self.selected_hung = outline.hung_rows().into_iter().collect();
                 }
                 self.collapsed.clear();
                 self.outline = Some(outline);
@@ -182,14 +188,20 @@ impl ManuscriptState {
         self.only_book_prose = on && has_book;
     }
 
-    /// Whether `node` and every descendant beneath it are ticked.
+    /// Whether `node`, everything living under it and every entry hung on
+    /// it or on what lives under it are ticked.
     pub fn is_full(&self, node: &TreeNode) -> bool {
-        self.selected.contains(&node.id) && node.children.iter().all(|c| self.is_full(c))
+        self.selected.contains(&node.id)
+            && node.children.iter().all(|c| self.is_full(c))
+            && node.hung.iter().all(|h| self.is_hung(&node.id, &h.id))
     }
 
-    /// Whether `node` or any descendant beneath it is ticked.
+    /// Whether `node`, anything living under it or anything hung on it
+    /// (or below) is ticked.
     pub fn is_some(&self, node: &TreeNode) -> bool {
-        self.selected.contains(&node.id) || node.children.iter().any(|c| self.is_some(c))
+        self.selected.contains(&node.id)
+            || node.children.iter().any(|c| self.is_some(c))
+            || node.hung.iter().any(|h| self.is_hung(&node.id, &h.id))
     }
 
     /// Looks up `id` in the loaded residence tree.
@@ -208,9 +220,16 @@ impl ManuscriptState {
         find(&self.outline.as_ref()?.tree, id)
     }
 
-    /// Toggles `id` in the residence tree: clicking a level ticks itself and
-    /// all descendants; clicking a fully ticked level unticks itself and all
-    /// descendants; clicking a single entry toggles that entry.
+    /// Whether the row of `member` hung on `host` is ticked.
+    pub fn is_hung(&self, host: &str, member: &str) -> bool {
+        self.selected_hung
+            .contains(&(host.to_owned(), member.to_owned()))
+    }
+
+    /// Toggles `id` in the residence tree: clicking a level ticks itself,
+    /// all its descendants and every entry hung on them; clicking a fully
+    /// ticked level unticks all of it; clicking a single entry toggles that
+    /// entry (and what is hung on it).
     pub fn toggle_tree_entry(&mut self, id: &str) {
         if self.only_book_prose {
             return;
@@ -220,15 +239,30 @@ impl ManuscriptState {
         };
         let was_full = self.is_full(node);
         let mut ids = Vec::new();
-        collect_subtree_ids(node, &mut ids);
+        let mut hung = Vec::new();
+        collect_subtree(node, &mut ids, &mut hung);
         if was_full {
             for item in ids {
                 self.selected.remove(&item);
             }
-        } else {
-            for item in ids {
-                self.selected.insert(item);
+            for pick in hung {
+                self.selected_hung.remove(&pick);
             }
+        } else {
+            self.selected.extend(ids);
+            self.selected_hung.extend(hung);
+        }
+    }
+
+    /// Toggles the row of `member` hung on `host`: only this place of it,
+    /// not where it lives.
+    pub fn toggle_hung(&mut self, host: &str, member: &str) {
+        if self.only_book_prose {
+            return;
+        }
+        let pick = (host.to_owned(), member.to_owned());
+        if !self.selected_hung.remove(&pick) {
+            self.selected_hung.insert(pick);
         }
     }
 
@@ -246,6 +280,10 @@ impl ManuscriptState {
         }
         self.selected = match (&self.outline, on) {
             (Some(o), true) => o.tree_ids().into_iter().collect(),
+            _ => BTreeSet::new(),
+        };
+        self.selected_hung = match (&self.outline, on) {
+            (Some(o), true) => o.hung_rows().into_iter().collect(),
             _ => BTreeSet::new(),
         };
     }
@@ -267,6 +305,24 @@ impl ManuscriptState {
         }
     }
 
+    /// The ticked rows of entries hung on another, in tree order (with
+    /// 「只导成书正文」 on: none).
+    pub fn hung(&self) -> Vec<(String, String)> {
+        match &self.outline {
+            Some(o) if !self.only_book_prose => o
+                .hung_rows()
+                .into_iter()
+                .filter(|row| self.selected_hung.contains(row))
+                .collect(),
+            _ => Vec::new(),
+        }
+    }
+
+    /// With 「成书」 on and 「只导成书正文」 on, the book has no text to export.
+    pub fn book_is_empty(&self) -> bool {
+        self.only_book_prose && self.outline.as_ref().is_some_and(|o| o.entries.is_empty())
+    }
+
     pub fn title(&self, cx: &gpui::App) -> String {
         self.title.read(cx).text()
     }
@@ -278,7 +334,7 @@ impl ManuscriptState {
 
     pub fn can_export(&self, cx: &gpui::App) -> bool {
         self.outline.is_some()
-            && !self.chapters().is_empty()
+            && !(self.chapters().is_empty() && self.hung().is_empty())
             && !self.title(cx).trim().is_empty()
             && !self.is_busy()
     }
@@ -290,6 +346,7 @@ impl ManuscriptState {
         (
             Options {
                 chapters: (!self.only_book_prose).then(|| self.chapters()),
+                hung: self.hung(),
                 act_titles: false,
                 chapter_titles: self.entry_titles,
                 title: self.title(cx).trim().to_owned(),
@@ -299,6 +356,7 @@ impl ManuscriptState {
             Labels {
                 untitled_chapter: self.i18n.t(keys::k4_book::UNTITLED_ENTRY).to_owned(),
                 untitled_act: self.i18n.t(mx::UNTITLED_ACT).to_owned(),
+                options: option_labels(&self.i18n),
             },
         )
     }
@@ -418,11 +476,29 @@ impl ManuscriptState {
     }
 }
 
-fn collect_subtree_ids(node: &TreeNode, out: &mut Vec<String>) {
-    out.push(node.id.clone());
+/// `node`, what lives under it and the rows hung on any of them.
+fn collect_subtree(node: &TreeNode, ids: &mut Vec<String>, hung: &mut Vec<(String, String)>) {
+    ids.push(node.id.clone());
     for child in &node.children {
-        collect_subtree_ids(child, out);
+        collect_subtree(child, ids, hung);
     }
+    hung.extend(node.hung.iter().map(|h| (node.id.clone(), h.id.clone())));
+}
+
+/// The built-in option values of the field editor's choices
+/// (`dr_view_elements::fields::v3::option_label`), as the export prints them.
+fn option_labels(i18n: &I18n) -> std::collections::BTreeMap<String, String> {
+    use keys::editor_top_bar::status as st;
+    [
+        ("draft", st::DRAFT),
+        ("finished", st::FINISHED),
+        ("discarded", st::DISCARDED),
+        ("drifting", st::DRIFTING),
+        ("resting", st::RESTING),
+    ]
+    .into_iter()
+    .map(|(value, key)| (value.to_owned(), i18n.t(key).to_owned()))
+    .collect()
 }
 
 /// Reads, lays out and writes the manuscript (off the main thread).
@@ -494,11 +570,22 @@ fn entry_mark(mark: Option<&str>, id: &str) -> sand::Kind {
     }
 }
 
-struct VisibleRow<'a> {
-    node: &'a TreeNode,
-    depth: usize,
-    full: bool,
-    some: bool,
+/// A row of the scope tree: an entry where it lives, or an entry hung on
+/// `host` (listed after the ones living there, as the left sidebar's tree
+/// lists them, kernel-v5 §16 「层级的列表」).
+enum VisibleRow<'a> {
+    Node {
+        node: &'a TreeNode,
+        depth: usize,
+        full: bool,
+        some: bool,
+    },
+    Hung {
+        host: &'a str,
+        node: &'a TreeNode,
+        depth: usize,
+        on: bool,
+    },
 }
 
 fn flatten_visible<'a>(
@@ -508,16 +595,50 @@ fn flatten_visible<'a>(
     out: &mut Vec<VisibleRow<'a>>,
 ) {
     for node in nodes {
-        out.push(VisibleRow {
+        out.push(VisibleRow::Node {
             node,
             depth,
             full: state.is_full(node),
             some: state.is_some(node),
         });
-        if !node.children.is_empty() && !state.collapsed.contains(&node.id) {
-            flatten_visible(&node.children, depth + 1, state, out);
+        if state.collapsed.contains(&node.id) {
+            continue;
+        }
+        flatten_visible(&node.children, depth + 1, state, out);
+        for member in &node.hung {
+            out.push(VisibleRow::Hung {
+                host: &node.id,
+                node: member,
+                depth: depth + 1,
+                on: state.is_hung(&node.id, &member.id),
+            });
         }
     }
+}
+
+/// The dotted rule in the indent of a hung row, as structure's 「挂在上面」
+/// (not told apart by colour): a grain every 3 px down the row.
+fn hung_rule(color: Rgb) -> impl IntoElement {
+    let color = color.solid();
+    gpui::canvas(
+        |_, _, _| {},
+        move |bounds, _, window, _| {
+            let h = f32::from(bounds.size.height);
+            let mut y = 0.0;
+            while y < h {
+                window.paint_quad(gpui::fill(
+                    gpui::Bounds {
+                        origin: bounds.origin + gpui::point(px(0.0), px(y)),
+                        size: gpui::size(px(1.5), px(1.5)),
+                    },
+                    color,
+                ));
+                y += 3.0;
+            }
+        },
+    )
+    .w(px(1.5))
+    .h_full()
 }
 
 /// A section of the dialog: its label in index type, then its controls.
@@ -665,6 +786,19 @@ pub(crate) fn render(
                                 ),
                         ),
                 );
+                if m.book_is_empty() {
+                    scope = scope.child(
+                        div()
+                            .id("export-book-empty")
+                            .debug_selector(|| "export-book-empty".into())
+                            .role(gpui::Role::Label)
+                            .aria_label(t(keys::k4_book::BOOK_PROSE_EMPTY))
+                            .font_role(Role::Ui)
+                            .type_px(s.secondary, s.line_body)
+                            .text_color(p.ink(3).solid())
+                            .child(t(keys::k4_book::BOOK_PROSE_EMPTY)),
+                    );
+                }
             }
 
             let tree_disabled = running || m.only_book_prose;
@@ -680,95 +814,35 @@ pub(crate) fn render(
                 .flex_col()
                 .when(m.only_book_prose, |el| el.opacity(0.45));
             for row in rows {
-                let node = row.node;
-                let has_children = !node.children.is_empty();
-                let is_collapsed = m.collapsed.contains(&node.id);
-                let label = if node.title.trim().is_empty() {
-                    i18n.t(keys::k4_book::UNTITLED_ENTRY).to_owned()
-                } else {
-                    node.title.clone()
-                };
-                let disc: AnyElement = if has_children {
-                    let (fold, id) = (this.clone(), node.id.clone());
-                    let chevron = if is_collapsed {
-                        Icon::ChevronRight
-                    } else {
-                        Icon::ChevronDown
-                    };
-                    div()
-                        .id(gpui::ElementId::Name(
-                            format!("export-fold-{}", node.id).into(),
-                        ))
-                        .flex_none()
-                        .size(px(16.0))
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .when(!tree_disabled, |el| {
-                            el.cursor_pointer().on_click(move |_, _, cx| {
-                                fold.update(cx, |d, cx| {
-                                    if let Some(m) = d.manuscript_mut()
-                                        && !m.is_busy()
-                                        && !m.only_book_prose
-                                    {
-                                        m.toggle_collapse(&id);
-                                    }
-                                    cx.notify();
-                                })
-                            })
-                        })
-                        .child(sand::icon(chevron, 11.0, p.muted().solid()))
-                        .into_any_element()
-                } else {
-                    div().flex_none().size(px(16.0)).into_any_element()
-                };
-
-                let check_mark = div()
-                    .flex_none()
-                    .size(px(14.0))
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .when(row.full, |el| {
-                        el.child(sand::icon(Icon::Check, 14.0, p.ink(1).solid()))
-                    })
-                    .when(!row.full && row.some, |el| {
-                        el.child(
-                            div()
-                                .w(px(9.0))
-                                .h(px(2.0))
-                                .rounded(px(1.0))
-                                .bg(p.ink(1).solid()),
-                        )
-                    });
-
-                let (toggle, id) = (this.clone(), node.id.clone());
-                let cell = SandCell::new(
-                    gpui::ElementId::Name(format!("export-entry-{}", node.id).into()),
-                    label,
-                )
-                .mark(entry_mark(node.mark.as_deref(), &node.id))
-                .color_opt(node.color.as_deref().and_then(color_of))
-                .disabled(tree_disabled)
-                .child(check_mark)
-                .on_click(move |_, _, cx| {
-                    toggle.update(cx, |d, cx| {
-                        if let Some(m) = d.manuscript_mut() {
-                            m.toggle_tree_entry(&id);
-                        }
-                        cx.notify();
-                    })
+                tree = tree.child(match row {
+                    VisibleRow::Node {
+                        node,
+                        depth,
+                        full,
+                        some,
+                    } => node_row(
+                        &this,
+                        m,
+                        i18n,
+                        p,
+                        node,
+                        depth,
+                        if full {
+                            gpui::Toggled::True
+                        } else if some {
+                            gpui::Toggled::Mixed
+                        } else {
+                            gpui::Toggled::False
+                        },
+                        tree_disabled,
+                    ),
+                    VisibleRow::Hung {
+                        host,
+                        node,
+                        depth,
+                        on,
+                    } => hung_row(&this, i18n, p, host, node, depth, on, tree_disabled),
                 });
-
-                tree = tree.child(
-                    div()
-                        .pl(px(row.depth as f32 * 16.0))
-                        .flex()
-                        .flex_row()
-                        .items_center()
-                        .child(disc)
-                        .child(div().flex_1().min_w_0().child(cell)),
-                );
             }
             scope = scope.child(tree);
 
@@ -880,7 +954,7 @@ pub(crate) fn render(
         .width(WIDTH)
         .body(body)
         .action(
-            Button::new("export-close", t(keys::common::CLOSE))
+            Button::new("export-close", t(keys::common::CANCEL))
                 .disabled(running)
                 .on_click(move |_, _, cx| close.update(cx, |d, cx| d.close(cx))),
         )
@@ -906,4 +980,198 @@ pub(crate) fn render(
         );
     }
     d.into_any_element()
+}
+
+/// What an entry's row is called: its title, or 「未命名条目」.
+fn row_label(node: &TreeNode, i18n: &I18n) -> String {
+    if node.title.trim().is_empty() {
+        i18n.t(keys::k4_book::UNTITLED_ENTRY).to_owned()
+    } else {
+        node.title.clone()
+    }
+}
+
+/// The tick at a row's end: a check when all of it is ticked, a short bar
+/// when part of it is. It is the row's checkbox for assistive technology.
+fn tick(
+    id: String,
+    label: String,
+    state: gpui::Toggled,
+    p: &dr_ui::tokens::Palette,
+) -> gpui::Stateful<gpui::Div> {
+    div()
+        .id(gpui::ElementId::Name(id.into()))
+        .role(gpui::Role::CheckBox)
+        .aria_label(SharedString::from(label))
+        .aria_toggled(state)
+        .flex_none()
+        .size(px(14.0))
+        .flex()
+        .items_center()
+        .justify_center()
+        .when(state == gpui::Toggled::True, |el| {
+            el.child(sand::icon(Icon::Check, 14.0, p.ink(1).solid()))
+        })
+        .when(state == gpui::Toggled::Mixed, |el| {
+            el.child(
+                div()
+                    .w(px(9.0))
+                    .h(px(2.0))
+                    .rounded(px(1.0))
+                    .bg(p.ink(1).solid()),
+            )
+        })
+}
+
+/// An entry where it lives: the arrow that folds what is below it, its
+/// mark and title, and its tick.
+#[allow(clippy::too_many_arguments)]
+fn node_row(
+    this: &Entity<ExportDialog>,
+    m: &ManuscriptState,
+    i18n: &I18n,
+    p: &dr_ui::tokens::Palette,
+    node: &TreeNode,
+    depth: usize,
+    state: gpui::Toggled,
+    tree_disabled: bool,
+) -> AnyElement {
+    let has_below = !node.children.is_empty() || !node.hung.is_empty();
+    let is_collapsed = m.collapsed.contains(&node.id);
+    let label = row_label(node, i18n);
+    let disc: AnyElement = if has_below {
+        let (fold, id) = (this.clone(), node.id.clone());
+        let chevron = if is_collapsed {
+            Icon::ChevronRight
+        } else {
+            Icon::ChevronDown
+        };
+        div()
+            .id(gpui::ElementId::Name(
+                format!("export-fold-{}", node.id).into(),
+            ))
+            .role(gpui::Role::Button)
+            .aria_expanded(!is_collapsed)
+            .aria_label(SharedString::from(i18n.fmt(
+                if is_collapsed {
+                    keys::v3_levels::EXPAND
+                } else {
+                    keys::v3_levels::COLLAPSE
+                },
+                &[("name", &label)],
+            )))
+            .flex_none()
+            .size(px(16.0))
+            .flex()
+            .items_center()
+            .justify_center()
+            .when(!tree_disabled, |el| {
+                el.cursor_pointer().on_click(move |_, _, cx| {
+                    fold.update(cx, |d, cx| {
+                        if let Some(m) = d.manuscript_mut()
+                            && !m.is_busy()
+                            && !m.only_book_prose
+                        {
+                            m.toggle_collapse(&id);
+                        }
+                        cx.notify();
+                    })
+                })
+            })
+            .child(sand::icon(chevron, 11.0, p.muted().solid()))
+            .into_any_element()
+    } else {
+        div().flex_none().size(px(16.0)).into_any_element()
+    };
+    let (toggle, id) = (this.clone(), node.id.clone());
+    let cell = SandCell::new(
+        gpui::ElementId::Name(format!("export-entry-{}", node.id).into()),
+        label.clone(),
+    )
+    .mark(entry_mark(node.mark.as_deref(), &node.id))
+    .color_opt(node.color.as_deref().and_then(color_of))
+    .disabled(tree_disabled)
+    .child(tick(format!("export-tick-{}", node.id), label, state, p))
+    .on_click(move |_, _, cx| {
+        toggle.update(cx, |d, cx| {
+            if let Some(m) = d.manuscript_mut() {
+                m.toggle_tree_entry(&id);
+            }
+            cx.notify();
+        })
+    });
+    let selector = format!("export-row-{}", node.id);
+    div()
+        .debug_selector(move || selector)
+        .pl(px(depth as f32 * 16.0))
+        .flex()
+        .flex_row()
+        .items_center()
+        .child(disc)
+        .child(div().flex_1().min_w_0().child(cell))
+        .into_any_element()
+}
+
+/// An entry hung on `host`, listed after what lives under it: a dotted rule
+/// in its indent (as the left sidebar's tree draws it, not told apart by
+/// colour), no arrow, its own tick for this place of it.
+#[allow(clippy::too_many_arguments)]
+fn hung_row(
+    this: &Entity<ExportDialog>,
+    i18n: &I18n,
+    p: &dr_ui::tokens::Palette,
+    host: &str,
+    node: &TreeNode,
+    depth: usize,
+    on: bool,
+    tree_disabled: bool,
+) -> AnyElement {
+    let label = row_label(node, i18n);
+    let (toggle, host_id, member) = (this.clone(), host.to_owned(), node.id.clone());
+    let cell = SandCell::new(
+        gpui::ElementId::Name(format!("export-hung-{host}-{}", node.id).into()),
+        label.clone(),
+    )
+    .mark(entry_mark(node.mark.as_deref(), &node.id))
+    .color_opt(node.color.as_deref().and_then(color_of))
+    .disabled(tree_disabled)
+    .child(tick(
+        format!("export-hung-tick-{host}-{}", node.id),
+        label,
+        if on {
+            gpui::Toggled::True
+        } else {
+            gpui::Toggled::False
+        },
+        p,
+    ))
+    .on_click(move |_, _, cx| {
+        toggle.update(cx, |d, cx| {
+            if let Some(m) = d.manuscript_mut() {
+                m.toggle_hung(&host_id, &member);
+            }
+            cx.notify();
+        })
+    });
+    let selector = format!("export-hung-row-{host}-{}", node.id);
+    let rule = format!("export-hung-rule-{host}-{}", node.id);
+    div()
+        .debug_selector(move || selector)
+        .relative()
+        .pl(px(depth as f32 * 16.0))
+        .flex()
+        .flex_row()
+        .items_center()
+        .child(
+            div()
+                .debug_selector(move || rule)
+                .absolute()
+                .left(px((depth as f32 * 16.0 - 4.0).max(0.0)))
+                .top(px(3.0))
+                .bottom(px(3.0))
+                .child(hung_rule(p.ink(4))),
+        )
+        .child(div().flex_none().size(px(16.0)))
+        .child(div().flex_1().min_w_0().child(cell))
+        .into_any_element()
 }

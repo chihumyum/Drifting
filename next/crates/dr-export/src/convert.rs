@@ -105,6 +105,11 @@ pub struct Options {
     /// ticked entries of the residence tree (`自己勾`: all content of each
     /// ticked entry in residence-tree order, preserving tree hierarchy).
     pub chapters: Option<Vec<String>>,
+    /// With `chapters: Some(..)`: the ticked rows of entries hung on another
+    /// one, `(host, member)`. Each is exported (once more, if it is ticked
+    /// where it lives too) right after what lives under `host`, as the
+    /// residence tree lists them (`kernel-v5.md` §16 「层级的列表」).
+    pub hung: Vec<(String, String)>,
     /// Legacy 0.1 act-title switch; unused in v5 books.
     pub act_titles: bool,
     /// Entry titles (`条目标题`) are shown in the body (they stay in navigation
@@ -117,10 +122,22 @@ pub struct Options {
 }
 
 /// Names for what has none, in the interface language.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Labels {
     pub untitled_chapter: String,
     pub untitled_act: String,
+    /// The built-in option values of a choice field (`finished`,
+    /// `drifting`, …) as the field shows them in the interface
+    /// (`dr_view_elements::fields::v3::option_label`); an author's own
+    /// options print as they are.
+    pub options: std::collections::BTreeMap<String, String>,
+}
+
+impl Labels {
+    /// What a choice field's stored `value` reads as.
+    pub fn option<'a>(&'a self, value: &'a str) -> &'a str {
+        self.options.get(value).map_or(value, String::as_str)
+    }
 }
 
 /// Reads the book's acts and live chapters in book order.

@@ -84,6 +84,7 @@
     }
   },
   "k4Book": {
+    "book_prose_empty": "책 본문이 아직 없습니다",
     "entry_count_other": "항목 {{count}}개",
     "entry_titles": "항목 제목",
     "entry_total": "항목 수",

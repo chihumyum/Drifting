@@ -429,6 +429,7 @@
     }
   },
   "k4Book": {
+    "book_prose_empty": "本編にはまだ本文がありません",
     "entry_count_other": "{{count}} 項目",
     "entry_titles": "項目のタイトル",
     "entry_total": "項目数",
@@ -474,8 +475,6 @@
     "bookInfo": "作品情報",
     "bookTitle": "タイトル",
     "changeCover": "変更",
-    "chapterCount_one": "{{count}}章",
-    "chapterCount_other": "{{count}}章",
     "chooseCover": "画像を選択",
     "contents": "内容",
     "cover": "表紙",

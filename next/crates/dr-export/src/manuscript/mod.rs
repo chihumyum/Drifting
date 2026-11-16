@@ -48,7 +48,7 @@ impl Format {
     pub fn label(self) -> &'static str {
         match self {
             Self::Epub => "EPUB",
-            Self::Docx => "Word",
+            Self::Docx => "DOCX",
             Self::Pdf => "PDF",
         }
     }

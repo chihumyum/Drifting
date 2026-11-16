@@ -92,6 +92,7 @@
     }
   },
   "k4Book": {
+    "book_prose_empty": "Le livre n’a pas encore de texte",
     "entry_count_one": "{{count}} entrée",
     "entry_count_other": "{{count}} entrées",
     "entry_titles": "Titres des entrées",

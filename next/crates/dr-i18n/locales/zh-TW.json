@@ -429,6 +429,7 @@
     }
   },
   "k4Book": {
+    "book_prose_empty": "成書裡還沒有正文",
     "entry_count_other": "{{count}} 個條目",
     "entry_titles": "條目標題",
     "entry_total": "條目數量",
@@ -474,8 +475,6 @@
     "bookInfo": "作品資料",
     "bookTitle": "標題",
     "changeCover": "變更",
-    "chapterCount_one": "{{count}} 章",
-    "chapterCount_other": "{{count}} 章",
     "chooseCover": "選擇圖片",
     "contents": "內容",
     "cover": "封面",

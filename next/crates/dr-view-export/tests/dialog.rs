@@ -379,3 +379,156 @@ fn export_dialog_reads_book_from_root_and_bookless_project_starts_with_whole_tre
     cx_bookless.run_until_parked();
     assert!(!cx_bookless.did_prompt_for_new_path());
 }
+
+/// A debug selector made at run time (they are `'static`).
+fn selector(name: String) -> &'static str {
+    Box::leak(name.into_boxed_str())
+}
+
+fn draw(cx: &mut VisualTestContext) {
+    cx.update(|window, cx| {
+        window.refresh();
+        window.draw(cx).clear(cx);
+    });
+    cx.run_until_parked();
+}
+
+/// With 「只导成书正文」 on the tree does not take a click; a book with no
+/// text yet says so under the switch, which stays on, and nothing exports
+/// (作者 2026-11-16 九丙).
+#[gpui::test]
+fn the_book_text_switch_holds_the_tree_and_an_empty_book_says_so(cx: &mut TestAppContext) {
+    let e = env();
+    let (dialog, cx) = open(cx, &e, Request::Manuscript);
+    cx.simulate_resize(gpui::size(gpui::px(900.0), gpui::px(1100.0)));
+    wait_for(cx, |cx| {
+        dialog.read_with(cx, |d, _| d.manuscript().unwrap().outline.is_some())
+    });
+    draw(cx);
+    let row = cx
+        .debug_bounds(selector(format!("export-row-{}", e.group)))
+        .expect("the level's row is drawn");
+    cx.simulate_click(row.center(), gpui::Modifiers::none());
+    draw(cx);
+    dialog.update(cx, |d, _| {
+        let m = d.manuscript_mut().unwrap();
+        assert!(m.only_book_prose);
+        assert!(m.selected.is_empty(), "the tree did not take the click");
+        m.toggle_tree_entry(&e.chapters[0]);
+        assert!(m.selected.is_empty());
+        assert!(!m.book_is_empty());
+    });
+    assert!(cx.debug_bounds("export-book-empty").is_none());
+}
+
+#[gpui::test]
+fn an_empty_book_says_so_under_the_switch_and_exports_nothing(cx: &mut TestAppContext) {
+    let e = env();
+    for chapter in &e.chapters[..2] {
+        out(&e.ws, "entry.trash", json!({"book": e.book, "id": chapter}));
+    }
+    let (dialog, cx) = open(cx, &e, Request::Manuscript);
+    wait_for(cx, |cx| {
+        dialog.read_with(cx, |d, _| d.manuscript().unwrap().outline.is_some())
+    });
+    draw(cx);
+    dialog.read_with(cx, |d, cx| {
+        let m = d.manuscript().unwrap();
+        assert!(m.outline.as_ref().unwrap().has_book);
+        assert!(m.only_book_prose, "the switch stays on");
+        assert!(m.book_is_empty());
+        assert!(!m.can_export(cx));
+    });
+    assert!(cx.debug_bounds("export-book-empty").is_some());
+    // Picking by hand: no word about the book.
+    dialog.update(cx, |d, _| {
+        d.manuscript_mut().unwrap().set_only_book_prose(false)
+    });
+    draw(cx);
+    assert!(cx.debug_bounds("export-book-empty").is_none());
+}
+
+/// The scope tree lists the entries hung on one after the ones living under
+/// it, as the left sidebar's tree does: a dotted rule in their indent, their
+/// own tick for that place, and a level's tick takes them with it (作者
+/// 2026-11-16 十乙).
+#[gpui::test]
+fn hung_entries_are_rows_of_their_own_after_the_ones_living_there(cx: &mut TestAppContext) {
+    let e = env();
+    let storylines = dr_testkit::seed::acceptance::novel_root(&e.ws, &e.book, "tpl-storylines");
+    let line = out(
+        &e.ws,
+        "entry.create",
+        json!({"book": e.book, "parent": storylines, "template": "tpl-storyline", "title": "主线"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    out(
+        &e.ws,
+        "membership.add",
+        json!({"book": e.book, "host": line, "member": e.chapters[0]}),
+    );
+    let pick = (line.clone(), e.chapters[0].clone());
+    let (dialog, vcx) = open(cx, &e, Request::Manuscript);
+    vcx.simulate_resize(gpui::size(gpui::px(900.0), gpui::px(1400.0)));
+    wait_for(vcx, |cx| {
+        dialog.read_with(cx, |d, _| d.manuscript().unwrap().outline.is_some())
+    });
+    dialog.update(vcx, |d, _| {
+        let m = d.manuscript_mut().unwrap();
+        assert_eq!(m.outline.as_ref().unwrap().hung_rows(), vec![pick.clone()]);
+        m.set_only_book_prose(false);
+        // The hung row alone: this place of the chapter only.
+        m.toggle_hung(&pick.0, &pick.1);
+        assert_eq!(m.hung(), vec![pick.clone()]);
+        assert!(m.chapters().is_empty());
+        let host = m.node(&line).unwrap();
+        assert!(m.is_some(host) && !m.is_full(host));
+    });
+    dialog.read_with(vcx, |d, cx| assert!(d.manuscript().unwrap().can_export(cx)));
+    draw(vcx);
+    assert!(
+        vcx.debug_bounds(selector(format!("export-hung-row-{}-{}", pick.0, pick.1)))
+            .is_some()
+    );
+    assert!(
+        vcx.debug_bounds(selector(format!("export-hung-rule-{}-{}", pick.0, pick.1)))
+            .is_some(),
+        "a dotted rule in the hung row's indent"
+    );
+    dialog.update(vcx, |d, _| {
+        let m = d.manuscript_mut().unwrap();
+        // The host's tick takes what is hung on it; again, it lets all go.
+        m.toggle_tree_entry(&line);
+        let host = m.node(&line).unwrap();
+        assert!(m.is_full(host));
+        assert_eq!(m.chapters(), vec![line.clone()]);
+        assert_eq!(m.hung(), vec![pick.clone()]);
+        m.toggle_tree_entry(&line);
+        assert!(m.chapters().is_empty() && m.hung().is_empty());
+        // Folded, the host hides its hung rows too.
+        m.toggle_collapse(&line);
+    });
+    draw(vcx);
+    assert!(
+        vcx.debug_bounds(selector(format!("export-hung-row-{}-{}", pick.0, pick.1)))
+            .is_none()
+    );
+
+    // A project without a book opens with all of it ticked, hung rows too.
+    out(
+        &e.ws,
+        "project.update",
+        json!({"book": e.book, "has_book": false}),
+    );
+    let (bookless, cx2) = open(cx, &e, Request::Manuscript);
+    wait_for(cx2, |cx| {
+        bookless.read_with(cx, |d, _| d.manuscript().unwrap().outline.is_some())
+    });
+    bookless.read_with(cx2, |d, cx| {
+        let m = d.manuscript().unwrap();
+        assert_eq!(m.hung(), vec![pick.clone()]);
+        assert_eq!(m.options(cx).0.hung, vec![pick.clone()]);
+    });
+}

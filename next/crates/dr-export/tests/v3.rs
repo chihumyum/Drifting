@@ -38,6 +38,7 @@ fn read(ws: &Workspace, book: &str, entries: Option<Vec<String>>) -> dr_export::
         &Labels {
             untitled_chapter: "Untitled".into(),
             untitled_act: "Unused".into(),
+            options: Default::default(),
         },
         "en",
         None,
@@ -159,7 +160,7 @@ fn manuscript_keeps_resident_order_and_each_prose_module_once() {
 }
 
 #[test]
-fn manuscript_excludes_nonresident_and_trashed_content_and_refuses_old_books() {
+fn trashed_entries_stay_out_ticked_non_book_entries_export_and_old_books_are_refused() {
     let (_dir, ws, book) = fixture();
     assert!(v3::is_book(&ws, &book).unwrap());
     let before = v3::outline(&ws, &book).unwrap();
@@ -174,6 +175,7 @@ fn manuscript_excludes_nonresident_and_trashed_content_and_refuses_old_books() {
     let labels = Labels {
         untitled_chapter: "Untitled".into(),
         untitled_act: "Unused".into(),
+        options: Default::default(),
     };
     assert!(matches!(
         v3::read_manuscript(
@@ -467,6 +469,7 @@ fn export_reads_the_book_from_the_root_and_is_empty_when_the_book_is_off() {
     let labels = Labels {
         untitled_chapter: "Untitled".into(),
         untitled_act: "Unused".into(),
+        options: Default::default(),
     };
     let only_side = v3::read_manuscript(
         &ws,
@@ -982,7 +985,7 @@ fn tree_selection_exports_all_content_modules_with_tree_hierarchy_across_formats
         "备注正文：只在自己勾时导出。",
         "校对员",
         "29",
-        "阿晚, 小晚",
+        "阿晚、小晚",
         "老守塔人",
         "肖像",
         "惯用手",
@@ -1062,6 +1065,7 @@ fn tree_selection_exports_all_content_modules_with_tree_hierarchy_across_formats
         &Labels {
             untitled_chapter: "Untitled".into(),
             untitled_act: "Unused".into(),
+            options: Default::default(),
         },
         "zh-CN",
         None,
@@ -1078,4 +1082,162 @@ fn tree_selection_exports_all_content_modules_with_tree_hierarchy_across_formats
     ));
 
     ws.close();
+}
+
+/// T3b: a choice prints as the field shows it (built-in options in the
+/// interface language, an author's own as they are), several values are
+/// joined as a review card quotes them (「、」), a value kept from an older
+/// field definition does not print, and a ticked row of an entry hung on
+/// another prints that entry once more there, after what lives under the
+/// host (作者 2026-11-16 十乙).
+#[test]
+fn choices_read_as_shown_only_defined_fields_print_and_hung_rows_print_again() {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = dr_store::Library::open(dir.path(), dr_workspace::library_options("test")).unwrap();
+    let ws = Workspace::open(lib, dr_workspace::WorkspaceOptions::default()).unwrap();
+    let book = call(&ws, "project.create", json!({"name": "挂着的也印"}))["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let template = json!({
+        "id": "tpl-choice-card",
+        "name": "选项卡",
+        "modules": [{
+            "id": "mod-fields",
+            "kind": "fields",
+            "name": "属性",
+            "config": {"defs": [
+                {"id": "state", "name": "状态", "field_type": "select", "options": ["finished", "自己的选项"]},
+                {"id": "tags", "name": "标签", "field_type": "multi_select", "options": ["drifting", "自定"]},
+                {"id": "old", "name": "旧栏", "field_type": "text"}
+            ]}
+        }]
+    });
+    call(
+        &ws,
+        "entry_template.put",
+        json!({"book": book, "template": template}),
+    );
+    let manuscript_root = dr_testkit::seed::acceptance::novel_root(&ws, &book, "tpl-manuscript");
+    let card = call(
+        &ws,
+        "entry.create",
+        json!({"book": book, "parent": manuscript_root, "template": "tpl-choice-card", "title": "卡片"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    for (field, value) in [
+        ("state", json!("finished")),
+        ("tags", json!(["drifting", "自定"])),
+        ("old", json!("旧值不印")),
+    ] {
+        call(
+            &ws,
+            "module.set_field",
+            json!({"book": book, "entry": card, "module": "mod-fields", "field": field, "value": value}),
+        );
+    }
+    // The 「旧栏」 field leaves the template; its value stays in the entry.
+    let mut narrower = template.clone();
+    narrower["modules"][0]["config"]["defs"]
+        .as_array_mut()
+        .unwrap()
+        .pop();
+    call(
+        &ws,
+        "entry_template.put",
+        json!({"book": book, "template": narrower}),
+    );
+    // A chapter hung on a storyline.
+    let chapter = call(
+        &ws,
+        "entry.create",
+        json!({"book": book, "parent": manuscript_root, "template": "tpl-chapter", "title": "第一章", "bodies": {"mod-prose": "雾三天没散。"}}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let storylines = dr_testkit::seed::acceptance::novel_root(&ws, &book, "tpl-storylines");
+    let line = call(
+        &ws,
+        "entry.create",
+        json!({"book": book, "parent": storylines, "template": "tpl-storyline", "title": "主线"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    call(
+        &ws,
+        "membership.add",
+        json!({"book": book, "host": line, "member": chapter}),
+    );
+
+    let outline = v3::outline(&ws, &book).unwrap();
+    assert_eq!(outline.hung_rows(), vec![(line.clone(), chapter.clone())]);
+    let labels = Labels {
+        untitled_chapter: "Untitled".into(),
+        untitled_act: "Unused".into(),
+        options: [
+            ("finished".to_owned(), "完成".to_owned()),
+            ("drifting".to_owned(), "漂流".to_owned()),
+        ]
+        .into_iter()
+        .collect(),
+    };
+    let export = |chapters: Vec<String>, hung: Vec<(String, String)>| {
+        v3::read_manuscript(
+            &ws,
+            &book,
+            &Options {
+                chapters: Some(chapters),
+                hung,
+                chapter_titles: true,
+                ..Options::default()
+            },
+            &labels,
+            "zh-CN",
+            None,
+            UNIX_EPOCH,
+        )
+        .unwrap()
+    };
+    let titled = |m: &dr_export::Manuscript| -> Vec<(String, Option<u8>)> {
+        m.sections
+            .iter()
+            .filter_map(|s| match s {
+                Section::Chapter { title, depth, .. } => Some((title.clone(), *depth)),
+                _ => None,
+            })
+            .collect()
+    };
+
+    let fields = export(vec![card.clone()], Vec::new());
+    let text = serde_json::to_string(&fields.sections).unwrap();
+    assert!(text.contains("完成"), "{text}");
+    assert!(!text.contains("\"finished\""), "{text}");
+    assert!(text.contains("漂流、自定"), "{text}");
+    assert!(
+        !text.contains("旧值不印") && !text.contains("旧栏"),
+        "{text}"
+    );
+
+    // Ticked where it lives and where it hangs: printed twice, in tree order
+    // (书稿 › 第一章, then 故事线 › 主线 › 第一章).
+    let both = export(
+        vec![chapter.clone(), line.clone()],
+        vec![(line.clone(), chapter.clone())],
+    );
+    assert_eq!(
+        titled(&both),
+        vec![
+            ("第一章".to_owned(), Some(1)),
+            ("主线".to_owned(), Some(1)),
+            ("第一章".to_owned(), Some(2)),
+        ]
+    );
+    // Only the hung row: printed there alone.
+    let hung_only = export(Vec::new(), vec![(line.clone(), chapter.clone())]);
+    assert_eq!(titled(&hung_only), vec![("第一章".to_owned(), Some(2))]);
+    ws.shutdown().unwrap();
 }

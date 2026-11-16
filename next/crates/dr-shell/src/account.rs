@@ -314,6 +314,7 @@ pub fn menu(
     // (M41; workspace avatar menu only, not on the shelf).
     let import = (id == "workspace-account").then(|| {
         let to_import = close.clone();
+        let selector = child("import");
         glass::glass_box(
             child("import"),
             GlassKind::Hidden,
@@ -323,6 +324,7 @@ pub fn menu(
             window,
             cx,
         )
+        .debug_selector(move || selector.to_string())
         .cursor_pointer()
         .on_click(move |_, window, cx| {
             to_import(window, cx);
@@ -345,6 +347,7 @@ pub fn menu(
     let export = (id == "workspace-account").then(|| {
         let to_export = close.clone();
         let label = t(cx, keys::manuscript_export::MENU);
+        let selector = child("export");
         glass::glass_box(
             child("export"),
             GlassKind::Hidden,
@@ -356,6 +359,7 @@ pub fn menu(
         )
         .role(gpui::Role::MenuItem)
         .aria_label(label.clone())
+        .debug_selector(move || selector.to_string())
         .cursor_pointer()
         .on_click(move |_, window, cx| {
             to_export(window, cx);

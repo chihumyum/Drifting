@@ -427,6 +427,7 @@
     }
   },
   "k4Book": {
+    "book_prose_empty": "成书里还没有正文",
     "entry_count_other": "{{count}} 个条目",
     "entry_titles": "条目标题",
     "entry_total": "条目数量",
@@ -472,7 +473,6 @@
     "bookInfo": "书籍信息",
     "bookTitle": "书名",
     "changeCover": "更换",
-    "chapterCount": "{{count}} 章",
     "chooseCover": "选择图片",
     "contents": "内容",
     "cover": "封面",

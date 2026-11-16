@@ -90,6 +90,7 @@
     }
   },
   "k4Book": {
+    "book_prose_empty": "No book text yet",
     "entry_count_one": "{{count}} entry",
     "entry_count_other": "{{count}} entries",
     "entry_titles": "Entry titles",

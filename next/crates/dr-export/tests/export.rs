@@ -52,6 +52,7 @@ fn labels() -> Labels {
     Labels {
         untitled_chapter: "未命名章节".into(),
         untitled_act: "未命名幕".into(),
+        options: Default::default(),
     }
 }
 
@@ -251,6 +252,7 @@ fn chapter_prose_becomes_manuscript_blocks() {
             title: String::new(),
             author: " 合成作者 ".into(),
             cover: None,
+            hung: Vec::new(),
         },
         &labels(),
         "zh-CN",
@@ -372,6 +374,7 @@ fn a_chosen_set_keeps_book_order_and_the_title_switches() {
             title: " 选章 ".into(),
             author: String::new(),
             cover: None,
+            hung: Vec::new(),
         },
         &labels(),
         "en",
@@ -479,6 +482,7 @@ fn the_lite_seed_exports_in_every_format() {
             title: String::new(),
             author: "合成作者".into(),
             cover: None,
+            hung: Vec::new(),
         },
         &labels(),
         "zh-CN",

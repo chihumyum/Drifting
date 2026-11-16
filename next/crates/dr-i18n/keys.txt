@@ -184,7 +184,6 @@ manuscriptExport.loadFailed
 manuscriptExport.retry
 manuscriptExport.format
 manuscriptExport.scope
-manuscriptExport.chapterCount
 manuscriptExport.contents
 manuscriptExport.bookInfo
 manuscriptExport.bookTitle

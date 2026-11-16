@@ -268,19 +268,21 @@
       "app": "ui.press",
       "params": {
         "role": "Button",
-        "label": "More actions"
-      }
+        "label": "Local library menu"
+      },
+      "note": "导出成稿只在工作区的头像菜单里（T3b）"
     },
     {
       "app": "ui.press",
       "params": {
+        "role": "MenuItem",
         "label": "Export manuscript"
       }
     },
     {
       "app": "ui.press",
       "params": {
-        "label": "Word"
+        "label": "DOCX"
       }
     },
     {
@@ -293,7 +295,7 @@
       "app": "ui.press",
       "params": {
         "role": "Button",
-        "label": "Export Word"
+        "label": "Export DOCX"
       }
     },
     {
@@ -308,7 +310,7 @@
       "app": "ui.press",
       "params": {
         "role": "Button",
-        "label": "Close"
+        "label": "Cancel"
       }
     },
     {

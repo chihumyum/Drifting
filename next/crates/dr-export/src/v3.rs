@@ -9,7 +9,11 @@
 //!   order (`Prose` whether `in_book` or not, `Fields`, `KeyValue`, `Media`,
 //!   `Patches`, `PlotGrid`, `Relations`; `Children` and `Members` are structural
 //!   views storing no data and are skipped) and preserving tree hierarchy via
-//!   `Section::Chapter::depth`.
+//!   `Section::Chapter::depth`. Fields print only as their template defines
+//!   them (a value kept from an older definition does not); a choice prints
+//!   as the interface shows it. A ticked row of an entry hung on another
+//!   (`options.hung`) prints that entry once more there, after what lives
+//!   under its host.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::{Arc, Mutex};
@@ -53,6 +57,11 @@ pub struct TreeNode {
     pub color: Option<String>,
     pub level: bool,
     pub children: Vec<TreeNode>,
+    /// Entries hung on this one (its 「收别处的条目」 on), in its member
+    /// order, listed after the ones living under it as the left sidebar's
+    /// tree lists them (`kernel-v5.md` §16 「层级的列表」); leaf rows (their
+    /// own `children` and `hung` are empty).
+    pub hung: Vec<TreeNode>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -97,6 +106,19 @@ impl Outline {
         collect(&self.tree, &mut out);
         out
     }
+
+    /// Every hung row `(host, member)` in `self.tree`, in tree order.
+    pub fn hung_rows(&self) -> Vec<(String, String)> {
+        fn collect(nodes: &[TreeNode], out: &mut Vec<(String, String)>) {
+            for n in nodes {
+                collect(&n.children, out);
+                out.extend(n.hung.iter().map(|h| (n.id.clone(), h.id.clone())));
+            }
+        }
+        let mut out = Vec::new();
+        collect(&self.tree, &mut out);
+        out
+    }
 }
 
 fn invalid(e: impl ToString) -> ExportError {
@@ -118,6 +140,21 @@ fn build_tree(
             } else {
                 Vec::new()
             };
+            let hung = structure
+                .members_of(&entry.id)
+                .into_iter()
+                .map(|member| TreeNode {
+                    id: member.id.to_string(),
+                    title: member.title.clone(),
+                    mark: member.effective_mark(templates).map(str::to_owned),
+                    color: member
+                        .effective_template(templates)
+                        .and_then(|t| t.color.clone()),
+                    level: member.is_level(),
+                    children: Vec::new(),
+                    hung: Vec::new(),
+                })
+                .collect();
             TreeNode {
                 id: entry.id.to_string(),
                 title: entry.title.clone(),
@@ -125,6 +162,7 @@ fn build_tree(
                 color: tpl.and_then(|t| t.color.clone()),
                 level: entry.is_level(),
                 children,
+                hung,
             }
         })
         .collect()
@@ -257,7 +295,6 @@ fn render_fields_module(
     let Some(values) = entry.fields.get(module_id) else {
         return;
     };
-    let mut seen: HashSet<&str> = HashSet::new();
     let mut rows: Vec<Vec<Vec<Run>>> = Vec::new();
     let mut push_field = |label: &str, field_type: Option<&FieldType>, val: &FieldValue| {
         let label_clean = crate::convert::one_line(label);
@@ -309,6 +346,17 @@ fn render_fields_module(
                 let shown = entry_display_title(target_title, labels);
                 rows.push(vec![vec![bold_run(field_name)], vec![plain_run(shown)]]);
             }
+            // A choice reads as the field shows it (built-in options in
+            // the interface language).
+            (Some(FieldType::Select), FieldValue::Text(raw)) => {
+                let trimmed = raw.trim();
+                if !trimmed.is_empty() {
+                    rows.push(vec![
+                        vec![bold_run(field_name)],
+                        vec![plain_run(labels.option(trimmed))],
+                    ]);
+                }
+            }
             (_, FieldValue::Text(raw)) => {
                 let trimmed = raw.trim();
                 if !trimmed.is_empty() {
@@ -331,24 +379,30 @@ fn render_fields_module(
                     vec![plain_run(if *b { "☑" } else { "☐" })],
                 ]);
             }
+            // Several values, joined as a review card quotes a field's
+            // value (`dr_view_review::v3`, 「、」); the choices of a
+            // multi-choice field as the field shows them.
             (_, FieldValue::List(items)) => {
+                let multi = field_type == Some(&FieldType::MultiSelect);
                 let non_empty: Vec<&str> = items
                     .iter()
                     .map(|s| s.trim())
                     .filter(|s| !s.is_empty())
+                    .map(|s| if multi { labels.option(s) } else { s })
                     .collect();
                 if !non_empty.is_empty() {
                     rows.push(vec![
                         vec![bold_run(field_name)],
-                        vec![plain_run(non_empty.join(", "))],
+                        vec![plain_run(non_empty.join("、"))],
                     ]);
                 }
             }
         }
     };
 
+    // Only what the template defines: a value kept from an older
+    // definition is retained content, not part of the manuscript.
     for def in defs {
-        seen.insert(def.id.as_str());
         if let Some(val) = values.get(&def.id) {
             let label = if def.name.trim().is_empty() {
                 &def.id
@@ -356,11 +410,6 @@ fn render_fields_module(
                 &def.name
             };
             push_field(label, Some(&def.field_type), val);
-        }
-    }
-    for (key, val) in values {
-        if !seen.contains(key.as_str()) {
-            push_field(key, None, val);
         }
     }
     if !rows.is_empty() {
@@ -627,9 +676,7 @@ fn collect_entry_all_content(
             }
         }
     } else {
-        for module_id in entry.fields.keys() {
-            render_fields_module(entry, module_id, &[], ctx, labels, &mut parts);
-        }
+        // No template defines its fields: none print.
         for rows in entry.kv.values() {
             render_kv_module(rows, &mut parts);
         }
@@ -647,17 +694,19 @@ fn walk_selected_tree(
     parent: Option<&EntryId>,
     depth: usize,
     selected: &HashSet<&str>,
+    hung: &HashSet<(&str, &str)>,
     ctx: &TreeContext,
     labels: &Labels,
     plans: &mut Vec<SectionPlan>,
 ) {
+    let plan = |entry: &ModelEntry, depth: usize| SectionPlan {
+        title: entry_display_title(&entry.title, labels),
+        depth: Some(depth.min(u8::MAX as usize) as u8),
+        parts: collect_entry_all_content(entry, templates, ctx, labels),
+    };
     for entry in structure.children_of(parent) {
         if selected.contains(entry.id.as_str()) {
-            plans.push(SectionPlan {
-                title: entry_display_title(&entry.title, labels),
-                depth: Some(depth.min(u8::MAX as usize) as u8),
-                parts: collect_entry_all_content(entry, templates, ctx, labels),
-            });
+            plans.push(plan(entry, depth));
         }
         if entry.is_level() {
             walk_selected_tree(
@@ -666,10 +715,17 @@ fn walk_selected_tree(
                 Some(&entry.id),
                 depth + 1,
                 selected,
+                hung,
                 ctx,
                 labels,
                 plans,
             );
+        }
+        // Then the entries hung on it whose row is ticked, once more here.
+        for member in structure.members_of(&entry.id) {
+            if hung.contains(&(entry.id.as_str(), member.id.as_str())) {
+                plans.push(plan(member, depth + 1));
+            }
         }
     }
 }
@@ -808,6 +864,7 @@ pub fn read_manuscript(
 ) -> Result<Manuscript> {
     let book_id = BookId::parse(book).map_err(invalid)?;
     let selected_opt = options.chapters.clone();
+    let hung_rows = options.hung.clone();
     let labels_for_doc = labels.clone();
     let ManuscriptPlan {
         book_title,
@@ -871,7 +928,11 @@ pub fn read_manuscript(
                 }
                 Some(ids) => {
                     let selected: HashSet<&str> = ids.iter().map(String::as_str).collect();
-                    if selected.is_empty() {
+                    let hung: HashSet<(&str, &str)> = hung_rows
+                        .iter()
+                        .map(|(host, member)| (host.as_str(), member.as_str()))
+                        .collect();
+                    if selected.is_empty() && hung.is_empty() {
                         return Err(ExportError::NoChapters);
                     }
                     let ctx = load_tree_context(&view, Arc::clone(&assets));
@@ -882,6 +943,7 @@ pub fn read_manuscript(
                         None,
                         0,
                         &selected,
+                        &hung,
                         &ctx,
                         &labels_for_doc,
                         &mut out,

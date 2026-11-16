@@ -84,6 +84,7 @@
     }
   },
   "k4Book": {
+    "book_prose_empty": "成書裡還沒有正文",
     "entry_count_other": "{{count}} 個條目",
     "entry_titles": "條目標題",
     "entry_total": "條目數量",

@@ -82,6 +82,7 @@
     }
   },
   "k4Book": {
+    "book_prose_empty": "成书里还没有正文",
     "entry_count_other": "{{count}} 个条目",
     "entry_titles": "条目标题",
     "entry_total": "条目数量",

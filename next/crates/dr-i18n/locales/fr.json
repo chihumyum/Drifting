@@ -437,6 +437,7 @@
     }
   },
   "k4Book": {
+    "book_prose_empty": "Le livre n’a pas encore de texte",
     "entry_count_one": "{{count}} entrée",
     "entry_count_other": "{{count}} entrées",
     "entry_titles": "Titres des entrées",
@@ -484,9 +485,6 @@
     "bookInfo": "Informations sur le livre",
     "bookTitle": "Titre",
     "changeCover": "Modifier",
-    "chapterCount_many": "{{count}} chapitres",
-    "chapterCount_one": "{{count}} chapitre",
-    "chapterCount_other": "{{count}} chapitres",
     "chooseCover": "Choisir une image",
     "contents": "Contenu",
     "cover": "Couverture",
