@@ -167,6 +167,53 @@ fn author_and_resume_requests_use_current_book_guidance_without_legacy_prompt() 
     block_on(controller.close()).unwrap();
 }
 
+/// The general rule about guidance (`project-templates.md` §10, rule 3) is
+/// in no template: with all of the project's and its templates' guidance
+/// cleared, every request's system prompt still states it.
+#[test]
+fn the_guidance_rule_stays_in_the_system_prompt_with_all_guidance_cleared() {
+    let f = Fixture::new();
+    f.out("project.update", json!({"book": f.book, "agent": null}));
+    for mut template in f.templates() {
+        template["agent"] = Value::Null;
+        for module in template["modules"].as_array_mut().unwrap() {
+            module["agent"] = Value::Null;
+        }
+        f.put(template);
+    }
+    let driver = Arc::new(ScriptedDriver::new(vec![complete(
+        "Synthetic response without guidance",
+    )]));
+    let controller = AgentController::new(
+        f.ws.clone(),
+        driver.clone(),
+        Arc::new(CompanionTools::default()),
+    )
+    .unwrap();
+    let session = controller
+        .start(Start {
+            book: f.book.clone(),
+            conversation: ConversationId::new_v7(),
+            config: config(),
+            input: "Inspect this synthetic project".into(),
+        })
+        .unwrap();
+    wait(|| controller.control(&session).is_none());
+    let requests = driver.requests();
+    assert_eq!(requests.len(), 1);
+    assert!(
+        requests[0]
+            .config
+            .system_prompt
+            .contains(guidance::PROJECT_GUIDANCE_RULE),
+        "{}",
+        requests[0].config.system_prompt
+    );
+    let sent = serde_json::to_string(&requests[0].conversation).unwrap();
+    assert!(!sent.contains(&dr_doc::v3::novel::novel_project_agent().instructions));
+    block_on(controller.close()).unwrap();
+}
+
 #[test]
 fn v3_suggestions_are_generic_and_do_not_restore_cleared_novel_guidance() {
     let f = Fixture::new();
