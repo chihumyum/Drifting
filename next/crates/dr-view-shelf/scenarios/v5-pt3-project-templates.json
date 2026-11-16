@@ -1,0 +1,365 @@
+{
+  "about": "PT3 隔离窗口冒烟。在 lite 种子书的作品主页另存，从全部项目左栏编辑模板并核对自动保存，再从该模板新建，直接打字替换标题。红灯回书架和撤销由 GPUI 回归覆盖。",
+  "steps": [
+    {
+      "seed": "lite"
+    },
+    {
+      "call": "book.list",
+      "save": "books"
+    },
+    {
+      "launch": {
+        "book": "${books.0.id}",
+        "env": {
+          "DRIFTING_APPEARANCE": "light",
+          "DRIFTING_WINDOW_DISPLAY": "secondary"
+        },
+        "settings": {
+          "account": {
+            "language.ui_locale": "en"
+          },
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "app.info",
+      "save": "environment"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/book/loaded": true,
+          "/book/version": 5
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ShowProjectHome"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/page": "home"
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ToggleBottomTimeline"
+      },
+      "note": "收起默认打开的时间线，露出作品主页下方的另存入口。"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/bottom/pane": null
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "Save as project template"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/dialog": true
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "01-save-template.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "New template"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/dialog": false
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "call": "project_template.list",
+      "save": "templates",
+      "expect": {
+        "/0/name": "${books.0.name}"
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ToggleProjects"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "All projects"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/shelf": true
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "ui.hover",
+      "params": {
+        "role": "Group",
+        "label": "${books.0.name}",
+        "timeout_ms": 10000
+      },
+      "note": "macOS 将左栏的模板条目映射为原生 Group。"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "MenuItem",
+        "label": "Edit",
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "02-my-templates.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "MenuItem",
+        "label": "Edit"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/shelf": false,
+          "/page": "home",
+          "/book/loaded": true
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "call": "project_template.working_copies",
+      "save": "copies",
+      "expect": {
+        "/0/template": "${templates.0.id}"
+      }
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/book/id": "${copies.0.book}"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "Button",
+        "label": "Save as project template",
+        "absent": true
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "03-template-workspace.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "${books.0.name}"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-a"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "PT3 edited template"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "enter"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/book/name": "PT3 edited template"
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ToggleProjects"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "All projects"
+      }
+    },
+    {
+      "app": "ui.hover",
+      "params": {
+        "role": "Group",
+        "label": "PT3 edited template",
+        "timeout_ms": 10000
+      },
+      "note": "macOS 将左栏的模板条目映射为原生 Group。"
+    },
+    {
+      "call": "project_template.get",
+      "input": {
+        "id": "${templates.0.id}"
+      },
+      "expect": {
+        "/summary/name": "PT3 edited template"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "New project"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "Button",
+        "label": "写书",
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "PT3 edited template",
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "04-pick-template.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "Create"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/shelf": false,
+          "/page": "home",
+          "/book/name": "Untitled",
+          "/book/loaded": true
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "state.get",
+      "save": "new"
+    },
+    {
+      "call": "project.get",
+      "input": {
+        "book": "${new.book.id}"
+      },
+      "expect": {
+        "/source/id": "${templates.0.id}",
+        "/source/name": "PT3 edited template"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "PT3 new project"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "enter"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/book/name": "PT3 new project"
+        },
+        "timeout_ms": 10000
+      }
+    }
+  ]
+}

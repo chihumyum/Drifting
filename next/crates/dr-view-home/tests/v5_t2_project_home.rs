@@ -649,16 +649,56 @@ fn save_project_template_button_follows_registration_and_dispatches_active_book(
     cx: &mut TestAppContext,
 ) {
     let (_dir, _root, lib, book) = seed_library();
-    let (_ws, home, vcx) = open_workspace(cx, &lib, &book);
+    let (ws, home, vcx) = open_workspace(cx, &lib, &book);
 
-    // Unregistered -> button is not drawn.
-    assert!(!vcx.update(|_, cx| has_save_project_template(cx)));
+    // `dr_view_home::init` registers PT3's Save-as dialog by default -> button is drawn
+    // and clicking it opens the Save-as modal over the workspace.
+    assert!(vcx.update(|_, cx| has_save_project_template(cx)));
+    wait(vcx, "save project template button drawn by init", |vcx| {
+        vcx.debug_bounds("v3-home-save-project-template").is_some()
+    });
+    let btn = vcx
+        .debug_bounds("v3-home-save-project-template")
+        .expect("save button bounds");
+    vcx.simulate_click(btn.center(), Modifiers::none());
+    wait(vcx, "save project template dialog opened", |vcx| {
+        ws.read_with(vcx, |ws, _| ws.dialog.is_some())
+            && vcx.debug_bounds("v3-save-tpl-rail-summary").is_some()
+    });
+
+    let window_height = px(640.0);
+    vcx.simulate_resize(size(px(1280.0), window_height));
+    vcx.update(|window, cx| {
+        window.refresh();
+        window.draw(cx).clear(cx);
+    });
+    let submit = vcx
+        .debug_bounds("v3-save-tpl-submit")
+        .expect("new template button");
     assert!(
-        vcx.debug_bounds("v3-home-save-project-template").is_none(),
-        "另存为项目模板 must stay hidden until PT3 registers its handler"
+        submit.origin.y >= px(0.0) && submit.origin.y + submit.size.height <= window_height,
+        "the new template button must stay fully visible when the window is short"
     );
 
-    // Register handler -> button appears and clicking it invokes the handler with the active book.
+    vcx.simulate_resize(size(px(1280.0), px(960.0)));
+    vcx.simulate_keystrokes("escape");
+    wait(vcx, "save project template dialog closed", |vcx| {
+        ws.read_with(vcx, |ws, _| ws.dialog.is_none())
+    });
+
+    // Clearing registration hides the button.
+    vcx.update(|_, cx| {
+        clear_save_project_template(cx);
+        home.update(cx, |_, cx| cx.notify());
+    });
+    assert!(!vcx.update(|_, cx| has_save_project_template(cx)));
+    wait(
+        vcx,
+        "save project template button hidden when cleared",
+        |vcx| vcx.debug_bounds("v3-home-save-project-template").is_none(),
+    );
+
+    // Registering a custom handler shows the button again and dispatches the active book.
     let invocations: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
     let recorded = invocations.clone();
     vcx.update(|_, cx| {
@@ -671,7 +711,7 @@ fn save_project_template_button_follows_registration_and_dispatches_active_book(
         home.update(cx, |_, cx| cx.notify());
     });
     assert!(vcx.update(|_, cx| has_save_project_template(cx)));
-    wait(vcx, "save project template button drawn", |vcx| {
+    wait(vcx, "save project template button drawn again", |vcx| {
         vcx.debug_bounds("v3-home-save-project-template").is_some()
     });
 

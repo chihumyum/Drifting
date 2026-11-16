@@ -351,22 +351,34 @@ fn a_new_book_is_created_and_opened(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx, library);
     let shelf = shelf_of(&view, cx);
     shelf_until(&shelf, cx, |d| d.books.len() == 2);
+    let untitled = cx
+        .update(|_, cx| dr_shell::t(cx, dr_i18n::keys::project_picker::desk::UNTITLED).to_string());
     cx.update(|window, cx| shelf.update(cx, |s, cx| s.start_create(window, cx)));
     assert_eq!(
         shelf.read_with(cx, |s, _| s.dialog()),
         Some(ShelfDialog::Create)
     );
-    let (name, summary) = shelf.read_with(cx, |s, _| s.form_fields().unwrap());
-    cx.update(|_, cx| {
-        name.update(cx, |f, cx| f.set_text("雾港", cx));
-        summary.update(cx, |f, cx| f.set_text("守塔人的女儿回到旧港。", cx));
+    assert!(shelf.read_with(cx, |s, _| s.form_fields().is_none()));
+    let modal = shelf
+        .read_with(cx, |s, _| s.new_project_dialog())
+        .expect("template picker dialog is open");
+    assert_eq!(
+        modal.read_with(cx, |m, _| m.selected().clone()),
+        dr_view_shelf::TemplatePick::Builtin
+    );
+    // ⌘↵ / Ctrl+↵ submits the template-picker dialog and creates an untitled project.
+    let submit_keys = if cfg!(target_os = "macos") {
+        "cmd-enter"
+    } else {
+        "ctrl-enter"
+    };
+    cx.simulate_keystrokes(submit_keys);
+    wait_for(cx, |cx| {
+        view.read_with(cx, |ws, _| !ws.shelf_open && ws.book.name == untitled)
     });
-    // Enter in the name field creates it.
-    cx.simulate_keystrokes("enter");
-    wait_for(cx, |cx| view.read_with(cx, |ws, _| ws.book.name == "雾港"));
     assert_eq!(shelf.read_with(cx, |s, _| s.dialog()), None);
     assert!(view.read_with(cx, |ws, _| !ws.shelf_open));
-    // Back on the shelf, it is there with its summary.
+    // Back on the shelf, it is there with empty summary.
     cx.update(|window, cx| view.update(cx, |ws, cx| ws.show_shelf(window, cx)));
     shelf_until(&shelf, cx, |d| d.books.len() == 3);
     let made = shelf.read_with(cx, |s, _| {
@@ -375,11 +387,11 @@ fn a_new_book_is_created_and_opened(cx: &mut TestAppContext) {
             .unwrap()
             .books
             .iter()
-            .find(|b| b.name == "雾港")
+            .find(|b| b.name == untitled)
             .cloned()
             .unwrap()
     });
-    assert_eq!(made.summary, "守塔人的女儿回到旧港。");
+    assert_eq!(made.summary, "");
     assert_eq!(made.chapters, 0);
 }
 

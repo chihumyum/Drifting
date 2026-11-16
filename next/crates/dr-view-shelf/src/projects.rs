@@ -38,31 +38,28 @@ use dr_ui::{
     Theme,
     anim::{self, Tween},
     components::{
-        Button, Dialog, Menu, MenuItem, MenuWidth,
+        Menu, MenuItem, MenuWidth,
         overlay::{self, Align, Place},
     },
     fonts::{Role, weight},
     glass::{self, Kind as GlassKind, Mode, Spec, Tone},
-    input::{
-        area::TextArea,
-        field::{FieldEvent, TextField},
-    },
     sand::{Icon, Readout},
     style::DrStyled,
     tokens::{Rgb, menu as m, motion, radius},
 };
 use dr_view_shelf_art::ShelfCover;
-use dr_workspace::{Actor, WsEvent, commands::book::BookCreateIn};
+use dr_workspace::WsEvent;
 use gpui::{
-    AnyElement, App, AppContext as _, Bounds, Context, ElementId, Entity, Focusable as _,
-    InteractiveElement, IntoElement, ParentElement, Pixels, Render, ScrollHandle, SharedString,
-    StatefulInteractiveElement, Styled, Subscription, Task, WeakEntity, Window, div,
-    prelude::FluentBuilder as _, px,
+    AnyElement, App, AppContext as _, Bounds, Context, ElementId, Entity, InteractiveElement,
+    IntoElement, ParentElement, Pixels, Render, ScrollHandle, SharedString,
+    StatefulInteractiveElement, Styled, Task, WeakEntity, Window, div, prelude::FluentBuilder as _,
+    px,
 };
 
 use crate::art::{self, ShelfArt};
-use crate::data::{ShelfBook, ShelfData, Status, progress};
+use crate::data::{ShelfBook, ShelfData, Status, is_template_store_event, progress};
 use crate::format;
+use crate::templates::NewProjectModal;
 use crate::view::{ImportBook, ImportLegacyLibrary};
 
 /// The row's height: its head and one row of cards.
@@ -86,12 +83,6 @@ const SETTLE: Duration = Duration::from_millis(450);
 /// The writing days an open card shows: 16 weeks.
 const DAYS: usize = 16 * 7;
 
-/// The new-project form over the row.
-struct Form {
-    name: Entity<TextField>,
-    summary: Entity<TextArea>,
-}
-
 pub struct Projects {
     jobs: crate::jobs::Jobs,
     ws: WeakEntity<Workspace>,
@@ -114,11 +105,9 @@ pub struct Projects {
     scroll: ScrollHandle,
     menu_open: bool,
     import_bounds: Entity<Option<Bounds<Pixels>>>,
-    form: Option<Form>,
-    busy: bool,
-    error: Option<dr_i18n::Key>,
-    _fields: Vec<Subscription>,
+    form: Option<Entity<NewProjectModal>>,
     _events: Option<dr_workspace::Subscription>,
+    _store_events: Option<dr_store::LibrarySubscription>,
     stale: bool,
 }
 
@@ -130,6 +119,7 @@ impl Projects {
                 p.task = None;
                 p.art_task = None;
                 p._events = None;
+                p._store_events = None;
                 p.jobs.drained()
             })
             .unwrap_or_else(|_| Box::pin(async { Ok(()) }))
@@ -152,10 +142,8 @@ impl Projects {
             menu_open: false,
             import_bounds: cx.new(|_| None),
             form: None,
-            busy: false,
-            error: None,
-            _fields: Vec::new(),
             _events: None,
+            _store_events: None,
             stale: true,
         }
     }
@@ -204,18 +192,18 @@ impl Projects {
         self.opening = Tween::still(0.0);
         self.menu_open = false;
         self.form = None;
-        self.error = None;
         self.scroll.set_offset(gpui::point(px(0.0), px(0.0)));
         self.listen(cx);
         self.stale = true;
     }
 
-    /// F3's bus while the row is up: a book changed, came or went.
+    /// F3's bus while the row is up: a book or saved template changed, came or went.
     fn listen(&mut self, cx: &mut Context<Self>) {
         let Some(lib) = self.library(cx) else {
             return;
         };
         let (tx, mut rx) = futures::channel::mpsc::unbounded::<()>();
+        let tx_ws = tx.clone();
         self._events = Some(lib.subscribe(move |event| {
             let counts = match event {
                 WsEvent::Book(_) | WsEvent::Stats(_) => true,
@@ -224,6 +212,11 @@ impl Projects {
                 WsEvent::Local(change) => dr_workspace::is_text_index(change),
             };
             if counts {
+                let _ = tx_ws.unbounded_send(());
+            }
+        }));
+        self._store_events = Some(lib.library().subscribe(move |event| {
+            if is_template_store_event(event) {
                 let _ = tx.unbounded_send(());
             }
         }));
@@ -265,6 +258,10 @@ impl Projects {
                 p.task = None;
                 match data {
                     Ok(data) => {
+                        if let Some(modal) = &p.form {
+                            let tpls = data.templates.clone();
+                            modal.update(cx, |m, cx| m.set_templates(tpls, cx));
+                        }
                         p.data = Some(Rc::new(data));
                         p.load_art(cx);
                     }
@@ -409,100 +406,40 @@ impl Projects {
             .ok();
     }
 
-    fn start_create(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    fn start_create(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
         self.menu_open = false;
-        let name_hint = t(cx, keys::project_picker::form::NAME_PLACEHOLDER);
-        let summary_hint = t(cx, keys::all_projects::SUMMARY_PLACEHOLDER);
-        let name =
-            cx.new(|cx| TextField::new("projects-form-name", window, cx).placeholder(name_hint));
-        let summary = cx.new(|cx| {
-            TextArea::new("projects-form-summary", window, cx)
-                .framed(3.0)
-                .placeholder(summary_hint)
-        });
-        self._fields = vec![
-            cx.subscribe_in(&name, window, |p, _, e, window, cx| match e {
-                FieldEvent::Submitted(_) => p.submit(window, cx),
-                FieldEvent::Cancelled => p.close_form(cx),
-                _ => {}
-            }),
-            cx.subscribe_in(&summary, window, |p, _, e, window, cx| match e {
-                FieldEvent::Submitted(_) => p.submit(window, cx),
-                FieldEvent::Cancelled => p.close_form(cx),
-                _ => {}
-            }),
-        ];
-        name.focus_handle(cx).focus(window, cx);
-        self.form = Some(Form { name, summary });
-        self.error = None;
-        cx.notify();
-    }
-
-    fn close_form(&mut self, cx: &mut Context<Self>) {
-        if self.busy {
-            return;
-        }
-        self.form = None;
-        self._fields.clear();
-        self.error = None;
-        cx.notify();
-    }
-
-    /// Creates the project and opens it (`book.create`, as the shelf does).
-    fn submit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(form) = &self.form else {
-            return;
-        };
-        let Some(lib) = self.library(cx) else {
-            return;
-        };
-        if self.busy {
-            return;
-        }
-        let typed = form.name.read(cx).text().trim().to_owned();
-        let summary = form.summary.read(cx).text().trim().to_owned();
-        let name = if typed.is_empty() {
-            t(cx, keys::project_picker::desk::UNTITLED).to_string()
-        } else {
-            typed
-        };
-        self.busy = true;
-        self.error = None;
-        cx.notify();
-        let lib = self.jobs.enter(lib);
-        cx.spawn_in(window, async move |this, cx| {
-            let created = cx
-                .background_executor()
-                .spawn(async move {
-                    lib.run::<dr_workspace::commands::v3::entry::ProjectCreate>(
-                        &Actor::User,
-                        BookCreateIn {
-                            name,
-                            summary,
-                            template: None,
-                        },
-                    )
-                    .map(|o| o.output.id)
-                })
-                .await;
-            this.update_in(cx, |p, window, cx| {
-                p.busy = false;
-                match created {
-                    Ok(id) => {
+        let my_templates = self
+            .data
+            .as_ref()
+            .map(|d| d.templates.clone())
+            .unwrap_or_default();
+        let jobs = self.jobs.clone();
+        let ws = self.ws.clone();
+        let created_this = cx.weak_entity();
+        let closed_this = cx.weak_entity();
+        let modal = cx.new(|cx| {
+            NewProjectModal::new(
+                jobs,
+                ws,
+                my_templates,
+                move |id, window, cx| {
+                    let _ = created_this.update(cx, |p, cx| {
                         p.form = None;
-                        p._fields.clear();
                         p.open_book(&id, window, cx);
-                    }
-                    Err(error) => {
-                        log::warn!("the project could not be created: {error}");
-                        p.error = Some(keys::common::SAVE_FAILED);
-                    }
-                }
-                cx.notify();
-            })
-            .ok();
-        })
-        .detach();
+                        cx.notify();
+                    });
+                },
+                move |_, cx| {
+                    let _ = closed_this.update(cx, |p, cx| {
+                        p.form = None;
+                        cx.notify();
+                    });
+                },
+                cx,
+            )
+        });
+        self.form = Some(modal);
+        cx.notify();
     }
 
     fn import(&mut self, legacy: bool, window: &mut Window, cx: &mut Context<Self>) {
@@ -591,7 +528,7 @@ impl Render for Projects {
             .child(head)
             .child(row);
         let menu = self.menu_open.then(|| import_menu(self, window, cx));
-        let form = self.form.is_some().then(|| form_dialog(self, window, cx));
+        let form = self.form.clone();
         div()
             .id("projects")
             .w_full()
@@ -1157,85 +1094,4 @@ fn import_menu(projects: &Projects, window: &mut Window, cx: &mut Context<Projec
         None => Place::Center,
     };
     overlay::float_in_dialog(place, menu).into_any_element()
-}
-
-/// 「新建项目」: a name and a summary, as the shelf's form; the project
-/// opens once it is made.
-fn form_dialog(projects: &Projects, window: &mut Window, cx: &mut Context<Projects>) -> AnyElement {
-    let theme = Theme::of(window, cx);
-    let p = theme.palette;
-    let s = theme.scale;
-    let form = projects.form.as_ref().expect("a form is open");
-    let entity = cx.entity();
-    let section = |label: SharedString, field: AnyElement| {
-        div()
-            .flex()
-            .flex_col()
-            .gap(px(6.0))
-            .child(
-                div()
-                    .font_role(Role::Index)
-                    .type_px(s.caption, s.line_caption)
-                    .text_color(p.ink(3).solid())
-                    .child(label),
-            )
-            .child(field)
-    };
-    let error = projects.error.map(|key| {
-        div()
-            .flex()
-            .flex_row()
-            .items_center()
-            .gap(px(6.0))
-            .text_color(p.danger.solid())
-            .child(dr_ui::sand::icon(
-                Icon::StatusWarning,
-                13.0,
-                p.danger.solid(),
-            ))
-            .child(t(cx, key))
-    });
-    let busy = projects.busy;
-    let close = {
-        let entity = entity.clone();
-        move |_: &mut Window, cx: &mut App| entity.update(cx, |p, cx| p.close_form(cx))
-    };
-    let cancel = {
-        let entity = entity.clone();
-        move |_: &gpui::ClickEvent, _: &mut Window, cx: &mut App| {
-            entity.update(cx, |p, cx| p.close_form(cx))
-        }
-    };
-    let submit = entity.clone();
-    Dialog::new("projects-form", t(cx, keys::all_projects::NEW_PROJECT))
-        .body(section(
-            t(cx, keys::all_projects::NAME_LABEL),
-            form.name.clone().into_any_element(),
-        ))
-        .body(section(
-            t(cx, keys::project_picker::desk::form::SUMMARY_LABEL),
-            form.summary.clone().into_any_element(),
-        ))
-        .when_some(error, |d, e| d.status(e))
-        .action(
-            Button::new("projects-form-cancel", t(cx, keys::common::CANCEL))
-                .text()
-                .disabled(busy)
-                .on_click(cancel),
-        )
-        .action(
-            Button::new(
-                "projects-form-submit",
-                if busy {
-                    t(cx, keys::common::CREATING)
-                } else {
-                    t(cx, keys::project_picker::form::CREATE_SUBMIT)
-                },
-            )
-            .primary()
-            .disabled(busy)
-            .on_click(move |_, window, cx| submit.update(cx, |p, cx| p.submit(window, cx))),
-        )
-        .on_close(close)
-        .into_any_element()
 }
