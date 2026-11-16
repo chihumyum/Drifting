@@ -2570,7 +2570,6 @@ fn a_book_without_the_mark_is_cleared_of_its_level_only_lanes_once_on_every_devi
             level_only_lanes: vec![(view.clone(), roots.manuscript.clone())],
             level_only_placements: vec![(view.clone(), eid("ch-lives"))],
             mark_level_lanes_cleared: true,
-            ..RepairPlanV3::default()
         }
     );
 
