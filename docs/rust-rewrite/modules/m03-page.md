@@ -20,6 +20,7 @@
 - 真窗口浅色、深色各 25/25 步通过，场景退出时关闭应用；[浅色](m03/page-idea-group-light.png)、[深色](m03/page-idea-group-dark.png)是展示库《慢钟》中已有构想的实际窗口。
 - 验证基线为 main `f5ca535b`，交回分支 `codex/legacy-m03-group-path`。`cargo test -p dr-view-page --locked` 8 项通过；全工作区 `fmt --check`、`clippy --all-targets --locked -- -D warnings`、`test --locked`（1675 通过、22 忽略）、`cargo xtask check` 和根目录 `pnpm public:check` 全过。xtask 的既有性能证据过时提示与 12 条依赖维护/健全性 notice 保留，audit 为 0 vulnerabilities；本轮没有重跑空闲机器性能测量。
 - M03 仍未全部完成：⁂ 的键盘框架留给作者定设计；帮手审阅由 M30 接。这个里程碑只补构想页分组路径。
+- **2026-11-16 作者定：章末 ⁂ 的功能去掉**（「移除章末⁂的功能。」[kernel-v5.md](../kernel-v5.md) 第 15 节第 34 条，任务书 EM）。章末不再展开「标为完成／改回草稿」「新建下一章」，键盘进出 ⁂ 和「帮手审阅」都不做了；写作状态照旧在悬停卡和「⋯」里改。⁂ 这个记号本身还画不画等作者答，代码还没动；下文讲 ⁂ 的动作、键盘和「待协调」第 3、5 条的地方到时候一起改。
 
 ## 大白话
 
