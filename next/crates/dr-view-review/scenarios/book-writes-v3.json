@@ -36,17 +36,14 @@
       "input": {
         "book": "${books.0.id}",
         "template": "tpl-note",
-        "parent": "${entries.[template=tpl-materials].id}",
+        "parent": "${entries.[template=tpl-note].parent}",
         "title": "G4 synthetic note",
         "bodies": {
-          "mod-prose": [
-            {
-              "text": "${sample.paragraphs.0.text}"
-            }
-          ]
+          "mod-prose": "${sample.paragraphs.0.text}"
         }
       },
-      "save": "note"
+      "save": "note",
+      "note": "Text materials are ordinary 笔记 entries now (kernel-v5 §6); the lite seed keeps imported ones under its 「文本素材」 group. entry.create takes a body as text."
     },
     {
       "launch": {
@@ -76,7 +73,7 @@
       "params": {
         "until": "ready",
         "state": {
-          "/book/version": 3,
+          "/book/version": 5,
           "/book/loaded": true
         },
         "timeout_ms": 30000

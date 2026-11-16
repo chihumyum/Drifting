@@ -59,9 +59,19 @@
       }
     },
     {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/book/loaded": true
+        },
+        "timeout_ms": 30000
+      },
+      "note": "The launch answers once the bridge is up; the book it was asked to open may still be loading (every other scenario waits here too)."
+    },
+    {
       "app": "state.get",
       "expect": {
-        "/book/version": 3,
+        "/book/version": 5,
         "/panel/armed": null,
         "/panel/last": null,
         "/panel/shown": false
@@ -102,7 +112,7 @@
       "app": "ui.wait",
       "params": {
         "state": {
-          "/book/version": 3,
+          "/book/version": 5,
           "/book/loaded": true,
           "/page": "home",
           "/shelf": false
@@ -267,7 +277,7 @@
       "params": {
         "state": {
           "/page": "home",
-          "/book/version": 3,
+          "/book/version": 5,
           "/book/name": "${books.0.name}",
           "/shelf": false
         }
@@ -329,7 +339,7 @@
       "params": {
         "state": {
           "/page": "home",
-          "/book/version": 3
+          "/book/version": 5
         }
       }
     },

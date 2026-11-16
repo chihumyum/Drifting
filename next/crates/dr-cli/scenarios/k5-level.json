@@ -1,5 +1,5 @@
 {
-  "about": "K5 统一模板编辑器回归：副屏 lite 真窗口，默认层级开关（展开与收起保留值）、计入字数与自动链接开关、任意模块（含正文与下面的条目）、八项下面设置（含泳道与还原）、动作、帮手说明与预览、重开持久化。",
+  "about": "K5 统一模板编辑器回归：副屏 lite 真窗口，默认层级开关（展开与收起保留值）、计入字数与自动链接开关、任意模块（含正文与下面的条目）、下面的设置（含收别处的条目、新条目住在与还原）、动作、帮手说明与预览、重开持久化。",
   "steps": [
     {
       "seed": "lite"
@@ -56,7 +56,7 @@
       "app": "ui.wait",
       "params": {
         "state": {
-          "/book/version": 3
+          "/book/version": 5
         }
       }
     },
@@ -339,6 +339,22 @@
       "params": {
         "label": "Automatic links",
         "role": "CheckBox"
+      }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 590,
+        "y": 480,
+        "dy": -10000
+      },
+      "note": "「收别处的条目」 sits beside 「层级」 at the top of the template editor (T1); 「新条目住在」 opens under them."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 300
       }
     },
     {
@@ -625,10 +641,10 @@
       },
       "expect": {
         "/[id=${created.[name=Acceptance level].id}]/level": false,
-        "/[id=${created.[name=Acceptance level].id}]/settings/lane": true,
         "/[id=${created.[name=Acceptance level].id}]/settings/default_template": "tpl-chapter",
         "/[id=${created.[name=Acceptance level].id}]/verbs/0/name": "Acceptance renamed action"
-      }
+      },
+      "note": "Turning 「层级」 off keeps the level's settings. The 「泳道」 setting is retired (kernel-v5 §16, T1), so there is no lane value to keep."
     },
     {
       "app": "ui.press",
@@ -823,6 +839,18 @@
       }
     },
     {
+      "app": "ui.press",
+      "params": {
+        "label": "Restore",
+        "role": "Button",
+        "within": {
+          "role": "Group",
+          "label": "New entries reside in"
+        }
+      },
+      "note": "「新条目住在」 is at the top, under the two switches (T1); restore it before scrolling to the settings below."
+    },
+    {
       "app": "input.scroll",
       "params": {
         "x": 590,
@@ -870,17 +898,6 @@
         "role": "Button",
         "within": {
           "role": "Group",
-          "label": "New entries reside in"
-        }
-      }
-    },
-    {
-      "app": "ui.press",
-      "params": {
-        "label": "Restore",
-        "role": "Button",
-        "within": {
-          "role": "Group",
           "label": "Formatting shortcuts"
         }
       }
@@ -906,9 +923,11 @@
         "/[id=${created.[name=Acceptance level].id}]/settings": {
           "display": null,
           "auto_link": null,
+          "accept": true,
           "format_shortcuts": null
         }
-      }
+      },
+      "note": "「收别处的条目」 is a switch with no 「还原」 (T1); it stays on from above."
     },
     {
       "app": "ui.press",
@@ -926,6 +945,15 @@
         "label": "None",
         "role": "MenuItem"
       }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 590,
+        "y": 480,
+        "dy": -10000
+      },
+      "note": "「新条目住在」 is at the top, under the two switches."
     },
     {
       "app": "ui.press",
@@ -1004,7 +1032,7 @@
       "params": {
         "state": {
           "/book/id": "${books.0.id}",
-          "/book/version": 3
+          "/book/version": 5
         }
       }
     },

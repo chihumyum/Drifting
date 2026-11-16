@@ -150,7 +150,7 @@
       "app": "ui.wait",
       "params": {
         "state": {
-          "/book/version": 3,
+          "/book/version": 5,
           "/book/loaded": true
         },
         "timeout_ms": 30000
@@ -426,6 +426,21 @@
       }
     },
     {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::CloseActiveTab"
+      },
+      "note": "One page per entry (T1): an entry already open keeps its page (and its outline) whichever module is named, so close its tab before opening it at another module."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 900
+      },
+      "note": "As the scenario's own close below does: a tab closed and a page opened in the same frame crash the app (GPUI a11y 'set_focus called more than once in a single frame', found 2026-11-16 by sc-scenarios-v5)."
+    },
+    {
       "app": "nav.open",
       "params": {
         "target": "entry:${entries.[template=tpl-chapter].id}/outline-second"
@@ -571,6 +586,19 @@
       }
     },
     {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::CloseActiveTab"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 900
+      }
+    },
+    {
       "app": "nav.open",
       "params": {
         "target": "entry:${entries.[template=tpl-chapter].id}"
@@ -594,6 +622,19 @@
           "role": "Group"
         },
         "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::CloseActiveTab"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 900
       }
     },
     {
@@ -624,6 +665,19 @@
       }
     },
     {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::CloseActiveTab"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 900
+      }
+    },
+    {
       "app": "nav.open",
       "params": {
         "target": "entry:${entries.[template=tpl-chapter].id}/mod-fields"
@@ -647,6 +701,19 @@
           "role": "Group"
         },
         "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::CloseActiveTab"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 900
       }
     },
     {
@@ -676,14 +743,14 @@
     {
       "app": "nav.open",
       "params": {
-        "target": "material:${statsLoaded.v3.materials.[kind=text].id}"
+        "target": "material:${statsLoaded.v3.materials.[kind=image].id}"
       }
     },
     {
       "app": "ui.wait",
       "params": {
         "state": {
-          "/page": "material:${statsLoaded.v3.materials.[kind=text].id}"
+          "/page": "material:${statsLoaded.v3.materials.[kind=image].id}"
         },
         "timeout_ms": 30000
       }

@@ -29,17 +29,14 @@
       "input": {
         "book": "${books.0.id}",
         "template": "tpl-note",
-        "parent": "${entries.[template=tpl-materials].id}",
+        "parent": "${entries.[template=tpl-note].parent}",
         "title": "F6 synthetic material",
         "bodies": {
-          "mod-prose": [
-            {
-              "text": "${body.paragraphs.0.text}"
-            }
-          ]
+          "mod-prose": "${body.paragraphs.0.text}"
         }
       },
-      "save": "noteA"
+      "save": "noteA",
+      "note": "Text materials are ordinary 笔记 entries now (kernel-v5 §6); the lite seed keeps imported ones under its 「文本素材」 group."
     },
     {
       "call": "project.create",
@@ -61,17 +58,14 @@
       "input": {
         "book": "${other.id}",
         "template": "tpl-note",
-        "parent": "${otherEntries.[template=tpl-materials].id}",
+        "parent": "${otherEntries.[template=tpl-ideas].id}",
         "title": "F6 synthetic other material",
         "bodies": {
-          "mod-prose": [
-            {
-              "text": "${body.paragraphs.0.text}"
-            }
-          ]
+          "mod-prose": "${body.paragraphs.0.text}"
         }
       },
-      "save": "noteB"
+      "save": "noteB",
+      "note": "A new writing project has no 「文本素材」 group; a 笔记 entry goes under 构想 like any other entry."
     },
     {
       "call": "module.read_prose",
@@ -136,7 +130,7 @@
         "timeout_ms": 30000,
         "state": {
           "/book/loaded": true,
-          "/book/version": 3
+          "/book/version": 5
         }
       }
     },
@@ -413,7 +407,7 @@
         "state": {
           "/book/id": "${other.id}",
           "/book/loaded": true,
-          "/book/version": 3
+          "/book/version": 5
         }
       }
     },
@@ -513,7 +507,7 @@
         "timeout_ms": 30000,
         "state": {
           "/book/loaded": true,
-          "/book/version": 3
+          "/book/version": 5
         }
       }
     },

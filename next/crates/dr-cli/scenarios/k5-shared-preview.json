@@ -59,7 +59,7 @@
       "params": {
         "state": {
           "/book/id": "${books.0.id}",
-          "/book/version": 3
+          "/book/version": 5
         }
       }
     },

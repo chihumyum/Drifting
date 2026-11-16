@@ -75,7 +75,7 @@
       "app": "ui.wait",
       "params": {
         "state": {
-          "/book/version": 3,
+          "/book/version": 5,
           "/book/loaded": true
         },
         "timeout_ms": 30000
@@ -216,9 +216,10 @@
     {
       "app": "input.move",
       "params": {
-        "x": 480,
-        "y": 570
-      }
+        "x": 482,
+        "y": 281
+      },
+      "note": "The link is the body's first word; the page opens scrolled to the body module, under the entry head (T1), so it sits higher than before."
     },
     {
       "app": "ui.wait",
@@ -234,8 +235,8 @@
     {
       "app": "input.click",
       "params": {
-        "x": 480,
-        "y": 570
+        "x": 482,
+        "y": 281
       }
     },
     {

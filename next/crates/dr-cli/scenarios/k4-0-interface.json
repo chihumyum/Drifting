@@ -90,7 +90,7 @@
       "params": {
         "timeout_ms": 30000,
         "state": {
-          "/book/version": 3,
+          "/book/version": 5,
           "/book/loaded": true
         }
       }
@@ -159,11 +159,13 @@
       "app": "ui.wait",
       "params": {
         "page": {
-          "/composition/module": "mod-prose",
+          "/composition/target": "entry:${entries.[template=tpl-chapter].id}",
+          "/composition/module": null,
           "/composition/reveal/start": 3,
           "/composition/reveal/end": 5
         }
-      }
+      },
+      "note": "One page per entry (kernel-v5 §16, T1): a module named on an entry already open is where its page scrolls; the tab keeps the key it was opened with."
     },
     {
       "app": "nav.open",
@@ -189,7 +191,7 @@
       "app": "ui.wait",
       "params": {
         "state": {
-          "/page": "entry:${entries.[template=tpl-chapter].id}/mod-prose"
+          "/page": "entry:${entries.[template=tpl-chapter].id}"
         }
       }
     },
@@ -339,7 +341,7 @@
       "app": "ui.wait",
       "params": {
         "state": {
-          "/book/version": 3,
+          "/book/version": 5,
           "/page": "entry:${entries.[template=tpl-manuscript].id}"
         }
       }

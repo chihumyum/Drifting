@@ -108,7 +108,7 @@
       "app": "ui.wait",
       "params": {
         "state": {
-          "/book/version": 3,
+          "/book/version": 5,
           "/book/loaded": true
         },
         "timeout_ms": 30000
@@ -161,10 +161,27 @@
     {
       "app": "ui.press",
       "params": {
-        "role": "TextArea",
-        "nth": 0,
-        "dy": 40
+        "role": "RadioButton",
+        "label": "${entries.[template=tpl-manuscript].title}"
+      },
+      "note": "A project opens on 「全部」, which lists the outermost entries folded (kernel-v5 §5, T1); the chapter's card is in the 书稿 Tab."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/v3Sidebar/entry": "${entries.[template=tpl-manuscript].id}"
+        },
+        "timeout_ms": 10000
       }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "TextArea",
+        "nth": 0
+      },
+      "note": "Press the body's line itself: the one-line body is not 40 pt tall."
     },
     {
       "app": "app.info",
@@ -259,8 +276,7 @@
       "app": "ui.press",
       "params": {
         "role": "TextArea",
-        "nth": 0,
-        "dy": 40
+        "nth": 0
       },
       "note": "Back into the body: the history dialog held the keyboard."
     },

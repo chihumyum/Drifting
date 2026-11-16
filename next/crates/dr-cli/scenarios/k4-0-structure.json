@@ -86,7 +86,7 @@
       "params": {
         "timeout_ms": 30000,
         "state": {
-          "/book/version": 3
+          "/book/version": 5
         }
       }
     },
@@ -148,20 +148,10 @@
     {
       "app": "ui.press",
       "params": {
-        "label": "Off",
-        "role": "Button",
-        "within": {
-          "label": "Automatic links",
-          "role": "Group"
-        }
-      }
-    },
-    {
-      "app": "ui.press",
-      "params": {
-        "label": "On",
-        "role": "MenuItem"
-      }
+        "label": "Automatic links",
+        "role": "CheckBox"
+      },
+      "note": "「自动链接」 is a switch on the 「下面的条目」 block now (kernel-v5 §16 「条目页」, T1); it writes the entry's own value."
     },
     {
       "app": "ui.wait",
@@ -230,6 +220,101 @@
       }
     },
     {
+      "app": "ui.press",
+      "params": {
+        "label": "Automatic links",
+        "role": "CheckBox"
+      },
+      "note": "The switch has no 「还原」 on the page: off is the entry's own value again, not the template's."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 450
+      },
+      "note": "Use the existing settings-smoke save interval before comparing the authoritative frontier."
+    },
+    {
+      "call": "entry_history.version",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "refreshedOff"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/v3/revision": "${refreshedOff.version}"
+        }
+      }
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/v3/levels/${level.id}/settings/auto_link": false,
+        "/v3/levels/${level.id}/sources/auto_link": {
+          "kind": "override",
+          "entry": "${level.id}"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Plain text",
+        "role": "Button",
+        "within": {
+          "label": "Formatting shortcuts",
+          "role": "Group"
+        }
+      },
+      "note": "Override and 「还原」 stay on the settings rows (default template, display, formatting shortcuts)."
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Full",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 450
+      },
+      "note": "Use the existing settings-smoke save interval before comparing the authoritative frontier."
+    },
+    {
+      "call": "entry_history.version",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "refreshed1b"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/v3/revision": "${refreshed1b.version}"
+        }
+      }
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/v3/levels/${level.id}/settings/format_shortcuts": "full",
+        "/v3/levels/${level.id}/sources/format_shortcuts": {
+          "kind": "override",
+          "entry": "${level.id}"
+        }
+      }
+    },
+    {
       "app": "ui.find",
       "params": {
         "contains": "Override · Synthetic structure smoke"
@@ -238,7 +323,7 @@
     {
       "app": "ui.press",
       "params": {
-        "label": "Restore Automatic links",
+        "label": "Restore Formatting shortcuts",
         "role": "Button"
       }
     },
@@ -269,14 +354,13 @@
     {
       "app": "state.get",
       "expect": {
-        "/v3/levels/${level.id}/settings/auto_link": false,
-        "/v3/levels/${level.id}/sources/auto_link": {
+        "/v3/levels/${level.id}/settings/format_shortcuts": "plain",
+        "/v3/levels/${level.id}/sources/format_shortcuts": {
           "kind": "template",
           "entry": "${entries.[template=tpl-manuscript].id}",
           "template": "tpl-manuscript"
         }
-      },
-      "note": "Dynamic pointer keys are expanded by scenario expectations, after ui.wait has matched the kernel frontier."
+      }
     },
     {
       "app": "ui.find",
@@ -477,7 +561,7 @@
     {
       "app": "nav.open",
       "params": {
-        "target": "material:${loaded.v3.materials.[kind=text].id}"
+        "target": "material:${loaded.v3.materials.[kind=image].id}"
       }
     },
     {
@@ -485,7 +569,7 @@
       "params": {
         "timeout_ms": 30000,
         "state": {
-          "/page": "material:${loaded.v3.materials.[kind=text].id}"
+          "/page": "material:${loaded.v3.materials.[kind=image].id}"
         }
       }
     },
@@ -572,7 +656,7 @@
       "params": {
         "timeout_ms": 30000,
         "state": {
-          "/book/version": 3,
+          "/book/version": 5,
           "/v3/revision": "${refreshed5.version}"
         }
       }

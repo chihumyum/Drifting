@@ -1,5 +1,5 @@
 {
-  "about": "K4 G2 第二批：lite 层级页八项设置、有效值与来源、逐项还原、接收开关往返保留归属、住处与归属看板分节。",
+  "about": "K4 G2 第二批：lite 层级页的三项设置与两块上的开关、有效值与来源、逐项还原、接收开关往返保留归属、住处与归属看板分节。",
   "steps": [
     {
       "seed": "lite"
@@ -98,7 +98,7 @@
       "app": "ui.wait",
       "params": {
         "state": {
-          "/book/version": 3
+          "/book/version": 5
         }
       }
     },
@@ -126,13 +126,103 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "Residents",
-        "role": "Heading"
+        "label": "Level",
+        "role": "CheckBox"
+      },
+      "note": "「下面的条目」 is a block whose head is its 「层级」 switch (kernel-v5 §16 「条目页」, T1); its residents follow."
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Synthetic resident",
+        "role": "Group",
+        "count": 1
       }
     },
     {
       "app": "ui.screenshot",
       "png": "00-level-top.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Automatic links",
+        "role": "CheckBox"
+      },
+      "note": "「自动链接」 is a switch under the 「下面的条目」 block's head now (T1), with no source line or 「还原」: the switch writes the entry's own value either way."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 450
+      }
+    },
+    {
+      "call": "entry_history.version",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "autoOn"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/v3/revision": "${autoOn.version}"
+        }
+      }
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${level.id}"
+      },
+      "expect": {
+        "/overrides/auto_link": true
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Automatic links",
+        "role": "CheckBox"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 450
+      }
+    },
+    {
+      "call": "entry_history.version",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "autoOff"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/v3/revision": "${autoOff.version}"
+        }
+      }
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${level.id}"
+      },
+      "expect": {
+        "/overrides/auto_link": false
+      }
     },
     {
       "app": "input.scroll",
@@ -145,10 +235,11 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "Assigned entries",
-        "role": "Heading"
+        "label": "Accept entries from elsewhere",
+        "role": "CheckBox"
       },
-      "save": "membersHeading20"
+      "save": "membersHeading20",
+      "note": "「挂在这里的条目」 is a block whose head is its 「收别处的条目」 switch."
     },
     {
       "app": "input.scroll",
@@ -177,87 +268,6 @@
       "app": "ui.find",
       "params": {
         "contains": "Template ·"
-      }
-    },
-    {
-      "app": "ui.press",
-      "params": {
-        "label": "Off",
-        "role": "Button",
-        "within": {
-          "label": "Automatic links",
-          "role": "Group"
-        }
-      }
-    },
-    {
-      "app": "ui.press",
-      "params": {
-        "label": "On",
-        "role": "MenuItem"
-      }
-    },
-    {
-      "app": "ui.find",
-      "params": {
-        "label": "On",
-        "role": "Button",
-        "within": {
-          "label": "Automatic links",
-          "role": "Group"
-        },
-        "timeout_ms": 15000
-      },
-      "note": "Wait for this value in the refreshed settings view before reading it or starting another guarded edit."
-    },
-    {
-      "call": "entry.get",
-      "input": {
-        "book": "${books.0.id}",
-        "id": "${level.id}"
-      },
-      "expect": {
-        "/overrides/auto_link": true
-      }
-    },
-    {
-      "app": "ui.find",
-      "params": {
-        "contains": "Override · Synthetic level settings"
-      }
-    },
-    {
-      "app": "ui.press",
-      "params": {
-        "label": "Restore Automatic links",
-        "role": "Button"
-      }
-    },
-    {
-      "app": "ui.find",
-      "params": {
-        "label": "Restore Automatic links",
-        "role": "Button",
-        "absent": true,
-        "timeout_ms": 15000
-      },
-      "note": "Wait for the refreshed snapshot to remove this override before the next guarded edit."
-    },
-    {
-      "app": "ui.wait",
-      "params": {
-        "until": "time",
-        "ms": 450
-      }
-    },
-    {
-      "call": "entry.get",
-      "input": {
-        "book": "${books.0.id}",
-        "id": "${level.id}"
-      },
-      "expect": {
-        "/overrides/auto_link": null
       }
     },
     {
@@ -338,13 +348,10 @@
     {
       "app": "ui.press",
       "params": {
-        "label": "This level",
-        "role": "Button",
-        "within": {
-          "label": "New entries reside in",
-          "role": "Group"
-        }
-      }
+        "label": "Synthetic level settings",
+        "role": "PopUpButton"
+      },
+      "note": "「新条目住在」 is a dropdown on the 「挂在这里的条目」 block (T1): its first choice is the entry itself, then every level; there is no source line or 「还原」."
     },
     {
       "app": "ui.press",
@@ -357,11 +364,7 @@
       "app": "ui.find",
       "params": {
         "label": "${roots.0.title}",
-        "role": "Button",
-        "within": {
-          "label": "New entries reside in",
-          "role": "Group"
-        },
+        "role": "PopUpButton",
         "timeout_ms": 15000
       },
       "note": "Wait for this value in the refreshed settings view before reading it or starting another guarded edit."
@@ -379,25 +382,41 @@
     {
       "app": "ui.press",
       "params": {
-        "label": "Restore New entries reside in",
-        "role": "Button"
+        "label": "${roots.0.title}",
+        "role": "PopUpButton"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Synthetic level settings",
+        "role": "MenuItem",
+        "nth": 0
       }
     },
     {
       "app": "ui.find",
       "params": {
-        "label": "Restore New entries reside in",
-        "role": "Button",
-        "absent": true,
+        "label": "Synthetic level settings",
+        "role": "PopUpButton",
         "timeout_ms": 15000
-      },
-      "note": "Wait for the refreshed snapshot to remove this override before the next guarded edit."
+      }
     },
     {
       "app": "ui.wait",
       "params": {
         "until": "time",
         "ms": 450
+      }
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${level.id}"
+      },
+      "expect": {
+        "/overrides/home": null
       }
     },
     {
@@ -468,33 +487,33 @@
     {
       "app": "ui.press",
       "params": {
-        "label": "On",
-        "role": "Button",
-        "within": {
-          "label": "Accept entries from elsewhere",
-          "role": "Group"
+        "label": "Accept entries from elsewhere",
+        "role": "CheckBox"
+      },
+      "note": "「收别处的条目」 is the switch on the 「挂在这里的条目」 block's head (T1); turning it off asks nothing."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 450
+      }
+    },
+    {
+      "call": "entry_history.version",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "acceptOff"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/v3/revision": "${acceptOff.version}"
         }
       }
-    },
-    {
-      "app": "ui.press",
-      "params": {
-        "label": "Off",
-        "role": "MenuItem"
-      }
-    },
-    {
-      "app": "ui.find",
-      "params": {
-        "label": "Off",
-        "role": "Button",
-        "within": {
-          "label": "Accept entries from elsewhere",
-          "role": "Group"
-        },
-        "timeout_ms": 15000
-      },
-      "note": "Wait for this value in the refreshed settings view before reading it or starting another guarded edit."
     },
     {
       "call": "entry.get",
@@ -513,39 +532,39 @@
         "id": "${level.id}"
       },
       "expect": {
-        "/below/members": []
-      }
+        "/below/members": null
+      },
+      "note": "With 「收别处的条目」 off the entry lists no members at all (BelowInfo.members is absent, kernel-v5 §16)."
     },
     {
       "app": "ui.press",
       "params": {
-        "label": "Off",
-        "role": "Button",
-        "within": {
-          "label": "Accept entries from elsewhere",
-          "role": "Group"
+        "label": "Accept entries from elsewhere",
+        "role": "CheckBox"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 450
+      }
+    },
+    {
+      "call": "entry_history.version",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "acceptOn"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/v3/revision": "${acceptOn.version}"
         }
       }
-    },
-    {
-      "app": "ui.press",
-      "params": {
-        "label": "On",
-        "role": "MenuItem"
-      }
-    },
-    {
-      "app": "ui.find",
-      "params": {
-        "label": "On",
-        "role": "Button",
-        "within": {
-          "label": "Accept entries from elsewhere",
-          "role": "Group"
-        },
-        "timeout_ms": 15000
-      },
-      "note": "Wait for this value in the refreshed settings view before reading it or starting another guarded edit."
     },
     {
       "call": "entry.get",
@@ -555,6 +574,22 @@
       },
       "expect": {
         "/below/members/0/id": "${entries.[template=tpl-chapter].id}"
+      }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 1050,
+        "y": 420,
+        "dy": 2000
+      },
+      "note": "The members block opened again above the settings; bring them back into the window."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 450
       }
     },
     {
@@ -713,8 +748,8 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "Residents",
-        "role": "Heading"
+        "label": "Level",
+        "role": "CheckBox"
       }
     },
     {
@@ -738,9 +773,18 @@
       "params": {
         "role": "Group",
         "label": "Entries",
-        "count": 1
+        "count": 2
       },
-      "save": "boardViewportBefore"
+      "save": "boardViewportBefore",
+      "note": "Each block shows its own display (T1): the residents' board under 「下面的条目」 and the attached entries' board under 「挂在这里的条目」."
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Synthetic resident",
+        "role": "Button",
+        "count": 1
+      }
     },
     {
       "app": "ui.screenshot",
@@ -764,8 +808,8 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "Assigned entries",
-        "role": "Heading"
+        "label": "Accept entries from elsewhere",
+        "role": "CheckBox"
       },
       "save": "boardMembersHeading"
     },
@@ -782,7 +826,7 @@
       "params": {
         "role": "Group",
         "label": "Entries",
-        "count": 1
+        "count": 2
       },
       "save": "boardViewportAfter"
     },

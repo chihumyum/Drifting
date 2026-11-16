@@ -62,7 +62,7 @@
       "params": {
         "timeout_ms": 30000,
         "state": {
-          "/book/version": 3,
+          "/book/version": 5,
           "/book/loaded": true
         }
       }
@@ -92,18 +92,19 @@
     {
       "app": "nav.open",
       "expect": {
-        "/opened": "material:${loaded.v3.materials.[kind=text].id}"
+        "/opened": "material:${loaded.v3.materials.[kind=image].id}"
       },
       "params": {
-        "target": "material:${loaded.v3.materials.[kind=text].id}"
-      }
+        "target": "material:${loaded.v3.materials.[kind=image].id}"
+      },
+      "note": "The library holds images and PDFs (kernel-v5 §6); a file opens in its viewer."
     },
     {
       "app": "ui.wait",
       "params": {
         "timeout_ms": 30000,
         "state": {
-          "/page": "material:${loaded.v3.materials.[kind=text].id}"
+          "/page": "material:${loaded.v3.materials.[kind=image].id}"
         }
       }
     },
@@ -191,7 +192,7 @@
       "expect": {
         "/tabs/[key=book:${entries.[template=tpl-manuscript].id}]/leaves/0/target": "book:${entries.[template=tpl-manuscript].id}",
         "/pages/[key=book:${entries.[template=tpl-manuscript].id}]/ready": true,
-        "/tabs/[key=material:${loaded.v3.materials.[kind=text].id}]/leaves/0/target": "material:${loaded.v3.materials.[kind=text].id}"
+        "/tabs/[key=material:${loaded.v3.materials.[kind=image].id}]/leaves/0/target": "material:${loaded.v3.materials.[kind=image].id}"
       },
       "note": "重排已进入外壳快照，全书及素材标签仍保留"
     },
@@ -307,7 +308,7 @@
     {
       "app": "nav.open",
       "params": {
-        "target": "material:${loaded.v3.materials.[kind=text].id}"
+        "target": "material:${loaded.v3.materials.[kind=image].id}"
       }
     },
     {
@@ -315,7 +316,7 @@
       "params": {
         "timeout_ms": 30000,
         "state": {
-          "/page": "material:${loaded.v3.materials.[kind=text].id}"
+          "/page": "material:${loaded.v3.materials.[kind=image].id}"
         }
       }
     },
@@ -332,14 +333,14 @@
         "timeout_ms": 30000,
         "state": {
           "/book/name": "Synthetic v3 material refreshed",
-          "/page": "material:${loaded.v3.materials.[kind=text].id}"
+          "/page": "material:${loaded.v3.materials.[kind=image].id}"
         }
       }
     },
     {
       "app": "state.get",
       "expect": {
-        "/pageTitle": "${loaded.v3.materials.[kind=text].title}",
+        "/pageTitle": "${loaded.v3.materials.[kind=image].title}",
         "/tabs/[key=book:${entries.[template=tpl-manuscript].id}]/leaves/0/target": "book:${entries.[template=tpl-manuscript].id}",
         "/pages/[key=book:${entries.[template=tpl-manuscript].id}]/ready": true
       }
@@ -384,8 +385,8 @@
       "params": {
         "timeout_ms": 30000,
         "state": {
-          "/book/version": 3,
-          "/page": "material:${loaded.v3.materials.[kind=text].id}"
+          "/book/version": 5,
+          "/page": "material:${loaded.v3.materials.[kind=image].id}"
         }
       }
     },

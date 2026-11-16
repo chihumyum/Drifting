@@ -1,17 +1,23 @@
 {
-  "about": "G4 副屏主流程：用 testkit v3-lite、合成图片和预置最近访问，保存主页书名，从最近访问打开图片，再画区域写批注并读回。场景不自己造库：先取一个没用过的 profile 名 P（小写字母、数字和 -），用 `cargo run -p dr-view-material --example v3-media-fixture -- \"$HOME/Library/Application Support/cc.drifting.next.dev.$P/library\"` 造好库，再带 `--profile $P --yes` 跑本场景（见 docs/rust-rewrite/handoff/README.md「真窗口验收」）。",
+  "about": "G4 副屏主流程：用 testkit lite（素材库里自带一张合成图片「参考图」），保存主页书名，从右栏素材库打开这张图片，在查看器里画区域写批注并读回挂在这个文件上的批注。格式 5 起素材库只放文件（kernel-v5 §6），不再要另造库；最近访问只记条目，所以从素材库打开。框选后的撰写框现在拿不到键盘，打字、保存、读回三步暂挂 pending（见步骤里的说明）。",
   "steps": [
+    {
+      "seed": "lite"
+    },
     {
       "call": "book.list",
       "save": "books"
     },
     {
-      "call": "entry.list",
+      "call": "asset.list",
       "input": {
-        "book": "${books.0.id}",
-        "all": true
+        "book": "${books.0.id}"
       },
-      "save": "entries"
+      "save": "assets",
+      "expect": {
+        "/0/kind": "image",
+        "/1": null
+      }
     },
     {
       "call": "comment.list",
@@ -19,17 +25,6 @@
         "book": "${books.0.id}"
       },
       "save": "seed_comments"
-    },
-    {
-      "call": "recent.touch",
-      "input": {
-        "book": "${books.0.id}",
-        "target": {
-          "kind": "entry",
-          "id": "${entries.[template=tpl-media].id}",
-          "module": "mod-media"
-        }
-      }
     },
     {
       "launch": {
@@ -59,7 +54,7 @@
       "params": {
         "until": "ready",
         "state": {
-          "/book/version": 3,
+          "/book/version": 5,
           "/book/loaded": true
         },
         "timeout_ms": 30000
@@ -121,11 +116,54 @@
       }
     },
     {
+      "app": "window.focus"
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ToggleRightSidebar"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/right/open": true
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
       "app": "ui.press",
       "params": {
-        "role": "Button",
-        "label": "${entries.[template=tpl-media].title}"
+        "role": "RadioButton",
+        "label": "Library"
+      },
+      "note": "The library is the right column's 「素材库」 Tab; it holds the project's images and PDFs (kernel-v5 §6, T5)."
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Group",
+        "label": "${assets.0.name}"
+      },
+      "note": "A file opens in its viewer on the desk (T5)."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "material:${assets.0.id}"
+        },
+        "timeout_ms": 15000
       }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ToggleRightSidebar"
+      },
+      "note": "Close the library again: the viewer takes the paper's width and the picture sits where the drag below lands."
     },
     {
       "app": "ui.wait",
@@ -145,52 +183,71 @@
       "app": "input.drag",
       "params": {
         "from": [
-          730,
+          570,
           420
         ],
         "to": [
-          810,
-          480
+          660,
+          500
         ],
         "steps": 12
-      }
+      },
+      "note": "Inside the picture (about 410–729 × 335–534 with both columns closed)."
     },
     {
-      "app": "input.type",
+      "app": "ui.wait",
       "params": {
-        "text": "${seed_comments.0.body}"
+        "until": "time",
+        "ms": 400
       }
     },
     {
-      "app": "ui.press",
+      "app": "ui.find",
+      "params": {
+        "role": "Button",
+        "label": "Cancel"
+      },
+      "note": "Drawing a region opens the composer beside it (T6)."
+    },
+    {
+      "app": "ui.find",
       "params": {
         "role": "Button",
         "label": "Save"
       }
     },
     {
-      "app": "ui.wait",
+      "app": "input.type",
       "params": {
-        "until": "time",
-        "ms": 600
-      }
+        "text": "${seed_comments.0.body}"
+      },
+      "pending": "待协调：The region composer opens under the drawn region, but neither it nor a click into its text box takes the keyboard (found 2026-11-16 by sc-scenarios-v5: the bridge's typing reports no focused text field; the text box has no accessible node). Product issue in the viewer's region composer (dr-view-material page.rs compose / dr-view-review composer); drop this pending once typing reaches it."
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "Save"
+      },
+      "pending": "待协调：The region composer opens under the drawn region, but neither it nor a click into its text box takes the keyboard (found 2026-11-16 by sc-scenarios-v5: the bridge's typing reports no focused text field; the text box has no accessible node). Product issue in the viewer's region composer (dr-view-material page.rs compose / dr-view-review composer); drop this pending once typing reaches it."
     },
     {
       "call": "comment.list",
       "input": {
         "book": "${books.0.id}",
         "target": {
-          "kind": "entry",
-          "id": "${entries.[template=tpl-media].id}"
+          "kind": "asset",
+          "id": "${assets.0.id}"
         }
       },
       "save": "comments",
       "expect": {
         "/0/body": "${seed_comments.0.body}",
-        "/0/target/kind": "entry",
-        "/0/target/id": "${entries.[template=tpl-media].id}",
+        "/0/target/kind": "asset",
+        "/0/target/id": "${assets.0.id}",
         "/1": null
-      }
+      },
+      "pending": "待协调：The region composer opens under the drawn region, but neither it nor a click into its text box takes the keyboard (found 2026-11-16 by sc-scenarios-v5: the bridge's typing reports no focused text field; the text box has no accessible node). Product issue in the viewer's region composer (dr-view-material page.rs compose / dr-view-review composer); drop this pending once typing reaches it."
     },
     {
       "app": "app.info",

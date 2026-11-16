@@ -163,7 +163,7 @@
       "app": "ui.wait",
       "params": {
         "state": {
-          "/book/version": 3,
+          "/book/version": 5,
           "/book/loaded": true
         },
         "timeout_ms": 30000
@@ -399,9 +399,13 @@
     {
       "app": "ui.press",
       "params": {
-        "role": "Group",
-        "label": "image"
-      }
+        "role": "PopUpButton",
+        "within": {
+          "role": "Group",
+          "label": "image"
+        }
+      },
+      "note": "The image field's picker is the dropdown at the start of its row; it lists the files in the library (kernel-v5 §6)."
     },
     {
       "app": "ui.find",
