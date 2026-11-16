@@ -21,6 +21,7 @@ use gpui::{
 use crate::connection::{
     Connections, Failure, Operation, PROVIDERS, Readiness, key_page, provider_name, thinking_levels,
 };
+use crate::local_view::{self, LocalConnectionView};
 
 pub fn failure_key(failure: Failure, provider: Provider) -> Key {
     if provider == Provider::Chatgpt {
@@ -68,6 +69,8 @@ pub struct ConnectionView {
     pending_login: Option<u64>,
     copied_code: Option<String>,
     settings_provider: Option<Provider>,
+    /// The companion's 「本地模型」 cells, after the four providers.
+    local: Option<Entity<LocalConnectionView>>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -161,8 +164,23 @@ impl ConnectionView {
             pending_login: None,
             copied_code: None,
             settings_provider: None,
+            local: None,
             _subscriptions: vec![state, input, release, window_closed],
         }
+    }
+
+    /// The companion's view: the four providers, then the local servers.
+    pub fn new_companion(
+        connections: Entity<Connections>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        let mut view = Self::new(connections.clone(), window, cx);
+        let local = cx.new(|cx| LocalConnectionView::new(connections, false, window, cx));
+        view._subscriptions
+            .push(cx.subscribe(&local, |_, _, event: &ConnectionEvent, cx| cx.emit(*event)));
+        view.local = Some(local);
+        view
     }
 
     /// A hidden or released connection UI cancels only the login it started.
@@ -530,6 +548,11 @@ impl Render for ConnectionView {
         for provider in providers {
             content = content.child(self.cell(provider, window, cx));
         }
+        if let Some(local) = &self.local {
+            content = content
+                .child(local_view::divider(window, cx))
+                .child(local.clone());
+        }
         content
     }
 }
@@ -542,13 +565,15 @@ pub fn composer_controls(
     cx: &mut App,
 ) -> AnyElement {
     let state = connections.read(cx);
-    let routes: Vec<_> = PROVIDERS
+    // `server` is set for a local model only.
+    let mut routes: Vec<(Provider, Option<String>, String, String)> = PROVIDERS
         .into_iter()
         .filter(|provider| state.readiness(*provider) == Readiness::Ready)
         .flat_map(|provider| {
             state.models(provider).iter().map(move |model| {
                 (
                     provider,
+                    None,
                     model.id.clone(),
                     if model.short.starts_with(provider_name(provider)) {
                         model.short.clone()
@@ -559,15 +584,23 @@ pub fn composer_controls(
             })
         })
         .collect();
+    routes.extend(
+        local_view::routes(state)
+            .into_iter()
+            .map(|(server, model, label)| (Provider::Local, Some(server), model, label)),
+    );
     if routes.is_empty() {
         return div().into_any_element();
     }
-    let selected = routes.iter().position(|(provider, id, _)| {
-        *provider == state.preferences().route.provider && id == &state.preferences().route.model
+    let preferences = state.preferences();
+    let selected = routes.iter().position(|(provider, server, id, _)| {
+        *provider == preferences.route.provider
+            && id == &preferences.route.model
+            && (*provider != Provider::Local || *server == preferences.local_server)
     });
     let mut choices: Vec<_> = routes
         .iter()
-        .map(|(_, _, label)| Choice::new(Icon::Thinking, label.clone()))
+        .map(|(_, _, _, label)| Choice::new(Icon::Thinking, label.clone()))
         .collect();
     // A saved model removed from the live catalog remains visibly unavailable.
     let selected_index = selected.unwrap_or_else(|| {
@@ -583,17 +616,23 @@ pub fn composer_controls(
         .map(thinking_levels)
         .unwrap_or_default();
     let thinking = state.preferences().route.thinking;
+    let reasoning = local_view::has_reasoning(state);
     let busy = state.operation.is_some();
     let model_connections = connections.clone();
     let model = Select::new("agent-composer-model", choices, selected_index)
         .disabled(busy || routes.is_empty())
         .on_change(move |index, _, cx| {
-            if let Some((provider, id, _)) = index
+            if let Some((provider, server, id, _)) = index
                 .checked_sub(offset)
                 .and_then(|index| routes.get(index))
             {
-                model_connections.update(cx, |connections, cx| {
-                    connections.select_model(*provider, id, cx);
+                model_connections.update(cx, |connections, cx| match server {
+                    Some(server) => {
+                        connections.select_local(server, id, cx);
+                    }
+                    None => {
+                        connections.select_model(*provider, id, cx);
+                    }
                 });
             }
         });
@@ -633,18 +672,23 @@ pub fn composer_controls(
                         for provider in PROVIDERS {
                             connections.load_catalog(provider, cx);
                         }
+                        connections.load_local_catalogs(cx);
                     });
                 })
                 .child(model),
         )
-        .child(
-            div()
-                .w_full()
-                .min_w_0()
-                .max_w_full()
-                .flex()
-                .flex_col()
-                .child(effort),
-        )
+        // A local model has no reasoning setting: the control is not shown
+        // (作者 2026-11-16, 甲).
+        .when(reasoning, |controls| {
+            controls.child(
+                div()
+                    .w_full()
+                    .min_w_0()
+                    .max_w_full()
+                    .flex()
+                    .flex_col()
+                    .child(effort),
+            )
+        })
         .into_any_element()
 }

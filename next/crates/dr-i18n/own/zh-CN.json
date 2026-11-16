@@ -271,6 +271,16 @@
   "v3Settings": {
     "codeCopied": "已复制",
     "copyCode": "复制代码",
+    "localModels": {
+      "add": "添加",
+      "addKey": "加 Key",
+      "context": "上下文",
+      "editAddress": "改地址",
+      "modelName": "模型名",
+      "name": "本地模型",
+      "notLocal": "只能填本机或局域网地址",
+      "unreachable": "连不上这个地址"
+    },
     "providerAnthropic": "供 Agent 使用。",
     "providerDeepseek": "供 Agent 使用。",
     "providerOpenai": "供 Agent 使用。",

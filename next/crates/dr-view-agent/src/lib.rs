@@ -5,6 +5,8 @@ pub mod connection_view;
 pub mod controller;
 mod data;
 pub mod hub;
+pub mod local;
+pub mod local_view;
 pub mod mcp;
 pub mod mcp_settings;
 pub mod onboarding;

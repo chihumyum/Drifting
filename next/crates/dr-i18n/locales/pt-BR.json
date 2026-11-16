@@ -1559,6 +1559,16 @@
   "v3Settings": {
     "codeCopied": "Copiado",
     "copyCode": "Copiar código",
+    "localModels": {
+      "add": "Adicionar",
+      "addKey": "Adicionar chave",
+      "context": "Contexto",
+      "editAddress": "Alterar endereço",
+      "modelName": "Nome do modelo",
+      "name": "Modelo local",
+      "notLocal": "Apenas endereços deste computador ou da rede local",
+      "unreachable": "Não foi possível conectar a este endereço"
+    },
     "providerAnthropic": "Usado pelo Agent.",
     "providerDeepseek": "Usado pelo Agent.",
     "providerOpenai": "Usado pelo Agent.",
