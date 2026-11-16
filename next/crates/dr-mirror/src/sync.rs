@@ -24,7 +24,7 @@ use crate::{
     Options, apply,
     body::{self, BodyIssue, FileLinks},
     disk, file,
-    layout::{self, BookLayout, ProseFile},
+    layout::{self, AssetFile, BookLayout, ProseFile},
     ledger::{Applying, Fingerprint, Ledger, ProjectRow, Row, Version},
     merge::{self, Refusal},
 };
@@ -312,6 +312,7 @@ impl BookPass<'_> {
         rows: &mut BTreeMap<BodyDocId, Row>,
     ) -> Result<BTreeSet<BodyDocId>> {
         let desired: BTreeMap<_, _> = layout.prose.iter().map(|file| (&file.id, file)).collect();
+        let assets: Vec<_> = book_row.assets.iter().chain(&layout.assets).collect();
         let mut paths = disk_markdown(&self.dir, "", &layout.contents_path)?;
         for row in rows.values() {
             paths.insert(row.current.path.clone());
@@ -452,9 +453,8 @@ impl BookPass<'_> {
                     let Some(wanted) = wanted else {
                         unreachable!("checked active module")
                     };
-                    let accepted = self.read_change(
-                        project, layout, book_row, wanted, contents, source, &mut row,
-                    )?;
+                    let accepted =
+                        self.read_change(project, &assets, wanted, contents, source, &mut row)?;
                     if !accepted {
                         held.insert(id.clone());
                     }
@@ -505,8 +505,7 @@ impl BookPass<'_> {
     fn read_change(
         &mut self,
         project: &Project,
-        layout: &BookLayout,
-        book: &ProjectRow,
+        destinations: &[&AssetFile],
         planned: &ProseFile,
         input: &ReadFile,
         source: &str,
@@ -523,11 +522,10 @@ impl BookPass<'_> {
                 self.keep(source)?;
                 return self
                     .remove(source, Some(&input.fingerprint.sha))
-                    .map(|removed| {
+                    .inspect(|&removed| {
                         if removed {
                             row.current.disk = None;
                         }
-                        removed
                     });
             }
         };
@@ -556,7 +554,7 @@ impl BookPass<'_> {
             return Ok(false);
         };
         let mut assets = row.current.asset_links.clone();
-        for asset in book.assets.iter().chain(&layout.assets) {
+        for &asset in destinations {
             if !assets.iter().any(|old| old.path == asset.path) {
                 assets.push(asset.clone());
             }
@@ -832,7 +830,7 @@ enum Probe {
     Missing,
     Young,
     Unsafe,
-    File(ReadFile),
+    File(Box<ReadFile>),
 }
 
 impl Probe {
@@ -864,11 +862,11 @@ fn scan(root: &Path, rel: &str, settle: std::time::Duration) -> Probe {
             let parsed = std::str::from_utf8(&bytes)
                 .map_err(|_| Problem::NotUtf8)
                 .and_then(|text| file::parse(text).map_err(|_| Problem::Frontmatter));
-            Probe::File(ReadFile {
+            Probe::File(Box::new(ReadFile {
                 fingerprint: Fingerprint { sha, stat },
                 bytes,
                 parsed,
-            })
+            }))
         }
         Err(err) if raced(&err) => Probe::Young,
         Err(err) if err.kind() == io::ErrorKind::FileTooLarge => {
@@ -880,11 +878,11 @@ fn scan(root: &Path, rel: &str, settle: std::time::Duration) -> Probe {
                 return Probe::Young;
             }
             match (disk::hash(&path), disk::stat(&path)) {
-                (Ok(Some(sha)), Ok(Some(stat))) => Probe::File(ReadFile {
+                (Ok(Some(sha)), Ok(Some(stat))) => Probe::File(Box::new(ReadFile {
                     fingerprint: Fingerprint { sha, stat },
                     bytes: Vec::new(),
                     parsed: Err(Problem::TooLarge),
-                }),
+                })),
                 _ => Probe::Unsafe,
             }
         }
