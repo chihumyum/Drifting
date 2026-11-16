@@ -508,61 +508,50 @@ fn pin_and_unpin_preserve_board_and_grid_and_survive_relayout(cx: &mut TestAppCo
 }
 
 #[gpui::test]
-fn shift_click_relation_create_legend_filter_and_delete(cx: &mut TestAppContext) {
+fn graph_expands_a_relation_row_to_one_edge_per_pair(cx: &mut TestAppContext) {
     cx.executor().allow_parking();
     let (_dir, lib, books) = setup_seed_fixture(dr_testkit::seed::Preset::Tiny);
     let book_id = books[0].clone();
-
+    let entries =
+        dr_testkit::seed::acceptance::entries_by_template(&lib, &book_id, "tpl-character");
+    let [a, b, c] = [0, 1, 2].map(|n| entries[n]["id"].as_str().unwrap().to_owned());
+    let call =
+        |name, input| lib.call(&dr_workspace::Actor::User, name, input).unwrap()["output"].clone();
+    let made = call(
+        "relation_row.create_pair",
+        serde_json::json!({
+            "book":book_id,"left":a,"right":b,"new_type":{"name":"同盟契约","direction":"symmetric"},
+        }),
+    );
+    call(
+        "relation_row.add_entry",
+        serde_json::json!({"book":book_id,"id":made["id"],"side":"right","entry":c}),
+    );
     init_test_shell(lib, book_id, cx);
     let (shell, vcx) = cx.add_window_view(Workspace::new);
     wait(vcx, |cx| {
         shell.read_with(cx, |ws, _| ws.book.v3().is_some() && ws.book_memory_ready())
     });
-
     let ov = mount_overview(&shell, vcx);
-    let (el_a, el_b, initial_rel_count) = vcx.update(|_, cx| {
+    vcx.update(|_, cx| {
         let v = ov.read(cx);
-        assert!(v.elements().len() >= 2);
-        (
-            v.elements()[0].id.clone(),
-            v.elements()[1].id.clone(),
-            v.relations().len(),
-        )
+        let pairs: Vec<_> = v
+            .relations()
+            .iter()
+            .filter(|r| r.relation_type == made["relation_type"].as_str().unwrap())
+            .map(|r| {
+                assert!(!r.directed);
+                (r.from.as_str(), r.to.as_str())
+            })
+            .collect();
+        assert_eq!(pairs.len(), 2);
+        assert!(pairs.contains(&(a.as_str(), b.as_str())));
+        assert!(pairs.contains(&(a.as_str(), c.as_str())));
     });
-
-    // Shift-click A then Shift-click B to open `pending_link`, create a dedicated relation type,
-    // and confirm the canonical v3 relation.
-    let (created_type_id, created_rel_id) = vcx.update(|window, cx| {
+    vcx.update(|_, cx| {
         ov.update(cx, |v, cx| {
-            v.click_entity("entry", &el_a, true, window, cx);
-            v.click_entity("entry", &el_b, true, window, cx);
-            let tid = v
-                .create_relation_type("同盟契约", true, "主导方", "响应方", cx)
-                .expect("create relation type");
-            let rid = v
-                .confirm_pending_link(cx)
-                .expect("confirm canonical v3 relation");
-            (tid, rid)
+            v.toggle_relation_type(made["relation_type"].as_str().unwrap(), cx)
         })
-    });
-
-    vcx.update(|_, cx| {
-        let v = ov.read(cx);
-        assert_eq!(v.relations().len(), initial_rel_count + 1);
-        assert!(v.relations().iter().any(|r| r.id == created_rel_id));
-    });
-
-    // Toggle legend visibility for the type, then delete the relation and unused custom type.
-    vcx.update(|_, cx| {
-        ov.update(cx, |v, cx| {
-            v.toggle_relation_type(&created_type_id, cx);
-            v.toggle_relation_type(&created_type_id, cx);
-            assert!(v.delete_relation(&created_rel_id, cx));
-            assert!(v.delete_relation_type(&created_type_id, cx));
-        });
-    });
-    vcx.update(|_, cx| {
-        assert_eq!(ov.read(cx).relations().len(), initial_rel_count);
     });
 }
 

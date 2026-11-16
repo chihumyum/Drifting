@@ -2768,28 +2768,6 @@ mod reveal_tests {
                 );
             });
         }
-        ws.call(
-            &Actor::User,
-            "relation.create",
-            json!({
-                "book":book,"from":{"kind":"comment","id":floating},
-                "to":{"kind":"entry","id":chapter}
-            }),
-        )
-        .unwrap();
-        view.update(cx, |view, cx| view.set_current_only(true, cx));
-        let mut related = cx
-            .update(|_, cx| crate::reveal_comment("reveal", &book, &floating, cx))
-            .unwrap();
-        painted(cx, &view);
-        assert_eq!(related.try_recv().unwrap(), Some(true));
-        view.read_with(cx, |view, _| {
-            assert!(
-                view.current_only,
-                "generic association already includes this card"
-            );
-            assert!(visible(view, &floating));
-        });
         let other_book = dr_model::id::BookId::new_v7().to_string();
         let mut switched = cx
             .update(|_, cx| crate::reveal_comment("reveal", &other_book, &floating, cx))
@@ -2802,7 +2780,7 @@ mod reveal_tests {
                 .snapshot
                 .items
                 .is_empty()),
-            "reveal book switch clears the old associations immediately"
+            "reveal book switch clears the old comments immediately"
         );
         painted(cx, &view);
         assert_eq!(switched.try_recv().unwrap(), Some(false));
@@ -3198,10 +3176,10 @@ mod v3_write_tests {
                 .find(|c| c["id"] == id)
                 .unwrap()
         };
-        assert_eq!(get(&a)["body"], draft);
+        assert_eq!(get(&a)["body"]["text"], draft);
         assert_eq!(get(&a)["agent_conversation"], "conv-elsewhere");
         assert_eq!(get(&b)["status"], "resolved");
-        assert_eq!(get(&hidden)["body"], body);
+        assert_eq!(get(&hidden)["body"]["text"], body);
         cx.update(|window, cx| view.update(cx, |v, cx| v.edit(&a, window, cx)));
         let field = view.read_with(cx, |v, _| v.editing.as_ref().unwrap().1.clone());
         let refused = format!("{draft}\n{body}");

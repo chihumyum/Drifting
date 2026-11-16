@@ -105,7 +105,7 @@ fn both_sample_recipes_keep_their_text_marks_structure_and_exact_anchors() {
                 .into_iter()
                 .find(|c| c.id == old.id)
                 .unwrap();
-            assert_eq!(new.body, old.body);
+            assert_eq!(view.comment_body_raw(&new.id).unwrap().text, old.body);
             assert_eq!(new.quote, old.quote);
             assert_eq!(new.snapshots, old.snapshots);
             if let (Some(target), Some(old_anchor), Some(new_anchor)) =

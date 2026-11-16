@@ -242,7 +242,10 @@ pub fn resolve_change(
             })
             .map_err(|e| e.to_string())?
             .ok_or_else(missing)?;
-        return r.left.iter().chain(&r.right)
+        return r
+            .left
+            .iter()
+            .chain(&r.right)
             .find_map(|entry| locate("entry", entry.as_str(), None))
             .map(|(target, _)| ChangeLocation::Page(target))
             .ok_or_else(missing);

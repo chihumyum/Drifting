@@ -246,125 +246,83 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "REL-KINDS",
-        "关系从条目、补丁、批注或文件出发，指向条目、补丁或文件",
+        "关系只连活条目",
         [Command, Read],
-        "EntityKind::may_start_relation_v3 / is_structural_v3；读取时不合规的不显示",
+        "命令接收条目 id；读取时只显示活条目",
+        ["a_relation_pair_requires_distinct_live_entries_and_a_live_relation"]
+    ),
+    inv!(
+        "REL-ROW-SIDES",
+        "关系行的两侧互斥且都至少有一个活条目",
+        [Structure, Command, Read],
+        "逐条目合并的 members 映射；回收时只隐藏成员，清除时从行中移除",
         [
-            "relations_are_shown_only_when_whole",
-            "todo_links_through_the_builtin_type",
-            "entity_kind_roles_match_the_old_vocabulary",
-            "canonical_relations_validate_dedupe_filter_and_restore_without_losing_raw_values",
-            "asset_direct_region_comment_and_relation_survive_reopen"
+            "a_row_keeps_two_disjoint_entry_sides_and_does_not_duplicate_pairs",
+            "a_concurrent_member_lands_on_only_one_side",
+            "trash_hides_only_the_trashed_members_and_restore_brings_the_rows_back",
+            "purge_prunes_members_and_empty_rows_without_purging_the_relation"
         ]
     ),
     inv!(
-        "REL-NO-SELF",
-        "关系不能连自己",
-        [Command, Read],
-        "check::relation_ends；读取时不显示",
-        [
-            "relations_are_shown_only_when_whole",
-            "canonical_relations_validate_dedupe_filter_and_restore_without_losing_raw_values",
-            "canonical_relations_validate_dedupe_filter_and_restore_without_losing_raw_values"
-        ]
-    ),
-    inv!(
-        "REL-ENDS-EXIST",
-        "关系两端存在、不在废纸篓",
-        [Command, Read],
-        "读取时一端不在或在废纸篓就不显示；端点恢复后关系回来（旧版删章时把关系一起永久删掉）",
-        [
-            "relations_are_shown_only_when_whole",
-            "three_peers_read_the_same_book",
-            "canonical_relations_validate_dedupe_filter_and_restore_without_losing_raw_values",
-            "canonical_relations_validate_dedupe_filter_and_restore_without_losing_raw_values"
-        ]
+        "REL-ROW-CONVERGENCE",
+        "两台设备向同一行同一侧加不同条目时都保留",
+        [Structure],
+        "每个条目有独立的 Loro map key",
+        ["concurrent_adds_to_the_same_relation_side_both_survive"]
     ),
     inv!(
         "REL-TYPE-EXISTS",
-        "关系类型存在",
+        "关系行属于存在的关系",
         [Command, Read],
-        "读取时类型不在就不显示",
-        [
-            "relations_are_shown_only_when_whole",
-            "canonical_relations_validate_dedupe_filter_and_restore_without_losing_raw_values"
-        ]
-    ),
-    inv!(
-        "REL-KINDS-BY-TYPE",
-        "两端的种类是关系类型允许的",
-        [Command, Read],
-        "check::relation_ends；读取时不合就不显示",
-        [
-            "relations_are_shown_only_when_whole",
-            "todo_links_through_the_builtin_type",
-            "canonical_relations_validate_dedupe_filter_and_restore_without_losing_raw_values"
-        ]
-    ),
-    inv!(
-        "REL-SYMMETRIC-CANONICAL",
-        "对称关系两端按规范顺序存",
-        [Command, Read],
-        "dr_model::shared::canonical_symmetric；读取和去重时两种顺序当作同一条",
-        [
-            "symmetric_endpoints_are_canonical",
-            "relations_are_shown_only_when_whole",
-            "canonical_relations_validate_dedupe_filter_and_restore_without_losing_raw_values"
-        ]
+        "关系删除时同次删除行；只读存在关系的行",
+        ["deleting_the_last_row_and_its_linked_description_undoes_in_one_step"]
     ),
     inv!(
         "REL-SEMANTIC-UNIQUE",
-        "同一对端点、同一类型只留一条",
-        [Read, Repair],
-        "读取时按 id 取最小的那条；后台修复删掉其余的",
+        "同一关系的同一对只算一次",
+        [Command, Read],
+        "命令用已有行或拒绝重复；双向读对时按无向对去重，保留两侧的原值",
         [
-            "relations_are_shown_only_when_whole",
-            "three_peers_read_the_same_book"
+            "writing_an_existing_pair_returns_the_row_without_a_write",
+            "direction_switch_keeps_both_sides_and_projects_reciprocal_pairs_once"
         ]
     ),
     inv!(
-        "RT-ENUMS",
-        "关系类型的方向是 directed/symmetric，system_key 只有 generic-association，锁定的才有 system_key",
-        [Read, Structure],
-        "开放枚举；system_key 和 locked 只由创世写",
-        ["book_genesis_sets_version_5_and_locked_generic_relation_type"]
-    ),
-    inv!(
-        "RT-DEFINITION",
-        "关系类型的名字、方向、已知端点种类与模板限制合法；空限制列表沿用 canonical 的无限制语义",
-        [Command],
-        "entry_relation_type.put 预检名字冲突、方向、端点种类和模板存在；relation.create／module.put_relation 再校验具体两端",
-        [
-            "canonical_relations_validate_dedupe_filter_and_restore_without_losing_raw_values",
-            "v3_restore_primary_pins_and_record_deletion_have_real_inverses"
-        ]
+        "RT-DIRECTION",
+        "一种关系全卡同一个方向，切换时左右不变",
+        [Structure, Command],
+        "方向只存定义",
+        ["direction_switch_keeps_both_sides_and_projects_reciprocal_pairs_once"]
     ),
     inv!(
         "RT-NAME",
         "规范名 = 去首尾空白 + ASCII 小写，每本书里不重复",
         [Structure, Command, Read],
-        "RelationTypeWriter::name 同时写规范名；重名由 F3 预防，合并后重名两个都显示",
+        "RelationTypeWriterV3::name 同时写规范名，修改前拒绝重名",
+        ["duplicate_normalized_relation_name_is_refused_on_rename"]
+    ),
+    inv!(
+        "REL-GENESIS-EMPTY",
+        "新书没有内置关系，新写书项目没有关联模块",
+        [Structure],
+        "书目创世和写书项目模板均不建关系",
         [
-            "relation_type_names_normalize",
-            "the_builtin_relation_type_is_locked",
-            "v3_restore_primary_pins_and_record_deletion_have_real_inverses"
+            "book_genesis_sets_version_5_and_starts_without_relations",
+            "novel_project_template_populates_stable_templates_roots_and_categories"
         ]
     ),
     inv!(
-        "RT-BUILTIN-ONCE",
-        "每本书有且只有一个内置关系类型，id 是 system:generic-association:<书 id>",
-        [Structure],
-        "书目文档的创世写它；所有设备的创世字节相同，Loro 去重",
-        ["book_genesis_sets_version_5_and_locked_generic_relation_type"]
-    ),
-    inv!(
-        "RT-LOCKED",
-        "内置关系类型不能改、不能删",
-        [Command],
-        "canonical entry_relation_type.put／delete 拒绝内置锁定类型",
+        "ENTRY-TEXT-LINK-RANGES",
+        "批注和关系描述里的链接按字符区间记录活条目",
+        [Structure, Command, Read],
+        "使用 LoroText 合并编辑；读时按活条目解析名称，失效链接保留原字",
         [
-            "the_builtin_relation_type_is_locked",
-            "v3_restore_primary_pins_and_record_deletion_have_real_inverses"
+            "linked_text_round_trips_resolves_renames_and_suppresses_trashed_targets",
+            "concurrent_disjoint_linked_text_edits_keep_both_additions_and_the_entry_mark",
+            "link_planning_respects_aliases_ownership_explicit_links_and_the_setting",
+            "later_names_do_not_backfill_existing_comments_or_descriptions",
+            "checklist_and_marker_comments_copy_entry_links_from_the_prose",
+            "book_text_links_do_not_add_prose_cooccurrences"
         ]
     ),
     inv!(
@@ -376,7 +334,7 @@ pub const INVARIANTS: &[Invariant] = &[
             "comments_keep_unlocated_targets_and_anchor_into_prose",
             "v3_comments_address_modules_validate_anchors_and_restore_after_reopen",
             "comments_with_anchors_and_metadata",
-            "asset_direct_region_comment_and_relation_survive_reopen"
+            "asset_direct_region_comments_survive_reopen"
         ]
     ),
     inv!(
@@ -388,7 +346,7 @@ pub const INVARIANTS: &[Invariant] = &[
             "unknown_values_survive",
             "comments_keep_unlocated_targets_and_anchor_into_prose",
             "comments_with_anchors_and_metadata",
-            "step8_asset_library_imports_folders_direct_comments_relations_and_file_links"
+            "asset_import_keeps_comments_and_file_links_and_reports_retired_relation_ends"
         ]
     ),
     inv!(
@@ -440,7 +398,7 @@ pub const INVARIANTS: &[Invariant] = &[
         "读取时不在：正文链接读作普通文字的样子（prose.shape 的 missing_links），嵌入和媒体模块显示占位（missing_embeds、missing），关系读作不在，直接挂在文件上的批注标成找不到原处；数据留着，恢复后回来（kernel-v5.md 第 11 节）",
         [
             "a_prose_link_to_a_file_is_a_usage_and_reads_as_text_while_the_file_is_trashed",
-            "a_trashed_file_hides_its_relations_and_unlocates_its_comments_until_restored",
+            "a_trashed_file_unlocates_its_comments_until_restored",
             "asset_library_keeps_unreferenced_and_tracks_usages_trash_restore_purge"
         ]
     ),
@@ -869,11 +827,11 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "BOOK-FORMAT-5-ONLY",
-        "只开 meta.v == 5 的书；别的版本（v4 和更早）原样拒开，不改不删，也不经同步进来",
+        "只开采用关系行的格式 5 书目；旧形状原样拒开，不改不删，也不经同步进来",
         [Command, Read],
-        "is_book_doc 只认 BOOK_SCHEMA_VERSION；book_v3 / book_slot 拒绝别的版本；导入校验拒绝并完以后不是 5 的书目更新；书文件只读格式 5",
+        "is_book_doc 校验 BOOK_SCHEMA_VERSION 与 meta.relation_rows；工作区、同步、项目文件用同一个读取门槛",
         [
-            "a_book_of_format_3_or_4_is_refused_as_it_is_and_cannot_arrive_by_sync",
+            "a_book_before_relation_rows_is_refused_as_it_is_and_cannot_arrive_by_sync",
             "old_catalog_and_old_prose_are_refused_without_repair_or_mutation",
             "a_marker_change_that_arrives_before_its_dependency_is_refused_with_it"
         ]
@@ -995,7 +953,7 @@ pub const INVARIANTS: &[Invariant] = &[
         [
             "comment_parts_validate_against_modules_and_degrade_to_unlocated",
             "field_rename_keeps_comment_on_field_id",
-            "asset_direct_region_comment_and_relation_survive_reopen"
+            "asset_direct_region_comments_survive_reopen"
         ]
     ),
     inv!(
@@ -1027,7 +985,7 @@ pub const DIVERGENCES: &[Divergence] = &[
         proposal: "canonical 条目回收不拒绝；关系原值保留，读取时隐藏已回收端点，恢复后重新显示；整书彻底删除沿用共享文档和资源隔离协议",
         status: "已统一（canonical v3，2026-11-10）：按同一条已合入命令执行",
         tests: &[
-            "canonical_relations_validate_dedupe_filter_and_restore_without_losing_raw_values",
+            "v3_entry_trash_hides_relations_and_unlocates_comments_and_undo_restores_after_reopen",
         ],
     },
     Divergence {
@@ -1042,7 +1000,7 @@ pub const DIVERGENCES: &[Divergence] = &[
         proposal: "canonical 条目回收保留批注目标与正文，读取时标 target_missing；恢复后重新定位，不运行旧固定域级联命令",
         status: "已统一（canonical v3，2026-11-10）：按同一条已合入命令执行",
         tests: &[
-            "canonical_relations_validate_dedupe_filter_and_restore_without_losing_raw_values",
+            "v3_entry_trash_hides_relations_and_unlocates_comments_and_undo_restores_after_reopen",
         ],
     },
     Divergence {
@@ -1054,9 +1012,9 @@ pub const DIVERGENCES: &[Divergence] = &[
             "src/renderer/usecase/useEntityRelationTypes.ts:118-133",
             "src/renderer/lib/agent/runtime/drifting-structural-write-strategy.ts:1399-1405",
         ],
-        proposal: "沿用已合入的 canonical 命令：仍有关系使用时拒绝删除；未使用的类型可删除并通过原始记录历史撤销，内置类型不可改删",
+        proposal: "删除定义和属于它的行是一笔写入，可一步撤销",
         status: "已统一（canonical v3，2026-11-10）：按同一条已合入命令执行",
-        tests: &["v3_content_modules_roundtrip_and_restore_independently"],
+        tests: &["deleting_the_last_row_and_its_linked_description_undoes_in_one_step"],
     },
 ];
 

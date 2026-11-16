@@ -1,5 +1,7 @@
 # M41 导出
 
+**2026-11-17，RD。** 书文件仍为格式 5，读入时核对书目 `meta.relation_rows`。导入为新项目时，关系行的 `members` 键及描述、批注的条目链接随新 id 重写。成稿随条目模块输出，旧「关联」段已移除。项目模板只带关系定义。参见 [书文件测试](../../../next/crates/dr-export/tests/book_file_v3.rs)及 [项目模板格式](../project-template-format.md#6-自定义关系类型relation_types)。
+
 > 2026-11-15 夜里（内核 v5 DW）：成书没有起点，导出的成书序列一律从根读（`book_sequence()` 接口不变）；不再拿到章节序号，章节标题的编号归任务书 T3b。书文件的重写器不再改写 `project.book.root`，旧书文件里带着的照样读进来、不管它。回归见 `dr-export/tests/v3.rs` 的 `export_reads_the_book_from_the_root_and_is_empty_when_the_book_is_off`。
 
 > 2026-11-10 切换实施更新：默认新书与单本归档使用 canonical v3；旧分享 Markdown 入口退役，不自造 v3 分享格式。 当前范围、删除／保留边界和验收状态见 [canonical v3 切换](../v3-cutover.md)。下文历史交回记录保留其原语境。

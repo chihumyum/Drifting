@@ -18,19 +18,18 @@ use dr_model::project_template::{
     TemplateFieldDef, TemplateFieldType, TemplateFormatShortcuts, TemplateKvRow,
     TemplateLevelSettings, TemplateMediaArrangement, TemplateMembership, TemplateModuleConfig,
     TemplateModuleKind, TemplateModuleSpec, TemplateParagraph, TemplateProject,
-    TemplateProjectBook,
-    TemplateRelationType, TemplateRun, TemplateTab, TemplateTabMount, TemplateTable,
-    TemplateVerbSpec, TemplateView, TemplateViewLane, TemplateViewPin, TemplateViewPlacement,
-    parse_project_template_json, rewrite_entity_ref_value, to_canonical_json,
-    validate_project_template_value,
+    TemplateProjectBook, TemplateRelationType, TemplateRun, TemplateTab, TemplateTabMount,
+    TemplateTable, TemplateVerbSpec, TemplateView, TemplateViewLane, TemplateViewPin,
+    TemplateViewPlacement, parse_project_template_json, rewrite_entity_ref_value,
+    to_canonical_json, validate_project_template_value,
 };
 use dr_model::prose::{InlineMarks, InlineStyle};
 use dr_model::shared::KvEntry;
 use dr_model::v3::{
     EntityLinkV3, Entry, EntryTemplate, FieldType, FieldValue, LevelSettingsOverride, LinkedText,
     MediaArrangement, Membership, ModuleKind, ProjectBook, ProjectDefinition, ProjectTab,
-    ProjectTemplate, ProjectTemplateRef, RelationDirection, TabMount, TimelineLane, TimelinePin, TimelinePlacement,
-    TimelineView, check_timeline_placement_in_lane, effective_timeline_lanes,
+    ProjectTemplate, ProjectTemplateRef, RelationDirection, TabMount, TimelineLane, TimelinePin,
+    TimelinePlacement, TimelineView, check_timeline_placement_in_lane, effective_timeline_lanes,
     effective_timeline_placements, is_entry_live, sort_timeline_pins,
 };
 use dr_model::{DocId, Origin, Timestamp};
@@ -1182,13 +1181,16 @@ where
     // Links outside the selection keep their saved characters only.
     let mut stored_relations = book_view.relation_types_raw();
     stored_relations.sort_by(|a, b| a.normalized_name.cmp(&b.normalized_name));
-    let relation_types = stored_relations.into_iter().map(|rt| TemplateRelationType {
-        name: rt.name,
-        description: rt.description.remap_links(|id| {
-            EntryId::parse(entry_refs.get(id)?).ok()
-        }),
-        direction: rt.direction,
-    }).collect();
+    let relation_types = stored_relations
+        .into_iter()
+        .map(|rt| TemplateRelationType {
+            name: rt.name,
+            description: rt
+                .description
+                .remap_links(|id| EntryId::parse(entry_refs.get(id)?).ok()),
+            direction: rt.direction,
+        })
+        .collect();
 
     // 4. Extract `entries` (skeleton-only vs checked sample entries).
     let mut extracted_entries = Vec::with_capacity(included_ordered.len());
@@ -2119,7 +2121,9 @@ pub fn materialize_project_template(
         relation_types.push(MaterializedRelationType {
             id: RelationTypeId::new_v7(),
             name: rt.name.trim().to_owned(),
-            description: rt.description.remap_links(|id| entry_map.get(id.as_str()).cloned()),
+            description: rt
+                .description
+                .remap_links(|id| entry_map.get(id.as_str()).cloned()),
             direction: rt.direction,
         });
     }

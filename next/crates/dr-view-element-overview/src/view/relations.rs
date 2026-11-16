@@ -8,7 +8,10 @@ use dr_i18n::keys::story_graph::edge as k_edge;
 use dr_i18n::keys::super_element::isles as k_isles;
 use dr_model::v3::RelationDirection;
 use dr_shell::strings::{t, tf};
-use dr_ui::{Theme, tokens::{Rgb, radius}};
+use dr_ui::{
+    Theme,
+    tokens::{Rgb, radius},
+};
 use dr_view_relations::legend::{Legend, Row as LegendRow, render as render_shared_legend};
 use dr_workspace::commands::v3::relations::RelationInfo;
 use gpui::{
@@ -39,12 +42,18 @@ pub(super) fn graph_relations(types: &[RelationInfo]) -> Vec<GraphRelation> {
         for row in &relation.rows {
             for left in &row.left {
                 for right in &row.right {
-                    let key = if directed || left < right { (left, right) } else { (right, left) };
+                    let key = if directed || left < right {
+                        (left, right)
+                    } else {
+                        (right, left)
+                    };
                     if seen.insert(key) {
                         result.push(GraphRelation {
                             id: format!("{}/{}/{}", row.id, left, right),
                             relation_type: relation.id.clone(),
-                            from: left.clone(), to: right.clone(), directed,
+                            from: left.clone(),
+                            to: right.clone(),
+                            directed,
                         });
                     }
                 }
@@ -68,11 +77,13 @@ pub struct RelateEdgeView {
     pub labels: Vec<RelateRoleLabel>,
 }
 
-
 impl ElementOverview {
     pub(crate) fn relate_roles_for(&self, type_id: &str) -> Vec<String> {
-        self.relation_types.iter().find(|rt| rt.id == type_id)
-            .map(|rt| vec![rt.name.clone()]).unwrap_or_default()
+        self.relation_types
+            .iter()
+            .find(|rt| rt.id == type_id)
+            .map(|rt| vec![rt.name.clone()])
+            .unwrap_or_default()
     }
 
     pub(crate) fn build_relate_edges(&self, ink: Rgb) -> Vec<RelateEdgeView> {
@@ -108,8 +119,7 @@ impl ElementOverview {
             {
                 continue;
             }
-            if !centers.contains_key(r.from.as_str()) || !centers.contains_key(r.to.as_str())
-            {
+            if !centers.contains_key(r.from.as_str()) || !centers.contains_key(r.to.as_str()) {
                 continue;
             }
             let key = if r.from <= r.to {
@@ -251,9 +261,7 @@ impl ElementOverview {
 
         let mut counts_by_type: HashMap<&str, usize> = HashMap::new();
         for r in &self.relations {
-            if present.contains(&r.from)
-                && present.contains(&r.to)
-            {
+            if present.contains(&r.from) && present.contains(&r.to) {
                 *counts_by_type.entry(r.relation_type.as_str()).or_insert(0) += 1;
             }
         }
@@ -270,10 +278,7 @@ impl ElementOverview {
         });
 
         for rt in &self.relation_types {
-            let count = counts_by_type
-                .get(rt.id.as_str())
-                .copied()
-                .unwrap_or(0);
+            let count = counts_by_type.get(rt.id.as_str()).copied().unwrap_or(0);
             if count == 0 && self.relation_types.len() > 6 {
                 continue;
             }
@@ -336,5 +341,4 @@ impl ElementOverview {
             .child(shared)
             .into_any_element()
     }
-
 }

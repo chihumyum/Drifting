@@ -984,7 +984,7 @@ fn v5_showcase_archive_roundtrips_asset_folders_media_fields_file_links_and_comm
     ] {
         let c = listed
             .iter()
-            .find(|c| c["body"].as_str() == Some(body))
+            .find(|c| c["body"]["text"].as_str() == Some(body))
             .unwrap_or_else(|| panic!("missing imported comment: {body}"));
         assert_eq!(
             c["unlocated"], false,
@@ -1027,4 +1027,63 @@ fn v5_showcase_archive_roundtrips_asset_folders_media_fields_file_links_and_comm
     );
 
     ws.close();
+}
+
+#[test]
+fn archive_rekeys_relation_row_members_and_book_text_links() {
+    use dr_workspace::Actor;
+    use serde_json::json;
+
+    let dir = tempfile::tempdir().unwrap();
+    let ws = Workspace::open_dir(dir.path().join("source"), "test").unwrap();
+    let call = |name: &str, args| ws.call(&Actor::User, name, args).unwrap()["output"].clone();
+    let book = call("project.create", json!({"name":"Synthetic export"}))["id"].clone();
+    let [a, b, c] = ["甲灯塔", "乙灯塔", "丙灯塔"]
+        .map(|title| call("entry.create", json!({"book":book,"title":title}))["id"].clone());
+    let mark = json!({"text":"甲灯塔","links":[{"start":0,"end":3,"entry":a}]});
+    let row = call(
+        "relation_row.create_pair",
+        json!({
+            "book":book,"left":a,"right":b,
+            "new_type":{"name":"渡口相望","direction":"symmetric","description":mark},
+        }),
+    );
+    call(
+        "relation_row.add_entry",
+        json!({"book":book,"id":row["id"],"side":"right","entry":c}),
+    );
+    call("comment.create", json!({"book":book,"body":mark}));
+    let file = dir.path().join("rd.driftingproject");
+    let book_id = book.as_str().unwrap();
+    let at = ws.observe(&format!("book:{book_id}")).unwrap().version;
+    export_book(&ws, book_id, &file, &|_| {}).unwrap();
+    let imported = import_book(&ws, &file, &|_| {}).unwrap().book;
+    let entries = call("entry.list", json!({"book":imported,"all":true}));
+    let id = |title: &str| {
+        entries
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|e| e["title"] == title)
+            .unwrap()["id"]
+            .as_str()
+            .unwrap()
+    };
+    let [na, nb, nc] = ["甲灯塔", "乙灯塔", "丙灯塔"].map(id);
+    assert_ne!(na, a.as_str().unwrap());
+    let relations = call("relation_type.list", json!({"book":imported}));
+    let relation = &relations[0];
+    assert_eq!(relation["name"], "渡口相望");
+    assert_eq!(relation["direction"], "symmetric");
+    assert_eq!(relation["pair_count"], 2);
+    assert_eq!(relation["rows"][0]["left"], json!([na]));
+    let mut right = [nb, nc];
+    right.sort_unstable();
+    assert_eq!(relation["rows"][0]["right"], json!(right));
+    let linked = json!({"text":"甲灯塔","links":[{"start":0,"end":3,"entry":na}]});
+    assert_eq!(relation["description"], linked);
+    let comments = call("comment.list", json!({"book":imported}));
+    assert_eq!(comments[0]["body"], linked);
+    assert_eq!(ws.observe(&format!("book:{book_id}")).unwrap().version, at);
+    ws.shutdown().unwrap();
 }

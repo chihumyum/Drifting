@@ -355,7 +355,6 @@ fn resolve_usages_for_asset(
                     ],
                 });
             }
-
         }
     }
     out
@@ -497,10 +496,5 @@ pub fn load_asset_usages(
         return Vec::new();
     };
     let entries = read_entry_metas(lib, book);
-    resolve_usages_for_asset(
-        asset_id,
-        &out.output.usages,
-        &entries,
-        untitled_label,
-    )
+    resolve_usages_for_asset(asset_id, &out.output.usages, &entries, untitled_label)
 }

@@ -573,7 +573,7 @@ fn task_items_are_comments_and_their_tick_is_the_status_both_ways(cx: &mut TestA
         .as_array()
         .unwrap()
         .clone();
-        list.sort_by_key(|c| c["body"].as_str().unwrap().to_owned());
+        list.sort_by_key(|c| c["body"]["text"].as_str().unwrap().to_owned());
         list
     };
     assert!(wait_for(cx, |_| tasks(&e).len() == 2));
@@ -581,7 +581,7 @@ fn task_items_are_comments_and_their_tick_is_the_status_both_ways(cx: &mut TestA
         editor.read_with(cx, |e, _| e.block_look(0, line).list.map(|l| l.mark))
     };
     let status = |e: &Env, body: &str| {
-        tasks(e).iter().find(|c| c["body"] == body).unwrap()["status"]
+        tasks(e).iter().find(|c| c["body"]["text"] == body).unwrap()["status"]
             .as_str()
             .unwrap()
             .to_owned()
@@ -596,7 +596,7 @@ fn task_items_are_comments_and_their_tick_is_the_status_both_ways(cx: &mut TestA
     // clears the tick.
     let other = tasks(&e)
         .iter()
-        .find(|c| c["body"] == "问钟楼的年代")
+        .find(|c| c["body"]["text"] == "问钟楼的年代")
         .unwrap()["id"]
         .clone();
     out(
@@ -733,7 +733,7 @@ fn task_bodies(e: &Env, doc: &str) -> Vec<String> {
     .as_array()
     .unwrap()
     .iter()
-    .map(|c| c["body"].as_str().unwrap().to_owned())
+    .map(|c| c["body"]["text"].as_str().unwrap().to_owned())
     .collect();
     bodies.sort();
     bodies
@@ -884,10 +884,10 @@ fn opening_chapter_and_book_editor_projects_existing_unprojected_checklist_and_t
         );
         let arr = list.as_array().unwrap();
         arr.iter()
-            .any(|c| c["origin"] == "task" && c["body"] == "待勾清单")
+            .any(|c| c["origin"] == "task" && c["body"]["text"] == "待勾清单")
             && arr
                 .iter()
-                .any(|c| c["origin"] == "marker" && c["body"] == "查钟楼文献")
+                .any(|c| c["origin"] == "marker" && c["body"]["text"] == "查钟楼文献")
     }));
 
     // Opening `BookEditor` projects chapter two's existing checklist + marker immediately.
@@ -901,10 +901,10 @@ fn opening_chapter_and_book_editor_projects_existing_unprojected_checklist_and_t
         );
         let arr = list.as_array().unwrap();
         arr.iter()
-            .any(|c| c["origin"] == "task" && c["body"] == "第二章待办")
+            .any(|c| c["origin"] == "task" && c["body"]["text"] == "第二章待办")
             && arr
                 .iter()
-                .any(|c| c["origin"] == "marker" && c["body"] == "补夜景描写")
+                .any(|c| c["origin"] == "marker" && c["body"]["text"] == "补夜景描写")
     }));
 }
 

@@ -1546,7 +1546,9 @@ impl<'a> BookViewV3<'a> {
     // ---- relations and comments ------------------------------------------
 
     pub fn relation_types_raw(&self) -> Vec<RelationTypeV3> {
-        let mut types: Vec<_> = self.doc.get_map(book_v3::RELATION_TYPES)
+        let mut types: Vec<_> = self
+            .doc
+            .get_map(book_v3::RELATION_TYPES)
             .keys()
             .filter_map(|key| self.relation_type_raw(&RelationTypeId::parse(key.as_str()).ok()?))
             .collect();
@@ -1591,6 +1593,9 @@ impl<'a> BookViewV3<'a> {
     }
 
     pub fn resolve_linked_text(&self, text: &LinkedText) -> LinkedText {
+        if text.links.is_empty() {
+            return text.clone();
+        }
         let tree = self.tree(book_v3::ENTRIES);
         text.with_titles(|id| {
             let node = forest_node(&tree, id.as_str())?;
@@ -1686,7 +1691,11 @@ impl<'a> BookViewV3<'a> {
             return rows;
         }
         let (live, _) = self.entry_existence_sets();
-        let types: HashSet<_> = self.relation_types_raw().into_iter().map(|t| t.id).collect();
+        let types: HashSet<_> = self
+            .relation_types_raw()
+            .into_iter()
+            .map(|t| t.id)
+            .collect();
         rows.retain_mut(|row| {
             row.left.retain(|entry| live.contains(entry.as_str()));
             row.right.retain(|entry| live.contains(entry.as_str()));
@@ -1892,8 +1901,11 @@ impl<'a> BookViewV3<'a> {
             author_kind,
             author: f.opt_string("author"),
             author_name: f.opt_string("author_name"),
-            body: self.resolve_linked_text(&self.comment_body_raw(&CommentId::parse(id).ok()?)
-                .unwrap_or_default()),
+            body: self.resolve_linked_text(
+                &self
+                    .comment_body_raw(&CommentId::parse(id).ok()?)
+                    .unwrap_or_default(),
+            ),
             status: f.kind("status").unwrap_or(CommentStatus::Open),
             source: f.kind("source").unwrap_or(CommentSource::Manual),
             metadata: f.opt_string("metadata"),

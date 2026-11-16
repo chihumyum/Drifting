@@ -89,27 +89,45 @@ pub fn digest(lib: &dr_store::Library, book: &str) -> Result<Value, String> {
         })
         .collect::<Result<_, String>>()?;
     elements.sort_by_key(|e| e["name"].to_string());
-    let types: BTreeMap<_, _> = v.relation_types().into_iter()
-        .filter(|t| t.system_key.is_none()).map(|t| (t.id.clone(), t)).collect();
-    let mut relation_types: Vec<Value> = types.values()
+    let types: BTreeMap<_, _> = v
+        .relation_types()
+        .into_iter()
+        .filter(|t| t.system_key.is_none())
+        .map(|t| (t.id.clone(), t))
+        .collect();
+    let mut relation_types: Vec<Value> = types
+        .values()
         .map(|t| json!([t.name, t.orientation.as_str(), t.description]))
         .collect();
     relation_types.sort_by_key(|t| t.to_string());
-    let mut relations: Vec<Value> = v.relations().into_iter().filter_map(|r| {
-        let relation = types.get(&r.relation_type)?;
-        if [&r.from, &r.to].iter().any(|end| matches!(
-            end.kind, dr_model::kind::EntityKind::Comment | dr_model::kind::EntityKind::Patch
-        )) {
-            return None;
-        }
-        let (left, right) = if relation.orientation == dr_model::kind::RelationOrientation::Symmetric
-            && r.from.id > r.to.id {
-            (&r.to, &r.from)
-        } else {
-            (&r.from, &r.to)
-        };
-        Some(json!([relation.name, names.entity(left), names.entity(right)]))
-    }).collect();
+    let mut relations: Vec<Value> = v
+        .relations()
+        .into_iter()
+        .filter_map(|r| {
+            let relation = types.get(&r.relation_type)?;
+            if [&r.from, &r.to].iter().any(|end| {
+                matches!(
+                    end.kind,
+                    dr_model::kind::EntityKind::Comment | dr_model::kind::EntityKind::Patch
+                )
+            }) {
+                return None;
+            }
+            let (left, right) = if relation.orientation
+                == dr_model::kind::RelationOrientation::Symmetric
+                && r.from.id > r.to.id
+            {
+                (&r.to, &r.from)
+            } else {
+                (&r.from, &r.to)
+            };
+            Some(json!([
+                relation.name,
+                names.entity(left),
+                names.entity(right)
+            ]))
+        })
+        .collect();
     relations.sort_by_key(|r| r.to_string());
 
     let chapters = v.chapters();

@@ -988,7 +988,11 @@ impl EntriesTreeWriterV3<'_> {
                 txn.purge(CollectionV3::Relations, row.id.as_str())?;
                 continue;
             }
-            for entry in row.left.union(&row.right).filter(|entry| !stored.contains(entry.as_str())) {
+            for entry in row
+                .left
+                .union(&row.right)
+                .filter(|entry| !stored.contains(entry.as_str()))
+            {
                 txn.relation_row(&row.id)?.remove_member(entry)?;
             }
         }
@@ -1239,7 +1243,9 @@ impl RelationRowWriter {
             RelationSide::Left => "left",
             RelationSide::Right => "right",
         };
-        self.map.ensure_mergeable_map("members")?.insert(entry.as_str(), value)?;
+        self.map
+            .ensure_mergeable_map("members")?
+            .insert(entry.as_str(), value)?;
         Ok(self)
     }
 
@@ -1445,7 +1451,7 @@ fn write_todo_v3(
         .status(&CommentStatus::Open)?;
     set(&w.map, "projection", kind)?;
     set(&w.map, "projection_block", block)?;
-    w.linked_body(task)?;
+    super::linked_text::seed_projection(&w.map, task)?;
     Ok(())
 }
 
@@ -1489,6 +1495,7 @@ impl<'a> BookTxnV3<'a> {
 
     fn import_seed(&self, key: &str, write: impl FnOnce(&LoroDoc) -> Result<()>) -> Result<()> {
         let seed = LoroDoc::new();
+        crate::schema::configure(&seed);
         let doc_id = DocId::Book(self.view.book.clone()).to_string();
         seed.set_peer_id(seed_peer(&doc_id, key))?;
         write(&seed)?;
@@ -1674,7 +1681,8 @@ impl<'a> BookTxnV3<'a> {
                 Ok((id, false))
             }
             PairPlacement::NewRow => {
-                self.relation_row(id)?.relation_type(relation)?
+                self.relation_row(id)?
+                    .relation_type(relation)?
                     .member(RelationSide::Left, left)?
                     .member(RelationSide::Right, right)?
                     .created_at(time)?;

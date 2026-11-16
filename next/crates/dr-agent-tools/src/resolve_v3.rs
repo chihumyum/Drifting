@@ -1711,9 +1711,7 @@ pub(crate) fn subjects_v3(name: &str, args: &Value) -> Vec<String> {
                 subjects.insert(format!("module_inline:{entry}:{mid}"));
             }
         }
-        "module.put_patch"
-        | "module.remove_patch"
-        | "module.put_grid" => {
+        "module.put_patch" | "module.remove_patch" | "module.put_grid" => {
             if let (Some(entry), Some(mid)) = (
                 args.get("entry").and_then(Value::as_str),
                 args.get("module").and_then(Value::as_str),
@@ -1731,7 +1729,9 @@ pub(crate) fn subjects_v3(name: &str, args: &Value) -> Vec<String> {
         "relation_type.create" => {
             subjects.insert("relation_type:*".into());
         }
-        "relation_type.rename" | "relation_type.set_description" | "relation_type.set_direction"
+        "relation_type.rename"
+        | "relation_type.set_description"
+        | "relation_type.set_direction"
         | "relation_type.delete" => {
             if let Some(id) = args["id"].as_str() {
                 subjects.insert(format!("relation_type:{id}"));
@@ -1753,7 +1753,9 @@ pub(crate) fn subjects_v3(name: &str, args: &Value) -> Vec<String> {
             if let Some(id) = args["id"].as_str() {
                 subjects.insert(format!("relation_row:{id}"));
             }
-            if name == "relation_row.add_entry" && let Some(entry) = args["entry"].as_str() {
+            if name == "relation_row.add_entry"
+                && let Some(entry) = args["entry"].as_str()
+            {
                 subjects.insert(format!("entry:{entry}"));
             }
         }
@@ -2786,7 +2788,7 @@ fn resolve_comment_id(
     let key = trimmed.to_lowercase();
     let matches: Vec<_> = comments
         .iter()
-        .filter(|c| c.body.trim().to_lowercase() == key)
+        .filter(|c| c.body.text.trim().to_lowercase() == key)
         .collect();
     match matches.as_slice() {
         [c] => Ok(c.id.to_string()),

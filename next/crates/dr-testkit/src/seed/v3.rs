@@ -25,9 +25,7 @@ use dr_model::import_v1::{MaterialKind, StorylineId};
 use dr_model::kind::*;
 use dr_model::pos::PosKey;
 use dr_model::prose::{BlockAttrs, EntityLink, InlineStyle};
-use dr_model::shared::{
-    Asset, BlockSnapshot, EntityRef, KvEntry, MaterialRegion,
-};
+use dr_model::shared::{Asset, BlockSnapshot, EntityRef, KvEntry, MaterialRegion};
 use dr_model::v3::*;
 use dr_model::{DocId, Origin, Timestamp};
 use dr_samples::WriteError;
@@ -1047,13 +1045,20 @@ pub(crate) fn write_direct_v3(p: &Plan) -> Result<SeededBookV3> {
     }
 
     b.edit_book(|t| {
-        t.relation_type(&p.relation_type)?.name(plan::RELATION_TYPE.0)?
-            .direction(RelationDirection::Directed)?.created_at(Some(Timestamp(T0)))?;
+        t.relation_type(&p.relation_type)?
+            .name(plan::RELATION_TYPE.0)?
+            .direction(RelationDirection::Directed)?
+            .created_at(Some(Timestamp(T0)))?;
         for (k, (id, a, z)) in p.relations.iter().enumerate() {
             let rows = t.view().relations_raw();
-            t.put_relation_pair(&p.relation_type, &rows, RelationDirection::Directed,
-                (&eid(&element_refs[*a].id), &eid(&element_refs[*z].id)), id,
-                Some(Timestamp(T0 + k as i64)))?;
+            t.put_relation_pair(
+                &p.relation_type,
+                &rows,
+                RelationDirection::Directed,
+                (&eid(&element_refs[*a].id), &eid(&element_refs[*z].id)),
+                id,
+                Some(Timestamp(T0 + k as i64)),
+            )?;
         }
         Ok(())
     })?;
@@ -1607,8 +1612,10 @@ pub fn book_to_v3(src: &SeededBook) -> Result<SeededBookV3> {
                 RelationDirection::Directed
             };
             directions.insert(rt.id.clone(), direction);
-            t.relation_type(&rt.id)?.name(&rt.name)?
-                .description(&LinkedText::plain(&rt.description))?.direction(direction)?
+            t.relation_type(&rt.id)?
+                .name(&rt.name)?
+                .description(&LinkedText::plain(&rt.description))?
+                .direction(direction)?
                 .created_at(meta.created_at)?;
         }
         for r in &relations {
@@ -1618,11 +1625,23 @@ pub fn book_to_v3(src: &SeededBook) -> Result<SeededBookV3> {
             if from.kind != EntityKind::Entry || to.kind != EntityKind::Entry {
                 continue;
             }
-            let Some(direction) = directions.get(&r.relation_type).copied() else { continue };
-            let rows: Vec<_> = t.view().relations_raw().into_iter()
-                .filter(|row| row.relation_type == r.relation_type).collect();
-            t.put_relation_pair(&r.relation_type, &rows, direction,
-                (&eid(&from.id), &eid(&to.id)), &r.id, r.created_at)?;
+            let Some(direction) = directions.get(&r.relation_type).copied() else {
+                continue;
+            };
+            let rows: Vec<_> = t
+                .view()
+                .relations_raw()
+                .into_iter()
+                .filter(|row| row.relation_type == r.relation_type)
+                .collect();
+            t.put_relation_pair(
+                &r.relation_type,
+                &rows,
+                direction,
+                (&eid(&from.id), &eid(&to.id)),
+                &r.id,
+                r.created_at,
+            )?;
         }
         let note_folder_ids =
             dr_samples::v3::note_material_folder_ids(&material_folders, &materials);
@@ -2151,7 +2170,8 @@ pub fn digest_v3(lib: &dr_store::Library, book: &str) -> std::result::Result<Val
     elements.sort_by_key(|e| e["name"].to_string());
 
     let types = v.relation_types();
-    let mut relation_types: Vec<Value> = types.iter()
+    let mut relation_types: Vec<Value> = types
+        .iter()
         .map(|t| json!([t.name, t.direction, t.description.text]))
         .collect();
     relation_types.sort_by_key(|t| t.to_string());

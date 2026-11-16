@@ -926,7 +926,7 @@ fn a_field_edit_writes_only_what_it_names() {
         ),
     );
     assert_eq!(edited["title"], "Synthetic edited title");
-    assert_eq!(edited["body"], "Synthetic body elsewhere");
+    assert_eq!(edited["body"]["text"], "Synthetic body elsewhere");
     e.out(
         "module.edit_patch",
         with(

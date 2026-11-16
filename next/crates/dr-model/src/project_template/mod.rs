@@ -21,8 +21,8 @@ use serde::{Deserialize, Serialize};
 use crate::prose::{Align, BlockAttrs, Heading};
 use crate::v3::{
     ChildDisplayMode, EntryTemplateId, FieldDef, FieldType, FieldValue, FormatShortcuts,
-    LevelSettingsOverride, LinkedText, MediaArrangement, ModuleAgentConfig, ModuleConfig, ModuleId, ModuleKind,
-    ModuleSpec, RelationDirection, TemplateAgentConfig, TemplateVerb,
+    LevelSettingsOverride, LinkedText, MediaArrangement, ModuleAgentConfig, ModuleConfig, ModuleId,
+    ModuleKind, ModuleSpec, RelationDirection, TemplateAgentConfig, TemplateVerb,
 };
 
 pub use validate::{

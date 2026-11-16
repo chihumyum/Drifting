@@ -10,7 +10,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use dr_doc::v3::CollectionV3;
 use dr_model::id::{AssetFolderId, AssetId};
-use dr_model::kind::{AssetKind, EntityKind};
+use dr_model::kind::AssetKind;
 use dr_model::pos::PosKey;
 use dr_model::shared::Asset;
 use dr_model::v3::ModuleKind;
@@ -20,6 +20,7 @@ use serde::{Deserialize, Serialize};
 use super::*;
 use crate::cx::EffectAction;
 use crate::registry::Registry;
+use crate::workspace::BookSlot;
 
 pub(crate) fn register(r: &mut Registry) {
     r.add::<AssetPut>()
@@ -863,7 +864,6 @@ pub enum AssetUsage {
         module: String,
         field: String,
     },
-
 }
 
 /// `(module, field)` of every image field any template declares, by template.

@@ -109,9 +109,7 @@ fn descriptors_are_generated_stable_and_book_scoped() {
         "history.restore_point",
         "chapter.purge",
         "category.purge",
-        "comment.delete",
         "patch.delete",
-        "relation_type.delete",
         "material.delete",
         "idea.to_chapter",
         "idea.to_element",
@@ -121,9 +119,9 @@ fn descriptors_are_generated_stable_and_book_scoped() {
         assert!(catalog.descriptor(name).is_none(), "{name}");
     }
     assert!(catalog.descriptor("entry.update").is_some());
-    let relation = catalog.descriptor("relation.create").unwrap();
+    let relation = catalog.descriptor("relation_row.create_pair").unwrap();
     assert!(relation.input_schema["properties"].get("id").is_none());
-    assert_eq!(relation.input_schema["not"], json!({"required":["id"]}));
+    assert_eq!(relation.input_schema["additionalProperties"], false);
     assert!(
         catalog.descriptor("prose.read").unwrap().input_schema["properties"]["doc"]["anyOf"]
             .is_array()
@@ -343,8 +341,8 @@ fn read_coverage_names_returned_objects_and_never_treats_a_book_token_as_all_ent
         .contains(&"entry:synthetic".into())
     );
     assert!(
-        !coverage("relation.list", &json!({"trashed":true}), &json!([]))
-            .contains(&"relation:all".into())
+        !coverage("relation_type.list", &json!({"entry":"narrow"}), &json!([]))
+            .contains(&"relation_type:*".into())
     );
     assert!(
         coverage(
@@ -424,11 +422,17 @@ fn v3_catalog_exposes_generic_commands_and_excludes_v2_2_fixed_domains() {
         "module.put_patch",
         "module.remove_patch",
         "module.put_grid",
-        "module.put_relation",
-        "module.remove_relation",
-        "entry_relation_type.list",
-        "entry_relation_type.put",
-        "entry_relation_type.delete",
+        "relation_type.list",
+        "relation_type.create",
+        "relation_type.rename",
+        "relation_type.set_description",
+        "relation_type.set_direction",
+        "relation_type.delete",
+        "relation_row.create_pair",
+        "relation_row.add_entry",
+        "relation_row.remove_entry",
+        "relation_row.delete",
+        "comment.delete",
         "membership.list",
         "membership.add",
         "membership.remove",
@@ -461,9 +465,6 @@ fn v3_catalog_exposes_generic_commands_and_excludes_v2_2_fixed_domains() {
         "memory.update",
         "memory.remove",
         "memory.restore",
-        "relation.list",
-        "relation.create",
-        "relation.delete",
         "prose.shape",
         "prose.link",
         "prose.unlink",
@@ -502,7 +503,11 @@ fn v3_catalog_exposes_generic_commands_and_excludes_v2_2_fixed_domains() {
         "project.create",
         "module.prose_document",
         "history.restore_entities",
-        "relation_type.list",
+        "relation.list",
+        "relation.create",
+        "relation.delete",
+        "module.put_relation",
+        "entry_relation_type.list",
         "book.list",
         "chapter.list",
         "chapter.create",

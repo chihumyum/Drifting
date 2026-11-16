@@ -180,17 +180,6 @@ fn shelf_review_filters_resolves_links_and_persists_memory(cx: &mut TestAppConte
     .expect("create orphan material")
     .material;
 
-    lib.call(
-        &Actor::User,
-        "relation.create",
-        serde_json::json!({
-            "book": book_id,
-            "from": { "kind": "entry", "id": entry_id },
-            "to": { "kind": "asset", "id": linked_mat },
-        }),
-    )
-    .expect("link entry to asset");
-
     cx.update(|cx| {
         let _ = dr_ui::init(cx);
         dr_shell::init(
@@ -240,12 +229,12 @@ fn shelf_review_filters_resolves_links_and_persists_memory(cx: &mut TestAppConte
 
     wait(cx, |cx| view.read_with(cx, |v, cx| v.is_ready(cx)));
 
-    // 1. Verify linked vs orphan materials and entry relation filter.
+    // The retired relation filter contributes no files.
     cx.update(|_, cx| {
         view.update(cx, |v, cx| {
             let orphans = v.orphan_materials(cx);
             assert!(orphans.iter().any(|m| m.id == orphan_mat));
-            assert!(!orphans.iter().any(|m| m.id == linked_mat));
+            assert!(orphans.iter().any(|m| m.id == linked_mat));
         });
     });
 
@@ -256,7 +245,7 @@ fn shelf_review_filters_resolves_links_and_persists_memory(cx: &mut TestAppConte
     cx.update(|_, cx| {
         view.update(cx, |v, cx| {
             let filtered = v.visible_materials(cx);
-            assert!(filtered.iter().any(|m| m.id == linked_mat));
+            assert!(!filtered.iter().any(|m| m.id == linked_mat));
             assert!(!filtered.iter().any(|m| m.id == orphan_mat));
             v.set_entry_filter(None, cx);
         });
@@ -736,7 +725,7 @@ fn shelf_review_counts_marker_and_checklist_todos_and_updates_on_resolve(cx: &mu
         .as_array()
         .unwrap()
         .iter()
-        .find(|c| c["body"] == "检查备件箱")
+        .find(|c| c["body"]["text"] == "检查备件箱")
         .unwrap()["id"]
         .as_str()
         .unwrap()

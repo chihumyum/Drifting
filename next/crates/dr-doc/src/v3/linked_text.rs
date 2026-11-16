@@ -57,16 +57,31 @@ fn targets(text: &LinkedText) -> Vec<Option<&EntryId>> {
 }
 
 pub(super) fn write(map: &LoroMap, key: &str, value: &LinkedText) -> Result<()> {
+    let text = match map.get(key) {
+        Some(ValueOrContainer::Container(Container::Text(text))) => text,
+        _ => map.ensure_mergeable_text(key)?,
+    };
+    update(&text, value)
+}
+
+pub(super) fn seed_projection(map: &LoroMap, value: &LinkedText) -> Result<()> {
+    // Devices can first see different versions of the same prose line.
+    // Let the record choose one seeded body. Subsequent edits to that
+    // body merge as text operations on its container.
+    let text = map.insert_container("body", LoroText::new())?;
+    update(&text, value)
+}
+
+fn update(text: &LoroText, value: &LinkedText) -> Result<()> {
     value
         .validate()
         .map_err(|_| DocError::NotInProfile("invalid entry link range"))?;
-    let text = map.ensure_mergeable_text(key)?;
     // Diff the characters before changing their marks. Writing the full
     // value as one register (or replacing all the characters) would lose
     // concurrent edits to different parts of the same field.
     text.update(&value.text, Default::default())
         .map_err(|_| DocError::NotInProfile("linked text update timed out"))?;
-    let actual = read_text(&text);
+    let actual = read_text(text);
     let changes: Vec<_> = targets(&actual).into_iter().zip(targets(value)).collect();
     let mut start = 0;
     while start < changes.len() {

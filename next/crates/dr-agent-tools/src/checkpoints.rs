@@ -112,7 +112,10 @@ fn selection(ws: &Workspace, key: &TurnKey, call: &ResolvedCall) -> Result<Selec
     if !relations.is_empty() || !relation_types.is_empty() {
         for row in view.relations_raw() {
             if relations.iter().any(|id| id == row.id.as_str())
-                || relation_types.iter().any(|id| id == row.relation_type.as_str()) {
+                || relation_types
+                    .iter()
+                    .any(|id| id == row.relation_type.as_str())
+            {
                 ids.extend(row.left.union(&row.right).map(ToString::to_string));
             }
         }
@@ -328,7 +331,11 @@ impl Named {
         }
         if matches!(
             call.name.as_str(),
-            "comment.update" | "comment.reanchor" | "comment.delete" | "comment.trash" | "comment.restore"
+            "comment.update"
+                | "comment.reanchor"
+                | "comment.delete"
+                | "comment.trash"
+                | "comment.restore"
         ) && let Some(id) = args["id"].as_str()
         {
             named.lookups.comments.push(id.to_owned());
@@ -355,17 +362,28 @@ impl Named {
         {
             named.lookups.asset_folders.push(parent.to_owned());
         }
+        if call.name == "relation_row.add_entry" || call.name == "relation_row.remove_entry" {
+            named
+                .entries
+                .extend(args["entry"].as_str().map(str::to_owned));
+        }
         if call.name == "relation_row.create_pair" {
-            named.entries.extend(["left", "right"].into_iter()
-                .filter_map(|key| args[key].as_str()).map(str::to_owned));
+            named.entries.extend(
+                ["left", "right"]
+                    .into_iter()
+                    .filter_map(|key| args[key].as_str())
+                    .map(str::to_owned),
+            );
         }
         if call.name.starts_with("relation_row.")
             && let Some(id) = args["id"].as_str()
         {
             named.lookups.relations.push(id.to_owned());
         }
-        if matches!(call.name.as_str(), "relation_type.set_direction" | "relation_type.delete")
-            && let Some(id) = args["id"].as_str()
+        if matches!(
+            call.name.as_str(),
+            "relation_type.set_direction" | "relation_type.delete"
+        ) && let Some(id) = args["id"].as_str()
         {
             named.lookups.relation_types.push(id.to_owned());
         }

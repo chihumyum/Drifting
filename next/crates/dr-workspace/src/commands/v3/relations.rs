@@ -108,12 +108,18 @@ pub struct CreateTypeIn {
     pub direction: RelationDirection,
 }
 
-fn name_available(view: &BookViewV3<'_>, name: &str, except: Option<&RelationTypeId>) -> Result<()> {
+fn name_available(
+    view: &BookViewV3<'_>,
+    name: &str,
+    except: Option<&RelationTypeId>,
+) -> Result<()> {
     name_ok(name)?;
     let normalized = normalize_relation_type_name(name);
-    if view.relation_types_raw().iter().any(|relation| {
-        Some(&relation.id) != except && relation.normalized_name == normalized
-    }) {
+    if view
+        .relation_types_raw()
+        .iter()
+        .any(|relation| Some(&relation.id) != except && relation.normalized_name == normalized)
+    {
         return Err(WsError::invalid("duplicate relation name"));
     }
     Ok(())
@@ -125,17 +131,25 @@ fn require_type(view: &BookViewV3<'_>, id: &RelationTypeId) -> Result<m::Relatio
 }
 
 fn rows_for(view: &BookViewV3<'_>, kind: &RelationTypeId) -> Vec<RelationRow> {
-    view.relations_raw().into_iter().filter(|row| &row.relation_type == kind).collect()
+    view.relations_raw()
+        .into_iter()
+        .filter(|row| &row.relation_type == kind)
+        .collect()
 }
 
 fn require_row(view: &BookViewV3<'_>, id: &RelationId) -> Result<RelationRow> {
-    view.relations_raw().into_iter().find(|row| &row.id == id)
+    view.relations_raw()
+        .into_iter()
+        .find(|row| &row.id == id)
         .ok_or_else(|| WsError::not_found("relation row", id.as_str()))
 }
 
 fn linked_description(cx: &Cx<'_>, slot: &BookSlot, text: LinkedTextIn) -> Result<LinkedText> {
     crate::autolink::plan_book_text(
-        &slot.reader_v3.view(), None, cx.workspace().auto_links(), &text.into(),
+        &slot.reader_v3.view(),
+        None,
+        cx.workspace().auto_links(),
+        &text.into(),
     )
 }
 
@@ -319,7 +333,11 @@ fn create_pair(cx: &Cx<'_>, input: PairIn) -> Result<Placed> {
         (None, Some(d)) => {
             name_available(&view, &d.name, None)?;
             let description = linked_description(cx, &slot, d.description)?;
-            (RelationTypeId::new_v7(), d.direction, Some((d.name, description)))
+            (
+                RelationTypeId::new_v7(),
+                d.direction,
+                Some((d.name, description)),
+            )
         }
         _ => return Err(WsError::invalid("provide relation_type or new_type")),
     };
@@ -328,7 +346,11 @@ fn create_pair(cx: &Cx<'_>, input: PairIn) -> Result<Placed> {
     let replaces = match placement {
         PairPlacement::Existing(row) => {
             cx.undo_nothing();
-            return Ok(Placed { id: row.to_string(), relation_type: id.to_string(), existing: true });
+            return Ok(Placed {
+                id: row.to_string(),
+                relation_type: id.to_string(),
+                existing: true,
+            });
         }
         PairPlacement::Add(row, _, _) => Replaces::record(CollectionV3::Relations, &row),
         PairPlacement::NewRow => Replaces::nothing(),
@@ -343,16 +365,28 @@ fn create_pair(cx: &Cx<'_>, input: PairIn) -> Result<Placed> {
         live(&current, right.as_str())?;
         if let Some((name, description)) = &definition {
             name_available(&current, name, None)?;
-            txn.relation_type(&saved)?.name(name)?.description(description)?
-                .direction(direction)?.created_at(Some(now()))?;
+            txn.relation_type(&saved)?
+                .name(name)?
+                .description(description)?
+                .direction(direction)?
+                .created_at(Some(now()))?;
         } else if require_type(&current, &saved)?.direction != direction
             || rows_for(&current, &saved) != rows
         {
-            return Err(WsError::Conflict("relation rows or direction changed".into()));
+            return Err(WsError::Conflict(
+                "relation rows or direction changed".into(),
+            ));
         }
-        Ok(txn.put_relation_pair(
-            &saved, &rows, direction, (&left, &right), &fresh_again, Some(now()),
-        )?.0)
+        Ok(txn
+            .put_relation_pair(
+                &saved,
+                &rows,
+                direction,
+                (&left, &right),
+                &fresh_again,
+                Some(now()),
+            )?
+            .0)
     })?;
     let mut keys = vec![key("relations", &row)];
     if create_type {
@@ -360,9 +394,17 @@ fn create_pair(cx: &Cx<'_>, input: PairIn) -> Result<Placed> {
         cx.effect(EffectAction::Created, "relation_type", id.as_str(), None);
     }
     undo(cx, &slot, &at, keys);
-    let effect = if row == fresh { EffectAction::Created } else { EffectAction::Updated };
+    let effect = if row == fresh {
+        EffectAction::Created
+    } else {
+        EffectAction::Updated
+    };
     cx.effect(effect, "relation_row", row.as_str(), None);
-    Ok(Placed { id: row.to_string(), relation_type: id.to_string(), existing: false })
+    Ok(Placed {
+        id: row.to_string(),
+        relation_type: id.to_string(),
+        existing: false,
+    })
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -470,12 +512,22 @@ fn remove_from_row(cx: &Cx<'_>, book: &str, id: String, entry: Option<EntryId>) 
                 txn.purge(CollectionV3::RelationTypes, kind.as_str())?;
             }
         } else {
-            txn.relation_row(&row.id)?.remove_member(entry.as_ref().expect("member removal"))?;
+            txn.relation_row(&row.id)?
+                .remove_member(entry.as_ref().expect("member removal"))?;
         }
         Ok(())
     })?;
     undo(cx, &slot, &at, keys);
-    cx.effect(if delete_row { EffectAction::Purged } else { EffectAction::Updated }, "relation_row", &id, None);
+    cx.effect(
+        if delete_row {
+            EffectAction::Purged
+        } else {
+            EffectAction::Updated
+        },
+        "relation_row",
+        &id,
+        None,
+    );
     if delete_type {
         cx.effect(EffectAction::Purged, "relation_type", ty.as_str(), None);
     }

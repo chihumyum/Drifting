@@ -29,8 +29,8 @@ use dr_model::{
     kind::AssetKind,
     shared::{Asset, KvEntry},
     v3::{
-        Entry as ModelEntry, EntryTemplate, FieldDef, FieldType, FieldValue, MediaItem,
-        ModuleKind, PatchV3, PlotGridV3,
+        Entry as ModelEntry, EntryTemplate, FieldDef, FieldType, FieldValue, MediaItem, ModuleKind,
+        PatchV3, PlotGridV3,
     },
 };
 use dr_store::{OpenDoc, asset::Variant};

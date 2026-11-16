@@ -284,12 +284,14 @@ fn book_entities(
         let targets = BTreeSet::from([key.clone(), format!("entry:{}", grid.entry)]);
         entities.insert(key, (serde_json::to_value(&grid)?, targets));
     }
-    for comment in view.comments() {
+    for mut comment in view.comments() {
         let key = format!("comment:{}", comment.id);
         let mut targets = BTreeSet::from([key.clone()]);
         if let Some(target) = &comment.target {
             targets.insert(format!("{}:{}", target.kind.as_str(), target.id));
         }
+        // A title change can change a comment's display without editing its body.
+        comment.body = view.comment_body_raw(&comment.id).unwrap_or_default();
         entities.insert(key, (serde_json::to_value(&comment)?, targets));
     }
     for relation in view.relations_raw() {

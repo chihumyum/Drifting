@@ -475,9 +475,7 @@ impl Rewriter<'_> {
             return self.rw.text(key);
         }
         match path {
-            [root, _, field] if root == "relations" && field == "members" => {
-                self.rw.text(key)
-            }
+            [root, _, field] if root == "relations" && field == "members" => self.rw.text(key),
             [root] if root == "memberships" => key
                 .split_once('|')
                 .map(|(a, b)| format!("{}|{}", self.rw.text(a), self.rw.text(b)))
@@ -796,7 +794,9 @@ impl Rewriter<'_> {
                     style_value,
                     ..
                 }) if !self.conversation => {
-                    if style_key == schema::block::ID || self.book && style_key == schema::inline::ENTITY {
+                    if style_key == schema::block::ID
+                        || self.book && style_key == schema::inline::ENTITY
+                    {
                         *style_value = self.refs(style_value);
                     } else if let Some(target) = schema::inline::entity_target(style_key) {
                         *style_key = schema::inline::entity_key(&self.rw.text(target));

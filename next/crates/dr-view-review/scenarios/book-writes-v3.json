@@ -183,7 +183,7 @@
     {
       "app": "input.type",
       "params": {
-        "text": "${seed_comments.0.body}"
+        "text": "${seed_comments.0.body.text}"
       }
     },
     {
@@ -215,7 +215,7 @@
       },
       "save": "comments",
       "expect": {
-        "/0/body": "${seed_comments.0.body}",
+        "/0/body/text": "${seed_comments.0.body.text}",
         "/0/anchored": true,
         "/0/target/kind": "entry",
         "/0/target/id": "${note.id}",

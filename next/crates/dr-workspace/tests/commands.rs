@@ -85,7 +85,7 @@ fn comments_with_anchors_and_metadata() {
     );
     let got = &e.out("comment.list", json!({"book": b}))[0];
     assert_eq!(
-        (got["status"].clone(), got["body"].clone()),
+        (got["status"].clone(), got["body"]["text"].clone()),
         (json!("resolved"), json!("done"))
     );
     assert!(
@@ -112,7 +112,10 @@ fn comments_with_anchors_and_metadata() {
             .is_empty()
     );
     e.ws().undo(&Actor::User).unwrap().unwrap();
-    assert_eq!(e.out("comment.list", json!({"book": b}))[0]["body"], "done");
+    assert_eq!(
+        e.out("comment.list", json!({"book": b}))[0]["body"]["text"],
+        "done"
+    );
 }
 
 #[test]
@@ -1038,25 +1041,11 @@ fn asset_library_keeps_unreferenced_and_tracks_usages_trash_restore_purge() {
             "item": {"id": "m-1", "asset": "asset-lib-1", "caption": "海岸线"}
         }),
     );
-    let generic_rt = format!("system:generic-association:{b}");
-    let rel = e.out(
-        "relation.create",
-        json!({
-            "book": b,
-            "relation_type": generic_rt,
-            "from": {"kind": "entry", "id": ch1},
-            "to": {"kind": "asset", "id": "asset-lib-1"}
-        }),
-    )["id"]
-        .as_str()
-        .unwrap()
-        .to_owned();
-
     let usages = e.out("asset.list", json!({"book": b}))[0]["usages"]
         .as_array()
         .unwrap()
         .clone();
-    assert_eq!(usages.len(), 4);
+    assert_eq!(usages.len(), 3);
     assert_eq!(usages.iter().filter(|u| u["kind"] == "embed").count(), 2);
     assert_eq!(
         usages
@@ -1065,21 +1054,13 @@ fn asset_library_keeps_unreferenced_and_tracks_usages_trash_restore_purge() {
             .count(),
         1
     );
-    assert_eq!(
-        usages
-            .iter()
-            .filter(|u| u["kind"] == "relation" && u["relation"] == rel)
-            .count(),
-        1
-    );
-
     // Live asset cannot be purged before trashing.
     assert!(matches!(
         e.try_call("asset.purge", json!({"book": b, "id": "asset-lib-1"})),
         Err(WsError::Invalid(_))
     ));
 
-    // Trash moves to Recently Deleted; embeds and media read as placeholders, relation hides, bytes remain.
+    // Trash moves to Recently Deleted; embeds and media read as placeholders, and the bytes remain.
     e.call("asset.trash", json!({"book": b, "id": "asset-lib-1"}));
     assert_eq!(e.out("asset.list", json!({"book": b})), json!([]));
     let trashed_list = e.out("asset.list", json!({"book": b, "trashed": true}));
@@ -1100,7 +1081,6 @@ fn asset_library_keeps_unreferenced_and_tracks_usages_trash_restore_purge() {
         )["media"][0]["missing"],
         true
     );
-    assert_eq!(e.out("relation.list", json!({"book": b})), json!([]));
     assert!(stored_path.exists());
 
     // Restore brings everything back; undo of trash also restores.
@@ -1114,14 +1094,6 @@ fn asset_library_keeps_unreferenced_and_tracks_usages_trash_restore_purge() {
         )["media"][0]["missing"]
             .is_null()
     );
-    assert_eq!(
-        e.out("relation.list", json!({"book": b}))
-            .as_array()
-            .unwrap()
-            .len(),
-        1
-    );
-
     e.call("asset.trash", json!({"book": b, "id": "asset-lib-1"}));
     e.ws().undo(&Actor::User).unwrap().unwrap();
     assert_eq!(
@@ -2166,11 +2138,9 @@ fn an_embedded_images_size_alignment_and_caption_persist_and_a_pdf_has_none() {
     }
 }
 
-/// Step 8 (`FILE-REFS-LIVE`): while a file is in Recently Deleted the
-/// relations to it read as not there and the comments straight on it are
-/// unlocated; restored, both are back.
+/// While a file is in Recently Deleted its direct comments are unlocated.
 #[test]
-fn a_trashed_file_hides_its_relations_and_unlocates_its_comments_until_restored() {
+fn a_trashed_file_unlocates_its_comments_until_restored() {
     let e = env();
     let b = e.book();
     e.call(
@@ -2179,12 +2149,6 @@ fn a_trashed_file_hides_its_relations_and_unlocates_its_comments_until_restored(
                "mime": "image/png", "size": 10, "sha256": "9".repeat(64),
                "width": 2, "height": 2}),
     );
-    let ch = chapter(&e, &b, "一");
-    e.call(
-        "relation.create",
-        json!({"book": b, "relation_type": format!("system:generic-association:{b}"),
-               "from": {"kind": "entry", "id": ch}, "to": {"kind": "asset", "id": "asset-rel"}}),
-    );
     let c = e.out(
         "comment.create",
         json!({"book": b, "target": {"kind": "asset", "id": "asset-rel"}, "body": "这块",
@@ -2192,11 +2156,6 @@ fn a_trashed_file_hides_its_relations_and_unlocates_its_comments_until_restored(
     )["id"]
         .clone();
     let state = |e: &Env| {
-        let rels = e
-            .out("relation.list", json!({"book": b}))
-            .as_array()
-            .unwrap()
-            .len();
         let comment = e
             .out("comment.list", json!({"book": b}))
             .as_array()
@@ -2205,13 +2164,13 @@ fn a_trashed_file_hides_its_relations_and_unlocates_its_comments_until_restored(
             .find(|x| x["id"] == c)
             .cloned()
             .expect("the comment is kept");
-        (rels, comment["unlocated"].clone())
+        comment["unlocated"].clone()
     };
-    assert_eq!(state(&e), (1, json!(false)));
+    assert_eq!(state(&e), json!(false));
     e.call("asset.trash", json!({"book": b, "id": "asset-rel"}));
-    assert_eq!(state(&e), (0, json!(true)));
+    assert_eq!(state(&e), json!(true));
     e.call("asset.restore", json!({"book": b, "id": "asset-rel"}));
-    assert_eq!(state(&e), (1, json!(false)));
+    assert_eq!(state(&e), json!(false));
 }
 
 /// Step 8 (`kernel-v5.md` §7): a comment on a whole entry (no module) and one
@@ -2254,7 +2213,7 @@ fn comments_on_a_whole_entry_and_a_whole_module_persist() {
         ),
         (&on, &Value::Null, &Value::Null, &json!(false))
     );
-    assert_eq!(entry["body"], "整章再理一遍");
+    assert_eq!(entry["body"]["text"], "整章再理一遍");
     let module = find(&whole_module);
     assert_eq!(
         (

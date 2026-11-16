@@ -28,11 +28,17 @@ fn planned_body(
     target: Option<&EntityRef>,
     body: LinkedTextIn,
 ) -> Result<LinkedText> {
-    let owner = target.filter(|r| r.kind == EntityKind::Entry)
+    let owner = target
+        .filter(|r| r.kind == EntityKind::Entry)
         .and_then(|r| EntryId::parse(&r.id).ok());
     let automatic = cx.workspace().auto_links()
         && (crate::autolink::links_for(cx.actor()) || matches!(cx.actor(), crate::Actor::User));
-    crate::autolink::plan_book_text(&slot.reader_v3.view(), owner.as_ref(), automatic, &body.into())
+    crate::autolink::plan_book_text(
+        &slot.reader_v3.view(),
+        owner.as_ref(),
+        automatic,
+        &body.into(),
+    )
 }
 
 /// Copy the marks in the saved task suffix of a prose line. Only entry
@@ -58,10 +64,16 @@ fn projected_body(
     for (range, link) in links.iter().take_while(|(r, _)| r.start < end) {
         let from = next.max(range.start);
         let to = range.end.min(end);
-        if from < to && link.kind == EntityKind::Entry && link.target != owner
+        if from < to
+            && link.kind == EntityKind::Entry
+            && link.target != owner
             && let Ok(entry) = EntryId::parse(&link.target)
         {
-            body.links.push(EntryTextLink { start: from - start, end: to - start, entry });
+            body.links.push(EntryTextLink {
+                start: from - start,
+                end: to - start,
+                entry,
+            });
             next = to;
         }
     }

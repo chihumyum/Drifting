@@ -475,7 +475,10 @@ pub fn validate_project_template_value(
     for rt in &val.relation_types {
         non_empty_name(&rt.name)?;
         if has_bad_inline_control(&rt.name) || has_bad_multiline_control(&rt.description.text) {
-            return inv(format!("relation {:?} contains control characters", rt.name));
+            return inv(format!(
+                "relation {:?} contains control characters",
+                rt.name
+            ));
         }
         if !rt_names.insert(normalize_relation_type_name(&rt.name)) {
             return inv(format!("duplicate relation name {:?}", rt.name));
@@ -483,7 +486,10 @@ pub fn validate_project_template_value(
         rt.description.validate()?;
         for link in &rt.description.links {
             if !entry_sym_set.contains(link.entry.as_str()) {
-                return inv(format!("relation {:?} links to an unknown symbolic entry", rt.name));
+                return inv(format!(
+                    "relation {:?} links to an unknown symbolic entry",
+                    rt.name
+                ));
             }
         }
     }

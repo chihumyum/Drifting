@@ -280,35 +280,31 @@ fn a_handed_off_library_imports_completely() {
     let rt = v
         .relation_type(&RelationTypeId::parse(REL_TYPE).unwrap())
         .unwrap();
-    assert_eq!(rt.color.as_deref(), Some("#aa5500"));
-    assert_eq!(rt.orientation, RelationOrientation::Symmetric);
-    assert_eq!(rt.source_kinds, [EntityKind::Entry]);
-    assert_eq!(rt.target_kinds, [EntityKind::Entry]);
-    assert!(rt.source_templates.is_empty());
-    assert!(rt.target_templates.is_empty());
-    let generic = v
-        .relation_type(&dr_doc::catalog::generic_relation_type_id(
-            &BookId::parse(BOOK).unwrap(),
-        ))
-        .unwrap();
-    assert!(generic.locked, "the built-in type is the genesis one");
+    assert_eq!(rt.name, "同乡");
+    assert_eq!(rt.description, dr_model::v3::LinkedText::default());
+    assert_eq!(rt.direction, dr_model::v3::RelationDirection::Symmetric);
+    assert!(r.originals.iter().any(|(kind, id, field, value)| {
+        kind == "relation_types" && id == REL_TYPE && field == "color" && value == "\"#aa5500\""
+    }));
+    assert_eq!(
+        r.books[0].notes.0.get("built-in-relation-type-dropped"),
+        Some(&1)
+    );
+    assert_eq!(
+        r.books[0].notes.0.get("relation-todo-end-dropped"),
+        Some(&1)
+    );
+    assert_eq!(v.relation_types().len(), 1);
     let rels = v.relations_raw();
     assert!(
-        !rels.iter().any(|x| x.id.as_str() == "rel-1"),
-        "positive source omits its known dangling fixture edge"
+        rels.is_empty(),
+        "the dangling source edge is absent and the TODO edge is reported"
     );
     let note_doc = dr_samples::v3::body_id(NOTE, MOD_PROSE);
     let note_todo = CommentId::for_projection(
         &ProjectionKind::NoteTask,
         &note_doc,
         &BlockId::parse("tp1").unwrap(),
-    );
-    let rel2 = rels.iter().find(|x| x.id.as_str() == "rel-2").unwrap();
-    assert_eq!(rel2.from.kind, EntityKind::Comment);
-    assert_eq!(
-        rel2.from.id,
-        note_todo.as_str(),
-        "relations follow the TODO's new id"
     );
 
     // Comments: retired values normalised, quote and snapshots, anchors.
@@ -319,7 +315,7 @@ fn a_handed_off_library_imports_completely() {
     assert_eq!(c.source, CommentSource::Api);
     assert_eq!(c.quote.as_deref(), Some("阿Q做正传"));
     assert_eq!(c.snapshots.len(), 1);
-    assert_eq!(c.body, "这句好");
+    assert_eq!(c.body.text, "这句好");
     assert_eq!(
         text_at(&chapter_doc, c.anchor.as_ref().unwrap()),
         "阿Q做正传"
@@ -449,7 +445,7 @@ fn a_handed_off_library_imports_completely() {
         image_desc_comment.status,
         dr_model::kind::CommentStatus::Resolved
     );
-    assert_eq!(image_desc_comment.body, "未庄的土谷祠");
+    assert_eq!(image_desc_comment.body.text, "未庄的土谷祠");
     assert!(
         r.originals
             .iter()

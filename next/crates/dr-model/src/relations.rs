@@ -93,7 +93,9 @@ impl LinkedText {
             written += gap;
             let original = chars.by_ref().take(link.end - link.start);
             if let Some(label) = title(&link.entry) {
-                let label: String = if label.is_empty() { original.collect() } else {
+                let label: String = if label.is_empty() {
+                    original.collect()
+                } else {
                     original.for_each(drop);
                     label
                 };
@@ -218,13 +220,21 @@ pub fn plan_relation_pair(
             .iter()
             .find(|r| r.left.len() == 1 && r.left.contains(left) && !r.right.is_empty())
         {
-            return Some(PairPlacement::Add(row.id.clone(), RelationSide::Right, right.clone()));
+            return Some(PairPlacement::Add(
+                row.id.clone(),
+                RelationSide::Right,
+                right.clone(),
+            ));
         }
         rows.iter()
             .find(|r| r.right.len() == 1 && r.right.contains(right) && !r.left.is_empty())
             .map(|row| PairPlacement::Add(row.id.clone(), RelationSide::Left, left.clone()))
     };
     find(left, right)
-        .or_else(|| (direction == RelationDirection::Symmetric).then(|| find(right, left)).flatten())
+        .or_else(|| {
+            (direction == RelationDirection::Symmetric)
+                .then(|| find(right, left))
+                .flatten()
+        })
         .unwrap_or(PairPlacement::NewRow)
 }

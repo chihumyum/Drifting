@@ -111,7 +111,7 @@
 
 ### 模块定义（`TemplateModuleSpec` 与 `TemplateModuleConfig`）
 
-- `id`：合法 `ModuleId`；`name`：非空单行文本；`kind`：封闭枚举 `"prose"` \| `"fields"` \| `"kv"` \| `"patches"` \| `"relations"` \| `"plot_grid"` \| `"children"` \| `"members"` \| `"media"`。
+- `id`：合法 `ModuleId`；`name`：非空单行文本；`kind`：封闭枚举 `"prose"` \| `"fields"` \| `"kv"` \| `"patches"` \| `"plot_grid"` \| `"children"` \| `"members"` \| `"media"`。
 - `agent`（可选）：`{ writable: bool (默认 true), read_tier?: string, instructions: string }`。
 - `config`：
   - `show_outline`（`bool`，默认 `false`）、`task_todos`（`bool`，默认 `false`）、`in_book`（`bool`，默认 `true`）；
@@ -126,14 +126,11 @@
 
 ## 6. 自定义关系类型（`relation_types[]`）
 
-系统内置的 `system:generic-association:<书 id>` 由书目创世变更自动生成，不写入模板。`relation_types` 只收作者自建的非锁定关系类型，展开建书时生成新的 `RelationTypeId`：
+`relation_types` 保存项目里定义的关系。展开时为每种定义生成新的 `RelationTypeId`，初始没有行。
 
-- `name`：非空单行文本；按 `normalize_relation_type_name` 归一化后在 `relation_types` 内唯一，且不得与内置 `"generic association"` 重名；
-- `description`、`source_role`、`target_role`：文本；`color`：可选单行颜色串；
-- `orientation`：`"directed"` \| `"symmetric"`；
-- `source_kinds`：元素取 `"entry"` \| `"comment"` \| `"asset"`（无重复，且符合格式 5 关系起点规则）；
-- `target_kinds`：元素取 `"entry"` \| `"asset"` \| `"comment"` \| `"patch"`（无重复）；
-- `source_templates`、`target_templates`：每个模板 `id` 须存在于 `templates`；当对应端点种类不含 `"entry"`（且非空）时不得声明模板限制。
+- `name` 是非空单行文本，按 `normalize_relation_type_name` 归一化后唯一。
+- `description` 是 `{ text, links: [{ start, end, entry }] }`，省略时为空。区间使用 Unicode 标量下标，左闭右开，按起点递增且不重叠。`entry` 是模板内存在的 `e…` 代号。另存时剔除指向未选条目的链接标记，保留文字；展开时换成新条目的 id。
+- `direction` 取 `"directed"` 或 `"symmetric"`。
 
 ## 7. 条目（`entries[]`）
 

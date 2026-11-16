@@ -44,6 +44,12 @@ fn canonical_creation_and_shared_capabilities_have_no_old_product_runtime() {
         "material_folder.list",
         "material_folder.update",
         "material_folder.delete",
+        "module.put_relation",
+        "module.remove_relation",
+        "entry_relation_type.list",
+        "relation.create",
+        "relation.delete",
+        "relation.list",
     ] {
         assert!(
             registry().get(name).is_none(),
@@ -60,7 +66,8 @@ fn canonical_creation_and_shared_capabilities_have_no_old_product_runtime() {
         "membership.add",
         "fact.put",
         "memory.add",
-        "relation.create",
+        "relation_row.create_pair",
+        "relation_type.list",
         "prose.link",
         "prose.shape",
     ] {
@@ -118,7 +125,7 @@ fn old_sync_payload_cannot_be_hidden_under_a_new_canonical_genesis() {
     assert!(ws.library().docs(None, None).unwrap().is_empty());
     ws.shutdown().unwrap();
 }
-/// A book document as an earlier format (`v` = 3 or 4) began it: `meta.v = v`
+/// A book document as an earlier build (including format 5 before RD) began it: `meta.v = v`
 /// from that format's genesis peer.
 fn older_format_genesis(book: &dr_model::id::BookId, v: u32) -> Vec<u8> {
     let doc = loro::LoroDoc::new();
@@ -131,8 +138,8 @@ fn older_format_genesis(book: &dr_model::id::BookId, v: u32) -> Vec<u8> {
     doc.export(loro::ExportMode::all_updates()).unwrap()
 }
 #[test]
-fn a_book_of_format_3_or_4_is_refused_as_it_is_and_cannot_arrive_by_sync() {
-    for v in [3, 4] {
+fn a_book_before_relation_rows_is_refused_as_it_is_and_cannot_arrive_by_sync() {
+    for v in [3, 4, 5] {
         let dir = tempfile::tempdir().unwrap();
         let ws = Workspace::open_dir(dir.path(), "cutover-contract").unwrap();
         // One stored by an earlier build.

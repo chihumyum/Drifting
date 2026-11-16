@@ -26,7 +26,9 @@ use dr_ui::sand::{Icon, KindMark};
 use dr_ui::tokens::{Rgb, radius};
 use dr_view_elements::data::v3 as g2_data;
 use dr_view_elements::dialogs::v3::{EntryMode, open_entry};
-use dr_workspace::commands::v3::relations::{List as RelationList, ListIn as RelationListIn, RelationInfo};
+use dr_workspace::commands::v3::relations::{
+    List as RelationList, ListIn as RelationListIn, RelationInfo,
+};
 use dr_workspace::{Actor, EntryCooccurrenceGraph, Workspace as Library};
 use gpui::prelude::FluentBuilder as _;
 use gpui::{

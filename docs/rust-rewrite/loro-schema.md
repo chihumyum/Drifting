@@ -68,7 +68,7 @@
 - 书目文档的创世内容：v2.2 为 `meta.v = 2`，v3 为 `meta.v = 3`，格式 4 为 `meta.v = 4`，现在为 `meta.v = 5`；都有 `meta.book = <书 id>` 及各版本内置的锁定关系类型（格式 5 的 `system:generic-association:<书 id>` 允许 `source_kinds = [comment, entry, asset]`、`target_kinds = [entry, asset, comment, patch]`）；
 - 对话文档的创世内容：`meta.v = 2`、`meta.doc = <文档 id>`，没有别的（v2.2）；
 - 书旁边的三篇文档（`stats:<书>`、`checkpoints:<书>`、`layout:<书>`）与书库级的项目模板文档（`project-template:<模板 id>`）的创世内容：`meta.v = 1`、`meta.doc = <文档 id>`，没有别的。
-- 创世版本号：书目为 `5`（格式 4 是 `4`，v3 是 `3`），书旁边的三篇文档与项目模板文档为 `1`，v2.2 书目和共用正文／对话仍为 `2`（v0 是 `0`，v1 是 `1`）。
+- 书目创世版本为 `6`（RD 前的格式 5 是 `5`，格式 4 是 `4`，v3 是 `3`）。书旁边的三篇文档与项目模板文档为 `1`，v2.2 书目和共用正文／对话为 `2`。
 
 **为什么**：任何一台设备都可以独立生成同一份创世变更，字节完全相同。Loro 按操作 ID 去重，所以两台设备同时初始化同一篇空正文，合并后仍然只有一个空段落，不会多出一段；内置关系类型也只会有一个。
 
@@ -207,7 +207,7 @@ H1、H2、H3 三级同等对待，只叫 H1/H2/H3。
 
 ## 书目文档（格式 5）：通用项目内核
 
-`next/` 当前唯一运行的书目结构，方案以 [kernel-v5.md](kernel-v5.md) 为准（在 [kernel-v4.md](kernel-v4.md) 之上演进；下文保留 v2.2 一节作为历史对照）。只有 `meta.v == 5` 的书才由 `dr_model::v3`／`dr_doc::v3` 打开（`BOOK-FORMAT-5-ONLY`；模块名里的 `v3` 是历史名字）；格式 4 及更早的书不原地改写或删除，应用显式拒开。`book:<书 id>` 的创世使用创世版本 `5`；正文和对话继续用创世版本 `2`，书旁边的三篇小文档用创世版本 `1`。
+`next/` 当前唯一运行的书目结构以 [kernel-v5.md](kernel-v5.md) 为准。打开书目、接收书目更新和读书文件都要求 `meta.v == 5` 及 `meta.relation_rows == true`（`BOOK-FORMAT-5-ONLY`）。早期开发库原样拒开，可从 0.1 源库重新导入。`book:<书 id>` 使用创世版本 `6`，正文和对话使用 `2`，书旁边的三篇文档使用 `1`。
 
 ### v4 → v5
 
@@ -246,7 +246,7 @@ H1、H2、H3 三级同等对待，只叫 H1/H2/H3。
 
 | 根容器 | 类型 | 格式 5 内容 |
 | --- | --- | --- |
-| `meta` | LoroMap | 书名、梗概、创建时间、删除时间等元数据；`v = 5`、`book`；`level_lanes_cleared`（2026-11-16 DV2，布尔，只写 `true`）：书里没有要清的只开层级的旧泳道了。打开时的修复清过以后写上；写泳道（`put_lane`、`set_lane_act_track`、恢复泳道）时同一次提交里也写上，所以有泳道的新书一开始就带着它。缺这一项又存着泳道的书，打开时清一次再写上；缺这一项、没有泳道的书什么都不做 |
+| `meta` | LoroMap | 书名、梗概、创建时间、删除时间；创世写 `v = 5`、`book`、`relation_rows = true`；`level_lanes_cleared`（2026-11-16 DV2，布尔，只写 `true`）在旧泳道修复后或写泳道时记一笔 |
 | `project` | LoroMap | 项目定义：`source`（`{id, version, origin?, name?, credit?}`）、`agent`（`{name, description, instructions}`）、`book?`（`on`、`word_target`、`daily_word_target`；关着时目标留着；没有起点）、`tabs`（id → `{pos, mount}`；没有名字，「全部」是 `tab-all`） |
 | `entries` | LoroTree | 条目树；节点 meta 有 `id`、`title`、`mark`、`template`、`level`（缺键读作关）、`overrides`、`fields`、`kv:<模块 id>`、`media:<模块 id>`、`arrangement:<模块 id>`（条目自己的媒体模块摆法）、`primary`、时间戳；没有 `layout` |
 | `templates` | LoroMap | 模板 id → `{name, mark, color, agent, modules, level, linkable, settings, verbs, deleted_at}`；`settings` 含 `accept`、`home`、`default_template`、`display`、`auto_link`、`format_shortcuts`，没有 `kind`、`allow`、`lane` |
@@ -254,14 +254,16 @@ H1、H2、H3 三级同等对待，只叫 H1/H2/H3。
 | `timeline_views` | LoroMap | 视图 id → `{name, pos, lanes, placements, pins, deleted_at}`；泳道条目须活着且开着「收别处的条目」（`accept`；2026-11-16 DV 前是 `level \|\| accept`），在视图内期间刻度 `placements` 是挂在泳道上的条目的唯一顺序权威 |
 | `patches` | LoroMap | 补丁 id → `{entry, module, source_entry, source_module, source_block, source_text, anchor, invalidated_at, title, body, pos}` |
 | `plot_grids` | LoroMap | `<条目 id>/<模块 id>` → 行、列、格子和尺寸 |
-| `relation_types` | LoroMap | 关系类型定义，另有 `source_templates`／`target_templates`；端点种类为 `entry`／`asset`／`comment`／`patch` |
-| `relations` | LoroMap | 共用关系表；关联模块按条目投影 |
-| `comments` | LoroMap | 统一批注（无 `kind`、无优先级）：`origin`、`target_kind`（`entry`／`asset`）、`target`、`module?`、`part?`、作者、正文（LoroText）、状态、`agent_conversation?`、投影字段与时间戳 |
+| `relation_types` | LoroMap | id → `{ name, normalized_name, description, direction, created_at? }`。描述是带行内条目链接的 LoroText |
+| `relations` | LoroMap | id → `{ type, members, created_at? }`。`members` 是 LoroMap，条目 id 映到 `left` 或 `right`。不同条目的成员操作可各自合并 |
+| `comments` | LoroMap | 统一批注（无 `kind`、无优先级）：`origin`、`target_kind`（`entry`／`asset`）、`target`、`module?`、`part?`、作者、正文（带行内条目链接的 LoroText）、状态、`agent_conversation?`、投影字段与时间戳 |
 | `assets` | LoroMap | 内置素材库文件清单：`kind`、`mime`、`size`、`sha256`、`width?`、`height?`、`name`、`created_at`、`folder?`（素材夹 id）、`pos?`、`deleted_at?`、`trashed_with?` |
 | `asset_folders` | LoroMap | 素材库的素材夹（2026-11-15）：id → `{name, parent?, pos, deleted_at?, trashed_with?}` |
 | `facts`、`memory` | LoroMap | 项目设定与帮手记忆，沿用既有结构 |
 
 没有 `materials`、`material_folders`（格式 5 退役），也没有 `nodes`、`acts`、`storylines`、`elements`、`categories`、`drift_groups`、全书 `time_pins` 这些 v2.2 根。
+
+关系的描述和批注正文在 LoroText 上用 `entity` 标记条目 id。写入对现有字做局部编辑，标记也按变化的范围更新。同一行的投影首次在两台设备上生成时，合并选择一份初始文字和链接，之后的编辑在相同容器中合并。读模型组装文字和 Unicode 标量区间，只有活条目的标记投为链接。关系行也只投活条目，两边都非空才显示。书目保留最近删除的成员供恢复。参见 [RD 交回](kernel-v5.md#rd-交回项目关系与带链接的短文字2026-11-17)。
 
 **文档 id 是全库主键，不能只在书内唯一。** 内置「写书」项目模板每次建书都生成新的条目 id 与视图 id；找根与起始条目通过 `project` 定义或模板结构，不依赖固定条目 id。
 
@@ -512,7 +514,7 @@ sync_doc (doc_id, remote_vv, updated_ms)                   -- 服务器已有到
 
 ## 版本
 
-- 现在书目 `meta.v`／创世版本为 4，书旁边的两篇文档为 1，共用正文／对话仍为 2。v3（3）和 v2.2（2）的书原样拒开。样式表没有改变，未配置的标记键仍默认 `ExpandType::None`。
+- 当前书目 `meta.v` 为 5，创世版本为 6，书旁边的三篇文档和项目模板文档为 1，共用正文／对话为 2。未配置的标记键默认 `ExpandType::None`。
 - 改动分两类：
   - **向后兼容**（新增根容器、新增实体字段、新增标记键且旧版忽略它也不会写坏）：升小版本，在这里记一行；读取端遇到不认识的字段原样保留。
   - **不兼容**（改键名、改值的含义、改 `ExpandType`、改创世内容、改块 ID 规则）：升 `meta.v`，写清楚迁移办法。改 `ExpandType` 尤其要小心：规则在打标记时就写进了标记，改表只影响以后打的标记，书里已有的标记照旧，新旧两种规则会长期并存。

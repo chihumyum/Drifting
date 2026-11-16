@@ -580,12 +580,7 @@ impl MediaPage {
                         })
                 }
             };
-            let usages = library_data::load_asset_usages(
-                &lib,
-                &book,
-                &asset,
-                &untitled_label,
-            );
+            let usages = library_data::load_asset_usages(&lib, &book, &asset, &untitled_label);
             (media, usages)
         });
         self.loading = Some(cx.spawn(async move |this, cx| {

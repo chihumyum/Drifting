@@ -1161,12 +1161,14 @@ async fn checklist_lines_written_over_mcp_project_into_comments_like_the_agents(
     assert_eq!(rows.len(), 2, "{rows:?}");
     let open = rows
         .iter()
-        .find(|c| c["body"] == "核对城门巡夜时间")
+        .find(|c| c["body"]["text"] == "核对城门巡夜时间")
         .unwrap()
         .clone();
     assert_eq!(open["status"], "open");
     assert_eq!(
-        rows.iter().find(|c| c["body"] == "补写钟楼回声").unwrap()["status"],
+        rows.iter()
+            .find(|c| c["body"]["text"] == "补写钟楼回声")
+            .unwrap()["status"],
         "resolved"
     );
     let snapshots =
@@ -1198,7 +1200,7 @@ async fn checklist_lines_written_over_mcp_project_into_comments_like_the_agents(
     assert_eq!(rows.len(), 2);
     let renamed = rows
         .iter()
-        .find(|c| c["body"] == "核对城门换岗时间")
+        .find(|c| c["body"]["text"] == "核对城门换岗时间")
         .unwrap();
     assert_eq!(renamed["id"], open["id"]);
     assert_eq!(renamed["status"], "resolved");
@@ -1374,4 +1376,51 @@ async fn server_close_waits_for_a_scope_still_being_initialized() {
     assert!(scopes[0].is_settled());
     drop(client);
     f.finish().await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn mcp_lists_and_writes_current_relation_rows() {
+    let f = Fixture::new(false, library_options("rd-mcp")).await;
+    let book = &f.books[0].id;
+    let mut client = f.client().await;
+    let names = client.list_tools(None).await.unwrap().tools;
+    for name in [
+        "relation_type.list",
+        "relation_row.create_pair",
+        "relation_row.delete",
+    ] {
+        assert!(names.iter().any(|tool| tool.name == name), "{name}");
+    }
+    assert!(!names.iter().any(|tool| tool.name == "module.put_relation"));
+    let entries = reply(&call(&client, "entry.list", json!({"all":true})).await);
+    let entries = entries["output"]["output"].as_array().unwrap();
+    let left = &entries[0]["id"];
+    let right = &entries[1]["id"];
+    reply(&call(&client, "relation_type.list", json!({})).await);
+    let placed = reply(&call(&client, "relation_row.create_pair", json!({
+        "left":left,"right":right,"new_type":{"name":"Synthetic MCP relation","direction":"symmetric"},
+    })).await);
+    let placed = &placed["output"]["output"];
+    let listed = reply(&call(&client, "relation_type.list", json!({})).await);
+    let relation = listed["output"]["output"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|value| value["id"] == placed["relation_type"])
+        .unwrap();
+    assert_eq!(relation["rows"][0]["id"], placed["id"]);
+    assert_eq!(relation["rows"][0]["left"], json!([left]));
+    assert_eq!(relation["rows"][0]["right"], json!([right]));
+    reply(&call(&client, "relation_row.delete", json!({"id":placed["id"]})).await);
+    let after =
+        f.ws.call(&Actor::User, "relation_type.list", json!({"book":book}))
+            .unwrap();
+    assert!(
+        after["output"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|relation| relation["id"] != placed["relation_type"])
+    );
+    client.cancel().await.unwrap();
 }

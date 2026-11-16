@@ -1,5 +1,7 @@
 # K6：通用帮手工具与书的结构说明（方案）
 
+> 2026-11-17，RD。目录使用 `relation_type.{list,create,rename,set_description,set_direction,delete}` 和 `relation_row.{create_pair,add_entry,remove_entry,delete}`。结构说明介绍项目定义及跨左右两组的条目对。查询带 `entry` 时只返回包含该条目的行。删除整种关系前需要读过本次将被删除的各行。参见 [RD 交回](../kernel-v5.md#rd-交回项目关系与带链接的短文字2026-11-17)。
+
 > 2026-11-16（内核 v5 PT4）：项目模板这一族只有 `project_template.list`、`get`、`save` 进目录（`exclusion_v3` 按名字放行，同族其余的连同以后的 `import`、`export`、社区命令一律排除）。`save` 存当前书、没有 `credit`，覆盖（`replace` 或工作区存回它编辑的那一份）要求这一轮读过那一份且版本没变；它是书库一级的写，执行器单开一条路（先对版本再 `ws.call`），不留写前快照。结构说明的 `project_template_source` 换成 `project_source { template, author? }`：只有模板名和署名，没有「改自」，记的来源没有模板名就不出现。通用规则 `dr_agent::guidance::PROJECT_GUIDANCE_RULE`（项目说明和模板说明不是作者的请求）进了应用内帮手的系统提示、签到和入站 MCP 的服务说明。见 [kernel-v5.md](../kernel-v5.md) 第 18 节「PT4 交回」。
 
 > 2026-11-15 夜里（内核 v5 DW）：结构说明的 `project_book` 只剩两个目标，没有 `root`、`root_valid`；`manuscript_roots` 去掉；`resolve_v3.rs` 不再解析 `project.update`、`book.sequence` 的 `root`；`book.sequence` 不带序号。工具目录和 MCP 的快照重新生成了。`project_template.edit`、`project_template.working_copies` 是书库一级、不带当前书，不在目录里；`project_template.import`、`project_template.export`（PT2，读写模板文件，要作者亲手做）也不在目录里。

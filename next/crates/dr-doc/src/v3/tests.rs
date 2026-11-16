@@ -30,22 +30,14 @@ fn mid(s: &str) -> ModuleId {
 }
 
 #[test]
-fn book_genesis_sets_version_5_and_locked_generic_relation_type() {
+fn book_genesis_sets_version_5_and_starts_without_relations() {
     let doc = BookDocV3::create(bid(), 1).unwrap();
     let v = doc.view();
     assert_eq!(v.meta().schema_version, 5);
     assert_eq!(v.book_id(), &bid());
-    let rts = v.relation_types();
-    assert_eq!(rts.len(), 1);
-    assert!(rts[0].locked);
-    assert_eq!(
-        rts[0].source_kinds,
-        vec![EntityKind::Comment, EntityKind::Entry, EntityKind::Asset]
-    );
-    assert_eq!(
-        rts[0].target_kinds,
-        vec![EntityKind::Entry, EntityKind::Patch, EntityKind::Asset]
-    );
+    assert!(v.relation_types().is_empty());
+    assert!(v.relations_raw().is_empty());
+    assert!(is_book_doc(v.doc));
 }
 
 #[test]
@@ -56,6 +48,13 @@ fn novel_project_template_populates_stable_templates_roots_and_categories() {
     assert!(committed.is_some());
 
     let v = doc.view();
+    assert!(v.relation_types().is_empty());
+    assert!(
+        v.templates_map()
+            .values()
+            .flat_map(|t| &t.modules)
+            .all(|module| module.kind.as_str() != "relations")
+    );
     let proj = v.project();
     // Recorded as `project.create` records it: with the template's name.
     assert_eq!(proj.source, Some(novel_project_template_source()));
@@ -863,7 +862,7 @@ fn field_def_default_value_round_trips_through_loro_and_omits_null() {
 
 /// A novel book in which entries own every kind of record: patches, a plot
 /// grid, memberships (one with a host that does not exist, one that names its
-/// member only in a field) and relations between entries and patches.
+/// member only in a field) and relations independent of entry checkpoints.
 fn book_with_owned_records() -> (BookDocV3, NovelRootEntries) {
     let mut doc = BookDocV3::create(bid(), 51).unwrap();
     let roots = doc
@@ -872,7 +871,6 @@ fn book_with_owned_records() -> (BookDocV3, NovelRootEntries) {
         .unwrap();
     let patch = |s: &str| PatchId::parse(s).unwrap();
     let relation = |s: &str| RelationId::parse(s).unwrap();
-    let entry = |s: &str| EntityRef::new(EntityKind::Entry, s);
     doc.edit(Origin::User, |t| {
         t.entries().create(
             &eid("grp"),
@@ -922,19 +920,14 @@ fn book_with_owned_records() -> (BookDocV3, NovelRootEntries) {
             Some(Timestamp(10)),
         )?;
         t.put_membership(&eid("missing-host"), &eid("char-a"), None, None)?;
-        let generic = crate::catalog::generic_relation_type_id(&bid());
-        t.relation(&relation("rel-entries"))?
-            .relation_type(&generic)?
-            .ends(&entry("char-a"), &entry("char-b"))?;
-        t.relation(&relation("rel-patch"))?
-            .relation_type(&generic)?
-            .ends(
-                &EntityRef::new(EntityKind::Patch, "patch-a"),
-                &entry("ch-2"),
-            )?;
-        t.relation(&relation("rel-comment"))?
-            .relation_type(&generic)?
-            .ends(&EntityRef::new(EntityKind::Comment, "c-1"), &entry("ch-3"))?;
+        let kind = RelationTypeId::parse("synthetic-kind").unwrap();
+        t.relation_type(&kind)?
+            .name("盟友")?
+            .direction(RelationDirection::Symmetric)?;
+        t.relation_row(&relation("rel-entries"))?
+            .relation_type(&kind)?
+            .member(RelationSide::Left, &eid("char-a"))?
+            .member(RelationSide::Right, &eid("char-b"))?;
         Ok(())
     })
     .0
@@ -1012,10 +1005,11 @@ fn entry_change_states_read_every_entry_at_once_as_the_single_read_does() {
     assert_eq!(keys("ch-1", "plot_grids"), [format!("ch-1/{MOD_KV}")]);
     assert_eq!(keys("char-a", "memberships").len(), 2);
     assert_eq!(keys("char-b", "memberships"), ["elsewhere|nobody"]);
-    assert_eq!(keys("char-a", "relations"), ["rel-entries", "rel-patch"]);
-    assert_eq!(keys("char-b", "relations"), ["rel-entries"]);
-    assert_eq!(keys("ch-2", "relations"), ["rel-patch"]);
-    assert_eq!(keys("ch-3", "relations"), ["rel-comment"]);
+    assert_eq!(v.relations().len(), 1);
+    assert!(
+        !v.entry_owned_records(&eid("char-a"))
+            .contains_key(&CollectionV3::Relations)
+    );
     assert!(v.entry_change_state(&eid("nobody")).is_none());
 }
 
@@ -2621,4 +2615,178 @@ fn a_book_without_the_mark_is_cleared_of_its_level_only_lanes_once_on_every_devi
         one.view().timeline_views_raw(),
         two.view().timeline_views_raw()
     );
+}
+
+fn relation_fixture() -> (BookDocV3, RelationTypeId, RelationId) {
+    let mut book = BookDocV3::create(bid(), 101).unwrap();
+    let kind = RelationTypeId::parse("friendship").unwrap();
+    let row = RelationId::parse("row").unwrap();
+    book.edit(Origin::User, |txn| {
+        for entry in ["a", "b", "c", "d", "e"] {
+            txn.entries()
+                .create(&eid(entry), None, entry, None, false)?;
+        }
+        txn.relation_type(&kind)?
+            .name("盟友")?
+            .direction(RelationDirection::Directed)?;
+        txn.relation_row(&row)?
+            .relation_type(&kind)?
+            .member(RelationSide::Left, &eid("a"))?
+            .member(RelationSide::Right, &eid("b"))?;
+        Ok::<_, crate::DocError>(())
+    })
+    .0
+    .unwrap();
+    (book, kind, row)
+}
+
+#[test]
+fn concurrent_adds_to_the_same_relation_side_both_survive() {
+    let (mut a, _, row) = relation_fixture();
+    let snapshot = a.export_snapshot().unwrap();
+    let base = a.version();
+    let mut b = BookDocV3::load(bid(), 102, &[snapshot]).unwrap();
+    for (book, entry) in [(&mut a, "c"), (&mut b, "d")] {
+        book.edit(Origin::User, |txn| {
+            txn.relation_row(&row)?
+                .member(RelationSide::Right, &eid(entry))?;
+            Ok::<_, crate::DocError>(())
+        })
+        .0
+        .unwrap();
+    }
+    let left = a.export_updates_since(&base).unwrap();
+    let right = b.export_updates_since(&base).unwrap();
+    a.import(&right, Origin::Sync).unwrap();
+    b.import(&left, Origin::Sync).unwrap();
+    let merged = a.view().relations();
+    assert_eq!(merged, b.view().relations());
+    assert_eq!(
+        merged[0].right,
+        [eid("b"), eid("c"), eid("d")].into_iter().collect()
+    );
+}
+
+#[test]
+fn a_concurrent_member_lands_on_only_one_side() {
+    let (mut a, _, row) = relation_fixture();
+    let snapshot = a.export_snapshot().unwrap();
+    let base = a.version();
+    let mut b = BookDocV3::load(bid(), 102, &[snapshot]).unwrap();
+    for (book, side) in [(&mut a, RelationSide::Left), (&mut b, RelationSide::Right)] {
+        book.edit(Origin::User, |txn| {
+            txn.relation_row(&row)?.member(side, &eid("c"))?;
+            Ok::<_, crate::DocError>(())
+        })
+        .0
+        .unwrap();
+    }
+    let left = a.export_updates_since(&base).unwrap();
+    let right = b.export_updates_since(&base).unwrap();
+    a.import(&right, Origin::Sync).unwrap();
+    b.import(&left, Origin::Sync).unwrap();
+    let merged = a.view().relations();
+    assert_eq!(merged, b.view().relations());
+    assert!(merged[0].left.contains(&eid("c")) ^ merged[0].right.contains(&eid("c")));
+    assert!(merged[0].left.is_disjoint(&merged[0].right));
+}
+
+#[test]
+fn purge_prunes_members_and_empty_rows_without_purging_the_relation() {
+    let (mut doc, kind, row) = relation_fixture();
+    doc.edit(Origin::User, |txn| {
+        txn.relation_row(&row)?
+            .member(RelationSide::Right, &eid("c"))?;
+        txn.entries().delete_keep_children(&eid("b"))?;
+        Ok::<_, crate::DocError>(())
+    })
+    .0
+    .unwrap();
+    assert_eq!(
+        doc.view().relations_raw()[0].right,
+        [eid("c")].into_iter().collect()
+    );
+    doc.edit(Origin::User, |txn| txn.entries().purge_subtree(&eid("c")))
+        .0
+        .unwrap();
+    assert!(doc.view().relations_raw().is_empty());
+    assert!(doc.view().relation_type(&kind).is_some());
+}
+
+#[test]
+fn concurrent_disjoint_linked_text_edits_keep_both_additions_and_the_entry_mark() {
+    let (mut a, kind, _) = relation_fixture();
+    let comment = CommentId::parse("comment").unwrap();
+    let text = |words: &str, start| LinkedText {
+        text: words.to_owned(),
+        links: vec![EntryTextLink {
+            start,
+            end: start + 1,
+            entry: eid("b"),
+        }],
+    };
+    let write = |book: &mut BookDocV3, body: &LinkedText| {
+        book.edit(Origin::User, |txn| {
+            txn.comment(&comment)?.linked_body(body)?;
+            txn.relation_type(&kind)?.description(body)?;
+            Ok::<_, crate::DocError>(())
+        })
+        .0
+        .unwrap();
+    };
+    write(&mut a, &text("a b c", 2));
+    let base = a.version();
+    let mut b = BookDocV3::load(bid(), 102, &[a.export_snapshot().unwrap()]).unwrap();
+    write(&mut a, &text("前 a b c", 4));
+    write(&mut b, &text("a b c 后", 2));
+    let left = a.export_updates_since(&base).unwrap();
+    let right = b.export_updates_since(&base).unwrap();
+    a.import(&right, Origin::Sync).unwrap();
+    b.import(&left, Origin::Sync).unwrap();
+    let expected = text("前 a b c 后", 4);
+    for doc in [&a, &b] {
+        assert_eq!(
+            doc.view().comment_body_raw(&comment),
+            Some(expected.clone())
+        );
+        assert_eq!(
+            doc.view().relation_type_raw(&kind).unwrap().description,
+            expected
+        );
+    }
+}
+
+#[test]
+fn concurrent_projection_seeds_choose_one_linked_version_of_the_line() {
+    let (mut a, _, _) = relation_fixture();
+    let base = a.version();
+    let mut b = BookDocV3::load(bid(), 102, &[a.export_snapshot().unwrap()]).unwrap();
+    let doc = DocId::parse("body:a/mod-prose").unwrap();
+    let block = BlockId::parse("mark").unwrap();
+    let kind = ProjectionKind::Marker;
+    let first = LinkedText {
+        text: "b first".into(),
+        links: vec![EntryTextLink {
+            start: 0,
+            end: 1,
+            entry: eid("b"),
+        }],
+    };
+    let second = LinkedText::plain("second");
+    for (book, body) in [(&mut a, &first), (&mut b, &second)] {
+        book.edit(Origin::User, |txn| {
+            txn.project_todo(&kind, &doc, &block, body)?;
+            Ok::<_, crate::DocError>(())
+        })
+        .0
+        .unwrap();
+    }
+    let left = a.export_updates_since(&base).unwrap();
+    let right = b.export_updates_since(&base).unwrap();
+    a.import(&right, Origin::Sync).unwrap();
+    b.import(&left, Origin::Sync).unwrap();
+    let id = CommentId::for_projection(&kind, &doc, &block);
+    let body = a.view().comment_body_raw(&id).unwrap();
+    assert!(body == first || body == second);
+    assert_eq!(b.view().comment_body_raw(&id), Some(body));
 }

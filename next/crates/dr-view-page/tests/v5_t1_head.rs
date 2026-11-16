@@ -255,7 +255,7 @@ fn a_storyline_page_body_is_found_counted_and_commented_like_any(cx: &mut TestAp
         c.target_module
             .as_ref()
             .is_some_and(|m| m.as_str() == module)
-            && c.body == "Synthetic storyline comment"
+            && c.body.text == "Synthetic storyline comment"
     }));
 }
 

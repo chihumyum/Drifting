@@ -1,7 +1,7 @@
 //! What a seed contains: the contract its tests assert and its consumers
 //! (benchmarks, evidence) record.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use dr_doc::v3::novel::{TPL_CHAPTER, TPL_CHARACTER, TPL_GROUP, TPL_MANUSCRIPT};
 use dr_model::id::EntryTemplateId;
@@ -164,7 +164,18 @@ impl Shape {
                 .iter()
                 .filter(|e| !e.is_trashed() && e.template.as_ref() == Some(&tpl_character))
                 .count();
-            relations += v.relations().len();
+            let rows = v.relations();
+            let pairs: BTreeSet<_> = rows
+                .iter()
+                .filter_map(|row| {
+                    let direction = v.relation_type_raw(&row.relation_type)?.direction;
+                    Some(row.pairs().map(move |(left, right)| {
+                        (&row.relation_type, direction.pair(left, right))
+                    }))
+                })
+                .flatten()
+                .collect();
+            relations += pairs.len();
             acts += entries
                 .iter()
                 .filter(|e| {

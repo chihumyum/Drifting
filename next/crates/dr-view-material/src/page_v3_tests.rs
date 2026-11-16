@@ -233,7 +233,7 @@ fn partial_metadata_and_region_comments_preserve_hidden_data_and_failed_drafts(
     // A media module region names the file (it is in the module once).
     assert_eq!(comments[0]["part"]["asset"], host_asset);
     assert!((comments[0]["part"]["region"]["y"].as_f64().unwrap() - 0.2).abs() < 0.0001);
-    assert_eq!(comments[0]["body"], sample_title);
+    assert_eq!(comments[0]["body"]["text"], sample_title);
     let loaded = Book::load(&ws, &book_id).unwrap();
     let row = loaded.material_info(&id).unwrap();
     assert_eq!(row.title, draft);
@@ -404,7 +404,7 @@ fn a_file_only_in_the_library_takes_a_region_comment_and_a_new_name(cx: &mut Tes
         again.read_with(cx, |p, _| p.comments().len() == 1)
     });
     let listed = again.read_with(vcx2, |p, _| p.comments().to_vec());
-    assert_eq!(listed[0].item.body, "礁石在这里");
+    assert_eq!(listed[0].item.body.text, "礁石在这里");
     assert!(listed[0].region().is_some());
     ws.close();
 }
@@ -439,7 +439,10 @@ fn a_media_page_lists_its_own_entrys_comments_and_the_files(cx: &mut TestAppCont
     );
     let bodies = |page: &Entity<MediaPage>, cx: &mut VisualTestContext| {
         let mut b: Vec<String> = page.read_with(cx, |p, _| {
-            p.comments().iter().map(|l| l.item.body.clone()).collect()
+            p.comments()
+                .iter()
+                .map(|l| l.item.body.text.clone())
+                .collect()
         });
         b.sort();
         b

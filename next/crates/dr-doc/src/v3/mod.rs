@@ -53,10 +53,11 @@ pub fn is_book_doc(doc: &LoroDoc) -> bool {
         Some(ValueOrContainer::Value(LoroValue::Double(d))) => d == BOOK_SCHEMA_VERSION as f64,
         _ => false,
     };
-    version && matches!(
-        meta.get(schema::meta::RELATION_ROWS),
-        Some(ValueOrContainer::Value(LoroValue::Bool(true)))
-    )
+    version
+        && matches!(
+            meta.get(schema::meta::RELATION_ROWS),
+            Some(ValueOrContainer::Value(LoroValue::Bool(true)))
+        )
 }
 
 /// Deterministic genesis of a book. Relations start empty.
@@ -71,7 +72,8 @@ pub fn book_genesis(book_id: &BookId) -> Vec<u8> {
         .expect("meta");
     meta.insert(schema::meta::BOOK, book_id.as_str())
         .expect("meta");
-    meta.insert(schema::meta::RELATION_ROWS, true).expect("meta");
+    meta.insert(schema::meta::RELATION_ROWS, true)
+        .expect("meta");
     doc.commit_with(CommitOptions::new().timestamp(0));
     doc.export(ExportMode::all_updates())
         .expect("export v3 genesis")

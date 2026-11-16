@@ -25,9 +25,7 @@ pub use crate::id::{
     PlotRowId, ProjectTemplateDocId, RelationId, RelationTypeId, TabId, TemplateId, TimePinId,
     TimelineViewId,
 };
-use crate::kind::{
-    CommentAuthorKind, CommentOrigin, CommentSource, CommentStatus, EntityKind,
-};
+use crate::kind::{CommentAuthorKind, CommentOrigin, CommentSource, CommentStatus, EntityKind};
 use crate::order::cmp_order;
 use crate::pos::{PosKey, cmp_pos};
 pub use crate::relations::{

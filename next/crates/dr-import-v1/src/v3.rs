@@ -26,7 +26,9 @@ pub use dr_samples::v3::{MappingChoices, Pending, category_template};
 
 pub(crate) fn mapping_key(options: &Options) -> Result<String> {
     Ok(format!(
-        "5:{:x}",
+        "{}-g{}:{:x}",
+        dr_doc::schema::BOOK_SCHEMA_VERSION,
+        dr_doc::schema::BOOK_GENESIS_VERSION,
         Sha256::digest(serde_json::to_vec(&options.v3)?)
     ))
 }
@@ -352,7 +354,6 @@ pub fn pending(legacy: &Legacy, choices: &MappingChoices) -> Result<Vec<Pending>
                 || c.as_str() == "plot-grid-position-key-regenerated"
                 || c.as_str() == "writing-day-invalid"
                 || c.as_str() == "chapter-in-group-dropped"
-
         }) {
             add(code, &project.id);
         }

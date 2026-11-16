@@ -839,16 +839,16 @@ fn v5_checklist_resolve_reopen_syncs_prose_with_checkpoint_and_agent_prose_write
     let rows = all_comments.as_array().unwrap();
     let updated_task = rows.iter().find(|c| c["id"] == task_cid).unwrap();
     assert_eq!(updated_task["origin"], "task");
-    assert_eq!(updated_task["body"], "核对城门换岗时间");
+    assert_eq!(updated_task["body"]["text"], "核对城门换岗时间");
     assert!(
         rows.iter()
-            .any(|c| c["origin"] == "marker" && c["body"] == "补写钟楼回声"),
+            .any(|c| c["origin"] == "marker" && c["body"]["text"] == "补写钟楼回声"),
         "expected marker comment from prose.replace, got: {rows:?}"
     );
     assert!(
         rows.iter().any(|c| {
             c["origin"] == "marker"
-                && c["body"] == "核对驿站里程"
+                && c["body"]["text"] == "核对驿站里程"
                 && c["target"]["id"] == new_entry["id"]
         }),
         "expected marker comment from entry.create, got: {rows:?}"

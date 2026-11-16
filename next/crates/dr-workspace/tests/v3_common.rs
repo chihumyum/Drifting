@@ -134,7 +134,6 @@ fn v3_entry_trash_hides_relations_and_unlocates_comments_and_undo_restores_after
         .find(|v| v["template"] == "tpl-manuscript")
         .unwrap()["id"]
         .clone();
-    e.call("entry_template.put_module", json!({"book":b,"template":"tpl-chapter","module":{"id":"test-relations","kind":"relations","name":"Synthetic relations"}}));
     let entry = item(e.out(
         "entry.create",
         json!({"book":b,"parent":parent,"title":"Synthetic entry","template":"tpl-chapter"}),
@@ -148,8 +147,10 @@ fn v3_entry_trash_hides_relations_and_unlocates_comments_and_undo_restores_after
             "bodies": {"mod-prose": "Preserve my note"}
         }),
     ));
-    e.call("entry_relation_type.put", json!({"book":b,"definition":{"id":"test-rel","name":"Synthetic relation","source_kinds":["entry"],"target_kinds":["entry"]}}));
-    let _relation = item(e.out("module.put_relation", json!({"book":b,"entry":entry,"module":"test-relations","other":{"kind":"entry","id":note},"relation_type":"test-rel"})));
+    e.call(
+        "relation_row.create_pair",
+        json!({"book":b,"left":entry,"right":note,"new_type":{"name":"Synthetic relation"}}),
+    );
     let (book, note_id) = (BookId::parse(&b).unwrap(), note.clone());
     let h = e
         .ws()
@@ -181,7 +182,7 @@ fn v3_entry_trash_hides_relations_and_unlocates_comments_and_undo_restores_after
     assert_eq!(book.view().relations_raw().len(), 1);
     let comment_info = &e.out("comment.list", json!({"book": b}))[0];
     assert_eq!(comment_info["unlocated"], true);
-    assert_eq!(comment_info["body"], "Preserve this comment");
+    assert_eq!(comment_info["body"]["text"], "Preserve this comment");
     assert_eq!(comment_info["quote"], "quoted passage");
     assert_eq!(e.ws().observe(&prose_doc).unwrap().value, prose.value);
     e.reopen();
@@ -377,30 +378,27 @@ fn v3_comments_address_modules_validate_anchors_and_restore_after_reopen() {
         json!({"book":b,"id":a,"body":"Edited first","status":"resolved"}),
     );
     assert_eq!(
-        e.out("comment.list", args("second-prose"))[0]["body"],
+        e.out("comment.list", args("second-prose"))[0]["body"]["text"],
         "Second"
     );
     undo(&e);
-    assert_eq!(e.out("comment.list", args("mod-prose"))[0]["body"], "First");
-    e.call("entry_template.put_module",json!({"book":b,"template":"tpl-chapter","module":{"id":"test-relations","kind":"relations","name":"Synthetic relations"}}));
-    e.call("entry_relation_type.put",json!({"book":b,"definition":{"id":"comment-relation","name":"Synthetic comment relation","source_kinds":["comment"],"target_kinds":["entry"]}}));
-    let relation=item(e.out("module.put_relation",json!({"book":b,"entry":entry,"module":"test-relations","other":{"kind":"comment","id":a},"incoming":true,"relation_type":"comment-relation"})));
+    assert_eq!(
+        e.out("comment.list", args("mod-prose"))[0]["body"]["text"],
+        "First"
+    );
     e.call("entry.trash", json!({"book":b,"id":entry}));
-    let before_relations = raw(&e, &b)["relations"].clone();
     let before_delete = raw(&e, &b)["comments"].clone();
     e.call("comment.delete", json!({"book":b,"id":a}));
-    assert!(raw(&e, &b)["relations"][&relation].is_null());
     e.reopen();
     undo(&e);
     assert_eq!(raw(&e, &b)["comments"], before_delete);
-    assert_eq!(raw(&e, &b)["relations"], before_relations);
     e.call("entry.restore", json!({"book":b,"id":entry}));
     e.call(
         "comment.update",
         json!({"book":b,"id":a,"body":"Writable after restore"}),
     );
     assert_eq!(
-        e.out("comment.list", args("mod-prose"))[0]["body"],
+        e.out("comment.list", args("mod-prose"))[0]["body"]["text"],
         "Writable after restore"
     );
     e.call("entry.trash", json!({"book":b,"id":entry}));
@@ -584,7 +582,7 @@ fn v3_entry_comments_and_typed_todo_projection_keep_document_scope() {
             .iter()
             .find(|c| c["id"] == id)
             .unwrap();
-        assert_eq!(projected["body"], "Synthetic task");
+        assert_eq!(projected["body"]["text"], "Synthetic task");
         assert_eq!(projected["origin"], "marker");
         let again = e.call("comment.project", args.clone());
         assert!(again["output"]["created"].as_array().unwrap().is_empty());
@@ -1151,7 +1149,7 @@ fn comment_parts_validate_against_modules_and_degrade_to_unlocated() {
             "tasks": [{"block": block, "task": "Checklist item", "checked": false}]
         }),
     );
-    assert_eq!(find(&e, &task_id)["body"], "Checklist item updated");
+    assert_eq!(find(&e, &task_id)["body"]["text"], "Checklist item updated");
     assert_eq!(find(&e, &task_id)["status"], "resolved");
 
     // Reopen + verify persistence of CommentPart round-trip in Loro.

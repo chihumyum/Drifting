@@ -614,15 +614,20 @@ pub fn write(txn: &mut BookTxn<'_>, inp: &Inputs<'_>, notes: &mut Notes) -> Resu
     let mut keep_types = HashSet::new();
     for t in &r.relation_types {
         let raw_kinds = |side: &str| -> Vec<&str> {
-            r.endpoints.iter()
+            r.endpoints
+                .iter()
                 .filter(|e| e.relation_type == t.id && e.side == side)
                 .map(|e| e.kind.as_str())
                 .collect()
         };
         for (field, value) in [
             ("source_role", serde_json::json!(t.source_role)),
+            ("locked", serde_json::json!(t.locked)),
             ("target_role", serde_json::json!(t.target_role)),
-            ("color", serde_json::json!(colors.and_then(|c| c.get(&t.id)))),
+            (
+                "color",
+                serde_json::json!(colors.and_then(|c| c.get(&t.id))),
+            ),
             ("source_kinds", serde_json::json!(raw_kinds("source"))),
             ("target_kinds", serde_json::json!(raw_kinds("target"))),
         ] {
@@ -636,13 +641,21 @@ pub fn write(txn: &mut BookTxn<'_>, inp: &Inputs<'_>, notes: &mut Notes) -> Resu
             continue;
         };
         keep_types.insert(tid.clone());
-        txn.relation_type(&tid)?.name(&t.name)?.description(&t.description)?
+        txn.relation_type(&tid)?
+            .name(&t.name)?
+            .description(&t.description)?
             .orientation(&RelationOrientation::parse(&t.orientation))?;
     }
-    let materials: HashMap<_, _> = r.materials.iter()
-        .map(|m| (m.id.as_str(), MaterialKind::parse(&m.kind))).collect();
-    let comment_kinds: HashMap<_, _> = r.comments.iter()
-        .map(|c| (c.id.as_str(), c.kind.as_str())).collect();
+    let materials: HashMap<_, _> = r
+        .materials
+        .iter()
+        .map(|m| (m.id.as_str(), MaterialKind::parse(&m.kind)))
+        .collect();
+    let comment_kinds: HashMap<_, _> = r
+        .comments
+        .iter()
+        .map(|c| (c.id.as_str(), c.kind.as_str()))
+        .collect();
     let excluded = |kind: &str, id: &str| match legacy::entity_kind(kind) {
         EntityKind::Material => match materials.get(id) {
             Some(MaterialKind::Text) | None => None,
@@ -650,8 +663,9 @@ pub fn write(txn: &mut BookTxn<'_>, inp: &Inputs<'_>, notes: &mut Notes) -> Resu
             Some(MaterialKind::Pdf) => Some("relation-pdf-end-dropped"),
             Some(_) => Some("relation-other-end-dropped"),
         },
-        EntityKind::Comment if comment_kinds.get(id) == Some(&"todo") =>
-            Some("relation-todo-end-dropped"),
+        EntityKind::Comment if comment_kinds.get(id) == Some(&"todo") => {
+            Some("relation-todo-end-dropped")
+        }
         EntityKind::Comment => Some("relation-comment-end-dropped"),
         EntityKind::Patch => Some("relation-patch-end-dropped"),
         _ => None,
@@ -659,18 +673,29 @@ pub fn write(txn: &mut BookTxn<'_>, inp: &Inputs<'_>, notes: &mut Notes) -> Resu
     for rel in &r.relations {
         let from_dropped = excluded(&rel.from_kind, &rel.from_id);
         let to_dropped = excluded(&rel.to_kind, &rel.to_id);
-        for code in [from_dropped, to_dropped.filter(|code| Some(*code) != from_dropped)]
-            .into_iter().flatten() {
+        for code in [
+            from_dropped,
+            to_dropped.filter(|code| Some(*code) != from_dropped),
+        ]
+        .into_iter()
+        .flatten()
+        {
             notes.add(code);
         }
-        let Some(tid) = id(RelationTypeId::parse, &rel.relation_type) else { continue };
+        let Some(tid) = id(RelationTypeId::parse, &rel.relation_type) else {
+            continue;
+        };
         if !keep_types.contains(&tid) || from_dropped.is_some() || to_dropped.is_some() {
             continue;
         }
-        let Some(rid) = id(RelationId::parse, &rel.id) else { continue };
+        let Some(rid) = id(RelationId::parse, &rel.id) else {
+            continue;
+        };
         let from = entity(&rel.from_kind, &rel.from_id, &new_comment_ids);
         let to = entity(&rel.to_kind, &rel.to_id, &new_comment_ids);
-        txn.relation(&rid)?.ends(&from, &to)?.relation_type(&tid)?
+        txn.relation(&rid)?
+            .ends(&from, &to)?
+            .relation_type(&tid)?
             .created_at(parse_iso(&rel.created_at))?;
     }
 

@@ -153,7 +153,7 @@ fn actual_body_makers_isolate_tabs_and_drive_find_selection_comment_save(cx: &mu
             .as_ref()
             .is_some_and(|m| m.as_str() == "second")
             && c.quote.as_deref() == Some("Synthetic")
-            && c.body == "Synthetic saved comment"
+            && c.body.text == "Synthetic saved comment"
     }));
     // Closing the one tab closes the entry's page, every module of it.
     view.update(cx, |w, cx| {

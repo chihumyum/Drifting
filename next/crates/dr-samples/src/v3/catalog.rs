@@ -1197,8 +1197,10 @@ fn copy_rest(txn: &mut BookTxnV3<'_>, source: &BookView<'_>) -> Result<()> {
             _ => RelationDirection::Directed,
         };
         directions.insert(rt.id.clone(), direction);
-        txn.relation_type(&rt.id)?.name(&rt.name)?
-            .description(&LinkedText::plain(rt.description))?.direction(direction)?
+        txn.relation_type(&rt.id)?
+            .name(&rt.name)?
+            .description(&LinkedText::plain(rt.description))?
+            .direction(direction)?
             .created_at(meta.created_at)?;
     }
     let entry_ids: BTreeSet<_> = txn.view().entries_raw().into_iter().map(|e| e.id).collect();
@@ -1207,17 +1209,22 @@ fn copy_rest(txn: &mut BookTxnV3<'_>, source: &BookView<'_>) -> Result<()> {
         if target.kind != EntityKind::Entry {
             return None;
         }
-        EntryId::parse(&target.id).ok().filter(|id| entry_ids.contains(id))
+        EntryId::parse(&target.id)
+            .ok()
+            .filter(|id| entry_ids.contains(id))
     };
     let mut wanted: BTreeMap<RelationTypeId, Vec<RelationRow>> = BTreeMap::new();
     let mut source_pairs = source.relations_raw();
     source_pairs.sort_by(|a, b| (a.created_at, &a.id).cmp(&(b.created_at, &b.id)));
     for pair in source_pairs {
-        let Some(&direction) = directions.get(&pair.relation_type) else { continue };
+        let Some(&direction) = directions.get(&pair.relation_type) else {
+            continue;
+        };
         // Sample recipes still use the isolated source catalog; file/comment
         // endpoints in it have no row in the project.
         if !matches!(map(&pair.from), Some(r) if r.kind == EntityKind::Entry)
-            || !matches!(map(&pair.to), Some(r) if r.kind == EntityKind::Entry) {
+            || !matches!(map(&pair.to), Some(r) if r.kind == EntityKind::Entry)
+        {
             continue;
         }
         let (Some(left), Some(right)) = (entry_end(&pair.from), entry_end(&pair.to)) else {
@@ -1230,27 +1237,46 @@ fn copy_rest(txn: &mut BookTxnV3<'_>, source: &BookView<'_>) -> Result<()> {
         match plan_relation_pair(rows, direction, &left, &right) {
             PairPlacement::Existing(_) => {}
             PairPlacement::Add(id, side, entry) => {
-                let row = rows.iter_mut().find(|row| row.id == id).expect("planned row");
+                let row = rows
+                    .iter_mut()
+                    .find(|row| row.id == id)
+                    .expect("planned row");
                 match side {
                     RelationSide::Left => row.left.insert(entry),
                     RelationSide::Right => row.right.insert(entry),
                 };
             }
             PairPlacement::NewRow => rows.push(RelationRow {
-                id: pair.id, relation_type: pair.relation_type,
-                left: BTreeSet::from([left]), right: BTreeSet::from([right]), created_at: pair.created_at,
+                id: pair.id,
+                relation_type: pair.relation_type,
+                left: BTreeSet::from([left]),
+                right: BTreeSet::from([right]),
+                created_at: pair.created_at,
             }),
         }
     }
-    let old_rows: BTreeMap<_, _> = txn.view().relations_raw().into_iter()
-        .map(|row| (row.id.clone(), row)).collect();
-    let wanted: BTreeMap<_, _> = wanted.into_values().flatten()
-        .map(|row| (row.id.clone(), row)).collect();
+    let old_rows: BTreeMap<_, _> = txn
+        .view()
+        .relations_raw()
+        .into_iter()
+        .map(|row| (row.id.clone(), row))
+        .collect();
+    let wanted: BTreeMap<_, _> = wanted
+        .into_values()
+        .flatten()
+        .map(|row| (row.id.clone(), row))
+        .collect();
     for row in wanted.values() {
         let writer = txn.relation_row(&row.id)?;
-        writer.relation_type(&row.relation_type)?.created_at(row.created_at)?;
+        writer
+            .relation_type(&row.relation_type)?
+            .created_at(row.created_at)?;
         if let Some(old) = old_rows.get(&row.id) {
-            for entry in old.left.union(&old.right).filter(|entry| !row.contains(entry)) {
+            for entry in old
+                .left
+                .union(&old.right)
+                .filter(|entry| !row.contains(entry))
+            {
                 writer.remove_member(entry)?;
             }
         }
@@ -1330,11 +1356,17 @@ fn copy_rest(txn: &mut BookTxnV3<'_>, source: &BookView<'_>) -> Result<()> {
         let kept_metadata = (!material_whole)
             .then_some(comment.metadata.as_deref())
             .flatten();
-        let owner = mapped_comment_target.as_ref().filter(|t| t.kind == EntityKind::Entry)
+        let owner = mapped_comment_target
+            .as_ref()
+            .filter(|t| t.kind == EntityKind::Entry)
             .and_then(|t| EntryId::parse(&t.id).ok());
         let linked = dr_workspace::autolink::plan_book_text(
-            &txn.view(), owner.as_ref(), true, &LinkedText::plain(comment.body),
-        ).map_err(|error| invalid(error.to_string()))?;
+            &txn.view(),
+            owner.as_ref(),
+            true,
+            &LinkedText::plain(comment.body),
+        )
+        .map_err(|error| invalid(error.to_string()))?;
         w.origin(&origin)?
             .target(mapped_comment_target.as_ref())?
             .module(module.as_ref())?
@@ -1543,8 +1575,12 @@ pub fn validate(view: &BookViewV3<'_>) -> std::result::Result<(), String> {
         }
     }
     for row in view.relations_raw() {
-        if row.left.is_empty() || row.right.is_empty()
-            || row.left.union(&row.right).any(|id| !entries.contains_key(id))
+        if row.left.is_empty()
+            || row.right.is_empty()
+            || row
+                .left
+                .union(&row.right)
+                .any(|id| !entries.contains_key(id))
             || view.relation_type_raw(&row.relation_type).is_none()
         {
             return Err("invalid imported relation row".into());

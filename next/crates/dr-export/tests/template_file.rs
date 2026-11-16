@@ -55,21 +55,9 @@ fn build_rich_book(ws: &Workspace) -> (String, Vec<String>, Vec<String>) {
     );
     out(
         ws,
-        "entry_relation_type.put",
+        "relation_type.create",
         json!({
-            "book": book,
-            "definition": {
-                "id": "rt-witnessed",
-                "name": "目击",
-                "description": "目击关系",
-                "orientation": "directed",
-                "source_role": "目击者",
-                "target_role": "被目击者",
-                "source_kinds": ["entry"],
-                "target_kinds": ["entry"],
-                "source_templates": [],
-                "target_templates": []
-            }
+            "book":book,"name":"目击","description":"目击关系","direction":"directed",
         }),
     );
 
@@ -321,13 +309,11 @@ fn rich_template_file_round_trips_and_repeated_exports_are_byte_identical() {
     let pins = &new_views[0]["pins"];
     assert_eq!(pins.as_array().unwrap().len(), 1);
     assert_eq!(pins[0]["label"], "停钟时刻");
-    let rts = out(&e.ws, "entry_relation_type.list", json!({"book": created}));
-    assert!(
-        rts.as_array()
-            .unwrap()
-            .iter()
-            .any(|rt| rt["name"] == "目击" && rt["source_role"] == "目击者")
-    );
+    let rts = out(&e.ws, "relation_type.list", json!({"book": created}));
+    assert!(rts.as_array().unwrap().iter().any(|rt| rt["name"] == "目击"
+        && rt["direction"] == "directed"
+        && rt["description"]["text"] == "目击关系"
+        && rt["rows"] == json!([])));
 }
 
 #[test]

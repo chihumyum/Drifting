@@ -125,13 +125,16 @@ fn restore(cx: &Cx<'_>, input: RestoreIn) -> Result<Vec<Done>> {
                 if c == CollectionV3::RelationTypes {
                     let id = pid("relation type", &target.id)?;
                     if old.relation_type(&id).is_none()
-                        && current
-                            .relations_raw()
-                            .iter()
-                            .any(|r| r.relation_type == id && !input.targets.iter().any(|target| {
-                                target.collection == "relations" && target.id == r.id.as_str()
-                                    && old.map_snapshot(CollectionV3::Relations, r.id.as_str()).is_none()
-                            }))
+                        && current.relations_raw().iter().any(|r| {
+                            r.relation_type == id
+                                && !input.targets.iter().any(|target| {
+                                    target.collection == "relations"
+                                        && target.id == r.id.as_str()
+                                        && old
+                                            .map_snapshot(CollectionV3::Relations, r.id.as_str())
+                                            .is_none()
+                                })
+                        })
                     {
                         return Err(WsError::invalid("relation type is in use"));
                     }
@@ -160,8 +163,11 @@ fn restore(cx: &Cx<'_>, input: RestoreIn) -> Result<Vec<Done>> {
                 }
                 if matches!(
                     c,
-                    CollectionV3::Facts | CollectionV3::Memory | CollectionV3::Relations
-                        | CollectionV3::RelationTypes | CollectionV3::Comments
+                    CollectionV3::Facts
+                        | CollectionV3::Memory
+                        | CollectionV3::Relations
+                        | CollectionV3::RelationTypes
+                        | CollectionV3::Comments
                 ) {
                     plans.push(Plan::SharedMap(c, target.id.clone()));
                 } else {

@@ -36,7 +36,7 @@ pub use relate::{
 };
 pub use view::{
     ElementCarryDrag, ElementOverview, IslandMode, IslandSubject, OverviewHeadEnd,
-    OverviewHeadStart, PendingLink, RelateEdgeView,
+    OverviewHeadStart, RelateEdgeView,
 };
 
 #[derive(Default)]
