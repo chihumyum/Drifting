@@ -1,6 +1,6 @@
 {
   "status": "passed",
-  "fingerprint": "8ef2bb62d170553bce3bc09727169538bf8513624f5c6f60028cdb98cb7d9e4d",
+  "fingerprint": "b9fe0c43fc9cc884029160217aec32234a858ed91672fb6109c446b90bc055b4",
   "sources": [
     "src/renderer/features/comments/ReviewItemCard.tsx",
     "src/renderer/features/comments/CommentSourceHoverCard.tsx",
@@ -8,6 +8,8 @@
     "src/renderer/features/comments/CommentBodyEditor.tsx",
     "src/renderer/features/comments/review-stats-sand-glass.render.test.ts",
     "src/renderer/features/entities/hover/entity-hover-card-model.ts",
+    "src/renderer/domain/comment.ts",
+    "src/renderer/components/rightBars/EntityRelationPicker.tsx",
     "src/renderer/components/ui/HoverCard.tsx",
     "src/styles/comments-review.css",
     "src/styles/ui-controls.css",
@@ -17,10 +19,12 @@
   ],
   "checks": {
     "desktopReviewListHasNoMoreButtons": true,
+    "panelShowsTheDirectTargetAsAChip": true,
     "panelHasNoMoreButton": true,
     "panelReachableByTabWithVisibleFocus": true,
     "panelTabFocusDoesNotOpenActions": true,
     "panelShiftF10OpensActions": true,
+    "panelOffersToRemoveTheDirectTarget": true,
     "panelActionsUseFixedBodyPortal": true,
     "panelEscapeRestoresCardFocus": true,
     "panelMenuKeyOpensActions": true,
@@ -32,6 +36,7 @@
     "noteReachableByTabWithVisibleFocus": true,
     "noteTabFocusDoesNotOpenActions": true,
     "noteShiftF10OpensActions": true,
+    "noteOffersToRemoveTheDirectTarget": true,
     "noteActionsUseFixedBodyPortal": true,
     "noteEscapeRestoresCardFocus": true,
     "noteMenuKeyOpensActions": true,

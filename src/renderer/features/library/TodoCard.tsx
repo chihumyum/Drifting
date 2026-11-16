@@ -1,7 +1,8 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Comment } from '../../domain/comment';
-import { extractTextFromCommentBody } from '../../domain/comment';
+import { canUnbindCommentTarget, extractTextFromCommentBody } from '../../domain/comment';
+import { isStructuralEntityKind } from '../../domain/entity-kinds';
 import type { EntityKind } from '../../lib/extensions/entity-link';
 import { useWorkspaceNavigator } from '../workspace/navigation/WorkspaceNavigationContext';
 import { selectCommentHighlight } from '../../lib/comment-highlight';
@@ -39,10 +40,18 @@ export function TodoCard({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const sourceHover = useCommentSourceHover(!editing && !pickerOpen);
-  const selectedSet = useMemo(
-    () => new Set(relations.map((r) => `${r.toKind}:${r.toId}`)),
-    [relations],
-  );
+  const selectedSet = useMemo(() => {
+    const keys = new Set(relations.map((r) => `${r.toKind}:${r.toId}`));
+    if (
+      canUnbindCommentTarget(todo) &&
+      todo.targetKind &&
+      todo.targetId &&
+      isStructuralEntityKind(todo.targetKind)
+    ) {
+      keys.add(`${todo.targetKind}:${todo.targetId}`);
+    }
+    return keys;
+  }, [relations, todo]);
   const showPicker = pickerOpen || (showRelations && selectedSet.size > 0);
   const canJump = Boolean(todo.targetKind && todo.targetKind !== 'patch' && todo.targetId);
   const statusToggle = <TodoStatusToggle resolved={todo.status === 'resolved'} onToggle={onToggleResolved} />;

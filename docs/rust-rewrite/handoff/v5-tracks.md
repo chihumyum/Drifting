@@ -190,7 +190,7 @@ git worktree add ~/Drifting-v5-<路> -b codex/v5-<路> main
 62. **左栏的树能用方向键走，空格打开选中那一行的悬停卡**（第 35、36 条）：↑↓ 换行，→← 展开收起，回车打开；空格开卡，卡里方向键选、回车执行、Esc 关。键盘怎么进左栏、选中的行长什么样、和管理 Tab 时怎么相处，等整窗原型，作者说迁再做。KB。
 63. **拼音打到一半、在正文别处点一下：丢掉组字，光标去点的地方**（第 37 条），macOS、Windows 都这样。IC。
 64. **还没出设计的功能，各定了一处**（第 38 到 43 条）：分享链接分享的是一个条目连住在它下面的一起；Markdown 文件夹里自己有正文、下面又住着条目的条目，同名的 .md 放在它自己的文件夹里；生图新版先不做，以后做交给 Agent；Agent 的建议卡放回作品主页（位置等原型，HC）；气泡导览等 T9、PT3 合完、和 UP 一起出原型；社区模板（PT5）新版发布以后再做。分享链接和 Markdown 文件夹其余的规则要先出设计稿给作者过，不开工。
-65. **建议卡在作品主页上的样子**（kernel-v5 第 15 节第 44、45 条，作者 2026-11-17 在原型上：「九，移除整理上次写作的要素卡片这个功能。」「别的都按照推荐吧。」）：放在「继续写」下面、新建那一行上面，两列，没有小标题、不能收起；正在看、没看成时各出一行 0.1 的字，看完没卡什么都不留；「主动建议」开关挪到设置 → 智能 → Agent，主页上和 Agent 栏里都没有；Agent 栏空对话里不再放卡；点了卡右栏打开到这段新对话，卡留着变「查看对话」；没开成书的项目也有卡；编辑模板的工作区里不出卡；主页上没有对话框。0.1 那张 App 自己算的「把上次写的整理进要素」卡去掉，哪个项目都没有，整理结果卡跟着没有；Agent 看完出的卡里照样可以提整理（补问：「甲。甲。」）。HC。
+65. **建议卡在作品主页上的样子**（kernel-v5 第 15 节第 45、46 条，作者 2026-11-17 在原型上：「九，移除整理上次写作的要素卡片这个功能。」「别的都按照推荐吧。」）：放在「继续写」下面、新建那一行上面，两列，没有小标题、不能收起；正在看、没看成时各出一行 0.1 的字，看完没卡什么都不留；「主动建议」开关挪到设置 → 智能 → Agent，主页上和 Agent 栏里都没有；Agent 栏空对话里不再放卡；点了卡右栏打开到这段新对话，卡留着变「查看对话」；没开成书的项目也有卡；编辑模板的工作区里不出卡；主页上没有对话框。0.1 那张 App 自己算的「把上次写的整理进要素」卡去掉，哪个项目都没有，整理结果卡跟着没有；Agent 看完出的卡里照样可以提整理（补问：「甲。甲。」）。HC。
 
 碰到必须作者定的新问题：写进交回报告的「等作者的事」，按你认为最保守的做法先做，不要停工等。
 
@@ -910,8 +910,8 @@ git worktree add ~/Drifting-v5-<路> -b codex/v5-<路> main
 
 ## HC 建议卡回作品主页（`home-cards`）
 
-- **开工条件**：现在就能开工。作者 2026-11-17 在整窗原型上选完（<https://claude.ai/artifact/FeHJrti4zRuEp4gH3enf7j> 第 2 版，作者账号下私有，本机副本 `~/Drifting-autopilot-logs/v5-home-cards-proto/home-cards-v2.html`）；接着补问的两处和「迁吗」一起问，作者答「甲。甲。」，按连迁一起处理（kernel-v5「输入」第 75 条）。原型就是长相的依据：左边整窗、右边十一处，第 2 版窗口按选的摆着。
-- **依据**：kernel-v5 第 15 节第 44、45 条，本页第 65 条。机制在 M30（[m30-long-tasks-memory.md](../modules/m30-long-tasks-memory.md)「接口与生命周期」「待协调」第 2 条），这一路不改 `dr-agent` 的建议生成。
+- **开工条件**：现在就能开工。作者 2026-11-17 在整窗原型上选完（<https://claude.ai/artifact/FeHJrti4zRuEp4gH3enf7j> 第 2 版，作者账号下私有，本机副本 `~/Drifting-autopilot-logs/v5-home-cards-proto/home-cards-v2.html`）；接着补问的两处和「迁吗」一起问，作者答「甲。甲。」，按连迁一起处理（kernel-v5「输入」第 76 条）。原型就是长相的依据：左边整窗、右边十一处，第 2 版窗口按选的摆着。
+- **依据**：kernel-v5 第 15 节第 45、46 条，本页第 65 条。机制在 M30（[m30-long-tasks-memory.md](../modules/m30-long-tasks-memory.md)「接口与生命周期」「待协调」第 2 条），这一路不改 `dr-agent` 的建议生成。
 - **范围**：
   - `dr-view-home`：主人是 T2，PT3 也在往里加文件。这一路只加自己的文件（比如 `src/agent_cards.rs`），在 `v3.rs` 的 `render` 里「继续写」那几行和新建那一行之间插一处，在 `lib.rs` 加登记口。别处不动。
   - `dr-view-agent`：`panel/continuity.rs`（卡和开关从空对话拿走）、`panel.rs`（面板不再触发建议）、`controller/proactive.rs`（只在需要时补读状态的口，不改生成）、`settings.rs`。
@@ -920,7 +920,7 @@ git worktree add ~/Drifting-v5-<路> -b codex/v5-<路> main
   - 文档：[m02-home.md](../modules/m02-home.md)、[m30-long-tasks-memory.md](../modules/m30-long-tasks-memory.md)、[m31-agent-panel.md](../modules/m31-agent-panel.md)、`progress.md` 的 M30 一行。`docs/agent-runtime/` 下是 0.1 的，不改。
 - **要做的**：
   - **接法**：`dr-view-home` 和 `dr-view-agent` 互不依赖，照 PT3 的另存按钮那样走登记口：主页留一个口（照 `set_save_project_template` 的样子），`dr-view-agent` 或应用初始化处登记，主页在插的那一处画登记来的卡，没人登记就什么都不画。卡的数据、点卡、×、触发都走 `AgentController` 现成的 `suggestions`、`trigger_suggestions`、`open_suggestion`、`dismiss_suggestion`、`set_proactive_enabled`。
-  - **什么时候看**：作品主页露出来（打开项目落在主页、关掉最后一个标签、点项目主页）和窗口回到前台而主页在前面时，调 `trigger_suggestions`；controller 自己管每书每设备 90 分钟一次和「主动建议」关着、没连模型时不跑。Agent 面板打开、窗口激活时不再触发（`panel.rs` 里那三处 `trigger_suggestions` 拿掉）。编辑模板的工作区（`Home::template_workspace()`）里不出卡、不触发（第 44 条，补问的甲）。
+  - **什么时候看**：作品主页露出来（打开项目落在主页、关掉最后一个标签、点项目主页）和窗口回到前台而主页在前面时，调 `trigger_suggestions`；controller 自己管每书每设备 90 分钟一次和「主动建议」关着、没连模型时不跑。Agent 面板打开、窗口激活时不再触发（`panel.rs` 里那三处 `trigger_suggestions` 拿掉）。编辑模板的工作区（`Home::template_workspace()`）里不出卡、不触发（第 45 条，补问的甲）。
   - **放在哪、怎么排**：主页「继续写」那几行下面、新建那一行上面；两列，一张卡一格，卡多少就几格；没有小标题，不能收起。开着、没开成书的项目都一样。什么都没有时这一处什么都不画，不留空。
   - **正在看、没看成**：controller 的状态里有一次正在跑（`ProactiveState::active`）时，卡的上面一行转圈的记号加「Agent 正在看你最近的改动……」（`projectAgent.checkinRunning`）；上一次失败（`error`）时一行「没能看完最近的改动：{{error}}」（`projectAgent.checkinFailed`）。上一次没点过的卡照旧摆着，这一次看完再换。看完没有卡时什么都不画；不出「上次查看」、不出「最近的改动里没有需要你处理的事。」。
   - **一张卡**：从上到下是它指着的条目（`CheckinCard::target`：条目的砂笔记号加名字，没有就不画这一行）、标题、细节、最下面一行「交给 Agent」（`projectAgent.start`）；右上角 ×，读屏叫「忽略」（`projectAgent.dismiss`）。整张卡是一个按钮。不用强调色，字都是字的颜色，条目记号画灰的（kernel-v5 第 15 节第 20 条）。卡用素玻璃的静止态（`dr-ui` 现成的卡面），不新造样式。
@@ -928,7 +928,7 @@ git worktree add ~/Drifting-v5-<路> -b codex/v5-<路> main
   - **×**：调 `dismiss_suggestion`，卡没了，不问、不能撤回；重开主页也不回来。
   - **「主动建议」开关**：从 Agent 栏空对话顶上拿掉，放进设置 → 智能 → Agent 那一页，一行开关，字是 `projectHome.settings.proactive`（「主动建议」），没有说明文字。照 RM 的「关闭动态效果」登记一条 `SettingDef`（`Kind::Switch`、`Scope::Device`，默认开）。现在存在 `Settings::device_memory` 的 `agent.proactive_suggestions` 换成这一项；开发库里原来存的值不用搬（没发布过）。关掉：主页上的卡和那一行都不画，controller `set_proactive_enabled(false)`；打开：下次主页露出来时看。主页上没有开关。
   - **Agent 栏**：空对话里不再画卡和开关（`suggestion_cards` 删掉）；「项目记忆」「工作记忆」两颗按钮、提示和对话框照旧。
-  - **整理卡**：不做（第 45 条）。新版本来没有，别加回来；0.1 的整理结果卡也不做。Agent 看完出的卡里照样可以提整理（补问的甲）：写书模板写给 Agent 的话（`dr-doc/src/v3/novel.rs` 的项目说明）不改。`dr-shell/src/notifications.rs` 的 `Source::Organize` 和 `notifications.organize.source` 这个键没人用了，删掉。
+  - **整理卡**：不做（第 46 条）。新版本来没有，别加回来；0.1 的整理结果卡也不做。Agent 看完出的卡里照样可以提整理（补问的甲）：写书模板写给 Agent 的话（`dr-doc/src/v3/novel.rs` 的项目说明）不改。`dr-shell/src/notifications.rs` 的 `Source::Organize` 和 `notifications.organize.source` 这个键没人用了，删掉。
   - **不做的**：主页上的对话框（0.1 的「问问这本书，或交给 Agent 一件事…」）；卡上面的「Agent」小标题和收起；界面上任何「签到」字样。
 - **回归测试**（合成的模型流，照 `dr-view-agent/tests/` 和 `dr-view-home/tests/` 现有的写法）：
   - 主页露出来时触发一次；窗口回到前台、主页在前面时触发；90 分钟内再露出来不再请求；Agent 面板打开、窗口激活而主页不在前面时不触发。
