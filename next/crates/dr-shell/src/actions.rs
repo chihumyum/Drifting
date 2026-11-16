@@ -29,12 +29,6 @@ actions!(
         /// 全部项目: the row of projects that drops from the top of the
         /// workspace (the button right of the traffic lights).
         ToggleProjects,
-        /// The story graph Super View (⌘⌥3).
-        ToggleStoryGraph,
-        /// The element overview Super View (⌘⌥4).
-        ToggleElementOverview,
-        /// The review and materials Super View (⌘⌥5).
-        ToggleReviewMaterials,
         /// The bottom timeline (⌘J).
         ToggleBottomTimeline,
         /// Immersive writing (⌘⇧↩).

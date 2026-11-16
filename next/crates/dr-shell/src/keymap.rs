@@ -160,28 +160,10 @@ pub static REGISTRY: &[Shortcut] = &[
         a::new_entity::LABEL,
         a::new_entity::DESC,
     ),
-    // Fixed in the 0.1 client (⌘⌥1, ⌘⌥3–5).
+    // Fixed in the 0.1 client (⌘⌥1). ⌘⌥3–5 retired in v5 T9 (`kernel-v5.md` §17).
     fixed(
         "workspace::ShowProjectHome",
         &["secondary-alt-1"],
-        Some(WORKSPACE),
-        Only::All,
-    ),
-    fixed(
-        "workspace::ToggleStoryGraph",
-        &["secondary-alt-3"],
-        Some(WORKSPACE),
-        Only::All,
-    ),
-    fixed(
-        "workspace::ToggleElementOverview",
-        &["secondary-alt-4"],
-        Some(WORKSPACE),
-        Only::All,
-    ),
-    fixed(
-        "workspace::ToggleReviewMaterials",
-        &["secondary-alt-5"],
         Some(WORKSPACE),
         Only::All,
     ),

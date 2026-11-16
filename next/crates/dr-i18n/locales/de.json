@@ -195,11 +195,6 @@
       "verifying": "Wird geprüft…"
     }
   },
-  "bottomStatusBar": {
-    "elements": "Elemente",
-    "storyGraph": "Geschichtsgraph",
-    "todoLibrary": "Aufgaben und Materialsammlung"
-  },
   "chapterEditor": {
     "synopsisPlaceholder": "Kurzfassung…",
     "untitledChapter": "Unbenanntes Kapitel"
@@ -355,10 +350,6 @@
         "body": "Das Gerüst des Buches. Die linke Seitenleiste lässt sich teilen, jede Hälfte mit einem eigenen Bereich.",
         "closedBody": "Das Gerüst des Buches liegt in der linken Seitenleiste: Kapitel, Elemente und Ideen. Hier öffnen.",
         "title": "Kapitel · Elemente · Ideen"
-      },
-      "superViews": {
-        "body": "Über die runde Schaltfläche im Kopf eines Bereichs öffnen.",
-        "title": "Ansichten im ganzen Fenster"
       },
       "timeline": {
         "body": "Handlungsstränge in Buchreihenfolge oder nach der Zeit der Geschichte, von unterhalb der Seite ausklappbar.",
@@ -543,11 +534,6 @@
     "card": {
       "addSnippetBody": "In diese Notiz schreiben…"
     },
-    "dialog": {
-      "create": "Erstellen",
-      "newTodo": "Neue Aufgabe",
-      "todoPlaceholder": "Aufgabeninhalt…"
-    },
     "error": {
       "openFile": "Datei konnte nicht geöffnet werden: {{error}}",
       "pickFailed": "Datei konnte nicht importiert werden: {{error}}"
@@ -556,9 +542,6 @@
       "image": "Bild",
       "pdf": "PDF",
       "text": "Notiz"
-    },
-    "menu": {
-      "openInSystem": "In System-App öffnen"
     },
     "preview": {
       "loading": "Wird geladen…",
@@ -569,35 +552,6 @@
       "openPdfFailed": "PDF kann nicht geöffnet werden",
       "previousPage": "Vorherige",
       "renderPdfFailed": "PDF kann nicht dargestellt werden"
-    },
-    "super": {
-      "all": "Alle",
-      "clearEntityFilter": "Beziehungsfilter löschen",
-      "collapseDrawer": "Schublade einklappen",
-      "commentEmptyHint": "Mit + einen Kommentar erstellen oder im Editor Text markieren und kommentieren",
-      "comments": "Kommentare",
-      "entityFilterAll": "Beziehungen · Alle",
-      "expandDrawer": "Schublade aufklappen",
-      "hideKind": "Klicken, um diese Art auszublenden",
-      "material": "Material",
-      "meta": "{{todos}} Aufgaben · {{comments}} Kommentare · {{materials}} Materialien",
-      "noFilteredMaterials": "Keine Materialien entsprechen den Filtern.",
-      "noMaterials": "Dieses Projekt hat noch keine Materialien.",
-      "noOrphans": "Alle Materialien sind mit mindestens einer Entität verknüpft.",
-      "noResolved": "Noch nichts erledigt.",
-      "orphanHeader": "Unsortiert · Unverknüpfte Materialien",
-      "orphans": "Unsortiert",
-      "reopenShort": "Erneut öffnen",
-      "resizeComments": "Breite der Kommentarspalte ändern",
-      "resizeTodos": "Breite der Aufgabenspalte ändern",
-      "resolved": "Erledigt",
-      "resolvedHeader": "Erledigt · Archiv für Aufgaben und Kommentare",
-      "searchPlaceholder": "Titel oder Text durchsuchen…",
-      "showKind": "Klicken zum Anzeigen",
-      "todoEmptyHint": "Mit + eine Aufgabe erstellen oder auf einer Kommentarkarte „Zu Aufgabe“ wählen"
-    },
-    "todo": {
-      "empty": "(leere Aufgabe)"
     }
   },
   "mobileWorkspace": {
@@ -1700,6 +1654,13 @@
     "usedIn": "Verwendet in",
     "viewList": "Liste",
     "viewMasonry": "Masonry"
+  },
+  "v5Fill": {
+    "exitFill": "Füllen beenden",
+    "fill": "Füllen",
+    "fillLeft": "Linke Seitenleiste füllen",
+    "fillRight": "Rechte Seitenleiste füllen",
+    "resizeFill": "Breite des gefüllten Bereichs anpassen"
   },
   "voiceAgent": {
     "error": {

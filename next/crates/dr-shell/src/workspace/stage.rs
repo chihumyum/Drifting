@@ -25,7 +25,9 @@ use gpui::{
 
 use super::chrome::{self, TITLEBAR_HEIGHT};
 use super::dock::DockDrag;
-use super::{PageSide, Workspace, bottom, corner, dock, outline};
+use super::fill::FillPlace;
+use super::sidebar::Side;
+use super::{PageSide, Workspace, bottom, corner, outline};
 use crate::Settings;
 use crate::nav::{Tab, Target};
 use crate::settings::registry as r;
@@ -102,13 +104,15 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
     let look = EditorLook::read(cx);
     // The middle column's size, for the outline rail's margin.
     let viewport = window.viewport_size();
-    let beside = |width: f32, shown: f32| (width * shown).round();
-    let column_w = f32::from(viewport.width)
+    let window_w = f32::from(viewport.width);
+    let column_w = (window_w
         - if ws.immersive {
             0.0
         } else {
-            beside(ws.left.width, ws.left.shown()) + beside(ws.right.width, ws.right.shown())
-        };
+            ws.sidebar_drawn_widths(Side::Left, window_w).1
+                + ws.sidebar_drawn_widths(Side::Right, window_w).1
+        })
+    .max(0.0);
     // The Bottom Panel takes the column's foot; the pages have the rest.
     let panel = bottom::panel(ws, f32::from(viewport.height), window, cx);
     let column_h = f32::from(viewport.height) - panel.as_ref().map_or(0.0, |(_, h)| *h);
@@ -249,8 +253,6 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
             .h(px(TITLEBAR_HEIGHT)),
         cx,
     );
-    // Immersed, the tab dots come back with the top band (M26).
-    let dock = (!immersive || ws.immersion.top).then(|| dock::dock(ws, window, cx));
     // The find bar, at the paper's top right under the dock.
     let find = ws.find.clone().map(|bar| {
         div()
@@ -261,12 +263,17 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
     });
     let leave = immersive.then(|| super::immersive::exit(ws, window, cx));
     let dragging = cx.has_active_drag() && ws.nav.active_index().is_some();
+    let bottom_fill_t = ws.fill.progress(FillPlace::Bottom);
+    let desk = Theme::of(window, cx).palette.desk.solid();
     let pages = div()
         .relative()
         .flex_1()
         .min_h_0()
         .w_full()
         .child(pages)
+        .when(bottom_fill_t > 0.0, |el| {
+            el.child(div().absolute().inset_0().bg(desk).opacity(bottom_fill_t))
+        })
         .when(dragging, |el| el.child(drop_zones(window, cx)));
     div()
         .relative()
@@ -278,7 +285,6 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
         .child(pages)
         .children(panel.map(|(el, _)| Workspace::on_sea("sea-bottom", el, ws.ebbing(), cx)))
         .child(strip)
-        .children(dock)
         .children(find)
         .children(leave)
         .into_any_element()

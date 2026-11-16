@@ -439,5 +439,12 @@
     "usedIn": "使用箇所",
     "viewList": "リスト",
     "viewMasonry": "メイソンリー"
+  },
+  "v5Fill": {
+    "exitFill": "広げる表示を終了",
+    "fill": "広げる",
+    "fillLeft": "左サイドバーを広げる",
+    "fillRight": "右サイドバーを広げる",
+    "resizeFill": "広げた領域の幅を調整"
   }
 }

@@ -193,11 +193,6 @@
       "verifying": "验证中…"
     }
   },
-  "bottomStatusBar": {
-    "elements": "要素全景",
-    "storyGraph": "故事图谱",
-    "todoLibrary": "审阅与素材"
-  },
   "chapterEditor": {
     "synopsisPlaceholder": "梗概…",
     "untitledChapter": "无标题章节"
@@ -353,10 +348,6 @@
         "body": "这本书的骨架。左栏还能分成两半，各开一个面板。",
         "closedBody": "这本书的骨架都在左栏：章节、要素、构想。点这里把它打开。",
         "title": "章节 · 要素 · 构想"
-      },
-      "superViews": {
-        "body": "整窗的全景视图，从对应面板头上的圆形按钮进入。",
-        "title": "全景视图"
       },
       "timeline": {
         "body": "故事线按书序或叙事时间排开，从稿纸下方滑上来。",
@@ -534,11 +525,6 @@
     "card": {
       "addSnippetBody": "写点什么…"
     },
-    "dialog": {
-      "create": "创建",
-      "newTodo": "新建 TODO",
-      "todoPlaceholder": "待办内容…"
-    },
     "error": {
       "openFile": "无法打开文件：{{error}}",
       "pickFailed": "无法导入文件：{{error}}"
@@ -547,9 +533,6 @@
       "image": "图片",
       "pdf": "PDF",
       "text": "笔记"
-    },
-    "menu": {
-      "openInSystem": "在系统 app 中打开"
     },
     "preview": {
       "loading": "加载中…",
@@ -560,35 +543,6 @@
       "openPdfFailed": "无法打开 PDF",
       "previousPage": "上一页",
       "renderPdfFailed": "无法渲染 PDF"
-    },
-    "super": {
-      "all": "全部",
-      "clearEntityFilter": "清除关联过滤",
-      "collapseDrawer": "收起抽屉",
-      "commentEmptyHint": "点击 ＋ 新建批注，或在编辑器里选中文字留批注",
-      "comments": "批注",
-      "entityFilterAll": "关联 · 全部",
-      "expandDrawer": "展开抽屉",
-      "hideKind": "点击隐藏此 kind",
-      "material": "素材",
-      "meta": "{{todos}} TODO · {{comments}} 批注 · {{materials}} 素材",
-      "noFilteredMaterials": "当前过滤条件下没有匹配的素材。",
-      "noMaterials": "项目里还没有素材。",
-      "noOrphans": "所有素材都已关联到至少一个实体。",
-      "noResolved": "暂无已解决的 TODO 或批注。",
-      "orphanHeader": "待整理 · 无关联素材",
-      "orphans": "待整理",
-      "reopenShort": "重开",
-      "resizeComments": "调整批注栏宽度",
-      "resizeTodos": "调整 TODO 栏宽度",
-      "resolved": "已解决",
-      "resolvedHeader": "已解决 · TODO 与批注归档",
-      "searchPlaceholder": "搜索标题或正文…",
-      "showKind": "点击显示",
-      "todoEmptyHint": "点击 ＋ 新建 TODO，或在批注卡上点「转 TODO」"
-    },
-    "todo": {
-      "empty": "(空 TODO)"
     }
   },
   "mobileWorkspace": {
@@ -1682,6 +1636,13 @@
     "usedIn": "用在",
     "viewList": "列表",
     "viewMasonry": "瀑布流"
+  },
+  "v5Fill": {
+    "exitFill": "退出铺满",
+    "fill": "铺满",
+    "fillLeft": "铺满左栏",
+    "fillRight": "铺满右栏",
+    "resizeFill": "拖动调铺满区的宽窄"
   },
   "voiceAgent": {
     "error": {

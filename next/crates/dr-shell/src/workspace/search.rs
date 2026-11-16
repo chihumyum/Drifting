@@ -58,7 +58,7 @@ impl Workspace {
                         && let Some(target) = target(&jump.target)
                         && ws.book.exists(&target)
                     {
-                        ws.super_view = None;
+                        ws.exit_fill(window, cx);
                         ws.nav.open_at(
                             target,
                             jump.line.map(|start| nav::Lines { start, end: None }),

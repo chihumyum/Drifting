@@ -195,11 +195,6 @@
       "verifying": "検証中…"
     }
   },
-  "bottomStatusBar": {
-    "elements": "要素",
-    "storyGraph": "物語グラフ",
-    "todoLibrary": "TODOと資料庫"
-  },
   "chapterEditor": {
     "synopsisPlaceholder": "あらすじ…",
     "untitledChapter": "無題の章"
@@ -355,10 +350,6 @@
         "body": "本の骨組みです。左サイドバーは2つに分割でき、それぞれに別のパネルを表示できます。",
         "closedBody": "本の骨組みは左サイドバーにあります。章、要素、アイデアをここから開きます。",
         "title": "章 · 要素 · アイデア"
-      },
-      "superViews": {
-        "body": "パネルの見出しにある丸いボタンから開きます。",
-        "title": "ウィンドウ全体のビュー"
       },
       "timeline": {
         "body": "ページの下から引き出し、ストーリーラインを本の順序や物語内の時間で表示します。",
@@ -536,11 +527,6 @@
     "card": {
       "addSnippetBody": "このメモに書く…"
     },
-    "dialog": {
-      "create": "作成",
-      "newTodo": "新しいTODO",
-      "todoPlaceholder": "TODOの内容…"
-    },
     "error": {
       "openFile": "ファイルを開けません：{{error}}",
       "pickFailed": "ファイルをインポートできません：{{error}}"
@@ -549,9 +535,6 @@
       "image": "画像",
       "pdf": "PDF",
       "text": "メモ"
-    },
-    "menu": {
-      "openInSystem": "システムのアプリで開く"
     },
     "preview": {
       "loading": "読み込み中…",
@@ -562,35 +545,6 @@
       "openPdfFailed": "PDFを開けません",
       "previousPage": "前へ",
       "renderPdfFailed": "PDFを描画できません"
-    },
-    "super": {
-      "all": "すべて",
-      "clearEntityFilter": "関連フィルターを解除",
-      "collapseDrawer": "引き出しを閉じる",
-      "commentEmptyHint": "＋でコメントを作るか、エディタで文字を選んでコメントできます",
-      "comments": "コメント",
-      "entityFilterAll": "関係・すべて",
-      "expandDrawer": "引き出しを開く",
-      "hideKind": "クリックでこの種類を隠す",
-      "material": "資料",
-      "meta": "TODO {{todos}}件・コメント{{comments}}件・資料{{materials}}件",
-      "noFilteredMaterials": "条件に一致する資料はありません。",
-      "noMaterials": "この作品に資料はまだありません。",
-      "noOrphans": "すべての資料が1つ以上のエンティティに関連付いています。",
-      "noResolved": "解決済みの項目はまだありません。",
-      "orphanHeader": "未整理・未関連の資料",
-      "orphans": "未整理",
-      "reopenShort": "開き直す",
-      "resizeComments": "コメント列の幅を変更",
-      "resizeTodos": "TODO列の幅を変更",
-      "resolved": "解決済み",
-      "resolvedHeader": "解決済み・TODOとコメントのアーカイブ",
-      "searchPlaceholder": "タイトル・本文を検索…",
-      "showKind": "クリックで表示",
-      "todoEmptyHint": "＋でTODOを作るか、コメントカードの「TODO に変換」を使います"
-    },
-    "todo": {
-      "empty": "（空のTODO）"
     }
   },
   "mobileWorkspace": {
@@ -1688,6 +1642,13 @@
     "usedIn": "使用箇所",
     "viewList": "リスト",
     "viewMasonry": "メイソンリー"
+  },
+  "v5Fill": {
+    "exitFill": "広げる表示を終了",
+    "fill": "広げる",
+    "fillLeft": "左サイドバーを広げる",
+    "fillRight": "右サイドバーを広げる",
+    "resizeFill": "広げた領域の幅を調整"
   },
   "voiceAgent": {
     "error": {

@@ -197,11 +197,6 @@
       "verifying": "Verificando…"
     }
   },
-  "bottomStatusBar": {
-    "elements": "Elementos",
-    "storyGraph": "Mapa de la historia",
-    "todoLibrary": "Tareas y documentación"
-  },
   "chapterEditor": {
     "synopsisPlaceholder": "Sinopsis…",
     "untitledChapter": "Capítulo sin título"
@@ -357,10 +352,6 @@
         "body": "El armazón del libro. La barra lateral izquierda se puede dividir en dos, cada parte con su propio panel.",
         "closedBody": "El armazón del libro está en la barra lateral izquierda: capítulos, elementos e ideas. Ábrela aquí.",
         "title": "Capítulos · Elementos · Ideas"
-      },
-      "superViews": {
-        "body": "Ábrelas desde el botón redondo de la cabecera de un panel.",
-        "title": "Vistas de ventana completa"
       },
       "timeline": {
         "body": "Las tramas se despliegan bajo la página en orden del libro o del tiempo de la historia.",
@@ -546,11 +537,6 @@
     "card": {
       "addSnippetBody": "Escribe en esta nota…"
     },
-    "dialog": {
-      "create": "Crear",
-      "newTodo": "Nueva tarea",
-      "todoPlaceholder": "Contenido de la tarea…"
-    },
     "error": {
       "openFile": "No se pudo abrir el archivo: {{error}}",
       "pickFailed": "No se pudo importar el archivo: {{error}}"
@@ -559,9 +545,6 @@
       "image": "Imagen",
       "pdf": "PDF",
       "text": "Nota"
-    },
-    "menu": {
-      "openInSystem": "Abrir en aplicación del sistema"
     },
     "preview": {
       "loading": "Cargando…",
@@ -572,35 +555,6 @@
       "openPdfFailed": "No se puede abrir el PDF",
       "previousPage": "Anterior",
       "renderPdfFailed": "No se puede representar el PDF"
-    },
-    "super": {
-      "all": "Todo",
-      "clearEntityFilter": "Quitar filtro de relaciones",
-      "collapseDrawer": "Contraer panel",
-      "commentEmptyHint": "Pulsa + para crear un comentario o selecciona texto en el editor para comentar",
-      "comments": "Comentarios",
-      "entityFilterAll": "Relaciones · Todas",
-      "expandDrawer": "Expandir panel",
-      "hideKind": "Haz clic para ocultar esta clase",
-      "material": "Material",
-      "meta": "{{todos}} tareas · {{comments}} comentarios · {{materials}} materiales",
-      "noFilteredMaterials": "Ningún material coincide con los filtros.",
-      "noMaterials": "Este proyecto aún no tiene materiales.",
-      "noOrphans": "Todos los materiales están vinculados al menos a una entidad.",
-      "noResolved": "Aún no hay nada resuelto.",
-      "orphanHeader": "Sin ordenar · Materiales sin vincular",
-      "orphans": "Sin ordenar",
-      "reopenShort": "Reabrir",
-      "resizeComments": "Cambiar el ancho de la columna de comentarios",
-      "resizeTodos": "Cambiar el ancho de la columna de tareas",
-      "resolved": "Resuelto",
-      "resolvedHeader": "Resueltos · Archivo de tareas y comentarios",
-      "searchPlaceholder": "Buscar título o texto…",
-      "showKind": "Haz clic para mostrar",
-      "todoEmptyHint": "Pulsa + para crear una tarea o elige «A tarea» en una tarjeta de comentario"
-    },
-    "todo": {
-      "empty": "(tarea vacía)"
     }
   },
   "mobileWorkspace": {
@@ -1709,6 +1663,13 @@
     "usedIn": "Usado en",
     "viewList": "Lista",
     "viewMasonry": "Mosaico"
+  },
+  "v5Fill": {
+    "exitFill": "Salir de expandir",
+    "fill": "Expandir",
+    "fillLeft": "Expandir barra izquierda",
+    "fillRight": "Expandir barra derecha",
+    "resizeFill": "Ajustar ancho del área expandida"
   },
   "voiceAgent": {
     "error": {

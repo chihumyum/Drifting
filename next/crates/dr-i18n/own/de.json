@@ -451,5 +451,12 @@
     "usedIn": "Verwendet in",
     "viewList": "Liste",
     "viewMasonry": "Masonry"
+  },
+  "v5Fill": {
+    "exitFill": "Füllen beenden",
+    "fill": "Füllen",
+    "fillLeft": "Linke Seitenleiste füllen",
+    "fillRight": "Rechte Seitenleiste füllen",
+    "resizeFill": "Breite des gefüllten Bereichs anpassen"
   }
 }

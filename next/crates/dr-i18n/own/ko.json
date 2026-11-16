@@ -439,5 +439,12 @@
     "usedIn": "사용처",
     "viewList": "목록",
     "viewMasonry": "폭포형"
+  },
+  "v5Fill": {
+    "exitFill": "채우기 종료",
+    "fill": "채우기",
+    "fillLeft": "왼쪽 사이드바 채우기",
+    "fillRight": "오른쪽 사이드바 채우기",
+    "resizeFill": "채운 영역 너비 조절"
   }
 }

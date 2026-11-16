@@ -197,11 +197,6 @@
       "verifying": "Vérification…"
     }
   },
-  "bottomStatusBar": {
-    "elements": "Éléments",
-    "storyGraph": "Graphe du récit",
-    "todoLibrary": "Tâches et documentation"
-  },
   "chapterEditor": {
     "synopsisPlaceholder": "Synopsis…",
     "untitledChapter": "Chapitre sans titre"
@@ -357,10 +352,6 @@
         "body": "L’ossature du livre. La barre latérale gauche peut être divisée en deux, chaque moitié ayant son propre panneau.",
         "closedBody": "L’ossature du livre se trouve dans la barre latérale gauche : chapitres, éléments et idées. Ouvrez-la ici.",
         "title": "Chapitres · Éléments · Idées"
-      },
-      "superViews": {
-        "body": "Ouvrez-les depuis le bouton rond dans l’en-tête d’un panneau.",
-        "title": "Vues pleine fenêtre"
       },
       "timeline": {
         "body": "Les intrigues se déploient sous la page, dans l’ordre du livre ou du temps du récit.",
@@ -546,11 +537,6 @@
     "card": {
       "addSnippetBody": "Écrivez dans cette note…"
     },
-    "dialog": {
-      "create": "Créer",
-      "newTodo": "Nouvelle tâche",
-      "todoPlaceholder": "Contenu de la tâche…"
-    },
     "error": {
       "openFile": "Impossible d’ouvrir le fichier : {{error}}",
       "pickFailed": "Impossible d’importer le fichier : {{error}}"
@@ -559,9 +545,6 @@
       "image": "Image",
       "pdf": "PDF",
       "text": "Note"
-    },
-    "menu": {
-      "openInSystem": "Ouvrir dans l’application système"
     },
     "preview": {
       "loading": "Chargement…",
@@ -572,35 +555,6 @@
       "openPdfFailed": "Impossible d’ouvrir le PDF",
       "previousPage": "Précédent",
       "renderPdfFailed": "Impossible d’afficher le PDF"
-    },
-    "super": {
-      "all": "Tout",
-      "clearEntityFilter": "Effacer le filtre de relations",
-      "collapseDrawer": "Réduire le tiroir",
-      "commentEmptyHint": "Cliquez sur + pour créer un commentaire ou sélectionnez du texte dans l’éditeur pour commenter",
-      "comments": "Commentaires",
-      "entityFilterAll": "Relations · Toutes",
-      "expandDrawer": "Développer le tiroir",
-      "hideKind": "Cliquez pour masquer ce type",
-      "material": "Ressource",
-      "meta": "{{todos}} tâches · {{comments}} commentaires · {{materials}} ressources",
-      "noFilteredMaterials": "Aucune ressource ne correspond aux filtres.",
-      "noMaterials": "Ce projet n’a pas encore de ressources.",
-      "noOrphans": "Chaque ressource est liée à au moins une entité.",
-      "noResolved": "Rien n’a encore été résolu.",
-      "orphanHeader": "Non classé · Ressources sans lien",
-      "orphans": "Non classé",
-      "reopenShort": "Rouvrir",
-      "resizeComments": "Redimensionner la colonne des commentaires",
-      "resizeTodos": "Redimensionner la colonne des tâches",
-      "resolved": "Résolu",
-      "resolvedHeader": "Résolu · Archives des tâches et commentaires",
-      "searchPlaceholder": "Rechercher dans les titres ou le texte…",
-      "showKind": "Cliquez pour afficher",
-      "todoEmptyHint": "Cliquez sur + pour créer une tâche ou choisissez « En tâche » sur une carte de commentaire"
-    },
-    "todo": {
-      "empty": "(tâche vide)"
     }
   },
   "mobileWorkspace": {
@@ -1709,6 +1663,13 @@
     "usedIn": "Utilisé dans",
     "viewList": "Liste",
     "viewMasonry": "Mosaïque"
+  },
+  "v5Fill": {
+    "exitFill": "Quitter l’extension",
+    "fill": "Étendre",
+    "fillLeft": "Étendre le panneau gauche",
+    "fillRight": "Étendre le panneau droit",
+    "resizeFill": "Redimensionner la zone étendue"
   },
   "voiceAgent": {
     "error": {

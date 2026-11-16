@@ -453,5 +453,12 @@
     "usedIn": "Usado em",
     "viewList": "Lista",
     "viewMasonry": "Mosaico"
+  },
+  "v5Fill": {
+    "exitFill": "Sair do preenchimento",
+    "fill": "Preencher",
+    "fillLeft": "Preencher barra esquerda",
+    "fillRight": "Preencher barra direita",
+    "resizeFill": "Ajustar largura da área preenchida"
   }
 }

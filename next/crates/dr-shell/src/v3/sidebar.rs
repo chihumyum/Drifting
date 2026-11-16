@@ -64,6 +64,8 @@ pub struct Sidebar {
     dragging: Option<String>,
     focus: FocusHandle,
     structure: Entity<Structure>,
+    /// Whether the filled left sidebar is currently showing `模板结构` rather than `Tab`.
+    in_structure: bool,
     /// What a Tab on the root or an entry shows (its key: the mount and the
     /// display), made the first time it is selected.
     displays: BTreeMap<String, (String, Rendered)>,
@@ -82,7 +84,29 @@ impl Sidebar {
             dragging: None,
             focus: cx.focus_handle(),
             structure,
+            in_structure: false,
             displays: BTreeMap::new(),
+        }
+    }
+
+    pub fn is_in_structure(&self) -> bool {
+        self.in_structure
+    }
+
+    pub fn enter_structure(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
+        self.managing = None;
+        self.slot = None;
+        self.dragging = None;
+        if !self.in_structure {
+            self.in_structure = true;
+            cx.notify();
+        }
+    }
+
+    pub fn leave_fill(&mut self, cx: &mut Context<Self>) {
+        if self.in_structure {
+            self.in_structure = false;
+            cx.notify();
         }
     }
 
@@ -94,6 +118,7 @@ impl Sidebar {
             self.managing = None;
             self.slot = None;
             self.dragging = None;
+            self.in_structure = false;
             self.displays.clear();
         }
         let changed = !Rc::ptr_eq(&self.host.book, &host.book);
@@ -166,6 +191,7 @@ impl Sidebar {
             return;
         }
         self.selected = Some(id.into());
+        self.in_structure = false;
         self.restored = true;
         let stored = self
             .host

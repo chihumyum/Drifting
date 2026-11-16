@@ -453,5 +453,12 @@
     "usedIn": "Utilisé dans",
     "viewList": "Liste",
     "viewMasonry": "Mosaïque"
+  },
+  "v5Fill": {
+    "exitFill": "Quitter l’extension",
+    "fill": "Étendre",
+    "fillLeft": "Étendre le panneau gauche",
+    "fillRight": "Étendre le panneau droit",
+    "resizeFill": "Redimensionner la zone étendue"
   }
 }

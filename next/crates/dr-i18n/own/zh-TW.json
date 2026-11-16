@@ -439,5 +439,12 @@
     "usedIn": "用在",
     "viewList": "列表",
     "viewMasonry": "瀑布流"
+  },
+  "v5Fill": {
+    "exitFill": "退出鋪滿",
+    "fill": "鋪滿",
+    "fillLeft": "鋪滿左欄",
+    "fillRight": "鋪滿右欄",
+    "resizeFill": "拖動調整鋪滿區域寬度"
   }
 }

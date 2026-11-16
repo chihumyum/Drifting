@@ -1,5 +1,5 @@
-//! Read-only file/entry relation queries bridging `dr-view-material` and
-//! `dr-view-shelf-review` over format-5 relations (`kernel-v5.md` §10).
+//! Read-only file/entry relation queries for `dr-view-material` over format-5
+//! relations (`kernel-v5.md` §10).
 //! Creating relations to files has no UI entry point in T5 (`v5-tracks.md`
 //! lines 404, 413).
 

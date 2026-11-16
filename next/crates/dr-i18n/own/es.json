@@ -453,5 +453,12 @@
     "usedIn": "Usado en",
     "viewList": "Lista",
     "viewMasonry": "Mosaico"
+  },
+  "v5Fill": {
+    "exitFill": "Salir de expandir",
+    "fill": "Expandir",
+    "fillLeft": "Expandir barra izquierda",
+    "fillRight": "Expandir barra derecha",
+    "resizeFill": "Ajustar ancho del área expandida"
   }
 }
