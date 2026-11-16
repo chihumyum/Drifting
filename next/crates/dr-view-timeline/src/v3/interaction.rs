@@ -256,7 +256,7 @@ impl Timeline {
                 (f32::from(x - bounds.origin.x)
                     - self.rail_width()
                     - f32::from(self.scroll.offset().x))
-                    / self.scale().step,
+                    / self.scale().unit(),
             ),
         )
     }
@@ -420,10 +420,10 @@ impl Timeline {
         }
         .clamped();
     }
-    /// The shown state's unit times `by`, the point `x` px into the tracks
+    /// The shown state's scale times `by`, the point `x` px into the tracks
     /// staying under the pointer.
     fn zoom_scale(&mut self, by: f32, x: f32) {
-        let before = self.scale().step;
+        let before = self.scale().unit();
         let anchor = (x - f32::from(self.scroll.offset().x)) / before;
         let scale = self.active_mut();
         *scale = model::Scale {
@@ -431,7 +431,7 @@ impl Timeline {
             ..*scale
         }
         .clamped();
-        let after = self.scale().step;
+        let after = self.scale().unit();
         self.scroll
             .set_offset(point(px(-(anchor * after - x).max(0.)), px(0.)));
     }

@@ -1,6 +1,6 @@
 //! T9's bottom fill (`kernel-v5.md` §17 「底栏视图铺满」, `W9Bottom`) over
 //! dr-testkit's tiny seed: the bar and the filled panel each keep their own
-//! scale and lane-name column, and however far the scale is pinched in, a
+//! scale (px between two ruler ticks, `W9Bottom`'s `格`) and lane-name column, and however far the scale is pinched in, a
 //! drawn card still shows its title's first whole character.
 
 use dr_shell::{
@@ -156,9 +156,10 @@ fn leak(s: String) -> &'static str {
     Box::leak(s.into_boxed_str())
 }
 
-/// `W9Bottom`: the bar spreads a unit over 24 px and a lane over 36, the
-/// filled panel over 100 and 76; each is pinched on its own and keeps its
-/// own. The lane-name column is 96 wide in the bar, 140 filled.
+/// `W9Bottom`: the bar spreads a tick of the ruler over 24 px and a lane
+/// over 36, the filled panel over 100 and 76; each is pinched on its own
+/// and keeps its own. The lane-name column is 96 wide in the bar, 140
+/// filled.
 #[gpui::test]
 fn the_bar_and_the_fill_each_keep_their_scale_and_name_column(cx: &mut TestAppContext) {
     let (_dir, lib, id) = seed();
@@ -273,7 +274,7 @@ fn the_narrowest_drawn_card_still_shows_a_whole_first_character(cx: &mut TestApp
         .clone();
     assert!(!title.is_empty());
 
-    // Pinched in as far as it goes: the span itself is 3 px.
+    // Pinched in as far as it goes: the span itself is under a pixel.
     let track = leak(format!("v3-track-{lane}"));
     let at = on_track(cx, track);
     for _ in 0..8 {
@@ -317,8 +318,8 @@ fn the_narrowest_drawn_card_still_shows_a_whole_first_character(cx: &mut TestApp
         "the card is {card:?}, its least is {min_w}"
     );
     assert!(
-        f32::from(card.size.width) > 0.25 * model::STEP_RANGE.0 + 8.0,
-        "wider than its 3 px span and the old 8 px floor"
+        f32::from(card.size.width) > 0.25 * model::STEP_RANGE.0 / model::TICK as f32 + 8.0,
+        "wider than its span and the old 8 px floor"
     );
     assert!(
         f32::from(shown.size.width) + 0.5 >= first_w,

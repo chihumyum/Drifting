@@ -789,7 +789,7 @@ impl Timeline {
         let theme = Theme::of(window, cx);
         let palette = theme.palette;
         let (min, max) = model::extent(view);
-        let unit = self.scale().step;
+        let unit = self.scale().unit();
         let width = ((max - min) as f32 * unit).clamp(800., 10_000_000.);
         let left = -f32::from(self.scroll.offset().x);
         let visible = self.bounds.get().map_or(1200., |b| f32::from(b.size.width));
@@ -815,9 +815,17 @@ impl Timeline {
                     this.edit_pin(drag.pin.clone(), PinEdit::At(at), cx);
                 }
             }));
-        let first = ((min + f64::from(left / unit)) / 5.).floor() * 5.;
-        for step in 0..(visible / unit / 5.).ceil() as usize + 2 {
-            let tick = first + step as f64 * 5.;
+        // A label on every tick (one `格`); pinched in so far that labels
+        // would run into each other, on every other one and so on.
+        let every = model::TICK
+            * f64::from(
+                (MIN_LABEL_GAP / (unit * model::TICK as f32))
+                    .ceil()
+                    .max(1.0),
+            );
+        let first = ((min + f64::from(left / unit)) / every).floor() * every;
+        for step in 0..(f64::from(visible / unit) / every).ceil() as usize + 2 {
+            let tick = first + step as f64 * every;
             ruler = ruler.child(
                 div()
                     .absolute()
@@ -1231,6 +1239,8 @@ impl Timeline {
     }
 }
 
+/// Ruler labels stay at least this far apart.
+const MIN_LABEL_GAP: f32 = 24.0;
 /// Under this a card is narrow: little padding, a smaller title.
 const NARROW_CARD: f32 = 44.0;
 /// A narrow card's padding on each side.

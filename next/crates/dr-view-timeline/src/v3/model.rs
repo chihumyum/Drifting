@@ -20,9 +20,14 @@ pub const FILLED_ROW: f32 = 76.0;
 /// character needs it ([`card_min_width`]).
 pub const MIN_CARD: f32 = 14.0;
 
-/// How the timeline is spread out: `step` px for one unit of the scale,
-/// `band` px for one lane. The bar and the filled panel each keep their
-/// own (`W9Bottom`: `zb`, `zf`), each pinched on its own.
+/// Units of the scale between two ticks of the ruler: one cell (`格`) of
+/// `W9Bottom`'s scale.
+pub const TICK: f64 = 5.0;
+
+/// How the timeline is spread out: `step` px between two ticks of the
+/// ruler (one `格` of `W9Bottom`, [`TICK`] units of the scale), `band` px
+/// for one lane. The bar and the filled panel each keep their own
+/// (`W9Bottom`: `zb`, `zf`), each pinched on its own.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Scale {
     pub step: f32,
@@ -30,6 +35,11 @@ pub struct Scale {
 }
 
 impl Scale {
+    /// Px for one unit of the scale.
+    pub fn unit(self) -> f32 {
+        self.step / TICK as f32
+    }
+
     /// Between `self` (at 0) and `to` (at 1).
     pub fn toward(self, to: Scale, t: f32) -> Scale {
         Scale {
@@ -47,18 +57,18 @@ impl Scale {
     }
 }
 
-/// The bar's scale at first (`W9Bottom` `zb`: 24 px a unit, 36 a lane).
+/// The bar's scale at first (`W9Bottom` `zb`: 24 px a tick, 36 a lane).
 pub const BAR: Scale = Scale {
     step: 24.0,
     band: ROW,
 };
-/// The filled panel's scale at first (`W9Bottom` `zf`: 100 px a unit, 76 a
+/// The filled panel's scale at first (`W9Bottom` `zf`: 100 px a tick, 76 a
 /// lane).
 pub const FILLED: Scale = Scale {
     step: 100.0,
     band: FILLED_ROW,
 };
-/// How far a unit can be pinched (`W9Bottom`: 12–200 px).
+/// How far a tick can be pinched (`W9Bottom`: 12–200 px).
 pub const STEP_RANGE: (f32, f32) = (12.0, 200.0);
 /// How far a lane can be pinched (`W9Bottom`: 28–140 px).
 pub const BAND_RANGE: (f32, f32) = (28.0, 140.0);
