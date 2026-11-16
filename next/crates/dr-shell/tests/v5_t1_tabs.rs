@@ -1,7 +1,11 @@
 //! T1 (`kernel-v5.md` §5, §8): the left column's Tabs come from the project
 //! definition, an entry's mark is its own or its template's, and an entry
 //! opens in one tab.
-use std::time::{Duration, Instant};
+use std::{
+    cell::Cell,
+    rc::Rc,
+    time::{Duration, Instant},
+};
 
 use dr_shell::{
     Services, SettingsFile, ShellInfo, Workspace as Shell,
@@ -899,4 +903,65 @@ fn a_lane_lists_what_is_hung_on_it_along_its_scale() {
         got.sort();
         assert_eq!(got, expect);
     }
+}
+
+/// T9 review item 5: the left column redraws every frame. What its filled
+/// Tab shows is refreshed when the book changes, not on every redraw (a
+/// refresh sorts the whole list and may read update times from the
+/// library).
+#[gpui::test]
+fn a_filled_tab_refreshes_its_list_only_when_the_book_changes(cx: &mut TestAppContext) {
+    use dr_shell::workspace::FillPlace;
+    let (_dir, lib, id) = seed();
+    let (view, cx) = open(cx, &lib, &id);
+    let refreshes = Rc::new(Cell::new(0usize));
+    let made = Rc::new(Cell::new(0usize));
+    let (count, makes) = (refreshes.clone(), made.clone());
+    cx.update(|_, cx| {
+        v3::add_level_display(cx, "list", move |_, _, cx| {
+            makes.set(makes.get() + 1);
+            let count = count.clone();
+            Rendered::new(cx.new(|_| DummyPart)).on_refresh(move |_, _| count.set(count.get() + 1))
+        });
+    });
+    wait(&view, cx, "the book", |ws, _| ws.book.v3().is_some());
+    let sidebar = sidebar(&view, cx);
+    cx.update(|window, cx| {
+        view.update(cx, |ws, cx| {
+            ws.enter_fill(FillPlace::Left, window, cx);
+        })
+    });
+    wait(&view, cx, "the filled column", |ws, _| {
+        ws.is_filled(FillPlace::Left) && ws.fill_progress(FillPlace::Left) >= 1.0
+    });
+    wait(&view, cx, "the filled list", |_, _| made.get() > 0);
+    let before = refreshes.get();
+    for _ in 0..12 {
+        // Every frame draws the column again.
+        sidebar.update(cx, |_, cx| cx.notify());
+        pump(cx);
+    }
+    assert_eq!(
+        refreshes.get(),
+        before,
+        "redrawing with the same book refreshes nothing"
+    );
+    let revision = view.read_with(cx, |ws, _| ws.book.v3().unwrap().revision.clone());
+    let root = view.read_with(cx, |ws, _| root_of(ws.book.v3().unwrap(), "tpl-manuscript"));
+    call(
+        &lib,
+        "entry.create",
+        json!({"book": id, "parent": root, "template": "tpl-chapter", "title": "Synthetic refresh"}),
+    );
+    wait(&view, cx, "the new book", |ws, _| {
+        ws.book.v3().is_some_and(|v| v.revision != revision)
+    });
+    pump(cx);
+    let after = refreshes.get();
+    assert!(after > before, "a new book refreshes the list");
+    for _ in 0..12 {
+        sidebar.update(cx, |_, cx| cx.notify());
+        pump(cx);
+    }
+    assert_eq!(refreshes.get(), after);
 }

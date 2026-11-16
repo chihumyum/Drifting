@@ -235,7 +235,15 @@ impl Sidebar {
             self.displays
                 .retain(|id, (key, _)| keys.get(id) == Some(key));
             self.filled_displays.retain(|id, _| tabs.contains(id));
-            for part in self.displays.values().map(|(_, part)| part) {
+            // Only a new book snapshot refreshes what the Tabs show, filled
+            // or not: the column redraws every frame, and a refresh sorts
+            // the whole list and may read update times (T9 review).
+            for part in self
+                .displays
+                .values()
+                .map(|(_, part)| part)
+                .chain(self.filled_displays.values().map(|(_, _, part)| part))
+            {
                 if let Some(refresh) = &part.refresh {
                     refresh(self.host.book.clone(), cx);
                 }
@@ -814,13 +822,11 @@ impl Sidebar {
         if matches!(tab.mount, TabMount::Book) && layout == FillLayout::List {
             return tabs::book_list(&self.host, window, cx);
         }
+        // Kept fresh by `sync` when the book changes, not on every frame.
         if let Some((mount, saved, display)) = self.filled_displays.get(&tab.id)
             && mount == &tab.mount
             && *saved == layout
         {
-            if let Some(refresh) = &display.refresh {
-                refresh(self.host.book.clone(), cx);
-            }
             return display.view.clone().into_any_element();
         }
         let display = if let Some(kind) = layout.display() {

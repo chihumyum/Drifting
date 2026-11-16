@@ -377,7 +377,7 @@
 | `entry.get`、`entry.list {below}` | 住着的只在开着层级时给，挂着的只在开着「收别处的条目」时给；两个都关着没有 `below` |
 | `entry_template.put` | 没有 `lane`；`home` 的目标照旧必须是开着层级的活条目 |
 | `layout.put`、`layout.clear` | 新。写画布坐标的小文档 |
-| `membership.add` | 宿主在视图里时，同时在这些视图里落位；不再为它写 `pos`。宿主只要求活着、开着「收别处的条目」（第 16 节） |
+| `membership.add` | 宿主在视图里时，同时在这些视图里落位；不再为它写 `pos`。宿主只要求活着、开着「收别处的条目」（第 16 节）。2026-11-17 起（T9）多两个只给作者自己的界面用的参数：`from_host` 是换一处挂（从那个条目上摘下、挂到 `host` 上，一次提交），`order` 是拖着调先后（排到同一个宿主上的另一个挂着的条目旁边）；`timeline_view.place` 也多一个 `from_host`（拖到底栏另一条泳道上换一处挂）。帮手和 MCP 的目录里看不到，传了被拒；见第 18 节「T9 交回」 |
 | 视图的各条命令 | 泳道加进视图时，给它已有的成员落位，放进第一个视图时按手动先后落；泳道离开最后一个视图（拿出泳道、删视图）时，把成员在这个视图里的先后写回归属的 `pos`（第 4 节）。泳道的条件换成「开着层级或收别处的条目」；层级当泳道时住在下面的条目照同样的规则落位和写回（第 16 节）。2026-11-16 起泳道的条件是「开着收别处的条目」，层级当泳道那一支去掉（第 15 节第 15 条，任务书 T9；DV 做了） |
 | `module.put_media`、`module.remove_media`、`asset.put` | 新增或沿用。往媒体模块里放文件、拿走文件、改说明和先后；同一个文件第二次放进同一个媒体模块时拒绝。条目给自己的媒体模块设摆法，走 `entry.update` 还是单独一条，数据层定 |
 | `asset.rename`、`asset.trash`、`asset.restore`、`asset.purge`、`asset.list` | **新增**（2026-11-14）。素材库：改名、删除进最近删除、恢复、清除；列出全部文件和每个被用在哪（媒体模块、正文嵌入、正文链接、关系）。名字由数据层定 |
@@ -1386,6 +1386,17 @@ D（`d-data-layer`）交回时写（2026-11-15）；同日 DY（`dy-files-commen
 - **编辑模板的工作区里另存会被盖回去**：工作区里 `project_template.save` 不收 `name`、`description`、`agent`，错误里说去用 `project.update`（见上面「DW 交回」的 `project_template.save` 一条和「PT4 交回」）。帮手那边解析时就拒，`dr-agent-tools` 目录里 `project_template.save` 的说明跟着改，目录快照和能力清单快照重新生成。
 - **种子、样书、0.1 导入的书看不到来源**：这几种书的 `project.source` 现在和新建的一样带名字「写书」，结构说明里有 `project_source`（见上面「PT4 交回」的「结构说明带来源」）。新加 dev-dependency：`dr-agent-tools` → `dr-samples`，`dr-import-v1` → `dr-agent-tools`、`dr-workspace`（只在测试里用）。跟着改的两处现成断言：`dr-doc` `v3/tests.rs` 的 `novel_project_template_populates_stable_templates_roots_and_categories` 要求来源和 `novel_project_template_source()` 一样；`dr-testkit` 的 aging 快速形状（`bench/aging.rs` 的 `expect_quick`）多 2 个操作（来源里的 `origin` 和 `name`）。
 - **本地模型上下文小时第一句就发不出去**：`dr_agent::context` 改成按字的种类估 token，新函数 `estimate_tokens`、`estimate_text_tokens`（同日又调：中文一字 1.5 个；没给输出上限时余量是上下文的八分之一、最多 8192）；签到判断说明放不放得下也用它。见 [M27](modules/m27-agent-runtime.md)「请求有多长」、[M28](modules/m28-model-providers.md)「待协调」第 1 条。
+
+### T9 交回：数据层给界面的口（2026-11-17）
+
+T9 拖挂着的那一行（第 15 节第 33 条，任务书第 56、60 条）要的三个参数，数据层只加不改；监管会话审 T9 时补齐了撤销和测试。
+
+- **参数**：`membership.add { from_host }`：把 `member` 从 `from_host` 摘下、挂到 `host` 上，住处不动（左栏把挂着的一行拖到另一个收别处条目的条目上）。`membership.add { order: { anchor, after } }`：把 `member` 排到同一个 `host` 上挂着的 `anchor` 前面或后面（左栏同一组里拖），不能和 `pos`、`from_host` 一起给。`timeline_view.place { lane, from_host, at }`：拖到底栏另一条泳道上换一处挂，同时落在 `at`，没有 `lane` 被拒。
+- **谁能传**：只有作者自己的界面（`Actor::User`）。帮手、MCP、Markdown 文件夹、同步、导入传了，命令一开头就拒（`invalid`，什么都不读、不写、不进撤销）。三个参数在命令的 schema 里用 `schemars(skip)` 藏着，帮手和 MCP 的目录快照不变；不带它们时这两条命令对帮手照旧。
+- **一次提交**：换一处挂是一次提交：新挂上（`host` 在的视图里没有位置的落到刻度末尾）、摘掉原来那一处（原来的宿主是条目的主归属时一起清掉；只因为原来那一处才在的视图位置一起去掉，和 `membership.remove` 同一条规则）。在读的时候规划一次（定下这次替换哪些记录），写的那一步里对着当时的文档再规划一次：原来那一处已经不在了（别的设备或帮手刚摘掉），整次写都拒（`invalid`，新的挂名和位置也不写）。
+- **调先后**：`host` 在视图里时改它所在的第一个视图的刻度（视图按 `(pos, id)` 排，和左栏读的一样），挂着的条目按 `(at, id)` 排：落在左右两个的中点；两边的刻度一样（或者中间放不下一个数）时落在左边那个刚过一点，同一个刻度上排在它后面的依次往后挪最小的一步，看上去都没动。`host` 不在视图里时改归属自己的 `pos`；左右两个的 `pos` 一样或缺着时，这个宿主的整列重新编号，别的条目先后不变。
+- **撤销**：一步，走 `membership.restore`，和 `membership.add`／`remove` 一样窄：只还原这次写改了的挂名记录、主归属和位置，不还原整个条目、整个视图。为此 `membership.restore` 的输入只加不改，多两项可选的 `memberships: [(host, member)]`、`placements: [(view, entry)]`（换一处挂时新挂上的那一处、重编号时别的条目的挂名、挪了的别的条目的位置）；之后有人改了这些记录里的任何一个，撤销和重做按原来的规则报冲突、什么都不写。条目的标题、同一视图里别的卡片之后的改动都留着。能力清单快照（`registry__capability_schemas`）跟着多这两项；帮手的目录里本来就没有 `membership.restore`。
+- **测试**：`dr-workspace/tests/v3_membership.rs` 末尾一组：帮手等别的调用方被拒、schema 里看不到；原来那一处已经不在时整次拒；换一处挂清掉主归属、一步撤销全回来；撤销以后之后的标题和别的卡片还在（`timeline_view.place`、`membership.add` 两种换挂和刻度上调先后）；刻度上并列时落在中间；不在视图里时重新编号；两台设备同时把一个条目从同一处换到两处，合并后挂在两处、原来那一处不在、视图里只有一个位置、两边各自撤销再合并一致。界面一侧见 [M11](modules/m11-elements.md)「T9 拖挂着的那一行」。
 
 ### 最终的接口名字
 

@@ -32,6 +32,8 @@ anyhow.workspace = true
 dr-doc.workspace = true
 dr-store.workspace = true
 dr-testkit.workspace = true
+# The left column's real hung rows and drops beside the timeline (T9).
+dr-view-elements.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
 gpui_platform.workspace = true
 tempfile.workspace = true

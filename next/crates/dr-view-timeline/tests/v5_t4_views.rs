@@ -19,7 +19,7 @@ use dr_shell::{
     book::Book,
     nav::Target,
     pages::{BottomHost, PageViewHost},
-    v3::EntryDrag,
+    v3::{EntryDrag, sidebar::Sidebar},
 };
 use dr_view_timeline::v3::{Timeline, model};
 use dr_workspace::{Actor, Workspace as Library};
@@ -53,12 +53,16 @@ struct Host {
     timeline: Entity<Timeline>,
     workspace: Entity<Workspace>,
     drag: Option<EntryDrag>,
+    /// The left column beside the timeline, for drags between the two.
+    sidebar: Option<Entity<Sidebar>>,
 }
 
 impl Render for Host {
     fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        div()
-            .size_full()
+        let main = div()
+            .flex_1()
+            .min_w_0()
+            .h_full()
             .flex()
             .flex_col()
             .when_some(self.drag.clone(), |el, drag| {
@@ -72,7 +76,14 @@ impl Render for Host {
                         .on_drag(drag, |_, _, _, cx| cx.new(|_| DragPreview)),
                 )
             })
-            .child(div().flex_1().min_h_0().child(self.timeline.clone()))
+            .child(div().flex_1().min_h_0().child(self.timeline.clone()));
+        div()
+            .size_full()
+            .flex()
+            .when_some(self.sidebar.clone(), |el, sidebar| {
+                el.child(div().w(px(300.)).h_full().flex_none().child(sidebar))
+            })
+            .child(main)
     }
 }
 
@@ -154,6 +165,7 @@ fn visual<'a>(
             timeline: cx.new(|_| Timeline::new(&host)),
             workspace: ws,
             drag: None,
+            sidebar: None,
         }
     });
     vcx.simulate_resize(size(px(1280.0), px(720.0)));
@@ -174,6 +186,12 @@ fn sync_all(
         })
     });
     refresh(host, lib, id, cx);
+    // The left column follows the workspace's book, as the shell does.
+    if let Some(sidebar) = host.read_with(cx, |h, _| h.sidebar.clone()) {
+        let page = page_host(ws, lib, id, cx);
+        sidebar.update(cx, |s, cx| s.sync(page, cx));
+        frame(cx);
+    }
 }
 
 fn page_host(
@@ -189,6 +207,23 @@ fn page_host(
         book_id: id.to_owned(),
         book,
     }
+}
+
+/// Presses at `from`, moves past the drag threshold and lets go at `to`
+/// (holding `modifiers`): a real drag from whatever is drawn at `from`.
+fn drag_between(
+    from: gpui::Point<gpui::Pixels>,
+    to: gpui::Point<gpui::Pixels>,
+    modifiers: Modifiers,
+    cx: &mut VisualTestContext,
+) {
+    cx.simulate_mouse_down(from, MouseButton::Left, modifiers);
+    cx.simulate_mouse_move(from + point(px(8.), px(0.)), MouseButton::Left, modifiers);
+    frame(cx);
+    cx.simulate_mouse_move(to, MouseButton::Left, modifiers);
+    frame(cx);
+    cx.simulate_mouse_up(to, MouseButton::Left, modifiers);
+    frame(cx);
 }
 
 fn drag_entry_to(
@@ -880,12 +915,32 @@ fn cross_lane_drag_moves_hang_option_multi_hangs_sidebar_drop_detaches_and_narro
         "timeline_view.add_lane",
         json!({"book": id, "view": "t9-drag-view", "lane": lane_b}),
     );
+    // A Tab on lane_a: the left column lists what is hung on it.
+    let lane_a_tab = call(
+        &lib,
+        "tab.put",
+        json!({"book": id, "mount": {"kind": "entry", "entry": lane_a}}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
 
     let (host, cx) = visual(cx, &lib, &id);
+    cx.update(|_, cx| dr_view_elements::init(cx));
     let ws = host.read_with(cx, |h, _| h.workspace.clone());
     sync_all(&host, &ws, &lib, &id, cx);
     let t = host.read_with(cx, |h, _| h.timeline.clone());
     t.update(cx, |t, cx| t.select("t9-drag-view".into(), cx));
+    let page = page_host(&ws, &lib, &id, cx);
+    host.update(cx, |h, cx| {
+        let sidebar = cx.new(|cx| Sidebar::new(page.clone(), cx));
+        sidebar.update(cx, |s, cx| {
+            s.sync(page, cx);
+            s.choose(&lane_a_tab, cx);
+        });
+        h.sidebar = Some(sidebar);
+        cx.notify();
+    });
     sync_all(&host, &ws, &lib, &id, cx);
 
     let track_a: &'static str = Box::leak(format!("v3-track-{lane_a}").into_boxed_str());
@@ -953,13 +1008,18 @@ fn cross_lane_drag_moves_hang_option_multi_hangs_sidebar_drop_detaches_and_narro
     assert_eq!(placements(), before_move);
     sync_all(&host, &ws, &lib, &id, cx);
 
-    // The hung row in the sidebar also transfers its hang to the other lane.
-    let page = page_host(&ws, &lib, &id, cx);
-    drag_entry_to(
-        &host,
-        EntryDrag::new(page, &chapter, "第三章钟楼下").with_hung_host(&lane_a),
-        track_b,
-        212.0,
+    // The hung row in the left column (its dotted guide drawn on lane_a's
+    // Tab) also transfers its hang to the other lane, dragged by the row
+    // itself onto the lane.
+    let hung_row: &'static str =
+        Box::leak(format!("v3-hung-guide-{lane_a}-{chapter}").into_boxed_str());
+    wait(cx, |cx| cx.debug_bounds(hung_row).is_some());
+    let row = cx.debug_bounds(hung_row).unwrap();
+    let lane = cx.debug_bounds(track_b).unwrap();
+    drag_between(
+        point(row.origin.x + px(60.), row.center().y),
+        point(lane.origin.x + px(212.0), lane.center().y),
+        Modifiers::none(),
         cx,
     );
     wait(cx, |_| hosts_of(&lib, &chapter) == vec![lane_b.clone()]);
@@ -993,15 +1053,21 @@ fn cross_lane_drag_moves_hang_option_multi_hangs_sidebar_drop_detaches_and_narro
     sync_all(&host, &ws, &lib, &id, cx);
 
     // 4. Drag clip from lane_a back onto left sidebar: detaches from lane_a (`摘名`),
-    // keeping lane_b and residence untouched.
-    let page = page_host(&ws, &lib, &id, cx);
-    let clip_drag = EntryDrag::new(page.clone(), &chapter, "第三章钟楼下")
-        .with_timeline_clip("t9-drag-view", &lane_a);
-    cx.update(|_, cx| {
-        assert!(dr_shell::v3::tabs::detach_timeline_clip(
-            &page, &clip_drag, cx
-        ));
-    });
+    // keeping lane_b and residence untouched. The clip on the timeline is
+    // dragged and let go over the left column, whose drop takes it.
+    let clip: &'static str = Box::leak(format!("v3-clip-{lane_a}-{chapter}").into_boxed_str());
+    wait(cx, |cx| cx.debug_bounds(clip).is_some());
+    let from = cx.debug_bounds(clip).unwrap();
+    let column = cx.debug_bounds("v3-sidebar").unwrap();
+    drag_between(
+        point(from.origin.x + px(12.), from.center().y),
+        point(
+            column.center().x,
+            column.origin.y + column.size.height - px(24.),
+        ),
+        Modifiers::none(),
+        cx,
+    );
     wait(cx, |_| hosts_of(&lib, &chapter) == vec![lane_b.clone()]);
     assert_eq!(
         Book::load(&lib, &id)

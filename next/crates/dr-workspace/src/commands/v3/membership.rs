@@ -116,12 +116,9 @@ pub(super) fn place_unplaced_lane_entries(
 }
 
 fn add(cx: &Cx<'_>, input: AddIn) -> Result<Done> {
-    let s = cx.book_v3(&input.target.book)?;
-    let v = s.reader_v3.view();
-    let host = live(&v, &input.target.host)?.id;
-    let member = live(&v, &input.target.member)?.id;
-    let before = v.graph();
-    m::check_membership(&host, &member, &before.entries, &before.templates)?;
+    // `from_host` and `order` are the workspace UI's drag (T9): hidden from
+    // the Agent's and MCP's schema and refused for any other caller before
+    // anything is read, so their contract stays what it was.
     if (input.order.is_some() || input.from_host.is_some())
         && !matches!(cx.actor(), crate::Actor::User)
     {
@@ -129,6 +126,12 @@ fn add(cx: &Cx<'_>, input: AddIn) -> Result<Done> {
             "drag order and transfer are workspace UI operations",
         ));
     }
+    let s = cx.book_v3(&input.target.book)?;
+    let v = s.reader_v3.view();
+    let host = live(&v, &input.target.host)?.id;
+    let member = live(&v, &input.target.member)?.id;
+    let before = v.graph();
+    m::check_membership(&host, &member, &before.entries, &before.templates)?;
     if let Some(order) = input.order {
         if input.pos.is_some() || input.from_host.is_some() {
             return Err(WsError::invalid(
@@ -138,7 +141,7 @@ fn add(cx: &Cx<'_>, input: AddIn) -> Result<Done> {
         return reorder(cx, &s, &v, &host, &member, order);
     }
     if let Some(from) = input.from_host.as_deref() {
-        return transfer(cx, &s, &v, &before, from, &host, &member);
+        return transfer(cx, &s, &v, from, &host, &member);
     }
     let k = m::Membership::key(&host, &member);
     if !live_views_with_lane(&v, &host).is_empty() {
@@ -209,6 +212,8 @@ fn add(cx: &Cx<'_>, input: AddIn) -> Result<Done> {
                     .into_iter()
                     .map(|(vid, _)| vid.to_string())
                     .collect(),
+                memberships: Vec::new(),
+                placements: Vec::new(),
             }))
         })?;
         if let Some(mut receipt) = receipt {
@@ -254,6 +259,10 @@ fn add(cx: &Cx<'_>, input: AddIn) -> Result<Done> {
     cx.effect(EffectAction::Updated, "membership", &k, None);
     Ok(Done { id: k })
 }
+/// A drag order beside `order.anchor` among what is hung on `host` (T9):
+/// along the scale of the first view `host` is a lane in, otherwise in the
+/// memberships' manual order. Its undo (`membership.restore`) brings back
+/// only the placements or membership records this write changed.
 fn reorder(
     cx: &Cx<'_>,
     slot: &BookSlot,
@@ -275,55 +284,56 @@ fn reorder(
             "two different existing memberships are needed to reorder",
         ));
     }
+    let receipt = |at: &loro::Frontiers, expected: String| RestoreIn {
+        book: slot.book.to_string(),
+        host: host.to_string(),
+        member: member.to_string(),
+        at: frontiers_hex(at),
+        expected,
+        membership: false,
+        primary: false,
+        views: Vec::new(),
+        memberships: Vec::new(),
+        placements: Vec::new(),
+    };
     if let Some(view) = live_views_with_lane(v, host).into_iter().next() {
-        let mut positions: Vec<_> = current
-            .iter()
-            .filter_map(|entry| {
-                let placement = view.placements.iter().find(|p| p.entry == entry.member)?;
-                Some((entry.member.clone(), placement.at))
-            })
-            .collect();
-        positions.sort_by(|a, b| a.1.total_cmp(&b.1).then_with(|| a.0.cmp(&b.0)));
-        let old = positions.iter().position(|(entry, _)| entry == member);
-        positions.retain(|(entry, _)| entry != member);
-        let at = positions
-            .iter()
-            .position(|(entry, _)| *entry == anchor)
-            .ok_or_else(|| WsError::invalid("the anchor has no timeline placement"))?
-            + usize::from(order.after);
-        if old == Some(at) {
+        let Some(writes) = scale_order(&view, &current, member, &anchor, order.after)? else {
             cx.undo_nothing();
             return Ok(Done { id: member_key });
-        }
-        let left = at
-            .checked_sub(1)
-            .and_then(|i| positions.get(i))
-            .map(|p| p.1);
-        let right = positions.get(at).map(|p| p.1);
-        let scale = match (left, right) {
-            (Some(a), Some(b)) if a < b && a.midpoint(b) > a && a.midpoint(b) < b => a.midpoint(b),
-            (Some(a), Some(_)) if order.after => a.next_up(),
-            (Some(_), Some(b)) => b.next_down(),
-            (Some(a), None) => (a + 1.0).max(a.next_up()),
-            (None, Some(b)) => (b - 1.0).min(b.next_down()),
-            (None, None) => unreachable!("there is an anchor"),
         };
-        return <super::timeline::Place as crate::registry::Op>::run(
-            cx,
-            super::timeline::PlaceIn {
-                book: slot.book.to_string(),
-                view: view.id.to_string(),
-                entry: member.to_string(),
-                lane: None,
-                from_host: None,
-                at: scale,
-                span: view
-                    .placements
+        for (entry, _, _) in &writes {
+            v.check_timeline_placement_restore(&view.id, entry)?;
+        }
+        let replaced = Replaces::records(writes.iter().map(|(entry, _, _)| {
+            rec(CollectionV3::TimelineViews, &view.id).at(["placements", entry.as_str()])
+        }));
+        let moved: Vec<EntryId> = writes.iter().map(|(entry, _, _)| entry.clone()).collect();
+        let view_id = view.id.clone();
+        let (expected, at) = cx.write_book_v3(slot, replaced, move |t| {
+            {
+                let w = t.timeline_view(&view_id)?;
+                for (entry, at, span) in &writes {
+                    w.put_placement(entry, *at, *span)?;
+                }
+            }
+            Ok(frontiers_hex(&t.view().state_frontiers()))
+        })?;
+        cx.undo_with(Invocation::new(
+            "membership.restore",
+            RestoreIn {
+                views: vec![view.id.to_string()],
+                placements: moved
                     .iter()
-                    .find(|p| &p.entry == member)
-                    .and_then(|p| p.span),
+                    .filter(|entry| *entry != member)
+                    .map(|entry| (view.id.to_string(), entry.to_string()))
+                    .collect(),
+                ..receipt(&at, expected)
             },
-        );
+        ));
+        for entry in &moved {
+            cx.effect(EffectAction::Moved, "entry", entry.as_str(), None);
+        }
+        return Ok(Done { id: member_key });
     }
 
     let mut ordered = current;
@@ -376,25 +386,104 @@ fn reorder(
             })
             .collect()
     };
-    let affected: Vec<_> = edits
+    for edit in &edits {
+        v.check_membership_snapshot_restore(&edit.host, &edit.member)?;
+    }
+    let own = edits.iter().any(|m| &m.member == member);
+    let others: Vec<(String, String)> = edits
         .iter()
-        .map(|m| m::Membership::key(&m.host, &m.member))
+        .filter(|m| &m.member != member)
+        .map(|m| (m.host.to_string(), m.member.to_string()))
         .collect();
-    let replaced = Replaces::records(affected.iter().map(|id| rec(CollectionV3::Memberships, id)));
-    let (_, at) = cx.write_book_v3(slot, replaced, move |txn| {
+    let replaced = Replaces::records(edits.iter().map(|m| {
+        rec(
+            CollectionV3::Memberships,
+            m::Membership::key(&m.host, &m.member),
+        )
+    }));
+    let (expected, at) = cx.write_book_v3(slot, replaced, move |txn| {
         for m in edits {
             txn.put_membership(&m.host, &m.member, m.pos.as_ref(), m.created_at)?;
         }
-        Ok(())
+        Ok(frontiers_hex(&txn.view().state_frontiers()))
     })?;
-    undo(
-        cx,
-        slot,
-        &at,
-        affected.iter().map(|id| key("memberships", id)).collect(),
-    );
+    cx.undo_with(Invocation::new(
+        "membership.restore",
+        RestoreIn {
+            membership: own,
+            memberships: others,
+            ..receipt(&at, expected)
+        },
+    ));
     cx.effect(EffectAction::Moved, "membership", &member_key, None);
     Ok(Done { id: member_key })
+}
+
+/// An entry, where it is on a view's scale, and its span.
+type ScalePosition = (EntryId, f64, Option<f64>);
+
+/// What an order beside `anchor` writes on `view`'s scale: `member`'s new
+/// position and anything it moves, each with its span; `None` when `member`
+/// is there already. Between the two neighbours it goes to their midpoint.
+/// When they are tied (or no number lies between them) it goes just after
+/// the left one and what is tied after it moves up by the smallest steps
+/// there are, in its order, so nothing shifts visibly (T9 review).
+fn scale_order(
+    view: &m::TimelineView,
+    current: &[m::Membership],
+    member: &EntryId,
+    anchor: &EntryId,
+    after: bool,
+) -> Result<Option<Vec<ScalePosition>>> {
+    let mut positions: Vec<ScalePosition> = current
+        .iter()
+        .filter_map(|entry| {
+            let placement = view
+                .placements
+                .iter()
+                .find(|p| p.entry == entry.member && p.at.is_finite())?;
+            Some((entry.member.clone(), placement.at, placement.span))
+        })
+        .collect();
+    // The order the lists read (`sort_ids_along_view`): ties by entry id.
+    positions.sort_by(|a, b| a.1.total_cmp(&b.1).then_with(|| a.0.cmp(&b.0)));
+    let old = positions.iter().position(|(entry, _, _)| entry == member);
+    let span = old.and_then(|i| positions[i].2);
+    positions.retain(|(entry, _, _)| entry != member);
+    let slot = positions
+        .iter()
+        .position(|(entry, _, _)| entry == anchor)
+        .ok_or_else(|| WsError::invalid("the anchor has no timeline placement"))?
+        + usize::from(after);
+    if old == Some(slot) {
+        return Ok(None);
+    }
+    let left = slot.checked_sub(1).map(|i| positions[i].1);
+    let right = positions.get(slot).map(|p| p.1);
+    let mut writes = Vec::new();
+    match (left, right) {
+        (Some(a), Some(b)) if a < b && a.midpoint(b) > a && a.midpoint(b) < b => {
+            writes.push((member.clone(), a.midpoint(b), span));
+        }
+        (Some(a), Some(_)) => {
+            let mut last = a.next_up();
+            writes.push((member.clone(), last, span));
+            for (entry, at, span) in &positions[slot..] {
+                if *at > last {
+                    break;
+                }
+                last = last.next_up();
+                writes.push((entry.clone(), last, *span));
+            }
+        }
+        (Some(a), None) => writes.push((member.clone(), (a + 1.0).max(a.next_up()), span)),
+        (None, Some(b)) => writes.push((member.clone(), (b - 1.0).min(b.next_down()), span)),
+        (None, None) => unreachable!("there is an anchor"),
+    }
+    if writes.iter().any(|(_, at, _)| !at.is_finite()) {
+        return Err(WsError::invalid("the scale has no room for this order"));
+    }
+    Ok(Some(writes))
 }
 
 /// The part of a transfer that leaves its old host. The destination is
@@ -459,16 +548,43 @@ impl Transfer {
         records
     }
 
-    pub fn undo_keys(&self) -> Vec<history::Key> {
-        let mut keys = vec![key(
-            "memberships",
-            m::Membership::key(&self.from, &self.member),
-        )];
-        keys.extend(self.views.iter().map(|view| key("timeline_views", view)));
-        if self.clear_primary {
-            keys.push(key("entries", &self.member));
+    /// The undo of the whole re-hang onto `to` (`joined`: the write added
+    /// that membership; `placed`: other views where it wrote the member's
+    /// position), as narrow as `membership.add`/`remove`'s: the old
+    /// membership, the primary it cleared, the new membership and the
+    /// member's placement in each view the write touched, nothing else of
+    /// the entry or the views. `at` is filled in after the commit.
+    pub fn receipt(
+        &self,
+        book: &BookId,
+        to: &EntryId,
+        joined: bool,
+        placed: impl IntoIterator<Item = TimelineViewId>,
+        expected: String,
+    ) -> RestoreIn {
+        let mut views: Vec<String> = Vec::new();
+        for view in placed.into_iter().chain(self.views.iter().cloned()) {
+            let view = view.to_string();
+            if !views.contains(&view) {
+                views.push(view);
+            }
         }
-        keys
+        RestoreIn {
+            book: book.to_string(),
+            host: self.from.to_string(),
+            member: self.member.to_string(),
+            at: String::new(),
+            expected,
+            membership: true,
+            primary: self.clear_primary,
+            views,
+            memberships: if joined {
+                vec![(to.to_string(), self.member.to_string())]
+            } else {
+                Vec::new()
+            },
+            placements: Vec::new(),
+        }
     }
 
     pub fn apply(self, t: &mut dr_doc::v3::BookTxnV3<'_>) -> Result<()> {
@@ -484,69 +600,82 @@ impl Transfer {
     }
 }
 
+/// `membership.add { from_host }`: move `member`'s hang from `source` to
+/// `host` in one commit. Planned once on the read (to name what it replaces)
+/// and again against the live document in the write job, so a source
+/// membership gone by then refuses the whole write.
 fn transfer(
     cx: &Cx<'_>,
     s: &BookSlot,
     v: &BookViewV3<'_>,
-    before: &BookGraphV3,
     source: &str,
     host: &EntryId,
     member: &EntryId,
 ) -> Result<Done> {
-    let transfer = Transfer::plan(v, source, host, member)?;
-    let mut memberships = before.memberships.clone();
-    transfer.remove_from(&mut memberships);
+    let replaced = Replaces::records(Transfer::plan(v, source, host, member)?.replaced());
     let name = m::Membership::key(host, member);
-    let join = !memberships
-        .iter()
-        .any(|m| &m.host == host && &m.member == member);
-    if join {
-        v.check_membership_snapshot_restore(host, member)?;
-        memberships.push(m::Membership {
-            host: host.clone(),
-            member: member.clone(),
-            pos: None,
-            created_at: Some(now()),
-        });
-    }
-    changes_ok(
-        before,
-        &BookGraphV3 {
-            memberships,
-            ..before.clone()
-        },
-    )?;
-    let mut placed = Vec::new();
-    for view in live_views_with_lane(v, host) {
-        if v.timeline_placement_snapshot(&view.id, member)?.is_none() {
-            v.check_timeline_placement_restore(&view.id, member)?;
-            let at = m::timeline_scale_end(&m::effective_timeline_placements(
-                &view,
-                &before.memberships,
-                &before.entries,
-                &before.templates,
-            ));
-            placed.push((view.id, at));
+    let book = s.book.clone();
+    let (source, host, member) = (source.to_owned(), host.clone(), member.clone());
+    let (mut receipt, at) = cx.write_book_v3(s, replaced, move |t| {
+        let v = t.view();
+        let before = v.graph();
+        m::check_membership(&host, &member, &before.entries, &before.templates)?;
+        let transfer = Transfer::plan(&v, &source, &host, &member)?;
+        let mut memberships = before.memberships.clone();
+        transfer.remove_from(&mut memberships);
+        let join = !memberships
+            .iter()
+            .any(|m| m.host == host && m.member == member);
+        if join {
+            v.check_membership_snapshot_restore(&host, &member)?;
+            memberships.push(m::Membership {
+                host: host.clone(),
+                member: member.clone(),
+                pos: None,
+                created_at: Some(now()),
+            });
         }
-    }
-    let mut keys = transfer.undo_keys();
-    if join {
-        keys.push(key("memberships", &name));
-    }
-    keys.extend(placed.iter().map(|(id, _)| key("timeline_views", id)));
-    let replaced = Replaces::records(transfer.replaced());
-    let host = host.clone();
-    let member = member.clone();
-    let (_, at) = cx.write_book_v3(s, replaced, move |t| {
+        changes_ok(
+            &before,
+            &BookGraphV3 {
+                memberships,
+                ..before.clone()
+            },
+        )?;
+        let mut placed = Vec::new();
+        for view in live_views_with_lane(&v, &host) {
+            if v.timeline_placement_snapshot(&view.id, &member)?.is_none() {
+                v.check_timeline_placement_restore(&view.id, &member)?;
+                let at = m::timeline_scale_end(&m::effective_timeline_placements(
+                    &view,
+                    &before.memberships,
+                    &before.entries,
+                    &before.templates,
+                ));
+                placed.push((view.id, at));
+            }
+        }
+        let receipt = transfer.receipt(
+            &book,
+            &host,
+            join,
+            placed.iter().map(|(id, _)| id.clone()),
+            String::new(),
+        );
         if join {
             t.put_membership(&host, &member, None, Some(now()))?;
         }
-        for (view, at) in placed {
-            t.timeline_view(&view)?.put_placement(&member, at, None)?;
+        for (view, at) in &placed {
+            t.timeline_view(view)?.put_placement(&member, *at, None)?;
         }
-        transfer.apply(t)
+        transfer.apply(t)?;
+        Ok(RestoreIn {
+            expected: frontiers_hex(&t.view().state_frontiers()),
+            ..receipt
+        })
     })?;
-    undo(cx, s, &at, keys);
+    receipt.at = frontiers_hex(&at);
+    cx.undo_with(Invocation::new("membership.restore", receipt));
     cx.effect(EffectAction::Moved, "membership", &name, None);
     Ok(Done { id: name })
 }
@@ -613,6 +742,7 @@ op! {
                 book: input.book, host: host.to_string(), member: member.id.to_string(),
                 at: String::new(), expected: frontiers_hex(&t.view().state_frontiers()), membership, primary,
                 views: views.into_iter().map(|v| v.to_string()).collect(),
+                memberships: Vec::new(), placements: Vec::new(),
             }))
         })?;
         if let Some(mut receipt) = receipt {

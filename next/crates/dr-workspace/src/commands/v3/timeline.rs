@@ -304,6 +304,11 @@ pub struct PlaceIn {
 }
 op! {
     Place="timeline_view.place",Write,Book,"Place or move an entry in a timeline, optionally joining a lane in the same commit.",fn(cx,input:PlaceIn)->Done {
+        // `from_host` is the workspace UI's drag (T9), hidden from the
+        // Agent's and MCP's schema and refused for any other caller.
+        if input.from_host.is_some() && !matches!(cx.actor(), crate::Actor::User) {
+            return Err(WsError::invalid("membership transfer is a workspace UI operation"));
+        }
         let s = cx.book_v3(&input.book)?;
         let v = s.reader_v3.view();
         let tv = view(&v, &input.view)?;
@@ -333,9 +338,6 @@ op! {
             }
         }
         let transfer = if let Some(from) = input.from_host.as_deref() {
-            if !matches!(cx.actor(), crate::Actor::User) {
-                return Err(WsError::invalid("membership transfer is a workspace UI operation"));
-            }
             let to = lane.as_ref().ok_or_else(|| WsError::invalid("a membership transfer needs a target lane"))?;
             let transfer = membership::Transfer::plan(&v, from, to, &e.id)?;
             transfer.remove_from(&mut ms);
@@ -376,8 +378,37 @@ op! {
         // The entry's position in this view. A membership it joins is new.
         let placed = rec(CollectionV3::TimelineViews, &tv.id).at(["placements", id.as_str()]);
         let replaced = std::iter::once(placed).chain(transfer.iter().flat_map(|plan| plan.replaced()));
-        keys.extend(transfer.iter().flat_map(|plan| plan.undo_keys()));
-        let (_, at) = cx.write_book_v3(&s, Replaces::records(replaced), move |t| {
+        let from_host = input.from_host.clone();
+        let book = s.book.clone();
+        let (receipt, at) = cx.write_book_v3(&s, Replaces::records(replaced), move |t| {
+            // A re-hang is planned again against the live document (a
+            // source membership gone since the read refuses the whole
+            // write), and undoes as narrowly as `membership.add`/`remove`:
+            // the two memberships, the primary it cleared and this entry's
+            // placements, never the whole entry or view (T9 review).
+            let transfer = match (transfer, from_host.as_deref(), lane.as_ref()) {
+                (Some(_), Some(from), Some(to)) => {
+                    let v = t.view();
+                    let plan = membership::Transfer::plan(&v, from, to, &e.id)?;
+                    v.check_timeline_placement_restore(&tv.id, &e.id)?;
+                    if join {
+                        v.check_membership_snapshot_restore(to, &e.id)?;
+                    }
+                    Some(plan)
+                }
+                _ => None,
+            };
+            let receipt = match (&transfer, lane.as_ref()) {
+                (Some(plan), Some(to)) => Some(plan.receipt(
+                    &book,
+                    to,
+                    join,
+                    std::iter::once(tv.id.clone())
+                        .chain(other_views.iter().map(|(vid, _)| vid.clone())),
+                    String::new(),
+                )),
+                _ => None,
+            };
             if let Some(lane) = lane.filter(|_| join) {
                 t.put_membership(&lane, &e.id, None, Some(now()))?;
             }
@@ -389,9 +420,18 @@ op! {
             if let Some(transfer) = transfer {
                 transfer.apply(t)?;
             }
-            Ok(())
+            Ok(receipt.map(|receipt| membership::RestoreIn {
+                expected: frontiers_hex(&t.view().state_frontiers()),
+                ..receipt
+            }))
         })?;
-        undo(cx, &s, &at, keys);
+        match receipt {
+            Some(mut receipt) => {
+                receipt.at = frontiers_hex(&at);
+                cx.undo_with(Invocation::new("membership.restore", receipt));
+            }
+            None => undo(cx, &s, &at, keys),
+        }
         cx.effect(EffectAction::Moved, "entry", id.as_str(), None);
         Ok(Done { id: id.to_string() })
     }
