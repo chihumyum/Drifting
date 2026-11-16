@@ -279,3 +279,15 @@ M23「审阅与素材」可以直接用这些（都在 `dr_view_material` 下）
 - 素材库文件悬停卡（`dr-view-material/src/library.rs`）底部新增「写批注」与（图片/PDF）「框一块写批注」；当文件在全书任意位置（文件自身、媒体模块项、正文嵌入）有未解决批注时，缩略图右上角显示砂点（`dr_ui::sand::comment_dot`）。
 - 文件查看器（`dr-view-material/src/page.rs`）支持按 `FrameScope`（文件自身、媒体模块项、正文嵌入）框选写区域批注（PDF 记录页码），并在右侧栏汇总列出该文件在全书三处的全部批注：文件自身置顶，随后每个用到它的条目一组，卡片带空心圆解决/重开按钮及跳回对应条目模块的箭头，不改动右栏审阅面板状态。契约测试：`dr-view-material/tests/material.rs` 的 `asset_library_viewer_lists_three_places_and_jumps_to_each`。详见 [M18](m18-review.md)。
 
+
+## 内核 v5 · 框选写批注时撰写框留住键盘（2026-11-16）
+
+**大白话。** 在查看器里框一块写批注，撰写框出来了，字却打不进去，点进输入框也一样。两处原因，都修了：
+
+- **外壳把键盘交给了整页。** 从右栏素材库打开图片时键盘还在右栏里，外壳就没记下「这一页已经拿过键盘」。框选以后撰写框把键盘给了自己的输入框，外壳下一次重画时看见键盘在这一页里、这一页又还没记过，就把键盘交给整页（`dr-shell` 的 `Workspace::focus_page`），正好把输入框的挤掉。现在键盘已经在前面这一页里面时，外壳只记下这一页，不挪键盘（[F6](../foundations/f6-shell.md) 同日一节）。快的一下拖动（调试桥的拖动也是）按下、松开之间不画帧，正好碰上；慢慢拖时按下那一帧外壳已经把这一页记下，就碰不上。
+- **点输入框时台面也收到了这一下。** 撰写框浮在台面上却不挡鼠标，点进输入框的那一下台面也收到，台面一按就把键盘收回整页（`MediaPage::stage_down`）。现在撰写框整张卡挡住下面（`dr-view-review` 的 `CommentComposer` 根上 `occlude()`）。
+
+SC 一路（`v5-sc-scenarios`）跑场景时查出，`v5-sc-fixes` 一路修。输入框没有无障碍节点是所有 `TextArea`、`TextField` 都这样（都没有 role），调试桥打字不靠它，不是这次的原因，没改。
+
+- 场景 `book-media-writes-v3` 里打字、保存、读回三步的 `pending` 去掉；按「Save」以后先等撰写框关上（批注在后台写，写完才关）再读回。
+- 测试：`tests/v5_region_composer.rs` 的 `a_region_composer_keeps_the_keyboard_on_a_page_opened_from_a_side_column`（整个外壳：键盘在页外时打开图片，按下、移动、松开中间不画帧，外壳重画几次，打的字存进批注；撤掉外壳那处修正时存下的是空的）；`tests/material.rs` 的 `the_region_composer_takes_the_keyboard`（只有查看器：拖完打的字进撰写框，点进输入框再打的字也进去，这一下没有落到台面上；加 `occlude()` 之前失败在第二段字上）。

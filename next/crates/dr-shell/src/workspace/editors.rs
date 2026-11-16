@@ -1054,6 +1054,18 @@ impl Workspace {
             self.focused_editor = want;
             return;
         }
+        // The keyboard is already in the page in front (a field on it, the
+        // comment composer over its picture): the page has it; leave it
+        // there. Handing it to the page's own handle took it back from a
+        // region composer that had just opened, when the page had come to
+        // the front while the keyboard was in a side column
+        // (sc-scenarios-v5, 2026-11-16).
+        if let Some((_, handle)) = &front
+            && handle.contains_focused(window, cx)
+        {
+            self.focused_editor = want;
+            return;
+        }
         // Ours to move: an editor, the workspace or nothing has it, or the
         // editor we gave it to last (whose tab may have closed).
         let free = in_editor

@@ -18,8 +18,8 @@
 use std::{rc::Rc, time::Duration};
 
 use gpui::{
-    AnyElement, App, ElementId, Entity, IntoElement, ParentElement, RenderOnce, SharedString,
-    Styled, Window, canvas, div, prelude::FluentBuilder as _, relative,
+    AnyElement, App, ElementId, Entity, InteractiveElement as _, IntoElement, ParentElement,
+    RenderOnce, SharedString, Styled, Window, canvas, div, prelude::FluentBuilder as _, relative,
 };
 
 use crate::{
@@ -123,12 +123,14 @@ impl RenderOnce for PageTurn {
             window.request_animation_frame();
         }
         let render = self.render.clone();
+        let id = self.id.clone();
         div()
             .relative()
             .size_full()
             .when_some(under, |el, key| {
                 el.child(
                     div()
+                        .debug_selector(move || format!("{id}-under"))
                         .absolute()
                         .top_0()
                         .left_0()

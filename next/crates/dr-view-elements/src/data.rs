@@ -149,6 +149,12 @@ pub mod v3 {
         /// entry.create's absent template means the context default. It can
         /// create a blank entry only when that default is itself absent.
         pub blank: bool,
+        /// The new entry is attached to `context` (`entry.create` with
+        /// `host`) rather than living under it (`parent`): `context` takes
+        /// entries from elsewhere and is not a level. Creating on an entry
+        /// that takes entries from elsewhere always attaches (`kernel-v5.md`
+        /// §16 「挂到一个条目上新建时一定挂名」).
+        pub attach: bool,
     }
     pub fn creation(book: &Book, origin: &str) -> Option<Creation> {
         let v = book.v3()?;
@@ -200,6 +206,7 @@ pub mod v3 {
             templates,
             default,
             blank,
+            attach: is_host_only,
         })
     }
     /// What a new entry attached to `origin` can be (`entry.create` with
@@ -233,6 +240,7 @@ pub mod v3 {
             templates,
             default,
             blank,
+            attach: true,
         })
     }
     pub fn switch_templates(book: &Book, entry: &str) -> Vec<String> {

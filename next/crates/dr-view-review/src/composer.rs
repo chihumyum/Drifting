@@ -21,8 +21,9 @@ use dr_workspace::commands::comment::CommentCreateIn;
 use dr_workspace::dto::{AnchorBytes, CommentPartDto, Region, Target};
 use dr_workspace::{Actor, Workspace};
 use gpui::{
-    AppContext, Bounds, Context, Entity, EntityInputHandler, EventEmitter, Focusable, IntoElement,
-    ParentElement, Pixels, Point, Render, Styled, Subscription, Window, div, point, px,
+    AppContext, Bounds, Context, Entity, EntityInputHandler, EventEmitter, Focusable,
+    InteractiveElement as _, IntoElement, ParentElement, Pixels, Point, Render, Styled,
+    Subscription, Window, div, point, px,
 };
 use gpui_prose::ProseEditor;
 
@@ -524,6 +525,10 @@ impl Render for CommentComposer {
         let entity = cx.entity();
         let (cancel, save) = (entity.clone(), entity);
         div()
+            // A card over what it is about (a drawn region, a selection): a
+            // press on it is the composer's alone. Let through, the stage
+            // or editor under it takes the keyboard back on the same press.
+            .occlude()
             .w(px(WIDTH))
             .p(px(12.0))
             .flex()
@@ -542,6 +547,7 @@ impl Render for CommentComposer {
             .child(
                 // The slip: the paper's colour, the input takes its type.
                 div()
+                    .debug_selector(|| "comment-composer-field".into())
                     .min_h(px(theme.scale.line_body * 3.0))
                     .px(px(8.0))
                     .py(px(6.0))

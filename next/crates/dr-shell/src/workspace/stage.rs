@@ -70,11 +70,30 @@ impl EditorLook {
     }
 }
 
-/// The key a page is turned by.
+/// The key a page's paper is known by (where it lies, for immersion).
 fn page_key(target: Option<&Target>) -> SharedString {
     match target {
         Some(target) => target.key().into(),
         None => "home".into(),
+    }
+}
+
+/// The key a page is turned by: which page it is. One entry is one page,
+/// whichever of its modules a target names, so going from `entry:X` to
+/// `entry:X/<module>` turns to nothing. Turning there would draw the one
+/// page view twice in a frame, underneath and in front, and its focused
+/// element would claim the accessibility focus twice: GPUI's debug builds
+/// panic on that (closing an entry's tab and opening it again by module in
+/// one frame, sc-scenarios-v5, 2026-11-16).
+fn turn_key(target: Option<&Target>) -> SharedString {
+    match target {
+        Some(Target::Entry { id, .. }) => Target::Entry {
+            id: id.clone(),
+            module: None,
+        }
+        .key()
+        .into(),
+        other => page_key(other),
     }
 }
 
@@ -299,8 +318,14 @@ fn page_turn(
     look: EditorLook,
 ) -> PageTurn {
     let ws = ws.clone();
-    PageTurn::new(id, page_key(target), move |key, window, cx| {
-        let target = Target::from_key(key);
+    let shown = target.cloned();
+    PageTurn::new(id, turn_key(target), move |key, window, cx| {
+        // The page in front is drawn for its target, module and all; one
+        // being turned away from, by its page.
+        let target = shown
+            .clone()
+            .filter(|t| turn_key(Some(t)) == *key)
+            .or_else(|| Target::from_key(key));
         paper(&ws, target.as_ref(), look, window, cx)
     })
 }

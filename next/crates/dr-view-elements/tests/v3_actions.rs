@@ -211,6 +211,10 @@ fn creation_uses_home_and_atomic_membership_without_inventing_a_default() {
     assert_eq!(context.home.as_deref(), Some(manuscript.as_str()));
     assert_eq!(context.default.as_deref(), Some("tpl-chapter"));
     assert!(!context.blank);
+    assert!(
+        context.attach,
+        "a story line only takes entries from elsewhere"
+    );
     let created=prepare(&snapshot,"entry.create",json!({"host":context.context,"template":context.default,"title":"Synthetic lane creation"})).unwrap().commit(&ws).unwrap();
     assert_eq!(created["parent"], manuscript);
     assert_eq!(created["template"], "tpl-chapter");
@@ -234,6 +238,10 @@ fn creation_uses_home_and_atomic_membership_without_inventing_a_default() {
     let context = creation(&snapshot, &group).unwrap();
     assert_eq!(context.default, None);
     assert!(context.blank);
+    assert!(
+        !context.attach,
+        "a group is a level: new entries live under it"
+    );
     let blank = prepare(
         &snapshot,
         "entry.create",
@@ -244,6 +252,107 @@ fn creation_uses_home_and_atomic_membership_without_inventing_a_default() {
     .unwrap();
     assert!(blank["template"].is_null());
     ws.shutdown().unwrap();
+}
+/// 「新建」 on a story line's card (sc-scenarios-v5, 2026-11-16): the story
+/// line only takes entries from elsewhere, so the new entry is attached to
+/// it and lives where it says (`kernel-v5.md` §16), as from its page's
+/// 「挂在这里的条目」. It used to be sent as living under the story line and
+/// was always refused.
+#[gpui::test]
+fn new_on_a_storylines_card_attaches_the_new_entry(cx: &mut gpui::TestAppContext) {
+    use dr_shell::{
+        Services, ShellInfo, Workspace as Shell,
+        nav::Target,
+        pages::PageMenuHost,
+        settings::SettingsFile,
+        v3::{card::EntryAction, entry_action},
+    };
+    use std::time::{Duration, Instant};
+    cx.executor().allow_parking();
+    let (_dir, lib, book) = seed();
+    cx.update(|cx| {
+        dr_shell::init(
+            ShellInfo {
+                app_name: "Drifting Next",
+                bundle_id: "cc.drifting.next.dev",
+                version: "0.2.0-dev",
+                url_scheme: "drifting-next-dev",
+                forced_appearance: None,
+            },
+            Services {
+                library: Some(lib.clone()),
+                book: Some(book.clone()),
+                ..Services::default()
+            },
+            SettingsFile::in_memory(),
+            cx,
+        );
+        dr_view_elements::init(cx);
+    });
+    let (shell, cx) = cx.add_window_view(Shell::new);
+    cx.update(|window, _| window.activate_window());
+    let settle = |cx: &mut gpui::VisualTestContext| {
+        cx.run_until_parked();
+        cx.update(|window, cx| window.draw(cx).clear(cx));
+        cx.run_until_parked();
+    };
+    let wait = |cx: &mut gpui::VisualTestContext, what: &str, done: &dyn Fn(&Book) -> bool| {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            settle(cx);
+            if shell.read_with(cx, |ws, _| done(&ws.book)) {
+                return;
+            }
+            assert!(Instant::now() < deadline, "timed out waiting for {what}");
+            std::thread::sleep(Duration::from_millis(2));
+        }
+    };
+    wait(cx, "the book", &|b| b.v3().is_some());
+    let snapshot = shell.read_with(cx, |ws, _| ws.book.clone());
+    let lane = root(&snapshot, "tpl-storyline");
+    let manuscript = root(&snapshot, "tpl-manuscript");
+    let run = cx.update(|_, cx| {
+        let host = PageMenuHost {
+            workspace: shell.downgrade(),
+            library: Some(lib.clone()),
+            book_id: book.clone(),
+            book: snapshot.clone(),
+        };
+        let target = Target::from_key(&format!("entry:{lane}")).unwrap();
+        entry_action(EntryAction::New, &target, &host, cx)
+    });
+    let run = run.expect("「新建」 is offered on a story line's card");
+    cx.update(|window, cx| run(window, cx));
+    settle(cx);
+    cx.simulate_input("Synthetic card creation");
+    cx.simulate_keystrokes("enter");
+    let titled = |b: &Book| {
+        b.v3().and_then(|v| {
+            v.entries
+                .iter()
+                .find(|e| e.title == "Synthetic card creation")
+                .cloned()
+        })
+    };
+    wait(cx, "the new entry", &|b| titled(b).is_some());
+    let book_now = shell.read_with(cx, |ws, _| ws.book.clone());
+    let made = titled(&book_now).unwrap();
+    assert_eq!(
+        made.parent.as_deref(),
+        Some(manuscript.as_str()),
+        "lives where the story line says"
+    );
+    assert_eq!(made.primary.as_deref(), Some(lane.as_str()));
+    assert!(
+        book_now
+            .v3()
+            .unwrap()
+            .memberships
+            .iter()
+            .any(|m| m.host == lane && m.member == made.id),
+        "attached to the story line"
+    );
+    drop(lib);
 }
 #[test]
 fn template_choices_preserve_active_relationships_children_and_retained_content() {

@@ -553,3 +553,11 @@ G3 待公共载荷进 main 后消费接收端；性能／heavy／截图目检和
 
 - 字段值为活文件时显示缩略图、文件名，并提供挑文件更换与「清除」；
 - 文件（或其所在素材夹）进入最近删除，或因「撤销把条目放进最近删除」带回了已永久清除的文件 id 时，字段渲染为虚线占位：还在最近删除里的文件显示删除线原文件名、「恢复」（含被删祖夹恢复）与「清除」；已永久清除的文件仍保留「清除」按钮（把字段值写回 `null`），避免残留清不掉的断引用。回归见 `dr-view-elements/tests/v5_image_field.rs`。
+
+## 内核 v5 · 故事线悬停卡上的「新建」（2026-11-16）
+
+**大白话。** 故事线（只开着「收别处的条目」、不开层级）悬停卡上的「新建」以前每次都失败，新建框一直显示「Your changes could not be saved」：它把新条目当成住在故事线下面，数据层拒绝（`V3-LEAF-NO-CHILDREN`）。现在和条目页「挂在这里的条目」那块的「＋ 新建」一样，新条目挂到故事线上，住在故事线的「新条目住在」说的地方（`kernel-v5.md` 第 16 节「挂到一个条目上新建时一定挂名」）。只开层级、或两样都开着的条目，悬停卡上的「新建」照旧住进去。SC 一路（`v5-sc-scenarios`）跑场景时查出，`v5-sc-fixes` 一路修。
+
+- `data.rs` 的 `Creation` 多了 `attach`：`creation` 在新建的上下文只收别处的条目、不是层级时为真（就是原来已经算出的 `is_host_only`），`creation_attached` 永远为真。`dialogs.rs` 的 `EntryPicker::create` 按它选 `host` 还是 `parent`，不再只看新建框是从哪里打开的。
+- 场景 `k4-g2-actions`、`k4-g2-review-drag`：悬停卡「新建」那一步的 `pending` 去掉，SC 为绕开它加的「打开故事线页、滚到第二块、按＋ 新建」五步去掉，回到从悬停卡新建；后面「新条目住在」改了以后提交被拦、重试的步骤不变。
+- 测试：`tests/v3_actions.rs` 的 `new_on_a_storylines_card_attaches_the_new_entry`（GPUI：从故事线卡的「新建」打字、回车，新条目住在书稿下面、主归属是故事线、挂名记录在）；`creation_uses_home_and_atomic_membership_without_inventing_a_default` 加了 `attach` 的两句（故事线为真、分组为假）。
