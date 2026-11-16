@@ -702,6 +702,7 @@
     },
     "kicker": "Inicio del proyecto",
     "projectTemplate": {
+      "book": "Manuscrito",
       "fromTemplate": "De «{{name}}»",
       "saveAs": "Guardar como plantilla de proyecto",
       "source": "Origen",

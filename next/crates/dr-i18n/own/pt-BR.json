@@ -113,6 +113,7 @@
   },
   "projectHome": {
     "projectTemplate": {
+      "book": "Manuscrito",
       "fromTemplate": "De “{{name}}”",
       "saveAs": "Salvar como modelo de projeto",
       "source": "Origem",

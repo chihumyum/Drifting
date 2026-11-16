@@ -104,7 +104,8 @@
   },
   "projectHome": {
     "projectTemplate": {
-      "fromTemplate": "「{{name}}」에서",
+      "book": "원고",
+      "fromTemplate": "“{{name}}”에서",
       "saveAs": "프로젝트 템플릿으로 저장",
       "source": "출처",
       "title": "프로젝트 템플릿"

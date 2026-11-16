@@ -2299,6 +2299,7 @@ dependencies = [
  "dr-store",
  "dr-testkit",
  "dr-ui",
+ "dr-view-page",
  "dr-view-sea",
  "dr-view-shelf",
  "dr-view-shelf-art",

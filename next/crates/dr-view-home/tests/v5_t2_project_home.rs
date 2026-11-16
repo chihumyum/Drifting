@@ -12,7 +12,7 @@ use dr_agent_tools::structure::StructureContext;
 use dr_model::id::BookId;
 use dr_shell::{Services, Settings, SettingsFile, ShellInfo, Workspace};
 use dr_view_home::{
-    SaveProjectTemplateHost, clear_save_project_template, focus_project_title,
+    Field, SaveProjectTemplateHost, clear_save_project_template, focus_project_title,
     has_save_project_template, set_save_project_template, v3::Home,
 };
 use dr_workspace::{Actor, Workspace as Library};
@@ -281,8 +281,8 @@ fn inline_title_and_synopsis_save_reopen_and_undo_one_step_each(cx: &mut TestApp
 fn turning_has_book_off_hides_targets_and_top_counts_and_reopening_restores_targets(
     cx: &mut TestAppContext,
 ) {
-    let (_dir, _root, lib, book) = seed_library();
-    let (_ws, home, vcx) = open_workspace(cx, &lib, &book);
+    let (_dir, root, lib, book) = seed_library();
+    let (ws, home, vcx) = open_workspace(cx, &lib, &book);
 
     // Initially 成书 is on: both top stats lines and both target inputs are drawn.
     assert!(vcx.debug_bounds("v3-home-words").is_some());
@@ -290,7 +290,8 @@ fn turning_has_book_off_hides_targets_and_top_counts_and_reopening_restores_targ
     assert!(vcx.debug_bounds("v3-home-word-target-input").is_some());
     assert!(vcx.debug_bounds("v3-home-daily-target-input").is_some());
 
-    // Set custom word targets (90,000 / 2,400).
+    // Set custom word targets (90,000 / 2,400); typed without grouping, they
+    // show grouped once stored.
     let (wt_in, dwt_in) = home.read_with(vcx, |h, _| {
         (
             h.word_target_input().clone(),
@@ -300,7 +301,7 @@ fn turning_has_book_off_hides_targets_and_top_counts_and_reopening_restores_targ
     vcx.update(|_, cx| {
         wt_in.update(cx, |f, cx| f.set_text("90000", cx));
         home.update(cx, |h, cx| h.store_word_target(cx));
-        dwt_in.update(cx, |f, cx| f.set_text("2400", cx));
+        dwt_in.update(cx, |f, cx| f.set_text("2,400", cx));
         home.update(cx, |h, cx| h.store_daily_word_target(cx));
     });
     wait(vcx, "custom targets saved", |vcx| {
@@ -309,6 +310,15 @@ fn turning_has_book_off_hides_targets_and_top_counts_and_reopening_restores_targ
             && p["book"]["word_target"] == 90_000
             && p["book"]["daily_word_target"] == 2_400
     });
+    assert_eq!(wt_in.read_with(vcx, |f, _| f.text()), "90,000");
+    assert_eq!(dwt_in.read_with(vcx, |f, _| f.text()), "2,400");
+    // Not a count: quietly back to the stored one, nothing written.
+    vcx.update(|_, cx| {
+        wt_in.update(cx, |f, cx| f.set_text("-5", cx));
+        home.update(cx, |h, cx| h.store_word_target(cx));
+    });
+    assert_eq!(wt_in.read_with(vcx, |f, _| f.text()), "90,000");
+    assert!(!home.read_with(vcx, |h, _| h.is_saving() || h.failed(Field::WordTarget)));
 
     // Turn 成书 off: both target rows and both top stats lines disappear.
     vcx.update(|_, cx| home.update(cx, |h, cx| h.set_has_book(false, cx)));
@@ -323,15 +333,26 @@ fn turning_has_book_off_hides_targets_and_top_counts_and_reopening_restores_targ
     assert!(vcx.debug_bounds("v3-home-word-target-input").is_none());
     assert!(vcx.debug_bounds("v3-home-daily-target-input").is_none());
 
-    // Turn 成书 back on: both target rows and top stats reappear AND custom targets are restored!
+    // The project is opened anew (the library from disk): still off, and
+    // nothing of this session remembers the targets.
+    drop((wt_in, dwt_in, home, lib));
+    let home = reopen_library(&ws, vcx, root);
+    let lib = library_of(vcx);
+    wait(vcx, "reopened, still off", |vcx| {
+        !home.read_with(vcx, |h, _| h.has_book()) && vcx.debug_bounds("v3-home-words").is_none()
+    });
+    assert!(call(&lib, "project.get", json!({ "book": book }))["book"].is_null());
+
+    // Turn 成书 back on: both target rows and top stats reappear with the
+    // targets the book kept.
     vcx.update(|_, cx| home.update(cx, |h, cx| h.set_has_book(true, cx)));
     wait(vcx, "has_book restored", |vcx| {
         let p = call(&lib, "project.get", json!({ "book": book }));
         !home.read_with(vcx, |h, _| h.is_saving())
             && home.read_with(vcx, |h, _| h.has_book())
             && !p["book"].is_null()
+            && vcx.debug_bounds("v3-home-words").is_some()
     });
-    assert!(vcx.debug_bounds("v3-home-words").is_some());
     assert!(vcx.debug_bounds("v3-home-today").is_some());
     assert!(vcx.debug_bounds("v3-home-word-target-input").is_some());
     assert!(vcx.debug_bounds("v3-home-daily-target-input").is_some());
@@ -339,16 +360,24 @@ fn turning_has_book_off_hides_targets_and_top_counts_and_reopening_restores_targ
     let proj = call(&lib, "project.get", json!({ "book": book }));
     assert_eq!(proj["book"]["word_target"], 90_000);
     assert_eq!(proj["book"]["daily_word_target"], 2_400);
-    assert_eq!(wt_in.read_with(vcx, |f, _| f.text()), "90000");
-    assert_eq!(dwt_in.read_with(vcx, |f, _| f.text()), "2400");
+    let (wt_in, dwt_in) = home.read_with(vcx, |h, _| {
+        (
+            h.word_target_input().clone(),
+            h.daily_word_target_input().clone(),
+        )
+    });
+    wait(vcx, "targets shown again", |vcx| {
+        wt_in.read_with(vcx, |f, _| f.text()) == "90,000"
+            && dwt_in.read_with(vcx, |f, _| f.text()) == "2,400"
+    });
 
-    // 1-step undo turns 成书 back off; 1 more undo turns 成书 back on with 90,000 / 2,400.
+    // 1-step undo turns 成书 back off; redo turns it on with 90,000 / 2,400.
     undo(&lib);
     wait(vcx, "undo turning has_book on", |vcx| {
         !home.read_with(vcx, |h, _| h.has_book()) && vcx.debug_bounds("v3-home-words").is_none()
     });
-    undo(&lib);
-    wait(vcx, "undo turning has_book off", |vcx| {
+    lib.redo(&Actor::User).unwrap().unwrap();
+    wait(vcx, "redo turning has_book on", |vcx| {
         home.read_with(vcx, |h, _| h.has_book()) && vcx.debug_bounds("v3-home-words").is_some()
     });
     let proj_after = call(&lib, "project.get", json!({ "book": book }));
@@ -628,7 +657,9 @@ fn save_project_template_button_follows_registration_and_dispatches_active_book(
     let recorded = invocations.clone();
     vcx.update(|_, cx| {
         set_save_project_template(cx, move |host: SaveProjectTemplateHost, _, _| {
-            assert_eq!(host.book.id, host.book_id);
+            // Weak handles: the library is there while it is open.
+            assert!(host.library.upgrade().is_some());
+            assert!(host.workspace.upgrade().is_some());
             recorded.borrow_mut().push(host.book_id);
         });
         home.update(cx, |_, cx| cx.notify());
@@ -690,4 +721,227 @@ fn retired_settings_dialog_and_locale_keys_are_gone() {
             "expected locale key projectHome.projectTemplate.{leaf} in own/zh-CN.json"
         );
     }
+}
+
+/// Reopens the library from disk (`dr_shell::library::replace`) and returns
+/// the Project Home the workspace makes afresh.
+fn reopen_library(
+    ws: &Entity<Workspace>,
+    vcx: &mut VisualTestContext,
+    root: std::path::PathBuf,
+) -> Entity<Home> {
+    // Let Home's last read of the numbers finish first.
+    vcx.executor().advance_clock(Duration::from_millis(120));
+    vcx.run_until_parked();
+    let replaced = Rc::new(RefCell::new(None));
+    let replaced_done = replaced.clone();
+    vcx.update(|_, cx| {
+        dr_shell::library::replace(
+            cx,
+            move |opened_root, options| {
+                assert_eq!(opened_root, root);
+                dr_store::Library::open(opened_root, options).map_err(|e| e.to_string())
+            },
+            move |result, _cx| {
+                *replaced_done.borrow_mut() = Some(result);
+            },
+        );
+    });
+    wait(vcx, "library reopened from disk", |_| {
+        replaced.borrow().is_some()
+    });
+    assert_eq!(replaced.borrow_mut().take().unwrap(), Ok(()));
+    let home: Entity<Home> = ws.read_with(vcx, |ws, _| {
+        ws.v3_home.clone().unwrap().downcast::<Home>().unwrap()
+    });
+    wait(vcx, "reopened home hydrated", |vcx| {
+        home.read_with(vcx, |h, _| h.loaded.is_some())
+    });
+    home
+}
+
+fn library_of(vcx: &mut VisualTestContext) -> Library {
+    vcx.update(|_, cx| cx.global::<Services>().library.clone().unwrap())
+}
+
+/// Enter in the title stores the name and goes on to the synopsis, as an
+/// entry's title goes on to its text (作者 2026-11-16 四乙).
+#[gpui::test]
+fn enter_in_the_title_stores_it_and_moves_to_the_synopsis(cx: &mut TestAppContext) {
+    let (_dir, _root, lib, book) = seed_library();
+    let (ws, home, vcx) = open_workspace(cx, &lib, &book);
+    let (title_in, synopsis_in) = home.read_with(vcx, |h, _| {
+        (h.title_input().clone(), h.synopsis_input().clone())
+    });
+    vcx.update(|window, cx| {
+        window.focus(&title_in.focus_handle(cx), cx);
+        title_in.update(cx, |f, cx| f.set_text("回车改名", cx));
+    });
+    vcx.simulate_keystrokes("enter");
+    wait(vcx, "name stored after Enter", |vcx| {
+        !home.read_with(vcx, |h, _| h.is_saving())
+            && ws.read_with(vcx, |ws, _| ws.book.name == "回车改名")
+    });
+    let (title_focused, synopsis_focused) = vcx.update(|window, cx| {
+        (
+            title_in.focus_handle(cx).is_focused(window),
+            synopsis_in.focus_handle(cx).is_focused(window),
+        )
+    });
+    assert!(!title_focused);
+    assert!(synopsis_focused, "Enter hands the caret to the synopsis");
+    assert_eq!(
+        call(&lib, "book.get", json!({"book": book}))["name"],
+        "回车改名"
+    );
+    lib.close();
+}
+
+/// A write refused because the name changed elsewhere keeps what was typed,
+/// with 「未能保存」 and 「重试」; 「重试」 stores it over the name stored now.
+#[gpui::test]
+fn a_refused_title_keeps_the_draft_and_retry_stores_it(cx: &mut TestAppContext) {
+    let (_dir, _root, lib, book) = seed_library();
+    let (ws, home, vcx) = open_workspace(cx, &lib, &book);
+    let title_in = home.read_with(vcx, |h, _| h.title_input().clone());
+    // The author is typing; meanwhile the name is changed elsewhere.
+    vcx.update(|_, cx| title_in.update(cx, |f, cx| f.set_text("作者打的名字", cx)));
+    call(
+        &lib,
+        "book.update",
+        json!({"book": book, "name": "别处改的名字"}),
+    );
+    wait(vcx, "the shell read the other name", |vcx| {
+        ws.read_with(vcx, |ws, _| ws.book.name == "别处改的名字")
+    });
+    assert_eq!(
+        title_in.read_with(vcx, |f, _| f.text()),
+        "作者打的名字",
+        "a field being edited is not replaced"
+    );
+    vcx.update(|_, cx| home.update(cx, |h, cx| h.store_title(cx)));
+    wait(vcx, "refused", |vcx| {
+        home.read_with(vcx, |h, _| !h.is_saving() && h.failed(Field::Title))
+    });
+    assert_eq!(title_in.read_with(vcx, |f, _| f.text()), "作者打的名字");
+    assert_eq!(
+        call(&lib, "book.get", json!({"book": book}))["name"],
+        "别处改的名字"
+    );
+    assert!(vcx.debug_bounds("v3-home-failed-title").is_some());
+    // Leaving the field again does not retry on its own.
+    vcx.update(|_, cx| home.update(cx, |h, cx| h.store_title(cx)));
+    assert!(home.read_with(vcx, |h, _| h.failed(Field::Title)));
+
+    let retry = vcx
+        .debug_bounds("v3-home-retry-title")
+        .expect("「重试」 is drawn");
+    vcx.simulate_click(retry.center(), Modifiers::none());
+    wait(vcx, "retried", |vcx| {
+        home.read_with(vcx, |h, _| !h.is_saving() && !h.failed(Field::Title))
+            && ws.read_with(vcx, |ws, _| ws.book.name == "作者打的名字")
+    });
+    assert!(vcx.debug_bounds("v3-home-failed-title").is_none());
+    lib.close();
+}
+
+/// A name being typed when the library is let go of (a swap, quitting) is
+/// stored first: the shell blurs the field, then waits for Home to store it.
+#[gpui::test]
+fn a_title_being_typed_is_stored_before_the_library_is_let_go_of(cx: &mut TestAppContext) {
+    let (_dir, root, lib, book) = seed_library();
+    let (ws, home, vcx) = open_workspace(cx, &lib, &book);
+    let title_in = home.read_with(vcx, |h, _| h.title_input().clone());
+    vcx.update(|window, cx| {
+        window.focus(&title_in.focus_handle(cx), cx);
+        title_in.update(cx, |f, cx| f.set_text("换库前打的名字", cx));
+    });
+    drop(title_in);
+    drop(home);
+    drop(lib);
+    let reopened = reopen_library(&ws, vcx, root);
+    assert_eq!(
+        reopened.read_with(vcx, |h, cx| h.title_input().read(cx).text()),
+        "换库前打的名字"
+    );
+    let lib = library_of(vcx);
+    assert_eq!(
+        call(&lib, "book.get", json!({"book": book}))["name"],
+        "换库前打的名字"
+    );
+    lib.close();
+}
+
+/// A request to select the title of the book Home already shows is taken
+/// on the next frame, not left pending until the book changes.
+#[gpui::test]
+fn focusing_the_title_of_the_book_shown_is_not_left_pending(cx: &mut TestAppContext) {
+    let (_dir, _root, lib, book) = seed_library();
+    let (ws, home, vcx) = open_workspace(cx, &lib, &book);
+    let title_in = home.read_with(vcx, |h, _| h.title_input().clone());
+    vcx.update(|window, cx| {
+        let focus = ws.read(cx).focus_handle().clone();
+        window.focus(&focus, cx);
+        focus_project_title(&book, cx);
+    });
+    wait(vcx, "title focused", |vcx| {
+        vcx.update(|window, cx| title_in.focus_handle(cx).is_focused(window))
+    });
+    // Taken: a change of the book later does not take the caret again.
+    vcx.update(|window, cx| {
+        let focus = ws.read(cx).focus_handle().clone();
+        window.focus(&focus, cx);
+    });
+    call(
+        &lib,
+        "book.update",
+        json!({"book": book, "summary": "换一个简介"}),
+    );
+    wait(vcx, "the book changed", |vcx| {
+        home.read_with(vcx, |h, _| {
+            h.loaded.as_ref().is_some_and(|d| d.summary == "换一个简介")
+        })
+    });
+    assert!(!vcx.update(|window, cx| title_in.focus_handle(cx).is_focused(window)));
+    lib.close();
+}
+
+/// In a template's working copy (编辑模板的工作区) Home draws no source row,
+/// no 「另存为项目模板」 and no word lines at the top.
+#[gpui::test]
+fn a_templates_working_copy_hides_source_save_and_word_lines(cx: &mut TestAppContext) {
+    let (_dir, _root, lib, book) = seed_library();
+    let template = call(
+        &lib,
+        "project_template.save",
+        json!({"book": book, "name": "合成模板"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let copy = call(&lib, "project_template.edit", json!({"id": template}))["book"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let (ws, home, vcx) = open_workspace(cx, &lib, &book);
+    vcx.update(|_, cx| {
+        set_save_project_template(cx, |_, _, _| {});
+        home.update(cx, |_, cx| cx.notify());
+    });
+    wait(vcx, "the button for an ordinary project", |vcx| {
+        vcx.debug_bounds("v3-home-save-project-template").is_some()
+    });
+    assert!(!home.read_with(vcx, |h, _| h.template_workspace()));
+    vcx.update(|window, cx| ws.update(cx, |ws, cx| ws.open_book(&copy, window, cx)));
+    wait(vcx, "the working copy on Home", |vcx| {
+        ws.read_with(vcx, |ws, _| ws.book.id == copy)
+            && home.read_with(vcx, |h, _| h.template_workspace() && h.loaded.is_some())
+    });
+    assert!(vcx.debug_bounds("v3-home-project-template").is_some());
+    assert!(vcx.debug_bounds("v3-home-save-project-template").is_none());
+    assert!(vcx.debug_bounds("v3-home-template-source").is_none());
+    assert!(vcx.debug_bounds("v3-home-words").is_none());
+    assert!(vcx.debug_bounds("v3-home-today").is_none());
+    vcx.update(|_, cx| clear_save_project_template(cx));
+    lib.close();
 }

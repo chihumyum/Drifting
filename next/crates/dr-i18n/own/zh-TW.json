@@ -104,6 +104,7 @@
   },
   "projectHome": {
     "projectTemplate": {
+      "book": "成書",
       "fromTemplate": "來自「{{name}}」",
       "saveAs": "另存為專案範本",
       "source": "來源",

@@ -99,7 +99,12 @@ fn restore(cx: &Cx<'_>, input: RestoreIn) -> Result<Vec<Done>> {
             "project" => {
                 if !matches!(
                     target.id.as_str(),
-                    "source" | "agent" | "book" | "book/word_target" | "book/daily_word_target"
+                    "source"
+                        | "agent"
+                        | "book"
+                        | "book/on"
+                        | "book/word_target"
+                        | "book/daily_word_target"
                 ) && !target.id.starts_with("tabs/")
                 {
                     return Err(WsError::invalid("unsupported project history key"));

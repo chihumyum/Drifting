@@ -588,12 +588,10 @@ impl<'a> BookViewV3<'a> {
                 Some(cfg)
             }
         });
-        // An older book may still store a `root` (the book's start, gone
-        // 2026-11-15): it is not read; the book reads from the root.
-        let book = f.sub("book").map(|bf| ProjectBook {
-            word_target_set: bf.i64("word_target"),
-            daily_word_target_set: bf.i64("daily_word_target"),
-        });
+        // A book turned off keeps its targets: it reads as no book.
+        let book = Self::read_project_book(f.sub("book"))
+            .filter(|(on, _)| *on)
+            .map(|(_, book)| book);
         ProjectDefinition {
             source,
             agent,
@@ -629,6 +627,30 @@ impl<'a> BookViewV3<'a> {
     pub fn project(&self) -> ProjectDefinition {
         let v = self.doc.get_map(book_v3::PROJECT).get_deep_value();
         Self::read_project(Some(&v))
+    }
+
+    /// The book record `project.book` stores, on or off: its switch and
+    /// its two targets (`None`: the book was never turned on). For the
+    /// write that turns it on again; [`Self::project`] reads a book turned
+    /// off as none.
+    pub fn project_book_record(&self) -> Option<(bool, ProjectBook)> {
+        let v = self.doc.get_map(book_v3::PROJECT).get_deep_value();
+        Self::read_project_book(F(&v).sub("book"))
+    }
+
+    /// `project.book`: the switch `on` and the two targets (`kernel-v5.md`
+    /// §2). A record without `on` is on. An older book may still store a
+    /// `root` (the book's start, gone 2026-11-15): it is not read; the book
+    /// reads from the root.
+    fn read_project_book(f: Option<F<'_>>) -> Option<(bool, ProjectBook)> {
+        let f = f?;
+        Some((
+            f.bool("on").unwrap_or(true),
+            ProjectBook {
+                word_target_set: f.i64("word_target"),
+                daily_word_target_set: f.i64("daily_word_target"),
+            },
+        ))
     }
 
     /// Every tab record stored under `project.tabs`, sorted by `(pos, id)`:

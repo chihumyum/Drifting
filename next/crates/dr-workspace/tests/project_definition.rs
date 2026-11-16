@@ -730,3 +730,61 @@ fn two_devices_merged_are_on_the_same_tab() {
         "{on_a}"
     );
 }
+
+/// T2: turning the book off keeps its two targets in the project; turning
+/// it on again, after the project was opened anew too, brings them back.
+/// While it is off nothing reads them. Each switch is one undo step, and a
+/// target changed on another device while the book was off is there when
+/// it is turned on.
+#[test]
+fn turning_the_book_off_keeps_its_targets_for_when_it_is_on_again() {
+    let mut e = env();
+    let b = e.book();
+    let targets = |e: &Env| {
+        let p = e.out("project.get", json!({"book": b}));
+        (
+            p["book"]["word_target"].clone(),
+            p["book"]["daily_word_target"].clone(),
+        )
+    };
+    e.call(
+        "project.update",
+        json!({"book": b, "word_target": 4321, "daily_word_target": 12}),
+    );
+    e.call("project.update", json!({"book": b, "has_book": false}));
+    let off = e.out("project.get", json!({"book": b}));
+    assert!(off["book"].is_null(), "a book turned off reads as none");
+    assert_eq!(
+        e.out("book.sequence", json!({"book": b}))["has_book"],
+        false
+    );
+    assert!(
+        e.try_call("project.update", json!({"book": b, "word_target": 1}))
+            .is_err(),
+        "no targets are set while the book is off"
+    );
+
+    e.reopen();
+    assert!(e.out("project.get", json!({"book": b}))["book"].is_null());
+    e.call("project.update", json!({"book": b, "has_book": true}));
+    assert_eq!(targets(&e), (json!(4321), json!(12)));
+
+    // One undo turns it off again, the next one on, the targets kept.
+    e.ws().undo(&Actor::User).unwrap().unwrap();
+    assert!(e.out("project.get", json!({"book": b}))["book"].is_null());
+    e.ws().redo(&Actor::User).unwrap().unwrap();
+    assert_eq!(targets(&e), (json!(4321), json!(12)));
+
+    // Two devices: one turns the book off while the other sets a target.
+    let z = env();
+    sync(&e, &z);
+    e.call("project.update", json!({"book": b, "has_book": false}));
+    z.call("project.update", json!({"book": b, "word_target": 777}));
+    sync(&e, &z);
+    sync(&z, &e);
+    for dev in [&e, &z] {
+        assert!(dev.out("project.get", json!({"book": b}))["book"].is_null());
+    }
+    e.call("project.update", json!({"book": b, "has_book": true}));
+    assert_eq!(targets(&e), (json!(777), json!(12)));
+}

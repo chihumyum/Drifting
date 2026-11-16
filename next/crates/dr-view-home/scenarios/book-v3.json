@@ -81,7 +81,7 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "Untitled",
+        "label": "${books.0.name}",
         "timeout_ms": 10000
       }
     },
@@ -135,7 +135,7 @@
     {
       "app": "ui.press",
       "params": {
-        "label": "Untitled"
+        "label": "${books.0.name}"
       }
     },
     {
@@ -162,6 +162,31 @@
         "until": "ready",
         "state": {
           "/book/name": "T2 inline title",
+          "/dialog": false
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "T2 inline title",
+        "timeout_ms": 10000
+      },
+      "note": "标题框的读屏名字跟着项目名变"
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "escape"
+      },
+      "note": "回车进了梗概（作者四乙）；Esc 离开梗概，撤销回到工作区"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
           "/focus/workspace": true,
           "/dialog": false
         },

@@ -3,16 +3,25 @@
 ## 内核 v5 T2：作品主页就地编辑与「项目模板」块（2026-11-16）
 
 - **标题与梗概就地编辑，去掉「设定」对话框**：
-  - 作品主页顶部标题（`#v3-home-title-input`）与下面一段梗概（`#v3-home-synopsis-input`）改为照条目页标题/梗概点了就改、回车或失焦即存、空标题退回原名；删掉 `dr-view-home/src/v3_settings.rs`、打开它的「设定」按钮及不再使用的三个多语言键（`projectHome.views.settings`、`dashboard.hero.projectName`、`dashboard.sections.projectProfile`）。
-- **页面底部「项目模板」块**（`dr-view-home/src/project_template.rs`，九语键 `projectHome.projectTemplate.{title,saveAs,source,fromTemplate}`）：
-  - **来源**：`project.source.name` 非空时画「来自「模板名」」，`credit.author` 非空时带单个导出者署名（名章图标 + 名字），不画「改自」；没有 `source.name` 的旧测试种子不画这一行，避免露出内部模板 id。
-  - **成书与两个字数目标**：成书开关（`#v3-home-has-book-toggle`）关着时，主页顶上的整书字数与今日字数两行、以及块里的「全书目标」「每日目标」两行都不出现；本会话内记住关掉前的自定义目标，再打开成书时在同一次 `project.update` 里带回。
-  - **写给 Agent**：名字、说明、注意事项三栏（`#v3-home-agent-{name,description,instructions}-input`），改完走 `project.update` 更新 `project.agent`，Agent 结构上下文（`StructureContext::for_book`）随之更新。
-  - **逐处一步撤销**：标题、梗概、成书开关、全书目标、每日目标、写给 Agent 各处改完各是一次 `project.update`、一步撤销；旧 DX「设定框一次存完」随设定框一起退役。
-- **给 PT3 留的登记口**：
-  - `dr_view_home::{SaveProjectTemplateHost, set_save_project_template, clear_save_project_template, has_save_project_template}`：没人登记时「项目模板」块头不画「另存为项目模板」按钮；PT3 登记后显示按钮（砂笔 `MovableType` 图标），按下把当前工作区、库句柄与项目快照交给登记回调。
-  - `dr_view_home::focus_project_title(book_id, cx)`：供 PT3 新建「未命名」项目打开作品主页时聚焦并全选标题输入框，直接打字即起名。
-- **回归测试与真实窗口场景**：新增 `dr-view-home/tests/v5_t2_project_home.rs`（6 项），更新 `dr-view-home/tests/words_parity.rs` 改走就地目标框；`dr-view-home/scenarios/book-v3.json` 与 `book-history-v3.json` 切到 `/book/version: 5` 并覆盖新作品主页控件与就地改名一步撤销。
+  - 作品主页顶部标题（`#v3-home-title-input`）与下面一段梗概（`#v3-home-synopsis-input`）点了就改、离开即存、空标题退回原名；删掉 `dr-view-home/src/v3_settings.rs`、打开它的「设定」按钮及不再使用的三个多语言键（`projectHome.views.settings`、`dashboard.hero.projectName`、`dashboard.sections.projectProfile`）。
+  - **按键**（作者 2026-11-16 四乙）：标题里按回车，存下并跳进梗概（照条目页标题回车进正文）；标题末尾按 ↓ 也进梗概；Esc 放回存着的名字并离开（已在存或没存上时不放回，留着重试）。梗概、目标、写给 Agent 各框：回车（梗概是 ⌘↵）存下并离开，Esc 放回并离开，点别处存下。
+  - 标题框的读屏名字是项目名；名字是空的时候是框里显示的占位字「未命名」（条目页的标题也只显示占位字）。
+- **改了就存，照条目页标题的存法**（`dr-view-home/src/project_template.rs`，`dr_view_page::settlement`）：
+  - 标题、梗概、全书目标、每日目标、写给 Agent 三栏（一起算一处）、成书开关，每一处改完各是一次 `project.update`、一步撤销，在后台跑，经外壳的释放闸门（`settlement::register` / `accepts` / `write`）：换库、退出前外壳先让输入框失焦，再等主页把正在改的那一处存完（`Drafts::drain`）。
+  - 写入守着框里显示的那个值（`call_guarded` 加值守卫：`meta/name`、`meta/summary`、`project/book/word_target`、`project/book/daily_word_target`、`project/agent/{name,description,instructions}`），别处同时改过就不覆盖；成书开关是「设成开/关」，不加值守卫。
+  - **没存上时**：框里打的字留着，下面一行「未能保存」加「重试」（条目页标题的那两个字：`k4Pages.saveFailed`、`markdownShare.retry`）；「重试」照条目页，守着现在存着的值再写一次。别处改了这一处时，正在改、正在存或没存上的框不被盖掉。
+  - 梗概跟着主页的数字一起在后台读（`dr_view_stats::v3::load_at` 的 `summary`），不再每次书目版本变化在界面线程上同步读库；数字读到之前梗概框是空的。
+- **页面底部「项目模板」块**（九语键 `projectHome.projectTemplate.{title,saveAs,source,fromTemplate,book}`）：
+  - **来源**：`project.source.name` 非空时画「来自「模板名」」，`credit.author` 非空时带单个导出者署名（名章图标 + 名字），不画「改自」；没记模板名的不画这一行（作者 2026-11-16 一甲）。
+  - **成书**（`#v3-home-has-book-toggle`，字是 T2 自己的 `projectHome.projectTemplate.book`）关着时，主页顶上的整书字数与今日两行、块里的「全书目标」「每日目标」两行都不出现。关掉不丢目标：两个目标留在书里，再打开就回来（数据层，见下）。
+  - **全书目标、每日目标**：显示带千分位（照界面语言分组，中文 300,000、1,500）；输入照旧收逗号（也收界面语言自己的分组符号）；清空是 0（不设目标）；填了负数、字母，离开时悄悄退回原来的数（作者二甲）。
+  - **写给 Agent**：名字、说明、注意事项三栏（`#v3-home-agent-{name,description,instructions}-input`），三栏全清空就是删掉、不问（作者三甲）。
+- **成书关了再开，两个目标还在**（数据层，`dr-doc` 读写、`dr-workspace` 的 `project.update`；格式 5 没发布，直接改，[loro-schema.md](../loro-schema.md)）：`project.book` 存开关 `on` 和两个目标；关掉只把 `on` 写成 `false`，目标留着；读的那一面（`project.get`、`book.sequence`、外壳的 `Book`、帮手的结构说明、统计、写作日）照旧把关着的书读作没有成书，不给目标、不出字数。撤销分别登记 `book/on`、`book/word_target`、`book/daily_word_target`；第一次打开成书时整条 `book` 记录是新建的，撤销登记 `book`。主页里原来那张「本会话记住关掉前的目标」的运行期表删了。
+- **给 PT3 留的口**（PT3 只用不改）：
+  - 另存按钮的登记口：`dr_view_home::{SaveProjectTemplateHost, set_save_project_template, clear_save_project_template, has_save_project_template}`。没人登记时块头不画「另存为项目模板」；登记后画（砂笔 `MovableType` 图标），按下把 `SaveProjectTemplateHost { workspace, library, book_id }` 交给登记的回调。`workspace` 是外壳工作区的弱引用，`library` 是书库的弱引用（`dr_workspace::WeakWorkspace`），换库时不会拖住旧库；书从 `workspace` 读当时的那一份，不再给快照。**交给 PT3 的约束**：对话框里只留弱引用，要用时 `upgrade` 一下、用完就放（后台任务里也是），不要把升级得到的 `Workspace` 存进对话框；对话框关之前也不要拿着它。
+  - **编辑模板的工作区**：主页用 DW 的 `Workspace::is_working_copy` 自己认出它（打开这本书时读一次），这时不画来源那一行、另存按钮、顶上的字数和今日两行；PT3 不用登记什么。`Home::template_workspace()` 读这个开关（测试和 PT3 用）。
+  - `dr_view_home::focus_project_title(book_id, cx)`：PT3 新建「未命名」项目打开作品主页时，聚焦并全选标题框。请求在主页画出那本书的下一帧就取走，不再等书目版本变化（原来同一本书同一版本时一直滞留，之后改别处时才突然跳回标题）。
+- **回归测试与真实窗口场景**：`dr-view-home/tests/v5_t2_project_home.rs`；`dr-view-home/tests/words_parity.rs` 改走就地目标框；`dr-workspace/tests/project_definition.rs`（关了再开目标还在，重开项目以后也在）；`dr-agent-tools/tests/structure.rs`（Agent 那条路打开成书以后目标回来，关着时结构说明里没有目标）；`dr-view-home/scenarios/book-v3.json` 与 `book-history-v3.json` 是 `/book/version: 5`，标题框按项目名找，回车进梗概后 Esc 离开再撤销。
 
 ## 内核 v5 DW：成书没有起点、不编号（2026-11-15 夜里）
 
@@ -25,7 +34,7 @@
 - **整书字数与目标对齐单一成书顺序**：主页（`dr-view-home/src/v3.rs`）的整书字数、目标进度与今日/连续写作读数统一消费 `BookStructureV3::book_sequence()`（与成稿导出和章号一致，回归见 `dr-view-home/tests/words_parity.rs`）。
 - **关了「成书」的项目**（`project.book.is_none()`）：
   - 概览页隐藏整书字数、目标进度及今日字数/连续天数读数；没有本机最近打开记录时，「继续写」退回最近修改的活着的内容条目。
-  - 设定对话框（`dr-view-home/src/v3_settings.rs`）隐藏「全书目标」和「每日目标」两个输入框，保存名字与简介时不发送这两个目标字段。
+  - （已过时：设定对话框 2026-11-16 随 T2 去掉了，两个目标在「项目模板」块里，成书关着时不出现。）原来写的是：设定对话框（`dr-view-home/src/v3_settings.rs`）隐藏「全书目标」和「每日目标」两个输入框，保存名字与简介时不发送这两个目标字段。
 
 ## K4 G4 v3 主页入口交回与续接
 
@@ -46,6 +55,8 @@ kind，F6 也跳过 v3 记录，需要能保留 `entry + module` 的设备本机
 2026-11-08，和书架（[m01-shelf.md](m01-shelf.md)）在同一个分支 `chihumyum/m01-shelf-home-3bf938` 上：第一个里程碑，和第二轮（main `1652a95e` 之后：F3 的 `recent.*`、F5 的无框输入）。计划见 [modules.md 的 M02](../modules.md#阶段-2写作闭环)，产品规则见 [docs/project-home.md](../../project-home.md) 和 components.md 的「作品主页」。代码在 `next/crates/dr-view-home/`。
 
 ## 一句话
+
+> 已过时的部分（2026-11-16 内核 v5 T2）：从这里到「还没做的」是 2026-11-08 的原始记录。其中「设定」那一页（「概览 / 设定」多选一，写作计划和本书简介）已经去掉：名字和梗概在主页上就地改，两个目标在主页最下面「项目模板」块里，见本页最上面一节。
 
 没有激活的标签时，稿纸上就是这本书的作品主页：书名（可以在原地改）、字数和全书目标的进度、今天写了多少和连续几天、从哪接着写、每条故事线写到哪了、有哪些类目；另一页「设定」改全书目标、每日目标和本书简介。新建一行、帮手的签到卡片还没有（见「还没做的」）。
 
@@ -184,7 +195,7 @@ v3 读取和记录器。切换统一正确性验收由整合者安排，heavy �
 
 ## 统一条目 v4 与小文档分流（2026-11-13，T6）
 
-- **整书字数与目标进度走成书序列（[kernel-v4.md](../kernel-v4.md) §7）。** `dr_view_home::v3::Home` 复用 `dr_view_stats::v3::load_at`，整书字数只算成书序列里 `in_book == true`（「计入字数和导出」打开）的正文模块，和统计面板、书架、封面的字数一致；设定对话框改全书目标与每日目标后三处同步更新（`dr-view-home/tests/words_parity.rs`）。新建入口只看住处树上开关开着的活条目及其模板声明的动作。
+- **整书字数与目标进度走成书序列（[kernel-v4.md](../kernel-v4.md) §7）。** `dr_view_home::v3::Home` 复用 `dr_view_stats::v3::load_at`，整书字数只算成书序列里 `in_book == true`（「计入字数和导出」打开）的正文模块，和统计面板、书架、封面的字数一致；改全书目标与每日目标后三处同步更新（当时在设定对话框里改，2026-11-16 起是「项目模板」块里的两个目标框；`dr-view-home/tests/words_parity.rs`）。新建入口只看住处树上开关开着的活条目及其模板声明的动作。
 - **事件隔离（[kernel-v4.md](../kernel-v4.md) §8）。** 主页直接订阅 `WsEvent::Stats`（别的设备或外部记下的写作日不再靠外壳重读书目文档传递）及正文索引更新，忽略 `WsEvent::Checkpoints`：记一个写作日只唤醒统计、书架、作品主页，外壳（`dr-shell`）和打开着的正文编辑器（`dr-editor`）不动；存一个快照点则连作品主页也不重读（`dr-view-home/tests/quiet.rs`）。
 
 ## 内核 v4 收尾（2026-11-13）
@@ -192,6 +203,8 @@ v3 读取和记录器。切换统一正确性验收由整合者安排，heavy �
 作品主页的新建按钮来自模板声明的动作；同名的动作多于一个时（几处成书、每条故事线各有「新建章节」），按钮上带上声明它的层级的标题（「新建章节 · 书稿」），只有一个时照旧（`v3::action_label`，测试 `tests/v3.rs` 的 `same_named_actions_carry_the_titles_of_their_levels`）。
 
 ## 内核 v5：设定一次存完（2026-11-15，DX 修补）
+
+> 已过时（2026-11-16 T2）：设定对话框去掉了，主页每一处各是一次 `project.update`、一步撤销（本页最上面一节）。`ProjectUpdateIn` 的 `name`、`summary` 照旧；下面说的 `settings_save_in_one_step_or_not_at_all` 随 `v3_settings.rs` 删了，「待协调」那一条也不再成立。下面「同一轮在项目定义的数据层」那几条里的成书起点 2026-11-15 夜里已经去掉（DW）。
 
 **大白话。** 主页的设定框以前存一次要调两条命令（书名和简介走 `book.update`，两个目标走 `project.update`），撤销要按两次；第二条失败时第一条已经存下，只存了一半。现在一次 `project.update`：它多收 `name`、`summary`（和 `book.update` 一样的写法），和目标、帮手说明在同一次提交里写，一步撤销，失败就什么都没存。
 

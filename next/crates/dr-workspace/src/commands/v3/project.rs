@@ -350,32 +350,35 @@ op! {
             Some(Some(cfg)) => Some(convert(cfg)?),
         };
 
-        let next_book: Option<m::ProjectBook> = match input.has_book {
-            Some(false) => {
-                if input.word_target.is_some() || input.daily_word_target.is_some() {
-                    return Err(WsError::invalid(
-                        "cannot set word targets while turning the book off",
-                    ));
-                }
-                None
-            }
-            Some(true) | None => match &proj.book {
-                Some(cur) => Some(m::ProjectBook {
-                    word_target_set: input.word_target.unwrap_or(cur.word_target_set),
-                    daily_word_target_set: input
-                        .daily_word_target
-                        .unwrap_or(cur.daily_word_target_set),
-                }),
-                None if input.has_book == Some(true) => Some(m::ProjectBook {
-                    word_target_set: input.word_target.flatten(),
-                    daily_word_target_set: input.daily_word_target.flatten(),
-                }),
-                None if input.word_target.is_some() || input.daily_word_target.is_some() => {
-                    return Err(WsError::invalid("project has no book enabled"));
-                }
-                None => None,
-            },
+        // `project.book` holds the switch and the two targets: a book
+        // turned off keeps its targets (they are not read while it is off).
+        let stored = v.project_book_record();
+        let on = stored.as_ref().is_some_and(|(on, _)| *on);
+        let next_on = input.has_book.unwrap_or(on);
+        let sets_targets = input.word_target.is_some() || input.daily_word_target.is_some();
+        if !next_on && sets_targets {
+            return Err(WsError::invalid(if input.has_book == Some(false) {
+                "cannot set word targets while turning the book off"
+            } else {
+                "project has no book enabled"
+            }));
+        }
+        let targets = stored.as_ref().map(|(_, b)| b.clone()).unwrap_or_default();
+        let next_targets = m::ProjectBook {
+            word_target_set: input.word_target.unwrap_or(targets.word_target_set),
+            daily_word_target_set: input
+                .daily_word_target
+                .unwrap_or(targets.daily_word_target_set),
         };
+        // What changes in `project.book`: the whole record when it is made
+        // (the book turned on the first time), else the switch and each
+        // target on their own.
+        let make_book = stored.is_none() && next_on;
+        let on_changed = stored.is_some() && next_on != on;
+        let wt_changed = stored.is_some() && next_targets.word_target_set != targets.word_target_set;
+        let dwt_changed = stored.is_some()
+            && next_targets.daily_word_target_set != targets.daily_word_target_set;
+        let book_changed = make_book || on_changed || wt_changed || dwt_changed;
 
         let meta = v.meta();
         let name = input
@@ -385,7 +388,6 @@ op! {
             .filter(|n| *n != meta.name);
         let summary = input.summary.clone().filter(|s| *s != meta.summary);
         let agent_changed = next_agent != proj.agent;
-        let book_changed = next_book != proj.book;
         let meta_changed = name.is_some() || summary.is_some();
         if !agent_changed && !book_changed && !meta_changed {
             cx.undo_nothing();
@@ -409,25 +411,19 @@ op! {
             replaced.push(rec(CollectionV3::Project, "agent"));
             undo_keys.push(key("project", "agent"));
         }
-        let book_sub_changes = match (&proj.book, &next_book) {
-            (Some(cur), Some(next)) if book_changed => Some((
-                cur.word_target_set != next.word_target_set,
-                cur.daily_word_target_set != next.daily_word_target_set,
-            )),
-            _ => None,
-        };
-        if let Some((wt_ch, dwt_ch)) = book_sub_changes {
-            if wt_ch {
-                replaced.push(rec(CollectionV3::Project, "book").at(["word_target"]));
-                undo_keys.push(key("project", "book/word_target"));
-            }
-            if dwt_ch {
-                replaced.push(rec(CollectionV3::Project, "book").at(["daily_word_target"]));
-                undo_keys.push(key("project", "book/daily_word_target"));
-            }
-        } else if book_changed {
+        if make_book {
             replaced.push(rec(CollectionV3::Project, "book"));
             undo_keys.push(key("project", "book"));
+        }
+        for (changed, sub) in [
+            (on_changed, "on"),
+            (wt_changed, "word_target"),
+            (dwt_changed, "daily_word_target"),
+        ] {
+            if changed {
+                replaced.push(rec(CollectionV3::Project, "book").at([sub]));
+                undo_keys.push(key("project", format!("book/{sub}")));
+            }
         }
 
         let (new_name, new_summary) = (name.clone(), summary.clone());
@@ -442,15 +438,17 @@ op! {
             if agent_changed {
                 w.agent(next_agent.as_ref())?;
             }
-            if let (Some((wt_ch, dwt_ch)), Some(next)) = (book_sub_changes, next_book.as_ref()) {
-                if wt_ch {
-                    w.book_word_target(next.word_target_set)?;
-                }
-                if dwt_ch {
-                    w.book_daily_word_target(next.daily_word_target_set)?;
-                }
-            } else if book_changed {
-                w.book(next_book.as_ref())?;
+            if make_book {
+                w.book(Some(&next_targets))?;
+            }
+            if on_changed {
+                w.book_on(next_on)?;
+            }
+            if wt_changed {
+                w.book_word_target(next_targets.word_target_set)?;
+            }
+            if dwt_changed {
+                w.book_daily_word_target(next_targets.daily_word_target_set)?;
             }
             Ok(())
         })?;

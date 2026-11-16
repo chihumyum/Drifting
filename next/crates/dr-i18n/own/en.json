@@ -111,6 +111,7 @@
   },
   "projectHome": {
     "projectTemplate": {
+      "book": "Manuscript",
       "fromTemplate": "From “{{name}}”",
       "saveAs": "Save as project template",
       "source": "Source",

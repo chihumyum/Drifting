@@ -111,6 +111,7 @@
   },
   "projectHome": {
     "projectTemplate": {
+      "book": "Manuskript",
       "fromTemplate": "Aus „{{name}}“",
       "saveAs": "Als Projektvorlage speichern",
       "source": "Quelle",

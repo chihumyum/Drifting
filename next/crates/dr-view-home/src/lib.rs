@@ -2,7 +2,8 @@
 mod project_template;
 pub mod v3;
 
-use std::collections::HashMap;
+pub use project_template::Field;
+
 use std::rc::Rc;
 
 use chrono::NaiveDate;
@@ -26,13 +27,15 @@ pub fn today(cx: &App) -> NaiveDate {
         .unwrap_or_else(|| chrono::Local::now().date_naive())
 }
 
-/// Host context passed to the registered 「另存为项目模板」 dialog opener (PT3).
+/// What the registered 「另存为项目模板」 opener (PT3) is given. Both
+/// handles are weak, so a dialog keeping this does not hold the library
+/// through a swap: upgrade them for one call (or one background job) and
+/// let go; read the book from the workspace when it is needed.
 #[derive(Clone)]
 pub struct SaveProjectTemplateHost {
     pub workspace: WeakEntity<dr_shell::Workspace>,
-    pub library: dr_workspace::Workspace,
+    pub library: dr_workspace::WeakWorkspace,
     pub book_id: String,
-    pub book: Rc<dr_shell::book::Book>,
 }
 
 type OpenSaveProjectTemplate = Rc<dyn Fn(SaveProjectTemplateHost, &mut Window, &mut App)>;
@@ -77,40 +80,15 @@ pub(crate) fn open_save_project_template(
     }
 }
 
-/// Remembers `(word_target_set, daily_word_target_set)` per book while `成书`
-/// is turned off in this session so turning `成书` back on restores them in one
-/// `project.update`. Pure integers/strings only; never holds a library handle.
 #[derive(Default)]
-struct RememberedBookTargets(HashMap<String, (Option<i64>, Option<i64>)>);
-
-impl Global for RememberedBookTargets {}
-
-pub(crate) fn remember_book_targets(
-    book_id: &str,
-    word_target_set: Option<i64>,
-    daily_word_target_set: Option<i64>,
-    cx: &mut App,
-) {
-    cx.default_global::<RememberedBookTargets>()
-        .0
-        .insert(book_id.to_owned(), (word_target_set, daily_word_target_set));
-}
-
-pub(crate) fn remembered_book_targets(
-    book_id: &str,
-    cx: &App,
-) -> Option<(Option<i64>, Option<i64>)> {
-    cx.try_global::<RememberedBookTargets>()
-        .and_then(|r| r.0.get(book_id).copied())
-}
-
-#[derive(Default)]
-struct PendingTitleFocus(Option<String>);
+pub(crate) struct PendingTitleFocus(Option<String>);
 
 impl Global for PendingTitleFocus {}
 
 /// Requests that Project Home focus and select the inline title input once
-/// `book_id` opens on Project Home (for PT3's newly created 「未命名」 project).
+/// `book_id` opens on Project Home (for PT3's newly created 「未命名」 project):
+/// taken on the first frame Home shows that book, also when it shows it
+/// already.
 pub fn focus_project_title(book_id: impl Into<String>, cx: &mut App) {
     cx.default_global::<PendingTitleFocus>().0 = Some(book_id.into());
 }

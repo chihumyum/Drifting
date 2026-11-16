@@ -102,6 +102,7 @@
   },
   "projectHome": {
     "projectTemplate": {
+      "book": "成书",
       "fromTemplate": "来自「{{name}}」",
       "saveAs": "另存为项目模板",
       "source": "来源",

@@ -22,6 +22,7 @@ dr-model.workspace = true
 dr-shell.workspace = true
 dr-store.workspace = true
 dr-ui.workspace = true
+dr-view-page.workspace = true
 dr-view-shelf.workspace = true
 dr-view-stats.workspace = true
 dr-workspace.workspace = true

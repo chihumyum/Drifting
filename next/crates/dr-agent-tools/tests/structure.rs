@@ -852,3 +852,62 @@ fn v5_structure_projects_book_and_tabs_and_bounds_heavy_seed_size() {
     assert!(!heavy_ctx.templates.is_empty());
     heavy_ws.close();
 }
+
+/// A book turned off keeps its two targets: the structure has none while it
+/// is off, and the Agent turning it on again (after the project was opened
+/// anew) brings them back (T2, `kernel-v5.md` §2 「项目定义里有什么」).
+#[test]
+fn the_agent_turning_the_book_on_again_brings_its_targets_back() {
+    let f = Fixture::new();
+    f.out(
+        "project.update",
+        json!({"book": f.book, "word_target": 90_000, "daily_word_target": 2_400}),
+    );
+    f.out("project.update", json!({"book": f.book, "has_book": false}));
+    assert!(f.context().project_book.is_none());
+    assert!(f.out("project.get", json!({"book": f.book}))["book"].is_null());
+    f.ws.close();
+    let directory = Arc::clone(&f._dir);
+    let book = f.book.clone();
+    drop(f);
+    let ws = Workspace::open_dir(directory.path(), "k6-structure-reopen").unwrap();
+    let reopened = Fixture {
+        ws,
+        book,
+        entry: String::new(),
+        doc: String::new(),
+        _dir: directory,
+    };
+    assert!(
+        StructureContext::for_book(&reopened.ws, &reopened.book, None)
+            .unwrap()
+            .unwrap()
+            .project_book
+            .is_none()
+    );
+    let tools = AgentTools::new();
+    reopened
+        .invoke(&tools, "project.get", json!({"book": reopened.book}))
+        .unwrap();
+    reopened
+        .invoke(
+            &tools,
+            "project.update",
+            json!({"book": reopened.book, "has_book": true}),
+        )
+        .unwrap();
+    let project = reopened.out("project.get", json!({"book": reopened.book}));
+    assert_eq!(project["book"]["word_target"], 90_000);
+    assert_eq!(project["book"]["daily_word_target"], 2_400);
+    assert_eq!(
+        StructureContext::for_book(&reopened.ws, &reopened.book, None)
+            .unwrap()
+            .unwrap()
+            .project_book,
+        Some(dr_agent_tools::structure::ProjectBookSummary {
+            word_target: Some(90_000),
+            daily_word_target: Some(2_400),
+        })
+    );
+    reopened.ws.close();
+}

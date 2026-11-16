@@ -193,7 +193,8 @@ pub fn create(
 pub struct Home {
     pub(crate) ws: WeakEntity<Workspace>,
     pub(crate) lib: Option<Library>,
-    source: Option<Rc<Book>>,
+    /// The book the page's numbers ([`Self::loaded`]) are read from.
+    pub(crate) source: Option<Rc<Book>>,
     pub loaded: Option<Loaded>,
     recent: Vec<RecentPage>,
     task: Option<Task<()>>,
@@ -211,14 +212,16 @@ impl Home {
         self.generation
     }
 
-    /// Whether an inline `project.update` write is currently in flight.
-    pub fn is_saving(&self) -> bool {
-        self.inline.pending_saves > 0
-    }
-
     /// Current `成书` (`project.book`) state synced or optimistically flipped on Home.
     pub fn has_book(&self) -> bool {
-        self.inline.stored_has_book
+        self.inline.has_book
+    }
+
+    /// Whether the book shown is a template's working copy (编辑模板的工作区,
+    /// DW's `Workspace::is_working_copy`): Home then draws no source row, no
+    /// 「另存为项目模板」 and no word lines at the top.
+    pub fn template_workspace(&self) -> bool {
+        self.inline.template_copy
     }
 
     pub fn title_input(&self) -> &Entity<TextArea> {
@@ -252,24 +255,29 @@ impl Home {
     pub fn new(ws: WeakEntity<Workspace>, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let lib = cx.try_global::<Services>().and_then(|s| s.library.clone());
         let (inline, mut live) = crate::project_template::InlineState::new(window, cx);
+        // Its fields are stored as an entry page's title is: through the
+        // shell's release gate.
+        if let Some(lib) = &lib {
+            dr_view_page::settlement::register(lib, window.window_handle(), cx);
+        }
+        live.push(cx.observe_global::<crate::PendingTitleFocus>(|_, cx| cx.notify()));
         live.push(cx.observe_global::<dr_view_stats::WritingDaysChanged>(|_, cx| cx.notify()));
         live.push(cx.observe_global::<LiveWords>(|_, cx| cx.notify()));
         cx.defer_in(window, |h, window, cx| {
             if let Some(ws) = h.ws.upgrade() {
                 let book = ws.read(cx).book.clone();
-                h.sync_book(&book, window, cx);
-                h._live
-                    .push(cx.observe_in(&ws, window, |h, ws, window, cx| {
-                        let book = ws.read(cx).book.clone();
-                        let changed = h.source.as_ref().is_none_or(|s| !Rc::ptr_eq(s, &book))
-                            || book
-                                .v3()
-                                .is_some_and(|v| h.inline.synced_revision() != v.revision);
-                        if changed {
-                            h.sync_book(&book, window, cx);
-                            cx.notify();
-                        }
-                    }));
+                h.sync_book(&book, cx);
+                h._live.push(cx.observe_in(&ws, window, |h, ws, _, cx| {
+                    let book = ws.read(cx).book.clone();
+                    let changed = h.source.as_ref().is_none_or(|s| !Rc::ptr_eq(s, &book))
+                        || book
+                            .v3()
+                            .is_some_and(|v| h.inline.synced_revision() != v.revision);
+                    if changed {
+                        h.sync_book(&book, cx);
+                        cx.notify();
+                    }
+                }));
             }
         });
         let mut this = Self {
@@ -332,6 +340,11 @@ impl Home {
     }
 
     fn reload(&mut self, book: Rc<Book>, cx: &mut Context<Self>) {
+        // While the shell lets go of the library no new read takes it up
+        // (the page is let go of next).
+        if dr_shell::release::is_releasing(cx) {
+            return;
+        }
         let Some(lib) = self.lib.clone() else {
             return;
         };
@@ -368,6 +381,7 @@ impl Home {
                     Ok((loaded, recent)) => {
                         h.loaded = Some(loaded);
                         h.recent = recent;
+                        h.sync_synopsis(cx);
                     }
                     Err(error) => {
                         log::warn!("v3 home read failed: {error}");
@@ -404,7 +418,19 @@ impl Render for Home {
             .upgrade()
             .map(|ws| ws.read(cx).book.clone())
             .unwrap_or_default();
-        self.sync_book(&book, window, cx);
+        self.sync_book(&book, cx);
+        // PT3's new project: its title takes the caret, selected, on the
+        // first frame Home shows it (also when it shows it already).
+        if !book.id.is_empty()
+            && self.inline.synced_book_id == book.id
+            && crate::take_pending_title_focus(&book.id, cx)
+        {
+            let field = self.inline.title.clone();
+            window.defer(cx, move |window, cx| {
+                window.focus(&field.focus_handle(cx), cx);
+                field.update(cx, |f, cx| f.select_all_text(cx));
+            });
+        }
         if book.v3().is_some()
             && (self.source.as_ref().is_none_or(|s| !Rc::ptr_eq(s, &book))
                 || (self.stale && self.task.is_none()))
@@ -415,7 +441,7 @@ impl Render for Home {
         let locale = Settings::locale(cx);
         let synced_this_book = !book.id.is_empty() && self.inline.synced_book_id == book.id;
         let has_book = if synced_this_book {
-            self.inline.stored_has_book
+            self.inline.has_book
         } else {
             self.loaded
                 .as_ref()
@@ -424,7 +450,7 @@ impl Render for Home {
                 .unwrap_or(true)
         };
         let effective_word_target = if synced_this_book {
-            (self.inline.stored_word_target > 0).then_some(self.inline.stored_word_target)
+            (self.inline.targets_base[0] > 0).then_some(self.inline.targets_base[0])
         } else {
             self.loaded
                 .as_ref()
@@ -432,8 +458,7 @@ impl Render for Home {
                 .filter(|n| *n > 0)
         };
         let effective_daily_target = if synced_this_book {
-            (self.inline.stored_daily_word_target > 0)
-                .then_some(self.inline.stored_daily_word_target)
+            (self.inline.targets_base[1] > 0).then_some(self.inline.targets_base[1])
         } else {
             self.loaded
                 .as_ref()
@@ -462,8 +487,17 @@ impl Render for Home {
                 )
             })
             .unwrap_or_else(|| t(cx, keys::common::COUNTING));
-        let untitled = t(cx, keys::common::UNTITLED);
+        // The title field is named for the project; without a name, as the
+        // placeholder it shows (an entry's title shows only that).
+        let title_label: gpui::SharedString = match book.name.trim() {
+            "" => t(cx, keys::common::UNTITLED),
+            name => name.to_owned().into(),
+        };
         let synopsis_placeholder = t(cx, keys::chapter_editor::SYNOPSIS_PLACEHOLDER);
+        // A template's working copy has no word lines at the top.
+        let word_lines = has_book && !self.inline.template_copy;
+        let title_failed = self.failed_line(crate::Field::Title, window, cx);
+        let synopsis_failed = self.failed_line(crate::Field::Synopsis, window, cx);
         let mut column = div()
             .w_full()
             .pt(px(64.0))
@@ -484,12 +518,13 @@ impl Render for Home {
                     .id("v3-home-title-input")
                     .debug_selector(|| "v3-home-title-input".into())
                     .role(gpui::Role::TextInput)
-                    .aria_label(untitled)
+                    .aria_label(title_label)
                     .font_role(Role::Prose)
                     .type_px(34.0, 44.0)
                     .text_color(p.ink(1).solid())
                     .child(self.inline.title.clone()),
             )
+            .children(title_failed)
             .child(
                 div()
                     .id("v3-home-synopsis-input")
@@ -501,8 +536,9 @@ impl Render for Home {
                     .type_px(16.0, 26.0)
                     .text_color(p.ink(2).solid())
                     .child(self.inline.synopsis.clone()),
-            );
-        if !self.error && has_book {
+            )
+            .children(synopsis_failed);
+        if !self.error && word_lines {
             column = column.child(
                 div()
                     .id("v3-home-words")
@@ -527,7 +563,7 @@ impl Render for Home {
             );
         }
         if let Some(loaded) = &self.loaded {
-            if has_book {
+            if word_lines {
                 let today = dr_view_stats::model::today_words(
                     &loaded.days,
                     dr_view_stats::today_live(&book.id, cx),

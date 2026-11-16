@@ -690,6 +690,7 @@
     },
     "kicker": "作品ホーム",
     "projectTemplate": {
+      "book": "原稿",
       "fromTemplate": "「{{name}}」から",
       "saveAs": "プロジェクトテンプレートとして保存",
       "source": "元のテンプレート",

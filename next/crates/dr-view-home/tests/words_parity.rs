@@ -378,7 +378,7 @@ fn wait(cx: &mut VisualTestContext, stage: &str, done: impl Fn(&mut VisualTestCo
 }
 
 #[gpui::test]
-fn home_settings_save_word_targets_across_home_stats_and_shelf(cx: &mut TestAppContext) {
+fn home_word_targets_stored_inline_reach_home_stats_and_shelf(cx: &mut TestAppContext) {
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path().join("library");
     let store = dr_store::Library::open(&root, library_options("test")).unwrap();

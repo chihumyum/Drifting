@@ -1,11 +1,20 @@
-//! Inline header fields (title, synopsis) and bottom 「项目模板」 block for
-//! Project Home (`kernel-v5.md` §2 & §3, `v5-tracks.md` T2).
+//! Inline header fields (title, synopsis) and the bottom 「项目模板」 block
+//! of Project Home (`kernel-v5.md` §2 & §3, `v5-tracks.md` T2).
+//!
+//! Every field is stored the way an entry page's title is (`dr-view-page`'s
+//! `entry_head.rs`): leaving it stores it, one `project.update` and one undo
+//! step each, off the main thread through the shell's release gate
+//! ([`settlement`]) and held to the value the field showed. A write that
+//! fails keeps what was typed, with 「未能保存」 and 「重试」 under the field.
+//! A value the book changes elsewhere shows up unless the author is editing
+//! that field or a write of theirs to it is pending or refused. Before the
+//! shell lets go of the library it blurs the fields, then drains them
+//! ([`Drafts`]): a field being typed is stored first.
 
-use std::collections::HashSet;
 use std::rc::Rc;
 
-use dr_i18n::keys;
-use dr_shell::{book::Book, t};
+use dr_i18n::{Locale, keys, number::grouped};
+use dr_shell::{Settings, book::Book, t};
 use dr_ui::{
     Theme,
     components::{Button, Switch},
@@ -15,39 +24,89 @@ use dr_ui::{
     style::DrStyled as _,
     tokens::Palette,
 };
-use dr_workspace::{
-    Actor, Workspace as Library, WsError,
-    commands::v3::{
-        project::{ProjectUpdate, ProjectUpdateIn},
-        types::TemplateAgentConfig,
-    },
-};
+use dr_view_page::settlement::{self, Drafts, Drain};
+use dr_workspace::{Actor, RecordKey, Workspace as Library, WritePreconditions, WsError};
 use gpui::{
     AnyElement, AppContext as _, Context, Entity, Focusable as _, InteractiveElement as _,
     IntoElement, ParentElement as _, SharedString, StatefulInteractiveElement as _, Styled as _,
     Subscription, Window, div, prelude::FluentBuilder as _, px,
 };
+use serde_json::{Value, json};
 
 use crate::v3::Home;
 
+/// A part of Project Home stored on its own: one `project.update`, one
+/// undo step.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum AgentField {
-    Name,
-    Description,
-    Instructions,
+pub enum Field {
+    Title,
+    Synopsis,
+    WordTarget,
+    DailyTarget,
+    /// The three 「写给 Agent」 fields, stored together.
+    Agent,
+    /// The 「成书」 switch.
+    HasBook,
 }
 
+impl Field {
+    pub const ALL: [Field; 6] = [
+        Field::Title,
+        Field::Synopsis,
+        Field::WordTarget,
+        Field::DailyTarget,
+        Field::Agent,
+        Field::HasBook,
+    ];
+
+    /// The part of element ids naming it (`v3-home-failed-<name>`).
+    pub fn name(self) -> &'static str {
+        match self {
+            Field::Title => "title",
+            Field::Synopsis => "synopsis",
+            Field::WordTarget => "word-target",
+            Field::DailyTarget => "daily-target",
+            Field::Agent => "agent",
+            Field::HasBook => "has-book",
+        }
+    }
+
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+
+/// Where a field's write stands.
+#[derive(Clone, Copy, Debug, Default)]
+struct Save {
+    writing: bool,
+    failed: bool,
+    /// Stored; the book has not said so yet.
+    awaiting: bool,
+}
+
+/// The stored values the fields show (what a write is held to), and where
+/// each field's write stands.
 pub(crate) struct InlineState {
     pub(crate) synced_book_id: String,
     synced_revision: String,
-    pub(crate) pending_saves: usize,
-    stale_revisions: HashSet<String>,
-    pub(crate) stored_title: String,
-    pub(crate) stored_synopsis: String,
-    pub(crate) stored_has_book: bool,
-    pub(crate) stored_word_target: i64,
-    pub(crate) stored_daily_word_target: i64,
-    pub(crate) stored_agent: Option<TemplateAgentConfig>,
+    /// The book is a template's working copy (编辑模板的工作区, DW's
+    /// `Workspace::is_working_copy`).
+    pub(crate) template_copy: bool,
+    title_base: String,
+    synopsis_base: String,
+    /// Read off the main thread with the page's numbers: until they are
+    /// in, the synopsis shows nothing of this book.
+    synopsis_known: bool,
+    /// The whole-book and daily targets as shown (`0`: off).
+    pub(crate) targets_base: [i64; 2],
+    /// What `project.book` stores for them (`None`: the default).
+    targets_raw: [Option<i64>; 2],
+    agent_base: [String; 3],
+    book_base: bool,
+    /// 「成书」 as the switch shows it: what the author chose last.
+    pub(crate) has_book: bool,
+    saves: [Save; 6],
     pub(crate) title: Entity<TextArea>,
     pub(crate) synopsis: Entity<TextArea>,
     pub(crate) word_target: Entity<TextField>,
@@ -57,47 +116,90 @@ pub(crate) struct InlineState {
     pub(crate) agent_instructions: Entity<TextArea>,
 }
 
-fn normalize_agent(
-    name: String,
-    description: String,
-    instructions: String,
-) -> Option<TemplateAgentConfig> {
-    if name.is_empty() && description.is_empty() && instructions.is_empty() {
-        None
-    } else {
-        Some(TemplateAgentConfig {
-            name,
-            description,
-            instructions,
-        })
-    }
+/// A target as the field shows it: grouped as the interface language
+/// groups numbers (300,000).
+fn target_text(n: i64, locale: Locale) -> String {
+    grouped(n.max(0) as u64, locale)
 }
 
-fn parse_word_target(raw: &str) -> Option<i64> {
+/// What the author typed in a target field, as a count: empty is `0`
+/// (no target); commas and the language's own grouping are allowed; anything
+/// else (a negative number, letters) is not a count.
+pub(crate) fn parse_target(raw: &str, locale: Locale) -> Option<i64> {
     let trimmed = raw.trim();
     if trimmed.is_empty() {
         return Some(0);
     }
+    let group = grouped(1_000_000, locale)
+        .chars()
+        .find(|c| !c.is_ascii_digit());
     trimmed
-        .replace(',', "")
+        .chars()
+        .filter(|c| *c != ',' && Some(*c) != group && !c.is_whitespace())
+        .collect::<String>()
         .parse::<i64>()
         .ok()
         .filter(|&n| n >= 0)
 }
 
-fn read_book_summary(lib: Option<&Library>, book_id: &str) -> String {
-    let Some(lib) = lib else {
-        return String::new();
+/// The values a guard accepts for a text the field showed: an empty one
+/// may also be stored as nothing.
+fn shown_text(text: &str) -> Vec<Value> {
+    if text.is_empty() {
+        vec![json!(""), Value::Null]
+    } else {
+        vec![json!(text)]
+    }
+}
+
+/// One write of one field: its `project.update` arguments, the values it
+/// is held to and what it stores.
+struct Edit {
+    input: serde_json::Map<String, Value>,
+    /// `(key, shown, edited)`: the stored value at `key` must be one of
+    /// `shown` (or already `edited`).
+    guards: Vec<(RecordKey, Vec<Value>, Value)>,
+    sent: Sent,
+}
+
+/// What was sent, to settle the field when it is stored.
+enum Sent {
+    /// As typed, and as stored (trimmed).
+    Title(String, String),
+    Synopsis(String),
+    Target(usize, String, i64),
+    Agent([String; 3]),
+    HasBook(bool),
+}
+
+/// The guard of one write: each value as the field showed it (`retry`: as
+/// stored now, read just before the write), or already the edited one.
+fn held(
+    lib: &Library,
+    book: &str,
+    guards: Vec<(RecordKey, Vec<Value>, Value)>,
+    retry: bool,
+) -> Result<WritePreconditions, WsError> {
+    let doc = format!("book:{book}");
+    let now = if retry && !guards.is_empty() {
+        let keys: Vec<RecordKey> = guards.iter().map(|(k, _, _)| k.clone()).collect();
+        Some(lib.observe_records(&doc, &keys)?)
+    } else {
+        None
     };
-    let Ok(parsed) = dr_model::id::BookId::parse(book_id) else {
-        return String::new();
+    let mut pre = WritePreconditions {
+        require_all: false,
+        ..WritePreconditions::default()
     };
-    lib.read_book_v3(book_id, move |doc, _| {
-        let bb = dr_doc::v3::BorrowedBookV3::new(doc, &parsed)
-            .map_err(|e| WsError::Invalid(e.to_string()))?;
-        Ok(bb.view().meta().summary)
-    })
-    .unwrap_or_default()
+    for (i, (key, shown, edited)) in guards.into_iter().enumerate() {
+        let mut any = match &now {
+            Some(now) => vec![now[i].value.clone()],
+            None => shown,
+        };
+        any.push(edited);
+        pre = pre.with_value(doc.clone(), key, any);
+    }
+    Ok(pre)
 }
 
 impl InlineState {
@@ -124,20 +226,27 @@ impl InlineState {
 
         let subs = vec![
             cx.subscribe_in(&title, window, Home::on_title_event),
+            // ↓ at the end of the title goes on to the synopsis.
             cx.subscribe_in(&title, window, |home, _, _: &AreaEvent, window, cx| {
                 home.inline.synopsis.focus_handle(cx).focus(window, cx);
             }),
-            cx.subscribe_in(&synopsis, window, Home::on_synopsis_event),
-            cx.subscribe_in(&word_target, window, Home::on_word_target_event),
-            cx.subscribe_in(&daily_word_target, window, Home::on_daily_target_event),
+            cx.subscribe_in(&synopsis, window, |h, _, ev, w, cx| {
+                h.on_field_event(Field::Synopsis, 0, ev, w, cx)
+            }),
+            cx.subscribe_in(&word_target, window, |h, _, ev, w, cx| {
+                h.on_field_event(Field::WordTarget, 0, ev, w, cx)
+            }),
+            cx.subscribe_in(&daily_word_target, window, |h, _, ev, w, cx| {
+                h.on_field_event(Field::DailyTarget, 0, ev, w, cx)
+            }),
             cx.subscribe_in(&agent_name, window, |h, _, ev, w, cx| {
-                h.on_agent_event(AgentField::Name, ev, w, cx);
+                h.on_field_event(Field::Agent, 0, ev, w, cx)
             }),
             cx.subscribe_in(&agent_description, window, |h, _, ev, w, cx| {
-                h.on_agent_event(AgentField::Description, ev, w, cx);
+                h.on_field_event(Field::Agent, 1, ev, w, cx)
             }),
             cx.subscribe_in(&agent_instructions, window, |h, _, ev, w, cx| {
-                h.on_agent_event(AgentField::Instructions, ev, w, cx);
+                h.on_field_event(Field::Agent, 2, ev, w, cx)
             }),
         ];
 
@@ -145,14 +254,19 @@ impl InlineState {
         let state = Self {
             synced_book_id: String::new(),
             synced_revision: String::new(),
-            pending_saves: 0,
-            stale_revisions: HashSet::new(),
-            stored_title: String::new(),
-            stored_synopsis: String::new(),
-            stored_has_book: true,
-            stored_word_target: default_pb.word_target().unwrap_or(0),
-            stored_daily_word_target: default_pb.daily_word_target().unwrap_or(0),
-            stored_agent: None,
+            template_copy: false,
+            title_base: String::new(),
+            synopsis_base: String::new(),
+            synopsis_known: false,
+            targets_base: [
+                default_pb.word_target().unwrap_or(0),
+                default_pb.daily_word_target().unwrap_or(0),
+            ],
+            targets_raw: [None, None],
+            agent_base: Default::default(),
+            book_base: true,
+            has_book: true,
+            saves: Default::default(),
             title,
             synopsis,
             word_target,
@@ -167,170 +281,216 @@ impl InlineState {
     pub(crate) fn synced_revision(&self) -> &str {
         &self.synced_revision
     }
+
+    fn target_field(&self, k: usize) -> &Entity<TextField> {
+        if k == 0 {
+            &self.word_target
+        } else {
+            &self.daily_word_target
+        }
+    }
+
+    fn agent_texts(&self, cx: &gpui::App) -> [String; 3] {
+        [
+            self.agent_name.read(cx).text(),
+            self.agent_description.read(cx).text(),
+            self.agent_instructions.read(cx).text(),
+        ]
+    }
+
+    fn set_agent_texts(&self, texts: &[String; 3], cx: &mut Context<Home>) {
+        let [name, description, instructions] = texts.clone();
+        if self.agent_name.read(cx).text() != name {
+            self.agent_name.update(cx, |f, cx| f.set_text(name, cx));
+        }
+        if self.agent_description.read(cx).text() != description {
+            self.agent_description
+                .update(cx, |f, cx| f.set_text(description, cx));
+        }
+        if self.agent_instructions.read(cx).text() != instructions {
+            self.agent_instructions
+                .update(cx, |f, cx| f.set_text(instructions, cx));
+        }
+    }
+
+    /// Whether a write of `field` is pending, failed or not yet seen in the
+    /// book: what the book says meanwhile does not replace what it shows.
+    /// The book saying `same` (what the field stored) ends the wait.
+    fn takes(&mut self, field: Field, same: bool, dirty: bool) -> bool {
+        let save = &mut self.saves[field.index()];
+        if save.awaiting && same {
+            save.awaiting = false;
+        }
+        !(save.writing || save.failed || save.awaiting || dirty)
+    }
+}
+
+fn area_dirty(area: &Entity<TextArea>, base: &str, cx: &gpui::App) -> bool {
+    let area = area.read(cx);
+    area.is_composing() || area.text() != base
+}
+
+fn field_dirty(field: &Entity<TextField>, base: &str, cx: &gpui::App) -> bool {
+    let field = field.read(cx);
+    field.is_composing() || field.text() != base
+}
+
+fn agent_of(book: &Book) -> [String; 3] {
+    book.v3()
+        .and_then(|v| v.project.agent.clone())
+        .map(|a| [a.name, a.description, a.instructions])
+        .unwrap_or_default()
 }
 
 impl Home {
-    pub(crate) fn sync_book(
-        &mut self,
-        book: &Rc<Book>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
+    /// Brings the fields to the book as the shell read it: another book
+    /// shows anew; a new revision of the same book replaces what a field
+    /// shows unless the author is editing it or a write to it is pending
+    /// or refused (the synopsis comes with the page's numbers,
+    /// [`Self::sync_synopsis`]).
+    pub(crate) fn sync_book(&mut self, book: &Rc<Book>, cx: &mut Context<Self>) {
         let Some(v3) = book.v3() else {
             return;
         };
         let same_book = self.inline.synced_book_id == book.id;
-        if same_book {
-            if self.inline.synced_revision == v3.revision
-                || self.inline.pending_saves > 0
-                || self.inline.stale_revisions.contains(&v3.revision)
-            {
-                return;
+        if same_book && self.inline.synced_revision == v3.revision {
+            return;
+        }
+        let locale = Settings::locale(cx);
+        let stored_book = v3.project.book.clone();
+        let stored_agent = agent_of(book);
+        if !same_book {
+            let template_copy = self
+                .lib
+                .as_ref()
+                .is_some_and(|lib| lib.is_working_copy(&book.id).unwrap_or(false));
+            let i = &mut self.inline;
+            i.synced_book_id = book.id.clone();
+            i.template_copy = template_copy;
+            i.saves = Default::default();
+            i.title_base = book.name.clone();
+            let name = book.name.clone();
+            i.title.update(cx, |f, cx| f.set_text(name, cx));
+            i.synopsis_base = String::new();
+            i.synopsis_known = false;
+            i.synopsis.update(cx, |f, cx| f.set_text("", cx));
+            let (shown, raw) = stored_book
+                .as_ref()
+                .map(|pb| {
+                    (
+                        [
+                            pb.word_target.unwrap_or(0),
+                            pb.daily_word_target.unwrap_or(0),
+                        ],
+                        [pb.word_target_set, pb.daily_word_target_set],
+                    )
+                })
+                .unwrap_or_else(|| {
+                    let pb = dr_model::v3::ProjectBook::default();
+                    (
+                        [
+                            pb.word_target().unwrap_or(0),
+                            pb.daily_word_target().unwrap_or(0),
+                        ],
+                        [None, None],
+                    )
+                });
+            i.targets_base = shown;
+            i.targets_raw = raw;
+            for k in 0..2 {
+                let text = target_text(i.targets_base[k], locale);
+                i.target_field(k).update(cx, |f, cx| f.set_text(text, cx));
             }
-            self.inline.stale_revisions.clear();
+            i.agent_base = stored_agent.clone();
+            i.set_agent_texts(&stored_agent, cx);
+            i.book_base = stored_book.is_some();
+            i.has_book = i.book_base;
         } else {
-            self.inline.stale_revisions.clear();
+            let i = &mut self.inline;
+            // Title.
+            let dirty = area_dirty(&i.title, &i.title_base, cx);
+            if i.takes(Field::Title, book.name == i.title_base, dirty) {
+                i.title_base = book.name.clone();
+                if i.title.read(cx).text() != book.name {
+                    let name = book.name.clone();
+                    i.title.update(cx, |f, cx| f.set_text(name, cx));
+                }
+            }
+            // The two targets: only while the book is on (they are not
+            // read while it is off; turning it on brings them back).
+            if let Some(pb) = &stored_book {
+                let stored = [
+                    pb.word_target.unwrap_or(0),
+                    pb.daily_word_target.unwrap_or(0),
+                ];
+                let raw = [pb.word_target_set, pb.daily_word_target_set];
+                for (k, field) in [Field::WordTarget, Field::DailyTarget]
+                    .into_iter()
+                    .enumerate()
+                {
+                    let shown = target_text(i.targets_base[k], locale);
+                    let dirty = field_dirty(i.target_field(k), &shown, cx);
+                    let same = stored[k] == i.targets_base[k];
+                    if same {
+                        i.targets_raw[k] = raw[k];
+                    }
+                    if i.takes(field, same, dirty) {
+                        i.targets_base[k] = stored[k];
+                        i.targets_raw[k] = raw[k];
+                        let text = target_text(stored[k], locale);
+                        if i.target_field(k).read(cx).text() != text {
+                            i.target_field(k).update(cx, |f, cx| f.set_text(text, cx));
+                        }
+                    }
+                }
+            }
+            // 写给 Agent.
+            let typed = i.agent_texts(cx);
+            let composing = i.agent_name.read(cx).is_composing()
+                || i.agent_description.read(cx).is_composing()
+                || i.agent_instructions.read(cx).is_composing();
+            let dirty = composing || typed != i.agent_base;
+            if i.takes(Field::Agent, stored_agent == i.agent_base, dirty) {
+                i.agent_base = stored_agent.clone();
+                i.set_agent_texts(&stored_agent, cx);
+            }
+            // 成书.
+            let stored_on = stored_book.is_some();
+            let dirty = i.has_book != i.book_base;
+            if i.takes(Field::HasBook, stored_on == i.book_base, dirty) {
+                i.book_base = stored_on;
+                i.has_book = stored_on;
+            }
         }
-
-        let new_title = book.name.clone();
-        let new_synopsis = read_book_summary(self.lib.as_ref(), &book.id);
-        let new_has_book = v3.project.book.is_some();
-        let (new_wt, new_dwt) = if let Some(pb) = &v3.project.book {
-            crate::remember_book_targets(
-                &book.id,
-                pb.word_target_set,
-                pb.daily_word_target_set,
-                cx,
-            );
-            (
-                pb.word_target.unwrap_or(0),
-                pb.daily_word_target.unwrap_or(0),
-            )
-        } else if let Some((wt_set, dwt_set)) = crate::remembered_book_targets(&book.id, cx) {
-            let pb = dr_model::v3::ProjectBook {
-                word_target_set: wt_set,
-                daily_word_target_set: dwt_set,
-            };
-            (
-                pb.word_target().unwrap_or(0),
-                pb.daily_word_target().unwrap_or(0),
-            )
-        } else {
-            let pb = dr_model::v3::ProjectBook::default();
-            (
-                pb.word_target().unwrap_or(0),
-                pb.daily_word_target().unwrap_or(0),
-            )
-        };
-        let new_agent = v3
-            .project
-            .agent
-            .clone()
-            .and_then(|a| normalize_agent(a.name, a.description, a.instructions));
-
-        let force = !same_book;
-        self.inline.synced_book_id = book.id.clone();
         self.inline.synced_revision = v3.revision.clone();
-        self.inline.stored_has_book = new_has_book;
+        self.sync_synopsis(cx);
+    }
 
-        sync_text_area(
-            &self.inline.title,
-            &mut self.inline.stored_title,
-            new_title,
-            force,
-            window,
-            cx,
-        );
-        sync_text_area(
-            &self.inline.synopsis,
-            &mut self.inline.stored_synopsis,
-            new_synopsis,
-            force,
-            window,
-            cx,
-        );
-
-        let old_wt_str = self.inline.stored_word_target.to_string();
-        let new_wt_str = new_wt.to_string();
-        if sync_line_field(
-            &self.inline.word_target,
-            &old_wt_str,
-            &new_wt_str,
-            force,
-            window,
-            cx,
-        ) {
-            self.inline.stored_word_target = new_wt;
+    /// The synopsis from the page's numbers (read off the main thread
+    /// with them), when they are this book's.
+    pub(crate) fn sync_synopsis(&mut self, cx: &mut Context<Self>) {
+        let ours = self
+            .source
+            .as_ref()
+            .is_some_and(|s| s.id == self.inline.synced_book_id);
+        let Some(summary) = self
+            .loaded
+            .as_ref()
+            .filter(|_| ours)
+            .map(|l| l.summary.clone())
+        else {
+            return;
+        };
+        let i = &mut self.inline;
+        if !i.synopsis_known {
+            i.synopsis_known = true;
         }
-
-        let old_dwt_str = self.inline.stored_daily_word_target.to_string();
-        let new_dwt_str = new_dwt.to_string();
-        if sync_line_field(
-            &self.inline.daily_word_target,
-            &old_dwt_str,
-            &new_dwt_str,
-            force,
-            window,
-            cx,
-        ) {
-            self.inline.stored_daily_word_target = new_dwt;
-        }
-
-        let old_an = self
-            .inline
-            .stored_agent
-            .as_ref()
-            .map(|a| a.name.as_str())
-            .unwrap_or("");
-        let old_ad = self
-            .inline
-            .stored_agent
-            .as_ref()
-            .map(|a| a.description.as_str())
-            .unwrap_or("");
-        let old_ai = self
-            .inline
-            .stored_agent
-            .as_ref()
-            .map(|a| a.instructions.as_str())
-            .unwrap_or("");
-        let new_an = new_agent.as_ref().map(|a| a.name.as_str()).unwrap_or("");
-        let new_ad = new_agent
-            .as_ref()
-            .map(|a| a.description.as_str())
-            .unwrap_or("");
-        let new_ai = new_agent
-            .as_ref()
-            .map(|a| a.instructions.as_str())
-            .unwrap_or("");
-
-        let ok_an = sync_line_field(&self.inline.agent_name, old_an, new_an, force, window, cx);
-        let ok_ad = sync_line_field(
-            &self.inline.agent_description,
-            old_ad,
-            new_ad,
-            force,
-            window,
-            cx,
-        );
-        let ok_ai = sync_area_value(
-            &self.inline.agent_instructions,
-            old_ai,
-            new_ai,
-            force,
-            window,
-            cx,
-        );
-        if force || (ok_an && ok_ad && ok_ai) {
-            self.inline.stored_agent = new_agent;
-        }
-
-        if crate::take_pending_title_focus(&book.id, cx) {
-            let field = self.inline.title.clone();
-            window.defer(cx, move |window, cx| {
-                window.focus(&field.focus_handle(cx), cx);
-                field.update(cx, |f, cx| f.select_all_text(cx));
-            });
+        let dirty = area_dirty(&i.synopsis, &i.synopsis_base, cx);
+        if i.takes(Field::Synopsis, summary == i.synopsis_base, dirty) {
+            i.synopsis_base = summary.clone();
+            if i.synopsis.read(cx).text() != summary {
+                i.synopsis.update(cx, |f, cx| f.set_text(summary, cx));
+            }
         }
     }
 
@@ -342,52 +502,6 @@ impl Home {
             .upgrade()
             .map(|ws| ws.read(cx).book_id.clone())
             .filter(|id| !id.is_empty())
-    }
-
-    fn run_project_update(
-        &mut self,
-        update: ProjectUpdateIn,
-        on_err: impl FnOnce(&mut Self, &mut Context<Self>) + 'static,
-        cx: &mut Context<Self>,
-    ) {
-        let Some(lib) = self.lib.clone() else {
-            on_err(self, cx);
-            return;
-        };
-        let book_id = update.book.clone();
-        self.inline.pending_saves += 1;
-        cx.spawn(async move |this, cx| {
-            let outcome = cx
-                .background_executor()
-                .spawn(async move {
-                    let pre_rev = lib
-                        .read_book_v3(&book_id, |_, version| Ok(version))
-                        .unwrap_or_default();
-                    lib.run::<ProjectUpdate>(&Actor::User, update)?;
-                    let post_rev = lib
-                        .read_book_v3(&book_id, |_, version| Ok(version))
-                        .unwrap_or_default();
-                    Ok::<_, WsError>((pre_rev, post_rev))
-                })
-                .await;
-            this.update(cx, |h, cx| {
-                h.inline.pending_saves = h.inline.pending_saves.saturating_sub(1);
-                match outcome {
-                    Ok((pre_rev, post_rev)) => {
-                        if !pre_rev.is_empty() && pre_rev != post_rev {
-                            h.inline.stale_revisions.insert(pre_rev);
-                        }
-                    }
-                    Err(error) => {
-                        log::warn!("project.update on Project Home failed: {error}");
-                        on_err(h, cx);
-                    }
-                }
-                cx.notify();
-            })
-            .ok();
-        })
-        .detach();
     }
 
     fn leave_field(&self, window: &mut Window, cx: &mut Context<Self>) {
@@ -406,412 +520,378 @@ impl Home {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if !settlement::accepts(cx) {
+            return;
+        }
         match event {
+            // Enter stores the name and goes on to the synopsis, as an
+            // entry's title goes on to its text.
             FieldEvent::Submitted(_) => {
-                self.store_title(cx);
-                self.leave_field(window, cx);
+                self.save(Field::Title, false, cx);
+                let synopsis = self.inline.synopsis.focus_handle(cx);
+                window.focus(&synopsis, cx);
             }
+            FieldEvent::Blurred => self.save(Field::Title, false, cx),
             FieldEvent::Cancelled => {
-                let stored = self.inline.stored_title.clone();
-                self.inline.title.update(cx, |f, cx| f.set_text(stored, cx));
-                self.leave_field(window, cx);
+                if self.revert(Field::Title, 0, cx) {
+                    self.leave_field(window, cx);
+                }
             }
-            FieldEvent::Blurred => self.store_title(cx),
             FieldEvent::Changed(_) => {}
         }
-    }
-
-    pub(crate) fn on_synopsis_event(
-        &mut self,
-        _: &Entity<TextArea>,
-        event: &FieldEvent,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        match event {
-            FieldEvent::Submitted(_) => {
-                self.store_synopsis(cx);
-                self.leave_field(window, cx);
-            }
-            FieldEvent::Cancelled => {
-                let stored = self.inline.stored_synopsis.clone();
-                self.inline
-                    .synopsis
-                    .update(cx, |f, cx| f.set_text(stored, cx));
-                self.leave_field(window, cx);
-            }
-            FieldEvent::Blurred => self.store_synopsis(cx),
-            FieldEvent::Changed(_) => {}
-        }
-    }
-
-    pub(crate) fn on_word_target_event(
-        &mut self,
-        _: &Entity<TextField>,
-        event: &FieldEvent,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        match event {
-            FieldEvent::Submitted(_) => {
-                self.store_word_target(cx);
-                self.leave_field(window, cx);
-            }
-            FieldEvent::Cancelled => {
-                let stored = self.inline.stored_word_target.to_string();
-                self.inline
-                    .word_target
-                    .update(cx, |f, cx| f.set_text(stored, cx));
-                self.leave_field(window, cx);
-            }
-            FieldEvent::Blurred => self.store_word_target(cx),
-            FieldEvent::Changed(_) => {}
-        }
-    }
-
-    pub(crate) fn on_daily_target_event(
-        &mut self,
-        _: &Entity<TextField>,
-        event: &FieldEvent,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        match event {
-            FieldEvent::Submitted(_) => {
-                self.store_daily_word_target(cx);
-                self.leave_field(window, cx);
-            }
-            FieldEvent::Cancelled => {
-                let stored = self.inline.stored_daily_word_target.to_string();
-                self.inline
-                    .daily_word_target
-                    .update(cx, |f, cx| f.set_text(stored, cx));
-                self.leave_field(window, cx);
-            }
-            FieldEvent::Blurred => self.store_daily_word_target(cx),
-            FieldEvent::Changed(_) => {}
-        }
-    }
-
-    fn on_agent_event(
-        &mut self,
-        which: AgentField,
-        event: &FieldEvent,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        match event {
-            FieldEvent::Submitted(_) => {
-                self.store_agent(cx);
-                self.leave_field(window, cx);
-            }
-            FieldEvent::Cancelled => {
-                let cfg = self.inline.stored_agent.as_ref();
-                match which {
-                    AgentField::Name => {
-                        let s = cfg.map(|a| a.name.clone()).unwrap_or_default();
-                        self.inline.agent_name.update(cx, |f, cx| f.set_text(s, cx));
-                    }
-                    AgentField::Description => {
-                        let s = cfg.map(|a| a.description.clone()).unwrap_or_default();
-                        self.inline
-                            .agent_description
-                            .update(cx, |f, cx| f.set_text(s, cx));
-                    }
-                    AgentField::Instructions => {
-                        let s = cfg.map(|a| a.instructions.clone()).unwrap_or_default();
-                        self.inline
-                            .agent_instructions
-                            .update(cx, |f, cx| f.set_text(s, cx));
-                    }
-                }
-                self.leave_field(window, cx);
-            }
-            FieldEvent::Blurred => self.store_agent(cx),
-            FieldEvent::Changed(_) => {}
-        }
-    }
-
-    /// Saves the inline project title (`name`) if non-empty and changed. An
-    /// empty title reverts the field to the stored title without writing.
-    pub fn store_title(&mut self, cx: &mut Context<Self>) {
-        let Some(book) = self.active_book_id(cx) else {
-            return;
-        };
-        let raw = self.inline.title.read(cx).text();
-        let trimmed = raw.trim().to_owned();
-        if trimmed.is_empty() {
-            let stored = self.inline.stored_title.clone();
-            self.inline.title.update(cx, |f, cx| f.set_text(stored, cx));
-            return;
-        }
-        if raw != trimmed {
-            let clean = trimmed.clone();
-            self.inline.title.update(cx, |f, cx| f.set_text(clean, cx));
-        }
-        if trimmed == self.inline.stored_title {
-            return;
-        }
-        let prev = std::mem::replace(&mut self.inline.stored_title, trimmed.clone());
-        let sent = trimmed.clone();
-        let expected_book = book.clone();
-        self.run_project_update(
-            ProjectUpdateIn {
-                book,
-                name: Some(trimmed),
-                ..Default::default()
-            },
-            move |h, cx| {
-                if h.inline.synced_book_id == expected_book && h.inline.stored_title == sent {
-                    h.inline.stored_title = prev.clone();
-                    h.inline.title.update(cx, |f, cx| f.set_text(prev, cx));
-                }
-            },
-            cx,
-        );
-    }
-
-    /// Saves the inline project synopsis (`summary`) if changed.
-    pub fn store_synopsis(&mut self, cx: &mut Context<Self>) {
-        let Some(book) = self.active_book_id(cx) else {
-            return;
-        };
-        let text = self.inline.synopsis.read(cx).text();
-        if text == self.inline.stored_synopsis {
-            return;
-        }
-        let prev = std::mem::replace(&mut self.inline.stored_synopsis, text.clone());
-        let sent = text.clone();
-        let expected_book = book.clone();
-        self.run_project_update(
-            ProjectUpdateIn {
-                book,
-                summary: Some(text),
-                ..Default::default()
-            },
-            move |h, cx| {
-                if h.inline.synced_book_id == expected_book && h.inline.stored_synopsis == sent {
-                    h.inline.stored_synopsis = prev.clone();
-                    h.inline.synopsis.update(cx, |f, cx| f.set_text(prev, cx));
-                }
-            },
-            cx,
-        );
-    }
-
-    /// Flips `成书` (`project.book`) in one `project.update`. Turning it back
-    /// on restores the remembered word targets in the same write.
-    pub fn set_has_book(&mut self, on: bool, cx: &mut Context<Self>) {
-        let Some(book) = self.active_book_id(cx) else {
-            return;
-        };
-        if on == self.inline.stored_has_book {
-            return;
-        }
-        let prev = std::mem::replace(&mut self.inline.stored_has_book, on);
-        let update = if on {
-            if let Some((wt_set, dwt_set)) = crate::remembered_book_targets(&book, cx) {
-                let pb = dr_model::v3::ProjectBook {
-                    word_target_set: wt_set,
-                    daily_word_target_set: dwt_set,
-                };
-                let wt = pb.word_target().unwrap_or(0);
-                let dwt = pb.daily_word_target().unwrap_or(0);
-                self.inline.stored_word_target = wt;
-                self.inline.stored_daily_word_target = dwt;
-                self.inline
-                    .word_target
-                    .update(cx, |f, cx| f.set_text(wt.to_string(), cx));
-                self.inline
-                    .daily_word_target
-                    .update(cx, |f, cx| f.set_text(dwt.to_string(), cx));
-                ProjectUpdateIn {
-                    book: book.clone(),
-                    has_book: Some(true),
-                    word_target: Some(wt_set),
-                    daily_word_target: Some(dwt_set),
-                    ..Default::default()
-                }
-            } else {
-                ProjectUpdateIn {
-                    book: book.clone(),
-                    has_book: Some(true),
-                    ..Default::default()
-                }
-            }
-        } else {
-            ProjectUpdateIn {
-                book: book.clone(),
-                has_book: Some(false),
-                ..Default::default()
-            }
-        };
-        let expected_book = book;
-        self.run_project_update(
-            update,
-            move |h, _| {
-                if h.inline.synced_book_id == expected_book && h.inline.stored_has_book == on {
-                    h.inline.stored_has_book = prev;
-                }
-            },
-            cx,
-        );
         cx.notify();
     }
 
-    /// Saves the whole-book word target (`word_target`) if valid and changed;
-    /// invalid input reverts to the stored value without writing.
-    pub fn store_word_target(&mut self, cx: &mut Context<Self>) {
-        if !self.inline.stored_has_book {
+    fn on_field_event(
+        &mut self,
+        field: Field,
+        part: usize,
+        event: &FieldEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if !settlement::accepts(cx) {
             return;
         }
-        let Some(book) = self.active_book_id(cx) else {
-            return;
-        };
-        let raw = self.inline.word_target.read(cx).text();
-        let Some(next) = parse_word_target(&raw) else {
-            let stored = self.inline.stored_word_target.to_string();
-            self.inline
-                .word_target
-                .update(cx, |f, cx| f.set_text(stored, cx));
-            return;
-        };
-        let clean = next.to_string();
-        if raw != clean {
-            self.inline
-                .word_target
-                .update(cx, |f, cx| f.set_text(clean, cx));
-        }
-        if next == self.inline.stored_word_target {
-            return;
-        }
-        let prev = std::mem::replace(&mut self.inline.stored_word_target, next);
-        let prev_remembered = crate::remembered_book_targets(&book, cx);
-        let cur_dwt_set = prev_remembered.and_then(|(_, dwt)| dwt);
-        crate::remember_book_targets(&book, Some(next), cur_dwt_set, cx);
-        let expected_book = book.clone();
-        self.run_project_update(
-            ProjectUpdateIn {
-                book,
-                word_target: Some(Some(next)),
-                ..Default::default()
-            },
-            move |h, cx| {
-                if h.inline.synced_book_id == expected_book && h.inline.stored_word_target == next {
-                    h.inline.stored_word_target = prev;
-                    h.inline
-                        .word_target
-                        .update(cx, |f, cx| f.set_text(prev.to_string(), cx));
-                    if let Some((wt_set, dwt_set)) = prev_remembered {
-                        crate::remember_book_targets(&expected_book, wt_set, dwt_set, cx);
-                    }
+        match event {
+            FieldEvent::Submitted(_) => {
+                self.save(field, false, cx);
+                self.leave_field(window, cx);
+            }
+            FieldEvent::Blurred => self.save(field, false, cx),
+            FieldEvent::Cancelled => {
+                if self.revert(field, part, cx) {
+                    self.leave_field(window, cx);
                 }
-            },
-            cx,
-        );
+            }
+            FieldEvent::Changed(_) => {}
+        }
         cx.notify();
     }
 
-    /// Saves the daily word target (`daily_word_target`) if valid and changed;
-    /// invalid input reverts to the stored value without writing.
-    pub fn store_daily_word_target(&mut self, cx: &mut Context<Self>) {
-        if !self.inline.stored_has_book {
-            return;
+    /// Esc: the field (`part` of 写给 Agent) shows what is stored again.
+    /// A write already on its way, or one refused, stays for retry: Esc
+    /// cannot take it back.
+    fn revert(&mut self, field: Field, part: usize, cx: &mut Context<Self>) -> bool {
+        let save = self.inline.saves[field.index()];
+        if save.writing || save.failed {
+            return false;
         }
-        let Some(book) = self.active_book_id(cx) else {
-            return;
-        };
-        let raw = self.inline.daily_word_target.read(cx).text();
-        let Some(next) = parse_word_target(&raw) else {
-            let stored = self.inline.stored_daily_word_target.to_string();
-            self.inline
-                .daily_word_target
-                .update(cx, |f, cx| f.set_text(stored, cx));
-            return;
-        };
-        let clean = next.to_string();
-        if raw != clean {
-            self.inline
-                .daily_word_target
-                .update(cx, |f, cx| f.set_text(clean, cx));
-        }
-        if next == self.inline.stored_daily_word_target {
-            return;
-        }
-        let prev = std::mem::replace(&mut self.inline.stored_daily_word_target, next);
-        let prev_remembered = crate::remembered_book_targets(&book, cx);
-        let cur_wt_set = prev_remembered.and_then(|(wt, _)| wt);
-        crate::remember_book_targets(&book, cur_wt_set, Some(next), cx);
-        let expected_book = book.clone();
-        self.run_project_update(
-            ProjectUpdateIn {
-                book,
-                daily_word_target: Some(Some(next)),
-                ..Default::default()
-            },
-            move |h, cx| {
-                if h.inline.synced_book_id == expected_book
-                    && h.inline.stored_daily_word_target == next
-                {
-                    h.inline.stored_daily_word_target = prev;
-                    h.inline
-                        .daily_word_target
-                        .update(cx, |f, cx| f.set_text(prev.to_string(), cx));
-                    if let Some((wt_set, dwt_set)) = prev_remembered {
-                        crate::remember_book_targets(&expected_book, wt_set, dwt_set, cx);
-                    }
-                }
-            },
-            cx,
-        );
-        cx.notify();
-    }
-
-    /// Saves the project-level `写给 Agent` guidance if any of its three fields
-    /// changed since the last saved/synced value.
-    pub fn store_agent(&mut self, cx: &mut Context<Self>) {
-        let Some(book) = self.active_book_id(cx) else {
-            return;
-        };
-        let name = self.inline.agent_name.read(cx).text();
-        let description = self.inline.agent_description.read(cx).text();
-        let instructions = self.inline.agent_instructions.read(cx).text();
-        let next = normalize_agent(name, description, instructions);
-        if next == self.inline.stored_agent {
-            return;
-        }
-        let prev = std::mem::replace(&mut self.inline.stored_agent, next.clone());
-        let sent = next.clone();
-        let expected_book = book.clone();
-        self.run_project_update(
-            ProjectUpdateIn {
-                book,
-                agent: Some(next),
-                ..Default::default()
-            },
-            move |h, cx| {
-                if h.inline.synced_book_id == expected_book && h.inline.stored_agent == sent {
-                    let an = prev.as_ref().map(|a| a.name.clone()).unwrap_or_default();
-                    let ad = prev
-                        .as_ref()
-                        .map(|a| a.description.clone())
-                        .unwrap_or_default();
-                    let ai = prev
-                        .as_ref()
-                        .map(|a| a.instructions.clone())
-                        .unwrap_or_default();
-                    h.inline.stored_agent = prev;
-                    h.inline.agent_name.update(cx, |f, cx| f.set_text(an, cx));
-                    h.inline
-                        .agent_description
-                        .update(cx, |f, cx| f.set_text(ad, cx));
-                    h.inline
+        let locale = Settings::locale(cx);
+        let i = &self.inline;
+        match field {
+            Field::Title => {
+                let base = i.title_base.clone();
+                i.title.update(cx, |f, cx| f.set_text(base, cx));
+            }
+            Field::Synopsis => {
+                let base = i.synopsis_base.clone();
+                i.synopsis.update(cx, |f, cx| f.set_text(base, cx));
+            }
+            Field::WordTarget | Field::DailyTarget => {
+                let k = usize::from(field == Field::DailyTarget);
+                let text = target_text(i.targets_base[k], locale);
+                i.target_field(k).update(cx, |f, cx| f.set_text(text, cx));
+            }
+            Field::Agent => {
+                let base = i.agent_base[part].clone();
+                match part {
+                    0 => i.agent_name.update(cx, |f, cx| f.set_text(base, cx)),
+                    1 => i.agent_description.update(cx, |f, cx| f.set_text(base, cx)),
+                    _ => i
                         .agent_instructions
-                        .update(cx, |f, cx| f.set_text(ai, cx));
+                        .update(cx, |f, cx| f.set_text(base, cx)),
                 }
-            },
-            cx,
-        );
+            }
+            Field::HasBook => {}
+        }
+        true
+    }
+
+    /// Whether `field` shows something other than what is stored.
+    fn dirty(&self, field: Field, cx: &gpui::App) -> bool {
+        let i = &self.inline;
+        match field {
+            Field::Title => i.title.read(cx).text() != i.title_base,
+            Field::Synopsis => i.synopsis.read(cx).text() != i.synopsis_base,
+            Field::WordTarget | Field::DailyTarget => {
+                let k = usize::from(field == Field::DailyTarget);
+                i.has_book
+                    && i.target_field(k).read(cx).text()
+                        != target_text(i.targets_base[k], Settings::locale(cx))
+            }
+            Field::Agent => i.agent_texts(cx) != i.agent_base,
+            Field::HasBook => i.has_book != i.book_base,
+        }
+    }
+
+    /// What storing `field` would write, or `None` when it shows what is
+    /// stored: an empty name, or a target that is no count, is not stored
+    /// (the field shows the stored value again).
+    fn prepare(&mut self, field: Field, cx: &mut Context<Self>) -> Option<Edit> {
+        let locale = Settings::locale(cx);
+        let i = &mut self.inline;
+        let mut input = serde_json::Map::new();
+        match field {
+            Field::Title => {
+                let typed = i.title.read(cx).text();
+                let value = typed.trim().to_owned();
+                if value.is_empty() || value == i.title_base {
+                    if typed != i.title_base {
+                        let base = i.title_base.clone();
+                        i.title.update(cx, |f, cx| f.set_text(base, cx));
+                    }
+                    return None;
+                }
+                input.insert("name".into(), json!(value));
+                Some(Edit {
+                    input,
+                    guards: vec![(
+                        RecordKey::record("meta", "name"),
+                        shown_text(&i.title_base),
+                        json!(value),
+                    )],
+                    sent: Sent::Title(typed, value),
+                })
+            }
+            Field::Synopsis => {
+                let typed = i.synopsis.read(cx).text();
+                if typed == i.synopsis_base {
+                    return None;
+                }
+                input.insert("summary".into(), json!(typed));
+                Some(Edit {
+                    input,
+                    guards: vec![(
+                        RecordKey::record("meta", "summary"),
+                        shown_text(&i.synopsis_base),
+                        json!(typed),
+                    )],
+                    sent: Sent::Synopsis(typed),
+                })
+            }
+            Field::WordTarget | Field::DailyTarget => {
+                if !i.has_book {
+                    return None;
+                }
+                let k = usize::from(field == Field::DailyTarget);
+                let typed = i.target_field(k).read(cx).text();
+                let Some(n) = parse_target(&typed, locale).filter(|n| *n != i.targets_base[k])
+                else {
+                    let shown = target_text(i.targets_base[k], locale);
+                    if typed != shown {
+                        i.target_field(k).update(cx, |f, cx| f.set_text(shown, cx));
+                    }
+                    return None;
+                };
+                let key = if k == 0 {
+                    "word_target"
+                } else {
+                    "daily_word_target"
+                };
+                input.insert(key.into(), json!(n));
+                Some(Edit {
+                    input,
+                    guards: vec![(
+                        RecordKey::record("project", "book").at([key]),
+                        vec![json!(i.targets_raw[k])],
+                        json!(n),
+                    )],
+                    sent: Sent::Target(k, typed, n),
+                })
+            }
+            Field::Agent => {
+                let typed = i.agent_texts(cx);
+                if typed == i.agent_base {
+                    return None;
+                }
+                // All three cleared: the project has no guidance for the
+                // Agent (no question asked).
+                let clear = typed.iter().all(String::is_empty);
+                let [name, description, instructions] = typed.clone();
+                input.insert(
+                    "agent".into(),
+                    if clear {
+                        Value::Null
+                    } else {
+                        json!({"name": name, "description": description, "instructions": instructions})
+                    },
+                );
+                let guards = ["name", "description", "instructions"]
+                    .into_iter()
+                    .enumerate()
+                    .map(|(k, key)| {
+                        (
+                            RecordKey::record("project", "agent").at([key]),
+                            shown_text(&i.agent_base[k]),
+                            if clear { Value::Null } else { json!(typed[k]) },
+                        )
+                    })
+                    .collect();
+                Some(Edit {
+                    input,
+                    guards,
+                    sent: Sent::Agent(typed),
+                })
+            }
+            Field::HasBook => {
+                if i.has_book == i.book_base {
+                    return None;
+                }
+                input.insert("has_book".into(), json!(i.has_book));
+                // A switch says what it is set to: setting it again is the
+                // same, so the write is held to nothing.
+                Some(Edit {
+                    input,
+                    guards: Vec::new(),
+                    sent: Sent::HasBook(i.has_book),
+                })
+            }
+        }
+    }
+
+    /// Stores `field` (`retry`: 「重试」 after a refusal, held to what is
+    /// stored now). Nothing while the release gate is closed, while a
+    /// write of it is on its way, or after a refusal until 「重试」.
+    pub fn save(&mut self, field: Field, retry: bool, cx: &mut Context<Self>) {
+        if !settlement::accepts(cx) {
+            return;
+        }
+        let save = self.inline.saves[field.index()];
+        if save.writing || (save.failed && !retry) {
+            return;
+        }
+        let (Some(lib), Some(book)) = (self.lib.clone(), self.active_book_id(cx)) else {
+            return;
+        };
+        let Some(edit) = self.prepare(field, cx) else {
+            self.inline.saves[field.index()].failed = false;
+            cx.notify();
+            return;
+        };
+        {
+            let save = &mut self.inline.saves[field.index()];
+            save.writing = true;
+            save.failed = false;
+        }
+        let mut input = edit.input;
+        input.insert("book".into(), json!(book));
+        let guards = edit.guards;
+        let worker = lib.clone();
+        let held_book = book.clone();
+        let (job, ticket) = settlement::write(&lib, cx, async move {
+            let guard = held(&worker, &held_book, guards, retry)?;
+            worker.call_guarded(&Actor::User, "project.update", Value::Object(input), guard)?;
+            Ok::<_, WsError>(())
+        });
+        let sent = edit.sent;
+        cx.spawn(async move |this, cx| {
+            let result = job.await;
+            if this
+                .update(cx, |h, cx| {
+                    // Another book is shown now: its fields start afresh.
+                    if h.inline.synced_book_id != book {
+                        return;
+                    }
+                    h.inline.saves[field.index()].writing = false;
+                    match result {
+                        Ok(()) => {
+                            h.inline.saves[field.index()].awaiting = true;
+                            h.settle(sent, cx);
+                            // Typed on while it was stored: that is stored too.
+                            if h.dirty(field, cx) {
+                                h.save(field, false, cx);
+                            }
+                        }
+                        Err(error) => {
+                            log::warn!("Project Home did not store its {}: {error}", field.name());
+                            h.inline.saves[field.index()].failed = true;
+                        }
+                    }
+                    cx.notify();
+                })
+                .is_ok()
+            {
+                ticket.acknowledge();
+            }
+        })
+        .detach();
+        cx.notify();
+    }
+
+    /// A write is stored: it is what the field shows from now on.
+    fn settle(&mut self, sent: Sent, cx: &mut Context<Self>) {
+        let locale = Settings::locale(cx);
+        let i = &mut self.inline;
+        match sent {
+            Sent::Title(typed, stored) => {
+                if i.title.read(cx).text() == typed && typed != stored {
+                    let value = stored.clone();
+                    i.title.update(cx, |f, cx| f.set_text(value, cx));
+                }
+                i.title_base = stored;
+            }
+            Sent::Synopsis(text) => i.synopsis_base = text,
+            Sent::Target(k, typed, n) => {
+                i.targets_base[k] = n;
+                i.targets_raw[k] = Some(n);
+                let text = target_text(n, locale);
+                if i.target_field(k).read(cx).text() == typed && typed != text {
+                    i.target_field(k).update(cx, |f, cx| f.set_text(text, cx));
+                }
+            }
+            Sent::Agent(texts) => i.agent_base = texts,
+            Sent::HasBook(on) => i.book_base = on,
+        }
+    }
+
+    /// Whether a write of one of the fields is on its way.
+    pub fn is_saving(&self) -> bool {
+        self.inline.saves.iter().any(|s| s.writing)
+    }
+
+    /// Whether storing `field` was refused (what was typed stays, with
+    /// 「重试」).
+    pub fn failed(&self, field: Field) -> bool {
+        self.inline.saves[field.index()].failed
+    }
+
+    /// Stores the inline project title (tests; leaving the field does it).
+    pub fn store_title(&mut self, cx: &mut Context<Self>) {
+        self.save(Field::Title, false, cx);
+    }
+
+    /// Stores the inline synopsis (tests; leaving the field does it).
+    pub fn store_synopsis(&mut self, cx: &mut Context<Self>) {
+        self.save(Field::Synopsis, false, cx);
+    }
+
+    /// Stores the whole-book target (tests; leaving the field does it).
+    pub fn store_word_target(&mut self, cx: &mut Context<Self>) {
+        self.save(Field::WordTarget, false, cx);
+    }
+
+    /// Stores the daily target (tests; leaving the field does it).
+    pub fn store_daily_word_target(&mut self, cx: &mut Context<Self>) {
+        self.save(Field::DailyTarget, false, cx);
+    }
+
+    /// Stores 写给 Agent (tests; leaving one of its fields does it).
+    pub fn store_agent(&mut self, cx: &mut Context<Self>) {
+        self.save(Field::Agent, false, cx);
+    }
+
+    /// Turns 「成书」 on or off: one `project.update`. Its two targets stay
+    /// in the book while it is off and come back when it is turned on.
+    pub fn set_has_book(&mut self, on: bool, cx: &mut Context<Self>) {
+        if !settlement::accepts(cx) || self.inline.has_book == on {
+            return;
+        }
+        self.inline.has_book = on;
+        // A new choice: a refused one does not wait for 「重试」.
+        self.inline.saves[Field::HasBook.index()].failed = false;
+        self.save(Field::HasBook, false, cx);
+        cx.notify();
     }
 
     /// Rendered summary text for the `来源` row of the active book, if the book
@@ -819,6 +899,49 @@ impl Home {
     pub fn template_source_text(&self, cx: &gpui::App) -> Option<String> {
         let book = self.ws.upgrade().map(|ws| ws.read(cx).book.clone())?;
         format_source_parts(&book, cx).map(|(_, _, summary)| summary)
+    }
+
+    /// 「未能保存」 and 「重试」 under `field`, when its write was refused (as
+    /// under an entry's title).
+    pub(crate) fn failed_line(
+        &self,
+        field: Field,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> Option<AnyElement> {
+        if !self.failed(field) {
+            return None;
+        }
+        let theme = Theme::of(window, cx);
+        let home = cx.weak_entity();
+        let id = SharedString::from(format!("v3-home-failed-{}", field.name()));
+        let selector = id.clone();
+        let retry_id = SharedString::from(format!("v3-home-retry-{}", field.name()));
+        let retry = retry_id.clone();
+        Some(
+            div()
+                .id(id)
+                .debug_selector(move || selector.to_string())
+                .flex()
+                .flex_row()
+                .items_center()
+                .gap_2()
+                .font_role(Role::Ui)
+                .type_px(theme.scale.caption, theme.scale.line_caption)
+                .text_color(theme.palette.danger.solid())
+                .child(t(cx, keys::k4_pages::SAVE_FAILED))
+                .child(
+                    div().debug_selector(move || retry.to_string()).child(
+                        Button::new(retry_id, t(cx, keys::markdown_share::RETRY))
+                            .small()
+                            .text()
+                            .on_click(move |_, _, cx| {
+                                home.update(cx, |h, cx| h.save(field, true, cx)).ok();
+                            }),
+                    ),
+                )
+                .into_any_element(),
+        )
     }
 
     pub(crate) fn render_project_template_block(
@@ -830,11 +953,14 @@ impl Home {
     ) -> AnyElement {
         let p = Theme::of(window, cx).palette;
         let weak_home = cx.weak_entity();
-
-        let save_button = if crate::has_save_project_template(cx) && self.lib.is_some() {
-            let click_home = weak_home.clone();
-            let click_book = book.clone();
-            Some(
+        // Not in a template's working copy (it is what a template is
+        // edited in, not a project to save as one).
+        let save_button = (crate::has_save_project_template(cx)
+            && self.lib.is_some()
+            && !self.inline.template_copy)
+            .then(|| {
+                let click_home = weak_home.clone();
+                let click_book = book.id.clone();
                 div()
                     .debug_selector(|| "v3-home-save-project-template".into())
                     .child(
@@ -850,7 +976,7 @@ impl Home {
                             };
                             let (workspace, Some(library)) = ({
                                 let r = h.read(cx);
-                                (r.ws.clone(), r.lib.clone())
+                                (r.ws.clone(), r.lib.as_ref().map(Library::downgrade))
                             }) else {
                                 return;
                             };
@@ -858,18 +984,14 @@ impl Home {
                                 crate::SaveProjectTemplateHost {
                                     workspace,
                                     library,
-                                    book_id: click_book.id.clone(),
-                                    book: click_book.clone(),
+                                    book_id: click_book.clone(),
                                 },
                                 window,
                                 cx,
                             );
                         }),
-                    ),
-            )
-        } else {
-            None
-        };
+                    )
+            });
 
         let header = div()
             .flex()
@@ -896,7 +1018,9 @@ impl Home {
             .flex_col()
             .child(header);
 
-        if let Some((from_text, author, aria_summary)) = format_source_parts(book, cx) {
+        if let Some((from_text, author, aria_summary)) = format_source_parts(book, cx)
+            && !self.inline.template_copy
+        {
             let source_value = div()
                 .id("v3-home-template-source")
                 .debug_selector(|| "v3-home-template-source".into())
@@ -928,23 +1052,30 @@ impl Home {
             ));
         }
 
-        let in_book_label = t(cx, keys::v3_tabs::BOOK);
+        let in_book_label = t(cx, keys::project_home::project_template::BOOK);
         let switch_home = weak_home;
         let has_book_value = div()
-            .id("v3-home-has-book-toggle")
-            .debug_selector(|| "v3-home-has-book-toggle".into())
-            .role(gpui::Role::CheckBox)
-            .aria_label(in_book_label.clone())
-            .aria_toggled(if has_book {
-                gpui::Toggled::True
-            } else {
-                gpui::Toggled::False
-            })
+            .flex()
+            .flex_col()
+            .gap(px(4.0))
             .child(
-                Switch::new("v3-home-has-book", has_book).on_change(move |on, _, cx| {
-                    switch_home.update(cx, |h, cx| h.set_has_book(on, cx)).ok();
-                }),
-            );
+                div()
+                    .id("v3-home-has-book-toggle")
+                    .debug_selector(|| "v3-home-has-book-toggle".into())
+                    .role(gpui::Role::CheckBox)
+                    .aria_label(in_book_label.clone())
+                    .aria_toggled(if has_book {
+                        gpui::Toggled::True
+                    } else {
+                        gpui::Toggled::False
+                    })
+                    .child(Switch::new("v3-home-has-book", has_book).on_change(
+                        move |on, _, cx| {
+                            switch_home.update(cx, |h, cx| h.set_has_book(on, cx)).ok();
+                        },
+                    )),
+            )
+            .children(self.failed_line(Field::HasBook, window, cx));
         block = block.child(hrow(
             in_book_label,
             has_book_value.into_any_element(),
@@ -953,63 +1084,50 @@ impl Home {
         ));
 
         if has_book {
-            let project_target_label = t(cx, keys::project_home::settings::PROJECT_TARGET);
-            let daily_goal_label = t(cx, keys::project_home::settings::DAILY_GOAL);
             let words_unit = t(cx, keys::common::WORDS);
-
-            let wt_value = div()
-                .flex()
-                .items_center()
-                .gap(px(8.0))
-                .child(
-                    div()
-                        .id("v3-home-word-target-input")
-                        .debug_selector(|| "v3-home-word-target-input".into())
-                        .role(gpui::Role::TextInput)
-                        .aria_label(project_target_label.clone())
-                        .w(px(110.0))
-                        .child(self.inline.word_target.clone()),
-                )
-                .child(
-                    div()
-                        .font_role(Role::Index)
-                        .type_px(13.0, 18.0)
-                        .text_color(p.ink(4).solid())
-                        .child(words_unit.clone()),
-                );
-            block = block.child(hrow(
-                project_target_label,
-                wt_value.into_any_element(),
-                false,
-                p,
-            ));
-
-            let dwt_value = div()
-                .flex()
-                .items_center()
-                .gap(px(8.0))
-                .child(
-                    div()
-                        .id("v3-home-daily-target-input")
-                        .debug_selector(|| "v3-home-daily-target-input".into())
-                        .role(gpui::Role::TextInput)
-                        .aria_label(daily_goal_label.clone())
-                        .w(px(110.0))
-                        .child(self.inline.daily_word_target.clone()),
-                )
-                .child(
-                    div()
-                        .font_role(Role::Index)
-                        .type_px(13.0, 18.0)
-                        .text_color(p.ink(4).solid())
-                        .child(words_unit),
-                );
-            block = block.child(hrow(
-                daily_goal_label,
-                dwt_value.into_any_element(),
-                false,
-                p,
-            ));
+            for (field, input, id, label) in [
+                (
+                    Field::WordTarget,
+                    self.inline.word_target.clone(),
+                    "v3-home-word-target-input",
+                    t(cx, keys::project_home::settings::PROJECT_TARGET),
+                ),
+                (
+                    Field::DailyTarget,
+                    self.inline.daily_word_target.clone(),
+                    "v3-home-daily-target-input",
+                    t(cx, keys::project_home::settings::DAILY_GOAL),
+                ),
+            ] {
+                let value = div()
+                    .flex()
+                    .flex_col()
+                    .gap(px(4.0))
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap(px(8.0))
+                            .child(
+                                div()
+                                    .id(id)
+                                    .debug_selector(move || id.into())
+                                    .role(gpui::Role::TextInput)
+                                    .aria_label(label.clone())
+                                    .w(px(110.0))
+                                    .child(input),
+                            )
+                            .child(
+                                div()
+                                    .font_role(Role::Index)
+                                    .type_px(13.0, 18.0)
+                                    .text_color(p.ink(4).solid())
+                                    .child(words_unit.clone()),
+                            ),
+                    )
+                    .children(self.failed_line(field, window, cx));
+                block = block.child(hrow(label, value.into_any_element(), false, p));
+            }
         }
 
         let agent_name_label = t(cx, keys::template_editor::NAME);
@@ -1062,7 +1180,8 @@ impl Home {
                     .into_any_element(),
                 true,
                 p,
-            ));
+            ))
+            .children(self.failed_line(Field::Agent, window, cx));
 
         block = block.child(hrow(
             t(cx, keys::template_editor::FOR_AGENT),
@@ -1072,6 +1191,25 @@ impl Home {
         ));
 
         block.into_any_element()
+    }
+}
+
+impl Drafts for Home {
+    /// Before the shell lets go of the library (the fields are blurred by
+    /// then): what is typed is stored, and the shell waits for it.
+    fn drain(&mut self, _: &mut Window, cx: &mut Context<Self>) -> Drain {
+        for field in Field::ALL {
+            self.save(field, false, cx);
+        }
+        if self.inline.saves.iter().any(|s| s.writing) {
+            return Drain::Pending;
+        }
+        if self.inline.saves.iter().any(|s| s.failed)
+            || Field::ALL.into_iter().any(|f| self.dirty(f, cx))
+        {
+            return Drain::Failed(t(cx, keys::k4_pages::SAVE_FAILED).to_string());
+        }
+        Drain::Ready
     }
 }
 
@@ -1144,73 +1282,4 @@ fn agent_subrow(label: SharedString, input: AnyElement, top: bool, p: &Palette) 
                 .child(label),
         )
         .child(input)
-}
-
-fn sync_text_area(
-    area: &Entity<TextArea>,
-    stored: &mut String,
-    next: String,
-    force: bool,
-    window: &Window,
-    cx: &mut Context<Home>,
-) {
-    let cur = area.read(cx);
-    let composing = cur.is_composing();
-    let focused = cur.focus_handle(cx).is_focused(window);
-    let text = cur.text();
-    let dirty = text != *stored;
-    if force || (!composing && (!focused || !dirty)) {
-        *stored = next.clone();
-        if text != next {
-            area.update(cx, |f, cx| f.set_text(next, cx));
-        }
-    }
-}
-
-fn sync_area_value(
-    area: &Entity<TextArea>,
-    old_stored: &str,
-    next: &str,
-    force: bool,
-    window: &Window,
-    cx: &mut Context<Home>,
-) -> bool {
-    let cur = area.read(cx);
-    let composing = cur.is_composing();
-    let focused = cur.focus_handle(cx).is_focused(window);
-    let text = cur.text();
-    let dirty = text != old_stored;
-    if force || (!composing && (!focused || !dirty)) {
-        if text != next {
-            let s = next.to_owned();
-            area.update(cx, |f, cx| f.set_text(s, cx));
-        }
-        true
-    } else {
-        false
-    }
-}
-
-fn sync_line_field(
-    field: &Entity<TextField>,
-    old_stored: &str,
-    next: &str,
-    force: bool,
-    window: &Window,
-    cx: &mut Context<Home>,
-) -> bool {
-    let cur = field.read(cx);
-    let composing = cur.is_composing();
-    let focused = cur.focus_handle(cx).is_focused(window);
-    let text = cur.text();
-    let dirty = text != old_stored;
-    if force || (!composing && (!focused || !dirty)) {
-        if text != next {
-            let s = next.to_owned();
-            field.update(cx, |f, cx| f.set_text(s, cx));
-        }
-        true
-    } else {
-        false
-    }
 }

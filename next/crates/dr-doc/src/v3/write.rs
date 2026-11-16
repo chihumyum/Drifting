@@ -255,10 +255,12 @@ impl ProjectWriterV3 {
         Ok(self)
     }
 
+    /// The book turned on with these targets (`None`: no book record).
     pub fn book(&self, book: Option<&ProjectBook>) -> Result<&Self> {
         match book {
             Some(b) => {
                 let m = self.map.ensure_mergeable_map("book")?;
+                set(&m, "on", true)?;
                 set(&m, "word_target", b.word_target_set)?;
                 set(&m, "daily_word_target", b.daily_word_target_set)?;
             }
@@ -268,6 +270,13 @@ impl ProjectWriterV3 {
                 }
             }
         }
+        Ok(self)
+    }
+
+    /// Turns the book on or off; its targets stay where they are.
+    pub fn book_on(&self, on: bool) -> Result<&Self> {
+        let m = self.map.ensure_mergeable_map("book")?;
+        set(&m, "on", on)?;
         Ok(self)
     }
 
