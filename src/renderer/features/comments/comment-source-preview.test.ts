@@ -9,6 +9,7 @@ const state = {
   bookElements: [{ id: 'person', projectId: 'project', name: 'The visitor' }],
   bookElementCategories: [{ id: 'category', projectId: 'project', name: 'People' }],
   storylines: [{ id: 'story', projectId: 'project', name: 'The journey' }],
+  libraryItems: [{ id: 'mat-1', projectId: 'project', title: 'Harbor map' }],
 } as Parameters<typeof buildCommentSourcePreview>[2];
 const t = ((key: string) => key) as TFunction;
 const preview = (overrides: Partial<Comment> = {}) => buildCommentSourcePreview({ ...comment, ...overrides }, [], state, t);
@@ -29,6 +30,14 @@ describe('comment source preview', () => {
     expect(preview({ projectId: 'other-project' }).entities[0].name).toBe('reviewPanel.sourceUnavailable');
     expect(preview({ targetId: 'deleted' }).entities[0].name).toBe('reviewPanel.sourceUnavailable');
     expect(preview({ targetKind: null, targetId: null }).entities).toEqual([]);
+  });
+
+  it('resolves material targets and returns to floating preview once unbound', () => {
+    const bound = preview({ targetKind: 'library_item', targetId: 'mat-1' });
+    expect(bound.entities.map((entity) => ({ kind: entity.kind, name: entity.name }))).toEqual([
+      { kind: 'relationTypes.entityKinds.library_item', name: 'Harbor map' },
+    ]);
+    expect(preview({ targetKind: null, targetId: null, targetBlockId: null, anchorJson: '{}' }).entities).toEqual([]);
   });
 
   it('prefers the exact selected span to whole block snapshots', () => {
