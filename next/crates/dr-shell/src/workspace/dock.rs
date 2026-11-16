@@ -10,6 +10,11 @@
 //! row) at the end. The shell gives the tabs, the lock, the `+` and what a
 //! click, a drag and a drop do; the dock keeps its own hover.
 //!
+//! While a panel fills (`W11Right`) the row stays above it and looks and
+//! answers the same: dots that grow into pills under the hand; a click on a
+//! pill leaves the fill and shows that document. Immersed, with the top
+//! band showing, the row is centred on the whole window.
+//!
 //! Pills drag: dropped on another pill a tab takes its place; dropped on the
 //! paper's left or right half it splits the page with the active one. A
 //! click activates, a double click keeps a preview, a middle click closes.
@@ -25,7 +30,7 @@ use gpui::{
     SharedString, StatefulInteractiveElement, Styled, Window, div, prelude::FluentBuilder as _, px,
 };
 
-use super::chrome::{CLUSTER_END, RIGHT_TOGGLE_END, TITLEBAR_HEIGHT, TOGGLE_GAP};
+use super::chrome::{CLUSTER_END, LEADING_INSET, RIGHT_TOGGLE_END, TITLEBAR_HEIGHT, TOGGLE_GAP};
 use super::fill::FillPlace;
 use super::sidebar::Side;
 use super::{PageSide, Workspace};
@@ -90,9 +95,11 @@ pub fn dock(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>
     let on_change = cx.entity();
     let on_drop = cx.entity();
     let on_each = cx.entity();
+    // While a panel fills, the dock is the same row of dots that grow into
+    // pills under the hand (`W11Right`, `shell.css` `.dock-f`): it is not
+    // held open.
     let tab_dock = TabDock::new("dock", docked, active)
         .locked(locked)
-        .held_open(ws.filled().is_some() && !tabs.is_empty())
         .leading(move |_, _| {
             let lock = lock.clone();
             IconButton::new(
@@ -114,10 +121,15 @@ pub fn dock(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>
             .into_any_element()
         })
         .trailing(move |_, _| {
-            IconButton::new("dock-new", Icon::Plus)
-                .label(new_label.clone())
-                .selected(home)
-                .on_click(|_, window, cx| window.dispatch_action(Box::new(NewEntity), cx))
+            // Only drawn while the dock is open (tests look for it).
+            div()
+                .debug_selector(|| DOCK_NEW.into())
+                .child(
+                    IconButton::new("dock-new", Icon::Plus)
+                        .label(new_label.clone())
+                        .selected(home)
+                        .on_click(|_, window, cx| window.dispatch_action(Box::new(NewEntity), cx)),
+                )
                 .into_any_element()
         })
         .on_change(move |i, window, cx| {
@@ -162,6 +174,35 @@ pub fn dock(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>
                     })
                 })
         });
+    let (lead, trail) = dock_insets(ws, window_w);
+    div()
+        .absolute()
+        .top_0()
+        .left(px(lead))
+        .right(px(trail))
+        .h(px(TITLEBAR_HEIGHT))
+        .flex()
+        .justify_center()
+        .items_center()
+        .debug_selector(|| DOCK_ROW.into())
+        .child(tab_dock)
+        .into_any_element()
+}
+
+/// The dock row's debug selector (tests).
+pub const DOCK_ROW: &str = "dock-row";
+/// The `+` at the end of the open dock (tests): there only while the dots
+/// have grown into pills.
+pub const DOCK_NEW: &str = "dock-new";
+
+/// How far the dock row stays from the window's left and right edges: over
+/// the middle column, clear of the toggles. Immersed, the sidebars and the
+/// toggles are not drawn, so the row is centred on the whole window, clear
+/// of the window controls on both sides alike.
+fn dock_insets(ws: &Workspace, window_w: f32) -> (f32, f32) {
+    if ws.immersive {
+        return (LEADING_INSET, LEADING_INSET);
+    }
     let min_lead = CLUSTER_END + TOGGLE_GAP;
     let min_trail = RIGHT_TOGGLE_END + TOGGLE_GAP;
     let left_base = (ws.left.width * ws.left.shown()).round();
@@ -196,17 +237,7 @@ pub fn dock(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>
         lead = min_lead;
         trail = min_trail;
     }
-    div()
-        .absolute()
-        .top_0()
-        .left(px(lead))
-        .right(px(trail))
-        .h(px(TITLEBAR_HEIGHT))
-        .flex()
-        .justify_center()
-        .items_center()
-        .child(tab_dock)
-        .into_any_element()
+    (lead, trail)
 }
 
 /// One page of a pill: a tab's leaf, or one side of a split.

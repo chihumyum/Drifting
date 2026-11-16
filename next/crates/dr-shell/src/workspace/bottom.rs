@@ -348,6 +348,7 @@ pub(super) fn panel(
     let grip = (!bottom_filled).then(|| {
         div()
             .id("bottom-panel-grip")
+            .debug_selector(|| "bottom-panel-grip".into())
             .absolute()
             .top_0()
             .left_0()

@@ -316,13 +316,15 @@ fn column(
     }
     let offset = visible - width;
     let handle = can_resize.then(|| {
+        let id = match (side, filled) {
+            (Side::Left, false) => "resize-left",
+            (Side::Left, true) => "fill-resize-left",
+            (Side::Right, false) => "resize-right",
+            (Side::Right, true) => "fill-resize-right",
+        };
         let mut h = div()
-            .id(match (side, filled) {
-                (Side::Left, false) => "resize-left",
-                (Side::Left, true) => "fill-resize-left",
-                (Side::Right, false) => "resize-right",
-                (Side::Right, true) => "fill-resize-right",
-            })
+            .id(id)
+            .debug_selector(move || id.to_string())
             .absolute()
             .top_0()
             .bottom_0()

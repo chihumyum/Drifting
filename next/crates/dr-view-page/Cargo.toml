@@ -33,6 +33,8 @@ gpui-prose.workspace = true
 dr-view-stats.workspace = true
 dr-view-search.workspace = true
 dr-view-export.workspace = true
+# T9: a new template from the left column's foot opens K5's full editor.
+dr-view-templates.workspace = true
 dr-platform.workspace = true
 anyhow.workspace = true
 dr-testkit.workspace = true
