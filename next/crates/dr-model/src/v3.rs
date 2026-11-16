@@ -2278,6 +2278,25 @@ pub fn check_timeline_lane(
     Ok(())
 }
 
+/// DV2 (`kernel-v5.md` §15 item 31): whether a stored lane is one of the old
+/// lanes that are only a level, which a book clears once when it opens: its
+/// entry is live (and so is every entry above it), has its level switch on
+/// and takes no entries from elsewhere. Every such lane fails
+/// [`check_timeline_lane`], so readers ([`effective_timeline_lanes`]) leave
+/// it out already. The other lanes they leave out are not these and stay: a
+/// lane whose entry is gone or in Recently Deleted (or under an entry that
+/// is), and one with both switches off (a storyline whose 「收别处的条目」
+/// the author turned off comes back when it is turned on again).
+pub fn is_level_only_lane(
+    entry_id: &EntryId,
+    entries: &BTreeMap<EntryId, Entry>,
+    templates: &BTreeMap<EntryTemplateId, EntryTemplate>,
+) -> bool {
+    is_entry_live(entry_id, entries)
+        && entries[entry_id].is_level()
+        && !entries[entry_id].accepts_members(templates)
+}
+
 /// Read-side filter for Invariant 8 (`V3-TIMELINE-LANE-ENABLED`): ignores lanes
 /// whose target entry is missing, trashed, or does not take entries from
 /// elsewhere (`accept` off, whatever its level switch). The stored lane stays.
@@ -4073,6 +4092,83 @@ mod tests {
             &entries,
             &templates
         ));
+    }
+
+    /// DV2: the lanes a book clears once when it opens are the old lanes
+    /// that are only a level: a live entry with its level on and
+    /// 「收别处的条目」 off. Each of them is a lane the readers leave out
+    /// (`V3-TIMELINE-LANE-ENABLED`); the other lanes the readers leave out
+    /// (both switches off, in Recently Deleted or under an entry that is,
+    /// gone) are not cleared, nor is any lane they show.
+    #[test]
+    fn a_level_only_lane_is_a_live_level_that_takes_nothing_from_elsewhere() {
+        let mut tpl_storyline = template("tpl-storyline", "故事线");
+        tpl_storyline.level = false;
+        tpl_storyline.settings.accept = Some(true);
+        let templates = BTreeMap::from([
+            (tid("tpl-storyline"), tpl_storyline),
+            (
+                tid("tpl-folder"),
+                level_template("tpl-folder", "文件夹", false),
+            ),
+        ]);
+        let mut trashed = level_with("trashed", None, "旧卷", Some("tpl-folder"));
+        trashed.deleted_at = Some(Timestamp(2000));
+        let mut gone_above = level_with("gone-above", None, "上一层", Some("tpl-folder"));
+        gone_above.deleted_at = Some(Timestamp(2000));
+        let mut both = level_with("both", None, "幕", Some("tpl-folder"));
+        both.overrides = Some(LevelSettingsOverride {
+            accept: Some(true),
+            ..Default::default()
+        });
+        let mut line_off = entry_with("line-off", None, "关掉的线", Some("tpl-storyline"));
+        line_off.overrides = Some(LevelSettingsOverride {
+            accept: Some(false),
+            ..Default::default()
+        });
+        let mut line_level = level_with("line-level", None, "开了层级的线", Some("tpl-storyline"));
+        line_level.overrides = Some(LevelSettingsOverride {
+            accept: Some(false),
+            ..Default::default()
+        });
+        let entries = BTreeMap::from([
+            (
+                eid("folder"),
+                level_with("folder", None, "书稿", Some("tpl-folder")),
+            ),
+            (eid("trashed"), trashed),
+            (eid("gone-above"), gone_above),
+            (
+                eid("under-gone"),
+                level_with(
+                    "under-gone",
+                    Some("gone-above"),
+                    "下一层",
+                    Some("tpl-folder"),
+                ),
+            ),
+            (eid("both"), both),
+            (
+                eid("line"),
+                entry_with("line", None, "主线", Some("tpl-storyline")),
+            ),
+            (eid("line-off"), line_off),
+            (eid("line-level"), line_level),
+        ]);
+        let level_only = |id: &str| is_level_only_lane(&eid(id), &entries, &templates);
+        let hidden = |id: &str| check_timeline_lane(&eid(id), &entries, &templates).is_err();
+        for id in ["folder", "line-level"] {
+            assert!(level_only(id), "{id}");
+            assert!(hidden(id), "{id}");
+        }
+        for id in ["trashed", "under-gone", "line-off", "missing"] {
+            assert!(!level_only(id), "{id}");
+            assert!(hidden(id), "{id}");
+        }
+        for id in ["both", "line"] {
+            assert!(!level_only(id), "{id}");
+            assert!(!hidden(id), "{id}");
+        }
     }
 
     #[test]

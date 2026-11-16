@@ -2516,3 +2516,111 @@ fn a_whole_module_comment_is_not_located_once_its_module_is_gone() {
     .unwrap();
     assert_eq!(missing(&doc, &cid), (false, false));
 }
+
+/// DV2 (`kernel-v5.md` §15 item 31): writing a lane marks the book. A book a
+/// build before DV2 left without the mark, with 书稿 as a lane, is cleared
+/// once by the repair: the lane goes with the place of the chapter that
+/// only lived in it, the place of the chapter also hung on a storyline
+/// stays, and the book is marked. Two devices clearing it before they meet
+/// read the same book, and there is nothing left to repair.
+#[test]
+fn a_book_without_the_mark_is_cleared_of_its_level_only_lanes_once_on_every_device() {
+    let (mut one, roots) = novel_book(71, |t, roots| {
+        t.entries().create(
+            &eid("sl"),
+            Some(&roots.storylines),
+            "主线",
+            Some(&tid(TPL_STORYLINE)),
+            false,
+        )?;
+        for (id, title) in [("ch-hung", "挂着的章"), ("ch-lives", "只住着的章")] {
+            t.entries().create(
+                &eid(id),
+                Some(&roots.manuscript),
+                title,
+                Some(&tid(TPL_CHAPTER)),
+                false,
+            )?;
+        }
+        t.put_membership(&eid("sl"), &eid("ch-hung"), None, None)?;
+        Ok(())
+    });
+    let view = roots.narrative_view.clone();
+    // The writing project's view has no lane: no mark, nothing to repair.
+    assert!(!one.view().level_lanes_cleared());
+    assert!(!one.view().needs_repair());
+    one.edit(Origin::User, |t| {
+        t.timeline_view(&view)?
+            .put_lane(&eid("sl"), Some(&PosKey::first()))?
+            .put_placement(&eid("ch-hung"), 1.0, None)?;
+        Ok(())
+    })
+    .0
+    .unwrap();
+    assert!(one.view().level_lanes_cleared(), "a lane write marks");
+    assert!(one.view().repair_plan().is_empty());
+
+    one.edit(Origin::User, |t| {
+        t.timeline_view(&view)?
+            .put_lane(&roots.manuscript, Some(&PosKey::first().after()))?
+            .put_placement(&eid("ch-lives"), 2.0, None)?;
+        t.meta().level_lanes_cleared(false)?;
+        Ok(())
+    })
+    .0
+    .unwrap();
+    let v = one.view();
+    assert!(v.needs_repair());
+    let plan = v.repair_plan();
+    assert_eq!(
+        plan,
+        RepairPlanV3 {
+            level_only_lanes: vec![(view.clone(), roots.manuscript.clone())],
+            level_only_placements: vec![(view.clone(), eid("ch-lives"))],
+            mark_level_lanes_cleared: true,
+            ..RepairPlanV3::default()
+        }
+    );
+
+    let mut two = BookDocV3::load(bid(), 72, &[one.export_snapshot().unwrap()]).unwrap();
+    for doc in [&mut one, &mut two] {
+        let (done, committed) = doc.repair().unwrap();
+        assert_eq!(done, plan);
+        assert!(committed.is_some());
+    }
+    let from_two = two.export_updates_since(&one.version()).unwrap();
+    let from_one = one.export_updates_since(&two.version()).unwrap();
+    one.import(&from_two, Origin::Sync).unwrap();
+    two.import(&from_one, Origin::Sync).unwrap();
+    for doc in [&mut one, &mut two] {
+        let v = doc.view();
+        assert!(v.level_lanes_cleared());
+        assert!(!v.needs_repair());
+        let tv = v
+            .timeline_views_raw()
+            .into_iter()
+            .find(|tv| tv.id == view)
+            .unwrap();
+        assert_eq!(
+            tv.lanes.iter().map(|l| &l.entry).collect::<Vec<_>>(),
+            vec![&eid("sl")]
+        );
+        assert_eq!(
+            tv.placements.iter().map(|p| &p.entry).collect::<Vec<_>>(),
+            vec![&eid("ch-hung")]
+        );
+        assert_eq!(
+            v.children_of(Some(&roots.manuscript))
+                .iter()
+                .map(|e| e.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["ch-hung", "ch-lives"]
+        );
+        assert_eq!(v.memberships_raw().len(), 1);
+        assert!(doc.repair().unwrap().1.is_none(), "cleared once");
+    }
+    assert_eq!(
+        one.view().timeline_views_raw(),
+        two.view().timeline_views_raw()
+    );
+}

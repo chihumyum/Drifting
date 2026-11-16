@@ -92,11 +92,25 @@ impl EntrySnapshotV3 {
 pub struct RepairPlanV3 {
     /// Semantic duplicate relations beyond the smallest `RelationId`.
     pub duplicate_relations: Vec<RelationId>,
+    /// DV2 (`kernel-v5.md` §15 item 31): the old lanes that are only a level
+    /// ([`dr_model::v3::is_level_only_lane`]), by view, in a book that has
+    /// not been cleared yet. They are taken out of their views.
+    pub level_only_lanes: Vec<(TimelineViewId, EntryId)>,
+    /// DV2: in the view of such a lane, the places of the entries living
+    /// directly under it that no other lane stored in that view has a
+    /// membership for; they go with the lane.
+    pub level_only_placements: Vec<(TimelineViewId, EntryId)>,
+    /// DV2: the book stores lanes and is not marked yet; the repair sets
+    /// `meta.level_lanes_cleared`, so it clears once.
+    pub mark_level_lanes_cleared: bool,
 }
 
 impl RepairPlanV3 {
     pub fn is_empty(&self) -> bool {
         self.duplicate_relations.is_empty()
+            && self.level_only_lanes.is_empty()
+            && self.level_only_placements.is_empty()
+            && !self.mark_level_lanes_cleared
     }
 }
 
@@ -2544,7 +2558,79 @@ impl<'a> BookViewV3<'a> {
         crate::catalog::read::CatalogView { doc: self.doc }.entity_snapshot(collection.root(), id)
     }
 
+    /// DV2 (`kernel-v5.md` §15 item 31): whether the book is marked as holding
+    /// no old lane that is only a level left to clear
+    /// (`meta.level_lanes_cleared`).
+    pub fn level_lanes_cleared(&self) -> bool {
+        matches!(
+            self.doc
+                .get_map(book_v3::META)
+                .get(crate::schema::meta::LEVEL_LANES_CLEARED),
+            Some(loro::ValueOrContainer::Value(LoroValue::Bool(true)))
+        )
+    }
+
+    /// Whether any view (in Recently Deleted or not) stores a lane, read
+    /// without materialising the views.
+    fn stores_lanes(&self) -> bool {
+        use loro::{Container, ValueOrContainer};
+        let views = self.doc.get_map(book_v3::TIMELINE_VIEWS);
+        views.keys().any(|key| match views.get(&key) {
+            Some(ValueOrContainer::Container(Container::Map(view))) => matches!(
+                view.get("lanes"),
+                Some(ValueOrContainer::Container(Container::Map(lanes))) if !lanes.is_empty()
+            ),
+            _ => false,
+        })
+    }
+
+    /// DV2: a book that stores lanes and is not marked is cleared once.
+    fn lanes_to_check(&self) -> bool {
+        !self.level_lanes_cleared() && self.stores_lanes()
+    }
+
+    /// DV2: in every view, the old lanes that are only a level and the places
+    /// that go with them: those of the entries living directly under such a
+    /// lane, unless another lane stored in the same view (shown or not) has a
+    /// membership for the entry. Nothing else is touched: other lanes and
+    /// their places, other views, entries, memberships, manual order.
+    fn level_only_lanes(&self, plan: &mut RepairPlanV3) {
+        let g = self.graph();
+        for view in self.timeline_views_raw() {
+            let (old, kept): (BTreeSet<&EntryId>, BTreeSet<&EntryId>) = view
+                .lanes
+                .iter()
+                .map(|l| &l.entry)
+                .partition(|e| is_level_only_lane(e, &g.entries, &g.templates));
+            if old.is_empty() {
+                continue;
+            }
+            let hung_on_kept: BTreeSet<&EntryId> = g
+                .memberships
+                .iter()
+                .filter(|m| kept.contains(&m.host))
+                .map(|m| &m.member)
+                .collect();
+            for p in &view.placements {
+                let under_old = g
+                    .entries
+                    .get(&p.entry)
+                    .and_then(|e| e.parent.as_ref())
+                    .is_some_and(|parent| old.contains(parent));
+                if under_old && !hung_on_kept.contains(&p.entry) {
+                    plan.level_only_placements
+                        .push((view.id.clone(), p.entry.clone()));
+                }
+            }
+            plan.level_only_lanes
+                .extend(old.into_iter().map(|e| (view.id.clone(), e.clone())));
+        }
+    }
+
     pub fn needs_repair(&self) -> bool {
+        if self.lanes_to_check() {
+            return true;
+        }
         let symmetric: HashSet<RelationTypeId> = self
             .relation_types()
             .into_iter()
@@ -2571,6 +2657,10 @@ impl<'a> BookViewV3<'a> {
             if !kept.insert(key) {
                 plan.duplicate_relations.push(r.id.clone());
             }
+        }
+        if self.lanes_to_check() {
+            plan.mark_level_lanes_cleared = true;
+            self.level_only_lanes(&mut plan);
         }
         plan
     }
