@@ -25,11 +25,14 @@ pub struct AgentCardsHost {
     pub workspace: WeakEntity<Workspace>,
 }
 
+type Drawn = Rc<dyn Fn(&App) -> bool>;
+type Shown = Rc<dyn Fn(&mut Window, &mut App)>;
+
 /// One Home's cards: their view and the two things Home asks of it.
 pub struct AgentCards {
     view: AnyView,
-    drawn: Rc<dyn Fn(&App) -> bool>,
-    shown: Rc<dyn Fn(&mut Window, &mut App)>,
+    drawn: Drawn,
+    shown: Shown,
 }
 
 impl AgentCards {
