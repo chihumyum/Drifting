@@ -63,6 +63,19 @@
 //!    and leaving it would bring it back in whatever field the author types
 //!    in next.
 //!
+//! 3. **A press elsewhere in the text mid-composition** (the author's rule:
+//!    drop the marked text, then place the caret). On Windows the backend
+//!    does not hand presses to the input method: the editor's mouse-down
+//!    drops the marked text and sends `CPS_CANCEL` (`input/mouse.rs`). On
+//!    macOS GPUI calls `[inputContext handleEvent:]` with the press first,
+//!    and an input method may commit its marked text right there, before
+//!    the editor's mouse-down: [`SystemIme::pointer_press_in_flight`] reads
+//!    `[NSApp currentEvent]`, and a commit that arrives while it is a
+//!    button going down is dropped with the marked text (`input/ime.rs`).
+//!    An input method that leaves its marked text alone gets the same end
+//!    from the mouse-down. Not verified with a real input method: see the
+//!    manual tests in `docs/rust-rewrite/foundations/f4c-input.md`.
+//!
 //! The editor installs one by itself when input starts in a window with a
 //! native handle, unless the host set its own hooks
 //! ([`crate::ProseEditor::set_platform_hooks`]); test windows have no handle
@@ -139,6 +152,32 @@ impl PlatformHooks for SystemIme {
                 let _ = ImmNotifyIME(himc, NI_COMPOSITIONSTR, CPS_CANCEL, 0);
                 let _ = ImmReleaseContext(hwnd, himc);
             }
+        }
+    }
+
+    /// Whether AppKit's current event is a mouse button going down
+    /// (`NSEventTypeLeftMouseDown`, `RightMouseDown`, `OtherMouseDown`).
+    #[cfg(target_os = "macos")]
+    fn pointer_press_in_flight(&self) -> bool {
+        // SAFETY: the shared application and its current event, read on
+        // GPUI's UI thread (AppKit's main thread); both may be nil.
+        unsafe {
+            use objc2::{
+                class, msg_send,
+                runtime::{AnyObject, MessageReceiver, Sel},
+            };
+            let app: *mut AnyObject = msg_send![class!(NSApplication), sharedApplication];
+            if app.is_null() {
+                return false;
+            }
+            let event: *mut AnyObject = msg_send![app, currentEvent];
+            if event.is_null() {
+                return false;
+            }
+            // `-[NSEvent type]` (an `NSUInteger`); `type` is a Rust keyword,
+            // so the selector is registered by name.
+            let kind: usize = MessageReceiver::send_message(event, Sel::register(c"type"), ());
+            matches!(kind, 1 | 3 | 25)
         }
     }
 

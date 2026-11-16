@@ -1,9 +1,10 @@
 //! The chapter page's head and end on GPUI's test platform, around a real
 //! editor on a real workspace: the title hands the caret to the text and is
 //! stored when left, Esc and an empty title put the stored one back, the
-//! synopsis is stored when left, ⁂ finishes the chapter and makes the next,
-//! whose title then takes the caret, selected; an idea's page stores its
-//! title and synopsis the same way.
+//! synopsis is stored when left, the end draws only the room under the text
+//! (and an empty page's hint), a chapter just made opens with its title
+//! taking the caret, selected; an idea's page stores its title and synopsis
+//! the same way.
 
 use std::time::{Duration, Instant};
 
@@ -12,7 +13,7 @@ use dr_shell::pages::{PageEditorRef, PageHost};
 use dr_shell::{Services, SettingsFile, ShellInfo};
 use dr_store::Library;
 use dr_ui::Appearance;
-use dr_view_page::{Chrome, EndAction, page_views};
+use dr_view_page::{Chrome, page_views};
 use dr_workspace::{Actor, Workspace, WorkspaceOptions, library_options};
 use gpui::{
     Entity, EntityInputHandler as _, Focusable as _, TestAppContext, VisualTestContext, WeakEntity,
@@ -229,39 +230,49 @@ fn the_synopsis_is_stored_when_left(cx: &mut TestAppContext) {
     assert_eq!(summary(&e), "码头上的第一夜。");
 }
 
+/// Where the end of `doc`'s page was drawn.
+fn end_bounds(cx: &mut VisualTestContext, doc: &str) -> gpui::Bounds<gpui::Pixels> {
+    let selector: &'static str = Box::leak(format!("page-end-{doc}").into_boxed_str());
+    cx.debug_bounds(selector).expect("the page's end is drawn")
+}
+
+/// The chapter-end mark and its actions are gone (kernel-v5 §15, item 34):
+/// under a chapter's text there is the page's bottom padding and nothing
+/// else; under an empty chapter, the hint and the same padding.
 #[gpui::test]
-fn the_end_finishes_the_chapter_and_makes_the_next(cx: &mut TestAppContext) {
+fn the_end_draws_only_the_room_under_the_text(cx: &mut TestAppContext) {
     let e = env();
-    let doc = chapter(&e, "雨夜", "他把吸铁石拍在桌上。");
-    chapter(&e, "天明", "");
-    let (_, mut cx) = open(cx, &e, &doc);
-    let (_, end) = cx.update(|_, cx| page_views(&doc, cx)).unwrap();
-    let status = |e: &Env| chapters(e)[0]["status"].as_str().unwrap().to_owned();
-    cx.update(|window, cx| end.update(cx, |end, cx| end.choose(EndAction::Finish, window, cx)));
-    wait_for(&mut cx, |_| status(&e) == "finished");
-    assert_eq!(status(&e), "finished");
-    // The page heard of it: the same action now puts it back to draft.
-    wait_for(&mut cx, |cx| {
-        end.read_with(cx, |end, _| end.page().finished())
-    });
-    cx.update(|window, cx| end.update(cx, |end, cx| end.choose(EndAction::Finish, window, cx)));
-    wait_for(&mut cx, |_| status(&e) == "draft");
-    assert_eq!(status(&e), "draft");
-    // The next chapter goes right after this one, before 「天明」.
-    cx.update(|window, cx| end.update(cx, |end, cx| end.choose(EndAction::Next, window, cx)));
-    wait_for(&mut cx, |_| titles(&e).len() == 3);
-    assert_eq!(titles(&e), ["雨夜", "新章节", "天明"]);
-    // Opened (the shell opens it in a tab), its title has the caret,
-    // all of it selected.
-    let new_doc = format!("body:{}/mod-prose", chapters(&e)[1]["id"].as_str().unwrap());
+    let written = chapter(&e, "雨夜", "他把吸铁石拍在桌上。");
+    let empty = chapter(&e, "天明", "");
+    let (_, mut cx) = open(cx, &e, &written);
+    let (_, end) = cx.update(|_, cx| page_views(&written, cx)).unwrap();
+    assert!(!end.read_with(&cx, |end, _| end.shows_hint()));
+    let room = px(dr_ui::tokens::page::BOTTOM);
+    assert_eq!(end_bounds(&mut cx, &written).size.height, room);
+
     let mut app = cx.cx.clone();
-    let (_, mut cx2) = open(&mut app, &e, &new_doc);
-    let (head, _) = cx2.update(|_, cx| page_views(&new_doc, cx)).unwrap();
-    let title = head.read_with(&cx2, |h, _| h.title().clone());
-    draw(&mut cx2);
-    assert!(cx2.update(|window, cx| title.focus_handle(cx).is_focused(window)));
-    let (selection, len) = title.read_with(&cx2, |f, _| (f.composer().selection(), f.text().len()));
+    let (_, mut cx2) = open(&mut app, &e, &empty);
+    let (_, end) = cx2.update(|_, cx| page_views(&empty, cx)).unwrap();
+    assert!(end.read_with(&cx2, |end, _| end.shows_hint()));
+    assert!(end_bounds(&mut cx2, &empty).size.height > room);
+}
+
+/// A chapter just made (any create row calls `focus_new_title`) opens with
+/// its title holding the caret, all of it selected.
+#[gpui::test]
+fn a_chapter_just_made_opens_with_its_title_selected(cx: &mut TestAppContext) {
+    let e = env();
+    chapter(&e, "雨夜", "他把吸铁石拍在桌上。");
+    let new_doc = chapter(&e, "新章节", "");
+    cx.update(|cx| dr_view_page::focus_new_title(new_doc.clone(), cx));
+    let (_, mut cx) = open(cx, &e, &new_doc);
+    let (head, _) = cx.update(|_, cx| page_views(&new_doc, cx)).unwrap();
+    let title = head.read_with(&cx, |h, _| h.title().clone());
+    draw(&mut cx);
+    assert!(cx.update(|window, cx| title.focus_handle(cx).is_focused(window)));
+    let (selection, len) = title.read_with(&cx, |f, _| (f.composer().selection(), f.text().len()));
     assert_eq!(selection, 0..len);
+    assert_eq!(titles(&e), ["雨夜", "新章节"]);
 }
 
 #[gpui::test]
@@ -279,7 +290,7 @@ fn an_idea_page_stores_its_title_and_synopsis(cx: &mut TestAppContext) {
         .to_owned();
     let doc = format!("body:{id}/mod-prose");
     let (_, mut cx) = open(cx, &e, &doc);
-    let (head, end) = cx
+    let (head, _) = cx
         .update(|_, cx| page_views(&doc, cx))
         .expect("an idea has a head");
     let (title, synopsis) = head.read_with(&cx, |h, _| (h.title().clone(), h.synopsis().clone()));
@@ -299,7 +310,4 @@ fn an_idea_page_stores_its_title_and_synopsis(cx: &mut TestAppContext) {
     let i = idea(&e);
     assert_eq!(i["title"], "雾中灯塔");
     assert_eq!(i["summary"], "守灯人的最后一夜。");
-    // ⁂ on an idea has no actions.
-    cx.update(|window, cx| end.update(cx, |end, cx| end.open_actions(window, cx)));
-    assert!(!end.read_with(&cx, |end, _| end.is_open()));
 }

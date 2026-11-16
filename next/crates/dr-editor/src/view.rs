@@ -710,7 +710,7 @@ impl ChapterEditor {
     }
 
     /// Draws the host's head and end around the text (M03: the folio line,
-    /// the title, the synopsis, ⁂, the empty-chapter hint), or the editor's
+    /// the title, the synopsis, the empty-chapter hint), or the editor's
     /// own title row again (`None`). See [`crate::page`].
     pub fn set_chrome(
         &mut self,

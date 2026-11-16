@@ -10,7 +10,7 @@
 //! is stored before the app quits or the library is swapped, held to the
 //! title the head showed: one set elsewhere meanwhile is not overwritten,
 //! the typed one stays in the field with 「重试」 (the page-head drafts'
-//! rules, `head/drafts.rs`). A chapter just made with ⁂ 「新建下一章」 opens
+//! rules, `head/drafts.rs`). An entry just made (`focus_new_title`) opens
 //! with its title taking the caret, selected.
 use std::{collections::HashMap, rc::Rc};
 

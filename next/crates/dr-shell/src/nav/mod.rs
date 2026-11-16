@@ -259,8 +259,8 @@ impl Tab {
 pub struct Open {
     pub preview: bool,
     pub activate: bool,
-    /// The page's title takes the caret, not its text (a chapter just made
-    /// with ⁂ 新建下一章: its head focuses the title once drawn, so the
+    /// The page's title takes the caret, not its text (an entry just made
+    /// from a create row: its head focuses the title once drawn, so the
     /// shell does not hand the editor the keyboard).
     pub title: bool,
 }

@@ -12,19 +12,18 @@
 //!   title back, leaving it stores it); the synopsis, a borderless multi-line
 //!   field (stored when it is left, Esc puts it back); the rule.
 //! - **End** ([`end::PageEnd`]): an empty page's hint (the Markdown for H1,
-//!   H2 and H3, then search and the timeline with their keys), and ⁂. The
-//!   pointer resting on ⁂ turns it into its actions: 「标为完成」 or
-//!   「改回草稿」 and 「新建下一章」, which makes the chapter, opens it and
-//!   puts the caret in its title, selected.
+//!   H2 and H3, then search and the timeline with their keys) and the room
+//!   under the text. The 0.1 client's chapter-end mark and its actions are
+//!   not here (`kernel-v5.md` §15, item 34).
 //!
 //! Heads and ends are views of their own inside the editor's scroll, so
-//! their fields and menu redraw without the editor. Writes go through
+//! their fields redraw without the editor. Writes go through
 //! dr-editor's `page::*` on a background thread; what they change comes
 //! back with the editor's next `PageInfo`.
 //!
 //! The app registers it once with [`init`], after `dr_shell::init`. Chapter
-//! and idea pages get the head and end (an idea's folio says 「构想」, its ⁂
-//! has no actions); other pages get nothing.
+//! and idea pages get the head and end (an idea's folio says 「构想」);
+//! other pages get nothing.
 
 pub mod end;
 pub mod entry_head;
@@ -46,7 +45,7 @@ use gpui::{
     WeakEntity, Window, div,
 };
 
-pub use end::{EndAction, PageEnd};
+pub use end::PageEnd;
 pub use head::PageHead;
 
 /// Registers the chrome with the shell: every chapter, idea and whole-book
@@ -118,16 +117,9 @@ impl Chrome {
                 let host = self.host.clone();
                 let titled = self.titled;
                 let head = cx.new(|cx| {
-                    PageHead::new_with_book(
-                        host.clone(),
-                        page,
-                        self.book.clone(),
-                        titled,
-                        window,
-                        cx,
-                    )
+                    PageHead::new_with_book(host, page, self.book.clone(), titled, window, cx)
                 });
-                let end = cx.new(|_| PageEnd::new_with_book(host, page, self.book.clone()));
+                let end = cx.new(|_| PageEnd::new(page));
                 self.pages
                     .borrow_mut()
                     .insert(page.doc.clone(), (head.clone(), end.clone()));
@@ -194,7 +186,7 @@ impl PageChrome for Chrome {
         } else {
             0.0
         };
-        hints + tk::ORNAMENT_TOP + tk::ORNAMENT_TARGET.1 + tk::ORNAMENT_BOTTOM + tk::BOTTOM
+        hints + tk::BOTTOM
     }
 }
 
@@ -237,11 +229,9 @@ pub(crate) fn focus_body(host: &PageHost, doc: &str, window: &mut Window, cx: &m
     }
 }
 
-/// Chapters ⁂ just made, whose title takes the caret, selected, when their
-/// page is first drawn.
 /// Select the title the first time a newly created chapter or idea is drawn.
 /// Pair this with the shell's `Open::KEEP.at_title()` so its editor does not
-/// take the keyboard before the page head does (M02's create row, M03's ⁂).
+/// take the keyboard before the page head does (M02's create row).
 pub fn focus_new_title(doc: String, cx: &mut App) {
     NewTitles::add(doc, cx);
 }
