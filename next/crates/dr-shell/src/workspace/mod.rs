@@ -488,6 +488,10 @@ pub struct Workspace {
     /// 「新建模板」 while the left column fills and its sidebar is not made
     /// yet: the structure opens a new template in its floating panel.
     want_new_template: bool,
+    /// 「新建模板」 from the left column's foot while it does not fill: the
+    /// stored template whose full editor opens in a new pill once the read
+    /// snapshot holds it ([`Self::template_created`]).
+    pending_created_template: Option<dr_model::id::EntryTemplateId>,
     hovered_moon: Option<fill::MoonHalf>,
     pub settings: Option<Entity<SettingsPanel>>,
     /// M06's search panel, while open.
@@ -643,6 +647,7 @@ impl Workspace {
             tab_fill_layouts: BTreeMap::new(),
             want_template_structure: false,
             want_new_template: false,
+            pending_created_template: None,
             hovered_moon: None,
             settings: None,
             search: None,
@@ -716,6 +721,7 @@ impl Workspace {
         };
         self.fill.reset();
         self.want_new_template = false;
+        self.pending_created_template = None;
         self.hovered_moon = None;
         self.want_template_structure = false;
         self.tab_fill_layouts = saved
@@ -836,6 +842,7 @@ impl Workspace {
                     if !same_revision {
                         self.book = Rc::new(book);
                     }
+                    self.show_created_template(cx);
                     self.sync_active_book();
                     self.retitle_editors(cx);
                     // A template's working copy is never the project the
@@ -1297,6 +1304,7 @@ impl Workspace {
         self.library_panel.borrow_mut().clear();
         self.fill.reset();
         self.want_new_template = false;
+        self.pending_created_template = None;
         self.hovered_moon = None;
         self.tab_fill_layouts.clear();
         self.want_template_structure = false;
@@ -1518,6 +1526,30 @@ impl Workspace {
     pub fn open(&mut self, target: Target, how: Open, cx: &mut Context<Self>) {
         self.exit_fill_in_cx(cx);
         self.open_page(target, how, cx);
+    }
+
+    /// K5 stored a new template from 「新建模板」 at the left column's foot
+    /// while the column does not fill (`kernel-v5.md` §9): its full editor
+    /// opens in a new pill once the committed template is in the read
+    /// snapshot the pages mount from.
+    pub fn template_created(&mut self, id: dr_model::id::EntryTemplateId, cx: &mut Context<Self>) {
+        self.pending_created_template = Some(id);
+        self.show_created_template(cx);
+    }
+
+    fn show_created_template(&mut self, cx: &mut Context<Self>) {
+        let Some(id) = &self.pending_created_template else {
+            return;
+        };
+        let target = Target::Template(id.clone());
+        if !self.book.exists(&target) {
+            return;
+        }
+        self.pending_created_template = None;
+        if self.shelf_open || self.projects_open {
+            return;
+        }
+        self.open(target, Open::KEEP, cx);
     }
 
     fn open_page(&mut self, target: Target, how: Open, cx: &mut Context<Self>) {

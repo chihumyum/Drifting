@@ -781,44 +781,37 @@
     {
       "app": "ui.wait",
       "params": {
-        "until": "time",
-        "ms": 700
-      }
-    },
-    {
-      "app": "state.get",
-      "expect": {
-        "/fill": null,
-        "/activeTab": 0,
-        "/dialog": true
-      },
-      "note": "Not filled: the full editor opens on a new template nobody stored yet (no pill until it is saved)."
-    },
-    {
-      "app": "ui.press",
-      "params": {
-        "label": "Close",
-        "role": "Button"
-      }
-    },
-    {
-      "app": "ui.wait",
-      "params": {
         "state": {
-          "/dialog": false
+          "/fill": null,
+          "/activeTab": 1
         },
         "timeout_ms": 12000
-      }
+      },
+      "note": "Not filled, from the left foot (W12Template): the new template is stored and K5's full editor opens on it in a new pill."
     },
     {
       "call": "entry_template.list",
       "input": {
         "book": "${books.0.id}"
       },
+      "save": "afterNew",
       "expect": {
-        "/18": null
+        "/[name=Untitled]/name": "Untitled",
+        "/19": null
       },
-      "note": "Closed untouched: the lite seed's 18 templates, no new one."
+      "note": "The lite seed's 18 templates and the new 「未命名」 one."
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/dialog": false,
+        "/page": "template:${afterNew.[name=Untitled].id}",
+        "/tabs/1/leaves/0/target": "template:${afterNew.[name=Untitled].id}"
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "new-template-pill.png"
     },
     {
       "app": "ui.press",
