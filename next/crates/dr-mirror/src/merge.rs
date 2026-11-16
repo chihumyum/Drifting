@@ -27,10 +27,15 @@
 //!   crash before the ledger was updated) makes the same change, which Loro
 //!   takes once.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+use std::ops::Range;
 
-use dr_doc::prose::{Paragraph, ProseDoc, ProseTxn, StyleKey};
-use dr_model::prose::{BlockAttrs, Heading, InlineStyle};
+use dr_doc::prose::{
+    BorrowedProse, EmbedKind, EmbedView, FileEmbedLook, Paragraph, ProseDoc, ProseTxn, StyleKey,
+};
+use dr_model::id::{AssetId, BlockId, EmbedId};
+use dr_model::kind::EntityKind;
+use dr_model::prose::{BlockAttrs, EntityLink, Heading, InlineStyle};
 use dr_model::{DocId, Origin};
 use dr_text::autolink::{LinkMatcher, LinkTarget};
 use dr_workspace::autolink::{apply as apply_links, link_runs, plan as plan_links};
@@ -38,7 +43,9 @@ use loro::{ExportMode, Frontiers, LoroDoc};
 use sha2::{Digest, Sha256};
 use similar::{Algorithm, DiffOp, capture_diff_slices};
 
-use crate::body::{FilePara, Kind, Marks, Para, line};
+use crate::body::{FileLinks, FilePara, Kind, Marks, Para, line_with};
+
+mod table;
 use crate::merge_plan::{Step, plan};
 
 /// Why a file is not merged.
@@ -62,6 +69,13 @@ pub struct Merged {
     /// Characters of the base the edit removed, and the base's length.
     pub removed: usize,
     pub base_len: usize,
+    pub conflicts: Vec<BlockId>,
+}
+
+impl Merged {
+    pub fn needs_snapshot(&self) -> bool {
+        self.removed > 200 && self.removed > self.base_len / 2
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -102,6 +116,18 @@ pub fn merge(
     peer: u64,
     names: Option<&LinkMatcher<LinkTarget>>,
 ) -> Result<Result<Merged, Refusal>, MergeError> {
+    merge_with(copy, doc, base, file, peer, names, &FileLinks::default())
+}
+
+pub fn merge_with(
+    copy: &LoroDoc,
+    doc: &DocId,
+    base: &Frontiers,
+    file: &[FilePara],
+    peer: u64,
+    names: Option<&LinkMatcher<LinkTarget>>,
+    links: &FileLinks<'_>,
+) -> Result<Result<Merged, Refusal>, MergeError> {
     let Some(base_vv) = copy.frontiers_to_vv(base) else {
         return Ok(Err(Refusal::UnknownBase));
     };
@@ -109,13 +135,37 @@ pub fn merge(
     let snapshot = fork.export(ExportMode::Snapshot)?;
     let mut prose = ProseDoc::load(doc.clone(), peer, &[snapshot])?;
     let paragraphs: Vec<Paragraph> = prose.view().paragraphs().collect();
-    let base_len = prose.view().len();
-    let has_text = paragraphs.iter().any(|p| !Para::of(p).is_empty());
-    if file.is_empty() && has_text {
+    let base_len = paragraphs
+        .iter()
+        .map(|p| text_count(&Para::project(&prose.view(), p, links)))
+        .sum();
+    if file.is_empty() && paragraphs.iter().any(|p| !Para::of(p).is_empty()) {
         return Ok(Err(Refusal::Emptied));
     }
-    let (r, _) = prose.edit(Origin::Mirror, |txn| edit(txn, &paragraphs, file, names));
-    let removed = r?;
+    let current: HashMap<_, _> =
+        if copy.oplog_frontiers() == *base || copy.oplog_vv().get(&peer).is_some() {
+            HashMap::new()
+        } else {
+            BorrowedProse::new(copy, doc)?
+                .view()
+                .paragraphs()
+                .filter_map(|p| {
+                    p.id.map(|id| {
+                        (
+                            id,
+                            p.runs
+                                .iter()
+                                .flat_map(|r| r.text.chars())
+                                .collect::<Vec<_>>(),
+                        )
+                    })
+                })
+                .collect()
+        };
+    let (r, _) = prose.edit(Origin::Mirror, |txn| {
+        edit(txn, &paragraphs, file, names, links, peer, &current)
+    });
+    let (removed, conflicts) = r?;
     let update = if prose.version() == base_vv {
         Vec::new()
     } else {
@@ -126,6 +176,7 @@ pub fn merge(
         frontiers: prose.frontiers(),
         removed,
         base_len,
+        conflicts,
     }))
 }
 
@@ -148,8 +199,15 @@ fn edit(
     paragraphs: &[Paragraph],
     file: &[FilePara],
     names: Option<&LinkMatcher<LinkTarget>>,
-) -> dr_doc::Result<usize> {
-    let paras: Vec<Para> = paragraphs.iter().map(Para::of).collect();
+    links: &FileLinks<'_>,
+    peer: u64,
+    current: &HashMap<BlockId, Vec<char>>,
+) -> dr_doc::Result<(usize, Vec<BlockId>)> {
+    let view = txn.view();
+    let paras: Vec<Para> = paragraphs
+        .iter()
+        .map(|p| Para::project(&view, p, links))
+        .collect();
     let n = paras.len();
     // Empty paragraphs at either end are not in the file: they stay.
     let (lo, hi) = match (
@@ -164,7 +222,11 @@ fn edit(
         .iter()
         .map(|p| {
             (
-                if p.is_empty() { String::new() } else { line(p) },
+                if p.is_empty() {
+                    String::new()
+                } else {
+                    line_with(p, links)
+                },
                 p.clone(),
             )
         })
@@ -180,10 +242,14 @@ fn edit(
     {
         // An empty document: the file's first paragraph fills it rather
         // than coming after it.
-        if let Some(first) = steps.iter().find_map(|s| match s {
-            Step::Insert { file } => Some(*file),
-            _ => None,
-        }) {
+        if let Some(first) = steps
+            .iter()
+            .find_map(|s| match s {
+                Step::Insert { file: at } => Some(*at),
+                _ => None,
+            })
+            .filter(|first| !is_embed(&file[*first].para.kind))
+        {
             steps.retain(|s| *s != Step::Delete { base: 0 } && *s != Step::Insert { file: first });
             steps.insert(
                 0,
@@ -203,12 +269,19 @@ fn edit(
         })
         .collect();
 
+    let bad_table = file
+        .iter()
+        .any(|f| matches!(f.para.kind, Kind::BrokenTable(_)));
     let mut slots: Vec<Slot> = (0..base.len()).map(|_| Slot::default()).collect();
     let mut tail: Vec<usize> = Vec::new();
     let mut pending: Vec<usize> = Vec::new();
     for s in &steps {
         match *s {
-            Step::Insert { file: f } => pending.push(f),
+            Step::Insert { file: f } => {
+                if !matches!(file[f].para.kind, Kind::Embed(_) | Kind::BrokenTable(_)) {
+                    pending.push(f);
+                }
+            }
             Step::Keep { base: b, .. } => slots[b].before.append(&mut pending),
             Step::Change { base: b, file: f } => {
                 slots[b].before.append(&mut pending);
@@ -216,8 +289,8 @@ fn edit(
             }
             Step::Delete { base: b } => {
                 slots[b].before.append(&mut pending);
-                let keep =
-                    matches!(&base[b].1.kind, Kind::Embed(id) if named.contains(id.as_str()));
+                let keep = matches!(&base[b].1.kind, Kind::Embed(id) if named.contains(id.as_str()))
+                    || (bad_table && matches!(&base[b].1.kind, Kind::Table(_)));
                 if !keep {
                     slots[b].action = Some(Action::Delete);
                 }
@@ -227,6 +300,7 @@ fn edit(
     tail.append(&mut pending);
 
     let mut removed = 0;
+    let mut conflicts = Vec::new();
     // Paragraphs the file changed or added, by block id.
     let mut touched: HashSet<String> = HashSet::new();
     // Whether paragraphs were added after the document's last one.
@@ -234,10 +308,10 @@ fn edit(
     // From the end, so earlier positions stay valid.
     if !tail.is_empty() {
         match paragraphs.get(lo + base.len()) {
-            Some(p) => insert_before(txn, p.range.start, &tail, file, &mut touched)?,
+            Some(p) => insert_before(txn, p.range.start, &tail, file, peer, &mut touched)?,
             None => {
                 let last = &paragraphs[n - 1];
-                append(txn, last.newline, &tail, file, &mut touched)?;
+                append(txn, last.newline, &tail, file, peer, &mut touched)?;
             }
         }
     }
@@ -245,13 +319,29 @@ fn edit(
         let p = &paragraphs[lo + b];
         match slot.action {
             Some(Action::Change(f)) => {
-                removed += change(txn, p, &base[b].1, &file[f].para)?;
-                if let Some(id) = &p.stored_id {
+                let old = &base[b].1;
+                let new = &file[f].para;
+                if let Some(id) = &p.id
+                    && let Some(now) = current.get(id)
+                    && overlap(&old.chars, &new.chars, now)
+                {
+                    conflicts.push(id.clone());
+                }
+                removed += change(txn, p, old, new, peer, f)?;
+                if let Some(id) = &p.stored_id
+                    && old.chars != new.chars
+                {
                     touched.insert(id.to_string());
                 }
             }
             Some(Action::Delete) => {
-                removed += p.range.len();
+                removed += text_count(&base[b].1);
+                if let Some(id) = &p.id
+                    && let Some(now) = current.get(id)
+                    && overlap(&base[b].1.chars, &[], now)
+                {
+                    conflicts.push(id.clone());
+                }
                 if lo + b + 1 < n || appended || !p.terminated {
                     if p.terminated {
                         txn.delete(p.range.start..p.newline + 1)?;
@@ -267,29 +357,78 @@ fn edit(
             None => {}
         }
         if !slot.before.is_empty() {
-            insert_before(txn, p.range.start, &slot.before, file, &mut touched)?;
+            insert_before(txn, p.range.start, &slot.before, file, peer, &mut touched)?;
         }
     }
     if let Some(names) = names.filter(|n| !n.is_empty()) {
         relink(txn, names, &touched)?;
     }
-    Ok(removed)
+    conflicts.reverse();
+    Ok((removed, conflicts))
+}
+
+pub(super) fn is_embed(kind: &Kind) -> bool {
+    matches!(
+        kind,
+        Kind::Embed(_) | Kind::Table(_) | Kind::BrokenTable(_) | Kind::Asset { .. }
+    )
+}
+
+fn text_count(p: &Para) -> usize {
+    match &p.kind {
+        Kind::Table(rows) => rows.iter().flatten().map(|p| p.chars.len()).sum(),
+        _ => p.chars.len(),
+    }
+}
+
+fn overlap(base: &[char], file: &[char], live: &[char]) -> bool {
+    if base == file || base == live || file == live {
+        return false;
+    }
+    let ranges = |other: &[char]| {
+        capture_diff_slices(Algorithm::Myers, base, other)
+            .into_iter()
+            .filter(|op| op.tag() != similar::DiffTag::Equal)
+            .map(|op| op.old_range())
+            .collect::<Vec<_>>()
+    };
+    let outside = ranges(live);
+    ranges(file)
+        .iter()
+        .any(|a| outside.iter().any(|b| a.start <= b.end && b.start <= a.end))
 }
 
 /// The attributes a file paragraph asks for, over `keep`'s.
 fn attrs_of(p: &Para, keep: &BlockAttrs) -> BlockAttrs {
     let mut a = keep.clone();
+    a.heading = None;
+    a.quote = false;
+    a.rule = false;
+    a.list = None;
+    a.list_level = 0;
+    a.checked = false;
+    a.code_block = None;
+    a.callout = None;
     match &p.kind {
         Kind::Text { heading, quote } => {
             a.heading = heading.and_then(|h| Heading::from_level(h as i64));
             a.quote = *quote;
-            a.rule = false;
         }
         Kind::Rule { quote } => {
-            a.heading = None;
             a.quote = *quote;
             a.rule = true;
         }
+        Kind::List {
+            kind,
+            level,
+            checked,
+        } => {
+            a.list = Some(kind.clone());
+            a.list_level = *level;
+            a.checked = *checked;
+        }
+        Kind::Code(language) => a.code_block = Some(language.clone()),
+        Kind::Callout(kind) => a.callout = Some(kind.clone()),
         _ => {}
     }
     a
@@ -297,7 +436,31 @@ fn attrs_of(p: &Para, keep: &BlockAttrs) -> BlockAttrs {
 
 /// Edit paragraph `p` (read as `old`) into `new`; returns how many base
 /// characters went.
-fn change(txn: &mut ProseTxn<'_>, p: &Paragraph, old: &Para, new: &Para) -> dr_doc::Result<usize> {
+fn change(
+    txn: &mut ProseTxn<'_>,
+    p: &Paragraph,
+    old: &Para,
+    new: &Para,
+    peer: u64,
+    index: usize,
+) -> dr_doc::Result<usize> {
+    if let Some(id) = p.embed() {
+        return match (&old.kind, &new.kind) {
+            (Kind::Table(before), Kind::Table(after)) => {
+                table::change(txn, id, before, after, peer, index)
+            }
+            (Kind::Asset { .. }, Kind::Asset { caption, .. }) => {
+                if let Some(EmbedView::Asset { mut look, .. }) = txn.view().embed(id)
+                    && look.caption != *caption
+                {
+                    look.caption.clone_from(caption);
+                    txn.set_file_embed_look(id, &look)?;
+                }
+                Ok(0)
+            }
+            _ => Ok(0),
+        };
+    }
     let start = p.range.start;
     let mut removed = 0;
     for op in capture_diff_slices(Algorithm::Myers, &old.chars, &new.chars)
@@ -333,12 +496,18 @@ fn change(txn: &mut ProseTxn<'_>, p: &Paragraph, old: &Para, new: &Para) -> dr_d
             }
         }
     }
-    let want = attrs_of(new, &p.attrs);
-    if want != p.attrs {
-        if want.quote == p.attrs.quote && want.rule == p.attrs.rule {
-            // The narrowest write: a concurrent change of another attribute
-            // is not overwritten.
+    // A text edit with unchanged Markdown syntax leaves all stored block
+    // attributes alone, including combinations the format cannot represent.
+    if old.kind != new.kind {
+        let want = attrs_of(new, &p.attrs);
+        let mut heading_only = p.attrs.clone();
+        heading_only.heading = want.heading;
+        let mut checked_only = p.attrs.clone();
+        checked_only.checked = want.checked;
+        if want == heading_only {
             txn.set_heading(start, want.heading)?;
+        } else if want == checked_only {
+            txn.set_checked(start, want.checked)?;
         } else {
             txn.set_block_attrs(start, &want)?;
         }
@@ -355,63 +524,83 @@ fn restyle(txn: &mut ProseTxn<'_>, start: usize, want: &Para) -> dr_doc::Result<
         // Not expected (the text was just made equal); leave the marks.
         return Ok(());
     }
-    type Get = fn(&Marks) -> bool;
-    let flags: [(Get, StyleKey, InlineStyle); 4] = [
-        (|m| m.bold, StyleKey::Bold, InlineStyle::Bold),
-        (|m| m.italic, StyleKey::Italic, InlineStyle::Italic),
-        (|m| m.underline, StyleKey::Underline, InlineStyle::Underline),
-        (|m| m.strike, StyleKey::Strike, InlineStyle::Strike),
-    ];
-    for (get, key, style) in flags {
-        for (range, on) in differing(&now.marks, &want.marks, |a, b| get(a) != get(b), get) {
-            let at = start + range.start..start + range.end;
-            if on {
-                txn.set_style(at, &style)?;
-            } else {
-                txn.clear_style(at, key)?;
+    for (at, mark) in marks_changed(&now.marks, &want.marks) {
+        let at = start + at.start..start + at.end;
+        match mark {
+            Mark::Style(_, Some(style)) => txn.set_style(at, &style)?,
+            Mark::Style(key, None) => txn.clear_style(at, key)?,
+            Mark::File(from, to) => {
+                if let Some(old) = from {
+                    txn.unlink_entity(at.clone(), old.as_str())?;
+                }
+                if let Some(new) = to {
+                    txn.link_entity(
+                        at,
+                        &EntityLink {
+                            target: new.to_string(),
+                            kind: EntityKind::Asset,
+                            block: None,
+                            end_block: None,
+                        },
+                    )?;
+                }
             }
-        }
-    }
-    // Links: runs where the address differs.
-    let mut k = 0;
-    while k < want.marks.len() {
-        if now.marks[k].link == want.marks[k].link {
-            k += 1;
-            continue;
-        }
-        let target = want.marks[k].link.clone();
-        let from = k;
-        while k < want.marks.len()
-            && now.marks[k].link != want.marks[k].link
-            && want.marks[k].link == target
-        {
-            k += 1;
-        }
-        let at = start + from..start + k;
-        match &target {
-            Some(href) => txn.set_style(at, &InlineStyle::Link(href.clone()))?,
-            None => txn.clear_style(at, StyleKey::Link)?,
         }
     }
     Ok(())
 }
 
-/// Ranges where `differs(now, want)`, each with the wanted state.
-fn differing(
+enum Mark {
+    Style(StyleKey, Option<InlineStyle>),
+    File(Option<AssetId>, Option<AssetId>),
+}
+
+fn marks_changed(now: &[Marks], want: &[Marks]) -> Vec<(Range<usize>, Mark)> {
+    type Get = fn(&Marks) -> bool;
+    let flags: [(Get, StyleKey, InlineStyle); 6] = [
+        (|m| m.bold, StyleKey::Bold, InlineStyle::Bold),
+        (|m| m.italic, StyleKey::Italic, InlineStyle::Italic),
+        (|m| m.underline, StyleKey::Underline, InlineStyle::Underline),
+        (|m| m.strike, StyleKey::Strike, InlineStyle::Strike),
+        (|m| m.code, StyleKey::Code, InlineStyle::Code),
+        (
+            |m| m.highlight,
+            StyleKey::Highlight,
+            InlineStyle::Highlight(String::new()),
+        ),
+    ];
+    let mut edits = Vec::new();
+    for (get, key, style) in flags {
+        for (range, _, on) in differing(now, want, get) {
+            edits.push((range, Mark::Style(key, on.then(|| style.clone()))));
+        }
+    }
+    for (range, _, to) in differing(now, want, |m| m.link.clone()) {
+        edits.push((
+            range,
+            Mark::Style(StyleKey::Link, to.map(InlineStyle::Link)),
+        ));
+    }
+    for (range, from, to) in differing(now, want, |m| m.file.clone()) {
+        edits.push((range, Mark::File(from, to)));
+    }
+    edits
+}
+
+fn differing<T: PartialEq>(
     now: &[Marks],
     want: &[Marks],
-    differs: impl Fn(&Marks, &Marks) -> bool,
-    state: impl Fn(&Marks) -> bool,
-) -> Vec<(std::ops::Range<usize>, bool)> {
-    let mut out: Vec<(std::ops::Range<usize>, bool)> = Vec::new();
-    for k in 0..want.len() {
-        if !differs(&now[k], &want[k]) {
+    state: impl Fn(&Marks) -> T,
+) -> Vec<(Range<usize>, T, T)> {
+    let mut out: Vec<(Range<usize>, T, T)> = Vec::new();
+    for (k, (a, b)) in now.iter().zip(want).enumerate() {
+        let (a, b) = (state(a), state(b));
+        if a == b {
             continue;
         }
-        let on = state(&want[k]);
         match out.last_mut() {
-            Some((r, s)) if r.end == k && *s == on => r.end = k + 1,
-            _ => out.push((k..k + 1, on)),
+            Some((r, from, to)) if r.end == k && *from == a && *to == b => r.end = k + 1,
+            _ => out.push((k..k + 1, a, b)),
         }
     }
     out
@@ -424,39 +613,66 @@ fn insert_before(
     pos: usize,
     which: &[usize],
     file: &[FilePara],
+    peer: u64,
     touched: &mut HashSet<String>,
 ) -> dr_doc::Result<()> {
     for &f in which.iter().rev() {
         let para = &file[f].para;
-        if matches!(para.kind, Kind::Embed(_)) {
-            continue;
+        if !insert_embed(txn, pos, para, peer, f)? {
+            txn.split(pos)?;
+            fill(txn, pos, para, touched)?;
         }
-        txn.split(pos)?;
-        fill(txn, pos, para, touched)?;
     }
     Ok(())
 }
 
-/// Append file paragraphs `which` after the last paragraph, whose newline
-/// is at `nl`.
 fn append(
     txn: &mut ProseTxn<'_>,
     nl: usize,
     which: &[usize],
     file: &[FilePara],
+    peer: u64,
     touched: &mut HashSet<String>,
 ) -> dr_doc::Result<()> {
-    let mut nl = nl;
-    for &f in which {
-        let para = &file[f].para;
-        if matches!(para.kind, Kind::Embed(_)) {
-            continue;
-        }
-        let at = txn.split(nl)?;
-        fill(txn, at, para, touched)?;
-        nl = at + para.chars.len();
+    let Some((&last, earlier)) = which.split_last() else {
+        return Ok(());
+    };
+    let pos = txn.split(nl)?;
+    let para = &file[last].para;
+    if !insert_embed(txn, pos, para, peer, last)? {
+        fill(txn, pos, para, touched)?;
     }
-    Ok(())
+    insert_before(txn, pos, earlier, file, peer, touched)
+}
+
+fn insert_embed(
+    txn: &mut ProseTxn<'_>,
+    pos: usize,
+    para: &Para,
+    peer: u64,
+    index: usize,
+) -> dr_doc::Result<bool> {
+    let id = EmbedId::parse(&format!("mirror-{peer:x}-{index}")).expect("valid embed id");
+    match &para.kind {
+        Kind::Table(rows) => {
+            txn.insert_embed(pos, &id, &EmbedKind::Table)?;
+            table::change(txn, &id, &[], rows, peer, index)?;
+        }
+        Kind::Asset { asset, caption } => {
+            txn.insert_embed(pos, &id, &EmbedKind::Asset(asset.clone()))?;
+            if !caption.is_empty() {
+                txn.set_file_embed_look(
+                    &id,
+                    &FileEmbedLook {
+                        caption: caption.clone(),
+                        ..Default::default()
+                    },
+                )?;
+            }
+        }
+        _ => return Ok(false),
+    }
+    Ok(true)
 }
 
 /// Write `para` into the empty paragraph at `pos`.

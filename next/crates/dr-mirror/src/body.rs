@@ -177,7 +177,7 @@ impl Para {
         Self::of(p)
     }
 
-    fn from_prose_runs(runs: &[dr_doc::prose::Run], kind: Kind) -> Self {
+    pub(crate) fn from_prose_runs(runs: &[dr_doc::prose::Run], kind: Kind) -> Self {
         let mut p = Self::new(kind);
         for run in runs {
             let m = &run.marks;
