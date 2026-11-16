@@ -69,8 +69,10 @@ pub(crate) fn notify_project_created(book_id: &str, cx: &mut App) {
     }
 }
 
-/// Registers the bookshelf as the shell's start page, and its key: ⌘↵
-/// (Ctrl+↵) in a dialog creates or saves, kept by the shell's keymap.
+/// Registers the bookshelf as the shell's start page, and its keys: ⌘↵
+/// (Ctrl+↵) in a dialog creates or saves, and in the 「新建项目」 dialog
+/// (which holds the keyboard wherever it opens) ↩ does it too; kept by the
+/// shell's keymap.
 pub fn init(cx: &mut App) {
     dr_shell::keymap::add_bindings(cx, || {
         let keys = if cfg!(target_os = "macos") {
@@ -78,7 +80,11 @@ pub fn init(cx: &mut App) {
         } else {
             "ctrl-enter"
         };
-        vec![KeyBinding::new(keys, SubmitDialog, Some("Shelf"))]
+        vec![
+            KeyBinding::new(keys, SubmitDialog, Some("Shelf")),
+            KeyBinding::new(keys, SubmitDialog, Some(templates::NEW_PROJECT_CONTEXT)),
+            KeyBinding::new("enter", SubmitDialog, Some(templates::NEW_PROJECT_CONTEXT)),
+        ]
     });
     dr_shell::pages::set_projects(cx, |ws, window, cx| {
         cx.new(|cx| projects::Projects::new(ws, window, cx)).into()

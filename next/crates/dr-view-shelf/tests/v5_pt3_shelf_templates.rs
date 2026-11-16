@@ -19,13 +19,17 @@ use dr_shell::{Services, Settings, SettingsFile, ShellInfo, Workspace};
 use dr_view_shelf::{ExportTemplate, ImportTemplate, Shelf, ShelfDialog, TemplatePick};
 use dr_workspace::{
     Actor, Workspace as Library,
-    commands::v3::project_template::{
-        ProjectTemplateExport, ProjectTemplateExportIn, ProjectTemplateImport,
-        ProjectTemplateImportIn, ProjectTemplateSave, ProjectTemplateSaveIn, ProjectTemplateUpdate,
-        ProjectTemplateUpdateIn,
+    commands::v3::{
+        project_template::{
+            ProjectTemplateExport, ProjectTemplateExportIn, ProjectTemplateGet,
+            ProjectTemplateIdIn, ProjectTemplateImport, ProjectTemplateImportIn,
+            ProjectTemplateSave, ProjectTemplateSaveIn, ProjectTemplateUpdate,
+            ProjectTemplateUpdateIn,
+        },
+        types::TemplateAgentConfig,
     },
 };
-use gpui::{Entity, Modifiers, TestAppContext, VisualTestContext, px, size};
+use gpui::{Entity, Focusable as _, Modifiers, TestAppContext, VisualTestContext, px, size};
 
 const VERSION: &str = "0.2.0-dev";
 
@@ -154,6 +158,115 @@ fn zero_templates_hides_rail_section_and_new_project_dialog_still_opens_with_bui
     let cancel = vcx.debug_bounds("shelf-new-cancel").unwrap();
     vcx.simulate_click(cancel.center(), Modifiers::none());
     assert_eq!(shelf.read_with(vcx, |s, _| s.dialog()), None);
+
+    // 3. The dialog holds the keyboard: Esc closes it and nothing else, ↩
+    //    creates (as ⌘↵ does) and opens the new project.
+    vcx.update(|window, cx| shelf.update(cx, |s, cx| s.start_create(window, cx)));
+    wait(vcx, "new project dialog drawn again", |vcx| {
+        vcx.debug_bounds("shelf-new-left-pane").is_some()
+    });
+    let modal = shelf.read_with(vcx, |s, _| s.new_project_dialog().unwrap());
+    assert!(
+        vcx.update(|window, cx| modal.focus_handle(cx).is_focused(window)),
+        "the new-project dialog holds the keyboard"
+    );
+    vcx.simulate_keystrokes("escape");
+    assert_eq!(shelf.read_with(vcx, |s, _| s.dialog()), None);
+    assert!(
+        view.read_with(vcx, |ws, _| ws.shelf_open),
+        "Esc closes the dialog alone"
+    );
+    vcx.update(|window, cx| shelf.update(cx, |s, cx| s.start_create(window, cx)));
+    wait(vcx, "new project dialog drawn a third time", |vcx| {
+        vcx.debug_bounds("shelf-new-left-pane").is_some()
+    });
+    vcx.simulate_keystrokes("enter");
+    wait(vcx, "↩ created the project and opened it", |vcx| {
+        view.read_with(vcx, |ws, _| !ws.shelf_open && ws.book.name == "未命名")
+    });
+    lib.close();
+}
+
+#[gpui::test]
+fn new_project_preview_shows_the_agent_name_and_notes_only(cx: &mut TestAppContext) {
+    let (_dir, lib, book_id) = library();
+    let save = |name: &str, agent: TemplateAgentConfig| {
+        lib.run::<ProjectTemplateSave>(
+            &Actor::User,
+            ProjectTemplateSaveIn {
+                book: book_id.clone(),
+                name: Some(name.into()),
+                description: None,
+                locale: None,
+                credit: None,
+                agent: Some(Some(agent)),
+                exclude_skeleton: Vec::new(),
+                sample_entries: Vec::new(),
+                view_pins: Vec::new(),
+                replace: None,
+            },
+        )
+        .unwrap()
+        .output
+        .id
+    };
+    let full = save(
+        "三栏都填",
+        TemplateAgentConfig {
+            name: "设定助手".into(),
+            description: "一部设定集。".into(),
+            instructions: "先读梗概再改正文。".into(),
+        },
+    );
+    let described = save(
+        "只有说明",
+        TemplateAgentConfig {
+            name: String::new(),
+            description: "只写了说明。".into(),
+            instructions: String::new(),
+        },
+    );
+    let (view, vcx) = setup(cx, lib.clone());
+    let shelf = shelf_of(&view, vcx);
+    wait(vcx, "two templates listed", |vcx| {
+        shelf.read_with(vcx, |s, _| {
+            s.data.as_ref().is_some_and(|d| d.templates.len() == 2)
+        })
+    });
+    vcx.update(|window, cx| shelf.update(cx, |s, cx| s.start_create(window, cx)));
+    let modal = shelf.read_with(vcx, |s, _| s.new_project_dialog().unwrap());
+
+    // 「我的模板」's fold arrow comes after its words, as the prototype draws it.
+    wait(vcx, "fold header drawn", |vcx| {
+        vcx.debug_bounds("shelf-new-my-templates-arrow").is_some()
+    });
+    let label = vcx.debug_bounds("shelf-new-my-templates-label").unwrap();
+    let arrow = vcx.debug_bounds("shelf-new-my-templates-arrow").unwrap();
+    assert!(
+        arrow.left() >= label.right(),
+        "the arrow follows the words: {label:?} {arrow:?}"
+    );
+
+    // 「写给 Agent」 shows the name and one paragraph, the notes; not the
+    // description.
+    vcx.update(|_, cx| modal.update(cx, |m, cx| m.select(TemplatePick::Library(full), cx)));
+    wait(vcx, "the full template's preview", |vcx| {
+        vcx.debug_bounds("shelf-new-preview-agent").is_some()
+    });
+    assert!(vcx.debug_bounds("shelf-new-preview-agent-name").is_some());
+    assert!(vcx.debug_bounds("shelf-new-preview-agent-notes").is_some());
+    vcx.update(|_, cx| {
+        modal.update(cx, |m, cx| {
+            m.select(TemplatePick::Library(described.clone()), cx)
+        })
+    });
+    wait(vcx, "the description-only template's preview", |vcx| {
+        modal.read_with(vcx, |m, _| m.preview_of(&described).is_some())
+    });
+    assert!(
+        vcx.debug_bounds("shelf-new-preview-agent").is_none(),
+        "an Agent with a description alone shows nothing under 写给 Agent"
+    );
     lib.close();
 }
 
@@ -286,6 +399,13 @@ fn my_templates_rail_order_hover_card_import_export_delete_and_new_dialog_previe
 
     let leak = |s: String| -> &'static str { Box::leak(s.into_boxed_str()) };
 
+    // The rail draws them in that order too: 甲 above 乙.
+    wait(vcx, "rail rows drawn in their new order", |vcx| {
+        let a = vcx.debug_bounds(leak(format!("shelf-template-{tpl_a}")));
+        let b = vcx.debug_bounds(leak(format!("shelf-template-{tpl_b}")));
+        a.zip(b).is_some_and(|(a, b)| a.top() < b.top())
+    });
+
     // Clicking a template row directly does NOTHING (`点一行没反应`).
     let row_b = vcx
         .debug_bounds(leak(format!("shelf-template-{tpl_b}")))
@@ -357,6 +477,32 @@ fn my_templates_rail_order_hover_card_import_export_delete_and_new_dialog_previe
     });
     assert!(modal.read_with(vcx, |m, _| m.is_my_templates_open()));
 
+    // A preview that cannot be read says so under the dialog (an existing
+    // key: 「无法加载预览」) while that template is picked, and 「新建」
+    // stays off; a failed read of a template not picked says nothing.
+    let tpl_a_pick = TemplatePick::Library(tpl_a.clone());
+    vcx.update(|_, cx| {
+        modal.update(cx, |m, cx| {
+            m.finish_load(&tpl_a, Err("synthetic read failure".into()), cx)
+        })
+    });
+    vcx.update(|window, cx| window.draw(cx).clear(cx));
+    assert!(vcx.debug_bounds("shelf-new-error").is_none());
+    vcx.update(|_, cx| {
+        modal.update(cx, |m, cx| {
+            m.select(tpl_a_pick.clone(), cx);
+            m.finish_load(&tpl_a, Err("synthetic read failure".into()), cx);
+        })
+    });
+    wait(vcx, "the read failure shows", |vcx| {
+        vcx.debug_bounds("shelf-new-error").is_some()
+    });
+    assert!(modal.read_with(vcx, |m, _| {
+        m.selected() == &tpl_a_pick
+            && m.selected_value().is_none()
+            && m.preview_of(&tpl_a).is_none()
+    }));
+
     let pick_b = vcx
         .debug_bounds(leak(format!("shelf-new-pick-{tpl_b}")))
         .unwrap();
@@ -368,6 +514,10 @@ fn my_templates_rail_order_hover_card_import_export_delete_and_new_dialog_previe
         }) && vcx.debug_bounds("shelf-new-preview-author").is_some()
             && vcx.debug_bounds("shelf-new-preview-desc").is_some()
     });
+    assert!(
+        vcx.debug_bounds("shelf-new-error").is_none(),
+        "picking another template clears the failure"
+    );
     lib.run::<ProjectTemplateUpdate>(
         &Actor::User,
         ProjectTemplateUpdateIn {
@@ -383,6 +533,48 @@ fn my_templates_rail_order_hover_card_import_export_delete_and_new_dialog_previe
                 .is_some_and(|v| v.description == "更新后的结构说明")
         })
     });
+
+    // A preview read that 甲 changed under is dropped, not kept for later.
+    let read_before = lib
+        .run::<ProjectTemplateGet>(&Actor::User, ProjectTemplateIdIn { id: tpl_a.clone() })
+        .unwrap()
+        .output;
+    next_template_second();
+    lib.run::<ProjectTemplateUpdate>(
+        &Actor::User,
+        ProjectTemplateUpdateIn {
+            id: tpl_a.clone(),
+            name: Some("甲模板（再改）".into()),
+            description: None,
+        },
+    )
+    .unwrap();
+    wait(vcx, "the dialog lists 甲's new version", |vcx| {
+        modal.read_with(vcx, |m, _| {
+            m.my_templates()
+                .iter()
+                .any(|t| t.id == tpl_a && t.name == "甲模板（再改）")
+        })
+    });
+    vcx.update(|_, cx| {
+        modal.update(cx, |m, cx| {
+            m.finish_load(&tpl_a, Ok(read_before.clone()), cx)
+        })
+    });
+    assert!(
+        modal.read_with(vcx, |m, _| m.preview_of(&tpl_a).is_none()),
+        "a read from before 甲 changed must not be kept"
+    );
+    let read_after = lib
+        .run::<ProjectTemplateGet>(&Actor::User, ProjectTemplateIdIn { id: tpl_a.clone() })
+        .unwrap()
+        .output;
+    vcx.update(|_, cx| modal.update(cx, |m, cx| m.finish_load(&tpl_a, Ok(read_after), cx)));
+    assert!(modal.read_with(vcx, |m, _| {
+        m.preview_of(&tpl_a)
+            .is_some_and(|v| v.name == "甲模板（再改）")
+    }));
+
     vcx.simulate_keystrokes("escape");
     assert_eq!(shelf.read_with(vcx, |s, _| s.dialog()), None);
 
@@ -414,34 +606,74 @@ fn my_templates_rail_order_hover_card_import_export_delete_and_new_dialog_previe
         "cancelling delete must keep the template"
     );
 
-    // Confirm deleting both templates -> `我的模板` disappears once 0 remain!
-    for target in [
-        summary_a,
+    // From the hover card itself: 「删除」 asks, the dialog's 「取消」 keeps
+    // the template, and its 「删除」 deletes it.
+    let open_card_delete = |vcx: &mut VisualTestContext| {
+        vcx.simulate_mouse_move(gpui::point(px(900.0), px(600.0)), None, Modifiers::none());
+        vcx.executor().advance_clock(Duration::from_millis(400));
+        vcx.run_until_parked();
+        let row = vcx
+            .debug_bounds(leak(format!("shelf-template-{tpl_a}")))
+            .expect("甲's row drawn");
+        vcx.simulate_mouse_move(row.center(), None, Modifiers::none());
+        vcx.executor().advance_clock(Duration::from_millis(260));
+        wait(vcx, "甲's hover card opened", |vcx| {
+            vcx.debug_bounds(leak(format!("shelf-template-delete-{tpl_a}")))
+                .is_some()
+        });
+        let delete = vcx
+            .debug_bounds(leak(format!("shelf-template-delete-{tpl_a}")))
+            .unwrap();
+        vcx.simulate_click(delete.center(), Modifiers::none());
+        wait(vcx, "the delete confirmation is up", |vcx| {
+            vcx.debug_bounds("shelf-delete-template-cancel").is_some()
+        });
+    };
+    open_card_delete(vcx);
+    assert_eq!(
+        shelf.read_with(vcx, |s, _| s.dialog()),
+        Some(ShelfDialog::DeleteTemplate(tpl_a.clone()))
+    );
+    let cancel = vcx.debug_bounds("shelf-delete-template-cancel").unwrap();
+    vcx.simulate_click(cancel.center(), Modifiers::none());
+    assert_eq!(shelf.read_with(vcx, |s, _| s.dialog()), None);
+    assert_eq!(
+        shelf.read_with(vcx, |s, _| s.data.as_ref().unwrap().templates.len()),
+        2,
+        "「取消」 keeps the template"
+    );
+    open_card_delete(vcx);
+    let confirm = vcx.debug_bounds("shelf-delete-template-confirm").unwrap();
+    vcx.simulate_click(confirm.center(), Modifiers::none());
+    wait(vcx, "甲 deleted from its card", |vcx| {
         shelf.read_with(vcx, |s, _| {
-            s.data
-                .as_ref()
-                .unwrap()
-                .templates
-                .iter()
-                .find(|t| t.id == tpl_b)
-                .cloned()
-                .unwrap()
-        }),
-    ] {
-        let target_id = target.id.clone();
-        vcx.update(|window, cx| {
-            shelf.update(cx, |s, cx| s.ask_delete_template(target, window, cx));
-            shelf.update(cx, |s, cx| s.confirm_delete_template(window, cx));
-        });
-        wait(vcx, "template deleted", |vcx| {
-            shelf.read_with(vcx, |s, _| {
-                s.dialog().is_none()
-                    && s.data
-                        .as_ref()
-                        .is_some_and(|d| d.templates.iter().all(|t| t.id != target_id))
-            })
-        });
-    }
+            s.dialog().is_none()
+                && s.data
+                    .as_ref()
+                    .is_some_and(|d| d.templates.iter().all(|t| t.id != tpl_a))
+        })
+    });
+
+    // Deleting the last one -> `我的模板` disappears once 0 remain!
+    let last = shelf.read_with(vcx, |s, _| {
+        s.data
+            .as_ref()
+            .unwrap()
+            .templates
+            .iter()
+            .find(|t| t.id == tpl_b)
+            .cloned()
+            .unwrap()
+    });
+    vcx.update(|window, cx| {
+        shelf.update(cx, |s, cx| s.ask_delete_template(last, window, cx));
+        shelf.update(cx, |s, cx| s.confirm_delete_template(window, cx));
+    });
+    wait(vcx, "template deleted", |vcx| {
+        shelf.read_with(vcx, |s, _| {
+            s.dialog().is_none() && s.data.as_ref().is_some_and(|d| d.templates.is_empty())
+        })
+    });
     assert!(vcx.debug_bounds("shelf-my-templates-section").is_none());
 
     lib.close();

@@ -132,8 +132,9 @@ gpui_platform::application()
 旧客户端有四套浮层外壳（悬停卡 `HoverCardShell`、图上点开能展开成编辑器的卡 `EntityCardPopoverShell`、菜单 `AnchoredPopover`、按点位弹出的 `ContextMenuSurface`）加 `Modal`，定位函数四个，共约 2.4k 行。dr-ui 只有一个浮层层和一个定位函数：
 
 - `overlay::float(Place, Layer, 元素)`：用 GPUI 的 `deferred` 画在整个窗口之上（相当于旧版 portal 到 `body`、`position: fixed`），`Layer` 是 `Popover` < `Dialog` < `Notice`。
-- `Place` 有四种锚：`Place::Rect { rect, align, gap }`（贴着一个矩形：下方，按起点 / 居中 / 终点对齐，下面放不下就翻到上面）、`Place::Beside { rect, gap }`（贴在矩形旁边、顶边对齐：右边放不下而左边更宽就放左边，旧版的 `right-start`；F4d 第四轮为审阅卡的来源卡加的）、`Place::Point(点)`（左上角对着这个点，碰到窗口边就往左、往上翻）、`Place::Center`（窗口正中）。不管哪种都留在窗口里 8 px 以内。
+- `Place` 有五种锚：`Place::Rect { rect, align, gap }`（贴着一个矩形：下方，按起点 / 居中 / 终点对齐，下面放不下就翻到上面）、`Place::Above { rect, align, gap }`（同上，但先放上面、上面放不下才翻到下面；PT3 另存对话框底部「覆盖…」的列表用）、`Place::Beside { rect, gap }`（贴在矩形旁边、顶边对齐：右边放不下而左边更宽就放左边，旧版的 `right-start`；F4d 第四轮为审阅卡的来源卡加的）、`Place::Point(点)`（左上角对着这个点，碰到窗口边就往左、往上翻）、`Place::Center`（窗口正中）。不管哪种都留在窗口里 8 px 以内。
 - 落在哪里由纯函数 `overlay::place(place, 内容尺寸, 窗口尺寸)` 算，`components/overlay.rs` 的测试守着：下方、翻到上方、贴边、按点翻转、居中。
+- `MenuItem::plain(id, 文字)` 是没有图标的一行（一列名字，同一个菜单里要么都有图标要么都没有），`Menu::exactly(宽)` 用设计给的宽度（PT3 的「覆盖…」列表 220）；两者都只加不改。
 - 菜单、悬停卡、下拉列表、对话框都走它；以后图上点开的卡（要素全景、故事图谱）用 `Place::Point` 或 `Place::Rect`，能展开成编辑器只是卡里的内容变大，不另起外壳。悬停的停留和宽限沿用 `tokens::motion::dwell`，数值与旧版 `src/renderer/lib/motion.ts` 相同。
 - `ContextMenuSurface` 主要是手机长按菜单，新版不做右键菜单，不搬。
 

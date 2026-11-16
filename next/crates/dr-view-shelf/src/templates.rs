@@ -21,6 +21,7 @@ use dr_model::{
 };
 use dr_shell::{
     Services, Workspace,
+    actions::Dismiss,
     strings::{t, tf},
 };
 use dr_ui::{
@@ -37,19 +38,28 @@ use dr_workspace::{
     commands::{
         book::BookCreateIn,
         v3::{
-            project_template::{ProjectTemplateGet, ProjectTemplateIdIn, ProjectTemplateSummary},
+            project_template::{
+                ProjectTemplateDetail, ProjectTemplateGet, ProjectTemplateIdIn,
+                ProjectTemplateSummary,
+            },
             types::ProjectCreateTemplate,
         },
     },
 };
 use gpui::{
-    AnyElement, App, ClickEvent, Context, ElementId, InteractiveElement, IntoElement, MouseButton,
-    ParentElement, Render, SharedString, Stateful, StatefulInteractiveElement, Styled, Task,
-    WeakEntity, Window, div, prelude::FluentBuilder as _, px,
+    AnyElement, App, ClickEvent, Context, ElementId, FocusHandle, Focusable, InteractiveElement,
+    IntoElement, MouseButton, ParentElement, Render, SharedString, Stateful,
+    StatefulInteractiveElement, Styled, Task, WeakEntity, Window, div, prelude::FluentBuilder as _,
+    px,
 };
 
 use crate::jobs::Jobs;
-use crate::view::{ExportTemplate, Shelf};
+use crate::view::{ExportTemplate, Shelf, SubmitDialog};
+
+/// The 「新建项目」 dialog's key context: it holds the keyboard from wherever
+/// it opens (全部项目 or the row of projects), so ↩ and ⌘↵ create and Esc
+/// closes the dialog alone.
+pub(crate) const NEW_PROJECT_CONTEXT: &str = "NewProjectDialog";
 
 pub const NEW_DIALOG_WIDTH: f32 = 760.0;
 const PICK_PANE_WIDTH: f32 = 250.0;
@@ -68,6 +78,7 @@ type CloseCallback = Rc<dyn Fn(&mut Window, &mut App)>;
 pub struct NewProjectModal {
     jobs: Jobs,
     ws: WeakEntity<Workspace>,
+    focus: FocusHandle,
     builtin: ProjectTemplateValue,
     my_templates: Vec<ProjectTemplateSummary>,
     my_open: bool,
@@ -89,11 +100,12 @@ impl NewProjectModal {
         my_templates: Vec<ProjectTemplateSummary>,
         on_created: impl Fn(String, &mut Window, &mut App) + 'static,
         on_close: impl Fn(&mut Window, &mut App) + 'static,
-        _cx: &mut Context<Self>,
+        cx: &mut Context<Self>,
     ) -> Self {
         Self {
             jobs,
             ws,
+            focus: cx.focus_handle(),
             builtin: dr_doc::v3::novel_project_template_value(),
             my_templates,
             my_open: true,
@@ -132,6 +144,12 @@ impl NewProjectModal {
                 .is_some_and(|next| previous.get(id) == Some(next))
         };
         self.cached.retain(|id, _| unchanged(id));
+        // A read on its way for a template that changed reads the old
+        // version: let it go, so picking that template reads again.
+        if self.loading_id.as_ref().is_some_and(|id| !unchanged(id)) {
+            self.load_task = None;
+            self.loading_id = None;
+        }
         let reload = match &self.selected {
             TemplatePick::Library(id) if !unchanged(id) => {
                 self.load_task = None;
@@ -166,6 +184,11 @@ impl NewProjectModal {
 
     pub fn is_busy(&self) -> bool {
         self.busy
+    }
+
+    /// The preview read for saved template `id`, if one is kept.
+    pub fn preview_of(&self, id: &str) -> Option<&ProjectTemplateValue> {
+        self.cached.get(id)
     }
 
     pub fn selected_value(&self) -> Option<&ProjectTemplateValue> {
@@ -209,19 +232,52 @@ impl NewProjectModal {
                 .spawn(async move {
                     lease
                         .run::<ProjectTemplateGet>(&Actor::User, ProjectTemplateIdIn { id: req_id })
+                        .map(|out| out.output)
+                        .map_err(|e| e.to_string())
                 })
                 .await;
-            let _ = this.update(cx, |m, cx| {
-                if m.loading_id.as_deref() == Some(target_id.as_str()) {
-                    m.loading_id = None;
-                    m.load_task = None;
-                }
-                if let Ok(out) = loaded {
-                    m.cached.insert(target_id, out.output.value);
-                }
-                cx.notify();
-            });
+            let _ = this.update(cx, |m, cx| m.finish_load(&target_id, loaded, cx));
         }));
+    }
+
+    /// A `project_template.get` for template `id` came back. It is kept only
+    /// while it is the version the dialog lists: a read that the template
+    /// changed under is dropped (the new version's summary reloads it when it
+    /// is the one picked). A read that failed says so under the dialog while
+    /// that template is picked.
+    #[doc(hidden)]
+    pub fn finish_load(
+        &mut self,
+        id: &str,
+        loaded: Result<ProjectTemplateDetail, String>,
+        cx: &mut Context<Self>,
+    ) {
+        if self.loading_id.as_deref() == Some(id) {
+            self.loading_id = None;
+            self.load_task = None;
+        }
+        let picked = self.selected == TemplatePick::Library(id.to_owned());
+        match loaded {
+            Ok(detail) => {
+                let listed = self.my_templates.iter().find(|t| t.id == id);
+                if listed.is_some_and(|t| {
+                    t.revision == detail.summary.revision
+                        && t.updated_at == detail.summary.updated_at
+                }) {
+                    self.cached.insert(id.to_owned(), detail.value);
+                    if picked && self.error == Some(keys::template_editor::PREVIEW_FAILED) {
+                        self.error = None;
+                    }
+                }
+            }
+            Err(error) => {
+                log::warn!("the project template {id} could not be read for its preview: {error}");
+                if picked {
+                    self.error = Some(keys::template_editor::PREVIEW_FAILED);
+                }
+            }
+        }
+        cx.notify();
     }
 
     pub fn close(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -380,21 +436,30 @@ impl NewProjectModal {
                 .on_click(move |_, _, cx| {
                     toggle_entity.update(cx, |m, cx| m.toggle_my_templates(cx));
                 })
-                .child(sand::icon(
-                    if self.my_open {
-                        Icon::ChevronDown
-                    } else {
-                        Icon::ChevronRight
-                    },
-                    12.0,
-                    p.ink(4).solid(),
-                ))
                 .child(
                     div()
+                        .debug_selector(|| "shelf-new-my-templates-label".into())
                         .font_role(Role::Index)
                         .type_px(13.0, 18.0)
                         .text_color(p.ink(4).solid())
                         .child(t(cx, keys::project_templates::MY_TEMPLATES)),
+                )
+                // The prototype's fold: the arrow after the words, at the
+                // row's end.
+                .child(
+                    div()
+                        .debug_selector(|| "shelf-new-my-templates-arrow".into())
+                        .ml_auto()
+                        .flex_none()
+                        .child(sand::icon(
+                            if self.my_open {
+                                Icon::ChevronDown
+                            } else {
+                                Icon::ChevronRight
+                            },
+                            13.0,
+                            p.ink(4).solid(),
+                        )),
                 );
 
             pane = pane
@@ -529,15 +594,13 @@ impl NewProjectModal {
             .flex_col()
             .children(tree_rows);
 
+        // As the prototype shows it: the Agent's name and one paragraph, its
+        // 注意事项 (instructions).
         let agent_section = val
             .project
             .agent
             .as_ref()
-            .filter(|a| {
-                !a.name.trim().is_empty()
-                    || !a.description.trim().is_empty()
-                    || !a.instructions.trim().is_empty()
-            })
+            .filter(|a| !a.name.trim().is_empty() || !a.instructions.trim().is_empty())
             .map(|a| {
                 let mut content = div()
                     .id("shelf-new-preview-agent")
@@ -548,19 +611,17 @@ impl NewProjectModal {
                     .font_role(Role::Ui)
                     .type_px(15.0, 23.0);
                 if !a.name.trim().is_empty() {
-                    content =
-                        content.child(div().text_color(p.ink(1).solid()).child(a.name.clone()));
-                }
-                if !a.description.trim().is_empty() {
                     content = content.child(
                         div()
-                            .text_color(p.muted().solid())
-                            .child(dr_ui::text::wrapped(a.description.clone())),
+                            .debug_selector(|| "shelf-new-preview-agent-name".into())
+                            .text_color(p.ink(1).solid())
+                            .child(a.name.clone()),
                     );
                 }
                 if !a.instructions.trim().is_empty() {
                     content = content.child(
                         div()
+                            .debug_selector(|| "shelf-new-preview-agent-notes".into())
                             .text_color(p.muted().solid())
                             .child(dr_ui::text::wrapped(a.instructions.clone())),
                     );
@@ -683,6 +744,12 @@ impl NewProjectModal {
     }
 }
 
+impl Focusable for NewProjectModal {
+    fn focus_handle(&self, _: &App) -> FocusHandle {
+        self.focus.clone()
+    }
+}
+
 impl Render for NewProjectModal {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::of(window, cx);
@@ -703,6 +770,7 @@ impl Render for NewProjectModal {
 
         let error_el = self.error.map(|key| {
             div()
+                .debug_selector(|| "shelf-new-error".into())
                 .flex()
                 .flex_row()
                 .items_center()
@@ -722,7 +790,7 @@ impl Render for NewProjectModal {
             t(cx, keys::project_picker::form::CREATE_SUBMIT)
         };
 
-        Dialog::new("shelf-new-dialog", t(cx, keys::all_projects::NEW_PROJECT))
+        let dialog = Dialog::new("shelf-new-dialog", t(cx, keys::all_projects::NEW_PROJECT))
             .width(NEW_DIALOG_WIDTH)
             .close_label(t(cx, keys::common::CLOSE))
             .on_close(move |window, cx| {
@@ -749,7 +817,16 @@ impl Render for NewProjectModal {
                             submit_entity.update(cx, |m, cx| m.submit(window, cx));
                         }),
                 ),
-            )
+            );
+        // The dialog holds the keyboard itself: typing goes nowhere under it,
+        // ↩ / ⌘↵ create, Esc closes it and nothing else.
+        div()
+            .id("shelf-new-dialog-keys")
+            .key_context(NEW_PROJECT_CONTEXT)
+            .track_focus(&self.focus)
+            .on_action(cx.listener(|m, _: &SubmitDialog, window, cx| m.submit(window, cx)))
+            .on_action(cx.listener(|m, _: &Dismiss, window, cx| m.close(window, cx)))
+            .child(dialog)
     }
 }
 
@@ -1131,9 +1208,13 @@ pub(crate) fn render_delete_template_dialog(
     .close_label(t(cx, keys::common::CLOSE))
     .when_some(error, |d, e| d.status(e))
     .action(
-        Button::new("shelf-delete-template-cancel", t(cx, keys::common::CANCEL))
-            .disabled(busy)
-            .on_click(cancel),
+        div()
+            .debug_selector(|| "shelf-delete-template-cancel".into())
+            .child(
+                Button::new("shelf-delete-template-cancel", t(cx, keys::common::CANCEL))
+                    .disabled(busy)
+                    .on_click(cancel),
+            ),
     )
     .action(
         div()

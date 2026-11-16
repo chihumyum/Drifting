@@ -563,10 +563,12 @@ impl Shelf {
             )
         });
         self._fields.clear();
+        // The dialog holds the keyboard (as from the row of projects): ↩ and
+        // ⌘↵ create, Esc closes it; closing gives the keyboard back here.
+        modal.focus_handle(cx).focus(window, cx);
         self.dialog = Some(DialogState::Create(modal));
         self.error = None;
         self.menu_open = false;
-        self.focus.focus(window, cx);
         cx.notify();
     }
 
@@ -640,6 +642,10 @@ impl Shelf {
                     }
                     Err(error) => {
                         log::warn!("the project template could not be opened for editing: {error}");
+                        // Said at the window's foot, as the shell says a step
+                        // that did not go through (the hover card is gone).
+                        let text = t(cx, keys::common::SAVE_FAILED);
+                        shelf.ws.update(cx, |ws, cx| ws.toast(text, cx)).ok();
                     }
                 }
                 cx.notify();

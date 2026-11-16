@@ -33,6 +33,7 @@ mod stage;
 mod super_view;
 pub mod toast;
 mod undo;
+mod working_copy;
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::rc::Rc;
@@ -1325,32 +1326,30 @@ impl Workspace {
     /// The red light closes the window, in an ordinary book as on 全部项目:
     /// the book's layout is stored first, so the next launch opens it as it
     /// was. In a project template's working copy (`project-templates.md` §12,
-    /// PT3), it returns to 全部项目 instead of closing the window.
+    /// PT3), it returns to 全部项目 instead of closing the window
+    /// ([`working_copy`]).
     fn listen_on_close(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let this = cx.weak_entity();
         window.on_window_should_close(cx, move |window, cx| {
-            this.update(cx, |ws, cx| {
-                let in_working_copy = !ws.shelf_open
-                    && !ws.book_id.is_empty()
-                    && ws
-                        .library
-                        .as_ref()
-                        .is_some_and(|lib| is_working_copy(lib, &ws.book_id));
-                if in_working_copy {
-                    // Blur any focused inline input while the working copy is
-                    // still the active book so its change commits, then step
-                    // back to 全部项目 and flush pending working-copy writes.
-                    ws.focus.focus(window, cx);
-                    if ws.show_shelf(window, cx) {
-                        if let Some(lib) = ws.library.clone() {
-                            cx.background_executor()
-                                .spawn(async move {
-                                    let _ = lib.flush_working_copies();
-                                })
-                                .detach();
-                        }
-                        return false;
+            let leaving = this
+                .update(cx, |ws, cx| {
+                    let leaving = ws.in_working_copy();
+                    if leaving {
+                        ws.close_over_working_copy(window, cx);
                     }
+                    leaving
+                })
+                .unwrap_or(false);
+            if leaving {
+                // The field that had the keyboard hands over what is typed in
+                // it now, while the working copy is still the open book.
+                window.refresh();
+                window.draw(cx).clear(cx);
+            }
+            this.update(cx, |ws, cx| {
+                if leaving && ws.show_shelf(window, cx) {
+                    ws.save_left_working_copy(cx);
+                    return false;
                 }
                 ws.store_layout(cx);
                 true

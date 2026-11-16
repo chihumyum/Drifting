@@ -6,11 +6,17 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use dr_shell::{Services, Settings, SettingsFile, ShellInfo, Workspace};
+use dr_shell::{
+    Services, Settings, SettingsFile, ShellInfo, Workspace,
+    nav::{Open, Target},
+};
 use dr_view_home::{save_template::SaveTemplateDialog, v3::Home};
-use dr_view_shelf::{Shelf, ShelfDialog, TemplatePick};
+use dr_view_shelf::{Shelf, ShelfDialog, TemplatePick, projects::Projects};
 use dr_workspace::{Actor, Workspace as Library};
-use gpui::{Entity, Focusable as _, Modifiers, TestAppContext, VisualTestContext, px, size};
+use gpui::{
+    AppContext as _, Entity, Focusable as _, Modifiers, Render, TestAppContext, VisualTestContext,
+    px, size,
+};
 use serde_json::{Value, json};
 
 const VERSION: &str = "0.2.0-dev";
@@ -51,10 +57,41 @@ fn wait(cx: &mut VisualTestContext, stage: &str, done: impl Fn(&mut VisualTestCo
     }
 }
 
+/// A dialog that only stands over the page, for the red light.
+struct OverPage;
+
+impl Render for OverPage {
+    fn render(
+        &mut self,
+        _: &mut gpui::Window,
+        _: &mut gpui::Context<Self>,
+    ) -> impl gpui::IntoElement {
+        gpui::div()
+    }
+}
+
+fn secondary(key: &str) -> String {
+    if cfg!(target_os = "macos") {
+        format!("cmd-{key}")
+    } else {
+        format!("ctrl-{key}")
+    }
+}
+
 fn setup_app<'a>(
     cx: &'a mut TestAppContext,
     lib: &Library,
     initial_book: Option<&str>,
+) -> (Entity<Workspace>, &'a mut VisualTestContext) {
+    setup_app_with(cx, lib, initial_book, false)
+}
+
+/// `pages`: the entry pages and their prose editors too (`dr-view-page`).
+fn setup_app_with<'a>(
+    cx: &'a mut TestAppContext,
+    lib: &Library,
+    initial_book: Option<&str>,
+    pages: bool,
 ) -> (Entity<Workspace>, &'a mut VisualTestContext) {
     cx.executor().allow_parking();
     let mut settings = SettingsFile::in_memory();
@@ -90,6 +127,9 @@ fn setup_app<'a>(
         });
         dr_view_shelf::init(cx);
         dr_view_home::init(cx);
+        if pages {
+            dr_view_page::init(cx);
+        }
     });
     let (ws, vcx) = cx.add_window_view(Workspace::new);
     vcx.simulate_resize(size(px(1280.0), px(960.0)));
@@ -177,6 +217,12 @@ fn save_template_dialog_tree_locks_ancestors_agent_isolation_overwrite_and_libra
         "tab.put",
         json!({"book": book, "mount": {"kind": "entry", "entry": characters_id}}),
     );
+    // A second view, so the time pins have one ticked and one not.
+    call(
+        &lib,
+        "timeline_view.put",
+        json!({"book": book, "view": {"id": "pt3-second-view", "name": "回忆的顺序", "lanes": []}}),
+    );
 
     let (ws, vcx) = setup_app(cx, &lib, Some(&book));
     wait(vcx, "book opened on Home", |vcx| {
@@ -210,6 +256,15 @@ fn save_template_dialog_tree_locks_ancestors_agent_isolation_overwrite_and_libra
             .unwrap()
     });
 
+    // 0. The time pins start as the prototype's `saveDefaults` has them: the
+    //    first view ticked, the others not.
+    let views = dialog.read_with(vcx, |d, _| d.view_items().to_vec());
+    assert!(views.len() >= 2, "{views:?}");
+    assert!(dialog.read_with(vcx, |d, _| d.is_view_pin_checked(&views[0].id)));
+    for view in &views[1..] {
+        assert!(!dialog.read_with(vcx, |d, _| d.is_view_pin_checked(&view.id)));
+    }
+
     // 1. Skeleton entries default checked; non-skeleton leaf defaults unchecked.
     assert!(dialog.read_with(vcx, |d, _| d.is_checked(&custom_top)));
     assert!(dialog.read_with(vcx, |d, _| d.is_checked(&custom_mid)));
@@ -234,15 +289,28 @@ fn save_template_dialog_tree_locks_ancestors_agent_isolation_overwrite_and_libra
             && d.is_checked(&elements_id)),
         "parent of locked Tab entry must also be locked and checked"
     );
-    vcx.update(|_, cx| {
-        dialog.update(cx, |d, cx| {
-            d.toggle_entry(&manuscript_id, cx);
-            d.toggle_entry(&elements_id, cx);
-            d.toggle_entry(&characters_id, cx);
+    // Clicking the locked rows themselves does nothing (书稿 is the first
+    // row; folding it brings 要素 and 人物 up).
+    let leak = |s: String| -> &'static str { Box::leak(s.into_boxed_str()) };
+    let click = |vcx: &mut VisualTestContext, selector: String| {
+        let bounds = vcx
+            .debug_bounds(leak(selector.clone()))
+            .unwrap_or_else(|| panic!("{selector} drawn"));
+        vcx.simulate_click(bounds.center(), Modifiers::none());
+        vcx.update(|window, cx| {
+            window.refresh();
+            window.draw(cx).clear(cx);
         });
-    });
+    };
+    click(vcx, format!("v3-save-tpl-entry-{manuscript_id}"));
+    click(vcx, format!("v3-save-tpl-disc-{manuscript_id}"));
+    click(vcx, format!("v3-save-tpl-entry-{elements_id}"));
+    click(vcx, format!("v3-save-tpl-entry-{characters_id}"));
     assert!(dialog.read_with(vcx, |d, _| {
         d.is_checked(&manuscript_id) && d.is_checked(&elements_id) && d.is_checked(&characters_id)
+    }));
+    assert!(dialog.read_with(vcx, |d, _| {
+        d.is_locked(&manuscript_id) && d.is_locked(&elements_id) && d.is_locked(&characters_id)
     }));
 
     // 3. Unchecking `设定箱` unchecks its unlocked descendant `附录夹`.
@@ -349,16 +417,39 @@ fn save_template_dialog_tree_locks_ancestors_agent_isolation_overwrite_and_libra
             .downcast::<SaveTemplateDialog>()
             .unwrap()
     });
-    vcx.update(|window, cx| {
+    vcx.update(|_, cx| {
         dialog2.update(cx, |d, cx| {
             d.toggle_entry(&custom_top, cx);
             d.name_input()
                 .update(cx, |f, cx| f.set_text("不该覆盖的名字", cx));
             d.description_input()
                 .update(cx, |f, cx| f.set_text("不该覆盖的描述", cx));
-            d.submit_overwrite(&tpl_id, window, cx);
         });
     });
+    // 「覆盖…」 opens the list of my templates above the button, its right
+    // edge on the button's, 220 wide (the prototype); picking one saves over
+    // it at once, without a question.
+    wait(vcx, "覆盖… drawn", |vcx| {
+        vcx.debug_bounds("v3-save-tpl-overwrite").is_some()
+    });
+    let overwrite = vcx.debug_bounds("v3-save-tpl-overwrite").unwrap();
+    vcx.simulate_click(overwrite.center(), Modifiers::none());
+    let item = leak(format!("v3-save-tpl-overwrite-item-{tpl_id}"));
+    wait(vcx, "the overwrite list is up", |vcx| {
+        vcx.debug_bounds(item).is_some()
+    });
+    let row = vcx.debug_bounds(item).unwrap();
+    assert!(
+        row.bottom() <= overwrite.top(),
+        "the list opens upward, clear of the buttons: {row:?} over {overwrite:?}"
+    );
+    let inset = f32::from(overwrite.right() - row.right());
+    let width = f32::from(row.size.width) + 2.0 * inset;
+    assert!(
+        (0.0..=12.0).contains(&inset) && (width - 220.0).abs() <= 1.0,
+        "right-aligned and 220 wide: row {row:?}, button {overwrite:?}"
+    );
+    vcx.simulate_click(row.center(), Modifiers::none());
     wait(vcx, "overwrite finished and closed dialog", |vcx| {
         ws.read_with(vcx, |ws, _| ws.dialog.is_none())
     });
@@ -382,7 +473,12 @@ fn save_template_dialog_tree_locks_ancestors_agent_isolation_overwrite_and_libra
         .expect("save button");
     vcx.simulate_click(save_btn.center(), Modifiers::none());
     wait(vcx, "third save dialog loaded", |vcx| {
-        ws.read_with(vcx, |ws, _| ws.dialog.is_some())
+        ws.read_with(vcx, |ws, cx| {
+            ws.dialog
+                .as_ref()
+                .and_then(|d| d.clone().downcast::<SaveTemplateDialog>().ok())
+                .is_some_and(|d| d.read(cx).is_loaded())
+        })
     });
     drop(dialog);
     drop(dialog2);
@@ -408,6 +504,10 @@ fn save_template_dialog_tree_locks_ancestors_agent_isolation_overwrite_and_libra
         |_| replaced.borrow().is_some(),
     );
     assert_eq!(replaced.borrow_mut().take().unwrap(), Ok(()));
+    assert!(
+        ws.read_with(vcx, |ws, _| ws.dialog.is_none()),
+        "the library swap closes the open save dialog"
+    );
 
     let reopened_lib = vcx.update(|_, cx| cx.global::<Services>().library.clone().unwrap());
     reopened_lib.close();
@@ -494,8 +594,14 @@ fn edit_template_working_copy_autosaves_undoes_and_red_light_returns_to_shelf_th
             .any(|t| t["id"] == "tpl-chapter" && t["name"] == "章节（改）")
     });
 
-    // Undo one step in the working copy -> template follows back!
-    lib.undo_in(&Actor::User, &copy_book, None).unwrap();
+    // Undo one step in the working copy with ⌘Z, the workspace's own key
+    // path -> template follows back!
+    vcx.update(|window, cx| {
+        let focus = ws.read(cx).focus_handle().clone();
+        focus.focus(window, cx);
+        window.draw(cx).clear(cx);
+    });
+    vcx.simulate_keystrokes(&secondary("z"));
     wait(vcx, "working copy undo reverted template", |_| {
         let val = &call(&lib, "project_template.get", json!({"id": tpl_id}))["value"];
         val["templates"]
@@ -505,29 +611,55 @@ fn edit_template_working_copy_autosaves_undoes_and_red_light_returns_to_shelf_th
             .any(|t| t["id"] == "tpl-chapter" && t["name"] == orig_tpl_name)
     });
 
-    // Leaving the working copy also commits the focused inline field.
+    // Leaving the working copy closes what floats over it (a dialog,
+    // Settings) and commits the focused inline field.
+    vcx.update(|window, cx| {
+        ws.update(cx, |ws, cx| ws.open_settings(window, cx));
+        let over = cx.new(|_| OverPage);
+        dr_shell::dialogs::show_in(window.window_handle(), cx, over.into());
+    });
+    wait(vcx, "a dialog and Settings over the working copy", |vcx| {
+        ws.read_with(vcx, |ws, _| ws.dialog.is_some() && ws.settings.is_some())
+    });
     let synopsis = home_of(&ws, vcx).read_with(vcx, |h, _| h.synopsis_input().clone());
     vcx.update(|window, cx| {
         synopsis.update(cx, |field, cx| {
             field.focus_handle(cx).focus(window, cx);
             field.select_all_text(cx);
         });
+        window.draw(cx).clear(cx);
     });
     vcx.simulate_input("修订后的梗概");
 
     // 3. Clicking the window's red close light (`simulate_close`) inside the working copy
     //    does NOT close the window (`returns false`) and does NOT prompt: it steps straight
-    //    back to 「全部项目」!
+    //    back to 「全部项目」, with nothing left floating over it.
     assert!(
         !vcx.simulate_close(),
         "red close light in a template working copy must return to All projects without closing the window"
     );
-    assert!(ws.read_with(vcx, |ws, _| ws.shelf_open && ws.dialog.is_none()));
+    assert!(ws.read_with(vcx, |ws, _| {
+        ws.shelf_open && ws.dialog.is_none() && ws.settings.is_none() && ws.history.is_none()
+    }));
     assert_eq!(shelf.read_with(vcx, |s, _| s.dialog()), None);
     wait(vcx, "leaving saved the focused synopsis", |_| {
         call(&lib, "project_template.get", json!({"id": tpl_id}))["summary"]["description"]
             == "修订后的梗概"
     });
+
+    // Reopened for editing, the working copy shows what was typed before the
+    // red light; the red light takes it back to 全部项目 again.
+    vcx.update(|window, cx| shelf.update(cx, |s, cx| s.edit_template(&tpl_id, window, cx)));
+    wait(vcx, "working copy reopened on Home", |vcx| {
+        ws.read_with(vcx, |ws, _| !ws.shelf_open && ws.book.id == ws.book_id)
+            && home_of(&ws, vcx).read_with(vcx, |h, _| h.template_workspace() && h.loaded.is_some())
+    });
+    let synopsis = home_of(&ws, vcx).read_with(vcx, |h, _| h.synopsis_input().clone());
+    wait(vcx, "the reopened synopsis", |vcx| {
+        synopsis.read_with(vcx, |f, _| f.text()) == "修订后的梗概"
+    });
+    assert!(!vcx.simulate_close());
+    assert!(ws.read_with(vcx, |ws, _| ws.shelf_open));
 
     // 4. Open 「新建项目」 dialog, pick `双线长篇`, click 「新建」:
     //    creates project named 「未命名」, opens on Project Home with `来自「双线长篇」`,
@@ -608,5 +740,243 @@ fn edit_template_working_copy_autosaves_undoes_and_red_light_returns_to_shelf_th
 
     // In an ordinary project, the red close light DOES close the window.
     assert!(vcx.simulate_close());
+    lib.close();
+}
+
+#[gpui::test]
+fn save_template_dialog_locks_a_nested_home_target_and_not_a_trashed_templates_home(
+    cx: &mut TestAppContext,
+) {
+    let (_dir, _root, lib, book) = seed_library();
+    let entries = call(&lib, "entry.list", json!({"book": book, "all": true}));
+    let arr = entries.as_array().unwrap();
+    let roots: Vec<String> = arr
+        .iter()
+        .filter(|e| e["parent"].is_null())
+        .map(|e| e["id"].as_str().unwrap().to_owned())
+        .collect();
+    // Two levels of the author's, one inside the other, that nothing else
+    // points at (the seed's 要素 is on a left-rail Tab).
+    let outer_id = call(
+        &lib,
+        "entry.create",
+        json!({"book": book, "title": "外层", "level": true}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let inner_id = call(
+        &lib,
+        "entry.create",
+        json!({"book": book, "title": "内层", "parent": outer_id, "level": true}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    // A live template whose 「新条目住在」 is 内层, a level inside 外层.
+    let template = |id: &str, name: &str, home: &str| {
+        json!({
+            "book": book,
+            "template": {
+                "id": id,
+                "name": name,
+                "level": true,
+                "linkable": false,
+                "modules": [],
+                "settings": {"accept": true, "home": home}
+            }
+        })
+    };
+    call(
+        &lib,
+        "entry_template.put",
+        template("tpl-pt3-nested-home", "收内层", &inner_id),
+    );
+    // A template in the trash pointing at a level of its own holds nothing.
+    let spare = call(
+        &lib,
+        "entry.create",
+        json!({"book": book, "title": "空置层", "level": true}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    call(
+        &lib,
+        "entry_template.put",
+        template("tpl-pt3-trashed-home", "已删的模板", &spare),
+    );
+    call(
+        &lib,
+        "entry_template.delete",
+        json!({"book": book, "id": "tpl-pt3-trashed-home"}),
+    );
+    let trashed = call(&lib, "entry_template.list", json!({"book": book}));
+    assert!(
+        trashed
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|t| t["id"] != "tpl-pt3-trashed-home" || !t["deleted_at"].is_null()),
+        "the template is in the trash: {trashed:#}"
+    );
+
+    let (ws, vcx) = setup_app(cx, &lib, Some(&book));
+    wait(vcx, "book opened on Home", |vcx| {
+        ws.read_with(vcx, |ws, _| ws.book.id == book && !ws.shelf_open)
+            && vcx.debug_bounds("v3-home-save-project-template").is_some()
+    });
+    let save_btn = vcx
+        .debug_bounds("v3-home-save-project-template")
+        .expect("save button");
+    vcx.simulate_click(save_btn.center(), Modifiers::none());
+    wait(vcx, "save dialog loaded", |vcx| {
+        ws.read_with(vcx, |ws, cx| {
+            ws.dialog
+                .as_ref()
+                .and_then(|d| d.clone().downcast::<SaveTemplateDialog>().ok())
+                .is_some_and(|d| d.read(cx).is_loaded())
+        })
+    });
+    let dialog: Entity<SaveTemplateDialog> = ws.read_with(vcx, |ws, _| {
+        ws.dialog
+            .clone()
+            .unwrap()
+            .downcast::<SaveTemplateDialog>()
+            .unwrap()
+    });
+
+    // 内层 is held with its reason, and 外层 above it with it (no reason of
+    // its own).
+    assert!(dialog.read_with(vcx, |d, _| d.is_locked(&inner_id)));
+    assert!(
+        dialog
+            .read_with(vcx, |d, cx| d.lock_reasons(&inner_id, cx))
+            .contains(&"新条目住在".to_string())
+    );
+    assert!(dialog.read_with(vcx, |d, _| d.is_locked(&outer_id)
+        && d.is_checked(&outer_id)));
+    assert_eq!(
+        dialog.read_with(vcx, |d, cx| d.lock_reasons(&outer_id, cx)),
+        Vec::<String>::new()
+    );
+
+    // Clicking 外层's row (the other roots folded, so it is in sight) does
+    // nothing.
+    for root in roots.iter().filter(|r| **r != outer_id) {
+        let disc: &'static str = Box::leak(format!("v3-save-tpl-disc-{root}").into_boxed_str());
+        if let Some(bounds) = vcx.debug_bounds(disc) {
+            vcx.simulate_click(bounds.center(), Modifiers::none());
+            vcx.update(|window, cx| {
+                window.refresh();
+                window.draw(cx).clear(cx);
+            });
+        }
+    }
+    let row: &'static str = Box::leak(format!("v3-save-tpl-entry-{outer_id}").into_boxed_str());
+    let bounds = vcx.debug_bounds(row).expect("外层's row drawn");
+    vcx.simulate_click(bounds.center(), Modifiers::none());
+    vcx.update(|window, cx| {
+        window.refresh();
+        window.draw(cx).clear(cx);
+    });
+    assert!(dialog.read_with(vcx, |d, _| {
+        d.is_checked(&outer_id) && d.is_checked(&inner_id) && d.is_locked(&outer_id)
+    }));
+
+    // The trashed template's 「新条目住在」 locks nothing: 空置层 is ticked
+    // as a level and can be unticked.
+    assert!(!dialog.read_with(vcx, |d, _| d.is_locked(&spare)));
+    assert!(dialog.read_with(vcx, |d, _| d.is_checked(&spare)));
+    vcx.update(|_, cx| dialog.update(cx, |d, cx| d.toggle_entry(&spare, cx)));
+    assert!(!dialog.read_with(vcx, |d, _| d.is_checked(&spare)));
+
+    vcx.update(|_, cx| dialog.update(cx, |d, cx| d.close(cx)));
+    lib.close();
+}
+
+#[gpui::test]
+fn new_project_from_the_row_of_projects_holds_the_keyboard(cx: &mut TestAppContext) {
+    let (_dir, _root, lib, book) = seed_library();
+    let chapter = call(&lib, "entry.list", json!({"book": book, "all": true}))
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|e| e["template"] == "tpl-chapter")
+        .unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let (ws, vcx) = setup_app_with(cx, &lib, Some(&book), true);
+    wait(vcx, "book opened", |vcx| {
+        ws.read_with(vcx, |ws, _| ws.book.id == book && !ws.shelf_open)
+    });
+
+    // The chapter's prose has the keyboard.
+    let target = Target::Entry {
+        id: chapter.parse().unwrap(),
+        module: Some("mod-prose".parse().unwrap()),
+    };
+    ws.update(vcx, |ws, cx| ws.open(target.clone(), Open::KEEP, cx));
+    wait(vcx, "chapter editor mounted", |vcx| {
+        ws.read_with(vcx, |ws, _| ws.editor_of(&target).is_some())
+    });
+    let editor = ws.read_with(vcx, |ws, _| ws.editor_of(&target).unwrap().clone());
+    let prose_focus = vcx.update(|window, cx| {
+        let focus = editor.read(cx).editor().focus_handle(cx);
+        focus.focus(window, cx);
+        window.draw(cx).clear(cx);
+        focus
+    });
+    let before = vcx.update(|_, cx| editor.read(cx).plain_text(cx));
+
+    // 「新建项目」 from the row of projects.
+    vcx.dispatch_action(dr_shell::actions::ToggleProjects);
+    let projects = ws
+        .read_with(vcx, |ws, _| ws.projects.clone())
+        .expect("row of projects mounted")
+        .downcast::<Projects>()
+        .expect("projects view");
+    // Once the row has come all the way down (its head right under the
+    // title bar), the button is where a click finds it.
+    wait(vcx, "row of projects down", |vcx| {
+        vcx.debug_bounds("projects-new")
+            .is_some_and(|b| f32::from(b.top()) >= dr_shell::workspace::TITLEBAR_HEIGHT - 0.5)
+    });
+    let open_dialog = |vcx: &mut VisualTestContext| {
+        let new = vcx.debug_bounds("projects-new").unwrap();
+        vcx.simulate_click(new.center(), Modifiers::none());
+        wait(vcx, "new project dialog drawn", |vcx| {
+            vcx.debug_bounds("shelf-new-left-pane").is_some()
+        });
+        projects
+            .read_with(vcx, |p, _| p.new_project_dialog())
+            .expect("dialog open")
+    };
+    let modal = open_dialog(vcx);
+    assert!(vcx.update(|window, cx| modal.focus_handle(cx).is_focused(window)));
+    assert!(!vcx.update(|window, _| prose_focus.is_focused(window)));
+
+    // Typing goes nowhere under the dialog: the prose is as it was.
+    vcx.simulate_input("不该进正文");
+    vcx.update(|window, cx| window.draw(cx).clear(cx));
+    assert_eq!(vcx.update(|_, cx| editor.read(cx).plain_text(cx)), before);
+
+    // Esc closes the dialog and nothing else; the keyboard is back in the
+    // prose.
+    vcx.simulate_keystrokes("escape");
+    assert!(projects.read_with(vcx, |p, _| p.new_project_dialog().is_none()));
+    assert!(ws.read_with(vcx, |ws, _| ws.projects_open));
+    assert!(vcx.update(|window, _| prose_focus.is_focused(window)));
+
+    // ⌘↵ creates the project and opens it.
+    let _ = open_dialog(vcx);
+    vcx.simulate_keystrokes(&secondary("enter"));
+    wait(vcx, "⌘↵ created and opened the project", |vcx| {
+        ws.read_with(vcx, |ws, _| {
+            ws.book_id != book && ws.book.name == "未命名" && !ws.projects_open
+        })
+    });
     lib.close();
 }

@@ -12,6 +12,7 @@ pub(crate) use input::curtain;
 
 type Prepare = Box<dyn FnMut(&mut App) -> LocalBoxFuture<'static, Result<(), String>>>;
 type Resume = Box<dyn FnMut(&mut App)>;
+type Settle = std::rc::Rc<dyn Fn(&mut App) -> LocalBoxFuture<'static, Result<(), String>>>;
 
 #[derive(Default)]
 struct Hooks {
@@ -19,6 +20,7 @@ struct Hooks {
     before: Vec<Prepare>,
     checkpoints: Vec<Prepare>,
     after: Vec<Resume>,
+    settle: Option<Settle>,
 }
 
 impl Global for Hooks {}
@@ -65,6 +67,26 @@ pub fn after_drain(
 /// Successful quitting does not call these hooks.
 pub fn after_release(cx: &mut App, hook: impl FnMut(&mut App) + 'static) {
     cx.default_global::<Hooks>().after.push(Box::new(hook));
+}
+
+/// Registers how the views' accepted drafts settle while the library stays
+/// (`dr-view-page`'s settlement, the half of its release hook that stores
+/// what the author typed and waits for it). Leaving a project template's
+/// working copy waits for it before saving the copy over its template.
+pub fn set_settle(
+    cx: &mut App,
+    settle: impl Fn(&mut App) -> LocalBoxFuture<'static, Result<(), String>> + 'static,
+) {
+    cx.default_global::<Hooks>().settle = Some(std::rc::Rc::new(settle));
+}
+
+/// The views' drafts settled ([`set_settle`]): resolves once what they
+/// accepted is stored; at once when nothing is registered.
+pub fn settle(cx: &mut App) -> LocalBoxFuture<'static, Result<(), String>> {
+    match cx.try_global::<Hooks>().and_then(|h| h.settle.clone()) {
+        Some(settle) => settle(cx),
+        None => async { Ok(()) }.boxed_local(),
+    }
 }
 
 /// New work and another quit/replacement must wait while this is true.

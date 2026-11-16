@@ -50,8 +50,8 @@ use dr_ui::{
 use dr_view_shelf_art::ShelfCover;
 use dr_workspace::WsEvent;
 use gpui::{
-    AnyElement, App, AppContext as _, Bounds, Context, ElementId, Entity, InteractiveElement,
-    IntoElement, ParentElement, Pixels, Render, ScrollHandle, SharedString,
+    AnyElement, App, AppContext as _, Bounds, Context, ElementId, Entity, Focusable as _,
+    InteractiveElement, IntoElement, ParentElement, Pixels, Render, ScrollHandle, SharedString,
     StatefulInteractiveElement, Styled, Task, WeakEntity, Window, div, prelude::FluentBuilder as _,
     px,
 };
@@ -406,7 +406,11 @@ impl Projects {
             .ok();
     }
 
-    fn start_create(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
+    /// 「新建项目」: the same dialog as on 全部项目, holding the keyboard the
+    /// same way (the open book's prose under it takes nothing; ↩ and ⌘↵
+    /// create; Esc closes the dialog and leaves the row down). Closing it
+    /// gives the keyboard back to where it was.
+    fn start_create(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.menu_open = false;
         let my_templates = self
             .data
@@ -417,6 +421,11 @@ impl Projects {
         let ws = self.ws.clone();
         let created_this = cx.weak_entity();
         let closed_this = cx.weak_entity();
+        let back = window.focused(cx).or_else(|| {
+            self.ws
+                .upgrade()
+                .map(|ws| ws.read(cx).focus_handle().clone())
+        });
         let modal = cx.new(|cx| {
             NewProjectModal::new(
                 jobs,
@@ -429,7 +438,10 @@ impl Projects {
                         cx.notify();
                     });
                 },
-                move |_, cx| {
+                move |window, cx| {
+                    if let Some(back) = &back {
+                        back.focus(window, cx);
+                    }
                     let _ = closed_this.update(cx, |p, cx| {
                         p.form = None;
                         cx.notify();
@@ -438,8 +450,14 @@ impl Projects {
                 cx,
             )
         });
+        modal.focus_handle(cx).focus(window, cx);
         self.form = Some(modal);
         cx.notify();
+    }
+
+    /// The open 「新建项目」 dialog, for tests.
+    pub fn new_project_dialog(&self) -> Option<Entity<NewProjectModal>> {
+        self.form.clone()
     }
 
     fn import(&mut self, legacy: bool, window: &mut Window, cx: &mut Context<Self>) {
@@ -589,6 +607,7 @@ fn head(projects: &Projects, window: &mut Window, cx: &mut Context<Projects>) ->
     let new = {
         let entity = entity.clone();
         link("projects-new", projects.form.is_some(), window, cx)
+            .debug_selector(|| "projects-new".into())
             .aria_label(t(cx, keys::all_projects::NEW_PROJECT))
             .on_click(move |_, window, cx| entity.update(cx, |p, cx| p.start_create(window, cx)))
             .child(dr_ui::sand::icon(Icon::Plus, 14.0, p.ink(3).solid()))

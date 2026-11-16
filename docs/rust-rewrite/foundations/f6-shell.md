@@ -958,6 +958,10 @@ all-targets Clippy（`-D warnings`）、全量 **2253 通过／0 失败／22 忽
 `next/target/acceptance/k4-0-home-release-secondary/receipts/secondary-40846.json`。
 本项无新增待协调；没有新文案，没有新增或删除 v2.2 测试，没有做 heavy 测量。
 
+### 不释放书库的排空：`release::settle`（PT3 修补，2026-11-17）
+
+`release::set_settle` / `release::settle`：`dr-view-page` 的 settlement 把它释放书库前那一段排空（各视图存下已接受的草稿、等写入落盘）登记成一个不暂停任何东西的版本。项目模板工作区里点红灯回「全部项目」时，外壳先关掉浮在页面上的东西、让输入框失焦并当场重画，再等 `settle`，然后在后台把工作区存回模板（`workspace/working_copy.rs`，受书库释放的屏障约束，失败提示复用 `common.saveFailed`）。没有登记时 `settle` 立即完成。
+
 ### 最终 checkpoint 阶段交回（2026-11-10）
 
 分支 `codex/k4-0-shell`，新增冻结指针 `handback/k4-0-drain`；旧交回指针不动。

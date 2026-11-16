@@ -5,7 +5,8 @@
 //! [`crate::init`]. Holds only weak handles ([`crate::SaveProjectTemplateHost`])
 //! at rest and drains any background read/write through a [`Jobs`] barrier on
 //! `dr_shell::release::before_release`, so swapping or closing the library is
-//! never held back by an open dialog (`v3_home_release`).
+//! never held back by an open dialog (`v3_home_release`). One hook serves
+//! every dialog: it settles and closes the ones open when the release begins.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, Mutex};
@@ -33,7 +34,7 @@ use dr_ui::{
     input::{FieldEvent, TextArea, TextField},
     sand::{self, Icon, KindMark},
     style::DrStyled,
-    tokens::{Palette, Rgb, menu as m, radius},
+    tokens::{Palette, Rgb, radius},
 };
 use dr_workspace::{
     Actor, Workspace as Library, WsError,
@@ -52,8 +53,8 @@ use dr_workspace::{
 use futures::{FutureExt, channel::oneshot, future::BoxFuture};
 use gpui::{
     AnyElement, App, AppContext as _, Bounds, ClickEvent, Context, ElementId, Entity, FocusHandle,
-    Focusable, InteractiveElement, IntoElement, MouseButton, ParentElement, Pixels, Render,
-    SharedString, StatefulInteractiveElement, Styled, Subscription, Task, Window, div,
+    Focusable, Global, InteractiveElement, IntoElement, MouseButton, ParentElement, Pixels, Render,
+    SharedString, StatefulInteractiveElement, Styled, Subscription, Task, WeakEntity, Window, div,
     prelude::FluentBuilder as _, px,
 };
 
@@ -62,6 +63,8 @@ use crate::SaveProjectTemplateHost;
 pub const DIALOG_WIDTH: f32 = 860.0;
 const LEFT_COL_WIDTH: f32 = 400.0;
 const TREE_HEIGHT: f32 = 600.0;
+const OVERWRITE_MENU_WIDTH: f32 = 220.0;
+const OVERWRITE_MENU_GAP: f32 = 6.0;
 
 #[derive(Clone, Default)]
 struct Jobs(Arc<Mutex<JobState>>);
@@ -182,8 +185,11 @@ impl SaveSnapshot {
             }
         }
 
+        // Only live templates point anywhere: a template in the trash does not
+        // hold its 「新条目住在」 level (as the data layer's
+        // `forced_skeleton_entries` reads it).
         let mut tpl_home_ids = BTreeSet::new();
-        for tpl in &v3.templates {
+        for tpl in v3.templates.iter().filter(|t| t.deleted_at.is_none()) {
             if let Some(Some(home_id)) = &tpl.settings.home
                 && v3.entry(home_id).is_some_and(|e| e.level)
             {
@@ -249,6 +255,47 @@ impl SaveSnapshot {
             my_templates,
         })
     }
+}
+
+/// The dialogs open now, weakly, and whether their one release hook is
+/// registered: a library swap settles and closes the dialogs that are open,
+/// not one hook per dialog ever opened.
+#[derive(Default)]
+struct OpenDialogs {
+    hooked: bool,
+    dialogs: Vec<WeakEntity<SaveTemplateDialog>>,
+}
+
+impl Global for OpenDialogs {}
+
+fn track(dialog: WeakEntity<SaveTemplateDialog>, cx: &mut App) {
+    let open = cx.default_global::<OpenDialogs>();
+    open.dialogs.retain(|d| d.upgrade().is_some());
+    open.dialogs.push(dialog);
+    if std::mem::replace(&mut open.hooked, true) {
+        return;
+    }
+    dr_shell::release::before_release(cx, |cx| {
+        let open = std::mem::take(&mut cx.default_global::<OpenDialogs>().dialogs);
+        let mut drained = Vec::new();
+        for dialog in open.iter().filter_map(WeakEntity::upgrade) {
+            drained.push(dialog.update(cx, |d, _| {
+                d.releasing = true;
+                d.task = None;
+                d.overwrite_open = false;
+                d.jobs.drained()
+            }));
+            dr_shell::dialogs::hide(cx, dialog.entity_id());
+        }
+        async move {
+            futures::future::join_all(drained)
+                .await
+                .into_iter()
+                .collect::<Result<Vec<_>, _>>()
+                .map(|_| ())
+        }
+        .boxed_local()
+    });
 }
 
 /// Opens the 「另存为项目模板」 modal over the active window.
@@ -358,22 +405,7 @@ impl SaveTemplateDialog {
         };
         focus.focus(window, cx);
         dialog.load(cx);
-
-        let weak = cx.entity().downgrade();
-        let entity_id = cx.entity_id();
-        dr_shell::release::before_release(cx, move |cx| {
-            let drained = weak
-                .update(cx, |d, _| {
-                    d.releasing = true;
-                    d.task = None;
-                    d.overwrite_open = false;
-                    d.jobs.drained()
-                })
-                .unwrap_or_else(|_| async { Ok(()) }.boxed());
-            dr_shell::dialogs::hide(cx, entity_id);
-            drained
-        });
-
+        track(cx.entity().downgrade(), cx);
         dialog
     }
 
@@ -437,7 +469,12 @@ impl SaveTemplateDialog {
             }
         }
         self.collapsed.clear();
+        // The prototype's defaults (`saveDefaults`): the first view's time
+        // pins are ticked, the others not.
         self.view_pins.clear();
+        if let Some(first) = snap.views.first() {
+            self.view_pins.insert(first.id.clone());
+        }
         self.snapshot = Some(snap);
         self.recompute_locks();
     }
@@ -477,7 +514,12 @@ impl SaveTemplateDialog {
             }
         }
 
-        // Fixed-point propagation for `overrides.home` on checked entries.
+        // Fixed-point propagation for `overrides.home` on checked entries:
+        // the data layer refuses to save a template that takes an entry and
+        // leaves out the level its own 「新条目住在」 points at
+        // (`extract_project_template`: "cannot exclude entry … because
+        // included entry … sets overrides.home to it"), so that level is
+        // held as the template's own pointers are.
         loop {
             let before_locked = locked.len();
             let before_checked = self.checked.len();
@@ -587,6 +629,11 @@ impl SaveTemplateDialog {
             self.collapsed.insert(entry_id.to_owned());
         }
         cx.notify();
+    }
+
+    /// The project's views, in the order the 「时间钉」 rows show them.
+    pub fn view_items(&self) -> &[SaveViewItem] {
+        self.snapshot.as_ref().map_or(&[], |s| s.views.as_slice())
     }
 
     pub fn is_view_pin_checked(&self, view_id: &str) -> bool {
@@ -976,27 +1023,27 @@ impl SaveTemplateDialog {
         let _ = window;
         let anchor = *self.overwrite_bounds.read(cx);
         let entity = cx.entity();
-        let mut menu = Menu::new("v3-save-tpl-overwrite-menu");
+        // The prototype's list: the names alone, 220 wide, its right edge on
+        // the button's and opening upward, 6px off it, so 「新建模板」 stays
+        // in sight.
+        let mut menu = Menu::new("v3-save-tpl-overwrite-menu").exactly(OVERWRITE_MENU_WIDTH);
         for tpl in templates {
             let tid = tpl.id.clone();
             let entity = entity.clone();
             let item_id = format!("v3-save-tpl-overwrite-item-{tid}");
             menu = menu.item(
-                MenuItem::new(
-                    ElementId::Name(item_id.into()),
-                    Icon::MovableType,
-                    tpl.name.clone(),
-                )
-                .on_click(move |_, window, cx| {
-                    entity.update(cx, |d, cx| d.submit_overwrite(&tid, window, cx));
-                }),
+                MenuItem::plain(ElementId::Name(item_id.into()), tpl.name.clone()).on_click(
+                    move |_, window, cx| {
+                        entity.update(cx, |d, cx| d.submit_overwrite(&tid, window, cx));
+                    },
+                ),
             );
         }
         let place = match anchor {
-            Some(rect) => Place::Rect {
+            Some(rect) => Place::Above {
                 rect,
-                align: Align::Start,
-                gap: m::HOVER_CARD_GAP,
+                align: Align::End,
+                gap: OVERWRITE_MENU_GAP,
             },
             None => Place::Center,
         };
