@@ -284,6 +284,16 @@ fn stylesheet(book: &Book<'_>) -> String {
             f32::from(level as u8) * 1.5
         ));
     }
+    if book.has_tree_depths() {
+        css.push_str(
+            ".chapter-title.depth-0 { font-size: 1.6em; }\n\
+             .chapter-title.depth-1 { font-size: 1.4em; text-align: start; margin: 2em 0 1.2em; }\n\
+             .chapter-title.depth-2 { font-size: 1.25em; text-align: start; margin: 1.8em 0 1em; }\n\
+             .chapter-title.depth-3 { font-size: 1.16em; text-align: start; margin: 1.5em 0 0.8em; }\n\
+             .chapter-title.depth-4 { font-size: 1.12em; text-align: start; margin: 1.3em 0 0.7em; }\n\
+             .chapter-title.depth-5 { font-size: 1.1em; text-align: start; margin: 1.2em 0 0.6em; }\n",
+        );
+    }
     if book.language.is_cjk() {
         css.push_str(
             "body { line-height: 1.8; line-break: strict; word-break: normal; }\n\
@@ -330,6 +340,20 @@ fn ncx_points(entries: &[NavEntry], order: &mut usize, out: &mut String) {
     }
 }
 
+fn fold_nav_stack(stack: &mut Vec<(u8, NavEntry)>, min_depth: Option<u8>, nav: &mut Vec<NavEntry>) {
+    while stack
+        .last()
+        .is_some_and(|(d, _)| min_depth.is_none_or(|m| *d >= m))
+    {
+        let (_, entry) = stack.pop().expect("checked non-empty");
+        if let Some((_, parent)) = stack.last_mut() {
+            parent.children.push(entry);
+        } else {
+            nav.push(entry);
+        }
+    }
+}
+
 pub(crate) fn write(book: &Book<'_>) -> Result<Vec<u8>, String> {
     let has_acts = book.has_acts();
     let heading_base = if has_acts { 2 } else { 1 };
@@ -369,6 +393,7 @@ pub(crate) fn write(book: &Book<'_>) -> Result<Vec<u8>, String> {
     });
 
     let mut nav: Vec<NavEntry> = Vec::new();
+    let mut nav_stack: Vec<(u8, NavEntry)> = Vec::new();
     let mut in_act = false;
     let mut image_index = 0usize;
     for (index, section) in book.sections().iter().enumerate() {
@@ -376,6 +401,7 @@ pub(crate) fn write(book: &Book<'_>) -> Result<Vec<u8>, String> {
         let href = format!("text/{id}.xhtml");
         match section {
             Section::Act { title: act } => {
+                fold_nav_stack(&mut nav_stack, None, &mut nav);
                 let mut body = html_open(book, act, "../styles/book.css");
                 body.push_str(&format!(
                     "<body>\n<section epub:type=\"part\" role=\"doc-part\">\n<h1 class=\"part-title\">{}</h1>\n</section>\n</body>\n</html>\n",
@@ -396,13 +422,25 @@ pub(crate) fn write(book: &Book<'_>) -> Result<Vec<u8>, String> {
             Section::Chapter {
                 title: chapter,
                 show_title,
+                depth,
                 blocks,
             } => {
+                let (section_h, title_class) = match depth {
+                    Some(d) => {
+                        let clamped = (*d).min(5);
+                        (
+                            (clamped + 1).min(6),
+                            format!("chapter-title depth-{clamped}"),
+                        )
+                    }
+                    None => (heading_base, String::from("chapter-title")),
+                };
                 let mut body = html_open(book, chapter, "../styles/book.css");
                 if *show_title {
                     body.push_str(&format!(
-                        "<body>\n<section epub:type=\"chapter\" role=\"doc-chapter\">\n<h{0} class=\"chapter-title\">{1}</h{0}>\n",
-                        heading_base,
+                        "<body>\n<section epub:type=\"chapter\" role=\"doc-chapter\">\n<h{0} class=\"{1}\">{2}</h{0}>\n",
+                        section_h,
+                        title_class,
                         xml(chapter)
                     ));
                 } else {
@@ -415,7 +453,7 @@ pub(crate) fn write(book: &Book<'_>) -> Result<Vec<u8>, String> {
                 blocks_html(
                     book,
                     blocks,
-                    heading_base,
+                    section_h,
                     &mut image_index,
                     &mut first,
                     &mut body,
@@ -431,13 +469,20 @@ pub(crate) fn write(book: &Book<'_>) -> Result<Vec<u8>, String> {
                     href,
                     children: Vec::new(),
                 };
-                match nav.last_mut() {
-                    Some(act) if in_act => act.children.push(entry),
-                    _ => nav.push(entry),
+                if let Some(d) = depth {
+                    fold_nav_stack(&mut nav_stack, Some(*d), &mut nav);
+                    nav_stack.push((*d, entry));
+                } else {
+                    fold_nav_stack(&mut nav_stack, None, &mut nav);
+                    match nav.last_mut() {
+                        Some(act) if in_act => act.children.push(entry),
+                        _ => nav.push(entry),
+                    }
                 }
             }
         }
     }
+    fold_nav_stack(&mut nav_stack, None, &mut nav);
     let first_body = documents
         .iter()
         .find(|document| document.id.starts_with('s'))

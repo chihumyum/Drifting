@@ -948,7 +948,7 @@ fn stats_pages_and_export_dialog_agree_on_the_book_read_from_the_root(cx: &mut T
             ExportDialog::new(
                 Some(e.ws.clone()),
                 e.book.clone(),
-                Request::Manuscript { chapter: None },
+                Request::Manuscript,
                 dr_i18n::Locale::ZhCn,
                 dr_i18n::Platform::Mac,
                 window,

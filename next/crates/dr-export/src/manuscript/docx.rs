@@ -244,7 +244,8 @@ impl Body<'_> {
         for block in blocks {
             match block {
                 Block::Heading { level, runs, align } => {
-                    let style = format!("Heading{}", (self.heading_offset + level).min(5));
+                    let max_level = if self.book.has_tree_depths() { 6 } else { 5 };
+                    let style = format!("Heading{}", (self.heading_offset + level).min(max_level));
                     self.paragraph(Some(&style), *align, 0, false, runs);
                     *first = true;
                 }
@@ -465,11 +466,13 @@ fn document_xml(book: &Book<'_>) -> (String, Relationships) {
         section_properties(false)
     ));
 
+    let default_heading_offset = if has_acts { 2 } else { 1 };
     for (index, section) in book.sections().iter().enumerate() {
-        // The section break already starts the body on a new page.
-        body.pending_break = index > 0;
         match section {
             Section::Act { title } => {
+                // The section break already starts the body on a new page.
+                body.pending_break = index > 0;
+                body.heading_offset = default_heading_offset;
                 let runs = [Run {
                     text: title.clone(),
                     ..Run::default()
@@ -479,15 +482,31 @@ fn document_xml(book: &Book<'_>) -> (String, Relationships) {
             Section::Chapter {
                 title,
                 show_title,
+                depth,
                 blocks,
             } => {
+                body.pending_break = index > 0 && depth.is_none_or(|d| d == 0);
+                body.heading_offset = match depth {
+                    Some(d) => (d + 1).min(6),
+                    None => default_heading_offset,
+                };
                 if *show_title {
                     let runs = [Run {
                         text: title.clone(),
                         ..Run::default()
                     }];
-                    let style = if has_acts { "Heading2" } else { "Heading1" };
-                    body.paragraph(Some(style), Align::Center, 0, false, &runs);
+                    match depth {
+                        Some(d) => {
+                            let level = (d + 1).min(6);
+                            let style = format!("Heading{level}");
+                            let align = if *d == 0 { Align::Center } else { Align::Left };
+                            body.paragraph(Some(&style), align, 0, false, &runs);
+                        }
+                        None => {
+                            let style = if has_acts { "Heading2" } else { "Heading1" };
+                            body.paragraph(Some(style), Align::Center, 0, false, &runs);
+                        }
+                    }
                 }
                 let mut first = true;
                 body.blocks(blocks, None, &mut first);
@@ -531,12 +550,23 @@ fn styles_xml(book: &Book<'_>) -> String {
         )
     };
     let has_acts = book.has_acts();
+    let has_tree_depths = book.has_tree_depths();
     // The structural levels (act and chapter, or chapter alone) are centred
-    // display titles. The prose's H1–H3 below them only step down in size and
-    // keep the author's own alignment, as on the paper.
+    // display titles. In tree mode, entry headings step down strictly by
+    // residence-tree depth (`Heading1`..`Heading6`). The prose's H1–H3 below
+    // them step down in size and keep the author's own alignment.
     let mut headings = String::new();
-    let sizes: [(u32, u32, u32, bool); 5] = if has_acts {
-        [
+    let sizes: &[(u32, u32, u32, bool)] = if has_tree_depths {
+        &[
+            (44, 1200, 600, true),
+            (36, 720, 360, false),
+            (30, 560, 280, false),
+            (26, 420, 200, false),
+            (24, 320, 140, false),
+            (22, 240, 120, false),
+        ]
+    } else if has_acts {
+        &[
             (44, 4800, 600, true),
             (36, 1200, 720, true),
             (28, 480, 240, false),
@@ -544,7 +574,7 @@ fn styles_xml(book: &Book<'_>) -> String {
             (24, 240, 120, false),
         ]
     } else {
-        [
+        &[
             (36, 1200, 720, true),
             (28, 480, 240, false),
             (24, 360, 120, false),
@@ -552,7 +582,7 @@ fn styles_xml(book: &Book<'_>) -> String {
             (24, 240, 120, false),
         ]
     };
-    for (index, (size, before, after, center)) in sizes.into_iter().enumerate() {
+    for (index, &(size, before, after, center)) in sizes.iter().enumerate() {
         let level = index as u8 + 1;
         headings.push_str(&heading(
             &format!("Heading{level}"),

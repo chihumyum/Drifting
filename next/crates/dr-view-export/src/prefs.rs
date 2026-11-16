@@ -1,9 +1,8 @@
-//! What the export dialog remembers between exports (the 0.1 client kept it
-//! in `localStorage` under `drifting.manuscriptExport.v1`): the author's
-//! name, and per book the format, the two title switches and a title that
-//! differs from the book's name. The shell keeps them across restarts: it
-//! fills this global from its settings file when it starts and writes the
-//! file back whenever the global changes (dr-shell's `export_memory`).
+//! What the export dialog remembers between exports: the author's name, and
+//! per project the format, the 「条目标题」 switch and a title that differs
+//! from the project's name. The shell keeps them across restarts: it fills
+//! this global from its settings file when it starts and writes the file back
+//! whenever the global changes (`dr-shell`'s `export_memory`).
 
 use std::collections::HashMap;
 
@@ -13,8 +12,7 @@ use gpui::{App, Global};
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BookPrefs {
     pub format: Format,
-    pub act_titles: bool,
-    pub chapter_titles: bool,
+    pub entry_titles: bool,
     /// Only when it is not the book's name.
     pub title: Option<String>,
 }
@@ -23,8 +21,7 @@ impl Default for BookPrefs {
     fn default() -> Self {
         BookPrefs {
             format: Format::Epub,
-            act_titles: true,
-            chapter_titles: true,
+            entry_titles: true,
             title: None,
         }
     }

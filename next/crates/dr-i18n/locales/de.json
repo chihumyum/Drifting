@@ -432,8 +432,8 @@
     "entry_total": "Anzahl der Einträge",
     "entry_words": "Wörter des Eintrags",
     "material_words": "Wörter des Materials",
+    "only_book_prose": "Nur Buchtext",
     "retained_content": "Beibehaltene Inhalte",
-    "selected_entries": "Ausgewählte Einträge",
     "untitled_entry": "Unbenannter Eintrag"
   },
   "k4Pages": {
@@ -468,14 +468,12 @@
     }
   },
   "manuscriptExport": {
-    "actTitles": "Akttitel",
     "author": "Autor",
     "bookInfo": "Buchangaben",
     "bookTitle": "Titel",
     "changeCover": "Ändern",
     "chapterCount_one": "{{count}} Kapitel",
     "chapterCount_other": "{{count}} Kapitel",
-    "chapterTitles": "Kapiteltitel",
     "chooseCover": "Bild auswählen",
     "contents": "Inhalt",
     "cover": "Cover",
@@ -491,13 +489,8 @@
     "retry": "Erneut versuchen",
     "saved": "Exportiert",
     "scope": "Umfang",
-    "selectAll": "Alles auswählen",
-    "selectNone": "Auswahl aufheben",
-    "selectedChapters": "Ausgewählte Kapitel",
     "title": "Manuskript exportieren",
-    "untitledAct": "Unbenannter Akt",
-    "untitledChapter": "Unbenanntes Kapitel",
-    "wholeBook": "Ganzes Buch"
+    "untitledAct": "Unbenannter Akt"
   },
   "markdownFolderGuide": {
     "choose": "Ordner auswählen…",

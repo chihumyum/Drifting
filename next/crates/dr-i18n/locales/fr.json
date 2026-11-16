@@ -434,8 +434,8 @@
     "entry_total": "Nombre d’entrées",
     "entry_words": "Mots de l’entrée",
     "material_words": "Mots du matériau",
+    "only_book_prose": "Texte du livre uniquement",
     "retained_content": "Contenu conservé",
-    "selected_entries": "Entrées sélectionnées",
     "untitled_entry": "Entrée sans titre"
   },
   "k4Pages": {
@@ -471,7 +471,6 @@
     }
   },
   "manuscriptExport": {
-    "actTitles": "Titres des actes",
     "author": "Auteur",
     "bookInfo": "Informations sur le livre",
     "bookTitle": "Titre",
@@ -479,7 +478,6 @@
     "chapterCount_many": "{{count}} chapitres",
     "chapterCount_one": "{{count}} chapitre",
     "chapterCount_other": "{{count}} chapitres",
-    "chapterTitles": "Titres des chapitres",
     "chooseCover": "Choisir une image",
     "contents": "Contenu",
     "cover": "Couverture",
@@ -495,13 +493,8 @@
     "retry": "Réessayer",
     "saved": "Exporté",
     "scope": "Portée",
-    "selectAll": "Tout sélectionner",
-    "selectNone": "Tout désélectionner",
-    "selectedChapters": "Chapitres sélectionnés",
     "title": "Exporter le manuscrit",
-    "untitledAct": "Acte sans titre",
-    "untitledChapter": "Chapitre sans titre",
-    "wholeBook": "Livre entier"
+    "untitledAct": "Acte sans titre"
   },
   "markdownFolderGuide": {
     "choose": "Choisir un dossier…",

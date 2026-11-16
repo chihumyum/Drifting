@@ -423,8 +423,8 @@
     "entry_total": "条目数量",
     "entry_words": "条目字数",
     "material_words": "素材字数",
+    "only_book_prose": "只导成书正文",
     "retained_content": "保留的内容",
-    "selected_entries": "选中条目",
     "untitled_entry": "未命名条目"
   },
   "k4Pages": {
@@ -459,13 +459,11 @@
     }
   },
   "manuscriptExport": {
-    "actTitles": "卷标题",
     "author": "作者",
     "bookInfo": "书籍信息",
     "bookTitle": "书名",
     "changeCover": "更换",
     "chapterCount": "{{count}} 章",
-    "chapterTitles": "章节标题",
     "chooseCover": "选择图片",
     "contents": "内容",
     "cover": "封面",
@@ -481,13 +479,8 @@
     "retry": "重试",
     "saved": "已导出",
     "scope": "范围",
-    "selectAll": "全选",
-    "selectNone": "全不选",
-    "selectedChapters": "选中章节",
     "title": "导出成稿",
-    "untitledAct": "未命名卷",
-    "untitledChapter": "无标题章节",
-    "wholeBook": "全书"
+    "untitledAct": "未命名卷"
   },
   "markdownFolderGuide": {
     "choose": "选择文件夹…",

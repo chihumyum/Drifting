@@ -1,19 +1,20 @@
-//! 「导出成稿」: the 0.1 client's `ManuscriptExportDialog`, section by
-//! section. Reading the chapters and laying the file out happen off the
-//! main thread; the dialog only holds the choices.
+//! 「导出成稿」: format, residence-tree scope with 「只导成书正文」, single
+//! 「条目标题」 switch, and book info. Reading entries and laying the file out
+//! happen off the main thread; the dialog only holds the choices.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::time::SystemTime;
 
 use base64::Engine as _;
-use dr_export::{Cover, Format, Labels, Options, Outline};
+use dr_export::v3::{Outline, TreeNode};
+use dr_export::{Cover, Format, Labels, Options};
 use dr_i18n::{I18n, keys};
 use dr_ui::components::{Button, Dialog, Loading, SandCell, Segmented, Switch};
 use dr_ui::input::{FieldEvent, TextField};
 use dr_ui::sand::{self, Icon};
 use dr_ui::style::DrStyled;
-use dr_ui::tokens::space;
+use dr_ui::tokens::{Rgb, space};
 use dr_ui::{Theme, fonts::Role};
 use dr_workspace::Workspace;
 use gpui::{
@@ -27,10 +28,10 @@ use crate::prefs::{BookPrefs, Prefs};
 
 use keys::manuscript_export as mx;
 
-/// The dialog's width (the 0.1 card's).
+/// The dialog's width.
 pub const WIDTH: f32 = 520.0;
-/// The chapter list scrolls past this.
-const CHAPTERS_MAX_HEIGHT: f32 = 240.0;
+/// The residence tree scrolls past this height.
+const TREE_MAX_HEIGHT: f32 = 260.0;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Busy {
@@ -45,28 +46,21 @@ pub enum Feedback {
     CoverFailed(String),
 }
 
-type Marks = BTreeMap<String, Option<String>>;
-
-struct Loaded {
-    outline: Outline,
-    marks: Option<Marks>,
-}
-
 pub struct ManuscriptState {
     lib: Option<Workspace>,
     book: String,
     i18n: I18n,
-    /// Opened from this chapter: 「选中章节」 starts with it alone.
-    from_chapter: Option<String>,
     pub outline: Option<Outline>,
-    pub v3: bool,
-    v3_marks: Box<Marks>,
     pub load_failed: bool,
     pub format: Format,
-    pub whole_book: bool,
+    /// Active only when `outline.has_book` is true; defaults on when `has_book` is true.
+    pub only_book_prose: bool,
+    /// Manually ticked entry IDs in the residence tree.
     pub selected: BTreeSet<String>,
-    pub act_titles: bool,
-    pub chapter_titles: bool,
+    /// Collapsed level IDs in the residence tree (all expanded on open).
+    pub collapsed: BTreeSet<String>,
+    /// Single 「条目标题」 switch (`kernel-v5` §3).
+    pub entry_titles: bool,
     title: Entity<TextField>,
     author: Entity<TextField>,
     pub cover: Option<Cover>,
@@ -80,7 +74,6 @@ impl ManuscriptState {
     pub(crate) fn new(
         lib: Option<Workspace>,
         book: String,
-        chapter: Option<String>,
         i18n: I18n,
         window: &mut Window,
         cx: &mut Context<ExportDialog>,
@@ -101,16 +94,13 @@ impl ManuscriptState {
             lib,
             book,
             i18n,
-            whole_book: chapter.is_none(),
-            selected: chapter.iter().cloned().collect(),
-            from_chapter: chapter,
             outline: None,
-            v3: false,
-            v3_marks: Box::default(),
             load_failed: false,
             format: mine.format,
-            act_titles: mine.act_titles,
-            chapter_titles: mine.chapter_titles,
+            only_book_prose: false,
+            selected: BTreeSet::new(),
+            collapsed: BTreeSet::new(),
+            entry_titles: mine.entry_titles,
             title,
             author,
             cover: None,
@@ -123,7 +113,7 @@ impl ManuscriptState {
         state
     }
 
-    /// Reads the acts and chapters (again, after a failure).
+    /// Reads the project's book sequence and residence tree (again, after a failure).
     pub fn load(&mut self, cx: &mut Context<ExportDialog>) {
         let Some(lib) = self.lib.clone() else {
             self.load_failed = true;
@@ -134,27 +124,7 @@ impl ManuscriptState {
         self.task = Some(cx.spawn(async move |this, cx| {
             let read = cx
                 .background_executor()
-                .spawn(async move {
-                    let v3 = dr_export::v3::is_book(&lib, &book)?;
-                    if v3 {
-                        let outline = dr_export::v3::outline(&lib, &book)?;
-                        let marks = outline
-                            .entries
-                            .iter()
-                            .map(|e| (e.id.clone(), e.mark.clone()))
-                            .collect();
-                        let picker = outline.picker();
-                        Ok(Loaded {
-                            outline: picker,
-                            marks: Some(marks),
-                        })
-                    } else {
-                        dr_export::outline(&lib, &book).map(|outline| Loaded {
-                            outline,
-                            marks: None,
-                        })
-                    }
-                })
+                .spawn(async move { dr_export::v3::outline(&lib, &book) })
                 .await;
             this.update(cx, |d, cx| {
                 let titled = Prefs::get(cx);
@@ -169,14 +139,12 @@ impl ManuscriptState {
 
     fn loaded(
         &mut self,
-        read: dr_export::Result<Loaded>,
+        read: dr_export::Result<Outline>,
         prefs: &Prefs,
         cx: &mut Context<ExportDialog>,
     ) {
         match read {
-            Ok(Loaded { outline, marks }) => {
-                self.v3 = marks.is_some();
-                *self.v3_marks = marks.unwrap_or_default();
+            Ok(outline) => {
                 let title = prefs
                     .books
                     .get(&self.book)
@@ -187,13 +155,18 @@ impl ManuscriptState {
                         f.set_text(title, cx)
                     }
                 });
-                if self.from_chapter.is_none() {
-                    self.selected = dr_export::default_chapters(&outline).into_iter().collect();
+                if outline.has_book {
+                    self.only_book_prose = true;
+                    self.selected.clear();
+                } else {
+                    self.only_book_prose = false;
+                    self.selected = outline.tree_ids().into_iter().collect();
                 }
+                self.collapsed.clear();
                 self.outline = Some(outline);
             }
             Err(error) => {
-                log::warn!("export: reading the chapters: {error}");
+                log::warn!("export: reading the project outline: {error}");
                 self.load_failed = true;
             }
         }
@@ -203,25 +176,93 @@ impl ManuscriptState {
         self.busy.is_some()
     }
 
-    fn mark(&self, id: &str) -> sand::Kind {
-        if !self.v3 {
-            return sand::Kind::Chapter(seal_of(id));
-        }
-        v3_mark(self.v3_marks.get(id).and_then(|m| m.as_deref()), id)
+    /// Sets 「只导成书正文」 (ignored when the project has `成书` disabled).
+    pub fn set_only_book_prose(&mut self, on: bool) {
+        let has_book = self.outline.as_ref().is_some_and(|o| o.has_book);
+        self.only_book_prose = on && has_book;
     }
 
-    /// The chapters the export takes, in book order.
+    /// Whether `node` and every descendant beneath it are ticked.
+    pub fn is_full(&self, node: &TreeNode) -> bool {
+        self.selected.contains(&node.id) && node.children.iter().all(|c| self.is_full(c))
+    }
+
+    /// Whether `node` or any descendant beneath it is ticked.
+    pub fn is_some(&self, node: &TreeNode) -> bool {
+        self.selected.contains(&node.id) || node.children.iter().any(|c| self.is_some(c))
+    }
+
+    /// Looks up `id` in the loaded residence tree.
+    pub fn node(&self, id: &str) -> Option<&TreeNode> {
+        fn find<'a>(nodes: &'a [TreeNode], id: &str) -> Option<&'a TreeNode> {
+            for node in nodes {
+                if node.id == id {
+                    return Some(node);
+                }
+                if let Some(hit) = find(&node.children, id) {
+                    return Some(hit);
+                }
+            }
+            None
+        }
+        find(&self.outline.as_ref()?.tree, id)
+    }
+
+    /// Toggles `id` in the residence tree: clicking a level ticks itself and
+    /// all descendants; clicking a fully ticked level unticks itself and all
+    /// descendants; clicking a single entry toggles that entry.
+    pub fn toggle_tree_entry(&mut self, id: &str) {
+        if self.only_book_prose {
+            return;
+        }
+        let Some(node) = self.node(id) else {
+            return;
+        };
+        let was_full = self.is_full(node);
+        let mut ids = Vec::new();
+        collect_subtree_ids(node, &mut ids);
+        if was_full {
+            for item in ids {
+                self.selected.remove(&item);
+            }
+        } else {
+            for item in ids {
+                self.selected.insert(item);
+            }
+        }
+    }
+
+    /// Expands or collapses a tree node's child rows without changing ticks.
+    pub fn toggle_collapse(&mut self, id: &str) {
+        if !self.collapsed.remove(id) {
+            self.collapsed.insert(id.to_owned());
+        }
+    }
+
+    /// Selects or clears the entire residence tree (when manual tree selection is active).
+    pub fn select_all(&mut self, on: bool) {
+        if self.only_book_prose {
+            return;
+        }
+        self.selected = match (&self.outline, on) {
+            (Some(o), true) => o.tree_ids().into_iter().collect(),
+            _ => BTreeSet::new(),
+        };
+    }
+
+    /// The entries the export takes, in export order:
+    /// book-sequence order when `only_book_prose` is on, or residence-tree
+    /// preorder when manual tree selection is active.
     pub fn chapters(&self) -> Vec<String> {
         let Some(o) = &self.outline else {
             return Vec::new();
         };
-        if self.whole_book {
-            dr_export::default_chapters(o)
+        if self.only_book_prose {
+            o.entries.iter().map(|e| e.id.clone()).collect()
         } else {
-            o.chapters
-                .iter()
-                .filter(|c| self.selected.contains(&c.id))
-                .map(|c| c.id.clone())
+            o.tree_ids()
+                .into_iter()
+                .filter(|id| self.selected.contains(id))
                 .collect()
         }
     }
@@ -236,52 +277,27 @@ impl ManuscriptState {
     }
 
     pub fn can_export(&self, cx: &gpui::App) -> bool {
-        self.outline.as_ref().is_some_and(|o| o.has_book)
+        self.outline.is_some()
             && !self.chapters().is_empty()
             && !self.title(cx).trim().is_empty()
             && !self.is_busy()
     }
 
-    pub fn toggle(&mut self, id: &str) {
-        if !self.selected.remove(id) {
-            self.selected.insert(id.to_owned());
-        }
-    }
-
-    pub fn all_selected(&self) -> bool {
-        self.outline
-            .as_ref()
-            .is_some_and(|o| o.chapters.iter().all(|c| self.selected.contains(&c.id)))
-    }
-
-    pub fn select_all(&mut self, on: bool) {
-        self.selected = match (&self.outline, on) {
-            (Some(o), true) => o.chapters.iter().map(|c| c.id.clone()).collect(),
-            _ => BTreeSet::new(),
-        };
-    }
-
-    /// What the export would write: the manuscript's options and labels.
+    /// What the export writes: `chapters: None` for 「只导成书正文」 (book-prose
+    /// mode), or `chapters: Some(ids)` for manual tree selection (all-content
+    /// mode with residence-tree hierarchy).
     pub fn options(&self, cx: &gpui::App) -> (Options, Labels) {
-        let has_acts = self.outline.as_ref().is_some_and(Outline::has_acts);
         (
             Options {
-                chapters: (!self.whole_book).then(|| self.chapters()),
-                act_titles: has_acts && self.act_titles,
-                chapter_titles: self.chapter_titles,
+                chapters: (!self.only_book_prose).then(|| self.chapters()),
+                act_titles: false,
+                chapter_titles: self.entry_titles,
                 title: self.title(cx).trim().to_owned(),
                 author: self.author.read(cx).text().trim().to_owned(),
                 cover: self.cover.clone(),
             },
             Labels {
-                untitled_chapter: self
-                    .i18n
-                    .t(if self.v3 {
-                        keys::k4_book::UNTITLED_ENTRY
-                    } else {
-                        mx::UNTITLED_CHAPTER
-                    })
-                    .to_owned(),
+                untitled_chapter: self.i18n.t(keys::k4_book::UNTITLED_ENTRY).to_owned(),
                 untitled_act: self.i18n.t(mx::UNTITLED_ACT).to_owned(),
             },
         )
@@ -296,8 +312,7 @@ impl ManuscriptState {
             self.book.clone(),
             BookPrefs {
                 format: self.format,
-                act_titles: self.act_titles,
-                chapter_titles: self.chapter_titles,
+                entry_titles: self.entry_titles,
                 title: (!title.is_empty() && Some(&title) != named.as_ref()).then_some(title),
             },
         );
@@ -403,6 +418,13 @@ impl ManuscriptState {
     }
 }
 
+fn collect_subtree_ids(node: &TreeNode, out: &mut Vec<String>) {
+    out.push(node.id.clone());
+    for child in &node.children {
+        collect_subtree_ids(child, out);
+    }
+}
+
 /// Reads, lays out and writes the manuscript (off the main thread).
 fn write(
     lib: &Workspace,
@@ -432,7 +454,7 @@ fn thumbnail(cover: &Cover) -> Option<Arc<gpui::Image>> {
     Some(Arc::new(gpui::Image::from_bytes(format, bytes)))
 }
 
-/// The round seal of a chapter's id, as the shell picks it.
+/// The round seal of an entry's id, as the shell picks it.
 fn seal_of(id: &str) -> u8 {
     let mut hash: i32 = 0;
     for unit in id.encode_utf16() {
@@ -441,7 +463,25 @@ fn seal_of(id: &str) -> u8 {
     ((hash as i64).abs() % 6) as u8
 }
 
-fn v3_mark(mark: Option<&str>, id: &str) -> sand::Kind {
+fn color_of(hex: &str) -> Option<Rgb> {
+    let digits = hex.trim().strip_prefix('#')?;
+    if digits.len() != 6 {
+        return None;
+    }
+    u32::from_str_radix(digits, 16).ok().map(Rgb::hex)
+}
+
+fn is_glyph_mark(mark: &str) -> bool {
+    if mark.is_empty() || mark.len() > 32 || mark.chars().any(char::is_control) {
+        return false;
+    }
+    let ascii_name = mark
+        .bytes()
+        .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-');
+    !ascii_name || mark.len() == 1
+}
+
+fn entry_mark(mark: Option<&str>, id: &str) -> sand::Kind {
     match mark {
         Some("book") => sand::Kind::All,
         Some("file-text") => sand::Kind::Chapter(seal_of(id)),
@@ -449,7 +489,34 @@ fn v3_mark(mark: Option<&str>, id: &str) -> sand::Kind {
         Some("folder" | "tag") => sand::Kind::Category,
         Some("compass" | "route") => sand::Kind::Storyline,
         Some("git-branch") => sand::Kind::DriftGroup,
+        Some(text) if is_glyph_mark(text) => sand::Kind::Glyph(sand::Glyph::new(text)),
         _ => sand::Kind::Element,
+    }
+}
+
+struct VisibleRow<'a> {
+    node: &'a TreeNode,
+    depth: usize,
+    full: bool,
+    some: bool,
+}
+
+fn flatten_visible<'a>(
+    nodes: &'a [TreeNode],
+    depth: usize,
+    state: &ManuscriptState,
+    out: &mut Vec<VisibleRow<'a>>,
+) {
+    for node in nodes {
+        out.push(VisibleRow {
+            node,
+            depth,
+            full: state.is_full(node),
+            some: state.is_some(node),
+        });
+        if !node.children.is_empty() && !state.collapsed.contains(&node.id) {
+            flatten_visible(&node.children, depth + 1, state, out);
+        }
     }
 }
 
@@ -499,7 +566,6 @@ pub(crate) fn render(
     let i18n = &m.i18n;
     let t = |key| -> SharedString { i18n.t(key).into() };
     let running = m.is_busy();
-    // Runs `f` on the state unless a file is being written.
     let on = |f: fn(&mut ManuscriptState, &mut Context<ExportDialog>)| {
         let this = this.clone();
         move |cx: &mut gpui::App| {
@@ -559,183 +625,188 @@ pub(crate) fn render(
                 }),
             );
 
-            let set_scope = this.clone();
-            let mut scope = section(&theme, t(mx::SCOPE)).child(
-                Segmented::new(
-                    "export-scope",
-                    [
-                        t(mx::WHOLE_BOOK),
-                        t(if m.v3 {
-                            keys::k4_book::SELECTED_ENTRIES
-                        } else {
-                            mx::SELECTED_CHAPTERS
-                        }),
-                    ],
-                    usize::from(!m.whole_book),
-                )
-                .disabled(running)
-                .on_change(move |i, _, cx| {
-                    set_scope.update(cx, |d, cx| {
-                        if let Some(m) = d.manuscript_mut() {
-                            m.whole_book = i == 0;
-                        }
-                        cx.notify();
-                    })
-                }),
-            );
-            if !m.whole_book {
-                let all = m.all_selected();
-                let flip = this.clone();
-                let head = div()
-                    .flex()
-                    .flex_row()
-                    .items_center()
-                    .justify_between()
-                    .child(
-                        div()
-                            .font_role(Role::Index)
-                            .type_px(s.caption, s.line_caption)
-                            .text_color(p.muted().solid())
-                            .child(i18n.plural(
-                                if m.v3 {
-                                    keys::k4_book::ENTRY_COUNT
-                                } else {
-                                    mx::CHAPTER_COUNT
-                                },
-                                m.chapters().len() as u64,
-                                &[],
-                            )),
-                    )
-                    .child(
-                        Button::new(
-                            "export-select-all",
-                            t(if all { mx::SELECT_NONE } else { mx::SELECT_ALL }),
-                        )
-                        .text()
-                        .small()
-                        .disabled(running)
-                        .on_click(move |_, _, cx| {
-                            flip.update(cx, |d, cx| {
-                                if let Some(m) = d.manuscript_mut() {
-                                    m.select_all(!all);
-                                }
-                                cx.notify();
-                            })
-                        }),
-                    );
-                let mut list = div()
-                    .id("export-chapters")
-                    .max_h(px(CHAPTERS_MAX_HEIGHT))
-                    .overflow_y_scroll()
-                    .flex()
-                    .flex_col();
-                let mut act: Option<&str> = None;
-                for c in &outline.chapters {
-                    if c.act.as_deref() != act {
-                        act = c.act.as_deref();
-                        if let Some(a) = act {
-                            let name = outline
-                                .act_name(a)
-                                .filter(|n| !n.trim().is_empty())
-                                .map(str::to_owned)
-                                .unwrap_or_else(|| i18n.t(mx::UNTITLED_ACT).to_owned());
-                            list = list.child(
-                                div()
-                                    .pt(px(space::S3))
-                                    .pb(px(space::S1))
-                                    .px(px(space::S4))
-                                    .font_role(Role::Index)
-                                    .type_px(s.caption, s.line_caption)
-                                    .text_color(p.muted().solid())
-                                    .child(name),
-                            );
-                        }
-                    }
-                    let chosen = m.selected.contains(&c.id);
-                    let label = if c.title.trim().is_empty() {
-                        i18n.t(if m.v3 {
-                            keys::k4_book::UNTITLED_ENTRY
-                        } else {
-                            mx::UNTITLED_CHAPTER
-                        })
-                        .to_owned()
-                    } else {
-                        c.title.clone()
-                    };
-                    let (toggle, id) = (this.clone(), c.id.clone());
-                    list = list.child(
-                        SandCell::new(
-                            gpui::ElementId::Name(format!("export-chapter-{}", c.id).into()),
-                            label,
-                        )
-                        .mark(m.mark(&c.id))
-                        .disabled(running)
-                        .child(div().flex_none().w(px(14.0)).when(chosen, |el| {
-                            el.child(sand::icon(Icon::Check, 14.0, p.ink(1).solid()))
-                        }))
-                        .on_click(move |_, _, cx| {
-                            toggle.update(cx, |d, cx| {
-                                if let Some(m) = d.manuscript_mut() {
-                                    m.toggle(&id);
-                                }
-                                cx.notify();
-                            })
-                        }),
-                    );
-                }
-                scope = scope.child(head).child(list);
-            }
-
-            let mut contents = section(&theme, t(mx::CONTENTS));
-            if outline.has_acts() {
-                let flip = this.clone();
-                contents = contents.child(
+            let mut scope = section(&theme, t(mx::SCOPE));
+            if outline.has_book {
+                let flip_only = this.clone();
+                let only_label = t(keys::k4_book::ONLY_BOOK_PROSE);
+                let only_on = m.only_book_prose;
+                scope = scope.child(
                     div()
                         .flex()
                         .flex_row()
                         .items_center()
                         .justify_between()
-                        .child(t(mx::ACT_TITLES))
+                        .py(px(space::S1))
+                        .font_role(Role::Ui)
+                        .type_px(s.secondary, s.line_body)
+                        .text_color(p.ink(1).solid())
+                        .child(only_label.clone())
                         .child(
-                            Switch::new("export-act-titles", m.act_titles)
-                                .disabled(running)
-                                .on_change(move |on, _, cx| {
-                                    flip.update(cx, |d, cx| {
-                                        if let Some(m) = d.manuscript_mut() {
-                                            m.act_titles = on;
-                                        }
-                                        cx.notify();
-                                    })
-                                }),
+                            div()
+                                .id("export-only-book-prose-toggle")
+                                .role(gpui::Role::CheckBox)
+                                .aria_label(only_label)
+                                .aria_toggled(if only_on {
+                                    gpui::Toggled::True
+                                } else {
+                                    gpui::Toggled::False
+                                })
+                                .child(
+                                    Switch::new("export-only-book-prose", only_on)
+                                        .disabled(running)
+                                        .on_change(move |on, _, cx| {
+                                            flip_only.update(cx, |d, cx| {
+                                                if let Some(m) = d.manuscript_mut() {
+                                                    m.set_only_book_prose(on);
+                                                }
+                                                cx.notify();
+                                            })
+                                        }),
+                                ),
                         ),
                 );
             }
-            let flip = this.clone();
-            contents = contents.child(
-                div()
-                    .flex()
-                    .flex_row()
-                    .items_center()
-                    .justify_between()
-                    .child(t(if m.v3 {
-                        keys::k4_book::ENTRY_TITLES
+
+            let tree_disabled = running || m.only_book_prose;
+            let mut rows = Vec::new();
+            flatten_visible(&outline.tree, 0, m, &mut rows);
+            let mut tree = div()
+                .id("export-tree")
+                .role(gpui::Role::Group)
+                .aria_label(t(mx::SCOPE))
+                .max_h(px(TREE_MAX_HEIGHT))
+                .overflow_y_scroll()
+                .flex()
+                .flex_col()
+                .when(m.only_book_prose, |el| el.opacity(0.45));
+            for row in rows {
+                let node = row.node;
+                let has_children = !node.children.is_empty();
+                let is_collapsed = m.collapsed.contains(&node.id);
+                let label = if node.title.trim().is_empty() {
+                    i18n.t(keys::k4_book::UNTITLED_ENTRY).to_owned()
+                } else {
+                    node.title.clone()
+                };
+                let disc: AnyElement = if has_children {
+                    let (fold, id) = (this.clone(), node.id.clone());
+                    let chevron = if is_collapsed {
+                        Icon::ChevronRight
                     } else {
-                        mx::CHAPTER_TITLES
-                    }))
-                    .child(
-                        Switch::new("export-chapter-titles", m.chapter_titles)
-                            .disabled(running)
-                            .on_change(move |on, _, cx| {
-                                flip.update(cx, |d, cx| {
-                                    if let Some(m) = d.manuscript_mut() {
-                                        m.chapter_titles = on;
+                        Icon::ChevronDown
+                    };
+                    div()
+                        .id(gpui::ElementId::Name(
+                            format!("export-fold-{}", node.id).into(),
+                        ))
+                        .flex_none()
+                        .size(px(16.0))
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .when(!tree_disabled, |el| {
+                            el.cursor_pointer().on_click(move |_, _, cx| {
+                                fold.update(cx, |d, cx| {
+                                    if let Some(m) = d.manuscript_mut()
+                                        && !m.is_busy()
+                                        && !m.only_book_prose
+                                    {
+                                        m.toggle_collapse(&id);
                                     }
                                     cx.notify();
                                 })
-                            }),
-                    ),
-            );
-            let contents = contents
+                            })
+                        })
+                        .child(sand::icon(chevron, 11.0, p.muted().solid()))
+                        .into_any_element()
+                } else {
+                    div().flex_none().size(px(16.0)).into_any_element()
+                };
+
+                let check_mark = div()
+                    .flex_none()
+                    .size(px(14.0))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .when(row.full, |el| {
+                        el.child(sand::icon(Icon::Check, 14.0, p.ink(1).solid()))
+                    })
+                    .when(!row.full && row.some, |el| {
+                        el.child(
+                            div()
+                                .w(px(9.0))
+                                .h(px(2.0))
+                                .rounded(px(1.0))
+                                .bg(p.ink(1).solid()),
+                        )
+                    });
+
+                let (toggle, id) = (this.clone(), node.id.clone());
+                let cell = SandCell::new(
+                    gpui::ElementId::Name(format!("export-entry-{}", node.id).into()),
+                    label,
+                )
+                .mark(entry_mark(node.mark.as_deref(), &node.id))
+                .color_opt(node.color.as_deref().and_then(color_of))
+                .disabled(tree_disabled)
+                .child(check_mark)
+                .on_click(move |_, _, cx| {
+                    toggle.update(cx, |d, cx| {
+                        if let Some(m) = d.manuscript_mut() {
+                            m.toggle_tree_entry(&id);
+                        }
+                        cx.notify();
+                    })
+                });
+
+                tree = tree.child(
+                    div()
+                        .pl(px(row.depth as f32 * 16.0))
+                        .flex()
+                        .flex_row()
+                        .items_center()
+                        .child(disc)
+                        .child(div().flex_1().min_w_0().child(cell)),
+                );
+            }
+            scope = scope.child(tree);
+
+            let flip_titles = this.clone();
+            let titles_label = t(keys::k4_book::ENTRY_TITLES);
+            let titles_on = m.entry_titles;
+            let contents = section(&theme, t(mx::CONTENTS))
+                .child(
+                    div()
+                        .flex()
+                        .flex_row()
+                        .items_center()
+                        .justify_between()
+                        .child(titles_label.clone())
+                        .child(
+                            div()
+                                .id("export-entry-titles-toggle")
+                                .role(gpui::Role::CheckBox)
+                                .aria_label(titles_label)
+                                .aria_toggled(if titles_on {
+                                    gpui::Toggled::True
+                                } else {
+                                    gpui::Toggled::False
+                                })
+                                .child(
+                                    Switch::new("export-entry-titles", titles_on)
+                                        .disabled(running)
+                                        .on_change(move |on, _, cx| {
+                                            flip_titles.update(cx, |d, cx| {
+                                                if let Some(m) = d.manuscript_mut() {
+                                                    m.entry_titles = on;
+                                                }
+                                                cx.notify();
+                                            })
+                                        }),
+                                ),
+                        ),
+                )
                 .font_role(Role::Ui)
                 .type_px(s.secondary, s.line_body)
                 .text_color(p.ink(1).solid());

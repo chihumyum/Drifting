@@ -425,8 +425,8 @@
     "entry_total": "항목 수",
     "entry_words": "항목 글자 수",
     "material_words": "자료 글자 수",
+    "only_book_prose": "책 본문만",
     "retained_content": "보존된 내용",
-    "selected_entries": "선택한 항목",
     "untitled_entry": "제목 없는 항목"
   },
   "k4Pages": {
@@ -461,14 +461,12 @@
     }
   },
   "manuscriptExport": {
-    "actTitles": "막 제목",
     "author": "작가",
     "bookInfo": "작품 정보",
     "bookTitle": "제목",
     "changeCover": "변경",
     "chapterCount_one": "{{count}}개 장",
     "chapterCount_other": "{{count}}개 장",
-    "chapterTitles": "장 제목",
     "chooseCover": "이미지 선택",
     "contents": "내용",
     "cover": "표지",
@@ -484,13 +482,8 @@
     "retry": "다시 시도",
     "saved": "내보냈습니다",
     "scope": "범위",
-    "selectAll": "모두 선택",
-    "selectNone": "모두 선택 해제",
-    "selectedChapters": "선택한 장",
     "title": "원고 내보내기",
-    "untitledAct": "제목 없는 막",
-    "untitledChapter": "제목 없는 장",
-    "wholeBook": "작품 전체"
+    "untitledAct": "제목 없는 막"
   },
   "markdownFolderGuide": {
     "choose": "폴더 선택…",

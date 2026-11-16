@@ -184,14 +184,8 @@ manuscriptExport.loadFailed
 manuscriptExport.retry
 manuscriptExport.format
 manuscriptExport.scope
-manuscriptExport.wholeBook
-manuscriptExport.selectedChapters
 manuscriptExport.chapterCount
-manuscriptExport.selectAll
-manuscriptExport.selectNone
 manuscriptExport.contents
-manuscriptExport.actTitles
-manuscriptExport.chapterTitles
 manuscriptExport.bookInfo
 manuscriptExport.bookTitle
 manuscriptExport.author
@@ -204,7 +198,6 @@ manuscriptExport.exporting
 manuscriptExport.saved
 manuscriptExport.failed
 manuscriptExport.coverFailed
-manuscriptExport.untitledChapter
 manuscriptExport.untitledAct
 markdownShare.loadFailed
 markdownShare.retry

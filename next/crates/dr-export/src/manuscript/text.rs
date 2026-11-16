@@ -300,6 +300,7 @@ mod tests {
             sections: vec![Section::Chapter {
                 title: "C".into(),
                 show_title: true,
+                depth: None,
                 blocks: vec![Block::Paragraph {
                     runs: vec![Run {
                         text: text.into(),

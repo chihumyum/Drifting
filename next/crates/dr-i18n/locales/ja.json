@@ -425,8 +425,8 @@
     "entry_total": "項目数",
     "entry_words": "項目の文字数",
     "material_words": "素材の文字数",
+    "only_book_prose": "本編の本文のみ",
     "retained_content": "保持された内容",
-    "selected_entries": "選択した項目",
     "untitled_entry": "無題の項目"
   },
   "k4Pages": {
@@ -461,14 +461,12 @@
     }
   },
   "manuscriptExport": {
-    "actTitles": "幕のタイトル",
     "author": "著者",
     "bookInfo": "作品情報",
     "bookTitle": "タイトル",
     "changeCover": "変更",
     "chapterCount_one": "{{count}}章",
     "chapterCount_other": "{{count}}章",
-    "chapterTitles": "章のタイトル",
     "chooseCover": "画像を選択",
     "contents": "内容",
     "cover": "表紙",
@@ -484,13 +482,8 @@
     "retry": "再試行",
     "saved": "エクスポートしました",
     "scope": "対象範囲",
-    "selectAll": "すべて選択",
-    "selectNone": "選択をすべて解除",
-    "selectedChapters": "選択した章",
     "title": "原稿をエクスポート",
-    "untitledAct": "無題の幕",
-    "untitledChapter": "無題の章",
-    "wholeBook": "全編"
+    "untitledAct": "無題の幕"
   },
   "markdownFolderGuide": {
     "choose": "フォルダを選択…",

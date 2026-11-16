@@ -432,8 +432,8 @@
     "entry_total": "Entry count",
     "entry_words": "Entry words",
     "material_words": "Material words",
+    "only_book_prose": "Book text only",
     "retained_content": "Retained content",
-    "selected_entries": "Selected entries",
     "untitled_entry": "Untitled entry"
   },
   "k4Pages": {
@@ -468,14 +468,12 @@
     }
   },
   "manuscriptExport": {
-    "actTitles": "Act titles",
     "author": "Author",
     "bookInfo": "Book details",
     "bookTitle": "Title",
     "changeCover": "Change",
     "chapterCount_one": "{{count}} chapter",
     "chapterCount_other": "{{count}} chapters",
-    "chapterTitles": "Chapter titles",
     "chooseCover": "Choose image",
     "contents": "Contents",
     "cover": "Cover",
@@ -491,13 +489,8 @@
     "retry": "Retry",
     "saved": "Exported",
     "scope": "Scope",
-    "selectAll": "Select all",
-    "selectNone": "Select none",
-    "selectedChapters": "Selected chapters",
     "title": "Export manuscript",
-    "untitledAct": "Untitled act",
-    "untitledChapter": "Untitled chapter",
-    "wholeBook": "Whole book"
+    "untitledAct": "Untitled act"
   },
   "markdownFolderGuide": {
     "choose": "Choose folder…",

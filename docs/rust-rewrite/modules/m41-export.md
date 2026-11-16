@@ -4,6 +4,25 @@
 
 > 2026-11-10 切换实施更新：默认新书与单本归档使用 canonical v3；旧分享 Markdown 入口退役，不自造 v3 分享格式。 当前范围、删除／保留边界和验收状态见 [canonical v3 切换](../v3-cutover.md)。下文历史交回记录保留其原语境。
 
+## 内核 v5 T3b：导出成稿返工（唯一入口、整棵住处树范围、只导成书正文与单个条目标题开关，2026-11-16）
+
+配合 [kernel-v5.md 第 3 节](../kernel-v5.md) 与任务书 T3b：
+
+- **唯一入口搬到项目内左下角用户头像菜单（`dr-shell/src/account.rs`、`dr-shell/src/workspace/corner.rs`、`dr-view-export/src/lib.rs`）**：
+  - 去掉章节页右下角 `⋯` 与整本书页右下角 `⋯` 里的「导出成稿」，整本书页不再保留空 `⋯` 按钮；`Request::Manuscript` 收口为无参变体，不再支持从单章预设打开。
+  - 项目内左下角用户头像菜单（`workspace-account`）在「导入　MD · DOCX · TXT」正下方、「提交反馈」正上方新增「导出成稿」（图标 `Icon::ArrowOut`）；`全部项目` 书架头像菜单（`shelf-account`）不显示该项。
+  - 去掉 `Workspace::open_export` 对 `project.book.is_none()` 的早退拦截，无「成书」项目照常可打开「导出成稿」。
+- **范围改为整棵住处树与「只导成书正文」开关（`dr-export/src/v3.rs`、`dr-view-export/src/manuscript.rs`、`dr-i18n`）**：
+  - `dr_export::v3::Outline` 同时给出成书序列 `entries` 与完整住处树 `tree`（按 `BookStructureV3::children_of` 递归构建；归属／挂载不算子级，已进最近删除的条目除外）。
+  - **开了「成书」的项目（`has_book == true`）**：树上方显示「只导成书正文」（九语言 `k4Book.only_book_prose`），打开对话框时默认开启，导出 `BookStructureV3::book_sequence()`（仅 `in_book = true` 的正文模块），下方住处树半透明禁用；关掉开关后可在住处树中手动勾选（点击层级条目级联全勾／全退整棵子树，单个条目可单独勾退，部分子项勾选时父层级显示短横线；左侧折叠箭头只收展显示、不改勾选）。
+  - **没开「成书」的项目（`has_book == false`）**：不显示「只导成书正文」开关行，打开对话框时整棵住处树默认全勾，可直接导出或按需退勾。
+- **手动勾住处树时导出全部内容并保留层级（`dr-export/src/v3.rs`、`manuscript/{mod,epub,docx,pdf}.rs`）**：
+  - **哪些模块算内容**：按条目当前生效模板的模块顺序导出全部带数据模块——`prose`（无论 `in_book` 真假，含段落、H1/H2/H3、列表、代码、提示框、引文、分隔线、表格、活图片嵌入与图注、活 PDF 文件名行；注册未写的正文文档跳过且不新建）、`fields`（非空值按字段定义顺序导出为二列表格；`EntityRef` 解析为活条目标题，`Image` 指向活图片时导出图片块并以字段名作图注、指向活 PDF 时导出文件名行）、`kv`（非空键值二列表格）、`media`（活图片块＋图注、活 PDF 文件名＋图注行）、`patches`（粗体标题、原文引文块与正文段落）、`plot_grid`（含非空单元格时导出带行列头的表格）、`relations`（活端点角色与对象名二列表格）。结构视图模块 `children`（下面的条目）与 `members`（挂在这里的条目）自身不存条目内容、已删除资源、已脱离当前模板的保留内容不进成稿。
+  - **层级标题与目录**：`Section::Chapter` 新增可选 `depth: Option<u8>`。手勾住处树时按树深输出逐层递减的标题字号与嵌套目录／书签（EPUB 嵌套 `nav.xhtml` / `toc.ncx` 与 `depth-0..5` 标题样式；Word 映射 `Heading1..Heading6` 且仅顶层分页使子条目紧随父层级；PDF 按树深缩放标题字号、缩进目录并生成嵌套书签树）；「只导成书正文」模式保持 `depth = None` 原有扁平行为。
+- **「内容」合并为单个「条目标题」开关（`dr-view-export/src/prefs.rs`、`dr-shell/src/export_memory.rs`）**：
+  - 合并原双标题开关为单个「条目标题」（`entry_titles`，默认开，设置文件按项目持久化为 `entryTitles`）。应用不自动给条目编号；正文内 H1/H2/H3 始终照常导出。
+- **回归**：`dr-export/tests/v3.rs`（`tree_selection_exports_all_content_modules_with_tree_hierarchy_across_formats` 等 5 项）、`dr-view-export/tests/dialog.rs`、`dr-shell/tests/m41.rs`。
+
 ## 内核 v5 T3：单一成书顺序、去掉多处成书选择与正文嵌文件导出（2026-11-15）
 
 配合 [kernel-v5.md 第 3、4、6 节](../kernel-v5.md)：

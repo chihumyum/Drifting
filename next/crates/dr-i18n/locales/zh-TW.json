@@ -425,8 +425,8 @@
     "entry_total": "條目數量",
     "entry_words": "條目字數",
     "material_words": "素材字數",
+    "only_book_prose": "只匯出成書正文",
     "retained_content": "保留的內容",
-    "selected_entries": "選取條目",
     "untitled_entry": "未命名條目"
   },
   "k4Pages": {
@@ -461,14 +461,12 @@
     }
   },
   "manuscriptExport": {
-    "actTitles": "幕標題",
     "author": "作者",
     "bookInfo": "作品資料",
     "bookTitle": "標題",
     "changeCover": "變更",
     "chapterCount_one": "{{count}} 章",
     "chapterCount_other": "{{count}} 章",
-    "chapterTitles": "章節標題",
     "chooseCover": "選擇圖片",
     "contents": "內容",
     "cover": "封面",
@@ -484,13 +482,8 @@
     "retry": "重試",
     "saved": "已匯出",
     "scope": "範圍",
-    "selectAll": "全選",
-    "selectNone": "全部取消選取",
-    "selectedChapters": "選取的章節",
     "title": "匯出書稿",
-    "untitledAct": "未命名幕",
-    "untitledChapter": "未命名章節",
-    "wholeBook": "全書"
+    "untitledAct": "未命名幕"
   },
   "markdownFolderGuide": {
     "choose": "選擇資料夾…",
