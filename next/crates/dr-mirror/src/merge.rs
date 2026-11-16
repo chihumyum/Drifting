@@ -290,7 +290,7 @@ fn attrs_of(p: &Para, keep: &BlockAttrs) -> BlockAttrs {
             a.quote = *quote;
             a.rule = true;
         }
-        Kind::Embed(_) => {}
+        _ => {}
     }
     a
 }

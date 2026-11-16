@@ -33,6 +33,8 @@ enum Raw {
     Heading(u8, String),
     Para(String),
     Quote(Vec<Raw>),
+    Callout(String, Vec<Raw>),
+    Table(Vec<Vec<String>>),
     Rule,
     Code(Vec<String>),
 }
@@ -40,12 +42,43 @@ enum Raw {
 type Defs = HashMap<String, String>;
 
 pub(super) fn parse(text: &str, warnings: &mut Vec<ImportWarning>) -> Vec<Block> {
+    read(text, warnings, false)
+}
+
+pub(super) fn for_mirror(text: &str) -> Vec<Block> {
+    read(text, &mut Vec::new(), true)
+}
+
+pub(super) fn mirror_runs(text: &str) -> Vec<Run> {
+    inline(text, &Defs::new(), &mut 0, true)
+}
+
+pub(super) fn image_line(text: &str) -> Option<(String, String)> {
+    let chars: Vec<char> = text.trim().chars().collect();
+    if !chars.starts_with(&['!', '[']) {
+        return None;
+    }
+    let close = closing_bracket(&chars, 1)?;
+    let (href, end) = inline_destination(&chars, close + 1)?;
+    (end == chars.len()).then(|| (chars[2..close].iter().collect(), href))
+}
+
+pub(super) fn callout_kind(text: &str) -> Option<&str> {
+    let kind = text.trim().strip_prefix("[!")?.strip_suffix(']')?;
+    (!kind.is_empty()
+        && kind
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_')))
+    .then_some(kind)
+}
+
+fn read(text: &str, warnings: &mut Vec<ImportWarning>, mirror: bool) -> Vec<Block> {
     let lines: Vec<String> = text.split('\n').map(expand_tabs).collect();
     let mut defs = Defs::new();
-    let raw = blocks(&lines, &mut defs);
+    let raw = blocks(&lines, &mut defs, mirror);
     let mut images = 0;
     let mut out = Vec::new();
-    convert(&raw, &defs, &mut images, &mut out);
+    convert(&raw, &defs, &mut images, &mut out, mirror);
     if images > 0 {
         warnings.push(ImportWarning::ImagesDropped(images));
     }
@@ -243,7 +276,7 @@ fn is_delimiter_row(line: &str) -> bool {
 }
 
 /// Lines into blocks; definitions collected into `defs`.
-fn blocks(lines: &[String], defs: &mut Defs) -> Vec<Raw> {
+fn blocks(lines: &[String], defs: &mut Defs, mirror: bool) -> Vec<Raw> {
     let mut out = Vec::new();
     let mut para: Vec<String> = Vec::new();
     // Inside a list item: its content column (deeper lines are its content).
@@ -361,7 +394,14 @@ fn blocks(lines: &[String], defs: &mut Defs) -> Vec<Raw> {
                 }
                 i += 1;
             }
-            out.push(Raw::Quote(blocks(&inner, defs)));
+            if mirror && let Some(kind) = inner.first().and_then(|line| callout_kind(line)) {
+                out.push(Raw::Callout(
+                    kind.to_owned(),
+                    blocks(&inner[1..], defs, mirror),
+                ));
+            } else {
+                out.push(Raw::Quote(blocks(&inner, defs, mirror)));
+            }
             continue;
         }
         if let Some((col, late)) = list_item(line)
@@ -401,9 +441,13 @@ fn blocks(lines: &[String], defs: &mut Defs) -> Vec<Raw> {
                     rows.push(cells(&lines[i]));
                     i += 1;
                 }
-                for cell in rows.into_iter().flatten() {
-                    if !cell.is_empty() {
-                        out.push(Raw::Para(cell));
+                if mirror {
+                    out.push(Raw::Table(rows));
+                } else {
+                    for cell in rows.into_iter().flatten() {
+                        if !cell.is_empty() {
+                            out.push(Raw::Para(cell));
+                        }
                     }
                 }
                 continue;
@@ -416,12 +460,20 @@ fn blocks(lines: &[String], defs: &mut Defs) -> Vec<Raw> {
     out
 }
 
-fn convert(raw: &[Raw], defs: &Defs, images: &mut usize, out: &mut Vec<Block>) {
+fn convert(raw: &[Raw], defs: &Defs, images: &mut usize, out: &mut Vec<Block>, mirror: bool) {
     for r in raw {
         match r {
             Raw::Heading(level, text) => {
-                let runs = inline(text, defs, images);
-                if runs.iter().any(|r| !r.text.trim().is_empty()) {
+                let runs = inline(text, defs, images, mirror);
+                if mirror || runs.iter().any(|r| !r.text.trim().is_empty()) {
+                    if mirror && *level > 3 {
+                        out.push(Block::Paragraph {
+                            runs,
+                            align: Align::Justify,
+                            indent: 0,
+                        });
+                        continue;
+                    }
                     out.push(Block::Heading {
                         level: (*level).min(3),
                         runs,
@@ -430,8 +482,8 @@ fn convert(raw: &[Raw], defs: &Defs, images: &mut usize, out: &mut Vec<Block>) {
                 }
             }
             Raw::Para(text) => {
-                let runs = inline(text, defs, images);
-                if runs.iter().any(|r| !r.text.trim().is_empty()) {
+                let runs = inline(text, defs, images, mirror);
+                if mirror || runs.iter().any(|r| !r.text.trim().is_empty()) {
                     out.push(Block::Paragraph {
                         runs,
                         align: Align::Justify,
@@ -441,7 +493,7 @@ fn convert(raw: &[Raw], defs: &Defs, images: &mut usize, out: &mut Vec<Block>) {
             }
             Raw::Quote(inner) => {
                 let mut blocks = Vec::new();
-                convert(inner, defs, images, &mut blocks);
+                convert(inner, defs, images, &mut blocks, mirror);
                 // The editor's quote is a paragraph flag: nested quotes are
                 // one quote.
                 let flat: Vec<Block> = blocks
@@ -455,6 +507,24 @@ fn convert(raw: &[Raw], defs: &Defs, images: &mut usize, out: &mut Vec<Block>) {
                     out.push(Block::Quote { blocks: flat });
                 }
             }
+            Raw::Callout(kind, inner) => {
+                let mut blocks = Vec::new();
+                convert(inner, defs, images, &mut blocks, mirror);
+                out.push(Block::Callout {
+                    kind: kind.clone(),
+                    blocks,
+                });
+            }
+            Raw::Table(rows) => out.push(Block::Table {
+                rows: rows
+                    .iter()
+                    .map(|row| {
+                        row.iter()
+                            .map(|cell| inline(cell, defs, images, mirror))
+                            .collect()
+                    })
+                    .collect(),
+            }),
             Raw::Rule => out.push(Block::Break),
             Raw::Code(lines) => {
                 let text = lines.join("\n");
@@ -481,6 +551,8 @@ struct Marks {
     italic: bool,
     underline: bool,
     strike: bool,
+    highlight: bool,
+    code: bool,
     href: Option<String>,
 }
 
@@ -490,6 +562,8 @@ enum Tag {
     Italic,
     Underline,
     Strike,
+    Highlight,
+    Code,
 }
 
 #[derive(Clone, Debug)]
@@ -571,7 +645,7 @@ fn entity(name: &str) -> Option<char> {
     })
 }
 
-fn html_tag(s: &str) -> Option<(Option<(Tag, bool)>, usize)> {
+fn html_tag(s: &str, mirror: bool) -> Option<(Option<(Tag, bool)>, usize)> {
     // Returns the tag (None for <br>) and the length consumed.
     let end = s.find('>')?;
     let inner = s[1..end].trim();
@@ -586,6 +660,8 @@ fn html_tag(s: &str) -> Option<(Option<(Tag, bool)>, usize)> {
         "i" | "em" => Tag::Italic,
         "u" | "ins" => Tag::Underline,
         "s" | "del" | "strike" => Tag::Strike,
+        "mark" if mirror => Tag::Highlight,
+        "code" if mirror => Tag::Code,
         _ => return None,
     };
     Some((Some((tag, !closing)), end + 1))
@@ -749,12 +825,12 @@ fn keep_href(href: &str) -> Option<String> {
 
 /// One paragraph's (or heading's) text as runs; `\n` in the source is a
 /// line end, `\n` in a run a line break.
-fn inline(src: &str, defs: &Defs, images: &mut usize) -> Vec<Run> {
-    let nodes = nodes(src, defs, images, &Marks::default());
+fn inline(src: &str, defs: &Defs, images: &mut usize, mirror: bool) -> Vec<Run> {
+    let nodes = nodes(src, defs, images, &Marks::default(), mirror);
     flatten(nodes)
 }
 
-fn nodes(src: &str, defs: &Defs, images: &mut usize, base: &Marks) -> Vec<Node> {
+fn nodes(src: &str, defs: &Defs, images: &mut usize, base: &Marks, mirror: bool) -> Vec<Node> {
     let c: Vec<char> = src.chars().collect();
     let mut out: Vec<Node> = Vec::new();
     let mut text = String::new();
@@ -804,7 +880,14 @@ fn nodes(src: &str, defs: &Defs, images: &mut usize, base: &Marks) -> Vec<Node> 
                         } else {
                             inner
                         };
-                        text.push_str(&inner);
+                        if mirror {
+                            flush(&mut text, &mut out);
+                            let mut marks = base.clone();
+                            marks.code = true;
+                            out.push(Node::Text(inner, marks));
+                        } else {
+                            text.push_str(&inner);
+                        }
                         i = end;
                     }
                     None => {
@@ -871,7 +954,7 @@ fn nodes(src: &str, defs: &Defs, images: &mut usize, base: &Marks) -> Vec<Node> 
                         continue;
                     }
                 }
-                if let Some((tag, len)) = html_tag(&rest) {
+                if let Some((tag, len)) = html_tag(&rest, mirror) {
                     flush(&mut text, &mut out);
                     let literal: String = rest.chars().take(len).collect();
                     match tag {
@@ -899,7 +982,11 @@ fn nodes(src: &str, defs: &Defs, images: &mut usize, base: &Marks) -> Vec<Node> 
                             reference(&c, close, &label, defs).map(|(_, e)| e)
                         });
                     if let Some(end) = dest {
-                        *images += 1;
+                        if mirror {
+                            text.extend(&c[i..end]);
+                        } else {
+                            *images += 1;
+                        }
                         i = end;
                         continue;
                     }
@@ -916,10 +1003,10 @@ fn nodes(src: &str, defs: &Defs, images: &mut usize, base: &Marks) -> Vec<Node> 
                         flush(&mut text, &mut out);
                         let mut m = base.clone();
                         if m.href.is_none() {
-                            m.href = keep_href(&href);
+                            m.href = if mirror { Some(href) } else { keep_href(&href) };
                         }
                         // Delimiters inside a link's text match only there.
-                        let inner = nodes(&label, defs, images, &m);
+                        let inner = nodes(&label, defs, images, &m, mirror);
                         out.extend(literal(inner));
                         i = end;
                         continue;
@@ -928,7 +1015,7 @@ fn nodes(src: &str, defs: &Defs, images: &mut usize, base: &Marks) -> Vec<Node> 
                 text.push('[');
                 i += 1;
             }
-            '*' | '_' | '~' => {
+            '*' | '_' | '~' | '=' if ch != '=' || mirror => {
                 flush(&mut text, &mut out);
                 let n = c[i..].iter().take_while(|x| **x == ch).count();
                 let prev = if i == 0 { None } else { Some(c[i - 1]) };
@@ -945,7 +1032,11 @@ fn nodes(src: &str, defs: &Defs, images: &mut usize, base: &Marks) -> Vec<Node> 
                     _ => (left, right),
                 };
                 // Strike is one or two tildes only.
-                let usable = ch != '~' || n <= 2;
+                let usable = match ch {
+                    '~' => n <= 2,
+                    '=' => n == 2,
+                    _ => true,
+                };
                 out.push(Node::Delim {
                     ch,
                     len: n,
@@ -1020,6 +1111,8 @@ fn add(m: &mut Marks, tag: Tag) {
         Tag::Italic => m.italic = true,
         Tag::Underline => m.underline = true,
         Tag::Strike => m.strike = true,
+        Tag::Highlight => m.highlight = true,
+        Tag::Code => m.code = true,
     }
 }
 
@@ -1059,7 +1152,7 @@ fn resolve(mut nodes: Vec<Node>) -> Vec<Node> {
                 close,
                 ..
             } if *c2 == ch && *open && *len > 0 => {
-                if ch == '~' {
+                if matches!(ch, '~' | '=') {
                     return *len == clen;
                 }
                 let both = *close || copen;
@@ -1075,7 +1168,7 @@ fn resolve(mut nodes: Vec<Node>) -> Vec<Node> {
             Node::Delim { len, .. } => *len,
             _ => unreachable!("an opener is a delimiter"),
         };
-        let used = if ch == '~' {
+        let used = if matches!(ch, '~' | '=') {
             clen
         } else if olen >= 2 && clen >= 2 {
             2
@@ -1084,6 +1177,7 @@ fn resolve(mut nodes: Vec<Node>) -> Vec<Node> {
         };
         let tag = match (ch, used) {
             ('~', _) => Tag::Strike,
+            ('=', _) => Tag::Highlight,
             (_, 2) => Tag::Bold,
             _ => Tag::Italic,
         };
@@ -1166,8 +1260,8 @@ fn flatten(nodes: Vec<Node>) -> Vec<Run> {
             italic: m.italic,
             underline: m.underline,
             strike: m.strike,
-            code: false,
-            highlight: false,
+            code: m.code,
+            highlight: m.highlight,
             href: m.href.clone(),
         };
         match runs.last_mut() {
@@ -1176,6 +1270,8 @@ fn flatten(nodes: Vec<Node>) -> Vec<Run> {
                     && last.italic == run.italic
                     && last.underline == run.underline
                     && last.strike == run.strike
+                    && last.highlight == run.highlight
+                    && last.code == run.code
                     && last.href == run.href =>
             {
                 last.text.push_str(&run.text)

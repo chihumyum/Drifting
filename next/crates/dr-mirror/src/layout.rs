@@ -7,6 +7,7 @@ use std::fmt::Write as _;
 use dr_doc::v3::BookStructureV3;
 use dr_model::DocId;
 use dr_model::id::{AssetFolderId, AssetId, BodyDocId, EntryId};
+use dr_model::kind::AssetKind;
 use dr_model::shared::{Asset, AssetFolder};
 use dr_model::v3::{Entry, ModuleSpec};
 
@@ -32,6 +33,8 @@ pub struct ProseFile {
 pub struct AssetFile {
     pub id: AssetId,
     pub path: String,
+    pub name: String,
+    pub kind: AssetKind,
     /// Trashed files still have a link destination, but no disk copy.
     pub present: bool,
 }
@@ -299,6 +302,8 @@ impl<'a> AssetLayout<'a> {
                 self.files.push(AssetFile {
                     id: asset.id.clone(),
                     path,
+                    name: asset.name.clone(),
+                    kind: asset.kind.clone(),
                     present,
                 });
             }
