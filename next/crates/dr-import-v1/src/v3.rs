@@ -362,6 +362,14 @@ pub fn pending(legacy: &Legacy, choices: &MappingChoices) -> Result<Vec<Pending>
                 add("comment-target-missing-or-trashed", comment.id.as_str());
             }
         }
+        // These are the source pairs that can reach the project. Retired
+        // endpoints have already been reported and dropped in book::write.
+        let source = catalog.view();
+        if source.relations_raw().iter().any(|row| {
+            row.from == row.to || !source.entity_exists(&row.from) || !source.entity_exists(&row.to)
+        }) {
+            add("invalid-or-duplicate-source-relation", &project.id);
+        }
         pending.extend(choices.pending(&catalog.view()));
         let non_text = non_text_materials_by_book
             .get(&project.id)
