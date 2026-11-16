@@ -211,6 +211,16 @@ impl Workspace {
         self.changed(cx);
     }
 
+    /// Opens the right sidebar on Agent (HC: a suggestion card opened on
+    /// Project Home; the Agent panel shows that card's conversation and
+    /// Home stays as it is).
+    pub fn reveal_companion(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let reduce = self.reduce_motion(window, cx);
+        self.right.set_open(true, reduce);
+        self.right.panes.reveal(super::RightTab::Companion);
+        self.changed(cx);
+    }
+
     /// ⌘⌥M: the composer comes up beside the selection of the editor that
     /// has focus (one chapter's or the whole book's).
     pub(super) fn on_new_comment(

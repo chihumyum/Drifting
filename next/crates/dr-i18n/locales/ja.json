@@ -631,9 +631,6 @@
     "notice": {
       "source": "お知らせ"
     },
-    "organize": {
-      "source": "Agent"
-    },
     "remove": "削除",
     "shareComments": {
       "source": "読者のコメント"
@@ -677,6 +674,14 @@
   "preAlphaGuide": {
     "crashReports": "問題の修正に役立てるため、原稿を含まない障害レポートを送信します。「設定 → プライバシー」で無効にできます。",
     "title": "Drifting Alphaへようこそ"
+  },
+  "projectAgent": {
+    "checkinFailed": "最近の変更を読み終えられませんでした：{{error}}",
+    "checkinRunning": "Agent が最近の変更を読んでいます…",
+    "dismiss": "閉じる",
+    "openConversation": "会話を開く",
+    "start": "Agent に任せる",
+    "startFailed": "開始できませんでした：{{error}}"
   },
   "projectHome": {
     "book": {

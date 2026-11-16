@@ -84,3 +84,7 @@ required-features = ["debug-bridge"]
 [[example]]
 name = "mcp-acceptance"
 required-features = ["debug-bridge"]
+
+[[example]]
+name = "home-cards-acceptance"
+required-features = ["debug-bridge"]

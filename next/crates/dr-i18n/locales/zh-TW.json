@@ -631,9 +631,6 @@
     "notice": {
       "source": "公告"
     },
-    "organize": {
-      "source": "Agent"
-    },
     "remove": "移除",
     "shareComments": {
       "source": "讀者留言"
@@ -677,6 +674,14 @@
   "preAlphaGuide": {
     "crashReports": "應用程式會傳送不含書稿文字的故障報告，協助修正問題；可在「設定 → 隱私」關閉。",
     "title": "歡迎使用 Drifting Alpha"
+  },
+  "projectAgent": {
+    "checkinFailed": "沒能看完最近的變更：{{error}}",
+    "checkinRunning": "Agent 正在閱讀你最近的變更…",
+    "dismiss": "略過",
+    "openConversation": "開啟對話",
+    "start": "交給 Agent",
+    "startFailed": "無法啟動：{{error}}"
   },
   "projectHome": {
     "book": {

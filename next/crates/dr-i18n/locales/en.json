@@ -638,9 +638,6 @@
     "notice": {
       "source": "Announcement"
     },
-    "organize": {
-      "source": "Agent"
-    },
     "remove": "Remove",
     "shareComments": {
       "source": "Reader comment"
@@ -684,6 +681,14 @@
   "preAlphaGuide": {
     "crashReports": "The app sends fault reports without manuscript text so problems can be fixed; turn this off in Settings → Privacy.",
     "title": "Welcome to Drifting Alpha"
+  },
+  "projectAgent": {
+    "checkinFailed": "Couldn’t finish reading your recent changes: {{error}}",
+    "checkinRunning": "The Agent is reading your recent changes…",
+    "dismiss": "Dismiss",
+    "openConversation": "Open conversation",
+    "start": "Hand to Agent",
+    "startFailed": "Could not start: {{error}}"
   },
   "projectHome": {
     "book": {

@@ -20,7 +20,7 @@ use std::path::Path;
 use dr_platform::DeepLinks;
 use dr_platform::crash::CrashConfig;
 use dr_shell::{Services, SettingsFile, ShellInfo};
-use gpui::App;
+use gpui::{App, AppContext as _};
 use gpui_platform::application;
 
 /// The development switch: `DRIFTING_APPEARANCE=light|dark` forces one
@@ -194,6 +194,15 @@ fn main() {
         // around their text (M11).
         dr_view_shelf::init(cx);
         dr_view_home::init(cx);
+        // HC: the Agent's suggestion cards on Project Home.
+        dr_view_home::set_agent_cards(cx, |host, _, cx| {
+            let cards = cx.new(|cx| dr_view_agent::home_cards::HomeCards::new(host.workspace, cx));
+            dr_view_home::AgentCards::new(
+                cards,
+                dr_view_agent::home_cards::HomeCards::drawn,
+                dr_view_agent::home_cards::HomeCards::shown,
+            )
+        });
         // M03: the chapter page's head and end around every editor.
         dr_view_page::init(cx);
         dr_view_elements::init(cx);
