@@ -3,7 +3,7 @@
 use std::collections::HashSet;
 
 use dr_model::id::*;
-use dr_model::kind::{CommentOrigin, EntityKind};
+use dr_model::kind::{CommentOrigin, EntityKind, ProjectionKind};
 use dr_model::pos::PosKey;
 use dr_model::shared::{EntityRef, KvEntry};
 use dr_model::v3::*;
