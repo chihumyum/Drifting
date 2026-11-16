@@ -5,7 +5,7 @@ use std::{
 };
 
 use dr_mirror::{
-    Options,
+    Mirror, Options,
     sync::{Pass, Problem},
 };
 use dr_model::{DocId, id::BookId};
@@ -171,6 +171,46 @@ fn editing_then_moving_a_markdown_file_keeps_the_prose_and_puts_the_file_back() 
     );
     assert_eq!(f.texts(&doc), ["她站在桥上。"]);
     assert_eq!(fs::read_to_string(duplicate).unwrap(), edited);
+}
+
+#[test]
+fn a_file_event_ingests_external_changes_without_advancing_the_app_writeback() {
+    let mut f = Fixture::new(Preset::Tiny);
+    let (_, local) = f.chapter("本机的一篇", "室内的灯还亮着。");
+    let (_, outside) = f.chapter("外面的一篇", "天色早就暗了。");
+    // Neither deadline expires during the test. The separate final pass
+    // publishes the local change even while the timer is still pending.
+    f.options.quiet = Duration::from_secs(60);
+    f.options.max_wait = Duration::from_secs(60);
+    f.options.settle = Duration::from_millis(60);
+    let mirror = Mirror::start(f.ws.clone(), f.options.clone()).unwrap();
+    mirror.sync_now().unwrap();
+    let local_path = find(f.out.path(), "本机的一篇.md");
+    let outside_path = find(f.out.path(), "外面的一篇.md");
+    f.call(
+        "prose.replace",
+        json!({"doc":local,"find":"室内的灯","replace":"街上的灯"}),
+    );
+    let changed = fs::read_to_string(&outside_path)
+        .unwrap()
+        .replace("早就", "刚刚");
+    fs::write(outside_path, changed).unwrap();
+    let start = std::time::Instant::now();
+    while f.texts(&outside) != ["天色刚刚暗了。"] {
+        assert!(
+            start.elapsed() < Duration::from_secs(10),
+            "the file event did not merge"
+        );
+        std::thread::sleep(Duration::from_millis(25));
+    }
+    assert!(
+        fs::read_to_string(&local_path)
+            .unwrap()
+            .contains("室内的灯")
+    );
+    mirror.sync_now().unwrap();
+    assert!(fs::read_to_string(local_path).unwrap().contains("街上的灯"));
+    mirror.stop();
 }
 
 #[test]

@@ -268,7 +268,9 @@ fn run(ws: Workspace, options: Options, rx: mpsc::Receiver<Msg>, state: Arc<Mute
         }
         if schedule.disk.is_some_and(|due| due <= now) {
             schedule.disk = None;
-            match pass.run() {
+            // Ingest disk edits now. A file watcher must not bypass a
+            // pending App writeback deadline (including our own file events).
+            match pass.reconcile(|book| !schedule.app.contains_key(book)) {
                 Ok(report) => {
                     publish(&state, &report, None);
                     schedule.retry(&report, &options);

@@ -121,6 +121,10 @@ impl<'a> Pass<'a> {
     }
 
     pub fn run(&self) -> Result<Report> {
+        self.reconcile(|_| true)
+    }
+
+    pub(crate) fn reconcile(&self, writeback: impl Fn(&BookId) -> bool) -> Result<Report> {
         let mut report = Report::default();
         for info in self
             .ws
@@ -128,7 +132,7 @@ impl<'a> Pass<'a> {
             .output
         {
             let book = BookId::parse(&info.id).map_err(|e| SyncError::Invalid(e.to_string()))?;
-            match self.book(&book) {
+            match self.reconcile_book(&book, writeback(&book)) {
                 Ok(one) => report.join(one),
                 Err(err) => {
                     log::warn!("Markdown folder project pass: {err}");
@@ -146,6 +150,10 @@ impl<'a> Pass<'a> {
     }
 
     pub fn book(&self, book: &BookId) -> Result<Report> {
+        self.reconcile_book(book, true)
+    }
+
+    fn reconcile_book(&self, book: &BookId, writeback: bool) -> Result<Report> {
         let Some(mut project) = Project::read(self.ws, book)? else {
             return Ok(Report::default());
         };
@@ -183,6 +191,9 @@ impl<'a> Pass<'a> {
         let layout = project.layout(self.ws.library(), &row.names)?;
         let mut files = state.ledger.files()?;
         let mut held = state.ingest(&project, &layout, &row, &mut files)?;
+        if !writeback {
+            return Ok(state.report);
+        }
         if let Some(latest) = Project::read(self.ws, book)? {
             project = latest;
         } else {
