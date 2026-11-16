@@ -1083,6 +1083,25 @@ mod tests {
                 )],
                 TEXT,
             ),
+            styled(
+                &[
+                    (
+                        "a",
+                        Marks {
+                            link: Some("https://example.com/x".into()),
+                            ..Marks::default()
+                        },
+                    ),
+                    (
+                        "]:",
+                        Marks {
+                            code: true,
+                            ..Marks::default()
+                        },
+                    ),
+                ],
+                TEXT,
+            ),
             Para {
                 kind: Kind::Rule { quote: true },
                 chars: Vec::new(),

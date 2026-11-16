@@ -193,13 +193,20 @@ fn list_item(line: &str) -> Option<(usize, bool)> {
 }
 
 /// `[label]: destination "title"`.
-fn definition(line: &str) -> Option<(String, String)> {
+fn definition(line: &str, mirror: bool) -> Option<(String, String)> {
     if indent(line) > 3 {
         return None;
     }
     let s = line.trim();
     let rest = s.strip_prefix('[')?;
-    let close = rest.find("]:")?;
+    let close = if mirror {
+        let chars: Vec<_> = s.chars().collect();
+        let index = closing_bracket(&chars, 0)?;
+        let end = s.char_indices().nth(index)?.0 - 1;
+        rest[end..].starts_with("]:").then_some(end)?
+    } else {
+        rest.find("]:")?
+    };
     let label = normalize_label(&rest[..close]);
     if label.is_empty() {
         return None;
@@ -424,7 +431,7 @@ fn blocks(lines: &[String], defs: &mut Defs, mirror: bool) -> Vec<Raw> {
             continue;
         }
         if para.is_empty() {
-            if let Some((label, dest)) = definition(line) {
+            if let Some((label, dest)) = definition(line, mirror) {
                 defs.entry(label).or_insert(dest);
                 i += 1;
                 continue;
