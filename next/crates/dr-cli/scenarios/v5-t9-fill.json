@@ -269,7 +269,8 @@
       "app": "ui.find",
       "params": {
         "label": "${roots.1.title}",
-        "role": "Button"
+        "role": "Group",
+        "count": 1
       },
       "save": "residenceRow"
     },
@@ -277,7 +278,7 @@
       "app": "input.drag",
       "params": {
         "from": "${residenceRow.nodes.0.center}",
-        "to": [590, "${laneTrack.nodes.0.center.1}"],
+        "to": [760, "${laneTrack.nodes.0.center.1}"],
         "steps": 14
       },
       "note": "Drop on the visible first lane near the start of its scale."
