@@ -1206,8 +1206,6 @@
       "ui_locale_desc": "選單、按鈕與訊息的語言，不會影響你的寫作內容。"
     },
     "models": {
-      "speechDesc": "語音輸入的轉錄憑證，與上方聊天服務商分開。轉錄時會附上此作品的要素與設定名稱，以校正專有名詞；請求從本裝置直接送往百鍊，金鑰僅存在系統鑰匙圈。",
-      "speechTitle": "語音轉錄",
       "title": "Drifting 的 AI 功能使用的服務。"
     },
     "privacy": {
@@ -1306,9 +1304,6 @@
     "restoreSuccess": "已還原至選取版本，先前狀態已先存為新快照。",
     "restoring": "正在還原…",
     "title": "歷史快照 · 30 天"
-  },
-  "speech": {
-    "backlog": "轉錄積壓"
   },
   "storyGraph": {
     "edge": {
@@ -1687,20 +1682,6 @@
     "usedIn": "用在",
     "viewList": "列表",
     "viewMasonry": "瀑布流"
-  },
-  "voiceAgent": {
-    "error": {
-      "auth": "轉錄金鑰無效或已過期",
-      "micDenied": "麥克風無法使用，請檢查系統權限",
-      "noKey": "尚未設定轉錄金鑰（阿里雲百鍊）",
-      "segmentRejected": "轉錄服務拒絕了此片段",
-      "transcribeFailed": "轉錄失敗，錄音已保留，可重試"
-    },
-    "record": "開始錄音",
-    "recording": "錄製中",
-    "retry": "重試轉錄",
-    "stopRecord": "停止錄音",
-    "transcribing": "正在轉錄…"
   },
   "windowCaption": {
     "close": "關閉",

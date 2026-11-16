@@ -55,6 +55,16 @@ pub fn patterns() -> Vec<(&'static str, Regex)> {
             p(&["r2\\.cloudflare", "storage|\\bR2_", "[A-Z]"]),
         ),
         ("retired Claude SDK session", p(&["sdk_", "session_id"])),
+        (
+            "retired dictation",
+            p(&[
+                "qwen3?-",
+                "asr|\\bcp",
+                "al\\b|NSMicrophone",
+                "UsageDescription|byok\\.dash",
+                "scope",
+            ]),
+        ),
     ]
     .into_iter()
     .map(|(label, re)| (label, Regex::new(&format!("(?i){re}")).expect("regex")))
@@ -135,6 +145,9 @@ mod tests {
         assert!(hit(&["Co", "pilot"].concat()));
         assert!(hit(&["shadow", "_job"].concat()));
         assert!(hit(&["R2", "_BUCKET"].concat()));
+        assert!(hit(&["byok.", "dashscope"].concat()));
+        assert!(hit(&["cp", "al = \"0.18.2\""].concat()));
+        assert!(hit(&["NSMicrophone", "UsageDescription"].concat()));
         for ok in [
             "shadow migration",
             "box-shadow",

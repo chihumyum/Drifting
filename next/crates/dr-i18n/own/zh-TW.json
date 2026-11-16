@@ -159,9 +159,6 @@
       "server_error": "更新服務暫時出了問題，請稍後重試。目前版本仍可繼續使用。"
     }
   },
-  "speech": {
-    "backlog": "轉錄積壓"
-  },
   "templateEditor": {
     "accept": "收別處的條目",
     "action_name": "動作名稱",

@@ -168,9 +168,6 @@
       "server_error": "Le service de mise à jour rencontre un problème. Réessayez plus tard ; cette version reste utilisable."
     }
   },
-  "speech": {
-    "backlog": "Transcriptions en attente"
-  },
   "templateEditor": {
     "accept": "Accepter les entrées d’ailleurs",
     "action_name": "Nom de l’action",

@@ -166,9 +166,6 @@
       "server_error": "The update service has a problem right now. Try again later; this version keeps working."
     }
   },
-  "speech": {
-    "backlog": "Transcription backlog"
-  },
   "templateEditor": {
     "accept": "Accept entries from elsewhere",
     "action_name": "Action name",

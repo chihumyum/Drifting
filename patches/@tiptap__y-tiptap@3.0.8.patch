@@ -1,8 +1,8 @@
 diff --git a/dist/y-tiptap.cjs b/dist/y-tiptap.cjs
-index 653ffe79d5edb4a040555bb222f472af1e45edc8..a76f66ca07352dbd977e5fa6c2620f2b10fd58a3 100644
+index 653ffe79d5edb4a040555bb222f472af1e45edc8..7935af0bd937777a43480df100bcb264508e85f5 100644
 --- a/dist/y-tiptap.cjs
 +++ b/dist/y-tiptap.cjs
-@@ -828,7 +828,12 @@ class ProsemirrorBinding {
+@@ -828,10 +828,30 @@ class ProsemirrorBinding {
          this.prosemirrorView.state.doc.content.size,
          new PModel__namespace.Slice(PModel__namespace.Fragment.from(fragmentContent), 0, 0)
        );
@@ -12,15 +12,81 @@ index 653ffe79d5edb4a040555bb222f472af1e45edc8..a76f66ca07352dbd977e5fa6c2620f2b
 +      // would overwrite them with stale offsets in the same changed paragraph.
 +      // Retain structural recovery when any non-text type was affected.
 +      const structuralDoc = events.some(event => !(event.target instanceof Y__namespace.XmlText)) ? oldDoc : undefined;
-+      restoreRelativeSelection(tr, this.beforeTransactionSelection, this, structuralDoc);
++      // An undo or redo puts the selection back where its step recorded it.
++      // UndoManager emits 'stack-item-popped' only after this observer has run,
++      // so the step is read from the manager while it is being applied. Without
++      // it the caret keeps its place and restored text lands after it.
++      const poppedStep = transaction.origin instanceof Y__namespace.UndoManager ? transaction.origin.currStackItem : null;
++      const poppedSelection = poppedStep != null ? poppedStep.meta.get(this) : null;
++      if (poppedSelection != null) {
++        restoreRelativeSelection(tr, poppedSelection, this);
++      }
++      const restoredFromStep = tr.selectionSet;
++      if (!restoredFromStep) {
++        restoreRelativeSelection(tr, this.beforeTransactionSelection, this, structuralDoc);
++      }
        tr = tr.setMeta(ySyncPluginKey, { isChangeOrigin: true, isUndoRedoOperation: transaction.origin instanceof Y__namespace.UndoManager });
        if (
-         this.beforeTransactionSelection !== null && this._isLocalCursorInView()
+-        this.beforeTransactionSelection !== null && this._isLocalCursorInView()
++        // Reveal what an undo or redo changed even when the author had scrolled
++        // away from the caret before asking for it.
++        (restoredFromStep && this.prosemirrorView.hasFocus()) ||
++        (this.beforeTransactionSelection !== null && this._isLocalCursorInView())
+       ) {
+         tr.scrollIntoView();
+       }
+@@ -2920,9 +2940,15 @@ const yUndoPlugin = ({ protectedNodes = defaultProtectedNodes, trackedOrigins =
+       const hasUndoOps = undoManager.undoStack.length > 0;
+       const hasRedoOps = undoManager.redoStack.length > 0;
+       if (binding) {
++        // A step restores the selection from before the first document change
++        // of a dispatch. A transaction appended to that change must not replace
++        // it: its old state already holds the change, which the Yjs types these
++        // positions are read against have not received yet.
++        const keepPrevSel = val.prevSelDocChanged === true && tr.getMeta('appendedTransaction') != null;
+         return {
+           undoManager,
+-          prevSel: getRelativeSelection(binding, oldState),
++          prevSel: keepPrevSel ? val.prevSel : getRelativeSelection(binding, oldState),
++          prevSelDocChanged: keepPrevSel || tr.docChanged,
+           hasUndoOps,
+           hasRedoOps
+         }
+@@ -2941,18 +2967,21 @@ const yUndoPlugin = ({ protectedNodes = defaultProtectedNodes, trackedOrigins =
+   view: view => {
+     const ystate = ySyncPluginKey.getState(view.state);
+     const undoManager = yUndoPluginKey.getState(view.state).undoManager;
+-    undoManager.on('stack-item-added', ({ stackItem }) => {
+-      const binding = ystate.binding;
+-      if (binding) {
+-        stackItem.meta.set(binding, yUndoPluginKey.getState(view.state).prevSel);
+-      }
+-    });
+-    undoManager.on('stack-item-popped', ({ stackItem }) => {
++    undoManager.on('stack-item-added', ({ stackItem, origin }) => {
+       const binding = ystate.binding;
+       if (binding) {
+-        binding.beforeTransactionSelection = stackItem.meta.get(binding) || binding.beforeTransactionSelection;
++        // A step created by an undo or redo restores the selection that
++        // operation started from, which the binding recorded against the Yjs
++        // types as they were before it. The plugin state's prevSel was read
++        // after they changed.
++        stackItem.meta.set(binding, origin === undoManager
++          ? binding.beforeTransactionSelection
++          : yUndoPluginKey.getState(view.state).prevSel);
+       }
+     });
++    // The popped step's selection is applied by ProsemirrorBinding._typeChanged
++    // during the undo or redo itself. Assigning it to the binding here, after
++    // that transaction, left it to be applied to the next unrelated change.
+     return {
+       destroy: () => {
+         undoManager.destroy();
 diff --git a/dist/y-tiptap.js b/dist/y-tiptap.js
-index 28c55820dff13cf3d5c303970f530c17eb38f757..5a85d67e420334a012ea388ca46d60abb8045ef1 100644
+index 28c55820dff13cf3d5c303970f530c17eb38f757..8073f02aaeb9ce1f4133a4577eb54f17a578c1a1 100644
 --- a/dist/y-tiptap.js
 +++ b/dist/y-tiptap.js
-@@ -794,7 +794,12 @@ class ProsemirrorBinding {
+@@ -794,10 +794,30 @@ class ProsemirrorBinding {
          this.prosemirrorView.state.doc.content.size,
          new PModel.Slice(PModel.Fragment.from(fragmentContent), 0, 0)
        );
@@ -30,7 +96,73 @@ index 28c55820dff13cf3d5c303970f530c17eb38f757..5a85d67e420334a012ea388ca46d60ab
 +      // would overwrite them with stale offsets in the same changed paragraph.
 +      // Retain structural recovery when any non-text type was affected.
 +      const structuralDoc = events.some(event => !(event.target instanceof Y.XmlText)) ? oldDoc : undefined;
-+      restoreRelativeSelection(tr, this.beforeTransactionSelection, this, structuralDoc);
++      // An undo or redo puts the selection back where its step recorded it.
++      // UndoManager emits 'stack-item-popped' only after this observer has run,
++      // so the step is read from the manager while it is being applied. Without
++      // it the caret keeps its place and restored text lands after it.
++      const poppedStep = transaction.origin instanceof Y.UndoManager ? transaction.origin.currStackItem : null;
++      const poppedSelection = poppedStep != null ? poppedStep.meta.get(this) : null;
++      if (poppedSelection != null) {
++        restoreRelativeSelection(tr, poppedSelection, this);
++      }
++      const restoredFromStep = tr.selectionSet;
++      if (!restoredFromStep) {
++        restoreRelativeSelection(tr, this.beforeTransactionSelection, this, structuralDoc);
++      }
        tr = tr.setMeta(ySyncPluginKey, { isChangeOrigin: true, isUndoRedoOperation: transaction.origin instanceof Y.UndoManager });
        if (
-         this.beforeTransactionSelection !== null && this._isLocalCursorInView()
+-        this.beforeTransactionSelection !== null && this._isLocalCursorInView()
++        // Reveal what an undo or redo changed even when the author had scrolled
++        // away from the caret before asking for it.
++        (restoredFromStep && this.prosemirrorView.hasFocus()) ||
++        (this.beforeTransactionSelection !== null && this._isLocalCursorInView())
+       ) {
+         tr.scrollIntoView();
+       }
+@@ -2886,9 +2906,15 @@ const yUndoPlugin = ({ protectedNodes = defaultProtectedNodes, trackedOrigins =
+       const hasUndoOps = undoManager.undoStack.length > 0;
+       const hasRedoOps = undoManager.redoStack.length > 0;
+       if (binding) {
++        // A step restores the selection from before the first document change
++        // of a dispatch. A transaction appended to that change must not replace
++        // it: its old state already holds the change, which the Yjs types these
++        // positions are read against have not received yet.
++        const keepPrevSel = val.prevSelDocChanged === true && tr.getMeta('appendedTransaction') != null;
+         return {
+           undoManager,
+-          prevSel: getRelativeSelection(binding, oldState),
++          prevSel: keepPrevSel ? val.prevSel : getRelativeSelection(binding, oldState),
++          prevSelDocChanged: keepPrevSel || tr.docChanged,
+           hasUndoOps,
+           hasRedoOps
+         }
+@@ -2907,18 +2933,21 @@ const yUndoPlugin = ({ protectedNodes = defaultProtectedNodes, trackedOrigins =
+   view: view => {
+     const ystate = ySyncPluginKey.getState(view.state);
+     const undoManager = yUndoPluginKey.getState(view.state).undoManager;
+-    undoManager.on('stack-item-added', ({ stackItem }) => {
+-      const binding = ystate.binding;
+-      if (binding) {
+-        stackItem.meta.set(binding, yUndoPluginKey.getState(view.state).prevSel);
+-      }
+-    });
+-    undoManager.on('stack-item-popped', ({ stackItem }) => {
++    undoManager.on('stack-item-added', ({ stackItem, origin }) => {
+       const binding = ystate.binding;
+       if (binding) {
+-        binding.beforeTransactionSelection = stackItem.meta.get(binding) || binding.beforeTransactionSelection;
++        // A step created by an undo or redo restores the selection that
++        // operation started from, which the binding recorded against the Yjs
++        // types as they were before it. The plugin state's prevSel was read
++        // after they changed.
++        stackItem.meta.set(binding, origin === undoManager
++          ? binding.beforeTransactionSelection
++          : yUndoPluginKey.getState(view.state).prevSel);
+       }
+     });
++    // The popped step's selection is applied by ProsemirrorBinding._typeChanged
++    // during the undo or redo itself. Assigning it to the binding here, after
++    // that transaction, left it to be applied to the next unrelated change.
+     return {
+       destroy: () => {
+         undoManager.destroy();
