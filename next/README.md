@@ -13,6 +13,7 @@ cargo run -p drifting
 ```
 
 - 第一次编译 GPUI 要几分钟；每个 worktree 有自己的 `next/target`。
+- 开发构建只带行号级调试信息（`Cargo.toml` 的 `[profile.dev] debug = "line-tables-only"`）：崩溃栈和断点有文件名和行号，调试器看不到变量。要看变量就这一次带完整的：`CARGO_PROFILE_DEV_DEBUG=true cargo build -p drifting`。Cargo 不删旧产物，`next/target` 会越用越大，闲置的 worktree 由每三天一轮的清理任务清掉。
 - 开发构建用 GPUI 的 `runtime_shaders`：Metal 着色器在启动时编译，不需要另装 Xcode 的 Metal Toolchain。
 - 目标平台是 macOS 和 Windows；Linux 没有验证过。
 
