@@ -1,7 +1,7 @@
 """M40's secondary-display smoke with a synthetic library and a real editor.
 
 From next/, build drifting with --features debug-bridge and build dr-cli.
-Run python3 -I crates/dr-cli/scenarios/markdown-folder.py --out <empty-dir>.
+Run python3 -I crates/dr-cli/script/markdown-folder.py --out <empty-dir>.
 The macOS development profile is generated for this one run and cleaned up.
 """
 
