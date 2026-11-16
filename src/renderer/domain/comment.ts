@@ -4,7 +4,12 @@
 // right-sidebar TODO list and is what agent pipelines consume).
 // target_* are nullable so a comment can sit at block / chapter / nowhere — see
 // drizzle.ts for the anchor matrix.
-import type { CommentTargetKind } from './entity-kinds';
+import {
+  isStructuralEntityKind,
+  type CommentTargetKind,
+  type EntityKind,
+  type StructuralEntityKind,
+} from './entity-kinds';
 export type { CommentTargetKind };
 
 export type CommentKind = 'note' | 'todo';
@@ -403,16 +408,88 @@ export function noteTaskTodoInput(noteId: string, blockId: string, text: string)
   };
 }
 
+function commentMetadataKind(metadataJson: string | null | undefined): unknown {
+  if (!metadataJson) return undefined;
+  try {
+    return (JSON.parse(metadataJson) as { kind?: unknown }).kind;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * A TODO projected from a material note's checklist line
  * (views/note-todo-links). The line is its anchor and owns its text, so the
  * note editor paints no highlight for it and the Review card does not edit it.
  */
 export function isNoteTaskTodo(comment: Pick<Comment, 'kind' | 'targetKind' | 'metadataJson'>): boolean {
-  if (comment.kind !== 'todo' || comment.targetKind !== 'library_item' || !comment.metadataJson) return false;
-  try {
-    return (JSON.parse(comment.metadataJson) as { kind?: unknown }).kind === 'note-task';
-  } catch {
-    return false;
+  return (
+    comment.kind === 'todo' &&
+    comment.targetKind === 'library_item' &&
+    commentMetadataKind(comment.metadataJson) === 'note-task'
+  );
+}
+
+/**
+ * Whether a comment's direct `target_*` binding can be detached by the author.
+ * Converted suggestions are audit rows. A checklist or prose marker owns its
+ * projection's anchor, even when the projection has been switched to a note.
+ */
+export function canUnbindCommentTarget(
+  comment: Pick<Comment, 'status' | 'targetKind' | 'targetId' | 'metadataJson'>,
+): boolean {
+  const metadataKind = commentMetadataKind(comment.metadataJson);
+  return (
+    Boolean(comment.targetKind && comment.targetId) &&
+    comment.status !== 'converted' &&
+    metadataKind !== 'note-task' &&
+    metadataKind !== 'todo-autoparse'
+  );
+}
+
+export interface ComposedCommentRelation {
+  kind: StructuralEntityKind;
+  id: string;
+}
+
+/**
+ * Resolves the direct `target_*` fields and extra generic associations for a
+ * comment/TODO composed from the Review panel or Review & Materials shelf:
+ * - When `focused` is a `library_item` and `attachFocusedMaterial` is true,
+ *   notes and TODOs target that material directly; structural selections
+ *   become generic associations.
+ * - Otherwise, TODOs remain project-level (`targetKind: null`) and store
+ *   selections as generic associations; notes (`kind === 'note'`) take the
+ *   focused structural entity when it is still in `relations` (else
+ *   `relations[0]`) as their direct target and remaining items as generic
+ *   associations. When `relations` is empty, the note is floating.
+ */
+export function resolveComposedCommentTargets<R extends ComposedCommentRelation>(
+  kind: CommentKind,
+  focused: { kind: EntityKind | null; id: string | null },
+  relations: readonly R[],
+  attachFocusedMaterial = true,
+): {
+  directTarget: { targetKind: CommentTargetKind; targetId: string } | Record<string, never>;
+  extraRelations: R[];
+} {
+  if (attachFocusedMaterial && focused.kind === 'library_item' && focused.id) {
+    return {
+      directTarget: { targetKind: 'library_item', targetId: focused.id },
+      extraRelations: [...relations],
+    };
   }
+  if (kind !== 'note' || relations.length === 0) {
+    return { directTarget: {}, extraRelations: [...relations] };
+  }
+  const primary =
+    (focused.id && isStructuralEntityKind(focused.kind)
+      ? relations.find((r) => r.kind === focused.kind && r.id === focused.id)
+      : undefined) ?? relations[0]!;
+  return {
+    directTarget: { targetKind: primary.kind, targetId: primary.id },
+    extraRelations: relations.filter(
+      (r) => !(r.kind === primary.kind && r.id === primary.id),
+    ),
+  };
 }
