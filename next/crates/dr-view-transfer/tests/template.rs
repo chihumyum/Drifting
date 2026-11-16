@@ -5,10 +5,11 @@
 //! - Attribution follows the signed-in account's explicit profile name (never
 //!   falling back to an email `@` prefix, `homepage`, `book.root`, or
 //!   `derivedFrom`, and overwriting upstream authors on re-export);
-//! - Import (`ImportTemplate` and dragging `.driftingtemplate` onto the window,
-//!   both in Workspace and on All Projects) adds to `project_template.list`
-//!   and never creates a project;
-//! - Invalid files show the shared transfer failure copy and write nothing.
+//! - Import (`ImportTemplate`, and dragging `.driftingtemplate` files onto All
+//!   Projects; not into an open project) adds to `project_template.list` and
+//!   never creates a project; of several dropped, a bad one is skipped and
+//!   one 「无法导入」 names each file not imported with its reason;
+//! - Invalid files show the template's failure copy and write nothing.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -137,13 +138,17 @@ fn templates(lib: &Lib) -> Vec<Value> {
 }
 
 fn simulate_file_drop(cx: &mut VisualTestContext, path: PathBuf, at: Point<gpui::Pixels>) {
+    simulate_files_drop(cx, vec![path], at);
+}
+
+fn simulate_files_drop(cx: &mut VisualTestContext, paths: Vec<PathBuf>, at: Point<gpui::Pixels>) {
     cx.update(|window, cx| {
         window.refresh();
         window.draw(cx).clear(cx);
     });
     cx.simulate_event(FileDropEvent::Entered {
         position: at,
-        paths: ExternalPaths([path].into_iter().collect()),
+        paths: ExternalPaths(paths.into_iter().collect()),
     });
     cx.simulate_event(FileDropEvent::Submit { position: at });
     cx.simulate_event(FileDropEvent::Ended);
@@ -231,11 +236,12 @@ fn export_skips_dialogs_and_import_or_drop_adds_templates_without_creating_books
     );
     assert!(templates(&lib).iter().any(|t| t["origin"] == "file"));
 
-    // 3. Dragging and dropping a `.driftingtemplate` onto the open-book window
-    // adds a third saved template (`origin = "file"`) and still creates zero books.
+    // 3. With a project open, a `.driftingtemplate` dragged onto the window is
+    // not imported (作者 2026-11-16 十六乙): nothing is written, nothing shows.
     simulate_file_drop(cx, exported_a, point(px(40.), px(40.)));
-    wait_for(cx, |_| templates(&lib).len() == 3);
-    wait_for(cx, |cx| shown(&view, cx).is_none());
+    cx.run_until_parked();
+    assert!(shown(&view, cx).is_none());
+    assert_eq!(templates(&lib).len(), 2);
     assert_eq!(books(&lib), 1);
 }
 
@@ -490,7 +496,7 @@ fn export_attribution_uses_explicit_profile_name_not_email_prefix_or_upstream_au
 fn refused_templates_show_shared_transfer_failure_copy_and_leave_library_untouched(
     cx: &mut TestAppContext,
 ) {
-    use dr_i18n::keys::all_projects::transfer as proj;
+    use dr_i18n::keys::all_projects::template_transfer as tpl;
     use dr_i18n::keys::project_picker::book_transfer as reason;
 
     let (dir, lib, book) = library(true);
@@ -525,32 +531,32 @@ fn refused_templates_show_shared_transfer_failure_copy_and_leave_library_untouch
     ]);
 
     let cases: Vec<(&str, Vec<u8>, dr_i18n::Key)> = vec![
-        ("not-template", b"plain notes".to_vec(), proj::NOT_PROJECT),
-        ("newer", serde_json::to_vec(&newer).unwrap(), proj::NEWER),
+        ("not-template", b"plain notes".to_vec(), tpl::NOT_TEMPLATE),
+        ("newer", serde_json::to_vec(&newer).unwrap(), tpl::NEWER),
         (
             "too-large",
             vec![b' '; (dr_export::template_file::MAX_BYTES as usize) + 1],
-            proj::TOO_LARGE,
+            tpl::TOO_LARGE,
         ),
         (
             "homepage",
             serde_json::to_vec(&with_homepage).unwrap(),
-            reason::INVALID,
+            tpl::DAMAGED,
         ),
         (
             "book-root",
             serde_json::to_vec(&with_book_root).unwrap(),
-            reason::INVALID,
+            tpl::DAMAGED,
         ),
         (
             "derived-from",
             serde_json::to_vec(&with_derived).unwrap(),
-            reason::INVALID,
+            tpl::DAMAGED,
         ),
         (
             "broken-ref",
             serde_json::to_vec(&broken_ref).unwrap(),
-            reason::INVALID,
+            tpl::DAMAGED,
         ),
     ];
 
@@ -588,4 +594,111 @@ fn refused_templates_show_shared_transfer_failure_copy_and_leave_library_untouch
         cx.run_until_parked();
         assert!(shown(&view, cx).is_none());
     }
+}
+
+/// The five sentences say 「模板」 where importing a project says 「项目」
+/// (作者 2026-11-16 十二甲); failing to export says so of the template (十三甲).
+#[test]
+fn the_failure_sentences_speak_of_the_template() {
+    use dr_i18n::keys::all_projects::template_transfer as tpl;
+    use dr_i18n::keys::project_picker::book_transfer as reason;
+    let zh = dr_i18n::I18n::new(dr_i18n::Locale::ZhCn, dr_i18n::Platform::Mac);
+    assert_eq!(zh.t(tpl::NOT_TEMPLATE), "这不是 Drifting 导出的模板。");
+    assert_eq!(
+        zh.t(tpl::NEWER),
+        "这个模板由更新版本的 Drifting 导出，请先更新 Drifting。"
+    );
+    assert_eq!(zh.t(tpl::TOO_LARGE), "这个模板太大，无法导入。");
+    assert_eq!(zh.t(tpl::DAMAGED), zh.t(reason::INVALID));
+    assert_eq!(zh.t(tpl::IMPORT_FAILED), "这个模板没能导入，请稍后再试。");
+    assert_eq!(zh.t(tpl::EXPORT_FAILED), "这个模板没能导出，请稍后再试。");
+    assert_eq!(
+        zh.t(dr_i18n::keys::all_projects::IMPORT_TEMPLATE_FILE),
+        "导入模板（.driftingtemplate）"
+    );
+}
+
+/// Several files dropped onto All Projects (作者 2026-11-16 十五乙): the good
+/// ones are imported, a bad one is skipped and the rest go on; one
+/// 「无法导入」 names each file not imported, its reason under it, in the
+/// order dropped; a file that is no `.driftingtemplate` says nothing.
+#[gpui::test]
+fn several_dropped_templates_skip_the_bad_ones_and_say_which_once(cx: &mut TestAppContext) {
+    use dr_i18n::keys::all_projects::template_transfer as tpl;
+    use dr_i18n::keys::project_picker::book_transfer as reason;
+    let (dir, lib, _) = library(false);
+    let valid = |name: &str| {
+        json!({
+            "format": "drifting.project-template",
+            "formatVersion": 1,
+            "name": name,
+            "description": "",
+            "locale": "zh-CN",
+            "madeWith": VERSION,
+            "revision": 1,
+            "project": {"book": {}, "tabs": [{"mount": {"kind": "root"}}]},
+            "templates": [],
+            "relation_types": [],
+            "entries": [],
+            "memberships": [],
+            "views": [],
+            "template_prose": {}
+        })
+    };
+    let write = |file: &str, bytes: Vec<u8>| {
+        let path = dir.path().join(file);
+        std::fs::write(&path, bytes).unwrap();
+        path
+    };
+    let first = write(
+        "悬疑短篇.driftingtemplate",
+        serde_json::to_vec(&valid("悬疑短篇")).unwrap(),
+    );
+    let broken = write(
+        "坏掉的模板.driftingtemplate",
+        br#"{"format":"drifting.project-template","formatVersion":1"#.to_vec(),
+    );
+    let photo = write("照片.jpg", b"not a template at all".to_vec());
+    let second = write(
+        "旅行手记.driftingtemplate",
+        serde_json::to_vec(&valid("旅行手记")).unwrap(),
+    );
+    let stranger = write("不是模板.driftingtemplate", b"plain notes".to_vec());
+
+    let (view, cx) = setup_with_account(cx, lib.clone(), None, None);
+    simulate_files_drop(
+        cx,
+        vec![first, broken, photo, second, stranger],
+        point(px(120.), px(120.)),
+    );
+    wait_for(cx, |_| templates(&lib).len() == 2);
+    let dialog = shown(&view, cx).expect("one 「无法导入」");
+    wait_for(cx, |cx| !dialog.read_with(cx, |d, _| d.is_working()));
+    let mut names: Vec<String> = templates(&lib)
+        .iter()
+        .map(|t| t["name"].as_str().unwrap().to_owned())
+        .collect();
+    names.sort();
+    assert_eq!(names, ["悬疑短篇", "旅行手记"]);
+    assert_eq!(books(&lib), 0);
+    let State::FailedFiles { title, files } = dialog.read_with(cx, |d, _| d.state.clone()) else {
+        panic!("expected the failed files");
+    };
+    assert_eq!(title, reason::IMPORT_FAILED_TITLE);
+    let listed: Vec<(String, dr_i18n::Key)> = files
+        .into_iter()
+        .map(|(name, key, _)| (name, key))
+        .collect();
+    assert_eq!(
+        listed,
+        vec![
+            ("坏掉的模板.driftingtemplate".to_owned(), tpl::DAMAGED),
+            ("不是模板.driftingtemplate".to_owned(), tpl::NOT_TEMPLATE),
+        ]
+    );
+    cx.update(|w, cx| w.draw(cx).clear(cx));
+    assert!(cx.debug_bounds("transfer-failed-files").is_some());
+    cx.cx.update(|cx| dialog.update(cx, |d, cx| d.close(cx)));
+    cx.run_until_parked();
+    assert!(shown(&view, cx).is_none());
 }

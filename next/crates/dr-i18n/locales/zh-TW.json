@@ -96,6 +96,7 @@
     "import": "匯入專案",
     "importFile": "匯入專案（.driftingproject）",
     "importLegacy": "匯入 Drifting 0.1",
+    "importTemplateFile": "匯入範本（.driftingtemplate）",
     "libraryProjects_one": "{{count}} 個專案",
     "libraryProjects_other": "{{count}} 個專案",
     "library_one": "{{count}} 個專案 · {{words}} 字",
@@ -104,6 +105,14 @@
     "newProject": "新專案",
     "recentEntries": "最近修改",
     "summaryPlaceholder": "用一兩句話說明這個專案是什麼。",
+    "templateTransfer": {
+      "damaged": "此檔案已損壞，無法匯入。",
+      "exportFailed": "這個範本沒能匯出，請稍後再試。",
+      "importFailed": "這個範本沒能匯入，請稍後再試。",
+      "newer": "這個範本由較新版本的 Drifting 匯出，請先更新 Drifting。",
+      "notTemplate": "這不是 Drifting 匯出的範本。",
+      "tooLarge": "這個範本太大，無法匯入。"
+    },
     "title": "全部專案",
     "transfer": {
       "exportFailed": "這個專案沒能匯出，請稍後再試。",

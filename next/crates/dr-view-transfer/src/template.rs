@@ -6,10 +6,12 @@
 //!   dialog; sets `credit.author` to the signed-in account's explicit profile
 //!   name, or omits `credit` when signed out or when no profile name is set
 //!   (never falling back to an email `@` prefix).
-//! - **Import** (`dr_view_shelf::ImportTemplate`, or dragging a
-//!   `.driftingtemplate` file onto the window): validates and stores the file
-//!   in `project-template:<id>` (`origin = "file"`), never creating a project;
-//!   failures show the shared transfer failure dialog (`allProjects.transfer.*`).
+//! - **Import** (`dr_view_shelf::ImportTemplate`, or dragging
+//!   `.driftingtemplate` files onto All Projects; with a project open a
+//!   dropped file is not taken): validates and stores each file in
+//!   `project-template:<id>` (`origin = "file"`), never creating a project;
+//!   a file that fails is skipped, and one 「无法导入」 at the end says which
+//!   and why, in the template's own words (`allProjects.templateTransfer.*`).
 
 use std::path::{Path, PathBuf};
 
@@ -23,7 +25,7 @@ use crate::dialog::{State, TransferDialog};
 
 pub use dr_view_shelf::{ExportTemplate, ImportTemplate};
 
-use keys::all_projects::transfer as project;
+use keys::all_projects::template_transfer as template;
 use keys::project_picker::book_transfer as reason;
 
 /// JSON-dispatchable template export action (`transfer::ExportTemplateById`),
@@ -34,15 +36,16 @@ pub struct ExportTemplateById {
     pub id: String,
 }
 
-/// Failure sentence key for `e`, sharing `allProjects.transfer.*` and
-/// `projectPicker.bookTransfer.*` with `.driftingproject` import.
+/// Failure sentence key for `e`: the `.driftingproject` import's sentences
+/// with 「模板」 for 「项目」 (`allProjects.templateTransfer.*`, 作者
+/// 2026-11-16 十二甲).
 pub fn import_reason(e: &TemplateFileError) -> Key {
     match e {
-        TemplateFileError::NotATemplate => project::NOT_PROJECT,
-        TemplateFileError::Newer => project::NEWER,
-        TemplateFileError::TooLarge => project::TOO_LARGE,
-        TemplateFileError::Damaged(_) => reason::INVALID,
-        _ => project::IMPORT_FAILED,
+        TemplateFileError::NotATemplate => template::NOT_TEMPLATE,
+        TemplateFileError::Newer => template::NEWER,
+        TemplateFileError::TooLarge => template::TOO_LARGE,
+        TemplateFileError::Damaged(_) => template::DAMAGED,
+        _ => template::IMPORT_FAILED,
     }
 }
 
@@ -57,7 +60,7 @@ pub fn import(cx: &mut App) {
             files: true,
             directories: false,
             multiple: false,
-            prompt: Some(dr_shell::t(cx, keys::all_projects::IMPORT_FILE)),
+            prompt: Some(dr_shell::t(cx, keys::all_projects::IMPORT_TEMPLATE_FILE)),
         });
         cx.spawn(async move |_, cx| {
             let path = match paths.await {
@@ -80,47 +83,65 @@ pub fn import_path(lib: Workspace, path: PathBuf, cx: &mut App) -> Entity<Transf
     import_paths(lib, vec![path], cx).expect("single path is non-empty")
 }
 
-/// Imports one or more `.driftingtemplate` files sequentially into `lib`'s
-/// saved templates (`origin = "file"`), stopping at the first failure.
+/// Imports one or more `.driftingtemplate` files into `lib`'s saved
+/// templates (`origin = "file"`), one after another. A file that cannot be
+/// imported is skipped and the rest go on (作者 2026-11-16, 十五乙); at the
+/// end one 「无法导入」 says why: for one file the reason alone, for several
+/// the name of each file not imported with its reason under it, in order.
 pub fn import_paths(
     lib: Workspace,
     paths: Vec<PathBuf>,
     cx: &mut App,
 ) -> Option<Entity<TransferDialog>> {
     let first = paths.first()?;
-    let name = first
-        .file_name()
-        .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_default();
     let dialog = TransferDialog::show(
         State::Working {
             title: keys::project_picker::desk::IMPORTING,
-            name,
+            name: file_name(first),
             progress: None,
         },
         cx,
     );
+    let several = paths.len() > 1;
     let job = cx.background_executor().spawn(async move {
-        for path in &paths {
-            template_file::import_template(&lib, path)?;
-        }
-        Ok::<(), TemplateFileError>(())
+        paths
+            .iter()
+            .filter_map(|path| {
+                template_file::import_template(&lib, path)
+                    .err()
+                    .map(|e| (file_name(path), e))
+            })
+            .collect::<Vec<_>>()
     });
     let shown = dialog.clone();
     cx.spawn(async move |cx| {
-        let result = job.await;
-        shown.update(cx, |d, cx| match result {
-            Ok(()) => d.done(cx),
-            Err(e) => d.fail(
+        let failed = job.await;
+        shown.update(cx, |d, cx| match failed.as_slice() {
+            [] => d.done(cx),
+            [(_, e)] if !several => d.fail(
                 reason::IMPORT_FAILED_TITLE,
-                import_reason(&e),
+                import_reason(e),
                 e.to_string(),
+                cx,
+            ),
+            _ => d.fail_files(
+                reason::IMPORT_FAILED_TITLE,
+                failed
+                    .iter()
+                    .map(|(name, e)| (name.clone(), import_reason(e), e.to_string()))
+                    .collect(),
                 cx,
             ),
         });
     })
     .detach();
     Some(dialog)
+}
+
+fn file_name(path: &Path) -> String {
+    path.file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default()
 }
 
 /// Exports saved template `template` directly through the native save panel
@@ -170,7 +191,7 @@ pub fn export_path(
                 d.update(cx, |d, cx| {
                     d.fail(
                         reason::EXPORT_FAILED_TITLE,
-                        project::EXPORT_FAILED,
+                        template::EXPORT_FAILED,
                         e.to_string(),
                         cx,
                     )

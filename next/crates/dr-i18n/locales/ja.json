@@ -96,6 +96,7 @@
     "import": "プロジェクトを読み込む",
     "importFile": "プロジェクトを読み込む（.driftingproject）",
     "importLegacy": "Drifting 0.1 を読み込む",
+    "importTemplateFile": "テンプレートを読み込む（.driftingtemplate）",
     "libraryProjects_one": "{{count}}件のプロジェクト",
     "libraryProjects_other": "{{count}}件のプロジェクト",
     "library_one": "{{count}}件のプロジェクト · {{words}}語",
@@ -104,6 +105,14 @@
     "newProject": "新しいプロジェクト",
     "recentEntries": "最近の変更",
     "summaryPlaceholder": "プロジェクトを一、二文で説明します。",
+    "templateTransfer": {
+      "damaged": "ファイルが破損しており、インポートできません。",
+      "exportFailed": "テンプレートを書き出せませんでした。もう一度お試しください。",
+      "importFailed": "テンプレートを読み込めませんでした。もう一度お試しください。",
+      "newer": "新しい Drifting で書き出されたテンプレートです。先に Drifting を更新してください。",
+      "notTemplate": "Drifting で書き出したテンプレートではありません。",
+      "tooLarge": "テンプレートが大きすぎて読み込めません。"
+    },
     "title": "すべてのプロジェクト",
     "transfer": {
       "exportFailed": "プロジェクトを書き出せませんでした。もう一度お試しください。",

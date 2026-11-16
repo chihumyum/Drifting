@@ -96,6 +96,7 @@
     "import": "Projekt importieren",
     "importFile": "Projekt importieren (.driftingproject)",
     "importLegacy": "Drifting 0.1 importieren",
+    "importTemplateFile": "Vorlage importieren (.driftingtemplate)",
     "libraryProjects_one": "{{count}} Projekt",
     "libraryProjects_other": "{{count}} Projekte",
     "library_one": "{{count}} Projekt · {{words}} Wörter",
@@ -104,6 +105,14 @@
     "newProject": "Neues Projekt",
     "recentEntries": "Zuletzt bearbeitet",
     "summaryPlaceholder": "Beschreibe das Projekt in ein, zwei Sätzen.",
+    "templateTransfer": {
+      "damaged": "Diese Datei ist beschädigt und kann nicht importiert werden.",
+      "exportFailed": "Die Vorlage konnte nicht exportiert werden. Bitte versuche es erneut.",
+      "importFailed": "Die Vorlage konnte nicht importiert werden. Bitte versuche es erneut.",
+      "newer": "Diese Vorlage wurde mit einem neueren Drifting exportiert. Aktualisiere zuerst Drifting.",
+      "notTemplate": "Das ist keine aus Drifting exportierte Vorlage.",
+      "tooLarge": "Diese Vorlage ist zu groß zum Importieren."
+    },
     "title": "Alle Projekte",
     "transfer": {
       "exportFailed": "Das Projekt konnte nicht exportiert werden. Bitte versuche es erneut.",

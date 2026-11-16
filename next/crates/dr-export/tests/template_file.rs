@@ -574,7 +574,9 @@ fn invalid_template_files_are_rejected_without_writing_anything() {
         );
     }
 
-    // 4. Unresolvable symbolic references (`e99` in tab mount, `e99` in entry parent, `v99` in tab mount).
+    // 4. Unresolvable symbolic references (`e99` in tab mount, `e99` in
+    // entry parent), and a tab of a kind no tab is (a tab cannot mount a view
+    // since DV, 2026-11-16).
     let mut bad_tab_entry = base.clone();
     bad_tab_entry["project"]["tabs"] = json!([
         {"mount": {"kind": "root"}},
@@ -582,15 +584,15 @@ fn invalid_template_files_are_rejected_without_writing_anything() {
     ]);
     let mut bad_parent = base.clone();
     bad_parent["entries"][0]["parent"] = json!("e99");
-    let mut bad_tab_view = base.clone();
-    bad_tab_view["project"]["tabs"] = json!([
+    let mut unknown_tab_kind = base.clone();
+    unknown_tab_kind["project"]["tabs"] = json!([
         {"mount": {"kind": "root"}},
         {"mount": {"kind": "view", "view": "v99"}}
     ]);
     for (name, val) in [
         ("bad-tab-entry", bad_tab_entry),
         ("bad-parent", bad_parent),
-        ("bad-tab-view", bad_tab_view),
+        ("unknown-tab-kind", unknown_tab_kind),
     ] {
         let p = write_case(name, serde_json::to_string(&val).unwrap().as_bytes());
         let res = template_file::import_template(&e.ws, &p);
@@ -650,4 +652,55 @@ fn invalid_template_files_are_rejected_without_writing_anything() {
         templates_before
     );
     assert_eq!(out(&e.ws, "book.list", json!({})), books_before);
+}
+
+/// The account name is one line in the credit: control characters (the
+/// name's own check lets them through) are taken out, and a name of nothing
+/// else is no credit; the export does not fail over them.
+#[test]
+fn control_characters_leave_the_credit_and_nothing_left_is_none() {
+    let e = env();
+    let book = out(&e.ws, "project.create", json!({"name": "初稿"}))["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let id = out(
+        &e.ws,
+        "project_template.save",
+        json!({"book": book, "name": "极简模板"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    for (idx, author, credit) in [
+        (0, "林\n岬\u{7}", Some(json!({"author": "林岬"}))),
+        (1, " 南\t枝 ", Some(json!({"author": "南枝"}))),
+        (2, "\n\r\u{1b}", None),
+    ] {
+        let p = e.dir.path().join(format!("credit-{idx}.driftingtemplate"));
+        template_file::export_template(&e.ws, &id, Some(author), &p).unwrap();
+        let v: Value = serde_json::from_slice(&std::fs::read(&p).unwrap()).unwrap();
+        assert_eq!(v.get("credit").cloned(), credit, "{author:?}");
+        template_file::validate_template_file(&p).unwrap();
+    }
+}
+
+/// A path that is not UTF-8 cannot go through `project_template.import`:
+/// it is refused, and nothing is written.
+#[cfg(unix)]
+#[test]
+fn a_path_that_is_not_utf8_is_refused() {
+    use std::os::unix::ffi::OsStrExt as _;
+    let e = env();
+    let before = out(&e.ws, "project_template.list", json!({}));
+    let path = e
+        .dir
+        .path()
+        .join(std::ffi::OsStr::from_bytes(b"\xff.driftingtemplate"));
+    let res = template_file::import_template(&e.ws, &path);
+    assert!(
+        matches!(&res, Err(TemplateFileError::Io(err)) if err.kind() == std::io::ErrorKind::InvalidInput),
+        "{res:?}"
+    );
+    assert_eq!(out(&e.ws, "project_template.list", json!({})), before);
 }

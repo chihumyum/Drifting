@@ -21,7 +21,10 @@ use crate::endpoint::HostedOrigin;
 use crate::profile::HostedUser;
 
 pub const HOSTED_PROFILE_FILE: &str = "hosted-profile.json";
-const PROFILE_CACHE_FORMAT: &str = "drifting.hosted.profile.v1";
+/// v2 (2026-11-16): a v1 cache may hold the email `@` prefix as the name
+/// of an account that set none (an earlier `sanitized` filled it in), which
+/// cannot be told from a name; v1 caches are not read.
+const PROFILE_CACHE_FORMAT: &str = "drifting.hosted.profile.v2";
 
 /// The state of the Hosted account session.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -214,5 +217,46 @@ impl ProfileCache {
     pub fn clear(&self) {
         *self.memory.lock().expect("profile cache lock") = None;
         let _ = fs::remove_file(&self.file);
+    }
+}
+
+#[cfg(test)]
+mod profile_cache_tests {
+    use super::*;
+
+    fn user(name: &str) -> HostedUser {
+        HostedUser {
+            id: "user-1".into(),
+            email: "lin@example.test".into(),
+            name: name.into(),
+            image: None,
+            email_verified: true,
+        }
+    }
+
+    /// A cache written before v2 may hold the email prefix as the name of an
+    /// account that set none: it is not read; one written now is.
+    #[test]
+    fn an_older_profile_cache_is_not_read() {
+        let dir = tempfile::tempdir().unwrap();
+        let origin = HostedOrigin::parse("https://hosted.example.test").unwrap();
+        let old = serde_json::json!({
+            "format": "drifting.hosted.profile.v1",
+            "origin": origin.as_str(),
+            "user": user("lin"),
+        });
+        fs::write(
+            dir.path().join(HOSTED_PROFILE_FILE),
+            serde_json::to_vec(&old).unwrap(),
+        )
+        .unwrap();
+        assert!(ProfileCache::new(dir.path()).read(&origin).is_none());
+
+        ProfileCache::new(dir.path())
+            .write(&origin, &user(""))
+            .unwrap();
+        let read = ProfileCache::new(dir.path()).read(&origin).unwrap();
+        assert_eq!(read.profile_name(), None);
+        assert_eq!(read.email, "lin@example.test");
     }
 }

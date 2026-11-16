@@ -557,21 +557,28 @@ fn template_check_parses_and_runs_standalone_without_a_library() {
     })
     .unwrap();
     assert_eq!(jcode, 0, "{jout}");
+    // One file has the same shape as several.
     let parsed: serde_json::Value = serde_json::from_str(&jout).unwrap();
     assert_eq!(parsed["valid"], true);
-    assert_eq!(parsed["author"], "林岬");
+    assert_eq!(parsed["files"].as_array().unwrap().len(), 1);
+    assert_eq!(parsed["files"][0]["valid"], true);
+    assert_eq!(parsed["files"][0]["author"], "林岬");
 
+    // Not valid: 1, and the valid file's line is printed too.
     let bad_file = tmp.path().join("bad.driftingtemplate");
     std::fs::write(&bad_file, "not a template").unwrap();
-    assert!(
-        execute(Command::TemplateCheck {
-            files: vec![ok_file.clone(), bad_file.clone()],
-            json: false,
-        })
-        .is_err()
-    );
+    let (bad_code, bad_human) = execute(Command::TemplateCheck {
+        files: vec![ok_file.clone(), bad_file.clone()],
+        json: false,
+    })
+    .unwrap();
+    assert_eq!(bad_code, 1, "{bad_human}");
+    let lines: Vec<&str> = bad_human.lines().collect();
+    assert_eq!(lines.len(), 2, "{bad_human}");
+    assert!(lines[0].starts_with("ok: "), "{bad_human}");
+    assert!(lines[1].starts_with("invalid: "), "{bad_human}");
     let (bad_jcode, bad_jout) = execute(Command::TemplateCheck {
-        files: vec![ok_file, bad_file],
+        files: vec![ok_file.clone(), bad_file.clone()],
         json: true,
     })
     .unwrap();
@@ -580,6 +587,29 @@ fn template_check_parses_and_runs_standalone_without_a_library() {
     assert_eq!(bad_parsed["valid"], false);
     assert_eq!(bad_parsed["files"][0]["valid"], true);
     assert_eq!(bad_parsed["files"][1]["valid"], false);
+
+    // A file that cannot be read: 2, over a file that is not valid.
+    let missing = tmp.path().join("missing.driftingtemplate");
+    let (io_code, io_human) = execute(Command::TemplateCheck {
+        files: vec![bad_file, missing.clone(), ok_file],
+        json: false,
+    })
+    .unwrap();
+    assert_eq!(io_code, 2, "{io_human}");
+    assert_eq!(io_human.lines().count(), 3, "{io_human}");
+    assert!(io_human.lines().nth(1).unwrap().starts_with("unreadable: "));
+    let (io_jcode, io_jout) = execute(Command::TemplateCheck {
+        files: vec![missing],
+        json: true,
+    })
+    .unwrap();
+    assert_eq!(io_jcode, 2);
+    let io_parsed: serde_json::Value = serde_json::from_str(&io_jout).unwrap();
+    assert_eq!(io_parsed["files"][0]["reason"], "io");
+
+    // Mistyped: 2 (CI tells it from a template that is not valid).
+    assert_eq!(dr_cli::run(&a(&["template", "check"])), 2);
+    assert_eq!(dr_cli::run(&a(&["template", "frobnicate"])), 2);
 }
 
 #[test]

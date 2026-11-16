@@ -443,12 +443,20 @@ release，机器负载 21–25，导出到同一个库再导回来（新 id）�
   - `.driftingtemplate`（`format = "drifting.project-template"`，`formatVersion = 1`，上限 2 MiB）是一份键顺序与两空格缩进固定的 UTF-8 JSON 文本；同一份模板在相同署名条件下重复导出逐字节一致，写盘经临时文件与原子重命名完成。
   - `project_template.import` 与 `dr_export::template_file::import_template` 先跑封闭结构与代号校验器，通过后总是在书库新增一篇 `project-template:<id>`（`origin = "file"`），**绝不新建项目**；超大、不是模板、版本高于 1、带未知键（含已移除的 `project.book.root`、`credit.homepage`、`credit.derivedFrom`）或代号悬空的文件各自被拒，失败时书库一字不写。
   - `project_template.export` 与 `dr_export::template_file::export_template` 不改书库里的模板文档，只按导出人的显式账号显示名覆盖写出 `credit.author`；两个工作区命令均不向 Agent 工具目录与 MCP 暴露。
+  - 署名写进文件前去掉控制字符（账号名字的校验不挡它们，模板的署名要求单行），去完是空的就不写署名（2026-11-16 修：原来名字里有换行这类字符时整个导出失败）。
+  - 路径不是 UTF-8 时 `import_template` 拒收（「这个模板没能导入，请稍后再试。」），不再绕过 `project_template.import` 直接写库。
 - **署名规则（`dr-account`、`dr-view-account`、`dr-shell`、`dr-view-transfer`）。**
   - 导出时只把当前已登录账号显式设置过的显示名（`dr_shell::account::author_name`）写进 `credit.author`；未登录，或密码免密验证码登录等尚未设置个人名字的账号（此时账号菜单仍回退显示邮箱 `@` 前缀，而 `author_name` 为 `None`），导出文件都不写 `credit`。
+  - 离线资料缓存（`hosted-profile.json`）的格式升到 `drifting.hosted.profile.v2`：以前缓存进去的、没设名字的账号被填成了邮箱 @ 前面那段，读缓存时分不出来，离线导出就会写进署名；旧格式的缓存一律作废（下次联网再写新的）。
   - 导出一份从别人处导入、原本带他人署名的模板时（无论是否通过编辑工作区改过），导出文件里的署名都只写当前导出人的显示名（未登录或未设名字则不写署名），不写原作者，也没有 `derivedFrom` 或 `homepage`。
 - **独立命令行校验器（`dr-cli`）。**
-  - 新增 `cargo drifting template check <file.driftingtemplate>... [--json]`，无需任何书库即可独立校验一个或多个模板文件，全部合法返回 `0`、任一不合法返回非零退出码；底层与 App 导入共用 `dr_export::template_file::validate_template_file`，结论一致。
+  - 新增 `cargo drifting template check <file.driftingtemplate>... [--json]`（给社区仓库的 CI 用），无需任何书库即可独立校验一个或多个模板文件；底层与 App 导入共用 `dr_export::template_file::validate_template_file`，结论一致。
+  - **退出码**（2026-11-16 修）：全合格 `0`；有一个不合格（不是模板、版本更新、太大、损坏）`1`；参数写错（`template` 后面的子命令不认识、没给文件）或有文件读不了（不存在、没有权限）`2`。几种同时有时取最大的。
+  - **输出**：人读的输出按给的顺序每个文件一行，合格的也照样打印（`ok: <路径> (<名字>, formatVersion 1, n templates, m entries)`），不合格的是 `invalid: <路径>: <原因>`，读不了的是 `unreadable: <路径>: <原因>`，都在标准输出里。`--json` 一个文件和多个文件是同一种形状：`{"valid": <全合格>, "files": [{"path", "valid", …}]}`，合格的一项带 `name`、`formatVersion`、`templates`、`entries`、`author`，不合格的带 `reason`（`not_a_template`、`newer`、`too_large`、`damaged`、`io`）和 `error`。
 - **界面入口与拖拽导入（`dr-view-transfer::template`、`dr-view-shelf`、`dr-shell`）。**
   - 导出动作（`dr_view_shelf::ExportTemplate` 与供脚本调度的 `transfer::ExportTemplateById`）**不经过任何中间对话框**，直接弹系统保存面板（默认 `<模板名>.driftingtemplate`），成功后不弹窗。
-  - 导入动作（`dr_view_shelf::ImportTemplate`）以及把 `.driftingtemplate` 文件拖进窗口（打开项目时与「全部项目」书架页均生效）把模板收进「我的模板」（`project_template.list`），不会建出项目；导入失败复用 `TransferDialog` 与项目文件导入的失败说法（`allProjects.transfer.*`、`projectPicker.bookTransfer.invalid`），支持关闭与 Esc 收起。
-- **回归测试。** `dr-export/tests/template_file.rs`、`dr-cli/tests/cli.rs`、`dr-view-transfer/tests/template.rs`。
+  - 导入动作（`dr_view_shelf::ImportTemplate`）以及把 `.driftingtemplate` 文件拖到「全部项目」页上，把模板收进「我的模板」（`project_template.list`），不会建出项目。选文件窗口的按钮字是 `allProjects.importTemplateFile`（「导入模板（.driftingtemplate）」，PT3 画左栏那一行也用它）。
+  - **打开着项目时拖进窗口不导入**（作者 2026-11-16 十六乙）：外壳只在「全部项目」页接拖进来的文件（`dr_shell::pages::set_all_projects_file_drop`，原来的 `set_external_file_drop` 收窄改名；`Workspace::render_shelf` 挂接，工作区自己的那一处去掉了）。
+  - **一次拖进几个**（十五乙）：一个一个导，坏的跳过、接着导；最后只弹一次「无法导入」。只有一个文件时框里只写原因（和点「导入模板」一样）；几个文件时框里先写没导进去的文件名（等宽字），下一行写原因，坏好几个时每个文件名下面跟它的原因，按拖进来的顺序列（原型没画几个坏的怎么列，照最保守的做）。不是 `.driftingtemplate` 的文件照旧不出声。
+  - **导入、导出失败的说法**（十二甲、十三甲）：照导入项目的原句，把「项目」换成「模板」，九种语言的新键 `allProjects.templateTransfer.{notTemplate,newer,tooLarge,damaged,importFailed,exportFailed}`（「这不是 Drifting 导出的模板。」「这个模板由更新版本的 Drifting 导出，请先更新 Drifting。」「这个模板太大，无法导入。」「这个文件已损坏，无法导入。」「这个模板没能导入，请稍后再试。」「这个模板没能导出，请稍后再试。」；损坏那一句本来就没有「项目」，字和 `projectPicker.bookTransfer.invalid` 一样，也给了模板自己的键）。标题「无法导入」「无法导出」照旧，导出成功不出声，「正在导入」照弹。支持关闭与 Esc 收起。
+- **回归测试。** `dr-export/tests/template_file.rs`、`dr-cli/tests/cli.rs`、`dr-view-transfer/tests/template.rs`、`dr-account` 的离线缓存测试。

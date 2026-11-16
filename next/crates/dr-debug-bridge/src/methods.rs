@@ -86,6 +86,10 @@ pub const METHODS: &[(&str, &str)] = &[
         "{from: [x, y], to: [x, y], steps?}: press the left button at from, move to to with it held (steps moves, default 8), let go there: selecting text with the mouse",
     ),
     (
+        "input.drop",
+        "{paths: [file…], x, y}: files dragged in from outside and let go at a window position, as from Finder",
+    ),
+    (
         "input.scroll",
         "{x, y, dy, dx?}: scroll at a window position by pixels (positive dy scrolls the content up, towards the end), as a trackpad would",
     ),
@@ -266,6 +270,7 @@ pub async fn call(method: &str, params: Value, cx: &mut AsyncApp) -> Out {
             Ok(json!({ "moved": [x, y] }))
         }),
         "input.drag" => cx.update(|cx| drag(&p, cx)),
+        "input.drop" => cx.update(|cx| drop_files(&p, cx)),
         "input.scroll" => cx.update(|cx| {
             let (x, y) = (coord(&p, "x")?, coord(&p, "y")?);
             let dy = coord(&p, "dy")?;
@@ -620,6 +625,45 @@ fn click(p: &Value, cx: &mut App) -> Out {
     in_window(cx, move |_, window, cx| {
         click_at(x, y, button, count, window, cx);
         json!({ "clicked": [x, y], "count": count })
+    })
+}
+
+/// Files dropped from outside the app at a window position (M41's
+/// `.driftingtemplate` onto 全部项目).
+fn drop_files(p: &Value, cx: &mut App) -> Out {
+    let paths: Vec<std::path::PathBuf> = p
+        .get("paths")
+        .and_then(Value::as_array)
+        .filter(|a| !a.is_empty())
+        .ok_or_else(|| bad("params.paths: [file…]"))?
+        .iter()
+        .map(|v| {
+            v.as_str()
+                .map(std::path::PathBuf::from)
+                .ok_or_else(|| bad("params.paths: strings"))
+        })
+        .collect::<Result<_, _>>()?;
+    let n = |k: &str| {
+        p.get(k)
+            .and_then(Value::as_f64)
+            .map(|v| v as f32)
+            .ok_or_else(|| bad(format!("params.{k}: a number")))
+    };
+    let at = point(px(n("x")?), px(n("y")?));
+    in_window(cx, move |_, window, cx| {
+        window.dispatch_event(
+            PlatformInput::FileDrop(gpui::FileDropEvent::Entered {
+                position: at,
+                paths: gpui::ExternalPaths(paths.into_iter().collect()),
+            }),
+            cx,
+        );
+        window.dispatch_event(
+            PlatformInput::FileDrop(gpui::FileDropEvent::Submit { position: at }),
+            cx,
+        );
+        window.dispatch_event(PlatformInput::FileDrop(gpui::FileDropEvent::Ended), cx);
+        json!({ "dropped": [f32::from(at.x), f32::from(at.y)] })
     })
 }
 
@@ -1739,6 +1783,14 @@ fn transfer_of(ws: &Workspace, cx: &App) -> Value {
         } => {
             json!({ "state": "failed", "title": t(*title), "reason": reason.name(), "text": text })
         }
+        State::FailedFiles { title, files } => json!({
+            "state": "failed",
+            "title": t(*title),
+            "files": files
+                .iter()
+                .map(|(name, reason, text)| json!({ "name": name, "reason": reason.name(), "text": text }))
+                .collect::<Vec<_>>(),
+        }),
     }
 }
 

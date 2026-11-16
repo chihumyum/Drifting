@@ -7,8 +7,8 @@
 //! - **`.driftingtemplate`** ([`template`]): template hover-card export
 //!   ([`dr_view_shelf::ExportTemplate`]) straight to the save panel, All
 //!   Projects' 「导入模板 .driftingtemplate」 ([`dr_view_shelf::ImportTemplate`]),
-//!   and `.driftingtemplate` files dropped onto the window; the file is
-//!   `dr_export::template_file` (format version 1).
+//!   and `.driftingtemplate` files dropped onto All Projects (not into an
+//!   open project); the file is `dr_export::template_file` (format version 1).
 //!
 //! - **Importing documents** ([`documents`]): Markdown, text and Word
 //!   files into a chosen level of the open book using its resolved default
@@ -59,7 +59,7 @@ pub fn init(cx: &mut App) {
     cx.on_action(|_: &dr_view_shelf::ImportTemplate, cx| {
         dr_shell::menus::after_dispatch(cx, template::import);
     });
-    dr_shell::pages::set_external_file_drop(
+    dr_shell::pages::set_all_projects_file_drop(
         cx,
         |paths, _| paths.iter().any(|p| template::is_template_file(p)),
         |paths, _, cx| {

@@ -53,7 +53,13 @@ pub fn run(argv: &[String]) -> i32 {
         },
         Err(e) => {
             eprintln!("error: {e}\n\n{}", args::USAGE);
-            1
+            // `template check` is run by CI: a mistyped call says 2, as a
+            // file it cannot read does (1 is a template that is not valid).
+            if argv.first().map(String::as_str) == Some("template") {
+                2
+            } else {
+                1
+            }
         }
     }
 }
@@ -304,14 +310,17 @@ fn scenario_command(
     Ok((0, guarded(r)))
 }
 
+/// `template check`: every file's verdict, ok ones too, in the order given.
+/// Exit 0 when every file is a valid template, 1 when one is not, 2 when a
+/// file could not be read (as for a mistyped argument). `--json` has one
+/// shape for one file or many: `{"valid": …, "files": [ … ]}`.
 fn check_templates(files: &[PathBuf], as_json: bool) -> Result<(i32, String), String> {
     use dr_export::template_file::{TemplateFileError, validate_template_file};
     use serde_json::json;
 
-    let mut all_valid = true;
-    let mut human_lines = Vec::with_capacity(files.len());
-    let mut errors = Vec::new();
-    let mut json_items = Vec::with_capacity(files.len());
+    let mut code = 0;
+    let mut lines = Vec::with_capacity(files.len());
+    let mut items = Vec::with_capacity(files.len());
 
     for path in files {
         match validate_template_file(path) {
@@ -321,7 +330,7 @@ fn check_templates(files: &[PathBuf], as_json: bool) -> Result<(i32, String), St
                     .as_ref()
                     .map(|c| c.author.as_str())
                     .filter(|a| !a.is_empty());
-                human_lines.push(format!(
+                lines.push(format!(
                     "ok: {} ({}, formatVersion {}, {} templates, {} entries)",
                     path.display(),
                     value.name,
@@ -329,7 +338,7 @@ fn check_templates(files: &[PathBuf], as_json: bool) -> Result<(i32, String), St
                     value.templates.len(),
                     value.entries.len()
                 ));
-                json_items.push(json!({
+                items.push(json!({
                     "path": path.display().to_string(),
                     "valid": true,
                     "name": value.name,
@@ -340,17 +349,21 @@ fn check_templates(files: &[PathBuf], as_json: bool) -> Result<(i32, String), St
                 }));
             }
             Err(err) => {
-                all_valid = false;
-                let kind = match &err {
-                    TemplateFileError::NotATemplate => "not_a_template",
-                    TemplateFileError::Newer => "newer",
-                    TemplateFileError::TooLarge => "too_large",
-                    TemplateFileError::Damaged(_) => "damaged",
-                    TemplateFileError::Workspace(_) => "workspace",
-                    TemplateFileError::Io(_) => "io",
+                let (kind, unreadable) = match &err {
+                    TemplateFileError::NotATemplate => ("not_a_template", false),
+                    TemplateFileError::Newer => ("newer", false),
+                    TemplateFileError::TooLarge => ("too_large", false),
+                    TemplateFileError::Damaged(_) => ("damaged", false),
+                    TemplateFileError::Workspace(_) => ("workspace", false),
+                    TemplateFileError::Io(_) => ("io", true),
                 };
-                errors.push(format!("{}: {err}", path.display()));
-                json_items.push(json!({
+                code = code.max(if unreadable { 2 } else { 1 });
+                lines.push(format!(
+                    "{}: {}: {err}",
+                    if unreadable { "unreadable" } else { "invalid" },
+                    path.display()
+                ));
+                items.push(json!({
                     "path": path.display().to_string(),
                     "valid": false,
                     "reason": kind,
@@ -361,16 +374,8 @@ fn check_templates(files: &[PathBuf], as_json: bool) -> Result<(i32, String), St
     }
 
     if as_json {
-        let payload = if json_items.len() == 1 {
-            json_items.pop().unwrap()
-        } else {
-            json!({ "valid": all_valid, "files": json_items })
-        };
-        let code = if all_valid { 0 } else { 1 };
+        let payload = json!({ "valid": code == 0, "files": items });
         return Ok((code, pretty(&payload)?));
     }
-    if !all_valid {
-        return Err(errors.join("\n"));
-    }
-    Ok((0, human_lines.join("\n")))
+    Ok((code, lines.join("\n")))
 }

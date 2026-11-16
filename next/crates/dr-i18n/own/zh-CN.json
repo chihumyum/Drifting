@@ -4,12 +4,21 @@
     "import": "导入项目",
     "importFile": "导入项目（.driftingproject）",
     "importLegacy": "导入 Drifting 0.1",
+    "importTemplateFile": "导入模板（.driftingtemplate）",
     "library": "{{count}} 个项目 · {{words}}字",
     "libraryProjects": "{{count}} 个项目",
     "nameLabel": "名字",
     "newProject": "新建项目",
     "recentEntries": "最近修改",
     "summaryPlaceholder": "一两句话说明这个项目是什么。",
+    "templateTransfer": {
+      "damaged": "这个文件已损坏，无法导入。",
+      "exportFailed": "这个模板没能导出，请稍后再试。",
+      "importFailed": "这个模板没能导入，请稍后再试。",
+      "newer": "这个模板由更新版本的 Drifting 导出，请先更新 Drifting。",
+      "notTemplate": "这不是 Drifting 导出的模板。",
+      "tooLarge": "这个模板太大，无法导入。"
+    },
     "title": "全部项目",
     "transfer": {
       "exportFailed": "这个项目没能导出，请稍后再试。",

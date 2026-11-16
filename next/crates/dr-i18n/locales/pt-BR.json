@@ -96,6 +96,7 @@
     "import": "Importar projeto",
     "importFile": "Importar projeto (.driftingproject)",
     "importLegacy": "Importar Drifting 0.1",
+    "importTemplateFile": "Importar modelo (.driftingtemplate)",
     "libraryProjects_many": "{{count}} projetos",
     "libraryProjects_one": "{{count}} projeto",
     "libraryProjects_other": "{{count}} projetos",
@@ -106,6 +107,14 @@
     "newProject": "Novo projeto",
     "recentEntries": "Editados recentemente",
     "summaryPlaceholder": "Descreva o projeto em uma ou duas frases.",
+    "templateTransfer": {
+      "damaged": "Este arquivo está danificado e não pode ser importado.",
+      "exportFailed": "Não foi possível exportar o modelo. Tente novamente.",
+      "importFailed": "Não foi possível importar o modelo. Tente novamente.",
+      "newer": "Este modelo foi exportado por um Drifting mais recente. Atualize o Drifting primeiro.",
+      "notTemplate": "Este não é um modelo exportado do Drifting.",
+      "tooLarge": "Este modelo é grande demais para importar."
+    },
     "title": "Todos os projetos",
     "transfer": {
       "exportFailed": "Não foi possível exportar o projeto. Tente novamente.",

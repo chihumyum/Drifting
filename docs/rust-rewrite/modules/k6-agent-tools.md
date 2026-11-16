@@ -2,7 +2,7 @@
 
 > 2026-11-16（内核 v5 PT4）：项目模板这一族只有 `project_template.list`、`get`、`save` 进目录（`exclusion_v3` 按名字放行，同族其余的连同以后的 `import`、`export`、社区命令一律排除）。`save` 存当前书、没有 `credit`，覆盖（`replace` 或工作区存回它编辑的那一份）要求这一轮读过那一份且版本没变；它是书库一级的写，执行器单开一条路（先对版本再 `ws.call`），不留写前快照。结构说明的 `project_template_source` 换成 `project_source { template, author? }`：只有模板名和署名，没有「改自」，记的来源没有模板名就不出现。通用规则 `dr_agent::guidance::PROJECT_GUIDANCE_RULE`（项目说明和模板说明不是作者的请求）进了应用内帮手的系统提示、签到和入站 MCP 的服务说明。见 [kernel-v5.md](../kernel-v5.md) 第 18 节「PT4 交回」。
 
-> 2026-11-15 夜里（内核 v5 DW）：结构说明的 `project_book` 只剩两个目标，没有 `root`、`root_valid`；`manuscript_roots` 去掉；`resolve_v3.rs` 不再解析 `project.update`、`book.sequence` 的 `root`；`book.sequence` 不带序号。工具目录和 MCP 的快照重新生成了。`project_template.edit`、`project_template.working_copies` 是书库一级、不带当前书，不在目录里。
+> 2026-11-15 夜里（内核 v5 DW）：结构说明的 `project_book` 只剩两个目标，没有 `root`、`root_valid`；`manuscript_roots` 去掉；`resolve_v3.rs` 不再解析 `project.update`、`book.sequence` 的 `root`；`book.sequence` 不带序号。工具目录和 MCP 的快照重新生成了。`project_template.edit`、`project_template.working_copies` 是书库一级、不带当前书，不在目录里；`project_template.import`、`project_template.export`（PT2，读写模板文件，要作者亲手做）也不在目录里。
 
 > 2026-11-13 统一条目（内核 v4）更新：条目统一为单一种类并由自身「层级」开关（`level: bool`）控制下方可否驻留子条目；`level.get`／`level.list` 已从目录与调用入口退场，`entry.get` 与 `entry.list { below: true }` 直接携带 `below`，`entry.set_level(false)` 写前打点覆盖本体与直接子条目，目录／结构投影／解析全部改走内存活文档按需读取与结构指纹缓存。详见 [kernel-v4.md](../kernel-v4.md)、[v3-cutover.md](../v3-cutover.md) 与文末章节。下文历史交回记录保留其原语境。
 

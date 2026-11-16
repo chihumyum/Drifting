@@ -41,6 +41,12 @@ pub enum State {
         reason: Key,
         text: String,
     },
+    /// Several files went in and some could not be: each one's name with
+    /// its reason (a string key) and the sentence shown, in order.
+    FailedFiles {
+        title: Key,
+        files: Vec<(String, Key, String)>,
+    },
 }
 
 /// What 「替换并恢复」 or a confirmed question goes on to do.
@@ -100,6 +106,27 @@ impl TransferDialog {
             reason,
             text,
         };
+        self.proceed = None;
+        cx.notify();
+    }
+
+    /// Failed for some of several files: each one's name, the reason
+    /// (a string key) and what went wrong.
+    pub fn fail_files(
+        &mut self,
+        title: Key,
+        files: Vec<(String, Key, String)>,
+        cx: &mut Context<Self>,
+    ) {
+        let files = files
+            .into_iter()
+            .map(|(name, reason, detail)| {
+                log::warn!("transfer: {name}: {detail}");
+                let text = self.i18n.fmt(reason, &[("detail", &detail)]);
+                (name, reason, text)
+            })
+            .collect();
+        self.state = State::FailedFiles { title, files };
         self.proceed = None;
         cx.notify();
     }
@@ -183,6 +210,34 @@ impl Render for TransferDialog {
                 Dialog::new("transfer-dialog", self.i18n.t(*title))
                     .width(WIDTH)
                     .body(lines(text))
+                    .action(close_button(keys::common::CLOSE, true))
+            }
+            // The name of each file (as the prototype: in the mono face, a
+            // shade lighter), its reason on the line under it.
+            State::FailedFiles { title, files } => {
+                Dialog::new("transfer-dialog", self.i18n.t(*title))
+                    .width(WIDTH)
+                    .body(
+                        div()
+                            .id("transfer-failed-files")
+                            .debug_selector(|| "transfer-failed-files".into())
+                            .flex()
+                            .flex_col()
+                            .gap(px(space::S3))
+                            .children(files.iter().map(|(name, _, text)| {
+                                div()
+                                    .flex()
+                                    .flex_col()
+                                    .child(
+                                        div()
+                                            .font_role(Role::Index)
+                                            .type_px(s.caption, s.line_caption)
+                                            .text_color(p.ink(2).solid())
+                                            .child(SharedString::from(name.clone())),
+                                    )
+                                    .child(lines(text))
+                            })),
+                    )
                     .action(close_button(keys::common::CLOSE, true))
             }
             State::Confirm {

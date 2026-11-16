@@ -822,8 +822,10 @@ pub(crate) fn make_v3_home(
     Some(make(ws, window, cx))
 }
 
-/// Registers the window-level external file drop handler (M41, `dr-view-transfer`).
-pub fn set_external_file_drop(
+/// Registers what takes files dropped onto 全部项目 (M41, `dr-view-transfer`:
+/// `.driftingtemplate`). Only that page takes them: with a project open, a
+/// dropped file is not imported (作者 2026-11-16 十六乙).
+pub fn set_all_projects_file_drop(
     cx: &mut App,
     can_drop: impl Fn(&[std::path::PathBuf], &App) -> bool + 'static,
     on_drop: impl Fn(&[std::path::PathBuf], &mut Window, &mut App) + 'static,
@@ -831,13 +833,17 @@ pub fn set_external_file_drop(
     cx.default_global::<Pages>().file_drop = Some((Rc::new(can_drop), Rc::new(on_drop)));
 }
 
-pub(crate) fn can_drop_external_files(paths: &[std::path::PathBuf], cx: &App) -> bool {
+pub(crate) fn can_drop_on_all_projects(paths: &[std::path::PathBuf], cx: &App) -> bool {
     cx.try_global::<Pages>()
         .and_then(|p| p.file_drop.as_ref())
         .is_some_and(|(can_drop, _)| can_drop(paths, cx))
 }
 
-pub(crate) fn drop_external_files(paths: &[std::path::PathBuf], window: &mut Window, cx: &mut App) {
+pub(crate) fn drop_on_all_projects(
+    paths: &[std::path::PathBuf],
+    window: &mut Window,
+    cx: &mut App,
+) {
     if let Some((_, on_drop)) = cx.try_global::<Pages>().and_then(|p| p.file_drop.clone()) {
         on_drop(paths, window, cx);
     }
