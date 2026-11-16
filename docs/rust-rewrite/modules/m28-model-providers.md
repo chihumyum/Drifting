@@ -78,18 +78,19 @@
 
 ## 本地模型（LM，2026-11-16）
 
-作者 2026-11-16 定稿、说「做」：Agent 能用本机或局域网里部署的模型。网上的地址（自定义 API Key）不做。
+作者 2026-11-16 定稿、说「做」：Agent 能用本机或局域网里部署的模型。网上的地址（自定义 API Key）不做。交回后的七处同日定（「都按你倾向的」），本模块跟着改了两处：滤完一个不剩不再当「没有清单」，「测试连接」真发一句。
 
 **大白话。** 作者在连接格里粘贴一个地址（比如 `http://localhost:11434`），App 去问这台服务有哪些模型，认出是哪种软件，把能用的模型放进模型菜单。发消息时走同一个 HTTP 客户端和 SSE 解析器，只是请求发到那台服务、用通用的 Chat Completions。
 
 **能填什么地址。** 只收本机（`localhost`、`127.0.0.0/8`、`::1`）和局域网（`10/8`、`172.16/12`、`192.168/16`、`*.local`），`http` 或 `https` 都行；带用户名密码、查询串或 `#` 的不收。没写 `http://` 的当 `http://`；末尾的 `/` 和 `/v1` 去掉。规则只有一份（`local::LocalAddress::parse`），传输层发请求前用同一条规则再查一次冻结进运行的地址（`local::validate_endpoint`），手改设置文件也放不宽。四家原来的端点检查（HTTPS 或本机）不变。
 
-**问模型清单（`local::discover`）。** 先 `GET {base}/v1/models`：连不上 → `Unreachable`；401／403 → `Unauthorized`；别的回答但不是清单（404、不是 JSON、空清单、滤完一个不剩）→ `NoList`，界面改问模型名。认软件看各自独有的接口：`/v1/models` 的行里 `owned_by` 是 `llamacpp` 是 llama.cpp；`GET /api/version` 回 `{"version":…}` 是 Ollama；`GET /api/v0/models` 的行带 `type`（`llm`／`vlm`／`embeddings`）是 LM Studio。认不出就没有名字。
+**问模型清单（`local::discover`）。** 先 `GET {base}/v1/models`：连不上 → `Unreachable`；401／403 → `Unauthorized`；别的回答但不是清单（404、500、不是 JSON、没有 `data` 数组）→ `NoList`，界面改问模型名；给了清单、但滤完一个不剩（只有嵌入模型和确知不会用工具的，或清单是空的）→ `NoToolModels`，界面写「这台服务上没有能用工具的模型」、不连上（作者 11-16 定，乙）。认软件看各自独有的接口：`/v1/models` 的行里 `owned_by` 是 `llamacpp` 是 llama.cpp；`GET /api/version` 回 `{"version":…}` 是 Ollama；`GET /api/v0/models` 的行带 `type`（`llm`／`vlm`／`embeddings`）是 LM Studio。认不出就没有名字。
 - 上下文：Ollama 读 `POST /api/show` 的 `model_info["<架构>.context_length"]`，LM Studio 读 `max_context_length`，llama.cpp 读 `/props` 的 `default_generation_settings.n_ctx`（它实际开的大小），别的服务读行上的 `max_model_len`／`context_length`。前两种是模型上限、不是运行时实际开的大小，所以设置里能手改（M31）。
 - 嵌入模型不进清单：Ollama 看 `capabilities` 里只有 `embedding`，LM Studio 看 `type == "embeddings"`，别的服务看名字里有没有 `embed`。
 - 服务确知不支持工具的不进清单：只有 Ollama 的 `capabilities` 是数组且没有 `tools` 时算确知。LM Studio、llama.cpp 不报，就都留着。
 - `/api/show` 最多问 64 个模型；清单最多 500 行；每个探测 5 秒、清单 10 秒超时。
-- `local::check`：「测试连接」只看有没有回应：除 401／403 以外的任何回答都算「可用」。
+- `local::check`：问一次 `/v1/models`，除 401／403 以外的任何回答都算服务在。它是「测试连接」的第一步：连不上就是「连不上这个地址」，被拒是「密钥无效」。第二步由 M31 发一句「Return exactly OK.」给这台服务现在选的模型，模型回了话、正常结束才算「可用」（作者 11-16 定，乙）。
+- **等候上限 `local::MODEL_WAIT` = 5 分钟。** 本地软件第一次用某个模型要先把它读进内存，大模型常要几十秒到几分钟，第一个字节之前什么都不发。所以「测试连接」等这一句最多 5 分钟（不用四家的 90 秒），过了就是请求失败那句；本地对话也走一个读超时 5 分钟的客户端（`HttpClient` 里给本地单独建的那个，连接超时、不重定向、不自动重发和共用的一样），四家照旧 90 秒。「连接」本身只问清单，照旧快。
 
 **请求和响应（`chat.rs`）。** 形状同 DeepSeek 的 Chat Completions，但不带 DeepSeek 专有的 `thinking`、`reasoning_effort`，不发联网搜索，`tool_choice` 不写（默认 auto）；输出上限只在 `RunConfig.max_output_tokens` 明确给出时才发 `max_tokens`。以前的思考内容不发回去。响应宽松一些，但截断仍然失败：
 - 思考：`reasoning_content` 或 `reasoning` 字段，或者正文开头（还没出现可见文字之前）的 `<think>…</think>`，都变成 `ThinkingDelta`，跨任意分块边界拆对；可见文字之后的 `<think>` 只是字。
@@ -104,7 +105,8 @@
 **测试。** 全部对着本机假服务（`tests/local.rs`），不连真实服务：
 - `ollama_is_recognized_and_only_tool_models_are_offered`：认出 Ollama，gemma3（没有 tools）和嵌入模型不进清单，上下文读对，不带 Key 时没有 `Authorization`。
 - `lm_studio_and_llama_cpp_are_recognized_by_their_own_endpoints`、`an_unknown_server_keeps_its_address_name_and_row_context`。
-- `no_list_wrong_key_and_nothing_listening_are_told_apart`：`NoList`／`Unauthorized`／`Unreachable` 三种分清，`check` 对没有清单的服务也算可用。
+- `no_list_wrong_key_and_nothing_listening_are_told_apart`：`NoList`／`NoToolModels`／`Unauthorized`／`Unreachable` 分清（空清单、只有嵌入模型是 `NoToolModels`），`check` 对没有清单的服务也算可用。
+- `an_ollama_with_only_models_without_tools_has_none_to_offer`：只装了 gemma3 和嵌入模型的 Ollama 是 `NoToolModels`，两个都问过 `/api/show`。
 - `a_local_chat_goes_to_its_own_server_without_a_key_or_deepseek_fields`：走那台服务的 `/v1/chat/completions`，不落到四家的端点；`<think>` 成思考；存了 Key 才带 Bearer；工具调用照收。
 - `a_route_off_this_network_or_without_a_server_is_refused_before_any_request`：网上地址、缺服务的路线在请求前拒绝；没人监听时按网络错误失败。
 - 单元测试：`local.rs` 的地址规则（本机、局域网、网上、坏地址各一组），`chat.rs` 的 `<think>` 逐字节分块、两种思考字段、缺用量、宽松的工具调用和各种截断，`credentials.rs` 的一服务一条 Key。

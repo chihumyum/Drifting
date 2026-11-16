@@ -1542,6 +1542,7 @@
       "editAddress": "改地址",
       "modelName": "模型名",
       "name": "本地模型",
+      "noToolModels": "这台服务上没有能用工具的模型",
       "notLocal": "只能填本机或局域网地址",
       "unreachable": "连不上这个地址"
     },

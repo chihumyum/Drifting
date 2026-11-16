@@ -88,12 +88,21 @@ pub fn init(connections: Entity<Connections>, cx: &mut App) {
     for key in [
         registry::AGENT_PROVIDER,
         registry::AGENT_MODEL,
-        registry::AGENT_THINKING,
         registry::AGENT_MAX_MODEL_ROUNDS,
     ] {
         let connections = connections.clone();
         settings::set_module_row(cx, key, move |window, cx| {
             preference_control(key, connections.clone(), window, cx)
+        });
+    }
+    // A local model has no reasoning level: the row is left out, as the
+    // dropdown above the composer is (作者 2026-11-16, 乙).
+    {
+        let connections = connections.clone();
+        settings::set_module_row_when(cx, registry::AGENT_THINKING, move |window, cx| {
+            local_view::has_reasoning(connections.read(cx)).then(|| {
+                preference_control(registry::AGENT_THINKING, connections.clone(), window, cx)
+            })
         });
     }
     settings::set_module_row(cx, "agent.onboarding", |_, cx| {

@@ -21,6 +21,10 @@ const MAX_MODELS: usize = 500;
 const MAX_SHOWN: usize = 64;
 const LIST_TIMEOUT: Duration = Duration::from_secs(10);
 const PROBE_TIMEOUT: Duration = Duration::from_secs(5);
+/// How long a local model may stay silent: loading a large model into memory
+/// the first time can take minutes before the first byte (the providers'
+/// client gives up after 90 s). Used for chat and 「测试连接」 alike.
+pub const MODEL_WAIT: Duration = Duration::from_secs(300);
 const MIN_CONTEXT: u64 = 256;
 const MAX_CONTEXT: u64 = 100_000_000;
 
@@ -195,9 +199,13 @@ pub enum DiscoverError {
     /// The server wants a (different) key.
     #[error("the server refused the key")]
     Unauthorized,
-    /// The server answered, but gave no list of models the Agent can use.
-    #[error("the server listed no usable models")]
+    /// The server answered, but gave no model list.
+    #[error("the server gave no model list")]
     NoList,
+    /// The server gave its list, but every model on it is an embedding model
+    /// or one the server says cannot use tools (or the list is empty).
+    #[error("the server has no model that can use tools")]
+    NoToolModels,
 }
 
 /// A model id as a server gives it or the author types it: trimmed, no
@@ -335,7 +343,7 @@ pub async fn discover(
         })
         .collect();
     if models.is_empty() {
-        return Err(DiscoverError::NoList);
+        return Err(DiscoverError::NoToolModels);
     }
     Ok(Discovery { software, models })
 }

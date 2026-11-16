@@ -27,26 +27,35 @@ fn executor() -> &'static tokio::runtime::Runtime {
 
 /// Clone the handle, not a client per provider, attempt, OAuth or catalog call.
 #[derive(Clone)]
-pub struct HttpClient(reqwest::Client);
+pub struct HttpClient {
+    shared: reqwest::Client,
+    /// Chat with a local model server: the same rules, but it may stay
+    /// silent for [`crate::local::MODEL_WAIT`] while it loads a model.
+    local: reqwest::Client,
+}
 
 impl HttpClient {
     pub fn new() -> Result<Self> {
         let _ = rustls::crypto::ring::default_provider().install_default();
-        Ok(Self(
+        let client = |read: Duration| {
             reqwest::Client::builder()
                 .connect_timeout(Duration::from_secs(20))
-                .read_timeout(Duration::from_secs(90))
+                .read_timeout(read)
                 .redirect(reqwest::redirect::Policy::none())
                 // Only the explicit model-attempt policy may repeat a POST.
                 // A single request (and paid image requests sharing this
                 // client) must not be replayed on a protocol NACK either.
                 .retry(reqwest::retry::never())
-                .build()?,
-        ))
+                .build()
+        };
+        Ok(Self {
+            shared: client(Duration::from_secs(90))?,
+            local: client(crate::local::MODEL_WAIT)?,
+        })
     }
 
     pub fn raw(&self) -> &reqwest::Client {
-        &self.0
+        &self.shared
     }
 
     /// GUI callers can await this handle on their own executor. Network I/O
@@ -275,9 +284,12 @@ impl ProviderDriver {
         let mut refreshed = false;
         let oauth_cancel = OAuthCancellation::default();
         loop {
-            let mut http = self
-                .http
-                .raw()
+            let client = if provider == Provider::Local {
+                &self.http.local
+            } else {
+                self.http.raw()
+            };
+            let mut http = client
                 .post(endpoint)
                 .header("accept", "text/event-stream")
                 .json(&body);

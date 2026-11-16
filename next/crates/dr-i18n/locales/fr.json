@@ -1566,6 +1566,7 @@
       "editAddress": "Modifier l’adresse",
       "modelName": "Nom du modèle",
       "name": "Modèle local",
+      "noToolModels": "Aucun modèle de ce serveur ne peut utiliser d’outils",
       "notLocal": "Uniquement une adresse de cet ordinateur ou du réseau local",
       "unreachable": "Impossible de joindre cette adresse"
     },
