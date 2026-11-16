@@ -86,18 +86,18 @@ fn fixture() -> Fixture {
             t.comment(&second)?
                 .target(original.target.as_ref())?
                 .module(Some(&module))?
-                .body(&original.body)?
+                .linked_body(&original.body)?
                 .origin(&CommentOrigin::Marker)?
                 .status(&CommentStatus::Resolved)?
                 .anchor(Some(&anchor))?
                 .quote(Some(&quote))?;
             t.comment(&floating)?
-                .body(&original.body)?
+                .linked_body(&original.body)?
                 .origin(&CommentOrigin::Marker)?;
             t.comment(&missing)?
                 .target(original.target.as_ref())?
                 .module(Some(&ModuleId::parse("missing-body").unwrap()))?
-                .body(&original.body)?
+                .linked_body(&original.body)?
                 .anchor(Some(&anchor))?
                 .quote(Some(&quote))?;
             Ok(())

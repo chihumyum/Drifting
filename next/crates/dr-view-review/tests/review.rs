@@ -184,7 +184,7 @@ fn ids(view: &Entity<ReviewView>, cx: &mut VisualTestContext) -> Vec<Vec<String>
         v.listing()
             .open
             .iter()
-            .map(|g| g.items.iter().map(|i| i.body.clone()).collect())
+            .map(|g| g.items.iter().map(|i| i.body.text.clone()).collect())
             .collect()
     })
 }
