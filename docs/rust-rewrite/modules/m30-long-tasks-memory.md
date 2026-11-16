@@ -13,8 +13,40 @@
 - 续跑授权只存在于 controller 内存；两次自动分片没有真实进展就停，改计划标题或修订号不算进展。重启恢复日志与计划，但不自动调用模型。提问、外部确认、工具失败、上下文容量不足都暂停。
 - 上下文保留原请求、作者补充、约束和一个下一步；普通历史按完整调用／结果组裁剪。保存源覆盖和投影哈希，历史本身不改、不删。超过容量的固定上下文停止分片，不静默截断作者要求。它是有界索引，不是文学摘要。
 - Project Memory 直接读写现有 F3 memory 条目，活动正文拼成 `PROJECT_MEMORY.md`，不另造同步文档。工作记忆是本机分块 Markdown，有修订 CAS、完整性校验、分页、作者编辑及内部幂等编辑接口；不设跨书个人记忆。
-- 建议生成使用一次无工具模型请求，最多四张卡，关闭联网搜索、自动重试及供应商自动续接；到实际传输 worker 退出才释放关闭屏障。整理卡由本机作者来源差分计算；作者点击才开普通读写会话，跳过消费所见批次，失败保留批次。
-- 帮手空对话临时承载建议卡与唯一「主动建议」开关，面板打开／窗口重新激活尝试生成；每书每设备 90 分钟节流。同一面板可编辑项目记忆／工作记忆、手动继续保存的运行。
+- 建议生成使用一次无工具模型请求，最多四张卡，关闭联网搜索、自动重试及供应商自动续接；到实际传输 worker 退出才释放关闭屏障。（整理卡切到新格式时已去掉，作者 2026-11-17 定了不加回来，见下面「建议卡回作品主页」。）
+- （已过时，2026-11-17 HC：）帮手空对话临时承载建议卡与唯一「主动建议」开关，面板打开／窗口重新激活尝试生成。现在卡在作品主页、开关在设置，见下面一节；每书每设备 90 分钟节流照旧。同一面板可编辑项目记忆／工作记忆、手动继续保存的运行（照旧）。
+
+## 建议卡回作品主页（HC，2026-11-17）
+
+作者 2026-11-17 在整窗原型上选完、说了迁（kernel-v5 第 15 节第 46、47 条，任务书 HC）。没改建议生成：卡的数据、点卡、×、触发都走 controller 现成的接口。
+
+**作者会看到的。**
+- 打开项目落在作品主页（或关掉最后一个标签、点项目主页、窗口回到前台而主页在前面）时，Agent 看一眼最近的改动；同一个项目在同一台电脑上 90 分钟最多一次，「主动建议」关着或没连模型时什么都不跑。看完的卡排在主页「继续写」下面、新建那一行上面，两列，一张卡一格，没有小标题、不能收起。开着、没开成书的项目一样；编辑模板的工作区里不出卡、不看。
+- 正在看时卡上面一行转圈的记号加「Agent 正在看你最近的改动……」，上一次没点过的卡照旧摆着，看完再换；没看成时一行「没能看完最近的改动：…」，卡照旧。看完没卡、关着、没连模型时这一处什么都不画。
+- 一张卡从上到下：它指着的条目（灰色的条目记号加名字，没有就不画）、标题、细节、「交给 Agent」；右上角 ×（读屏叫「忽略」）。整张卡是一个按钮，素玻璃静止态，字都是字的颜色。
+- 点卡：开一段新对话，右栏打开、停在 Agent、选中这段对话，主页不动；卡留着，「交给 Agent」变「查看对话」，再点是打开同一段对话。开始期间卡点不了；开始失败时卡下面一行「没能开始：…」，卡还能点。× 就没了，不问、不能撤回，重开主页也不回来。
+- 「主动建议」开关在设置 → 智能 → Agent 那一页最后一行（`agent.proactive_suggestions`，只管这台电脑，默认开，没有说明文字），主页和 Agent 栏里都没有。关掉：主页上什么都不画，正在看的停下；打开：下次主页露出来时看。开发库里原来存在设备记忆的旧值不搬（没发布过）。
+- Agent 栏空对话里不再有卡和开关，打开面板、窗口激活都不再让 Agent 看；「项目记忆」「工作记忆」两颗按钮照旧。
+- 0.1 那张 App 自己算的「把上次写的整理进要素」卡、整理结果卡、主页对话框都不做；铃铛里「整理」那一类通知（`Source::Organize`、`notifications.organize.source`）删了。写书模板写给 Agent 的话没改，Agent 看完出的卡里照样可以提整理。
+
+**接法。**
+- 卡：`dr_view_agent::home_cards::HomeCards`（`new(workspace, cx)`、`drawn`、`shown`），应用初始化处交给 `dr_view_home::set_agent_cards`（`app/drifting/src/main.rs`，[M02](m02-home.md) 最上面一节）。主页在前面时调 `shown`；`HomeCards` 在 controller 和模型连接都就绪以后才调 `trigger_suggestions`（应用一打开就落在主页时，controller 还在初始化，看的请求先记着，就绪时补上）。
+- 读卡：`suggestions`；controller 的唤醒信号到了就后台重读。controller 在一次看开始时（`begin_checkin` 之后）多发一次唤醒，主页才知道「正在看」——这是 `controller/proactive.rs` 唯一的改动，不改生成。
+- 点卡：`Open` 的卡调 `open_suggestion`（系统提示词照面板的写法），成了以后把这段对话记成这本书的当前对话（工作区的书记忆 `agent.conversation`），调外壳新加的 `Workspace::reveal_companion` 把右栏打开到 Agent，已经在的 Agent 面板选中这段对话（`AgentPanel::show_card_conversation`）。`Started` 的卡直接打开记着的那段对话，不再请求。
+- ×：`dismiss_suggestion`，界面上先拿掉，存储随 controller 的写入。
+- 开关：设置登记表一条 `SettingDef`（`registry::AGENT_PROACTIVE`，`Kind::Switch`、`Scope::Device`）；`HomeCards` 绑定 controller、设置变化、每次看之前都把它交给 `set_proactive_enabled`。
+
+**测试**（合成模型流 `ScriptedDriver`，回环地址，不调真实模型）：`dr-view-agent/tests/home_cards.rs`——主页露出来看一次（单次请求、无工具），三张卡两列按顺序排，第一张指着改过的那一章；90 分钟内主页再露出来只记一次打开、不再请求；点卡开对话、右栏停在 Agent 这段对话、主页不动、卡留着、请求带卡的指示；面板换到新对话后再点卡回到同一段、不再请求；× 以后界面和存储里都没了，主页再露出来也不回来；开始失败（controller 不让开）时卡下面那一行、卡还是 `Open`，再点成了；设置里那一项是开关、只管这台电脑、默认开、在 Agent 页最后一行、没有说明；开关关着打开项目不看、不记打开、主页上什么都没有，打开以后不立刻看、下次主页露出来才看，再关上主页上什么都没有、卡留在存储里；没连模型时不请求、主页上什么都没有（存储里有上次的卡也不画）；正在看时那一行在卡上面、上一次的卡还在，看完换成这一次的；看失败时失败那一行在、卡还在；看完零张卡时主页上什么都没有；打开 Agent 面板、窗口激活而主页不在前面时不让 Agent 看。主页那一侧见 [M02](m02-home.md)。
+
+**真窗口**（副屏，合成模型流）：`next/crates/dr-view-agent/scenarios/home-cards.json`，只跑例程 `home-cards-acceptance`（临时 showcase 库《慢钟》、进程内的候选 Key、回环地址，不连真实服务）：
+
+```bash
+cargo build -p drifting --example home-cards-acceptance --features debug-bridge --locked
+cargo drifting workspace scenario crates/dr-view-agent/scenarios/home-cards.json \
+  --app target/debug/examples/home-cards-acceptance --out <输出目录>
+```
+
+打开项目落在主页、三张卡两列在「继续写」下面、主页和 Agent 栏都没有「主动建议」开关；点卡右栏停在 Agent 那段对话、主页不动、卡变「查看对话」；× 掉一张；设置里搜「主动建议」关掉，主页上什么都没有、下面的块上移；再打开卡回来；深色再开一次。2026-11-17 跑过 55 步、0 pending，截图（浅色、深色）在作者机器的验收日志目录里，不进仓库。
 
 ## 本轮边界
 
@@ -31,7 +63,7 @@
 - `dr_agent::context`：固定事实、完整组裁剪、检查点验证及宿主历史分页读取。
 - `dr_agent::memory`：`project / load / read_page / edit / replace / clear / edit_once`；读写都验证书仍存在且未回收。
 - `AgentController::{start_job,resume_job,stop_conversation,task_view,workspace_job}`：在返回 future 前预留关闭租约，独立 worker 持有至 ACK；取消等待者不丢已接受的操作。
-- `AgentController::{suggestions,trigger_suggestions,open_suggestion,skip_organize,dismiss_suggestion,set_proactive_enabled}`：模型任务与本机游标均由 controller 拥有，不依赖面板存活。
+- `AgentController::{suggestions,trigger_suggestions,open_suggestion,dismiss_suggestion,set_proactive_enabled}`：模型任务与本机游标均由 controller 拥有，不依赖面板存活。（`skip_organize` 随整理卡去掉了。）作品主页的建议卡（`dr_view_agent::home_cards`，HC）是它们现在唯一的调用方。
 - `ProjectMemoryView::reveal`：按 memory id 滚动，绘制目标后 ACK；读取失败、目标移除、关闭／切书取消定位。
 
 ## 验收
@@ -49,7 +81,7 @@
 ## 待协调
 
 1. v3 提供项目结构及 Agent 描述后，替换当前 v2.2 的范围／来源适配器，接通宿主计划、工作记忆维护；本轮不新增按种类命令、字段或工具。
-2. （作者 2026-11-16 定：建议卡放回作品主页，任务书 HC；章末 ⁂ 上的「交给 Agent 审阅」随 ⁂ 的功能去掉不做了，[kernel-v5.md](../kernel-v5.md) 第 15 节第 34、41 条。2026-11-17 在整窗原型上定了样子：主页「继续写」下面两列，「主动建议」开关挪进设置 → 智能 → Agent，Agent 栏空对话里不再放卡，点卡右栏停在那段新对话；0.1 那张 App 自己算的整理卡去掉，不加回来，第 46、47 条。）M02 主页插槽仍未提供：先放空对话，可有一张整理卡及最多四张模型卡，纵向自适应；点击开普通读写会话，× 只跳过对应卡／批次。真正的主页打开／激活触发由插槽 owner 调同一 controller API。
+2. **已做（HC，2026-11-17）**，见上面「建议卡回作品主页」。原来的记录：（作者 2026-11-16 定：建议卡放回作品主页，任务书 HC；章末 ⁂ 上的「交给 Agent 审阅」随 ⁂ 的功能去掉不做了，[kernel-v5.md](../kernel-v5.md) 第 15 节第 34、41 条。2026-11-17 在整窗原型上定了样子：主页「继续写」下面两列，「主动建议」开关挪进设置 → 智能 → Agent，Agent 栏空对话里不再放卡，点卡右栏停在那段新对话；0.1 那张 App 自己算的整理卡去掉，不加回来，第 46、47 条。）M02 主页插槽仍未提供：先放空对话，可有一张整理卡及最多四张模型卡，纵向自适应；点击开普通读写会话，× 只跳过对应卡／批次。真正的主页打开／激活触发由插槽 owner 调同一 controller API。
 3. 章末审阅与待办入口属于冻结界面的接线，保留普通读写语义，等 v3，不在 `dr-view-page`／`dr-view-review` 增加新的按种类入口。
 4. 工作记忆不自动升到跨书层。超大固定上下文会明确暂停；无文学摘要或静默删除。真实付费调用由作者验收。
 
@@ -58,7 +90,8 @@
 `next/crates/dr-agent/src/{long_task,memory,proactive,context.rs,evidence.rs}`；
 `dr-agent-providers/src/{conversation.rs,transport.rs}`；
 `dr-agent-tools/src/evidence.rs`；
-`dr-view-agent/src/{controller,project_memory.rs,working_memory.rs,panel/continuity.rs}`。
+`dr-view-agent/src/{controller,project_memory.rs,working_memory.rs,panel/continuity.rs,home_cards.rs}`；
+主页那一侧 `dr-view-home/src/agent_cards.rs`。
 
 ## 小说模板的临时边界（轨道 3 第二项）
 
