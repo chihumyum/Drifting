@@ -1101,7 +1101,11 @@ fn whole_book_file_picked_from_the_computer_follows_the_caret_into_another_chapt
     let unfocused = added(&[moved, stayed]);
     assert_eq!(embedded_in(&e, &unfocused), [second.as_str()]);
     assert_eq!(o.lines(c2), ["靠岸", OBJ, "", "归港"]);
-    assert_eq!(o.lines(c1), ["启航", "远洋"], "the menu's chapter is untouched");
+    assert_eq!(
+        o.lines(c1),
+        ["启航", "远洋"],
+        "the menu's chapter is untouched"
+    );
 }
 
 #[gpui::test]

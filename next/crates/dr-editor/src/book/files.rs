@@ -52,7 +52,9 @@ impl BookEditor {
             return false;
         };
         let sel = self.editor.read(cx).selection();
-        let at_caret = self.chapter_embeds(sel.chapter).map(|embeds| (embeds, sel.head));
+        let at_caret = self
+            .chapter_embeds(sel.chapter)
+            .map(|embeds| (embeds, sel.head));
         let Some((embeds, offset)) = at_caret.or_else(|| {
             let doc = &self.editor.read(cx).book().chapters.get(chapter)?.doc;
             Some((self.chapter_embeds(chapter)?, doc.max_cursor()))
