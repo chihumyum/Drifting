@@ -241,7 +241,10 @@ fn writing_the_reserved_file_initializes_an_empty_level_prose_module() {
     assert!(!path.exists());
     assert!(f.ws.library().doc_info(&doc).unwrap().is_none());
     fs::write(&path, "她把记事本翻到最后一页。\n").unwrap();
-    assert_eq!(f.pass().book(&f.book).unwrap().merged, [doc.clone()]);
+    assert_eq!(
+        f.pass().book(&f.book).unwrap().merged.as_slice(),
+        std::slice::from_ref(&doc)
+    );
     assert_eq!(f.texts(&doc), ["她把记事本翻到最后一页。"]);
     assert!(
         fs::read_to_string(path)
