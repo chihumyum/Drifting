@@ -137,7 +137,7 @@ fn every_seed_round_trips_without_advancing_any_book_or_body() {
 
 #[test]
 fn editing_then_moving_a_markdown_file_keeps_the_prose_and_puts_the_file_back() {
-    let f = Fixture::new(Preset::Tiny);
+    let mut f = Fixture::new(Preset::Tiny);
     let (_, doc) = f.chapter("镜像雨夜", "她站在雨里。");
     f.pass().run().unwrap();
     let file = find(f.out.path(), "镜像雨夜.md");
@@ -145,6 +145,11 @@ fn editing_then_moving_a_markdown_file_keeps_the_prose_and_puts_the_file_back() 
     fs::rename(&file, &moved).unwrap();
     let edited = fs::read_to_string(&moved).unwrap().replace("雨里", "桥上");
     fs::write(&moved, edited).unwrap();
+    f.options.settle = Duration::from_secs(10);
+    assert!(f.pass().book(&f.book).unwrap().waiting);
+    assert!(!file.exists());
+    assert_eq!(f.texts(&doc), ["她站在雨里。"]);
+    f.options.settle = Duration::ZERO;
     let report = f.pass().run().unwrap();
     assert_eq!(f.texts(&doc), ["她站在桥上。"]);
     assert!(report.issues.iter().any(|i| i.problem == Problem::Moved));

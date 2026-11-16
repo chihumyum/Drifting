@@ -336,6 +336,9 @@ impl BookPass<'_> {
             .filter(|r| r.current.disk.is_some())
             .map(|r| r.current.path.clone())
             .collect();
+        let settling_unknown_path = probes
+            .iter()
+            .any(|(path, probe)| matches!(probe, Probe::Young) && !tracked.contains(path));
         let mut held = BTreeSet::new();
         let work: BTreeSet<_> = desired
             .keys()
@@ -363,6 +366,18 @@ impl BookPass<'_> {
             let path = previous.path.as_str();
             let sources = by_id.get(&id).map_or(&[][..], Vec::as_slice);
             let original = probes.get(path).unwrap_or(&Probe::Missing);
+            // A save at an untracked path may be the missing file's rename.
+            // Recreating the old path now would turn it into a duplicate.
+            if settling_unknown_path
+                && matches!(original, Probe::Missing)
+                && previous.disk.is_some()
+                && !previous.retired
+            {
+                self.report.waiting = true;
+                held.insert(id.clone());
+                rows.insert(id, row);
+                continue;
+            }
             let source = if matches!(original, Probe::Missing)
                 && previous.disk.is_some()
                 && !previous.retired
