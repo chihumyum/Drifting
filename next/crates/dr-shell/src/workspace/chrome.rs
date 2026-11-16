@@ -47,9 +47,6 @@ pub const LEADING_INSET: f32 = if cfg!(target_os = "windows") {
 /// Notifications, Account.
 pub const CLUSTER_ROUND_BUTTONS: usize = 4;
 
-/// Total logical controls right of the traffic lights (4 round buttons + moon pair).
-pub const CLUSTER: usize = 5;
-
 /// Overlapping moon glyph size (`W25Final`: `size = 18`).
 pub const MOON_SIZE: f32 = 18.0;
 /// Centre-to-centre distance between the two overlapping moons (`W25Final`: `off = 8`).
@@ -215,7 +212,14 @@ fn moon_pair(
                 "toggle-right",
                 "fill-right",
                 t(cx, if open { rt::CLOSE } else { rt::OPEN }),
-                t(cx, if filled { vf::EXIT_FILL } else { vf::FILL_RIGHT }),
+                t(
+                    cx,
+                    if filled {
+                        vf::EXIT_FILL
+                    } else {
+                        vf::FILL_RIGHT
+                    },
+                ),
                 crate::pages::anchors::RIGHT_SIDEBAR_CLOSED_TOGGLE,
                 Icon::MoonRightHollow,
                 Icon::MoonRight,
@@ -577,7 +581,7 @@ pub fn windows_caption(window: &mut Window, cx: &mut App) -> impl IntoElement {
                 ))
                 .child(button(
                     "caption-min",
-                    Icon::WindowMin,
+                    Icon::Minus,
                     WindowControlArea::Min,
                     &labels[1],
                 ))

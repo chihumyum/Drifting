@@ -1333,13 +1333,11 @@
       "unpin": "Revenir à la disposition automatique"
     },
     "layout": {
-      "isles": "Îles",
       "relate": "Relations"
     },
     "linkHintFrom": "De",
     "linkHintTo": "vers… choisissez un second élément ou chapitre, Échap pour annuler",
     "manualRelationTitle": "Nouvelle relation manuelle",
-    "meta": "{{categories}} catégories · {{elements}} éléments",
     "relate": {
       "relayout": "Réorganiser"
     },
@@ -1659,11 +1657,20 @@
     "viewMasonry": "Mosaïque"
   },
   "v5Fill": {
+    "attached": "Rattaché à",
     "exitFill": "Quitter l’extension",
     "fill": "Étendre",
     "fillLeft": "Étendre le panneau gauche",
     "fillRight": "Étendre le panneau droit",
-    "resizeFill": "Redimensionner la zone étendue"
+    "fullEditor": "Éditeur complet",
+    "noTemplateEntries": "Entrées sans modèle",
+    "resides": "Réside sous",
+    "resizeFill": "Redimensionner la zone étendue",
+    "structure": "Structure",
+    "templateCount": "{{count}} modèles",
+    "templateStructure": "Structure des modèles",
+    "topLevel": "Au premier niveau",
+    "unusedTemplates": "Modèles inutilisés"
   },
   "windowCaption": {
     "close": "Fermer",

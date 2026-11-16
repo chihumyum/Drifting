@@ -150,12 +150,35 @@ impl FillState {
 }
 
 impl Workspace {
+    pub(crate) fn set_tab_fill_layout(
+        &mut self,
+        tab: String,
+        layout: crate::v3::tab_fill::FillLayout,
+        cx: &mut Context<Self>,
+    ) {
+        if self.tab_fill_layouts.insert(tab, layout) != Some(layout) {
+            self.changed(cx);
+        }
+    }
+
     pub fn filled(&self) -> Option<FillPlace> {
         self.fill.active()
     }
 
     pub fn is_filled(&self, place: FillPlace) -> bool {
         self.fill.active() == Some(place)
+    }
+
+    pub(super) fn fill_covers_paper(&self) -> bool {
+        match self.filled() {
+            Some(FillPlace::Bottom) => true,
+            Some(FillPlace::Left | FillPlace::Right) => self.fill.custom_width().is_none(),
+            None => false,
+        }
+    }
+
+    pub fn fill_width(&self) -> Option<f32> {
+        self.fill.custom_width()
     }
 
     /// Right sidebar can only fill when its focused pane is `Review` or `Library`.
@@ -229,7 +252,12 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) -> bool {
         let reduce = self.reduce_motion(window, cx);
-        self.enter_fill_with_motion(place, reduce, cx)
+        if self.enter_fill_with_motion(place, reduce, cx) {
+            self.refocus(window, cx);
+            true
+        } else {
+            false
+        }
     }
 
     pub fn enter_fill_with_motion(
@@ -238,7 +266,7 @@ impl Workspace {
         reduce: bool,
         cx: &mut Context<Self>,
     ) -> bool {
-        if place == FillPlace::Right && !self.right_can_fill() {
+        if self.modal() || (place == FillPlace::Right && !self.right_can_fill()) {
             return false;
         }
         if self.fill.active() == Some(place) {
@@ -321,6 +349,7 @@ impl Workspace {
         };
         if prev == FillPlace::Left {
             self.want_template_structure = false;
+            self.want_quick_template = None;
             if let Some(sb) = &self.v3_sidebar {
                 sb.update(cx, |s, cx| s.leave_fill(cx));
             }
@@ -397,13 +426,50 @@ impl Workspace {
 
     /// Fills the left sidebar and switches it into `模板结构` (`W12Template`, `W30Home`).
     pub fn open_template_structure(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.enter_fill(FillPlace::Left, window, cx);
+        if !self.enter_fill(FillPlace::Left, window, cx) {
+            return;
+        }
         if let Some(sb) = self.v3_sidebar.clone() {
             sb.update(cx, |s, cx| s.enter_structure(window, cx));
         } else {
             self.want_template_structure = true;
         }
         cx.notify();
+    }
+
+    /// A template command completed. Open the editor once the committed
+    /// definition is in the read snapshot used to mount pages.
+    pub fn template_created(
+        &mut self,
+        id: dr_model::id::EntryTemplateId,
+        compact: bool,
+        cx: &mut Context<Self>,
+    ) {
+        self.pending_created_template = Some((id, compact));
+        self.show_created_template(cx);
+    }
+
+    pub(super) fn show_created_template(&mut self, cx: &mut Context<Self>) {
+        let Some((id, compact)) = &self.pending_created_template else {
+            return;
+        };
+        let target = Target::Template(id.clone());
+        if !self.book.exists(&target) {
+            return;
+        }
+        let compact = *compact;
+        let id = id.to_string();
+        self.pending_created_template = None;
+        if self.shelf_open || self.projects_open {
+            return;
+        }
+        if compact && self.is_filled(FillPlace::Left) {
+            self.want_template_structure = true;
+            self.want_quick_template = Some(id);
+            cx.notify();
+        } else {
+            self.open(target, Open::KEEP, cx);
+        }
     }
 
     /// Opens `target` on the paper beside a narrowed Left fill (`完整编辑`,
@@ -421,11 +487,6 @@ impl Workspace {
             let narrowed = (max_w * 0.55).round().max(MIN_FILL_WIDTH);
             self.fill.set_custom_width(Some(narrowed));
         }
-        if how.title {
-            self.title_first = Some(target.key());
-        }
-        self.nav.open(target.clone(), how);
-        self.visited_on_open_page(&target, cx);
-        self.changed(cx);
+        self.open_page(target, how, cx);
     }
 }

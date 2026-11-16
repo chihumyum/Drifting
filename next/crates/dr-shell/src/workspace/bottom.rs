@@ -319,7 +319,10 @@ pub(super) fn panel(
         ws.bottom.reveal.set(to);
     }
     let shown = ws.bottom.reveal.value(now);
-    anim::keep_going(!ws.bottom.reveal.settled(now) || ws.fill.animating(), window);
+    anim::keep_going(
+        !ws.bottom.reveal.settled(now) || ws.fill.animating(),
+        window,
+    );
     ws.refresh_bottom(cx);
     // The planner goes once the timeline shows instead; while the panel is
     // only shut (no chapter in front) it waits for its chapter, and another

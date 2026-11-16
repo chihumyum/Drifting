@@ -16,17 +16,17 @@
 use super::{
     DisplaySurface, LevelHost, ROOT_LEVEL, Rendered,
     manage::{MountDrag, Structure},
+    tab_fill::{FillLayout, TabCanvasHost},
     tabs,
 };
 use crate::{
-    nav::{Open, Target},
     pages::PageViewHost,
     strings::{t, tf},
 };
 use dr_i18n::keys;
 use dr_ui::{
     Theme, anim,
-    components::{Button, DraggedPill, IconButton, Pill, SandCell, Segmented, overlay},
+    components::{Button, DraggedPill, IconButton, Pill, Segmented, overlay},
     fonts::Role,
     sand::{self, Icon},
     style::DrStyled,
@@ -66,6 +66,11 @@ pub struct Sidebar {
     structure: Entity<Structure>,
     /// Whether the filled left sidebar is currently showing `模板结构` rather than `Tab`.
     in_structure: bool,
+    filled: bool,
+    template_structure: Option<Entity<super::template_structure::Structure>>,
+    fill_layouts: BTreeMap<String, FillLayout>,
+    filled_displays: BTreeMap<String, (TabMount, FillLayout, Rendered)>,
+
     /// What a Tab on the root or an entry shows (its key: the mount and the
     /// display), made the first time it is selected.
     displays: BTreeMap<String, (String, Rendered)>,
@@ -85,6 +90,11 @@ impl Sidebar {
             focus: cx.focus_handle(),
             structure,
             in_structure: false,
+            filled: false,
+            template_structure: None,
+            fill_layouts: BTreeMap::new(),
+            filled_displays: BTreeMap::new(),
+
             displays: BTreeMap::new(),
         }
     }
@@ -97,17 +107,86 @@ impl Sidebar {
         self.managing = None;
         self.slot = None;
         self.dragging = None;
+        if self.template_structure.is_none() {
+            self.template_structure =
+                Some(cx.new(|_| super::template_structure::Structure::new(self.host.clone())));
+        }
         if !self.in_structure {
             self.in_structure = true;
             cx.notify();
         }
     }
 
+    pub fn select_structure_template(
+        &mut self,
+        id: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if let Some(structure) = &self.template_structure {
+            structure.update(cx, |view, cx| view.select_template(id, window, cx));
+        }
+    }
+
     pub fn leave_fill(&mut self, cx: &mut Context<Self>) {
         if self.in_structure {
             self.in_structure = false;
+            if let Some(structure) = &self.template_structure {
+                structure.update(cx, |view, cx| view.dismiss_editor(cx));
+            }
             cx.notify();
         }
+    }
+
+    pub(crate) fn sync_fill(
+        &mut self,
+        filled: bool,
+        layouts: &BTreeMap<String, FillLayout>,
+        cx: &mut Context<Self>,
+    ) {
+        if self.filled != filled || &self.fill_layouts != layouts {
+            self.filled = filled;
+            self.fill_layouts = layouts.clone();
+            cx.notify();
+        }
+    }
+
+    fn fill_layout(&self, tab: &ProjectTab) -> FillLayout {
+        self.fill_layouts.get(&tab.id).copied().unwrap_or_else(|| {
+            let TabMount::Entry { entry } = &tab.mount else {
+                return FillLayout::List;
+            };
+            self.host
+                .book
+                .v3()
+                .and_then(|book| book.levels.get(entry))
+                .map_or(FillLayout::List, |level| {
+                    FillLayout::default_for(&level.settings.display)
+                })
+        })
+    }
+
+    pub fn shows_canvas(&self, tab: &str, layout: FillLayout) -> bool {
+        self.filled
+            && !self.in_structure
+            && !self.is_managing()
+            && self.selected.as_deref() == Some(tab)
+            && self
+                .tabs()
+                .iter()
+                .find(|candidate| candidate.id == tab)
+                .is_some_and(|candidate| self.fill_layout(candidate) == layout)
+    }
+
+    pub fn choose_fill_layout(&mut self, layout: FillLayout, cx: &mut Context<Self>) {
+        let Some(tab) = self.selected.clone() else {
+            return;
+        };
+        self.fill_layouts.insert(tab.clone(), layout);
+        let _ = self.host.workspace.update(cx, |ws, cx| {
+            ws.set_tab_fill_layout(tab, layout, cx);
+        });
+        cx.notify();
     }
 
     pub fn sync(&mut self, host: PageViewHost, cx: &mut Context<Self>) {
@@ -120,6 +199,8 @@ impl Sidebar {
             self.dragging = None;
             self.in_structure = false;
             self.displays.clear();
+            self.filled_displays.clear();
+            self.template_structure = None;
         }
         let changed = !Rc::ptr_eq(&self.host.book, &host.book);
         self.host = host;
@@ -143,6 +224,9 @@ impl Sidebar {
             self.selected = tabs.first().cloned();
         }
         if changed {
+            if let Some(structure) = &self.template_structure {
+                structure.update(cx, |view, cx| view.refresh(self.host.book.clone(), cx));
+            }
             let keys: BTreeMap<String, String> = self
                 .tabs()
                 .iter()
@@ -150,7 +234,8 @@ impl Sidebar {
                 .collect();
             self.displays
                 .retain(|id, (key, _)| keys.get(id) == Some(key));
-            for (_, part) in self.displays.values() {
+            self.filled_displays.retain(|id, _| tabs.contains(id));
+            for part in self.displays.values().map(|(_, part)| part) {
                 if let Some(refresh) = &part.refresh {
                     refresh(self.host.book.clone(), cx);
                 }
@@ -191,7 +276,7 @@ impl Sidebar {
             return;
         }
         self.selected = Some(id.into());
-        self.in_structure = false;
+        self.leave_fill(cx);
         self.restored = true;
         let stored = self
             .host
@@ -260,6 +345,13 @@ impl Sidebar {
             "entry": entry,
             "display": display,
             "managing": self.managing.is_some(),
+            "filled": self.filled,
+            "templateStructure": self.in_structure,
+            "structureView": self.template_structure.as_ref().filter(|_| self.in_structure)
+                .map(|view| view.read(cx).state()),
+            "fillLayout": selected.as_ref().filter(|_| self.filled && !self.in_structure)
+                .map(|tab| self.fill_layout(tab)),
+
             "slot": self.slot,
             "structure": self.managing.map(|_| self.structure.read(cx).state()),
             "registered": self.selected.as_ref().is_some_and(|id| self.displays.contains_key(id)),
@@ -682,6 +774,81 @@ impl Sidebar {
             .into_any_element()
     }
 
+    fn fill_layout_selector(&self, tab: ProjectTab, cx: &mut Context<Self>) -> AnyElement {
+        let selected = FillLayout::ALL
+            .iter()
+            .position(|layout| *layout == self.fill_layout(&tab))
+            .unwrap_or(0);
+        let weak = cx.weak_entity();
+        Segmented::new(
+            "v5-tab-fill-layout",
+            FillLayout::ALL.map(|layout| t(cx, layout.label())),
+            selected,
+        )
+        .report_selected()
+        .on_change(move |index, _, cx| {
+            let _ = weak.update(cx, |this, cx| {
+                this.choose_fill_layout(FillLayout::ALL[index], cx)
+            });
+        })
+        .into_any_element()
+    }
+
+    fn filled_body(
+        &mut self,
+        tab: &ProjectTab,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let layout = self.fill_layout(tab);
+        if matches!(tab.mount, TabMount::Book) && layout == FillLayout::List {
+            return tabs::book_list(&self.host, window, cx);
+        }
+        if let Some((mount, saved, display)) = self.filled_displays.get(&tab.id)
+            && mount == &tab.mount
+            && *saved == layout
+        {
+            if let Some(refresh) = &display.refresh {
+                refresh(self.host.book.clone(), cx);
+            }
+            return display.view.clone().into_any_element();
+        }
+        let display = if let Some(kind) = layout.display() {
+            let (level, surface) = match &tab.mount {
+                TabMount::Entry { entry } => (entry.clone(), DisplaySurface::Sidebar),
+                TabMount::Book => (ROOT_LEVEL.into(), DisplaySurface::BookTab),
+                _ => (ROOT_LEVEL.into(), DisplaySurface::Sidebar),
+            };
+            super::level_display_as(
+                LevelHost {
+                    page: self.host.clone(),
+                    level,
+                    surface,
+                },
+                kind,
+                window,
+                cx,
+            )
+        } else {
+            super::tab_canvas(
+                TabCanvasHost {
+                    page: self.host.clone(),
+                    tab: tab.clone(),
+                    layout,
+                },
+                window,
+                cx,
+            )
+        };
+        let Some(display) = display else {
+            return div().into_any_element();
+        };
+        let view = display.view.clone();
+        self.filled_displays
+            .insert(tab.id.clone(), (tab.mount.clone(), layout, display));
+        view.into_any_element()
+    }
+
     /// What the selected Tab shows.
     fn body(
         &mut self,
@@ -716,6 +883,9 @@ impl Sidebar {
                         .on_click(cx.listener(move |this, _, _, cx| this.remove_gone(&id, cx))),
                 )
                 .into_any_element();
+        }
+        if self.filled {
+            return self.filled_body(tab, window, cx);
         }
         match &tab.mount {
             // A Tab on a view is always gone (handled above): a Tab cannot
@@ -761,59 +931,43 @@ impl Sidebar {
         }
     }
 
-    /// The template collection under the Tabs.
+    /// The template collection is a summary with two entry points.
     fn templates(&self, window: &Window, cx: &mut Context<Self>) -> AnyElement {
         let theme = Theme::of(window, cx);
-        let book = self.host.book.clone();
-        let Some(v) = book.v3() else {
-            return div().into_any_element();
-        };
-        let mut templates = div()
-            .id("v3-template-list")
-            .overflow_y_scroll()
-            .max_h(px(168.0))
-            .flex()
-            .flex_col();
-        for template in v.templates.iter().filter(|t| t.deleted_at.is_none()) {
-            let Ok(id) = template.id.parse() else {
-                continue;
-            };
-            let target = Target::Template(id);
-            let (mark, color) = book.mark(&target);
-            let weak = self.host.workspace.clone();
-            let selected = weak
-                .upgrade()
-                .is_some_and(|ws| ws.read(cx).nav.is_selected(&target));
-            templates = templates.child(
-                SandCell::new(
-                    SharedString::from(format!("v3-template-{}", template.id)),
-                    template.name.clone(),
-                )
-                .mark(mark)
-                .color_opt(color)
-                .selected(selected)
-                .on_click(move |_, _, cx| {
-                    if let Some(ws) = weak.upgrade() {
-                        ws.update(cx, |ws, cx| ws.open(target.clone(), Open::KEEP, cx));
-                    }
-                }),
-            );
-        }
+        let count = self.host.book.v3().map_or(0, |book| {
+            book.templates
+                .iter()
+                .filter(|template| template.deleted_at.is_none())
+                .count()
+        });
+        let open = self.host.workspace.clone();
         let host = self.host.clone();
+        let label = t(cx, keys::v5_fill::TEMPLATE_STRUCTURE);
         div()
-            .flex_shrink_0()
+            .id("v5-template-collection")
+            .flex_none()
             .flex()
-            .flex_col()
+            .items_center()
             .gap_2()
             .p_2()
             .child(
                 div()
+                    .flex_1()
+                    .min_w_0()
                     .text_color(theme.palette.muted().solid())
-                    .child(t(cx, keys::v3_shell::TEMPLATES)),
+                    .child(tf(cx, keys::v5_fill::TEMPLATE_COUNT, &[("count", &count)])),
             )
-            .child(templates)
             .child(
-                Button::new("v3-new-template", t(cx, keys::v3_shell::NEW_TEMPLATE))
+                IconButton::new("v5-open-structure", Icon::Fullscreen)
+                    .label(label)
+                    .selected(self.in_structure)
+                    .on_click(move |_, window, cx| {
+                        let _ = open.update(cx, |ws, cx| ws.open_template_structure(window, cx));
+                    }),
+            )
+            .child(
+                IconButton::new("v3-new-template", Icon::Plus)
+                    .label(t(cx, keys::v3_shell::NEW_TEMPLATE))
                     .disabled(!super::has_template_creator(cx))
                     .on_click(move |_, window, cx| {
                         super::create_template(host.clone(), window, cx)
@@ -875,9 +1029,27 @@ impl Render for Sidebar {
             .as_ref()
             .and_then(|id| v.project.tabs.iter().find(|t| &t.id == id))
             .cloned();
-        let body = match selected {
-            Some(tab) => self.body(&tab, window, cx),
-            None => div().into_any_element(),
+        if let Some(tab) = selected.as_ref()
+            && self.filled
+            && !self.in_structure
+            && !tabs::is_gone(v, &tab.mount)
+        {
+            content = content.child(
+                div()
+                    .px_2()
+                    .child(self.fill_layout_selector(tab.clone(), cx)),
+            );
+        }
+        let body = if self.filled && self.in_structure {
+            self.template_structure.as_ref().map_or_else(
+                || div().into_any_element(),
+                |view| view.clone().into_any_element(),
+            )
+        } else {
+            selected.map_or_else(
+                || div().into_any_element(),
+                |tab| self.body(&tab, window, cx),
+            )
         };
         content
             .child(div().flex_1().min_h_0().px_2().py_2().child(body))

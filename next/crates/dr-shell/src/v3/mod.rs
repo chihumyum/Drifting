@@ -18,7 +18,9 @@ pub mod manage;
 pub mod mark;
 pub mod page;
 pub mod sidebar;
+pub mod tab_fill;
 pub mod tabs;
+pub mod template_structure;
 
 pub use crate::workspace::review::register_entry_comment_card;
 pub use drag::{EntryDrag, TimelineClipDrag};
@@ -41,6 +43,14 @@ pub enum DisplaySurface {
     Members,
     /// A left-column Tab: the tree, the level itself first.
     Sidebar,
+    /// A book Tab's flat sequence, shown as grid or board while filled.
+    BookTab,
+}
+
+impl DisplaySurface {
+    pub fn is_sidebar(self) -> bool {
+        matches!(self, Self::Sidebar | Self::BookTab)
+    }
 }
 
 /// The entry an entry page's head or one of its head parts is drawn for.
@@ -110,10 +120,13 @@ impl Rendered {
 }
 
 type ModuleMaker = Rc<dyn Fn(ModuleHost, &mut Window, &mut App) -> Rendered>;
+type TabCanvasMaker = Rc<dyn Fn(tab_fill::TabCanvasHost, &mut Window, &mut App) -> Rendered>;
 type DisplayMaker = Rc<dyn Fn(LevelHost, &mut Window, &mut App) -> Rendered>;
 type ActionMaker =
     Rc<dyn Fn(&Target, &crate::pages::PageMenuHost, &App) -> Option<crate::pages::RunRow>>;
 type CardMaker = Rc<dyn Fn(&Target, &crate::pages::PageMenuHost, &App) -> crate::pages::CardRows>;
+type CompactTemplateEditor =
+    Rc<dyn Fn(PageViewHost, &str, crate::pages::RunRow, &mut Window, &mut App) -> Option<Rendered>>;
 type TemplateCreator = Rc<dyn Fn(PageViewHost, &mut Window, &mut App)>;
 type HeadMaker = Rc<dyn Fn(EntryHost, &mut Window, &mut App) -> Rendered>;
 type HeadPartMaker = Rc<dyn Fn(EntryHost, &mut Window, &mut App) -> Option<Rendered>>;
@@ -121,12 +134,14 @@ type HeadPartMaker = Rc<dyn Fn(EntryHost, &mut Window, &mut App) -> Option<Rende
 struct Registry {
     modules: BTreeMap<String, ModuleMaker>,
     displays: BTreeMap<String, DisplayMaker>,
+    tab_canvas: Option<TabCanvasMaker>,
     settings: Option<DisplayMaker>,
     head: Option<HeadMaker>,
     head_parts: Vec<HeadPartMaker>,
     actions: BTreeMap<card::EntryAction, ActionMaker>,
     cards: Vec<CardMaker>,
     template_creator: Option<TemplateCreator>,
+    compact_template_editor: Option<CompactTemplateEditor>,
 }
 impl Global for Registry {}
 
@@ -238,6 +253,23 @@ pub fn level_display_as(
     Some(make(host, window, cx))
 }
 
+/// Registers the canvases for the Island and Relation choices of a left Tab.
+pub fn set_tab_canvas(
+    cx: &mut App,
+    make: impl Fn(tab_fill::TabCanvasHost, &mut Window, &mut App) -> Rendered + 'static,
+) {
+    cx.default_global::<Registry>().tab_canvas = Some(Rc::new(make));
+}
+
+pub fn tab_canvas(
+    host: tab_fill::TabCanvasHost,
+    window: &mut Window,
+    cx: &mut App,
+) -> Option<Rendered> {
+    let make = cx.try_global::<Registry>()?.tab_canvas.clone()?;
+    Some(make(host, window, cx))
+}
+
 /// The [`LevelHost::level`] of the outermost entries (a Tab mounted on the
 /// root, `kernel-v5.md` §5): they live under no entry.
 pub const ROOT_LEVEL: &str = "";
@@ -308,4 +340,27 @@ pub fn create_template(host: PageViewHost, window: &mut Window, cx: &mut App) {
     {
         create(host, window, cx);
     }
+}
+
+/// Registers the settings-only version of the template editor.
+pub fn add_compact_template_editor(
+    cx: &mut App,
+    make: impl Fn(PageViewHost, &str, crate::pages::RunRow, &mut Window, &mut App) -> Option<Rendered>
+    + 'static,
+) {
+    cx.default_global::<Registry>().compact_template_editor = Some(Rc::new(make));
+}
+
+pub fn compact_template_editor(
+    host: PageViewHost,
+    template: &str,
+    full: crate::pages::RunRow,
+    window: &mut Window,
+    cx: &mut App,
+) -> Option<Rendered> {
+    let make = cx
+        .try_global::<Registry>()?
+        .compact_template_editor
+        .clone()?;
+    make(host, template, full, window, cx)
 }

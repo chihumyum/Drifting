@@ -1324,13 +1324,11 @@
       "unpin": "Zur automatischen Anordnung zurückkehren"
     },
     "layout": {
-      "isles": "Inseln",
       "relate": "Beziehungen"
     },
     "linkHintFrom": "Von",
     "linkHintTo": "zu… zweites Element oder Kapitel wählen, Esc bricht ab",
     "manualRelationTitle": "Neue manuelle Beziehung",
-    "meta": "{{categories}} Kategorien · {{elements}} Elemente",
     "relate": {
       "relayout": "Neu anordnen"
     },
@@ -1650,11 +1648,20 @@
     "viewMasonry": "Masonry"
   },
   "v5Fill": {
+    "attached": "Angehängt",
     "exitFill": "Füllen beenden",
     "fill": "Füllen",
     "fillLeft": "Linke Seitenleiste füllen",
     "fillRight": "Rechte Seitenleiste füllen",
-    "resizeFill": "Breite des gefüllten Bereichs anpassen"
+    "fullEditor": "Vollständiger Editor",
+    "noTemplateEntries": "Einträge ohne Vorlage",
+    "resides": "Untergeordnet",
+    "resizeFill": "Breite des gefüllten Bereichs anpassen",
+    "structure": "Struktur",
+    "templateCount": "{{count}} Vorlagen",
+    "templateStructure": "Vorlagenstruktur",
+    "topLevel": "Auf der obersten Ebene",
+    "unusedTemplates": "Unbenutzte Vorlagen"
   },
   "windowCaption": {
     "close": "Schließen",

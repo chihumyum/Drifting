@@ -310,7 +310,7 @@ pub struct Guide {
     /// A book's workspace shows: the tour starts unless this device saw it.
     pub start: InWindow,
     /// The tour's layer, the workspace root's last child; `covered` while a
-    /// Super View or a full-window wait lies over the workspace.
+    /// panel fill or a full-window wait lies over the workspace.
     pub layer: LayerFn,
     /// Settings' 重新显示.
     pub reset: InApp,

@@ -4,7 +4,7 @@
 //! The first time a book opens on this device, once the workspace has come
 //! up uncovered, the tour waits [`START_DELAY`] and walks six steps, each
 //! pointing at a real control ([`WORKSPACE_TOUR`]): the left sidebar's
-//! Panel Tabs, a Super View entry, Project Home's 新建, the timeline's
+//! Panel Tabs, Project Home's 新建, the timeline's
 //! toggle, the Agent's tab, the torii and the wind bell. A ring of waiting
 //! glass (the accent, drifting on its own) stands 4px round the control,
 //! round buttons keep it round; beside it the card in the hover card's
@@ -23,7 +23,7 @@
 //! comes up and gives back at the end). Finishing or skipping marks it seen
 //! on this device ([`SeenStore`]); Settings can show it again
 //! ([`reset_seen`]). Unlike the 0.1 client, a tour that never found a
-//! control to point at ends without counting as seen. While a Super View
+//! control to point at ends without counting as seen. While a filled panel
 //! covers the workspace the tour is put away and starts again from the
 //! first step when it closes.
 //!
@@ -39,7 +39,6 @@
 //! | --- | --- | --- |
 //! | [`ids::LEFT_PANEL_TAB`] | every left Panel Tab label | shell |
 //! | [`ids::LEFT_SIDEBAR_CLOSED_TOGGLE`] | the left toggle, only while closed | shell |
-//! | [`ids::SUPER_VIEW_ENTRY`] | a panel head's Super View button | shell |
 //! | [`ids::HOME_CREATE`] | Project Home's 新建 section | M02 |
 //! | [`ids::TIMELINE_TOGGLE`] | the timeline toggle | shell |
 //! | [`ids::AGENT_TAB`] | the Agent's Panel Tab label | shell |
@@ -200,7 +199,7 @@ pub fn maybe_start(window: &mut Window, cx: &mut App) -> bool {
 }
 
 /// The tour's layer for the workspace's root: draw it last, every frame a
-/// book is open, while it is `Some`. `covered`: a Super View or the opening
+/// book is open, while it is `Some`. `covered`: a filled panel or the opening
 /// wait lies over the workspace (the tour is put away, and starts again
 /// from the first step when uncovered).
 pub fn layer(covered: bool, window: &mut Window, cx: &mut App) -> Option<AnyElement> {

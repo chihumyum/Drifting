@@ -1317,13 +1317,11 @@
       "unpin": "자동 배치로 돌아가기"
     },
     "layout": {
-      "isles": "섬",
       "relate": "관계"
     },
     "linkHintFrom": "출발",
     "linkHintTo": "대상… 두 번째 요소나 장 선택, Esc로 취소",
     "manualRelationTitle": "새 수동 관계",
-    "meta": "분류 {{categories}}개 · 요소 {{elements}}개",
     "relate": {
       "relayout": "재배치"
     },
@@ -1638,11 +1636,20 @@
     "viewMasonry": "폭포형"
   },
   "v5Fill": {
+    "attached": "연결 대상",
     "exitFill": "채우기 종료",
     "fill": "채우기",
     "fillLeft": "왼쪽 사이드바 채우기",
     "fillRight": "오른쪽 사이드바 채우기",
-    "resizeFill": "채운 영역 너비 조절"
+    "fullEditor": "전체 편집기",
+    "noTemplateEntries": "템플릿 없는 항목",
+    "resides": "하위에 배치",
+    "resizeFill": "채운 영역 너비 조절",
+    "structure": "구조",
+    "templateCount": "템플릿 {{count}}개",
+    "templateStructure": "템플릿 구조",
+    "topLevel": "최상위",
+    "unusedTemplates": "사용하지 않는 템플릿"
   },
   "windowCaption": {
     "close": "닫기",

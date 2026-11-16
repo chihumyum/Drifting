@@ -7,7 +7,7 @@
 //!   while immersed (`set_immersive`, kept in step each frame).
 //! - **Typed in**: a press anywhere in the window but the paper and the
 //!   exit leaves (the press itself lands as usual); entered by hand, it
-//!   does not. Opening a Super View or the bookshelf leaves either way.
+//!   does not. Filling a panel or the bookshelf leaves either way.
 //! - **Reveal**: within 56 px of the top the traffic lights and the tab
 //!   dots come back (the dots work); a key without modifiers, or the
 //!   pointer leaving the window, puts them away again. The exit at the
@@ -85,6 +85,7 @@ impl Workspace {
         self.immersion.top = false;
         self.immersion.goal_read = None;
         if on {
+            self.exit_fill_in_cx(cx);
             self.immersion.from_words = dr_view_stats::today_live(&self.book_id, cx);
             self.read_goal(cx);
         } else {

@@ -16,7 +16,7 @@ use dr_shell::nav::{Open, Page, Target};
 use dr_shell::panes::PaneId;
 use dr_shell::settings::registry;
 use dr_shell::workspace::editors::PageView;
-use dr_shell::workspace::{Layer, SuperView};
+use dr_shell::workspace::{FillPlace, Layer};
 use dr_shell::{Services, Settings, SettingsFile, ShellInfo, Workspace};
 use dr_workspace::{Actor, Workspace as Library};
 use gpui::{AppContext as _, Entity, Focusable as _, TestAppContext, VisualTestContext};
@@ -328,10 +328,12 @@ fn shortcuts_go_back_and_forward_through_the_keymap(cx: &mut TestAppContext) {
 #[gpui::test]
 fn escape_closes_one_layer_at_a_time(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx, SettingsFile::in_memory(), None);
-    keys(cx, "cmd-alt-4");
+    view.update_in(cx, |ws, window, cx| {
+        ws.enter_fill(FillPlace::Left, window, cx)
+    });
     assert_eq!(
-        view.read_with(cx, |ws, _| ws.super_view),
-        Some(SuperView::Elements)
+        view.read_with(cx, |ws, _| ws.filled()),
+        Some(FillPlace::Left)
     );
     view.update_in(cx, |ws, window, cx| ws.open_settings(window, cx));
     view.update(cx, |ws, cx| {
@@ -346,15 +348,17 @@ fn escape_closes_one_layer_at_a_time(cx: &mut TestAppContext) {
     // The settings search field has the focus: its Esc clears, then closes.
     keys(cx, "escape");
     cx.run_until_parked();
-    assert_eq!(top(cx), Some(Layer::SuperView));
+    assert_eq!(top(cx), Some(Layer::Fill));
     keys(cx, "escape");
     assert_eq!(top(cx), None);
-    // ⌘⌥4 twice toggles; ⌘[ closes a Super View before going back.
+    // ⌘[ closes fill first, then goes back on the next press.
     view.update(cx, |ws, cx| ws.open(chapter(1), Open::KEEP, cx));
-    keys(cx, "cmd-alt-3");
+    view.update_in(cx, |ws, window, cx| {
+        ws.enter_fill(FillPlace::Bottom, window, cx)
+    });
     keys(cx, "cmd-[");
     assert_eq!(
-        view.read_with(cx, |ws, _| (ws.super_view, ws.nav.page())),
+        view.read_with(cx, |ws, _| (ws.filled(), ws.nav.page())),
         (None, Page::Target(chapter(1)))
     );
 }
@@ -1172,7 +1176,7 @@ fn the_shell_draws_every_layer(cx: &mut TestAppContext) {
     cx.run_until_parked();
     cx.update(|window, cx| window.draw(cx).clear(cx));
     view.update_in(cx, |ws, window, cx| {
-        ws.toggle_super_view(SuperView::ReviewMaterials, cx);
+        ws.enter_fill(FillPlace::Right, window, cx);
         ws.open_settings(window, cx);
         ws.notifications_open = true;
     });
@@ -1189,13 +1193,15 @@ fn the_shell_draws_every_layer(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
-fn the_tabs_under_a_super_view_do_not_answer_the_keyboard(cx: &mut TestAppContext) {
+fn when_fill_covers_the_paper_its_tabs_do_not_answer_the_keyboard(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx, SettingsFile::in_memory(), None);
     view.update(cx, |ws, cx| {
         ws.open(chapter(1), Open::KEEP, cx);
         ws.open(chapter(2), Open::KEEP, cx);
     });
-    keys(cx, "cmd-alt-5");
+    view.update_in(cx, |ws, window, cx| {
+        ws.enter_fill(FillPlace::Right, window, cx)
+    });
     keys(cx, "cmd-w");
     keys(cx, "cmd-alt-left");
     let (tabs, page) = view.read_with(cx, |ws, _| (ws.nav.tabs().len(), ws.nav.page()));
@@ -1291,21 +1297,25 @@ fn a_modal_dialog_turns_the_workspace_shortcuts_off(cx: &mut TestAppContext) {
     TestAppContext::update(cx, |cx| dr_shell::dialogs::show(cx, blank.into()));
     cx.run_until_parked();
     assert!(view.read_with(cx, |ws, _| ws.modal()));
-    keys(cx, "cmd-alt-4");
+    view.update_in(cx, |ws, window, cx| {
+        ws.enter_fill(FillPlace::Left, window, cx)
+    });
     view.update_in(cx, |ws, window, cx| ws.open_settings(window, cx));
     assert_eq!(
-        view.read_with(cx, |ws, _| (ws.super_view, ws.settings.is_some())),
+        view.read_with(cx, |ws, _| (ws.filled(), ws.settings.is_some())),
         (None, false),
-        "no Super View and no settings under a dialog"
+        "the dialog blocks fill and settings"
     );
     draw(cx);
     TestAppContext::update(cx, |cx| dr_shell::dialogs::hide(cx, id));
     cx.run_until_parked();
     assert!(!view.read_with(cx, |ws, _| ws.modal()));
-    keys(cx, "cmd-alt-4");
+    view.update_in(cx, |ws, window, cx| {
+        ws.enter_fill(FillPlace::Left, window, cx)
+    });
     assert_eq!(
-        view.read_with(cx, |ws, _| ws.super_view),
-        Some(SuperView::Elements)
+        view.read_with(cx, |ws, _| ws.filled()),
+        Some(FillPlace::Left)
     );
 }
 
@@ -1315,13 +1325,15 @@ fn escape_closes_the_search_panel_first(cx: &mut TestAppContext) {
     let (_dir, lib) = slow_clock();
     let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib));
     wait_for(&view, cx, |ws| !ws.book.is_empty());
-    keys(cx, "cmd-alt-4");
+    view.update_in(cx, |ws, window, cx| {
+        ws.enter_fill(FillPlace::Left, window, cx)
+    });
     view.update_in(cx, |ws, window, cx| ws.toggle_search(window, cx));
     draw(cx);
     let top = |cx: &mut VisualTestContext| view.read_with(cx, |ws, _| ws.top_layer());
     assert_eq!(top(cx), Some(Layer::Search));
     view.update_in(cx, |ws, window, cx| ws.dismiss(window, cx));
-    assert_eq!(top(cx), Some(Layer::SuperView));
+    assert_eq!(top(cx), Some(Layer::Fill));
 }
 
 /// The find bar's replace row (F4c's `replace_current` / `replace_all`):
@@ -2178,42 +2190,80 @@ fn the_sea_lies_under_the_shelf_and_the_opening_wait(cx: &mut TestAppContext) {
     );
 }
 
-/// A Super View a module draws (`pages::add_super_view`): made once for the
-/// book the first time the stage shows it, with its header slots; a view
-/// nobody registered stays an empty sheet.
+/// A registered left Tab canvas is mounted only when selected, then kept
+/// for the Tab when fill is put away.
 #[gpui::test]
-fn a_module_draws_a_super_view(cx: &mut TestAppContext) {
+fn a_module_draws_a_filled_tab_canvas(cx: &mut TestAppContext) {
+    use dr_shell::v3::{self, Rendered, tab_fill::FillLayout};
     let (_dir, lib) = slow_clock();
     let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib));
     wait_for(&view, cx, |ws| !ws.book.is_empty());
     let made = std::rc::Rc::new(std::cell::Cell::new(0));
     let count = made.clone();
     cx.update(|_, cx| {
-        dr_shell::pages::add_super_view(cx, SuperView::Elements, move |host, _, cx| {
-            assert!(!host.book_id.is_empty());
+        v3::set_tab_canvas(cx, move |host, _, cx| {
+            assert!(!host.page.book_id.is_empty());
+            assert_eq!(host.layout, FillLayout::Relation);
             count.set(count.get() + 1);
-            dr_shell::pages::SuperViewPage::new(cx.new(|_| Blank))
-                .head_start(cx.new(|_| Blank))
-                .head_end(cx.new(|_| Blank))
+            Rendered::new(cx.new(|_| Blank))
         });
     });
-    view.update(cx, |ws, cx| ws.toggle_super_view(SuperView::Elements, cx));
+    view.update_in(cx, |ws, window, cx| {
+        ws.enter_fill(FillPlace::Left, window, cx)
+    });
+    draw(cx);
+    assert_eq!(made.get(), 0);
+    cx.update(|_, cx| {
+        let sidebar = view.read(cx).v3_sidebar.clone().expect("left sidebar");
+        sidebar.update(cx, |panel, cx| {
+            panel.choose_fill_layout(FillLayout::Relation, cx)
+        });
+    });
     draw(cx);
     draw(cx);
     assert_eq!(made.get(), 1);
-    let page = view.read_with(cx, |ws, _| ws.super_view_content(SuperView::Elements));
-    let page = page.expect("the module's content");
-    assert!(page.head_start.is_some() && page.head_end.is_some());
-    view.update(cx, |ws, cx| ws.toggle_super_view(SuperView::StoryGraph, cx));
+    view.update_in(cx, |ws, window, cx| {
+        ws.enter_fill(FillPlace::Bottom, window, cx)
+    });
     draw(cx);
-    assert!(
-        view.read_with(cx, |ws, _| ws.super_view_content(SuperView::StoryGraph))
-            .is_none(),
-        "nobody draws the story graph: an empty sheet"
-    );
-    view.update(cx, |ws, cx| ws.toggle_super_view(SuperView::Elements, cx));
+    assert_eq!(made.get(), 1);
+    view.update_in(cx, |ws, window, cx| {
+        ws.enter_fill(FillPlace::Left, window, cx)
+    });
     draw(cx);
-    assert_eq!(made.get(), 1, "kept for the book");
+    assert_eq!(made.get(), 1, "kept for this Tab");
+}
+
+/// The three former window-wide shortcuts are unbound. On a swap, the
+/// departing sidebar returns to its own previous open/closed state.
+#[gpui::test]
+fn fill_replaces_the_retired_shortcuts_and_restores_the_previous_sidebar(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx, SettingsFile::in_memory(), None);
+    for key in ["cmd-alt-3", "cmd-alt-4", "cmd-alt-5"] {
+        keys(cx, key);
+        assert_eq!(view.read_with(cx, |ws, _| ws.filled()), None);
+    }
+    view.update_in(cx, |ws, window, cx| {
+        if ws.left.open {
+            ws.toggle_left(window, cx);
+        }
+        assert!(ws.enter_fill(FillPlace::Left, window, cx));
+        assert!(ws.left.open);
+        assert!(ws.enter_fill(FillPlace::Bottom, window, cx));
+        assert!(!ws.left.open);
+        ws.toggle_left(window, cx);
+        ws.enter_fill(FillPlace::Left, window, cx);
+        ws.enter_fill(FillPlace::Bottom, window, cx);
+        assert!(ws.left.open);
+        ws.enter_fill(FillPlace::Left, window, cx);
+        ws.toggle_left(window, cx);
+        assert_eq!(ws.filled(), None);
+        assert!(!ws.left.open);
+        ws.enter_fill(FillPlace::Left, window, cx);
+        ws.toggle_fill(FillPlace::Left, window, cx);
+        assert_eq!(ws.filled(), None);
+        assert!(ws.left.open);
+    });
 }
 
 /// The 素材库 tab a module draws (`pages::set_library`): made once for the
@@ -2388,8 +2438,14 @@ fn typing_enters_immersive_writing_and_a_press_off_the_paper_leaves(cx: &mut Tes
         !view.read_with(cx, |ws, _| ws.immersion.top),
         "a plain key conceals"
     );
-    view.update(cx, |ws, cx| ws.toggle_super_view(SuperView::Elements, cx));
-    assert_eq!(state(cx), (false, false), "a Super View ends it");
+    view.update_in(cx, |ws, window, cx| {
+        ws.enter_fill(FillPlace::Left, window, cx)
+    });
+    assert_eq!(
+        state(cx),
+        (false, false),
+        "filling a panel ends immersive writing"
+    );
 }
 
 /// Opening a v3 book onto an entry page while M24's sea wait covers `stage::mid`

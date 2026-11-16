@@ -1333,13 +1333,11 @@
       "unpin": "Volver al diseño automático"
     },
     "layout": {
-      "isles": "Islas",
       "relate": "Relaciones"
     },
     "linkHintFrom": "Desde",
     "linkHintTo": "a… elige un segundo elemento o capítulo; Esc cancela",
     "manualRelationTitle": "Nueva relación manual",
-    "meta": "{{categories}} categorías · {{elements}} elementos",
     "relate": {
       "relayout": "Reorganizar"
     },
@@ -1659,11 +1657,20 @@
     "viewMasonry": "Mosaico"
   },
   "v5Fill": {
+    "attached": "Vinculado a",
     "exitFill": "Salir de expandir",
     "fill": "Expandir",
     "fillLeft": "Expandir barra izquierda",
     "fillRight": "Expandir barra derecha",
-    "resizeFill": "Ajustar ancho del área expandida"
+    "fullEditor": "Editor completo",
+    "noTemplateEntries": "Entradas sin plantilla",
+    "resides": "Dentro de",
+    "resizeFill": "Ajustar ancho del área expandida",
+    "structure": "Estructura",
+    "templateCount": "{{count}} plantillas",
+    "templateStructure": "Estructura de plantillas",
+    "topLevel": "En el nivel superior",
+    "unusedTemplates": "Plantillas sin usar"
   },
   "windowCaption": {
     "close": "Cerrar",

@@ -1333,13 +1333,11 @@
       "unpin": "Voltar ao layout automático"
     },
     "layout": {
-      "isles": "Ilhas",
       "relate": "Relações"
     },
     "linkHintFrom": "De",
     "linkHintTo": "para… escolha um segundo elemento ou capítulo; Esc cancela",
     "manualRelationTitle": "Nova relação manual",
-    "meta": "{{categories}} categorias · {{elements}} elementos",
     "relate": {
       "relayout": "Reorganizar"
     },
@@ -1659,11 +1657,20 @@
     "viewMasonry": "Mosaico"
   },
   "v5Fill": {
+    "attached": "Vinculado a",
     "exitFill": "Sair do preenchimento",
     "fill": "Preencher",
     "fillLeft": "Preencher barra esquerda",
     "fillRight": "Preencher barra direita",
-    "resizeFill": "Ajustar largura da área preenchida"
+    "fullEditor": "Editor completo",
+    "noTemplateEntries": "Entradas sem modelo",
+    "resides": "Dentro de",
+    "resizeFill": "Ajustar largura da área preenchida",
+    "structure": "Estrutura",
+    "templateCount": "{{count}} modelos",
+    "templateStructure": "Estrutura dos modelos",
+    "topLevel": "No nível superior",
+    "unusedTemplates": "Modelos não usados"
   },
   "windowCaption": {
     "close": "Fechar",

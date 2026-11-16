@@ -110,16 +110,9 @@ impl Timeline {
             lib.call_guarded(
                 &Actor::User,
                 "timeline_view.place",
-                serde_json::json!({"book":book,"view":view,"entry":entry,"lane":lane,"at":at,"span":span}),
+                serde_json::json!({"book":book,"view":view,"entry":entry,"lane":lane,"from_host":detach_from,"at":at,"span":span}),
                 guard,
             )?;
-            if let Some(old_host) = detach_from {
-                lib.call(
-                    &Actor::User,
-                    "membership.remove",
-                    serde_json::json!({"book":book,"host":old_host,"member":entry}),
-                )?;
-            }
             Ok(())
         });
         cx.notify();
@@ -320,13 +313,14 @@ impl Timeline {
                         .and_then(|v| v.placements.iter().find(|p| p.entry == drag.entry))
                         .and_then(|p| p.span)
                 });
-            let detach_from = if let Some(clip) = &drag.timeline_clip {
-                (clip.lane != lane && !window.modifiers().alt).then(|| clip.lane.clone())
-            } else if let Some(from_host) = &drag.hung_host {
-                (from_host != &lane).then(|| from_host.clone())
-            } else {
-                None
-            };
+            let source = drag
+                .timeline_clip
+                .as_ref()
+                .map(|clip| &clip.lane)
+                .or(drag.hung_host.as_ref());
+            let detach_from = source
+                .filter(|host| *host != &lane && !window.modifiers().alt)
+                .cloned();
             let guard = drag.page().book.v3().unwrap().guard();
             self.place_at(
                 drag.entry.clone(),

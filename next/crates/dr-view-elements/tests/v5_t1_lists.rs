@@ -135,8 +135,7 @@ fn a_drop_moves_in_attaches_with_option_and_follows_the_switches() {
     );
 
     // Hung row drag (`W31Hung`): moves hang from `storyline` to `other_line`
-    // while keeping residence unchanged, and refuses `manuscript` (non-accepting)
-    // and its own residence parent.
+    // while keeping residence unchanged. Its own residence removes the hang.
     let storylines_root = of_template(&snapshot, "tpl-storylines");
     let other_line = call(
         &ws,
@@ -159,17 +158,41 @@ fn a_drop_moves_in_attaches_with_option_and_follows_the_switches() {
         .unwrap()
         .parent
         .clone();
+    let parent = chapter_parent.as_deref().unwrap();
+    let refused = snapshot
+        .v3()
+        .unwrap()
+        .entries
+        .iter()
+        .find(|e| {
+            e.id != parent && e.id != chapter && !snapshot.v3().unwrap().accepts_members(&e.id)
+        })
+        .unwrap();
+    let drop = |onto, alt| {
+        resolve_hung_drop(
+            &snapshot,
+            &chapter,
+            &storyline,
+            onto,
+            None,
+            DropSlot::Into,
+            alt,
+        )
+    };
+    assert_eq!(drop(&refused.id, false), None);
     assert_eq!(
-        resolve_hung_drop(&snapshot, &chapter, &storyline, &manuscript),
-        None
+        drop(parent, false),
+        Some(Drop::DetachMembership {
+            host: storyline.clone()
+        })
     );
-    if let Some(parent) = chapter_parent.as_deref() {
-        assert_eq!(
-            resolve_hung_drop(&snapshot, &chapter, &storyline, parent),
-            None
-        );
-    }
-    let moved_hang = resolve_hung_drop(&snapshot, &chapter, &storyline, &other_line);
+    assert_eq!(
+        drop(&other_line, true),
+        Some(Drop::Membership {
+            host: other_line.clone()
+        })
+    );
+    let moved_hang = drop(&other_line, false);
     assert_eq!(
         moved_hang,
         Some(Drop::MoveMembership {
@@ -186,6 +209,138 @@ fn a_drop_moves_in_attaches_with_option_and_follows_the_switches() {
     assert_eq!(v_after.entry(&chapter).unwrap().parent, chapter_parent);
     assert!(!v_after.levels[&storyline].members.contains(&chapter));
     assert!(v_after.levels[&other_line].members.contains(&chapter));
+    ws.undo(&Actor::User)
+        .unwrap()
+        .expect("one undo returns the hang");
+    let snapshot = Book::load(&ws, &book).unwrap();
+    let v = snapshot.v3().unwrap();
+    assert!(v.levels[&storyline].members.contains(&chapter));
+    assert!(!v.levels[&other_line].members.contains(&chapter));
+    prepare_resolved_drop(
+        &snapshot,
+        &chapter,
+        Drop::Membership {
+            host: other_line.clone(),
+        },
+    )
+    .unwrap()
+    .commit(&ws)
+    .unwrap();
+    let snapshot = Book::load(&ws, &book).unwrap();
+    let v = snapshot.v3().unwrap();
+    assert!(v.levels[&storyline].members.contains(&chapter));
+    assert!(v.levels[&other_line].members.contains(&chapter));
+    let detach = resolve_hung_drop(
+        &snapshot,
+        &chapter,
+        &storyline,
+        parent,
+        None,
+        DropSlot::Into,
+        false,
+    )
+    .unwrap();
+    prepare_resolved_drop(&snapshot, &chapter, detach)
+        .unwrap()
+        .commit(&ws)
+        .unwrap();
+    let snapshot = Book::load(&ws, &book).unwrap();
+    let v = snapshot.v3().unwrap();
+    assert_eq!(v.entry(&chapter).unwrap().parent, chapter_parent);
+    assert!(!v.levels[&storyline].members.contains(&chapter));
+    assert!(v.levels[&other_line].members.contains(&chapter));
+    ws.shutdown().unwrap();
+}
+
+#[test]
+fn a_hung_row_reorders_on_the_first_scale_or_in_the_hosts_manual_order() {
+    let (_dir, ws, book) = seed();
+    let snapshot = Book::load(&ws, &book).unwrap();
+    let category = of_template(&snapshot, "tpl-category");
+    let lane = of_template(&snapshot, "tpl-storyline");
+    let chapters: Vec<_> = snapshot
+        .v3()
+        .unwrap()
+        .entries
+        .iter()
+        .filter(|entry| entry.template.as_deref() == Some("tpl-chapter"))
+        .take(2)
+        .map(|entry| entry.id.clone())
+        .collect();
+    let view = snapshot
+        .v3()
+        .unwrap()
+        .ordering_view(&lane)
+        .unwrap()
+        .id
+        .clone();
+    for host in [&category, &lane] {
+        for chapter in &chapters {
+            call(
+                &ws,
+                "membership.add",
+                json!({"book":book,"host":host,"member":chapter}),
+            );
+        }
+        let snapshot = Book::load(&ws, &book).unwrap();
+        let ordered = |book: &Book| {
+            let v = book.v3().unwrap();
+            let ids = v.ordering_view(host).map_or_else(
+                || v.levels[host].members.clone(),
+                |view| v.lane_entries(view, host),
+            );
+            ids.into_iter()
+                .filter(|id| chapters.contains(id))
+                .collect::<Vec<_>>()
+        };
+        let old = ordered(&snapshot);
+        assert_eq!(old.len(), 2);
+        let moving = &old[1];
+        let anchor = &old[0];
+        let proposed = resolve_hung_drop(
+            &snapshot,
+            moving,
+            host,
+            anchor,
+            Some(host),
+            DropSlot::Before,
+            false,
+        )
+        .expect("drop slot in the same group");
+        let other_scale = snapshot
+            .v3()
+            .unwrap()
+            .timeline_view(&view)
+            .unwrap()
+            .placements
+            .clone();
+        prepare_resolved_drop(&snapshot, moving, proposed)
+            .unwrap()
+            .commit(&ws)
+            .unwrap();
+        let after = Book::load(&ws, &book).unwrap();
+        assert_eq!(ordered(&after), vec![moving.clone(), anchor.clone()]);
+        let positions = &after.v3().unwrap().timeline_view(&view).unwrap().placements;
+        if *host == category {
+            assert_eq!(positions, &other_scale);
+        } else {
+            assert_ne!(positions, &other_scale);
+            assert_eq!(
+                after.v3().unwrap().levels[host].members.len(),
+                snapshot.v3().unwrap().levels[host].members.len()
+            );
+        }
+        for chapter in &chapters {
+            assert_eq!(
+                after.v3().unwrap().entry(chapter).unwrap().parent,
+                snapshot.v3().unwrap().entry(chapter).unwrap().parent
+            );
+        }
+        ws.undo(&Actor::User)
+            .unwrap()
+            .expect("one undo restores the order");
+        assert_eq!(ordered(&Book::load(&ws, &book).unwrap()), old);
+    }
     ws.shutdown().unwrap();
 }
 

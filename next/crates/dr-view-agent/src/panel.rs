@@ -751,7 +751,7 @@ impl AgentPanel {
                             }
                             data::ChangeLocation::Page(target) => {
                                 ws.book.entry(&target)?;
-                                ws.super_view = None;
+
                                 ws.open(target, Open::KEEP, cx);
                                 Some(Opened::Page)
                             }

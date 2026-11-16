@@ -1,5 +1,8 @@
 # F6 dr-shell：外壳（第一至第十轮，M03、M04、M05 接入、M08、M26 外壳部分）
 
+内核 v5 的栏开合与铺满见[栏的铺满](../modules/k4-panel-fill.md)。左栏、底栏和右栏直接占用中间列。下文原有的全窗舞台接口与 ⌘⌥3/4/5 属于历史交回。
+
+
 2026-11-07 起，分支 `claude/f6-shell-80c9fb`。第一个里程碑从整合分支 `claude/f-batch2-integrate` 开工；第二个里程碑从 main `4c477ea0`（F3 第二个里程碑、F5 第二个里程碑已合）接着做；第三个里程碑（11-08）从 main `a039863f`（dr-editor、F5 的 `TabDock` 已合）接着做；第四轮（11-08）从 main `7444ff65`（M01/M02 书架与作品主页、M06/M07 搜索与字数、F4c 输入、F4d 画层、M05 全书视图已合）接着做；第十轮（11-09）从 main `75491374`（第十七批）接着做；第九轮（11-08）从 main `0f9b86b0`（第十五、十六批）接着做；第八轮（11-08）从 main `2eb865fa`（第十三批）接着做，中途合了 main `4e40ee20`（第十四批，F4 第五批）；第七轮（11-08）从 main `77a957d3`（第十二批）接着做；第六轮（11-08）从 main `60d510a6`（第十一批）接着做；第五轮（11-08）从 main `1652a95e`（第十批：F4e 第二批、F4d 画层与 M18、F3 第四轮与 M09、F7 设备与 M39、F8 调试桥、M10 导入界面）接着做。代码在 `next/crates/dr-shell`、`next/crates/dr-i18n`，应用入口 `next/app/drifting`。计划见 [foundation.md 的 F6](../foundation.md#f6-dr-shell)。
 
 ## 一句话
@@ -395,7 +398,7 @@ app.run(|cx| {
 | `pages`（底部面板） | 时间线（M14）、情节规划（M15） | `add_bottom_panel(cx, BottomPane::{Timeline, Planner}, \|&BottomHost, &mut Window, &mut App\| Option<BottomPanel>)`；`BottomHost { workspace, library, book_id, book, target }`；`BottomPanel::new(view).min_height(\|cx\| f32).on_refresh(\|host, cx\| …)`；`has_bottom_panel(pane, cx)`；`Workspace::{bottom_pane(cx), toggle_timeline, toggle_planner, bottom_height, set_bottom_height, bottom_view(pane)}`；`workspace::{BottomLayout, BottomResize}` |
 | `workspace`（按书记住） | 想在本机按书记点什么的模块（时间线） | `Workspace::book_memory(key) -> Option<&Value>`、`book_memory_ready()`、`set_book_memory(key, Value, cx)`（F2 的 `local_state`，范围 `workspace::BOOK_MEMORY_SCOPE` = `shell`，键 `memory:<书>:<key>`，挂在书下） |
 | `settings`（本机值） | 要在这台设备上记点什么、又不是设置的模块（书架画风、导览看过、Markdown 文件夹） | `SettingsFile::{device_memory, set_device_memory}`；`Settings::{device_memory(cx, key), set_device_memory(cx, key, Option<Value>)}`（设置文件 `device.modules`） |
-| `pages`（全窗视图、帮手） | M21、M22、M23、M31 | `add_super_view(cx, SuperView, \|&SuperViewHost, &mut Window, &mut App\| SuperViewPage)`、`SuperViewPage { body, head_start, head_end }`、`follow_super_view(&工作区, view, cx, 回调)`、`super_view_shown(&工作区, view, cx)`；`set_companion(cx, \|WeakEntity<Workspace>, &mut Window, &mut App\| LeftPanel)`；`set_library(cx, \|WeakEntity<Workspace>, &mut Window, &mut App\| LeftPanel)`（M19 的素材库）；`Workspace::super_view_content(view)` |
+| `pages` 与 `v3` | M19、M22、M31、K5 | `pages::set_companion`、`pages::set_library`、`v3::set_tab_canvas`、`v3::add_compact_template_editor` |
 | `pages`（M24） | dr-view-sea | `set_backdrop(cx, Backdrop { draw, hold, ebbing, on_sea })`、`SeaHold::{Surface, Loading}`；`set_first_run(cx, \|done, window, cx\| FirstRunPage { view, shows_shelf })`；`set_guide(cx, Guide { anchor, start, layer, reset })`；`anchor(id, el, cx)`、`anchors::*`；`Workspace::{ebbing, sea}`、`SeaState::{waiting, first_run_shows}`、`workspace::FIRST_RUN_DONE` |
 | `mirror` | M40、首次运行 | `folder(cx)`、`is_on(cx)`、`is_running(cx)`、`set_folder(path, cx)`、`set_on(bool, cx)`、`restart(cx)`、`stop(cx)`、`ask_turn_off(cx)`、`ask_turn_off_then(cx, after)`；`notifications::Notifications::post_opening(source, text, Some((book, doc)), cx)` |
 | `workspace`（悬停卡） | 自己画东西、要同一张页面卡的模块（M14 的片段和泳道名） | `page_hover_card(id, el, &target, &ws, CardRows { lead, before_danger }, cx)`；`PageMenuHost::of(&ws, cx)` |

@@ -923,6 +923,17 @@ fn cross_lane_drag_moves_hang_option_multi_hangs_sidebar_drop_detaches_and_narro
     );
     sync_all(&host, &ws, &lib, &id, cx);
 
+    let placements = || {
+        Book::load(&lib, &id)
+            .unwrap()
+            .v3()
+            .unwrap()
+            .timeline_view("t9-drag-view")
+            .unwrap()
+            .placements
+            .clone()
+    };
+    let before_move = placements();
     // 2. Drag clip from lane_a onto lane_b without ⌥: moves hang (`换一处挂`).
     let page = page_host(&ws, &lib, &id, cx);
     drag_entry_to(
@@ -930,6 +941,25 @@ fn cross_lane_drag_moves_hang_option_multi_hangs_sidebar_drop_detaches_and_narro
         EntryDrag::new(page, &chapter, "第三章钟楼下").with_timeline_clip("t9-drag-view", &lane_a),
         track_b,
         200.0,
+        cx,
+    );
+    wait(cx, |_| hosts_of(&lib, &chapter) == vec![lane_b.clone()]);
+    sync_all(&host, &ws, &lib, &id, cx);
+
+    lib.undo(&Actor::User)
+        .unwrap()
+        .expect("one undo restores the hang and scale");
+    assert_eq!(hosts_of(&lib, &chapter), vec![lane_a.clone()]);
+    assert_eq!(placements(), before_move);
+    sync_all(&host, &ws, &lib, &id, cx);
+
+    // The hung row in the sidebar also transfers its hang to the other lane.
+    let page = page_host(&ws, &lib, &id, cx);
+    drag_entry_to(
+        &host,
+        EntryDrag::new(page, &chapter, "第三章钟楼下").with_hung_host(&lane_a),
+        track_b,
+        212.0,
         cx,
     );
     wait(cx, |_| hosts_of(&lib, &chapter) == vec![lane_b.clone()]);

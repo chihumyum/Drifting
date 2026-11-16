@@ -123,6 +123,16 @@ pub mod v3 {
         let Some(v) = book.v3() else {
             return Vec::new();
         };
+        if surface == DisplaySurface::BookTab {
+            let entries = v.book_entries();
+            return entries
+                .chunks(columns.max(1))
+                .map(|ids| Row::Tiles {
+                    ids: ids.to_vec(),
+                    depth: 0,
+                })
+                .collect();
+        }
         let Some((children, members)) = below(v, level) else {
             return Vec::new();
         };
@@ -259,13 +269,16 @@ pub mod v3 {
     /// page's first block, what is attached to it on its second, both on a
     /// Tab's one canvas.
     pub fn board_ids(book: &Book, level: &str, surface: DisplaySurface) -> Vec<String> {
+        if surface == DisplaySurface::BookTab {
+            return book.v3().map_or_else(Vec::new, |v| v.book_entries());
+        }
         let Some((children, members)) = book.v3().and_then(|v| below(v, level)) else {
             return vec![];
         };
         match surface {
             DisplaySurface::Page => children,
             DisplaySurface::Members => members,
-            DisplaySurface::Sidebar => {
+            DisplaySurface::Sidebar | DisplaySurface::BookTab => {
                 let mut seen = BTreeSet::new();
                 children
                     .into_iter()
@@ -327,6 +340,7 @@ pub mod v3 {
         onto: &str,
         slot: DropSlot,
         can_reorder: bool,
+        onto_host: Option<&str>,
         is_member: bool,
         attach: bool,
         cx: &mut App,
@@ -338,10 +352,15 @@ pub mod v3 {
             return;
         }
         let target = if let Some(from_host) = &drag.hung_host {
-            if is_member {
-                return;
-            }
-            resolve_hung_drop(&drag.page().book, &drag.entry, from_host, onto)
+            resolve_hung_drop(
+                &drag.page().book,
+                &drag.entry,
+                from_host,
+                onto,
+                onto_host,
+                slot,
+                attach,
+            )
         } else {
             resolve_drop_with(
                 &drag.page().book,
@@ -375,8 +394,21 @@ pub mod v3 {
         if !drag.matches(page) || !drag.is_current(cx) {
             return;
         }
-        if let Ok(edit) =
-            crate::data::v3::prepare_drop_with(&drag.page().book, &drag.entry, onto, after, attach)
+        let target = if let Some(from) = &drag.hung_host {
+            resolve_hung_drop(
+                &drag.page().book,
+                &drag.entry,
+                from,
+                onto,
+                None,
+                DropSlot::Into,
+                attach,
+            )
+        } else {
+            crate::data::v3::drop_target_with(&drag.page().book, &drag.entry, onto, after, attach)
+        };
+        if let Some(target) = target
+            && let Ok(edit) = prepare_resolved_drop(&drag.page().book, &drag.entry, target)
         {
             admit_drag(
                 drag.page(),
@@ -388,11 +420,15 @@ pub mod v3 {
     fn drop_on_board(
         page: &dr_shell::pages::PageViewHost,
         level: &str,
+        sidebar: bool,
         drag: &EntryDrag,
         window: &Window,
         cx: &mut App,
     ) {
         if !drag.matches(page) || !drag.is_current(cx) {
+            return;
+        }
+        if sidebar && dr_shell::v3::tabs::detach_timeline_clip(page, drag, cx) {
             return;
         }
         if let Some(source) = drag.source::<EntryDragSource>()
@@ -543,7 +579,7 @@ pub mod v3 {
             );
             // A Tab's tree in the left column is always the order the author
             // dragged (Tab prototype, 2026-11-15): no sort of its own.
-            if host.surface != DisplaySurface::Sidebar
+            if !host.surface.is_sidebar()
                 && let Ok(Some(raw)) = host
                     .page
                     .library
@@ -889,7 +925,7 @@ pub mod v3 {
             let can_page = page.clone();
             let onto = id.to_owned();
             let can_onto = onto.clone();
-            let is_sidebar = self.host.surface == DisplaySurface::Sidebar;
+            let is_sidebar = self.host.surface.is_sidebar();
             let show_hung_guide = hung_host.is_some() && is_sidebar && !tile;
             let pad_left = if show_hung_guide {
                 (depth.min(20) as f32 * 14.0).max(10.0)
@@ -931,14 +967,26 @@ pub mod v3 {
                         .size_full(),
                     )
             });
+            let onto_host = hung_host.map(str::to_owned);
+            let can_host = onto_host.clone();
+            let slot_host = onto_host.clone();
             let slot_for = move |bounds: &Entity<Option<Bounds<Pixels>>>,
                                  window: &Window,
-                                 cx: &App| {
+                                 cx: &App,
+                                 drag: &EntryDrag,
+                                 host: &Option<String>| {
+                let reorder_hung = host.is_some() && &drag.hung_host == host;
                 bounds
                     .read(cx)
                     .as_ref()
                     .map(|b| {
-                        drop_slot_at(*b, window.mouse_position(), is_level, tile, row_can_reorder)
+                        drop_slot_at(
+                            *b,
+                            window.mouse_position(),
+                            is_level && !reorder_hung,
+                            tile,
+                            row_can_reorder || reorder_hung,
+                        )
                     })
                     .unwrap_or(if is_level || !row_can_reorder {
                         DropSlot::Into
@@ -991,17 +1039,19 @@ pub mod v3 {
                             if drag.timeline_clip.is_some() {
                                 return is_sidebar;
                             }
+                            let slot = slot_for(&can_bounds, window, cx, drag, &can_host);
                             if let Some(from_host) = &drag.hung_host {
-                                return !is_member
-                                    && resolve_hung_drop(
-                                        &drag.page().book,
-                                        &drag.entry,
-                                        from_host,
-                                        &can_onto,
-                                    )
-                                    .is_some();
+                                return resolve_hung_drop(
+                                    &drag.page().book,
+                                    &drag.entry,
+                                    from_host,
+                                    &can_onto,
+                                    can_host.as_deref(),
+                                    slot,
+                                    window.modifiers().alt,
+                                )
+                                .is_some();
                             }
-                            let slot = slot_for(&can_bounds, window, cx);
                             resolve_drop_with(
                                 &drag.page().book,
                                 &drag.entry,
@@ -1015,10 +1065,12 @@ pub mod v3 {
                         })
                     })
                     .drag_over::<EntryDrag>(move |style, drag, window, cx| {
-                        if drag.timeline_clip.is_some() || drag.hung_host.is_some() {
+                        if drag.timeline_clip.is_some()
+                            || (drag.hung_host.is_some() && drag.hung_host != slot_host)
+                        {
                             return style.bg(wash);
                         }
-                        let slot = slot_for(&over_bounds, window, cx);
+                        let slot = slot_for(&over_bounds, window, cx, drag, &slot_host);
                         if slot == DropSlot::Into || tile {
                             style.bg(wash)
                         } else if slot == DropSlot::Before {
@@ -1031,7 +1083,7 @@ pub mod v3 {
                         if let Some(focus) = &drop_focus {
                             focus.focus(window, cx);
                         }
-                        let slot = slot_for(&drop_bounds, window, cx);
+                        let slot = slot_for(&drop_bounds, window, cx, drag, &onto_host);
                         let attach = window.modifiers().alt;
                         drop_on_resolved(
                             &page,
@@ -1039,6 +1091,7 @@ pub mod v3 {
                             &onto,
                             slot,
                             row_can_reorder,
+                            onto_host.as_deref(),
                             is_member,
                             attach,
                             cx,
@@ -1182,6 +1235,7 @@ pub mod v3 {
             let can_page = page.clone();
             let level = self.host.level.clone();
             let can_level = level.clone();
+            let sidebar = self.host.surface.is_sidebar();
             div()
                 .id("g2-board-scroll")
                 .role(gpui::Role::Group)
@@ -1189,10 +1243,11 @@ pub mod v3 {
                 .can_drop(move |value, _, _| {
                     value.downcast_ref::<EntryDrag>().is_some_and(|drag| {
                         drag.matches(&can_page)
-                            && (drag
-                                .source::<EntryDragSource>()
-                                .and_then(|source| source.board.as_ref())
-                                .is_some_and(|(level, _)| level == &can_level)
+                            && (sidebar && drag.timeline_clip.is_some()
+                                || drag
+                                    .source::<EntryDragSource>()
+                                    .and_then(|source| source.board.as_ref())
+                                    .is_some_and(|(level, _)| level == &can_level)
                                 || crate::data::v3::drop_target(
                                     &drag.page().book,
                                     &drag.entry,
@@ -1203,7 +1258,7 @@ pub mod v3 {
                     })
                 })
                 .on_drop(move |drag: &EntryDrag, window, cx| {
-                    drop_on_board(&page, &level, drag, window, cx)
+                    drop_on_board(&page, &level, sidebar, drag, window, cx)
                 })
                 .overflow_scroll()
                 .track_scroll(&self.scroll)
@@ -1298,12 +1353,8 @@ pub mod v3 {
                 .flex_col()
                 .min_h_0()
                 .w_full()
-                .when(self.host.surface == DisplaySurface::Sidebar, |el| {
-                    el.h_full()
-                })
-                .when(self.host.surface != DisplaySurface::Sidebar, |el| {
-                    el.h(px(440.0))
-                });
+                .when(self.host.surface.is_sidebar(), |el| el.h_full())
+                .when(!self.host.surface.is_sidebar(), |el| el.h(px(440.0)));
             if self.host.surface == DisplaySurface::Sidebar && self.host.level != ROOT_LEVEL {
                 // In a view, the list's order is the view's scale: its name
                 // above the list (`kernel-v5.md` §16 「层级的列表」).
@@ -1323,7 +1374,7 @@ pub mod v3 {
             if matches!(self.display, Display::List | Display::Grid)
                 && !matches!(
                     self.host.surface,
-                    DisplaySurface::Members | DisplaySurface::Sidebar
+                    DisplaySurface::Members | DisplaySurface::Sidebar | DisplaySurface::BookTab
                 )
             {
                 let weak = cx.entity().downgrade();

@@ -5,7 +5,7 @@
 //! - the open book from F3's queries and events ([`book`]);
 //! - the three columns: sidebars that slide out from the corners and split
 //!   in two when wide enough ([`panes`]), the tab dock on the paper's top
-//!   edge, the Super View stage ([`workspace`]);
+//!   edge, the panel fills ([`workspace`]);
 //! - one shortcut registry over GPUI actions and the keymap ([`keymap`]);
 //! - one declarative settings registry and its file ([`settings`]);
 //! - the notification center ([`notifications`]);

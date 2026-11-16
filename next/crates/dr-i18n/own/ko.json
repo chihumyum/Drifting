@@ -438,10 +438,19 @@
     "viewMasonry": "폭포형"
   },
   "v5Fill": {
+    "attached": "연결 대상",
     "exitFill": "채우기 종료",
     "fill": "채우기",
     "fillLeft": "왼쪽 사이드바 채우기",
     "fillRight": "오른쪽 사이드바 채우기",
-    "resizeFill": "채운 영역 너비 조절"
+    "fullEditor": "전체 편집기",
+    "noTemplateEntries": "템플릿 없는 항목",
+    "resides": "하위에 배치",
+    "resizeFill": "채운 영역 너비 조절",
+    "structure": "구조",
+    "templateCount": "템플릿 {{count}}개",
+    "templateStructure": "템플릿 구조",
+    "topLevel": "최상위",
+    "unusedTemplates": "사용하지 않는 템플릿"
   }
 }

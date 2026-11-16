@@ -1,5 +1,11 @@
 # M22：要素全景 Super View（`dr-view-element-overview`）
 
+## 内核 v5 T9
+
+岛屿和关系现在是左栏任一个 Tab 的铺满摆法，范围跟随 Tab。每个能收条目的下级可以是一座岛。关系保留现有图例、小卡、浮岛、Shift 连关系和拖动固定。下文的全窗入口及整书取范围属于旧版本。
+
+见[栏的铺满](k4-panel-fill.md)。
+
 `SuperView::Elements`（工作台快捷键 `⌘⌥4` / 切页器「要素全景」）在同一张全窗口画布上提供**「关系」**（默认）与**「群岛」**两种布局，直接建立在 canonical v3 书目模型（`Entry`、层级 `LevelSettings`、多归属 `Membership`、显式 `Relation` / `RelationType`、`EntryLayout::relation_graph` 与真实段落引用索引）之上。已按规范移除旧版扁平章节出现带，不引入任何书序轴或幕假设。
 
 ## 结构与职责划分

@@ -117,10 +117,10 @@ fn pick(
 }
 
 /// The first time a book opens on this device: where the book's parts
-/// live, the whole-window views, making things, the timeline, the Agent and
+/// live, making things, the timeline, the Agent and
 /// the way back to the book's home page. Each step points at the control
 /// itself.
-pub static WORKSPACE_TOUR: [Step; 6] = [
+pub static WORKSPACE_TOUR: [Step; 5] = [
     Step {
         id: "panels",
         targets: &[ids::LEFT_PANEL_TAB],
@@ -131,15 +131,6 @@ pub static WORKSPACE_TOUR: [Step; 6] = [
             targets: &[ids::LEFT_SIDEBAR_CLOSED_TOGGLE],
             body: w::panels::CLOSED_BODY,
         }),
-        shortcuts: &[],
-    },
-    Step {
-        id: "super-views",
-        targets: &[ids::SUPER_VIEW_ENTRY],
-        pick: Pick::First,
-        title: w::super_views::TITLE,
-        body: w::super_views::BODY,
-        fallback: None,
         shortcuts: &[],
     },
     Step {

@@ -52,7 +52,7 @@ actions!(
         /// Settings → 本地数据 「选择备份…」: replaces the library with a
         /// backup (M41, `dr-view-transfer` takes it).
         RestoreLibrary,
-        /// Esc: closes the topmost layer (a popover, Settings, a Super View).
+        /// Esc: closes the topmost layer (a popover, Settings, a panel fill).
         Dismiss,
     ]
 );

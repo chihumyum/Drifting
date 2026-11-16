@@ -781,11 +781,9 @@ settings.hosted.account_errors.PASSWORD_UNCHANGED
 settings.hosted.account_errors.INVALID_PASSWORD
 settings.hosted.account_errors.UNAUTHORIZED
 reviewPanel.newComment
-superElement.meta
 superElement.linkHintFrom
 superElement.linkHintTo
 superElement.reset
-superElement.layout.isles
 superElement.layout.relate
 superElement.relate.relayout
 superElement.manualRelationTitle

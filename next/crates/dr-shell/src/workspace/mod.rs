@@ -1,6 +1,6 @@
 //! The workspace window: three columns from the top edge to the bottom
 //! (docs/design-system/workspace.md), the tab dock on the paper's top edge,
-//! the Super View stage and Settings over everything.
+//! panel fills in the middle column, and Settings over it.
 //!
 //! [`Workspace`] owns the navigation model, both sidebars and which layers
 //! are open. Everything on screen is read from that state each frame; no
@@ -18,6 +18,7 @@ mod chrome;
 pub mod corner;
 mod dock;
 pub mod editors;
+mod fill;
 pub mod find;
 pub mod immersive;
 mod links;
@@ -30,7 +31,6 @@ mod sea;
 mod search;
 mod sidebar;
 mod stage;
-mod super_view;
 pub mod toast;
 mod undo;
 
@@ -57,8 +57,8 @@ use serde::{Deserialize, Serialize};
 use crate::actions::{
     CloseActiveTab, Dismiss, FindInEditor, GlobalSearch, GoBack, GoForward, NewEntity, NextTab,
     OpenSettings, PreviousTab, ReplaceInEditor, SendFeedback, ShowProjectHome,
-    ToggleBottomTimeline, ToggleElementOverview, ToggleImmersiveWriting, ToggleLeftSidebar,
-    ToggleNotifications, ToggleReviewMaterials, ToggleRightSidebar, ToggleStoryGraph,
+    ToggleBottomTimeline, ToggleImmersiveWriting, ToggleLeftSidebar, ToggleNotifications,
+    ToggleRightSidebar,
 };
 use crate::book::{self, Book};
 use crate::dialogs::{self, FollowUpNotice};
@@ -73,10 +73,10 @@ pub use bottom::{BottomLayout, BottomResize};
 pub use chrome::{LEADING_INSET, TITLEBAR_HEIGHT, TRAFFIC_LIGHT_POSITION, place_traffic_lights};
 pub use dock::DockDrag;
 pub use editors::PageEditor;
+pub use fill::FillPlace;
 pub use sea::{FIRST_RUN_DONE, SeaState};
 pub use sidebar::{LeftTab, RightTab, page_hover_card};
 pub use stage::EditorLook;
-pub use super_view::SuperView;
 
 /// The 0.1 client's default and minimum window sizes.
 pub const DEFAULT_SIZE: Size<gpui::Pixels> = size(px(1440.), px(900.));
@@ -357,6 +357,8 @@ pub struct BookLayout {
     /// The Bottom Panel: which pane, its height.
     #[serde(default)]
     pub bottom: BottomLayout,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub tab_fill_layouts: BTreeMap<String, crate::v3::tab_fill::FillLayout>,
 }
 
 /// Where [`Workspace::book_memory`] lives: F2's `local_state` (scope
@@ -378,7 +380,7 @@ pub enum Layer {
     /// M06's search panel.
     Search,
     Settings,
-    SuperView,
+    Fill,
 }
 
 pub struct Workspace {
@@ -413,9 +415,6 @@ pub struct Workspace {
     companion: std::cell::RefCell<HashMap<&'static str, Option<pages::LeftPanel>>>,
     /// The 素材库 tab a module draws, per pane slug (as the 帮手 tab).
     library_panel: std::cell::RefCell<HashMap<&'static str, Option<pages::LeftPanel>>>,
-    /// The Super Views' content modules draw, with the book each was made
-    /// for.
-    super_views: std::cell::RefCell<HashMap<SuperView, (String, Option<pages::SuperViewPage>)>>,
     /// The notice at the bottom of the window, and the timer that ends it.
     pub toast: Option<toast::Toast>,
     toast_timer: Option<Task<()>>,
@@ -479,7 +478,12 @@ pub struct Workspace {
     /// The chapter panel whose sort menu is open (its pane's slug).
     /// The page whose corner's ⋯ menu is open (its target key).
     pub corner_menu: Option<String>,
-    pub super_view: Option<SuperView>,
+    fill: fill::FillState,
+    tab_fill_layouts: BTreeMap<String, crate::v3::tab_fill::FillLayout>,
+    want_template_structure: bool,
+    want_quick_template: Option<String>,
+    pending_created_template: Option<(dr_model::id::EntryTemplateId, bool)>,
+    hovered_moon: Option<fill::MoonHalf>,
     pub settings: Option<Entity<SettingsPanel>>,
     /// M06's search panel, while open.
     pub search: Option<Entity<dr_view_search::SearchPanel>>,
@@ -601,7 +605,6 @@ impl Workspace {
             structure_undo: undo::StructureUndo::default(),
             companion: Default::default(),
             library_panel: Default::default(),
-            super_views: Default::default(),
             outline_rails: Default::default(),
             unchecked: Default::default(),
             caret_paragraph: None,
@@ -631,7 +634,12 @@ impl Workspace {
             folded: Default::default(),
             list_scroll: Default::default(),
             corner_menu: None,
-            super_view: None,
+            fill: Default::default(),
+            tab_fill_layouts: BTreeMap::new(),
+            want_template_structure: false,
+            want_quick_template: None,
+            pending_created_template: None,
+            hovered_moon: None,
             settings: None,
             search: None,
             composer: None,
@@ -702,6 +710,15 @@ impl Workspace {
                 BTreeMap::new(),
             ),
         };
+        self.fill.reset();
+        self.pending_created_template = None;
+        self.want_quick_template = None;
+        self.hovered_moon = None;
+        self.want_template_structure = false;
+        self.tab_fill_layouts = saved
+            .as_ref()
+            .map(|layout| layout.tab_fill_layouts.clone())
+            .unwrap_or_default();
         self.bottom.layout = saved.map(|l| l.bottom).unwrap_or_default();
         self.bottom.forget();
         self.read_book_memory(cx);
@@ -816,6 +833,7 @@ impl Workspace {
                     if !same_revision {
                         self.book = Rc::new(book);
                     }
+                    self.show_created_template(cx);
                     self.sync_active_book();
                     self.retitle_editors(cx);
                     // A template's working copy is never the project the
@@ -1146,7 +1164,7 @@ impl Workspace {
         self.set_immersive(false, cx);
         self.projects_open = false;
         self.shelf_open = true;
-        self.super_view = None;
+        self.exit_fill(window, cx);
         self.notifications_open = false;
         self.sync_active_book();
         crate::sync::notify_holder_released(cx);
@@ -1158,6 +1176,7 @@ impl Workspace {
     /// Drops 全部项目's row of projects from the top of the workspace, or puts
     /// it away. Without one registered, 全部项目 itself shows.
     pub fn toggle_projects(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.exit_fill(window, cx);
         if self.projects_open {
             self.projects_open = false;
             cx.notify();
@@ -1196,7 +1215,7 @@ impl Workspace {
         self.shelf_open = false;
         self.projects_open = false;
         self.notifications_open = false;
-        self.super_view = None;
+        self.exit_fill(window, cx);
         self.focus.focus(window, cx);
         if book != self.book_id || self.book.is_empty() {
             self.store_layout(cx);
@@ -1274,7 +1293,12 @@ impl Workspace {
         self.v3_home = None;
         self.companion.borrow_mut().clear();
         self.library_panel.borrow_mut().clear();
-        self.super_views.borrow_mut().clear();
+        self.fill.reset();
+        self.pending_created_template = None;
+        self.want_quick_template = None;
+        self.hovered_moon = None;
+        self.tab_fill_layouts.clear();
+        self.want_template_structure = false;
         self.bottom.forget();
         self.modules.clear();
         self.modules_for = None;
@@ -1353,6 +1377,7 @@ impl Workspace {
             outline_hidden: self.outline_hidden,
             book_positions: self.book_positions.clone(),
             bottom: self.bottom.layout.clone(),
+            tab_fill_layouts: self.tab_fill_layouts.clone(),
         }
     }
 
@@ -1466,6 +1491,11 @@ impl Workspace {
     // Navigation.
 
     pub fn open(&mut self, target: Target, how: Open, cx: &mut Context<Self>) {
+        self.exit_fill_in_cx(cx);
+        self.open_page(target, how, cx);
+    }
+
+    fn open_page(&mut self, target: Target, how: Open, cx: &mut Context<Self>) {
         if how.title {
             self.title_first = Some(target.key());
         }
@@ -1499,23 +1529,19 @@ impl Workspace {
     // Sidebars.
 
     pub fn toggle_left(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let reduce = self.reduce_motion(window, cx);
-        self.left.set_open(!self.left.open, reduce);
-        self.changed(cx);
+        self.click_crescent(sidebar::Side::Left, window, cx);
     }
 
     pub fn toggle_right(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let reduce = self.reduce_motion(window, cx);
-        self.right.set_open(!self.right.open, reduce);
-        self.changed(cx);
+        self.click_crescent(sidebar::Side::Right, window, cx);
     }
 
     // Layers.
 
-    /// Settings, a Super View or a dialog covers the workspace: nothing
+    /// Settings, the shelf or a dialog covers the workspace: nothing
     /// under it answers the keyboard (the 0.1 client made it `inert`).
     pub fn covered(&self) -> bool {
-        self.settings.is_some() || self.super_view.is_some() || self.shelf_open || self.modal()
+        self.settings.is_some() || self.shelf_open || self.modal()
     }
 
     /// A modal dialog is open (another crate's, or M09's snapshot history):
@@ -1556,8 +1582,8 @@ impl Workspace {
             Some(Layer::Search)
         } else if self.settings.is_some() {
             Some(Layer::Settings)
-        } else if self.super_view.is_some() {
-            Some(Layer::SuperView)
+        } else if self.filled().is_some() {
+            Some(Layer::Fill)
         } else {
             None
         }
@@ -1582,8 +1608,8 @@ impl Workspace {
                 crate::settings::panel_closed(window.window_handle().window_id(), cx);
                 self.refocus(window, cx);
             }
-            Some(Layer::SuperView) => {
-                self.super_view = None;
+            Some(Layer::Fill) => {
+                self.exit_fill(window, cx);
                 self.refocus(window, cx);
             }
             None => return false,
@@ -1616,18 +1642,6 @@ impl Workspace {
         cx.notify();
     }
 
-    pub fn toggle_super_view(&mut self, view: SuperView, cx: &mut Context<Self>) {
-        self.notifications_open = false;
-        // A Super View ends immersive writing (M26).
-        self.set_immersive(false, cx);
-        self.super_view = if self.super_view == Some(view) {
-            None
-        } else {
-            Some(view)
-        };
-        cx.notify();
-    }
-
     fn on_actions(
         &self,
         el: gpui::Stateful<gpui::Div>,
@@ -1644,10 +1658,9 @@ impl Workspace {
         .on_action(
             cx.listener(|ws, _: &ToggleRightSidebar, window, cx| ws.toggle_right(window, cx)),
         )
-        .on_action(cx.listener(|ws, _: &GoBack, _, cx| {
-            // Back closes a Super View first, as in the 0.1 client.
-            if ws.super_view.take().is_some() {
-                cx.notify();
+        .on_action(cx.listener(|ws, _: &GoBack, window, cx| {
+            if ws.exit_fill(window, cx) {
+                ws.refocus(window, cx);
             } else if ws.nav.back() {
                 ws.changed(cx);
             }
@@ -1658,8 +1671,7 @@ impl Workspace {
             }
         }))
         .on_action(cx.listener(|ws, _: &PreviousTab, _, cx| {
-            // Settings or a Super View covers the workspace.
-            if ws.covered() {
+            if ws.covered() || ws.fill_covers_paper() {
                 return;
             }
             if ws.nav.cycle(-1) {
@@ -1667,8 +1679,7 @@ impl Workspace {
             }
         }))
         .on_action(cx.listener(|ws, _: &NextTab, _, cx| {
-            // Settings or a Super View covers the workspace.
-            if ws.covered() {
+            if ws.covered() || ws.fill_covers_paper() {
                 return;
             }
             if ws.nav.cycle(1) {
@@ -1676,33 +1687,23 @@ impl Workspace {
             }
         }))
         .on_action(cx.listener(|ws, _: &CloseActiveTab, _, cx| {
-            // Settings or a Super View covers the workspace.
-            if ws.covered() {
+            if ws.covered() || ws.fill_covers_paper() {
                 return;
             }
             if ws.nav.close_active() {
                 ws.changed(cx);
             }
         }))
-        .on_action(cx.listener(|ws, _: &NewEntity, _, cx| {
-            ws.super_view = None;
+        .on_action(cx.listener(|ws, _: &NewEntity, window, cx| {
+            ws.exit_fill(window, cx);
             if ws.nav.go_home() {
                 ws.changed(cx);
             }
         }))
-        .on_action(cx.listener(|ws, _: &ShowProjectHome, _, cx| {
-            ws.super_view = None;
+        .on_action(cx.listener(|ws, _: &ShowProjectHome, window, cx| {
+            ws.exit_fill(window, cx);
             ws.nav.go_home();
             ws.changed(cx);
-        }))
-        .on_action(cx.listener(|ws, _: &ToggleStoryGraph, _, cx| {
-            ws.toggle_super_view(SuperView::StoryGraph, cx)
-        }))
-        .on_action(cx.listener(|ws, _: &ToggleElementOverview, _, cx| {
-            ws.toggle_super_view(SuperView::Elements, cx)
-        }))
-        .on_action(cx.listener(|ws, _: &ToggleReviewMaterials, _, cx| {
-            ws.toggle_super_view(SuperView::ReviewMaterials, cx)
         }))
         .on_action(cx.listener(|ws, _: &ToggleNotifications, _, cx| {
             ws.notifications_open = !ws.notifications_open;
@@ -1768,6 +1769,9 @@ impl Render for Workspace {
         let viewport = window.viewport_size();
         let window_w = f32::from(viewport.width);
         self.fit_sidebars(window_w, window, cx);
+        if self.is_filled(FillPlace::Right) && !self.right_can_fill() {
+            self.exit_fill(window, cx);
+        }
         self.ensure_pages(window, cx);
         // M24: while a full-window wait holds the sea, only the sea shows
         // (the page in front gets ready under it).
@@ -1805,9 +1809,7 @@ impl Render for Workspace {
             .child(mid)
             .children(right);
 
-        let stage = self
-            .super_view
-            .map(|view| super_view::stage(self, view, window, cx));
+        let dock = (!immersive || self.immersion.top).then(|| dock::dock(self, window, cx));
         let root = div()
             .id("workspace")
             .key_context(keymap::WORKSPACE)
@@ -1838,11 +1840,11 @@ impl Render for Workspace {
             }))
             .children(Self::backdrop(window, cx))
             .child(row)
+            .children(dock)
             .children(self.projects_layer(window, cx))
             .when(!immersive, |el| {
                 el.child(chrome::sidebar_toggles(self, window, cx))
             })
-            .children(stage)
             .when_some(self.settings.clone(), |el, panel| el.child(panel))
             .when_some(self.search.clone(), |el, panel| el.child(panel))
             .children(self.composer_overlay())
@@ -1856,7 +1858,7 @@ impl Render for Workspace {
             .when(self.account_open && !self.immersive, |el| {
                 el.child(sidebar::account_menu(self, window, cx))
             })
-            .children(self.guide_layer(self.super_view.is_some(), window, cx))
+            .children(self.guide_layer(self.filled().is_some(), window, cx))
             .children(crate::release::curtain(window, cx));
         let root = self.on_actions(root, cx);
         glass::surface(Ground::flat(p.desk), root).into_any_element()
@@ -1872,7 +1874,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Option<gpui::AnyElement> {
-        if !self.projects_open || self.immersive || self.super_view.is_some() {
+        if !self.projects_open || self.immersive {
             return None;
         }
         let view = self.projects.clone()?;

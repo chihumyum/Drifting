@@ -533,6 +533,14 @@ pub mod v3 {
             from_host: String,
             to_host: String,
         },
+        DetachMembership {
+            host: String,
+        },
+        ReorderMembership {
+            host: String,
+            anchor: String,
+            after: bool,
+        },
     }
 
     /// Resolve a UI drop slot against `onto`, distinguishing same-folder
@@ -569,33 +577,52 @@ pub mod v3 {
         }
     }
 
-    /// Resolves dragging a hung row (`from_host`) onto `onto` in the left tree
-    /// (`W31Hung`, `v5-tracks.md` T9.1): moves the hang from `from_host` to
-    /// `onto` when `onto` accepts members, leaving residence untouched;
-    /// dropping onto a non-accepting entry, the same host, or the entry's own
-    /// residence parent is refused.
+    /// Resolves a hung row without a residence write. The home row takes
+    /// its hang off, another row in the group changes the order, and other
+    /// accepting entries gain a moved or copied hang.
     pub fn resolve_hung_drop(
         book: &Book,
         entry: &str,
         from_host: &str,
         onto: &str,
+        onto_host: Option<&str>,
+        slot: DropSlot,
+        attach: bool,
     ) -> Option<Drop> {
         if entry == onto || from_host == onto {
             return None;
         }
         let v = book.v3()?;
-        if !v.accepts_members(onto) {
+        if !v
+            .memberships
+            .iter()
+            .any(|m| m.host == from_host && m.member == entry)
+        {
             return None;
+        }
+        if onto_host == Some(from_host) {
+            return match slot {
+                DropSlot::Before | DropSlot::After => Some(Drop::ReorderMembership {
+                    host: from_host.into(),
+                    anchor: onto.into(),
+                    after: slot == DropSlot::After,
+                }),
+                DropSlot::Into => None,
+            };
         }
         let graph = Graph::of(book)?;
         let id = entry.parse().ok()?;
         let target = onto.parse().ok()?;
-        v.entry(entry)?;
-        let source_parent = model::effective_parent_id(graph.entries.get(&id)?, &graph.entries);
-        if source_parent.as_ref() == Some(&target) {
-            return None;
+        let parent = model::effective_parent_id(graph.entries.get(&id)?, &graph.entries);
+        if parent.as_ref() == Some(&target) {
+            return Some(Drop::DetachMembership {
+                host: from_host.into(),
+            });
         }
         model::check_membership(&target, &id, &graph.entries, &graph.templates).ok()?;
+        if attach {
+            return Some(Drop::Membership { host: onto.into() });
+        }
         Some(Drop::MoveMembership {
             from_host: from_host.into(),
             to_host: onto.into(),
@@ -736,21 +763,47 @@ pub mod v3 {
             Drop::Membership { host } => {
                 prepare(book, "membership.add", json!({"member":entry,"host":host}))
             }
-            Drop::MoveMembership { to_host, .. } => prepare(
+            Drop::MoveMembership { from_host, to_host } => prepare(
                 book,
                 "membership.add",
-                json!({"member":entry,"host":to_host}),
+                json!({"member":entry,"host":to_host,"from_host":from_host}),
+            ),
+            Drop::DetachMembership { host } => prepare(
+                book,
+                "membership.remove",
+                json!({"member":entry,"host":host}),
+            ),
+            Drop::ReorderMembership {
+                host,
+                anchor,
+                after,
+            } => prepare(
+                book,
+                "membership.add",
+                json!({"member":entry,"host":host, "order":{"anchor":anchor,"after":after}}),
             ),
         }?;
-        if let Drop::MoveMembership { from_host, .. } = &target
-            && let Some(pre) = v.shown_precondition(&RecordKey::membership(from_host, entry))
-            && !edit
-                .preconditions
-                .records
-                .iter()
-                .any(|r| !r.if_replaced && r.key == pre.key)
-        {
-            edit.preconditions.records.push(pre);
+        let membership_guards = match &target {
+            Drop::MoveMembership { from_host, .. } => vec![RecordKey::membership(from_host, entry)],
+            Drop::DetachMembership { host } => vec![RecordKey::membership(host, entry)],
+            Drop::ReorderMembership { host, anchor, .. } => {
+                let mut keys = vec![
+                    RecordKey::membership(host, entry),
+                    RecordKey::membership(host, anchor),
+                ];
+                if let Some(view) = v.ordering_view(host) {
+                    keys.push(
+                        RecordKey::timeline_view(&view.id).at(["placements", anchor.as_str()]),
+                    );
+                }
+                keys
+            }
+            _ => Vec::new(),
+        };
+        for key in membership_guards {
+            if let Some(pre) = v.shown_precondition(&key) {
+                edit.preconditions.records.push(pre);
+            }
         }
         if let Drop::Residence {
             parent,
@@ -845,27 +898,13 @@ pub mod v3 {
         }
         pub fn commit(mut self, lib: &Workspace) -> Result<Value, WsError> {
             self.resolve_index(lib)?;
-            let book = self.edit.input["book"].clone();
-            let moving = self.moving.clone();
-            let remove_from = match &self.target {
-                Drop::MoveMembership { from_host, .. } => Some(from_host.clone()),
-                _ => None,
-            };
-            let out = self.edit.commit(lib)?;
-            if let Some(from_host) = remove_from {
-                lib.call(
-                    &Actor::User,
-                    "membership.remove",
-                    json!({ "book": book, "host": from_host, "member": moving }),
-                )?;
-            }
-            Ok(out)
+            self.edit.commit(lib)
         }
         pub fn commit_if_changed(mut self, lib: &Workspace) -> Result<Option<Value>, WsError> {
             if !self.resolve_index(lib)? {
                 return Ok(None);
             }
-            self.commit(lib).map(Some)
+            self.edit.commit(lib).map(Some)
         }
     }
     pub fn prepare_board(

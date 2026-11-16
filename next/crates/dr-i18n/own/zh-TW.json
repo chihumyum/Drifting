@@ -438,10 +438,19 @@
     "viewMasonry": "瀑布流"
   },
   "v5Fill": {
+    "attached": "掛在上方",
     "exitFill": "退出鋪滿",
     "fill": "鋪滿",
     "fillLeft": "鋪滿左欄",
     "fillRight": "鋪滿右欄",
-    "resizeFill": "拖動調整鋪滿區域寬度"
+    "fullEditor": "完整編輯",
+    "noTemplateEntries": "沒有範本的條目",
+    "resides": "住在下方",
+    "resizeFill": "拖動調整鋪滿區域寬度",
+    "structure": "結構",
+    "templateCount": "{{count}} 個範本",
+    "templateStructure": "範本結構",
+    "topLevel": "最外層",
+    "unusedTemplates": "未使用的範本"
   }
 }

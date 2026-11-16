@@ -1,6 +1,6 @@
 use super::interaction::{PinDrag, PinEdit, Resizing};
 use super::*;
-use dr_shell::book::color_of;
+use dr_shell::{book::color_of, workspace::FillPlace};
 use dr_ui::{
     Theme,
     components::{
@@ -59,6 +59,11 @@ impl Timeline {
                     })),
             );
         }
+        let filled = self
+            .ws
+            .upgrade()
+            .is_some_and(|ws| ws.read(cx).is_filled(FillPlace::Bottom));
+        let workspace = self.ws.clone();
         row.child(
             PanelIconButton::new("v3-timeline-new", Icon::Plus)
                 .label(t(cx, keys::v3_timeline::NEW_VIEW))
@@ -87,6 +92,28 @@ impl Timeline {
                 ),
             )
         })
+        .child(
+            PanelIconButton::new(
+                "v3-timeline-fill",
+                if filled {
+                    Icon::WindowRestore
+                } else {
+                    Icon::Fullscreen
+                },
+            )
+            .label(t(
+                cx,
+                if filled {
+                    keys::v5_fill::EXIT_FILL
+                } else {
+                    keys::v5_fill::FILL
+                },
+            ))
+            .on_click(move |_, window, cx| {
+                let _ =
+                    workspace.update(cx, |ws, cx| ws.toggle_fill(FillPlace::Bottom, window, cx));
+            }),
+        )
         .into_any_element()
     }
 

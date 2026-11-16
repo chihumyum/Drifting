@@ -452,10 +452,19 @@
     "viewMasonry": "Mosaico"
   },
   "v5Fill": {
+    "attached": "Vinculado a",
     "exitFill": "Sair do preenchimento",
     "fill": "Preencher",
     "fillLeft": "Preencher barra esquerda",
     "fillRight": "Preencher barra direita",
-    "resizeFill": "Ajustar largura da área preenchida"
+    "fullEditor": "Editor completo",
+    "noTemplateEntries": "Entradas sem modelo",
+    "resides": "Dentro de",
+    "resizeFill": "Ajustar largura da área preenchida",
+    "structure": "Estrutura",
+    "templateCount": "{{count}} modelos",
+    "templateStructure": "Estrutura dos modelos",
+    "topLevel": "No nível superior",
+    "unusedTemplates": "Modelos não usados"
   }
 }
