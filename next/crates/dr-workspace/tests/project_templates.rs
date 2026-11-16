@@ -125,7 +125,7 @@ fn builtin_novel_project_round_trips_through_saved_template() {
         proj_a["source"],
         json!({
             "id": "builtin:novel",
-            "version": 4,
+            "version": 5,
             "origin": "builtin",
             "name": "写书"
         })

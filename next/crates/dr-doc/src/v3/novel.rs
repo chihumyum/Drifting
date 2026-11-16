@@ -22,9 +22,9 @@ use crate::v3::write::BookTxnV3;
 
 pub const NOVEL_PROJECT_TEMPLATE_ID: &str = "builtin:novel";
 pub const NOVEL_PROJECT_TEMPLATE_NAME: &str = "写书";
-/// `4`: the tabs are 「全部」, 书稿, 构想, 要素, 故事线 and carry no names
-/// (2026-11-15); `3`: format 5, no 「素材」 root.
-pub const NOVEL_PROJECT_TEMPLATE_VERSION: i64 = 4;
+/// `5`: relations are project-wide. The old entry module is gone and its
+/// guidance lives in the project. `4`: the five unnamed project tabs.
+pub const NOVEL_PROJECT_TEMPLATE_VERSION: i64 = 5;
 
 /// Provenance recorded in `project.source` when creating a project from the
 /// built-in writing project template (`project-templates.md` §8).
