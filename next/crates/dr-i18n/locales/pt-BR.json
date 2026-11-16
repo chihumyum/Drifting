@@ -235,12 +235,6 @@
     "wordsCount": "{{count}} palavras"
   },
   "dashboard": {
-    "hero": {
-      "projectName": "Nome do projeto"
-    },
-    "sections": {
-      "projectProfile": "Apresentação do projeto"
-    },
     "today": {
       "streak": "Sequência",
       "week": "Esta semana"
@@ -714,6 +708,12 @@
       }
     },
     "kicker": "Início do projeto",
+    "projectTemplate": {
+      "fromTemplate": "De “{{name}}”",
+      "saveAs": "Salvar como modelo de projeto",
+      "source": "Origem",
+      "title": "Modelo de projeto"
+    },
     "settings": {
       "dailyGoal": "Meta diária",
       "proactive": "Sugestões proativas",
@@ -721,9 +721,6 @@
     },
     "today": "Hoje {{today}} / {{goal}} · sequência de {{streak}} dias",
     "todayNoGoal": "Hoje {{today}} · sequência de {{streak}} dias",
-    "views": {
-      "settings": "Configurações"
-    },
     "words": "{{words}} palavras",
     "wordsOfTarget": "{{words}} / {{target}} palavras"
   },

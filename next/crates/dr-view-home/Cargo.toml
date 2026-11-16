@@ -33,6 +33,7 @@ png = { workspace = true, optional = true }
 serde_json.workspace = true
 
 [dev-dependencies]
+dr-agent-tools.workspace = true
 dr-testkit.workspace = true
 dr-view-sea.workspace = true
 dr-view-shelf-art.workspace = true

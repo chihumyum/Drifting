@@ -428,26 +428,29 @@ fn home_settings_save_word_targets_across_home_stats_and_shelf(cx: &mut TestAppC
         home.read_with(cx, |h, _| h.loaded.is_some())
     });
 
-    let dialog = cx.update(|window, cx| {
-        home.update(cx, |h, cx| {
-            h.ask_settings(window, cx).expect("settings dialog")
-        })
+    assert!(ws.read_with(cx, |ws, _| ws.dialog.is_none()));
+    let (goal, daily) = home.read_with(cx, |h, _| {
+        (
+            h.word_target_input().clone(),
+            h.daily_word_target_input().clone(),
+        )
     });
-    assert!(ws.read_with(cx, |ws, _| ws.dialog.is_some()));
-
-    let (goal, daily) = dialog.read_with(cx, |d, _| (d.goal.clone(), d.daily.clone()));
     cx.update(|_, cx| {
         goal.update(cx, |f, cx| f.set_text("80000", cx));
         daily.update(cx, |f, cx| f.set_text("1500", cx));
-        dialog.update(cx, |d, cx| d.save(cx));
+        home.update(cx, |h, cx| {
+            h.store_word_target(cx);
+            h.store_daily_word_target(cx);
+        });
     });
 
     wait(cx, "updated word targets reach Home", |cx| {
         ws.read_with(cx, |ws, _| ws.dialog.is_none())
             && home.read_with(cx, |h, _| {
-                h.loaded.as_ref().is_some_and(|d| {
-                    d.word_target == Some(80_000) && d.daily_word_target == Some(1_500)
-                })
+                !h.is_saving()
+                    && h.loaded.as_ref().is_some_and(|d| {
+                        d.word_target == Some(80_000) && d.daily_word_target == Some(1_500)
+                    })
             })
     });
 

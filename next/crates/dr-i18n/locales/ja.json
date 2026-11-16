@@ -233,12 +233,6 @@
     "wordsCount": "{{count}}文字"
   },
   "dashboard": {
-    "hero": {
-      "projectName": "作品名"
-    },
-    "sections": {
-      "projectProfile": "作品紹介"
-    },
     "today": {
       "streak": "連続執筆",
       "week": "今週"
@@ -702,6 +696,12 @@
       }
     },
     "kicker": "作品ホーム",
+    "projectTemplate": {
+      "fromTemplate": "「{{name}}」から",
+      "saveAs": "プロジェクトテンプレートとして保存",
+      "source": "元のテンプレート",
+      "title": "プロジェクトテンプレート"
+    },
     "settings": {
       "dailyGoal": "1日の目標",
       "proactive": "プロアクティブな提案",
@@ -709,9 +709,6 @@
     },
     "today": "今日 {{today}} / {{goal}} · {{streak}}日連続",
     "todayNoGoal": "今日 {{today}} · {{streak}}日連続",
-    "views": {
-      "settings": "設定"
-    },
     "words": "{{words}}語",
     "wordsOfTarget": "{{words}} / {{target}}語"
   },

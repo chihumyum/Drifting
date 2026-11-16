@@ -231,12 +231,6 @@
     "wordsCount": "{{count}} 字"
   },
   "dashboard": {
-    "hero": {
-      "projectName": "项目名称"
-    },
-    "sections": {
-      "projectProfile": "本书简介"
-    },
     "today": {
       "streak": "连续写作",
       "week": "本周"
@@ -699,6 +693,12 @@
       }
     },
     "kicker": "作品主页",
+    "projectTemplate": {
+      "fromTemplate": "来自「{{name}}」",
+      "saveAs": "另存为项目模板",
+      "source": "来源",
+      "title": "项目模板"
+    },
     "settings": {
       "dailyGoal": "每日目标",
       "proactive": "主动建议",
@@ -706,9 +706,6 @@
     },
     "today": "今日 {{today}} / {{goal}} · 连续 {{streak}} 天",
     "todayNoGoal": "今日 {{today}} · 连续 {{streak}} 天",
-    "views": {
-      "settings": "设定"
-    },
     "words": "{{words}} 字",
     "wordsOfTarget": "{{words}} / {{target}} 字"
   },
