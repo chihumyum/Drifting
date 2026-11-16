@@ -282,7 +282,7 @@ pub(super) fn import(
         ws.call(
             &Actor::Mirror,
             "module.prose_document",
-            serde_json::json!({"book":book,"entry":id.entry(),"module":id.module()}),
+            serde_json::json!({"book":book,"owner":id.entry(),"module":id.module()}),
         )?;
     }
     let handle = ws.library().open_doc(&key, OpenDoc::Existing)?;

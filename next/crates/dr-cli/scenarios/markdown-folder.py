@@ -114,7 +114,7 @@ def smoke(args, profile, data):
         show_book()
         book = app("state.get")["book"]["id"]
         entries = command("entry.list", book=book, all=True)
-        entry = next(row["id"] for row in entries if row["template"] == "tpl-chapter")
+        entry = next(row["id"] for row in entries if row["title"] == "第四章 第一张单子")
         target = f"entry:{entry}/mod-prose"
         original = command("prose.read", doc=f"body:{entry}/mod-prose")["paragraphs"][0]["text"]
 

@@ -169,6 +169,39 @@ fn editing_then_moving_a_markdown_file_keeps_the_prose_and_puts_the_file_back() 
 }
 
 #[test]
+fn writing_the_reserved_file_initializes_an_empty_level_prose_module() {
+    let f = Fixture::new(Preset::Tiny);
+    let entry = novel_entry(&f.ws, f.book.as_str(), "tpl-group", "卷首", None);
+    let owner = entry["id"].as_str().unwrap();
+    let doc = format!("body:{owner}/extra-prose");
+    f.call(
+        "entry_template.put_module",
+        json!({"book":f.book,"template":"tpl-group","module":{
+            "id":"extra-prose","kind":"prose","name":"续记"
+        }}),
+    );
+    f.pass().book(&f.book).unwrap();
+    let root = f.pass().folder(&f.book).unwrap().unwrap();
+    let level = fs::read_dir(&root)
+        .unwrap()
+        .filter_map(|p| p.ok())
+        .map(|p| p.path().join("卷首"))
+        .find(|p| p.is_dir())
+        .unwrap();
+    let path = level.join("卷首 · 续记.md");
+    assert!(!path.exists());
+    assert!(f.ws.library().doc_info(&doc).unwrap().is_none());
+    fs::write(&path, "她把记事本翻到最后一页。\n").unwrap();
+    assert_eq!(f.pass().book(&f.book).unwrap().merged, [doc.clone()]);
+    assert_eq!(f.texts(&doc), ["她把记事本翻到最后一页。"]);
+    assert!(
+        fs::read_to_string(path)
+            .unwrap()
+            .contains(&format!("drifting-id: {owner}/extra-prose"))
+    );
+}
+
+#[test]
 fn a_file_cannot_switch_project_or_entry_by_changing_its_identity() {
     let f = Fixture::new(Preset::Tiny);
     let (first, first_doc) = f.chapter("甲文件", "甲写的字。");
