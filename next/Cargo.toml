@@ -360,7 +360,14 @@ calloop = { git = "https://github.com/zed-industries/calloop", rev = "3759371fee
 windows-capture = { git = "https://github.com/zed-industries/windows-capture.git", rev = "f0d6c1b6691db75461b732f6d5ff56eed002eeb9" }
 
 [profile.dev]
-# GPUI is slow unoptimized; keep our own crates debuggable.
+# Line tables only: panics, backtraces and breakpoints keep file and line,
+# but a debugger cannot show variables. Measured 2026-11-17 on macOS, a
+# clean `cargo test --workspace --no-run` took 36 GB and 18 min this way,
+# 49 GB and 28 min with full debug info. For one build with variables:
+# CARGO_PROFILE_DEV_DEBUG=true cargo build -p drifting
+debug = "line-tables-only"
+
+# GPUI is slow unoptimized; keep our own crates unoptimized for stepping.
 [profile.dev.package."*"]
 opt-level = 2
 

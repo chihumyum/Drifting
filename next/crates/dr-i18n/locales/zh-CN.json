@@ -569,9 +569,6 @@
     "notice": {
       "source": "公告"
     },
-    "organize": {
-      "source": "Agent"
-    },
     "remove": "移除",
     "shareComments": {
       "source": "读者评论"
@@ -615,6 +612,14 @@
   "preAlphaGuide": {
     "crashReports": "应用会自动发送不含正文的故障报告，方便排查问题；可以在 设置 → 隐私 中关闭。",
     "title": "欢迎使用 Drifting Alpha"
+  },
+  "projectAgent": {
+    "checkinFailed": "没能看完最近的改动：{{error}}",
+    "checkinRunning": "Agent 正在看你最近的改动……",
+    "dismiss": "忽略",
+    "openConversation": "查看对话",
+    "start": "交给 Agent",
+    "startFailed": "没能开始：{{error}}"
   },
   "projectHome": {
     "book": {

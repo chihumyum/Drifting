@@ -202,6 +202,7 @@ pub struct Home {
     stale: bool,
     error: bool,
     pub(crate) inline: crate::project_template::InlineState,
+    pub(crate) agent_cards: crate::agent_cards::HomeAgentCards,
     _events: Option<dr_workspace::Subscription>,
     _live: Vec<Subscription>,
 }
@@ -291,6 +292,7 @@ impl Home {
             stale: false,
             error: false,
             inline,
+            agent_cards: Default::default(),
             _events: None,
             _live: live,
         };
@@ -682,6 +684,10 @@ impl Render for Home {
                     }),
                 );
             }
+        }
+        // HC: the Agent's suggestion cards, below 继续写 (`agent_cards.rs`).
+        if let Some(cards) = self.agent_cards(window, cx) {
+            column = column.child(cards);
         }
         let mut creations = div().flex().flex_wrap().gap(px(12.0));
         let all = actions(&book);

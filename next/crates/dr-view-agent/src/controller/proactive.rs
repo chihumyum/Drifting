@@ -160,8 +160,9 @@ impl AgentController {
         })
     }
 
-    /// Called on Home open/focus and after successful organize settlement.
-    /// Reservation occurs now; view cancellation cannot orphan the worker.
+    /// Called when Project Home comes to the front or the window comes back
+    /// with it in front (HC). Reservation occurs now; view cancellation
+    /// cannot orphan the worker.
     pub fn trigger_suggestions(
         &self,
         book: BookId,
@@ -280,6 +281,9 @@ impl AgentController {
             else {
                 return Ok(());
             };
+            // Views re-read the state: a check-in is under way (Project
+            // Home's 「Agent 正在看你最近的改动……」, HC).
+            job.controller.inner.notify();
             let result = futures::executor::block_on(run_checkin_with_guidance(
                 job.lease.resources().driver.clone(),
                 CheckinInput {

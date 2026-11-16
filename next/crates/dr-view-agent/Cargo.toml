@@ -36,6 +36,7 @@ uuid.workspace = true
 dr-debug-bridge = { workspace = true, features = ["screenshot"] }
 dr-editor.workspace = true
 dr-testkit.workspace = true
+dr-view-home.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
 gpui-prose.workspace = true
 gpui_platform.workspace = true

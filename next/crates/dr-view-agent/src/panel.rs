@@ -51,7 +51,8 @@ use crate::{
 
 mod continuity;
 
-const MEMORY: &str = "agent.conversation";
+/// The conversation a book's Agent panel shows (the workspace's book memory).
+pub(crate) const MEMORY: &str = "agent.conversation";
 
 struct Navigation {
     /// Dropping this ticket cancels the view-owned wait, independently of
@@ -189,13 +190,6 @@ impl AgentPanel {
         })
         .detach();
         panel
-            ._subs
-            .push(cx.observe_window_activation(window, |panel, window, cx| {
-                if window.is_window_active() {
-                    panel.trigger_suggestions(cx);
-                }
-            }));
-        panel
     }
 
     fn follow(&mut self, cx: &mut Context<Self>) {
@@ -273,7 +267,6 @@ impl AgentPanel {
         self.composer.update(cx, |field, cx| field.set_text("", cx));
         self.invalidate();
         self.refresh(cx);
-        self.trigger_suggestions(cx);
     }
 
     fn bind_controller(&mut self, cx: &mut Context<Self>) {
@@ -296,7 +289,6 @@ impl AgentPanel {
             }));
         }
         self.refresh(cx);
-        self.trigger_suggestions(cx);
         cx.notify();
     }
 
@@ -347,9 +339,7 @@ impl AgentPanel {
                         .map(|r| controller.task_view(&r.session))
                         .transpose()?
                         .flatten();
-                    let suggestions =
-                        controller.suggestions(&book, chrono::Utc::now().timestamp_millis())?;
-                    Ok::<_, String>((list, snapshot, starters, task, suggestions))
+                    Ok::<_, String>((list, snapshot, starters, task))
                 })
                 .await;
             let _ = this.update(cx, |panel, cx| {
@@ -358,9 +348,8 @@ impl AgentPanel {
                 }
                 panel.loading = false;
                 match result {
-                    Ok((list, snapshot, starters, task, suggestions)) => {
+                    Ok((list, snapshot, starters, task)) => {
                         panel.continuity.task = task;
-                        panel.continuity.suggestions = Some(suggestions);
                         if let Some(ws) = panel
                             .ws
                             .upgrade()
@@ -443,6 +432,20 @@ impl AgentPanel {
         self.remember(cx);
         self.refresh(cx);
         cx.notify();
+    }
+
+    /// HC: a suggestion card on Project Home opened `id` in `book` of the
+    /// workspace `ws`; a panel of that workspace showing that book shows it.
+    pub(crate) fn show_card_conversation(
+        &mut self,
+        ws: &WeakEntity<Workspace>,
+        book: &BookId,
+        id: ConversationId,
+        cx: &mut Context<Self>,
+    ) {
+        if self.ws.entity_id() == ws.entity_id() && self.book.as_ref() == Some(book) {
+            self.select_conversation(id, cx);
+        }
     }
 
     pub fn return_to_review(&self) -> Option<&ReturnToReview> {
@@ -1407,7 +1410,6 @@ impl Render for AgentPanel {
                 );
             }
         } else if empty {
-            content = content.child(self.suggestion_cards(cx));
             match onboarding::resolve_view(
                 onboarding::step(cx),
                 self.connections.read(cx).usable(),

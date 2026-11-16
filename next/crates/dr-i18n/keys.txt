@@ -32,7 +32,6 @@ notifications.time.hoursAgo
 notifications.time.daysAgo
 notifications.cloudSync.source
 notifications.shareComments.source
-notifications.organize.source
 notifications.markdownFolder.source
 notifications.appUpdate.source
 notifications.appUpdate.available
@@ -669,6 +668,13 @@ agentPanel.workingMemory.updated
 agentPanel.budget.continue
 agentPanel.slice.paused
 projectHome.settings.proactive
+# HC: the suggestion cards on Project Home
+projectAgent.checkinRunning
+projectAgent.checkinFailed
+projectAgent.start
+projectAgent.openConversation
+projectAgent.startFailed
+projectAgent.dismiss
 settings.groups.account
 settings.rail.account
 userMenu.accountMenu

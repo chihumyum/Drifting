@@ -582,9 +582,6 @@
     "notice": {
       "source": "Aviso"
     },
-    "organize": {
-      "source": "Agent"
-    },
     "remove": "Remover",
     "shareComments": {
       "source": "Comentário de leitor"
@@ -628,6 +625,14 @@
   "preAlphaGuide": {
     "crashReports": "O aplicativo envia relatórios de falha sem o texto do manuscrito para ajudar a corrigir problemas. Desative em Configurações → Privacidade.",
     "title": "Boas-vindas ao Drifting Alpha"
+  },
+  "projectAgent": {
+    "checkinFailed": "Não foi possível terminar de ler suas alterações recentes: {{error}}",
+    "checkinRunning": "O Agent está lendo suas alterações recentes…",
+    "dismiss": "Dispensar",
+    "openConversation": "Abrir conversa",
+    "start": "Entregar ao Agent",
+    "startFailed": "Não foi possível iniciar: {{error}}"
   },
   "projectHome": {
     "book": {

@@ -1,9 +1,13 @@
 //! Canonical Project Home (`kernel-v5.md` §2 & §3).
+mod agent_cards;
 mod project_template;
 mod structure_thumbnail;
 pub mod save_template;
 pub mod v3;
 
+pub use agent_cards::{
+    AgentCards, AgentCardsHost, clear_agent_cards, has_agent_cards, set_agent_cards,
+};
 pub use project_template::Field;
 
 use std::rc::Rc;

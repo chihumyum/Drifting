@@ -2092,6 +2092,7 @@ dependencies = [
  "dr-store",
  "dr-testkit",
  "dr-ui",
+ "dr-view-home",
  "dr-workspace",
  "futures",
  "gpui",
