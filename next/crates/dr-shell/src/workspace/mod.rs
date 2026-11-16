@@ -71,12 +71,15 @@ use crate::settings::panel::SettingsPanel;
 use crate::{Services, Settings, ShellInfo, keymap, menus};
 
 pub use bottom::{BottomLayout, BottomResize};
-pub use chrome::{LEADING_INSET, TITLEBAR_HEIGHT, TRAFFIC_LIGHT_POSITION, place_traffic_lights};
-pub use dock::DockDrag;
+pub use chrome::{
+    LEADING_INSET, MOON_DIM, MOON_DISABLED_DIM, MoonLook, TITLEBAR_HEIGHT, TRAFFIC_LIGHT_POSITION,
+    moon_look, place_traffic_lights,
+};
+pub use dock::{DOCK_NEW, DOCK_ROW, DockDrag};
 pub use editors::PageEditor;
 pub use fill::FillPlace;
 pub use sea::{FIRST_RUN_DONE, SeaState};
-pub use sidebar::{LeftTab, RightTab, page_hover_card};
+pub use sidebar::{LeftTab, RightTab, Side, page_hover_card};
 pub use stage::EditorLook;
 
 /// The 0.1 client's default and minimum window sizes.

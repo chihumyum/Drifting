@@ -1237,6 +1237,20 @@ fn act_track_creation_auto_numbers_places_at_top_toggles_and_renders_intervals_a
     refresh(&host, &lib, &id, cx);
     let t = host.read_with(cx, |h, _| h.timeline.clone());
     assert!(t.read_with(cx, |t, _| t.lanes().iter().all(|l| !l.act_track)));
+    // The bar starts as dense as `W9Bottom` draws it (24 px between two
+    // ruler ticks); pinched out to 100 px a tick, an interval and a short
+    // segment are told apart by their widths below.
+    let track = cx
+        .debug_bounds(Box::leak(format!("v3-track-{storyline0}").into_boxed_str()))
+        .unwrap();
+    cx.simulate_event(gpui::PinchEvent {
+        position: point(track.left() + px(120.), track.center().y),
+        delta: 100. / 24. - 1.,
+        modifiers: Modifiers::none(),
+        phase: gpui::TouchPhase::Moved,
+    });
+    frame(cx);
+    assert!((t.read_with(cx, |t, _| t.scale().step) - 100.).abs() < 0.01);
 
     // 1. Create first act track -> top-level "Acts" (`TPL_ACT_TRACK`), placed first with `act_track = true`.
     t.update(cx, |t, cx| t.create_act_track(TPL_ACT_TRACK.into(), cx));

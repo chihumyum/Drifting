@@ -2320,6 +2320,7 @@ dependencies = [
  "dr-view-material",
  "dr-view-search",
  "dr-view-stats",
+ "dr-view-templates",
  "dr-workspace",
  "futures",
  "gpui",

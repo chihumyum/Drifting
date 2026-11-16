@@ -16,6 +16,7 @@
 use std::collections::HashMap;
 
 use dr_workspace::{Actor, Workspace as Library, WsEvent};
+use futures::FutureExt as _;
 use gpui::{App, Global};
 use serde_json::json;
 
@@ -45,12 +46,14 @@ struct Previews {
 
 impl Global for Previews {}
 
-/// The cache, over the app's library (the shell's `Services`).
+/// The cache, over the app's library (the shell's `Services`). While the
+/// shell lets go of the library (a swap) nothing here takes it up again.
 fn previews(cx: &mut App) -> &mut Previews {
     if !cx.has_global::<Previews>() {
         let lib = cx
             .try_global::<dr_shell::Services>()
-            .and_then(|s| s.library.clone());
+            .and_then(|s| s.library.clone())
+            .filter(|_| !dr_shell::release::is_releasing(cx));
         let sub = lib.as_ref().map(|lib| watch(lib, cx));
         cx.set_global(Previews {
             lib,
@@ -99,6 +102,17 @@ pub fn forget(cx: &mut App) {
     if cx.has_global::<Previews>() {
         cx.remove_global::<Previews>();
     }
+}
+
+/// The cache follows the shell's library: it lets go when the library is
+/// released (the swap fails while anything still holds it, `progress.md`
+/// M35) and reads the new one when it is asked next.
+pub(crate) fn follow_releases(cx: &mut App) {
+    dr_shell::release::before_release(cx, |cx| {
+        forget(cx);
+        futures::future::ready(Ok(())).boxed_local()
+    });
+    dr_shell::release::after_release(cx, forget);
 }
 
 /// `asset`'s thumbnail, if it is made; asks for it if not.

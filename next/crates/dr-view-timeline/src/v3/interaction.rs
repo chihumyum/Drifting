@@ -253,8 +253,10 @@ impl Timeline {
         let min = model::extent(view).0;
         Some(
             min + f64::from(
-                (f32::from(x - bounds.origin.x) - model::RAIL - f32::from(self.scroll.offset().x))
-                    / (model::UNIT * self.zoom),
+                (f32::from(x - bounds.origin.x)
+                    - self.rail_width()
+                    - f32::from(self.scroll.offset().x))
+                    / self.scale().unit(),
             ),
         )
     }
@@ -383,14 +385,10 @@ impl Timeline {
         {
             let delta = f32::from(e.delta.pixel_delta(window.line_height()).y);
             if e.modifiers.alt || e.modifiers.shift {
-                self.zoom_y = (self.zoom_y * (1. + delta * 0.002)).clamp(0.75, 3.2);
+                self.zoom_lanes(1. + delta * 0.002);
             } else {
-                let next = (self.zoom * (1. + delta * 0.002)).clamp(0.35, 3.5);
-                let x = f32::from(e.position.x - bounds.origin.x) - model::RAIL;
-                let anchor = (x - f32::from(self.scroll.offset().x)) / self.zoom;
-                self.zoom = next;
-                self.scroll
-                    .set_offset(point(px(-(anchor * next - x).max(0.)), px(0.)));
+                let x = f32::from(e.position.x - bounds.origin.x) - self.rail_width();
+                self.zoom_scale(1. + delta * 0.002, x);
             }
             cx.stop_propagation();
         }
@@ -402,18 +400,39 @@ impl Timeline {
         let Some(bounds) = self.bounds.get() else {
             return;
         };
-        let x = f32::from(e.position.x - bounds.origin.x) - model::RAIL;
+        let x = f32::from(e.position.x - bounds.origin.x) - self.rail_width();
         if e.modifiers.alt || e.modifiers.shift || x < 0.0 {
-            self.zoom_y = (self.zoom_y * (1. + e.delta)).clamp(0.75, 3.2);
+            self.zoom_lanes(1. + e.delta);
         } else {
-            let next = (self.zoom * (1. + e.delta)).clamp(0.35, 3.5);
-            let anchor = (x - f32::from(self.scroll.offset().x)) / self.zoom;
-            self.zoom = next;
-            self.scroll
-                .set_offset(point(px(-(anchor * next - x).max(0.)), px(0.)));
+            self.zoom_scale(1. + e.delta, x);
         }
         cx.stop_propagation();
         self.remember(cx);
         cx.notify();
+    }
+    /// The shown state's lane height times `by` (the other state keeps its
+    /// own).
+    fn zoom_lanes(&mut self, by: f32) {
+        let scale = self.active_mut();
+        *scale = model::Scale {
+            band: scale.band * by,
+            ..*scale
+        }
+        .clamped();
+    }
+    /// The shown state's scale times `by`, the point `x` px into the tracks
+    /// staying under the pointer.
+    fn zoom_scale(&mut self, by: f32, x: f32) {
+        let before = self.scale().unit();
+        let anchor = (x - f32::from(self.scroll.offset().x)) / before;
+        let scale = self.active_mut();
+        *scale = model::Scale {
+            step: scale.step * by,
+            ..*scale
+        }
+        .clamped();
+        let after = self.scale().unit();
+        self.scroll
+            .set_offset(point(px(-(anchor * after - x).max(0.)), px(0.)));
     }
 }

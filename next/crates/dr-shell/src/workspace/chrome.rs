@@ -54,6 +54,9 @@ pub const MOON_OFFSET: f32 = 8.0;
 /// Resting opacity of the back moon (`W25Final`: `dim = 0.42`).
 pub const MOON_DIM: f32 = 0.42;
 /// Dimmed opacity when the right full moon cannot fill (`Stats` / `Agent`).
+/// `W25Final` only says it is dim and does nothing; no board gives a value
+/// for the overlapping pair (the retired two-halves switch on `W11Right`
+/// drew its disabled half at 0.35).
 pub const MOON_DISABLED_DIM: f32 = 0.18;
 
 /// The gap between controls in the titlebar cluster.
@@ -142,6 +145,90 @@ pub fn sidebar_toggles(
         )
 }
 
+/// What one overlapping moon pair shows (`W25Final`, `kernel-v5.md` §17
+/// 「栏开关」): whichever state the sidebar is in sits in front.
+///
+/// | state  | front           | back (dim)       |
+/// | ------ | --------------- | ---------------- |
+/// | closed | hollow crescent | hollow full moon |
+/// | open   | crescent        | hollow full moon |
+/// | filled | black full moon | crescent         |
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct MoonLook {
+    /// The crescent is in front (closed, open); the full moon only while
+    /// the sidebar fills.
+    pub crescent_in_front: bool,
+    /// The glyph in front, always at full opacity.
+    pub front: Icon,
+    /// The glyph behind, with the front one's circle cut out of it.
+    pub back: Icon,
+    /// The glyph behind: [`MOON_DIM`] at rest, 1 while the pointer is on it
+    /// (it only gets darker: its ink and the order stay), and
+    /// [`MOON_DISABLED_DIM`] when it does nothing.
+    pub back_opacity: f32,
+    /// The full moon answers a click (the right one does not on Stats or
+    /// Agent).
+    pub can_fill: bool,
+}
+
+/// The look of `side`'s moon pair now.
+pub fn moon_look(ws: &Workspace, side: Side) -> MoonLook {
+    let (open, filled, can_fill, cresc_half, full_half, icons) = match side {
+        Side::Left => (
+            ws.left.open,
+            ws.is_filled(FillPlace::Left),
+            true,
+            MoonHalf::LeftCrescent,
+            MoonHalf::LeftFull,
+            [
+                Icon::MoonLeftHollow,
+                Icon::MoonLeft,
+                Icon::MoonHollowfullLeft,
+                Icon::MoonBlackLeft,
+            ],
+        ),
+        Side::Right => {
+            let filled = ws.is_filled(FillPlace::Right);
+            (
+                ws.right.open,
+                filled,
+                filled || ws.right_can_fill(),
+                MoonHalf::RightCrescent,
+                MoonHalf::RightFull,
+                [
+                    Icon::MoonRightHollow,
+                    Icon::MoonRight,
+                    Icon::MoonHollowfullRight,
+                    Icon::MoonBlackRight,
+                ],
+            )
+        }
+    };
+    let [cresc_closed, cresc_open, full_hollow, full_black] = icons;
+    let cresc = if open { cresc_open } else { cresc_closed };
+    let full = if filled { full_black } else { full_hollow };
+    let crescent_in_front = !filled;
+    let (front, back, back_half, back_enabled) = if crescent_in_front {
+        (cresc, full, full_half, can_fill)
+    } else {
+        (full, cresc, cresc_half, true)
+    };
+    let back_opacity = if !back_enabled {
+        MOON_DISABLED_DIM
+    } else if ws.hovered_moon == Some(back_half) {
+        1.0
+    } else {
+        MOON_DIM
+    };
+    MoonLook {
+        crescent_in_front,
+        front,
+        back,
+        back_opacity,
+        can_fill,
+    }
+}
+
 fn moon_pair(
     ws: &Workspace,
     side: Side,
@@ -156,11 +243,11 @@ fn moon_pair(
     let pair_w = g::ROUND + MOON_OFFSET;
     let half_w = pair_w / 2.0;
     let glyph_top = (g::ROUND - MOON_SIZE) / 2.0;
+    let look = moon_look(ws, side);
+    let can_fill = look.can_fill;
 
     let (
         open,
-        filled,
-        can_fill,
         cresc_cx,
         full_cx,
         cresc_half,
@@ -170,18 +257,12 @@ fn moon_pair(
         cresc_label,
         full_label,
         closed_anchor_id,
-        cresc_closed_icon,
-        cresc_open_icon,
-        full_hollow_icon,
-        full_black_icon,
     ) = match side {
         Side::Left => {
             let open = ws.left.open;
             let filled = ws.is_filled(FillPlace::Left);
             (
                 open,
-                filled,
-                true,
                 g::ROUND / 2.0,
                 g::ROUND / 2.0 + MOON_OFFSET,
                 MoonHalf::LeftCrescent,
@@ -191,20 +272,13 @@ fn moon_pair(
                 t(cx, if open { lt::CLOSE } else { lt::OPEN }),
                 t(cx, if filled { vf::EXIT_FILL } else { vf::FILL_LEFT }),
                 crate::pages::anchors::LEFT_SIDEBAR_CLOSED_TOGGLE,
-                Icon::MoonLeftHollow,
-                Icon::MoonLeft,
-                Icon::MoonHollowfullLeft,
-                Icon::MoonBlackLeft,
             )
         }
         Side::Right => {
             let open = ws.right.open;
             let filled = ws.is_filled(FillPlace::Right);
-            let can_fill = filled || ws.right_can_fill();
             (
                 open,
-                filled,
-                can_fill,
                 g::ROUND / 2.0 + MOON_OFFSET,
                 g::ROUND / 2.0,
                 MoonHalf::RightCrescent,
@@ -221,55 +295,21 @@ fn moon_pair(
                     },
                 ),
                 crate::pages::anchors::RIGHT_SIDEBAR_CLOSED_TOGGLE,
-                Icon::MoonRightHollow,
-                Icon::MoonRight,
-                Icon::MoonHollowfullRight,
-                Icon::MoonBlackRight,
             )
         }
     };
 
-    let cresc_icon = if open {
-        cresc_open_icon
+    let (front_cx, back_cx) = if look.crescent_in_front {
+        (cresc_cx, full_cx)
     } else {
-        cresc_closed_icon
+        (full_cx, cresc_cx)
     };
-    let full_icon = if filled {
-        full_black_icon
-    } else {
-        full_hollow_icon
-    };
-
-    let cresc_front = !filled;
-    let (front_icon, front_cx, front_half, back_icon, back_cx, back_half, back_enabled) =
-        if cresc_front {
-            (
-                cresc_icon, cresc_cx, cresc_half, full_icon, full_cx, full_half, can_fill,
-            )
-        } else {
-            (
-                full_icon, full_cx, full_half, cresc_icon, cresc_cx, cresc_half, true,
-            )
-        };
-
     let cut_on_right = front_cx > back_cx;
-    let front_ink = if ws.hovered_moon == Some(front_half) {
-        p.ink(1).solid()
-    } else {
-        p.ink(2).solid()
-    };
-    let back_ink = if back_enabled && ws.hovered_moon == Some(back_half) {
-        p.ink(1).solid()
-    } else {
-        p.ink(2).solid()
-    };
-    let back_opacity = if !back_enabled {
-        MOON_DISABLED_DIM
-    } else if ws.hovered_moon == Some(back_half) {
-        1.0
-    } else {
-        MOON_DIM
-    };
+    // `W25Final`: both glyphs are drawn in the same ink. Pointing at the one
+    // behind only lifts its opacity; pointing at the one in front changes
+    // nothing.
+    let ink = p.ink(2).solid();
+    let (front_icon, back_icon, back_opacity) = (look.front, look.back, look.back_opacity);
 
     let back_glyph = div()
         .absolute()
@@ -277,23 +317,19 @@ fn moon_pair(
         .top(px(glyph_top))
         .size(px(MOON_SIZE))
         .opacity(back_opacity)
-        .child(sand::icon_cutout(
-            back_icon,
-            MOON_SIZE,
-            back_ink,
-            cut_on_right,
-        ));
+        .child(sand::icon_cutout(back_icon, MOON_SIZE, ink, cut_on_right));
 
     let front_glyph = div()
         .absolute()
         .left(px(front_cx - MOON_SIZE / 2.0))
         .top(px(glyph_top))
         .size(px(MOON_SIZE))
-        .child(sand::icon(front_icon, MOON_SIZE, front_ink));
+        .child(sand::icon(front_icon, MOON_SIZE, ink));
 
     let cresc_on_left = cresc_cx < full_cx;
     let cresc_hit = div()
         .id(cresc_id)
+        .debug_selector(move || cresc_id.to_string())
         .w(px(half_w))
         .h(px(g::ROUND))
         .cursor_pointer()
@@ -323,6 +359,7 @@ fn moon_pair(
 
     let mut full_hit = div()
         .id(full_id)
+        .debug_selector(move || full_id.to_string())
         .absolute()
         .top_0()
         .left(px(if cresc_on_left { half_w } else { 0.0 }))

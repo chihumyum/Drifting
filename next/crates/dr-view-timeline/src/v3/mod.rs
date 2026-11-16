@@ -13,6 +13,7 @@ use dr_shell::{
     nav::{Open, Target},
     pages::{self, BottomHost, BottomPane, BottomPanel, PageViewHost},
     t,
+    workspace::FillPlace,
 };
 use dr_ui::input::field::{FieldEvent, TextField};
 use dr_workspace::{Workspace as Library, WritePreconditions, commands::v3::types::TimelineView};
@@ -70,8 +71,13 @@ pub struct Timeline {
     scroll: ScrollHandle,
     v_scroll: ScrollHandle,
     rail_scroll: ScrollHandle,
-    zoom: f32,
-    zoom_y: f32,
+    /// The bar's scale and the filled panel's (`W9Bottom`): each pinched on
+    /// its own.
+    bar: model::Scale,
+    filled_scale: model::Scale,
+    /// The bottom panel fills, and how far it has grown (read each frame).
+    filled: bool,
+    fill_t: f32,
     kept_for: Option<String>,
     popup: Option<Popup>,
     editing: Option<Editing>,
@@ -109,8 +115,10 @@ impl Timeline {
             scroll: ScrollHandle::new(),
             v_scroll: ScrollHandle::new(),
             rail_scroll: ScrollHandle::new(),
-            zoom: 1.0,
-            zoom_y: 1.0,
+            bar: model::BAR,
+            filled_scale: model::FILLED,
+            filled: false,
+            fill_t: 0.0,
             kept_for: None,
             popup: None,
             editing: None,
@@ -184,8 +192,17 @@ impl Timeline {
             if ws.book_memory_ready() && self.kept_for.as_deref() != Some(self.book.id.as_str()) {
                 if let Some(v) = ws.book_memory("timeline-v3") {
                     self.selected = v["view"].as_str().map(str::to_owned);
-                    self.zoom = v["zoom"].as_f64().unwrap_or(1.0).clamp(0.35, 3.5) as f32;
-                    self.zoom_y = v["zoomY"].as_f64().unwrap_or(1.0).clamp(0.75, 3.2) as f32;
+                    let kept = |key: &str, of: f32| v[key].as_f64().map_or(of, |f| of * f as f32);
+                    self.bar = model::Scale {
+                        step: kept("zoom", model::BAR.step),
+                        band: kept("zoomY", model::BAR.band),
+                    }
+                    .clamped();
+                    self.filled_scale = model::Scale {
+                        step: kept("fillZoom", model::FILLED.step),
+                        band: kept("fillZoomY", model::FILLED.band),
+                    }
+                    .clamped();
                     self.scroll.set_offset(point(
                         px(-v["scroll"].as_f64().unwrap_or(0.0).max(0.0) as f32),
                         px(0.0),
@@ -242,11 +259,65 @@ impl Timeline {
             _ => Vec::new(),
         }
     }
-    pub fn zoom(&self) -> f32 {
-        self.zoom
+    /// Reads whether the bottom panel fills and how far it has grown. On
+    /// the way in or out the scale starts from the beginning again, as
+    /// `W9Bottom` draws it (each state has its own scale).
+    fn follow_fill(&mut self, cx: &App) {
+        let (filled, t) = self.ws.upgrade().map_or((false, 0.0), |ws| {
+            let ws = ws.read(cx);
+            (
+                ws.is_filled(FillPlace::Bottom),
+                ws.fill_progress(FillPlace::Bottom),
+            )
+        });
+        if filled != self.filled {
+            self.scroll.set_offset(point(px(0.0), px(0.0)));
+            self.v_scroll.set_offset(point(px(0.0), px(0.0)));
+            self.rail_scroll.set_offset(point(px(0.0), px(0.0)));
+        }
+        self.filled = filled;
+        self.fill_t = t;
     }
+    /// The shown state's horizontal scale against its first one (1: as
+    /// `W9Bottom` draws it).
+    pub fn zoom(&self) -> f32 {
+        self.active().step / self.first().step
+    }
+    /// The shown state's lane height against its first one.
     pub fn zoom_y(&self) -> f32 {
-        self.zoom_y
+        self.active().band / self.first().band
+    }
+    /// The scale of the state shown (the bar's, or the filled panel's).
+    pub fn active(&self) -> model::Scale {
+        if self.filled {
+            self.filled_scale
+        } else {
+            self.bar
+        }
+    }
+    fn active_mut(&mut self) -> &mut model::Scale {
+        if self.filled {
+            &mut self.filled_scale
+        } else {
+            &mut self.bar
+        }
+    }
+    fn first(&self) -> model::Scale {
+        if self.filled {
+            model::FILLED
+        } else {
+            model::BAR
+        }
+    }
+    /// The scale drawn now: between the bar's and the filled panel's while
+    /// the panel grows or shrinks.
+    pub fn scale(&self) -> model::Scale {
+        self.bar.toward(self.filled_scale, self.fill_t)
+    }
+    /// The lane-name column's width now (`W9Bottom`: 96 in the bar, 140
+    /// filled).
+    pub fn rail_width(&self) -> f32 {
+        model::RAIL + (model::FILLED_RAIL - model::RAIL) * self.fill_t
     }
     pub fn min_height(&self) -> f32 {
         (model::HEAD + model::RULER + model::ROW * self.lanes().len().min(4) as f32).max(180.0)
@@ -258,15 +329,24 @@ impl Timeline {
         cx.notify();
     }
     fn remember(&self, cx: &mut Context<Self>) {
-        let value = serde_json::json!({
+        let mut value = serde_json::json!({
             "view": self.selected.as_ref().or_else(|| self.view().map(|v| &v.id)),
-            "zoom": self.zoom,
-            "zoomY": self.zoom_y,
+            "zoom": self.bar.step / model::BAR.step,
+            "zoomY": self.bar.band / model::BAR.band,
+            "fillZoom": self.filled_scale.step / model::FILLED.step,
+            "fillZoomY": self.filled_scale.band / model::FILLED.band,
             "scroll": -f32::from(self.scroll.offset().x),
         });
+        let filled = self.filled;
         self.ws
             .update(cx, |ws, cx| {
                 if ws.book_id == self.book.id {
+                    // The kept scroll is the bar's: the fill is not kept.
+                    if filled {
+                        value["scroll"] = ws
+                            .book_memory("timeline-v3")
+                            .map_or(serde_json::json!(0.0), |old| old["scroll"].clone());
+                    }
                     ws.set_book_memory("timeline-v3", value, cx);
                 }
             })

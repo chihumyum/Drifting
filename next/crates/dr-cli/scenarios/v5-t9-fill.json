@@ -90,6 +90,44 @@
       }
     },
     {
+      "app": "ui.hover",
+      "params": {
+        "label": "Fill left sidebar",
+        "role": "Button"
+      },
+      "note": "W25Final: pointing at the moon behind only darkens it; the order and the ink stay."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 300
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "moons-closed-hover-back.png"
+    },
+    {
+      "app": "ui.hover",
+      "params": {
+        "label": "Open left sidebar",
+        "role": "Button"
+      },
+      "note": "Pointing at the moon in front changes nothing."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 300
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "moons-closed-hover-front.png"
+    },
+    {
       "app": "ui.press",
       "params": {
         "label": "Fill left sidebar",
@@ -110,6 +148,25 @@
     {
       "app": "ui.screenshot",
       "png": "left-filled.png"
+    },
+    {
+      "app": "ui.hover",
+      "params": {
+        "label": "Close left sidebar",
+        "role": "Button"
+      },
+      "note": "Filled: the black moon is in front, the crescent behind darkens under the pointer."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 300
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "moons-filled-hover-back.png"
     },
     {
       "app": "ui.press",
@@ -223,6 +280,25 @@
         },
         "timeout_ms": 12000
       }
+    },
+    {
+      "app": "ui.hover",
+      "params": {
+        "label": "Fill left sidebar",
+        "role": "Button"
+      },
+      "note": "Open: the crescent in front, the hollow full moon behind darkens under the pointer."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 300
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "moons-open-hover-back.png"
     },
     {
       "app": "ui.press",
@@ -613,6 +689,25 @@
     {
       "app": "ui.screenshot",
       "png": "structure-full-editor.png"
+    },
+    {
+      "app": "ui.hover",
+      "params": {
+        "label": "Synthetic T9 template name",
+        "role": "RadioButton"
+      },
+      "note": "W11Right: above a fill the open documents are dots; under the hand they grow into pills."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 600
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "fill-pills-open.png"
     },
     {
       "call": "entry_template.list",

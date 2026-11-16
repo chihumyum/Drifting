@@ -579,7 +579,14 @@ impl Timeline {
         )
     }
 
-    fn rails(&self, lanes: &[model::Lane], lane_h: f32, cx: &mut Context<Self>) -> AnyElement {
+    fn rails(
+        &self,
+        lanes: &[model::Lane],
+        lane_h: f32,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let theme = Theme::of(window, cx);
         let page = self.page_host();
         let existing_lanes: std::collections::BTreeSet<String> = self
             .view()
@@ -588,7 +595,7 @@ impl Timeline {
         let rail = div()
             .id("v3-lane-rail")
             .debug_selector(|| "v3-lane-rail".into())
-            .w(px(model::RAIL))
+            .w(px(self.rail_width()))
             .flex_none()
             .h_full()
             .flex()
@@ -627,7 +634,14 @@ impl Timeline {
             } else {
                 sand::Kind::Storyline
             };
+            // `W9Bottom` draws the column as the lane's mark and name only
+            // (the count only once filled); the lane's buttons come over
+            // the name's end under the hand.
+            let group: SharedString = format!("v3-lane-row-{id}").into();
             let row = div()
+                .id(SharedString::from(format!("v3-lane-row-{id}")))
+                .group(group.clone())
+                .relative()
                 .h(px(lane_h))
                 .flex_none()
                 .flex()
@@ -649,11 +663,21 @@ impl Timeline {
                         .id(SharedString::from(format!("v3-lane-count-{}", lane.id)))
                         .flex_none()
                         .text_xs()
+                        .opacity(self.fill_t)
                         .role(gpui::Role::Label)
                         .aria_label(count)
                         .child(lane.members.to_string()),
                 );
-            let mut actions = div().flex().items_center();
+            let mut actions = div()
+                .absolute()
+                .top_0()
+                .bottom_0()
+                .right_0()
+                .flex()
+                .items_center()
+                .bg(theme.palette.desk.solid())
+                .opacity(0.0)
+                .group_hover(group, |st| st.opacity(1.0));
             if lane.act_track {
                 let id = lane.id.clone();
                 actions = actions.child(
@@ -765,7 +789,7 @@ impl Timeline {
         let theme = Theme::of(window, cx);
         let palette = theme.palette;
         let (min, max) = model::extent(view);
-        let unit = model::UNIT * self.zoom;
+        let unit = self.scale().unit();
         let width = ((max - min) as f32 * unit).clamp(800., 10_000_000.);
         let left = -f32::from(self.scroll.offset().x);
         let visible = self.bounds.get().map_or(1200., |b| f32::from(b.size.width));
@@ -791,9 +815,17 @@ impl Timeline {
                     this.edit_pin(drag.pin.clone(), PinEdit::At(at), cx);
                 }
             }));
-        let first = ((min + f64::from(left / unit)) / 5.).floor() * 5.;
-        for step in 0..(visible / unit / 5.).ceil() as usize + 2 {
-            let tick = first + step as f64 * 5.;
+        // A label on every tick (one `格`); pinched in so far that labels
+        // would run into each other, on every other one and so on.
+        let every = model::TICK
+            * f64::from(
+                (MIN_LABEL_GAP / (unit * model::TICK as f32))
+                    .ceil()
+                    .max(1.0),
+            );
+        let first = ((min + f64::from(left / unit)) / every).floor() * every;
+        for step in 0..(f64::from(visible / unit) / every).ceil() as usize + 2 {
+            let tick = first + step as f64 * every;
             ruler = ruler.child(
                 div()
                     .absolute()
@@ -967,12 +999,8 @@ impl Timeline {
                     model::DEFAULT_SPAN
                 });
                 let x = (clip.at - min) as f32 * unit;
-                let w = if short_segment {
-                    (effective_span as f32 * unit).clamp(14., 24.)
-                } else {
-                    (effective_span as f32 * unit).max(8.)
-                };
-                if x + w < left || x > left + visible {
+                let span_w = effective_span as f32 * unit;
+                if x + span_w.max(NARROW_CARD) < left || x > left + visible {
                     continue;
                 }
                 let title = self
@@ -981,6 +1009,21 @@ impl Timeline {
                     .and_then(|b| b.entry(&clip.entry))
                     .map(|e| e.title.clone())
                     .unwrap_or_default();
+                // However far the scale is pinched in, a card keeps the
+                // title's first whole character (`kernel-v5.md` §17).
+                let w = if short_segment {
+                    span_w.clamp(14., 24.)
+                } else if span_w >= NARROW_CARD {
+                    span_w
+                } else {
+                    span_w.max(model::card_min_width(
+                        &title,
+                        NARROW_PAD,
+                        px(narrow_font(&theme)),
+                        dr_ui::fonts::Role::Ui.font(dr_ui::fonts::weight::REGULAR),
+                        window,
+                    ))
+                };
                 let summary = (w >= 104. && lane_h >= 68.)
                     .then(|| {
                         self.book
@@ -1035,10 +1078,10 @@ impl Timeline {
                 let can_drop_clip_lane = lane.id.clone();
                 let page = self.page_host();
                 let clip_selector = format!("v3-clip-{}-{id}", lane.id);
-                let narrow_card = w < 44.;
-                let pad_x = if narrow_card { 2.0 } else { 8.0 };
+                let narrow_card = w < NARROW_CARD;
+                let pad_x = if narrow_card { NARROW_PAD } else { 8.0 };
                 let title_font_px = if narrow_card {
-                    (theme.scale.caption - 1.0).max(11.0)
+                    narrow_font(&theme)
                 } else {
                     theme.scale.secondary
                 };
@@ -1080,11 +1123,12 @@ impl Timeline {
                 .aria_label(title.clone())
                 .when(can_edit_placement, |body| body.cursor_grab())
                 .when(!short_segment, |body| {
-                    let title_id = SharedString::from(format!("v3-clip-title-{}-{id}", lane.id));
+                    let title_id = format!("v3-clip-title-{}-{id}", lane.id);
                     body.px(px(pad_x))
                         .child(
                             div()
-                                .id(title_id)
+                                .id(SharedString::from(title_id.clone()))
+                                .debug_selector(move || title_id)
                                 .w_full()
                                 .min_w_0()
                                 .overflow_hidden()
@@ -1195,9 +1239,22 @@ impl Timeline {
     }
 }
 
+/// Ruler labels stay at least this far apart.
+const MIN_LABEL_GAP: f32 = 24.0;
+/// Under this a card is narrow: little padding, a smaller title.
+const NARROW_CARD: f32 = 44.0;
+/// A narrow card's padding on each side.
+const NARROW_PAD: f32 = 2.0;
+
+/// A narrow card's title size.
+fn narrow_font(theme: &Theme) -> f32 {
+    (theme.scale.caption - 1.0).max(11.0)
+}
+
 impl Render for Timeline {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::of(window, cx);
+        self.follow_fill(cx);
         let lanes = self.lanes();
         let body = self.bounds.clone();
         let mouse = cx.weak_entity();
@@ -1210,18 +1267,14 @@ impl Render for Timeline {
             .type_px(theme.scale.secondary, theme.scale.line_body)
             .child(self.header(window, cx));
         if let Some(view) = self.view() {
-            let fill = self.ws.upgrade().map_or(0.0, |workspace| {
-                workspace.read(cx).fill_progress(FillPlace::Bottom)
-            });
-            let lane_h =
-                ((model::ROW + (model::FILLED_ROW - model::ROW) * fill) * self.zoom_y).round();
+            let lane_h = self.scale().band.round();
             panel = panel.child(
                 div()
                     .relative()
                     .flex_1()
                     .min_h_0()
                     .flex()
-                    .child(self.rails(&lanes, lane_h, cx))
+                    .child(self.rails(&lanes, lane_h, window, cx))
                     .child(self.tracks(view, &lanes, lane_h, window, cx))
                     .child(
                         canvas(
