@@ -1,5 +1,7 @@
 # M17 关系与关系类型
 
+**2026-11-17：这一页写的界面要整个换掉。** 作者定了关系重做（[kernel-v5.md 第 19 节](../kernel-v5.md#19-关系重做)，任务书 RD、RL）：条目页的「关联」模块去掉，类型上的角色名、颜色、允许的种类都没有了。另外，下面正文写的卡片、色条、就地选择器和类型管理是切到格式 3 之前的界面，`dr-view-relations` 里现在是一个简化版（每条一行，底下一排下拉），`types.rs`、`data.rs` 已经不在；这一页留着只当来历看，下面的待协调项都不再做。
+
 2026-11-08，第一个里程碑；同日第二个里程碑：挂到要素页上，用调试桥在真窗口里点了一遍。计划见 [modules.md 的 M17](../modules.md#阶段-3故事工坊)。界面在 `next/crates/dr-view-relations/`，数据全走 F3 的 `relation.*`（列出、建立、删除）和 `relation_type.*`（列出、新建、修改、删除），在 `next/crates/dr-workspace/src/commands/relation.rs`。对照的旧版是桌面端 `src/renderer/components/editor/ReferencesPanel.tsx` 的「关联」一节、`components/ui/RelationTypeField.tsx`、`components/ui/RelationKindMenu.tsx`（类型管理和 `RelationTypeEditor`）、`src/styles/entity-editors.css` 和 [docs/relation-types.md](../../relation-types.md)。截图在 [m17/](m17/)。
 
 ## 做了什么（大白话）
