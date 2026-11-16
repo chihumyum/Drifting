@@ -96,6 +96,7 @@
     "import": "プロジェクトを読み込む",
     "importFile": "プロジェクトを読み込む（.driftingproject）",
     "importLegacy": "Drifting 0.1 を読み込む",
+    "importTemplate": "テンプレートを読み込む",
     "importTemplateFile": "テンプレートを読み込む（.driftingtemplate）",
     "libraryProjects_one": "{{count}}件のプロジェクト",
     "libraryProjects_other": "{{count}}件のプロジェクト",
@@ -827,6 +828,21 @@
       "restoreFailed": "作品を復元できません。再試行してください。",
       "restoring": "復元中…"
     }
+  },
+  "projectTemplates": {
+    "bookDailyTarget": "1日 {{words}} 字",
+    "bookOff": "オフ",
+    "bookOn": "オン",
+    "bookWordTarget": "全体 {{words}} 字",
+    "builtin": "内蔵",
+    "deleteTitle": "テンプレート「{{name}}」を削除しますか？",
+    "description": "説明",
+    "exportFile": "書き出す（.driftingtemplate）",
+    "leftRail": "左サイドバー",
+    "myTemplates": "マイテンプレート",
+    "overwrite": "上書き…",
+    "structure": "構造",
+    "timePins": "タイムピン"
   },
   "referencesPanel": {
     "actions": {

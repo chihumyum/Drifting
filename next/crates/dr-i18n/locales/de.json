@@ -96,6 +96,7 @@
     "import": "Projekt importieren",
     "importFile": "Projekt importieren (.driftingproject)",
     "importLegacy": "Drifting 0.1 importieren",
+    "importTemplate": "Vorlage importieren",
     "importTemplateFile": "Vorlage importieren (.driftingtemplate)",
     "libraryProjects_one": "{{count}} Projekt",
     "libraryProjects_other": "{{count}} Projekte",
@@ -834,6 +835,21 @@
       "restoreFailed": "Projekt konnte nicht wiederhergestellt werden. Bitte erneut versuchen.",
       "restoring": "Wird wiederhergestellt…"
     }
+  },
+  "projectTemplates": {
+    "bookDailyTarget": "Täglich {{words}} Wörter",
+    "bookOff": "Aus",
+    "bookOn": "Ein",
+    "bookWordTarget": "Gesamt {{words}} Wörter",
+    "builtin": "Integriert",
+    "deleteTitle": "Vorlage „{{name}}“ löschen?",
+    "description": "Beschreibung",
+    "exportFile": "Exportieren (.driftingtemplate)",
+    "leftRail": "Linke Seitenleiste",
+    "myTemplates": "Meine Vorlagen",
+    "overwrite": "Überschreiben…",
+    "structure": "Struktur",
+    "timePins": "Zeitmarken"
   },
   "referencesPanel": {
     "actions": {
