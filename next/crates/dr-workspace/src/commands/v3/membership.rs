@@ -448,7 +448,7 @@ impl Transfer {
     pub fn replaced(&self) -> Vec<dr_doc::v3::RecordKeyV3> {
         let mut records = vec![rec(
             CollectionV3::Memberships,
-            &m::Membership::key(&self.from, &self.member),
+            m::Membership::key(&self.from, &self.member),
         )];
         records.extend(self.views.iter().map(|view| {
             rec(CollectionV3::TimelineViews, view).at(["placements", self.member.as_str()])

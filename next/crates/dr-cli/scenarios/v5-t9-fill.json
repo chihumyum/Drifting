@@ -24,6 +24,21 @@
       "save": "roots"
     },
     {
+      "call": "timeline_view.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "views"
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${views.0.lanes.0.entry}"
+      },
+      "save": "lane"
+    },
+    {
       "launch": {
         "env": {
           "DRIFTING_WINDOW_DISPLAY": "secondary",
@@ -228,8 +243,86 @@
       }
     },
     {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 500
+      },
+      "note": "The structural transition animates the lane height."
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Lane ${lane.title}",
+        "role": "Group"
+      },
+      "save": "laneTrack",
+      "expect": {
+        "/nodes/0/bounds/height": 76.0
+      }
+    },
+    {
       "app": "ui.screenshot",
       "png": "bottom-filled.png"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${roots.1.title}",
+        "role": "Button"
+      },
+      "save": "residenceRow"
+    },
+    {
+      "app": "input.drag",
+      "params": {
+        "from": "${residenceRow.nodes.0.center}",
+        "to": [590, "${laneTrack.nodes.0.center.1}"],
+        "steps": 14
+      },
+      "note": "Drop on the visible first lane near the start of its scale."
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${roots.1.title}",
+        "role": "Button",
+        "within": {
+          "label": "Lane ${lane.title}",
+          "role": "Group"
+        }
+      },
+      "save": "hungClip"
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${roots.1.id}"
+      },
+      "expect": {
+        "/parent": null
+      }
+    },
+    {
+      "app": "input.drag",
+      "params": {
+        "from": "${hungClip.nodes.0.center}",
+        "to": "${residenceRow.nodes.0.center}",
+        "steps": 14
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${roots.1.title}",
+        "role": "Button",
+        "within": {
+          "label": "Lane ${lane.title}",
+          "role": "Group"
+        },
+        "absent": true
+      }
     },
     {
       "app": "ui.press",
@@ -309,7 +402,7 @@
       "params": {
         "state": {
           "/fill": "left",
-          "/fillWidth": 610
+          "/fillWidth": 610.0
         },
         "timeout_ms": 12000
       }
@@ -486,9 +579,18 @@
       "params": {
         "state": {
           "/fill": "left",
-          "/activeTab": 0
+          "/activeTab": 0,
+          "/page": "template:${templates.0.id}",
+          "/tabs/0/leaves/0/target": "template:${templates.0.id}"
         },
         "timeout_ms": 12000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Synthetic T9 template name",
+        "role": "Tab"
       }
     },
     {
@@ -502,6 +604,37 @@
       },
       "expect": {
         "/0/name": "Synthetic T9 template name"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Synthetic T9 template name",
+        "role": "Tab"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/fill": null,
+          "/activeTab": 0
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Fill left sidebar",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/fill": "left"
+        }
       }
     },
     {
@@ -580,12 +713,32 @@
       }
     },
     {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/bottom/pane": null
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 500
+      },
+      "note": "Let the paper and the bottom panel finish resizing before scrolling the Home page."
+    },
+    {
       "app": "input.scroll",
       "params": {
-        "x": 660,
-        "y": 605,
+        "x": 840,
+        "y": 500,
         "dy": 1800
       }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "home-structure.png"
     },
     {
       "app": "ui.press",
@@ -636,6 +789,10 @@
         },
         "timeout_ms": 12000
       }
+    },
+    {
+      "app": "app.info",
+      "save": "reopenedWindow"
     },
     {
       "app": "ui.press",

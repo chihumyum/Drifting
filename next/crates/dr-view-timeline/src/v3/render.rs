@@ -579,9 +579,8 @@ impl Timeline {
         )
     }
 
-    fn rails(&self, lanes: &[model::Lane], cx: &mut Context<Self>) -> AnyElement {
+    fn rails(&self, lanes: &[model::Lane], lane_h: f32, cx: &mut Context<Self>) -> AnyElement {
         let page = self.page_host();
-        let lane_h = self.lane_height();
         let existing_lanes: std::collections::BTreeSet<String> = self
             .view()
             .map(|v| v.lanes.iter().map(|l| l.entry.clone()).collect())
@@ -629,8 +628,8 @@ impl Timeline {
                 sand::Kind::Storyline
             };
             let row = div()
-                .min_h(px(lane_h))
-                .flex_1()
+                .h(px(lane_h))
+                .flex_none()
                 .flex()
                 .items_center()
                 .child(
@@ -759,6 +758,7 @@ impl Timeline {
         &self,
         view: &TimelineView,
         lanes: &[model::Lane],
+        lane_h: f32,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
@@ -860,7 +860,6 @@ impl Timeline {
                     }),
             );
         }
-        let lane_h = self.lane_height();
         let content = div().w(px(width)).h_full().flex().flex_col().child(ruler);
         let mut tracks_col = div()
             .id("v3-timeline-vscroll")
@@ -909,8 +908,8 @@ impl Timeline {
                     let id = format!("v3-track-{}", lane.id);
                     move || id.clone()
                 })
-                .min_h(px(lane_h))
-                .flex_1()
+                .h(px(lane_h))
+                .flex_none()
                 .relative()
                 .rounded(px(5.))
                 .bg(palette.paper.solid())
@@ -1208,14 +1207,19 @@ impl Render for Timeline {
             .type_px(theme.scale.secondary, theme.scale.line_body)
             .child(self.header(window, cx));
         if let Some(view) = self.view() {
+            let fill = self.ws.upgrade().map_or(0.0, |workspace| {
+                workspace.read(cx).fill_progress(FillPlace::Bottom)
+            });
+            let lane_h =
+                ((model::ROW + (model::FILLED_ROW - model::ROW) * fill) * self.zoom_y).round();
             panel = panel.child(
                 div()
                     .relative()
                     .flex_1()
                     .min_h_0()
                     .flex()
-                    .child(self.rails(&lanes, cx))
-                    .child(self.tracks(view, &lanes, window, cx))
+                    .child(self.rails(&lanes, lane_h, cx))
+                    .child(self.tracks(view, &lanes, lane_h, window, cx))
                     .child(
                         canvas(
                             move |b, _, _| body.set(Some(b)),

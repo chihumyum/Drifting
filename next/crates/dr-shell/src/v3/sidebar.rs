@@ -498,11 +498,14 @@ impl Sidebar {
         };
         let tabs = v.project.tabs.clone();
         let labels: Vec<SharedString> = tabs.iter().map(|t| self.name(t, cx)).collect();
-        let selected = self
-            .selected
-            .as_ref()
-            .and_then(|id| tabs.iter().position(|t| &t.id == id))
-            .unwrap_or(0);
+        let selected = if self.in_structure {
+            tabs.len()
+        } else {
+            self.selected
+                .as_ref()
+                .and_then(|id| tabs.iter().position(|t| &t.id == id))
+                .unwrap_or(0)
+        };
         let faint: Vec<usize> = tabs
             .iter()
             .enumerate()

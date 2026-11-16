@@ -115,7 +115,12 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
     .max(0.0);
     // The Bottom Panel takes the column's foot; the pages have the rest.
     let panel = bottom::panel(ws, f32::from(viewport.height), window, cx);
-    let column_h = f32::from(viewport.height) - panel.as_ref().map_or(0.0, |(_, h)| *h);
+    let fill_header = TITLEBAR_HEIGHT
+        * ws.fill
+            .progress(FillPlace::Left)
+            .max(ws.fill.progress(FillPlace::Right));
+    let column_h =
+        f32::from(viewport.height) - panel.as_ref().map_or(0.0, |(_, h)| *h) - fill_header;
     let active = ws.nav.active_index();
     let pages: AnyElement = match ws.nav.active_tab().cloned() {
         Some(Tab::Split(split)) => {
@@ -270,6 +275,7 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
         .flex_1()
         .min_h_0()
         .w_full()
+        .pt(px(fill_header))
         .child(pages)
         .when(bottom_fill_t > 0.0, |el| {
             el.child(div().absolute().inset_0().bg(desk).opacity(bottom_fill_t))

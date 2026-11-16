@@ -92,6 +92,7 @@ pub fn dock(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>
     let on_each = cx.entity();
     let tab_dock = TabDock::new("dock", docked, active)
         .locked(locked)
+        .held_open(ws.filled().is_some() && !tabs.is_empty())
         .leading(move |_, _| {
             let lock = lock.clone();
             IconButton::new(

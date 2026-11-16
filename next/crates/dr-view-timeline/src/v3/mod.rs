@@ -248,9 +248,6 @@ impl Timeline {
     pub fn zoom_y(&self) -> f32 {
         self.zoom_y
     }
-    pub fn lane_height(&self) -> f32 {
-        (model::ROW * self.zoom_y).round()
-    }
     pub fn min_height(&self) -> f32 {
         (model::HEAD + model::RULER + model::ROW * self.lanes().len().min(4) as f32).max(180.0)
     }

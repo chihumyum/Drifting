@@ -169,6 +169,10 @@ impl Workspace {
         self.fill.active() == Some(place)
     }
 
+    pub fn fill_progress(&self, place: FillPlace) -> f32 {
+        self.fill.progress(place)
+    }
+
     pub(super) fn fill_covers_paper(&self) -> bool {
         match self.filled() {
             Some(FillPlace::Bottom) => true,
