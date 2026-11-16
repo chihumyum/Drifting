@@ -327,6 +327,7 @@ pub fn menu(
     });
     let export = (id == "workspace-account").then(|| {
         let to_export = close.clone();
+        let label = t(cx, keys::manuscript_export::MENU);
         glass::glass_box(
             child("export"),
             GlassKind::Hidden,
@@ -336,6 +337,8 @@ pub fn menu(
             window,
             cx,
         )
+        .role(gpui::Role::MenuItem)
+        .aria_label(label.clone())
         .cursor_pointer()
         .on_click(move |_, window, cx| {
             to_export(window, cx);
@@ -343,11 +346,7 @@ pub fn menu(
                 ws.open_export(dr_view_export::Request::Manuscript, window, cx);
             });
         })
-        .child(row(
-            Icon::ArrowOut,
-            t(cx, keys::manuscript_export::MENU),
-            None,
-        ))
+        .child(row(Icon::ArrowOut, label, None))
     });
     let to_settings = close.clone();
     let settings = glass::glass_box(

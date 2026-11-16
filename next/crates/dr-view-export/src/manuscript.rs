@@ -628,6 +628,8 @@ pub(crate) fn render(
             let mut scope = section(&theme, t(mx::SCOPE));
             if outline.has_book {
                 let flip_only = this.clone();
+                let only_label = t(keys::k4_book::ONLY_BOOK_PROSE);
+                let only_on = m.only_book_prose;
                 scope = scope.child(
                     div()
                         .flex()
@@ -638,18 +640,29 @@ pub(crate) fn render(
                         .font_role(Role::Ui)
                         .type_px(s.secondary, s.line_body)
                         .text_color(p.ink(1).solid())
-                        .child(t(keys::k4_book::ONLY_BOOK_PROSE))
+                        .child(only_label.clone())
                         .child(
-                            Switch::new("export-only-book-prose", m.only_book_prose)
-                                .disabled(running)
-                                .on_change(move |on, _, cx| {
-                                    flip_only.update(cx, |d, cx| {
-                                        if let Some(m) = d.manuscript_mut() {
-                                            m.set_only_book_prose(on);
-                                        }
-                                        cx.notify();
-                                    })
-                                }),
+                            div()
+                                .id("export-only-book-prose-toggle")
+                                .role(gpui::Role::CheckBox)
+                                .aria_label(only_label)
+                                .aria_toggled(if only_on {
+                                    gpui::Toggled::True
+                                } else {
+                                    gpui::Toggled::False
+                                })
+                                .child(
+                                    Switch::new("export-only-book-prose", only_on)
+                                        .disabled(running)
+                                        .on_change(move |on, _, cx| {
+                                            flip_only.update(cx, |d, cx| {
+                                                if let Some(m) = d.manuscript_mut() {
+                                                    m.set_only_book_prose(on);
+                                                }
+                                                cx.notify();
+                                            })
+                                        }),
+                                ),
                         ),
                 );
             }
@@ -659,6 +672,8 @@ pub(crate) fn render(
             flatten_visible(&outline.tree, 0, m, &mut rows);
             let mut tree = div()
                 .id("export-tree")
+                .role(gpui::Role::Group)
+                .aria_label(t(mx::SCOPE))
                 .max_h(px(TREE_MAX_HEIGHT))
                 .overflow_y_scroll()
                 .flex()
@@ -758,6 +773,8 @@ pub(crate) fn render(
             scope = scope.child(tree);
 
             let flip_titles = this.clone();
+            let titles_label = t(keys::k4_book::ENTRY_TITLES);
+            let titles_on = m.entry_titles;
             let contents = section(&theme, t(mx::CONTENTS))
                 .child(
                     div()
@@ -765,18 +782,29 @@ pub(crate) fn render(
                         .flex_row()
                         .items_center()
                         .justify_between()
-                        .child(t(keys::k4_book::ENTRY_TITLES))
+                        .child(titles_label.clone())
                         .child(
-                            Switch::new("export-entry-titles", m.entry_titles)
-                                .disabled(running)
-                                .on_change(move |on, _, cx| {
-                                    flip_titles.update(cx, |d, cx| {
-                                        if let Some(m) = d.manuscript_mut() {
-                                            m.entry_titles = on;
-                                        }
-                                        cx.notify();
-                                    })
-                                }),
+                            div()
+                                .id("export-entry-titles-toggle")
+                                .role(gpui::Role::CheckBox)
+                                .aria_label(titles_label)
+                                .aria_toggled(if titles_on {
+                                    gpui::Toggled::True
+                                } else {
+                                    gpui::Toggled::False
+                                })
+                                .child(
+                                    Switch::new("export-entry-titles", titles_on)
+                                        .disabled(running)
+                                        .on_change(move |on, _, cx| {
+                                            flip_titles.update(cx, |d, cx| {
+                                                if let Some(m) = d.manuscript_mut() {
+                                                    m.entry_titles = on;
+                                                }
+                                                cx.notify();
+                                            })
+                                        }),
+                                ),
                         ),
                 )
                 .font_role(Role::Ui)
