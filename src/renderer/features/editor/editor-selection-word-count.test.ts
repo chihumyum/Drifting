@@ -25,6 +25,7 @@ function fixture(doc: ProseMirrorNode) {
   const emitter = {
     isDestroyed: false,
     isFocused: true,
+    view: { composing: false },
     state: EditorState.create({ doc }),
     on(event: string, fn: () => void) {
       const listeners = callbacks.get(event) ?? new Set();
@@ -114,6 +115,32 @@ describe('editor selection word count acceptance', () => {
     expect(snapshots[snapshots.length - 1]).toBeNull();
     dispose();
     expect(f.listenerCount()).toBe(0);
+  });
+
+  it('does not count the marked text an input method selects on each key of a composition', () => {
+    const f = fixture(document('前文 后文'));
+    setActiveEditor(f.editor);
+    const store = createEditorSelectionWordCountStore();
+    const snapshots: (number | null)[] = [];
+    const dispose = store.subscribe(() => snapshots.push(store.getSnapshot()));
+    const seen = snapshots.length;
+    f.select(3);
+    f.emitter.view.composing = true;
+    // Each key: the marked pinyin arrives selected, then the caret moves to its end.
+    for (const pinyin of ['n', 'ni', 'nih', 'niha', 'nihao']) {
+      const marked = f.emitter.state.selection.to - 3;
+      f.emitter.state = f.emitter.state.apply(f.emitter.state.tr.insertText(pinyin, 3, 3 + marked));
+      f.emitter.state = f.emitter.state.apply(f.emitter.state.tr.setSelection(TextSelection.create(f.emitter.state.doc, 3, 3 + pinyin.length)));
+      f.emit('update');
+      f.select(3 + pinyin.length);
+    }
+    expect(snapshots.slice(seen)).toEqual(new Array(snapshots.length - seen).fill(null));
+    expect(snapshots.length - seen).toBeGreaterThanOrEqual(10);
+    // A selection the author makes after the composition counts again.
+    f.emitter.view.composing = false;
+    f.select(3, 8);
+    expect(snapshots[snapshots.length - 1]).toBe(1);
+    dispose();
   });
 
   it('follows tab/split ownership, ignores the old editor, and clears before destruction completes', () => {

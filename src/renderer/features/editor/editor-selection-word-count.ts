@@ -14,6 +14,9 @@ export function createEditorSelectionWordCountStore() {
     const editor = getActiveEditor();
     const selection = editor?.state.selection;
     if (!editor?.isFocused || !selection || selection.empty ||
+      // On every key of a composition WebKit selects the marked text for an
+      // instant before placing the caret; the author did not select it.
+      editor.view.composing ||
       !(selection instanceof TextSelection || selection instanceof AllSelection)) {
       cachedDoc = null;
       cachedSelection = null;
