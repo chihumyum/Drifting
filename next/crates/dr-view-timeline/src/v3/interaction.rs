@@ -267,7 +267,9 @@ impl Timeline {
         let Some(view) = self.view() else {
             return;
         };
-        if !book.has_below(&drag.entry) || view.lanes.iter().any(|l| l.entry == drag.entry) {
+        // Only an entry that takes entries from elsewhere goes into a view
+        // (DV, 2026-11-16).
+        if !book.accepts_members(&drag.entry) || view.lanes.iter().any(|l| l.entry == drag.entry) {
             return;
         }
         if let Some(mut shown) = self.view_scope() {
@@ -288,15 +290,10 @@ impl Timeline {
         if !drag.matches(&page) || !drag.is_current(cx) || drag.entry == lane {
             return;
         }
-        if let Some(book) = drag.page().book.v3() {
-            let can_place = book.accepts_members(&lane)
-                || (book.entry(&lane).is_some_and(|le| le.level)
-                    && book
-                        .entry(&drag.entry)
-                        .is_some_and(|ce| ce.parent.as_deref() == Some(lane.as_str())));
-            if !can_place {
-                return;
-            }
+        if let Some(book) = drag.page().book.v3()
+            && !book.accepts_members(&lane)
+        {
+            return;
         }
         if let Some(at) = self.order_at(window.mouse_position().x - px(drag.grab())) {
             let span = drag

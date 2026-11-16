@@ -25,7 +25,8 @@ pub struct BookStructureV3 {
     entries: BTreeMap<EntryId, Entry>,
     templates: BTreeMap<EntryTemplateId, EntryTemplate>,
     parents: BTreeMap<EntryId, Option<EntryId>>,
-    manual_children: BTreeMap<Option<EntryId>, Vec<EntryId>>,
+    /// Live entries by where they live, in manual order (a folder's only
+    /// order, `kernel-v5.md` §4; a folder in a view keeps it, DV 2026-11-16).
     children: BTreeMap<Option<EntryId>, Vec<EntryId>>,
     memberships: Vec<Membership>,
     members: BTreeMap<EntryId, Vec<EntryId>>,
@@ -168,7 +169,6 @@ impl BookStructureV3 {
             entries,
             templates,
             parents,
-            manual_children: BTreeMap::new(),
             children: BTreeMap::new(),
             memberships,
             members: BTreeMap::new(),
@@ -178,13 +178,12 @@ impl BookStructureV3 {
         };
         for id in &out.ordered {
             if !out.entries[id].is_trashed() {
-                out.manual_children
+                out.children
                     .entry(out.parents[id].clone())
                     .or_default()
                     .push(id.clone());
             }
         }
-        out.children = out.manual_children.clone();
         for m in &out.memberships {
             out.members
                 .entry(m.host.clone())
@@ -192,55 +191,6 @@ impl BookStructureV3 {
                 .push(m.member.clone());
         }
 
-        // Folders (`level == true`) that sit in at least one live view have
-        // their direct children's order governed by `lane_reference_view`'s
-        // scale (`VIEW-FOLDER-ORDER-FROM-SCALE`).
-        let mut any_folder_in_view = false;
-        let folder_parents: Vec<EntryId> = out
-            .children
-            .keys()
-            .filter_map(|k| k.clone())
-            .filter(|pid| {
-                is_entry_live(pid, &out.entries)
-                    && out.entries[pid].is_level()
-                    && out.lane_reference_view(pid).is_some()
-            })
-            .collect();
-        for pid in folder_parents {
-            if let Some(ref_view) = out.lane_reference_view(&pid).cloned()
-                && let Some(child_ids) = out.children.get_mut(&Some(pid))
-            {
-                sort_ids_along_view(child_ids, &ref_view);
-                any_folder_in_view = true;
-            }
-        }
-        if any_folder_in_view {
-            let mut visited = BTreeSet::new();
-            let mut reordered = Vec::with_capacity(out.ordered.len());
-            fn dfs(
-                id: &EntryId,
-                children: &BTreeMap<Option<EntryId>, Vec<EntryId>>,
-                visited: &mut BTreeSet<EntryId>,
-                out: &mut Vec<EntryId>,
-            ) {
-                if !visited.insert(id.clone()) {
-                    return;
-                }
-                out.push(id.clone());
-                for c in children.get(&Some(id.clone())).into_iter().flatten() {
-                    dfs(c, children, visited, out);
-                }
-            }
-            for top in out.children.get(&None).into_iter().flatten() {
-                dfs(top, &out.children, &mut visited, &mut reordered);
-            }
-            for id in &out.ordered {
-                if visited.insert(id.clone()) {
-                    reordered.push(id.clone());
-                }
-            }
-            out.ordered = reordered;
-        }
         out
     }
 
@@ -280,22 +230,13 @@ impl BookStructureV3 {
         self.parents.get(id).and_then(Option::as_ref)
     }
 
-    /// Live entries whose effective residence is `parent`, in authoritative
-    /// order (along [`Self::lane_reference_view`]'s scale when `parent` is a
-    /// folder in at least one live view, otherwise manual folder order).
+    /// Live entries whose effective residence is `parent`, in its manual
+    /// folder order (`LoroTree` sibling order). A folder's order is its own
+    /// also while it is a lane in a view: a lane holds what is hung on it,
+    /// not what lives under it (DV 2026-11-16; `VIEW-FOLDER-ORDER-FROM-SCALE`
+    /// is gone).
     pub fn children_of(&self, parent: Option<&EntryId>) -> Vec<&Entry> {
         self.children
-            .get(&parent.cloned())
-            .into_iter()
-            .flatten()
-            .map(|id| &self.entries[id])
-            .collect()
-    }
-
-    /// Live entries whose effective residence is `parent`, in manual `LoroTree`
-    /// sibling order regardless of whether `parent` is in a timeline view.
-    pub fn manual_children_of(&self, parent: Option<&EntryId>) -> Vec<&Entry> {
-        self.manual_children
             .get(&parent.cloned())
             .into_iter()
             .flatten()
@@ -312,10 +253,11 @@ impl BookStructureV3 {
         self.lane_reference_view(entry).is_some()
     }
 
-    /// Reference [`TimelineView`] whose scale governs `host`'s own page order
+    /// Reference [`TimelineView`] whose scale orders what is hung on `host`
     /// (`kernel-v5.md` §4 「视图：刻度」): the first live view in `(pos, id)`
     /// order whose effective lanes contain `host`. Returns `None` when `host`
-    /// is not in any live view.
+    /// is not in any live view (an entry that does not take entries from
+    /// elsewhere never is: it is no lane).
     pub fn lane_reference_view(&self, host: &EntryId) -> Option<&TimelineView> {
         let in_view = |tv: &TimelineView| {
             effective_timeline_lanes(&tv.lanes, &self.entries, &self.templates)
@@ -326,28 +268,6 @@ impl BookStructureV3 {
             .iter()
             .map(|id| &self.timeline_views[id])
             .find(|tv| in_view(tv))
-    }
-
-    /// Direct live residents of `folder` ordered along `view`'s scale
-    /// (unplaced entries last, ties by entry ID).
-    pub fn residents_along_view<'a>(
-        &'a self,
-        view: &TimelineView,
-        folder: &EntryId,
-    ) -> Vec<&'a Entry> {
-        if !is_entry_live(folder, &self.entries) || !self.entries[folder].is_level() {
-            return Vec::new();
-        }
-        let mut ids: Vec<EntryId> = self
-            .manual_children
-            .get(&Some(folder.clone()))
-            .into_iter()
-            .flatten()
-            .filter(|id| is_entry_live(id, &self.entries))
-            .cloned()
-            .collect();
-        sort_ids_along_view(&mut ids, view);
-        ids.into_iter().map(|id| &self.entries[&id]).collect()
     }
 
     /// Valid live members of `host` ordered along `view`'s scale
@@ -369,75 +289,6 @@ impl BookStructureV3 {
             .collect();
         sort_ids_along_view(&mut ids, view);
         ids.into_iter().map(|id| &self.entries[&id]).collect()
-    }
-
-    /// All live entries belonging to swimlane `lane_id` (direct residents when
-    /// `level == true` plus valid members when `accept == true`, each once),
-    /// ordered along `view`'s scale.
-    pub fn lane_entries_in_view<'a>(
-        &'a self,
-        view: &TimelineView,
-        lane_id: &EntryId,
-    ) -> Vec<&'a Entry> {
-        if !is_entry_live(lane_id, &self.entries) {
-            return Vec::new();
-        }
-        let lane = &self.entries[lane_id];
-        let mut seen = BTreeSet::new();
-        let mut ids = Vec::new();
-        if lane.is_level() {
-            for id in self
-                .manual_children
-                .get(&Some(lane_id.clone()))
-                .into_iter()
-                .flatten()
-            {
-                if is_entry_live(id, &self.entries) && seen.insert(id.clone()) {
-                    ids.push(id.clone());
-                }
-            }
-        }
-        if lane.accepts_members(&self.templates) {
-            for id in self.members.get(lane_id).into_iter().flatten() {
-                if is_entry_live(id, &self.entries) && seen.insert(id.clone()) {
-                    ids.push(id.clone());
-                }
-            }
-        }
-        sort_ids_along_view(&mut ids, view);
-        ids.into_iter().map(|id| &self.entries[&id]).collect()
-    }
-
-    /// All live entries belonging to `lane_id` in its current authoritative
-    /// order: along [`Self::lane_reference_view`]'s scale when `lane_id` is in
-    /// at least one live view, otherwise direct residents in manual folder
-    /// order followed by valid members in `(membership.pos, id)` order, each
-    /// entry at most once.
-    pub fn lane_entries_order(&self, lane_id: &EntryId) -> Vec<&Entry> {
-        if !is_entry_live(lane_id, &self.entries) {
-            return Vec::new();
-        }
-        if let Some(view) = self.lane_reference_view(lane_id) {
-            return self.lane_entries_in_view(view, lane_id);
-        }
-        let lane = &self.entries[lane_id];
-        let mut seen = BTreeSet::new();
-        let mut out = Vec::new();
-        if lane.is_level() {
-            for e in self.manual_children_of(Some(lane_id)) {
-                if is_entry_live(&e.id, &self.entries) && seen.insert(e.id.clone()) {
-                    out.push(e);
-                }
-            }
-        }
-        if lane.accepts_members(&self.templates) {
-            for id in self.members.get(lane_id).into_iter().flatten() {
-                if is_entry_live(id, &self.entries) && seen.insert(id.clone()) {
-                    out.push(&self.entries[id]);
-                }
-            }
-        }
-        out
     }
 
     /// Authoritative member order for `host`'s own page (`kernel-v5.md` §4,
@@ -493,7 +344,6 @@ impl BookStructureV3 {
             self.project.book.is_some(),
             &self.entries,
             &self.templates,
-            &self.timeline_views,
         )
         .is_ok()
     }
@@ -554,7 +404,7 @@ impl BookStructureV3 {
         let mut min_lane_idx: HashMap<EntryId, usize> = HashMap::new();
         let mut unique: Vec<EntryId> = Vec::new();
         for (lane_idx, lane) in lanes.iter().enumerate() {
-            for member in self.lane_entries_in_view(view, &lane.entry) {
+            for member in self.members_along_view(view, &lane.entry) {
                 min_lane_idx.entry(member.id.clone()).or_insert_with(|| {
                     unique.push(member.id.clone());
                     lane_idx
@@ -592,7 +442,7 @@ impl BookStructureV3 {
         lane_id: &EntryId,
         in_book_only: bool,
     ) -> Vec<FlatEntry<'a>> {
-        self.lane_entries_in_view(view, lane_id)
+        self.members_along_view(view, lane_id)
             .into_iter()
             .map(|entry| FlatEntry {
                 entry,

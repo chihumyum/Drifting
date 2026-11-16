@@ -198,19 +198,12 @@ fn check_v3_invariants(book: &seed::SeededBookV3) {
     for m in &memberships {
         assert!(dr_model::v3::check_membership(&m.host, &m.member, &entries, &templates).is_ok());
     }
-    let views_map: std::collections::BTreeMap<_, _> = view
-        .timeline_views_raw()
-        .into_iter()
-        .map(|tv| (tv.id.clone(), tv))
-        .collect();
-    // The book reads from the root: no start to check.
+    // The book reads from the root: no start to check. No Tab mounts a view,
+    // and every lane takes entries from elsewhere (DV, 2026-11-16).
     let proj = view.project();
     assert!(proj.book.is_some());
     for tab in &proj.tabs {
-        assert!(
-            dr_model::v3::check_tab_mount(&tab.mount, true, &entries, &templates, &views_map)
-                .is_ok()
-        );
+        assert!(dr_model::v3::check_tab_mount(&tab.mount, true, &entries, &templates).is_ok());
     }
     for tv in view.timeline_views_raw() {
         for l in &tv.lanes {

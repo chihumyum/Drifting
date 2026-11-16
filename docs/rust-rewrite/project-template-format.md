@@ -74,11 +74,11 @@
   - **存在对象**：项目开启「成书」，成书从根读（[kernel-v5.md](kernel-v5.md) 第 3 节）：
     - `word_target`、`daily_word_target`（可选 `i64`）：存在时须 `>= 1`（`0` 在提取时规范化为缺省 `None`）。
     - 没有别的键。原来的 `root`（成书起点，`root`／`entry`／`view`／`lane` 四种）2026-11-15 夜里去掉，带着它的模板拒收。
-- `tabs`（`TemplateTab[]`，默认 `[]`）：左栏自定义 Tab，数组先后即显示先后。Tab 没有自己的名字，叫它挂的东西的名字；同一样东西只挂一个 Tab，重复的挂载校验不过（作者 2026-11-15，[kernel-v5.md](kernel-v5.md) 第 5 节；原来有 `name`，`mount` 也可以缺）。另存时目标已缺失的 Tab 不导出。没有挂根的 Tab 时，建书时补上「全部」：
+- `tabs`（`TemplateTab[]`，默认 `[]`）：左栏自定义 Tab，数组先后即显示先后。Tab 没有自己的名字，叫它挂的东西的名字；同一样东西只挂一个 Tab，重复的挂载校验不过（作者 2026-11-15，[kernel-v5.md](kernel-v5.md) 第 5 节；原来有 `name`，`mount` 也可以缺）。另存时目标已缺失的 Tab 不导出，项目里挂视图的 Tab（书里存着的旧 Tab）也不导出（2026-11-16 DV）。没有挂根的 Tab 时，建书时补上「全部」：
   - `mount`（必填 `TemplateTabMount`）：
     - `{"kind": "root"}`：挂最外层；
     - `{"kind": "entry", "entry": "e…"}`：目标条目须存在且满足 `has_below`；
-    - `{"kind": "view", "view": "v…"}`：目标视图须存在。作者 2026-11-16 定了左栏的 Tab 不能挂视图（[kernel-v5.md](kernel-v5.md) 第 15 节第 15 条），这一种在任务书 T9 去掉，去掉之前代码里还收；
+    - ~~`{"kind": "view", "view": "v…"}`：目标视图须存在。~~ **2026-11-16 DV 去掉**：作者定了左栏的 Tab 不能挂视图（「左栏不能挂视图，视图和底栏是绑定的。」[kernel-v5.md](kernel-v5.md) 第 15 节第 15 条）。格式没发布，直接改，`formatVersion` 仍是 1：`TemplateTabMount` 没有 `view` 一种，带它的模板值按不认识的取值拒收（`MalformedJson`）；
     - `{"kind": "book"}`：挂成书序列，仅当 `project.book` 存在（开启成书）时合法。
 
 ## 5. 条目模板（`templates[]`）
@@ -167,8 +167,8 @@
 每项为 `{"ref": "v…", "name": "…", "lanes": […], "placements": […], "pins": […]}`：
 
 - `ref`：合法代号 `"v…"`，全表唯一；`name`：非空单行文本；
-- `lanes`：`{"entry": "e…", "act_track"?: bool}`，`entry` 在同一视图内唯一，且在 `entries` 中存在并满足 `level || accept`；
-- `placements`：`{"entry": "e…", "at": f64, "span"?: f64}`，`entry` 在同一视图内唯一，`at` 为有限实数，`span` 存在时为 `> 0` 的有限实数，且 `entry` 须直接住在或挂名于该视图的某条 `lane`（`check_timeline_placement_in_lane`）；
+- `lanes`：`{"entry": "e…", "act_track"?: bool}`，`entry` 在同一视图内唯一，且在 `entries` 中存在并开着「收别处的条目」（`accept`；原来是 `level || accept`，2026-11-16 DV 起只开着层级的条目不能当泳道，`V3-TIMELINE-LANE-ENABLED`）；
+- `placements`：`{"entry": "e…", "at": f64, "span"?: f64}`，`entry` 在同一视图内唯一，`at` 为有限实数，`span` 存在时为 `> 0` 的有限实数，且 `entry` 须挂名于该视图的某条 `lane`（`check_timeline_placement_in_lane`；原来住在泳道下面也算，2026-11-16 DV 起泳道上只有挂着的）；
 - `pins`：`{"at": f64, "label": "…", "color"?: "…", "entry"?: "e…"}`，`at` 有限，`label` 非空，`entry` 存在时须在 `entries` 中存在。
 
 ## 10. 正文段落模型（`TemplateParagraph`）

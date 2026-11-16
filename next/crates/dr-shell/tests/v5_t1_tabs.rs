@@ -240,6 +240,22 @@ fn managing_adds_reorders_and_removes_tabs_named_after_their_mounts(cx: &mut Tes
         assert_eq!(lit(&elements), json!(false));
         assert_eq!(lit(&category), json!(true));
         assert_eq!(lit(&chapter), json!(false), "a leaf is never a Tab");
+        // No views to drag in: a Tab cannot mount one (DV, `kernel-v5.md`
+        // §15 item 15).
+        let views: Vec<String> = view
+            .read(cx)
+            .book
+            .v3()
+            .unwrap()
+            .timeline_views
+            .iter()
+            .map(|tv| tv.id.clone())
+            .collect();
+        assert!(!views.is_empty());
+        assert!(
+            rows.iter()
+                .all(|r| !views.iter().any(|v| r["row"] == json!(v)))
+        );
     });
 
     // Dropped into the row: a Tab where the slot opened.
@@ -448,22 +464,42 @@ fn a_tab_whose_mount_is_gone_fades_comes_back_and_can_be_removed(cx: &mut TestAp
         !tabs::is_gone(ws.book.v3().unwrap(), &mount)
     });
 
-    // A deleted view; its Tab's 「去掉这个 Tab」 removes it and goes back to
-    // the first Tab.
+    // A Tab cannot mount a view (DV, `kernel-v5.md` §15 item 15). One a
+    // book stored before reads as gone while the view is still there, is
+    // called by the view's name, and its 「去掉这个 Tab」 removes it and goes
+    // back to the first Tab.
     let view_mount = TabMount::View {
         view: view_id.clone(),
     };
-    sidebar.update(cx, |s, cx| s.add_at(view_mount.clone(), usize::MAX, cx));
-    wait(&view, cx, "the view Tab", |ws, _| {
+    let (book_id, stored_view) = (
+        dr_model::id::BookId::parse(&id).unwrap(),
+        dr_model::id::TimelineViewId::parse(&view_id).unwrap(),
+    );
+    lib.library()
+        .open_doc(&format!("book:{id}"), dr_store::OpenDoc::Existing)
+        .unwrap()
+        .write(dr_store::Origin::Import, move |doc| {
+            dr_doc::v3::BorrowedBookV3::new(doc, &book_id)
+                .unwrap()
+                .txn()
+                .project()
+                .put_tab(&dr_model::v3::ProjectTab {
+                    id: dr_model::id::TabId::parse("tab-old-view").unwrap(),
+                    pos: None,
+                    mount: dr_model::v3::TabMount::View { view: stored_view },
+                })
+                .unwrap();
+        })
+        .unwrap();
+    wait(&view, cx, "the old view Tab", |ws, _| {
         tab_on(ws, &view_mount).is_some()
     });
-    call(
-        &lib,
-        "timeline_view.delete",
-        json!({"book": id, "id": view_id}),
-    );
-    wait(&view, cx, "the view deleted", |ws, _| {
-        tabs::is_gone(ws.book.v3().unwrap(), &view_mount)
+    view.read_with(cx, |ws, cx| {
+        let v = ws.book.v3().unwrap();
+        assert!(v.timeline_view(&view_id).is_some(), "the view is there");
+        assert!(tabs::is_gone(v, &view_mount));
+        let name = v.timeline_view(&view_id).unwrap().name.clone();
+        assert_eq!(tabs::mount_name(v, &view_mount, cx).as_ref(), name);
     });
     let view_tab = view.read_with(cx, |ws, _| tab_on(ws, &view_mount).unwrap());
     sidebar.update(cx, |s, cx| {
@@ -651,31 +687,10 @@ fn marks_are_sand_names_or_one_character() {
 }
 
 #[gpui::test]
-fn dragging_in_a_view_tab_moves_on_the_scale_and_in_the_book_tab_in_the_dropped_layer(
-    cx: &mut TestAppContext,
-) {
+fn dragging_in_the_book_tab_moves_in_the_dropped_layer(cx: &mut TestAppContext) {
     let (_dir, lib, id) = seed();
     let (view, cx) = open(cx, &lib, &id);
     wait(&view, cx, "the book", |ws, _| ws.book.v3().is_some());
-    // A lane of the view with two entries on it.
-    let (view_id, lane, order) = view.read_with(cx, |ws, _| {
-        let v = ws.book.v3().unwrap();
-        let tv = &v.timeline_views[0];
-        tv.lanes
-            .iter()
-            .map(|l| (tv.id.clone(), l.entry.clone(), v.lane_entries(tv, &l.entry)))
-            .find(|(_, _, order)| order.len() >= 2)
-            .expect("a lane with two entries")
-    });
-    let (a, b) = (order[0].clone(), order[1].clone());
-    let h = host(&view, &lib, &id, cx);
-    cx.update(|_, cx| tabs::drop_in_view(&h, &view_id, &lane, &b, &a, false, cx));
-    wait(&view, cx, "the new place on the scale", |ws, _| {
-        let v = ws.book.v3().unwrap();
-        let tv = v.timeline_view(&view_id).unwrap();
-        let now = v.lane_entries(tv, &lane);
-        now.iter().position(|x| *x == b) < now.iter().position(|x| *x == a)
-    });
 
     // The book reads from the root (DW): dragging in the Tab mounted on it
     // changes the order of the layer it is dropped in, here 书稿's manual
@@ -706,13 +721,15 @@ fn dragging_in_a_view_tab_moves_on_the_scale_and_in_the_book_tab_in_the_dropped_
     });
 }
 
-/// `Book::load` alone (no window): the snapshot's helpers the Tabs read.
+/// `Book::load` alone (no window): a lane holds what is hung on it, along
+/// the view's scale (DV, `kernel-v5.md` §16 「泳道」).
 #[test]
-fn a_view_lists_its_lanes_entries_along_its_scale() {
+fn a_lane_lists_what_is_hung_on_it_along_its_scale() {
     let (_dir, lib, id) = seed();
     let book = Book::load(&lib, &id).unwrap();
     let v = book.v3().unwrap();
     let tv = &v.timeline_views[0];
+    assert!(!tv.lanes.is_empty());
     for lane in &tv.lanes {
         let order = v.lane_entries(tv, &lane.entry);
         let at: Vec<Option<f64>> = order
@@ -724,9 +741,9 @@ fn a_view_lists_its_lanes_entries_along_its_scale() {
         // Unplaced ones last.
         let first_unplaced = at.iter().position(Option::is_none).unwrap_or(at.len());
         assert!(at[first_unplaced..].iter().all(Option::is_none));
-        // What lives under it and what is attached to it, each once.
+        // What is hung on it, each once; what only lives under it is not.
         let level = &v.levels[&lane.entry];
-        let mut expect: Vec<&String> = level.children.iter().chain(&level.members).collect();
+        let mut expect: Vec<&String> = level.members.iter().collect();
         expect.sort();
         expect.dedup();
         let mut got: Vec<&String> = order.iter().collect();

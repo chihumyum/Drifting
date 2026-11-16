@@ -70,11 +70,6 @@ fn minimal_valid_template() -> ProjectTemplateValue {
                         entry: "e2".to_owned(),
                     },
                 },
-                TemplateTab {
-                    mount: TemplateTabMount::View {
-                        view: "v1".to_owned(),
-                    },
-                },
             ],
         },
         templates: vec![
@@ -777,4 +772,46 @@ fn a_book_start_a_homepage_or_derived_from_is_refused() {
             "credit.{key} is refused: {t}"
         );
     }
+}
+
+/// DV (`project-template-format.md`, 2026-11-16): a Tab cannot mount a
+/// view, so a template value with a Tab on a view is refused; and a lane of
+/// a template's view must take entries from elsewhere, so a folder that is
+/// only a level is refused as a lane. Without them the same template reads.
+#[test]
+fn a_tab_on_a_view_or_a_lane_that_is_only_a_level_is_refused() {
+    let mut base: serde_json::Value =
+        serde_json::from_str(&to_canonical_json(&minimal_valid_template()).unwrap()).unwrap();
+    base["project"]["tabs"]
+        .as_array_mut()
+        .unwrap()
+        .retain(|t| t["mount"]["kind"] != "view");
+    let parsed = parse_project_template_json(&base.to_string()).expect("no Tab on a view");
+    assert!(!parsed.project.tabs.is_empty());
+    assert!(!parsed.views.is_empty());
+
+    let mut on_view = base.clone();
+    on_view["project"]["tabs"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"mount": {"kind": "view", "view": "v1"}}));
+    assert!(
+        matches!(
+            parse_project_template_json(&on_view.to_string()),
+            Err(ProjectTemplateError::MalformedJson(_))
+        ),
+        "a Tab on a view is refused: {on_view}"
+    );
+
+    // 「手稿」 (e1) has its level on and 「收别处的条目」 off.
+    let mut folder_lane = base.clone();
+    folder_lane["views"][0]["lanes"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"entry": "e1"}));
+    let refused = parse_project_template_json(&folder_lane.to_string()).unwrap_err();
+    assert!(
+        refused.to_string().contains("V3-TIMELINE-LANE-ENABLED"),
+        "a lane that is only a level is refused: {refused}"
+    );
 }

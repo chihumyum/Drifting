@@ -380,8 +380,9 @@ impl Timeline {
                 }
             }
             MenuOf::LaneActions(lane_id) => {
+                // Every lane takes entries from elsewhere (DV, 2026-11-16):
+                // what goes on it is hung on it, a new entry or one picked.
                 let target_lane = lane_id.clone();
-                let accepts = book.accepts_members(lane_id);
                 menu = menu
                     .child(
                         MenuItem::new(
@@ -391,15 +392,11 @@ impl Timeline {
                         )
                         .on_click(cx.listener(
                             move |this, e: &ClickEvent, _, cx| {
-                                if accepts {
-                                    this.popup = Some(Popup::new(
-                                        MenuOf::Entries(target_lane.clone()),
-                                        e.position(),
-                                    ));
-                                    cx.notify();
-                                } else {
-                                    this.create_entry_in_lane(target_lane.clone(), cx);
-                                }
+                                this.popup = Some(Popup::new(
+                                    MenuOf::Entries(target_lane.clone()),
+                                    e.position(),
+                                ));
+                                cx.notify();
                             },
                         )),
                     )
@@ -454,7 +451,8 @@ impl Timeline {
                 menu = menu.child(new_lane).child(new_act);
                 let shown = self.view_scope();
                 for e in &book.entries {
-                    if e.deleted_at.is_some() || !book.has_below(&e.id) {
+                    // A lane takes entries from elsewhere (DV, 2026-11-16).
+                    if e.deleted_at.is_some() || !book.accepts_members(&e.id) {
                         continue;
                     }
                     let in_view = self
@@ -573,7 +571,10 @@ impl Timeline {
                     page.as_ref().is_some_and(|page| {
                         drag.matches(page)
                             && !existing_lanes.contains(&drag.entry)
-                            && page.book.v3().is_some_and(|b| b.has_below(&drag.entry))
+                            && page
+                                .book
+                                .v3()
+                                .is_some_and(|b| b.accepts_members(&drag.entry))
                     })
                 })
             })
@@ -837,7 +838,10 @@ impl Timeline {
                             page.as_ref().is_some_and(|page| {
                                 drag.matches(page)
                                     && !existing_lanes.contains(&drag.entry)
-                                    && page.book.v3().is_some_and(|b| b.has_below(&drag.entry))
+                                    && page
+                                        .book
+                                        .v3()
+                                        .is_some_and(|b| b.accepts_members(&drag.entry))
                             })
                         })
                     })
@@ -880,13 +884,10 @@ impl Timeline {
                         page.as_ref().is_some_and(|page| {
                             drag.matches(page)
                                 && drag.entry != can_drop_lane
-                                && page.book.v3().is_some_and(|b| {
-                                    b.accepts_members(&can_drop_lane)
-                                        || (b.entry(&can_drop_lane).is_some_and(|le| le.level)
-                                            && b.entry(&drag.entry).is_some_and(|ce| {
-                                                ce.parent.as_deref() == Some(can_drop_lane.as_str())
-                                            }))
-                                })
+                                && page
+                                    .book
+                                    .v3()
+                                    .is_some_and(|b| b.accepts_members(&can_drop_lane))
                         })
                     })
                 })
@@ -1017,14 +1018,10 @@ impl Timeline {
                         page.as_ref().is_some_and(|page| {
                             drag.matches(page)
                                 && drag.entry != can_drop_clip_lane
-                                && page.book.v3().is_some_and(|b| {
-                                    b.accepts_members(&can_drop_clip_lane)
-                                        || (b.entry(&can_drop_clip_lane).is_some_and(|le| le.level)
-                                            && b.entry(&drag.entry).is_some_and(|ce| {
-                                                ce.parent.as_deref()
-                                                    == Some(can_drop_clip_lane.as_str())
-                                            }))
-                                })
+                                && page
+                                    .book
+                                    .v3()
+                                    .is_some_and(|b| b.accepts_members(&can_drop_clip_lane))
                         })
                     })
                 })

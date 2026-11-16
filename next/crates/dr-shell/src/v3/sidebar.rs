@@ -3,8 +3,9 @@
 //! template collection.
 //!
 //! A Tab is mounted on the root (「全部」, always there), an entry that holds
-//! entries (living under it or attached to it), a view, or the book, and is
-//! called by what it is mounted on. The row scrolls sideways; the manage
+//! entries (living under it or attached to it), or the book, and is called by
+//! what it is mounted on. It cannot mount a view (DV, 2026-11-16); one a book
+//! stored from before reads as gone. The row scrolls sideways; the manage
 //! button (筝柱) at its end turns managing on: the Tabs jiggle, each but
 //! 「全部」 with a remove badge that stays still, they drag along the row to
 //! reorder, the row wraps to show them all, and the column below shows the
@@ -683,7 +684,9 @@ impl Sidebar {
                 .into_any_element();
         }
         match &tab.mount {
-            TabMount::View { view } => tabs::view_list(&self.host, view, window, cx),
+            // A Tab on a view is always gone (handled above): a Tab cannot
+            // mount a view (DV, 2026-11-16).
+            TabMount::View { .. } => div().into_any_element(),
             TabMount::Book => tabs::book_list(&self.host, window, cx),
             TabMount::Root | TabMount::Entry { .. } => {
                 let Some(key) = self.display_key(tab) else {

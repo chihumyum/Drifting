@@ -26,6 +26,9 @@ fn cards_template() -> Value {
                 "id": "tpl-folder",
                 "name": "文件夹",
                 "level": true,
+                // A lane of the template's view takes entries from
+                // elsewhere (DV, 2026-11-16).
+                "settings": {"accept": true},
                 "modules": [
                     {"id": "mod-about", "kind": "prose", "name": "说明", "config": {"in_book": false}}
                 ]

@@ -1,11 +1,12 @@
 //! What the left column shows while its Tabs are managed (`kernel-v5.md` §5,
 //! the second Tab prototype, 2026-11-15): the project's structure.
-//! 「全部」, the whole entry tree, the views, and the book while the project
-//! has one. What a Tab can be mounted on (the root, an entry with 「层级」 or
-//! 「收别处的条目」 on, a view, the book) and no Tab shows yet is lit with a
-//! glass frame and drags into the Tab row to add a Tab; the rest is faint
-//! and does not drag: leaves, and what a Tab already shows. A click adds
-//! nothing.
+//! 「全部」, the whole entry tree, and the book while the project has one.
+//! What a Tab can be mounted on (the root, an entry with 「层级」 or
+//! 「收别处的条目」 on, the book) and no Tab shows yet is lit with a glass
+//! frame and drags into the Tab row to add a Tab; the rest is faint and does
+//! not drag: leaves, and what a Tab already shows. A click adds nothing.
+//! Views are not listed: a Tab cannot mount a view (DV, 2026-11-16, author:
+//! 「左栏不能挂视图，视图和底栏是绑定的。」).
 use super::entry_target;
 use crate::{pages::PageViewHost, strings::t};
 use dr_i18n::keys;
@@ -36,8 +37,8 @@ pub struct Structure {
     host: PageViewHost,
     /// The column this structure belongs to (what a drag carries).
     owner: EntityId,
-    /// The 「条目」 and 「视图」 sections, folded.
-    folded: (bool, bool),
+    /// The 「条目」 section, folded.
+    folded: bool,
     /// Entries whose own entries are folded away.
     shut: BTreeSet<String>,
 }
@@ -47,7 +48,7 @@ impl Structure {
         Self {
             host,
             owner,
-            folded: (false, false),
+            folded: false,
             shut: BTreeSet::new(),
         }
     }
@@ -57,7 +58,7 @@ impl Structure {
         let changed = !Rc::ptr_eq(&self.host.book, &host.book) || self.host.book_id != host.book_id;
         if self.host.book_id != host.book_id {
             self.shut.clear();
-            self.folded = (false, false);
+            self.folded = false;
         }
         self.host = host;
         if changed {
@@ -74,18 +75,10 @@ impl Structure {
         let mut rows = vec![serde_json::json!({
             "row": "root", "lit": !self.mounted(&TabMount::Root), "depth": 0,
         })];
-        if !self.folded.0 {
+        if !self.folded {
             for (id, depth) in self.tree() {
                 let lit = v.has_below(&id) && !self.mounted(&TabMount::Entry { entry: id.clone() });
                 rows.push(serde_json::json!({ "row": id, "lit": lit, "depth": depth }));
-            }
-        }
-        if !self.folded.1 {
-            for tv in v.timeline_views.iter().filter(|tv| tv.deleted_at.is_none()) {
-                let lit = !self.mounted(&TabMount::View {
-                    view: tv.id.clone(),
-                });
-                rows.push(serde_json::json!({ "row": tv.id, "lit": lit, "depth": 0 }));
             }
         }
         if v.project.book.is_some() {
@@ -93,7 +86,7 @@ impl Structure {
                 "row": "book", "lit": !self.mounted(&TabMount::Book), "depth": 0,
             }));
         }
-        serde_json::json!({ "rows": rows, "folded": [self.folded.0, self.folded.1] })
+        serde_json::json!({ "rows": rows, "folded": [self.folded] })
     }
 
     /// Folds or opens the entry `id`'s own entries (tests and the bridge).
@@ -185,11 +178,7 @@ impl Structure {
                 ink,
             ))
             .on_click(cx.listener(move |this, _, _, cx| {
-                if id == "v3-structure-entries" {
-                    this.folded.0 = !this.folded.0;
-                } else {
-                    this.folded.1 = !this.folded.1;
-                }
+                this.folded = !this.folded;
                 cx.notify();
             }))
             .into_any_element()
@@ -291,11 +280,11 @@ impl Render for Structure {
         list = list.child(self.section_head(
             "v3-structure-entries",
             t(cx, keys::v3_tabs::ENTRIES),
-            self.folded.0,
+            self.folded,
             window,
             cx,
         ));
-        if !self.folded.0 {
+        if !self.folded {
             for (id, depth) in self.tree() {
                 let Some(entry) = v.entry(&id) else {
                     continue;
@@ -316,35 +305,6 @@ impl Render for Structure {
                 let name: SharedString = entry.title.clone().into();
                 let fold = has_children.then(|| !self.shut.contains(&id));
                 list = list.child(self.row(id, cell, depth, fold, mount, name, window, cx));
-            }
-        }
-        list = list.child(self.section_head(
-            "v3-structure-views",
-            t(cx, keys::v3_tabs::VIEWS),
-            self.folded.1,
-            window,
-            cx,
-        ));
-        if !self.folded.1 {
-            for tv in v.timeline_views.iter().filter(|tv| tv.deleted_at.is_none()) {
-                let cell = SandCell::new(
-                    SharedString::from(format!("v3-structure-view-{}", tv.id)),
-                    tv.name.clone(),
-                )
-                .icon(Icon::LanesStagger);
-                let mount = TabMount::View {
-                    view: tv.id.clone(),
-                };
-                list = list.child(self.row(
-                    tv.id.clone(),
-                    cell,
-                    0,
-                    None,
-                    Some(mount),
-                    tv.name.clone().into(),
-                    window,
-                    cx,
-                ));
             }
         }
         if v.project.book.is_some() {

@@ -337,9 +337,11 @@ impl Timeline {
         let Some(book_snap) = self.book.v3() else {
             return;
         };
+        // A lane takes entries from elsewhere (DV, 2026-11-16): a template
+        // with only its level on makes no lane.
         let Some(tpl) = book_snap
             .template(&template)
-            .filter(|t| t.level || t.settings.accept == Some(true))
+            .filter(|t| t.settings.accept == Some(true))
         else {
             return;
         };
@@ -446,43 +448,25 @@ impl Timeline {
                     id: lane,
                 });
             }
-            let is_level = lane_entry["level"].as_bool() == Some(true);
+            // A lane takes entries from elsewhere and holds what is hung on
+            // it (DV, 2026-11-16): a new entry on it is hung on it.
             let is_accept = lane_entry["below"]["settings"]["accept"].as_bool() == Some(true);
-            if !is_level && !is_accept {
-                return Err(WsError::Invalid("lane cannot hold entries".into()));
+            if !is_accept {
+                return Err(WsError::Invalid(
+                    "lane does not take entries from elsewhere".into(),
+                ));
             }
-            let mut lane_members = std::collections::HashSet::<String>::new();
-            if is_level {
-                for c in lane_entry["below"]["children"]
-                    .as_array()
-                    .into_iter()
-                    .flatten()
-                {
-                    if let Some(id) = c["id"].as_str() {
-                        lane_members.insert(id.to_owned());
-                    }
-                }
-            }
-            if is_accept {
-                for m in lane_entry["below"]["members"]
-                    .as_array()
-                    .into_iter()
-                    .flatten()
-                {
-                    if let Some(id) = m["id"].as_str() {
-                        lane_members.insert(id.to_owned());
-                    }
-                }
-            }
-            let mut create_input = serde_json::json!({
+            let lane_members: std::collections::HashSet<String> = lane_entry["below"]["members"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|m| m["id"].as_str().map(str::to_owned))
+                .collect();
+            let create_input = serde_json::json!({
                 "book": book,
                 "title": untitled,
+                "host": &lane,
             });
-            if is_accept {
-                create_input["host"] = serde_json::json!(&lane);
-            } else {
-                create_input["parent"] = serde_json::json!(&lane);
-            }
             let created = lib.call(&Actor::User, "entry.create", create_input)?;
             let entry_id = created["output"]["id"]
                 .as_str()

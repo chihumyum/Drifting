@@ -13,7 +13,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use dr_doc::v3::novel::{TPL_ACT_TRACK, TPL_CHAPTER, TPL_GROUP, TPL_STORYLINE};
+use dr_doc::v3::novel::{TPL_ACT_TRACK, TPL_CATEGORY, TPL_CHAPTER, TPL_GROUP, TPL_STORYLINE};
 use dr_shell::{
     Services, SettingsFile, ShellInfo, Workspace,
     book::Book,
@@ -485,39 +485,53 @@ fn view_drag_aligns_lane_and_whole_book_and_menus_open_whole_book(cx: &mut TestA
     );
 }
 
+/// The chapter folder (level on, 「收别处的条目」 off) does not go into a
+/// view, dragged or picked from the lanes menu, and the new-lane menu offers
+/// only templates that take entries from elsewhere (DV, `kernel-v5.md` §16
+/// 「泳道」). A storyline dragged the same way goes in.
 #[gpui::test]
-fn dragging_chapter_folder_into_view_places_chapters_updates_sidebar_and_preserves_order_when_removed(
+fn the_chapter_folder_does_not_go_into_a_view_and_the_lane_menus_offer_only_what_takes_entries(
     cx: &mut TestAppContext,
 ) {
     let (_dir, lib, id) = seed();
-    let manuscript = Book::load(&lib, &id)
+    let book = Book::load(&lib, &id).unwrap();
+    let v = book.v3().unwrap();
+    let root_of = |template: &str| {
+        v.entries
+            .iter()
+            .find(|e| e.template.as_deref() == Some(template) && e.parent.is_none())
+            .unwrap()
+            .id
+            .clone()
+    };
+    let manuscript = root_of("tpl-manuscript");
+    let storylines = root_of("tpl-storylines");
+    let storyline = call(
+        &lib,
+        "entry.create",
+        json!({"book": id, "parent": storylines, "title": "新故事线", "template": TPL_STORYLINE}),
+    )["id"]
+        .as_str()
         .unwrap()
-        .v3()
-        .unwrap()
-        .entries
-        .iter()
-        .find(|e| e.template.as_deref() == Some("tpl-manuscript"))
-        .unwrap()
-        .id
-        .clone();
-    // Ensure at least 3 direct chapters reside under `manuscript`.
-    for idx in 1..=3 {
-        call(
-            &lib,
-            "entry.create",
-            json!({"book": id, "parent": manuscript, "title": format!("Folder Ch {idx}"), "template": TPL_CHAPTER}),
-        );
-    }
-    let manual_chapters = Book::load(&lib, &id).unwrap().v3().unwrap().levels[&manuscript]
-        .children
-        .clone();
-    assert!(manual_chapters.len() >= 3);
-
+        .to_owned();
     call(
         &lib,
         "timeline_view.put",
         json!({"book": id, "view": {"id": "t4-folder-view", "name": "Folder Scale View"}}),
     );
+    let lanes_of = |lib: &Library| -> Vec<String> {
+        call(lib, "timeline_view.list", json!({"book": id}))
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|v| v["id"] == "t4-folder-view")
+            .unwrap()["lanes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|l| l["entry"].as_str().unwrap().to_owned())
+            .collect()
+    };
 
     let (host, cx) = visual(cx, &lib, &id);
     let ws = host.read_with(cx, |h, _| h.workspace.clone());
@@ -526,7 +540,6 @@ fn dragging_chapter_folder_into_view_places_chapters_updates_sidebar_and_preserv
     t.update(cx, |t, cx| t.select("t4-folder-view".into(), cx));
     sync_all(&host, &ws, &lib, &id, cx);
 
-    // Drag the chapter folder (`manuscript`, `level == true, accept == false`) into the empty view!
     let page = page_host(&ws, &lib, &id, cx);
     drag_entry_to(
         &host,
@@ -535,76 +548,55 @@ fn dragging_chapter_folder_into_view_places_chapters_updates_sidebar_and_preserv
         120.0,
         cx,
     );
-    wait(cx, |_| {
-        call(&lib, "timeline_view.list", json!({"book": id}))
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|v| v["id"] == "t4-folder-view" && !v["lanes"].as_array().unwrap().is_empty())
-    });
     sync_all(&host, &ws, &lib, &id, cx);
+    assert!(lanes_of(&lib).is_empty(), "the folder is not a lane");
 
-    // Chapters are placed onto the scale in manual order!
-    let clip_order_before: Vec<String> = t.read_with(cx, |t, _| {
-        let lanes = t.lanes();
-        assert_eq!(lanes.len(), 1);
-        assert_eq!(lanes[0].id, manuscript);
-        lanes[0].clips.iter().map(|c| c.entry.clone()).collect()
-    });
-    assert_eq!(clip_order_before, manual_chapters);
-
-    // Dragging the first chapter rightward past all others (`offset_x = 400.0`, `at = 20.0`)
-    // updates the sidebar/folder order (`ws.book.v3().levels[&manuscript].children`)!
-    let first_ch = manual_chapters[0].clone();
-    let folder_track_sel: &'static str =
-        Box::leak(format!("v3-track-{manuscript}").into_boxed_str());
     let page = page_host(&ws, &lib, &id, cx);
     drag_entry_to(
         &host,
-        EntryDrag::new(page, &first_ch, "First Chapter"),
-        folder_track_sel,
-        400.0,
+        EntryDrag::new(page, &storyline, "新故事线"),
+        "v3-empty-lanes-drop",
+        120.0,
         cx,
     );
-    wait(cx, |cx| {
-        ws.read_with(cx, |ws, _| {
-            ws.book
-                .v3()
-                .and_then(|b| b.levels.get(&manuscript))
-                .and_then(|l| l.children.last())
-                == Some(&first_ch)
-        })
-    });
-    let reordered_children = ws.read_with(cx, |ws, _| {
-        ws.book.v3().unwrap().levels[&manuscript].children.clone()
-    });
-    assert_eq!(reordered_children.last(), Some(&first_ch));
+    wait(cx, |_| !lanes_of(&lib).is_empty());
+    assert_eq!(lanes_of(&lib), vec![storyline.clone()]);
+    sync_all(&host, &ws, &lib, &id, cx);
 
-    // Remove the folder from the view: placements in `t4-folder-view` are cleared while
-    // the folder's scale order is preserved!
-    sync_all(&host, &ws, &lib, &id, cx);
-    t.update(cx, |t, cx| t.remove_lane(manuscript.clone(), cx));
-    wait(cx, |_| {
-        call(&lib, "timeline_view.list", json!({"book": id}))
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|v| v["id"] == "t4-folder-view" && v["lanes"].as_array().unwrap().is_empty())
-    });
-    sync_all(&host, &ws, &lib, &id, cx);
-    let after_remove = ws.read_with(cx, |ws, _| ws.book.clone());
-    let v_after = after_remove.v3().unwrap();
-    assert_eq!(v_after.levels[&manuscript].children, reordered_children);
-    let tv_after = v_after
-        .timeline_views
-        .iter()
-        .find(|v| v.id == "t4-folder-view")
-        .unwrap();
-    assert!(tv_after.placements.is_empty());
+    // The lanes menu lists what can be a lane, and the new-lane menu the
+    // templates whose entries take entries from elsewhere.
+    let lanes_btn = cx.debug_bounds("v3-timeline-lanes").unwrap().center();
+    cx.simulate_click(lanes_btn, Modifiers::none());
+    frame(cx);
+    let add = |id: &str| format!("v3-lane-add-{id}");
+    assert!(
+        cx.debug_bounds(Box::leak(add(&manuscript).into_boxed_str()))
+            .is_none()
+    );
+    assert!(
+        cx.debug_bounds(Box::leak(add(&storyline).into_boxed_str()))
+            .is_some()
+    );
+    let new_lane_btn = cx.debug_bounds("v3-lane-new-lane").unwrap().center();
+    cx.simulate_click(new_lane_btn, Modifiers::none());
+    frame(cx);
+    let template = |id: &str| format!("v3-lane-template-{id}");
+    assert!(
+        cx.debug_bounds(Box::leak(template(TPL_STORYLINE).into_boxed_str()))
+            .is_some()
+    );
+    assert!(
+        cx.debug_bounds(Box::leak(template(TPL_GROUP).into_boxed_str()))
+            .is_none()
+    );
+    assert!(
+        cx.debug_bounds(Box::leak(template("tpl-manuscript").into_boxed_str()))
+            .is_none()
+    );
 }
 
 #[gpui::test]
-fn normal_lane_creation_deduplicates_resident_and_member_and_dispatches_host_vs_parent(
+fn lane_creation_offers_only_lanes_that_take_entries_and_creates_on_them_by_hanging(
     cx: &mut TestAppContext,
 ) {
     let (_dir, lib, id) = seed();
@@ -670,65 +662,84 @@ fn normal_lane_creation_deduplicates_resident_and_member_and_dispatches_host_vs_
         assert_eq!(lanes[0].clips[0].span, None);
     });
 
-    // 2. Create a `level == true, accept == false` folder lane (`TPL_GROUP`) and create an entry on it:
-    // calls `entry.create { parent }` without creating any membership!
-    t.update(cx, |t, cx| t.create_lane(TPL_GROUP.into(), false, cx));
-    wait(cx, |_| {
-        call(&lib, "timeline_view.list", json!({"book": id}))
+    // 2. A template that only has its level on (`TPL_GROUP`) makes no lane:
+    // a lane takes entries from elsewhere (DV, `kernel-v5.md` §16 「泳道」).
+    let groups = |lib: &Library| {
+        call(lib, "entry.list", json!({"book": id, "all": true}))
             .as_array()
             .unwrap()
             .iter()
-            .any(|v| v["id"] == "t4-create-view" && v["lanes"].as_array().unwrap().len() == 2)
-    });
+            .filter(|e| e["template"] == TPL_GROUP)
+            .count()
+    };
+    let groups_before = groups(&lib);
+    t.update(cx, |t, cx| t.create_lane(TPL_GROUP.into(), false, cx));
     refresh(&host, &lib, &id, cx);
-    let group_lane = t.read_with(cx, |t, _| t.lanes()[1].id.clone());
-    let memberships_before = call(&lib, "membership.list", json!({"book": id}));
-    t.update(cx, |t, cx| t.create_entry_in_lane(group_lane.clone(), cx));
-    wait(cx, |_| {
-        !call(&lib, "entry.get", json!({"book": id, "id": group_lane}))["below"]["children"]
+    let lanes_now = |lib: &Library| {
+        call(lib, "timeline_view.list", json!({"book": id}))
             .as_array()
             .unwrap()
-            .is_empty()
-    });
-    assert_eq!(
-        call(&lib, "membership.list", json!({"book": id})),
-        memberships_before,
-        "creating on a level-only lane must use `parent` without creating membership"
-    );
+            .iter()
+            .find(|v| v["id"] == "t4-create-view")
+            .unwrap()["lanes"]
+            .as_array()
+            .unwrap()
+            .len()
+    };
+    assert_eq!(lanes_now(&lib), 1);
+    assert_eq!(groups(&lib), groups_before, "no group was made for a lane");
+
+    // A lane with both switches (`TPL_CATEGORY`) holds only what is hung on
+    // it: an entry created on it lives under it and is hung on it, counted
+    // once; one that only lives under it is not on the lane.
+    t.update(cx, |t, cx| t.create_lane(TPL_CATEGORY.into(), false, cx));
+    wait(cx, |_| lanes_now(&lib) == 2);
     refresh(&host, &lib, &id, cx);
-    let child_id = call(&lib, "entry.get", json!({"book": id, "id": group_lane}))["below"]["children"]
-        [0]["id"]
+    let group_lane = t.read_with(cx, |t, _| t.lanes()[1].id.clone());
+    t.update(cx, |t, cx| t.create_entry_in_lane(group_lane.clone(), cx));
+    wait(cx, |_| {
+        call(&lib, "membership.list", json!({"book": id}))
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|m| m["host"] == group_lane)
+    });
+    // It lives under the lane and is hung on it: the entry page lists it
+    // once, under what lives there; the membership says it is hung.
+    let hung = call(&lib, "membership.list", json!({"book": id}))
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|m| m["host"] == group_lane)
+        .unwrap()["member"]
         .as_str()
         .unwrap()
         .to_owned();
+    let resident = call(
+        &lib,
+        "entry.create",
+        json!({"book": id, "parent": group_lane, "title": "只住着的"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    refresh(&host, &lib, &id, cx);
     t.read_with(cx, |t, _| {
         let lane = t.lanes().into_iter().find(|l| l.id == group_lane).unwrap();
         assert_eq!(lane.members, 1);
         assert_eq!(lane.clips.len(), 1);
-        assert_eq!(lane.clips[0].entry, child_id);
+        assert_eq!(lane.clips[0].entry, hung);
+        assert!(lane.clips.iter().all(|c| c.entry != resident));
     });
-
-    // Enable `accept` on `group_lane` AND attach `child_id` (already residing in `group_lane`)
-    // via `membership.add`: per §16, `lane.members` and `lane.clips` count `child_id` ONCE!
-    call(
-        &lib,
-        "entry.update",
-        json!({"book": id, "id": group_lane, "overrides": {"accept": true}}),
-    );
-    call(
-        &lib,
-        "membership.add",
-        json!({"book": id, "host": group_lane, "member": child_id}),
-    );
-    let snap_dedup = Book::load(&lib, &id).unwrap();
-    let tv_dedup = snap_dedup
+    let snap = Book::load(&lib, &id).unwrap();
+    let tv = snap
         .v3()
         .unwrap()
         .timeline_views
         .iter()
         .find(|v| v.id == "t4-create-view")
         .unwrap();
-    let rendered = model::lanes(snap_dedup.v3().unwrap(), tv_dedup);
+    let rendered = model::lanes(snap.v3().unwrap(), tv);
     let group_rendered = rendered.iter().find(|l| l.id == group_lane).unwrap();
     assert_eq!(group_rendered.members, 1);
     assert_eq!(group_rendered.clips.len(), 1);

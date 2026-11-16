@@ -37,7 +37,7 @@ comment.update               command  book     Change a comment: its text, statu
 entry.create                 command  book     Create an entry either residing under `parent` (without membership) or attached to `host` (residing in `host`'s home, `host` itself when `level`, or the root).
 entry.get                    query    shared   Read an entry including retained module values; an entry whose switch is on also carries what lies below it (resolved settings and their sources, children, members).
 entry.list                   query    shared   Find entries, or list the entries living under one in manuscript order; with below, each listed entry whose switch is on carries its resolved settings, children and members.
-entry.move                   command  book     Move an entry's residence and position; when the target folder is in a timeline view, its position follows that view's scale without rewriting manual folder order.
+entry.move                   command  book     Move an entry's residence and its position in the folder's manual order (`index` among the folder's stored children). Moving where an entry lives never hangs it on a lane or moves it on a timeline scale.
 entry.restore                command  book     Restore an entry and what lives under it from trash; if its stored residence can no longer hold entries, relocate it to the nearest live level ancestor or the root.
 entry.set_level              command  book     Turn an entry's level switch on or off. Turning it off moves all live descendants below it to the trash in place (leaving already-trashed entries, overrides, memberships and swimlanes untouched) in one commit that one undo reverts.
 entry.trash                  command  book     Trash an entry with what lives under it, keeping entries that only belong to it.
@@ -118,18 +118,18 @@ relation.create              command  book     Create a canonical relation, vali
 relation.delete              command  book     Delete one canonical relation without deleting either endpoint.
 relation.list                query    shared   List canonical relations whose endpoints are live, optionally scoped to an endpoint or type.
 tab.move                     command  book     Change a left-sidebar tab's position (「全部」 included).
-tab.put                      command  book     Add a left-sidebar tab that mounts a level entry, a view or the book sequence; one thing is mounted on one tab.
+tab.put                      command  book     Add a left-sidebar tab that mounts a level entry or the book sequence; one thing is mounted on one tab. A tab cannot mount a view (views go with the bottom panel).
 tab.remove                   command  book     Remove a left-sidebar tab (not what it mounts); 「全部」 stays.
 tab.select                   command  book     Remember the left-sidebar tab the project is on, for every device (kept in `layout:<book>`; not undoable; leaves the book document untouched).
-timeline_view.add_lane       command  book     Add one live lane to a view without replacing existing lane records or changing memberships.
-timeline_view.delete         command  book     Delete a timeline view while retaining lane entries and memberships; lanes leaving their last live view save their scale order back to manual order in the same commit.
+timeline_view.add_lane       command  book     Add one live lane to a view without replacing existing lane records or changing memberships. A lane is an entry that takes entries from elsewhere (「收别处的条目」 on); an entry with only its level switch on is refused. The lane holds what is hung on it, not what lives under it.
+timeline_view.delete         command  book     Delete a timeline view while retaining lane entries and memberships; lanes leaving their last live view save the scale order of what is hung on them back to the memberships' manual order in the same commit.
 timeline_view.list           query    shared   List timeline views with their effective lanes, placements and time pins.
 timeline_view.move_lane      command  book     Change only one stored lane's order in a view, preserving hidden data and other lane positions.
 timeline_view.place          command  book     Place or move an entry in a timeline, optionally joining a lane in the same commit.
 timeline_view.put            command  book     Create or edit a timeline view, including its independent lane order.
 timeline_view.put_pin        command  book     Add or edit a time pin, optionally bound to any live entry.
 timeline_view.remove         command  book     Remove an entry from a timeline lane and prune positions where it has no remaining lane.
-timeline_view.remove_lane    command  book     Remove one view lane and newly orphaned visible positions, saving its scale order back to manual order when leaving its last live view.
+timeline_view.remove_lane    command  book     Remove one view lane and newly orphaned visible positions, saving the scale order of what is hung on it back to the memberships' manual order when leaving its last live view.
 timeline_view.remove_pin     command  book     Remove a time pin from a timeline view.
 timeline_view.rename         command  book     Rename a timeline view without changing its lanes, positions or pins.
 timeline_view.restore_fields command  book     Restore selected stored timeline fields for undo or redo without replacing the rest of a view.

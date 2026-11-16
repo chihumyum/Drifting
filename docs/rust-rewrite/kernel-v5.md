@@ -309,7 +309,7 @@
 | `entries` | 节点 meta 加 `mark`；去掉 `layout`；加 `media:<模块>`（媒体模块里的文件：id → `{asset, caption, pos}`，同一个 `asset` 在一个模块里只出现一次），条目还可以给自己的媒体模块记一个摆法，没记就用模板的（键名由数据层定，**不要叫 `layout`**：那是已经去掉的画布坐标，挪进了 `layout:<书>`）；`overrides` 去掉 `is_manuscript`、`lane`，`accept` 和 `home` 留着、读法变了（第 16 节） |
 | `templates` | `mark` 的取值放开；`settings` 去掉 `is_manuscript`、`lane`；模块种类加 `media`（定义里带默认摆法：大图、网格、列表）、`members`（「挂在这里的条目」，不存数据，第 16 节） |
 | `memberships` | 形状不变。`pos` 只对不在任何视图里的宿主有意义（第 4 节）；宿主不再要求开着层级（第 16 节） |
-| `timeline_views` | 形状不变。泳道的条件换成「开着层级或收别处的条目」（第 16 节） |
+| `timeline_views` | 形状不变。泳道的条件换成「开着层级或收别处的条目」（第 16 节）。2026-11-16 再换成「开着收别处的条目」，泳道上只有挂着的（第 15 节第 15 条，DV 做了，第 18 节「DV 交回」） |
 | `comments` | 去掉 `kind`、去掉优先级；目标是条目，或者直接是素材库里的一个文件；加 `part`（「哪一处」，按模块种类不同）；图上的一块从顶层的 `region` 挪进 `part`；加 `origin`（来源）；清单项投出来的批注 id 从那一行来（第 7 节） |
 | `assets` | 它就是素材库的清单。加 `name`、加入时间、所在的素材夹（没有 = 最外层）和在里面的先后、删除时间；不加说明文字；清单里的文件不因为没人引用而被清理 |
 | **`asset_folders`**（新，映射） | 素材库的素材夹：id → 名字、上一级素材夹（没有 = 最外层）、先后、删除时间。先后手动排 |
@@ -317,7 +317,7 @@
 | ~~`materials`~~、~~`material_folders`~~ | 删 |
 | `patches`、`plot_grids`、`facts`、`memory` | 不变 |
 
-`tabs` 的 `mount`：`{kind: "root"}`、`{kind: "entry", entry}`、`{kind: "view", view}`、`{kind: "book"}`。`view` 这一种 2026-11-16 起不能再挂（第 15 节第 15 条），去掉它在任务书 T9。
+`tabs` 的 `mount`：`{kind: "root"}`、`{kind: "entry", entry}`、`{kind: "view", view}`、`{kind: "book"}`。`view` 这一种 2026-11-16 起不能再挂（第 15 节第 15 条），去掉它在任务书 T9。DV 做了：`tab.put` 拒收 `view`，书里存着的读作挂的东西不在了，数据不删；模板格式里没有这一种（第 18 节「DV 交回」）。
 
 书旁边的小文档多一篇 `layout:<书>`：`<范围>/<摆法>` → 条目 id → 坐标；另记一项 `tab`（根映射 `tab` 的 `id`），停在哪个 Tab（2026-11-15 加，第 5 节）。它和 `stats:<书>`、`checkpoints:<书>` 一样不是正文，不计字数、不搜索、不导出，不参加书目的写入守卫。
 
@@ -333,11 +333,11 @@
 | 带归属的摊平每个条目只出现一次、成书序列不带归属（`FLATTEN-MEMBERS-ONCE`） | **改**：成书序列也带归属，和整书视图是同一个读法 |
 | 成书的起点是根，或一个活着的、开着层级或「收别处的条目」的条目，或一个没删的视图，或这个视图里的一条有效泳道（`BOOK-ROOT-VALID`） | 原来是**加**。2026-11-15 夜里**删**：成书没有起点了（第 15 节第 27 条，任务书 DW） |
 | 成书里只有最外层的成书正文编号（`MANUSCRIPT-NUMBER-OUTERMOST-PROSE`） | **删**（2026-11-15 夜里，第 15 节第 28 条：App 不给任何条目编号，任务书 DW） |
-| 视图里每条泳道里的每个条目（住着的和挂着的）都有刻度位置 | **加**。命令层：进到泳道里时落在末尾；读取时没有位置的排在最后。2026-11-16 起泳道里只有挂着的（第 15 节第 15 条） |
-| 泳道进出视图不打乱它里面的条目的先后 | **加**。命令层：放进第一个视图时按手动先后落位；离开最后一个视图时把刻度上的先后写回（挂着的写回归属的 `pos`，住着的写回文件夹里的先后），和拿出泳道是同一次提交、一步撤销。「住着的」那一半 2026-11-16 起没有了 |
-| 文件夹在视图里时，它下面的先后读刻度 | **加**（2026-11-14）。读取：以它所在的第一个视图为准（2026-11-15 夜里去掉了「先看成书起点那个视图」）；手动先后留着不读。2026-11-16 **删**：文件夹不能再当泳道（第 15 节第 15 条，任务书 T9） |
+| 视图里每条泳道里的每个条目（住着的和挂着的）都有刻度位置 | **加**。命令层：进到泳道里时落在末尾；读取时没有位置的排在最后。2026-11-16 起泳道里只有挂着的（第 15 节第 15 条）：DV 做了，`entry.create` 带 `parent`、`entry.move` 都不再写位置（`VIEW-LANE-MEMBERS-PLACED`） |
+| 泳道进出视图不打乱它里面的条目的先后 | **加**。命令层：放进第一个视图时按手动先后落位；离开最后一个视图时把刻度上的先后写回（挂着的写回归属的 `pos`，住着的写回文件夹里的先后），和拿出泳道是同一次提交、一步撤销。「住着的」那一半 2026-11-16 起没有了（DV 去掉了写回文件夹先后的那一支和撤销回执里的 `child_order`，`VIEW-LANE-EXIT-RESTORES-ORDER`） |
+| 文件夹在视图里时，它下面的先后读刻度 | **加**（2026-11-14）。读取：以它所在的第一个视图为准（2026-11-15 夜里去掉了「先看成书起点那个视图」）；手动先后留着不读。2026-11-16 **删**：文件夹不能再当泳道（第 15 节第 15 条，任务书 T9）。DV 删了契约 `VIEW-FOLDER-ORDER-FROM-SCALE`：文件夹（连同两个开关都开着、在视图里的那种，比如幕）下面一律按手动先后 |
 | 素材库里的文件不因为没人引用而被清掉 | **加**（2026-11-14）。只有从素材库删掉、又从最近删除清掉的文件才删字节 |
-| Tab 挂的是根、一个活着的开着层级或「收别处的条目」的条目、一个没删的视图，或成书序列（项目开着成书时） | **加**。命令层预防；读取时不满足就显示为空。2026-11-16 起去掉「一个没删的视图」（第 15 节第 15 条，任务书 T9） |
+| Tab 挂的是根、一个活着的开着层级或「收别处的条目」的条目、一个没删的视图，或成书序列（项目开着成书时） | **加**。命令层预防；读取时不满足就显示为空。2026-11-16 起去掉「一个没删的视图」（第 15 节第 15 条，任务书 T9）：DV 做了，`check_tab_mount` 对视图一律不认，书里存着的挂视图的 Tab 视图还在也读作不在（`TAB-MOUNT-VALID`） |
 | 同一样东西只挂一个 Tab；挂根的 Tab 一直有一个 | **加**（2026-11-15）。命令层预防：挂第二次、删挂根的 Tab 都被拒；读取时重复的只留排在前面的，缺了挂根的就补上一个 |
 | 批注的「哪一处」属于它说的那个模块 | **加**。命令层预防；读取时找不到就标成找不到原处 |
 | 链接、嵌入、媒体模块、关系、批注指向的文件都在，没进最近删除 | **加**（2026-11-15 补全）。读取时不在：链接读作普通文字的样子，嵌入和媒体模块显示占位，关系读作不在，直接挂在它上面的批注标成找不到原处；数据留着，恢复后回来 |
@@ -350,7 +350,7 @@
 | 编辑模板的工作区只在这台设备上：不进项目列表、不记写作日、文档文件和清除记录都不同步；它的每一次写入都照另存覆盖它在编辑的那份模板，模板自己的来历照原来的（`WORKING-COPY-LOCAL`） | **加**（2026-11-15 夜里，DW）。书库的本机表 `local_book` 在写第一篇文档前打标记；同步的几张单子和项目列表都不列它；工作区的保存器听书库事件，合并写入以后覆盖模板 |
 | 素材相关的各条 | **删**，由上面几条和条目自己的不变量接住 |
 | 归属到的层级活着、开关开着、解析后收别处的条目（`V3-MEMBERSHIP-RULES`） | **改**（第 16 节）：被挂的条目活着、开着「收别处的条目」，只看它自己和它的模板；不看层级开关 |
-| 视图里的泳道是开关开着、`lane` 为真的条目（`V3-TIMELINE-LANE-ENABLED`） | **改**（第 16 节）：活着、开着「层级」或「收别处的条目」的条目。2026-11-16 再改：活着、开着「收别处的条目」的条目（第 15 节第 15 条，任务书 T9） |
+| 视图里的泳道是开关开着、`lane` 为真的条目（`V3-TIMELINE-LANE-ENABLED`） | **改**（第 16 节）：活着、开着「层级」或「收别处的条目」的条目。2026-11-16 再改：活着、开着「收别处的条目」的条目（第 15 节第 15 条，任务书 T9）。DV 做了：命令层只拒绝这次写入新加的泳道，书里已经存着的只开层级的泳道读作不在视图里，泳道和它下面条目的位置都留着 |
 | 关开关下面有条目时是一次原子的挪动，能一步撤销 | **改**（第 16 节）：住在下面的条目在同一次提交里进最近删除，能一步撤销 |
 | 关开关不删「下面」的东西：覆盖、泳道身份、归属、视图里的位置留着，开关关着时读作不存在 | **改**（第 16 节）：都留着；挂在它上面的记录和它在视图里的泳道不再跟着层级开关读作不存在，只看「收别处的条目」 |
 | 「收别处的条目」关着时，挂在它上面的记录读作不在，数据留着 | **加**（第 16 节）。读取 |
@@ -364,9 +364,9 @@
 | --- | --- |
 | `project.create` | 收一个项目模板；照它建项目定义、条目模板、起始条目、起始视图和三篇小文档 |
 | `project.get`、`project.update` | 读、改项目定义：书名和简介、帮手说明、成书的开关、字数目标。没有起点（2026-11-15 夜里去掉；作品主页每处改了就存，一处一条，第 2 节） |
-| `tab.put`、`tab.remove`、`tab.move`、`tab.select` | 新。左栏的 Tab。`tab.put` 只新建、不带名字，一样东西挂第二次被拒；`tab.remove` 不删挂根的那个；`tab.select` 记停在哪个 Tab（`layout:<书>`，不进撤销；2026-11-15 改）。2026-11-16 起 `tab.put` 挂视图被拒（第 15 节第 15 条，任务书 T9） |
+| `tab.put`、`tab.remove`、`tab.move`、`tab.select` | 新。左栏的 Tab。`tab.put` 只新建、不带名字，一样东西挂第二次被拒；`tab.remove` 不删挂根的那个；`tab.select` 记停在哪个 Tab（`layout:<书>`，不进撤销；2026-11-15 改）。2026-11-16 起 `tab.put` 挂视图被拒（第 15 节第 15 条，任务书 T9；DV 做了，`TAB-MOUNT-VALID`） |
 | `entry.update` | 多一个 `mark`；`overrides` 没有 `is_manuscript`；不再收 `layout` |
-| `entry.move` | 界面开始传 `index`。目的地是一个在视图里的文件夹时，条目落到刻度上对应的位置，不改手动先后（2026-11-16 起文件夹不能当泳道，这一支没有了，任务书 T9） |
+| `entry.move` | 界面开始传 `index`。目的地是一个在视图里的文件夹时，条目落到刻度上对应的位置，不改手动先后（2026-11-16 起文件夹不能当泳道，这一支没有了，任务书 T9；DV 去掉了：`index` 一律是文件夹里存着的兄弟之间的手动先后，不写刻度） |
 | `entry.create` | 分开两种：住进一个条目（`parent`），或者挂到一个条目上（`host`）。后一种的住处照第 16 节「新建」 |
 | `entry.set_level` | 关掉时不再把直接子条目挪到最外层：住在下面的条目进最近删除（第 16 节）。输出里的 `moved` 换成被删的那几个 |
 | `entry.restore` | 原来的住处不能住了（层级关着或不在了）时，落到往上最近一个开着层级的条目下面，没有就是最外层，并把住处写成那里 |
@@ -374,7 +374,7 @@
 | `entry_template.put` | 没有 `lane`；`home` 的目标照旧必须是开着层级的活条目 |
 | `layout.put`、`layout.clear` | 新。写画布坐标的小文档 |
 | `membership.add` | 宿主在视图里时，同时在这些视图里落位；不再为它写 `pos`。宿主只要求活着、开着「收别处的条目」（第 16 节） |
-| 视图的各条命令 | 泳道加进视图时，给它已有的成员落位，放进第一个视图时按手动先后落；泳道离开最后一个视图（拿出泳道、删视图）时，把成员在这个视图里的先后写回归属的 `pos`（第 4 节）。泳道的条件换成「开着层级或收别处的条目」；层级当泳道时住在下面的条目照同样的规则落位和写回（第 16 节）。2026-11-16 起泳道的条件是「开着收别处的条目」，层级当泳道那一支去掉（第 15 节第 15 条，任务书 T9） |
+| 视图的各条命令 | 泳道加进视图时，给它已有的成员落位，放进第一个视图时按手动先后落；泳道离开最后一个视图（拿出泳道、删视图）时，把成员在这个视图里的先后写回归属的 `pos`（第 4 节）。泳道的条件换成「开着层级或收别处的条目」；层级当泳道时住在下面的条目照同样的规则落位和写回（第 16 节）。2026-11-16 起泳道的条件是「开着收别处的条目」，层级当泳道那一支去掉（第 15 节第 15 条，任务书 T9；DV 做了） |
 | `module.put_media`、`module.remove_media`、`asset.put` | 新增或沿用。往媒体模块里放文件、拿走文件、改说明和先后；同一个文件第二次放进同一个媒体模块时拒绝。条目给自己的媒体模块设摆法，走 `entry.update` 还是单独一条，数据层定 |
 | `asset.rename`、`asset.trash`、`asset.restore`、`asset.purge`、`asset.list` | **新增**（2026-11-14）。素材库：改名、删除进最近删除、恢复、清除；列出全部文件和每个被用在哪（媒体模块、正文嵌入、正文链接、关系）。名字由数据层定 |
 | 素材夹的建、改名、挪、删、恢复、清除；文件换素材夹、调先后 | **新增**（2026-11-15）。删素材夹时里面的文件和素材夹一起进最近删除；清除时里面的一起清除、删字节。名字由数据层定 |
@@ -991,13 +991,26 @@ D（`d-data-layer`）交回时写（2026-11-15）；同日 DY（`dy-files-commen
 - **项目定义**：`dr_model::v3::ProjectBook { word_target_set, daily_word_target_set }`（`Default`；没有 `root`，书里旧的 `book.root` 读的时候不管、不改写）。`project.get` 的 `types::Project`：`book: Option<ProjectBook { word_target, daily_word_target, word_target_set, daily_word_target_set }>`，没有 `book_root_valid`；多一个 `editing_template: Option<String>`（这本书是哪份模板的工作区；外壳的 `BookV3::project` 用 `types::Project::of` 建，要它时加 `.with_editing_template(ws.working_copy_template(book)?)`）。`project.update { name?, summary?, agent?, has_book?, word_target?, daily_word_target? }`：`has_book: true` 从关到开不用别的参数；旧调用方还传的 `root` 不认、忽略。条目历史的项目键只认 `source`、`agent`、`book`、`book/word_target`、`book/daily_word_target`、`tabs/<id>`。
 - **成书序列**：`BookStructureV3::book_sequence() -> Vec<FlatEntry>`（开着成书时 `sequence(&FlattenFrom::Root, true)`，否则空）、`book_entries()`、`book_docs()`；`FlatEntry { entry, depth, prose }` 没有 `ordinal`，`BookStructureV3::ordinal` 去掉。`book.sequence { book } -> { has_book, entries: [{ entry, depth, prose }] }`（不再收 `root`、`in_book_only`，不再给 `root`、`root_valid`、`ordinal`）。外壳 `BookV3::manuscript_number` 去掉，`BookV3::manuscript`、`book_entries()` 照旧。`book.shelf` 的 `chapters` 数带成书正文的条目。
 - **整书视图的出发点**：`dr_model::v3::FlattenFrom { Root, Entry { entry }, View { view }, Lane { view, entry } }`（`serde` 的 `kind` 标签照旧是 `root`／`entry`／`view`／`lane`）；`dr_model::v3::is_valid_flatten_from(from, entries, templates, views)`、`BookStructureV3::is_valid_flatten_from`；`BookStructureV3::sequence(&FlattenFrom, in_book_only) -> Result<_, InvalidFlattenFrom>`、`flatten(&EntryId, Flatten)`。`dr-shell` 的 `Target::flatten_from()`（原 `book_root()`）；`dr-editor` 的 `v3::flatten_from(view, &FlattenFrom)`（原 `flatten_book_root`，给出进成书的正文和带页头的那一篇）、`v3::carries_page_head(template, module)`、`book::flatten_position_key(&FlattenFrom)`（原 `book_root_position_key`，给出的键不变：`root`、条目 id、`view:<id>`、`lane:<视图>/<条目>`）；`BookEditor::{open_root, prepare_root, root()}`、`dr_view_page::WholeBook::new_root` 名字不变，收 `FlattenFrom`。`dr-editor` 的 `manuscript_roots` 去掉。
-- **文件夹在视图里的先后**：`BookStructureV3::lane_reference_view`、`children_of`、`lane_members_order`、外壳 `BookV3::ordering_view` 都只看它所在的第一个视图（视图按 `(pos, id)` 排）。
+- **文件夹在视图里的先后**：`BookStructureV3::lane_reference_view`、`children_of`、`lane_members_order`、外壳 `BookV3::ordering_view` 都只看它所在的第一个视图（视图按 `(pos, id)` 排）。（2026-11-16 DV：文件夹那一半去掉了，`children_of` 一律是手动先后；`lane_reference_view`、`lane_members_order`、`ordering_view` 只管挂着的，见下面「DV 交回」。）
 - **页头**：`dr-editor` 的 `PageInfo` 没有 `number`；`PageKind::Chapter` 是成书里的条目带页头的那一篇正文，其余 `Other`；页眉的第一项一律是模板名（`folio_label` 不再出「第 N 章」）。
 - **模板格式**（`dr_model::project_template`）：`TemplateProjectBook { word_target?, daily_word_target? }`（`deny_unknown_fields`，带 `root` 拒收），`TemplateBookRoot` 去掉；`ProjectTemplateCredit { author }`（带 `homepage`、`derivedFrom` 拒收），`ProjectTemplateDerivedFrom` 去掉；`formatVersion` 仍是 `1`。从项目提取时不再强制带上「被成书起点指着的」条目，也不再从 `project.source` 自动填任何署名。`project.source.credit` 读写也只剩 `author`。
 - **`project_template.save`**（只加不改）：`name` 变成可选（新建时必须有；`replace` 时不给就留原来的名字）、`description` 可选（`replace` 时不给就留原来的）；多收 `agent`（不给：用项目的；`null`：模板里没有；给了：用它，只进模板，项目不变）。`book` 是工作区时就是工作区的保存：只能存回它编辑的那一份（别的 `replace` 拒收），不收 `exclude_skeleton`、`sample_entries`、`view_pins`、`credit`；内容和模板一样就不写。函数 `commands::v3::project_template::{save_working_copy(ws, actor, book, WorkingCopyWords), content_digest}` 给工作区的保存器用（`WorkingCopyWords { name?, description?, agent? }`，`Default` 什么都不改）。
 - **编辑模板的工作区**：`project_template.edit { id } -> WorkingCopy { book, template, name, created_at }`（`Write`、`Library`；和 `project.create` 是同一条路 `novel_book::create_book`，名字和简介是模板的名字和描述；留下的工作区照「替作者定的」最后一组复用或清掉）、`project_template.working_copies {} -> [WorkingCopy]`（还留在这台设备上的，最早的在前）。`Workspace::{is_working_copy, working_copy_template, working_copy_books, flush_working_copies}`。工作区随改随存（`dr_workspace::working_copy::Saver`，合并 250 毫秒），`Workspace::close`、`before_quit` 存掉还在等的。没有放弃的命令（作者：工作区没有「放弃」）。帮手和 MCP 的目录里没有这两条（书库一级、不带当前书）。
 - **书库**：`dr_store::Library::{keep_local, local_book, local_books, set_local_note, is_local_doc, syncable_docs}`、`dr_store::LocalBook { book_id, note, created_ms }`；`docs_with_local_changes`、`export_for_upload`、`purged_docs`、`assets_pending_upload` 不列只在本机的书；`dr-sync` 改用 `syncable_docs`。迁移 `0008_local_book`（`xtask` 的迁移清单加了一行，未发布）。
 - **契约**：删 `BOOK-ROOT-VALID`、`MANUSCRIPT-NUMBER-OUTERMOST-PROSE`，加 `WORKING-COPY-LOCAL`，改 `MANUSCRIPT-OWN-PROSE-FIRST`、`FLATTEN-MEMBERS-ONCE`、`VIEW-FOLDER-ORDER-FROM-SCALE` 的说明；共 94 条。
+
+### DV 交回：泳道只收挂着的、Tab 不挂视图（2026-11-16）
+
+铺满定稿改的两条数据规则（第 15 节第 15 条），T9 接在它上面。
+
+- **泳道的条件怎么查**：`dr_model::v3::check_timeline_lane(entry, entries, templates)`：活着、`Entry::accepts_members(templates)`（「收别处的条目」，只看条目自己的覆盖和它的模板），层级开关不算（`V3-TIMELINE-LANE-ENABLED`）。外壳里同一件事是 `BookV3::accepts_members(id)`；能不能新建成泳道的模板是 `t.settings.accept == Some(true)`（`dr_view_timeline::v3::model::lane_templates`）。读取的过滤照旧是 `effective_timeline_lanes`，`active_lane_ids`、`is_in_any_view`、`BookStructureV3::{lane_reference_view, is_in_any_view}`、外壳 `BookV3::{is_lane, ordering_view}`（读的是已经过滤的视图）都跟着它走。
+- **泳道里有什么**：只有挂在它上面的。`is_entry_in_lane`、`effective_timeline_placements`、`check_timeline_placement_in_lane` 不再认住处；`BookStructureV3::members_along_view(view, host)`（沿刻度）和 `lane_members_order(host)`（在视图里沿第一个视图的刻度，否则按归属的 `pos`）是泳道的两种读法，`sequence(&FlattenFrom::{View, Lane})` 用它们；外壳 `BookV3::lane_entries(view, lane)` 只给挂着的。去掉的接口：`BookStructureV3::{manual_children_of, residents_along_view, lane_entries_in_view, lane_entries_order}`（`children_of` 本来就是手动先后，用它），`timeline_view.restore_fields` 输入里的 `child_order`。
+- **命令**：`timeline_view.add_lane` 拒收不收别处条目的条目；`timeline_view.put` 只检查这次新加的泳道，视图里原来存着的（下一条）不重查，改名、加别的泳道、调泳道先后、拿出它都照常；`timeline_view.place` 带 `lane` 时一律挂上（原来住在泳道下面的不挂）；`entry.create` 只有带 `host` 才落到刻度上，带 `parent` 住进一个泳道不落位；`entry.move` 的 `index` 一律是文件夹里存着的兄弟（含最近删除里的）之间的手动先后，不写刻度、也不因为搬出泳道去掉位置；`entry.restore` 不再因为换了住处去掉位置；泳道离开最后一个视图只把挂着的先后写回归属的 `pos`（`VIEW-LANE-EXIT-RESTORES-ORDER`）。契约 `VIEW-FOLDER-ORDER-FROM-SCALE` 删了（共 93 条），改了 `V3-TIMELINE-LANE-ENABLED`、`V3-TIMELINE-PLACEMENT-IN-LANE`、`VIEW-LANE-MEMBERS-PLACED`、`VIEW-LANE-EXIT-RESTORES-ORDER`、`TAB-MOUNT-VALID` 的说明。
+- **书里已经有的只开层级的泳道**（比如 T4 那一版里拖进视图的书稿）：照第 11 节读的时候不丢、不崩：读作不在视图里（`timeline_view.list`、外壳、帮手的结构说明都看不到这条泳道，它下面条目的位置也不显示），文件夹按手动先后排，成书照手动先后读；`lanes` 和 `placements` 里存着的原样留着，代码里不删。这条泳道的条目再打开「收别处的条目」就回到视图里（和关掉故事线的「收别处的条目」再打开是同一条路），但住在它下面、没挂上去的条目照旧不在泳道上。用 `timeline_view.remove_lane` 能拿出来（不改任何手动先后）。是不是要换个读法，见报告里「要作者定」那一条。
+- **挂视图的 Tab**：`check_tab_mount(mount, has_book, entries, templates)`（去掉了 `views` 参数）对 `TabMount::View` 一律拒绝（`TAB-MOUNT-VALID`），所以 `tab.put` 挂视图被拒；`TabMount::View`（`dr_model::v3` 和 `types::TabMount`）为了读旧书留着。书里存着的挂视图的 Tab：`project.get` 照样列出来、`mount_valid = false`，`BookStructureV3::is_valid_tab_mount` 为假，外壳 `tabs::is_gone` 为真（视图还在也一样），名字照旧是视图的名字（`tabs::mount_name`），点进去是「「…」不在了」加「去掉这个 Tab」（`tab.remove` 照常）。外壳里挂视图的 Tab 那一种显示（`tabs::view_list`、`tabs::drop_in_view`）删了，管理时结构里「视图」那一节去掉（`manage::Structure`，调试桥 `structure.folded` 只剩一项）。
+- **模板格式**：`dr_model::project_template::TemplateTabMount` 只有 `root`、`entry`、`book`；带 `{"kind": "view"}` 的模板值按不认识的取值拒收（`MalformedJson`）。模板视图的泳道照 `V3-TIMELINE-LANE-ENABLED` 校验，只开层级的被拒。另存（`extract_project_template`）时项目里挂视图的 Tab 不进模板；`from_seed_template` 碰到挂视图的 Tab 报错（内置的没有）。
+- **查过的数据**：内置「写书」（视图里没有泳道，Tab 是「全部」加四个条目）、`dr-samples` 三本样书和 0.1 导入（泳道是故事线、「未归属」、幕，都开着「收别处的条目」；Tab 只挂条目）、`dr-testkit` 四档种子（泳道都是故事线）都没有只开层级的泳道和挂视图的 Tab；样书、导入、种子的测试里加了这两条断言。内置「写书」里幕轨道写给帮手的说明改成「挂在它上面的条目……」（只改文字，版本号不动）。
+- **给 T9 留的**：左栏里拖动的规则（只搬家、⌥ 挂）、底栏的拖动语义（换挂、⌥ 多挂、拖回左栏摘名）、条目页和左栏 Tab 里一个在视图里的条目「下面的条目」还在收排序按钮、头上还有带视图名的小标（`dr-view-elements` 的 `panel.rs` 按 `is_lane` 收，`dr-shell` 的 `page.rs` 只在「挂在这里的条目」那块画），这几处界面都没动。
 
 ### PT4 交回：项目模板与帮手（2026-11-16）
 

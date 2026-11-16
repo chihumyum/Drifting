@@ -274,7 +274,8 @@ pub struct Below {
     pub settings: LevelSettings,
     /// Where each resolved setting comes from.
     pub sources: BTreeMap<String, SettingSource>,
-    /// Live entries living under it, in folder/scale order (`Some` only when `level` is on).
+    /// Live entries living under it, in the folder's manual order, also while it is a lane in a
+    /// view (`Some` only when `level` is on).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub children: Option<Vec<Entry>>,
     /// Live entries validly belonging to it, in authoritative member order (`Some` only when `accept` is on).
@@ -828,6 +829,9 @@ impl From<&dr_model::v3::ProjectBook> for ProjectBook {
     }
 }
 
+/// What a left-sidebar tab mounts. `view` is only ever read: a book can
+/// store a Tab on a view from before a Tab could not mount one (DV,
+/// 2026-11-16); it reads with `mount_valid = false`, and `tab.put` refuses it.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum TabMount {
@@ -853,7 +857,8 @@ impl From<&dr_model::v3::TabMount> for TabMount {
 }
 
 /// A left-sidebar tab. It has no name of its own: it is called what it
-/// mounts (an entry's title, a view's name, 「成书」, 「全部」 for the root).
+/// mounts (an entry's title, 「成书」, 「全部」 for the root; an old Tab on a
+/// view, the view's name).
 /// An old `name` in a template's tab is ignored.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ProjectTab {

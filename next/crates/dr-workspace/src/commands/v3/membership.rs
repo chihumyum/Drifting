@@ -46,11 +46,11 @@ pub(super) fn live_views_with_lane(v: &BookViewV3<'_>, host: &EntryId) -> Vec<m:
         .collect()
 }
 
-/// Gives every entry of `lane` (living under it when its level is on,
-/// attached to it when it takes entries from elsewhere) a position at the
-/// end of the scale of each live view `lane` is in, where it has none yet
-/// (`VIEW-LANE-MEMBERS-PLACED`), in the lane's own manual order. Reads the
-/// document as it is inside the write `t`. Returns the views written.
+/// Gives every entry hung on `lane` (while it takes entries from elsewhere)
+/// a position at the end of the scale of each live view `lane` is in, where
+/// it has none yet (`VIEW-LANE-MEMBERS-PLACED`), in the memberships' manual
+/// order. What only lives under `lane` is not on it (DV, 2026-11-16). Reads
+/// the document as it is inside the write `t`. Returns the views written.
 pub(super) fn place_unplaced_lane_entries(
     t: &mut dr_doc::v3::BookTxnV3<'_>,
     lane: &EntryId,
@@ -65,14 +65,6 @@ pub(super) fn place_unplaced_lane_entries(
         return Ok(Vec::new());
     };
     let mut items: Vec<EntryId> = Vec::new();
-    if entry.is_level() {
-        items.extend(
-            v.entries_raw()
-                .into_iter()
-                .filter(|c| c.parent.as_ref() == Some(lane) && !c.is_trashed())
-                .map(|c| c.id),
-        );
-    }
     if entry.accepts_members(&graph.templates) {
         let mut members: Vec<m::Membership> = graph
             .memberships
@@ -242,7 +234,7 @@ pub(super) fn removals(
     }
     let entries = v.entries_map();
     let templates = v.templates_map();
-    let member_parent = entries.get(member).and_then(|e| e.parent.clone());
+    // Living under a lane does not keep an entry on it (DV, 2026-11-16).
     v.timeline_views_raw()
         .into_iter()
         .filter(|tv| {
@@ -256,9 +248,6 @@ pub(super) fn removals(
                         && &m.host != host
                         && tv.lanes.iter().any(|l| l.entry == m.host)
                 })
-                && !member_parent
-                    .as_ref()
-                    .is_some_and(|par| tv.lanes.iter().any(|l| &l.entry == par))
         })
         .map(|tv| tv.id)
         .collect()

@@ -151,7 +151,7 @@ impl Timeline {
                 return false;
             };
             if p.lane.as_ref().is_some_and(|lane| {
-                !book.has_below(lane) || !view.lanes.iter().any(|l| &l.entry == lane)
+                !book.accepts_members(lane) || !view.lanes.iter().any(|l| &l.entry == lane)
             }) {
                 return false;
             }
@@ -160,9 +160,6 @@ impl Timeline {
                     book.memberships
                         .iter()
                         .any(|m| &m.host == lane && &m.member == entry)
-                        || book
-                            .entry(entry)
-                            .is_some_and(|e| e.parent.as_deref() == Some(lane.as_str()))
                 });
             !arrived && !(p.settled && book.revision != p.base)
         });
@@ -199,14 +196,11 @@ impl Timeline {
                 for (entry, p) in self.pending.iter().filter(|(_, p)| p.view == v.id) {
                     for lane in &mut lanes {
                         lane.clips.retain(|c| &c.entry != entry);
-                        let is_resident = b.entry(&lane.id).is_some_and(|le| le.level)
-                            && b.entry(entry)
-                                .is_some_and(|ce| ce.parent.as_deref() == Some(lane.id.as_str()));
                         let is_member = b.accepts_members(&lane.id)
                             && b.memberships
                                 .iter()
                                 .any(|m| m.host == lane.id && &m.member == entry);
-                        if p.lane.as_deref() == Some(&lane.id) || is_resident || is_member {
+                        if p.lane.as_deref() == Some(&lane.id) || is_member {
                             lane.clips.push(p.place.clone());
                             lane.clips.sort_by(|a, b| {
                                 a.at.total_cmp(&b.at).then_with(|| a.entry.cmp(&b.entry))

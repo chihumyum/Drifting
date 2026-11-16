@@ -27,96 +27,23 @@ pub(super) fn pos_chain(len: usize) -> Vec<PosKey> {
     out
 }
 
+/// What a lane leaving its last live view writes back
+/// (`VIEW-LANE-EXIT-RESTORES-ORDER`): the order of what is hung on it, along
+/// the scale, into the memberships' `pos`. What lives under it keeps its
+/// manual order all along (DV, 2026-11-16: a lane holds only what is hung on
+/// it, so no folder order is written back).
 #[derive(Default)]
 pub(super) struct LaneExitWriteback {
     pub member_pos: Vec<(EntryId, PosKey)>,
-    pub child_order: Option<Vec<EntryId>>,
 }
 
 impl LaneExitWriteback {
     pub(super) fn is_empty(&self) -> bool {
-        self.member_pos.is_empty() && self.child_order.is_none()
+        self.member_pos.is_empty()
     }
-}
-
-/// The live entries stored directly under `parent`, in stored order.
-pub(super) fn live_child_ids(v: &BookViewV3<'_>, parent: &EntryId) -> Vec<EntryId> {
-    let mut seen = BTreeSet::new();
-    v.entries_raw()
-        .into_iter()
-        .filter(|e| e.parent.as_ref() == Some(parent) && !e.is_trashed())
-        .filter(|e| seen.insert(e.id.clone()))
-        .map(|e| e.id)
-        .collect()
-}
-
-/// Positions in `seq` of one longest strictly increasing run (not
-/// necessarily contiguous).
-fn longest_increasing(seq: &[usize]) -> Vec<bool> {
-    // `tails[k]`: index in `seq` of the smallest tail of a run of length k + 1.
-    let mut tails: Vec<usize> = Vec::new();
-    let mut prev: Vec<Option<usize>> = vec![None; seq.len()];
-    for (i, &x) in seq.iter().enumerate() {
-        let k = tails.partition_point(|&t| seq[t] < x);
-        prev[i] = k.checked_sub(1).map(|j| tails[j]);
-        if k == tails.len() {
-            tails.push(i);
-        } else {
-            tails[k] = i;
-        }
-    }
-    let mut keep = vec![false; seq.len()];
-    let mut cur = tails.last().copied();
-    while let Some(i) = cur {
-        keep[i] = true;
-        cur = prev[i];
-    }
-    keep
-}
-
-/// Puts the entries of `order` that are stored directly under `parent` right
-/// now in that order among themselves (`VIEW-FOLDER-ORDER-FROM-SCALE`).
-/// Nothing stored anywhere else is moved in, and of the rest only the
-/// entries out of order move: one longest run already in order stays where
-/// it is, so a concurrent move of one of them on another device is not
-/// written over. Reads the document as it is inside the write.
-pub(super) fn reorder_stored_children(
-    tx: &mut dr_doc::v3::BookTxnV3<'_>,
-    parent: &EntryId,
-    order: &[EntryId],
-) -> Result<()> {
-    let current = tx.view().direct_child_ids(Some(parent));
-    let mut index = std::collections::HashMap::new();
-    for (i, id) in current.iter().enumerate() {
-        index.entry(id).or_insert(i);
-    }
-    let mut seen = BTreeSet::new();
-    let want: Vec<&EntryId> = order
-        .iter()
-        .filter(|id| index.contains_key(id) && seen.insert(*id))
-        .collect();
-    if want.len() < 2 {
-        return Ok(());
-    }
-    let seq: Vec<usize> = want.iter().map(|id| index[id]).collect();
-    let keep = longest_increasing(&seq);
-    let first_kept = keep.iter().position(|k| *k).expect("a run is never empty");
-    let entries = tx.entries();
-    for (i, id) in want.iter().enumerate() {
-        if keep[i] {
-            continue;
-        }
-        if i == 0 {
-            entries.move_before(id, want[first_kept])?;
-        } else {
-            entries.move_after(id, want[i - 1])?;
-        }
-    }
-    Ok(())
 }
 
 pub(super) fn plan_lane_exit_writeback(
-    v: &BookViewV3<'_>,
     snapshot: &dr_doc::v3::BookStructureV3,
     tv: &m::TimelineView,
     lane: &EntryId,
@@ -135,25 +62,7 @@ pub(super) fn plan_lane_exit_writeback(
     } else {
         Vec::new()
     };
-    let child_order = if lane_entry.is_level() {
-        // Only what is stored directly in the folder: an entry that reads as
-        // living here because a merge left it under an entry whose level is
-        // off stays where it is stored.
-        let stored = live_child_ids(v, lane);
-        let desired: Vec<EntryId> = snapshot
-            .residents_along_view(tv, lane)
-            .into_iter()
-            .map(|e| e.id.clone())
-            .filter(|id| stored.contains(id))
-            .collect();
-        (desired != stored).then_some(desired)
-    } else {
-        None
-    };
-    Ok(LaneExitWriteback {
-        member_pos,
-        child_order,
-    })
+    Ok(LaneExitWriteback { member_pos })
 }
 
 fn view(v: &BookViewV3<'_>, id: &str) -> Result<m::TimelineView> {
@@ -185,9 +94,22 @@ op! {
         let entries = v.entries_map();
         let templates = v.templates_map();
         let ms = v.memberships_raw();
+        let all_raw_views = v.timeline_views_raw();
+        let old = all_raw_views.iter().find(|t| t.id == tv.id).cloned();
+        // Only a lane this write adds is checked (`kernel-v5.md` §11: the
+        // command layer refuses only what this write newly breaks): a lane
+        // the view already stores and no longer satisfies the rule (an old
+        // folder that is only a level, DV 2026-11-16) stays as it is.
+        let stored_lanes: BTreeSet<EntryId> = old
+            .iter()
+            .filter(|o| !o.is_trashed())
+            .flat_map(|o| o.lanes.iter().map(|l| l.entry.clone()))
+            .collect();
         let mut lanes = BTreeSet::new();
         for lane in &tv.lanes {
-            m::check_timeline_lane(&lane.entry, &entries, &templates)?;
+            if !stored_lanes.contains(&lane.entry) {
+                m::check_timeline_lane(&lane.entry, &entries, &templates)?;
+            }
             if !lanes.insert(&lane.entry) {
                 return Err(WsError::invalid("duplicate lane"));
             }
@@ -213,7 +135,7 @@ op! {
             tv.placements.iter().map(|p| p.entry.clone()).collect();
         let mut next_at = m::timeline_scale_end(&tv.placements);
         for lane in &effective_lanes {
-            for item in snapshot.lane_entries_order(&lane.entry) {
+            for item in snapshot.lane_members_order(&lane.entry) {
                 if placed_ids.insert(item.id.clone()) {
                     tv.placements.push(m::TimelinePlacement {
                         entry: item.id.clone(),
@@ -224,8 +146,6 @@ op! {
                 }
             }
         }
-        let all_raw_views = v.timeline_views_raw();
-        let old = all_raw_views.iter().find(|t| t.id == tv.id).cloned();
         let other_active_lanes: BTreeSet<EntryId> = all_raw_views
             .iter()
             .filter(|t| t.id != tv.id && !t.is_trashed())
@@ -243,7 +163,7 @@ op! {
                 if !new_effective_ids.contains(&old_lane.entry)
                     && !other_active_lanes.contains(&old_lane.entry)
                 {
-                    let wb = plan_lane_exit_writeback(&v, &snapshot, old_tv, &old_lane.entry)?;
+                    let wb = plan_lane_exit_writeback(&snapshot, old_tv, &old_lane.entry)?;
                     if !wb.is_empty() {
                         exit_writebacks.push((old_lane.entry, wb));
                     }
@@ -255,11 +175,6 @@ op! {
         for (lane_id, wb) in &exit_writebacks {
             for (member_id, _) in &wb.member_pos {
                 keys.push(key("memberships", m::Membership::key(lane_id, member_id)));
-            }
-            if let Some(children) = &wb.child_order {
-                for cid in children {
-                    keys.push(key("entries", cid));
-                }
             }
         }
         let replaced = Replaces::record(CollectionV3::TimelineViews, &id);
@@ -301,9 +216,6 @@ op! {
                         Some(&loro::LoroValue::from(pos.as_str())),
                     )?;
                 }
-                if let Some(children) = &wb.child_order {
-                    reorder_stored_children(tx, lane_id, children)?;
-                }
             }
             Ok(())
         })?;
@@ -313,7 +225,7 @@ op! {
     }
 }
 op! {
-    ViewDelete="timeline_view.delete",Write,Book,"Delete a timeline view while retaining lane entries and memberships; lanes leaving their last live view save their scale order back to manual order in the same commit.",fn(cx,input:EntityIn)->Done {
+    ViewDelete="timeline_view.delete",Write,Book,"Delete a timeline view while retaining lane entries and memberships; lanes leaving their last live view save the scale order of what is hung on them back to the memberships' manual order in the same commit.",fn(cx,input:EntityIn)->Done {
         let s = cx.book_v3(&input.book)?;
         let v = s.reader_v3.view();
         let tv = view(&v, &input.id)?;
@@ -333,7 +245,7 @@ op! {
         let mut exit_writebacks = Vec::new();
         for lane in m::effective_timeline_lanes(&tv.lanes, &entries, &templates) {
             if !other_active_lanes.contains(&lane.entry) {
-                let wb = plan_lane_exit_writeback(&v, &snapshot, &tv, &lane.entry)?;
+                let wb = plan_lane_exit_writeback(&snapshot, &tv, &lane.entry)?;
                 if !wb.is_empty() {
                     exit_writebacks.push((lane.entry, wb));
                 }
@@ -344,11 +256,6 @@ op! {
         for (lane_id, wb) in &exit_writebacks {
             for (member_id, _) in &wb.member_pos {
                 keys.push(key("memberships", m::Membership::key(lane_id, member_id)));
-            }
-            if let Some(children) = &wb.child_order {
-                for cid in children {
-                    keys.push(key("entries", cid));
-                }
             }
         }
         let trashed = rec(CollectionV3::TimelineViews, &id).at(["deleted_at"]);
@@ -361,9 +268,6 @@ op! {
                         member_id,
                         Some(&loro::LoroValue::from(pos.as_str())),
                     )?;
-                }
-                if let Some(children) = &wb.child_order {
-                    reorder_stored_children(t, lane_id, children)?;
                 }
             }
             Ok(())
@@ -411,19 +315,17 @@ op! {
                 return Err(WsError::invalid("lane is not in this view"));
             }
             m::check_timeline_lane(lane, entries, templates)?;
-            let already_resident = entries.get(lane).is_some_and(|le| le.is_level())
-                && e.parent.as_ref() == Some(lane);
-            if !already_resident {
-                m::check_membership(lane, &e.id, entries, templates)?;
-                if !ms.iter().any(|m| &m.host == lane && m.member == e.id) {
-                    ms.push(m::Membership {
-                        host: lane.clone(),
-                        member: e.id.clone(),
-                        pos: None,
-                        created_at: Some(now()),
-                    });
-                    join = true;
-                }
+            // A lane holds what is hung on it: placing an entry on a lane
+            // hangs it there, wherever it lives (DV, 2026-11-16).
+            m::check_membership(lane, &e.id, entries, templates)?;
+            if !ms.iter().any(|m| &m.host == lane && m.member == e.id) {
+                ms.push(m::Membership {
+                    host: lane.clone(),
+                    member: e.id.clone(),
+                    pos: None,
+                    created_at: Some(now()),
+                });
+                join = true;
             }
         }
         m::check_timeline_placement_in_lane(&tv, &e.id, &ms, entries, templates)?;

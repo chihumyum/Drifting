@@ -241,7 +241,7 @@ pub(super) fn validate_project_template(
         if tab.pos.is_none() {
             tab.pos = default_positions.get(idx).cloned();
         }
-        m::check_tab_mount(&tab.mount, has_book, &entries, &templates, &views)?;
+        m::check_tab_mount(&tab.mount, has_book, &entries, &templates)?;
         m::check_tab_mount_once(&checked_tabs, &tab.mount)?;
         checked_tabs.push(tab.clone());
     }
@@ -470,8 +470,9 @@ op! {
 pub struct TabPutIn {
     pub book: String,
     /// What the new tab mounts: an entry with its level switch or
-    /// 「收别处的条目」 on, a view, or the book sequence (the root is
-    /// always mounted, on 「全部」). A tab is called what it mounts.
+    /// 「收别处的条目」 on, or the book sequence (the root is always
+    /// mounted, on 「全部」). A tab cannot mount a view. A tab is called
+    /// what it mounts.
     pub mount: types::TabMount,
     /// Where the tab goes (last by default).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -480,7 +481,7 @@ pub struct TabPutIn {
 
 op! {
     TabPut = "tab.put", Write, Book,
-    "Add a left-sidebar tab that mounts a level entry, a view or the book sequence; one thing is mounted on one tab.",
+    "Add a left-sidebar tab that mounts a level entry or the book sequence; one thing is mounted on one tab. A tab cannot mount a view (views go with the bottom panel).",
     fn(cx, input: TabPutIn) -> Done {
         let slot = cx.book_v3(&input.book)?;
         let v = slot.reader_v3.view();
@@ -488,12 +489,7 @@ op! {
         let mount: m::TabMount = convert(&input.mount)?;
         let entries = v.entries_map();
         let templates = v.templates_map();
-        let views: BTreeMap<TimelineViewId, m::TimelineView> = v
-            .timeline_views_raw()
-            .into_iter()
-            .map(|tv| (tv.id.clone(), tv))
-            .collect();
-        m::check_tab_mount(&mount, proj.book.is_some(), &entries, &templates, &views)?;
+        m::check_tab_mount(&mount, proj.book.is_some(), &entries, &templates)?;
         m::check_tab_mount_once(&proj.tabs, &mount)?;
         let id = TabId::new_v7();
         let others: Vec<(String, Option<PosKey>)> = proj

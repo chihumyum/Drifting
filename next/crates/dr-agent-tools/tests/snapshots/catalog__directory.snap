@@ -26,7 +26,7 @@ comment.update [write] Change a comment: its text, status (resolve / reopen; a c
 entry.create [write] Create an entry either residing under `parent` (without membership) or attached to `host` (residing in `host`'s home, `host` itself when `level`, or the root).
 entry.get [read] Read an entry including retained module values; an entry whose switch is on also carries what lies below it (resolved settings and their sources, children, members).
 entry.list [read] Find entries, or list the entries living under one in manuscript order; with below, each listed entry whose switch is on carries its resolved settings, children and members.
-entry.move [write] Move an entry's residence and position; when the target folder is in a timeline view, its position follows that view's scale without rewriting manual folder order.
+entry.move [write] Move an entry's residence and its position in the folder's manual order (`index` among the folder's stored children). Moving where an entry lives never hangs it on a lane or moves it on a timeline scale.
 entry.restore [write] Restore an entry and what lives under it from trash; if its stored residence can no longer hold entries, relocate it to the nearest live level ancestor or the root.
 entry.set_level [write] Turn an entry's level switch on or off. Turning it off moves all live descendants below it to the trash in place (leaving already-trashed entries, overrides, memberships and swimlanes untouched) in one commit that one undo reverts.
 entry.trash [write] Trash an entry with what lives under it, keeping entries that only belong to it.
@@ -90,10 +90,10 @@ relation.create [write] Create a canonical relation, validating live endpoints a
 relation.delete [write] Delete one canonical relation without deleting either endpoint.
 relation.list [read] List canonical relations whose endpoints are live, optionally scoped to an endpoint or type.
 tab.move [write] Change a left-sidebar tab's position (「全部」 included).
-tab.put [write] Add a left-sidebar tab that mounts a level entry, a view or the book sequence; one thing is mounted on one tab.
+tab.put [write] Add a left-sidebar tab that mounts a level entry or the book sequence; one thing is mounted on one tab. A tab cannot mount a view (views go with the bottom panel).
 tab.remove [write] Remove a left-sidebar tab (not what it mounts); 「全部」 stays.
 tab.select [write] Remember the left-sidebar tab the project is on, for every device (kept in `layout:<book>`; not undoable; leaves the book document untouched).
-timeline_view.delete [write] Delete a timeline view while retaining lane entries and memberships; lanes leaving their last live view save their scale order back to manual order in the same commit.
+timeline_view.delete [write] Delete a timeline view while retaining lane entries and memberships; lanes leaving their last live view save the scale order of what is hung on them back to the memberships' manual order in the same commit.
 timeline_view.list [read] List timeline views with their effective lanes, placements and time pins.
 timeline_view.place [write] Place or move an entry in a timeline, optionally joining a lane in the same commit.
 timeline_view.put [write] Create or edit a timeline view, including its independent lane order. Whole-view replacement requires a complete timeline_view.list at the guarded version. Hidden lanes, placements or pin data prevent replacement; use supported item commands instead.
@@ -115,7 +115,7 @@ asset_folder.rename book 1c92033f8dcf73f2b5fcceab6a17f167ce57c6f5e48d538311681d1
 asset_folder.restore book 87d66f0d66fe1660dad31c88bb3fb09eab501576f4c6d0d345be9e76b68f179f
 asset_folder.trash book 2c53c7dfed9e6d458560de675938a1948e72f24a886b64677dfcbf5dee797f59
 book.get shared 3405b89fc23a4ce7c0d8663d8c6e9c8a1179e5e57f1b018c3a76b9aab9c425de
-book.sequence shared 19572bb6617d510495c3863a23b86554479e94046344ff0adf5c0590c8919282
+book.sequence shared fc4cb9ed814e91156adecde1db023ff89bd26adf6d59b997786c7d646d28c2f0
 book.update book c9b8c91de4f1331368b187db91a606e226dbf69490048290efecfd7a54f5448f
 book.writing_days shared 1666501ae181dc1e83a34e6f26a03fc9a21240aa81f61d2827cb860bc719b4fd
 comment.anchors shared 4d752a111e8d3be9cb0410c15a60d9e5a77f243816761fb8131e70074df16492
@@ -123,10 +123,10 @@ comment.create book aa339605fe6da60a590d0e5a7bd86f62f5994fa964f3ef42cc296e242a3e
 comment.list shared ae0fdef4558836127a6a4a8401805cd5b942625642e4c1dd0360a79cec1c9a5d
 comment.reanchor book 36dca406adcb7a59134614d8da3b51f525078313f8df175f640a59a5222d038c
 comment.update book 9aadab8b09dce93e060be53e648f7fe54af33b21761e96c6b997ef07da38598c
-entry.create book e3ee31980a40aa629bf50e242f7ad13e80fdacc38dfbd7c1d1103bc986f8025a
-entry.get shared bc1d45c49c5ad12ecb21e6c534dc2eeb7ade3f39303bd0b9553eb6b133030a0d
-entry.list shared 47d92c9006f514ec9460d4699ba092f31cc46225012ccc92db0470a78d270b80
-entry.move book 58379416e12ecc6dacc5f1b77339c6c013a82eb904d0750f571e7ec3536ad384
+entry.create book ba0d93c79545961901dafdc6cffc4cc7b69af45ab410b949abf5dacbe12b4c73
+entry.get shared d76f37f50638937beda9dc348b1df78a2c5780bd14b4e0c74995993758d644f5
+entry.list shared 58ad76d736849b8fa189668e32176b4e42dee19ba26ee927788d2d8011f2a52e
+entry.move book cc56f7c3f7ff844cf00b25f0ada60b2863e26567395b9cf4be0cde1b5d5b1dd5
 entry.restore book f1d264ca48c651e7b29eb82bd4937e30411cf35a2b9d10f5f1cd21dc63fa38e3
 entry.set_level book e642a1caeba7f5395ffa5c12f9f9366485c7e8380f9b65501909bcccaf07c706
 entry.trash book 6db569ddb41f851f424706d3a94d226c120a8335ea214b3d91497a68b3f978c5
@@ -164,7 +164,7 @@ module.put_kv book f6df6208b79bf751fff2ad001bf3b72e49a94e7c48f1825183932db82fca6
 module.put_media book 7d112c0ee4f89a3af5b1acae34b8d9bea7392af0c6050abfdfab5442fc76330d
 module.put_patch book 2adb9486ec20672e8f8785afd910e0eb64ee09aa876068ac93fa4e8cdc59c10b
 module.put_relation book 6c58d5ad0245c9628ead52a2417d4128f8d00931ee1d96a3c78f8c1eac838b27
-module.read shared e332c220d374d16b14387ad0f9ba9b7f8a3dd95ed9cc1b4531fce04df3680265
+module.read shared 8ca855a8037901be83d64892cb275bd0e213ec861d671a99d02d940e9558b3ec
 module.read_prose shared 250ce3bcbbe6bcf0da07ea3314af6a22e735a57c52338dc6b0a4d86f41ce770f
 module.remove_kv book d85284a551f9faa1004a8f07b511e376679db66f8d114ae12299b8d574d9fc34
 module.remove_media book e70478beaf21b8854bd7983706a8665b47cb920498b771ea4a9a31286a4f8df7
@@ -174,7 +174,7 @@ module.replace_prose book 361c1bd302fe4686ec8f8436f775f745cc53d462662430b50e2a83
 module.set_arrangement book c8baf155d081545d2e0ec82afb21683e91b57eefaa9b93a548da03a68d0175cc
 module.set_field book 92b766c15692773bb5a4a322939c033c267a4ea07312e63714df0be845989258
 module.set_prose book 64ae28c4a64983a8c7c747c5f878afa354f8b96b5fb33b3bb395ca08aa8f551c
-project.get shared 1f03bd8d13f3c558527e06df384ee368711e7ab882b0bd951354e6c1dd01cf88
+project.get shared f247f6e0c239d6a4de0f9651558b9f0ac8b56c6904571d59ef367e72f85cbd15
 project.update book d4f01e518616ece6d14245d4a738c4706da5b44ec0338a3862c4c4d034f45f54
 project_template.get shared d1d3c95c35ddd3b76dfb328394c458c3eb6f6849d757ad94c48a8143a61bbb51
 project_template.list shared 885f0943988d7a06cebf2ac97e5ba230a1d04b3a72df71b006371fa97550c1a8
@@ -190,10 +190,10 @@ relation.create book 64fb9ce696969f3ee3aa08594088bf2334e05e841c204bab4bb69c3dd41
 relation.delete book 299194e7cd97ba2f752b279ee5aee42c8e9432dd861cece7e9a7abf01a00b0ff
 relation.list shared 869f55fb4ca4702d9c1d1d0b7a6d7fe1e59da3ba334e9bcf11ed685e953b91e0
 tab.move book b6cd2dba62c3e344b71bbc75972b479cb4bbbb1aa19cc70a0dcb699011f003d6
-tab.put book b50ce20409d7f308f2fdc47cbe57772ce73e398855d18409104cdfd95efd533a
+tab.put book 50580f39f9e74333eff26ecc9ee395463cb1022cc3767c34639f7b3b682c2fa0
 tab.remove book 90d9b01d82dbef8c8ad02786dfbd2c7f049cb4f32b8ee2fd44c1944ed6430fdb
 tab.select book c933d5b670c7ee7c993e72556e0e9c651943aeb204603a04d05cb906672dbd01
-timeline_view.delete book 2ab28f4527029ad44d26013c95865afe86efe2e3b71f63ffa78737633815073e
+timeline_view.delete book b9b820e998c15766620aab69cd316e35a73232e71898c52804f7995cf76f078c
 timeline_view.list shared d0667c9b4a558b04b32134208486cc51afe858f6af6b329eb3d0ae2f2e13ad99
 timeline_view.place book f30b36fa0c3148798c05b13eb4f0018ffc1b8fd21c2b707a0f45c5886cf7d2a2
 timeline_view.put book 5db5065da7964ad62483966207785699594931cf9f18c380c4c89cddd940a5d4
