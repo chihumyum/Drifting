@@ -18,14 +18,16 @@ use dr_ui::{
     Theme,
     components::{DockMark, DockTab, IconButton, Pill, TabDock},
     sand::{self, Icon, KindMark},
-    tokens::{Rgb, glass as g},
+    tokens::Rgb,
 };
 use gpui::{
     AnyElement, Context, ElementId, InteractiveElement, IntoElement, MouseButton, ParentElement,
     SharedString, StatefulInteractiveElement, Styled, Window, div, prelude::FluentBuilder as _, px,
 };
 
-use super::chrome::{CLUSTER_END, TITLEBAR_HEIGHT, TOGGLE_GAP, TRAILING_INSET};
+use super::chrome::{CLUSTER_END, RIGHT_TOGGLE_END, TITLEBAR_HEIGHT, TOGGLE_GAP};
+use super::fill::FillPlace;
+use super::sidebar::Side;
 use super::{PageSide, Workspace};
 use crate::actions::NewEntity;
 use crate::book::Book;
@@ -47,7 +49,8 @@ fn mark(id: SharedString, (kind, color): (sand::Kind, Option<Rgb>), hollow: bool
     }
 }
 
-pub fn dock(ws: &mut Workspace, _: &mut Window, cx: &mut Context<Workspace>) -> AnyElement {
+pub fn dock(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>) -> AnyElement {
+    let window_w = f32::from(window.viewport_size().width);
     let tabs = ws.nav.tabs().to_vec();
     let active = ws.nav.active_index();
     let book = ws.book.clone();
@@ -83,12 +86,13 @@ pub fn dock(ws: &mut Workspace, _: &mut Window, cx: &mut Context<Workspace>) -> 
         },
     );
     let new_label = t(cx, keys::top_timeline::NEW_ENTITY);
-    let home = ws.nav.current().is_none();
+    let home = ws.nav.current().is_none() && ws.filled().is_none();
     let on_change = cx.entity();
     let on_drop = cx.entity();
     let on_each = cx.entity();
     let tab_dock = TabDock::new("dock", docked, active)
         .locked(locked)
+        .held_open(ws.filled().is_some() && !tabs.is_empty())
         .leading(move |_, _| {
             let lock = lock.clone();
             IconButton::new(
@@ -116,9 +120,10 @@ pub fn dock(ws: &mut Workspace, _: &mut Window, cx: &mut Context<Workspace>) -> 
                 .on_click(|_, window, cx| window.dispatch_action(Box::new(NewEntity), cx))
                 .into_any_element()
         })
-        .on_change(move |i, _, cx| {
+        .on_change(move |i, window, cx| {
             on_change.update(cx, |ws, cx| {
-                if ws.nav.activate(i) {
+                let exited = ws.exit_fill(window, cx);
+                if ws.nav.activate(i) || exited {
                     ws.changed(cx);
                 }
             })
@@ -157,16 +162,40 @@ pub fn dock(ws: &mut Workspace, _: &mut Window, cx: &mut Context<Workspace>) -> 
                     })
                 })
         });
-    let lead = if ws.left.open {
-        12.0
-    } else {
-        CLUSTER_END + TOGGLE_GAP
+    let min_lead = CLUSTER_END + TOGGLE_GAP;
+    let min_trail = RIGHT_TOGGLE_END + TOGGLE_GAP;
+    let left_base = (ws.left.width * ws.left.shown()).round();
+    let right_base = (ws.right.width * ws.right.shown()).round();
+    let (mut lead, mut trail) = match ws.filled() {
+        Some(FillPlace::Left) => {
+            let (_, left_vis) = ws.sidebar_drawn_widths(Side::Left, window_w);
+            let max_fill = ws.max_fill_width(Side::Left, window_w);
+            let l = if left_vis < max_fill - 80.0 {
+                (left_vis + 12.0).max(min_lead)
+            } else {
+                (left_base + 12.0).max(min_lead)
+            };
+            (l, (right_base + 12.0).max(min_trail))
+        }
+        Some(FillPlace::Right) => {
+            let (_, right_vis) = ws.sidebar_drawn_widths(Side::Right, window_w);
+            let max_fill = ws.max_fill_width(Side::Right, window_w);
+            let r = if right_vis < max_fill - 80.0 {
+                (right_vis + 12.0).max(min_trail)
+            } else {
+                (right_base + 12.0).max(min_trail)
+            };
+            ((left_base + 12.0).max(min_lead), r)
+        }
+        _ => (
+            (left_base + 12.0).max(min_lead),
+            (right_base + 12.0).max(min_trail),
+        ),
     };
-    let trail = if ws.right.open {
-        12.0
-    } else {
-        TRAILING_INSET + g::ROUND + TOGGLE_GAP
-    };
+    if lead + trail > window_w - 80.0 {
+        lead = min_lead;
+        trail = min_trail;
+    }
     div()
         .absolute()
         .top_0()
@@ -293,8 +322,9 @@ fn pill(tab: &Tab, ws: &Workspace, book: &Book, cx: &mut Context<Workspace>) -> 
                     .child(close);
                 if let Some(side) = side {
                     let focus = entity.clone();
-                    half = half.on_click(move |_, _, cx| {
+                    half = half.on_click(move |_, window, cx| {
                         focus.update(cx, |ws, cx| {
+                            ws.exit_fill(window, cx);
                             ws.nav.focus_side(index, side);
                             ws.changed(cx);
                         })

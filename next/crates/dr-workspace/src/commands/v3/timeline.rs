@@ -294,6 +294,10 @@ pub struct PlaceIn {
     /// When supplied, join this lane in the same commit; omitted, keep memberships.
     #[serde(default)]
     pub lane: Option<String>,
+    /// Move the membership from this host when joining the target lane.
+    #[serde(default)]
+    #[schemars(skip)]
+    pub from_host: Option<String>,
     pub at: f64,
     #[serde(default)]
     pub span: Option<f64>,
@@ -328,6 +332,17 @@ op! {
                 join = true;
             }
         }
+        let transfer = if let Some(from) = input.from_host.as_deref() {
+            if !matches!(cx.actor(), crate::Actor::User) {
+                return Err(WsError::invalid("membership transfer is a workspace UI operation"));
+            }
+            let to = lane.as_ref().ok_or_else(|| WsError::invalid("a membership transfer needs a target lane"))?;
+            let transfer = membership::Transfer::plan(&v, from, to, &e.id)?;
+            transfer.remove_from(&mut ms);
+            Some(transfer)
+        } else {
+            None
+        };
         m::check_timeline_placement_in_lane(&tv, &e.id, &ms, entries, templates)?;
         let after = BookGraphV3 {
             memberships: ms,
@@ -360,7 +375,9 @@ op! {
         let id = e.id.clone();
         // The entry's position in this view. A membership it joins is new.
         let placed = rec(CollectionV3::TimelineViews, &tv.id).at(["placements", id.as_str()]);
-        let (_, at) = cx.write_book_v3(&s, Replaces::records([placed]), move |t| {
+        let replaced = std::iter::once(placed).chain(transfer.iter().flat_map(|plan| plan.replaced()));
+        keys.extend(transfer.iter().flat_map(|plan| plan.undo_keys()));
+        let (_, at) = cx.write_book_v3(&s, Replaces::records(replaced), move |t| {
             if let Some(lane) = lane.filter(|_| join) {
                 t.put_membership(&lane, &e.id, None, Some(now()))?;
             }
@@ -368,6 +385,9 @@ op! {
                 .put_placement(&e.id, input.at, input.span)?;
             for (vid, end) in &other_views {
                 t.timeline_view(vid)?.put_placement(&e.id, *end, None)?;
+            }
+            if let Some(transfer) = transfer {
+                transfer.apply(t)?;
             }
             Ok(())
         })?;

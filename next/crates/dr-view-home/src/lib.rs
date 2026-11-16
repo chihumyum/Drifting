@@ -1,5 +1,6 @@
 //! Canonical Project Home (`kernel-v5.md` §2 & §3).
 mod project_template;
+mod structure_thumbnail;
 pub mod v3;
 
 pub use project_template::Field;

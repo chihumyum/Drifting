@@ -13,9 +13,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 pub mod v3;
 
-/// Temporary UI-side row bridging `dr-view-material` / `dr-view-shelf-review`
-/// over v5 `entry.media` + `assets` until T5 replaces the shelf with the v5
-/// file index.
+/// UI-side row over v5 `assets` (`dr-view-material`).
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MaterialInfo {
     pub id: String,

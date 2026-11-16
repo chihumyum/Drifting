@@ -1,6 +1,6 @@
 //! The settings panel, generated from the registry.
 //!
-//! Like the Super Views it covers the window: a rail of groups and sections
+//! It covers the window with a rail of groups and sections
 //! on the left (the search field on top), every section in one scroll on
 //! the right. Clicking a section jumps there at once; scrolling moves the
 //! rail's current item (workspace.md, 「桌面完整 Settings」). Each row is the

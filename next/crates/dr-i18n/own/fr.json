@@ -450,5 +450,21 @@
     "usedIn": "Utilisé dans",
     "viewList": "Liste",
     "viewMasonry": "Mosaïque"
+  },
+  "v5Fill": {
+    "attached": "Rattaché à",
+    "exitFill": "Quitter l’extension",
+    "fill": "Étendre",
+    "fillLeft": "Étendre le panneau gauche",
+    "fillRight": "Étendre le panneau droit",
+    "fullEditor": "Éditeur complet",
+    "noTemplateEntries": "Entrées sans modèle",
+    "resides": "Réside sous",
+    "resizeFill": "Redimensionner la zone étendue",
+    "structure": "Structure",
+    "templateCount": "{{count}} modèles",
+    "templateStructure": "Structure des modèles",
+    "topLevel": "Au premier niveau",
+    "unusedTemplates": "Modèles inutilisés"
   }
 }

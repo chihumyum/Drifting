@@ -1031,12 +1031,13 @@ impl Workspace {
         if in_editor {
             self.gave_focus = focused.clone();
         }
-        if self.covered() || self.search.is_some() || self.find.is_some() {
-            // Nothing under Settings, a Super View or a search takes typing.
+        let paper_hidden = self.covered() || self.fill_covers_paper();
+        if paper_hidden || self.search.is_some() || self.find.is_some() {
+            // Nothing under a covering layer or a search takes typing.
             if in_editor && self.find.is_none() && self.search.is_none() {
                 self.focus.focus(window, cx);
             }
-            if self.covered() {
+            if paper_hidden {
                 self.focused_editor = None;
             }
             return;
@@ -1119,7 +1120,7 @@ impl Workspace {
         }
     }
 
-    /// The keyboard back to the page (closing Settings or a Super View).
+    /// The keyboard back to the page (closing Settings or a fill).
     pub(crate) fn refocus(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.focused_editor = None;
         self.focus.focus(window, cx);

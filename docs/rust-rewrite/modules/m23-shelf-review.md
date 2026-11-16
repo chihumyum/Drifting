@@ -1,5 +1,11 @@
 # M23：审阅与素材 Super View（`dr-view-shelf-review`）
 
+## 内核 v5 T9
+
+这一独立舞台退役。审阅和素材库各用右栏原来的视图铺满，待整理抽屉撤下。以下保留旧实现记录。
+
+见[栏的铺满](k4-panel-fill.md)。
+
 `SuperView::ReviewMaterials`（工作台快捷键 `⌘⌥5` / 切页器「审阅与素材」）将整本书的待办、批注、素材与未整理／已解决归档收拢在同一张全屏工作台上，建立在 canonical v3 书目模型（`Entry { id, module }`、`Material`、浮动批注与 `Relation`）之上。
 
 ## 结构与职责划分

@@ -546,7 +546,7 @@ fn time_and_name_sort_are_device_local_keep_manual_order_intact_and_refuse_reord
     );
     assert_eq!(
         resolve_drop(&snap, &c3, &lane, DropSlot::Into, false, false),
-        Some(Drop::Membership { host: lane.clone() })
+        None
     );
 
     // Book revision and stored manual order did not change at all.

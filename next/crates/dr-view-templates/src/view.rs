@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, rc::Rc};
 
-use dr_i18n::keys::common;
 use dr_i18n::keys::template_editor as k;
+use dr_i18n::keys::{self, common};
 use dr_shell::{
     book::Book,
     nav::{Open, Target},
@@ -21,7 +21,8 @@ use dr_workspace::commands::v3::types::*;
 use gpui::{
     AnyElement, App, AppContext as _, Context, ElementId, Entity, EntityId, FocusHandle, Focusable,
     InteractiveElement as _, IntoElement, ParentElement as _, Render, ScrollHandle, SharedString,
-    StatefulInteractiveElement as _, Styled as _, Subscription, Window, div, px,
+    StatefulInteractiveElement as _, Styled as _, Subscription, Window, div,
+    prelude::FluentBuilder as _, px,
 };
 
 use crate::model;
@@ -168,6 +169,8 @@ impl Render for Ghost {
 }
 
 pub struct TemplateEditor {
+    full_editor: Option<dr_shell::pages::RunRow>,
+    full_after_save: Option<gpui::AnyWindowHandle>,
     host: PageViewHost,
     base: Option<EntryTemplate>,
     draft: EntryTemplate,
@@ -225,15 +228,10 @@ impl TemplateEditor {
         cx: &mut Context<Self>,
     ) -> Self {
         let creating = template.is_none();
-        let draft = template.clone().unwrap_or_else(|| {
-            let mut draft = model::blank(t(cx, common::UNTITLED).to_string());
-            model::add_module(
-                &mut draft,
-                model::module("prose", type_label("prose", cx).to_string()),
-            );
-            draft
-        });
+        let draft = template.clone().unwrap_or_else(|| Self::new_draft(cx));
         let mut this = Self {
+            full_editor: None,
+            full_after_save: None,
             host,
             base: template,
             draft,
@@ -263,6 +261,29 @@ impl TemplateEditor {
         }
         this
     }
+    pub(crate) fn new_draft(cx: &App) -> EntryTemplate {
+        let mut draft = model::blank(t(cx, common::UNTITLED).to_string());
+        model::add_module(
+            &mut draft,
+            model::module("prose", type_label("prose", cx).to_string()),
+        );
+        draft
+    }
+
+    pub(crate) fn compact(mut self, full_editor: dr_shell::pages::RunRow) -> Self {
+        self.full_editor = Some(full_editor);
+        self
+    }
+
+    fn show_full_editor(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.dirty() {
+            self.full_after_save = Some(window.window_handle());
+            self.save(cx);
+        } else if let Some(open) = self.full_editor.clone() {
+            open(window, cx);
+        }
+    }
+
     pub fn draft(&self) -> &EntryTemplate {
         &self.draft
     }
@@ -469,8 +490,18 @@ impl TemplateEditor {
                         }
                         this.base = Some(saved.clone());
                         this.finish_create(cx);
+                        if let Some(window) = this.full_after_save.take()
+                            && let Some(open) = this.full_editor.clone()
+                            && this.error.is_none()
+                            && !this.dirty()
+                        {
+                            cx.defer(move |cx| {
+                                let _ = window.update(cx, |_, window, cx| open(window, cx));
+                            });
+                        }
                     }
                     Err(error) => {
+                        this.full_after_save = None;
                         this.error = Some(matches!(error, dr_workspace::WsError::Conflict(_)))
                     }
                 }
@@ -780,7 +811,9 @@ impl Render for TemplateEditor {
         let theme = Theme::of(window, cx);
         let p = theme.palette;
         let name = self.field(Binding::Name, t(cx, k::TEMPLATE_NAME), false, window, cx);
-        let color = self.field(Binding::Color, t(cx, k::COLOR), false, window, cx);
+        let compact = self.full_editor.is_some();
+        let color =
+            (!compact).then(|| self.field(Binding::Color, t(cx, k::COLOR), false, window, cx));
         let mark = dr_shell::book::v3::mark(self.draft.mark.as_deref(), &self.draft.id);
         let save = Button::new("k5-save", t(cx, common::SAVE))
             .small()
@@ -918,14 +951,14 @@ impl Render for TemplateEditor {
             .flex()
             .flex_col()
             .gap(px(16.))
-            .child(
+            .children(color.map(|color| {
                 div()
                     .flex()
                     .gap(px(12.))
                     .items_center()
                     .child(t(cx, k::COLOR))
-                    .child(color),
-            )
+                    .child(color)
+            }))
             .child(
                 div()
                     .flex()
@@ -943,9 +976,16 @@ impl Render for TemplateEditor {
                     .unwrap_or(false)
                     .then(|| self.home_setting(cx)),
             )
-            .child(linkable_switch);
-        {
-            content = content.child(t(cx, k::MODULES));
+            .when(!compact, |el| el.child(linkable_switch));
+        content = content.child(t(cx, k::MODULES));
+        if compact {
+            content = content.children(
+                self.draft
+                    .modules
+                    .iter()
+                    .map(|m| div().child(m.name.clone())),
+            );
+        } else {
             for module in self.draft.modules.clone() {
                 content = content.child(self.module_row(&module, window, cx));
             }
@@ -976,10 +1016,12 @@ impl Render for TemplateEditor {
         if self.draft.level || self.draft.settings.accept.unwrap_or(false) {
             content = content.child(self.level_settings(cx));
         }
-        if self.draft.level {
-            content = content.child(self.actions(window, cx));
+        if !compact {
+            if self.draft.level {
+                content = content.child(self.actions(window, cx));
+            }
+            content = content.child(self.guidance(window, cx));
         }
-        content = content.child(self.guidance(window, cx));
         if let Some(conflict) = self.error {
             content = content.child(div().text_color(p.danger.solid()).child(t(
                 cx,
@@ -1004,12 +1046,23 @@ impl Render for TemplateEditor {
             .size_full()
             .flex()
             .flex_col()
-            .px(px(48.))
+            .px(px(if compact { 6. } else { 48. }))
             .font_role(Role::Ui)
             .type_px(theme.scale.body, theme.scale.line_body)
             .text_color(p.ink(1).solid())
             .child(head)
             .child(body)
+            .when(compact, |el| {
+                el.child(
+                    Button::new(
+                        "v5-structure-full-template",
+                        t(cx, keys::v5_fill::FULL_EDITOR),
+                    )
+                    .small()
+                    .disabled(self.saving || self.draft.name.trim().is_empty())
+                    .on_click(cx.listener(|this, _, window, cx| this.show_full_editor(window, cx))),
+                )
+            })
             .children(self.picker(cx))
             .children(self.mark_picker());
         if self.creating {

@@ -195,11 +195,6 @@
       "verifying": "Verifying…"
     }
   },
-  "bottomStatusBar": {
-    "elements": "Elements",
-    "storyGraph": "Story graph",
-    "todoLibrary": "TODO & Library"
-  },
   "chapterEditor": {
     "synopsisPlaceholder": "Synopsis…",
     "untitledChapter": "Untitled chapter"
@@ -346,10 +341,6 @@
         "body": "The book's frame. The left sidebar can split in two, each half with its own panel.",
         "closedBody": "The book's frame lives in the left sidebar: chapters, elements and ideas. Open it here.",
         "title": "Chapters · Elements · Ideas"
-      },
-      "superViews": {
-        "body": "Open them from the round button in a panel's header.",
-        "title": "Whole-window views"
       },
       "timeline": {
         "body": "Storylines laid out in book order or story time, sliding up from under the page.",
@@ -520,24 +511,15 @@
     "zoomReset": "Fit to view"
   },
   "materialFolders": {
-    "menu": {
-      "open": "Open"
-    },
     "picker": {
       "createAndMove": "Create and move",
       "newPlaceholder": "New folder name"
     },
-    "root": "All materials",
     "untitled": "New folder"
   },
   "memoMaterial": {
     "card": {
       "addSnippetBody": "Write in this note…"
-    },
-    "dialog": {
-      "create": "Create",
-      "newTodo": "New TODO",
-      "todoPlaceholder": "Todo content…"
     },
     "error": {
       "openFile": "Could not open file: {{error}}",
@@ -548,9 +530,6 @@
       "pdf": "PDF",
       "text": "Note"
     },
-    "menu": {
-      "openInSystem": "Open in system app"
-    },
     "preview": {
       "loading": "Loading…",
       "loadingPdf": "Loading PDF…",
@@ -560,35 +539,6 @@
       "openPdfFailed": "Cannot open PDF",
       "previousPage": "Previous",
       "renderPdfFailed": "Cannot render PDF"
-    },
-    "super": {
-      "all": "All",
-      "clearEntityFilter": "Clear relation filter",
-      "collapseDrawer": "Collapse drawer",
-      "commentEmptyHint": "Click + to add a comment, or select text in an editor to leave one",
-      "comments": "Comments",
-      "entityFilterAll": "Relations · All",
-      "expandDrawer": "Expand drawer",
-      "hideKind": "Click to hide this kind",
-      "material": "Material",
-      "meta": "{{todos}} TODO · {{comments}} comments · {{materials}} materials",
-      "noFilteredMaterials": "No materials match the current filters.",
-      "noMaterials": "No materials in this project yet.",
-      "noOrphans": "Every material is linked to at least one entity.",
-      "noResolved": "Nothing resolved yet.",
-      "orphanHeader": "Unsorted · unlinked materials",
-      "orphans": "Unsorted",
-      "reopenShort": "Reopen",
-      "resizeComments": "Resize the comment column",
-      "resizeTodos": "Resize the TODO column",
-      "resolved": "Resolved",
-      "resolvedHeader": "Resolved · TODO & comment archive",
-      "searchPlaceholder": "Search title or body…",
-      "showKind": "Click to show",
-      "todoEmptyHint": "Click + to create a TODO, or choose To TODO on a comment card"
-    },
-    "todo": {
-      "empty": "(empty TODO)"
     }
   },
   "mobileWorkspace": {
@@ -599,9 +549,6 @@
     "projectActions": {
       "deleteFailed": "The project could not be deleted. Please try again."
     }
-  },
-  "navigation": {
-    "back": "Back"
   },
   "nodeEditor": {
     "meta": {
@@ -865,15 +812,12 @@
     "commentPlaceholder": "Write a comment…",
     "empty": "No review items in this scope.",
     "filters": {
-      "all": "Both",
-      "comment": "Comments",
-      "todo": "TODOs"
+      "all": "Both"
     },
     "groups": {
       "deleted": "Deleted",
       "floating": "Not attached"
     },
-    "newComment": "New comment",
     "scopes": {
       "current": "Current"
     },
@@ -1362,13 +1306,11 @@
       "unpin": "Back to automatic layout"
     },
     "layout": {
-      "isles": "Islands",
       "relate": "Relations"
     },
     "linkHintFrom": "From",
     "linkHintTo": "to… pick a second element or chapter, Esc cancels",
     "manualRelationTitle": "New manual relation",
-    "meta": "{{categories}} categories · {{elements}} elements",
     "relate": {
       "relayout": "Re-arrange"
     },
@@ -1686,6 +1628,22 @@
     "usedIn": "Used in",
     "viewList": "List",
     "viewMasonry": "Masonry"
+  },
+  "v5Fill": {
+    "attached": "Hangs on",
+    "exitFill": "Exit fill",
+    "fill": "Fill",
+    "fillLeft": "Fill left sidebar",
+    "fillRight": "Fill right sidebar",
+    "fullEditor": "Full editor",
+    "noTemplateEntries": "Entries without a template",
+    "resides": "Lives under",
+    "resizeFill": "Resize filled area",
+    "structure": "Structure",
+    "templateCount": "{{count}} templates",
+    "templateStructure": "Template structure",
+    "topLevel": "At the top level",
+    "unusedTemplates": "Unused templates"
   },
   "windowCaption": {
     "close": "Close",

@@ -48,6 +48,18 @@ pub fn icon(icon: Icon, size_px: f32, color: Hsla) -> Svg {
         .text_color(color)
 }
 
+/// A brush icon at `size_px` (`18px` for the overlapping moon switch) with a
+/// circular cutout (`hole = 18 * 0.345`, `0.6px` soft edge) cleared on its
+/// left (`cut_on_right == false`) or right (`cut_on_right == true`) around a
+/// front icon centered `8px` away (`W25Final`).
+pub fn icon_cutout(icon: Icon, size_px: f32, color: Hsla, cut_on_right: bool) -> Svg {
+    svg()
+        .path(icon.cut_shared_path(cut_on_right))
+        .size(px(size_px))
+        .flex_none()
+        .text_color(color)
+}
+
 /// Total frames in the 风·林·火·山 thinking strip (`icons/thinking.png`).
 pub const THINKING_FRAMES: usize = 68;
 /// Zero-based index of the resting frame for 「已思考」: the 57th frame (山).

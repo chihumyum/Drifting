@@ -1,11 +1,9 @@
 use std::collections::BTreeMap;
 use std::time::{Duration, Instant};
 
-use dr_shell::{Services, SettingsFile, ShellInfo, Workspace, workspace::SuperView};
+use dr_shell::{Services, SettingsFile, ShellInfo, Workspace, workspace::FillPlace};
 use dr_ui::Appearance;
-use dr_view_element_overview::{
-    ElementLayoutMode, ElementOverview, IslandMode, MEMORY_KEY, RelatePoint, parse_overview_memory,
-};
+use dr_view_element_overview::{ElementLayoutMode, ElementOverview, IslandMode, RelatePoint};
 use dr_view_elements::data::v3 as g2_data;
 use dr_workspace::{
     Actor, Workspace as Library, WorkspaceOptions,
@@ -71,11 +69,29 @@ fn mount_overview(
     shell: &Entity<Workspace>,
     cx: &mut VisualTestContext,
 ) -> Entity<ElementOverview> {
+    cx.update(|window, cx| shell.update(cx, |ws, cx| ws.enter_fill(FillPlace::Left, window, cx)));
+    wait(cx, |cx| {
+        shell.read_with(cx, |ws, _| ws.v3_sidebar.is_some())
+    });
     cx.update(|_, cx| {
-        shell.update(cx, |ws, cx| {
-            ws.super_view = Some(SuperView::Elements);
-            cx.notify();
-        });
+        let ws = shell.read(cx);
+        let v = ws.book.v3().expect("v3 book");
+        let tab = v
+            .project
+            .tabs
+            .iter()
+            .find(|tab| match &tab.mount {
+                dr_workspace::commands::v3::types::TabMount::Entry { entry } => v
+                    .levels
+                    .get(entry)
+                    .is_some_and(|level| level.settings.display == "island"),
+                _ => false,
+            })
+            .expect("seeded island Tab")
+            .id
+            .clone();
+        let sidebar = ws.v3_sidebar.clone().expect("left sidebar");
+        sidebar.update(cx, |sidebar, cx| sidebar.choose(&tab, cx));
     });
     wait(cx, |cx| {
         cx.update(|_, cx| {
@@ -133,37 +149,36 @@ fn default_relate_determinism_mode_memory_and_two_book_isolation(
     let bits_b = vcx_b.update(|_, cx| position_bits(ov_b.read(cx).relate_positions()));
     assert_eq!(bits_a, bits_b);
 
-    // 3. Switching to `Isles` (`群岛`) persists in `Workspace::book_memory` and restores on reopen.
-    vcx_a.update(|window, cx| {
-        ov_a.update(cx, |v, cx| {
-            v.set_layout_mode(ElementLayoutMode::Isles, window, cx);
-        });
-    });
-    wait(vcx_a, |cx| {
-        shell_a.read_with(cx, |ws, _| {
-            parse_overview_memory(ws.book_memory(MEMORY_KEY)).mode == ElementLayoutMode::Isles
-        })
-    });
-
-    // Close SuperView::Elements and reopen a fresh instance on Book 0: restores `Isles`.
+    // 3. The left Tab's Island choice is in local layout and survives a reopen.
     vcx_a.update(|_, cx| {
-        shell_a.update(cx, |ws, cx| {
-            ws.super_view = None;
-            cx.notify();
+        let sidebar = shell_a.read(cx).v3_sidebar.clone().unwrap();
+        sidebar.update(cx, |v, cx| {
+            v.choose_fill_layout(dr_shell::v3::tab_fill::FillLayout::Island, cx);
         });
     });
-    vcx_a.run_until_parked();
+    vcx_a.update(|window, cx| {
+        shell_a.update(cx, |ws, cx| {
+            assert!(
+                ws.layout()
+                    .tab_fill_layouts
+                    .values()
+                    .any(|layout| *layout == dr_shell::v3::tab_fill::FillLayout::Island)
+            );
+            ws.store_layout(cx);
+            ws.exit_fill(window, cx);
+        });
+    });
     let ov_a_reopened = mount_overview(&shell_a, vcx_a);
     vcx_a.update(|_, cx| {
         assert_eq!(
             ov_a_reopened.read(cx).layout_mode(),
             ElementLayoutMode::Isles
-        );
+        )
     });
 
-    // 4. Switching to Book 1 isolates memory: the overview the stage shows for
+    // 4. Switching to Book 1 isolates memory: the filled Tab for
     // Book 1 starts in Book 1's default `Relate` with nothing focused. Opening
-    // a book closes the stage, and the overview kept for Book 0 follows
+    // a book exits fill, and the overview kept for Book 0 follows
     // nothing while it is not shown, so Book 1 gets one of its own.
     let book_1 = books_a[1].clone();
     vcx_a.update(|window, cx| {
@@ -339,7 +354,25 @@ fn drag_drop_onto_island_reuses_g2_prepare_drop_and_supports_undo(cx: &mut TestA
         .and_then(|m| m.commit(&lib))
         .expect("set accept=false");
 
-    let ov = mount_overview(&shell, vcx);
+    // A drop onto an island starts with a visible Island card. Relations
+    // also contains organising entries that only appear as graph endpoints.
+    mount_overview(&shell, vcx);
+    vcx.update(|_, cx| {
+        let sidebar = shell.read(cx).v3_sidebar.clone().unwrap();
+        sidebar.update(cx, |sidebar, cx| {
+            sidebar.choose_fill_layout(dr_shell::v3::tab_fill::FillLayout::Island, cx);
+        });
+    });
+    wait(vcx, |cx| {
+        cx.update(|_, cx| {
+            dr_view_element_overview::current(cx).is_some_and(|view| {
+                let view = view.read(cx);
+                view.layout_mode() == ElementLayoutMode::Isles && view.is_ready()
+            })
+        })
+    });
+    let ov =
+        vcx.update(|_, cx| dr_view_element_overview::current(cx).expect("mounted Island view"));
     vcx.update(|_, cx| {
         ov.update(cx, |v, cx| v.sync_workspace_book(cx));
     });
@@ -566,9 +599,9 @@ fn shift_click_relation_create_legend_filter_and_delete(cx: &mut TestAppContext)
     });
 }
 
-/// The stage keeps the overview it made while it is closed. A kept overview
+/// A Tab keeps its canvas while fill is closed. A kept canvas
 /// that is not on screen does not follow the book: nothing is read again for
-/// it until the stage shows it, and then it catches up in one step.
+/// it until the filled Tab shows it, and then it catches up in one step.
 #[gpui::test]
 fn a_closed_overview_does_not_follow_the_book_and_catches_up_when_shown(cx: &mut TestAppContext) {
     cx.executor().allow_parking();
@@ -599,11 +632,8 @@ fn a_closed_overview_does_not_follow_the_book_and_catches_up_when_shown(cx: &mut
         )
     });
 
-    vcx.update(|_, cx| {
-        shell.update(cx, |ws, cx| {
-            ws.super_view = None;
-            cx.notify();
-        });
+    vcx.update(|window, cx| {
+        shell.update(cx, |ws, cx| ws.exit_fill(window, cx));
     });
     vcx.run_until_parked();
 
@@ -621,7 +651,7 @@ fn a_closed_overview_does_not_follow_the_book_and_catches_up_when_shown(cx: &mut
                 bodies: BTreeMap::new(),
             },
         )
-        .expect("create an element while the stage is closed")
+        .expect("create an element while fill is closed")
         .output
         .id;
 
@@ -663,22 +693,11 @@ fn heavy_seed_reference_timings(cx: &mut TestAppContext) {
     });
 
     let t_open = Instant::now();
-    vcx.update(|window, cx| {
-        shell.update(cx, |ws, cx| {
-            ws.super_view = Some(SuperView::Elements);
-            cx.notify();
-        });
-        window.draw(cx).clear(cx);
-    });
-    let first_frame_ms = t_open.elapsed().as_secs_f64() * 1000.0;
-    wait(vcx, |cx| {
-        cx.update(|_, cx| {
-            dr_view_element_overview::current(cx).is_some_and(|ov| ov.read(cx).is_ready())
-        })
-    });
+    let ov = mount_overview(&shell, vcx);
     let open_ms = t_open.elapsed().as_secs_f64() * 1000.0;
-    let ov =
-        vcx.update(|_, cx| dr_view_element_overview::current(cx).expect("mounted ElementOverview"));
+    let t_frame = Instant::now();
+    vcx.update(|window, cx| window.draw(cx).clear(cx));
+    let first_frame_ms = t_frame.elapsed().as_secs_f64() * 1000.0;
 
     let (el_count, pair_count, first_id) = vcx.update(|_, cx| {
         let v = ov.read(cx);

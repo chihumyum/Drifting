@@ -1,15 +1,15 @@
 //! The window's own chrome: where the traffic lights sit, which strips move
 //! the window, the buttons fixed right of the traffic lights (全部项目, the
 //! Project Home, the notification center, the account menu and the left
-//! sidebar's toggle), the right sidebar's toggle in the other corner, and
-//! the Windows caption pill (workspace.md, 「Persistence and responsive
-//! behavior」; P0-A for the titlebar mechanics).
+//! sidebar's overlapping moon pair), the right sidebar's overlapping moon pair
+//! in the other corner (`W25Final`, `kernel-v5.md` §17 「栏开关」), and the
+//! Windows caption pill.
 
 use dr_ui::{
     Theme,
     components::{IconButton, overlay},
     glass::{self, Kind, Mode, Spec, Tone},
-    sand::Icon,
+    sand::{self, Icon},
     tokens::glass as g,
 };
 use gpui::{
@@ -20,9 +20,9 @@ use gpui::{
 };
 
 use super::Workspace;
-use crate::actions::{
-    ShowProjectHome, ToggleLeftSidebar, ToggleNotifications, ToggleProjects, ToggleRightSidebar,
-};
+use super::fill::{FillPlace, MoonHalf};
+use super::sidebar::Side;
+use crate::actions::{ShowProjectHome, ToggleNotifications, ToggleProjects};
 use crate::notifications::Notifications;
 use crate::strings::t;
 use dr_i18n::keys;
@@ -32,33 +32,45 @@ use dr_i18n::keys;
 pub const TITLEBAR_HEIGHT: f32 = 42.0;
 
 /// The close button's top-left corner. GPUI centres the 14pt buttons in a
-/// strip `2 * y` taller, so `y = 14` centres them on the 42pt row (the 0.1
-/// client's Tauri value is (18, 23); Tauri measures `y` differently).
+/// strip `2 * y` taller, so `y = 14` centres them on the 42pt row.
 pub const TRAFFIC_LIGHT_POSITION: Point<Pixels> = point(px(18.), px(14.));
 
-/// Where the left toggle and the first tab row start, clear of the window
-/// controls: macOS 94px, Windows 110px (8 + the 96px caption pill + 6).
+/// Where the left cluster starts, clear of the window controls: macOS 94px,
+/// Windows 110px (8 + the 96px caption pill + 6).
 pub const LEADING_INSET: f32 = if cfg!(target_os = "windows") {
     110.0
 } else {
     94.0
 };
 
-/// How many buttons stand right of the traffic lights: 全部项目, the Project
-/// Home, the notification center, the account menu and the left sidebar's
-/// toggle, in that order (author 2026-11-14; they were the left sidebar's
-/// foot before).
-pub const CLUSTER: usize = 5;
+/// Round buttons before the left moon pair: 全部项目, Project Home,
+/// Notifications, Account.
+pub const CLUSTER_ROUND_BUTTONS: usize = 4;
 
-/// Where those buttons end: the left toggle's right edge.
-pub const CLUSTER_END: f32 =
-    LEADING_INSET + CLUSTER as f32 * g::ROUND + (CLUSTER as f32 - 1.0) * TOGGLE_GAP;
+/// Overlapping moon glyph size (`W25Final`: `size = 18`).
+pub const MOON_SIZE: f32 = 18.0;
+/// Centre-to-centre distance between the two overlapping moons (`W25Final`: `off = 8`).
+pub const MOON_OFFSET: f32 = 8.0;
+/// Resting opacity of the back moon (`W25Final`: `dim = 0.42`).
+pub const MOON_DIM: f32 = 0.42;
+/// Dimmed opacity when the right full moon cannot fill (`Stats` / `Agent`).
+pub const MOON_DISABLED_DIM: f32 = 0.18;
+
+/// The gap between controls in the titlebar cluster.
+pub const TOGGLE_GAP: f32 = 6.0;
 
 /// The right toggle's distance from the window's right edge.
 pub const TRAILING_INSET: f32 = 8.0;
 
-/// The gap between a toggle and the tabs beside it.
-pub const TOGGLE_GAP: f32 = 6.0;
+/// Centre X of the left crescent moon (`244px` on macOS, `W25Final`).
+pub const LEFT_CRESCENT_X: f32 =
+    LEADING_INSET + CLUSTER_ROUND_BUTTONS as f32 * (g::ROUND + TOGGLE_GAP) + g::ROUND / 2.0;
+
+/// Where the left cluster ends (the right edge of the left moon pair's hitbox).
+pub const CLUSTER_END: f32 = LEFT_CRESCENT_X + MOON_OFFSET + g::ROUND / 2.0;
+
+/// Distance from the right window edge to the inner edge of the right moon pair.
+pub const RIGHT_TOGGLE_END: f32 = TRAILING_INSET + g::ROUND + MOON_OFFSET;
 
 /// Makes `el` a strip that moves the window: on macOS a press that moves
 /// starts a native window drag and a double click does what the system
@@ -88,43 +100,19 @@ pub fn drag_region(el: Stateful<gpui::Div>, cx: &mut Context<Workspace>) -> Stat
     })
 }
 
-/// The buttons right of the traffic lights and the right sidebar's toggle:
-/// 28px round glass, fixed; the sidebars slide out from under them. While
-/// the left sidebar is closed the five on the left float on the desk (a
-/// resting line on an opaque fill) and its moon is hollow; open, the glass
-/// shows only under the hand. The right toggle does the same for the right
-/// sidebar.
+/// The buttons right of the traffic lights and the two overlapping moon pairs
+/// (`W25Final`): no outer ring or glass border on the moons; whichever state
+/// the sidebar is in sits in front at full ink, and the other sits `8px` away
+/// behind it at `0.42` opacity with the front moon's circle cut out (`gap = 0`).
 pub fn sidebar_toggles(
     ws: &Workspace,
     window: &mut Window,
     cx: &mut Context<Workspace>,
 ) -> impl IntoElement {
     let top = (TITLEBAR_HEIGHT - g::ROUND) / 2.0;
-    use keys::left_sidebar::top as lt;
-    use keys::right_sidebar::top as rt;
-    let toggle = |id: &'static str, open: bool, icons: (Icon, Icon), label: SharedString| {
-        let button = IconButton::new(id, if open { icons.0 } else { icons.1 }).label(label);
-        if open {
-            button.in_tray()
-        } else {
-            button.floating()
-        }
-    };
-    let left = toggle(
-        "toggle-left",
-        ws.left.open,
-        (Icon::MoonLeft, Icon::MoonLeftHollow),
-        t(cx, if ws.left.open { lt::CLOSE } else { lt::OPEN }),
-    )
-    .on_click(|_, window, cx| window.dispatch_action(Box::new(ToggleLeftSidebar), cx));
-    let cluster = cluster(ws, left, window, cx);
-    let right = toggle(
-        "toggle-right",
-        ws.right.open,
-        (Icon::MoonRight, Icon::MoonRightHollow),
-        t(cx, if ws.right.open { rt::CLOSE } else { rt::OPEN }),
-    )
-    .on_click(|_, window, cx| window.dispatch_action(Box::new(ToggleRightSidebar), cx));
+    let buttons = cluster(ws, window, cx);
+    let left_moons = moon_pair(ws, Side::Left, window, cx);
+    let right_moons = moon_pair(ws, Side::Right, window, cx);
     div()
         .absolute()
         .top_0()
@@ -136,28 +124,246 @@ pub fn sidebar_toggles(
                 .absolute()
                 .top(px(top))
                 .left(px(LEADING_INSET))
-                .child(cluster),
+                .child(buttons),
+        )
+        .child(
+            div()
+                .absolute()
+                .top(px(top))
+                .left(px(LEFT_CRESCENT_X - g::ROUND / 2.0))
+                .child(left_moons),
         )
         .child(
             div()
                 .absolute()
                 .top(px(top))
                 .right(px(TRAILING_INSET))
-                .child(closed_anchor(
-                    !ws.right.open,
-                    crate::pages::anchors::RIGHT_SIDEBAR_CLOSED_TOGGLE,
-                    right,
-                    cx,
-                )),
+                .child(right_moons),
         )
 }
 
+fn moon_pair(
+    ws: &Workspace,
+    side: Side,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) -> AnyElement {
+    use keys::left_sidebar::top as lt;
+    use keys::right_sidebar::top as rt;
+    use keys::v5_fill as vf;
+
+    let p = Theme::of(window, cx).palette;
+    let pair_w = g::ROUND + MOON_OFFSET;
+    let half_w = pair_w / 2.0;
+    let glyph_top = (g::ROUND - MOON_SIZE) / 2.0;
+
+    let (
+        open,
+        filled,
+        can_fill,
+        cresc_cx,
+        full_cx,
+        cresc_half,
+        full_half,
+        cresc_id,
+        full_id,
+        cresc_label,
+        full_label,
+        closed_anchor_id,
+        cresc_closed_icon,
+        cresc_open_icon,
+        full_hollow_icon,
+        full_black_icon,
+    ) = match side {
+        Side::Left => {
+            let open = ws.left.open;
+            let filled = ws.is_filled(FillPlace::Left);
+            (
+                open,
+                filled,
+                true,
+                g::ROUND / 2.0,
+                g::ROUND / 2.0 + MOON_OFFSET,
+                MoonHalf::LeftCrescent,
+                MoonHalf::LeftFull,
+                "toggle-left",
+                "fill-left",
+                t(cx, if open { lt::CLOSE } else { lt::OPEN }),
+                t(cx, if filled { vf::EXIT_FILL } else { vf::FILL_LEFT }),
+                crate::pages::anchors::LEFT_SIDEBAR_CLOSED_TOGGLE,
+                Icon::MoonLeftHollow,
+                Icon::MoonLeft,
+                Icon::MoonHollowfullLeft,
+                Icon::MoonBlackLeft,
+            )
+        }
+        Side::Right => {
+            let open = ws.right.open;
+            let filled = ws.is_filled(FillPlace::Right);
+            let can_fill = filled || ws.right_can_fill();
+            (
+                open,
+                filled,
+                can_fill,
+                g::ROUND / 2.0 + MOON_OFFSET,
+                g::ROUND / 2.0,
+                MoonHalf::RightCrescent,
+                MoonHalf::RightFull,
+                "toggle-right",
+                "fill-right",
+                t(cx, if open { rt::CLOSE } else { rt::OPEN }),
+                t(
+                    cx,
+                    if filled {
+                        vf::EXIT_FILL
+                    } else {
+                        vf::FILL_RIGHT
+                    },
+                ),
+                crate::pages::anchors::RIGHT_SIDEBAR_CLOSED_TOGGLE,
+                Icon::MoonRightHollow,
+                Icon::MoonRight,
+                Icon::MoonHollowfullRight,
+                Icon::MoonBlackRight,
+            )
+        }
+    };
+
+    let cresc_icon = if open {
+        cresc_open_icon
+    } else {
+        cresc_closed_icon
+    };
+    let full_icon = if filled {
+        full_black_icon
+    } else {
+        full_hollow_icon
+    };
+
+    let cresc_front = !filled;
+    let (front_icon, front_cx, front_half, back_icon, back_cx, back_half, back_enabled) =
+        if cresc_front {
+            (
+                cresc_icon, cresc_cx, cresc_half, full_icon, full_cx, full_half, can_fill,
+            )
+        } else {
+            (
+                full_icon, full_cx, full_half, cresc_icon, cresc_cx, cresc_half, true,
+            )
+        };
+
+    let cut_on_right = front_cx > back_cx;
+    let front_ink = if ws.hovered_moon == Some(front_half) {
+        p.ink(1).solid()
+    } else {
+        p.ink(2).solid()
+    };
+    let back_ink = if back_enabled && ws.hovered_moon == Some(back_half) {
+        p.ink(1).solid()
+    } else {
+        p.ink(2).solid()
+    };
+    let back_opacity = if !back_enabled {
+        MOON_DISABLED_DIM
+    } else if ws.hovered_moon == Some(back_half) {
+        1.0
+    } else {
+        MOON_DIM
+    };
+
+    let back_glyph = div()
+        .absolute()
+        .left(px(back_cx - MOON_SIZE / 2.0))
+        .top(px(glyph_top))
+        .size(px(MOON_SIZE))
+        .opacity(back_opacity)
+        .child(sand::icon_cutout(
+            back_icon,
+            MOON_SIZE,
+            back_ink,
+            cut_on_right,
+        ));
+
+    let front_glyph = div()
+        .absolute()
+        .left(px(front_cx - MOON_SIZE / 2.0))
+        .top(px(glyph_top))
+        .size(px(MOON_SIZE))
+        .child(sand::icon(front_icon, MOON_SIZE, front_ink));
+
+    let cresc_on_left = cresc_cx < full_cx;
+    let cresc_hit = div()
+        .id(cresc_id)
+        .w(px(half_w))
+        .h(px(g::ROUND))
+        .cursor_pointer()
+        .role(gpui::Role::Button)
+        .aria_label(cresc_label)
+        .on_hover(cx.listener(move |ws, &hovered, _, cx| {
+            let next = if hovered {
+                Some(cresc_half)
+            } else if ws.hovered_moon == Some(cresc_half) {
+                None
+            } else {
+                ws.hovered_moon
+            };
+            if ws.hovered_moon != next {
+                ws.hovered_moon = next;
+                cx.notify();
+            }
+        }))
+        .on_click(cx.listener(move |ws, _, window, cx| {
+            ws.click_crescent(side, window, cx);
+        }));
+    let cresc_hit = div()
+        .absolute()
+        .top_0()
+        .left(px(if cresc_on_left { 0.0 } else { half_w }))
+        .child(closed_anchor(!open, closed_anchor_id, cresc_hit, cx));
+
+    let mut full_hit = div()
+        .id(full_id)
+        .absolute()
+        .top_0()
+        .left(px(if cresc_on_left { half_w } else { 0.0 }))
+        .w(px(half_w))
+        .h(px(g::ROUND))
+        .role(gpui::Role::Button)
+        .aria_label(full_label);
+    if can_fill {
+        full_hit = full_hit
+            .cursor_pointer()
+            .on_hover(cx.listener(move |ws, &hovered, _, cx| {
+                let next = if hovered {
+                    Some(full_half)
+                } else if ws.hovered_moon == Some(full_half) {
+                    None
+                } else {
+                    ws.hovered_moon
+                };
+                if ws.hovered_moon != next {
+                    ws.hovered_moon = next;
+                    cx.notify();
+                }
+            }))
+            .on_click(cx.listener(move |ws, _, window, cx| {
+                ws.click_full_moon(side, window, cx);
+            }));
+    }
+
+    div()
+        .relative()
+        .w(px(pair_w))
+        .h(px(g::ROUND))
+        .child(back_glyph)
+        .child(front_glyph)
+        .child(cresc_hit)
+        .child(full_hit)
+        .into_any_element()
+}
+
 /// Hides or shows the window's traffic lights (immersive writing, M26) by
-/// their alpha. AppKit lays `NSTitlebarContainerView` (the buttons'
-/// grandparent) out again when the alpha changes, shrinking it from GPUI's
-/// 42 pt strip back to native height and shifting the buttons upward, so we
-/// flush any pending titlebar layout and re-apply [`TRAFFIC_LIGHT_POSITION`]
-/// through GPUI in the same turn.
+/// their alpha.
 #[cfg(target_os = "macos")]
 pub fn set_traffic_lights_hidden(window: &Window, hidden: bool) {
     use objc2_app_kit::{NSView, NSWindowButton};
@@ -200,9 +406,7 @@ pub fn set_traffic_lights_hidden(window: &Window, hidden: bool) {
 #[cfg(not(target_os = "macos"))]
 pub fn set_traffic_lights_hidden(_: &Window, _: bool) {}
 
-/// Puts the window controls back at [`TRAFFIC_LIGHT_POSITION`]. Only macOS
-/// lets an app place them (GPUI has no such call on other platforms), so
-/// elsewhere there is nothing to do.
+/// Puts the window controls back at [`TRAFFIC_LIGHT_POSITION`].
 #[cfg(target_os = "macos")]
 pub fn place_traffic_lights(window: &Window) {
     window.set_traffic_light_position(TRAFFIC_LIGHT_POSITION);
@@ -211,16 +415,8 @@ pub fn place_traffic_lights(window: &Window) {
 #[cfg(not(target_os = "macos"))]
 pub fn place_traffic_lights(_: &Window) {}
 
-/// A sidebar's toggle, marked for M24's tour only while the sidebar is
-/// closed (it floats then).
-/// 全部项目, the Project Home, the notification center, the account menu,
-/// then `left` (the left sidebar's toggle).
-fn cluster(
-    ws: &Workspace,
-    left: IconButton,
-    window: &mut Window,
-    cx: &mut Context<Workspace>,
-) -> AnyElement {
+/// 全部项目, the Project Home, the notification center, and the account menu.
+fn cluster(ws: &Workspace, window: &mut Window, cx: &mut Context<Workspace>) -> AnyElement {
     let p = Theme::of(window, cx).palette;
     let open = ws.left.open;
     let seat = |button: IconButton| {
@@ -230,7 +426,7 @@ fn cluster(
             button.floating()
         }
     };
-    let home = ws.nav.current().is_none() && ws.super_view.is_none();
+    let home = ws.nav.current().is_none() && ws.filled().is_none();
     let bell = overlay::use_bounds("bell-bounds", window, cx);
     let account = overlay::use_bounds("account-bounds", window, cx);
     let projects = seat(
@@ -274,17 +470,10 @@ fn cluster(
         .child(home)
         .child(notifications)
         .child(account_button(ws, account, window, cx))
-        .child(closed_anchor(
-            !open,
-            crate::pages::anchors::LEFT_SIDEBAR_CLOSED_TOGGLE,
-            left,
-            cx,
-        ))
         .into_any_element()
 }
 
-/// The account menu's button: the avatar in a round of glass. The menu
-/// drops from it.
+/// The account menu's button: the avatar in a round of glass.
 fn account_button(
     ws: &Workspace,
     bounds: Entity<Option<Bounds<Pixels>>>,
@@ -343,8 +532,7 @@ fn closed_anchor(
 }
 
 /// Windows: close, minimize, maximize as a glass pill in the top-left
-/// corner where the traffic lights are, in their order (the 0.1 client's
-/// `WindowsCaption`). Nothing on macOS.
+/// corner where the traffic lights are, in their order.
 pub fn windows_caption(window: &mut Window, cx: &mut App) -> impl IntoElement {
     let mut row = div().absolute().top_0().left_0();
     if !cfg!(target_os = "windows") {
@@ -363,17 +551,12 @@ pub fn windows_caption(window: &mut Window, cx: &mut App) -> impl IntoElement {
     };
     let labels: [SharedString; 3] = [wc::CLOSE, wc::MINIMIZE, max_label].map(|k| t(cx, k));
     let button = |id: &'static str, icon: Icon, area: WindowControlArea, label: &SharedString| {
-        // The outer element is the system's caption button area; the name
-        // goes on the button (only an element with a role reaches the
-        // accessibility tree).
         div()
             .id(id)
             .window_control_area(area)
             .child(IconButton::new(id, icon).label(label.clone()).in_tray())
     };
     let top = (TITLEBAR_HEIGHT - g::ROUND) / 2.0 - g::TRAY_PADDING;
-    // The toolbar's tray: a resting glass line, no fill (the sidebar shows
-    // through; 2026-11-05).
     let tray = glass::glass_box(
         "caption",
         Kind::Surface,

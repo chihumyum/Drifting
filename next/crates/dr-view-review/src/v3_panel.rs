@@ -27,8 +27,15 @@ pub fn set_open_agent(id: &str, open_agent: Option<OpenAgent>, cx: &mut App) {
     }
 }
 
-/// Ensures and configures a Hub-managed v3 [`crate::ReviewView`] so hosts that
-/// arrange review cards across multiple columns (M23) share the same partial
+/// Widen the same review view when it fills, keeping its filters and drafts.
+pub fn set_fill_width(id: &str, width: Option<f32>, cx: &mut App) {
+    if let Some(view) = crate::ensure_view(id, cx) {
+        view.update(cx, |view, cx| view.set_fill_width(width, cx));
+    }
+}
+
+/// Ensures and configures a Hub-managed v3 [`crate::ReviewView`] so the sidebar
+/// at every width shares the same partial
 /// write path, failed-draft retention and source hover cards.
 #[allow(clippy::too_many_arguments)]
 pub fn ensure(

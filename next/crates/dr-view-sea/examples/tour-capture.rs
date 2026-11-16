@@ -114,11 +114,7 @@ impl Render for Desk {
                             .type_px(s.caption, s.line_caption)
                             .text_color(p.ink(3).solid())
                             .child("6 · 41,280"),
-                    )
-                    .child(anchor(
-                        ids::SUPER_VIEW_ENTRY,
-                        IconButton::new("whole-book", Icon::OpenBook),
-                    )),
+                    ),
             )
             .child(div().px(px(space::S3)).flex().flex_col().children(
                 CHAPTERS.iter().enumerate().map(|(i, name)| {

@@ -195,11 +195,6 @@
       "verifying": "正在驗證…"
     }
   },
-  "bottomStatusBar": {
-    "elements": "要素",
-    "storyGraph": "故事圖譜",
-    "todoLibrary": "審閱與素材"
-  },
   "chapterEditor": {
     "synopsisPlaceholder": "梗概…",
     "untitledChapter": "未命名章節"
@@ -346,10 +341,6 @@
         "body": "全書的骨架。左側欄可分為上下兩部分，各自顯示不同面板。",
         "closedBody": "全書的骨架位於左側欄：章節、要素與構想。從這裡開啟。",
         "title": "章節 · 要素 · 構想"
-      },
-      "superViews": {
-        "body": "從面板標頭的圓形按鈕開啟。",
-        "title": "全視窗檢視"
       },
       "timeline": {
         "body": "從頁面下方滑出，依書中順序或故事時間排列故事線。",
@@ -513,24 +504,15 @@
     "zoomReset": "符合檢視範圍"
   },
   "materialFolders": {
-    "menu": {
-      "open": "開啟"
-    },
     "picker": {
       "createAndMove": "建立並移動",
       "newPlaceholder": "新素材夾名稱"
     },
-    "root": "所有素材",
     "untitled": "新素材夾"
   },
   "memoMaterial": {
     "card": {
       "addSnippetBody": "在此筆記中寫作…"
-    },
-    "dialog": {
-      "create": "建立",
-      "newTodo": "新增待辦",
-      "todoPlaceholder": "待辦內容…"
     },
     "error": {
       "openFile": "無法開啟檔案：{{error}}",
@@ -541,9 +523,6 @@
       "pdf": "PDF",
       "text": "筆記"
     },
-    "menu": {
-      "openInSystem": "用系統應用程式開啟"
-    },
     "preview": {
       "loading": "載入中…",
       "loadingPdf": "正在載入 PDF…",
@@ -553,35 +532,6 @@
       "openPdfFailed": "無法開啟 PDF",
       "previousPage": "上一頁",
       "renderPdfFailed": "無法繪製 PDF"
-    },
-    "super": {
-      "all": "全部",
-      "clearEntityFilter": "清除關係篩選",
-      "collapseDrawer": "收合抽屜",
-      "commentEmptyHint": "按 + 新增註解，或在編輯器中選取文字留下註解",
-      "comments": "註解",
-      "entityFilterAll": "關係 · 全部",
-      "expandDrawer": "展開抽屜",
-      "hideKind": "點一下隱藏此種類",
-      "material": "素材",
-      "meta": "{{todos}} 項待辦 · {{comments}} 則註解 · {{materials}} 份素材",
-      "noFilteredMaterials": "沒有符合目前篩選條件的素材。",
-      "noMaterials": "此作品尚無素材。",
-      "noOrphans": "所有素材都已連結至少一個實體。",
-      "noResolved": "尚無已解決的待辦或註解。",
-      "orphanHeader": "未整理 · 未連結素材",
-      "orphans": "未整理",
-      "reopenShort": "重新開啟",
-      "resizeComments": "調整註解欄寬度",
-      "resizeTodos": "調整待辦欄寬度",
-      "resolved": "已解決",
-      "resolvedHeader": "已解決 · 待辦與註解封存",
-      "searchPlaceholder": "搜尋標題或正文…",
-      "showKind": "點一下顯示",
-      "todoEmptyHint": "按 + 建立待辦，或在批註卡片上點「轉為待辦」"
-    },
-    "todo": {
-      "empty": "（空白待辦）"
     }
   },
   "mobileWorkspace": {
@@ -592,9 +542,6 @@
     "projectActions": {
       "deleteFailed": "無法刪除作品，請再試一次。"
     }
-  },
-  "navigation": {
-    "back": "返回"
   },
   "nodeEditor": {
     "meta": {
@@ -858,15 +805,12 @@
     "commentPlaceholder": "撰寫註解…",
     "empty": "此範圍內沒有審閱項目。",
     "filters": {
-      "all": "兩者皆用",
-      "comment": "註解",
-      "todo": "待辦事項"
+      "all": "兩者皆用"
     },
     "groups": {
       "deleted": "已刪除",
       "floating": "未附加"
     },
-    "newComment": "新增註解",
     "scopes": {
       "current": "目前"
     },
@@ -1355,13 +1299,11 @@
       "unpin": "恢復自動排列"
     },
     "layout": {
-      "isles": "群島",
       "relate": "關係"
     },
     "linkHintFrom": "從",
     "linkHintTo": "至…選擇第二個要素或章節，按 Esc 取消",
     "manualRelationTitle": "新增手動關係",
-    "meta": "{{categories}} 個類目 · {{elements}} 個要素",
     "relate": {
       "relayout": "重新排列"
     },
@@ -1674,6 +1616,22 @@
     "usedIn": "用在",
     "viewList": "列表",
     "viewMasonry": "瀑布流"
+  },
+  "v5Fill": {
+    "attached": "掛在上方",
+    "exitFill": "退出鋪滿",
+    "fill": "鋪滿",
+    "fillLeft": "鋪滿左欄",
+    "fillRight": "鋪滿右欄",
+    "fullEditor": "完整編輯",
+    "noTemplateEntries": "沒有範本的條目",
+    "resides": "住在下方",
+    "resizeFill": "拖動調整鋪滿區域寬度",
+    "structure": "結構",
+    "templateCount": "{{count}} 個範本",
+    "templateStructure": "範本結構",
+    "topLevel": "最外層",
+    "unusedTemplates": "未使用的範本"
   },
   "windowCaption": {
     "close": "關閉",

@@ -199,14 +199,29 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "验收模板"
+        "label": "验收模板",
+        "absent": true
       },
-      "note": "模板集合随书变更刷新"
+      "note": "T9：左下模板集合只有总数和入口。模板卡在铺满后的模板结构。"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Template structure",
+        "role": "Button"
+      }
     },
     {
       "app": "ui.press",
       "params": {
         "label": "验收模板"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Full editor",
+        "role": "Button"
       }
     },
     {
@@ -243,6 +258,13 @@
       "app": "ui.press",
       "params": {
         "label": "${templates.[id=tpl-chapter].name}"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Full editor",
+        "role": "Button"
       }
     },
     {

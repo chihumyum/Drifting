@@ -29,7 +29,22 @@ fn call(ws: &Workspace, name: &str, input: Value) -> Value {
 
 fn islands(ws: &Workspace, book: &str) -> ExtractedIslands {
     let b = Book::load(ws, book).unwrap();
-    extract_v3_islands(b.v3().unwrap(), "Residents", "Members", "Uncategorized")
+    let v = b.v3().unwrap();
+    let wrapper = v
+        .entries
+        .iter()
+        .find(|e| e.template.as_deref() == Some("tpl-elements"))
+        .unwrap();
+    extract_v3_islands(
+        v,
+        &dr_workspace::commands::v3::types::TabMount::Entry {
+            entry: wrapper.id.clone(),
+        },
+        false,
+        "Residents",
+        "Members",
+        "Uncategorized",
+    )
 }
 
 fn element_ids(x: &ExtractedIslands) -> BTreeSet<String> {

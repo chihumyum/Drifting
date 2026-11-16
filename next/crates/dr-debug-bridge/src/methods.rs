@@ -830,7 +830,7 @@ fn layer_name(l: Layer) -> &'static str {
         Layer::Projects => "projects",
         Layer::Search => "search",
         Layer::Settings => "settings",
-        Layer::SuperView => "super-view",
+        Layer::Fill => "fill",
     }
 }
 
@@ -933,7 +933,8 @@ fn state_of(owner: gpui::EntityId, ws: &Workspace, window: &Window, cx: &App) ->
         "layer": ws.top_layer().map(layer_name),
         "search": ws.search_state(cx),
         "recent": ws.recent_state(),
-        "superView": ws.super_view.map(|v| format!("{v:?}")),
+        "fill": ws.filled().map(|place| place.slug()),
+        "fillWidth": ws.fill_width(),
         "left": {
             "open": ws.left.open, "width": ws.left.width,
             "panes": serde_json::to_value(&ws.left.panes).unwrap_or(Value::Null),
