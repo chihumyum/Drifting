@@ -310,7 +310,9 @@ fn the_panel_names_its_groups_lives_in_and_hangs_on_and_esc_closes_only_it(
             .expect("a line of 挂")
             .to
     });
-    cx.update(|window, cx| structure.update(cx, |s, cx| s.select_template(&hung, window, cx)));
+    // A click on its card opens the panel.
+    let card = bounds(cx, format!("v5-structure-template-{hung}")).expect("its card");
+    cx.simulate_click(card.center(), Modifiers::default());
     pump(cx);
     assert_eq!(
         structure.read_with(cx, |s, _| s.state())["edit"],

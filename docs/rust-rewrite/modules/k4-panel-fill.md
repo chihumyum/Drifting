@@ -34,4 +34,4 @@
 - `dr-view-page/tests/shell_workspace.rs` 验证铺满状态、交换时两种恢复路径、层的退出顺序、幕后的稿纸键盘和按 Tab 安装画布。
 - `dr-view-elements/tests/v5_t1_lists.rs` 和 `dr-view-timeline/tests/v5_t4_views.rs` 验证住处、换挂、摘名、同组排序、刻度和窄卡片。DV/DV2 的数据层测试继续验证旧泳道清理和挂视图的 Tab 被拒。
 - `dr-shell/tests/v5_t9_structure.rs` 验证层级表的树序和缩进、整行拖到另一层下是一次 `entry.move` 且一步撤销、浮窗两组用「住在」「挂在」、Esc 先只收浮窗、图例点击隐去和露出一种线。`dr-view-templates/tests/v5_t9_panel.rs` 验证新建模板没改就不写、改了才写（铺满的浮窗和未铺满的完整编辑器两条路），以及浮窗输入框里 Esc 回到存着的名字、收起浮窗、不退出铺满、开关改动在收起时存下。`dr-view-home/tests/v5_t9_thumbnail.rs` 验证缩略图 300 × 226、头部计数、位置和点击进入模板结构。
-- `crates/dr-cli/scenarios/v5-t9-fill.json` 用 lite 种子的独立进程驱动真实窗口，检查泳道行高、从左栏拖挂与摘名、层级表拖动撤销、浮窗保存、药丸退出和重开后的摆法。截图库只随运行保存。
+- `crates/dr-cli/scenarios/v5-t9-fill.json` 用 lite 种子的独立进程驱动真实窗口，检查泳道行高、从左栏拖挂与摘名、层级表拖动撤销、浮窗保存、未铺满时新建模板只开编辑器不写（关掉后模板数不变）、药丸退出和重开后的摆法。截图库只随运行保存。

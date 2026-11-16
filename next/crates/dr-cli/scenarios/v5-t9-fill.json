@@ -540,8 +540,10 @@
       "app": "ui.press",
       "params": {
         "label": "${templates.0.name}",
-        "role": "Button"
-      }
+        "role": "Button",
+        "dy": 30
+      },
+      "note": "The legend floats over the top right of the board (W12Template); press the card below it."
     },
     {
       "app": "ui.wait",
@@ -551,6 +553,10 @@
         },
         "timeout_ms": 12000
       }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "structure-panel.png"
     },
     {
       "app": "ui.press",
@@ -688,8 +694,36 @@
       "app": "state.get",
       "expect": {
         "/fill": null,
-        "/activeTab": 1
+        "/activeTab": 0,
+        "/dialog": true
+      },
+      "note": "Not filled: the full editor opens on a new template nobody stored yet (no pill until it is saved)."
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Close",
+        "role": "Button"
       }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/dialog": false
+        },
+        "timeout_ms": 12000
+      }
+    },
+    {
+      "call": "entry_template.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "expect": {
+        "/18": null
+      },
+      "note": "Closed untouched: the lite seed's 18 templates, no new one."
     },
     {
       "app": "ui.press",

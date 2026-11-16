@@ -405,9 +405,10 @@ impl Structure {
         let selected = self.selected_template().as_deref() == Some(template.id.as_str());
         let mono = |text: SharedString, ink: usize| {
             div()
+                .max_w_full()
+                .truncate()
                 .font_role(Role::Index)
                 .type_px(12.0, 19.0)
-                .whitespace_nowrap()
                 .text_color(p.ink(ink).solid())
                 .child(text)
         };
@@ -888,8 +889,17 @@ impl Structure {
             .type_px(12.0, 12.0)
             .text_color(p.ink(4).solid())
             .child(div().w(px(NAME_W)).flex_none());
+        // A heading longer than its column (another language) is cut, not
+        // laid over the next one.
         for (i, key) in headings.iter().enumerate() {
-            head = head.child(div().w(px(WIDTHS[i])).flex_none().child(t(cx, *key)));
+            head = head.child(
+                div()
+                    .w(px(WIDTHS[i]))
+                    .flex_none()
+                    .pr(px(4.0))
+                    .truncate()
+                    .child(t(cx, *key)),
+            );
         }
         head = head.child(div().w(px(WIDTHS[7])).flex_none().child("Tab"));
         let mut table = div()
