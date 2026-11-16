@@ -1482,6 +1482,14 @@
       "note": "One page per entry (T1): an entry already open keeps its page whichever module is named, so close it first to open the page scoped to one module."
     },
     {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 900
+      },
+      "note": "As the scenario's own close below does: a tab closed and a page opened in the same frame crash the app (GPUI a11y 'set_focus called more than once in a single frame', found 2026-11-16 by sc-scenarios-v5)."
+    },
+    {
       "app": "nav.open",
       "params": {
         "target": "entry:${moved.id}/mod-prose"
@@ -1525,6 +1533,13 @@
       "app": "action.dispatch",
       "params": {
         "name": "workspace::CloseActiveTab"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 900
       }
     },
     {
