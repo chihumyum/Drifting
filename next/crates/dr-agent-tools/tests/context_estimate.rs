@@ -33,20 +33,24 @@ fn per_token(bytes: usize, tokens: u64) -> f64 {
     bytes as f64 / tokens as f64
 }
 
-/// Chinese (《慢钟》 and 《阿Q正传》): a token a character, about three bytes a token. That is at
-/// least what the hosted and local tokenizers take for Chinese, and a third
-/// of the old one-a-byte bound.
+/// Chinese (《慢钟》 and 《阿Q正传》): a token and a half a character, about
+/// two bytes a token. Some tokenizers (Anthropic's, Llama 3's) often take
+/// more than one for a common character; this is half the old one-a-byte
+/// bound.
 #[test]
-fn chinese_prose_is_a_token_a_character() {
+fn chinese_prose_is_a_token_and_a_half_a_character() {
     let mut paragraphs = prose(&samples::slow_clock_v3().unwrap());
     paragraphs.extend(prose(&samples::a_q_v3().unwrap()));
     let text = paragraphs.join("\n");
     let characters = text.chars().filter(|c| !c.is_ascii()).count() as u64;
     assert!(characters > 10_000, "{characters}");
     let tokens = estimate_text_tokens(&text);
-    assert!(tokens >= characters, "{tokens} < {characters}");
+    assert!(
+        tokens * 2 >= characters * 3,
+        "{tokens} < 1.5 × {characters}"
+    );
     let rate = per_token(text.len(), tokens);
-    assert!((2.7..=3.05).contains(&rate), "{rate} bytes a token");
+    assert!((1.85..=2.05).contains(&rate), "{rate} bytes a token");
 }
 
 /// English: a token for every four letters of a word or part of them,
@@ -63,7 +67,8 @@ fn english_prose_is_about_four_letters_a_token() {
 }
 
 /// JSON: the Agent's tool schemas and the book structure it reads first,
-/// counted as the model reads them, between two and three bytes a token.
+/// counted as the model reads them: the schemas between two and three bytes
+/// a token, the structure (with its Chinese names) about two.
 #[test]
 fn tool_schemas_and_the_book_structure_are_counted_as_json() {
     let catalog = Catalog::new();
@@ -91,7 +96,7 @@ fn tool_schemas_and_the_book_structure_are_counted_as_json() {
     let structure = &context[0].text;
     let tokens = estimate_text_tokens(structure);
     let rate = per_token(structure.len(), tokens);
-    assert!((2.0..=3.0).contains(&rate), "{rate} bytes a token");
+    assert!((1.7..=2.4).contains(&rate), "{rate} bytes a token");
     // Text holding JSON is counted once: escaping it again adds little.
     let escaped = estimate_tokens(structure).unwrap();
     assert!(escaped <= tokens + 1, "{escaped} > {tokens} + 1");

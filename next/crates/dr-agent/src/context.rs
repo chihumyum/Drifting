@@ -94,9 +94,11 @@ fn entry(snapshot: &ChainSnapshot, id: &str, text: String) -> ConversationEntry 
 /// tokenizer among them; that stays above most real counts without the old
 /// bound of one token a byte (three for every Chinese character):
 ///
-/// - Chinese and other non-ASCII text: a token a character (about three
-///   bytes a token for Chinese); characters outside the Basic Multilingual
-///   Plane (emoji, rare ideographs) two.
+/// - Chinese and other non-ASCII text: a token and a half a character,
+///   rounded up over each run (about two bytes a token for Chinese; on some
+///   tokenizers, Anthropic's and Llama 3's among them, a common Chinese
+///   character often takes more than one); characters outside the Basic
+///   Multilingual Plane (emoji, rare ideographs) two each.
 /// - English: a token for every four letters of a word or part of them
 ///   (about three and a half bytes a token; a short word is a whole token).
 /// - Digits: a token each (several local tokenizers split numbers into
@@ -137,7 +139,13 @@ pub fn estimate_text_tokens(text: &str) -> u64 {
     enum Run {
         Letters,
         Marks,
-        Space { breaks: bool },
+        Space {
+            breaks: bool,
+        },
+        /// Non-ASCII characters of the Basic Multilingual Plane.
+        Wide,
+        /// A digit or a character outside the Basic Multilingual Plane,
+        /// each counted on its own.
         Other,
     }
     fn close(run: Run, len: u64) -> u64 {
@@ -145,6 +153,8 @@ pub fn estimate_text_tokens(text: &str) -> u64 {
             Run::Letters => len.div_ceil(4),
             Run::Marks => len.div_ceil(2),
             Run::Space { breaks } => u64::from(breaks || len > 1),
+            // Each is two or three bytes, so this stays within the bytes.
+            Run::Wide => (len * 3).div_ceil(2),
             Run::Other => 0,
         }
     }
@@ -156,7 +166,9 @@ pub fn estimate_text_tokens(text: &str) -> u64 {
             'a'..='z' | 'A'..='Z' => Run::Letters,
             '\n' | '\r' => Run::Space { breaks: true },
             ' ' | '\t' | '\x0b' | '\x0c' => Run::Space { breaks: false },
-            _ if c.is_ascii() && !c.is_ascii_digit() => Run::Marks,
+            '0'..='9' => Run::Other,
+            _ if c.is_ascii() => Run::Marks,
+            _ if c.len_utf8() < 4 => Run::Wide,
             _ => Run::Other,
         };
         let same = match (run, kind) {
@@ -174,7 +186,7 @@ pub fn estimate_text_tokens(text: &str) -> u64 {
             len = 0;
         }
         if kind == Run::Other {
-            // A digit, or a character of two to four bytes.
+            // A digit, or a character of four bytes.
             tokens += if c.len_utf8() == 4 { 2 } else { 1 };
         } else {
             len += 1;
@@ -185,6 +197,33 @@ pub fn estimate_text_tokens(text: &str) -> u64 {
 
 fn cost(value: &impl Serialize) -> Result<u64> {
     estimate_tokens(value)
+}
+
+/// The model's context, or 32 768 when it told none.
+pub(crate) fn context_window(config: &RunConfig) -> u64 {
+    config
+        .capabilities
+        .as_ref()
+        .and_then(|c| c.context_window)
+        .unwrap_or(32_768)
+}
+
+/// Room kept for the answer: the output limit the author or the model gives,
+/// otherwise an eighth of the context up to 8 192 (a small local context
+/// keeps less: 5 120 of 40 960, 4 096 of the 32 768 fallback); never less
+/// than 4 096.
+pub(crate) fn output_reserve(config: &RunConfig, window: u64) -> u64 {
+    config
+        .max_output_tokens
+        .or_else(|| {
+            config
+                .capabilities
+                .as_ref()
+                .and_then(|c| c.max_output_tokens)
+        })
+        .map(u64::from)
+        .unwrap_or_else(|| (window / 8).min(8_192))
+        .max(4_096)
 }
 
 struct Unit {
@@ -235,22 +274,8 @@ pub fn prepare(
     tools: &[ToolDescriptor],
     contributions: Vec<Contribution>,
 ) -> Result<Prepared> {
-    let window = config
-        .capabilities
-        .as_ref()
-        .and_then(|c| c.context_window)
-        .unwrap_or(32_768);
-    let reserve = config
-        .max_output_tokens
-        .or_else(|| {
-            config
-                .capabilities
-                .as_ref()
-                .and_then(|c| c.max_output_tokens)
-        })
-        .map(u64::from)
-        .unwrap_or(8_192)
-        .max(4_096);
+    let window = context_window(config);
+    let reserve = output_reserve(config, window);
     let fixed = cost(&config.system_prompt)?
         .saturating_add(cost(&tools)?)
         .saturating_add(512)

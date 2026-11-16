@@ -230,23 +230,10 @@ pub async fn run_checkin_with_guidance(
             "project_memory":input.context.project_memory.iter().map(|m|json!({"id":m.id,"body":m.body})).collect::<Vec<_>>(),
             "working_memory":input.context.working_memory,
         }))?;
-        let window = config
-            .capabilities
-            .as_ref()
-            .and_then(|c| c.context_window)
-            .unwrap_or(32_768);
-        let reserve = config
-            .max_output_tokens
-            .or_else(|| {
-                config
-                    .capabilities
-                    .as_ref()
-                    .and_then(|c| c.max_output_tokens)
-            })
-            .map(u64::from)
-            .unwrap_or(8_192)
-            .max(4_096);
-        // Counted like a chat request (`context::estimate_text_tokens`).
+        // Counted like a chat request (`context`): the same window, room
+        // for the answer and estimate.
+        let window = crate::context::context_window(&config);
+        let reserve = crate::context::output_reserve(&config, window);
         let required = crate::context::estimate_text_tokens(&context)
             + crate::context::estimate_text_tokens(&config.system_prompt)
             + 1024;

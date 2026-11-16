@@ -224,16 +224,19 @@ fn first_message(context_window: u64) -> (Vec<usize>, Value) {
     (fake.chats(), state)
 }
 
-/// Ollama tells 40 960 for qwen3:14b: the sample book's first message goes
-/// out (it used to stop at 「继续此任务」 with nothing sent). A context too
-/// small for the book's fixed part still stops before anything is sent.
+/// Ollama tells 40 960 for qwen3:14b, and a server that tells nothing gets
+/// the 32 768 fallback: either way the sample book's first message goes out
+/// (it used to stop at 「继续此任务」 with nothing sent). A context too small
+/// for the book's fixed part still stops before anything is sent.
 #[test]
 fn a_small_local_context_sends_the_sample_books_first_message() {
-    let (chats, state) = first_message(40_960);
-    assert_eq!(chats.len(), 1, "{state}");
-    // The request is about the size the LM smoke run measured (54 KB).
-    assert!(chats[0] > 30_000, "{} bytes", chats[0]);
-    assert_eq!(state, json!("completed"));
+    for window in [40_960, 32_768] {
+        let (chats, state) = first_message(window);
+        assert_eq!(chats.len(), 1, "{window}: {state}");
+        // The request is about the size the LM smoke run measured (54 KB).
+        assert!(chats[0] > 30_000, "{window}: {} bytes", chats[0]);
+        assert_eq!(state, json!("completed"), "{window}");
+    }
 
     let (chats, state) = first_message(16_384);
     assert!(chats.is_empty(), "{chats:?}");

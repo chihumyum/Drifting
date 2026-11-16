@@ -1039,7 +1039,7 @@ D（`d-data-layer`）交回时写（2026-11-15）；同日 DY（`dy-files-commen
 
 - **编辑模板的工作区里另存会被盖回去**：工作区里 `project_template.save` 不收 `name`、`description`、`agent`，错误里说去用 `project.update`（见上面「DW 交回」的 `project_template.save` 一条和「PT4 交回」）。帮手那边解析时就拒，`dr-agent-tools` 目录里 `project_template.save` 的说明跟着改，目录快照和能力清单快照重新生成。
 - **种子、样书、0.1 导入的书看不到来源**：这几种书的 `project.source` 现在和新建的一样带名字「写书」，结构说明里有 `project_source`（见上面「PT4 交回」的「结构说明带来源」）。新加 dev-dependency：`dr-agent-tools` → `dr-samples`，`dr-import-v1` → `dr-agent-tools`、`dr-workspace`（只在测试里用）。跟着改的两处现成断言：`dr-doc` `v3/tests.rs` 的 `novel_project_template_populates_stable_templates_roots_and_categories` 要求来源和 `novel_project_template_source()` 一样；`dr-testkit` 的 aging 快速形状（`bench/aging.rs` 的 `expect_quick`）多 2 个操作（来源里的 `origin` 和 `name`）。
-- **本地模型上下文小时第一句就发不出去**：`dr_agent::context` 改成按字的种类估 token，新函数 `estimate_tokens`、`estimate_text_tokens`；签到判断说明放不放得下也用它。见 [M27](modules/m27-agent-runtime.md)「请求有多长」、[M28](modules/m28-model-providers.md)「待协调」第 1 条。
+- **本地模型上下文小时第一句就发不出去**：`dr_agent::context` 改成按字的种类估 token，新函数 `estimate_tokens`、`estimate_text_tokens`（同日又调：中文一字 1.5 个；没给输出上限时余量是上下文的八分之一、最多 8192）；签到判断说明放不放得下也用它。见 [M27](modules/m27-agent-runtime.md)「请求有多长」、[M28](modules/m28-model-providers.md)「待协调」第 1 条。
 
 ### 最终的接口名字
 
