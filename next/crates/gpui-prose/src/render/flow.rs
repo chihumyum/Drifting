@@ -74,6 +74,12 @@ pub struct FlowState {
     /// What the page showed of the window around the editor then (its
     /// content mask): the editor's visible part is this inside `bounds`.
     pub view: Option<Bounds<Pixels>>,
+    /// With a page: the editor's top below the top of the page's content
+    /// (the page unscrolled, as its scroll handle measures its children)
+    /// at the last prepaint. It does not move as the page scrolls, so the
+    /// page's outline places the editor's paragraphs among the page's other
+    /// parts by it.
+    pub page_top: Option<f32>,
     /// The items laid out then.
     pub laid_out: Range<usize>,
 }
@@ -237,6 +243,11 @@ impl Element for FlowItems {
             let mut state = self.state.borrow_mut();
             state.bounds = Some(bounds);
             state.view = Some(view);
+            // Before anything here scrolls the page: `bounds` is where the
+            // page's scroll put the editor.
+            state.page_top = state.page.as_ref().map(|page| {
+                f32::from(bounds.top() - page.handle.bounds().top() - page.handle.offset().y)
+            });
             if state.page.is_none() {
                 state.reveal = None;
             }
