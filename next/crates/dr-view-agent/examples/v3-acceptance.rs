@@ -161,15 +161,6 @@ fn main() -> anyhow::Result<()> {
                 file,
                 cx,
             );
-            dr_view_agent::speech::install(
-                dr_view_agent::speech::client::Client::new(
-                    HttpClient::new().expect("synthetic speech HTTP"),
-                    Arc::new(dr_platform::secrets::SecretStore::in_memory()),
-                )
-                .with_endpoint("http://127.0.0.1:9/asr")
-                .expect("loopback speech"),
-                cx,
-            );
             dr_view_agent::init_with_service(
                 connection,
                 Arc::new(ScriptedDriver::new(scripts)),

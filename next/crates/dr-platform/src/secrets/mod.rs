@@ -98,8 +98,8 @@ pub mod keys {
         format!("drifting.hosted.v1.{:x}", Sha256::digest(origin.as_bytes()))
     }
 
-    /// An API key: `byok.openai`, `byok.anthropic`, `byok.deepseek`, and
-    /// `byok.dashscope` for speech (`byok-keychain.ts`).
+    /// An API key: `byok.openai`, `byok.anthropic`, `byok.deepseek`
+    /// (`byok-keychain.ts`).
     pub fn api_key(provider: &str) -> String {
         format!("byok.{provider}")
     }

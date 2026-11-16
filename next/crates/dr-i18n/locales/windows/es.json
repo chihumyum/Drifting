@@ -15,9 +15,6 @@
         "storage_failed": "No se pudo guardar la sesión en el Administrador de credenciales de Windows."
       }
     },
-    "models": {
-      "speechDesc": "Credencial de transcripción para entrada de voz, separada de los proveedores de chat. Incluye nombres de elementos y ambientación para corregir nombres propios. Las solicitudes van directamente a Bailian y la clave solo queda en el Administrador de credenciales de Windows."
-    },
     "update": {
       "channel_desc": "Windows 10/11 · x64 y ARM64"
     }

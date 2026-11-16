@@ -168,9 +168,6 @@
       "server_error": "El servicio de actualizaciones tiene un problema ahora. Inténtalo más tarde. Esta versión sigue funcionando."
     }
   },
-  "speech": {
-    "backlog": "Transcripciones pendientes"
-  },
   "templateEditor": {
     "accept": "Aceptar entradas de otros lugares",
     "action_name": "Nombre de la acción",

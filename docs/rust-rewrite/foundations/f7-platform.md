@@ -162,7 +162,7 @@ dr_view_feedback::init(Service::for_build(platform, Some(&dirs.data), version), 
 
 - 这是旧版用 keyring 3.6（`apple-native`、`windows-native`）写的格式（`src-tauri/src/secure_storage.rs` 和 `secure_storage/chunked.rs`）。拆分格式整段照搬，旧版拆开存的长令牌新版能拼回来，反过来也一样。
 - 读的时候跳过需要授权的条目、不弹框，和旧版一样。苹果说这一条只对「数据保护钥匙串」有效，登录钥匙串里访问列表不含本程序的条目仍会弹框；正式版保持同一个 bundle id 和同一个 Developer ID 团队，访问列表认的就是这两样，所以交接后不会弹。
-- 键名照旧版（`secrets::keys`）：Hosted 会话 `drifting.hosted.v1.<API 源的 sha256>`；API Key `byok.<厂商>`（含语音用的 `byok.dashscope`），旧的帮手 Anthropic 键 `byok.agent.anthropic`；ChatGPT 订阅 `oauth.openai-codex`；扩展密钥 `drifting.mcp.…`；`sync.` 和 `oauth.` 开头的只给原生代码。
+- 键名照旧版（`secrets::keys`）：Hosted 会话 `drifting.hosted.v1.<API 源的 sha256>`；API Key `byok.<厂商>`（旧版语音用的 `byok.dashscope` 新版不读，口述已不做），旧的帮手 Anthropic 键 `byok.agent.anthropic`；ChatGPT 订阅 `oauth.openai-codex`；扩展密钥 `drifting.mcp.…`；`sync.` 和 `oauth.` 开头的只给原生代码。
 - 为什么不用 GPUI 的接口：见开头「最要紧的三个发现」1。
 - 实现：macOS 直接调 Security 框架的 `SecItem*`（用 GPUI 已经在用的 `objc2-security`，不多一个 crate，读的写法和旧版用 `security-framework` 的那段一样），Windows 直接调 `CredReadW` / `CredWriteW`（GPUI 已在用的 `windows` 0.62），按 keyring 3.6 的格式读写；keyring 本身只作为测试依赖，扮演旧版。
 - 没搬的：`NATIVE_ONLY_SECRET_PREFIXES`（`sync.`、`oauth.` 不让渲染层读）和 `local_lab_session`（调试用的本地假钥匙串）都只是挡 WebView 的，新版没有渲染层，不需要。

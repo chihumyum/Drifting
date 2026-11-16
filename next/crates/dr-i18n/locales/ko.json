@@ -1206,8 +1206,6 @@
       "ui_locale_desc": "메뉴, 버튼, 메시지의 언어입니다. 집필 내용에는 영향을 주지 않습니다."
     },
     "models": {
-      "speechDesc": "위의 채팅 제공업체와 별개인 음성 입력 전사 인증 정보입니다. 고유명사 교정을 위해 작품의 요소·설정 이름을 함께 보냅니다. 요청은 기기에서 Bailian으로 직접 전송되며 키는 시스템 키체인에만 저장됩니다.",
-      "speechTitle": "음성 전사",
       "title": "Drifting의 AI 기능이 연결하는 서비스."
     },
     "privacy": {
@@ -1306,9 +1304,6 @@
     "restoreSuccess": "선택한 버전으로 복원했습니다. 이전 상태는 새 스냅샷으로 먼저 저장했습니다.",
     "restoring": "복원 중…",
     "title": "기록 스냅샷 · 30일"
-  },
-  "speech": {
-    "backlog": "전사 처리 지연"
   },
   "storyGraph": {
     "edge": {
@@ -1687,20 +1682,6 @@
     "usedIn": "사용처",
     "viewList": "목록",
     "viewMasonry": "폭포형"
-  },
-  "voiceAgent": {
-    "error": {
-      "auth": "전사 키가 유효하지 않거나 만료되었습니다",
-      "micDenied": "마이크를 사용할 수 없습니다. 시스템 권한을 확인하세요",
-      "noKey": "전사 키가 설정되지 않음(Alibaba Cloud Bailian)",
-      "segmentRejected": "전사 서비스가 이 구간을 거부했습니다",
-      "transcribeFailed": "전사에 실패했습니다. 녹음은 보존되어 다시 시도할 수 있습니다"
-    },
-    "record": "녹음 시작",
-    "recording": "기록 중",
-    "retry": "전사 다시 시도",
-    "stopRecord": "녹음 중지",
-    "transcribing": "전사 중…"
   },
   "windowCaption": {
     "close": "닫기",

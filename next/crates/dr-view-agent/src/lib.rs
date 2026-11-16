@@ -15,7 +15,6 @@ pub mod project_memory;
 mod prompt;
 mod review_bridge;
 pub mod settings;
-pub mod speech;
 pub mod state;
 pub mod tools;
 pub mod working_memory;
@@ -61,7 +60,6 @@ pub fn init(identity: &dr_platform::Identity, cx: &mut App) {
         }
     };
     let secrets = Arc::new(dr_platform::secrets::SecretStore::for_identity(identity));
-    speech::init(http.clone(), secrets.clone(), cx);
     let credentials = Credentials::new(secrets);
     let provider = ProviderDriver::new(http, credentials);
     // The MCP endpoint lists the catalog these same book tools resolve.
@@ -94,13 +92,6 @@ pub fn init_with_service(
     tools: Arc<dyn ToolExecutor>,
     cx: &mut App,
 ) {
-    if cx.try_global::<speech::Services>().is_none() {
-        speech::init(
-            HttpClient::new().expect("speech HTTP"),
-            Arc::new(dr_platform::secrets::SecretStore::in_memory()),
-            cx,
-        );
-    }
     let connections = cx.new(|cx| Connections::with_service(service, cx));
     let hub = cx.new(|_| AgentHub::new(driver, tools));
     let bridge = review_bridge::install(&hub, &connections, cx);

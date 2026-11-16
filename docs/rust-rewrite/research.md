@@ -258,7 +258,7 @@ GPUI 调研里建议正文数据用 yrs。作者已经定了用 Loro，所以这
 | 图片 | image 0.25（GPUI 已经在用），fast_image_resize 6.1 | — |
 | PDF 预览 | hayro 0.9（纯 Rust）或 pdfium-render 0.9.5（要带 PDFium 二进制，而且不是线程安全的） | mupdf 是 AGPL：能用，但以后就没法改许可证了 |
 | 2D 位图绘制 | tiny-skia（推断） | 用来画封面、热力图、砂笔纹理 |
-| 口述 | 沿用 DashScope ASR；本地方案有 cpal + whisper-rs | macOS 26 的 SpeechAnalyzer 只有 Swift 接口 |
+| 口述 | 不做（作者 2026-11-16 定，见 [m34](modules/m34-dictation.md)）。当时的调研：沿用 DashScope ASR；本地方案有 cpal + whisper-rs | macOS 26 的 SpeechAnalyzer 只有 Swift 接口 |
 | SQLite | rusqlite 0.41；沿用现有迁移器的做法 | 别换成按 `user_version` 记迁移的库，那样会破坏「发布过的迁移不再修改」 |
 | 分享阅读页 | axum 0.8 加 maud 0.27 或 askama 0.16，在服务端出 HTML | 以后需要实时评论时，再加一个 Leptos 0.8 的 island |
 | 测试 | insta 1.49、proptest 1.12、criterion 0.8 | — |
