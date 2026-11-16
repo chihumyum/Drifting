@@ -485,8 +485,9 @@ pub struct Workspace {
     fill: fill::FillState,
     tab_fill_layouts: BTreeMap<String, crate::v3::tab_fill::FillLayout>,
     want_template_structure: bool,
-    want_quick_template: Option<String>,
-    pending_created_template: Option<(dr_model::id::EntryTemplateId, bool)>,
+    /// 「新建模板」 while the left column fills and its sidebar is not made
+    /// yet: the structure opens a new template in its floating panel.
+    want_new_template: bool,
     hovered_moon: Option<fill::MoonHalf>,
     pub settings: Option<Entity<SettingsPanel>>,
     /// M06's search panel, while open.
@@ -641,8 +642,7 @@ impl Workspace {
             fill: Default::default(),
             tab_fill_layouts: BTreeMap::new(),
             want_template_structure: false,
-            want_quick_template: None,
-            pending_created_template: None,
+            want_new_template: false,
             hovered_moon: None,
             settings: None,
             search: None,
@@ -715,8 +715,7 @@ impl Workspace {
             ),
         };
         self.fill.reset();
-        self.pending_created_template = None;
-        self.want_quick_template = None;
+        self.want_new_template = false;
         self.hovered_moon = None;
         self.want_template_structure = false;
         self.tab_fill_layouts = saved
@@ -837,7 +836,6 @@ impl Workspace {
                     if !same_revision {
                         self.book = Rc::new(book);
                     }
-                    self.show_created_template(cx);
                     self.sync_active_book();
                     self.retitle_editors(cx);
                     // A template's working copy is never the project the
@@ -1298,8 +1296,7 @@ impl Workspace {
         self.companion.borrow_mut().clear();
         self.library_panel.borrow_mut().clear();
         self.fill.reset();
-        self.pending_created_template = None;
-        self.want_quick_template = None;
+        self.want_new_template = false;
         self.hovered_moon = None;
         self.tab_fill_layouts.clear();
         self.want_template_structure = false;
@@ -1636,6 +1633,9 @@ impl Workspace {
                 crate::settings::panel_closed(window.window_handle().window_id(), cx);
                 self.refocus(window, cx);
             }
+            // The structure's floating panel is a layer of its own over
+            // the fill: the first Esc closes only the panel (W12Template).
+            Some(Layer::Fill) if self.close_fill_panel(cx) => self.refocus(window, cx),
             Some(Layer::Fill) => {
                 self.exit_fill(window, cx);
                 self.refocus(window, cx);

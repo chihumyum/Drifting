@@ -223,15 +223,15 @@ pub fn left(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>
             .get_or_insert_with(|| cx.new(|cx| crate::v3::sidebar::Sidebar::new(host.clone(), cx)))
             .clone();
         let want_struct = std::mem::take(&mut ws.want_template_structure);
-        let quick_template = ws.want_quick_template.take();
+        let new_template = std::mem::take(&mut ws.want_new_template);
         panel.update(cx, |panel, cx| {
             panel.sync(host, cx);
             panel.sync_fill(ws.is_filled(FillPlace::Left), &ws.tab_fill_layouts, cx);
             if want_struct {
                 panel.enter_structure(window, cx);
             }
-            if let Some(template) = quick_template {
-                panel.select_structure_template(&template, window, cx);
+            if new_template {
+                panel.new_structure_template(window, cx);
             }
         });
         div()

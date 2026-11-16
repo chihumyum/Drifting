@@ -3,7 +3,7 @@ pub mod model;
 pub mod preview;
 mod view;
 
-use dr_shell::{nav::Target, pages::ModulePage, strings::t, v3::Rendered, workspace::FillPlace};
+use dr_shell::{nav::Target, pages::ModulePage, v3::Rendered, workspace::FillPlace};
 use gpui::{App, AppContext as _, Focusable as _};
 pub use view::TemplateEditor;
 
@@ -20,45 +20,35 @@ pub fn init(cx: &mut App) {
             focus,
         })
     });
-    dr_shell::v3::add_compact_template_editor(cx, |host, id, full, window, cx| {
-        let template = host.book.v3()?.template(id)?.clone();
-        let editor =
-            cx.new(|cx| TemplateEditor::new(host, Some(template), window, cx).compact(full));
-        Some(Rendered::new(editor))
+    dr_shell::v3::add_compact_template_editor(cx, |host, window, cx| {
+        let template = match &host.template {
+            Some(id) => Some(host.page.book.v3()?.template(id)?.clone()),
+            None => None,
+        };
+        let page = host.page.clone();
+        let editor = cx.new(|cx| TemplateEditor::new(page, template, window, cx).compact(host));
+        let kept = editor.clone();
+        Some(Rendered::new(editor).on_leave(move |cx| {
+            // After the shell is done taking the panel away.
+            let editor = kept.clone();
+            cx.defer(move |cx| editor.update(cx, |editor, cx| editor.settle(cx)));
+        }))
     });
-    dr_shell::v3::add_template_creator(cx, |host, _, cx| {
+    // 「新建模板」 (`kernel-v5.md` §9). While the left column fills, the
+    // structure's floating panel; otherwise the full editor. Either way the
+    // template is stored only once the author changes something in it, so
+    // closing it untouched leaves nothing behind.
+    dr_shell::v3::add_template_creator(cx, |host, window, cx| {
         let Some(shell) = host.workspace.upgrade() else {
             return;
         };
-        let compact = shell.read(cx).is_filled(FillPlace::Left);
-        let draft = TemplateEditor::new_draft(cx);
-        let book = host.book_id.clone();
-        let library = host.library.clone();
-        let job = cx
-            .background_executor()
-            .spawn(async move { model::save(&library, &book, None, &draft) });
-        cx.spawn(async move |cx| {
-            let result = job.await;
-            let _ = host.workspace.update(cx, |ws, cx| {
-                if ws.book_id != host.book_id
-                    || !ws.library.as_ref().is_some_and(|library| {
-                        std::ptr::eq(library.library(), host.library.library())
-                    })
-                {
-                    return;
-                }
-                match result {
-                    Ok(template) => {
-                        if let Ok(id) = template.id.parse() {
-                            ws.template_created(id, compact, cx);
-                        }
-                    }
-                    Err(_) => {
-                        ws.toast(t(cx, dr_i18n::keys::common::SAVE_FAILED), cx);
-                    }
-                }
-            });
-        })
-        .detach();
+        if shell.read(cx).is_filled(FillPlace::Left) {
+            shell.update(cx, |ws, cx| ws.new_template_in_structure(window, cx));
+            return;
+        }
+        let editor = cx.new(|cx| TemplateEditor::new(host, None, window, cx));
+        let focus = editor.focus_handle(cx);
+        window.focus(&focus, cx);
+        dr_shell::dialogs::show_in(window.window_handle(), cx, editor.into());
     });
 }

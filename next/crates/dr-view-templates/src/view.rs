@@ -169,12 +169,19 @@ impl Render for Ghost {
 }
 
 pub struct TemplateEditor {
-    full_editor: Option<dr_shell::pages::RunRow>,
+    /// In the structure's floating panel (`kernel-v5.md` §9).
+    compact: Option<dr_shell::v3::CompactTemplate>,
     full_after_save: Option<gpui::AnyWindowHandle>,
     host: PageViewHost,
     base: Option<EntryTemplate>,
     draft: EntryTemplate,
     creating: bool,
+    /// A new template as it was made: until the draft differs from it the
+    /// author has changed nothing, and nothing is stored.
+    initial: Option<EntryTemplate>,
+    /// The panel was left while a save was on its way: store what came
+    /// after it once it lands.
+    settle_after_save: bool,
     inputs: BTreeMap<Binding, Input>,
     focus: FocusHandle,
     scroll: ScrollHandle,
@@ -229,13 +236,16 @@ impl TemplateEditor {
     ) -> Self {
         let creating = template.is_none();
         let draft = template.clone().unwrap_or_else(|| Self::new_draft(cx));
+        let initial = creating.then(|| draft.clone());
         let mut this = Self {
-            full_editor: None,
+            compact: None,
             full_after_save: None,
             host,
             base: template,
             draft,
             creating,
+            initial,
+            settle_after_save: false,
             inputs: BTreeMap::new(),
             focus: cx.focus_handle(),
             scroll: ScrollHandle::new(),
@@ -270,18 +280,84 @@ impl TemplateEditor {
         draft
     }
 
-    pub(crate) fn compact(mut self, full_editor: dr_shell::pages::RunRow) -> Self {
-        self.full_editor = Some(full_editor);
+    pub(crate) fn compact(mut self, host: dr_shell::v3::CompactTemplate) -> Self {
+        self.compact = Some(host);
         self
     }
 
+    /// 「完整编辑」: what is in the panel is stored first (a new template
+    /// with it), then its full editor opens.
     fn show_full_editor(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.full_after_save = Some(window.window_handle());
         if self.dirty() {
-            self.full_after_save = Some(window.window_handle());
             self.save(cx);
-        } else if let Some(open) = self.full_editor.clone() {
-            open(window, cx);
+        } else {
+            self.open_full_if_asked(cx);
         }
+    }
+
+    fn open_full_if_asked(&mut self, cx: &mut Context<Self>) {
+        if self.creating || self.saving || self.error.is_some() || self.dirty() {
+            return;
+        }
+        if let Some(window) = self.full_after_save.take()
+            && let Some(full) = self.compact.as_ref().map(|c| c.full.clone())
+        {
+            let id = self.draft.id.clone();
+            cx.defer(move |cx| {
+                let _ = window.update(cx, |_, window, cx| full(id, window, cx));
+            });
+        }
+    }
+
+    /// Whether the author changed anything: a new template counts as
+    /// changed once it differs from how it was made.
+    pub fn touched(&self) -> bool {
+        match &self.initial {
+            Some(initial) if self.creating => &self.draft != initial,
+            _ => self.dirty(),
+        }
+    }
+
+    /// The structure's panel is taken away: what the author changed is
+    /// stored, as an in-place field stores what it holds when it is left;
+    /// a name left empty goes back to the stored one. Untouched, nothing
+    /// is written (a new template leaves nothing behind).
+    pub fn settle(&mut self, cx: &mut Context<Self>) {
+        if self.saving {
+            self.settle_after_save = true;
+            return;
+        }
+        if self.draft.name.trim().is_empty()
+            && let Some(stored) = self.base.as_ref().or(self.initial.as_ref())
+        {
+            self.draft.name = stored.name.clone();
+        }
+        if self.touched() {
+            self.save(cx);
+        }
+    }
+
+    /// Esc in one of the panel's fields: it shows what is stored again
+    /// (the in-place fields' convention; a write already on its way stays),
+    /// and the panel closes.
+    fn cancel_field(&mut self, binding: &Binding, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(close) = self.compact.as_ref().map(|c| c.close.clone()) else {
+            return;
+        };
+        if !self.saving
+            && let Some(stored) = self.base.as_ref().or(self.initial.as_ref())
+        {
+            let value = binding.value(stored);
+            binding.set(&mut self.draft, value.clone());
+            match self.inputs.get(binding) {
+                Some(Input::Line(field, _)) => field.update(cx, |f, cx| f.set_text(value, cx)),
+                Some(Input::Area(field, _)) => field.update(cx, |f, cx| f.set_text(value, cx)),
+                None => {}
+            }
+        }
+        cx.notify();
+        window.defer(cx, move |window, cx| close(window, cx));
     }
 
     pub fn draft(&self) -> &EntryTemplate {
@@ -348,6 +424,13 @@ impl TemplateEditor {
                 .is_some_and(|book| book.template(&self.draft.id).is_some())
         {
             self.creating = false;
+            self.initial = None;
+            // In the structure's panel the editor stays where it is.
+            if let Some(created) = self.compact.as_ref().map(|c| c.created.clone()) {
+                created(self.draft.id.clone(), cx);
+                self.open_full_if_asked(cx);
+                return;
+            }
             let workspace = self.host.workspace.clone();
             let id = self
                 .draft
@@ -396,12 +479,18 @@ impl TemplateEditor {
                         .with_text(value.clone())
                         .framed(2.)
                 });
-                let sub = cx.subscribe(&field, move |this, _, event: &FieldEvent, cx| {
-                    if let FieldEvent::Changed(value) = event {
-                        which.set(&mut this.draft, value.clone());
-                        cx.notify();
-                    }
-                });
+                let sub = cx.subscribe_in(
+                    &field,
+                    window,
+                    move |this, _, event: &FieldEvent, window, cx| match event {
+                        FieldEvent::Changed(value) => {
+                            which.set(&mut this.draft, value.clone());
+                            cx.notify();
+                        }
+                        FieldEvent::Cancelled => this.cancel_field(&which, window, cx),
+                        _ => {}
+                    },
+                );
                 Input::Area(field, sub)
             } else {
                 let field = cx.new(|cx| {
@@ -409,12 +498,18 @@ impl TemplateEditor {
                         .bare()
                         .with_text(value.clone())
                 });
-                let sub = cx.subscribe(&field, move |this, _, event: &FieldEvent, cx| {
-                    if let FieldEvent::Changed(value) = event {
-                        which.set(&mut this.draft, value.clone());
-                        cx.notify();
-                    }
-                });
+                let sub = cx.subscribe_in(
+                    &field,
+                    window,
+                    move |this, _, event: &FieldEvent, window, cx| match event {
+                        FieldEvent::Changed(value) => {
+                            which.set(&mut this.draft, value.clone());
+                            cx.notify();
+                        }
+                        FieldEvent::Cancelled => this.cancel_field(&which, window, cx),
+                        _ => {}
+                    },
+                );
                 Input::Line(field, sub)
             };
             self.inputs.insert(binding.clone(), input);
@@ -443,8 +538,10 @@ impl TemplateEditor {
         };
         // Inputs retain dr-ui's IME and caret handling. The named wrapper also
         // makes this real input reachable through the shared debug bridge.
+        let selector = format!("k5-input-{binding:?}");
         div()
-            .id(SharedString::from(format!("k5-input-{binding:?}")))
+            .id(SharedString::from(selector.clone()))
+            .debug_selector(move || selector.clone())
             .role(gpui::Role::TextInput)
             .aria_label(label)
             .min_w(px(80.))
@@ -478,35 +575,40 @@ impl TemplateEditor {
         let submitted = draft.clone();
         let task =
             cx.background_spawn(async move { model::save(&lib, &book, base.as_ref(), &draft) });
+        let workspace = self.host.workspace.clone();
         cx.spawn(async move |this, cx| {
             let result = task.await;
-            let _ = this.update(cx, |this, cx| {
-                this.saving = false;
-                match result {
-                    Ok(saved) => {
-                        match model::reconcile(&submitted, &this.draft, &saved) {
-                            Ok(draft) => this.draft = draft,
-                            Err(_) => this.error = Some(true),
+            let failed = result.is_err();
+            let gone = this
+                .update(cx, |this, cx| {
+                    this.saving = false;
+                    match result {
+                        Ok(saved) => {
+                            match model::reconcile(&submitted, &this.draft, &saved) {
+                                Ok(draft) => this.draft = draft,
+                                Err(_) => this.error = Some(true),
+                            }
+                            this.base = Some(saved.clone());
+                            this.finish_create(cx);
+                            this.open_full_if_asked(cx);
+                            if std::mem::take(&mut this.settle_after_save) {
+                                this.settle(cx);
+                            }
                         }
-                        this.base = Some(saved.clone());
-                        this.finish_create(cx);
-                        if let Some(window) = this.full_after_save.take()
-                            && let Some(open) = this.full_editor.clone()
-                            && this.error.is_none()
-                            && !this.dirty()
-                        {
-                            cx.defer(move |cx| {
-                                let _ = window.update(cx, |_, window, cx| open(window, cx));
-                            });
+                        Err(error) => {
+                            this.full_after_save = None;
+                            this.settle_after_save = false;
+                            this.error = Some(matches!(error, dr_workspace::WsError::Conflict(_)))
                         }
                     }
-                    Err(error) => {
-                        this.full_after_save = None;
-                        this.error = Some(matches!(error, dr_workspace::WsError::Conflict(_)))
-                    }
-                }
-                cx.notify();
-            });
+                    cx.notify();
+                })
+                .is_err();
+            // Stored as the panel closed and the editor went with it: a
+            // refusal still reaches the author.
+            if gone && failed {
+                let _ = workspace.update(cx, |ws, cx| ws.toast(t(cx, common::SAVE_FAILED), cx));
+            }
         })
         .detach();
         cx.notify();
@@ -611,7 +713,7 @@ impl TemplateEditor {
     /// While creating, the editor sits in the 「新建模板」 dialog: its menus
     /// and the lists of its selects float above that dialog.
     fn in_dialog(&self) -> bool {
-        self.creating
+        self.creating && self.compact.is_none()
     }
 
     /// A select of this editor ([`Self::in_dialog`]).
@@ -811,7 +913,7 @@ impl Render for TemplateEditor {
         let theme = Theme::of(window, cx);
         let p = theme.palette;
         let name = self.field(Binding::Name, t(cx, k::TEMPLATE_NAME), false, window, cx);
-        let compact = self.full_editor.is_some();
+        let compact = self.compact.is_some();
         let color =
             (!compact).then(|| self.field(Binding::Color, t(cx, k::COLOR), false, window, cx));
         let mark = dr_shell::book::v3::mark(self.draft.mark.as_deref(), &self.draft.id);
@@ -891,6 +993,7 @@ impl Render for TemplateEditor {
             .child(
                 div()
                     .id("k5-toggle-level")
+                    .debug_selector(|| "k5-toggle-level".into())
                     .role(gpui::Role::CheckBox)
                     .aria_label(t(cx, k::LEVEL))
                     .aria_toggled(if level_on {
@@ -1065,7 +1168,7 @@ impl Render for TemplateEditor {
             })
             .children(self.picker(cx))
             .children(self.mark_picker());
-        if self.creating {
+        if self.creating && !compact {
             let close = cx.entity_id();
             Dialog::new("k5-create", t(cx, k::NEW_TEMPLATE))
                 .close_label(t(cx, common::CLOSE))

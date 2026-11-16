@@ -1131,7 +1131,7 @@ impl Home {
         }
 
         if let Some(structure) = crate::structure_thumbnail::render(self, window, cx) {
-            block = block.child(hrow(t(cx, keys::v5_fill::STRUCTURE), structure, false, p));
+            block = block.child(hrow(t(cx, keys::v5_fill::STRUCTURE), structure, true, p));
         }
 
         let agent_name_label = t(cx, keys::template_editor::NAME);

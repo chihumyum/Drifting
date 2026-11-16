@@ -353,7 +353,7 @@ impl Workspace {
         };
         if prev == FillPlace::Left {
             self.want_template_structure = false;
-            self.want_quick_template = None;
+            self.want_new_template = false;
             if let Some(sb) = &self.v3_sidebar {
                 sb.update(cx, |s, cx| s.leave_fill(cx));
             }
@@ -441,39 +441,33 @@ impl Workspace {
         cx.notify();
     }
 
-    /// A template command completed. Open the editor once the committed
-    /// definition is in the read snapshot used to mount pages.
-    pub fn template_created(
-        &mut self,
-        id: dr_model::id::EntryTemplateId,
-        compact: bool,
-        cx: &mut Context<Self>,
-    ) {
-        self.pending_created_template = Some((id, compact));
-        self.show_created_template(cx);
+    /// 「新建模板」 while the left column fills (`kernel-v5.md` §9): the
+    /// structure comes up with a new template in its floating panel; it is
+    /// stored once the author changes something in it.
+    pub fn new_template_in_structure(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.is_filled(FillPlace::Left) {
+            return;
+        }
+        if let Some(sb) = self.v3_sidebar.clone() {
+            sb.update(cx, |s, cx| {
+                s.enter_structure(window, cx);
+                s.new_structure_template(window, cx);
+            });
+        } else {
+            self.want_template_structure = true;
+            self.want_new_template = true;
+        }
+        cx.notify();
     }
 
-    pub(super) fn show_created_template(&mut self, cx: &mut Context<Self>) {
-        let Some((id, compact)) = &self.pending_created_template else {
-            return;
-        };
-        let target = Target::Template(id.clone());
-        if !self.book.exists(&target) {
-            return;
-        }
-        let compact = *compact;
-        let id = id.to_string();
-        self.pending_created_template = None;
-        if self.shelf_open || self.projects_open {
-            return;
-        }
-        if compact && self.is_filled(FillPlace::Left) {
-            self.want_template_structure = true;
-            self.want_quick_template = Some(id);
-            cx.notify();
-        } else {
-            self.open(target, Open::KEEP, cx);
-        }
+    /// Esc over a filled left column: closes the structure's floating
+    /// panel, when one is open. Whether there was one.
+    pub(super) fn close_fill_panel(&mut self, cx: &mut Context<Self>) -> bool {
+        self.is_filled(FillPlace::Left)
+            && self
+                .v3_sidebar
+                .clone()
+                .is_some_and(|sb| sb.update(cx, |s, cx| s.close_structure_panel(cx)))
     }
 
     /// Opens `target` on the paper beside a narrowed Left fill (`完整编辑`,
