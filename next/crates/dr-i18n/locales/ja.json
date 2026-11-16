@@ -512,14 +512,10 @@
     "zoomReset": "表示範囲に合わせる"
   },
   "materialFolders": {
-    "menu": {
-      "open": "開く"
-    },
     "picker": {
       "createAndMove": "作成して移動",
       "newPlaceholder": "新しいフォルダー名"
     },
-    "root": "すべての資料",
     "untitled": "新しいフォルダー"
   },
   "memoMaterial": {
@@ -554,9 +550,6 @@
     "projectActions": {
       "deleteFailed": "作品を削除できませんでした。もう一度お試しください。"
     }
-  },
-  "navigation": {
-    "back": "戻る"
   },
   "nodeEditor": {
     "meta": {
@@ -820,15 +813,12 @@
     "commentPlaceholder": "コメントを入力…",
     "empty": "この範囲にレビュー項目はありません。",
     "filters": {
-      "all": "両方",
-      "comment": "コメント",
-      "todo": "TODO"
+      "all": "両方"
     },
     "groups": {
       "deleted": "削除済み",
       "floating": "未添付"
     },
-    "newComment": "新しいコメント",
     "scopes": {
       "current": "現在"
     },

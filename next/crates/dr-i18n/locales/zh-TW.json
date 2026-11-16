@@ -512,14 +512,10 @@
     "zoomReset": "符合檢視範圍"
   },
   "materialFolders": {
-    "menu": {
-      "open": "開啟"
-    },
     "picker": {
       "createAndMove": "建立並移動",
       "newPlaceholder": "新素材夾名稱"
     },
-    "root": "所有素材",
     "untitled": "新素材夾"
   },
   "memoMaterial": {
@@ -554,9 +550,6 @@
     "projectActions": {
       "deleteFailed": "無法刪除作品，請再試一次。"
     }
-  },
-  "navigation": {
-    "back": "返回"
   },
   "nodeEditor": {
     "meta": {
@@ -820,15 +813,12 @@
     "commentPlaceholder": "撰寫註解…",
     "empty": "此範圍內沒有審閱項目。",
     "filters": {
-      "all": "兩者皆用",
-      "comment": "註解",
-      "todo": "待辦事項"
+      "all": "兩者皆用"
     },
     "groups": {
       "deleted": "已刪除",
       "floating": "未附加"
     },
-    "newComment": "新增註解",
     "scopes": {
       "current": "目前"
     },

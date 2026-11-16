@@ -21,7 +21,6 @@ topTimeline.dockLock
 topTimeline.dockUnlock
 topTimeline.newEntity
 topTimeline.closeTab
-navigation.back
 projectHome.kicker
 notifications.title
 notifications.clear
@@ -323,8 +322,6 @@ settings.editor.preview_p1
 settings.editor.preview_p2
 settings.keys.allActionsShort
 reviewPanel.filters.all
-reviewPanel.filters.comment
-reviewPanel.filters.todo
 reviewPanel.scopes.current
 reviewPanel.empty
 reviewPanel.groups.floating
@@ -595,9 +592,7 @@ settings.common.test_connection
 settings.models.title
 settings.rail.models
 settings.groups.intelligence
-materialFolders.root
 materialFolders.untitled
-materialFolders.menu.open
 memoMaterial.card.addSnippetBody
 memoMaterial.error.pickFailed
 materialEditor.deleteFailed
@@ -780,7 +775,6 @@ settings.hosted.account_errors.PASSWORD_MISMATCH
 settings.hosted.account_errors.PASSWORD_UNCHANGED
 settings.hosted.account_errors.INVALID_PASSWORD
 settings.hosted.account_errors.UNAUTHORIZED
-reviewPanel.newComment
 superElement.linkHintFrom
 superElement.linkHintTo
 superElement.reset

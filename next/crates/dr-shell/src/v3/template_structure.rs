@@ -10,7 +10,7 @@ use crate::{
     strings::t,
     v3::{self, Rendered, entry_target, page::EntryPage, tabs},
 };
-use dr_i18n::keys::{self, common, v3_levels as levels, v5_fill as fill};
+use dr_i18n::keys::{self, common, v3_levels as levels, v5_fill};
 use dr_ui::{
     Theme,
     components::{Button, IconButton, Pill, Segmented},
@@ -333,7 +333,7 @@ impl Structure {
             .p_2()
             .w(px(184.0));
         if !self.graph.unused.is_empty() {
-            loose = loose.child(t(cx, fill::UNUSED_TEMPLATES));
+            loose = loose.child(t(cx, v5_fill::UNUSED_TEMPLATES));
             for id in &self.graph.unused {
                 if let Some(template) = v.template(id) {
                     loose = loose.child(self.card(template, window, cx));
@@ -341,7 +341,7 @@ impl Structure {
             }
         }
         if !self.graph.untemplated.is_empty() {
-            loose = loose.child(t(cx, fill::NO_TEMPLATE_ENTRIES));
+            loose = loose.child(t(cx, v5_fill::NO_TEMPLATE_ENTRIES));
             for id in &self.graph.untemplated {
                 if let Some(entry) = v.entry(id) {
                     loose = loose.child(div().truncate().child(entry.title.clone()));
@@ -360,8 +360,8 @@ impl Structure {
                     .gap_3()
                     .px_2()
                     .text_color(p.muted().solid())
-                    .child(format!("━ {}", t(cx, fill::RESIDES)))
-                    .child(format!("┄ {}", t(cx, fill::ATTACHED))),
+                    .child(format!("━ {}", t(cx, v5_fill::RESIDES)))
+                    .child(format!("┄ {}", t(cx, v5_fill::ATTACHED))),
             )
             .child(
                 div()
@@ -444,7 +444,7 @@ impl Structure {
             row()
                 .id("v5-structure-root")
                 .role(gpui::Role::Group)
-                .aria_label(t(cx, fill::TOP_LEVEL))
+                .aria_label(t(cx, v5_fill::TOP_LEVEL))
                 .can_drop(move |value, _, _| {
                     value.downcast_ref::<LevelDrag>().is_some_and(|drag| {
                         drag.owner == owner && valid_move(&moving_book, &drag.id, None)
@@ -452,7 +452,7 @@ impl Structure {
                 })
                 .drag_over::<LevelDrag>(move |s, _, _, _| s.bg(p.ink(4).alpha(0.12)))
                 .on_drop(cx.listener(|this, drag: &LevelDrag, _, cx| this.move_row(drag, None, cx)))
-                .child(t(cx, fill::TOP_LEVEL)),
+                .child(t(cx, v5_fill::TOP_LEVEL)),
         );
         for entry in &v.entries {
             let Some(level) = v
@@ -613,8 +613,8 @@ impl Structure {
             let book = self.host.book.clone();
             if let Some(v) = book.v3() {
                 for (kind, label) in [
-                    (EdgeKind::Residence, fill::RESIDES),
-                    (EdgeKind::Membership, fill::ATTACHED),
+                    (EdgeKind::Residence, v5_fill::RESIDES),
+                    (EdgeKind::Membership, v5_fill::ATTACHED),
                 ] {
                     let names = self
                         .graph

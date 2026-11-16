@@ -519,14 +519,10 @@
     "zoomReset": "Fit to view"
   },
   "materialFolders": {
-    "menu": {
-      "open": "Open"
-    },
     "picker": {
       "createAndMove": "Create and move",
       "newPlaceholder": "New folder name"
     },
-    "root": "All materials",
     "untitled": "New folder"
   },
   "memoMaterial": {
@@ -561,9 +557,6 @@
     "projectActions": {
       "deleteFailed": "The project could not be deleted. Please try again."
     }
-  },
-  "navigation": {
-    "back": "Back"
   },
   "nodeEditor": {
     "meta": {
@@ -827,15 +820,12 @@
     "commentPlaceholder": "Write a comment…",
     "empty": "No review items in this scope.",
     "filters": {
-      "all": "Both",
-      "comment": "Comments",
-      "todo": "TODOs"
+      "all": "Both"
     },
     "groups": {
       "deleted": "Deleted",
       "floating": "Not attached"
     },
-    "newComment": "New comment",
     "scopes": {
       "current": "Current"
     },

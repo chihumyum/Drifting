@@ -522,14 +522,10 @@
     "zoomReset": "Ajuster à la vue"
   },
   "materialFolders": {
-    "menu": {
-      "open": "Ouvrir"
-    },
     "picker": {
       "createAndMove": "Créer et déplacer",
       "newPlaceholder": "Nom du nouveau dossier"
     },
-    "root": "Toutes les ressources",
     "untitled": "Nouveau dossier"
   },
   "memoMaterial": {
@@ -564,9 +560,6 @@
     "projectActions": {
       "deleteFailed": "Impossible de supprimer le projet. Réessayez."
     }
-  },
-  "navigation": {
-    "back": "Retour"
   },
   "nodeEditor": {
     "meta": {
@@ -836,15 +829,12 @@
     "commentPlaceholder": "Rédiger un commentaire…",
     "empty": "Aucun élément à réviser dans cette portée.",
     "filters": {
-      "all": "Les deux",
-      "comment": "Commentaires",
-      "todo": "Tâches"
+      "all": "Les deux"
     },
     "groups": {
       "deleted": "Supprimés",
       "floating": "Non rattachés"
     },
-    "newComment": "Nouveau commentaire",
     "scopes": {
       "current": "Actuel"
     },

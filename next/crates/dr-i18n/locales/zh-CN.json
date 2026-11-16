@@ -510,14 +510,10 @@
     "zoomReset": "适配窗口"
   },
   "materialFolders": {
-    "menu": {
-      "open": "打开"
-    },
     "picker": {
       "createAndMove": "新建并移入",
       "newPlaceholder": "新素材夹名称"
     },
-    "root": "素材库",
     "untitled": "新素材夹"
   },
   "memoMaterial": {
@@ -552,9 +548,6 @@
     "projectActions": {
       "deleteFailed": "删除未完成，请重试。"
     }
-  },
-  "navigation": {
-    "back": "返回"
   },
   "nodeEditor": {
     "meta": {
@@ -814,15 +807,12 @@
     "commentPlaceholder": "写批注…",
     "empty": "此范围内没有审阅项目。",
     "filters": {
-      "all": "全部",
-      "comment": "批注",
-      "todo": "TODO"
+      "all": "全部"
     },
     "groups": {
       "deleted": "已删除",
       "floating": "未挂载"
     },
-    "newComment": "新建批注",
     "scopes": {
       "current": "当前"
     },

@@ -522,14 +522,10 @@
     "zoomReset": "Ajustar a la vista"
   },
   "materialFolders": {
-    "menu": {
-      "open": "Abrir"
-    },
     "picker": {
       "createAndMove": "Crear y mover",
       "newPlaceholder": "Nombre de la nueva carpeta"
     },
-    "root": "Todos los materiales",
     "untitled": "Nueva carpeta"
   },
   "memoMaterial": {
@@ -564,9 +560,6 @@
     "projectActions": {
       "deleteFailed": "No se pudo eliminar el proyecto. Inténtalo de nuevo."
     }
-  },
-  "navigation": {
-    "back": "Volver"
   },
   "nodeEditor": {
     "meta": {
@@ -836,15 +829,12 @@
     "commentPlaceholder": "Escribe un comentario…",
     "empty": "No hay elementos de revisión en este ámbito.",
     "filters": {
-      "all": "Ambos",
-      "comment": "Comentarios",
-      "todo": "Tareas"
+      "all": "Ambos"
     },
     "groups": {
       "deleted": "Eliminados",
       "floating": "Sin adjuntar"
     },
-    "newComment": "Nuevo comentario",
     "scopes": {
       "current": "Actual"
     },

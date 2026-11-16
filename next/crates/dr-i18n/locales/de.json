@@ -519,14 +519,10 @@
     "zoomReset": "An Ansicht anpassen"
   },
   "materialFolders": {
-    "menu": {
-      "open": "Öffnen"
-    },
     "picker": {
       "createAndMove": "Erstellen und verschieben",
       "newPlaceholder": "Name des neuen Ordners"
     },
-    "root": "Alle Materialien",
     "untitled": "Neuer Ordner"
   },
   "memoMaterial": {
@@ -561,9 +557,6 @@
     "projectActions": {
       "deleteFailed": "Projekt konnte nicht gelöscht werden. Bitte erneut versuchen."
     }
-  },
-  "navigation": {
-    "back": "Zurück"
   },
   "nodeEditor": {
     "meta": {
@@ -827,15 +820,12 @@
     "commentPlaceholder": "Kommentar schreiben…",
     "empty": "Keine Prüfeinträge in diesem Bereich.",
     "filters": {
-      "all": "Beides",
-      "comment": "Kommentare",
-      "todo": "Aufgaben"
+      "all": "Beides"
     },
     "groups": {
       "deleted": "Gelöscht",
       "floating": "Nicht angehängt"
     },
-    "newComment": "Neuer Kommentar",
     "scopes": {
       "current": "Aktuell"
     },
