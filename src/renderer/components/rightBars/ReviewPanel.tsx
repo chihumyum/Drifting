@@ -6,6 +6,7 @@ import {
   commentBelongsToEntity,
   commentIdsRelatedToEntity,
   createPlainCommentDoc,
+  resolveComposedCommentTargets,
   type Comment,
   type CommentTargetKind,
 } from '../../domain/comment';
@@ -196,27 +197,24 @@ export function ReviewPanel({ focused, onOpenAgentTask, onOpenWorkbench }: Revie
   const openItems = filtered.filter((comment) => comment.status === 'open');
   const resolvedItems = filtered.filter((comment) => comment.status === 'resolved');
 
-  const createItem = async (body: string, relations: RelationTarget[]) => {
+  const createItem = async (
+    body: string,
+    relations: RelationTarget[],
+    options?: { attachFocusedMaterial?: boolean },
+  ) => {
     if (!composeKind) return;
-    // Materials cannot be relation targets, so both notes and TODOs about a
-    // material target it directly (a comment on the whole image or PDF).
-    const directTarget =
-      focused.id &&
-      ((composeKind === 'note' && isStructuralEntityKind(focused.kind)) || focused.kind === 'library_item')
-        ? { targetKind: focused.kind as CommentTargetKind, targetId: focused.id }
-        : {};
+    const { directTarget, extraRelations } = resolveComposedCommentTargets(
+      composeKind,
+      focused,
+      relations,
+      options?.attachFocusedMaterial ?? true,
+    );
     const created = await commentUsecases.createComment({
       ...directTarget,
       kind: composeKind,
       bodyJson: createPlainCommentDoc(body),
     });
-    for (const relation of relations) {
-      if (
-        created.targetKind === relation.kind &&
-        created.targetId === relation.id
-      ) {
-        continue;
-      }
+    for (const relation of extraRelations) {
       await relationUsecases.addGenericAssociation(
         'comment',
         created.id,
@@ -248,7 +246,7 @@ export function ReviewPanel({ focused, onOpenAgentTask, onOpenWorkbench }: Revie
             (candidate) =>
               candidate.toKind === target.kind && candidate.toId === target.id,
           );
-          if (relation) void relationUsecases.removeRelation(relation.id);
+          if (relation) return relationUsecases.removeRelation(relation.id);
         }}
       />
     );

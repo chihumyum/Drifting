@@ -2,16 +2,18 @@ import { useCallback, useMemo } from 'react';
 import { v7 as uuidv7 } from 'uuid';
 import { initDatabase } from '../lib/db';
 import { events } from '../lib/events';
+import { clearActiveCommentHighlight } from '../lib/comment-highlight';
 import { removeNoteTaskLines } from '../lib/note-task-document';
 import { createLibraryItemUsecases } from './useLibraryItem';
-import type {
-  Comment,
-  CommentAction,
-  CommentAuthorKind,
-  CommentKind,
-  CommentPriority,
-  CommentSource,
-  CommentTargetKind,
+import {
+  canUnbindCommentTarget,
+  type Comment,
+  type CommentAction,
+  type CommentAuthorKind,
+  type CommentKind,
+  type CommentPriority,
+  type CommentSource,
+  type CommentTargetKind,
 } from '../domain/comment';
 import {
   createCommentActionRepository,
@@ -429,6 +431,70 @@ export function useComment({ projectId, userId }: UseCommentContext) {
     [ensureDb, projectId],
   );
 
+  const setCommentTarget = useCallback(
+    async (
+      id: string,
+      target: { targetKind: CommentTargetKind; targetId: string } | null,
+    ) => {
+      await ensureDb();
+      const comments = useDataStore.getState().comments;
+      const existing = comments.find((comment) => comment.id === id);
+      if (!existing) throw new Error(`Comment with id ${id} not found`);
+      if (!target) {
+        if (!existing.targetKind && !existing.targetId) return existing;
+        if (!canUnbindCommentTarget(existing)) return existing;
+      } else if (existing.targetKind === target.targetKind && existing.targetId === target.targetId) {
+        return existing;
+      }
+
+      const now = new Date().toISOString();
+      const updated: Comment = {
+        ...existing,
+        targetKind: target ? target.targetKind : null,
+        targetId: target ? target.targetId : null,
+        targetBlockId: null,
+        targetBlockIdsJson: '[]',
+        anchorJson: '{}',
+        updatedAt: now,
+      };
+      clearActiveCommentHighlight(id);
+
+      return withOptimisticUpdate({
+        apply: () =>
+          useDataStore
+            .getState()
+            .setComments(comments.map((comment) => (comment.id === id ? updated : comment))),
+        rollback: () => useDataStore.getState().setComments(comments),
+        effect: () =>
+          withAtomicSyncTransaction(projectId, async (tx, sync) => {
+            const persisted = await createCommentRepository(projectId, tx).update(id, {
+              targetKind: updated.targetKind,
+              targetId: updated.targetId,
+              targetBlockId: updated.targetBlockId,
+              targetBlockIdsJson: updated.targetBlockIdsJson,
+              anchorJson: updated.anchorJson,
+              updatedAt: updated.updatedAt,
+            });
+            if (!persisted) throw new Error(`Comment with id ${id} not found`);
+            await sync('comment', 'update', persisted.id, projectId, {
+              targetKind: persisted.targetKind,
+              targetId: persisted.targetId,
+              targetBlockId: persisted.targetBlockId,
+              targetBlockIdsJson: persisted.targetBlockIdsJson,
+              anchorJson: persisted.anchorJson,
+            });
+            return persisted;
+          }),
+      });
+    },
+    [ensureDb, projectId],
+  );
+
+  const unbindCommentTarget = useCallback(
+    (id: string) => setCommentTarget(id, null),
+    [setCommentTarget],
+  );
+
   return useMemo(
     () => ({
       loadInitial,
@@ -440,6 +506,8 @@ export function useComment({ projectId, userId }: UseCommentContext) {
       deleteComment,
       convertToTodo,
       revertToNote,
+      setCommentTarget,
+      unbindCommentTarget,
     }),
     [
       loadInitial,
@@ -451,6 +519,8 @@ export function useComment({ projectId, userId }: UseCommentContext) {
       deleteComment,
       convertToTodo,
       revertToNote,
+      setCommentTarget,
+      unbindCommentTarget,
     ],
   );
 }

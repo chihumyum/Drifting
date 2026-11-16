@@ -2,14 +2,18 @@ import { readAgentChatView } from '../../lib/agent/runtime/chat-view-state';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  canUnbindCommentTarget,
   commentColorKey,
   agentTaskConversationId,
   createPlainCommentDoc,
   extractTextFromCommentBody,
   getBlockSnapshotsFromAnchor,
+  isAutoParsedTodo,
   isNoteTaskTodo,
   type Comment,
+  type CommentTargetKind,
 } from '../../domain/comment';
+import { isStructuralEntityKind } from '../../domain/entity-kinds';
 import type { EntityKind } from '../../lib/extensions/entity-link';
 import { getPlatformRuntime } from '../../platform/runtime';
 import { clearActiveCommentHighlight, selectCommentHighlight, setActiveCommentHighlight } from '../../lib/comment-highlight';
@@ -55,8 +59,8 @@ export interface ReviewItemCardProps {
   comment: Comment;
   projectId: string;
   relations?: ReviewItemRelation[];
-  onAddRelation?: (target: RelationTarget) => void;
-  onRemoveRelation?: (target: RelationTarget) => void;
+  onAddRelation?: (target: RelationTarget) => unknown;
+  onRemoveRelation?: (target: RelationTarget) => unknown;
   onOpenAgentTask?: () => string | void;
 }
 
@@ -102,10 +106,19 @@ export function ReviewItemCard({
   const pointed = useProsePointedCard(comment.id, articleRef);
   // A card removed under the pointer never receives mouseleave.
   useEffect(() => () => clearActiveCommentHighlight(comment.id), [comment.id]);
-  const selectedRelations = useMemo(
-    () => new Set(relations.map((relation) => `${relation.toKind}:${relation.toId}`)),
-    [relations],
-  );
+  const canUnbindDirect = canUnbindCommentTarget(comment);
+  const directStructuralKey =
+    canUnbindDirect &&
+    comment.targetKind &&
+    comment.targetId &&
+    isStructuralEntityKind(comment.targetKind)
+      ? `${comment.targetKind}:${comment.targetId}`
+      : null;
+  const selectedRelations = useMemo(() => {
+    const keys = new Set(relations.map((relation) => `${relation.toKind}:${relation.toId}`));
+    if (directStructuralKey) keys.add(directStructuralKey);
+    return keys;
+  }, [directStructuralKey, relations]);
   const text = extractTextFromCommentBody(comment.bodyJson);
   const snapshots = getBlockSnapshotsFromAnchor(comment.anchorJson);
   const color = commentColorKey(comment);
@@ -196,6 +209,57 @@ export function ReviewItemCard({
     else setEditing(true);
   };
 
+  const handleAddRelation = (target: RelationTarget) => {
+    if (comment.kind === 'note' && !comment.targetKind && !comment.targetId) {
+      void run(() =>
+        commentUsecases.setCommentTarget(comment.id, {
+          targetKind: target.kind,
+          targetId: target.id,
+        }),
+      );
+      return;
+    }
+    if (comment.targetKind === target.kind && comment.targetId === target.id) return;
+    onAddRelation?.(target);
+  };
+
+  const handleRemoveRelation = (target: RelationTarget) => {
+    const hasRelation = relations.some((r) => r.toKind === target.kind && r.toId === target.id);
+    const matchesDirect =
+      canUnbindDirect && comment.targetKind === target.kind && comment.targetId === target.id;
+    if (!hasRelation && !matchesDirect) return;
+    void run(async () => {
+      if (hasRelation) await onRemoveRelation?.(target);
+      if (!matchesDirect) return;
+      const next =
+        comment.kind === 'note'
+          ? relations.find(
+              (r) =>
+                !(r.toKind === target.kind && r.toId === target.id) &&
+                isStructuralEntityKind(r.toKind),
+            )
+          : undefined;
+      if (next && isStructuralEntityKind(next.toKind)) {
+        const nextKind = next.toKind;
+        await onRemoveRelation?.({ kind: nextKind, id: next.toId, label: '' });
+        await commentUsecases.setCommentTarget(comment.id, {
+          targetKind: nextKind as CommentTargetKind,
+          targetId: next.toId,
+        });
+      } else {
+        await commentUsecases.unbindCommentTarget(comment.id);
+      }
+    });
+  };
+
+  const canUnbindAny =
+    canUnbindDirect ||
+    (!ownedByNote &&
+      !isAutoParsedTodo(comment) &&
+      !isConverted &&
+      Boolean(onRemoveRelation) &&
+      relations.length > 0);
+
   const actions: HoverActionGroup[] = [
     {
       key: 'item',
@@ -235,6 +299,29 @@ export function ReviewItemCard({
                 ? commentUsecases.revertToNote(comment.id)
                 : commentUsecases.convertToTodo(comment.id)),
             },
+            ...(canUnbindAny
+              ? [
+                  {
+                    key: 'unbind',
+                    label: t('relationPicker.removeRelation'),
+                    icon: { brush: 'close' as const },
+                    disabled: busy,
+                    onSelect: () =>
+                      void run(async () => {
+                        if (onRemoveRelation) {
+                          for (const rel of relations) {
+                            if (isStructuralEntityKind(rel.toKind)) {
+                              await onRemoveRelation({ kind: rel.toKind, id: rel.toId, label: '' });
+                            }
+                          }
+                        }
+                        if (canUnbindDirect) {
+                          await commentUsecases.unbindCommentTarget(comment.id);
+                        }
+                      }),
+                  },
+                ]
+              : []),
           ],
     },
     {
@@ -393,8 +480,8 @@ export function ReviewItemCard({
             <EntityRelationPicker
               selected={selectedRelations}
               selectedChipMode="toggle"
-              onAdd={(target) => onAddRelation?.(target)}
-              onRemove={(target) => onRemoveRelation?.(target)}
+              onAdd={handleAddRelation}
+              onRemove={handleRemoveRelation}
               trailingAction={statusToggle}
             />
           ) : (

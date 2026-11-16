@@ -131,4 +131,16 @@ describe('unified Review surface acceptance', () => {
     );
     expect(deletion).toContain("events.emit('comment:deleted', { commentId: id })");
   });
+
+  it('respects deselected compose chips and allows unbinding direct targets on cards', () => {
+    const panel = source('src/renderer/components/rightBars/ReviewPanel.tsx');
+    const shelf = source('src/renderer/shells/desktop/views/DesktopSuperMemoMaterialView.tsx');
+    const card = source('src/renderer/features/comments/ReviewItemCard.tsx');
+
+    expect(panel).toContain('resolveComposedCommentTargets(');
+    expect(shelf).toContain('resolveComposedCommentTargets(');
+    expect(card).toContain('canUnbindCommentTarget(comment)');
+    expect(card).toContain('commentUsecases.unbindCommentTarget(comment.id)');
+    expect(card).toContain('commentUsecases.setCommentTarget(comment.id,');
+  });
 });
