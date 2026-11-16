@@ -24,7 +24,8 @@ use crate::{ShellInfo, Strings, appearance};
 /// How long after a change the file is written.
 pub const SAVE_DELAY: Duration = Duration::from_millis(300);
 
-type MakeModuleRow = Rc<dyn Fn(&mut Window, &mut App) -> AnyElement>;
+/// `None`: the row is left out for now (label and all).
+type MakeModuleRow = Rc<dyn Fn(&mut Window, &mut App) -> Option<AnyElement>>;
 
 #[derive(Default)]
 struct ModuleRows(HashMap<&'static str, MakeModuleRow>);
@@ -61,6 +62,16 @@ pub fn set_module_row(
     id: &'static str,
     make: impl Fn(&mut Window, &mut App) -> AnyElement + 'static,
 ) {
+    set_module_row_when(cx, id, move |window, cx| Some(make(window, cx)));
+}
+
+/// Like [`set_module_row`], for a row that is not always there: while
+/// `make` returns `None` the whole row, label included, is left out.
+pub fn set_module_row_when(
+    cx: &mut App,
+    id: &'static str,
+    make: impl Fn(&mut Window, &mut App) -> Option<AnyElement> + 'static,
+) {
     assert!(
         registry::find(id).is_some_and(|def| matches!(def.kind, registry::Kind::Module(_)))
             || registry::INFO_ROWS
@@ -75,7 +86,7 @@ pub fn set_module_row(
 
 pub(crate) fn module_row(id: &str, window: &mut Window, cx: &mut App) -> Option<AnyElement> {
     let make = cx.try_global::<ModuleRows>()?.0.get(id)?.clone();
-    Some(make(window, cx))
+    make(window, cx)
 }
 
 pub(crate) fn has_module_section(section: registry::Section, cx: &App) -> bool {

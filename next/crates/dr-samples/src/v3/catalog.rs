@@ -536,11 +536,7 @@ pub fn sync_catalog(
         .created_at(meta.created_at)?
         .deleted_at(meta.deleted_at)?;
     txn.project()
-        .source(Some(&ProjectTemplateRef {
-            id: NOVEL_PROJECT_TEMPLATE_ID.into(),
-            version: NOVEL_PROJECT_TEMPLATE_VERSION,
-            ..ProjectTemplateRef::default()
-        }))?
+        .source(Some(&novel_project_template_source()))?
         .book(Some(&ProjectBook {
             word_target_set: meta.word_target_set,
             daily_word_target_set: meta.daily_word_target_set,

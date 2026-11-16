@@ -14030,7 +14030,7 @@ expression: json
               "type": "null"
             }
           ],
-          "description": "The words for the Agent the template carries (`project.agent`):\nleft out, the project's own; `null`, none; given, these (the\nproject keeps its own either way)."
+          "description": "The words for the Agent the template carries (`project.agent`):\nleft out, the project's own; `null`, none; given, these (the\nproject keeps its own either way). A working copy refuses it: its\ntemplate's are the copy's project's (`project.update`'s `agent`)."
         },
         "book": {
           "type": "string"
@@ -14047,7 +14047,7 @@ expression: json
           "description": "Optional author attribution (`credit`: the author's name). Nothing is\nfilled in from `project.source`."
         },
         "description": {
-          "description": "Left out when replacing: the replaced template keeps its own; a\nworking copy takes its book's profile.",
+          "description": "Left out when replacing: the replaced template keeps its own. A\nworking copy refuses it: its template's is the copy's profile\n(`project.update`'s `summary`).",
           "type": [
             "string",
             "null"
@@ -14069,7 +14069,7 @@ expression: json
           ]
         },
         "name": {
-          "description": "The template's name. Needed for a new template; replacing one\n(`replace`) without it keeps the name that one has. A working copy\nsaves under its book's name when it is left out.",
+          "description": "The template's name. Needed for a new template; replacing one\n(`replace`) without it keeps the name that one has. A working copy\nrefuses it: its template is named after the copy's book\n(`project.update`'s `name`).",
           "type": [
             "string",
             "null"

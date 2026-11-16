@@ -343,6 +343,25 @@ fn a_working_copy_saves_only_over_its_own_template() {
         .is_err()
     );
     assert_eq!(value(&e, &other)["name"], "乙");
+    // Its template's name, description and words for the Agent are the
+    // copy's own (the copy saves itself after every change and would take
+    // them back): given to the save they are refused, pointing to
+    // `project.update`.
+    let before = e.out("project_template.get", json!({"id": t}));
+    for given in [
+        json!({"book": w, "name": "另起的名字"}),
+        json!({"book": w, "description": "另写的描述"}),
+        json!({"book": w, "agent": {"name": "话", "description": "", "instructions": "照做"}}),
+        json!({"book": w, "agent": null}),
+    ] {
+        let refused = e
+            .try_call("project_template.save", given.clone())
+            .unwrap_err()
+            .to_string();
+        assert!(refused.contains("project.update"), "{given}: {refused}");
+    }
+    e.ws().flush_working_copies().unwrap();
+    assert_eq!(e.out("project_template.get", json!({"id": t})), before);
 }
 
 fn edit(e: &Env, template: &str) -> String {

@@ -199,7 +199,7 @@
    - 未勾选为示例的骨架条目只保留 `title`、`template`、`level`、`overrides`、`mark`、模块 `color_field` 指定的颜色字段，以及两端都在已选集合内的 `memberships` 与视图 `placements`（保住泳道与线上的骨架结构）。若某骨架条目被取消且它下面仍有被选中的子孙条目，子孙的 `parent` 上提到最近一个保留下来的层级祖先（没有则落顶层）。
    - 勾选进 `sample_entries` 的条目额外带走非图片 `fields`、`kv`、`arrangements` 与当前 `prose`；勾选进 `view_pins` 的视图带走未绑定条目或绑定条目已在模板内的时间钉。
 3. **第一期去文件与引用降级**：跳过 `FieldType::Image` 的默认值与字段值、跳过 `media` 模块文件项、跳过正文里的 `EmbedView::Asset` 文件嵌入段；正文与表格里指向未选条目或指向素材库文件（`EntityKind::Asset`）的行内链接去掉链接标记、保留文字与加粗／斜体等原有样式；指向已删条目模板的引用置空。
-4. **2026-11-15 夜里加（任务书 DW）**：另存（`project_template.save`）时调用方可以给一份写给 Agent 的话（`agent: {name, description, instructions}`），给了就用它代替项目的 `project.agent`，`null` 就不带，项目不变；替换一份（`replace`）时名字和描述可以不给，不给就留着那一份原来的。编辑模板的工作区随改随存，也走这一条（`save_working_copy`）：活着的条目全部当示例带上，时间钉都带，名字和描述取工作区的书名和简介，写给 Agent 取工作区的项目定义，`credit`、语言和来源照被替换的那一份留着；提取出来的内容（不算 `revision`、`madeWith`）和模板一样就不写。
+4. **2026-11-15 夜里加（任务书 DW）**：另存（`project_template.save`）时调用方可以给一份写给 Agent 的话（`agent: {name, description, instructions}`），给了就用它代替项目的 `project.agent`，`null` 就不带，项目不变；替换一份（`replace`）时名字和描述可以不给，不给就留着那一份原来的。编辑模板的工作区随改随存，也走这一条（`save_working_copy`）：活着的条目全部当示例带上，时间钉都带，名字和描述取工作区的书名和简介，写给 Agent 取工作区的项目定义（所以在工作区里调 `save` 给这三样会被拒，改它们用 `project.update`，2026-11-16），`credit`、语言和来源照被替换的那一份留着；提取出来的内容（不算 `revision`、`madeWith`）和模板一样就不写。
 
 ### 展开新建（`materialize_project_template` + `project.create`）
 

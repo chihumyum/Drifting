@@ -57,13 +57,11 @@ fn novel_project_template_populates_stable_templates_roots_and_categories() {
 
     let v = doc.view();
     let proj = v.project();
+    // Recorded as `project.create` records it: with the template's name.
+    assert_eq!(proj.source, Some(novel_project_template_source()));
     assert_eq!(
-        proj.source,
-        Some(ProjectTemplateRef {
-            id: NOVEL_PROJECT_TEMPLATE_ID.into(),
-            version: NOVEL_PROJECT_TEMPLATE_VERSION,
-            ..ProjectTemplateRef::default()
-        })
+        proj.source.as_ref().and_then(|s| s.name.as_deref()),
+        Some(NOVEL_PROJECT_TEMPLATE_NAME)
     );
     assert_eq!(proj.agent, Some(novel_project_agent()));
     // The book reads from the root: no start.

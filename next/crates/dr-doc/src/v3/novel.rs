@@ -944,11 +944,10 @@ pub fn novel_project_template_with(ids: &NovelRootEntries) -> ProjectTemplate {
         })
         .collect();
     let project = ProjectDefinition {
-        source: Some(ProjectTemplateRef {
-            id: NOVEL_PROJECT_TEMPLATE_ID.into(),
-            version: NOVEL_PROJECT_TEMPLATE_VERSION,
-            ..ProjectTemplateRef::default()
-        }),
+        // Recorded the way `project.create` records it, with the template's
+        // name, so a book made from this definition (the seeds, the sample
+        // books, a 0.1 import) says where it came from.
+        source: Some(novel_project_template_source()),
         agent: Some(novel_project_agent()),
         // The book reads the whole project from the root (`kernel-v5.md` §3).
         book: Some(ProjectBook::default()),

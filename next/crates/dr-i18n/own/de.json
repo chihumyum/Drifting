@@ -306,6 +306,7 @@
       "editAddress": "Adresse ändern",
       "modelName": "Modellname",
       "name": "Lokales Modell",
+      "noToolModels": "Kein Modell auf diesem Server kann Werkzeuge verwenden",
       "notLocal": "Nur Adressen auf diesem Computer oder im lokalen Netzwerk",
       "unreachable": "Diese Adresse ist nicht erreichbar"
     },

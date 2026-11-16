@@ -49,6 +49,8 @@ pub fn failure_text(failure: LocalFailure, cx: &App) -> SharedString {
             LocalFailure::NotLocal => k::NOT_LOCAL,
             LocalFailure::Unreachable => k::UNREACHABLE,
             LocalFailure::InvalidKey => keys::settings::byok_provider::INVALID_KEY,
+            LocalFailure::NoToolModels => k::NO_TOOL_MODELS,
+            LocalFailure::RequestFailed => keys::settings::byok_provider::REQUEST_FAILED,
             LocalFailure::Storage => keys::agent_panel::onboarding::SAVE_FAILED,
         },
     )

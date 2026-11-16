@@ -173,6 +173,8 @@ pub struct ConnectionService {
     driver: ProviderDriver,
     catalog: Arc<CatalogCache>,
     catalog_endpoints: HashMap<Provider, String>,
+    /// How long 「测试连接」 waits for a local model's answer.
+    local_wait: Duration,
 }
 
 impl ConnectionService {
@@ -181,7 +183,18 @@ impl ConnectionService {
             driver,
             catalog: Arc::default(),
             catalog_endpoints: HashMap::new(),
+            local_wait: dr_agent_providers::local::MODEL_WAIT,
         }
+    }
+
+    /// Tests wait less than [`dr_agent_providers::local::MODEL_WAIT`].
+    pub fn with_local_test_wait(mut self, wait: Duration) -> Self {
+        self.local_wait = wait;
+        self
+    }
+
+    pub(crate) fn local_wait(&self) -> Duration {
+        self.local_wait
     }
     pub fn driver(&self) -> ProviderDriver {
         self.driver.clone()
@@ -204,54 +217,13 @@ impl ConnectionService {
         };
         let levels = thinking_levels(model);
         let thinking = levels.first().copied().ok_or(Failure::Unavailable)?;
-        let mut config = model.run_config(thinking)?;
-        config.system_prompt = "Return exactly OK.".into();
-        config.web_search = false;
-        config.max_model_rounds = Some(1);
-        config.max_output_tokens = Some(
-            if model.provider == Provider::Anthropic || thinking != ThinkingLevel::Off {
-                1024
-            } else {
-                32
-            },
-        );
-        let request = DriverRequest {
-            purpose: dr_agent::RequestPurpose::Chat,
-            config: Arc::new(config),
-            session: "connectivity-check".into(),
-            turn: 1,
-            round: 1,
-            conversation: vec![ConversationEntry {
-                id: "connectivity-check:1".into(),
-                session: "connectivity-check".into(),
-                turn: 1,
-                kind: ConversationEntryKind::User,
-                payload: serde_json::json!({"text":"Return exactly OK."}),
-            }],
-            tools: Vec::new(),
+        let config = model.run_config(thinking)?;
+        let output = if model.provider == Provider::Anthropic || thinking != ThinkingLevel::Off {
+            1024
+        } else {
+            32
         };
-        let cancel = Cancellation::default();
-        let check = async {
-            let mut stream = driver.stream(request, cancel.clone());
-            let mut text = false;
-            let mut finish = false;
-            while let Some(event) = stream.next().await {
-                match event? {
-                    DriverEvent::TextDelta { text: delta, .. } => text |= !delta.trim().is_empty(),
-                    DriverEvent::Finish(FinishReason::Complete) => finish = true,
-                    DriverEvent::ToolCall(_) | DriverEvent::Finish(FinishReason::Tools) => {
-                        return Err(Failure::Provider(ModelErrorCategory::InvalidResponse));
-                    }
-                    _ => {}
-                }
-            }
-            if text && finish {
-                Ok(())
-            } else {
-                Err(Failure::Provider(ModelErrorCategory::InvalidResponse))
-            }
-        };
-        match tokio::time::timeout(Duration::from_secs(90), check).await {
+        match tokio::time::timeout(Duration::from_secs(90), say_ok(&driver, config, output)).await {
             Ok(result) => result,
             // Dropping the timed-out stream cancels its transport task.
             Err(_) => Err(Failure::Provider(ModelErrorCategory::Network)),
@@ -294,6 +266,68 @@ impl ConnectionService {
                 )
                 .await
         }
+    }
+}
+
+/// A run on one local server's model: no reasoning setting, no hosted search.
+fn local_config(server: &LocalServer, model: &LocalServerModel) -> RunConfig {
+    let mut config = RunConfig::new(Provider::Local, &model.id);
+    config.route.local = Some(LocalRoute {
+        server: server.id.clone(),
+        base_url: server.base_url.clone(),
+    });
+    config.web_search = false;
+    config.capabilities = Some(ModelCapabilities {
+        context_window: model.context_window(),
+        supports_thinking_off: Some(true),
+        ..ModelCapabilities::default()
+    });
+    config
+}
+
+/// One short exchange: the model must answer 「OK」 in text and finish. The
+/// caller decides how long to wait (dropping the future cancels the request).
+pub(crate) async fn say_ok(
+    driver: &ProviderDriver,
+    mut config: RunConfig,
+    max_output_tokens: u32,
+) -> Result<(), Failure> {
+    config.system_prompt = "Return exactly OK.".into();
+    config.web_search = false;
+    config.max_model_rounds = Some(1);
+    config.max_output_tokens = Some(max_output_tokens);
+    let request = DriverRequest {
+        purpose: dr_agent::RequestPurpose::Chat,
+        config: Arc::new(config),
+        session: "connectivity-check".into(),
+        turn: 1,
+        round: 1,
+        conversation: vec![ConversationEntry {
+            id: "connectivity-check:1".into(),
+            session: "connectivity-check".into(),
+            turn: 1,
+            kind: ConversationEntryKind::User,
+            payload: serde_json::json!({"text":"Return exactly OK."}),
+        }],
+        tools: Vec::new(),
+    };
+    let mut stream = driver.stream(request, Cancellation::default());
+    let mut text = false;
+    let mut finish = false;
+    while let Some(event) = stream.next().await {
+        match event? {
+            DriverEvent::TextDelta { text: delta, .. } => text |= !delta.trim().is_empty(),
+            DriverEvent::Finish(FinishReason::Complete) => finish = true,
+            DriverEvent::ToolCall(_) | DriverEvent::Finish(FinishReason::Tools) => {
+                return Err(Failure::Provider(ModelErrorCategory::InvalidResponse));
+            }
+            _ => {}
+        }
+    }
+    if text && finish {
+        Ok(())
+    } else {
+        Err(Failure::Provider(ModelErrorCategory::InvalidResponse))
     }
 }
 
@@ -389,6 +423,9 @@ pub struct Connections {
     local: Vec<LocalServer>,
     /// 「测试连接」 for one server: `None` while it runs.
     pub local_test: Option<(String, Option<Result<(), LocalFailure>>)>,
+    /// The test still waiting for a model; 「断开」 or a reconnect stops it.
+    local_test_abort: Option<tokio::task::AbortHandle>,
+    local_test_generation: u64,
     /// A failed key removal or disconnect, shown under that server.
     pub local_failure: Option<(String, LocalFailure)>,
     local_listed: HashMap<String, std::time::Instant>,
@@ -436,6 +473,8 @@ impl Connections {
             task: None,
             local: local::read(cx),
             local_test: None,
+            local_test_abort: None,
+            local_test_generation: 0,
             local_failure: None,
             local_listed: HashMap::new(),
             local_generation: 0,
@@ -494,18 +533,7 @@ impl Connections {
             let (server, model) = self.selected_local().ok_or_else(|| {
                 dr_agent::Error::Protocol("connect the selected local model".into())
             })?;
-            let mut config = RunConfig::new(Provider::Local, &model.id);
-            config.route.local = Some(LocalRoute {
-                server: server.id.clone(),
-                base_url: server.base_url.clone(),
-            });
-            // A local model has no reasoning setting and no hosted search.
-            config.web_search = false;
-            config.capabilities = Some(ModelCapabilities {
-                context_window: model.context_window(),
-                supports_thinking_off: Some(true),
-                ..ModelCapabilities::default()
-            });
+            let mut config = local_config(server, model);
             config.max_model_rounds = self.preferences.max_model_rounds;
             return Ok(config);
         }
@@ -1033,7 +1061,7 @@ impl Connections {
         self.local_listed
             .insert(id.clone(), std::time::Instant::now());
         self.local_failure = None;
-        self.local_test = None;
+        self.stop_local_test();
         self.write_local(cx);
         let selected_here = self.preferences.route.provider == Provider::Local
             && self.preferences.local_server.as_deref() == Some(id.as_str());
@@ -1093,7 +1121,7 @@ impl Connections {
                             .as_ref()
                             .is_some_and(|(test, _)| *test == id)
                         {
-                            this.local_test = None;
+                            this.stop_local_test();
                         }
                         this.local_failure = None;
                         this.write_local(cx);
@@ -1109,9 +1137,30 @@ impl Connections {
         .detach();
     }
 
-    /// 「测试连接」: 「可用」, 「连不上这个地址」 or 「密钥无效」.
+    fn stop_local_test(&mut self) {
+        if let Some(abort) = self.local_test_abort.take() {
+            abort.abort();
+        }
+        self.local_test = None;
+    }
+
+    /// The model 「测试连接」 asks: the selected one when it is on this
+    /// server, otherwise the server's first.
+    pub fn local_test_model(&self, id: &str) -> Option<&LocalServerModel> {
+        let server = self.local_server(id)?;
+        match self.selected_local() {
+            Some((selected, model)) if selected.id == id => Some(model),
+            _ => server.models.first(),
+        }
+    }
+
+    /// 「测试连接」: one short sentence to the model; 「可用」 once it answers,
+    /// else 「连不上这个地址」, 「密钥无效」 or the request-failed line.
     pub fn test_local(&mut self, id: &str, cx: &mut Context<Self>) {
         let Some(server) = self.local_server(id).cloned() else {
+            return;
+        };
+        let Some(model) = self.local_test_model(id).cloned() else {
             return;
         };
         if self
@@ -1122,21 +1171,27 @@ impl Connections {
             return;
         }
         self.local_test = Some((id.to_owned(), None));
+        self.local_test_generation += 1;
+        let generation = self.local_test_generation;
         self.local_failure = None;
         cx.notify();
         let service = self.service.clone();
         let http = service.driver().http().clone();
-        let task = http.spawn(async move { service.check_local(&server).await });
+        let config = local_config(&server, &model);
+        let task = http.spawn(async move { service.test_local(&server, config).await });
+        self.local_test_abort = Some(task.abort_handle());
         let id = id.to_owned();
         cx.spawn(async move |this, cx| {
-            let result = task.await.unwrap_or(Err(LocalFailure::Unreachable));
+            let result = task.await.unwrap_or(Err(LocalFailure::RequestFailed));
             this.update(cx, |this, cx| {
-                if this
-                    .local_test
-                    .as_ref()
-                    .is_some_and(|(test, pending)| *test == id && pending.is_none())
+                if this.local_test_generation == generation
+                    && this
+                        .local_test
+                        .as_ref()
+                        .is_some_and(|(test, pending)| *test == id && pending.is_none())
                 {
                     this.local_test = Some((id, Some(result)));
+                    this.local_test_abort = None;
                     cx.notify();
                 }
             })

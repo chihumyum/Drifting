@@ -292,9 +292,16 @@ fn oversized_guidance_never_sends_a_truncated_suggestion_request() {
     )
     .unwrap();
     controller.set_proactive_enabled(true);
+    // Counted in tokens, the 750 KB of guidance (about 210 000) is too long
+    // for a 128 000 context; it would fit the shared 256 000.
+    let mut small = config();
+    small.capabilities = Some(ModelCapabilities {
+        context_window: Some(128_000),
+        ..Default::default()
+    });
     block_on(controller.trigger_suggestions(
         f.book.clone(),
-        Some(config()),
+        Some(small),
         chrono::Utc::now().timestamp_millis() + 2000,
     ))
     .unwrap();

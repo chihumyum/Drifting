@@ -1108,6 +1108,51 @@ fn every_inventory_row_imports_into_real_v3_documents_with_history() {
     );
 }
 
+/// PT4 hand-back: a book imported from 0.1 is laid out from the built-in
+/// 「写书」 and records it the way `project.create` does, by name too, so the
+/// Agent's structure says where it came from.
+#[test]
+fn an_imported_book_names_the_built_in_template_as_its_source() {
+    let old = fixture::build();
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("library");
+    let (outcome, _) = run::import(&old.db, &root, &options(&old)).unwrap();
+    assert!(matches!(outcome, Outcome::Imported(_)));
+    let start = std::time::Instant::now();
+    let ws = loop {
+        match dr_workspace::Workspace::open_dir(&root, "k3-v3-test") {
+            Ok(ws) => break ws,
+            Err(error)
+                if error.to_string().contains("already open") && start.elapsed().as_secs() < 5 =>
+            {
+                std::thread::sleep(std::time::Duration::from_millis(20))
+            }
+            Err(error) => panic!("{error}"),
+        }
+    };
+    let project = ws
+        .call(
+            &dr_workspace::Actor::User,
+            "project.get",
+            serde_json::json!({"book": BOOK}),
+        )
+        .unwrap()["output"]
+        .clone();
+    assert_eq!(project["source"]["name"], "写书", "{project}");
+    assert_eq!(project["source"]["origin"], "builtin", "{project}");
+    let context =
+        dr_agent_tools::StructureContext::for_book(&ws, &BookId::parse(BOOK).unwrap(), None)
+            .unwrap()
+            .unwrap();
+    let text: serde_json::Value =
+        serde_json::from_str(&context.to_contribution().unwrap().text).unwrap();
+    assert_eq!(
+        text["project_source"],
+        serde_json::json!({"template": "写书"})
+    );
+    ws.close();
+}
+
 #[test]
 fn malformed_source_is_reported_without_automatic_repairs() {
     let old = fixture::build();

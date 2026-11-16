@@ -172,6 +172,12 @@ pub enum LocalFailure {
     Unreachable,
     /// 「密钥无效」
     InvalidKey,
+    /// 「这台服务上没有能用工具的模型」: the list came, nothing on it can use
+    /// tools (作者 2026-11-16, 乙).
+    NoToolModels,
+    /// 「请求失败（provider 不可用或网络问题）」: the server is up, but the
+    /// model gave no answer in time or refused the request.
+    RequestFailed,
     /// The credential store refused the key.
     Storage,
 }
@@ -248,6 +254,7 @@ impl ConnectionService {
         match found {
             Ok(discovery) => Ok((address, Probe::Listed(discovery))),
             Err(DiscoverError::NoList) => Ok((address, Probe::NoList)),
+            Err(DiscoverError::NoToolModels) => Err(LocalFailure::NoToolModels),
             Err(DiscoverError::Unauthorized) => Err(LocalFailure::InvalidKey),
             Err(DiscoverError::Unreachable) => Err(LocalFailure::Unreachable),
         }
@@ -264,8 +271,15 @@ impl ConnectionService {
         .map_err(|_| LocalFailure::Storage)
     }
 
-    /// 「测试连接」: does the server still answer with its stored key?
-    pub async fn check_local(&self, server: &LocalServer) -> Result<(), LocalFailure> {
+    /// 「测试连接」 (作者 2026-11-16, 乙): is the server there with its stored
+    /// key, and does `config`'s model answer one short sentence? A model's
+    /// first load can take minutes, so the wait is minutes long
+    /// ([`dr_agent_providers::local::MODEL_WAIT`]).
+    pub async fn test_local(
+        &self,
+        server: &LocalServer,
+        config: dr_agent::RunConfig,
+    ) -> Result<(), LocalFailure> {
         let address =
             LocalAddress::parse(&server.base_url).map_err(|_| LocalFailure::Unreachable)?;
         let key = if server.has_key {
@@ -283,7 +297,22 @@ impl ConnectionService {
             .map_err(|error| match error {
                 DiscoverError::Unauthorized => LocalFailure::InvalidKey,
                 _ => LocalFailure::Unreachable,
-            })
+            })?;
+        let driver = self.driver();
+        // A thinking model may think before its 「OK」: the cap the three
+        // providers' check gives thinking models.
+        match tokio::time::timeout(
+            self.local_wait(),
+            crate::connection::say_ok(&driver, config, 1024),
+        )
+        .await
+        {
+            Ok(Ok(())) => Ok(()),
+            Ok(Err(crate::connection::Failure::Provider(
+                dr_agent::ModelErrorCategory::Authentication,
+            ))) => Err(LocalFailure::InvalidKey),
+            Ok(Err(_)) | Err(_) => Err(LocalFailure::RequestFailed),
+        }
     }
 
     /// A fresh model list for a server whose list came from the server.

@@ -1548,6 +1548,7 @@
       "editAddress": "改位址",
       "modelName": "模型名稱",
       "name": "本機模型",
+      "noToolModels": "這台服務上沒有能用工具的模型",
       "notLocal": "只能填本機或區域網路位址",
       "unreachable": "連不上這個位址"
     },

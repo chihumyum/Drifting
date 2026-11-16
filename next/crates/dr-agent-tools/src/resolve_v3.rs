@@ -245,6 +245,18 @@ pub(crate) fn resolve_v3(
         {
             return Err(invalid("tool belongs to another book"));
         }
+        // A working copy's template takes these from the copy itself; refused
+        // here, before the template has to be read for the save.
+        if name == "project_template.save"
+            && ["name", "description", "agent"]
+                .iter()
+                .any(|key| obj.contains_key(*key))
+            && ws.is_working_copy(book.as_str())?
+        {
+            return Err(invalid(
+                dr_workspace::commands::v3::project_template::WORKING_COPY_WORDS,
+            ));
+        }
     }
 
     let book_id = book.clone();
