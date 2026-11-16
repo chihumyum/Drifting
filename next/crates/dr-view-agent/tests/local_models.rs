@@ -17,11 +17,11 @@ use dr_agent_providers::{
 use dr_platform::SecretStore;
 use dr_shell::{
     Settings,
-    settings::{SettingsFile, registry},
+    settings::{SettingsFile, panel::SettingsPanel, registry},
 };
 use dr_view_agent::{
     connection::{ConnectionService, Connections, PROVIDERS},
-    local::{self, KeyChange, LocalFailure, Probe},
+    local::{self, KeyChange, LocalFailure, LocalServer, LocalServerModel, Probe},
     local_view::{self, FormState, LocalConnectionView},
 };
 use gpui::{AppContext as _, Entity, TestAppContext, VisualTestContext};
@@ -837,6 +837,54 @@ fn a_list_with_no_tool_model_stays_unconnected_and_says_why(cx: &mut TestAppCont
     wait(vcx, |vcx| {
         form(&view, vcx).is_some_and(|f| f.asks_model_name && f.error.is_none())
     });
+}
+
+/// 作者 2026-11-16 (乙): with a local model selected the 「Agent」 page has
+/// no reasoning row at all, as the composer has no reasoning dropdown.
+#[gpui::test]
+fn the_agent_settings_page_has_no_reasoning_row_for_a_local_model(cx: &mut TestAppContext) {
+    shell(cx);
+    let fake = ollama();
+    let store = Arc::new(SecretStore::in_memory());
+    store.set("byok.deepseek", "synthetic-deepseek").unwrap();
+    let connections = cx.new(|cx| Connections::with_service(service(store), cx));
+    let shared = connections.clone();
+    cx.update(|cx| dr_view_agent::settings::init(shared, cx));
+    let (panel, vcx) = cx.add_window_view(SettingsPanel::new);
+    panel.update(vcx, |panel, cx| panel.set_query("reasoning", cx));
+    wait(vcx, |vcx| {
+        connections.read_with(vcx, |c, _| c.usable() == Some(true))
+    });
+    connections.update(vcx, |c, cx| {
+        assert!(c.select_provider(Provider::Deepseek, cx));
+    });
+    let shown = |vcx: &mut VisualTestContext| {
+        vcx.run_until_parked();
+        vcx.update(|window, cx| {
+            window.refresh();
+            window.draw(cx).clear(cx);
+        });
+        vcx.debug_bounds("settings-row-agent.thinking").is_some()
+    };
+    assert!(shown(vcx), "DeepSeek has reasoning levels");
+    let server = LocalServer {
+        id: local::new_id(),
+        base_url: fake.url.clone(),
+        label: "Ollama".into(),
+        has_key: false,
+        manual: false,
+        models: vec![LocalServerModel::new("qwen3:14b", Some(40_960))],
+    };
+    connections.update(vcx, |c, cx| c.put_local(server, true, cx));
+    assert_eq!(
+        connections.read_with(vcx, |c, _| c.preferences().route.provider),
+        Provider::Local
+    );
+    assert!(!shown(vcx), "no reasoning row, label and all");
+    connections.update(vcx, |c, cx| {
+        assert!(c.select_provider(Provider::Deepseek, cx));
+    });
+    assert!(shown(vcx), "back with a provider that has levels");
 }
 
 fn tool_models() -> String {

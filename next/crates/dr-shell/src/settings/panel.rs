@@ -1013,8 +1013,10 @@ fn row(
 ) -> AnyElement {
     let p = theme.palette;
     let s = theme.scale;
+    let selector = format!("settings-row-{id}");
     div()
         .id(ElementId::Name(format!("row-{id}").into()))
+        .debug_selector(move || selector)
         .py(px(12.0))
         .border_b(px(0.5))
         .border_color(p.subtle_hairline())
