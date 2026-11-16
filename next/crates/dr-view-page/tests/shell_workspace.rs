@@ -1477,7 +1477,7 @@ fn a_comment_asked_for_from_the_selection_bar_is_written(cx: &mut TestAppContext
     assert_eq!(mine[0]["target"]["id"], id.to_string());
 }
 
-/// Round six: a page opened at its title (⁂ 新建下一章, `Open::at_title`)
+/// Round six: a page opened at its title (a create row, `Open::at_title`)
 /// leaves the keyboard to its head; a page opened as usual gives it to its
 /// text.
 #[gpui::test]

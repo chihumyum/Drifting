@@ -226,9 +226,8 @@ impl BodyModule {
         }
         self.host.page.book = book.clone();
         let doc = format!("body:{}/{}", self.host.entry, self.host.module.id);
-        if let Some((head, end)) = crate::page_views(&doc, cx) {
-            head.update(cx, |h, cx| h.set_book(book.clone(), cx));
-            end.update(cx, |e, cx| e.set_book(book, cx));
+        if let Some((head, _)) = crate::page_views(&doc, cx) {
+            head.update(cx, |h, cx| h.set_book(book, cx));
         }
         // ChapterEditor receives prose and catalogue events itself. Replacing it
         // here would destroy its selection and its author-only undo history.

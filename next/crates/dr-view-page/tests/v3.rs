@@ -749,14 +749,12 @@ fn a_chapter_anywhere_is_a_book_page_and_none_is_with_the_book_off(cx: &mut Test
     let ed = outside_view.read_with(&outside_vcx, |v, _| v.editor().unwrap());
     let info = ed.read_with(&outside_vcx, |v, _| v.page_info().unwrap());
     assert_eq!(info.kind, PageKind::Chapter);
-    let (head, end) =
-        outside_vcx.update(|_, cx| dr_view_page::page_views(&outside_doc, cx).unwrap());
+    let (head, _) = outside_vcx.update(|_, cx| dr_view_page::page_views(&outside_doc, cx).unwrap());
     let label = outside_vcx.update(|_, cx| head.read(cx).folio_label(cx).to_string());
     assert_eq!(label, info.template_name, "no number in the folio");
     assert!(outside_vcx.update(|_, cx| head.read(cx).has_book(cx)));
-    assert!(outside_vcx.update(|_, cx| end.read(cx).has_book(cx)));
 
-    // Turn `成书` off (`has_book: false`): no ⁂ actions.
+    // Turn `成书` off (`has_book: false`).
     call(
         &e.ws,
         "project.update",
@@ -767,13 +765,8 @@ fn a_chapter_anywhere_is_a_book_page_and_none_is_with_the_book_off(cx: &mut Test
     draw(&mut outside_vcx);
 
     assert!(!outside_vcx.update(|_, cx| head.read(cx).has_book(cx)));
-    assert!(!outside_vcx.update(|_, cx| end.read(cx).has_book(cx)));
     let bookless_label = outside_vcx.update(|_, cx| head.read(cx).folio_label(cx).to_string());
     assert_eq!(bookless_label, info.template_name);
-    end.update_in(&mut outside_vcx, |end, window, cx| {
-        end.open_actions(window, cx)
-    });
-    assert!(!end.read_with(&outside_vcx, |end, _| end.is_open()));
     wait(&mut outside_vcx, |cx| {
         ed.read_with(cx, |v, _| {
             v.page_info().is_some_and(|p| p.kind == PageKind::Other)
