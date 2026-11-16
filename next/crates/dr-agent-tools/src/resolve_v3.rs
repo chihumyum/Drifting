@@ -1759,11 +1759,6 @@ pub(crate) fn subjects_v3(name: &str, args: &Value) -> Vec<String> {
                 subjects.insert(format!("entry:{entry}"));
             }
         }
-        "comment.delete" => {
-            if let Some(id) = args["id"].as_str() {
-                subjects.insert(format!("comment:{id}"));
-            }
-        }
         "membership.add" | "membership.remove" => {
             if let Some(host) = args.get("host").and_then(Value::as_str) {
                 subjects.insert(format!("entry:{host}"));
@@ -2699,10 +2694,7 @@ fn resolve_relation_type_id(view: &BookViewV3<'_>, value: &Value) -> Result<Stri
         return Ok(rt.id.to_string());
     }
     let key = dr_model::shared::normalize_relation_type_name(trimmed);
-    let matches: Vec<_> = types
-        .iter()
-        .filter(|t| t.normalized_name == key)
-        .collect();
+    let matches: Vec<_> = types.iter().filter(|t| t.normalized_name == key).collect();
     match matches.as_slice() {
         [rt] => Ok(rt.id.to_string()),
         [] => Err(invalid(format!(

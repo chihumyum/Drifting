@@ -147,7 +147,7 @@ fn internal_note_task_projection_is_never_discovered_or_authorized_by_prose_read
 }
 
 #[test]
-fn deleting_a_read_comment_leaves_relation_rows_untouched() {
+fn comment_deletion_stays_author_only_and_leaves_relation_rows_untouched() {
     let f = Fixture::new();
     let chapters = dr_testkit::seed::acceptance::entries_by_template(&f.ws, &f.book, "tpl-chapter");
     let comment = f.author("comment.create", json!({"book":f.book,"body":f.text}))["id"].clone();
@@ -169,8 +169,10 @@ fn deleting_a_read_comment_leaves_relation_rows_untouched() {
             .iter()
             .any(|item| item["id"] == comment)
     );
-    f.invoke(&tools, &actor, "comment.delete", json!({"id":comment}))
-        .unwrap();
+    let before = f.documents();
+    unavailable(f.invoke(&tools, &actor, "comment.delete", json!({"id":comment})));
+    assert_eq!(f.documents(), before);
+    f.author("comment.delete", json!({"book":f.book,"id":comment}));
     assert_eq!(
         f.author("relation_type.list", json!({"book":f.book})),
         original

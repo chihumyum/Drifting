@@ -273,10 +273,7 @@ fn v3_archive_keeps_retained_bodies_hidden_bindings_and_literal_ids() {
 
 #[test]
 fn v3_import_rolls_back_prose_if_the_book_genesis_is_damaged() {
-    use loro::{
-        ExportMode, LoroDoc, LoroValue, VersionVector,
-        json::{JsonOpContent, MapOp},
-    };
+    use loro::{ExportMode, LoroDoc, VersionVector};
     use sha2::{Digest as _, Sha256};
     use std::io::{Read as _, Write as _};
 
@@ -320,20 +317,25 @@ fn v3_import_rolls_back_prose_if_the_book_genesis_is_damaged() {
         &format!("book:{book}"),
         dr_doc::schema::BOOK_GENESIS_VERSION,
     );
-    let change = changes
-        .changes
-        .iter_mut()
-        .find(|c| c.id.peer == genesis)
-        .unwrap();
-    let value = change
-        .ops
-        .iter_mut()
-        .find_map(|op| match &mut op.content {
-            JsonOpContent::Map(MapOp::Insert { key, value }) if key == "name" => Some(value),
-            _ => None,
-        })
-        .unwrap();
-    *value = LoroValue::from(book.clone());
+    let earlier_genesis = dr_doc::peer::genesis_peer(
+        &format!("book:{book}"),
+        dr_doc::schema::BOOK_GENESIS_VERSION - 1,
+    );
+    // Keep the current header, but give the initial change the wrong
+    // identity. It won't align with the genesis created in the destination.
+    let mut moved_genesis = false;
+    for change in &mut changes.changes {
+        if change.id.peer == genesis {
+            change.id.peer = earlier_genesis;
+            moved_genesis = true;
+        }
+        for dep in &mut change.deps {
+            if dep.peer == genesis {
+                dep.peer = earlier_genesis;
+            }
+        }
+    }
+    assert!(moved_genesis);
     let changed = LoroDoc::new();
     changed.import_json_updates(changes).unwrap();
     let bytes = changed.export(ExportMode::Snapshot).unwrap();

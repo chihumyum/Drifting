@@ -1187,6 +1187,9 @@ fn common_exclusion(spec: &Spec, version: BookKernelVersion) -> Option<&'static 
     if spec.name.ends_with(".purge") && spec.concurrency != Concurrency::Library {
         return Some("permanent deletion needs complete cascade coverage");
     }
+    if spec.name == "comment.delete" {
+        return Some("comment deletion is reserved for the author");
+    }
     if spec.name == "patch.delete" {
         return Some("use the patch module's guarded delete command");
     }

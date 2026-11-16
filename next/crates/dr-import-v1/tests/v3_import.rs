@@ -3791,12 +3791,14 @@ fn asset_import_keeps_comments_and_file_links_and_reports_retired_relation_ends(
         "relation-image-end-dropped",
         "relation-pdf-end-dropped",
         "relation-comment-end-dropped",
-        "relation-todo-end-dropped",
         "relation-patch-end-dropped",
         "built-in-relation-type-dropped",
     ] {
         assert_eq!(book1_rec.notes.0.get(code), Some(&1), "{code}");
     }
+    // The fixture already has one TODO edge under the built-in type.
+    // This case adds a second one under its custom type.
+    assert_eq!(book1_rec.notes.0.get("relation-todo-end-dropped"), Some(&2));
     assert_eq!(book1_rec.unlinked_asset_links.len(), 1);
     assert_eq!(book1_rec.unlinked_asset_links[0].material_id, IMAGE_NO_FILE);
     assert_eq!(book1_rec.unlinked_asset_links[0].material_title, "缺图");

@@ -331,11 +331,7 @@ impl Named {
         }
         if matches!(
             call.name.as_str(),
-            "comment.update"
-                | "comment.reanchor"
-                | "comment.delete"
-                | "comment.trash"
-                | "comment.restore"
+            "comment.update" | "comment.reanchor" | "comment.trash" | "comment.restore"
         ) && let Some(id) = args["id"].as_str()
         {
             named.lookups.comments.push(id.to_owned());
