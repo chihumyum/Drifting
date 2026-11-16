@@ -44,10 +44,14 @@ import {
 import { TodoStatusToggle } from '../../../features/comments/TodoStatusToggle';
 import { useWorkspaceNavigator } from '../../../features/workspace/navigation/WorkspaceNavigationContext';
 import { libraryItemMatchesQuery } from '../../../features/library/library-item-search';
-import { createPlainCommentDoc, extractTextFromCommentBody } from '../../../domain/comment';
+import {
+  canUnbindCommentTarget,
+  createPlainCommentDoc,
+  extractTextFromCommentBody,
+  resolveComposedCommentTargets,
+  type Comment,
+} from '../../../domain/comment';
 import { genericAssociationRelationTypeId } from '../../../domain/entity-relation-type';
-import { isStructuralEntityKind } from '../../../domain/entity-kinds';
-import type { Comment, CommentTargetKind } from '../../../domain/comment';
 import type { LibraryItem, LibraryItemKind } from '../../../domain/library-item';
 import type { EntityKind } from '../../../lib/extensions/entity-link';
 import { stepGlassFlow, trackGlassFlow } from '../../../lib/glass-flow';
@@ -332,7 +336,7 @@ export function DesktopSuperMemoMaterialView() {
         (r) =>
           r.fromKind === fromKind && r.fromId === fromId && r.toKind === toKind && r.toId === toId,
       );
-      if (ref) relationUsecases.removeRelation(ref.id);
+      if (ref) void relationUsecases.removeRelation(ref.id);
     },
     [genericRelations, relationUsecases],
   );
@@ -457,24 +461,22 @@ export function DesktopSuperMemoMaterialView() {
           focused={focusedEntity}
           kind="note"
           onCancel={() => setComposeOpen(null)}
-          onCreate={async (body, relations) => {
-            // As in Review: a comment written while the filter holds an
-            // entity is written on that entity, not merely related to it.
-            const direct =
-              focusedEntity.kind && focusedEntity.id && isStructuralEntityKind(focusedEntity.kind)
-                ? { targetKind: focusedEntity.kind as CommentTargetKind, targetId: focusedEntity.id }
-                : {};
+          onCreate={async (body, relations, options) => {
+            const { directTarget, extraRelations } = resolveComposedCommentTargets(
+              'note',
+              focusedEntity,
+              relations,
+              options?.attachFocusedMaterial ?? true,
+            );
             const created = await commentUsecases.createComment({
-              ...direct,
+              ...directTarget,
               kind: 'note',
               bodyJson: createPlainCommentDoc(body),
             });
             await Promise.all(
-              relations
-                .filter((t) => !(created.targetKind === t.kind && created.targetId === t.id))
-                .map((t) =>
-                  relationUsecases.addGenericAssociation('comment', created.id, t.kind, t.id),
-                ),
+              extraRelations.map((t) =>
+                relationUsecases.addGenericAssociation('comment', created.id, t.kind, t.id),
+              ),
             );
             setComposeOpen(null);
           }}
@@ -951,10 +953,19 @@ function TodoRail({
           : commentUsecases.resolveComment(todo.id)}
         onDelete={() => commentUsecases.deleteComment(todo.id)}
         onSave={(body) => commentUsecases.updateCommentBody(todo.id, createPlainCommentDoc(body))}
-        onAddRelation={(t) =>
-          relationUsecases.addGenericAssociation('comment', todo.id, t.kind, t.id)
-        }
+        onAddRelation={(t) => {
+          if (todo.targetKind === t.kind && todo.targetId === t.id) return;
+          void relationUsecases.addGenericAssociation('comment', todo.id, t.kind, t.id);
+        }}
         onRemoveRelation={(t) => {
+          if (
+            canUnbindCommentTarget(todo) &&
+            todo.targetKind === t.kind &&
+            todo.targetId === t.id
+          ) {
+            void commentUsecases.unbindCommentTarget(todo.id);
+            return;
+          }
           const ref = entityRelations.find(
             (r) =>
               r.fromKind === 'comment' &&
@@ -962,7 +973,7 @@ function TodoRail({
               r.toKind === t.kind &&
               r.toId === t.id,
           );
-          if (ref) relationUsecases.removeRelation(ref.id);
+          if (ref) void relationUsecases.removeRelation(ref.id);
         }}
       />
     );

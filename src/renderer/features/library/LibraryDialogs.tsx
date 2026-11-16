@@ -7,6 +7,7 @@ import { ModalBody, ModalCard, ModalHeader, ModalRoot } from '../../components/u
 import { Button } from '../../components/ui/Button';
 import { EntityRelationPicker, type RelationTarget } from '../../components/rightBars/EntityRelationPicker';
 import { platform } from '../../platform';
+import { useDataStore } from '../../store/data-store';
 import type { CreateLibraryItemInput } from '../../usecase/useLibraryItem';
 import { type FocusedEntity } from './LibraryPanel';
 import { GlassSlider } from '../../components/ui/GlassSlider';
@@ -28,11 +29,23 @@ export function ComposeTodoDialog({
   focused: FocusedEntity;
   kind?: 'note' | 'todo';
   onCancel: () => void;
-  onCreate: (body: string, relations: RelationTarget[]) => Promise<void>;
+  onCreate: (
+    body: string,
+    relations: RelationTarget[],
+    options?: { attachFocusedMaterial?: boolean },
+  ) => Promise<void>;
 }) {
   const { t } = useTranslation();
   useEscapeToClose(true, onCancel);
   const [body, setBody] = useState('');
+  const [attachMaterial, setAttachMaterial] = useState(
+    () => focused.kind === 'library_item' && Boolean(focused.id),
+  );
+  const focusedMaterialTitle = useDataStore((s) =>
+    focused.kind === 'library_item' && focused.id
+      ? s.libraryItems.find((item) => item.id === focused.id)?.title
+      : undefined,
+  );
   const [relations, setRelations] = useState<RelationTarget[]>(() =>
     focused.kind && focused.id && isStructuralEntityKind(focused.kind)
       ? [{ kind: focused.kind, id: focused.id, label: t('memoMaterial.dialog.currentItem') }]
@@ -64,12 +77,51 @@ export function ComposeTodoDialog({
           onKeyDown={(e) => {
             if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
               e.preventDefault();
-              void onCreate(body, relations);
+              void onCreate(body, relations, { attachFocusedMaterial: attachMaterial });
             }
           }}
         />
       </GlassField>
       <div style={{ marginTop: 10 }}>
+        {attachMaterial && focused.kind === 'library_item' && focused.id && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
+            <button
+              type="button"
+              onClick={() => setAttachMaterial(false)}
+              title={t('relationPicker.removeRelation')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                fontFamily: 'var(--font-sans)',
+                fontSize: 'var(--ui-font-secondary, 12px)',
+                padding: '2px 8px',
+                borderRadius: 1,
+                border: '1px solid hsl(var(--rule))',
+                background: 'hsl(var(--ink-1) / 0.06)',
+                color: 'hsl(var(--ink-1))',
+                cursor: 'pointer',
+                maxWidth: 200,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {focusedMaterialTitle || t('memoMaterial.dialog.currentItem')}
+              </span>
+              <span
+                style={{
+                  color: 'var(--ui-text-muted, hsl(var(--ink-4)))',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 'var(--ui-font-caption, 10px)',
+                }}
+              >
+                <BrushIcon name="close" size={10} inline />
+              </span>
+            </button>
+          </div>
+        )}
         <EntityRelationPicker
           selected={selectedSet}
           selectedChipMode="toggle"
@@ -81,7 +133,7 @@ export function ComposeTodoDialog({
       </div>
       <DialogActions
         onCancel={onCancel}
-        onConfirm={() => onCreate(body, relations)}
+        onConfirm={() => onCreate(body, relations, { attachFocusedMaterial: attachMaterial })}
         confirmDisabled={!body.trim()}
       />
     </DialogShell>
