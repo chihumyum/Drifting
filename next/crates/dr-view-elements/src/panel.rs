@@ -464,6 +464,10 @@ pub mod v3 {
         _observers: Vec<Subscription>,
         list: ListState,
         scroll: ScrollHandle,
+        /// How often the rows were sorted and the update times read: a
+        /// redraw with the same book does neither (T9 review).
+        rebuilds: usize,
+        timestamp_reads: usize,
     }
 
     /// Opt-in native draw timings for the G2 milestone. No prose, IDs, paths
@@ -595,6 +599,7 @@ pub mod v3 {
             } else {
                 BTreeMap::new()
             };
+            let timestamp_reads = usize::from(sort == SortOrder::Updated);
             // 「全部」 (the root's list in the left column) opens with the
             // outermost entries folded, as the Tab prototype draws it.
             let folded: BTreeSet<String> = match host.page.book.v3() {
@@ -621,9 +626,20 @@ pub mod v3 {
                 _observers: Vec::new(),
                 list: ListState::new(0, ListAlignment::Top, px(300.0)),
                 scroll: ScrollHandle::new(),
+                rebuilds: 0,
+                timestamp_reads,
             };
             this.rebuild();
             this
+        }
+        /// How many times the rows were built (sorted, remeasured) and the
+        /// update times read since the list was made.
+        pub fn work_done(&self) -> (usize, usize) {
+            (self.rebuilds, self.timestamp_reads)
+        }
+        fn read_timestamps(&mut self) {
+            self.timestamp_reads += 1;
+            self.updated = updated_timestamps(&self.host.page.library, &self.host.page.book);
         }
         pub fn is_lane(&self) -> bool {
             self.host
@@ -636,6 +652,16 @@ pub mod v3 {
             matches!(self.display, Display::List | Display::Grid)
                 && self.sort == SortOrder::Manual
                 && self.host.surface != DisplaySurface::Members
+        }
+        /// Whether a row hung on `host` takes an order drop from another row
+        /// hung there: only while the list shows that order, `host`'s scale
+        /// when it is a lane, else the manual order (as `rows_sorted` sorts
+        /// them). Under another sort the drop would write an order nobody
+        /// sees, just as for the rows living here (T9 review).
+        pub fn hung_can_reorder(&self, host: &str) -> bool {
+            !matches!(self.display, Display::List | Display::Grid)
+                || self.sort == SortOrder::Manual
+                || self.host.page.book.v3().is_some_and(|v| v.is_lane(host))
         }
         fn sync_workspace_memory(&mut self, ws: &dr_shell::Workspace) -> bool {
             if ws.book_id != self.host.page.book_id {
@@ -661,7 +687,7 @@ pub mod v3 {
             }
             self.sort = next;
             if self.sort == SortOrder::Updated {
-                self.updated = updated_timestamps(&self.host.page.library, &self.host.page.book);
+                self.read_timestamps();
             }
             self.rebuild();
             true
@@ -670,7 +696,7 @@ pub mod v3 {
             let changed = self.sort != sort;
             self.sort = sort;
             if self.sort == SortOrder::Updated {
-                self.updated = updated_timestamps(&self.host.page.library, &self.host.page.book);
+                self.read_timestamps();
             }
             if changed || self.sort == SortOrder::Updated {
                 self.rebuild();
@@ -697,6 +723,7 @@ pub mod v3 {
             cx.notify();
         }
         fn rebuild(&mut self) {
+            self.rebuilds += 1;
             let columns = if self.host.surface == DisplaySurface::Sidebar {
                 2
             } else {
@@ -733,10 +760,16 @@ pub mod v3 {
         pub fn scroll_state(&self) -> ListState {
             self.list.clone()
         }
+        /// Takes a new book snapshot. The same snapshot again changes
+        /// nothing: no sort, no update times read from the library, no
+        /// redraw (a surface may hand it over on every frame).
         pub fn refresh(&mut self, book: Rc<Book>, cx: &mut Context<Self>) {
+            if Rc::ptr_eq(&self.host.page.book, &book) {
+                return;
+            }
             self.host.page.book = book;
             if self.sort == SortOrder::Updated {
-                self.updated = updated_timestamps(&self.host.page.library, &self.host.page.book);
+                self.read_timestamps();
             }
             self.rebuild();
             cx.notify();
@@ -794,6 +827,8 @@ pub mod v3 {
             let is_level = v.levels.contains_key(id);
             let row_can_reorder =
                 self.can_reorder() && scope != "root" && !is_member && board.is_none();
+            let hung_can_reorder =
+                hung_host.is_some_and(|host| self.hung_can_reorder(host)) && board.is_none();
             let (mark, color) = self.host.page.book.mark(&target);
             let weak = self.host.page.workspace.clone();
             let card_ws = weak.upgrade();
@@ -975,7 +1010,7 @@ pub mod v3 {
                                  cx: &App,
                                  drag: &EntryDrag,
                                  host: &Option<String>| {
-                let reorder_hung = host.is_some() && &drag.hung_host == host;
+                let reorder_hung = hung_can_reorder && host.is_some() && &drag.hung_host == host;
                 bounds
                     .read(cx)
                     .as_ref()

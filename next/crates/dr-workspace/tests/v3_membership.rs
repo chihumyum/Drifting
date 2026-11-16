@@ -1,6 +1,6 @@
 mod common;
 use common::*;
-use dr_workspace::Actor;
+use dr_workspace::{Actor, WsError};
 use serde_json::{Value, json};
 
 fn item(v: Value) -> String {
@@ -315,7 +315,7 @@ fn restoration_and_cancellation_preflight_all_paths_before_any_write() {
 
 #[test]
 fn stale_cancellation_and_restore_refuse_before_validating_the_newer_member_state() {
-    use dr_workspace::{WritePreconditions, WsError};
+    use dr_workspace::WritePreconditions;
     let e = env();
     let b = item(e.out("project.create", json!({"name":"Guarded cancellation"})));
     let lane = create(&e, &b, "tpl-storyline", "Lane");
@@ -1036,4 +1036,530 @@ fn lane_entering_and_leaving_views_preserves_order_and_undoes_in_one_step() {
         .unwrap()
         .expect("undo delete view");
     assert_eq!(raw(&e, &b), before_exit);
+}
+
+// ---- T9: the workspace UI's re-hang and drag order -------------------------
+//
+// `membership.add { from_host | order }` and `timeline_view.place
+// { from_host }` (`kernel-v5.md` §18 「T9 交回」): only the author's own UI may
+// pass them; a re-hang is one commit and one narrow undo step.
+
+/// Lanes `a`, `b`, `c` (storylines) in view `t9`; `m` and `n` hung on `a`
+/// and placed at 10 and 20.
+struct Hung {
+    b: String,
+    a: String,
+    lb: String,
+    lc: String,
+    m: String,
+    n: String,
+}
+fn hung(e: &Env) -> Hung {
+    let b = item(e.out("project.create", json!({"name":"T9 re-hang"})));
+    let a = create(e, &b, "tpl-storyline", "Lane A");
+    let lb = create(e, &b, "tpl-storyline", "Lane B");
+    let lc = create(e, &b, "tpl-storyline", "Lane C");
+    let m = create(e, &b, "tpl-chapter", "Moving");
+    let n = create(e, &b, "tpl-chapter", "Neighbour");
+    e.call(
+        "timeline_view.put",
+        json!({"book":b,"view":{"id":"t9","name":"T9","lanes":[{"entry":a},{"entry":lb},{"entry":lc}]}}),
+    );
+    for (entry, at) in [(&m, 10), (&n, 20)] {
+        e.call(
+            "timeline_view.place",
+            json!({"book":b,"view":"t9","entry":entry,"lane":a,"at":at}),
+        );
+    }
+    Hung { b, a, lb, lc, m, n }
+}
+fn hosts_of(e: &Env, b: &str, member: &str) -> Vec<String> {
+    let mut hosts: Vec<String> = e
+        .out("membership.list", json!({"book":b}))
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|ms| ms["member"] == member)
+        .map(|ms| ms["host"].as_str().unwrap().to_owned())
+        .collect();
+    hosts.sort();
+    hosts
+}
+fn sorted(mut ids: Vec<String>) -> Vec<String> {
+    ids.sort();
+    ids
+}
+fn placement(e: &Env, b: &str, view: &str, entry: &str) -> Value {
+    raw(e, b)["timeline_views"][view]["placements"][entry].clone()
+}
+fn members_in_order(e: &Env, b: &str, host: &str) -> Vec<String> {
+    e.out("entry.get", json!({"book":b,"id":host}))["below"]["members"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|x| x["id"].as_str().unwrap().to_owned())
+        .collect()
+}
+fn journal_len(e: &Env) -> usize {
+    e.ws().journal(None, 10_000).unwrap().len()
+}
+
+#[test]
+fn ui_only_drag_parameters_are_refused_to_every_caller_but_the_author() {
+    let e = env();
+    let h = hung(&e);
+    let (b, a, lb, m, n) = (&h.b, &h.a, &h.lb, &h.m, &h.n);
+    // Hidden from the schema the Agent and MCP read.
+    let registry = dr_workspace::registry();
+    for (command, field) in [
+        ("membership.add", "from_host"),
+        ("membership.add", "order"),
+        ("timeline_view.place", "from_host"),
+    ] {
+        let schema = serde_json::to_value(registry.get(command).unwrap().input_schema()).unwrap();
+        assert!(
+            !schema.to_string().contains(&format!("\"{field}\"")),
+            "{command} must not show {field}: {schema}"
+        );
+    }
+    let calls = [
+        (
+            "membership.add",
+            json!({"book":b,"host":lb,"member":m,"from_host":a}),
+        ),
+        (
+            "membership.add",
+            json!({"book":b,"host":a,"member":m,"order":{"anchor":n,"after":true}}),
+        ),
+        (
+            "timeline_view.place",
+            json!({"book":b,"view":"t9","entry":m,"lane":lb,"from_host":a,"at":30}),
+        ),
+    ];
+    let before = raw(&e, b);
+    let journal = journal_len(&e);
+    for actor in [
+        Actor::agent("t9-refusal", 1, "write"),
+        Actor::Mirror,
+        Actor::Sync,
+        Actor::Import,
+    ] {
+        for (command, input) in &calls {
+            let result = e.ws().call(&actor, command, input.clone());
+            assert!(
+                matches!(result, Err(WsError::Invalid(ref message)) if message.contains("workspace UI operation")),
+                "{actor:?} {command} {input}: {result:?}"
+            );
+            assert_eq!(raw(&e, b), before, "{actor:?} {command} wrote");
+            assert_eq!(journal_len(&e), journal, "{actor:?} {command} journaled");
+        }
+    }
+    // Without them the same commands are the Agent's as before.
+    let agent = Actor::agent("t9-refusal", 2, "write");
+    e.ws()
+        .call(
+            &agent,
+            "membership.add",
+            json!({"book":b,"host":lb,"member":m}),
+        )
+        .unwrap();
+    e.ws()
+        .call(
+            &agent,
+            "timeline_view.place",
+            json!({"book":b,"view":"t9","entry":m,"at":30}),
+        )
+        .unwrap();
+    assert_eq!(hosts_of(&e, b, m), sorted(vec![a.clone(), lb.clone()]));
+    // And the author's own UI may pass them.
+    let order = e.call(
+        "membership.add",
+        json!({"book":b,"host":a,"member":n,"order":{"anchor":m,"after":true}}),
+    );
+    assert_eq!(order["undo"][0]["command"], "membership.restore");
+}
+
+#[test]
+fn a_stale_source_membership_refuses_the_whole_rehang() {
+    let e = env();
+    let h = hung(&e);
+    let (b, a, lb, m) = (&h.b, &h.a, &h.lb, &h.m);
+    // Another writer takes `m` off `a` after the UI read it.
+    e.ws()
+        .call(
+            &Actor::agent("t9-stale", 1, "write"),
+            "membership.remove",
+            json!({"book":b,"host":a,"member":m}),
+        )
+        .unwrap();
+    let before = raw(&e, b);
+    let journal = journal_len(&e);
+    for (command, input) in [
+        (
+            "membership.add",
+            json!({"book":b,"host":lb,"member":m,"from_host":a}),
+        ),
+        (
+            "timeline_view.place",
+            json!({"book":b,"view":"t9","entry":m,"lane":lb,"from_host":a,"at":30}),
+        ),
+    ] {
+        let result = e.try_call(command, input.clone());
+        assert!(
+            matches!(result, Err(WsError::Invalid(ref message)) if message.contains("no longer available")),
+            "{command} {input}: {result:?}"
+        );
+        // Not even the new hang or the new position.
+        assert_eq!(
+            raw(&e, b),
+            before,
+            "{command} wrote part of a stale re-hang"
+        );
+        assert_eq!(journal_len(&e), journal);
+        assert!(hosts_of(&e, b, m).is_empty());
+    }
+}
+
+#[test]
+fn a_rehang_clears_the_primary_membership_and_one_undo_brings_everything_back() {
+    for via_place in [false, true] {
+        let e = env();
+        let h = hung(&e);
+        let (b, a, lb, m) = (&h.b, &h.a, &h.lb, &h.m);
+        e.call("membership.primary", json!({"book":b,"member":m,"host":a}));
+        let before = raw(&e, b);
+        let moved = if via_place {
+            e.call(
+                "timeline_view.place",
+                json!({"book":b,"view":"t9","entry":m,"lane":lb,"from_host":a,"at":12}),
+            )
+        } else {
+            e.call(
+                "membership.add",
+                json!({"book":b,"host":lb,"member":m,"from_host":a}),
+            )
+        };
+        assert_eq!(moved["undo"].as_array().unwrap().len(), 1);
+        assert_eq!(moved["undo"][0]["command"], "membership.restore");
+        assert_eq!(hosts_of(&e, b, m), vec![lb.clone()]);
+        assert!(e.out("entry.get", json!({"book":b,"id":m}))["primary"].is_null());
+        let after = raw(&e, b);
+        e.ws().undo(&Actor::User).unwrap().expect("one undo step");
+        assert_eq!(hosts_of(&e, b, m), vec![a.clone()]);
+        assert_eq!(
+            e.out("entry.get", json!({"book":b,"id":m}))["primary"],
+            json!(a)
+        );
+        assert_eq!(raw(&e, b), before, "via_place={via_place}");
+        e.ws().redo(&Actor::User).unwrap().expect("redo");
+        assert_eq!(raw(&e, b), after, "via_place={via_place}");
+    }
+}
+
+/// Item 2 of the T9 review: undoing a re-hang or a drag order on the scale
+/// takes back only the hang and the member's own position; a later title
+/// edit and another card moved in the same view stay.
+#[test]
+fn undoing_a_rehang_or_an_order_keeps_later_edits_to_the_entry_and_the_view() {
+    let peer = Actor::agent("t9-peer", 1, "write");
+    for step in ["place", "add", "order"] {
+        let e = env();
+        let h = hung(&e);
+        let (b, a, lb, m, n) = (&h.b, &h.a, &h.lb, &h.m, &h.n);
+        // A third card in the view, hung elsewhere.
+        let other = create(&e, b, "tpl-chapter", "Other card");
+        e.call(
+            "timeline_view.place",
+            json!({"book":b,"view":"t9","entry":other,"lane":h.lc,"at":40}),
+        );
+        let m_before = placement(&e, b, "t9", m);
+        let hosts_before = hosts_of(&e, b, m);
+        let done = match step {
+            "place" => e.call(
+                "timeline_view.place",
+                json!({"book":b,"view":"t9","entry":m,"lane":lb,"from_host":a,"at":33}),
+            ),
+            "add" => e.call(
+                "membership.add",
+                json!({"book":b,"host":lb,"member":m,"from_host":a}),
+            ),
+            _ => e.call(
+                "membership.add",
+                json!({"book":b,"host":a,"member":m,"order":{"anchor":n,"after":true}}),
+            ),
+        };
+        assert_eq!(done["undo"][0]["command"], "membership.restore", "{step}");
+        if step != "add" {
+            assert_ne!(placement(&e, b, "t9", m), m_before, "{step} moved the card");
+        }
+        // Later: the Agent renames the member and moves another card in
+        // the same view.
+        e.ws()
+            .call(
+                &peer,
+                "entry.update",
+                json!({"book":b,"id":m,"title":"Peer title"}),
+            )
+            .unwrap();
+        e.ws()
+            .call(
+                &peer,
+                "timeline_view.place",
+                json!({"book":b,"view":"t9","entry":other,"at":77}),
+            )
+            .unwrap();
+        let other_after = placement(&e, b, "t9", &other);
+        let n_after = placement(&e, b, "t9", n);
+        e.ws().undo(&Actor::User).unwrap().expect("undo");
+        assert_eq!(hosts_of(&e, b, m), hosts_before, "{step}");
+        assert_eq!(placement(&e, b, "t9", m), m_before, "{step}");
+        assert_eq!(
+            e.out("entry.get", json!({"book":b,"id":m}))["title"],
+            "Peer title",
+            "{step} took back a later title edit"
+        );
+        assert_eq!(
+            placement(&e, b, "t9", &other),
+            other_after,
+            "{step} took back another card"
+        );
+        assert_eq!(placement(&e, b, "t9", n), n_after, "{step}");
+        e.ws().redo(&Actor::User).unwrap().expect("redo");
+        assert_eq!(
+            e.out("entry.get", json!({"book":b,"id":m}))["title"],
+            "Peer title"
+        );
+        assert_eq!(placement(&e, b, "t9", &other), other_after);
+    }
+}
+
+/// Item 3: "after X" where X and the next entry share a position on the
+/// scale lands between them, moving what is tied after it by the smallest
+/// steps (nothing visibly moves); undo puts every moved position back.
+#[test]
+fn an_order_beside_a_tie_on_the_scale_lands_between_the_tied_entries() {
+    let e = env();
+    let h = hung(&e);
+    let (b, a, m, n) = (&h.b, &h.a, &h.m, &h.n);
+    let x = create(&e, b, "tpl-chapter", "Tied X");
+    let y = create(&e, b, "tpl-chapter", "Tied Y");
+    for entry in [&x, &y] {
+        e.call(
+            "timeline_view.place",
+            json!({"book":b,"view":"t9","entry":entry,"lane":a,"at":5}),
+        );
+    }
+    // Along the scale: the tie at 5 (by id), then `m` at 10, `n` at 20.
+    let order = members_in_order(&e, b, a);
+    let (first, second) = (order[0].clone(), order[1].clone());
+    assert_eq!(
+        sorted(vec![first.clone(), second.clone()]),
+        sorted(vec![x, y])
+    );
+    assert_eq!(&order[2..], &[m.clone(), n.clone()]);
+    let before = raw(&e, b);
+    for (anchor, after) in [(&first, true), (&second, false)] {
+        e.call(
+            "membership.add",
+            json!({"book":b,"host":a,"member":n,"order":{"anchor":anchor,"after":after}}),
+        );
+        assert_eq!(
+            members_in_order(&e, b, a),
+            vec![first.clone(), n.clone(), second.clone(), m.clone()],
+            "after {first} / before {second}"
+        );
+        let at = |id: &str| placement(&e, b, "t9", id)["at"].as_f64().unwrap();
+        assert_eq!(at(&first), 5.0, "the entry before the slot stays put");
+        assert!(5.0 < at(n) && at(n) < at(&second) && at(&second) - 5.0 < 1e-9);
+        assert_eq!(at(m), 10.0);
+        e.ws().undo(&Actor::User).unwrap().expect("one undo step");
+        assert_eq!(raw(&e, b), before);
+    }
+    // Three tied: what is tied after the slot keeps its order.
+    let z = create(&e, b, "tpl-chapter", "Tied Z");
+    e.call(
+        "timeline_view.place",
+        json!({"book":b,"view":"t9","entry":z,"lane":a,"at":5}),
+    );
+    let tied: Vec<String> = members_in_order(&e, b, a)[..3].to_vec();
+    let before = raw(&e, b);
+    e.call(
+        "membership.add",
+        json!({"book":b,"host":a,"member":m,"order":{"anchor":tied[0],"after":true}}),
+    );
+    assert_eq!(
+        members_in_order(&e, b, a),
+        vec![
+            tied[0].clone(),
+            m.clone(),
+            tied[1].clone(),
+            tied[2].clone(),
+            n.clone()
+        ]
+    );
+    e.ws().undo(&Actor::User).unwrap().expect("one undo step");
+    assert_eq!(raw(&e, b), before);
+}
+
+/// The manual-order branch (a host in no view): tied or missing `pos` keys
+/// leave no gap, so the host's list gets explicit positions in one commit
+/// and one undo step takes them all back.
+#[test]
+fn an_order_renumbers_a_list_with_tied_or_missing_positions() {
+    let e = env();
+    let b = item(e.out("project.create", json!({"name":"T9 renumber"})));
+    let host = create(&e, &b, "tpl-storyline", "Plain host");
+    let ms: Vec<String> = (1..=3)
+        .map(|i| create(&e, &b, "tpl-chapter", &format!("Member {i}")))
+        .collect();
+    for member in &ms {
+        e.call(
+            "membership.add",
+            json!({"book":b,"host":host,"member":member}),
+        );
+    }
+    // Missing keys: the list reads by member id.
+    let order = members_in_order(&e, &b, &host);
+    assert_eq!(order, sorted(ms.clone()));
+    let before = raw(&e, &b);
+    // To the end: the one before the slot has no key to go after.
+    let done = e.call(
+        "membership.add",
+        json!({"book":b,"host":host,"member":order[0],"order":{"anchor":order[2],"after":true}}),
+    );
+    assert_eq!(done["undo"].as_array().unwrap().len(), 1);
+    assert_eq!(done["undo"][0]["command"], "membership.restore");
+    assert_eq!(
+        members_in_order(&e, &b, &host),
+        vec![order[1].clone(), order[2].clone(), order[0].clone()]
+    );
+    for member in &ms {
+        assert!(
+            raw(&e, &b)["memberships"][format!("{host}|{member}")]["pos"].is_string(),
+            "every member gets an explicit position"
+        );
+    }
+    let after = raw(&e, &b);
+    e.ws().undo(&Actor::User).unwrap().expect("one undo step");
+    assert_eq!(raw(&e, &b), before);
+    e.ws().redo(&Actor::User).unwrap().expect("redo");
+    assert_eq!(raw(&e, &b), after);
+
+    // Tied keys: two members on one position.
+    for (member, pos) in [(&order[0], "a5"), (&order[1], "a5"), (&order[2], "a9")] {
+        e.call(
+            "membership.add",
+            json!({"book":b,"host":host,"member":member,"pos":pos}),
+        );
+    }
+    let tied = members_in_order(&e, &b, &host);
+    assert_eq!(tied[2], order[2]);
+    let before = raw(&e, &b);
+    e.call(
+        "membership.add",
+        json!({"book":b,"host":host,"member":tied[2],"order":{"anchor":tied[0],"after":true}}),
+    );
+    assert_eq!(
+        members_in_order(&e, &b, &host),
+        vec![tied[0].clone(), tied[2].clone(), tied[1].clone()]
+    );
+    e.ws().undo(&Actor::User).unwrap().expect("one undo step");
+    assert_eq!(raw(&e, &b), before);
+}
+
+/// Every stored document of `from`, the book first, imported into `to` as
+/// another device's sync would.
+fn sync_docs(from: &dr_workspace::Workspace, to: &dr_workspace::Workspace) {
+    let mut docs = from.library().docs(None, None).unwrap();
+    docs.sort_by_key(|d| (d.kind != "book", d.doc_id.clone()));
+    for d in docs {
+        if from.library().head(&d.doc_id).unwrap().is_none() {
+            continue;
+        }
+        let bytes = from
+            .library()
+            .load_copy(&d.doc_id)
+            .unwrap()
+            .export(loro::ExportMode::all_updates())
+            .unwrap();
+        to.import_remote(
+            &d.doc_id,
+            Some((&d.kind, d.book_id.as_deref().unwrap_or(""))),
+            bytes,
+            &Actor::Sync,
+        )
+        .unwrap();
+    }
+}
+
+/// Two devices re-hang the same entry from the same host while apart: the
+/// merge keeps both new hangs, the old one stays gone, the entry keeps one
+/// position in the view, the primary stays valid, and each device's undo
+/// still takes back only its own re-hang.
+#[test]
+fn two_devices_rehanging_one_entry_concurrently_merge_without_breaking_invariants() {
+    let one = env();
+    let two = env();
+    let h = hung(&one);
+    let (b, a, lb, lc, m) = (&h.b, &h.a, &h.lb, &h.lc, &h.m);
+    one.call("membership.primary", json!({"book":b,"member":m,"host":a}));
+    sync_docs(one.ws(), two.ws());
+    one.call(
+        "membership.add",
+        json!({"book":b,"host":lb,"member":m,"from_host":a}),
+    );
+    two.call(
+        "timeline_view.place",
+        json!({"book":b,"view":"t9","entry":m,"lane":lc,"from_host":a,"at":25}),
+    );
+    sync_docs(one.ws(), two.ws());
+    sync_docs(two.ws(), one.ws());
+    assert_eq!(raw(&one, b), raw(&two, b), "the devices converge");
+    for e in [&one, &two] {
+        assert_eq!(hosts_of(e, b, m), sorted(vec![lb.clone(), lc.clone()]));
+        assert!(e.out("entry.get", json!({"book":b,"id":m}))["primary"].is_null());
+        let view = e
+            .out("timeline_view.list", json!({"book":b}))
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|v| v["id"] == "t9")
+            .unwrap()
+            .clone();
+        let placed: Vec<&Value> = view["placements"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|p| p["entry"] == m.as_str())
+            .collect();
+        assert_eq!(placed.len(), 1, "one position on the scale");
+        assert_eq!(placed[0]["at"], 25.0);
+        // Every membership listed is valid; both lanes list the entry.
+        for lane in [lb, lc] {
+            assert!(members_in_order(e, b, lane).contains(m));
+        }
+        assert!(!members_in_order(e, b, a).contains(m));
+    }
+    // Each device's undo takes back its own re-hang only, and the two
+    // undos merge as well.
+    one.ws().undo(&Actor::User).unwrap().expect("undo on one");
+    assert_eq!(hosts_of(&one, b, m), sorted(vec![a.clone(), lc.clone()]));
+    assert_eq!(
+        one.out("entry.get", json!({"book":b,"id":m}))["primary"],
+        json!(a)
+    );
+    two.ws().undo(&Actor::User).unwrap().expect("undo on two");
+    assert_eq!(hosts_of(&two, b, m), sorted(vec![a.clone(), lb.clone()]));
+    assert_eq!(placement(&two, b, "t9", m)["at"], 10.0);
+    sync_docs(one.ws(), two.ws());
+    sync_docs(two.ws(), one.ws());
+    assert_eq!(raw(&one, b), raw(&two, b), "the devices converge again");
+    for e in [&one, &two] {
+        assert_eq!(hosts_of(e, b, m), vec![a.clone()]);
+        assert_eq!(
+            e.out("entry.get", json!({"book":b,"id":m}))["primary"],
+            json!(a)
+        );
+        assert_eq!(placement(e, b, "t9", m)["at"], 10.0);
+    }
 }
