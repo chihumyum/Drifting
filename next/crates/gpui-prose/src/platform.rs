@@ -19,6 +19,17 @@ pub trait PlatformHooks: 'static {
         true
     }
 
+    /// Whether the event the application is handling right now is a pointer
+    /// button going down. On macOS GPUI hands a press to the input method
+    /// before the editor hears of it, and an input method may answer by
+    /// committing its marked text as typed; a commit that arrives during a
+    /// press is dropped with the marked text instead (`input/ime.rs`), the
+    /// same as a press the editor handles itself. Default: never (Windows,
+    /// where the backend does not hand presses over; test windows).
+    fn pointer_press_in_flight(&self) -> bool {
+        false
+    }
+
     /// Ask for this frame to be drawn now instead of on the next display-link
     /// tick (on macOS `[view setNeedsDisplay:YES]`, which makes Core
     /// Animation call GPUI's `displayLayer:` when the current event ends).

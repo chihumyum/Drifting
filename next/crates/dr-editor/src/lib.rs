@@ -14,7 +14,7 @@
 //! - [`BookEditor`]: the whole book in one scroll (M05), every chapter
 //!   editable with its own session and undo.
 //! - [`page`]: the chapter page around the text (M03): the facts and the
-//!   places for the host's folio line, title, synopsis, ⁂ and empty hint.
+//!   places for the host's folio line, title, synopsis and empty hint.
 //!
 //! Docs: `docs/rust-rewrite/foundations/f4-editor.md` (F4e).
 

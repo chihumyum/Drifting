@@ -372,12 +372,6 @@ userMenu.feedback
 nodeEditor.meta.words
 chapterEditor.untitledChapter
 chapterEditor.synopsisPlaceholder
-chapterEnd.trigger
-chapterEnd.triggerFinished
-chapterEnd.insertAfter
-chapterEnd.markFinished
-chapterEnd.markDraft
-chapterEnd.defaultTitle
 guide.hints.search
 guide.hints.timeline
 elementEditor.sections.facts

@@ -204,14 +204,6 @@
     "synopsisPlaceholder": "줄거리…",
     "untitledChapter": "제목 없는 장"
   },
-  "chapterEnd": {
-    "defaultTitle": "새 장",
-    "insertAfter": "뒤에 새 장 추가",
-    "markDraft": "초안으로 되돌리기",
-    "markFinished": "완료로 표시",
-    "trigger": "장 끝 작업",
-    "triggerFinished": "장 끝 작업(완료)"
-  },
   "commentRail": {
     "actions": {
       "reopen": "다시 열기",

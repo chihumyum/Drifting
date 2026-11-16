@@ -601,7 +601,9 @@ pub fn set_synopsis(ws: &Workspace, book: &str, doc: &str, text: &str) -> Result
     crate::v3::set_role_field(ws, book, doc, "summary", text.trim())
 }
 
-/// ⁂'s 「标为完成」 (`true`) or 「改回草稿」 (`false`).
+/// Stores the writing status of a chapter's page: finished (`true`) or
+/// draft (`false`). No view calls it since the chapter-end mark went
+/// (`kernel-v5.md` §15, item 34); the status is a field of the entry.
 pub fn set_finished(ws: &Workspace, book: &str, doc: &str, finished: bool) -> Result<(), WsError> {
     crate::v3::set_role_field(
         ws,
@@ -613,8 +615,9 @@ pub fn set_finished(ws: &Workspace, book: &str, doc: &str, finished: bool) -> Re
     .map(|_| ())
 }
 
-/// ⁂'s 「新建下一章」: a draft chapter right after `doc` titled `title`
-/// (the host's 「新章节」 / "New chapter"; a taken title gets a suffix).
+/// A draft chapter right after `doc` titled `title` (a taken title gets a
+/// suffix). No view calls it since the chapter-end mark went (`kernel-v5.md`
+/// §15, item 34).
 /// Returns its prose document (`node:<id>`), for the host to open with the
 /// title field focused.
 pub fn new_chapter_after(

@@ -206,14 +206,6 @@
     "synopsisPlaceholder": "Sinopsis…",
     "untitledChapter": "Capítulo sin título"
   },
-  "chapterEnd": {
-    "defaultTitle": "Nuevo capítulo",
-    "insertAfter": "Nuevo capítulo después",
-    "markDraft": "Volver a borrador",
-    "markFinished": "Marcar como terminado",
-    "trigger": "Acciones al final del capítulo",
-    "triggerFinished": "Acciones al final (terminado)"
-  },
   "commentRail": {
     "actions": {
       "reopen": "Reabrir",

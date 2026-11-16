@@ -85,14 +85,13 @@ impl SandCell {
     }
 
     /// The mark drawn hollow (a chapter not yet begun).
-    /// A brush icon where the mark goes (an action, not a thing): the
-    /// chapter end's 「标为完成」, 「新建下一章」.
+    /// A brush icon where the mark goes (an action, not a thing).
     pub fn icon(mut self, icon: sand::Icon) -> Self {
         self.icon = Some(icon);
         self
     }
 
-    /// The short row of a small action list (the chapter end's ⁂ menu,
+    /// The short row of a small action list (the 0.1 client's
     /// `.chapter-end-menu__item`): 22px, the index face, ink 3, the icon
     /// 14px and 6px from the words.
     pub fn dense(mut self) -> Self {

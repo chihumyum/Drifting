@@ -204,14 +204,6 @@
     "synopsisPlaceholder": "あらすじ…",
     "untitledChapter": "無題の章"
   },
-  "chapterEnd": {
-    "defaultTitle": "新しい章",
-    "insertAfter": "後に章を追加",
-    "markDraft": "下書きに戻す",
-    "markFinished": "完成にする",
-    "trigger": "章末の操作",
-    "triggerFinished": "章末の操作（完成）"
-  },
   "commentRail": {
     "actions": {
       "reopen": "開き直す",

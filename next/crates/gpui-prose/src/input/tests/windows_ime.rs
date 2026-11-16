@@ -1,7 +1,8 @@
 //! Input as GPUI v1.27's Windows backend sends it (`gpui_windows`,
 //! `handle_ime_composition_inner` and `WM_CHAR`), and the input method told
 //! to drop its marked text: when the editor loses focus inside the window,
-//! when the window loses the keyboard, and when input arrives after that.
+//! when the window loses the keyboard, when input arrives after that, and
+//! when the author presses elsewhere in the text mid-composition.
 //! What only a real Windows input method can show is in the manual tests of
 //! `docs/rust-rewrite/foundations/f4c-input.md`.
 
@@ -199,6 +200,41 @@ fn input_after_the_window_lost_the_keyboard_is_dropped(cx: &mut TestAppContext) 
     compstr(&editor, cx, "hao", Some(3));
     resultstr(&editor, cx, "好");
     assert_eq!(loro_text(&editor, cx, 0), "雨夜好\n");
+}
+
+/// The Windows backend does not hand a press to the input method: the
+/// composition is still there when the editor's mouse-down comes. The editor
+/// drops it and sends `CPS_CANCEL`; the input method's answer (the
+/// composition cleared) then finds nothing, and typing goes on at the caret
+/// the press placed (`kernel-v5.md` §15, item 37).
+#[gpui::test]
+fn a_press_elsewhere_cancels_the_composition(cx: &mut TestAppContext) {
+    let (editor, cx) = editor(
+        cx,
+        &[&[(BlockKind::Body, "雨夜"), (BlockKind::Body, "天明")]],
+    );
+    let ime = fake_ime(&editor, cx);
+    let edited = edits(&editor, cx);
+    select(&editor, cx, 0, 2);
+    compstr(&editor, cx, "zhong", Some(5));
+    // Between 「天」 and 「明」, in the other paragraph.
+    editor.update_in(cx, |e, window, cx| e.press_at(0, 4, 1, false, window, cx));
+    assert!(
+        !composing(&editor, cx),
+        "the composition stayed where it was"
+    );
+    assert_eq!(ime.discarded.get(), 1, "no CPS_CANCEL");
+    // The echo of `CPS_CANCEL`.
+    cleared(&editor, cx);
+    assert_eq!(loro_text(&editor, cx, 0), "雨夜\n天明\n");
+    assert_eq!(edited.get(), 0);
+    assert_eq!(head(&editor, cx), 4);
+    // The next composition grows at the new caret, not where the old one was.
+    compstr(&editor, cx, "guo", Some(3));
+    assert_eq!(marked_range(&editor, cx), Some(4..7));
+    resultstr(&editor, cx, "国");
+    assert_eq!(loro_text(&editor, cx, 0), "雨夜\n天国明\n");
+    assert_eq!(ime.discarded.get(), 1);
 }
 
 /// Focuses the editor in an active window and draws, so that focus events
