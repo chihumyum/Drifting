@@ -37,26 +37,22 @@ impl BookEditor {
     /// `chapter` is the chapter the slash menu was opened in: the file
     /// picker's 「从电脑选…」 finishes after the author may have clicked into
     /// another chapter, and the file follows the caret there (`kernel-v5.md`
-    /// §15 item 49). When the caret has left `chapter` and the body no
-    /// longer has the keyboard (the author went on outside the text), or the
-    /// caret's chapter takes no files, it goes to the end of `chapter`, as
-    /// before. Returns whether it was.
+    /// §15 item 49), even when the text has since lost the keyboard: the
+    /// caret stays where the author left it. Only when the caret's chapter
+    /// takes no files does it go to the end of `chapter`. Returns whether it
+    /// was.
     pub fn insert_material(
         &mut self,
         chapter: usize,
         material: &str,
-        window: &mut Window,
+        _window: &mut Window,
         cx: &mut Context<Self>,
     ) -> bool {
         let Ok(id) = dr_model::id::AssetId::parse(material) else {
             return false;
         };
         let sel = self.editor.read(cx).selection();
-        let follow = sel.chapter == chapter || prose_files::body_focused(&self.editor, window, cx);
-        let at_caret = follow
-            .then(|| self.chapter_embeds(sel.chapter))
-            .flatten()
-            .map(|embeds| (embeds, sel.head));
+        let at_caret = self.chapter_embeds(sel.chapter).map(|embeds| (embeds, sel.head));
         let Some((embeds, offset)) = at_caret.or_else(|| {
             let doc = &self.editor.read(cx).book().chapters.get(chapter)?.doc;
             Some((self.chapter_embeds(chapter)?, doc.max_cursor()))

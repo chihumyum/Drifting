@@ -1083,9 +1083,9 @@ fn whole_book_file_picked_from_the_computer_follows_the_caret_into_another_chapt
     assert_eq!(o.lines(c1), ["启航", "远洋"], "one ⌘Z takes it back");
     assert!(embedded_in(&e, &stayed).is_empty());
 
-    // The caret left the menu's chapter and the text lost the keyboard (the
-    // author went on outside the prose): the end of the menu's chapter, as
-    // before.
+    // The caret left the menu's chapter and then the text lost the keyboard
+    // (the author went on outside the prose): the file still goes where the
+    // caret was left, not to the end of the menu's chapter.
     o.caret_in(c1, 0, 2);
     o.type_text("/图片");
     o.action(Newline);
@@ -1099,9 +1099,9 @@ fn whole_book_file_picked_from_the_computer_follows_the_caret_into_another_chapt
     draw(o.cx);
     draw(o.cx);
     let unfocused = added(&[moved, stayed]);
-    assert_eq!(embedded_in(&e, &unfocused), [first.as_str()]);
-    assert_eq!(o.lines(c1), ["启航", "远洋", OBJ, ""]);
-    assert_eq!(o.lines(c2), ["靠岸", "归港"]);
+    assert_eq!(embedded_in(&e, &unfocused), [second.as_str()]);
+    assert_eq!(o.lines(c2), ["靠岸", OBJ, "", "归港"]);
+    assert_eq!(o.lines(c1), ["启航", "远洋"], "the menu's chapter is untouched");
 }
 
 #[gpui::test]
