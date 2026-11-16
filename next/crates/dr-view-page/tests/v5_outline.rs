@@ -248,7 +248,8 @@ fn an_entry_page_lists_its_modules_with_each_bodys_headings(cx: &mut TestAppCont
     });
     let key = page.key();
     assert!(
-        cx.debug_bounds(sel(format!("outline-rail-{key}"))).is_some(),
+        cx.debug_bounds(sel(format!("outline-rail-{key}")))
+            .is_some(),
         "the rail is drawn"
     );
     // To the second body's H2 by the rail: it is the row read, under 「来历」.
@@ -272,14 +273,21 @@ fn an_entry_page_lists_its_modules_with_each_bodys_headings(cx: &mut TestAppCont
     });
     let (listed, active) = rows(&view, cx, &page).unwrap();
     assert_eq!(module_of(&listed, active.unwrap()), "正文");
-    // A module's row puts the module at the top of the page.
+    // A module's row puts the module's top at the top of the page (its
+    // first heading, just under its head, is then the row read).
     let row = cx
         .debug_bounds(sel(format!("outline-row-{key}-4")))
         .expect("the second body's module row");
     cx.simulate_click(row.center(), Modifiers::default());
-    wait(cx, "the second body's module read", |cx| {
-        rows(&view, cx, &page).is_some_and(|(_, active)| active == Some(4))
-    });
+    let module_at_top = |cx: &mut VisualTestContext| {
+        cx.update(|window, cx| {
+            let rows = outline::rows(view.read(cx), view.entity_id(), &page, window, cx).unwrap();
+            (rows.entries[4].top - rows.scroll).abs() < 1.0
+        })
+    };
+    wait(cx, "the second body's module at the top", module_at_top);
+    let (listed, active) = rows(&view, cx, &page).unwrap();
+    assert_eq!(module_of(&listed, active.unwrap()), "来历");
     // The corner's switch: the whole rail goes, and comes back.
     view.update(cx, |w, cx| {
         w.outline_hidden = true;
@@ -287,7 +295,8 @@ fn an_entry_page_lists_its_modules_with_each_bodys_headings(cx: &mut TestAppCont
     });
     pump(cx);
     assert!(
-        cx.debug_bounds(sel(format!("outline-rail-{key}"))).is_none(),
+        cx.debug_bounds(sel(format!("outline-rail-{key}")))
+            .is_none(),
         "the switch hides the rail"
     );
     view.update(cx, |w, cx| {
@@ -295,7 +304,10 @@ fn an_entry_page_lists_its_modules_with_each_bodys_headings(cx: &mut TestAppCont
         cx.notify();
     });
     pump(cx);
-    assert!(cx.debug_bounds(sel(format!("outline-rail-{key}"))).is_some());
+    assert!(
+        cx.debug_bounds(sel(format!("outline-rail-{key}")))
+            .is_some()
+    );
 }
 
 #[gpui::test]
@@ -349,7 +361,7 @@ fn a_rail_that_does_not_fit_scrolls_and_stays_until_the_page_scrolls(cx: &mut Te
         pump(cx);
         pump(cx);
     };
-    wheel(cx, at_page, -8000.);
+    wheel(cx, at_page, -40_000.);
     settle(&view, cx, &page);
     let followed = |view: &Entity<Workspace>, cx: &mut VisualTestContext| {
         let (_, active) = rows(view, cx, &page).unwrap();
@@ -360,13 +372,28 @@ fn a_rail_that_does_not_fit_scrolls_and_stays_until_the_page_scrolls(cx: &mut Te
             .unwrap();
         (active, rail, row)
     };
+    // In view, and three rows from an edge unless the rail is at that end
+    // (half a row of it is the label's own height).
+    let kept = |cx: &mut VisualTestContext,
+                row: gpui::Bounds<gpui::Pixels>,
+                rail: gpui::Bounds<gpui::Pixels>| {
+        let margin = px(2. * PITCH);
+        let at_top = offset(&view, cx) == 0.0;
+        let last = cx
+            .debug_bounds(sel(format!("outline-row-{key}-82")))
+            .unwrap();
+        let at_end = last.bottom() <= rail.bottom() + px(1.);
+        row.top() >= rail.top()
+            && row.bottom() <= rail.bottom()
+            && (at_top || row.top() >= rail.top() + margin)
+            && (at_end || row.bottom() <= rail.bottom() - margin)
+    };
     let (active, rail_now, row) = followed(&view, cx);
-    assert!(active > 10, "read far down: row {active}");
+    assert!(active > 60, "read far down: row {active}");
     let followed_to = offset(&view, cx);
     assert!(followed_to > 0.0, "the rail followed");
     assert!(
-        row.top() >= rail_now.top() + px(2. * PITCH)
-            && row.bottom() <= rail_now.bottom() - px(2. * PITCH),
+        kept(cx, row, rail_now),
         "the row read keeps its distance from the edges: {row:?} in {rail_now:?}"
     );
     // The author scrolls the rail back up: it stays there, frame after
@@ -381,14 +408,14 @@ fn a_rail_that_does_not_fit_scrolls_and_stays_until_the_page_scrolls(cx: &mut Te
         pump(cx);
     }
     assert_eq!(offset(&view, cx), left_at, "it stays where it was left");
-    // The page scrolls a little: the rail follows the row read again.
-    wheel(cx, at_page, -60.);
+    // The page scrolls a little (back up: it is at its end): the rail
+    // follows the row read again.
+    wheel(cx, at_page, 120.);
     settle(&view, cx, &page);
     let (active, rail_now, row) = followed(&view, cx);
     assert_ne!(offset(&view, cx), left_at, "the rail came back to the page");
     assert!(
-        row.top() >= rail_now.top() + px(2. * PITCH)
-            && row.bottom() <= rail_now.bottom() - px(2. * PITCH),
+        kept(cx, row, rail_now),
         "row {active} read is in view again: {row:?} in {rail_now:?}"
     );
 }
