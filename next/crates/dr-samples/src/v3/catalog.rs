@@ -1200,8 +1200,7 @@ fn copy_rest(txn: &mut BookTxnV3<'_>, source: &BookView<'_>) -> Result<()> {
         txn.relation_type(&rt.id)?
             .name(&rt.name)?
             .description(&LinkedText::plain(rt.description))?
-            .direction(direction)?
-            .created_at(meta.created_at)?;
+            .direction(direction)?;
     }
     let entry_ids: BTreeSet<_> = txn.view().entries_raw().into_iter().map(|e| e.id).collect();
     let entry_end = |r: &EntityRef| {

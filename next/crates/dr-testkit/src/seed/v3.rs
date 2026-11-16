@@ -1615,8 +1615,7 @@ pub fn book_to_v3(src: &SeededBook) -> Result<SeededBookV3> {
             t.relation_type(&rt.id)?
                 .name(&rt.name)?
                 .description(&LinkedText::plain(&rt.description))?
-                .direction(direction)?
-                .created_at(meta.created_at)?;
+                .direction(direction)?;
         }
         for r in &relations {
             let (Some(from), Some(to)) = (map_endpoint(&r.from), map_endpoint(&r.to)) else {
