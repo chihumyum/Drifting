@@ -498,7 +498,6 @@
     "choose": "Elegir carpeta…",
     "chosen": "Carpeta elegida",
     "continue": "Continuar",
-    "intro": "Cada proyecto conserva una copia Markdown en la carpeta que elijas. Edita capítulos e ideas en cualquier editor y los cambios se integrarán en Drifting.",
     "title": "¿Dónde guardar la carpeta Markdown?"
   },
   "markdownShare": {
@@ -594,6 +593,21 @@
       "empty": "(tarea vacía)"
     }
   },
+  "mirrorV5": {
+    "duplicate": "Dos archivos tienen el mismo drifting-id.",
+    "fieldConflict": "Este campo también se editó en Drifting. Se conservaron ambas versiones.",
+    "identity": "El drifting-id no corresponde a esta entrada y módulo de texto.",
+    "intro": "Cada proyecto tiene una carpeta de Markdown. Al guardar cambios en el texto o los campos en otro editor, Drifting los incorpora.",
+    "lineage": "La entrada o el texto se restauraron, cambiaron de plantilla o se eliminaron. No fue posible incorporar los cambios del archivo.",
+    "malformedTable": "No se pudo leer la tabla. La tabla original sigue en Drifting.",
+    "moved": "Esta versión no sincroniza cambios de nombre ni movimientos de archivos.",
+    "occupied": "Ya hay un archivo en esta ruta.",
+    "offWarning": "Drifting incorpora los cambios pendientes antes de desactivar la carpeta. Los archivos existentes permanecen en su sitio. Puedes reactivarla en Datos locales.",
+    "owned": "Otra instalación de Drifting usa esta carpeta.",
+    "readOnly": "Las propiedades de solo lectura se restauraron con los valores del proyecto.",
+    "unknownImage": "La imagen no apunta a un archivo de la biblioteca. La línea se importó como texto.",
+    "unsafePath": "Drifting no pudo acceder de forma segura a esta ruta del proyecto."
+  },
   "mobileWorkspace": {
     "editorAccessory": {
       "redo": "Rehacer",
@@ -626,6 +640,14 @@
     },
     "empty": "Sin notificaciones",
     "markdownFolder": {
+      "issue": {
+        "empty": "Texto vaciado; sin combinar, archivo conservado",
+        "encoding": "No es UTF-8; no leído, archivo conservado",
+        "frontmatter": "Propiedades iniciales mal formadas; no se combina ni sobrescribe hasta corregirlas",
+        "too-large": "Demasiado grande; no leído, archivo conservado",
+        "unreadable": "No se pudo leer"
+      },
+      "overlap": "Este párrafo cambió tanto en Drifting como en el archivo.",
       "preserved_many": "{{count}} archivos editados conservados en .drifting/preserved",
       "preserved_one": "{{count}} archivo editado conservado en .drifting/preserved",
       "preserved_other": "{{count}} archivos editados conservados en .drifting/preserved",
@@ -1266,7 +1288,15 @@
       "local_sub": "No se usa ninguna cuenta Drifting ni nube alojada. Exporta una copia legible cuando quieras.",
       "local_title": "Tu obra se queda en este dispositivo.",
       "projection": {
-        "turnOff": "Desactivar carpeta Markdown"
+        "allProjects": "Todos los proyectos",
+        "allProjectsUnset": "Todos los proyectos · Sin ubicación elegida",
+        "choose": "Elegir carpeta",
+        "offHint": "Desactivada: no se escribe Markdown ni se integran ediciones externas. Los archivos existentes permanecen.",
+        "offTitle": "¿Desactivar la carpeta Markdown?",
+        "reveal": "Mostrar en Finder",
+        "title": "Carpeta Markdown",
+        "turnOff": "Desactivar carpeta Markdown",
+        "turnOn": "Activar"
       }
     },
     "title": "Ajustes",

@@ -1932,6 +1932,7 @@ dependencies = [
  "dr-doc",
  "dr-editor",
  "dr-i18n",
+ "dr-mirror",
  "dr-model",
  "dr-platform",
  "dr-store",

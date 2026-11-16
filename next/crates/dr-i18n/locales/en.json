@@ -495,7 +495,6 @@
     "choose": "Choose folder…",
     "chosen": "Chosen folder",
     "continue": "Continue",
-    "intro": "Every project keeps a Markdown copy in the folder you choose. Edit chapters and ideas in any editor and the changes merge back into Drifting.",
     "title": "Where should the Markdown folder go?"
   },
   "markdownShare": {
@@ -591,6 +590,21 @@
       "empty": "(empty TODO)"
     }
   },
+  "mirrorV5": {
+    "duplicate": "Two files have the same drifting-id.",
+    "fieldConflict": "This field was also edited in Drifting. Both versions were kept.",
+    "identity": "The drifting-id does not match this entry and prose module.",
+    "intro": "Each project has a Markdown folder. Edits to prose and fields in another editor merge into Drifting after you save.",
+    "lineage": "The entry or prose has been restored, reshaped, or deleted. The file’s edits could not be merged.",
+    "malformedTable": "The table could not be read. The original table is still in Drifting.",
+    "moved": "Renaming and moving files do not sync in this version.",
+    "occupied": "A file already occupies this path.",
+    "offWarning": "Drifting merges pending edits before turning the folder off. Existing files stay where they are. You can turn it back on in Local Data.",
+    "owned": "Another Drifting installation owns this folder.",
+    "readOnly": "The read-only properties were restored from the project.",
+    "unknownImage": "The image points outside the project’s file library. The line was imported as text.",
+    "unsafePath": "Drifting could not safely access this path in the project folder."
+  },
   "mobileWorkspace": {
     "editorAccessory": {
       "redo": "Redo",
@@ -623,6 +637,14 @@
     },
     "empty": "No notifications",
     "markdownFolder": {
+      "issue": {
+        "empty": "The text was emptied; not merged, file kept",
+        "encoding": "Not UTF-8; not read, file kept",
+        "frontmatter": "The properties at the top are malformed; neither merged nor overwritten until fixed",
+        "too-large": "Too large; not read, file kept",
+        "unreadable": "Could not be read"
+      },
+      "overlap": "This paragraph was changed both in Drifting and in the file.",
       "preserved_one": "{{count}} edited file was kept in .drifting/preserved",
       "preserved_other": "{{count}} edited files were kept in .drifting/preserved",
       "source": "Markdown folder"
@@ -1257,7 +1279,15 @@
       "local_sub": "No Drifting account or hosted cloud is used. Export a readable copy whenever you want.",
       "local_title": "Your work stays on this device.",
       "projection": {
-        "turnOff": "Turn off Markdown folder"
+        "allProjects": "All projects",
+        "allProjectsUnset": "All projects · No location chosen",
+        "choose": "Choose folder",
+        "offHint": "Off: projects no longer write Markdown and outside edits no longer merge back. Existing files stay where they are.",
+        "offTitle": "Turn off the Markdown folder?",
+        "reveal": "Show in Finder",
+        "title": "Markdown folder",
+        "turnOff": "Turn off Markdown folder",
+        "turnOn": "Turn on"
       }
     },
     "title": "Settings",

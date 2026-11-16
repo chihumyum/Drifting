@@ -486,7 +486,6 @@
     "choose": "选择文件夹…",
     "chosen": "已选择",
     "continue": "继续",
-    "intro": "每个项目都会在你选择的文件夹里保存一份 Markdown。章节和构想可以用任何编辑器修改，修改会合并回 Drifting。",
     "title": "Markdown 文件夹放在哪里？"
   },
   "markdownShare": {
@@ -582,6 +581,21 @@
       "empty": "(空 TODO)"
     }
   },
+  "mirrorV5": {
+    "duplicate": "有两个文件带着同一个 drifting-id。",
+    "fieldConflict": "这个字段也在 Drifting 里改过，两个版本都保留了。",
+    "identity": "drifting-id 与条目或正文模块不符。",
+    "intro": "每个项目都有一个 Markdown 文件夹。用其他编辑器修改里面的正文和字段，保存后会合回 Drifting。",
+    "lineage": "条目或正文已恢复、换模板或删除，文件里的修改无法自动合入。",
+    "malformedTable": "表格读不出来，原表留在 Drifting。",
+    "moved": "改名、挪位置这一期不同步。",
+    "occupied": "这个位置已经有一个文件。",
+    "offWarning": "关闭前会合入待处理的修改。已有文件留在原处，可以在本地数据里重新开启。",
+    "owned": "这个文件夹由另一套 Drifting 安装使用。",
+    "readOnly": "改过的只读属性已按项目里的值写回。",
+    "unknownImage": "图片未指向素材库里已有的文件，这行按普通文字合入。",
+    "unsafePath": "文件的路径不在可用的项目文件夹内。"
+  },
   "mobileWorkspace": {
     "editorAccessory": {
       "redo": "重做",
@@ -614,6 +628,14 @@
     },
     "empty": "暂无通知",
     "markdownFolder": {
+      "issue": {
+        "empty": "正文被清空，未合并，原文件已另存",
+        "encoding": "不是 UTF-8 编码，未读取，原文件已另存",
+        "frontmatter": "开头的属性写法有误，修好之前不合并也不覆盖",
+        "too-large": "文件太大，未读取，原文件已另存",
+        "unreadable": "无法读取"
+      },
+      "overlap": "这一段同时在 Drifting 和外部文件里改过。",
       "preserved_one": "{{count}} 个改过的文件另存到了 .drifting/preserved",
       "preserved_other": "{{count}} 个改过的文件另存到了 .drifting/preserved",
       "source": "Markdown 文件夹"
@@ -1244,7 +1266,15 @@
       "local_sub": "无需 Drifting 账号，也不连接托管云服务；你可以随时导出一份可阅读的副本。",
       "local_title": "作品只保存在这台设备上。",
       "projection": {
-        "turnOff": "关闭 Markdown 文件夹"
+        "allProjects": "所有项目",
+        "allProjectsUnset": "所有项目 · 未选择位置",
+        "choose": "选择文件夹",
+        "offHint": "已关闭：项目不再写出 Markdown，外部修改也不再合并回来。已有文件留在原处。",
+        "offTitle": "关闭 Markdown 文件夹？",
+        "reveal": "在访达中打开",
+        "title": "Markdown 文件夹",
+        "turnOff": "关闭 Markdown 文件夹",
+        "turnOn": "开启"
       }
     },
     "title": "设定",

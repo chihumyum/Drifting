@@ -15,6 +15,11 @@
         "storage_failed": "無法將登入資訊儲存至 Windows 認證管理員。"
       }
     },
+    "sync": {
+      "projection": {
+        "reveal": "在檔案總管中顯示"
+      }
+    },
     "update": {
       "channel_desc": "Windows 10/11 · x64 與 ARM64"
     }

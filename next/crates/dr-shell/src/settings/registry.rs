@@ -248,7 +248,14 @@ pub static INFO_ROWS: &[InfoRow] = &[
         description: Some(keys::settings::sync::backup::RESTORE_DESC),
         action: RowAction::Restore,
     },
-    // The Markdown folder (0.1's MarkdownProjectionSettings).
+    InfoRow {
+        id: "local.markdown_folder",
+        section: Section::LocalData,
+        group: None,
+        label: keys::settings::sync::projection::TITLE,
+        description: None,
+        action: RowAction::Module,
+    },
     InfoRow {
         id: "local.diagnostics",
         section: Section::LocalData,

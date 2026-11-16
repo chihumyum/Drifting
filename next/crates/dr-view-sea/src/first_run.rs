@@ -565,10 +565,7 @@ impl Step for FolderStep {
                     .font_role(Role::Ui)
                     .type_px(s.body, s.line_body)
                     .text_color(p.ink(2).solid())
-                    .child(dr_ui::text::wrapped(t(
-                        cx,
-                        keys::markdown_folder_guide::INTRO,
-                    )))
+                    .child(dr_ui::text::wrapped(t(cx, keys::mirror_v5::INTRO)))
                     .when_some(chosen, |el, folder| {
                         el.child(
                             div()

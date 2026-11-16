@@ -495,7 +495,6 @@
     "choose": "Ordner auswählen…",
     "chosen": "Gewählter Ordner",
     "continue": "Weiter",
-    "intro": "In dem Ordner, den du wählst, liegt eine Markdown-Kopie jedes Projekts. Bearbeite Kapitel und Ideen in beliebigen Editoren; Änderungen werden in Drifting zusammengeführt.",
     "title": "Wo soll der Markdown-Ordner liegen?"
   },
   "markdownShare": {
@@ -591,6 +590,21 @@
       "empty": "(leere Aufgabe)"
     }
   },
+  "mirrorV5": {
+    "duplicate": "Zwei Dateien haben dieselbe drifting-id.",
+    "fieldConflict": "Dieses Feld wurde auch in Drifting bearbeitet. Beide Fassungen wurden gespeichert.",
+    "identity": "Die drifting-id passt nicht zu diesem Eintrag und Textmodul.",
+    "intro": "Jedes Projekt hat einen Markdown-Ordner. Änderungen an Text und Feldern in einem anderen Editor werden nach dem Speichern in Drifting übernommen.",
+    "lineage": "Der Eintrag oder Text wurde wiederhergestellt, umgestaltet oder gelöscht. Die Dateiänderungen konnten nicht übernommen werden.",
+    "malformedTable": "Die Tabelle konnte nicht gelesen werden. Die ursprüngliche Tabelle bleibt in Drifting erhalten.",
+    "moved": "Umbenennen und Verschieben von Dateien wird in dieser Version nicht synchronisiert.",
+    "occupied": "An diesem Pfad liegt bereits eine Datei.",
+    "offWarning": "Drifting übernimmt ausstehende Änderungen, bevor der Ordner deaktiviert wird. Vorhandene Dateien bleiben erhalten. Unter Lokale Daten lässt sich der Ordner wieder aktivieren.",
+    "owned": "Eine andere Drifting-Installation verwendet diesen Ordner.",
+    "readOnly": "Die schreibgeschützten Eigenschaften wurden aus dem Projekt wiederhergestellt.",
+    "unknownImage": "Das Bild verweist auf keine Datei in der Projektbibliothek. Die Zeile wurde als Text importiert.",
+    "unsafePath": "Drifting konnte nicht sicher auf diesen Pfad im Projektordner zugreifen."
+  },
   "mobileWorkspace": {
     "editorAccessory": {
       "redo": "Wiederholen",
@@ -623,6 +637,14 @@
     },
     "empty": "Keine Benachrichtigungen",
     "markdownFolder": {
+      "issue": {
+        "empty": "Text geleert; nicht zusammengeführt, Datei aufbewahrt",
+        "encoding": "Kein UTF-8; nicht gelesen, Datei aufbewahrt",
+        "frontmatter": "Fehlerhafte Eigenschaften am Anfang; bis zur Korrektur weder zusammengeführt noch überschrieben",
+        "too-large": "Zu groß; nicht gelesen, Datei aufbewahrt",
+        "unreadable": "Konnte nicht gelesen werden"
+      },
+      "overlap": "Dieser Absatz wurde in Drifting und in der Datei geändert.",
       "preserved_one": "{{count}} bearbeitete Datei unter .drifting/preserved aufbewahrt",
       "preserved_other": "{{count}} bearbeitete Dateien unter .drifting/preserved aufbewahrt",
       "source": "Markdown-Ordner"
@@ -1257,7 +1279,15 @@
       "local_sub": "Ohne Drifting-Konto oder gehostete Cloud. Exportiere jederzeit eine lesbare Kopie.",
       "local_title": "Dein Werk bleibt auf diesem Gerät.",
       "projection": {
-        "turnOff": "Markdown-Ordner deaktivieren"
+        "allProjects": "Alle Projekte",
+        "allProjectsUnset": "Alle Projekte · Kein Speicherort gewählt",
+        "choose": "Ordner auswählen",
+        "offHint": "Deaktiviert: kein Markdown-Export und keine Übernahme externer Änderungen. Vorhandene Dateien bleiben erhalten.",
+        "offTitle": "Markdown-Ordner deaktivieren?",
+        "reveal": "Im Finder anzeigen",
+        "title": "Markdown-Ordner",
+        "turnOff": "Markdown-Ordner deaktivieren",
+        "turnOn": "Aktivieren"
       }
     },
     "title": "Einstellungen",

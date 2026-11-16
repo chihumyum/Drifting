@@ -118,6 +118,21 @@
     "title": "Título",
     "unset": "Não definido"
   },
+  "mirrorV5": {
+    "intro": "Cada projeto tem uma pasta Markdown. Ao salvar alterações no texto ou nos campos em outro editor, o Drifting incorpora as mudanças.",
+    "offWarning": "O Drifting incorpora as alterações pendentes antes de desativar a pasta. Os arquivos existentes ficam onde estão. Você pode reativá-la em Dados locais.",
+    "identity": "O drifting-id não corresponde a esta entrada e módulo de texto.",
+    "lineage": "A entrada ou o texto foi restaurado, mudou de modelo ou foi excluído. As alterações do arquivo não puderam ser incorporadas.",
+    "owned": "Outra instalação do Drifting usa esta pasta.",
+    "unsafePath": "O Drifting não pôde acessar com segurança este caminho na pasta do projeto.",
+    "occupied": "Já existe um arquivo neste caminho.",
+    "duplicate": "Dois arquivos têm o mesmo drifting-id.",
+    "moved": "Esta versão não sincroniza renomeações nem movimentações de arquivos.",
+    "readOnly": "As propriedades somente leitura foram restauradas com os valores do projeto.",
+    "malformedTable": "Não foi possível ler a tabela. A tabela original permanece no Drifting.",
+    "unknownImage": "A imagem não aponta para um arquivo na biblioteca do projeto. A linha foi importada como texto.",
+    "fieldConflict": "Este campo também foi editado no Drifting. As duas versões foram preservadas."
+  },
   "positionLink": {
     "copied": "Link de posição copiado"
   },
