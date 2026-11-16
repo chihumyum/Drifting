@@ -2,8 +2,8 @@
 //! ([`panel`]), and the global that ties them to the app.
 //!
 //! Changing a setting goes through [`Settings::update`]: the file changes,
-//! the change takes effect (theme, text size, language, crash reports, the
-//! keymap), every window repaints, and the file is written 300 ms later.
+//! the change takes effect (theme, text size, reduced motion, language,
+//! crash reports, the keymap), every window repaints, and the file is written 300 ms later.
 
 pub mod panel;
 pub mod registry;
@@ -147,6 +147,7 @@ impl Global for Settings {}
 struct Applied {
     theme: Option<String>,
     text_size: Option<String>,
+    reduce_motion: Option<bool>,
     locale: Option<Locale>,
     crash_reports: Option<bool>,
 }
@@ -226,6 +227,7 @@ fn apply(cx: &mut App) {
     let now = Applied {
         theme: file.str(registry::THEME),
         text_size: file.str(registry::TEXT_SIZE),
+        reduce_motion: Some(file.bool(registry::REDUCE_MOTION)),
         locale: Some(Settings::locale(cx)),
         crash_reports: Some(file.bool(registry::CRASH_REPORTS)),
     };
@@ -243,6 +245,10 @@ fn apply(cx: &mut App) {
     if now.text_size != before.text_size {
         dr_ui::theme::set_text_size(text_size(now.text_size.as_deref()), cx);
     }
+    if now.reduce_motion != before.reduce_motion {
+        // Off hands the choice back to the system's 减少动态效果.
+        dr_ui::theme::set_reduce_motion(reduce_motion(now.reduce_motion), cx);
+    }
     if now.locale != before.locale
         && let Some(locale) = now.locale
     {
@@ -259,6 +265,12 @@ fn apply(cx: &mut App) {
     }
     cx.global_mut::<Settings>().applied = now;
     cx.refresh_windows();
+}
+
+/// What the 关闭动态效果 switch asks of the theme: on forces every movement
+/// off, off follows the platform.
+pub fn reduce_motion(switch: Option<bool>) -> Option<bool> {
+    switch.unwrap_or(false).then_some(true)
 }
 
 pub fn text_size(value: Option<&str>) -> TextSize {

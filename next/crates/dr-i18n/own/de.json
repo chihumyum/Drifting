@@ -120,6 +120,9 @@
     }
   },
   "settings": {
+    "appearance": {
+      "reduce_motion": "Animationen ausschalten"
+    },
     "editor": {
       "justify": "Blocksatz"
     },

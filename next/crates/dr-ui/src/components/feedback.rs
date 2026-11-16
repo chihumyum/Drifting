@@ -217,7 +217,7 @@ impl RenderOnce for Loading {
             .font_role(Role::Ui)
             .type_px(s.secondary, s.line_body)
             .text_color(ink)
-            .child(spinner(px_size, ink, window, theme.reduce_motion))
+            .child(spinner(px_size, ink, window))
             .children(self.label)
     }
 }
@@ -238,7 +238,6 @@ impl RenderOnce for Progress {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = Theme::of(window, cx);
         let p = theme.palette;
-        let reduce = theme.reduce_motion;
         let value = self.value;
         div().w_full().h(px(2.0)).relative().child(
             canvas(
@@ -254,19 +253,17 @@ impl RenderOnce for Progress {
                         Some(v) => (0.0, w * v.clamp(0.0, 1.0)),
                         None => {
                             let piece = (w * 0.22).max(24.0);
-                            let t = if reduce {
-                                0.0
-                            } else {
-                                window.request_animation_frame();
-                                let lap = 1.6f32;
-                                let secs = anim::now()
-                                    .duration_since(*START.get_or_init(Instant::now))
-                                    .as_secs_f32();
-                                let phase = (secs % lap) / lap;
-                                // There and back, easing at both ends.
-                                let tri = 1.0 - (2.0 * phase - 1.0).abs();
-                                Easing::EASE.at(tri)
-                            };
+                            // Under reduced motion too: the piece going there
+                            // and back says the work is still under way.
+                            window.request_animation_frame();
+                            let lap = 1.6f32;
+                            let secs = anim::now()
+                                .duration_since(*START.get_or_init(Instant::now))
+                                .as_secs_f32();
+                            let phase = (secs % lap) / lap;
+                            // There and back, easing at both ends.
+                            let tri = 1.0 - (2.0 * phase - 1.0).abs();
+                            let t = Easing::EASE.at(tri);
                             ((w - piece) * t, piece)
                         }
                     };

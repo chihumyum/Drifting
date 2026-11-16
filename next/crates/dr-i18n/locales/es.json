@@ -1044,6 +1044,7 @@
       "interface_text_smallest": "Mínimo",
       "interface_text_standard": "Estándar",
       "light": "Claro",
+      "reduce_motion": "Desactivar animaciones",
       "replay_guides": "Recorrido al abrir un libro por primera vez",
       "replay_guides_action": "Mostrar de nuevo",
       "system": "Seguir el sistema",

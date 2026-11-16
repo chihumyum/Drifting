@@ -463,6 +463,9 @@ pub const AGENT_MODEL: &str = "agent.model";
 pub const AGENT_THINKING: &str = "agent.thinking";
 pub const AGENT_MAX_MODEL_ROUNDS: &str = "agent.max_model_rounds";
 pub const TEXT_SIZE: &str = "appearance.interface_text_size";
+/// 关闭动态效果: on, nothing moves whatever the system says; off, the
+/// system's 减少动态效果 decides.
+pub const REDUCE_MOTION: &str = "appearance.reduce_motion";
 pub const UI_LOCALE: &str = "language.ui_locale";
 pub const FONT_SIZE: &str = "editor.font_size";
 pub const LINE_HEIGHT: &str = "editor.line_height";
@@ -604,6 +607,24 @@ pub static REGISTRY: &[SettingDef] = &[
         label: keys::settings::appearance::INTERFACE_TEXT_SIZE,
         description: Some(keys::settings::appearance::INTERFACE_TEXT_SIZE_DESC),
         search: &["font size", "zoom", "字号", "字体大小"],
+    },
+    SettingDef {
+        key: REDUCE_MOTION,
+        kind: Kind::Switch,
+        default: Initial::Bool(false),
+        scope: Scope::Device,
+        section: Section::Appearance,
+        group: None,
+        label: keys::settings::appearance::REDUCE_MOTION,
+        description: None,
+        search: &[
+            "reduce motion",
+            "animation",
+            "motion",
+            "减少动态效果",
+            "动画",
+            "动效",
+        ],
     },
     SettingDef {
         key: UI_LOCALE,

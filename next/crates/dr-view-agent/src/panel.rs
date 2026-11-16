@@ -925,12 +925,7 @@ impl AgentPanel {
                                     .gap(px(7.))
                                     .cursor_pointer()
                                     .text_color(p.ink(3).solid())
-                                    .child(sand::thinking(
-                                        16.,
-                                        p.ink(3).solid(),
-                                        running && !theme.reduce_motion,
-                                        window,
-                                    ))
+                                    .child(sand::thinking(16., p.ink(3).solid(), running, window))
                                     .child(label),
                             )
                             .when(open, |el| {
@@ -1524,7 +1519,7 @@ impl Render for AgentPanel {
                     .child(sand::thinking(
                         16.,
                         p.ink(3).solid(),
-                        run.state == State::Streaming && !theme.reduce_motion,
+                        run.state == State::Streaming,
                         window,
                     ))
                     .child(t(

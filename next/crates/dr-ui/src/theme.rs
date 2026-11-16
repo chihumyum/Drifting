@@ -105,6 +105,18 @@ pub fn force_appearance(appearance: Option<Appearance>, cx: &mut App) {
     cx.refresh_windows();
 }
 
+/// Turns every movement off (`Some(true)`), or follows the platform again
+/// (`None`), and repaints every window.
+pub fn set_reduce_motion(reduce: Option<bool>, cx: &mut App) {
+    let mut settings = cx
+        .try_global::<ThemeSettings>()
+        .copied()
+        .unwrap_or_default();
+    settings.reduce_motion = reduce;
+    cx.set_global(settings);
+    cx.refresh_windows();
+}
+
 pub fn set_text_size(size: TextSize, cx: &mut App) {
     let mut settings = cx
         .try_global::<ThemeSettings>()

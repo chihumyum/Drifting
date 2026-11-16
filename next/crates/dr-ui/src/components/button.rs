@@ -129,15 +129,13 @@ impl Button {
     }
 }
 
-/// The loader (缺角圆相) turning once in 0.9s.
-pub fn spinner(size: f32, color: gpui::Hsla, window: &Window, reduce: bool) -> gpui::Svg {
-    let turn = if reduce {
-        0.0
-    } else {
-        window.request_animation_frame();
-        let lap = motion::dwell::LOADING_LAP.as_secs_f32();
-        (anim::now().elapsed_since_start() % lap) / lap
-    };
+/// The loader (缺角圆相) turning once in 0.9s. It turns under reduced
+/// motion too: it says something is still under way, so it is not one of
+/// the movements 关闭动态效果 stops.
+pub fn spinner(size: f32, color: gpui::Hsla, window: &Window) -> gpui::Svg {
+    window.request_animation_frame();
+    let lap = motion::dwell::LOADING_LAP.as_secs_f32();
+    let turn = (anim::now().elapsed_since_start() % lap) / lap;
     sand::icon(Icon::Loader, size, color)
         .with_transformation(Transformation::rotate(percentage(turn)))
 }
@@ -192,9 +190,7 @@ impl RenderOnce for Button {
                 .weight(weight::MEDIUM)
                 .text_color(ink)
                 .when(self.full_width, |el| el.w_full())
-                .when(self.busy, |el| {
-                    el.child(spinner(icon_size, ink, window, theme.reduce_motion))
-                })
+                .when(self.busy, |el| el.child(spinner(icon_size, ink, window)))
                 .when_some(self.icon.filter(|_| !self.busy), |el, icon| {
                     el.child(sand::icon(icon, icon_size, ink))
                 })

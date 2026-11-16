@@ -111,6 +111,9 @@
     }
   },
   "settings": {
+    "appearance": {
+      "reduce_motion": "关闭动态效果"
+    },
     "editor": {
       "justify": "两端对齐"
     },

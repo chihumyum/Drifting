@@ -113,6 +113,9 @@
     }
   },
   "settings": {
+    "appearance": {
+      "reduce_motion": "애니메이션 끄기"
+    },
     "editor": {
       "justify": "양쪽 맞춤"
     },

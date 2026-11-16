@@ -275,7 +275,9 @@ pub fn paper_corner(
         return div().id("paper-sync-mark-hidden").into_any_element();
     }
 
-    let animate_periodic = want_visible && !ws.immersive && !theme.reduce_motion;
+    // The breathing and blinking go on under reduced motion: they say a sync
+    // is under way. Only the fade in and out lands at once.
+    let animate_periodic = want_visible && !ws.immersive;
     let (icon_el, wave_alpha) = match active_visual {
         MarkVisual::Hidden => return div().id("paper-sync-mark-hidden").into_any_element(),
         MarkVisual::BreathingCloud => {
