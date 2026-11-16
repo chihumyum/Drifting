@@ -5,9 +5,12 @@ use dr_agent::driver::scripted::{ScriptedDriver, Step};
 use dr_agent::{
     DriverEvent, FinishReason, Options, Provider, RunConfig, Runtime, Start, State, ToolExecutor,
 };
+use dr_agent_tools::structure::ProjectSourceSummary;
 use dr_agent_tools::{AgentTools, CallRequest, Error, FocusRequest, StructureContext};
 use dr_doc::v3::novel::{MOD_PROSE, TPL_CHAPTER};
 use dr_model::id::{BookId, ConversationId};
+use dr_model::v3::ProjectTemplateRef;
+use dr_testkit::samples;
 use dr_testkit::seed::{self, Preset};
 use dr_workspace::{Actor, Workspace};
 use serde_json::{Value, json};
@@ -650,6 +653,72 @@ fn v4_book_structure_json_omits_kind_allow_and_about_and_projects_description_as
     );
 }
 
+/// PT4 hand-back: the seeds, the sample books and the App's built-in
+/// samples are made from the built-in 「写书」 and record it the way
+/// `project.create` does, by name too, so the structure says where they
+/// came from: every book of the four seed presets, the three sample books
+/// and the built-in samples a new library gets. (A 0.1 import:
+/// dr-import-v1's `v3_import.rs`.)
+#[test]
+fn seeds_and_sample_books_name_the_built_in_template_as_their_source() {
+    let check = |label: &str, ws: &Workspace, books: Vec<BookId>| {
+        assert!(!books.is_empty(), "{label}");
+        for book in books {
+            let project = ws
+                .call(&Actor::User, "project.get", json!({"book": book}))
+                .unwrap()["output"]
+                .clone();
+            assert_eq!(project["source"]["name"], "写书", "{label} {book}");
+            assert_eq!(project["source"]["origin"], "builtin", "{label} {book}");
+            let context = StructureContext::for_book(ws, &book, None)
+                .unwrap()
+                .unwrap();
+            let text: Value =
+                serde_json::from_str(&context.to_contribution().unwrap().text).unwrap();
+            assert_eq!(
+                text["project_source"],
+                json!({"template": "写书"}),
+                "{label} {book}"
+            );
+        }
+    };
+    for preset in Preset::ALL {
+        let dir = tempfile::tempdir().unwrap();
+        let ws = Workspace::open_dir(dir.path(), "pt4-seed-source").unwrap();
+        let seeded = seed::generate_v3(preset, seed::DEFAULT_SEED).unwrap();
+        seeded.write_to(ws.library()).unwrap();
+        let books = seeded.books.iter().map(|b| b.book_id().clone()).collect();
+        check(preset.name(), &ws, books);
+        ws.close();
+    }
+
+    let dir = tempfile::tempdir().unwrap();
+    let ws = Workspace::open_dir(dir.path(), "pt4-sample-source").unwrap();
+    let books = [
+        samples::pride_and_prejudice_v3().unwrap(),
+        samples::a_q_v3().unwrap(),
+        samples::slow_clock_v3().unwrap(),
+    ];
+    for book in &books {
+        seed::write_book_v3(ws.library(), book).unwrap();
+    }
+    check(
+        "samples",
+        &ws,
+        books.iter().map(|b| b.book_id().clone()).collect(),
+    );
+    ws.close();
+
+    let dir = tempfile::tempdir().unwrap();
+    let ws = Workspace::open_dir(dir.path(), "pt4-built-in-source").unwrap();
+    let dr_samples::Outcome::Created { books } = dr_samples::ensure_built_in(&ws) else {
+        panic!("a new library gets the built-in samples");
+    };
+    let books = books.iter().map(|b| BookId::parse(b).unwrap()).collect();
+    check("built-in samples", &ws, books);
+    ws.close();
+}
+
 /// PT4 (`project-templates.md` §10 rule 4, §15): the structure carries where
 /// the project came from, the project template's name and its credit and
 /// nothing else of `project.source` (no 「改自」, id, version or origin);
@@ -667,10 +736,18 @@ fn structure_names_the_project_source_by_template_name_and_credit_only() {
     };
     let id = |value: &Value| value["id"].as_str().unwrap().to_owned();
 
-    // The seed records the built-in template by id alone: no source is shown.
+    // The seed is made from the built-in 「写书」 and names it.
     let seeded = structure(f.book.as_str());
-    assert!(seeded.get("project_source").is_none(), "{seeded}");
+    assert_eq!(seeded["project_source"], json!({"template": "写书"}));
     assert!(seeded.get("project_template_source").is_none(), "{seeded}");
+    // A source recorded without a template's name shows nothing.
+    let unnamed = ProjectTemplateRef {
+        id: "builtin:novel".into(),
+        version: 4,
+        ..ProjectTemplateRef::default()
+    };
+    assert_eq!(ProjectSourceSummary::of(Some(&unnamed)), None);
+    assert_eq!(ProjectSourceSummary::of(None), None);
 
     // Made from the built-in 「写书」: its name, crediting no one.
     let builtin = id(&f.out("project.create", json!({"name": "合成新项目"})));

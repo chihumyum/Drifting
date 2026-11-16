@@ -266,11 +266,13 @@ pub struct ProjectTemplateSaveIn {
     pub book: String,
     /// The template's name. Needed for a new template; replacing one
     /// (`replace`) without it keeps the name that one has. A working copy
-    /// saves under its book's name when it is left out.
+    /// refuses it: its template is named after the copy's book
+    /// (`project.update`'s `name`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
-    /// Left out when replacing: the replaced template keeps its own; a
-    /// working copy takes its book's profile.
+    /// Left out when replacing: the replaced template keeps its own. A
+    /// working copy refuses it: its template's is the copy's profile
+    /// (`project.update`'s `summary`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     /// Optional BCP-47 locale tag (defaults to `"zh-CN"`).
@@ -282,7 +284,8 @@ pub struct ProjectTemplateSaveIn {
     pub credit: Option<types::ProjectTemplateCredit>,
     /// The words for the Agent the template carries (`project.agent`):
     /// left out, the project's own; `null`, none; given, these (the
-    /// project keeps its own either way).
+    /// project keeps its own either way). A working copy refuses it: its
+    /// template's are the copy's project's (`project.update`'s `agent`).
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
@@ -385,6 +388,10 @@ fn extract_book(
     }
 }
 
+/// Why a working copy's `project_template.save` takes no `name`,
+/// `description` or `agent`.
+pub const WORKING_COPY_WORDS: &str = "a working copy's template takes its name, description and words for the Agent from the copy itself, which saves over it after every change: change them with project.update (`name`, `summary`, `agent`)";
+
 /// Everything a working copy holds, as a template over the one it edits
 /// (`project-templates.md` §12): every live entry with its content, every
 /// view's time pins; the name and description are the copy's book name and
@@ -431,8 +438,11 @@ fn extract_working_copy(
     Ok(value)
 }
 
-/// What a `project_template.save` given to a working copy sets over what
-/// the copy holds; the default sets nothing (the saver's own saves).
+/// Words to save over what a working copy holds. Pass the default, which
+/// sets nothing: the copy saves itself after every write, taking its book
+/// name, profile and project again, so anything set here would last only
+/// until then. `project_template.save` refuses these words for a working
+/// copy and points to `project.update`, which changes the copy itself.
 #[derive(Debug, Default)]
 pub struct WorkingCopyWords {
     /// The template's name instead of the copy's book name.
@@ -494,7 +504,6 @@ op! {
     "Save a project's structure and selected sample items as a project template, or a template's working copy over that template.",
     fn(cx, input: ProjectTemplateSaveIn) -> ProjectTemplateSummary {
         let ws = cx.workspace();
-        let agent = input.agent.as_ref().map(agent_words).transpose()?;
         if let Some(note) = ws.working_copy_note(&input.book)? {
             // A working copy saves everything it holds over its own template,
             // with that template's history (`project-templates.md` §12).
@@ -512,21 +521,17 @@ op! {
                     "a working copy saves everything it holds, with its template's own credit",
                 ));
             }
-            if let Some(n) = &input.name {
-                name_ok(n)?;
-            }
-            if let Some(d) = &input.description {
-                check_description(d)?;
+            // The copy saves itself after every write, taking these three
+            // from its own book again: given here, they would be undone by
+            // the next one.
+            if input.name.is_some() || input.description.is_some() || input.agent.is_some() {
+                return Err(WsError::invalid(WORKING_COPY_WORDS));
             }
             let summary = save_working_copy(
                 ws,
                 cx.actor(),
                 &input.book,
-                WorkingCopyWords {
-                    name: input.name,
-                    description: input.description,
-                    agent,
-                },
+                WorkingCopyWords::default(),
             )?
             .ok_or_else(|| WsError::not_found("project_template", &note.template))?;
             cx.irreversible();
@@ -559,6 +564,7 @@ op! {
         };
         check_description(&description)?;
         let trimmed_name = name.trim().to_owned();
+        let agent = input.agent.as_ref().map(agent_words).transpose()?;
 
         let mut exclude_skeleton: BTreeSet<EntryId> = BTreeSet::new();
         for raw in &input.exclude_skeleton {

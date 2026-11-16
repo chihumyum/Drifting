@@ -27,8 +27,11 @@ thiserror.workspace = true
 libc.workspace = true
 
 [dev-dependencies]
+# An imported book opened as the App opens it, and the Agent's structure of it.
+dr-agent-tools.workspace = true
 # Measured evidence in the one format (`examples/m10-measure.rs`).
 dr-testkit.workspace = true
+dr-workspace.workspace = true
 tempfile.workspace = true
 
 [build-dependencies]

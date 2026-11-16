@@ -87,10 +87,104 @@ fn entry(snapshot: &ChainSnapshot, id: &str, text: String) -> ConversationEntry 
     }
 }
 
+/// About how many tokens `value` takes as model input: a planning bound,
+/// never a generation ceiling. One estimate for every provider, the four
+/// hosted services and local model servers alike. Tokenizers differ, so
+/// each kind of text is counted near the rate of the least efficient
+/// tokenizer among them; that stays above most real counts without the old
+/// bound of one token a byte (three for every Chinese character):
+///
+/// - Chinese and other non-ASCII text: a token a character (about three
+///   bytes a token for Chinese); characters outside the Basic Multilingual
+///   Plane (emoji, rare ideographs) two.
+/// - English: a token for every four letters of a word or part of them
+///   (about three and a half bytes a token; a short word is a whole token).
+/// - Digits: a token each (several local tokenizers split numbers into
+///   digits).
+/// - Punctuation: a token for every two marks in a row (JSON's `":"` and
+///   `","`).
+/// - Whitespace: a single space or tab goes with the word after it; any
+///   other run of whitespace is a token.
+///
+/// JSON is counted as the model reads it: each string by its text and a
+/// token for its quotes, each key likewise and a token for its colon and
+/// comma, and a token for each bracket and separator; a string holding JSON
+/// (`BOOK_STRUCTURE.json`) is text like any other, so its escapes are not
+/// counted twice. The estimate never exceeds the value's size in JSON bytes,
+/// the old bound: whatever fitted before still fits.
+pub fn estimate_tokens(value: &impl Serialize) -> Result<u64> {
+    Ok(value_tokens(&serde_json::to_value(value)?))
+}
+
+fn value_tokens(value: &Value) -> u64 {
+    match value {
+        Value::Null | Value::Bool(_) => 1,
+        Value::Number(number) => estimate_text_tokens(&number.to_string()),
+        Value::String(text) => 1 + estimate_text_tokens(text),
+        Value::Array(items) => items
+            .iter()
+            .fold(1, |sum, item| sum + 1 + value_tokens(item)),
+        Value::Object(map) => map.iter().fold(1, |sum, (key, item)| {
+            sum + 2 + estimate_text_tokens(key) + value_tokens(item)
+        }),
+    }
+}
+
+/// About how many tokens `text` takes as model input ([`estimate_tokens`]
+/// gives the rates). Never more than its length in bytes.
+pub fn estimate_text_tokens(text: &str) -> u64 {
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum Run {
+        Letters,
+        Marks,
+        Space { breaks: bool },
+        Other,
+    }
+    fn close(run: Run, len: u64) -> u64 {
+        match run {
+            Run::Letters => len.div_ceil(4),
+            Run::Marks => len.div_ceil(2),
+            Run::Space { breaks } => u64::from(breaks || len > 1),
+            Run::Other => 0,
+        }
+    }
+    let mut tokens = 0;
+    let mut run = Run::Other;
+    let mut len = 0;
+    for c in text.chars() {
+        let kind = match c {
+            'a'..='z' | 'A'..='Z' => Run::Letters,
+            '\n' | '\r' => Run::Space { breaks: true },
+            ' ' | '\t' | '\x0b' | '\x0c' => Run::Space { breaks: false },
+            _ if c.is_ascii() && !c.is_ascii_digit() => Run::Marks,
+            _ => Run::Other,
+        };
+        let same = match (run, kind) {
+            (Run::Space { breaks }, Run::Space { breaks: more }) => {
+                run = Run::Space {
+                    breaks: breaks || more,
+                };
+                true
+            }
+            (a, b) => a == b && a != Run::Other,
+        };
+        if !same {
+            tokens += close(run, len);
+            run = kind;
+            len = 0;
+        }
+        if kind == Run::Other {
+            // A digit, or a character of two to four bytes.
+            tokens += if c.len_utf8() == 4 { 2 } else { 1 };
+        } else {
+            len += 1;
+        }
+    }
+    tokens + close(run, len)
+}
+
 fn cost(value: &impl Serialize) -> Result<u64> {
-    // One unit per UTF-8 byte is a conservative, provider-neutral estimate;
-    // it is explicitly a planning bound, never a generation token ceiling.
-    Ok(serde_json::to_vec(value)?.len() as u64)
+    estimate_tokens(value)
 }
 
 struct Unit {

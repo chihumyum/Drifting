@@ -146,7 +146,13 @@ fn the_catalog_offers_project_templates_through_list_get_and_save_only() {
         .collect();
     assert!(!required.contains(&"name"), "{required:?}");
     assert!(!required.contains(&"description"), "{required:?}");
-    for said in ["`name`", "`replace`", "`agent`", "working copy"] {
+    for said in [
+        "`name`",
+        "`replace`",
+        "`agent`",
+        "working copy",
+        "project.update",
+    ] {
         assert!(
             save.description.contains(said),
             "{said}: {}",
@@ -352,12 +358,7 @@ fn a_working_copy_saves_only_over_the_template_it_edits() {
     // Saving in the working copy replaces the template it edits: that one
     // has to be read first, like any replacement.
     let unread = f
-        .agent_in(
-            &copy,
-            1,
-            "project_template.save",
-            json!({"description": "帮手写的描述"}),
-        )
+        .agent_in(&copy, 1, "project_template.save", json!({}))
         .unwrap_err();
     assert!(
         matches!(&unread, Error::ReadRequired(subject) if subject == &format!("project_template:{own}")),
@@ -377,15 +378,108 @@ fn a_working_copy_saves_only_over_the_template_it_edits() {
     );
     assert_eq!(f.template(&other)["summary"]["revision"], 1);
     let saved = f
-        .agent_in(
-            &copy,
-            1,
-            "project_template.save",
-            json!({"description": "帮手写的描述"}),
-        )
+        .agent_in(&copy, 1, "project_template.save", json!({}))
         .unwrap()["output"]
         .clone();
     assert_eq!(saved["id"], own.as_str());
-    assert_eq!(f.template(&own)["summary"]["description"], "帮手写的描述");
     assert_eq!(f.template(&other)["summary"]["revision"], 1);
+}
+
+/// In a working copy the template's name, description and words for the
+/// Agent are the copy's own book name, profile and project: the copy saves
+/// itself after every change and would take them back, so a save that
+/// gives them is refused and points to `project.update` (PT4 hand-back).
+#[test]
+fn a_working_copy_takes_its_templates_words_from_project_update_only() {
+    let f = Fixture::new();
+    let own = f.author(
+        "project_template.save",
+        json!({"book": f.book, "name": "在编辑的模板", "description": "原来的描述"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let copy = BookId::parse(
+        f.author("project_template.edit", json!({"id": own}))["book"]
+            .as_str()
+            .unwrap(),
+    )
+    .unwrap();
+    let before = f.template(&own);
+
+    f.agent_in(&copy, 1, "project_template.get", json!({"id": own}))
+        .unwrap();
+    let words =
+        json!({"name": "合成帮手", "description": "合成说明", "instructions": "只在模板里"});
+    for given in [
+        json!({"name": "帮手起的名字"}),
+        json!({"description": "帮手写的描述"}),
+        json!({"agent": words}),
+        json!({"agent": null}),
+        json!({"replace": own, "name": "帮手起的名字", "description": "帮手写的描述"}),
+    ] {
+        let refused = f
+            .agent_in(&copy, 1, "project_template.save", given.clone())
+            .unwrap_err();
+        let message = refused.to_string();
+        assert!(
+            message.contains("project.update") && message.contains("working copy"),
+            "{given}: {message}"
+        );
+        // The author is refused the same way.
+        let mut theirs = given.clone();
+        theirs["book"] = json!(copy);
+        let author =
+            f.ws.call(&Actor::User, "project_template.save", theirs)
+                .unwrap_err();
+        assert!(
+            author.to_string().contains("project.update"),
+            "{given}: {author}"
+        );
+    }
+    f.ws.flush_working_copies().unwrap();
+    assert_eq!(f.template(&own), before);
+    // Refused before anything ran: the template read in this turn still
+    // counts, and a save without them goes through.
+    let plain = f
+        .agent_in(&copy, 1, "project_template.save", json!({}))
+        .unwrap()["output"]
+        .clone();
+    assert_eq!(plain["id"], own.as_str());
+    assert_eq!(f.template(&own), before);
+
+    // Through `project.update` the copy changes, and the template follows
+    // it and keeps it through the copy's later saves.
+    f.agent_in(&copy, 2, "project.get", json!({})).unwrap();
+    f.agent_in(&copy, 2, "book.get", json!({})).unwrap();
+    f.agent_in(
+        &copy,
+        2,
+        "project.update",
+        json!({"name": "帮手起的名字", "summary": "帮手写的描述", "agent": words}),
+    )
+    .unwrap();
+    f.ws.flush_working_copies().unwrap();
+    let followed = f.template(&own);
+    assert_eq!(followed["summary"]["name"], "帮手起的名字");
+    assert_eq!(followed["summary"]["description"], "帮手写的描述");
+    assert_eq!(followed["value"]["project"]["agent"], words);
+    let first = f.author("entry.list", json!({"book": copy, "all": true}))[0]["id"].clone();
+    f.author(
+        "entry.update",
+        json!({"book": copy, "id": first, "title": "后来改的标题"}),
+    );
+    f.ws.flush_working_copies().unwrap();
+    f.agent_in(&copy, 3, "project_template.get", json!({"id": own}))
+        .unwrap();
+    f.agent_in(&copy, 3, "project_template.save", json!({}))
+        .unwrap();
+    let kept = f.template(&own);
+    assert!(
+        kept["summary"]["revision"].as_i64() > followed["summary"]["revision"].as_i64(),
+        "{kept}"
+    );
+    assert_eq!(kept["summary"]["name"], "帮手起的名字");
+    assert_eq!(kept["summary"]["description"], "帮手写的描述");
+    assert_eq!(kept["value"]["project"]["agent"], words);
 }

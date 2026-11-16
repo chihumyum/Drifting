@@ -1669,6 +1669,7 @@ dependencies = [
  "dr-agent",
  "dr-doc",
  "dr-model",
+ "dr-samples",
  "dr-store",
  "dr-testkit",
  "dr-workspace",
@@ -1835,12 +1836,14 @@ dependencies = [
 name = "dr-import-v1"
 version = "0.0.0"
 dependencies = [
+ "dr-agent-tools",
  "dr-doc",
  "dr-index",
  "dr-model",
  "dr-samples",
  "dr-store",
  "dr-testkit",
+ "dr-workspace",
  "libc",
  "log",
  "loro",

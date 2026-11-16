@@ -246,7 +246,10 @@ pub async fn run_checkin_with_guidance(
             .map(u64::from)
             .unwrap_or(8_192)
             .max(4_096);
-        let required = context.len() as u64 + config.system_prompt.len() as u64 + 1024;
+        // Counted like a chat request (`context::estimate_text_tokens`).
+        let required = crate::context::estimate_text_tokens(&context)
+            + crate::context::estimate_text_tokens(&config.system_prompt)
+            + 1024;
         if required > window.saturating_sub(reserve).saturating_sub(window / 10) {
             return Err(Error::Protocol(
                 "context_capacity: book guidance does not fit; no suggestion request sent".into(),

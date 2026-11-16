@@ -352,7 +352,7 @@ impl Catalog {
                 )
             } else if spec.name == "project_template.save" {
                 format!(
-                    "{} It saves the current project. A new template needs `name`; with `replace` (a template read in this turn with project_template.list or project_template.get) it keeps that template's name and description unless they are given. `agent` is the words for the Agent the template carries: left out, the project's; null, none; given, these, in the template only (the project keeps its own). A template's working copy saves only over the template it edits, which has to be read first too.",
+                    "{} It saves the current project. A new template needs `name`; with `replace` (a template read in this turn with project_template.list or project_template.get) it keeps that template's name and description unless they are given. `agent` is the words for the Agent the template carries: left out, the project's; null, none; given, these, in the template only (the project keeps its own). A template's working copy saves only over the template it edits, which has to be read first too; there `name`, `description` and `agent` are refused, since the template takes them from the copy's own project: change those with project.update (`name`, `summary`, `agent`).",
                     spec.summary
                 )
             } else if version == BookKernelVersion::V3 && spec.name == "comment.update" {

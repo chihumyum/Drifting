@@ -169,8 +169,9 @@ pub struct ProjectSourceSummary {
 }
 
 impl ProjectSourceSummary {
-    /// `None` when the project records no template by name (a seed, a
-    /// sample or a 0.1 import records the built-in template by id alone).
+    /// `None` when the project records no template by name. Every book the
+    /// App makes records one: `project.create`, the seeds, the sample books
+    /// and a 0.1 import all record the built-in template with its name.
     pub fn of(source: Option<&ProjectTemplateRef>) -> Option<Self> {
         let source = source?;
         let template = source
