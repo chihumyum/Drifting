@@ -8,10 +8,8 @@ import {
   createPlainCommentDoc,
   extractTextFromCommentBody,
   getBlockSnapshotsFromAnchor,
-  isAutoParsedTodo,
   isNoteTaskTodo,
   type Comment,
-  type CommentTargetKind,
 } from '../../domain/comment';
 import { isStructuralEntityKind } from '../../domain/entity-kinds';
 import type { EntityKind } from '../../lib/extensions/entity-link';
@@ -59,8 +57,8 @@ export interface ReviewItemCardProps {
   comment: Comment;
   projectId: string;
   relations?: ReviewItemRelation[];
-  onAddRelation?: (target: RelationTarget) => unknown;
-  onRemoveRelation?: (target: RelationTarget) => unknown;
+  onAddRelation?: (target: RelationTarget) => void;
+  onRemoveRelation?: (target: RelationTarget) => void;
   onOpenAgentTask?: () => string | void;
 }
 
@@ -224,41 +222,12 @@ export function ReviewItemCard({
   };
 
   const handleRemoveRelation = (target: RelationTarget) => {
-    const hasRelation = relations.some((r) => r.toKind === target.kind && r.toId === target.id);
-    const matchesDirect =
-      canUnbindDirect && comment.targetKind === target.kind && comment.targetId === target.id;
-    if (!hasRelation && !matchesDirect) return;
-    void run(async () => {
-      if (hasRelation) await onRemoveRelation?.(target);
-      if (!matchesDirect) return;
-      const next =
-        comment.kind === 'note'
-          ? relations.find(
-              (r) =>
-                !(r.toKind === target.kind && r.toId === target.id) &&
-                isStructuralEntityKind(r.toKind),
-            )
-          : undefined;
-      if (next && isStructuralEntityKind(next.toKind)) {
-        const nextKind = next.toKind;
-        await onRemoveRelation?.({ kind: nextKind, id: next.toId, label: '' });
-        await commentUsecases.setCommentTarget(comment.id, {
-          targetKind: nextKind as CommentTargetKind,
-          targetId: next.toId,
-        });
-      } else {
-        await commentUsecases.unbindCommentTarget(comment.id);
-      }
-    });
+    if (canUnbindDirect && comment.targetKind === target.kind && comment.targetId === target.id) {
+      void run(() => commentUsecases.unbindCommentTarget(comment.id));
+      return;
+    }
+    onRemoveRelation?.(target);
   };
-
-  const canUnbindAny =
-    canUnbindDirect ||
-    (!ownedByNote &&
-      !isAutoParsedTodo(comment) &&
-      !isConverted &&
-      Boolean(onRemoveRelation) &&
-      relations.length > 0);
 
   const actions: HoverActionGroup[] = [
     {
@@ -299,26 +268,14 @@ export function ReviewItemCard({
                 ? commentUsecases.revertToNote(comment.id)
                 : commentUsecases.convertToTodo(comment.id)),
             },
-            ...(canUnbindAny
+            ...(canUnbindDirect
               ? [
                   {
                     key: 'unbind',
                     label: t('relationPicker.removeRelation'),
                     icon: { brush: 'close' as const },
                     disabled: busy,
-                    onSelect: () =>
-                      void run(async () => {
-                        if (onRemoveRelation) {
-                          for (const rel of relations) {
-                            if (isStructuralEntityKind(rel.toKind)) {
-                              await onRemoveRelation({ kind: rel.toKind, id: rel.toId, label: '' });
-                            }
-                          }
-                        }
-                        if (canUnbindDirect) {
-                          await commentUsecases.unbindCommentTarget(comment.id);
-                        }
-                      }),
+                    onSelect: () => void run(() => commentUsecases.unbindCommentTarget(comment.id)),
                   },
                 ]
               : []),

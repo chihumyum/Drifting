@@ -430,27 +430,20 @@ export function isNoteTaskTodo(comment: Pick<Comment, 'kind' | 'targetKind' | 'm
   );
 }
 
-/** A TODO projected from a `TODO:` / `待办:` prose block (`hooks/useTodoAutoParse.ts`). */
-export function isAutoParsedTodo(
-  comment: Pick<Comment, 'kind' | 'metadataJson'>,
-): boolean {
-  return comment.kind === 'todo' && commentMetadataKind(comment.metadataJson) === 'todo-autoparse';
-}
-
 /**
  * Whether a comment's direct `target_*` binding can be detached by the author.
- * Converted suggestions are frozen audit rows; checklist-projected note TODOs
- * (`isNoteTaskTodo`) and prose-marker TODOs (`isAutoParsedTodo`) are owned by
- * their live document lines and would re-project if detached here.
+ * Converted suggestions are audit rows. A checklist or prose marker owns its
+ * projection's anchor, even when the projection has been switched to a note.
  */
 export function canUnbindCommentTarget(
-  comment: Pick<Comment, 'kind' | 'status' | 'targetKind' | 'targetId' | 'metadataJson'>,
+  comment: Pick<Comment, 'status' | 'targetKind' | 'targetId' | 'metadataJson'>,
 ): boolean {
+  const metadataKind = commentMetadataKind(comment.metadataJson);
   return (
     Boolean(comment.targetKind && comment.targetId) &&
     comment.status !== 'converted' &&
-    !isNoteTaskTodo(comment) &&
-    !isAutoParsedTodo(comment)
+    metadataKind !== 'note-task' &&
+    metadataKind !== 'todo-autoparse'
   );
 }
 

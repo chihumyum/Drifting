@@ -336,7 +336,7 @@ export function DesktopSuperMemoMaterialView() {
         (r) =>
           r.fromKind === fromKind && r.fromId === fromId && r.toKind === toKind && r.toId === toId,
       );
-      if (ref) return relationUsecases.removeRelation(ref.id);
+      if (ref) void relationUsecases.removeRelation(ref.id);
     },
     [genericRelations, relationUsecases],
   );
@@ -958,6 +958,14 @@ function TodoRail({
           void relationUsecases.addGenericAssociation('comment', todo.id, t.kind, t.id);
         }}
         onRemoveRelation={(t) => {
+          if (
+            canUnbindCommentTarget(todo) &&
+            todo.targetKind === t.kind &&
+            todo.targetId === t.id
+          ) {
+            void commentUsecases.unbindCommentTarget(todo.id);
+            return;
+          }
           const ref = entityRelations.find(
             (r) =>
               r.fromKind === 'comment' &&
@@ -965,16 +973,7 @@ function TodoRail({
               r.toKind === t.kind &&
               r.toId === t.id,
           );
-          void (async () => {
-            if (ref) await relationUsecases.removeRelation(ref.id);
-            if (
-              canUnbindCommentTarget(todo) &&
-              todo.targetKind === t.kind &&
-              todo.targetId === t.id
-            ) {
-              await commentUsecases.unbindCommentTarget(todo.id);
-            }
-          })();
+          if (ref) void relationUsecases.removeRelation(ref.id);
         }}
       />
     );
@@ -1028,7 +1027,7 @@ function CommentRail({
   openNotes: Comment[];
   refsByFrom: Map<string, Array<{ id: string; toKind: EntityKind; toId: string }>>;
   relationUsecases: ReturnType<typeof useEntityRelations>;
-  removeRelation: (fromKind: EntityKind, fromId: string, toKind: EntityKind, toId: string) => unknown;
+  removeRelation: (fromKind: EntityKind, fromId: string, toKind: EntityKind, toId: string) => void;
   width: number;
   onResize: (width: number) => void;
   onCompose: () => void;
@@ -1183,7 +1182,7 @@ function LibraryItemMain({
   setEditingId: (id: string | null) => void;
   libraryItemUsecases: ReturnType<typeof useLibraryItem>;
   relationUsecases: ReturnType<typeof useEntityRelations>;
-  removeRelation: (fromKind: EntityKind, fromId: string, toKind: EntityKind, toId: string) => unknown;
+  removeRelation: (fromKind: EntityKind, fromId: string, toKind: EntityKind, toId: string) => void;
   openLibraryItemInApp: (m: LibraryItem) => void;
   openLibraryItemInSystem: (m: LibraryItem) => Promise<void>;
   onCompose: () => void;
@@ -1295,7 +1294,7 @@ function KindGroup({
   setEditingId: (id: string | null) => void;
   libraryItemUsecases: ReturnType<typeof useLibraryItem>;
   relationUsecases: ReturnType<typeof useEntityRelations>;
-  removeRelation: (fromKind: EntityKind, fromId: string, toKind: EntityKind, toId: string) => unknown;
+  removeRelation: (fromKind: EntityKind, fromId: string, toKind: EntityKind, toId: string) => void;
   openLibraryItemInApp: (m: LibraryItem) => void;
   openLibraryItemInSystem: (m: LibraryItem) => Promise<void>;
 }) {
@@ -1364,7 +1363,7 @@ function BottomDrawer({
   commentUsecases: ReturnType<typeof useComment>;
   libraryItemUsecases: ReturnType<typeof useLibraryItem>;
   relationUsecases: ReturnType<typeof useEntityRelations>;
-  removeRelation: (fromKind: EntityKind, fromId: string, toKind: EntityKind, toId: string) => unknown;
+  removeRelation: (fromKind: EntityKind, fromId: string, toKind: EntityKind, toId: string) => void;
   openLibraryItemInApp: (m: LibraryItem) => void;
   openLibraryItemInSystem: (m: LibraryItem) => Promise<void>;
 }) {

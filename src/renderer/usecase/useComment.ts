@@ -15,10 +15,12 @@ import {
   type CommentSource,
   type CommentTargetKind,
 } from '../domain/comment';
+import { genericAssociationRelationTypeId } from '../domain/entity-relation-type';
 import {
   createCommentActionRepository,
   createCommentRepository,
 } from '../sqlite-repo/comment-repo';
+import { createEntityRelationRepository } from '../sqlite-repo/entity-relation-repo';
 import { useDataStore } from '../store/data-store';
 import { withOptimisticUpdate } from './optimistic';
 import { withAtomicSyncTransaction } from './sync-helpers';
@@ -437,55 +439,71 @@ export function useComment({ projectId, userId }: UseCommentContext) {
       target: { targetKind: CommentTargetKind; targetId: string } | null,
     ) => {
       await ensureDb();
-      const comments = useDataStore.getState().comments;
-      const existing = comments.find((comment) => comment.id === id);
-      if (!existing) throw new Error(`Comment with id ${id} not found`);
-      if (!target) {
-        if (!existing.targetKind && !existing.targetId) return existing;
-        if (!canUnbindCommentTarget(existing)) return existing;
-      } else if (existing.targetKind === target.targetKind && existing.targetId === target.targetId) {
-        return existing;
-      }
+      const unchanged = Symbol('comment target unchanged');
+      let unchangedComment: Comment | undefined;
+      try {
+        const { persisted, fields, removedIds } = await withAtomicSyncTransaction(
+          projectId,
+          async (tx, sync) => {
+            const repo = createCommentRepository(projectId, tx);
+            const existing = await repo.findById(id);
+            if (!existing) throw new Error(`Comment with id ${id} not found`);
+            const canChange = target
+              ? existing.status !== 'converted' && !existing.targetKind && !existing.targetId
+              : canUnbindCommentTarget(existing);
+            if (!canChange) {
+              // End a no-op before the journal tries to write an empty change-set.
+              unchangedComment = existing;
+              throw unchanged;
+            }
 
-      const now = new Date().toISOString();
-      const updated: Comment = {
-        ...existing,
-        targetKind: target ? target.targetKind : null,
-        targetId: target ? target.targetId : null,
-        targetBlockId: null,
-        targetBlockIdsJson: '[]',
-        anchorJson: '{}',
-        updatedAt: now,
-      };
-      clearActiveCommentHighlight(id);
-
-      return withOptimisticUpdate({
-        apply: () =>
-          useDataStore
-            .getState()
-            .setComments(comments.map((comment) => (comment.id === id ? updated : comment))),
-        rollback: () => useDataStore.getState().setComments(comments),
-        effect: () =>
-          withAtomicSyncTransaction(projectId, async (tx, sync) => {
-            const persisted = await createCommentRepository(projectId, tx).update(id, {
-              targetKind: updated.targetKind,
-              targetId: updated.targetId,
-              targetBlockId: updated.targetBlockId,
-              targetBlockIdsJson: updated.targetBlockIdsJson,
-              anchorJson: updated.anchorJson,
-              updatedAt: updated.updatedAt,
-            });
+            // Some existing notes have both a direct target and a generic
+            // association to the same object. Remove both in this transaction.
+            const relations = createEntityRelationRepository(tx);
+            const typeId = genericAssociationRelationTypeId(projectId);
+            const generic = target
+              ? []
+              : (await relations.listRelationsFromSource('comment', id)).filter(
+                  (relation) => relation.projectId === projectId && relation.relationTypeId === typeId,
+                );
+            const duplicate = generic.find(
+              (relation) => relation.toKind === existing.targetKind && relation.toId === existing.targetId,
+            );
+            // A note with other associations stays grouped under a selected
+            // entity. The oldest remaining association becomes its target.
+            const remaining = generic.filter((relation) => relation.id !== duplicate?.id);
+            const primary = existing.kind === 'note' ? remaining[remaining.length - 1] : undefined;
+            const fields = {
+              targetKind: target?.targetKind ?? primary?.toKind ?? null,
+              targetId: target?.targetId ?? primary?.toId ?? null,
+              targetBlockId: null,
+              targetBlockIdsJson: '[]',
+              anchorJson: '{}',
+            };
+            const persisted = await repo.update(id, { ...fields, updatedAt: new Date().toISOString() });
             if (!persisted) throw new Error(`Comment with id ${id} not found`);
-            await sync('comment', 'update', persisted.id, projectId, {
-              targetKind: persisted.targetKind,
-              targetId: persisted.targetId,
-              targetBlockId: persisted.targetBlockId,
-              targetBlockIdsJson: persisted.targetBlockIdsJson,
-              anchorJson: persisted.anchorJson,
-            });
-            return persisted;
-          }),
-      });
+            await sync('comment', 'update', id, projectId, fields);
+            const removedIds = new Set<string>();
+            for (const relation of [duplicate, primary]) {
+              if (!relation) continue;
+              await relations.removeRelation(relation.id);
+              await sync('entityRelation', 'delete', relation.id, projectId);
+              removedIds.add(relation.id);
+            }
+            return { persisted, fields, removedIds };
+          },
+        );
+        const store = useDataStore.getState();
+        store.updateComment(id, { ...fields, updatedAt: persisted.updatedAt });
+        if (removedIds.size > 0) {
+          store.setEntityRelations(store.entityRelations.filter((relation) => !removedIds.has(relation.id)));
+        }
+        clearActiveCommentHighlight(id);
+        return persisted;
+      } catch (error) {
+        if (error === unchanged && unchangedComment) return unchangedComment;
+        throw error;
+      }
     },
     [ensureDb, projectId],
   );

@@ -246,7 +246,7 @@ export function ReviewPanel({ focused, onOpenAgentTask, onOpenWorkbench }: Revie
             (candidate) =>
               candidate.toKind === target.kind && candidate.toId === target.id,
           );
-          if (relation) return relationUsecases.removeRelation(relation.id);
+          if (relation) void relationUsecases.removeRelation(relation.id);
         }}
       />
     );
