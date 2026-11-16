@@ -1566,6 +1566,7 @@
       "editAddress": "Cambiar dirección",
       "modelName": "Nombre del modelo",
       "name": "Modelo local",
+      "noToolModels": "Ningún modelo de este servidor puede usar herramientas",
       "notLocal": "Solo direcciones de este equipo o de la red local",
       "unreachable": "No se puede conectar con esta dirección"
     },

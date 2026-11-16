@@ -172,43 +172,43 @@ fn listed(rows: Value) -> String {
 }
 
 fn ollama() -> Fake {
-    Fake::new(Box::new(|seen| {
-        match (seen.method.as_str(), seen.path.as_str()) {
-            ("GET", "/v1/models") => (
+    Fake::new(Box::new(ollama_reply))
+}
+
+fn ollama_reply(seen: &Seen) -> (u16, String) {
+    match (seen.method.as_str(), seen.path.as_str()) {
+        ("GET", "/v1/models") => (
+            200,
+            listed(json!([
+                {"id":"qwen3:14b","object":"model","owned_by":"library"},
+                {"id":"llama3.1:8b","object":"model","owned_by":"library"},
+                {"id":"gemma3:12b","object":"model","owned_by":"library"},
+                {"id":"nomic-embed-text:latest","object":"model","owned_by":"library"},
+            ])),
+        ),
+        ("GET", "/api/version") => (200, json!({"version":"0.12.0"}).to_string()),
+        ("POST", "/api/show") => {
+            let (arch, context, capabilities) = match seen.body["model"].as_str() {
+                Some("qwen3:14b") => ("qwen3", 40_960, json!(["completion", "tools", "thinking"])),
+                Some("llama3.1:8b") => ("llama", 131_072, json!(["completion", "tools"])),
+                Some("gemma3:12b") => ("gemma3", 131_072, json!(["completion", "vision"])),
+                _ => ("nomic-bert", 2_048, json!(["embedding"])),
+            };
+            (
                 200,
-                listed(json!([
-                    {"id":"qwen3:14b","object":"model","owned_by":"library"},
-                    {"id":"llama3.1:8b","object":"model","owned_by":"library"},
-                    {"id":"gemma3:12b","object":"model","owned_by":"library"},
-                    {"id":"nomic-embed-text:latest","object":"model","owned_by":"library"},
-                ])),
-            ),
-            ("GET", "/api/version") => (200, json!({"version":"0.12.0"}).to_string()),
-            ("POST", "/api/show") => {
-                let (arch, context, capabilities) = match seen.body["model"].as_str() {
-                    Some("qwen3:14b") => {
-                        ("qwen3", 40_960, json!(["completion", "tools", "thinking"]))
-                    }
-                    Some("llama3.1:8b") => ("llama", 131_072, json!(["completion", "tools"])),
-                    Some("gemma3:12b") => ("gemma3", 131_072, json!(["completion", "vision"])),
-                    _ => ("nomic-bert", 2_048, json!(["embedding"])),
-                };
-                (
-                    200,
-                    json!({
-                        "capabilities": capabilities,
-                        "model_info": {
-                            "general.architecture": arch,
-                            format!("{arch}.context_length"): context,
-                            "general.parameter_count": 14_000_000_000u64,
-                        },
-                    })
-                    .to_string(),
-                )
-            }
-            _ => (404, "{}".into()),
+                json!({
+                    "capabilities": capabilities,
+                    "model_info": {
+                        "general.architecture": arch,
+                        format!("{arch}.context_length"): context,
+                        "general.parameter_count": 14_000_000_000u64,
+                    },
+                })
+                .to_string(),
+            )
         }
-    }))
+        _ => (404, "{}".into()),
+    }
 }
 
 #[tokio::test]
@@ -243,6 +243,32 @@ async fn ollama_is_recognized_and_only_tool_models_are_offered() {
             .all(|seen| !seen.headers.to_ascii_lowercase().contains("authorization")),
         "no key, no Authorization header"
     );
+}
+
+/// An Ollama with only gemma3 (no tools) and an embedding model gave its
+/// list; nothing is left to offer, and that is not 「no list」.
+#[tokio::test]
+async fn an_ollama_with_only_models_without_tools_has_none_to_offer() {
+    let fake = Fake::new(Box::new(|seen| match seen.path.as_str() {
+        "/v1/models" => (
+            200,
+            listed(json!([
+                {"id":"gemma3:12b","object":"model","owned_by":"library"},
+                {"id":"nomic-embed-text:latest","object":"model","owned_by":"library"},
+            ])),
+        ),
+        // Everything else as the full Ollama answers it.
+        _ => ollama_reply(seen),
+    }));
+    let http = HttpClient::new().unwrap();
+    assert_eq!(
+        local::discover(http.raw(), &address(&fake), None).await,
+        Err(DiscoverError::NoToolModels)
+    );
+    assert_eq!(fake.requests("/api/show").len(), 2, "both were asked about");
+    local::check(http.raw(), &address(&fake), None)
+        .await
+        .unwrap();
 }
 
 #[tokio::test]
@@ -337,23 +363,25 @@ async fn an_unknown_server_keeps_its_address_name_and_row_context() {
 #[tokio::test]
 async fn no_list_wrong_key_and_nothing_listening_are_told_apart() {
     let http = HttpClient::new().unwrap();
-    for (status, body) in [
-        (404, "{}".to_owned()),
-        (200, listed(json!([]))),
-        (200, "not json".to_owned()),
-        (200, json!({"models":[]}).to_string()),
-        (500, "{}".to_owned()),
-        // Only an embedding model: nothing the Agent can use.
+    for (status, body, error) in [
+        (404, "{}".to_owned(), DiscoverError::NoList),
+        (200, "not json".to_owned(), DiscoverError::NoList),
+        (200, json!({"models":[]}).to_string(), DiscoverError::NoList),
+        (500, "{}".to_owned(), DiscoverError::NoList),
+        // A list, but nothing on it the Agent can use (作者 2026-11-16, 乙):
+        // empty, or only an embedding model.
+        (200, listed(json!([])), DiscoverError::NoToolModels),
         (
             200,
             listed(json!([{"id":"nomic-embed-text","object":"model"}])),
+            DiscoverError::NoToolModels,
         ),
     ] {
         let reply = (status, body.clone());
         let fake = Fake::new(Box::new(move |_| reply.clone()));
         assert_eq!(
             local::discover(http.raw(), &address(&fake), None).await,
-            Err(DiscoverError::NoList),
+            Err(error),
             "{status} {body}"
         );
         // Anything answering is up, even without a model list.

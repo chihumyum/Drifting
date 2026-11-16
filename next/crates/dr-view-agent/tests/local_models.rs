@@ -31,6 +31,7 @@ use serde_json::{Value, json};
 struct Seen {
     path: String,
     headers: String,
+    body: String,
 }
 
 type Route = Box<dyn Fn(&str, &str, &str) -> (u16, String) + Send + Sync>;
@@ -61,10 +62,16 @@ impl Fake {
                         log.lock().unwrap().push(Seen {
                             path: path.clone(),
                             headers: headers.clone(),
+                            body: body.clone(),
                         });
                         let (status, body) = route(&path, &headers, &body);
+                        let kind = if body.starts_with("data:") {
+                            "text/event-stream"
+                        } else {
+                            "application/json"
+                        };
                         let head = format!(
-                            "HTTP/1.1 {status} Test\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                            "HTTP/1.1 {status} Test\r\nContent-Type: {kind}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
                             body.len()
                         );
                         let _ = socket.write_all(head.as_bytes());
@@ -141,6 +148,39 @@ fn listed(rows: Value) -> String {
     json!({"object":"list","data":rows}).to_string()
 }
 
+/// A Chat Completions stream that thinks, then answers 「OK」.
+fn says_ok() -> String {
+    let mut out = String::new();
+    for value in [
+        json!({"choices":[{"index":0,"delta":{"role":"assistant","content":"<think>one word</think>"},"finish_reason":null}]}),
+        json!({"choices":[{"index":0,"delta":{"content":"OK"},"finish_reason":null}]}),
+        json!({"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}),
+    ] {
+        out.push_str(&format!("data: {value}\n\n"));
+    }
+    out.push_str("data: [DONE]\n\n");
+    out
+}
+
+/// Holds a reply back until the test opens it (at most 20 s).
+#[derive(Clone, Default)]
+struct Gate(Arc<(Mutex<bool>, std::sync::Condvar)>);
+
+impl Gate {
+    fn open(&self) {
+        *self.0.0.lock().unwrap() = true;
+        self.0.1.notify_all();
+    }
+
+    fn wait(&self) {
+        let (open, signal) = &*self.0;
+        let guard = open.lock().unwrap();
+        let _ = signal
+            .wait_timeout_while(guard, Duration::from_secs(20), |open| !*open)
+            .unwrap();
+    }
+}
+
 /// An Ollama-like service: two tool models, one without tools, one embedding.
 fn ollama() -> Fake {
     Fake::new(Box::new(|path, _, body| match path {
@@ -151,6 +191,7 @@ fn ollama() -> Fake {
             ])),
         ),
         "/api/version" => (200, json!({"version":"0.12.0"}).to_string()),
+        "/v1/chat/completions" => (200, says_ok()),
         "/api/show" => {
             let capabilities = if body.contains("gemma3") {
                 json!(["completion", "vision"])
@@ -227,7 +268,19 @@ fn open(
     Entity<LocalConnectionView>,
     &mut VisualTestContext,
 ) {
-    let connections = cx.new(|cx| Connections::with_service(service(store), cx));
+    open_with(cx, service(store), settings)
+}
+
+fn open_with(
+    cx: &mut TestAppContext,
+    service: ConnectionService,
+    settings: bool,
+) -> (
+    Entity<Connections>,
+    Entity<LocalConnectionView>,
+    &mut VisualTestContext,
+) {
+    let connections = cx.new(|cx| Connections::with_service(service, cx));
     let shared = connections.clone();
     let (view, vcx) = cx
         .add_window_view(move |window, cx| LocalConnectionView::new(shared, settings, window, cx));
@@ -728,4 +781,206 @@ fn the_account_keeps_local_as_a_provider_and_nothing_else() {
         registry::info_in(registry::Section::Models).any(|row| row.id == "models.local"),
         "Settings → 模型与 API has the local row"
     );
+}
+
+/// 作者 2026-11-16 (乙): the server gave its list, but nothing on it can use
+/// tools. Nothing is connected, the form says why, and it does not ask for
+/// a model name (that is only for a server with no list).
+#[gpui::test]
+fn a_list_with_no_tool_model_stays_unconnected_and_says_why(cx: &mut TestAppContext) {
+    shell(cx);
+    cx.update(|cx| dr_shell::strings::Strings::install(dr_i18n::Locale::ZhCn, cx));
+    let fake = Fake::new(Box::new(|path, _, body| match path {
+        "/v1/models" => (
+            200,
+            listed(json!([{"id":"gemma3:12b"},{"id":"nomic-embed-text"}])),
+        ),
+        "/api/version" => (200, json!({"version":"0.12.0"}).to_string()),
+        "/api/show" => {
+            let capabilities = if body.contains("embed") {
+                json!(["embedding"])
+            } else {
+                json!(["completion", "vision"])
+            };
+            (200, json!({"capabilities":capabilities}).to_string())
+        }
+        _ => (404, "{}".into()),
+    }));
+    let store = Arc::new(SecretStore::in_memory());
+    let (connections, view, vcx) = open(cx, store, false);
+    wait(vcx, |vcx| {
+        connections.read_with(vcx, |c, _| c.usable() == Some(false))
+    });
+    connect(&view, vcx, &fake.url, None);
+    wait(vcx, |vcx| {
+        form(&view, vcx).is_some_and(|f| !f.busy && f.error.is_some())
+    });
+    let state = form(&view, vcx).unwrap();
+    assert_eq!(state.error, Some(LocalFailure::NoToolModels));
+    assert!(!state.asks_model_name, "no 「模型名」 field");
+    assert_eq!(
+        vcx.update(|_, cx| local_view::failure_text(LocalFailure::NoToolModels, cx)),
+        "这台服务上没有能用工具的模型"
+    );
+    assert!(connections.read_with(vcx, |c, _| c.local_servers().is_empty()));
+    assert_eq!(connections.read_with(vcx, |c, _| c.usable()), Some(false));
+    assert!(device_list(vcx).is_none());
+    assert!(
+        !fake
+            .requests()
+            .iter()
+            .any(|seen| seen.path.contains("chat"))
+    );
+    // A server with no list at all still asks for a model name.
+    let silent = Fake::new(Box::new(|_, _, _| (404, "{}".into())));
+    connect(&view, vcx, &silent.url, None);
+    wait(vcx, |vcx| {
+        form(&view, vcx).is_some_and(|f| f.asks_model_name && f.error.is_none())
+    });
+}
+
+fn tool_models() -> String {
+    listed(json!([{"id":"first-model"},{"id":"second-model"}]))
+}
+
+fn chat_requests(fake: &Fake) -> Vec<Value> {
+    fake.requests()
+        .into_iter()
+        .filter(|seen| seen.path == "/v1/chat/completions")
+        .map(|seen| serde_json::from_str(&seen.body).unwrap())
+        .collect()
+}
+
+fn tested(
+    connections: &Entity<Connections>,
+    vcx: &mut VisualTestContext,
+    id: &str,
+) -> Option<Result<(), LocalFailure>> {
+    connections.update(vcx, |c, cx| c.test_local(id, cx));
+    wait(vcx, |vcx| {
+        connections.read_with(vcx, |c, _| {
+            c.local_test.as_ref().is_some_and(|(_, r)| r.is_some())
+        })
+    });
+    connections.read_with(vcx, |c, _| {
+        c.local_test
+            .clone()
+            .filter(|(test, _)| test == id)
+            .and_then(|(_, result)| result)
+    })
+}
+
+/// 「测试连接」 (作者 2026-11-16, 乙): one short sentence to the model, and
+/// 「可用」 only once the model has answered. The model asked is the one
+/// selected on this server, else the server's first. A refused key and a
+/// server that is gone each say so.
+#[gpui::test]
+fn testing_a_connection_waits_for_the_model_to_answer(cx: &mut TestAppContext) {
+    shell(cx);
+    let gate = Gate::default();
+    let refuse = Arc::new(AtomicBool::new(false));
+    let (held, refusing) = (gate.clone(), refuse.clone());
+    let fake = Fake::new(Box::new(move |path, _, _| match path {
+        "/v1/models" => (200, tool_models()),
+        "/v1/chat/completions" if refusing.load(Ordering::SeqCst) => {
+            (401, r#"{"error":"unauthorized"}"#.into())
+        }
+        "/v1/chat/completions" => {
+            held.wait();
+            (200, says_ok())
+        }
+        _ => (404, "{}".into()),
+    }));
+    let store = Arc::new(SecretStore::in_memory());
+    store.set("byok.deepseek", "synthetic-deepseek").unwrap();
+    let service = service(store).with_local_test_wait(Duration::from_secs(30));
+    let (connections, view, vcx) = open_with(cx, service, true);
+    connect(&view, vcx, &fake.url, None);
+    wait(vcx, |vcx| form(&view, vcx).is_none());
+    assert!(chat_requests(&fake).is_empty(), "connecting only lists");
+    let id = connections.read_with(vcx, |c, _| c.local_servers()[0].id.clone());
+    connections.update(vcx, |c, cx| {
+        assert!(c.select_local(&id, "second-model", cx));
+    });
+
+    connections.update(vcx, |c, cx| c.test_local(&id, cx));
+    wait(vcx, |_| !chat_requests(&fake).is_empty());
+    std::thread::sleep(Duration::from_millis(200));
+    vcx.run_until_parked();
+    assert_eq!(
+        connections.read_with(vcx, |c, _| c.local_test.clone()),
+        Some((id.clone(), None)),
+        "no 「可用」 while the model has not answered"
+    );
+    gate.open();
+    wait(vcx, |vcx| {
+        connections.read_with(vcx, |c, _| {
+            c.local_test.as_ref().is_some_and(|(_, r)| r.is_some())
+        })
+    });
+    assert_eq!(
+        connections.read_with(vcx, |c, _| c.local_test.clone()),
+        Some((id.clone(), Some(Ok(()))))
+    );
+    let sent = chat_requests(&fake);
+    assert_eq!(sent.len(), 1);
+    assert_eq!(sent[0]["model"], "second-model");
+    assert!(sent[0].to_string().contains("Return exactly OK."));
+    assert!(sent[0].get("tools").is_none() && sent[0].get("thinking").is_none());
+
+    // A cloud model is selected: the server's first model is asked.
+    connections.update(vcx, |c, cx| {
+        assert!(c.select_provider(Provider::Deepseek, cx));
+    });
+    assert_eq!(tested(&connections, vcx, &id), Some(Ok(())));
+    assert_eq!(chat_requests(&fake).last().unwrap()["model"], "first-model");
+
+    // The model refuses the key: 「密钥无效」.
+    refuse.store(true, Ordering::SeqCst);
+    assert_eq!(
+        tested(&connections, vcx, &id),
+        Some(Err(LocalFailure::InvalidKey))
+    );
+
+    // The server is gone: 「连不上这个地址」.
+    drop(fake);
+    assert_eq!(
+        tested(&connections, vcx, &id),
+        Some(Err(LocalFailure::Unreachable))
+    );
+}
+
+/// A model that has not answered when the wait is up (minutes in the app,
+/// a moment here) is a failed request, not 「可用」 and not 「连不上」.
+#[gpui::test]
+fn a_model_that_does_not_answer_in_time_fails_the_test(cx: &mut TestAppContext) {
+    shell(cx);
+    cx.update(|cx| dr_shell::strings::Strings::install(dr_i18n::Locale::ZhCn, cx));
+    let gate = Gate::default();
+    let held = gate.clone();
+    let fake = Fake::new(Box::new(move |path, _, _| match path {
+        "/v1/models" => (200, tool_models()),
+        "/v1/chat/completions" => {
+            held.wait();
+            (200, says_ok())
+        }
+        _ => (404, "{}".into()),
+    }));
+    let store = Arc::new(SecretStore::in_memory());
+    let service = service(store).with_local_test_wait(Duration::from_millis(300));
+    let (connections, view, vcx) = open_with(cx, service, true);
+    connect(&view, vcx, &fake.url, None);
+    wait(vcx, |vcx| form(&view, vcx).is_none());
+    let id = connections.read_with(vcx, |c, _| c.local_servers()[0].id.clone());
+    assert_eq!(
+        tested(&connections, vcx, &id),
+        Some(Err(LocalFailure::RequestFailed))
+    );
+    assert_eq!(chat_requests(&fake).len(), 1);
+    // The words are the existing request-failed line.
+    assert_eq!(
+        vcx.update(|_, cx| local_view::failure_text(LocalFailure::RequestFailed, cx)),
+        "请求失败（provider 不可用或网络问题）"
+    );
+    gate.open();
 }
