@@ -69,7 +69,10 @@ pub struct Sidebar {
     filled: bool,
     template_structure: Option<Entity<super::template_structure::Structure>>,
     fill_layouts: BTreeMap<String, FillLayout>,
-    filled_displays: BTreeMap<String, (TabMount, FillLayout, Rendered)>,
+    /// A filled Tab's view, with the book it last showed: it catches up
+    /// when it is drawn and the book has changed since, never while fill
+    /// is closed and never on a redraw of the same book.
+    filled_displays: BTreeMap<String, (TabMount, FillLayout, Rendered, Rc<crate::book::Book>)>,
 
     /// What a Tab on the root or an entry shows (its key: the mount and the
     /// display), made the first time it is selected.
@@ -246,15 +249,13 @@ impl Sidebar {
             self.displays
                 .retain(|id, (key, _)| keys.get(id) == Some(key));
             self.filled_displays.retain(|id, _| tabs.contains(id));
-            // Only a new book snapshot refreshes what the Tabs show, filled
-            // or not: the column redraws every frame, and a refresh sorts
-            // the whole list and may read update times (T9 review).
-            for part in self
-                .displays
-                .values()
-                .map(|(_, part)| part)
-                .chain(self.filled_displays.values().map(|(_, _, part)| part))
-            {
+            // Only a new book snapshot refreshes what the Tabs show: the
+            // column redraws every frame, and a refresh sorts the whole list
+            // and may read update times (T9 review). A filled Tab's view
+            // catches up in `filled_body` instead: only while it is shown,
+            // and outside the workspace's update (the relations layout
+            // writes the workspace's book memory as it refreshes).
+            for part in self.displays.values().map(|(_, part)| part) {
                 if let Some(refresh) = &part.refresh {
                     refresh(self.host.book.clone(), cx);
                 }
@@ -833,11 +834,18 @@ impl Sidebar {
         if matches!(tab.mount, TabMount::Book) && layout == FillLayout::List {
             return tabs::book_list(&self.host, window, cx);
         }
-        // Kept fresh by `sync` when the book changes, not on every frame.
-        if let Some((mount, saved, display)) = self.filled_displays.get(&tab.id)
+        let book = self.host.book.clone();
+        if let Some((mount, saved, display, seen)) = self.filled_displays.get_mut(&tab.id)
             && mount == &tab.mount
             && *saved == layout
         {
+            // Caught up only when the book changed since it last showed.
+            if !Rc::ptr_eq(seen, &book) {
+                *seen = book.clone();
+                if let Some(refresh) = &display.refresh {
+                    refresh(book, cx);
+                }
+            }
             return display.view.clone().into_any_element();
         }
         let display = if let Some(kind) = layout.display() {
@@ -872,7 +880,7 @@ impl Sidebar {
         };
         let view = display.view.clone();
         self.filled_displays
-            .insert(tab.id.clone(), (tab.mount.clone(), layout, display));
+            .insert(tab.id.clone(), (tab.mount.clone(), layout, display, book));
         view.into_any_element()
     }
 
