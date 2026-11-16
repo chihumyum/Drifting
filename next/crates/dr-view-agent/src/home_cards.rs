@@ -375,6 +375,18 @@ impl HomeCards {
         let (Some(controller), Some(book)) = (self.controller.clone(), self.book.clone()) else {
             return;
         };
+        // A card whose conversation is starting stays until the start
+        // settles (the store keeps it too).
+        let starting = self.starting.contains(&card)
+            || self.suggestions.as_ref().is_some_and(|s| {
+                s.state
+                    .cards
+                    .iter()
+                    .any(|c| c.card.id == card && matches!(c.status, CardStatus::Starting { .. }))
+            });
+        if starting {
+            return;
+        }
         self.failed.remove(&card);
         // Gone at once; the stored card goes with the controller's write.
         if let Some(s) = &mut self.suggestions {
