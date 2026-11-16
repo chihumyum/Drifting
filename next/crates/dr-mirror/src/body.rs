@@ -1181,7 +1181,11 @@ mod tests {
     }
 
     proptest! {
-        #![proptest_config(ProptestConfig::with_cases(512))]
+        #![proptest_config({
+            let mut config = ProptestConfig::default();
+            config.cases = config.cases.max(512);
+            config
+        })]
         #[test]
         fn what_is_written_reads_back(p in para()) {
             if let Some(p) = normal(p) {

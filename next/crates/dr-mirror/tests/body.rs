@@ -147,7 +147,11 @@ fn the_import_keeps_its_existing_plain_interpretation() {
 use proptest::prelude::*;
 
 proptest! {
-    #![proptest_config(ProptestConfig::with_cases(512))]
+    #![proptest_config({
+        let mut config = ProptestConfig::default();
+        config.cases = config.cases.max(512);
+        config
+    })]
     #[test]
     fn structured_body_round_trips(
         sample in prop::collection::vec(prop::sample::select(vec!['a', '钟', '。', ' ', '|', '\\', '`', '(', ')', '*', '=', '!', ']', '[', '#']), 1..16),
