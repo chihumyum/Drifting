@@ -605,16 +605,9 @@ pub struct SetIn {
     pub paragraphs: Vec<super::super::prose_template::TemplateParagraph>,
 }
 op! {
-    ProseSet="module.set_prose",Write,Book,"Write paragraphs of an entry's or a template's prose module.",fn(cx,input:SetIn)->Done {
+    ProseSet="module.set_prose",Write,Book,"Write paragraphs of an entry's or a template's prose module: all of them, in order, as module.read_prose reads them. Unchanged paragraphs stay; one whose words change is edited in place and keeps its id and comments. A list item has `list` (bullet, ordered or task) and `list_level`. A task item is a checklist item and also a comment whose words are the line's: `checked` ticked resolves it, cleared reopens it, and taking the line out deletes the comment.",fn(cx,input:SetIn)->Done {
         let (s, doc) = document(cx, &input.target)?;
-        for p in &input.paragraphs {
-            if p.heading.is_some_and(|h| !(1..=3).contains(&h))
-                || p.text.contains('\n')
-                || p.text.contains('\u{fffc}')
-            {
-                return Err(WsError::invalid("invalid paragraph or heading"));
-            }
-        }
+        super::super::prose_template::validate(&input.paragraphs)?;
         cx.create_prose(&s.book, &doc)?;
         let prose = cx.prose(&doc)?;
         let links=written_links(cx,&s,&doc);

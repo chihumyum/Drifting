@@ -7,6 +7,8 @@
 > 2026-11-16 内核 v5（PT4）：注册表 **133** 项，外观开放 **98** 项、排除 **35** 项。新开放 `project_template.list`、`project_template.get`、`project_template.save`；同族的 `edit`、`working_copies`、`update`、`remove`（以及以后的 `import`、`export`、社区命令）按名字排除。`save` 的外观 Schema 没有 `book`、`credit`；覆盖一份模板要这一轮读过它（读取记在每轮的 `templates`：id → revision，不绑书目版本），过期是 `conflict`，两次停。见 [kernel-v5.md](../kernel-v5.md) 第 18 节「PT4 交回」。
 >
 > 2026-11-16 内核 v5（DV）：工具描述跟着两条新规则改了：`tab.put` 只挂层级条目和成书序列，挂视图被拒（`TAB-MOUNT-VALID`）；`timeline_view.add_lane` 写明泳道是开着「收别处的条目」的条目、只开层级的被拒、泳道上只有挂着的；`entry.move` 的 `index` 一律是文件夹里的手动先后、搬家不上刻度；`timeline_view.remove_lane`／`delete` 离开最后一个视图时只把挂着的先后写回归属；`timeline_view.restore_fields` 去掉了 `child_order`。结构说明里 `project_tabs` 的挂视图的旧 Tab 读作 `mount_valid = false`，`lane` 只对开着「收别处的条目」、在视图里的条目为真；内置「写书」幕轨道写给帮手的说明改成「挂在它上面的条目」。目录快照（`dr-agent-tools` 的 `catalog__directory.snap`、`dr-workspace` 的两个 registry 快照）重新生成。见 [kernel-v5.md](../kernel-v5.md) 第 18 节「DV 交回」。
+>
+> 2026-11-16 T7b：帮手能写清单行。`module.set_prose` 的段落多三项可选的 `list`（`bullet`／`ordered`／`task`）、`list_level`、`checked`（只在 `task` 上），`prose.read`／`module.read_prose` 读出同样三项，读出来原样写回什么都不变；改了字的段落就地改，块 id 不变，所以清单项的批注 id 不变、批注的字跟着那一行。写了清单行以后照旧由执行器投给 `comment.project`（`tasks: []`，数据层从正文读清单），写 `checked` 就是解决、重开；写前快照照旧。MCP 走同一个执行器。工具数不变。见 [kernel-v5.md](../kernel-v5.md) 第 12、18 节。
 
 交回状态：分支 `codex/m29-agent-tools`；最后实现提交 `4d55f081`（本行交回记录单独提交）；此次审查修正由第二十五批接收（交回记录 `44357606`）。结构化正文编辑、转换的完整守卫、隐藏记录级联删除和历史恢复点仍需要 F3 后续接口，当前能力与差异见下文。
 

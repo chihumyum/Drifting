@@ -379,6 +379,7 @@
 | `asset.rename`、`asset.trash`、`asset.restore`、`asset.purge`、`asset.list` | **新增**（2026-11-14）。素材库：改名、删除进最近删除、恢复、清除；列出全部文件和每个被用在哪（媒体模块、正文嵌入、正文链接、关系）。名字由数据层定 |
 | 素材夹的建、改名、挪、删、恢复、清除；文件换素材夹、调先后 | **新增**（2026-11-15）。删素材夹时里面的文件和素材夹一起进最近删除；清除时里面的一起清除、删字节。名字由数据层定 |
 | `comment.*` | 没有 `kind`，没有优先级参数；`module` 可以是任何模块；多一个 `part`；`todo.project` 并成投批注，清单项也在这里投，名字沿用数据层第三步定下的；对清单来的批注解决、重开，改的是正文里那一项的勾 |
+| `module.set_prose`、`prose.read`、`module.read_prose` | 段落带清单（2026-11-16，任务书 T7b）：`module.set_prose` 的段落多三项可选的 `list`（`bullet`、`ordered`、`task`）、`list_level`、`checked`（只在 `task` 上），写法照模板格式第 10 节，不给就是普通段落；`heading: 0` 当正文收（读出来的就是 0）。两种读给出同样三项（`checked` 只出现在 `task` 上），读出来原样写回什么都不变。改了字或形状的段落就地改：块 id、没动的字上的样式、段落形状说不出的属性（引用、缩进、对齐、提示框）都留着，所以清单项的批注 id 不变；只有新段落拿新 id。帮手写了清单行以后照旧由执行器投给 `comment.project`；写 `checked` 就是解决、重开，和 `comment.update` 去正文打勾是同一件事 |
 | `book.sequence`（名字待定） | 一个读取接口给出成书序列，导出、字数、书架、整书视图都用它。原来还给编号，2026-11-15 夜里起 App 不编号（第 15 节第 28 条，任务书 DW）；DW 交回的接口在第 18 节 |
 | `material.*`、`material_folder.*` | **删**，门禁列进退役命令 |
 
@@ -1056,6 +1057,7 @@ D（`d-data-layer`）交回时写（2026-11-15）；同日 DY（`dy-files-commen
 - 媒体模块、正文嵌入与素材库：`module.put_media`（新增、改说明或调先后；同一个文件第二次放进同一个媒体模块拒绝，`WsError::Violation`）、`module.remove_media`；`ProseTxn::insert_embed(ProseEmbed::Asset { asset })`（`prose.shape` 返回 `missing_embeds`，第八步加 `file_links`、`missing_links`）；`asset.put`（第八步：可带 `folder`，落在那个素材夹最后；同样的字节给回已有那个文件的 id，在最近删除里就恢复）、`asset.rename`、`asset.trash`、`asset.restore`（素材夹在最近删除里时落到最外层）、`asset.purge`、`asset.get { usages? }`（`usages: false` 只读记录，默认 `true`）、`asset.list`（每项带实时 `usages`：`Media`、`Embed`、`Link`、`Field`、`Relation`，以及 `folder`、`pos`）；`material.*` 与 `material_folder.*` 全部退役并由 `xtask check` 的 `cutover` 门禁拦截。
 - 第八步的素材夹与摆法：`asset_folder.create { name, parent? }`、`asset_folder.rename`、`asset_folder.move { parent, index? }`、`asset_folder.trash`、`asset_folder.restore`、`asset_folder.purge`、`asset_folder.list { trashed? }`（`AssetFolderInfo { id, name, parent, pos, deleted_at }`）；`asset.move { folder, index? }`；`module.set_arrangement { book, entry, module, arrangement }`（`null` 回到模板的），`module.read` 对媒体模块给 `arrangement` 和 `own_arrangement`，条目 DTO 带 `arrangements`、`missing_files`；`ProseSession::set_file_embed_look(embed, &FileEmbedLook)`（只对活着的图片放行，PDF 和未知取值拒绝）。
 - 统一批注与画布坐标：`comment.create`（第八步：没有 `priority`；目标是条目不带 `module` 即整个条目，带 `module` 不带 `part`／锚点即整个模块）、`comment.update`（改内容、状态或绑定 `agent_conversation`；对清单来的批注解决、重开写的是正文里那一项的勾，一步撤销）、`comment.delete`、`comment.list`、`comment.anchors`、`comment.reanchor`、`comment.project`（第八步：清单项的字和勾从正文本身读，`tasks` 只表示要投清单；一行删掉批注跟着删，解没解决都删）；`layout.get`、`layout.put`、`layout.clear`，变更发 `WsEvent::Layout(LayoutChanged)`；`stats.record_writing_day` 在 `project.book` 未开启时静默跳过。
+- 正文段落带清单（T7b，2026-11-16，只加不改）：`commands::prose_template::TemplateParagraph` 加 `list: Option<ListItemKind>`、`list_level: u32`、`checked: bool`（都可省；`list_level` 只跟 `list`、`checked` 只跟 `task`，否则 `invalid`），新枚举 `ListItemKind { Bullet, Ordered, Task }`（序列化为小写）；`module.set_prose` 的 `heading` 收 `0` 当正文（原来报错）。`commands::prose::ParagraphInfo` 加 `list: Option<String>`（存着的原样，未知的种类也照写）、`list_level: u32`、`checked: Option<bool>`（只在 `task` 上），不是清单的段落读出来和原来一字不差。`replace_paragraphs` 先去掉首尾没变的段落，中间按「没变的最多、就地改的最多、字最像」对齐（超过 25 万对时按顺序配），配上的段落就地改，所以块 id 和清单项的批注 id 不变。
 
 ### T1 外壳：左栏 Tab 与条目记号（`t1-shell`）
 
@@ -1126,6 +1128,7 @@ D（`d-data-layer`）交回时写（2026-11-15）；同日 DY（`dy-files-commen
 | `dr-agent/src/long_task/store.rs`、`evidence.rs`、`proactive/delta.rs`、`dr-view-agent` | `long_task` 改读 `book_prose_docs()`，口述名字上下文适配只看住处的 `AutolinkNames::of(&entries, &templates)`，去掉素材分支（按任务书不动 `long_task` 其余在途逻辑） | 帮手运行时读取 `project.agent` 作为整本项目的帮手说明 | `ProjectDefinition::agent` |
 | `dr-mcp` | 重新生成工具目录快照并通过入站测试 | 随 T7 工具目录与说明核对 MCP 暴露面 | — |
 | 第八步：`dr-agent-tools`、`dr-mcp` 的目录快照 | 随注册表重新生成快照：`comment.*` 没有 `priority`，`CommentPart` 的 `media` 带 `asset`，加了 `asset_folder.*`、`asset.move`、`module.set_arrangement`、`asset.get` 的 `usages`；`comment.update` 的命令描述（工具描述由它生成）已写明对清单项来的批注解决、重开就是去正文打勾、去勾 | 帮手的说明和提示里讲清这一点；帮手写正文时能链到素材库里的文件（`kind = asset`）；新写命令（素材夹、摆法、`asset.move`）的写前快照与守卫记账 | `asset_folder.*`、`asset.move`、`module.set_arrangement`、`EntityLinkV3 { kind: asset }` |
+| T7b（2026-11-16）：`dr-workspace` 的 `commands/prose_template.rs`、`commands/prose.rs`、`commands/v3/module.rs`；`dr-agent-tools`、`dr-mcp` 的目录快照 | 帮手能写清单行：`module.set_prose` 的段落带 `list`、`list_level`、`checked`，两种读带回同样三项；改字就地改、块 id 不变；工具描述由命令描述生成，讲清清单项怎么写、勾就是批注的解决 | 投影留在执行器里（`project_prose_comments_after_write` 原样，`tasks: []` 让数据层从正文读清单）：挪进数据层会让 `module.set_prose` 也写批注，改了已有命令的含义。界面和帮手以外别的写正文的路（以后的导入、命令行）仍要各自投 | `module.set_prose`、`prose.read`、`module.read_prose`、`comment.project` |
 
 ### T8 导入、样书、书文件（`t8-import`）
 

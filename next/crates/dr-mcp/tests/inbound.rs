@@ -1115,6 +1115,98 @@ async fn oversized_real_prose_reply_ends_scope_without_replaying_the_read() {
     f.finish().await;
 }
 
+/// Checklist lines written over MCP go the Agent's way (task book T7b): they
+/// project into comments, the tick is the status, words that change keep the
+/// comment, and the write leaves its checkpoint.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn checklist_lines_written_over_mcp_project_into_comments_like_the_agents() {
+    let f = Fixture::new(false, library_options("t7b-mcp-checklist")).await;
+    let book = &f.books[0];
+    let owner = book
+        .doc
+        .strip_prefix("body:")
+        .unwrap()
+        .split_once('/')
+        .unwrap()
+        .0
+        .to_owned();
+    let mut client = f.client().await;
+    let module = json!({"book":book.id,"owner":owner,"module":"mod-prose"});
+    let tasks = || {
+        f.ws.call(
+            &Actor::User,
+            "comment.list",
+            json!({"book":book.id,"target":{"kind":"entry","id":owner},"module":"mod-prose"}),
+        )
+        .unwrap()["output"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|c| c["origin"] == "task")
+            .cloned()
+            .collect::<Vec<_>>()
+    };
+    let read = reply(&call(&client, "module.read_prose", module.clone()).await);
+    let mut paragraphs = read["output"]["output"]["paragraphs"]
+        .as_array()
+        .unwrap()
+        .clone();
+    let kept = paragraphs.len();
+    paragraphs.push(json!({"list":"task","text":"核对城门巡夜时间"}));
+    paragraphs.push(json!({"list":"task","checked":true,"text":"补写钟楼回声"}));
+    let mut write = module.clone();
+    write["paragraphs"] = Value::Array(paragraphs);
+    reply(&call(&client, "module.set_prose", write).await);
+    let rows = tasks();
+    assert_eq!(rows.len(), 2, "{rows:?}");
+    let open = rows
+        .iter()
+        .find(|c| c["body"] == "核对城门巡夜时间")
+        .unwrap()
+        .clone();
+    assert_eq!(open["status"], "open");
+    assert_eq!(
+        rows.iter().find(|c| c["body"] == "补写钟楼回声").unwrap()["status"],
+        "resolved"
+    );
+    let snapshots =
+        f.ws.call(
+            &Actor::User,
+            "entry_snapshot.list",
+            json!({"book":book.id,"entry":owner}),
+        )
+        .unwrap()["output"]
+            .as_array()
+            .unwrap()
+            .len();
+    assert!(snapshots >= 1, "the write leaves its checkpoint");
+
+    let read = reply(&call(&client, "module.read_prose", module.clone()).await);
+    let mut paragraphs = read["output"]["output"]["paragraphs"]
+        .as_array()
+        .unwrap()
+        .clone();
+    assert_eq!(paragraphs[kept]["list"], "task");
+    assert_eq!(paragraphs[kept]["checked"], false);
+    assert_eq!(paragraphs[kept + 1]["checked"], true);
+    paragraphs[kept]["text"] = json!("核对城门换岗时间");
+    paragraphs[kept]["checked"] = json!(true);
+    let mut write = module.clone();
+    write["paragraphs"] = Value::Array(paragraphs);
+    reply(&call(&client, "module.set_prose", write).await);
+    let rows = tasks();
+    assert_eq!(rows.len(), 2);
+    let renamed = rows
+        .iter()
+        .find(|c| c["body"] == "核对城门换岗时间")
+        .unwrap();
+    assert_eq!(renamed["id"], open["id"]);
+    assert_eq!(renamed["status"], "resolved");
+    client.close().await.unwrap();
+    drop(client);
+    f.finish().await;
+}
+
 struct Release(Option<mpsc::Sender<()>>);
 impl Release {
     fn open(&mut self) {
