@@ -195,13 +195,15 @@ fn setup<'a>(
     (view, cx)
 }
 
-/// What the rail lists for `target`: each row's level and words, and the
-/// row being read.
+/// Each row of the rail: its level and words.
+type Listed = Vec<(u8, String)>;
+
+/// What the rail lists for `target`, and the row being read.
 fn rows(
     view: &Entity<Workspace>,
     cx: &mut VisualTestContext,
     target: &Target,
-) -> Option<(Vec<(u8, String)>, Option<usize>)> {
+) -> Option<(Listed, Option<usize>)> {
     cx.update(|window, cx| {
         let rows = outline::rows(view.read(cx), view.entity_id(), target, window, cx)?;
         Some((
