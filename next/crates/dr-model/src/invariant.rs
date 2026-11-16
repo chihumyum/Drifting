@@ -275,7 +275,10 @@ pub const INVARIANTS: &[Invariant] = &[
         "关系行属于存在的关系",
         [Command, Read],
         "关系删除时同次删除行；只读存在关系的行",
-        ["deleting_the_last_row_and_its_linked_description_undoes_in_one_step"]
+        [
+            "deleting_the_last_row_and_its_linked_description_undoes_in_one_step",
+            "a_relation_row_without_its_definition_does_not_project"
+        ]
     ),
     inv!(
         "REL-SEMANTIC-UNIQUE",

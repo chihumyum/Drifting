@@ -2714,6 +2714,18 @@ fn purge_prunes_members_and_empty_rows_without_purging_the_relation() {
 }
 
 #[test]
+fn a_relation_row_without_its_definition_does_not_project() {
+    let (mut doc, kind, row) = relation_fixture();
+    doc.edit(Origin::Sync, |txn| {
+        txn.purge(CollectionV3::RelationTypes, kind.as_str())
+    })
+    .0
+    .unwrap();
+    assert_eq!(doc.view().relations_raw()[0].id, row);
+    assert!(doc.view().relations().is_empty());
+}
+
+#[test]
 fn concurrent_disjoint_linked_text_edits_keep_both_additions_and_the_entry_mark() {
     let (mut a, kind, _) = relation_fixture();
     let comment = CommentId::parse("comment").unwrap();

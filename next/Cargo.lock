@@ -2148,7 +2148,6 @@ dependencies = [
  "dr-ui",
  "dr-view-page",
  "dr-view-plot",
- "dr-view-relations",
  "dr-workspace",
  "futures",
  "gpui",
@@ -2358,23 +2357,10 @@ dependencies = [
 name = "dr-view-relations"
 version = "0.0.0"
 dependencies = [
- "anyhow",
- "color_quant",
- "dr-doc",
  "dr-i18n",
- "dr-model",
  "dr-shell",
- "dr-store",
- "dr-testkit",
  "dr-ui",
- "dr-workspace",
- "futures",
  "gpui",
- "gpui_platform",
- "log",
- "png 0.18.1",
- "serde_json",
- "tempfile",
 ]
 
 [[package]]

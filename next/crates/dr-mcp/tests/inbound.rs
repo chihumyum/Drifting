@@ -1396,6 +1396,7 @@ async fn mcp_lists_and_writes_current_relation_rows() {
     let entries = entries["output"]["output"].as_array().unwrap();
     let left = &entries[0]["id"];
     let right = &entries[1]["id"];
+    let member = &entries[2]["id"];
     reply(&call(&client, "relation_type.list", json!({})).await);
     let placed = reply(&call(&client, "relation_row.create_pair", json!({
         "left":left,"right":right,"new_type":{"name":"Synthetic MCP relation","direction":"symmetric"},
@@ -1411,6 +1412,25 @@ async fn mcp_lists_and_writes_current_relation_rows() {
     assert_eq!(relation["rows"][0]["id"], placed["id"]);
     assert_eq!(relation["rows"][0]["left"], json!([left]));
     assert_eq!(relation["rows"][0]["right"], json!([right]));
+    reply(
+        &call(
+            &client,
+            "relation_row.add_entry",
+            json!({"id":placed["id"],"side":"right","entry":member}),
+        )
+        .await,
+    );
+    let listed = reply(&call(&client, "relation_type.list", json!({})).await);
+    let relation = listed["output"]["output"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|value| value["id"] == placed["relation_type"])
+        .unwrap();
+    let right_entries = relation["rows"][0]["right"].as_array().unwrap();
+    assert_eq!(right_entries.len(), 2);
+    assert!(right_entries.contains(right) && right_entries.contains(member));
+    assert_eq!(relation["pair_count"], 2);
     reply(&call(&client, "relation_row.delete", json!({"id":placed["id"]})).await);
     let after =
         f.ws.call(&Actor::User, "relation_type.list", json!({"book":book}))
@@ -1422,5 +1442,7 @@ async fn mcp_lists_and_writes_current_relation_rows() {
             .iter()
             .all(|relation| relation["id"] != placed["relation_type"])
     );
-    client.cancel().await.unwrap();
+    client.close().await.unwrap();
+    drop(client);
+    f.finish().await;
 }

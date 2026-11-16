@@ -294,6 +294,11 @@ fn book_entities(
         comment.body = view.comment_body_raw(&comment.id).unwrap_or_default();
         entities.insert(key, (serde_json::to_value(&comment)?, targets));
     }
+    for relation in view.relation_types_raw() {
+        let key = format!("relation_type:{}", relation.id);
+        let targets = BTreeSet::from([key.clone()]);
+        entities.insert(key, (serde_json::to_value(&relation)?, targets));
+    }
     for relation in view.relations_raw() {
         let key = format!("relation_row:{}", relation.id);
         let mut targets = BTreeSet::from([key.clone()]);
