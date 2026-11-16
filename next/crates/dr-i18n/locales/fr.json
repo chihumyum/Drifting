@@ -254,8 +254,7 @@
     "empty": "Aucune relation dans cette vue pour le moment"
   },
   "editorOutline": {
-    "aria": "Plan",
-    "hiddenItems": "{{count}} éléments éloignés ; survolez pour afficher"
+    "aria": "Plan"
   },
   "editorTopBar": {
     "actions": {

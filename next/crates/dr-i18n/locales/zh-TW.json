@@ -252,8 +252,7 @@
     "empty": "此檢視尚無關係"
   },
   "editorOutline": {
-    "aria": "大綱",
-    "hiddenItems": "{{count}} 個遠處大綱項目，游標停留以顯示"
+    "aria": "大綱"
   },
   "editorTopBar": {
     "actions": {

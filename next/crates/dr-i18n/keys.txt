@@ -155,7 +155,6 @@ editorTopBar.status.resting
 immersiveWriting.enter
 immersiveWriting.leave
 editorOutline.aria
-editorOutline.hiddenItems
 workspaceWordTally.selection
 workspaceWordTally.book
 workspaceWordTally.counting

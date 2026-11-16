@@ -254,8 +254,7 @@
     "empty": "Aún no hay relaciones en esta vista"
   },
   "editorOutline": {
-    "aria": "Esquema",
-    "hiddenItems": "{{count}} elementos lejanos; pasa el cursor para verlos"
+    "aria": "Esquema"
   },
   "editorTopBar": {
     "actions": {

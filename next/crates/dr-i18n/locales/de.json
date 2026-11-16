@@ -252,8 +252,7 @@
     "empty": "In dieser Ansicht gibt es noch keine Beziehungen"
   },
   "editorOutline": {
-    "aria": "Gliederung",
-    "hiddenItems": "{{count}} entfernte Einträge; zum Anzeigen darüberfahren"
+    "aria": "Gliederung"
   },
   "editorTopBar": {
     "actions": {

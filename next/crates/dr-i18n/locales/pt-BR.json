@@ -254,8 +254,7 @@
     "empty": "Ainda não há relações nesta visualização"
   },
   "editorOutline": {
-    "aria": "Estrutura",
-    "hiddenItems": "{{count}} itens distantes; passe o mouse para mostrar"
+    "aria": "Estrutura"
   },
   "editorTopBar": {
     "actions": {

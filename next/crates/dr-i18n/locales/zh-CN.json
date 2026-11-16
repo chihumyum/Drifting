@@ -250,8 +250,7 @@
     "empty": "当前视图尚无关联"
   },
   "editorOutline": {
-    "aria": "大纲",
-    "hiddenItems": "远处 {{count}} 个目录项，悬停展开"
+    "aria": "大纲"
   },
   "editorTopBar": {
     "actions": {

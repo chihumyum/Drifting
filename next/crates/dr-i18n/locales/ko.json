@@ -252,8 +252,7 @@
     "empty": "이 보기에는 아직 관계가 없습니다"
   },
   "editorOutline": {
-    "aria": "개요",
-    "hiddenItems": "멀리 있는 개요 항목 {{count}}개 · 마우스를 올려 표시"
+    "aria": "개요"
   },
   "editorTopBar": {
     "actions": {

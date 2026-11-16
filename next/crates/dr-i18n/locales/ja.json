@@ -252,8 +252,7 @@
     "empty": "このビューには関係がまだありません"
   },
   "editorOutline": {
-    "aria": "アウトライン",
-    "hiddenItems": "離れた項目{{count}}件・ホバーで表示"
+    "aria": "アウトライン"
   },
   "editorTopBar": {
     "actions": {

@@ -252,8 +252,7 @@
     "empty": "No relations in this view yet"
   },
   "editorOutline": {
-    "aria": "Outline",
-    "hiddenItems": "{{count}} distant outline items; hover to reveal"
+    "aria": "Outline"
   },
   "editorTopBar": {
     "actions": {
