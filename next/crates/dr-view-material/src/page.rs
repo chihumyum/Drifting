@@ -563,7 +563,6 @@ impl MediaPage {
         self.media = Media::Loading;
         self.rendering = None;
         let (lib, book, kind) = (self.lib.clone(), self.book_id.clone(), self.kind);
-        let relations_label = t(cx, keys::references_panel::sections::RELATIONS).to_string();
         let untitled_label = t(cx, keys::common::UNTITLED).to_string();
         let task = cx.background_executor().spawn(async move {
             let store = lib.library();
@@ -585,7 +584,6 @@ impl MediaPage {
                 &lib,
                 &book,
                 &asset,
-                &relations_label,
                 &untitled_label,
             );
             (media, usages)
@@ -1142,10 +1140,9 @@ impl MediaPage {
             .and_then(|m| m.asset.clone())
             .unwrap_or_else(|| self.id.clone());
         let (lib, book) = (self.lib.clone(), self.book_id.clone());
-        let relations_label = t(cx, keys::references_panel::sections::RELATIONS).to_string();
         let untitled_label = t(cx, keys::common::UNTITLED).to_string();
         let task = cx.background_executor().spawn(async move {
-            library_data::load_asset_usages(&lib, &book, &asset, &relations_label, &untitled_label)
+            library_data::load_asset_usages(&lib, &book, &asset, &untitled_label)
         });
         self.usages_task = Some(cx.spawn(async move |this, cx| {
             let usages = task.await;
@@ -1990,10 +1987,10 @@ impl MediaPage {
         } else {
             keys::comment_rail::actions::RESOLVE
         };
-        let body: SharedString = if l.item.body.trim().is_empty() {
+        let body: SharedString = if l.item.body.text.trim().is_empty() {
             t(cx, keys::comment_rail::card::EMPTY_COMMENT)
         } else {
-            l.item.body.clone().into()
+            l.item.body.text.clone().into()
         };
         let jump_btn = self.jump_target(l).map(|_| {
             let label = t(cx, keys::v3_review::JUMP_TO_PLACE);

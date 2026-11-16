@@ -1662,11 +1662,11 @@ impl<'a> BookTxnV3<'a> {
         relation: &RelationTypeId,
         rows: &[RelationRow],
         direction: RelationDirection,
-        left: &EntryId,
-        right: &EntryId,
+        pair: (&EntryId, &EntryId),
         id: &RelationId,
         time: Option<Timestamp>,
     ) -> Result<(RelationId, bool)> {
+        let (left, right) = pair;
         match plan_relation_pair(rows, direction, left, right) {
             PairPlacement::Existing(id) => Ok((id, true)),
             PairPlacement::Add(id, side, entry) => {

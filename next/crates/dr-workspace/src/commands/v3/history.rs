@@ -124,17 +124,14 @@ fn restore(cx: &Cx<'_>, input: RestoreIn) -> Result<Vec<Done>> {
                 let c = CollectionV3::from_root(&target.collection).unwrap();
                 if c == CollectionV3::RelationTypes {
                     let id = pid("relation type", &target.id)?;
-                    if current
-                        .relation_type(&id)
-                        .is_some_and(|t| t.locked || t.system_key.is_some())
-                    {
-                        return Err(WsError::invalid("locked relation type cannot be restored"));
-                    }
                     if old.relation_type(&id).is_none()
                         && current
                             .relations_raw()
                             .iter()
-                            .any(|r| r.relation_type == id)
+                            .any(|r| r.relation_type == id && !input.targets.iter().any(|target| {
+                                target.collection == "relations" && target.id == r.id.as_str()
+                                    && old.map_snapshot(CollectionV3::Relations, r.id.as_str()).is_none()
+                            }))
                     {
                         return Err(WsError::invalid("relation type is in use"));
                     }
@@ -164,6 +161,7 @@ fn restore(cx: &Cx<'_>, input: RestoreIn) -> Result<Vec<Done>> {
                 if matches!(
                     c,
                     CollectionV3::Facts | CollectionV3::Memory | CollectionV3::Relations
+                        | CollectionV3::RelationTypes | CollectionV3::Comments
                 ) {
                     plans.push(Plan::SharedMap(c, target.id.clone()));
                 } else {

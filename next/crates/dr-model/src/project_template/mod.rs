@@ -21,8 +21,8 @@ use serde::{Deserialize, Serialize};
 use crate::prose::{Align, BlockAttrs, Heading};
 use crate::v3::{
     ChildDisplayMode, EntryTemplateId, FieldDef, FieldType, FieldValue, FormatShortcuts,
-    LevelSettingsOverride, MediaArrangement, ModuleAgentConfig, ModuleConfig, ModuleId, ModuleKind,
-    ModuleSpec, TemplateAgentConfig, TemplateVerb,
+    LevelSettingsOverride, LinkedText, MediaArrangement, ModuleAgentConfig, ModuleConfig, ModuleId, ModuleKind,
+    ModuleSpec, RelationDirection, TemplateAgentConfig, TemplateVerb,
 };
 
 pub use validate::{
@@ -231,7 +231,6 @@ pub enum TemplateModuleKind {
     #[serde(rename = "kv")]
     KeyValue,
     Patches,
-    Relations,
     PlotGrid,
     Children,
     Members,
@@ -245,7 +244,6 @@ impl From<TemplateModuleKind> for ModuleKind {
             TemplateModuleKind::Fields => Self::Fields,
             TemplateModuleKind::KeyValue => Self::KeyValue,
             TemplateModuleKind::Patches => Self::Patches,
-            TemplateModuleKind::Relations => Self::Relations,
             TemplateModuleKind::PlotGrid => Self::PlotGrid,
             TemplateModuleKind::Children => Self::Children,
             TemplateModuleKind::Members => Self::Members,
@@ -262,7 +260,6 @@ impl TryFrom<&ModuleKind> for TemplateModuleKind {
             ModuleKind::Fields => Ok(Self::Fields),
             ModuleKind::KeyValue => Ok(Self::KeyValue),
             ModuleKind::Patches => Ok(Self::Patches),
-            ModuleKind::Relations => Ok(Self::Relations),
             ModuleKind::PlotGrid => Ok(Self::PlotGrid),
             ModuleKind::Children => Ok(Self::Children),
             ModuleKind::Members => Ok(Self::Members),
@@ -614,46 +611,15 @@ pub struct TemplateEntryTemplate {
     pub verbs: Vec<TemplateVerbSpec>,
 }
 
-/// Closed relation orientation in [`TemplateRelationType`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum TemplateRelationOrientation {
-    Directed,
-    Symmetric,
-}
-
-/// Closed relation endpoint entity kinds in [`TemplateRelationType`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum TemplateRelationEndpointKind {
-    Entry,
-    Patch,
-    Comment,
-    Asset,
-}
-
-/// Author-defined relation type carried in a [`ProjectTemplateValue`].
+/// An author-defined relation carried without its rows. Description links
+/// use the template's symbolic entry references.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TemplateRelationType {
     pub name: String,
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub description: String,
-    pub orientation: TemplateRelationOrientation,
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub source_role: String,
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub target_role: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub color: Option<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub source_kinds: Vec<TemplateRelationEndpointKind>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub target_kinds: Vec<TemplateRelationEndpointKind>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub source_templates: Vec<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub target_templates: Vec<String>,
+    #[serde(default)]
+    pub description: LinkedText,
+    pub direction: RelationDirection,
 }
 
 /// Seed or sample entry in `entries` (preorder traversal; sibling array order defines order).

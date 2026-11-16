@@ -1,5 +1,5 @@
 //! Shared comment DTOs and anchor validation for canonical v3 commands.
-use crate::dto::AnchorBytes;
+use crate::dto::{AnchorBytes, LinkedTextIn};
 use crate::{Result, WsError};
 use dr_doc::anchor::Anchor;
 use dr_model::DocId;
@@ -11,7 +11,7 @@ pub struct CommentUpdateIn {
     pub book: String,
     pub id: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub body: Option<String>,
+    pub body: Option<LinkedTextIn>,
     /// `open` or `resolved`. On a checklist item's comment this ticks or
     /// clears the item in the prose.
     #[serde(default, skip_serializing_if = "Option::is_none")]

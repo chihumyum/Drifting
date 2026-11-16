@@ -846,10 +846,6 @@ fn summarize_module(m: &ModuleSpec, catalog: &Catalog) -> ModuleSummary {
             vec!["module.put_patch", "module.remove_patch"],
         ),
         ModuleKind::PlotGrid => (vec!["module.read", "module.list"], vec!["module.put_grid"]),
-        ModuleKind::Relations => (
-            vec!["module.read", "module.list"],
-            vec!["module.put_relation", "module.remove_relation"],
-        ),
         ModuleKind::Media => (
             vec!["module.read", "module.list"],
             vec![

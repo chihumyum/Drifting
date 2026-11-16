@@ -72,7 +72,7 @@ impl LibrarySnapshot {
     /// Computes the `当前` pinned items for `entry_id` in the entry's template
     /// module order (embeds in prose, items in media modules, image fields,
     /// and relations to live files), deduplicated by file id.
-    pub fn current_for_entry(&self, entry_id: &str, relations_label: &str) -> Vec<CurrentItem> {
+    pub fn current_for_entry(&self, entry_id: &str) -> Vec<CurrentItem> {
         let Some(meta) = self.entries.get(entry_id) else {
             return Vec::new();
         };
@@ -87,13 +87,7 @@ impl LibrarySnapshot {
             }
         };
 
-        let mut handled_relations = false;
-        for (mod_id, kind, mod_name) in &meta.modules {
-            let label = if mod_name.trim().is_empty() {
-                relations_label
-            } else {
-                mod_name.as_str()
-            };
+        for (mod_id, kind, label) in &meta.modules {
             match kind {
                 ModuleKind::Prose => {
                     for asset in &self.live_assets {
@@ -140,35 +134,7 @@ impl LibrarySnapshot {
                         }
                     }
                 }
-                ModuleKind::Relations => {
-                    handled_relations = true;
-                    for asset in &self.live_assets {
-                        if asset.usages.iter().any(|u| {
-                            matches!(
-                                u,
-                                AssetUsage::Relation { other, .. }
-                                    if other.kind == "entry" && other.id == entry_id
-                            )
-                        }) {
-                            push(&asset.id, label);
-                        }
-                    }
-                }
                 _ => {}
-            }
-        }
-
-        if !handled_relations {
-            for asset in &self.live_assets {
-                if asset.usages.iter().any(|u| {
-                    matches!(
-                        u,
-                        AssetUsage::Relation { other, .. }
-                            if other.kind == "entry" && other.id == entry_id
-                    )
-                }) {
-                    push(&asset.id, relations_label);
-                }
             }
         }
 
@@ -265,7 +231,6 @@ fn resolve_usages_for_asset(
     asset_id: &str,
     raw: &[AssetUsage],
     entries: &HashMap<String, EntryMeta>,
-    relations_label: &str,
     untitled_label: &str,
 ) -> Vec<ResolvedUsage> {
     let mut out = Vec::new();
@@ -390,36 +355,7 @@ fn resolve_usages_for_asset(
                     ],
                 });
             }
-            AssetUsage::Relation { relation, other } => {
-                if other.kind != "entry" {
-                    continue;
-                }
-                let Some(meta) = entries.get(&other.id) else {
-                    continue;
-                };
-                let rel_mod = meta
-                    .modules
-                    .iter()
-                    .find(|(_, kind, _)| *kind == ModuleKind::Relations);
-                let module_id = rel_mod.map(|(id, _, _)| id.clone());
-                let module_name = rel_mod
-                    .map(|(_, _, n)| n.clone())
-                    .filter(|n| !n.trim().is_empty())
-                    .unwrap_or_else(|| relations_label.to_owned());
-                out.push(ResolvedUsage {
-                    entry_id: other.id.clone(),
-                    entry_title: non_empty(&meta.title, untitled_label),
-                    entry_color: meta.color.clone(),
-                    is_chapter: meta.is_chapter,
-                    module_id,
-                    module_name,
-                    flash_keys: vec![
-                        relation.clone(),
-                        format!("relation:{relation}"),
-                        asset_id.to_owned(),
-                    ],
-                });
-            }
+
         }
     }
     out
@@ -437,7 +373,6 @@ fn non_empty(s: &str, fallback: &str) -> String {
 pub fn load_snapshot(
     lib: &Library,
     book: &str,
-    relations_label: &str,
     untitled_label: &str,
 ) -> Result<LibrarySnapshot, String> {
     let live_assets = lib
@@ -527,7 +462,7 @@ pub fn load_snapshot(
     for a in &live_assets {
         usages.insert(
             a.id.clone(),
-            resolve_usages_for_asset(&a.id, &a.usages, &entries, relations_label, untitled_label),
+            resolve_usages_for_asset(&a.id, &a.usages, &entries, untitled_label),
         );
         by_id.insert(a.id.clone(), a.clone());
     }
@@ -549,7 +484,6 @@ pub fn load_asset_usages(
     lib: &Library,
     book: &str,
     asset_id: &str,
-    relations_label: &str,
     untitled_label: &str,
 ) -> Vec<ResolvedUsage> {
     let Ok(out) = lib.run::<AssetGet>(
@@ -567,7 +501,6 @@ pub fn load_asset_usages(
         asset_id,
         &out.output.usages,
         &entries,
-        relations_label,
         untitled_label,
     )
 }

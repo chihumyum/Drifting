@@ -15,7 +15,6 @@ pub const MODULES: &[&str] = &[
     "kv",
     "patches",
     "plot_grid",
-    "relations",
     "children",
 ];
 pub const FIELDS: &[&str] = &[

@@ -467,7 +467,7 @@ impl CommentComposer {
             anchor: None,
             block_id: None,
             range,
-            body,
+            body: body.into(),
             author_name: None,
         };
         // Named calls select the book version. A v3 body always carries the
@@ -680,7 +680,7 @@ mod v3_tests {
             .unwrap();
         b.prose.push(prose);
         seed.write_to(ws.library()).unwrap();
-        let body = format!("{}\n{}", source.body, source.body);
+        let body = format!("{}\n{}", source.body.text, source.body.text);
         let (frame, cx) = cx.add_window_view(|window, cx| {
             Frame(cx.new(|cx| {
                 CommentComposer::new(

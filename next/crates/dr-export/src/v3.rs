@@ -7,7 +7,7 @@
 //!   the live residence tree (`BookStructureV3::children_of`) in preorder,
 //!   exporting **all content** of every ticked entry in active-template module
 //!   order (`Prose` whether `in_book` or not, `Fields`, `KeyValue`, `Media`,
-//!   `Patches`, `PlotGrid`, `Relations`; `Children` and `Members` are structural
+//!   `Patches`, `PlotGrid`; `Children` and `Members` are structural
 //!   views storing no data and are skipped) and preserving tree hierarchy via
 //!   `Section::Chapter::depth`. Fields print only as their template defines
 //!   them (a value kept from an older definition does not); a choice prints
@@ -25,12 +25,12 @@ use dr_doc::{
 };
 use dr_model::{
     DocId,
-    id::{AssetId, BookId, CommentId, EntryId, EntryTemplateId, ModuleId, RelationTypeId},
-    kind::{AssetKind, EntityKind, RelationOrientation},
-    shared::{Asset, EntityRef, KvEntry, Relation},
+    id::{AssetId, BookId, CommentId, EntryId, EntryTemplateId, ModuleId},
+    kind::AssetKind,
+    shared::{Asset, KvEntry},
     v3::{
-        CommentV3, Entry as ModelEntry, EntryTemplate, FieldDef, FieldType, FieldValue, MediaItem,
-        ModuleKind, PatchV3, PlotGridV3, RelationTypeV3,
+        Entry as ModelEntry, EntryTemplate, FieldDef, FieldType, FieldValue, MediaItem,
+        ModuleKind, PatchV3, PlotGridV3,
     },
 };
 use dr_store::{OpenDoc, asset::Variant};
@@ -237,10 +237,6 @@ struct TreeContext {
     live_assets: Arc<HashMap<AssetId, Asset>>,
     patches: HashMap<(EntryId, ModuleId), Vec<PatchV3>>,
     plot_grids: HashMap<(EntryId, ModuleId), PlotGridV3>,
-    relation_types: HashMap<RelationTypeId, RelationTypeV3>,
-    relations: Vec<Relation>,
-    all_patches: HashMap<String, PatchV3>,
-    comments: HashMap<String, CommentV3>,
 }
 
 fn plain_run(text: impl Into<String>) -> Run {
@@ -528,101 +524,6 @@ fn render_plot_grid_module(grid: &PlotGridV3, parts: &mut Vec<ModulePart>) {
     parts.push(ModulePart::Blocks(vec![Block::Table { rows }]));
 }
 
-fn counterpart_label(end: &EntityRef, ctx: &TreeContext, labels: &Labels) -> Option<String> {
-    match end.kind {
-        EntityKind::Entry => {
-            let id = EntryId::parse(&end.id).ok()?;
-            let title = ctx.live_entries.get(&id)?;
-            Some(entry_display_title(title, labels))
-        }
-        EntityKind::Asset => {
-            let id = AssetId::parse(&end.id).ok()?;
-            let asset = ctx.live_assets.get(&id)?;
-            let name = crate::convert::one_line(&asset.name);
-            Some(if name.is_empty() {
-                id.to_string()
-            } else {
-                name
-            })
-        }
-        EntityKind::Patch => {
-            let patch = ctx.all_patches.get(&end.id)?;
-            let text = patch
-                .title
-                .as_deref()
-                .filter(|t| !t.trim().is_empty())
-                .unwrap_or(patch.body.as_str());
-            let clean = crate::convert::one_line(text);
-            Some(if clean.is_empty() {
-                end.id.clone()
-            } else {
-                clean
-            })
-        }
-        EntityKind::Comment => {
-            let comment = ctx.comments.get(&end.id)?;
-            let clean = crate::convert::one_line(&comment.body);
-            Some(if clean.is_empty() {
-                end.id.clone()
-            } else {
-                clean
-            })
-        }
-        _ => None,
-    }
-}
-
-fn render_relations_module(
-    entry_id: &EntryId,
-    ctx: &TreeContext,
-    labels: &Labels,
-    parts: &mut Vec<ModulePart>,
-) {
-    let self_ref = EntityRef::new(EntityKind::Entry, entry_id.to_string());
-    let mut rows: Vec<Vec<Vec<Run>>> = Vec::new();
-    for rel in &ctx.relations {
-        let (outgoing, other) = if rel.from == self_ref {
-            (true, &rel.to)
-        } else if rel.to == self_ref {
-            (false, &rel.from)
-        } else {
-            continue;
-        };
-        let Some(target) = counterpart_label(other, ctx, labels) else {
-            continue;
-        };
-        let role = ctx
-            .relation_types
-            .get(&rel.relation_type)
-            .map(|rt| {
-                let candidate = match rt.orientation {
-                    RelationOrientation::Symmetric => rt.name.as_str(),
-                    _ if outgoing => {
-                        if rt.target_role.trim().is_empty() {
-                            rt.name.as_str()
-                        } else {
-                            rt.target_role.as_str()
-                        }
-                    }
-                    _ => {
-                        if rt.source_role.trim().is_empty() {
-                            rt.name.as_str()
-                        } else {
-                            rt.source_role.as_str()
-                        }
-                    }
-                };
-                crate::convert::one_line(candidate)
-            })
-            .filter(|s| !s.is_empty())
-            .unwrap_or_else(|| rel.relation_type.to_string());
-        rows.push(vec![vec![bold_run(role)], vec![plain_run(target)]]);
-    }
-    if !rows.is_empty() {
-        parts.push(ModulePart::Blocks(vec![Block::Table { rows }]));
-    }
-}
-
 fn collect_entry_all_content(
     entry: &ModelEntry,
     templates: &BTreeMap<EntryTemplateId, EntryTemplate>,
@@ -667,9 +568,6 @@ fn collect_entry_all_content(
                     if let Some(grid) = ctx.plot_grids.get(&(entry.id.clone(), module.id.clone())) {
                         render_plot_grid_module(grid, &mut parts);
                     }
-                }
-                ModuleKind::Relations => {
-                    render_relations_module(&entry.id, ctx, labels, &mut parts);
                 }
                 // `Children` and `Members` are structural UI views storing no data on the entry.
                 ModuleKind::Children | ModuleKind::Members | ModuleKind::Other(_) => {}
@@ -738,9 +636,7 @@ fn load_tree_context(view: &BookViewV3, live_assets: Arc<HashMap<AssetId, Asset>
         .map(|e| (e.id, e.title))
         .collect();
     let mut patches: HashMap<(EntryId, ModuleId), Vec<PatchV3>> = HashMap::new();
-    let mut all_patches: HashMap<String, PatchV3> = HashMap::new();
     for p in view.patches() {
-        all_patches.insert(p.id.to_string(), p.clone());
         patches
             .entry((p.entry.clone(), p.module.clone()))
             .or_default()
@@ -751,26 +647,11 @@ fn load_tree_context(view: &BookViewV3, live_assets: Arc<HashMap<AssetId, Asset>
         .into_iter()
         .map(|g| ((g.entry.clone(), g.module.clone()), g))
         .collect();
-    let relation_types: HashMap<RelationTypeId, RelationTypeV3> = view
-        .relation_types()
-        .into_iter()
-        .map(|rt| (rt.id.clone(), rt))
-        .collect();
-    let relations = view.relations();
-    let comments: HashMap<String, CommentV3> = view
-        .comments()
-        .into_iter()
-        .map(|c| (c.id.to_string(), c))
-        .collect();
     TreeContext {
         live_entries,
         live_assets,
         patches,
         plot_grids,
-        relation_types,
-        relations,
-        all_patches,
-        comments,
     }
 }
 

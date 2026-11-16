@@ -26,7 +26,7 @@ use dr_model::kind::*;
 use dr_model::pos::PosKey;
 use dr_model::prose::{BlockAttrs, EntityLink, InlineStyle};
 use dr_model::shared::{
-    Asset, BlockSnapshot, EntityRef, KvEntry, MaterialRegion, canonical_symmetric,
+    Asset, BlockSnapshot, EntityRef, KvEntry, MaterialRegion,
 };
 use dr_model::v3::*;
 use dr_model::{DocId, Origin, Timestamp};
@@ -1046,22 +1046,14 @@ pub(crate) fn write_direct_v3(p: &Plan) -> Result<SeededBookV3> {
         )?;
     }
 
-    let (rt_name, source_role, target_role) = plan::RELATION_TYPE;
     b.edit_book(|t| {
-        t.relation_type(&p.relation_type)?
-            .name(rt_name)?
-            .orientation(&RelationOrientation::Directed)?
-            .source_role(source_role)?
-            .target_role(target_role)?
-            .source_kinds(&[EntityKind::Entry])?
-            .target_kinds(&[EntityKind::Entry])?
-            .source_templates(&[tid(TPL_CHARACTER)])?
-            .target_templates(&[tid(TPL_CHARACTER)])?;
+        t.relation_type(&p.relation_type)?.name(plan::RELATION_TYPE.0)?
+            .direction(RelationDirection::Directed)?.created_at(Some(Timestamp(T0)))?;
         for (k, (id, a, z)) in p.relations.iter().enumerate() {
-            t.relation(id)?
-                .ends(&element_refs[*a], &element_refs[*z])?
-                .relation_type(&p.relation_type)?
-                .created_at(Some(Timestamp(T0 + k as i64)))?;
+            let rows = t.view().relations_raw();
+            t.put_relation_pair(&p.relation_type, &rows, RelationDirection::Directed,
+                (&eid(&element_refs[*a].id), &eid(&element_refs[*z].id)), id,
+                Some(Timestamp(T0 + k as i64)))?;
         }
         Ok(())
     })?;
@@ -1604,55 +1596,33 @@ pub fn book_to_v3(src: &SeededBook) -> Result<SeededBookV3> {
             }
             Some(map_entity_ref_v3(r))
         };
-        let map_kinds = |kinds: &[EntityKind]| -> Vec<EntityKind> {
-            let mut out = std::collections::BTreeSet::new();
-            for k in kinds {
-                if *k == EntityKind::Material {
-                    out.insert(EntityKind::Entry);
-                    out.insert(EntityKind::Asset);
-                } else {
-                    out.insert(map_entity_kind_v3(k));
-                }
-            }
-            out.into_iter().collect()
-        };
-        let symmetric_types: std::collections::HashSet<RelationTypeId> = relation_types
-            .iter()
-            .filter(|rt| rt.orientation == RelationOrientation::Symmetric)
-            .map(|rt| rt.id.clone())
-            .collect();
+        let mut directions = BTreeMap::new();
         for rt in &relation_types {
-            if rt.locked || rt.system_key.is_some() {
+            if rt.system_key.is_some() {
                 continue;
             }
-            let src_kinds = map_kinds(&rt.source_kinds);
-            let tgt_kinds = map_kinds(&rt.target_kinds);
-            let w = t.relation_type(&rt.id)?;
-            w.name(&rt.name)?
-                .description(&rt.description)?
-                .orientation(&rt.orientation)?
-                .source_role(&rt.source_role)?
-                .target_role(&rt.target_role)?
-                .source_kinds(&src_kinds)?
-                .target_kinds(&tgt_kinds)?;
+            let direction = if rt.orientation == RelationOrientation::Symmetric {
+                RelationDirection::Symmetric
+            } else {
+                RelationDirection::Directed
+            };
+            directions.insert(rt.id.clone(), direction);
+            t.relation_type(&rt.id)?.name(&rt.name)?
+                .description(&LinkedText::plain(&rt.description))?.direction(direction)?
+                .created_at(meta.created_at)?;
         }
-        let mut seen_relations = std::collections::BTreeSet::new();
         for r in &relations {
             let (Some(from), Some(to)) = (map_endpoint(&r.from), map_endpoint(&r.to)) else {
                 continue;
             };
-            let (a, z) = if symmetric_types.contains(&r.relation_type) {
-                canonical_symmetric(from, to)
-            } else {
-                (from, to)
-            };
-            if a == z || !seen_relations.insert((r.relation_type.clone(), a.clone(), z.clone())) {
+            if from.kind != EntityKind::Entry || to.kind != EntityKind::Entry {
                 continue;
             }
-            t.relation(&r.id)?
-                .ends(&a, &z)?
-                .relation_type(&r.relation_type)?
-                .created_at(r.created_at)?;
+            let Some(direction) = directions.get(&r.relation_type).copied() else { continue };
+            let rows: Vec<_> = t.view().relations_raw().into_iter()
+                .filter(|row| row.relation_type == r.relation_type).collect();
+            t.put_relation_pair(&r.relation_type, &rows, direction,
+                (&eid(&from.id), &eid(&to.id)), &r.id, r.created_at)?;
         }
         let note_folder_ids =
             dr_samples::v3::note_material_folder_ids(&material_folders, &materials);
@@ -2180,46 +2150,26 @@ pub fn digest_v3(lib: &dr_store::Library, book: &str) -> std::result::Result<Val
         .collect::<std::result::Result<_, String>>()?;
     elements.sort_by_key(|e| e["name"].to_string());
 
-    let mut relation_types: Vec<Value> = v
-        .relation_types()
-        .into_iter()
-        .filter(|t| t.system_key.is_none())
-        .map(|t| {
-            json!([
-                t.name,
-                t.orientation.as_str(),
-                t.source_role,
-                t.target_role,
-                t.source_kinds
-                    .iter()
-                    .map(|k| k.as_str())
-                    .collect::<Vec<_>>(),
-                t.target_kinds
-                    .iter()
-                    .map(|k| k.as_str())
-                    .collect::<Vec<_>>(),
-            ])
-        })
+    let types = v.relation_types();
+    let mut relation_types: Vec<Value> = types.iter()
+        .map(|t| json!([t.name, t.direction, t.description.text]))
         .collect();
     relation_types.sort_by_key(|t| t.to_string());
-
-    let type_names: BTreeMap<String, String> = v
-        .relation_types()
-        .into_iter()
-        .map(|t| (t.id.to_string(), t.name))
-        .collect();
-    let mut relations: Vec<Value> = v
-        .relations()
-        .into_iter()
-        .map(|r| {
-            json!([
-                type_names.get(r.relation_type.as_str()),
-                names.entity(&r.from),
-                names.entity(&r.to),
-            ])
-        })
-        .collect();
+    let types: BTreeMap<_, _> = types.into_iter().map(|t| (t.id.clone(), t)).collect();
+    let mut relations = Vec::new();
+    for row in v.relations() {
+        let relation = &types[&row.relation_type];
+        for (left, right) in row.pairs() {
+            let (left, right) = relation.direction.pair(left, right);
+            relations.push(json!([
+                relation.name,
+                names.entity(&EntityRef::new(EntityKind::Entry, left.as_str())),
+                names.entity(&EntityRef::new(EntityKind::Entry, right.as_str())),
+            ]));
+        }
+    }
     relations.sort_by_key(|r| r.to_string());
+    relations.dedup();
 
     let acts: Vec<Value> = entries
         .iter()
@@ -2494,7 +2444,7 @@ pub fn digest_v3(lib: &dr_store::Library, book: &str) -> std::result::Result<Val
                 "quote": c.quote,
                 "snapshots": c.snapshots.iter().map(|s| s.text.clone()).collect::<Vec<_>>(),
                 "anchored": c.anchor.is_some(),
-                "body": c.body,
+                "body": c.body.text,
             })
         })
         .collect();

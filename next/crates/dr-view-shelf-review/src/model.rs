@@ -207,7 +207,7 @@ pub fn matches_comment(item: &CommentInfo, source_title: &str, query: &str) -> b
     if query.is_empty() {
         return true;
     }
-    item.body.to_lowercase().contains(query)
+    item.body.text.to_lowercase().contains(query)
         || item
             .quote
             .as_deref()

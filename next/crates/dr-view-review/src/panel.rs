@@ -409,7 +409,7 @@ impl ReviewView {
         self.data_rev
     }
 
-    /// Current v3 snapshot (comments, targets and built-in entry associations).
+    /// Current v3 snapshot (comments and targets).
     pub fn v3_snapshot(&self) -> Option<&crate::v3::Snapshot> {
         self.v3.as_ref().map(|s| &s.snapshot)
     }
@@ -673,7 +673,7 @@ impl ReviewView {
         if item.origin == "task" {
             return;
         }
-        let body = item.body.clone();
+        let body = item.body.text.clone();
         let placeholder = self
             .i18n
             .t(keys::review_panel::COMMENT_PLACEHOLDER)
@@ -708,7 +708,7 @@ impl ReviewView {
         }
         if let Some(text) = text {
             let mut input = self.update_in(id);
-            input.body = Some(text);
+            input.body = Some(text.into());
             self.write_v3(
                 id.to_owned(),
                 "comment.update",
@@ -785,7 +785,7 @@ impl ReviewView {
             existing_conversation: v3_item.comment.agent_conversation.clone(),
             header,
             quote,
-            body: v3_item.comment.body.clone(),
+            body: v3_item.comment.body.text.clone(),
             extra_note: extra_note.trim().to_owned(),
         };
         if let Some(flyout) = &mut self.agent_flyout
@@ -1413,10 +1413,10 @@ impl ReviewView {
                 );
             }
             _ => {
-                let text: SharedString = if item.body.trim().is_empty() {
+                let text: SharedString = if item.body.text.trim().is_empty() {
                     self.i18n.t(keys::comment_rail::card::EMPTY_COMMENT).into()
                 } else {
-                    item.body.clone().into()
+                    item.body.text.clone().into()
                 };
                 let (entity, comment) = (entity.clone(), comment.clone());
                 body = body.child(
@@ -1539,10 +1539,10 @@ impl ReviewView {
             .map(|i| matches!(i.place, crate::v3::Place::On(_)) && i.target.is_some())
             .unwrap_or(item.target.is_some() && !item.unlocated);
 
-        let text: SharedString = if item.body.trim().is_empty() {
+        let text: SharedString = if item.body.text.trim().is_empty() {
             self.i18n.t(keys::comment_rail::card::EMPTY_COMMENT).into()
         } else {
-            item.body.clone().into()
+            item.body.text.clone().into()
         };
         let pinwheel = self.pinwheel_corner(item, window, cx);
 

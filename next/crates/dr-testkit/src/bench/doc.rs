@@ -153,7 +153,9 @@ pub fn run(mode: Mode) -> Result<Bench, String> {
         let elements = v.elements();
         if let Some(e) = elements.first() {
             let end = EntityRef::new(EntityKind::Element, e.id.to_string());
-            case.time("relationsOf", || v.relations_of(&end).len());
+            case.time("relationsOf", || dr_model::id::EntryId::parse(&end.id).ok().map_or(0, |entry| {
+                v.relations().iter().filter(|row| row.contains(&entry)).count()
+            }));
         }
         let mut rng = Rng::new(17);
         for _ in 0..lookups {

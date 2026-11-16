@@ -198,14 +198,6 @@ pub(super) fn rewrite_for(read: &Contents, book: &LoroDoc) -> Result<Rewrite> {
     for (asset, _) in &read.assets {
         fresh(&mut rw, &asset.asset);
     }
-    rw.ids.insert(
-        dr_doc::catalog::generic_relation_type_id(&read.manifest.book.parse().map_err(damaged)?)
-            .to_string(),
-        dr_doc::catalog::generic_relation_type_id(
-            &rw.ids[&read.manifest.book].parse().map_err(damaged)?,
-        )
-        .to_string(),
-    );
     each_key(&json.changes, &paths, |path, key| {
         if matches!(path, [root] if root == "plot_grids") {
             map_grid_lines(&mut rw, key);
@@ -483,6 +475,9 @@ impl Rewriter<'_> {
             return self.rw.text(key);
         }
         match path {
+            [root, _, field] if root == "relations" && field == "members" => {
+                self.rw.text(key)
+            }
             [root] if root == "memberships" => key
                 .split_once('|')
                 .map(|(a, b)| format!("{}|{}", self.rw.text(a), self.rw.text(b)))
@@ -602,7 +597,7 @@ impl Rewriter<'_> {
             [root, _] if root == "patches" => {
                 matches!(key, "entry" | "source_entry" | "source_block")
             }
-            [root, _] if root == "relations" => matches!(key, "from" | "to" | "type"),
+            [root, _] if root == "relations" => key == "type",
             [root, _] if root == "comments" => matches!(
                 key,
                 "target" | "target_block" | "projection_block" | "agent_conversation"
@@ -801,7 +796,7 @@ impl Rewriter<'_> {
                     style_value,
                     ..
                 }) if !self.conversation => {
-                    if style_key == schema::block::ID {
+                    if style_key == schema::block::ID || self.book && style_key == schema::inline::ENTITY {
                         *style_value = self.refs(style_value);
                     } else if let Some(target) = schema::inline::entity_target(style_key) {
                         *style_key = schema::inline::entity_key(&self.rw.text(target));

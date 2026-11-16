@@ -403,3 +403,63 @@ fn link_written_with_v3(
     }
     Ok(linked)
 }
+
+/// Plan links for a comment or a relation description without writing the
+/// book. Explicit entry links take precedence over all automatic matches.
+/// The owner of a comment is excluded, as for a prose document.
+pub fn plan_book_text(
+    book: &dr_doc::v3::BookViewV3<'_>,
+    owner: Option<&dr_model::id::EntryId>,
+    automatic: bool,
+    draft: &dr_model::v3::LinkedText,
+) -> crate::Result<dr_model::v3::LinkedText> {
+    use dr_model::id::EntryId;
+    use dr_model::v3::EntryTextLink;
+
+    draft.validate()?;
+    let mut result = draft.remap_links(|id| (Some(id) != owner).then(|| id.clone()));
+    for link in &result.links {
+        if book.entry_raw(&link.entry).is_none() {
+            return Err(crate::WsError::not_found("entry", link.entry.as_str()));
+        }
+    }
+    if !automatic || result.text.is_empty() {
+        return Ok(result);
+    }
+    let names = LinkMatcher::new(
+        book_link_names_v3(book)
+            .into_iter()
+            .filter(|n| owner.is_none_or(|id| n.target.id != id.as_str())),
+    );
+    let additions = plan(&result.text, &[], &names, 0..result.text.chars().count());
+    let explicit = result.links.len();
+    for edit in additions {
+        if let LinkEdit::Link { range, target } = edit
+            && !result.links[..explicit]
+                .iter()
+                .any(|link| link.start < range.end && range.start < link.end)
+            && let Ok(entry) = EntryId::parse(&target.id)
+        {
+            result.links.push(EntryTextLink {
+                start: range.start,
+                end: range.end,
+                entry,
+            });
+        }
+    }
+    result.links.sort_by_key(|link| link.start);
+    Ok(result)
+}
+
+impl crate::Workspace {
+    /// The author's automatic-link setting applied to a draft of linked text.
+    pub fn plan_entry_text_links(
+        &self,
+        book: &dr_model::id::BookId,
+        owner: Option<&dr_model::id::EntryId>,
+        draft: &dr_model::v3::LinkedText,
+    ) -> crate::Result<dr_model::v3::LinkedText> {
+        let slot = self.book_slot(book)?;
+        plan_book_text(&slot.reader_v3.view(), owner, self.auto_links(), draft)
+    }
+}

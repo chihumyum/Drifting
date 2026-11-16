@@ -53,11 +53,14 @@ pub(crate) fn facade_schema_v3(name: &str, mut schema: Value) -> Value {
             "view",
             "lane",
             "relation_type",
+            "left",
+            "right",
             "owner",
             "folder",
             "item",
         ] {
             let is_reference = match key {
+                "id" if domain == "relation_row" => false,
                 "id" => !matches!((domain, verb), (_, "create" | "add")) || name == "tab.put",
                 "item" => name == "module.remove_media",
                 _ => true,
@@ -280,8 +283,6 @@ pub(crate) fn resolve_v3(
                 targets.insert(format!("book:{book_id}"));
             }
 
-            let (domain, _verb) = name.split_once('.').expect("registry name");
-
             if let Some(doc_val) = obj.get_mut("doc") {
                 let prose_only = name.starts_with("prose.");
                 let is_write = !is_query;
@@ -417,10 +418,9 @@ pub(crate) fn resolve_v3(
                         targets.insert(doc);
                     }
                 }
-                "comment.update" | "comment.reanchor" | "comment.trash" | "comment.restore" => {
-                    let include_trashed = matches!(name, "comment.trash" | "comment.restore");
+                "comment.update" | "comment.reanchor" | "comment.delete" => {
                     if let Some(id) = obj.get_mut("id") {
-                        *id = resolve_comment_id(&cx.view, id, include_trashed)?.into();
+                        *id = resolve_comment_id(&cx.view, id, false)?.into();
                     }
                     if name == "comment.reanchor" && obj.get("anchor").is_some_and(|a| !a.is_null())
                     {
@@ -655,8 +655,6 @@ pub(crate) fn resolve_v3(
                 | "module.put_patch"
                 | "module.remove_patch"
                 | "module.put_grid"
-                | "module.put_relation"
-                | "module.remove_relation"
                 | "module.put_media"
                 | "module.remove_media"
                 | "module.set_arrangement" => {
@@ -743,26 +741,6 @@ pub(crate) fn resolve_v3(
                                 {
                                     let pid = resolve_patch_id(&patches, raw)?;
                                     *id_val = pid.into();
-                                }
-                            }
-                        }
-                        "module.put_relation" => {
-                            if let Some(rt_val) = obj.get_mut("relation_type") {
-                                let rtid = resolve_relation_type_id(&cx.view, rt_val)?;
-                                *rt_val = rtid.into();
-                            }
-                        }
-                        "module.remove_relation" => {
-                            if let Some(id_val) = obj.get_mut("id") {
-                                let raw = string(id_val, "id")?;
-                                let rels = cx.view.relations_of(&dr_model::shared::EntityRef {
-                                    kind: dr_model::kind::EntityKind::Entry,
-                                    id: eid.to_string(),
-                                });
-                                if !rels.iter().any(|r| r.id.as_str() == raw) {
-                                    return Err(invalid(format!(
-                                        "relation {raw:?} not found on entry {eid}"
-                                    )));
                                 }
                             }
                         }
@@ -861,30 +839,56 @@ pub(crate) fn resolve_v3(
                         }
                     }
                 }
-                "entry_relation_type.put" => {
-                    if let Some(def) = obj.get_mut("definition").and_then(Value::as_object_mut) {
-                        if let Some(id_val) = def.get_mut("id")
-                            && let Some(raw) = id_val.as_str()
-                            && !looks_like_uuid(raw)
-                            && let Ok(rtid) =
-                                resolve_relation_type_id(&cx.view, &Value::String(raw.into()))
-                        {
-                            *id_val = rtid.into();
-                        }
-                        for key in ["source_templates", "target_templates"] {
-                            if let Some(arr) = def.get_mut(key).and_then(Value::as_array_mut) {
-                                for item in arr {
-                                    let tid = resolve_template_id(&cx, item, false)?;
-                                    *item = tid.to_string().into();
-                                }
-                            }
-                        }
+                "relation_type.list" => {
+                    if let Some(entry) = obj.get_mut("entry").filter(|e| !e.is_null()) {
+                        *entry = resolve_entry_id(&cx, entry, None, false, EntryRole::Any)?
+                            .to_string().into();
                     }
                 }
-                "entry_relation_type.delete" => {
-                    if let Some(id_val) = obj.get_mut("id") {
-                        let rtid = resolve_relation_type_id(&cx.view, id_val)?;
-                        *id_val = rtid.into();
+                "relation_type.rename" | "relation_type.set_description"
+                | "relation_type.set_direction" | "relation_type.delete" => {
+                    if let Some(id) = obj.get_mut("id") {
+                        let relation = resolve_relation_type_id(&cx.view, id)?;
+                        if name == "relation_type.delete" {
+                            extra_subjects.extend(cx.view.relations_raw().into_iter()
+                                .filter(|r| r.relation_type.as_str() == relation)
+                                .map(|r| format!("relation_row:{}", r.id)));
+                        }
+                        *id = relation.into();
+                    }
+                }
+                "relation_row.create_pair" => {
+                    let mut entries = Vec::with_capacity(2);
+                    for key in ["left", "right"] {
+                        let value = obj.get_mut(key).ok_or_else(|| invalid(format!("missing {key} entry")))?;
+                        let entry = resolve_entry_id(&cx, value, None, false, EntryRole::Any)?;
+                        *value = entry.to_string().into();
+                        entries.push(entry);
+                    }
+                    if let Some(value) = obj.get_mut("relation_type").filter(|t| !t.is_null()) {
+                        let id = resolve_relation_type_id(&cx.view, value)?;
+                        let id = dr_model::id::RelationTypeId::parse(&id).map_err(|e| invalid(e.to_string()))?;
+                        let relation = cx.view.relation_type_raw(&id)
+                            .ok_or_else(|| invalid("relation type no longer exists"))?;
+                        let rows: Vec<_> = cx.view.relations_raw().into_iter()
+                            .filter(|row| row.relation_type == id).collect();
+                        if let dr_model::v3::PairPlacement::Add(row, _, _) =
+                            dr_model::v3::plan_relation_pair(&rows, relation.direction, &entries[0], &entries[1]) {
+                            extra_subjects.insert(format!("relation_row:{row}"));
+                        }
+                        *value = id.to_string().into();
+                    }
+                }
+                "relation_row.add_entry" | "relation_row.remove_entry" | "relation_row.delete" => {
+                    if let Some(value) = obj.get_mut("entry") {
+                        *value = resolve_entry_id(&cx, value, None, name == "relation_row.remove_entry", EntryRole::Any)?
+                            .to_string().into();
+                    }
+                    if let Some(id) = obj.get("id").and_then(Value::as_str) {
+                        let row = cx.view.relations_raw().into_iter()
+                            .find(|row| row.id.as_str() == id)
+                            .ok_or_else(|| invalid("relation row does not exist"))?;
+                        extra_subjects.insert(format!("relation_type:{}", row.relation_type));
                     }
                 }
                 "membership.add" | "membership.remove" => {
@@ -1314,15 +1318,7 @@ pub(crate) fn resolve_v3(
                         }
                     }
                 }
-                _ => {
-                    if domain == "relation"
-                        && let Some(rt_val) = obj.get_mut("relation_type")
-                        && !rt_val.is_null()
-                    {
-                        let rtid = resolve_relation_type_id(&cx.view, rt_val)?;
-                        *rt_val = rtid.into();
-                    }
-                }
+                _ => {}
             }
 
             let mut subj = subjects_v3(name, &args);
@@ -1578,12 +1574,17 @@ pub(crate) fn coverage_v3(name: &str, args: &Value, output: &Value) -> Option<Ve
                 read.insert(format!("module:{owner}:{module}"));
             }
         }
-        "entry_relation_type.list" => {
-            read.insert("entry_relation_type:*".into());
-            if let Some(rows) = output.as_array() {
-                for row in rows {
+        "relation_type.list" => {
+            if args.get("entry").is_none_or(Value::is_null) {
+                read.insert("relation_type:*".into());
+            }
+            for relation in output.as_array().into_iter().flatten() {
+                if let Some(id) = relation["id"].as_str() {
+                    read.insert(format!("relation_type:{id}"));
+                }
+                for row in relation["rows"].as_array().into_iter().flatten() {
                     if let Some(id) = row["id"].as_str() {
-                        read.insert(format!("entry_relation_type:{id}"));
+                        read.insert(format!("relation_row:{id}"));
                     }
                 }
             }
@@ -1712,9 +1713,7 @@ pub(crate) fn subjects_v3(name: &str, args: &Value) -> Vec<String> {
         }
         "module.put_patch"
         | "module.remove_patch"
-        | "module.put_grid"
-        | "module.put_relation"
-        | "module.remove_relation" => {
+        | "module.put_grid" => {
             if let (Some(entry), Some(mid)) = (
                 args.get("entry").and_then(Value::as_str),
                 args.get("module").and_then(Value::as_str),
@@ -1729,12 +1728,38 @@ pub(crate) fn subjects_v3(name: &str, args: &Value) -> Vec<String> {
                 subjects.insert(format!("prose:{doc}"));
             }
         }
-        "entry_relation_type.put" => {
-            subjects.insert("entry_relation_type:*".into());
+        "relation_type.create" => {
+            subjects.insert("relation_type:*".into());
         }
-        "entry_relation_type.delete" => {
-            if let Some(id) = args.get("id").and_then(Value::as_str) {
-                subjects.insert(format!("entry_relation_type:{id}"));
+        "relation_type.rename" | "relation_type.set_description" | "relation_type.set_direction"
+        | "relation_type.delete" => {
+            if let Some(id) = args["id"].as_str() {
+                subjects.insert(format!("relation_type:{id}"));
+            }
+        }
+        "relation_row.create_pair" => {
+            if let Some(id) = args["relation_type"].as_str() {
+                subjects.insert(format!("relation_type:{id}"));
+            } else {
+                subjects.insert("relation_type:*".into());
+            }
+            for key in ["left", "right"] {
+                if let Some(entry) = args[key].as_str() {
+                    subjects.insert(format!("entry:{entry}"));
+                }
+            }
+        }
+        "relation_row.add_entry" | "relation_row.remove_entry" | "relation_row.delete" => {
+            if let Some(id) = args["id"].as_str() {
+                subjects.insert(format!("relation_row:{id}"));
+            }
+            if name == "relation_row.add_entry" && let Some(entry) = args["entry"].as_str() {
+                subjects.insert(format!("entry:{entry}"));
+            }
+        }
+        "comment.delete" => {
+            if let Some(id) = args["id"].as_str() {
+                subjects.insert(format!("comment:{id}"));
             }
         }
         "membership.add" | "membership.remove" => {
@@ -1803,7 +1828,7 @@ pub(crate) fn subjects_v3(name: &str, args: &Value) -> Vec<String> {
                                 subjects.insert("membership:*".into());
                             }
                             "relation_types" => {
-                                subjects.insert(format!("entry_relation_type:{id}"));
+                                subjects.insert(format!("relation_type:{id}"));
                             }
                             "comments" => {
                                 subjects.insert(format!("comment:{id}"));
@@ -1815,7 +1840,7 @@ pub(crate) fn subjects_v3(name: &str, args: &Value) -> Vec<String> {
                                 subjects.insert(format!("asset_folder:{id}"));
                             }
                             "relations" => {
-                                subjects.insert(format!("relation:{id}"));
+                                subjects.insert(format!("relation_row:{id}"));
                             }
                             "patches" => {
                                 subjects.insert(format!("patch:{id}"));

@@ -359,9 +359,7 @@ pub struct ShelfReviewView {
     /// stage was not showing it (redone when it is shown again).
     shown_as: dr_shell::workspace::SuperView,
     links_stale: bool,
-    rel_serial: u64,
     mat_state_rev: u64,
-    rel_task: Option<Task<()>>,
     import_task: Option<Task<()>>,
     review_cache: RefCell<Option<(ReviewCacheKey, CachedReview)>>,
     material_cache: RefCell<Option<(MaterialCacheKey, CachedMaterials)>>,
@@ -438,9 +436,7 @@ impl ShelfReviewView {
             relations_loaded: false,
             shown_as: host.view,
             links_stale: false,
-            rel_serial: 0,
             mat_state_rev: 0,
-            rel_task: None,
             import_task: None,
             review_cache: RefCell::new(None),
             material_cache: RefCell::new(None),
@@ -943,47 +939,11 @@ impl ShelfReviewView {
     }
 
     pub(crate) fn reload_relations(&mut self, cx: &mut Context<Self>) {
-        if crate::is_frozen(cx) || self.book_id.is_empty() || self.book.v3().is_none() {
-            self.linked_materials.clear();
-            self.entry_related_materials = None;
-            self.mat_state_rev += 1;
-            self.relations_loaded = false;
-            return;
-        }
-        let Some(lib) = self.lib.clone() else {
-            return;
-        };
-        self.rel_serial += 1;
-        let serial = self.rel_serial;
-        let book = self.book_id.clone();
-        let selected = self.selected_entry.clone();
-        let task = cx.background_executor().spawn(async move {
-            dr_view_material::v3::shelf_relations(&lib, &book, selected.as_deref())
-        });
-
-        let expected_book = self.book_id.clone();
-        self.rel_task = Some(cx.spawn(async move |view, cx| {
-            let res: dr_workspace::Result<(HashSet<String>, Option<HashSet<String>>)> = task.await;
-            view.update(cx, |this, cx| {
-                if this.book_id != expected_book || this.rel_serial != serial {
-                    return;
-                }
-                this.rel_task = None;
-                match res {
-                    Ok((linked, entry_related)) => {
-                        this.linked_materials = linked;
-                        this.entry_related_materials = entry_related;
-                        this.mat_state_rev += 1;
-                        this.relations_loaded = true;
-                    }
-                    Err(e) => {
-                        log::warn!("shelf-review: relation load failed: {e}");
-                    }
-                }
-                cx.notify();
-            })
-            .ok();
-        }));
+        self.linked_materials.clear();
+        self.entry_related_materials = self.selected_entry.as_ref().map(|_| HashSet::new());
+        self.relations_loaded = true;
+        self.mat_state_rev += 1;
+        cx.notify();
     }
 
     fn spawn_tracked_write<T, F>(
@@ -1052,7 +1012,7 @@ impl ShelfReviewView {
                         block_id: None,
                         range: None,
                         anchor: None,
-                        body,
+                        body: body.into(),
                         author_name: None,
                     },
                 )
@@ -1216,7 +1176,6 @@ impl ShelfReviewView {
 
     pub(crate) fn drop_library_handles(&mut self, cx: &mut Context<Self>) {
         self._lib_sub = None;
-        self.rel_task = None;
         self.import_task = None;
         self._review_sub = None;
         self.review = None;

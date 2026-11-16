@@ -317,10 +317,10 @@ impl ShelfReviewView {
                         } else {
                             t(cx, keys::review_panel::filters::COMMENT)
                         };
-                        let body_text: SharedString = if item.body.trim().is_empty() {
+                        let body_text: SharedString = if item.body.text.trim().is_empty() {
                             t(cx, keys::memo_material::todo::EMPTY)
                         } else {
-                            item.body.clone().into()
+                            item.body.text.clone().into()
                         };
                         let writing = rv_opt
                             .as_ref()
