@@ -327,8 +327,12 @@ fn column(
             .top_0()
             .bottom_0()
             .w(px(6.0))
-            .when(side == Side::Left, |el| el.right(px(-3.0)))
-            .when(side == Side::Right, |el| el.left(px(-3.0)))
+            .when(side == Side::Left, |el| {
+                el.right(px(if filled { 0.0 } else { -3.0 }))
+            })
+            .when(side == Side::Right, |el| {
+                el.left(px(if filled { 0.0 } else { -3.0 }))
+            })
             .cursor_col_resize()
             .on_drag(ResizeDrag(side), |_, _, _, cx| cx.new(|_| NoPreview));
         if filled {

@@ -492,7 +492,7 @@ impl Sidebar {
 
     /// The row as it usually is: the Tabs, scrolling sideways, and the
     /// manage button.
-    fn tab_row(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    fn tab_row(&mut self, controls: Option<AnyElement>, cx: &mut Context<Self>) -> AnyElement {
         let Some(v) = self.host.book.v3() else {
             return div().into_any_element();
         };
@@ -545,6 +545,13 @@ impl Sidebar {
                             }),
                     ),
             )
+            .children(controls.map(|controls| {
+                div()
+                    .id("v5-left-fill-controls")
+                    .max_w(relative(0.67))
+                    .overflow_x_scroll()
+                    .child(controls)
+            }))
             .child(self.manage_button(cx))
             .into_any_element()
     }
@@ -1023,23 +1030,22 @@ impl Render for Sidebar {
                 .child(div().flex_1().min_h_0().child(self.structure.clone()))
                 .into_any_element();
         }
-        content = content.child(self.tab_row(cx));
         let selected = self
             .selected
             .as_ref()
             .and_then(|id| v.project.tabs.iter().find(|t| &t.id == id))
             .cloned();
-        if let Some(tab) = selected.as_ref()
-            && self.filled
-            && !self.in_structure
-            && !tabs::is_gone(v, &tab.mount)
-        {
-            content = content.child(
-                div()
-                    .px_2()
-                    .child(self.fill_layout_selector(tab.clone(), cx)),
-            );
-        }
+        let controls = if self.filled && self.in_structure {
+            self.template_structure
+                .as_ref()
+                .map(|view| view.update(cx, |view, cx| view.header(cx)))
+        } else {
+            selected
+                .as_ref()
+                .filter(|tab| self.filled && !tabs::is_gone(v, &tab.mount))
+                .map(|tab| self.fill_layout_selector(tab.clone(), cx))
+        };
+        content = content.child(self.tab_row(controls, cx));
         let body = if self.filled && self.in_structure {
             self.template_structure.as_ref().map_or_else(
                 || div().into_any_element(),

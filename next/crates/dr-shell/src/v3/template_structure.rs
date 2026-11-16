@@ -141,7 +141,7 @@ impl Structure {
         })
     }
 
-    fn header(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    pub(super) fn header(&self, cx: &mut Context<Self>) -> AnyElement {
         let host = self.host.clone();
         let weak = cx.weak_entity();
         div()
@@ -149,7 +149,6 @@ impl Structure {
             .flex()
             .items_center()
             .gap_2()
-            .pb_2()
             .child(
                 Segmented::new(
                     "v5-structure-face",
@@ -183,6 +182,7 @@ impl Structure {
                 .disabled(!v3::has_template_creator(cx))
                 .on_click(move |_, window, cx| v3::create_template(host.clone(), window, cx)),
             )
+            .into_any_element()
     }
 
     fn card(
@@ -661,7 +661,6 @@ impl Render for Structure {
             .flex()
             .flex_col()
             .min_h_0()
-            .child(self.header(cx))
             .child(
                 div()
                     .relative()
