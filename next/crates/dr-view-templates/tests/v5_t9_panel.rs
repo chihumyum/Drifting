@@ -1,11 +1,14 @@
-//! T9 (`kernel-v5.md` §9): 「新建模板」 stores nothing until the author
-//! changes something, and the structure's floating panel is its own Esc
-//! layer: Esc in a field shows what is stored again and closes the panel,
-//! never the fill, and what the panel holds is never dropped silently.
+//! T9 (`kernel-v5.md` §9): 「新建模板」 in the filled left column stores
+//! nothing until the author changes something; from the left foot of a
+//! column that does not fill it opens the stored template's full editor in
+//! a new pill. The structure's floating panel is its own Esc layer: Esc in
+//! a field shows what is stored again and closes the panel, never the
+//! fill, and what the panel holds is never dropped silently.
 use std::time::{Duration, Instant};
 
 use dr_shell::{
     Services, SettingsFile, ShellInfo, Workspace as Shell,
+    nav::Target,
     pages::PageViewHost,
     v3::{self, Rendered, template_structure::Structure},
     workspace::FillPlace,
@@ -242,26 +245,45 @@ fn a_new_template_is_stored_only_once_the_author_changes_it(cx: &mut TestAppCont
     assert_eq!(now.len(), before + 1);
     assert!(now.iter().find(|t| t.id == draft_id).unwrap().level);
 
-    // Not filled: the full editor, a new template nobody stored; closed
-    // untouched it leaves nothing behind either.
+    // Not filled (the left column's foot): the template is stored at once
+    // and K5's full editor opens on it in a new pill; no dialog, no fill.
     cx.update(|window, cx| view.update(cx, |ws, cx| ws.exit_fill(window, cx)));
     pump(cx);
+    assert!(!view.read_with(cx, |ws, _| ws.is_filled(FillPlace::Left)));
+    let tabs = view.read_with(cx, |ws, _| ws.nav.tabs().len());
     let h = host(&view, &lib, &id, cx);
     cx.update(|window, cx| v3::create_template(h, window, cx));
-    pump(cx);
-    let dialog = view
-        .read_with(cx, |ws, _| ws.dialog.clone())
-        .expect("the full editor");
-    let full = dialog
+    wait(&view, cx, "the new template's pill", |ws, _| {
+        ws.nav.tabs().len() == tabs + 1 && matches!(ws.nav.current(), Some(Target::Template(_)))
+    });
+    let target = view.read_with(cx, |ws, _| ws.nav.current().cloned().unwrap());
+    let Target::Template(made) = &target else {
+        unreachable!()
+    };
+    let now = stored(&lib, &id);
+    assert_eq!(now.len(), before + 2, "stored as the pill opened");
+    assert!(now.iter().any(|t| t.id == made.as_str()));
+    assert!(view.read_with(cx, |ws, _| ws.dialog.is_none()), "no dialog");
+    assert_eq!(
+        view.read_with(cx, |ws, _| ws.filled()),
+        None,
+        "nothing fills"
+    );
+    wait(&view, cx, "the full editor", |ws, _| {
+        ws.module_page(&target).is_some()
+    });
+    let page = view.read_with(cx, |ws, _| ws.module_page(&target).cloned().unwrap());
+    let full = page
         .downcast::<TemplateEditor>()
-        .expect("the template editor");
-    assert!(!full.read_with(cx, |e, _| e.touched()));
-    assert_eq!(stored(&lib, &id).len(), before + 1);
-    let shown = full.entity_id();
-    cx.update(|_, cx| dr_shell::dialogs::hide(cx, shown));
-    pump(cx);
-    assert!(view.read_with(cx, |ws, _| ws.dialog.is_none()));
-    assert_eq!(stored(&lib, &id).len(), before + 1);
+        .expect("the pill shows K5's full template editor");
+    assert_eq!(
+        full.read_with(cx, |e, _| e.draft().id.clone()),
+        made.as_str()
+    );
+    assert!(
+        cx.debug_bounds("k5-toggle-level").is_some(),
+        "the full editor is drawn on the paper"
+    );
 }
 
 #[gpui::test]
