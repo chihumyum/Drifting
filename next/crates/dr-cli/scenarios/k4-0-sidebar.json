@@ -461,21 +461,22 @@
       "note": "A Tab is called by what it mounts (kernel-v5 §5; DZ dropped the tab's own name). It goes last, the seventh, past the column's edge."
     },
     {
-      "app": "input.scroll",
-      "params": {
-        "x": 200,
-        "y": 56,
-        "dx": -600,
-        "dy": 0
-      },
-      "note": "A row that does not fit scrolls sideways; the manage button stays at its end (Tab prototype, T1)."
-    },
-    {
       "app": "ui.find",
       "params": {
         "role": "RadioButton",
         "label": "验收顶层"
-      }
+      },
+      "note": "Wait for the seventh Tab to be drawn before scrolling: until it is, the row still fits and there is nothing to scroll."
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 200,
+        "y": 56,
+        "dx": 600,
+        "dy": 0
+      },
+      "note": "A row that does not fit scrolls sideways; the manage button stays at its end (Tab prototype, T1). The bridge's dx is how far to look right (it sends the wheel the other way round), so 600 brings the seventh Tab in."
     },
     {
       "app": "ui.press",

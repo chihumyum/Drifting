@@ -230,6 +230,16 @@
       }
     },
     {
+      "app": "ui.find",
+      "params": {
+        "role": "Button",
+        "label": "Cancel",
+        "absent": true,
+        "timeout_ms": 15000
+      },
+      "note": "The comment is written off the main thread; the composer closes once it is."
+    },
+    {
       "call": "comment.list",
       "input": {
         "book": "${books.0.id}",
