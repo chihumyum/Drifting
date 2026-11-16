@@ -2,5 +2,6 @@
 pub mod body;
 pub mod disk;
 pub mod file;
+pub mod layout;
 pub mod merge;
 mod merge_plan;
