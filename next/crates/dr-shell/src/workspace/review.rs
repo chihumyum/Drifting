@@ -215,6 +215,7 @@ impl Workspace {
     /// Project Home; the Agent panel shows that card's conversation and
     /// Home stays as it is).
     pub fn reveal_companion(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.exit_fill(window, cx);
         let reduce = self.reduce_motion(window, cx);
         self.right.set_open(true, reduce);
         self.right.panes.reveal(super::RightTab::Companion);

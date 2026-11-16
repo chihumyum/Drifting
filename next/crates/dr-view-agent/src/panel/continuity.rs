@@ -80,7 +80,11 @@ impl AgentPanel {
     }
 
     pub(super) fn continuity_header(&self, cx: &mut Context<Self>) -> AnyElement {
-        let mut row = div().flex().flex_wrap().gap(px(6.));
+        let mut row = div()
+            .debug_selector(|| "agent-continuity".into())
+            .flex()
+            .flex_wrap()
+            .gap(px(6.));
         row = row
             .child(
                 Button::new("agent-project-memory", t(cx, keys::project_memory::TITLE))

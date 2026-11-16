@@ -13,6 +13,7 @@ use std::{
 use dr_shell::{
     Services, Settings, SettingsFile, ShellInfo, Workspace,
     nav::{Open, Target},
+    workspace::FillPlace,
 };
 use dr_view_home::{AgentCards, clear_agent_cards, has_agent_cards, set_agent_cards, v3::Home};
 use dr_workspace::{Actor, Workspace as Library};
@@ -411,6 +412,65 @@ fn a_templates_working_copy_shows_no_cards_and_asks_for_none(cx: &mut TestAppCon
             && vcx.debug_bounds("v3-home-agent-cards").is_some()
     });
     assert_eq!(shown(&made, vcx), opened + 1);
+    vcx.update(|_, cx| clear_agent_cards(cx));
+    lib.close();
+}
+
+/// A filled panel covering the paper covers Home: the window coming back
+/// to it asks nothing; leaving the fill and landing on Home is Home coming
+/// to the front, and asks once (the cards' controller still keeps its 90
+/// minutes).
+#[gpui::test]
+fn a_filled_panel_over_home_asks_nothing_until_it_is_left(cx: &mut TestAppContext) {
+    let (_dir, lib, book) = seed_library();
+    let made = Made::default();
+    let (ws, _home, vcx) = open_workspace(cx, &lib, &book, &made);
+    let opened = shown(&made, vcx);
+    assert!(opened >= 1, "the project opened on Home");
+
+    vcx.update(|window, cx| {
+        ws.update(cx, |ws, cx| {
+            assert!(ws.enter_fill(FillPlace::Bottom, window, cx));
+        })
+    });
+    wait(vcx, "the bottom panel filled", |vcx| {
+        ws.read_with(vcx, |ws, _| {
+            ws.is_filled(FillPlace::Bottom) && ws.fill_covers_paper() && !ws.covered()
+        })
+    });
+    assert_eq!(shown(&made, vcx), opened, "filling asks nothing");
+
+    // The window comes back to the filled panel: Home is not in front.
+    vcx.deactivate_window();
+    vcx.update(|window, _| window.activate_window());
+    wait(vcx, "back on the filled panel", |vcx| {
+        vcx.update(|window, _| window.is_window_active())
+    });
+    assert_eq!(
+        shown(&made, vcx),
+        opened,
+        "the window came back to the filled panel"
+    );
+
+    // Leaving the fill lands on Home: once.
+    vcx.update(|window, cx| {
+        ws.update(cx, |ws, cx| {
+            assert!(ws.exit_fill(window, cx));
+        })
+    });
+    wait(vcx, "Home in front again", |vcx| {
+        ws.read_with(vcx, |ws, _| ws.filled().is_none())
+            && vcx.debug_bounds("v3-home-agent-cards").is_some()
+    });
+    assert_eq!(shown(&made, vcx), opened + 1);
+
+    // And the window coming back asks again.
+    vcx.deactivate_window();
+    vcx.update(|window, _| window.activate_window());
+    wait(vcx, "back on Home", |vcx| {
+        vcx.update(|window, _| window.is_window_active())
+    });
+    assert_eq!(shown(&made, vcx), opened + 2);
     vcx.update(|_, cx| clear_agent_cards(cx));
     lib.close();
 }

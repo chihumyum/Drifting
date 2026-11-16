@@ -147,8 +147,9 @@ impl Home {
     }
 
     /// Home is in front when no tab is open and nothing covers the
-    /// workspace. Coming to the front (or to another book while in front)
-    /// asks the cards to look.
+    /// workspace or its paper (settings, the shelf, a dialog, a filled
+    /// panel). Coming to the front (or to another book while in front, or
+    /// back from a filled panel) asks the cards to look.
     fn follow_front(
         &mut self,
         ws: &Entity<Workspace>,
@@ -157,7 +158,10 @@ impl Home {
     ) {
         let (front, book) = {
             let w = ws.read(cx);
-            let front = w.nav.active_tab().is_none() && !w.covered() && w.book.v3().is_some();
+            let front = w.nav.active_tab().is_none()
+                && !w.covered()
+                && !w.fill_covers_paper()
+                && w.book.v3().is_some();
             (front.then(|| w.book.id.clone()), w.book.clone())
         };
         // Whether this book is a template's working copy is read with it.
