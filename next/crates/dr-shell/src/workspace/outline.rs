@@ -111,8 +111,13 @@ enum Jump {
         chapter: usize,
         line: Option<usize>,
     },
-    /// A module of an entry's page: its top to the top of the page.
-    Section { page: Entity<EntryPage>, ix: usize },
+    /// A module of an entry's page: its top to the top of the page; a
+    /// body's, the caret at the body's start too.
+    Section {
+        page: Entity<EntryPage>,
+        ix: usize,
+        body: Option<PageView>,
+    },
 }
 
 /// What the rail lists for a page, and where the page is.
@@ -527,14 +532,15 @@ fn entry_rows(
             line: None,
             top,
         });
+        let body = (section.kind == "prose")
+            .then(|| v3_module_editor(w, owner, target, &section.id, window, cx))
+            .flatten();
         jumps.push(Jump::Section {
             page: page_entity.clone(),
             ix,
+            body: body.clone(),
         });
-        if section.kind != "prose" {
-            continue;
-        }
-        let Some(editor) = v3_module_editor(w, owner, target, &section.id, window, cx) else {
+        let Some(editor) = body else {
             continue;
         };
         let Some(editor_top) = editor.prose(cx).read(cx).flow_page_top() else {
@@ -822,9 +828,15 @@ fn go(jump: &Jump, window: &mut Window, cx: &mut App) {
             chapter,
             line,
         } => jump_to(view, *chapter, *line, window, cx),
-        Jump::Section { page, ix } => {
+        Jump::Section { page, ix, body } => {
             let ix = *ix;
             page.update(cx, |page, cx| page.scroll_to_section(ix, cx));
+            // A body's row also puts the caret at the body's start (as the
+            // prototype's click does), the page left at the module's top.
+            if let Some(body) = body {
+                body.prose(cx)
+                    .update(cx, |p, cx| p.place_caret(0, 0, window, cx));
+            }
         }
     }
 }

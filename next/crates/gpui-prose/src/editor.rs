@@ -589,6 +589,24 @@ impl ProseEditor {
         cx.notify();
     }
 
+    /// Puts the caret at `offset` (scalars) of `chapter` and focuses the
+    /// editor without moving the view: the host has already put the text
+    /// where it wants it (the outline's module rows).
+    pub fn place_caret(
+        &mut self,
+        chapter: usize,
+        offset: usize,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let chapter = chapter.min(self.book.chapters.len() - 1);
+        self.cancel_composition();
+        self.set_selection_with(Selection::caret(chapter, offset), false, cx);
+        window.focus(&self.focus, cx);
+        self.reset_blink(cx);
+        cx.notify();
+    }
+
     /// Scrolls by `delta` pixels using the editor's own height index (so a
     /// jump can cross paragraphs the list has never measured).
     pub fn scroll_by_estimate(&mut self, delta: f64, cx: &mut Context<Self>) -> bool {

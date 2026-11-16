@@ -290,6 +290,17 @@ fn an_entry_page_lists_its_modules_with_each_bodys_headings(cx: &mut TestAppCont
     wait(cx, "the second body's module at the top", module_at_top);
     let (listed, active) = rows(&view, cx, &page).unwrap();
     assert_eq!(module_of(&listed, active.unwrap()), "来历");
+    // A body's module row puts the caret at that body's start: typing
+    // lands before its first heading, the page still at the module's top.
+    cx.simulate_input("新");
+    wait(cx, "typing at the second body's start", |cx| {
+        rows(&view, cx, &page)
+            .is_some_and(|(listed, _)| listed[5] == (4, format!("新{}", heading(2))))
+    });
+    let (listed, _) = rows(&view, cx, &page).unwrap();
+    assert_eq!(listed[2], (4, heading(0)), "the first body is untouched");
+    pump(cx);
+    assert!(module_at_top(cx), "the page stays at the module's top");
     // The corner's switch: the whole rail goes, and comes back.
     view.update(cx, |w, cx| {
         w.outline_hidden = true;
