@@ -1,6 +1,6 @@
 # M40 Markdown 文件夹：格式 5 的规则稿
 
-> 2026-11-16 起草；2026-11-17 作者定了第 12 节的四处（「照建议定」，kernel-v5 第 15 节第 44 条）。**实现中。** 第 13 节第 1 步已有路径规划和契约测试。成书目录按实际列出的祖先缩进，便于 Markdown 渲染。 它取代 [m40-markdown-folder-v3.md](m40-markdown-folder-v3.md) 里 2026-11-11 定的七组（作者 2026-11-13：七组不再当前提，按新的条目树重新设计）。条目模型见 [kernel-v5.md](../kernel-v5.md)；0.1 的做法见 [docs/markdown-mirror.md](../../markdown-mirror.md)；切换前 `next/` 第一期的旧实现和它定下的细节见 [m40-markdown-folder.md](m40-markdown-folder.md)。作者定的四处在第 12 节。
+> 2026-11-16 起草；2026-11-17 作者定了第 12 节的四处（「照建议定」，kernel-v5 第 15 节第 44 条）。**实现中。** 第 13 节第 1、2 步已有路径规划、文件头读写和契约测试。成书目录按实际列出的祖先缩进，便于 Markdown 渲染。文件头的未知属性保留 YAML 原文，换行沿用 0.1 转为 LF。遇到无法逐键保留的文件头（例如整段写成流式映射），留待作者改成分行的键值写法。 它取代 [m40-markdown-folder-v3.md](m40-markdown-folder-v3.md) 里 2026-11-11 定的七组（作者 2026-11-13：七组不再当前提，按新的条目树重新设计）。条目模型见 [kernel-v5.md](../kernel-v5.md)；0.1 的做法见 [docs/markdown-mirror.md](../../markdown-mirror.md)；切换前 `next/` 第一期的旧实现和它定下的细节见 [m40-markdown-folder.md](m40-markdown-folder.md)。作者定的四处在第 12 节。
 
 ## 总览（大白话）
 
