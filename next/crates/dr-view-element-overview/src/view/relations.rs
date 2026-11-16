@@ -15,8 +15,8 @@ use dr_ui::{
 use dr_view_relations::legend::{Legend, Row as LegendRow, render as render_shared_legend};
 use dr_workspace::commands::v3::relations::RelationInfo;
 use gpui::{
-    AnyElement, AppContext as _, Context, ElementId, InteractiveElement, IntoElement, MouseButton,
-    ParentElement, SharedString, StatefulInteractiveElement, Styled, Window, div, px,
+    AnyElement, Context, ElementId, InteractiveElement, IntoElement, MouseButton, ParentElement,
+    SharedString, StatefulInteractiveElement, Styled, Window, div, px,
 };
 
 use super::ElementOverview;
