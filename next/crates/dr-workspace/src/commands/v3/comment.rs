@@ -630,17 +630,23 @@ op! {
         // words are refused here instead of being overwritten by the next
         // projection.
         let checklist = is_checklist(&old);
-        let mut body = input.body.clone().map(LinkedText::from);
-        if checklist {
-            if body.as_ref().is_some_and(|b| b != &old.body) {
+        let body = if checklist {
+            let changed = match &input.body {
+                Some(LinkedTextIn::Plain(text)) => text != &old.body.text,
+                Some(LinkedTextIn::Linked(body)) => body != &old.body,
+                None => false,
+            };
+            if changed {
                 return Err(WsError::invalid(
                     "a checklist item's comment follows its line: change the line in the prose",
                 ));
             }
-            body = None;
-        } else if let Some(draft) = body.take() {
-            body = Some(planned_body(cx, &slot, old.target.as_ref(), LinkedTextIn::Linked(draft))?);
-        }
+            None
+        } else {
+            input.body.clone()
+                .map(|draft| planned_body(cx, &slot, old.target.as_ref(), draft))
+                .transpose()?
+        };
         let editing_text = body.is_some();
         // A checklist item's comment is the line's shadow: resolving it ticks
         // the item in the prose and reopening clears the tick, one ordinary
