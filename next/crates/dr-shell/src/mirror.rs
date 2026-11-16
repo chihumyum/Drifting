@@ -321,24 +321,24 @@ fn tell(heard: Heard, cx: &mut App) {
 }
 
 fn problem_key(problem: Problem) -> Key {
-    use keys::{mirror_v5 as v, notifications::markdown_folder::issue as k};
+    use keys::{mirror_v5, notifications::markdown_folder::issue};
     match problem {
-        Problem::Frontmatter => k::FRONTMATTER,
-        Problem::WrongId => v::IDENTITY,
-        Problem::Emptied => k::EMPTY,
-        Problem::StaleBase => v::LINEAGE,
-        Problem::NotUtf8 => k::ENCODING,
-        Problem::TooLarge => k::TOO_LARGE,
-        Problem::OwnedElsewhere => v::OWNED,
-        Problem::UnsafePath => v::UNSAFE_PATH,
-        Problem::Occupied => v::OCCUPIED,
-        Problem::Duplicate => v::DUPLICATE,
-        Problem::Moved => v::MOVED,
-        Problem::ReadOnly => v::READ_ONLY,
-        Problem::MalformedTable => v::MALFORMED_TABLE,
-        Problem::UnknownImage => v::UNKNOWN_IMAGE,
-        Problem::FieldConflict => v::FIELD_CONFLICT,
-        Problem::Disk => k::UNREADABLE,
+        Problem::Frontmatter => issue::FRONTMATTER,
+        Problem::WrongId => mirror_v5::IDENTITY,
+        Problem::Emptied => issue::EMPTY,
+        Problem::StaleBase => mirror_v5::LINEAGE,
+        Problem::NotUtf8 => issue::ENCODING,
+        Problem::TooLarge => issue::TOO_LARGE,
+        Problem::OwnedElsewhere => mirror_v5::OWNED,
+        Problem::UnsafePath => mirror_v5::UNSAFE_PATH,
+        Problem::Occupied => mirror_v5::OCCUPIED,
+        Problem::Duplicate => mirror_v5::DUPLICATE,
+        Problem::Moved => mirror_v5::MOVED,
+        Problem::ReadOnly => mirror_v5::READ_ONLY,
+        Problem::MalformedTable => mirror_v5::MALFORMED_TABLE,
+        Problem::UnknownImage => mirror_v5::UNKNOWN_IMAGE,
+        Problem::FieldConflict => mirror_v5::FIELD_CONFLICT,
+        Problem::Disk => issue::UNREADABLE,
     }
 }
 
