@@ -27,6 +27,7 @@ use super::{Result, SyncError};
 
 pub(super) struct Project {
     pub book: BookId,
+    pub epoch: String,
     pub title: String,
     pub structure: BookStructureV3,
     pub assets: Vec<Asset>,
@@ -40,6 +41,7 @@ impl Project {
             return Ok(None);
         }
         let book = id.clone();
+        let epoch = ws.library().epoch();
         let result = ws.read_book_v3(id.as_str(), move |raw, _| {
             let view = BorrowedBookV3::new(raw, &book)?;
             let view = view.view();
@@ -49,6 +51,7 @@ impl Project {
             }
             Ok(Some(Self {
                 book,
+                epoch,
                 title: meta.name,
                 structure: view.structure_snapshot(),
                 assets: view.assets_raw(),
@@ -141,6 +144,7 @@ impl Project {
 
     pub fn accepts(&self, body: &BodyDocId, old: &Version) -> bool {
         !old.retired
+            && self.epoch == old.epoch
             && self.template(body).is_some_and(|t| t.id == old.template)
             && self.restore(body) == old.restore
     }
@@ -224,6 +228,9 @@ pub(super) fn check_active(
     id: &BodyDocId,
     version: &Version,
 ) -> Result<bool> {
+    if lib.epoch() != version.epoch {
+        return Ok(false);
+    }
     let doc = DocId::Body(id.clone());
     if lib
         .doc_info(&doc.to_string())?

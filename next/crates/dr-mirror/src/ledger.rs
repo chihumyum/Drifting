@@ -27,6 +27,7 @@ pub(crate) struct Version {
     pub path: String,
     pub disk: Option<Fingerprint>,
     pub base: Vec<u8>,
+    pub epoch: String,
     pub template: EntryTemplateId,
     pub restore: Vec<String>,
     pub fields: Header,

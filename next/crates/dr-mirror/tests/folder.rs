@@ -242,6 +242,55 @@ fn a_snapshot_restore_or_trash_cannot_merge_old_file_bytes() {
 }
 
 #[test]
+fn a_restored_library_does_not_read_its_replaced_librarys_markdown_as_edits() {
+    let f = Fixture::new(Preset::Tiny);
+    let (_, doc) = f.chapter("整库恢复", "备份里的字。");
+    f.pass().run().unwrap();
+    let path = find(f.out.path(), "整库恢复.md");
+    let package = f.out.path().join("backup.drifting");
+    let store = f.ws.library();
+    let options = store.options().clone();
+    store.export_backup(&package, &Default::default()).unwrap();
+    let staged = dr_store::backup::stage(f.db.path(), &package, &options.app_version).unwrap();
+
+    f.call(
+        "prose.replace",
+        json!({"doc":doc,"find":"备份里的","replace":"换库前写的"}),
+    );
+    f.pass().run().unwrap();
+    let before_restore = fs::read_to_string(&path).unwrap();
+    assert!(before_restore.contains("换库前写的字。"));
+
+    let Fixture {
+        db,
+        out,
+        ws,
+        book,
+        options: mirror_options,
+    } = f;
+    ws.shutdown().unwrap();
+    let (library, _) = dr_store::Library::restore_staged(db.path(), &staged, options).unwrap();
+    let ws = Workspace::open(library, Default::default()).unwrap();
+    let f = Fixture {
+        db,
+        out,
+        ws,
+        book,
+        options: mirror_options,
+    };
+    let report = f.pass().run().unwrap();
+    assert!(report.merged.is_empty());
+    assert_eq!(f.texts(&doc), ["备份里的字。"]);
+    assert!(fs::read_to_string(&path).unwrap().contains("备份里的字。"));
+    assert!(
+        report
+            .preserved
+            .iter()
+            .any(|path| fs::read_to_string(path).unwrap() == before_restore)
+    );
+}
+
+#[test]
 fn bad_or_recent_files_are_held_and_failed_preservation_cannot_overwrite() {
     let mut f = Fixture::new(Preset::Tiny);
     let (_, doc) = f.chapter("磁盘边界", "她把灯关了。");

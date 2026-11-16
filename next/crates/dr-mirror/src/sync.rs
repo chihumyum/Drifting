@@ -31,7 +31,7 @@ use crate::{
 
 use self::project::{Project, read_copy, render_prose};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum Problem {
     Frontmatter,
     WrongId,
@@ -463,6 +463,7 @@ impl BookPass<'_> {
                 path: file.path.clone(),
                 disk: None,
                 base: raw.oplog_frontiers().encode(),
+                epoch: project.epoch.clone(),
                 template,
                 restore: project.restore(&file.id),
                 fields,
@@ -683,6 +684,7 @@ impl BookPass<'_> {
     ) -> Result<()> {
         let extra = prior
             .as_ref()
+            .filter(|row| row.current.epoch == project.epoch)
             .map_or_else(String::new, |row| row.current.extra.clone());
         let mut next = self.new_row(project, layout, file, extra.clone())?;
         let id = &file.id;
