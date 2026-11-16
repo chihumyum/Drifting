@@ -979,8 +979,7 @@ fn protect_block_prefix(value: &str) -> String {
             return format!("{}{}\\{}", &value[..lead], &rest[..digits], after);
         }
     }
-    let fence = |m: char| rest.chars().take_while(|&c| c == m).count() >= 3;
-    if fence('`') || fence('~') {
+    if fence_of(value).is_some() {
         return format!("\\{value}");
     }
     let trimmed = rest.trim_end();
@@ -1074,6 +1073,16 @@ mod tests {
             ),
             text("---"),
             text("1) 2"),
+            styled(
+                &[(
+                    "``",
+                    Marks {
+                        code: true,
+                        ..Marks::default()
+                    },
+                )],
+                TEXT,
+            ),
             Para {
                 kind: Kind::Rule { quote: true },
                 chars: Vec::new(),
