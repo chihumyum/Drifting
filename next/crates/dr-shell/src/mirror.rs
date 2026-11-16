@@ -40,7 +40,7 @@ type Drain = Shared<Task<Result<(), String>>>;
 struct State {
     running: Option<Mirror>,
     pending: Option<Drain>,
-    pump: Option<Task<()>>,
+    _pump: Option<Task<()>>,
     told: HashMap<(PathBuf, Problem), u64>,
     composing: Arc<AtomicUsize>,
 }
@@ -138,7 +138,6 @@ fn drain(cx: &mut App) -> Drain {
     }
     let state = cx.default_global::<State>();
     let old = state.running.take();
-    state.pump = None;
     let failed = t(cx, keys::k4_pages::SAVE_FAILED).to_string();
     cx.background_executor()
         .spawn(async move {
@@ -274,7 +273,7 @@ fn start(cx: &mut App) {
     });
     let state = cx.default_global::<State>();
     state.running = Some(mirror);
-    state.pump = Some(pump);
+    state._pump = Some(pump);
 }
 
 fn tell(heard: Heard, cx: &mut App) {
