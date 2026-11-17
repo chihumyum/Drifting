@@ -93,7 +93,10 @@ def smoke(args, profile, data):
         app("window.focus")
         windows = app("app.info")["windows"]
         workspace = next(w for w in windows if w["workspace"])
-        assert workspace["primaryDisplay"] is False, workspace
+        (args.out / f"window-{number}.json").write_text(
+            json.dumps(workspace, ensure_ascii=False, indent=2) + "\n", encoding="utf-8",
+        )
+        assert workspace["visible"] and workspace["primaryDisplay"] is False, workspace
         return process
 
     def quit(process):
@@ -177,6 +180,10 @@ def smoke(args, profile, data):
         reconciled = "关闭时外面改。" + saved
         outside("退出前。" + saved, reconciled)
         process = launch(2)
+        # Startup may restore this tab already selected. Reopen the book from
+        # the shelf so entering the chapter also hands focus to its editor.
+        app("shelf.show")
+        wait(state={"/shelf": True})
         show_book()
         chapter(reconciled)
         disk_has(reconciled)
