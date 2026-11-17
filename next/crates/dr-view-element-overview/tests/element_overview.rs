@@ -1209,3 +1209,59 @@ fn graph_short_names_keep_their_glyph_width_when_zoomed_out(cx: &mut TestAppCont
         }
     }
 }
+
+#[gpui::test]
+fn graph_opens_a_legal_multiline_title_without_changing_its_stored_text(cx: &mut TestAppContext) {
+    use dr_ui::fonts::{Role, weight};
+    use gpui::{TextRun, px};
+    cx.executor().allow_parking();
+    let (_dir, lib, books) = setup_seed_fixture(dr_testkit::seed::Preset::Tiny);
+    let book = books[0].clone();
+    let entries = dr_testkit::seed::acceptance::entries_by_template(&lib, &book, "tpl-character");
+    let id = entries[0]["id"].as_str().unwrap().to_owned();
+    let title = "阿Q\n赵太爷";
+    lib.call(
+        &Actor::User,
+        "entry.update",
+        json!({"book":book,"id":id,"title":title}),
+    )
+    .unwrap();
+    init_test_shell(lib, book, cx);
+    let (shell, vcx) = cx.add_window_view(Workspace::new);
+    wait(vcx, |cx| {
+        shell.read_with(cx, |ws, _| ws.book.v3().is_some() && ws.book_memory_ready())
+    });
+    let ov = mount_overview(&shell, vcx);
+    wait(vcx, |cx| {
+        shell.read_with(cx, |ws, _| ws.fill_progress(FillPlace::Left) >= 1.0)
+    });
+    vcx.update(|window, cx| ov.update(cx, |v, cx| v.fly_to_element(&id, window, cx)));
+    let selector: &'static str = Box::leak(format!("se-relate-name-{id}").into_boxed_str());
+    wait(vcx, |cx| cx.debug_bounds(selector).is_some());
+    assert_eq!(
+        ov.read_with(vcx, |v, _| v
+            .elements()
+            .iter()
+            .find(|e| e.id == id)
+            .unwrap()
+            .name
+            .clone()),
+        title
+    );
+    let width = vcx.update(|window, _| {
+        let text = "阿Q 赵太爷";
+        let run = TextRun {
+            len: text.len(),
+            font: Role::Ui.font(weight::REGULAR),
+            color: gpui::black(),
+            background_color: None,
+            underline: None,
+            strikethrough: None,
+        };
+        window
+            .text_system()
+            .shape_line(text.into(), px(11.5), &[run], None)
+            .width()
+    });
+    assert!(vcx.debug_bounds(selector).unwrap().size.width + px(0.01) >= width);
+}

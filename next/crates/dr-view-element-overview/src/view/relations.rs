@@ -169,6 +169,12 @@ impl RelateEdgeView {
     }
 }
 
+/// The same single-line display rule as TextField. Entry titles can legally
+/// contain line breaks; keep the stored title intact and measure what we show.
+pub(super) fn card_name(name: &str) -> String {
+    name.replace(['\r', '\n'], " ")
+}
+
 impl ElementOverview {
     /// Cache the actual UI glyph advance once per book snapshot; camera changes
     /// reuse it and do not reshape names or restart the force layout.
@@ -179,15 +185,16 @@ impl ElementOverview {
             .elements
             .iter()
             .map(|el| {
+                let text = card_name(&el.name);
                 let run = gpui::TextRun {
-                    len: el.name.len(),
+                    len: text.len(),
                     font: Role::Ui.font(weight::REGULAR),
                     color: gpui::Hsla::default(),
                     background_color: None,
                     underline: None,
                     strikethrough: None,
                 };
-                let line = text_system.shape_line(el.name.clone().into(), px(11.5), &[run], None);
+                let line = text_system.shape_line(text.into(), px(11.5), &[run], None);
                 (el.id.clone(), f32::from(line.width()))
             })
             .collect();

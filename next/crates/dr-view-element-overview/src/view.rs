@@ -1889,7 +1889,7 @@ impl ElementOverview {
             let weight = weights.get(&element.id).copied().unwrap_or(0.0);
 
             let el_id = element.id.clone();
-            let el_name = element.name.clone();
+            let el_name = relations::card_name(&element.name);
             let el_id_for_label = el_id.clone();
             let drag_payload = ElementCarryDrag {
                 element_id: el_id.clone(),
