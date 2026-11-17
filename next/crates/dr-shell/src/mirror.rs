@@ -2,7 +2,7 @@
 
 use std::{
     cell::Cell,
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::PathBuf,
     rc::Rc,
     sync::{
@@ -305,17 +305,39 @@ fn tell(heard: Heard, cx: &mut App) {
         }
         Heard::Issues(issues) => {
             let mut before = std::mem::take(&mut cx.default_global::<State>().told);
+            let active: HashSet<_> = issues
+                .iter()
+                .map(|issue| (issue.path.clone(), issue.problem))
+                .collect();
+            // Free resolved notices before adding new ones: the notification
+            // center is bounded, including pinned notices.
+            before.retain(|key, id| {
+                if active.contains(key) {
+                    true
+                } else {
+                    Notifications::remove(*id, cx);
+                    false
+                }
+            });
             let mut next = HashMap::new();
             for issue in issues {
                 let key = (issue.path, issue.problem);
                 if next.contains_key(&key) {
                     continue;
                 }
-                let id = before.remove(&key).unwrap_or_else(|| {
-                    let text = format!("{}\n{}", issue.title, t(cx, problem_key(issue.problem)));
-                    let opens = issue.doc.map(|doc| (issue.book, doc));
-                    Notifications::post_opening(Source::MarkdownFolder, text, opens, cx)
-                });
+                let id = before
+                    .remove(&key)
+                    .filter(|id| {
+                        Notifications::items(cx)
+                            .iter()
+                            .any(|notice| notice.id == *id)
+                    })
+                    .unwrap_or_else(|| {
+                        let text =
+                            format!("{}\n{}", issue.title, t(cx, problem_key(issue.problem)));
+                        let opens = issue.doc.map(|doc| (issue.book, doc));
+                        Notifications::post_opening(Source::MarkdownFolder, text, opens, cx)
+                    });
                 Notifications::set_pinned(id, true, cx);
                 next.insert(key, id);
             }

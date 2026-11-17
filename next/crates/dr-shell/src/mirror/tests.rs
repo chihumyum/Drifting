@@ -347,3 +347,28 @@ fn an_unresolved_issue_keeps_one_pinned_notice_until_it_is_resolved(cx: &mut Tes
     });
     close(cx);
 }
+
+#[gpui::test]
+fn an_unresolved_notice_returns_after_older_issues_free_capacity(cx: &mut TestAppContext) {
+    let f = setup(cx);
+    let issues: Vec<_> = (0..51)
+        .map(|index| Issue {
+            book: f.book.clone(),
+            doc: Some(format!("body:{}/mod-prose", f.entry)),
+            title: format!("Markdown conflict {index}"),
+            path: f.root.join(format!("conflict-{index}.md")),
+            problem: Problem::FieldConflict,
+        })
+        .collect();
+    cx.update(|cx| {
+        tell(Heard::Issues(issues.clone()), cx);
+        assert_eq!(cx.global::<State>().told.len(), 51);
+        assert_eq!(Notifications::items(cx).len(), 50);
+        tell(Heard::Issues(vec![issues[50].clone()]), cx);
+        let notices = Notifications::items(cx);
+        assert_eq!(notices.len(), 1);
+        assert!(notices[0].text.contains("Markdown conflict 50"));
+        assert!(notices[0].pinned);
+    });
+    close(cx);
+}
