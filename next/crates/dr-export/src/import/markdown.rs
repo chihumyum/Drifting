@@ -64,7 +64,10 @@ pub(super) fn image_line(text: &str) -> Option<(String, String)> {
 }
 
 pub(super) fn callout_kind(text: &str) -> Option<&str> {
-    let kind = text.trim().strip_prefix("[!")?.strip_suffix(']')?;
+    let kind = text
+        .trim_matches([' ', '\t'])
+        .strip_prefix("[!")?
+        .strip_suffix(']')?;
     (!kind.is_empty()
         && kind
             .bytes()
@@ -123,11 +126,11 @@ fn is_blank(line: &str, mirror: bool) -> bool {
 }
 
 /// `***`, `- - -`, `___`: three or more of one of them, spaces between.
-fn is_rule(line: &str) -> bool {
+fn is_rule(line: &str, mirror: bool) -> bool {
     if indent(line) > 3 {
         return false;
     }
-    let s = line.trim();
+    let s = line.trim_matches(|c| syntax_space(c, mirror));
     let Some(c) = s.chars().next().filter(|c| matches!(c, '-' | '*' | '_')) else {
         return false;
     };
@@ -158,11 +161,11 @@ fn atx(line: &str, mirror: bool) -> Option<(u8, String)> {
 }
 
 /// The opening of a fenced code block: its character and length.
-fn fence(line: &str) -> Option<(char, usize)> {
+fn fence(line: &str, mirror: bool) -> Option<(char, usize)> {
     if indent(line) > 3 {
         return None;
     }
-    let s = line.trim_start();
+    let s = line.trim_start_matches(|c| syntax_space(c, mirror));
     let c = s.chars().next().filter(|c| *c == '`' || *c == '~')?;
     let n = s.chars().take_while(|x| *x == c).count();
     if n < 3 || (c == '`' && s[n..].contains('`')) {
@@ -172,7 +175,7 @@ fn fence(line: &str) -> Option<(char, usize)> {
 }
 
 /// A list item's marker: (content column, is it ordered and not 1).
-fn list_item(line: &str) -> Option<(usize, bool)> {
+fn list_item(line: &str, mirror: bool) -> Option<(usize, bool)> {
     let ind = indent(line);
     if ind > 3 {
         return None;
@@ -195,7 +198,7 @@ fn list_item(line: &str) -> Option<(usize, bool)> {
         return None;
     }
     let spaces = rest.chars().take_while(|c| *c == ' ').count();
-    let pad = if spaces > 4 || rest.trim().is_empty() {
+    let pad = if spaces > 4 || rest.trim_matches(|c| syntax_space(c, mirror)).is_empty() {
         1
     } else {
         spaces
@@ -208,7 +211,7 @@ fn definition(line: &str, mirror: bool) -> Option<(String, String)> {
     if indent(line) > 3 {
         return None;
     }
-    let s = line.trim();
+    let s = line.trim_matches(|c| syntax_space(c, mirror));
     let rest = s.strip_prefix('[')?;
     let close = if mirror {
         let chars: Vec<_> = s.chars().collect();
@@ -222,7 +225,7 @@ fn definition(line: &str, mirror: bool) -> Option<(String, String)> {
     if label.is_empty() {
         return None;
     }
-    let after = rest[close + 2..].trim_start();
+    let after = rest[close + 2..].trim_start_matches(|c| syntax_space(c, mirror));
     let (dest, tail) = match after.strip_prefix('<') {
         Some(inner) => {
             let end = inner.find('>')?;
@@ -236,7 +239,7 @@ fn definition(line: &str, mirror: bool) -> Option<(String, String)> {
     if dest.is_empty() {
         return None;
     }
-    let tail = tail.trim();
+    let tail = tail.trim_matches(|c| syntax_space(c, mirror));
     let titled = tail.is_empty()
         || (tail.len() >= 2
             && ((tail.starts_with('"') && tail.ends_with('"'))
@@ -287,7 +290,7 @@ fn cells(line: &str, mirror: bool) -> Vec<String> {
 fn is_delimiter_row(line: &str, mirror: bool) -> bool {
     line.contains('-')
         && cells(line, mirror).iter().all(|c| {
-            let c = c.trim();
+            let c = c.trim_matches(|c| syntax_space(c, mirror));
             let inner = c.trim_start_matches(':').trim_end_matches(':');
             !inner.is_empty() && inner.chars().all(|x| x == '-')
         })
@@ -317,13 +320,13 @@ fn blocks(lines: &[String], defs: &mut Defs, mirror: bool) -> Vec<Raw> {
         if let Some(col) = item_col {
             if indent(line) >= col {
                 line = &line[col..];
-            } else if list_item(line).is_none() && para.is_empty() {
+            } else if list_item(line, mirror).is_none() && para.is_empty() {
                 item_col = None;
             }
         }
         // Setext underline.
         if !para.is_empty() && indent(line) <= 3 {
-            let t = line.trim();
+            let t = line.trim_matches(|c| syntax_space(c, mirror));
             if !t.is_empty() && (t.chars().all(|c| c == '=') || t.chars().all(|c| c == '-')) {
                 let level = if t.starts_with('=') { 1 } else { 2 };
                 out.push(Raw::Heading(level, para.join("\n")));
@@ -355,14 +358,14 @@ fn blocks(lines: &[String], defs: &mut Defs, mirror: bool) -> Vec<Raw> {
             out.push(Raw::Code(code));
             continue;
         }
-        if let Some((c, n)) = fence(line) {
+        if let Some((c, n)) = fence(line, mirror) {
             close(&mut para, &mut out);
             let pad = indent(line);
             let mut code = Vec::new();
             i += 1;
             while i < lines.len() {
                 let l: &str = &lines[i];
-                let t = l.trim();
+                let t = l.trim_matches(|c| syntax_space(c, mirror));
                 if indent(l) <= 3
                     && t.chars().take_while(|x| *x == c).count() >= n
                     && t.chars().all(|x| x == c)
@@ -383,7 +386,7 @@ fn blocks(lines: &[String], defs: &mut Defs, mirror: bool) -> Vec<Raw> {
             i += 1;
             continue;
         }
-        if is_rule(line) {
+        if is_rule(line, mirror) {
             close(&mut para, &mut out);
             out.push(Raw::Rule);
             i += 1;
@@ -404,10 +407,10 @@ fn blocks(lines: &[String], defs: &mut Defs, mirror: bool) -> Vec<Raw> {
                     inner.push(rest.strip_prefix(' ').unwrap_or(rest).to_owned());
                 } else if !is_blank(l, mirror)
                     && inner.last().is_some_and(|x| !is_blank(x, mirror))
-                    && fence(l).is_none()
+                    && fence(l, mirror).is_none()
                     && atx(l, mirror).is_none()
-                    && !is_rule(l)
-                    && list_item(l).is_none()
+                    && !is_rule(l, mirror)
+                    && list_item(l, mirror).is_none()
                 {
                     // A lazy continuation of the quoted paragraph.
                     inner.push(l.trim_start_matches(|c| syntax_space(c, mirror)).to_owned());
@@ -426,7 +429,7 @@ fn blocks(lines: &[String], defs: &mut Defs, mirror: bool) -> Vec<Raw> {
             }
             continue;
         }
-        if let Some((col, late)) = list_item(line)
+        if let Some((col, late)) = list_item(line, mirror)
             && !(late && !para.is_empty())
         {
             close(&mut para, &mut out);
@@ -439,7 +442,7 @@ fn blocks(lines: &[String], defs: &mut Defs, mirror: bool) -> Vec<Raw> {
             // Columns stripped off this line already (a nested item).
             let stripped = lines[i].len() - line.len();
             item_col = Some(stripped + col);
-            if !content.trim().is_empty() {
+            if !content.trim_matches(|c| syntax_space(c, mirror)).is_empty() {
                 para.push(content.to_owned());
             }
             i += 1;

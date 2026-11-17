@@ -144,6 +144,65 @@ fn the_import_keeps_its_existing_plain_interpretation() {
     assert!(runs.iter().any(|r| r.text.contains("==亮==")));
 }
 
+#[test]
+fn ideographic_spaces_do_not_turn_words_into_markdown_blocks() {
+    use dr_mirror::body::Para;
+    let links = FileLinks::default();
+    for marker in [
+        "---", "***", "___", "===", "~~~", "```", "> 话", "# 标题", "| 甲 |", "[!note]",
+    ] {
+        let text = format!("　{marker}");
+        for quote in [false, true] {
+            let expected = Para {
+                kind: Kind::Text {
+                    heading: None,
+                    quote,
+                },
+                ..Para::plain(&text)
+            };
+            let raw = if quote {
+                format!("> {text}\n")
+            } else {
+                format!("{text}\n")
+            };
+            let read = parse_with(&raw, &links);
+            assert!(read.issues.is_empty(), "{raw:?}: {:?}", read.issues);
+            assert_eq!(read.paragraphs.len(), 1, "{raw:?}");
+            assert_eq!(read.paragraphs[0].para, expected, "raw {raw:?}");
+
+            let written = render_with(std::slice::from_ref(&expected), &links);
+            let again = parse_with(&written, &links);
+            assert!(again.issues.is_empty(), "{written:?}: {:?}", again.issues);
+            let got: Vec<_> = again.paragraphs.into_iter().map(|row| row.para).collect();
+            assert_eq!(got, [expected], "rendered {written:?}");
+        }
+    }
+}
+
+#[test]
+fn ideographic_spaces_are_not_setext_or_table_delimiters() {
+    use dr_export::{Block, import::markdown_blocks};
+    for underline in ["　---", "　===", "---　", "===　"] {
+        let source = format!("正文\n{underline}");
+        let read = markdown_blocks(&source);
+        let [Block::Paragraph { runs, .. }] = read.as_slice() else {
+            panic!("not a heading: {source:?}: {read:?}");
+        };
+        let text: String = runs.iter().map(|r| r.text.as_str()).collect();
+        assert!(text.contains(underline), "{text:?}");
+    }
+    let links = FileLinks::default();
+    let table = parse_with("| 表头 |\n| 　--- |\n| 内容 |\n", &links);
+    assert!(table.issues.contains(&BodyIssue::MalformedTable));
+    let Kind::BrokenTable(original) = &table.paragraphs[0].para.kind else {
+        panic!(
+            "the invalid delimiter is held, not consumed: {:?}",
+            table.paragraphs
+        );
+    };
+    assert!(original.contains("　---"));
+}
+
 use proptest::prelude::*;
 
 proptest! {

@@ -450,7 +450,10 @@ fn bad_or_recent_files_are_held_and_failed_preservation_cannot_overwrite() {
     fs::write(&path, [0xff, 0xfe, 0xf8]).unwrap();
     let report = f.pass().run().unwrap();
     assert!(
-        report.issues.iter().any(|i| i.problem == Problem::Disk),
+        report
+            .issues
+            .iter()
+            .any(|i| i.problem == Problem::UnsafePath),
         "{report:?}"
     );
     assert_eq!(fs::read(&path).unwrap(), [0xff, 0xfe, 0xf8]);
@@ -684,6 +687,7 @@ fn other_editors_field_spellings_merge_and_values_that_do_not_fit_are_kept_aside
 
     // What still does not fit keeps the App's value; the file is kept aside
     // first and the author is told.
+    let mut kept = Vec::new();
     for (from, to) in [
         ("梗概: \"2026\"\n", "梗概: [bad]\n"),
         ("已校对: true\n", "已校对: yes\n"),
@@ -695,25 +699,42 @@ fn other_editors_field_spellings_merge_and_values_that_do_not_fit_are_kept_aside
             .iter()
             .filter(|i| i.problem == Problem::FieldConflict)
             .collect();
-        assert_eq!(notice.len(), 1, "{:?}", report.issues);
-        assert_eq!(
-            notice[0].doc.as_deref(),
-            Some(format!("body:{id}/mod-prose").as_str())
-        );
-        assert_eq!(notice[0].path, path.canonicalize().unwrap());
+        assert_eq!(notice.len(), kept.len() + 1, "{:?}", report.issues);
+        for issue in notice {
+            assert_eq!(
+                issue.doc.as_deref(),
+                Some(format!("body:{id}/mod-prose").as_str())
+            );
+            assert_eq!(issue.path, path.canonicalize().unwrap());
+        }
         assert_eq!(report.preserved.len(), 1);
         assert_eq!(fs::read_to_string(&report.preserved[0]).unwrap(), unfit);
         assert_eq!(fs::read_to_string(&path).unwrap(), rewritten);
+        kept.extend(report.preserved);
     }
     assert_eq!(f.field(&id, "mod-fields", "summary"), json!("2026"));
     assert_eq!(f.field(&id, "mf-more", "proofread"), json!(true));
-    // A later valid external edit resolves the problem. Merely reading the
-    // App's rewrite is not a resolution: the kept file still needs attention.
-    edit_file(&path, "梗概: \"2026\"\n", "梗概: 修好了\n");
+    // Editing prose or another field cannot resolve the preserved conflict.
+    edit_file(&path, "她数着钟声。", "她又数了一遍钟声。");
+    edit_file(&path, "字数目标: 3000\n", "字数目标: 3100\n");
+    let pending = f.pass().run().unwrap();
+    assert!(
+        pending
+            .issues
+            .iter()
+            .any(|i| i.problem == Problem::FieldConflict),
+        "{:?}",
+        pending.issues
+    );
+    assert!(pending.preserved.is_empty());
+    assert_eq!(f.field(&id, "mf-more", "words"), json!(3100.0));
+    assert!(kept.iter().all(|path| path.is_file()));
+    for path in kept {
+        fs::remove_file(path).unwrap();
+    }
     let resolved = f.pass().run().unwrap();
     assert!(resolved.issues.is_empty(), "{:?}", resolved.issues);
     assert!(resolved.preserved.is_empty());
-    assert_eq!(f.field(&id, "mod-fields", "summary"), json!("修好了"));
 }
 
 #[test]

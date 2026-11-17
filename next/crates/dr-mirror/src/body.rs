@@ -634,7 +634,7 @@ fn table_like(line: &str) -> bool {
 }
 
 fn table_start(line: &str, next: Option<&str>) -> bool {
-    let trimmed = line.trim();
+    let trimmed = line.trim_matches([' ', '\t']);
     (trimmed.starts_with('|') && trimmed.ends_with('|') && trimmed.len() > 1)
         || (table_like(line) && next.is_some_and(|next| table_like(next) && next.contains('-')))
 }
