@@ -326,6 +326,7 @@ fn an_unresolved_issue_keeps_one_pinned_notice_until_it_is_resolved(cx: &mut Tes
         title: "Markdown conflict".into(),
         path: f.file.clone(),
         problem: Problem::FieldConflict,
+        kept: None,
     };
     cx.update(|cx| {
         tell(Heard::Issues(vec![issue.clone()]), cx);
@@ -358,6 +359,7 @@ fn an_unresolved_notice_returns_after_older_issues_free_capacity(cx: &mut TestAp
             title: format!("Markdown conflict {index}"),
             path: f.root.join(format!("conflict-{index}.md")),
             problem: Problem::FieldConflict,
+            kept: None,
         })
         .collect();
     cx.update(|cx| {
