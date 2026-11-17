@@ -8,8 +8,8 @@ use dr_shell::{
 };
 use dr_workspace::Workspace;
 use gpui::{
-    App, AppContext as _, Context, Entity, IntoElement, Render, TestAppContext, VisualTestContext,
-    Window, div,
+    App, AppContext as _, Context, Entity, InteractiveElement as _, IntoElement, Render,
+    Styled as _, TestAppContext, VisualTestContext, Window, div,
 };
 
 fn seed() -> (tempfile::TempDir, Workspace, String) {
@@ -178,4 +178,79 @@ fn a_fill_over_the_paper_takes_the_sync_mark_with_the_paper(cx: &mut TestAppCont
             assert!(Instant::now() < deadline, "the sync mark is back");
         }
     }
+}
+
+/// A level display that says which kind it is, where it was drawn.
+struct KindPart(&'static str);
+impl Render for KindPart {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        let kind = self.0;
+        div()
+            .debug_selector(move || format!("kind-part-{kind}"))
+            .size_full()
+    }
+}
+
+/// UP (kernel-v5 §15 item 50, P10): a Tab has its five displays only when
+/// the left column is filled; unfilled, a board is drawn as the list tree
+/// (the grid and the islands, the compact index, stay as they are).
+#[gpui::test]
+fn an_unfilled_column_draws_a_board_tab_as_the_list(cx: &mut TestAppContext) {
+    use dr_workspace::Actor;
+    use serde_json::json;
+    let (_dir, lib, id) = seed();
+    let root = {
+        let book = dr_shell::book::Book::load(&lib, &id).unwrap();
+        book.v3().unwrap().roots[0].clone()
+    };
+    lib.call(
+        &Actor::User,
+        "entry.update",
+        json!({"book": id, "id": root, "overrides": {"display": "board"}}),
+    )
+    .unwrap();
+    // The seed may have a Tab on it already (an entry has one Tab at most).
+    if let Err(e) = lib.call(
+        &Actor::User,
+        "tab.put",
+        json!({"book": id, "mount": {"kind": "entry", "entry": root}}),
+    ) {
+        assert!(format!("{e:?}").contains("TAB-MOUNT-ONCE"), "{e:?}");
+    }
+    let (view, cx) = open(cx, &lib, &id);
+    cx.update(|_, cx| {
+        for kind in ["list", "board", "grid", "island"] {
+            v3::add_level_display(cx, kind, move |_, _, cx| {
+                Rendered::new(cx.new(|_| KindPart(kind)))
+            });
+        }
+    });
+    wait(&view, cx, "the book", |ws, _| ws.book.v3().is_some());
+    cx.update(|window, cx| {
+        view.update(cx, |ws, cx| {
+            if !ws.left.open {
+                ws.toggle_left(window, cx);
+            }
+        })
+    });
+    wait(&view, cx, "the left column", |ws, _| {
+        ws.v3_sidebar.is_some() && ws.left.shown() >= 1.0
+    });
+    let sidebar = view.read_with(cx, |ws, _| ws.v3_sidebar.clone().unwrap());
+    let tab = root.clone();
+    sidebar.update(cx, |s, cx| s.select(&tab, cx));
+    wait(&view, cx, "the Tab's list", |_, _| true);
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while cx.debug_bounds("kind-part-list").is_none() {
+        cx.executor().advance_clock(Duration::from_millis(40));
+        pump(cx);
+        assert!(
+            Instant::now() < deadline,
+            "the board Tab drew {:?} unfilled",
+            ["board", "grid", "island"].iter().find(|k| cx
+                .debug_bounds(Box::leak(format!("kind-part-{k}").into_boxed_str()))
+                .is_some())
+        );
+    }
+    assert!(cx.debug_bounds("kind-part-board").is_none());
 }
