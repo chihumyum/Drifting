@@ -15,6 +15,11 @@
         "storage_failed": "The sign-in could not be saved to Windows Credential Manager."
       }
     },
+    "sync": {
+      "projection": {
+        "reveal": "Show in File Explorer"
+      }
+    },
     "update": {
       "channel_desc": "Windows 10/11 · x64 and ARM64"
     }

@@ -15,6 +15,11 @@
         "storage_failed": "ログイン情報をWindows 資格情報マネージャーに保存できませんでした。"
       }
     },
+    "sync": {
+      "projection": {
+        "reveal": "エクスプローラーで表示"
+      }
+    },
     "update": {
       "channel_desc": "Windows 10/11・x64/ARM64"
     }

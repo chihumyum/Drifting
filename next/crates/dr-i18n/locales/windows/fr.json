@@ -15,6 +15,11 @@
         "storage_failed": "Impossible d’enregistrer la connexion dans le Gestionnaire d’identification Windows."
       }
     },
+    "sync": {
+      "projection": {
+        "reveal": "Afficher dans l’Explorateur de fichiers"
+      }
+    },
     "update": {
       "channel_desc": "Windows 10/11 · x64 et ARM64"
     }

@@ -7,7 +7,8 @@
 //!
 //! 1. The shared release gate freezes new service work and awaits every
 //!    registered asynchronous shutdown, the Markdown folder's last pass,
-//!    then fallible final checkpoints. Failure keeps the original library
+//!    then fallible final checkpoints. An unavailable Markdown copy reports
+//!    a notice and does not stop release. A durable checkpoint failure keeps the original library
 //!    and windows in place and resumes services.
 //! 2. Every workspace window lets go: its open pages' editors, the
 //!    bookshelf and Project Home, search, snapshot history, the comment

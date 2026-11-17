@@ -12,6 +12,7 @@ mod about;
 mod check;
 mod identity;
 mod library;
+mod markdown_folder;
 mod probe;
 mod sync;
 
@@ -189,6 +190,7 @@ fn main() {
         sync::init(platform, cx);
         // M24: the sea under the windows, the first run, the tour.
         dr_view_sea::shell::init(cx);
+        markdown_folder::init(cx);
         // Stage 2 pages: the bookshelf opens first, Project Home is the
         // paper under no tab; the element and category pages' fields go
         // around their text (M11).

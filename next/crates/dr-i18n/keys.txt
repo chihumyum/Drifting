@@ -484,7 +484,6 @@ guide.workspace.agent.closedBody
 guide.workspace.home.title
 guide.workspace.home.body
 markdownFolderGuide.title
-markdownFolderGuide.intro
 markdownFolderGuide.chosen
 markdownFolderGuide.choose
 markdownFolderGuide.continue
@@ -805,3 +804,17 @@ superElement.empty.categoryNoElements
 edgeKindManager.empty
 storyGraph.edge.hideKind
 storyGraph.edge.showKind
+notifications.markdownFolder.issue.frontmatter
+notifications.markdownFolder.issue.empty
+notifications.markdownFolder.issue.encoding
+notifications.markdownFolder.issue.too-large
+notifications.markdownFolder.issue.unreadable
+notifications.markdownFolder.overlap
+settings.sync.projection.title
+settings.sync.projection.turnOn
+settings.sync.projection.reveal
+settings.sync.projection.offHint
+settings.sync.projection.allProjects
+settings.sync.projection.allProjectsUnset
+settings.sync.projection.choose
+settings.sync.projection.offTitle

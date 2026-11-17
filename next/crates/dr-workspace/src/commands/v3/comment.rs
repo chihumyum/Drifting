@@ -607,13 +607,14 @@ op! {
         let id = CommentId::new_v7();
         let body = planned_body(cx, &slot, target.as_ref(), None, &input.body)?;
         let (i2, an) = (id.clone(), input.author_name.clone());
+        let author = cx.actor().comment_author();
         cx.write_book_v3(&slot, Replaces::nothing(), move |txn| {
             let w = txn.comment(&i2)?;
             w.origin(&origin)?.target(target.as_ref())?.module(module.as_ref())?.part(part.as_ref())?
                 .target_block(block.as_ref())?.anchor(anchor.as_ref())?
                 .quote(quote.as_deref())?.linked_body(&body)?.status(&CommentStatus::Open)?
                 .author_kind(if agent { &CommentAuthorKind::Ai } else { &CommentAuthorKind::User })?
-                .author_name(an.as_deref())?
+                .author(author)?.author_name(an.as_deref())?
                 .source(if agent { &CommentSource::Api } else { &CommentSource::Manual })?
                 .created_at(Some(now()))?.updated_at(Some(now()))?;
             if !snapshots.is_empty() { w.snapshots(&snapshots)?; }
