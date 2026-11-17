@@ -385,7 +385,7 @@ impl Named {
                         .as_array()
                         .into_iter()
                         .flatten()
-                        .filter_map(Value::as_str)
+                        .filter_map(serde_json::Value::as_str)
                         .map(str::to_owned)
                 }));
         }
