@@ -12,6 +12,7 @@ use crate::{
     disk::Stat,
     file::Header,
     layout::{AssetFile, Names},
+    sync::Problem,
 };
 
 pub const SCOPE: &str = "markdown-folder-v5";
@@ -26,6 +27,10 @@ pub(crate) struct Fingerprint {
 pub(crate) struct Version {
     pub path: String,
     pub disk: Option<Fingerprint>,
+    /// This fingerprint came from a completed canonical projection, not
+    /// from a just-imported outside file that still needs normalization.
+    #[serde(default)]
+    pub projected: bool,
     pub base: Vec<u8>,
     pub epoch: String,
     pub template: EntryTemplateId,
@@ -64,12 +69,36 @@ pub(crate) struct Row {
 pub(crate) struct Applying {
     pub sha: String,
     pub conflicts: Vec<BlockId>,
+    /// The file being merged when it is not at the row's path (moved).
+    #[serde(default)]
+    pub path: Option<String>,
+    /// The body's version once the merge is in. A restart that finds the
+    /// body there knows the import landed.
+    #[serde(default)]
+    pub frontiers: Option<Vec<u8>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct CopyRow {
     pub path: String,
     pub sha: String,
+    /// The copy's size and modification time when it was last checked or
+    /// written: unchanged, it is not hashed again.
+    #[serde(default)]
+    pub stat: Option<Stat>,
+}
+
+/// A file that could not be merged and was kept under `.drifting/preserved`
+/// before the App rewrote it. Reported on every pass until the kept copy is
+/// gone. A later body edit does not settle a saved field conflict.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct Standing {
+    pub doc: Option<String>,
+    /// The file's path in the project folder.
+    pub rel: String,
+    pub problem: Problem,
+    /// The kept copy, in the project folder.
+    pub kept: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -109,6 +138,14 @@ impl<'a> Ledger<'a> {
 
     pub fn put_project(&self, row: &ProjectRow) -> dr_store::Result<()> {
         self.put("project", row)
+    }
+
+    pub fn standing(&self) -> dr_store::Result<Vec<Standing>> {
+        Ok(self.get("standing")?.unwrap_or_default())
+    }
+
+    pub fn put_standing(&self, rows: &[Standing]) -> dr_store::Result<()> {
+        self.put("standing", &rows)
     }
 
     pub fn files(&self) -> dr_store::Result<BTreeMap<BodyDocId, Row>> {
