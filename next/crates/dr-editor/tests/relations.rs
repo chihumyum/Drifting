@@ -304,10 +304,7 @@ fn the_card_brings_lines_between_every_related_pair_on_screen(cx: &mut TestAppCo
             .any(|l| l.name == "冤家" && l.to.is_none())
     );
     // The pointed 阿Q is joined where it is pointed; 王胡 at its nearer place.
-    assert_eq!(
-        aq_wh.a.id.as_ref() == "l0" || aq_wh.b.id.as_ref() == "l0",
-        true
-    );
+    assert!(aq_wh.a.id.as_ref() == "l0" || aq_wh.b.id.as_ref() == "l0");
     assert!(
         aq_wh.a.id.as_ref() == "l1" || aq_wh.b.id.as_ref() == "l1",
         "the 王胡 on the pointed row"

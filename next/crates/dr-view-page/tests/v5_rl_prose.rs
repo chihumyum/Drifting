@@ -111,7 +111,7 @@ fn a_pair_placed_in_a_body_reveals_its_row(cx: &mut TestAppContext) {
     {
         let shown = shown.clone();
         cx.update(|cx| {
-            cx.on_action(move |a: &RevealRelationRow, _| shown.borrow_mut().push(a.row.clone()))
+            cx.on_action(move |a: &RevealRelationRow, _| shown.borrow_mut().push(a.row.clone()));
         });
     }
     let snapshot = Rc::new(Book::load(&ws, &book).unwrap());
