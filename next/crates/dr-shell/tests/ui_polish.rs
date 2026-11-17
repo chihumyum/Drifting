@@ -127,3 +127,55 @@ fn a_fill_over_the_paper_takes_the_corner_with_the_paper(cx: &mut TestAppContext
         );
     }
 }
+
+/// The sync mark at the paper's bottom left (a sync under way, or one that
+/// failed) is the paper's other corner: a fill over the paper takes it too,
+/// or it stood on the filled panel.
+#[gpui::test]
+fn a_fill_over_the_paper_takes_the_sync_mark_with_the_paper(cx: &mut TestAppContext) {
+    use dr_shell::sync::{MarkSpec, MarkVisual, set_mark_hook};
+    let (_dir, lib, id) = seed();
+    let (view, cx) = open(cx, &lib, &id);
+    cx.update(|_, cx| {
+        set_mark_hook(cx, |_, _, _, _, _| {
+            Some(MarkSpec {
+                visual: MarkVisual::DangerExclamation,
+                faded_for_typing: false,
+                title: "Synthetic sync failure".into(),
+                detail: "Synthetic".into(),
+                meta: None,
+                progress: None,
+                actions: Vec::new(),
+            })
+        });
+    });
+    wait(&view, cx, "the book", |ws, _| ws.book.v3().is_some());
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while cx.debug_bounds("paper-sync-mark").is_none() {
+        cx.executor().advance_clock(Duration::from_millis(40));
+        pump(cx);
+        assert!(Instant::now() < deadline, "the sync mark by the paper");
+    }
+    for place in [FillPlace::Left, FillPlace::Right] {
+        cx.update(|window, cx| {
+            view.update(cx, |ws, cx| {
+                ws.enter_fill(place, window, cx);
+            })
+        });
+        wait(&view, cx, "the filled column", |ws, _| {
+            ws.is_filled(place) && ws.fill_progress(place) >= 1.0
+        });
+        assert!(
+            cx.debug_bounds("paper-sync-mark").is_none(),
+            "{place:?} filled over the paper, the sync mark went with it"
+        );
+        cx.update(|window, cx| view.update(cx, |ws, cx| ws.exit_fill(window, cx)));
+        wait(&view, cx, "the paper again", |ws, _| ws.filled().is_none());
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while cx.debug_bounds("paper-sync-mark").is_none() {
+            cx.executor().advance_clock(Duration::from_millis(40));
+            pump(cx);
+            assert!(Instant::now() < deadline, "the sync mark is back");
+        }
+    }
+}

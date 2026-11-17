@@ -303,3 +303,78 @@ fn builtin_enum_options_localize_display_labels_without_changing_stored_values(
     assert_eq!(stored["status_select"], "finished");
     assert_eq!(stored["tags"], json!(["drifting"]));
 }
+
+/// Drawn on an entry page: a select field's values are words, so its select
+/// has the one fold at its end and no chevron before the value (it read
+/// 「> 已完成 v」).
+#[gpui::test]
+fn a_select_fields_value_draws_one_fold(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    let dir = tempfile::tempdir().unwrap();
+    let store = dr_store::Library::open(dir.path(), dr_workspace::library_options("test")).unwrap();
+    let seed = dr_testkit::seed::generate_v3(
+        dr_testkit::seed::Preset::Tiny,
+        dr_testkit::seed::DEFAULT_SEED,
+    )
+    .unwrap();
+    let id = seed.books[0].book_id().to_string();
+    seed.write_to(&store).unwrap();
+    store.close().unwrap();
+    let ws = Workspace::open_dir(dir.path(), "test").unwrap();
+    let entries = call(&ws, "entry.list", json!({"book":id,"all":true}));
+    let entry = entries
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|e| e["template"] == "tpl-chapter")
+        .unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let module = json!({"id":"mod-up","name":"状态","kind":"fields","config":{"defs":[
+        {"id":"status_select","name":"状态单选","field_type":"select","options":["draft","finished"]}
+    ]}});
+    call(
+        &ws,
+        "entry_template.put_module",
+        json!({"book":id,"template":"tpl-chapter","module":module}),
+    );
+    cx.update(|cx| {
+        dr_shell::init(
+            ShellInfo {
+                app_name: "Drifting Next",
+                bundle_id: "cc.drifting.next.dev",
+                version: "test",
+                url_scheme: "drifting-next-dev",
+                forced_appearance: Some(dr_ui::Appearance::Light),
+            },
+            Services::default(),
+            SettingsFile::in_memory(),
+            cx,
+        )
+    });
+    let host = ModuleHost {
+        page: PageViewHost {
+            workspace: WeakEntity::new_invalid(),
+            library: ws.clone(),
+            book_id: id.clone(),
+            book: Rc::new(Book::load(&ws, &id).unwrap()),
+        },
+        entry,
+        module: serde_json::from_value(module).unwrap(),
+    };
+    let window = cx.add_window(|w, cx| TypedFields::new(host, w, cx));
+    let mut vcx = VisualTestContext::from_window(window.into(), cx);
+    vcx.update(|w, _| w.activate_window());
+    vcx.simulate_resize(size(px(1000.), px(800.)));
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while vcx.debug_bounds("v3-select-mod-up-status_select").is_none() {
+        draw(&mut vcx);
+        assert!(Instant::now() < deadline, "the select drawn");
+    }
+    assert!(
+        vcx.debug_bounds("v3-select-mod-up-status_select-mark")
+            .is_none(),
+        "the value has a chevron before it"
+    );
+}

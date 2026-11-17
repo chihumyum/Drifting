@@ -144,3 +144,46 @@ fn every_module_kind_has_a_name(cx: &mut TestAppContext) {
         assert_eq!(dr_view_templates::type_label("media", cx).as_ref(), "媒体");
     });
 }
+
+/// Drawn in the template editor: a field's type and the level's settings are
+/// selects of words, with the one fold at their end and no chevron before
+/// the name (they read 「v 别名 v」).
+#[gpui::test]
+fn the_template_editors_word_selects_draw_one_fold(cx: &mut TestAppContext) {
+    let (_dir, lib, id) = seed();
+    let (view, cx) = open(cx, &lib, &id);
+    wait(&view, cx, "the book", |ws, _| ws.book.v3().is_some());
+    let (level, (fields_tpl, module, field)) = view.read_with(cx, |ws, _| {
+        let v = ws.book.v3().unwrap();
+        let level = v.templates.iter().find(|t| t.level).unwrap().id.clone();
+        let field = v
+            .templates
+            .iter()
+            .find_map(|t| {
+                t.modules
+                    .iter()
+                    .find(|m| m.kind == "fields" && !m.config.defs.is_empty())
+                    .map(|m| (t.id.clone(), m.id.clone(), m.config.defs[0].id.clone()))
+            })
+            .unwrap();
+        (level, field)
+    });
+    let leak = |s: String| -> &'static str { Box::leak(s.into_boxed_str()) };
+    for (template, select) in [
+        (fields_tpl, leak(format!("k5-field-type-{module}-{field}"))),
+        (level, "k5-home"),
+    ] {
+        view.update(cx, |ws, cx| {
+            ws.open(Target::Template(template.parse().unwrap()), Open::KEEP, cx)
+        });
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while cx.debug_bounds(select).is_none() {
+            pump(cx);
+            assert!(Instant::now() < deadline, "{select} drawn");
+        }
+        assert!(
+            cx.debug_bounds(leak(format!("{select}-mark"))).is_none(),
+            "{select} draws a mark before its name"
+        );
+    }
+}

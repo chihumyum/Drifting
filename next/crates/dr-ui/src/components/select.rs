@@ -4,6 +4,11 @@
 //! name and a brush fold at the end; opened, it floats a menu list as wide
 //! as the trigger and never narrower than 240, each choice with its mark,
 //! the current one in medium weight with a tick.
+//!
+//! Choices that are words, not things (a field's values, a field's type, a
+//! template's level settings), are [`Choice::plain`]: no mark on the
+//! trigger, only its name and the fold, and plain rows in the list. A
+//! select's choices all have a mark or none do.
 
 use std::rc::Rc;
 
@@ -212,11 +217,11 @@ impl RenderOnce for Select {
         .child(overlay::probe(bounds_cell.clone()))
         .when_some(current, |el, c| {
             el.when_some(c.icon, |el, icon| {
-                let mark_dbg = format!("{}-mark", self.id);
+                let mark_id = self.id.clone();
                 el.child(
                     div()
                         .flex_none()
-                        .debug_selector(move || mark_dbg)
+                        .debug_selector(move || format!("{mark_id}-mark"))
                         .child(row_icon(icon, &self.id, p.ink(2).solid())),
                 )
             })

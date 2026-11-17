@@ -6,8 +6,9 @@ use std::time::{Duration, Instant};
 
 use dr_shell::{Services, Settings, SettingsFile, ShellInfo, Workspace};
 use dr_view_home::{clear_save_project_template, v3::Home};
-use dr_workspace::Workspace as Library;
+use dr_workspace::{Actor, Workspace as Library};
 use gpui::{Entity, TestAppContext, VisualTestContext, px, size};
+use serde_json::{Value, json};
 
 fn seed_library() -> (tempfile::TempDir, std::path::PathBuf, Library, String) {
     let dir = tempfile::tempdir().unwrap();
@@ -126,5 +127,46 @@ fn continue_rows_start_at_the_column_edge_and_keep_their_width(cx: &mut TestAppC
         "continue row {:?} wide in a column of {:?}",
         row.size.width,
         block.size.width
+    );
+}
+
+/// A long page name stays inside the column: the row gives way at the
+/// column's edge (its words end in 「…」) instead of running past the sheet.
+#[gpui::test]
+fn a_long_page_name_under_continue_stays_inside_the_column(cx: &mut TestAppContext) {
+    let (_dir, _root, lib, book) = seed_library();
+    // The page under 继续写 is the latest-written chapter: give every
+    // chapter of the seed a name far wider than the column.
+    let long = "很长的章名".repeat(30);
+    let entries: Value = lib
+        .call(
+            &Actor::User,
+            "entry.list",
+            json!({"book": book, "all": true}),
+        )
+        .unwrap()["output"]
+        .clone();
+    for e in entries.as_array().unwrap() {
+        if e["template"] == "tpl-chapter" {
+            lib.call(
+                &Actor::User,
+                "entry.update",
+                json!({"book": book, "id": e["id"], "title": long}),
+            )
+            .unwrap();
+        }
+    }
+    let (_ws, _home, vcx) = open_workspace(cx, &lib, &book);
+    wait(vcx, "the long page to continue", |vcx| {
+        vcx.debug_bounds("v3-home-continue-0")
+            .is_some_and(|button| button.size.width > px(300.0))
+    });
+    let block = vcx.debug_bounds("v3-home-project-template").unwrap();
+    let button = vcx.debug_bounds("v3-home-continue-0").unwrap();
+    assert!(
+        button.right() <= block.right() + px(0.5),
+        "the page's name ends at {:?}, the column at {:?}",
+        button.right(),
+        block.right()
     );
 }

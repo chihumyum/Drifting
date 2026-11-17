@@ -226,6 +226,11 @@ pub fn paper_corner(
             .id("paper-sync-mark-trailing-hidden")
             .into_any_element();
     }
+    // A filled panel covers the paper: the mark goes with it, as the
+    // paper's other corner does, instead of standing on the filled panel.
+    if ws.fill_covers_paper() {
+        return div().id("paper-sync-mark-covered").into_any_element();
+    }
 
     let now_ms = current_time_ms();
     let book_id = (!ws.book_id.is_empty()).then_some(ws.book_id.as_str());
@@ -339,6 +344,7 @@ pub fn paper_corner(
 
     div()
         .id("paper-sync-mark")
+        .debug_selector(|| "paper-sync-mark".into())
         .absolute()
         .left(px(CORNER_INSET))
         .bottom(px(CORNER_INSET))

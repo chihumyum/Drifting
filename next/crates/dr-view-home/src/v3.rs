@@ -670,12 +670,14 @@ impl Render for Home {
                 let expected_book = book.id.clone();
                 // A row of its own so the button keeps its width: a column's
                 // child is stretched, and the stretched text button centred
-                // the page's name in the middle of the sheet.
+                // the page's name in the middle of the sheet. A long name
+                // gives way at the column's edge and ends in 「…」.
                 let row_selector = format!("v3-home-continue-{i}-row");
                 column = column.child(
-                    div().flex().child(
+                    div().flex().min_w_0().child(
                         div()
-                            .flex_none()
+                            .flex()
+                            .min_w_0()
                             .debug_selector(move || row_selector)
                             .child(
                                 Button::new(
@@ -683,6 +685,7 @@ impl Render for Home {
                                     page.title,
                                 )
                                 .text()
+                                .truncate()
                                 .on_click(move |_, _, cx| {
                                     ws.update(cx, |ws, cx| {
                                         if ws.book_id == expected_book {
