@@ -1610,8 +1610,7 @@ fn the_card_is_back_after_the_level_switch_asks(cx: &mut TestAppContext) {
             .clone()
             .unwrap()
             .downcast::<dr_shell::v3::level_switch::TurnOffLevelDialog>()
-            .ok()
-            .expect("the level switch's question")
+            .unwrap_or_else(|_| panic!("the level switch's question"))
     });
     dialog.update_in(cx, |d, window, cx| d.confirm(window, cx));
     wait(&ws, cx, "the level off", |w, _| {
