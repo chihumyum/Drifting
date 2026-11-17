@@ -103,11 +103,24 @@ fn a_cover_is_read_from_the_book() {
     assert_eq!(request.words.len(), 3);
     assert_eq!(request.words[1], 0);
     assert!(request.words[2] > request.words[0], "{:?}", request.words);
+    // The cover of characters sets its type in dr-ui's fonts, which are
+    // built, never committed: a checkout without them draws that cover as
+    // paper alone (the app itself will not start without them). CI builds
+    // them and sets `DR_UI_REQUIRE_FONTS`, so there it must draw.
+    let untyped =
+        art::glyphs::faces().is_none() && std::env::var_os("DR_UI_REQUIRE_FONTS").is_none();
     // Every style draws it, the same each time.
     for style in CoverStyle::ALL {
         let a = art::flatten(&art::draw(style, &request), art::paint::PAPER, [85, 82, 78]);
         let b = art::flatten(&art::draw(style, &request), art::paint::PAPER, [85, 82, 78]);
         assert!(a == b, "{} is not the same twice", style.slug());
+        if style == CoverStyle::Chars && untyped {
+            eprintln!(
+                "fonts not built here; chars not checked (run {})",
+                dr_ui::fonts::BUILD_COMMAND
+            );
+            continue;
+        }
         assert!(
             a.as_chunks::<4>()
                 .0

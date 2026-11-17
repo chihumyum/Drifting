@@ -787,7 +787,7 @@ F8 的 `bench workspace`，heavy 种子（100 章，正文共约 360 万字，30
 - M01 可以把每本书的四条查询换成一条 `book.shelf { trashed: true }`；「还剩几天」直接读 `days_left`（0 显示「即将永久删除」）；「立即删除」调 `book.purge`；书架打开 2 分钟后调一次 `book.purge_expired`。
 - M02 的「继续写」读 `recent.list { book }`，取第一个 `node`；没有就退回「最近改过的章节」（`chapter.list` 的 `updated_at` 最大的）。
 - M04 的排序和格子用 `chapter.list` 的 `words`、`created_at`、`updated_at`（秒）。
-- M01（第八轮发现的）：`dr-view-shelf-art` 的测试 `a_cover_is_read_from_the_book` 要 dr-ui 的字体（`next/.cache/fonts`，或 `DRIFTING_FONTS_DIR`）。没有字体时「chars」画风什么也不画，测试就失败；新开的 worktree 里就是这样。建议没有字体时这一项跳过（像 dr-ui 自己的字体测试那样），或者在说明里写明先生成字体。
+- M01（第八轮发现的）：`dr-view-shelf-art` 的测试 `a_cover_is_read_from_the_book` 要 dr-ui 的字体（`next/.cache/fonts`，或 `DRIFTING_FONTS_DIR`）。没有字体时「chars」画风什么也不画，测试就失败；新开的 worktree 里就是这样。建议没有字体时这一项跳过（像 dr-ui 自己的字体测试那样），或者在说明里写明先生成字体。**2026-11-17 已照第一种做**：没有字体、又没设 `DR_UI_REQUIRE_FONTS` 时字海这一项跳过（见 [m25-shelf-art.md](../modules/m25-shelf-art.md) 的「测试」）。
 
 ### M16（构想面板，M10 这一路）
 
