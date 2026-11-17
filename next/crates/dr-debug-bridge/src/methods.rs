@@ -134,6 +134,10 @@ pub const METHODS: &[(&str, &str)] = &[
         "{target?}: the paragraphs a page shows (default: the page on the paper): a prose page's editor, or the whole book's rows",
     ),
     (
+        "page.relations",
+        "the active prose editor's painted link boxes, relation lines and open composer; read-only frame inspection for native pointer acceptance, in logical window pixels",
+    ),
+    (
         "ui.wait",
         "{until: \"ready\", text?, state?, page?, timeout_ms?}: wait until the window has a library (it has none for a moment while a restore replaces it), the book and the pages on screen are read, and the page shows text, and state.get (page.text) has the values at the JSON pointers in state (page); {until: \"time\", ms}: just wait (a covered window is drawn when it starts and when it ends); {until: \"file\", path, timeout_ms?}: until a file the app writes is there",
     ),
@@ -384,6 +388,7 @@ pub async fn call(method: &str, params: Value, cx: &mut AsyncApp) -> Out {
         }
         "state.get" => cx.update(state),
         "page.text" => cx.update(|cx| page_text(&p, cx)),
+        "page.relations" => cx.update(page_relations),
         "ui.wait" => wait(&p, cx).await,
         "ui.screenshot" => {
             // Let page turns, sidebars and pills finish moving first.
@@ -1141,6 +1146,60 @@ fn page_text(p: &Value, cx: &mut App) -> Out {
 /// What a page shows around its text and which of its fields has the
 /// keyboard: a chapter page's title and synopsis (M03), an element
 /// page's name, aliases input, summary and field rows (M11).
+/// Inspect the frame that ordinary mouse input will hit. This does not open
+/// a hover card, select a counterpart or submit a relation: acceptance must
+/// still move, click and type through the platform input methods.
+fn page_relations(cx: &mut App) -> Out {
+    pump(cx)?;
+    in_window(cx, |owner, _, cx| {
+        let (prose, assist) = {
+            let ws = owner.read(cx);
+            let view = ws
+                .nav
+                .current()
+                .and_then(|target| ws.page_view(target))
+                .ok_or_else(|| not_found("no prose editor is open"))?;
+            let assist = match view {
+                PageView::Doc(editor) => editor.read(cx).assist().clone(),
+                PageView::Book(editor) => editor.read(cx).assist().clone(),
+            };
+            (view.prose(cx), assist)
+        };
+        let rect = |b: gpui::Bounds<gpui::Pixels>| {
+            json!({"x": f32::from(b.left()), "y": f32::from(b.top()),
+                "width": f32::from(b.size.width), "height": f32::from(b.size.height)})
+        };
+        let links: Vec<Value> = prose
+            .read(cx)
+            .painted_group("links")
+            .iter()
+            .map(|d| {
+                json!({"chapter": d.chapter, "line": d.line, "id": d.key.id.as_ref(),
+                "boxes": d.boxes.iter().copied().map(rect).collect::<Vec<_>>()})
+            })
+            .collect();
+        let compose = assist.update(cx, |a, _| a.compose_state()).map(|c| {
+            json!({"src": c.src, "dst": c.dst, "name": c.name,
+                "direction": c.dir.glyph(), "directionLocked": c.dir_locked,
+                "candidates": c.candidates, "names": c.names, "ready": c.ready})
+        });
+        let a = assist.read(cx);
+        let drawn = a.relation_drawn().map(|d| {
+            json!({
+                "lines": d.lines.iter().map(|l| json!({
+                    "from": l.a.entry, "to": l.b.entry,
+                    "fromBox": rect(l.a.rect), "toBox": rect(l.b.rect),
+                    "labels": l.labels.iter().map(|label| json!({"name": label.name, "to": label.to})).collect::<Vec<_>>(),
+                    "labelAt": l.label_at,
+                })).collect::<Vec<_>>(),
+                "picks": d.picks.iter().map(|n| json!({"entry": n.entry, "box": rect(n.rect)})).collect::<Vec<_>>(),
+                "pending": d.pending.as_ref().map(|(a,b)| json!([a.entry, b.entry])),
+            })
+        });
+        Ok(json!({"links": links, "drawn": drawn, "compose": compose}))
+    })?
+}
+
 fn head_of(target: &Target, doc: &str, window: &Window, cx: &App) -> Value {
     let focused = |h: gpui::FocusHandle| h.is_focused(window);
     match target {
