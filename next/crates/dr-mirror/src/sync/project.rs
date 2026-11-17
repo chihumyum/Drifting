@@ -1,4 +1,5 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::sync::Arc;
 
 use dr_doc::{
     prose::BorrowedProse,
@@ -66,7 +67,14 @@ impl Project {
         Ok(Some(project))
     }
 
-    pub fn layout(&self, lib: &Library, names: &Names) -> Result<BookLayout> {
+    /// `seen` remembers each level body's version and whether it had text,
+    /// so a body that did not change is not loaded again.
+    pub fn layout(
+        &self,
+        lib: &Library,
+        names: &Names,
+        seen: &mut HashMap<DocId, (Frontiers, bool)>,
+    ) -> Result<BookLayout> {
         let mut filled = BTreeSet::new();
         for entry in self.structure.levels().filter(|entry| entry.is_level()) {
             let Some(tpl) = entry.effective_template(self.structure.templates_map()) else {
@@ -74,12 +82,26 @@ impl Project {
             };
             for module in tpl.prose_modules() {
                 let doc = DocId::Body(BodyDocId::new(entry.id.clone(), module.id.clone()));
-                let raw = read_copy(lib, &doc)?;
-                if BorrowedProse::new(&raw, &doc)?
-                    .view()
-                    .paragraphs()
-                    .any(|p| !Para::of(&p).is_empty())
-                {
+                let head = lib.head(&doc.to_string())?.map(|head| head.frontiers);
+                let known = head
+                    .as_ref()
+                    .and_then(|head| seen.get(&doc).filter(|(at, _)| at == head))
+                    .map(|&(_, text)| text);
+                let text = match known {
+                    Some(text) => text,
+                    None => {
+                        let raw = read_copy(lib, &doc)?;
+                        let text = BorrowedProse::new(&raw, &doc)?
+                            .view()
+                            .paragraphs()
+                            .any(|p| !Para::of(&p).is_empty());
+                        if let Some(head) = head {
+                            seen.insert(doc.clone(), (head, text));
+                        }
+                        text
+                    }
+                };
+                if text {
                     filled.insert(doc);
                 }
             }
@@ -262,6 +284,19 @@ pub(super) fn check_active(
             == version.restore)
 }
 
+/// What [`import`] did with a merged file.
+pub(super) enum Imported {
+    Done,
+    /// The body or its entry changed since the merge was made.
+    Stale,
+    /// The author started composing: the file waits.
+    Composing,
+}
+
+/// Commit a merged file into the body. The activity check, the
+/// composition check and the commit run under the book's write lease, so
+/// a `Write, Book` command (trash, template switch, restore) waits for the
+/// commit instead of landing between the check and it.
 pub(super) fn import(
     ws: &Workspace,
     book: &BookId,
@@ -269,43 +304,72 @@ pub(super) fn import(
     version: &Version,
     head: Frontiers,
     update: Vec<u8>,
-) -> Result<bool> {
+    composing: &Arc<dyn Fn() -> bool + Send + Sync>,
+) -> Result<Imported> {
     if update.is_empty() {
-        return Ok(true);
-    }
-    if !check_active(ws.library(), book, id, version)? {
-        return Ok(false);
+        return Ok(Imported::Done);
     }
     let doc = DocId::Body(id.clone());
     let key = doc.to_string();
-    if ws.library().doc_info(&key)?.is_none() {
-        ws.call(
-            &Actor::Mirror,
-            "module.prose_document",
-            serde_json::json!({"book":book,"owner":id.entry(),"module":id.module()}),
-        )?;
-    }
-    let handle = ws.library().open_doc(&key, OpenDoc::Existing)?;
-    let lib = ws.library().clone();
-    let book = book.clone();
-    let id = id.clone();
-    let version = version.clone();
-    let (applied, _) = handle.write(Origin::Mirror, move |live| -> Result<bool> {
-        if live.oplog_frontiers() != head || !check_active(&lib, &book, &id, &version)? {
-            return Ok(false);
+    let imported = ws.with_book_lease(book, || -> Result<Imported> {
+        if !check_active(ws.library(), book, id, version)? {
+            return Ok(Imported::Stale);
         }
-        let result = live.import(&update)?;
-        if result.pending.is_some() {
-            return Err(SyncError::Invalid(
-                "mirror update is missing its base".into(),
-            ));
+        if composing() {
+            return Ok(Imported::Composing);
         }
-        Ok(true)
+        if ws.library().doc_info(&key)?.is_none() {
+            ws.call(
+                &Actor::Mirror,
+                "module.prose_document",
+                serde_json::json!({"book":book,"owner":id.entry(),"module":id.module()}),
+            )?;
+        }
+        let handle = ws.library().open_doc(&key, OpenDoc::Existing)?;
+        let lib = ws.library().clone();
+        let book = book.clone();
+        let id = id.clone();
+        let version = version.clone();
+        let composing = composing.clone();
+        let (applied, _) = handle.write(Origin::Mirror, move |live| -> Result<Imported> {
+            if live.oplog_frontiers() != head || !check_active(&lib, &book, &id, &version)? {
+                return Ok(Imported::Stale);
+            }
+            if composing() {
+                return Ok(Imported::Composing);
+            }
+            #[cfg(test)]
+            seam::before_commit();
+            let result = live.import(&update)?;
+            if result.pending.is_some() {
+                return Err(SyncError::Invalid(
+                    "mirror update is missing its base".into(),
+                ));
+            }
+            Ok(Imported::Done)
+        })?;
+        applied
     })?;
-    if applied? {
+    if matches!(imported, Imported::Done) {
         ws.repair_after_sync(&key);
-        Ok(true)
-    } else {
-        Ok(false)
+    }
+    Ok(imported)
+}
+
+/// A test seam between the last check and the body commit.
+#[cfg(test)]
+pub(crate) mod seam {
+    use std::sync::Mutex;
+
+    type Hook = Box<dyn FnMut() + Send>;
+
+    pub static BEFORE_COMMIT: Mutex<Option<Hook>> = Mutex::new(None);
+
+    pub(super) fn before_commit() {
+        let hook = BEFORE_COMMIT.lock().unwrap().take();
+        if let Some(mut hook) = hook {
+            hook();
+            *BEFORE_COMMIT.lock().unwrap() = Some(hook);
+        }
     }
 }

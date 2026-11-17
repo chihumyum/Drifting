@@ -1,6 +1,6 @@
 //! File watching and writeback scheduling for the open library.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, mpsc};
 use std::thread::JoinHandle;
@@ -13,8 +13,9 @@ use dr_workspace::{Subscription, Workspace, WsEvent};
 use notify::Watcher;
 
 use crate::{
+    disk,
     layout::Names,
-    sync::{Issue, Pass, Report},
+    sync::{self, Issue, Pass, Report, Seen},
 };
 
 const DISK_CHECK_INTERVAL: Duration = Duration::from_secs(4);
@@ -64,7 +65,8 @@ impl Options {
 
 enum Msg {
     Change(BookId),
-    Disk,
+    /// Paths the watcher reported; empty when it lost track (rescan all).
+    Disk(Vec<PathBuf>),
     Sync(mpsc::Sender<Result<Report, String>>),
     Stop,
 }
@@ -110,14 +112,21 @@ impl Mirror {
         let root = options.root.clone();
         let mut watcher =
             notify::recommended_watcher(move |event: notify::Result<notify::Event>| {
-                if let Ok(event) = event
-                    && !event.kind.is_access()
-                    && event
-                        .paths
-                        .iter()
-                        .any(|p| !ignored(p.strip_prefix(&root).unwrap_or(p)))
-                {
-                    let _ = file_events.send(Msg::Disk);
+                let Ok(event) = event else { return };
+                if event.kind.is_access() {
+                    return;
+                }
+                if event.need_rescan() {
+                    let _ = file_events.send(Msg::Disk(Vec::new()));
+                    return;
+                }
+                let paths: Vec<_> = event
+                    .paths
+                    .into_iter()
+                    .filter(|p| !ignored(p.strip_prefix(&root).unwrap_or(p)))
+                    .collect();
+                if !paths.is_empty() {
+                    let _ = file_events.send(Msg::Disk(paths));
                 }
             })
             .map_err(std::io::Error::other)?;
@@ -197,10 +206,22 @@ fn ignored(path: &Path) -> bool {
         .any(|component| component.as_os_str().to_string_lossy().starts_with('.'))
 }
 
+/// Which projects the next disk pass covers.
+#[derive(Default)]
+struct Dirty {
+    all: bool,
+    books: BTreeSet<BookId>,
+}
+
 #[derive(Default)]
 struct Schedule {
     app: BTreeMap<BookId, (Instant, Instant)>,
     disk: Option<Instant>,
+    dirty: Dirty,
+    /// Projects with a file waiting for the author's composition: no pass
+    /// runs for them until it ended.
+    composing: BTreeSet<BookId>,
+    composing_check: Option<Instant>,
 }
 
 impl Schedule {
@@ -213,28 +234,133 @@ impl Schedule {
             .values()
             .map(|&(first, last)| Self::app_due(first, last, options))
             .chain(self.disk)
+            .chain(self.composing_check)
             .min()
     }
 
-    fn disk_changed(&mut self, now: Instant, options: &Options) {
-        let due = now + options.settle;
-        self.disk = Some(self.disk.map_or(due, |previous| previous.min(due)));
+    fn soon(&mut self, at: Instant) {
+        self.disk = Some(self.disk.map_or(at, |previous| previous.min(at)));
     }
 
+    fn disk_changed(&mut self, now: Instant, options: &Options, target: Target) {
+        match target {
+            Target::None => return,
+            Target::All => self.dirty.all = true,
+            Target::Book(book) => {
+                self.dirty.books.insert(book);
+            }
+        }
+        self.soon(now + options.settle);
+    }
+
+    /// A pass left files waiting: only their projects are looked at again,
+    /// and a composition is waited out without any pass.
     fn retry(&mut self, report: &Report, options: &Options) {
-        if report.waiting {
-            self.disk = Some(Instant::now() + options.settle.max(Duration::from_millis(100)));
+        let later = Instant::now() + options.settle.max(Duration::from_millis(100));
+        if !report.retry.is_empty() {
+            self.dirty.books.extend(report.retry.iter().cloned());
+            self.soon(later);
+        }
+        if !report.composing.is_empty() {
+            self.composing.extend(report.composing.iter().cloned());
+            self.composing_check = Some(self.composing_check.map_or(later, |at| at.min(later)));
         }
     }
 }
+
+enum Target {
+    None,
+    All,
+    Book(BookId),
+}
+
+/// The project folders as the last passes left them.
+#[derive(Default)]
+struct Index {
+    books: BTreeMap<BookId, Seen>,
+    /// What the last metadata check found.
+    checked: BTreeMap<PathBuf, disk::Stat>,
+}
+
+impl Index {
+    fn absorb(&mut self, report: &Report) {
+        for (book, seen) in &report.seen {
+            self.books.insert(book.clone(), seen.clone());
+        }
+    }
+
+    /// The project a reported path belongs to. The App's own writes (the
+    /// size and time the ledger recorded) and folders are not changes.
+    fn classify(&self, path: &Path) -> Target {
+        for (book, seen) in &self.books {
+            if !path.starts_with(&seen.dir) {
+                continue;
+            }
+            if let Some(stat) = seen.files.get(path)
+                && disk::stat(path).ok().flatten() == Some(*stat)
+            {
+                return Target::None;
+            }
+            if std::fs::symlink_metadata(path).is_ok_and(|m| m.is_dir()) {
+                return Target::None;
+            }
+            return Target::Book(book.clone());
+        }
+        Target::All
+    }
+
+    /// Native watchers can delay or drop an event. A Markdown file whose
+    /// size or time is neither what the ledger recorded nor what the last
+    /// check found changed outside.
+    fn check(&mut self) -> BTreeSet<BookId> {
+        let mut now = BTreeMap::new();
+        let mut changed = BTreeSet::new();
+        for (book, seen) in &self.books {
+            let Ok(files) = sync::disk_markdown(&seen.dir, "", "") else {
+                continue;
+            };
+            for file in files {
+                if let Ok(path) = disk::checked(&seen.dir, &file, false)
+                    && let Ok(Some(stat)) = disk::stat(&path)
+                {
+                    if seen.files.get(&path) != Some(&stat)
+                        && self.checked.get(&path) != Some(&stat)
+                    {
+                        changed.insert(book.clone());
+                    }
+                    now.insert(path, stat);
+                }
+            }
+            let gone = seen.files.keys().any(|path| {
+                path.extension()
+                    .is_some_and(|e| e.eq_ignore_ascii_case("md"))
+                    && !now.contains_key(path)
+                    && self.checked.contains_key(path)
+            });
+            if gone {
+                changed.insert(book.clone());
+            }
+        }
+        self.checked = now;
+        changed
+    }
+}
+
+/// Metadata checks run so far (the no-notification test waits for one).
+#[cfg(test)]
+static CHECKS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
 fn run(ws: Workspace, options: Options, rx: mpsc::Receiver<Msg>, state: Arc<Mutex<State>>) {
     let pass = Pass::new(&ws, &options);
     let mut schedule = Schedule {
         disk: Some(Instant::now()),
+        dirty: Dirty {
+            all: true,
+            ..Default::default()
+        },
         ..Default::default()
     };
-    let mut disk_stamp = BTreeMap::new();
+    let mut index = Index::default();
     let mut check_disk_at = Instant::now() + DISK_CHECK_INTERVAL;
     let mut running = true;
     while running {
@@ -251,12 +377,21 @@ fn run(ws: Workspace, options: Options, rx: mpsc::Receiver<Msg>, state: Arc<Mute
                     .and_modify(|(_, last)| *last = now)
                     .or_insert((now, now));
             }
-            Ok(Msg::Disk) => schedule.disk_changed(now, &options),
+            Ok(Msg::Disk(paths)) if paths.is_empty() => {
+                schedule.disk_changed(now, &options, Target::All);
+            }
+            Ok(Msg::Disk(paths)) => {
+                for path in paths {
+                    let target = index.classify(&path);
+                    schedule.disk_changed(now, &options, target);
+                }
+            }
             Ok(Msg::Sync(reply)) => {
                 schedule = Schedule::default();
                 let result = pass.run();
                 if let Ok(report) = &result {
                     publish(&state, report, None);
+                    index.absorb(report);
                     schedule.retry(report, &options);
                 }
                 let _ = reply.send(result.map_err(|e| e.to_string()));
@@ -273,55 +408,74 @@ fn run(ws: Workspace, options: Options, rx: mpsc::Receiver<Msg>, state: Arc<Mute
             Err(mpsc::RecvTimeoutError::Disconnected) => break,
         }
         if check_disk_at <= now {
-            // Native watchers can delay or drop an event. A metadata-only
-            // check schedules the same pass if the projected files changed.
-            match pass.disk_stamp() {
-                Ok(stamp) if stamp != disk_stamp => {
-                    disk_stamp = stamp;
-                    schedule.disk_changed(now, &options);
-                }
-                Ok(_) => {}
-                Err(err) => log::warn!("Markdown folder metadata check: {err}"),
+            for book in index.check() {
+                schedule.disk_changed(now, &options, Target::Book(book));
             }
+            #[cfg(test)]
+            CHECKS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             check_disk_at = Instant::now() + DISK_CHECK_INTERVAL;
+        }
+        if schedule.composing_check.is_some_and(|at| at <= now) {
+            schedule.composing_check = None;
+            if (options.composing)() {
+                schedule.composing_check =
+                    Some(Instant::now() + options.settle.max(Duration::from_millis(100)));
+            } else {
+                let waiting = std::mem::take(&mut schedule.composing);
+                schedule.dirty.books.extend(waiting);
+                schedule.soon(now);
+            }
         }
         if schedule.disk.is_some_and(|due| due <= now) {
             schedule.disk = None;
+            let dirty = std::mem::take(&mut schedule.dirty);
+            let books = (!dirty.all).then_some(&dirty.books);
             // Ingest disk edits now. A file watcher must not bypass a
             // pending App writeback deadline (including our own file events).
-            match pass.reconcile(|book| !schedule.app.contains_key(book)) {
+            match pass.reconcile(books, |book| !schedule.app.contains_key(book)) {
                 Ok(report) => {
-                    publish(&state, &report, None);
+                    publish(&state, &report, books);
+                    index.absorb(&report);
                     schedule.retry(&report, &options);
                 }
                 Err(err) => log::warn!("Markdown folder: {err}"),
             }
         }
-        schedule.app.retain(|book, &mut (first, last)| {
-            if Schedule::app_due(first, last, &options) > now {
-                return true;
-            }
-            match pass.book(book) {
+        let due: Vec<_> = schedule
+            .app
+            .iter()
+            .filter(|&(_, &(first, last))| Schedule::app_due(first, last, &options) <= now)
+            .map(|(book, _)| book.clone())
+            .collect();
+        for book in due {
+            schedule.app.remove(&book);
+            let books = BTreeSet::from([book]);
+            match pass.reconcile(Some(&books), |_| true) {
                 Ok(report) => {
-                    publish(&state, &report, Some(book));
-                    if report.waiting {
-                        schedule.disk =
-                            Some(Instant::now() + options.settle.max(Duration::from_millis(100)));
-                    }
+                    publish(&state, &report, Some(&books));
+                    index.absorb(&report);
+                    schedule.retry(&report, &options);
                 }
                 Err(err) => log::warn!("Markdown folder: {err}"),
             }
-            false
-        });
+        }
     }
 }
 
-fn publish(state: &Mutex<State>, report: &Report, book: Option<&BookId>) {
+/// `books`: the projects the pass covered (all when `None`). An issue about
+/// the chosen folder itself is replaced by every pass.
+fn publish(state: &Mutex<State>, report: &Report, books: Option<&BTreeSet<BookId>>) {
     let (listeners, current, preserved) = {
         let mut state = lock(state);
         let before = state.issues.clone();
-        if let Some(book) = book {
-            state.issues.remove(book.as_str());
+        let unreachable = report.issues.iter().any(|issue| issue.book.is_empty());
+        if unreachable {
+            state.issues.remove("");
+        } else if let Some(books) = books {
+            for book in books {
+                state.issues.remove(book.as_str());
+            }
+            state.issues.remove("");
         } else {
             state.issues.clear();
         }
@@ -359,6 +513,83 @@ mod tests {
     use std::fs;
 
     #[test]
+    fn partial_pass_callbacks_keep_unrelated_and_unreachable_notices() {
+        let first = BookId::parse("first").unwrap();
+        let second = BookId::parse("second").unwrap();
+        let issue = |book: &BookId| Issue {
+            book: book.to_string(),
+            doc: None,
+            title: book.to_string(),
+            path: PathBuf::from("folder"),
+            problem: sync::Problem::Frontmatter,
+            kept: None,
+        };
+        let shared = Mutex::new(State::default());
+        let (tx, rx) = mpsc::channel();
+        lock(&shared).listeners.push(Arc::new(move |issues| {
+            tx.send(issues.to_vec()).unwrap();
+        }));
+        publish(
+            &shared,
+            &Report {
+                issues: vec![issue(&first), issue(&second)],
+                ..Default::default()
+            },
+            None,
+        );
+        assert_eq!(rx.recv().unwrap().len(), 2);
+        publish(&shared, &Report::default(), Some(&BTreeSet::from([first])));
+        assert_eq!(rx.recv().unwrap(), vec![issue(&second)]);
+        let mut inaccessible = issue(&second);
+        inaccessible.book.clear();
+        inaccessible.problem = sync::Problem::Disk;
+        publish(
+            &shared,
+            &Report {
+                issues: vec![inaccessible],
+                ..Default::default()
+            },
+            None,
+        );
+        let current = rx.recv().unwrap();
+        assert_eq!(current.len(), 2);
+        assert!(current.contains(&issue(&second)));
+    }
+
+    #[test]
+    fn own_writes_and_composition_waits_do_not_schedule_full_passes() {
+        let folder = tempfile::tempdir().unwrap();
+        let path = folder.path().join("body.md");
+        fs::write(&path, b"owned bytes").unwrap();
+        let book = BookId::parse("book").unwrap();
+        let seen = Seen {
+            dir: folder.path().to_path_buf(),
+            files: BTreeMap::from([(path.clone(), disk::stat(&path).unwrap().unwrap())]),
+        };
+        let mut index = Index::default();
+        index.books.insert(book.clone(), seen);
+        assert!(matches!(index.classify(&path), Target::None));
+        assert!(index.check().is_empty());
+        fs::write(&path, b"outside bytes").unwrap();
+        assert!(matches!(index.classify(&path), Target::Book(id) if id == book));
+        assert_eq!(index.check(), BTreeSet::from([book.clone()]));
+        assert!(index.check().is_empty());
+        let mut schedule = Schedule::default();
+        schedule.retry(
+            &Report {
+                composing: BTreeSet::from([book.clone()]),
+                waiting: true,
+                ..Default::default()
+            },
+            &Options::new(folder.path(), "test", "test"),
+        );
+        assert!(schedule.disk.is_none());
+        assert!(!schedule.dirty.all && schedule.dirty.books.is_empty());
+        assert_eq!(schedule.composing, BTreeSet::from([book]));
+        assert!(schedule.composing_check.is_some());
+    }
+
+    #[test]
     fn a_missed_disk_event_is_recovered_while_the_app_is_idle() {
         let db = tempfile::tempdir().unwrap();
         let output = tempfile::tempdir().unwrap();
@@ -392,6 +623,14 @@ mod tests {
             .unwrap()
             .join("书稿")
             .join(format!("{title}.md"));
+        // The old implementation initialized its polling baseline here,
+        // after the first pass. Editing before this check hid that bug.
+        let checked = CHECKS.load(std::sync::atomic::Ordering::SeqCst);
+        let start = Instant::now();
+        while CHECKS.load(std::sync::atomic::Ordering::SeqCst) == checked {
+            assert!(start.elapsed() < Duration::from_secs(6));
+            std::thread::sleep(Duration::from_millis(25));
+        }
         let changed = fs::read_to_string(&path)
             .unwrap()
             .replace("灯还亮着。", "灯已熄了。");
