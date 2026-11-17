@@ -792,7 +792,7 @@ fn shift_pair_reuses_the_named_row_and_duplicate_adds_no_undo_step(cx: &mut Test
 }
 
 #[gpui::test]
-fn shift_pair_new_name_direction_enter_escape_and_failed_write_keep_the_draft(
+fn shift_pair_button_direction_enter_does_not_submit_and_failed_write_keeps_draft(
     cx: &mut TestAppContext,
 ) {
     use dr_view_element_overview::view::PairDirection;
@@ -840,9 +840,10 @@ fn shift_pair_new_name_direction_enter_escape_and_failed_write_keep_the_draft(
         })
     });
     vcx.simulate_keystrokes("enter");
-    wait(vcx, |cx| {
-        ov.read_with(cx, |v, _| v.relation_draft().is_none())
-    });
+    assert!(
+        ov.read_with(vcx, |v, _| v.relation_draft().is_some()),
+        "Enter has no approved create action; the draft stays open"
+    );
     let list = || {
         lib.call(&Actor::User, "relation_type.list", json!({"book":book}))
             .unwrap()["output"]
@@ -850,6 +851,20 @@ fn shift_pair_new_name_direction_enter_escape_and_failed_write_keep_the_draft(
             .unwrap()
             .clone()
     };
+    assert!(
+        !list().iter().any(|r| r["name"] == "Graph Reversed"),
+        "Enter must not save a relation"
+    );
+    wait(vcx, |cx| {
+        shell.read_with(cx, |ws, _| ws.fill_progress(FillPlace::Left) >= 1.0)
+    });
+    wait(vcx, |cx| cx.debug_bounds("se-relation-create").is_some());
+    let at = vcx.debug_bounds("se-relation-create").unwrap().center();
+    vcx.simulate_mouse_move(at, None, gpui::Modifiers::default());
+    vcx.simulate_click(at, gpui::Modifiers::default());
+    wait(vcx, |cx| {
+        ov.read_with(cx, |v, _| v.relation_draft().is_none())
+    });
     let rows = list();
     let made = rows.iter().find(|r| r["name"] == "Graph Reversed").unwrap();
     assert_eq!(made["direction"], "directed");

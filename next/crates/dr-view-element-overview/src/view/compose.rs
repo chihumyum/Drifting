@@ -162,9 +162,7 @@ impl ElementOverview {
                             cx.notify();
                         }
                     }
-                    FieldEvent::Submitted(_) => {
-                        this.confirm_relation(window, cx);
-                    }
+                    FieldEvent::Submitted(_) => {}
                     FieldEvent::Cancelled => {
                         this.cancel_relation(cx);
                         window.focus(&this.relation_focus, cx);
