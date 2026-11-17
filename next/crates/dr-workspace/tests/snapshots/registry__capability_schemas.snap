@@ -14873,6 +14873,75 @@ expression: json
     "concurrency": "book",
     "input": {
       "$defs": {
+        "RelationDirection": {
+          "description": "A relation's direction applies to all its rows. Switching it never moves a member.",
+          "enum": [
+            "directed",
+            "symmetric"
+          ],
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "expected_direction": {
+          "$ref": "#/$defs/RelationDirection",
+          "description": "Refuse a draft whose left/right meaning changed since it was shown."
+        },
+        "left": {
+          "description": "Duplicate IDs are treated as one member; no missing or trashed entry\nis silently dropped from either side.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "relation_type": {
+          "description": "The displayed (canonical) relation ID when the draft was submitted.",
+          "type": "string"
+        },
+        "right": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "book",
+        "relation_type",
+        "expected_direction",
+        "left",
+        "right"
+      ],
+      "title": "GroupIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "relation_row.create_group",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Create one exact relation row from two nonempty disjoint live-entry sets, in one undo step. Refuse stale direction or any pair already in another row."
+  },
+  {
+    "access": "write",
+    "book_version": 5,
+    "concurrency": "book",
+    "input": {
+      "$defs": {
         "Definition": {
           "additionalProperties": false,
           "properties": {
