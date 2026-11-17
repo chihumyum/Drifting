@@ -1176,6 +1176,12 @@ fn exclusion_v3(spec: &Spec) -> Option<&'static str> {
     if spec.name == "membership.restore" {
         return Some("scoped membership undo is internal until K6 provides a guarded facade");
     }
+    if spec.name == "relation_type.restore" {
+        return Some("scoped relation undo is internal until K6 provides a guarded facade");
+    }
+    if spec.name == "comment.restore_body" {
+        return Some("scoped comment text undo is internal until K6 provides a guarded facade");
+    }
 
     if spec.name == "module.prose_document" {
         return Some("storage, editor, or derived-state maintenance");

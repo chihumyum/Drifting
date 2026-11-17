@@ -1556,12 +1556,22 @@ impl<'a> BookViewV3<'a> {
         types
     }
 
+    /// The relations a reader shows, newest first: of relations whose
+    /// normalized names a merge made equal only the earliest
+    /// (`RT-NAME`, [`dr_model::v3::relation_type_winners`]).
     pub fn relation_types(&self) -> Vec<RelationTypeV3> {
         let mut types = self.relation_types_raw();
+        let winners = dr_model::v3::relation_type_winners(&types);
+        types.retain(|relation| winners.get(&relation.id) == Some(&relation.id));
         for relation in &mut types {
             relation.description = self.resolve_linked_text(&relation.description);
         }
         types
+    }
+
+    /// Every stored relation id to the relation it reads as (`RT-NAME`).
+    pub fn relation_type_winners(&self) -> BTreeMap<RelationTypeId, RelationTypeId> {
+        dr_model::v3::relation_type_winners(&self.relation_types_raw())
     }
 
     pub fn relation_type_raw(&self, id: &RelationTypeId) -> Option<RelationTypeV3> {
@@ -1683,25 +1693,36 @@ impl<'a> BookViewV3<'a> {
         self.entity_exists_with(r, None)
     }
 
-    /// Rows with a live relation and at least one live entry on each side.
-    /// Stored membership of a trashed entry is left intact.
-    pub fn relations(&self) -> Vec<RelationRow> {
-        let mut rows = self.relations_raw();
+    /// The rows that count, in creation order, for writes to plan against
+    /// ([`dr_model::v3::kept_relation_rows`]): each under the relation it
+    /// reads as, without members purged elsewhere, both sides nonempty.
+    /// Members in Recently Deleted are kept.
+    pub fn relations_kept(&self) -> Vec<RelationRow> {
+        let rows = self.relations_raw();
         if rows.is_empty() {
             return rows;
         }
-        let (live, _) = self.entry_existence_sets();
-        let types: HashSet<_> = self
-            .relation_types_raw()
-            .into_iter()
-            .map(|t| t.id)
-            .collect();
-        rows.retain_mut(|row| {
-            row.left.retain(|entry| live.contains(entry.as_str()));
-            row.right.retain(|entry| live.contains(entry.as_str()));
-            types.contains(&row.relation_type) && !row.left.is_empty() && !row.right.is_empty()
+        let (_, stored) = self.entry_existence_sets();
+        dr_model::v3::kept_relation_rows(rows, &self.relation_type_winners(), |entry| {
+            stored.contains(entry.as_str())
+        })
+    }
+
+    /// Rows a reader shows ([`dr_model::v3::visible_relation_rows`]): of a
+    /// relation that exists (read as the relation it merges into), with at
+    /// least one live entry on each side. Stored membership of a trashed
+    /// entry is left intact.
+    pub fn relations(&self) -> Vec<RelationRow> {
+        let rows = self.relations_raw();
+        if rows.is_empty() {
+            return rows;
+        }
+        let (live, stored) = self.entry_existence_sets();
+        let winners = self.relation_type_winners();
+        let kept = dr_model::v3::kept_relation_rows(rows, &winners, |entry| {
+            stored.contains(entry.as_str())
         });
-        rows
+        dr_model::v3::visible_relation_rows(kept, |entry| live.contains(entry.as_str()))
     }
 
     fn comment_part_missing(

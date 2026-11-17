@@ -30,7 +30,8 @@ use crate::order::cmp_order;
 use crate::pos::{PosKey, cmp_pos};
 pub use crate::relations::{
     EntryTextLink, LinkedText, PairPlacement, RelationDirection, RelationRow, RelationSide,
-    RelationTypeV3, plan_relation_pair,
+    RelationTypeV3, kept_relation_rows, pair_key, plan_pair_removal, plan_relation_pair,
+    relation_type_winners, visible_relation_rows,
 };
 pub use crate::shared::sort_kv;
 use crate::shared::{

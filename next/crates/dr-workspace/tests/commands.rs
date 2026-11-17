@@ -602,6 +602,8 @@ fn every_registered_entry_is_exercised_here() {
         include_str!("project_templates.rs"),
         include_str!("template_working_copy.rs"),
         include_str!("relations_v5.rs"),
+        include_str!("relations_undo.rs"),
+        include_str!("relations_merge.rs"),
         include_str!("../../dr-agent-tools/tests/checkpoints_v3.rs"),
     ];
     let missing: Vec<&str> = registry()

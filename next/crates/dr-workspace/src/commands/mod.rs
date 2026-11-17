@@ -57,6 +57,7 @@ pub(crate) fn register(r: &mut Registry) {
         .add::<v3::comment::CommentCreate>()
         .add::<v3::comment::CommentUpdate>()
         .add::<v3::comment::CommentReanchor>()
+        .add::<v3::comment::CommentRestoreBody>()
         .add::<v3::comment::CommentDelete>()
         .add::<v3::comment::CommentProject>()
         .add::<v3::recent::RecentTouch>()

@@ -139,6 +139,23 @@ fn restore(cx: &Cx<'_>, input: RestoreIn) -> Result<Vec<Done>> {
                         return Err(WsError::invalid("relation type is in use"));
                     }
                 }
+                if c == CollectionV3::Comments && matches!(cx.actor(), crate::Actor::Agent { .. }) {
+                    // Only the author deletes comments (the Agent's catalog has
+                    // no `comment.delete`); a restore to a point before a
+                    // comment would delete it, so the Agent may do that only
+                    // to a comment an Agent wrote.
+                    let id: CommentId = pid("comment", &target.id)?;
+                    if old.map_snapshot(c, id.as_str()).is_none()
+                        && current.map_snapshot(c, id.as_str()).is_some()
+                        && current.comment(&id).is_none_or(|now| {
+                            now.author_kind != dr_model::kind::CommentAuthorKind::Ai
+                        })
+                    {
+                        return Err(WsError::invalid(
+                            "comment deletion is reserved for the author",
+                        ));
+                    }
+                }
                 if c == CollectionV3::Assets {
                     // A purged file's bytes are gone: its record is not
                     // brought back from history as an empty file.

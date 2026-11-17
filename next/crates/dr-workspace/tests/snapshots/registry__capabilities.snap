@@ -33,6 +33,7 @@ comment.delete               command  book     Delete a comment. A checklist ite
 comment.list                 query    shared   List comments (a target or module sub-part in the trash or gone shows as unlocated).
 comment.project              command  book     Keep projected comments from TODO markers (origin = marker) and checklist items (origin = task) in one prose document in step with it: a new marker or checklist item gets a comment; a marker's open comment whose line is gone is deleted and its resolved one stays; a checklist item's comment follows the line's text and tick (ticked = resolved) and is deleted with the line, resolved or not; deterministic ids merge across devices.
 comment.reanchor             command  book     Put a comment's anchor back where the editor's undo brought its text back (the author's change, synced; it follows the editor's undo, so it is not an entry of the object-level undo).
+comment.restore_body         command  book     Undo or redo a change of a comment's text: bring back `body` while the text still reads `expected`; any other change since refuses it. Status, resolution time and linked conversation are not touched.
 comment.update               command  book     Change a comment: its text, status (resolve / reopen; a checklist item's comment ticks or clears the item in the prose) or linked Agent conversation. A checklist item's comment takes no other text: its words are the line's, so change the line in the prose.
 entry.create                 command  book     Create an entry either residing under `parent` (without membership) or attached to `host` (residing in `host`'s home, `host` itself when `level`, or the root).
 entry.get                    query    shared   Read an entry including retained module values; an entry whose switch is on also carries what lies below it (resolved settings and their sources, children, members).
@@ -119,6 +120,7 @@ relation_type.create         command  book     Create a named relation with a de
 relation_type.delete         command  book     Delete a relation and all its rows in one edit.
 relation_type.list           query    shared   List each relation with its description, direction and rows of live entries. Each row relates every left entry to every right entry.
 relation_type.rename         command  book     Rename a relation. Normalized names are unique within the project.
+relation_type.restore        command  book     Undo or redo one relation write: put back or take out the pairs, definition values and relations it names while they still read as that write left them. Anything changed since refuses the whole step; what others added stays.
 relation_type.set_description command  book     Edit a relation's description, which can contain links to entries.
 relation_type.set_direction  command  book     Change the direction of every row of a relation, preserving its left and right entries.
 tab.move                     command  book     Change a left-sidebar tab's position (「全部」 included).

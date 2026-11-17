@@ -3440,6 +3440,100 @@ expression: json
             "text"
           ],
           "type": "object"
+        }
+      },
+      "properties": {
+        "body": {
+          "$ref": "#/$defs/LinkedText",
+          "description": "The text to bring back."
+        },
+        "book": {
+          "type": "string"
+        },
+        "expected": {
+          "$ref": "#/$defs/LinkedText",
+          "description": "The text as the recorded write left it, links included."
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id",
+        "expected",
+        "body"
+      ],
+      "title": "CommentRestoreBodyIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "comment.restore_body",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Undo or redo a change of a comment's text: bring back `body` while the text still reads `expected`; any other change since refuses it. Status, resolution time and linked conversation are not touched."
+  },
+  {
+    "access": "write",
+    "book_version": 5,
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "EntryTextLink": {
+          "additionalProperties": false,
+          "description": "One entry link, using half-open Unicode scalar offsets in the accompanying text.",
+          "properties": {
+            "end": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "entry": {
+              "type": "string"
+            },
+            "start": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "start",
+            "end",
+            "entry"
+          ],
+          "type": "object"
+        },
+        "LinkedText": {
+          "additionalProperties": false,
+          "description": "Text with ordered, non-overlapping entry links. The saved spelling is the\nfallback when an entry cannot be resolved.",
+          "properties": {
+            "links": {
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/EntryTextLink"
+              },
+              "type": "array"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "text"
+          ],
+          "type": "object"
         },
         "LinkedTextIn": {
           "anyOf": [
@@ -15255,6 +15349,13 @@ expression: json
             "direction": {
               "$ref": "#/$defs/RelationDirection"
             },
+            "hidden_rows": {
+              "description": "IDs of the relation's stored rows that are not shown (a side holds\nonly entries in Recently Deleted, or a merge left a side without an\nentry). A write can still land in or remove them; their members are\nnot listed.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
             "id": {
               "type": "string"
             },
@@ -15366,6 +15467,319 @@ expression: json
       "type": "object"
     },
     "summary": "Rename a relation. Normalized names are unique within the project."
+  },
+  {
+    "access": "write",
+    "book_version": 5,
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "EntryTextLink": {
+          "additionalProperties": false,
+          "description": "One entry link, using half-open Unicode scalar offsets in the accompanying text.",
+          "properties": {
+            "end": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "entry": {
+              "type": "string"
+            },
+            "start": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "start",
+            "end",
+            "entry"
+          ],
+          "type": "object"
+        },
+        "LinkedText": {
+          "additionalProperties": false,
+          "description": "Text with ordered, non-overlapping entry links. The saved spelling is the\nfallback when an entry cannot be resolved.",
+          "properties": {
+            "links": {
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/EntryTextLink"
+              },
+              "type": "array"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "text"
+          ],
+          "type": "object"
+        },
+        "RelationDirection": {
+          "description": "A relation's direction applies to all its rows. Switching it never moves a member.",
+          "enum": [
+            "directed",
+            "symmetric"
+          ],
+          "type": "string"
+        },
+        "RowStep": {
+          "description": "What one write did to one row: the pairs to put back into it (the row\nis made again, with `relation_type` and `created_at`, when it is gone)\nand the pairs to take out of it. Putting a pair back adds no other pair;\ntaking one out takes no other pair (a member goes only when all its\npairs in the row go, the row when a side is left empty).",
+          "properties": {
+            "created_at": {
+              "default": null,
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "put": {
+              "items": {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ],
+                "type": "array"
+              },
+              "type": "array"
+            },
+            "relation_type": {
+              "type": "string"
+            },
+            "take": {
+              "items": {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ],
+                "type": "array"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "id",
+            "relation_type"
+          ],
+          "type": "object"
+        },
+        "StoredRelation": {
+          "description": "A relation's definition as stored.",
+          "properties": {
+            "created_at": {
+              "default": null,
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "description": {
+              "$ref": "#/$defs/LinkedText"
+            },
+            "direction": {
+              "$ref": "#/$defs/RelationDirection"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "description",
+            "direction"
+          ],
+          "type": "object"
+        },
+        "TypeStep": {
+          "description": "What one write did to a relation's definition, as its undo or redo.",
+          "oneOf": [
+            {
+              "description": "Bring the relation back as `relation` when it is not there.",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "keep_with_rows": {
+                  "default": false,
+                  "description": "Carried to the step that takes it away again.",
+                  "type": "boolean"
+                },
+                "op": {
+                  "const": "define",
+                  "type": "string"
+                },
+                "relation": {
+                  "$ref": "#/$defs/StoredRelation"
+                }
+              },
+              "required": [
+                "op",
+                "id",
+                "relation"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "Take the relation away while it reads as `relation` and, once the\nrows of this step are done, no row of its own is left. With\n`keep_with_rows` a relation others put rows in stays; without it\nthat refuses the step.",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "keep_with_rows": {
+                  "default": false,
+                  "type": "boolean"
+                },
+                "op": {
+                  "const": "undefine",
+                  "type": "string"
+                },
+                "relation": {
+                  "$ref": "#/$defs/StoredRelation"
+                }
+              },
+              "required": [
+                "op",
+                "id",
+                "relation"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "Set the name back to `to` while it reads `from`.",
+              "properties": {
+                "from": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "op": {
+                  "const": "name",
+                  "type": "string"
+                },
+                "to": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "op",
+                "id",
+                "from",
+                "to"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "from": {
+                  "$ref": "#/$defs/LinkedText"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "op": {
+                  "const": "description",
+                  "type": "string"
+                },
+                "to": {
+                  "$ref": "#/$defs/LinkedText"
+                }
+              },
+              "required": [
+                "op",
+                "id",
+                "from",
+                "to"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "from": {
+                  "$ref": "#/$defs/RelationDirection"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "op": {
+                  "const": "direction",
+                  "type": "string"
+                },
+                "to": {
+                  "$ref": "#/$defs/RelationDirection"
+                }
+              },
+              "required": [
+                "op",
+                "id",
+                "from",
+                "to"
+              ],
+              "type": "object"
+            }
+          ]
+        }
+      },
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "rows": {
+          "items": {
+            "$ref": "#/$defs/RowStep"
+          },
+          "type": "array"
+        },
+        "types": {
+          "items": {
+            "$ref": "#/$defs/TypeStep"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "RestoreIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "relation_type.restore",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Undo or redo one relation write: put back or take out the pairs, definition values and relations it names while they still read as that write left them. Anything changed since refuses the whole step; what others added stays."
   },
   {
     "access": "write",

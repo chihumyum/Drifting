@@ -662,7 +662,8 @@ op! {
             _ => None,
         };
         let (id, i) = (old.id.clone(), input.clone());
-        let (_, at) = cx.write_book_v3(&slot, Replaces::record(CollectionV3::Comments, &id), move |txn| {
+        let (texts, _) = cx.write_book_v3(&slot, Replaces::record(CollectionV3::Comments, &id), move |txn| {
+            let was = txn.view().comment_body_raw(&id).unwrap_or_default();
             let w = txn.comment(&id)?;
             if let Some(b) = &body { w.linked_body(b)?; }
             if let Some(s) = &status {
@@ -671,20 +672,75 @@ op! {
             if let Some(meta) = &task_meta { w.metadata(Some(meta))?; }
             if let Some(a) = &i.agent_conversation { w.agent_conversation(a.as_deref())?; }
             w.updated_at(Some(now()))?;
-            Ok(())
+            let written = txn.view().comment_body_raw(&id).unwrap_or_default();
+            Ok((was, written))
         })?;
         cx.effect(EffectAction::Updated, "comment", &input.id, None);
-        if editing_text {
-            undo(cx, &slot, &at, vec![key("comments", &input.id)]);
-        } else {
+        // The undo of the text brings back only the text, while it still
+        // reads as written here: a later resolve, conversation or other text
+        // stays (`comment.restore_body`). Status and conversation go back
+        // the way they came, as before.
+        let (was, written) = texts;
+        let text_changed = editing_text && was != written;
+        if text_changed {
+            cx.undo_with(Invocation::new("comment.restore_body", CommentRestoreBodyIn {
+                book: input.book.clone(), id: input.id.clone(), expected: written, body: was,
+            }));
+        }
+        if input.status.is_some() || input.agent_conversation.is_some() {
             cx.undo_with(Invocation::new("comment.update", CommentUpdateIn {
                 book: input.book.clone(), id: input.id.clone(),
                 body: None,
                 status: input.status.as_ref().map(|_| old.status.as_str().to_string()),
                 agent_conversation: input.agent_conversation.as_ref().map(|_| old.agent_conversation.clone()),
             }));
+        } else if !text_changed {
+            cx.undo_nothing();
         }
         Ok(Done { id: input.id })
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+pub struct CommentRestoreBodyIn {
+    pub book: String,
+    pub id: String,
+    /// The text as the recorded write left it, links included.
+    pub expected: LinkedText,
+    /// The text to bring back.
+    pub body: LinkedText,
+}
+
+op! {
+    CommentRestoreBody = "comment.restore_body", Write, Book,
+    "Undo or redo a change of a comment's text: bring back `body` while the text still reads `expected`; any other change since refuses it. Status, resolution time and linked conversation are not touched.",
+    fn(cx, input: CommentRestoreBodyIn) -> Done {
+        let slot = cx.book_v3(&input.book)?;
+        let id: CommentId = pid("comment", &input.id)?;
+        let saved = id.clone();
+        let (expected, body) = (input.expected.clone(), input.body.clone());
+        let (written, _) = cx.write_book_v3(&slot, Replaces::nothing(), move |txn| {
+            let current = txn.view().comment_body_raw(&saved)
+                .ok_or_else(|| WsError::not_found("comment", saved.as_str()))?;
+            if current == body {
+                return Ok(None);
+            }
+            if current != expected {
+                return Err(WsError::Conflict("the comment's text changed after the recorded write".into()));
+            }
+            txn.comment(&saved)?.linked_body(&body)?.updated_at(Some(now()))?;
+            Ok(txn.view().comment_body_raw(&saved))
+        })?;
+        match written {
+            Some(written) => {
+                cx.effect(EffectAction::Updated, "comment", id.as_str(), None);
+                cx.undo_with(Invocation::new("comment.restore_body", CommentRestoreBodyIn {
+                    book: input.book, id: input.id.clone(), expected: written, body: input.expected,
+                }));
+            }
+            None => cx.undo_nothing(),
+        }
+        Ok(Done { id: id.to_string() })
     }
 }
 

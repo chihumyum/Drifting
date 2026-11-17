@@ -977,6 +977,8 @@ impl EntriesTreeWriterV3<'_> {
         self.prune_relations()
     }
 
+    /// Take out of every row the members no longer stored at all, and the
+    /// rows left without a stored entry on a side (`REL-ROW-SIDES`).
     fn prune_relations(&self) -> Result<()> {
         let (_, stored) = crate::catalog::read::forest_entry_status(&self.tree);
         let mut txn = BookTxnV3 { view: self.view };
@@ -1660,6 +1662,33 @@ impl<'a> BookTxnV3<'a> {
         Ok(RelationRowWriter {
             map: self.entity(book_v3::RELATIONS, id.as_str())?,
         })
+    }
+
+    /// What a merge can leave of the relation rows, cleaned by the next
+    /// relation write (`REL-ROW-SIDES`): members whose entry was purged on
+    /// another device while this one added them, and rows a side of which
+    /// has no stored entry left (two devices each removing the last ones).
+    /// Readers already skip both; members in Recently Deleted stay.
+    pub fn prune_relation_rows(&mut self) -> Result<()> {
+        self.entries().prune_relations()
+    }
+
+    /// Start row `id` afresh for `relation`: a row taken out earlier can
+    /// bring its old container state back with the same key, so every
+    /// member it still holds is removed before members are written.
+    pub fn fresh_relation_row(
+        &mut self,
+        id: &RelationId,
+        relation: &RelationTypeId,
+        time: Option<Timestamp>,
+    ) -> Result<RelationRowWriter> {
+        let row = self.relation_row(id)?;
+        row.relation_type(relation)?.created_at(time)?;
+        let members = row.map.ensure_mergeable_map("members")?;
+        for key in members.keys().collect::<Vec<_>>() {
+            members.delete(key.as_str())?;
+        }
+        Ok(row)
     }
 
     /// Add one pair using the shared placement rules. The caller supplies

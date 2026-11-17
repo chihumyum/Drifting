@@ -253,14 +253,18 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "REL-ROW-SIDES",
-        "关系行的两侧互斥且都至少有一个活条目",
+        "关系行的两侧互斥且都至少有一个活条目；合并留下的空边、指着别的设备已清除的条目的成员读作不在，这样的行不算「最后一行」，下一次关系写入顺手清掉",
         [Structure, Command, Read],
-        "逐条目合并的 members 映射；回收时只隐藏成员，清除时从行中移除",
+        "逐条目合并的 members 映射；回收时只隐藏成员，清除时从行中移除。合并以后：dr_model::v3::kept_relation_rows 去掉已不存在的条目、丢掉有一边空了的行（写入按它规划、按它数行），visible_relation_rows 再去掉最近删除里的成员；每条关系写入在同一次提交里先调 BookTxnV3::prune_relation_rows 清掉这两样（不进撤销）。只剩最近删除里的条目的一边照旧算一行，数据留着",
         [
             "a_row_keeps_two_disjoint_entry_sides_and_does_not_duplicate_pairs",
             "a_concurrent_member_lands_on_only_one_side",
             "trash_hides_only_the_trashed_members_and_restore_brings_the_rows_back",
-            "purge_prunes_members_and_empty_rows_without_purging_the_relation"
+            "purge_prunes_members_and_empty_rows_without_purging_the_relation",
+            "same_named_relations_read_as_the_earliest",
+            "a_row_two_removals_emptied_does_not_count_and_is_cleaned",
+            "a_member_purged_on_the_other_device_reads_gone_and_is_cleaned",
+            "a_row_whose_side_is_all_in_recently_deleted_keeps_counting"
         ]
     ),
     inv!(
@@ -274,20 +278,24 @@ pub const INVARIANTS: &[Invariant] = &[
         "REL-TYPE-EXISTS",
         "关系行属于存在的关系",
         [Command, Read],
-        "关系删除时同次删除行；只读存在关系的行",
+        "关系删除时同次删除行；删掉最后一行（只数算数的行）时同次删掉关系，一步撤销；撤销建一对时，同一步建的关系只在没有别人的行时一起去掉；只读存在关系的行",
         [
             "deleting_the_last_row_and_its_linked_description_undoes_in_one_step",
-            "a_relation_row_without_its_definition_does_not_project"
+            "a_relation_row_without_its_definition_does_not_project",
+            "undoing_a_pair_with_a_new_relation_keeps_the_relation_others_put_rows_in"
         ]
     ),
     inv!(
         "REL-SEMANTIC-UNIQUE",
-        "同一关系的同一对只算一次",
+        "同一关系的同一对只算一次；两台设备同时给同一对开了行，合并以后两行都列着、这一对算一次，删掉它两行里都没了",
         [Command, Read],
-        "命令用已有行或拒绝重复；双向读对时按无向对去重，保留两侧的原值",
+        "命令用已有行或拒绝重复；双向读对时按无向对去重，保留两侧的原值。合并出来的重复同样处理：列表保留各行，计数和图按 dr_model::v3::pair_key 算一对；移出条目、删行时 plan_pair_removal 把同样的对从这种关系的别的行里一起拿掉，撤销放回每一行（只拿掉所有对都在里面的成员；两边都还和别的条目成对、单独拿不掉这一对的行留着它）",
         [
             "writing_an_existing_pair_returns_the_row_without_a_write",
-            "direction_switch_keeps_both_sides_and_projects_reciprocal_pairs_once"
+            "direction_switch_keeps_both_sides_and_projects_reciprocal_pairs_once",
+            "shown_rows_keep_repeated_pairs_and_drop_a_side_left_in_the_trash",
+            "a_pair_leaves_every_row_that_holds_it_alone",
+            "the_same_pair_in_two_rows_reads_once_and_leaves_both_rows_together"
         ]
     ),
     inv!(
@@ -299,10 +307,15 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "RT-NAME",
-        "规范名 = 去首尾空白 + ASCII 小写，每本书里不重复",
+        "规范名 = 去首尾空白 + ASCII 小写，每本书里不重复；两台设备各建或改成同一个名字，合并以后读作一种：最早建的那一种",
         [Structure, Command, Read],
-        "RelationTypeWriterV3::name 同时写规范名，修改前拒绝重名",
-        ["duplicate_normalized_relation_name_is_refused_on_rename"]
+        "RelationTypeWriterV3::name 同时写规范名，修改前拒绝重名（比所有存着的定义）。读取：dr_model::v3::relation_type_winners 按 (created_at, id) 取最早的那一种显示，别的那几种的行读作它的行（BookViewV3::relation_types 只给它，relations 把行指到它）；命令把哪一个 id 都当它，改名同次改这一组的每个定义（仍读作一种），删除同次删这一组的定义和行；帮手按名字找只找显示的那一种，不报歧义",
+        [
+            "duplicate_normalized_relation_name_is_refused_on_rename",
+            "same_named_relations_read_as_the_earliest",
+            "two_relations_with_one_name_read_as_the_earliest_and_move_together",
+            "the_agent_finds_one_relation_by_a_name_two_devices_gave_two"
+        ]
     ),
     inv!(
         "REL-GENESIS-EMPTY",

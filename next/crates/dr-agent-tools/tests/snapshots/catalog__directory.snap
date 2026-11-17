@@ -189,7 +189,7 @@ relation_row.delete book 9ad2e3e7fa7aa5f2b440e5d6855efbd2a8cd07cd8f700a87fb7ddc4
 relation_row.remove_entry book da6615d43ed54680b2c774c53425cc74ced8530b55974f3143802633a0283cdb
 relation_type.create book ae3a2d601c3c5d6b24ef9a765a8a982e4cdb13910a9105c30debb3835c9fd729
 relation_type.delete book f40c296ab5eb14e6388fff8a1be55507854f9f9df38b8ed06f8a334b4058b7c2
-relation_type.list shared bb9bc07dbd68829133767d110607b5ad5bc4145e5efdef619760ef21f880784e
+relation_type.list shared 892d3b661b2ec953f679ecb19e5fbb7497f779c4951427052cc598585f495d31
 relation_type.rename book 993241cc0ffd8fb6882970b3321a09cebe069c9fd3b2e5d199412906ea473625
 relation_type.set_description book 357bb4c2089eaba379563ef4339098c16defd273454c9da562c48b36ce8fdc92
 relation_type.set_direction book f13d9a825e5fb842c5a4a38a559a27221a63f2fa71ad31f0d8c2eab59182aaf5
@@ -218,6 +218,7 @@ book.shelf: no current-book input boundary
 book.trash: book lifecycle belongs to the library
 comment.delete: comment deletion is reserved for the author
 comment.project: storage, editor, or derived-state maintenance
+comment.restore_body: scoped comment text undo is internal until K6 provides a guarded facade
 entry_snapshot.capture: entry snapshots need facade coverage and guarded whole-entry restore wiring
 entry_snapshot.create: entry snapshots need facade coverage and guarded whole-entry restore wiring
 entry_snapshot.create_with_receipt: entry snapshots need facade coverage and guarded whole-entry restore wiring
@@ -237,6 +238,7 @@ project_template.remove: a project template reaches the Agent through list, get 
 project_template.update: a project template reaches the Agent through list, get and save only; importing, exporting, editing and the community are the author's
 project_template.working_copies: a project template reaches the Agent through list, get and save only; importing, exporting, editing and the community are the author's
 recent.touch: storage, editor, or derived-state maintenance
+relation_type.restore: scoped relation undo is internal until K6 provides a guarded facade
 timeline_view.add_lane: local timeline edits need exact lane, placement, and pin read coverage
 timeline_view.move_lane: local timeline edits need exact lane, placement, and pin read coverage
 timeline_view.remove_lane: local timeline edits need exact lane, placement, and pin read coverage

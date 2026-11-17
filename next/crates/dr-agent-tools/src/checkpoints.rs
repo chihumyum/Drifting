@@ -110,11 +110,17 @@ fn selection(ws: &Workspace, key: &TurnKey, call: &ResolvedCall) -> Result<Selec
         }
     }
     if !relations.is_empty() || !relation_types.is_empty() {
+        // A row of a relation a merge reads as another one (`RT-NAME`) is
+        // that relation's row.
+        let winners = view.relation_type_winners();
         for row in view.relations_raw() {
+            let reads_as = winners
+                .get(&row.relation_type)
+                .unwrap_or(&row.relation_type);
             if relations.iter().any(|id| id == row.id.as_str())
                 || relation_types
                     .iter()
-                    .any(|id| id == row.relation_type.as_str())
+                    .any(|id| id == row.relation_type.as_str() || id == reads_as.as_str())
             {
                 ids.extend(row.left.union(&row.right).map(ToString::to_string));
             }
