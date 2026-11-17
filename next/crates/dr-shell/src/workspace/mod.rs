@@ -428,6 +428,8 @@ pub struct Workspace {
     companion: std::cell::RefCell<HashMap<&'static str, Option<pages::LeftPanel>>>,
     /// The 素材库 tab a module draws, per pane slug (as the 帮手 tab).
     library_panel: std::cell::RefCell<HashMap<&'static str, Option<pages::LeftPanel>>>,
+    /// The 「关系」 tab a module draws, per pane slug (as the 素材库 tab).
+    relations_panel: std::cell::RefCell<HashMap<&'static str, Option<pages::LeftPanel>>>,
     /// The notice at the bottom of the window, and the timer that ends it.
     pub toast: Option<toast::Toast>,
     toast_timer: Option<Task<()>>,
@@ -626,6 +628,7 @@ impl Workspace {
             structure_undo: undo::StructureUndo::default(),
             companion: Default::default(),
             library_panel: Default::default(),
+            relations_panel: Default::default(),
             outline_rails: Default::default(),
             unchecked: Default::default(),
             caret_paragraph: None,
@@ -1314,6 +1317,7 @@ impl Workspace {
         self.v3_home = None;
         self.companion.borrow_mut().clear();
         self.library_panel.borrow_mut().clear();
+        self.relations_panel.borrow_mut().clear();
         self.fill.reset();
         self.want_new_template = false;
         self.pending_created_template = None;
@@ -1818,6 +1822,12 @@ impl Workspace {
                 ws.toggle_projects(window, cx)
             }),
         )
+        // RL: a relation made in place in the prose shows its row in 「关系」.
+        .on_action(cx.listener(
+            |ws, a: &crate::actions::RevealRelationRow, window, cx| {
+                ws.reveal_relation_row(&a.row, window, cx)
+            },
+        ))
         // ⌘Z / ⇧⌘Z outside the prose: the book's commands (`undo.rs`).
         .on_action(cx.listener(|ws, _: &crate::actions::Undo, window, cx| {
             ws.on_edit_undo(false, window, cx)
