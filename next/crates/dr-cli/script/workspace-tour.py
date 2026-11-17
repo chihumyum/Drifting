@@ -4,8 +4,9 @@ From next/, build drifting with debug-bridge and dr-cli, then run:
 python3 -I crates/dr-cli/script/workspace-tour.py --out <empty-dir>
 
 Uses the existing bridge's actual AX buttons and platform key events. The
-tour has no dedicated bridge read API; its Dialog titles identify the six
-steps. Ring positions, fallback sentences and printed 1/6 .. 6/6 counts must
+tour has no dedicated bridge read API; its card titles identify the six
+steps. macOS exposes GPUI's Dialog card as the native AX role Window.
+Ring positions, fallback sentences and printed 1/6 .. 6/6 counts must
 be reviewed in the saved screenshots. This script does not assert pixels,
 pretend page.text reads UI text, or change product APIs for acceptance.
 """
@@ -95,15 +96,15 @@ class Window:
 
     def step(self, number):
         title = TITLES[number - 1]
-        card = self.app("ui.find", label=title, role="Dialog", count=1, timeout_ms=12000)
+        card = self.app("ui.find", label=title, role="Window", count=1, timeout_ms=12000)
         self.app("ui.find", label="Skip tour", role="Button", count=1,
-                 within={"label": title, "role": "Dialog"})
+                 within={"label": title, "role": "Window"})
         return card["nodes"][0]
 
     def next(self, number):
         self.step(number)
         self.press("Done" if number == 6 else "Next",
-                   within={"label": TITLES[number - 1], "role": "Dialog"})
+                   within={"label": TITLES[number - 1], "role": "Window"})
         if number < 6:
             self.step(number + 1)
 
@@ -113,7 +114,7 @@ class Window:
             # instant with no card before the timer has had a chance to run.
             self.app("ui.wait", until="time", ms=1600)
         for title in TITLES:
-            self.app("ui.find", label=title, role="Dialog", absent=True, timeout_ms=2000)
+            self.app("ui.find", label=title, role="Window", absent=True, timeout_ms=2000)
 
     def seen(self):
         saved = json.loads((self.data / "settings.json").read_text(encoding="utf-8"))
@@ -258,7 +259,7 @@ def inspect(w):
     w.open_book(first)
     w.step(1)
     w.shot("14-reset-same-book-replayed")
-    w.press("Skip tour", within={"label": TITLES[0], "role": "Dialog"})
+    w.press("Skip tour", within={"label": TITLES[0], "role": "Window"})
     w.no_tour()
     until(w.seen, "skipped replay written to device settings")
 
