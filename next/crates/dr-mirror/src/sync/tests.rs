@@ -404,3 +404,96 @@ fn a_new_file_after_an_unacknowledged_import_cannot_replay_its_text() {
     );
     assert_eq!(f.pass().run().unwrap().merged.len(), 0);
 }
+
+#[test]
+#[cfg(unix)]
+fn a_raced_save_remains_visible_when_preservation_or_its_directory_sync_fails() {
+    for sync_failure in [false, true] {
+        let f = Fixture::new();
+        let path = f.path();
+        let folder = f.pass().folder(&f.book).unwrap().unwrap();
+        if !sync_failure {
+            fs::write(folder.join(".drifting/preserved"), b"blocked").unwrap();
+        }
+        f.ws.call(&Actor::User, "prose.replace", json!({
+            "doc":DocId::Body(f.id.clone()).to_string(), "find":"灯还亮着。", "replace":"App已经改过。"
+        })).unwrap();
+        let target = path.clone();
+        disk::seam::BEFORE_EXCHANGE.set(Some(Box::new(move |path| {
+            if path == target {
+                fs::write(path, b"outside after the final check").unwrap();
+                disk::seam::PUBLISH_SYNC_FAILS.set(sync_failure);
+            }
+        })));
+        let report = f.pass().run().unwrap();
+        disk::seam::BEFORE_EXCHANGE.set(None);
+        disk::seam::PUBLISH_SYNC_FAILS.set(false);
+        let kept = report
+            .issues
+            .iter()
+            .find_map(|issue| issue.kept.clone())
+            .expect("captured bytes need a visible receipt even when moving them fails");
+        assert_eq!(fs::read(&kept).unwrap(), b"outside after the final check");
+        assert_eq!(
+            kept.starts_with(folder.join(".drifting/preserved")),
+            sync_failure
+        );
+        assert!(
+            report.preserved.is_empty(),
+            "a failed preservation is not counted as a completed move"
+        );
+        assert!(fs::read_to_string(&path).unwrap().contains("App已经改过。"));
+        let again = f.pass().run().unwrap();
+        assert!(
+            again
+                .issues
+                .iter()
+                .any(|issue| issue.kept.as_ref() == Some(&kept))
+        );
+        assert_eq!(fs::read(&kept).unwrap(), b"outside after the final check");
+    }
+}
+
+#[test]
+fn a_kept_receipt_survives_a_later_error_aborting_the_book_pass() {
+    let f = Fixture::new();
+    novel_entry(
+        &f.ws,
+        f.book.as_str(),
+        "tpl-group",
+        "等待校验的空分组",
+        None,
+    );
+    f.pass().run().unwrap();
+    let folder = f.pass().folder(&f.book).unwrap().unwrap();
+    let directories = f.ledger().project().unwrap().unwrap().directories;
+    let empty = directories
+        .iter()
+        .map(|rel| folder.join(rel))
+        .find(|path| path.is_dir() && fs::read_dir(path).unwrap().next().is_none())
+        .expect("the added empty level has its directory");
+    fs::remove_dir(&empty).unwrap();
+    fs::write(&empty, b"block directory recreation after prose processing").unwrap();
+    let original = fs::read_to_string(f.path()).unwrap();
+    let changed = original.replace(&format!("drifting-id: {}", f.id), "drifting-id: invalid");
+    fs::write(f.path(), &changed).unwrap();
+    let report = f.pass().run().unwrap();
+    assert!(
+        !report.seen.contains_key(&f.book),
+        "the late directory error must abort settle"
+    );
+    let durable = f.ledger().standing().unwrap();
+    assert_eq!(durable.len(), 1, "the kept receipt must precede settle");
+    let kept = folder.join(&durable[0].kept);
+    assert_eq!(fs::read_to_string(&kept).unwrap(), changed);
+    fs::remove_file(&empty).unwrap();
+    fs::create_dir(empty).unwrap();
+    assert!(
+        f.pass()
+            .run()
+            .unwrap()
+            .issues
+            .iter()
+            .any(|issue| issue.kept.as_ref() == Some(&kept))
+    );
+}

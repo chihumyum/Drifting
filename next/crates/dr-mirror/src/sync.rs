@@ -581,7 +581,7 @@ impl BookPass<'_> {
         problem: Problem,
         kept: PathBuf,
     ) -> Result<()> {
-        self.standing.push(Standing {
+        let standing = Standing {
             doc: id.map(|id| DocId::Body(id.clone()).to_string()),
             rel: rel.into(),
             problem,
@@ -590,7 +590,18 @@ impl BookPass<'_> {
                 .map_err(|e| SyncError::Invalid(e.to_string()))?
                 .to_string_lossy()
                 .into_owned(),
-        });
+        };
+        if self.standing.contains(&standing) {
+            return Ok(());
+        }
+        // A later file/copy error may abort this book before settle runs.
+        // The receipt must already survive that abort (or a process exit).
+        let mut durable = self.ledger.standing()?;
+        if !durable.contains(&standing) {
+            durable.push(standing.clone());
+            self.ledger.put_standing(&durable)?;
+        }
+        self.standing.push(standing);
         self.issue_kept(book, id, rel, problem, Some(kept));
         Ok(())
     }
@@ -618,8 +629,25 @@ impl BookPass<'_> {
         displaced: Option<&Path>,
     ) -> Result<()> {
         if let Some(displaced) = displaced {
-            let kept = disk::preserve_displaced(&self.dir, rel, &self.stamp, displaced)?;
-            self.report.preserved.push(kept.clone());
+            let kept = match disk::preserve_displaced(&self.dir, rel, &self.stamp, displaced) {
+                Ok(kept) => {
+                    self.report.preserved.push(kept.clone());
+                    kept
+                }
+                Err(err) => {
+                    let retained = disk::retained_entry(&err).unwrap_or(displaced);
+                    if fs::symlink_metadata(retained).is_err() {
+                        return Err(err.into());
+                    }
+                    log::warn!(
+                        "Markdown folder: displaced save retained at {}: {err}",
+                        retained.display()
+                    );
+                    // Do not count this as a successful move into preserved.
+                    // The standing issue names the actual retained entry.
+                    retained.to_path_buf()
+                }
+            };
             self.record_kept(project, id, rel, Problem::StaleBase, kept)?;
         }
         Ok(())

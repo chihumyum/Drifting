@@ -396,7 +396,7 @@ fn restore_moved(held: &Path, path: &Path) -> io::Result<()> {
 }
 
 #[derive(Debug, thiserror::Error)]
-#[error("unsafe Markdown folder entry kept at {path}: {cause}")]
+#[error("Markdown folder entry kept at {path}: {cause}")]
 struct RetainedEntry {
     path: PathBuf,
     cause: io::Error,
@@ -534,18 +534,27 @@ fn publish_new(temp: &Path, path: &Path) -> io::Result<Option<Stat>> {
     match linked {
         Ok(()) => {
             fs::remove_file(temp)?;
-            dr_store::file_io::sync_directory(parent)?;
+            sync_published(parent)?;
             Ok(None)
         }
         Err(err) if link_unsupported(&err) => {
             #[cfg(test)]
             seam::fell_back(path);
             let stat = publish_new_without_link(temp, path)?;
-            dr_store::file_io::sync_directory(parent)?;
+            sync_published(parent)?;
             Ok(stat)
         }
         Err(err) => Err(err),
     }
+}
+
+#[cfg(unix)]
+fn sync_published(parent: &Path) -> io::Result<()> {
+    #[cfg(test)]
+    if seam::PUBLISH_SYNC_FAILS.get() {
+        return Err(io::Error::other("test: published directory sync failed"));
+    }
+    dr_store::file_io::sync_directory(parent)
 }
 
 #[cfg(unix)]
@@ -641,7 +650,24 @@ pub fn preserve_displaced(
         match publish_new(displaced, &path) {
             Ok(_) => return Ok(path),
             Err(err) if err.kind() == io::ErrorKind::AlreadyExists => {}
-            Err(err) => return Err(err),
+            Err(err) => {
+                // Publication can consume the held name before syncing its
+                // directory fails. Report where those bytes actually are.
+                let retained = if fs::symlink_metadata(displaced).is_ok() {
+                    displaced.to_path_buf()
+                } else if fs::symlink_metadata(&path).is_ok() {
+                    path
+                } else {
+                    return Err(err);
+                };
+                return Err(io::Error::new(
+                    err.kind(),
+                    RetainedEntry {
+                        path: retained,
+                        cause: err,
+                    },
+                ));
+            }
         }
     }
     Err(io::Error::from(io::ErrorKind::AlreadyExists))
@@ -773,6 +799,7 @@ pub(crate) mod seam {
 
     thread_local! {
         /// The errno every hard link fails with.
+        pub static PUBLISH_SYNC_FAILS: Cell<bool> = const { Cell::new(false) };
         pub static EXCHANGE_FAILS: Cell<bool> = const { Cell::new(false) };
         pub static BEFORE_PUBLISH: RefCell<Option<Hook>> = const { RefCell::new(None) };
         pub static BEFORE_REMOVE: RefCell<Option<Hook>> = const { RefCell::new(None) };
