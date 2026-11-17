@@ -108,6 +108,7 @@ cargo run -p dr-view-sea --features capture --example tour-capture -- ../docs/ru
 - **内置样书**（`dr-samples`）：新库只写一次；删掉（永久删除）不会回来；库里有书（含最近删除、以前永久删除过的）就不写；中途失败会把已写的那本清掉，下次重试成功；被打断的一次下次会先清掉再写；失败三次以后不再试。`dr-testkit` 的种子摘要和全部测试没变。
 - **导览引擎的 GPUI 测试平台**（`dr-view-sea/tests/tour.rs`）：固定坐标的 mock 控件检验延迟、跳过未画控件、收栏 fallback、圈跟着控件移动、覆盖后从头开始、完成/跳过/重放和快捷键。它不证明真实外壳的控件位置。
 - **真实宿主的 GPUI 测试平台**（`dr-view-home/tests/workspace_tour.rs`，视觉打磨接管中新增的五条回归，定向已通过）：装入真实 Workspace、Home、左右栏与导览，检查六步实际 bounds、左右栏 fallback、单独 Agent 标签、KB 焦点、设备 SettingsFile 持久化、同书重新显示及导览中换书；没有新建动作的真实项目跳过空行，窗口变窄后按新一帧坐标追踪原步骤。此文件是测试平台集成测试，不是真窗口。
+- **普通动画补查**：真窗口发现展开左栏的第一帧会跳过 Tabs；展开状态已改变，但内容仍为零宽，原有 fallback 提前撤下。侧栏现在在展开动画中保留月牙锚点，真实 Tabs/Agent 一旦可见就优先指向该控件。`opening_sidebars_keeps_the_step_through_the_real_reveal_motion` 在真实宿主关闭减少动画，检查两侧零宽起点、过渡与完成；该新增回归及原生复验尚待运行，不以此前减少动画测试冒充通过。
 - **原生窗口**：本批六步须在最终合并树由 F8 debug bridge 另验；当前没有据本批原生运行写入通过。早先离屏合成截图不算这一轮真实宿主验收。
 
 ## 测量（只作参考：测的时候机器负载 45–55，12 核）

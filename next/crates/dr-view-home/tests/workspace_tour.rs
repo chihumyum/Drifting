@@ -153,6 +153,74 @@ fn secondary(key: &str) -> String {
 }
 
 #[gpui::test]
+fn opening_sidebars_keeps_the_step_through_the_real_reveal_motion(cx: &mut TestAppContext) {
+    struct Unfreeze;
+    impl Drop for Unfreeze {
+        fn drop(&mut self) {
+            dr_ui::anim::freeze(None);
+        }
+    }
+
+    let (_dir, lib, [book, _]) = fixture();
+    let (_ws, cx) = setup(cx, &lib, &book, SettingsFile::in_memory());
+    let first = step(cx, "tabs");
+    if !first.fallback {
+        click(cx, "toggle-left");
+    }
+    assert!(step(cx, "tabs").fallback);
+    cx.update(|_, cx| {
+        Settings::update(cx, |s| {
+            s.set(registry::REDUCE_MOTION, json!(false), None).unwrap();
+        });
+    });
+    let _unfreeze = Unfreeze;
+    let mut now = Instant::now();
+    dr_ui::anim::freeze(Some(now));
+    frames(cx);
+
+    for (id, toggle, control) in [
+        ("tabs", "toggle-left", "v3-tab-row"),
+        ("agent", "toggle-right", "right-primary-tabs-Agent"),
+    ] {
+        assert!(step(cx, id).fallback);
+        // At the exact start the real sidebar has zero visible width, so
+        // only the moon exists. Reduced motion never exercises this frame.
+        click(cx, toggle);
+        assert_eq!(current(cx).unwrap().id, id, "opening must not advance");
+        assert!(current(cx).unwrap().fallback);
+        assert_eq!(
+            current(cx).unwrap().target,
+            cx.debug_bounds(toggle).unwrap()
+        );
+        for elapsed in [1, 100, 500] {
+            dr_ui::anim::freeze(Some(now + Duration::from_millis(elapsed)));
+            frames(cx);
+            assert_eq!(current(cx).unwrap().id, id, "during the reveal");
+        }
+        let opened = current(cx).unwrap();
+        assert!(!opened.fallback);
+        assert_eq!(opened.target, cx.debug_bounds(control).unwrap());
+
+        now += Duration::from_secs(1);
+        dr_ui::anim::freeze(Some(now));
+        click(cx, toggle);
+        now += Duration::from_secs(1);
+        dr_ui::anim::freeze(Some(now));
+        frames(cx);
+        assert_eq!(current(cx).unwrap().id, id, "closing must not advance");
+        assert!(current(cx).unwrap().fallback);
+
+        if id == "tabs" {
+            for next in ["moons", "create", "timeline", "agent"] {
+                click(cx, "tour-next");
+                step(cx, next);
+            }
+        }
+    }
+    assert!(!cx.update(|_, cx| tour::is_seen(cx)));
+}
+
+#[gpui::test]
 fn six_steps_follow_real_controls_fallbacks_and_keyboard_focus(cx: &mut TestAppContext) {
     let (_dir, lib, [book, _]) = fixture();
     let (ws, cx) = setup(cx, &lib, &book, SettingsFile::in_memory());
