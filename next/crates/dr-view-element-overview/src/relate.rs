@@ -71,6 +71,8 @@ impl RelatePoint {
 pub struct RelateNodeInput {
     pub id: String,
     pub name: String,
+    /// The card's measured world half-size, also used by its rendered edge.
+    pub half: (f64, f64),
     pub anchor: RelatePoint,
 }
 
@@ -189,7 +191,7 @@ pub fn relate_anchors(nodes: &[RelateNodeInput], aspect: f64) -> BTreeMap<String
         max_x = max_x.max(node.anchor.x);
         min_y = min_y.min(node.anchor.y);
         max_y = max_y.max(node.anchor.y);
-        let (hw, hh) = relate_cell_half(&node.name);
+        let (hw, hh) = node.half;
         cells += (hw * 2.0 + COLLIDE_MARGIN_X) * (hh * 2.0 + COLLIDE_MARGIN_Y);
     }
     let width = (max_x - min_x).max(1.0);
@@ -276,7 +278,7 @@ pub fn create_relate_simulation(input: RelateSimulationInput<'_>) -> RelateSimul
                 .unwrap_or(node.anchor);
             let pin = input.pins.get(&node.id).copied();
             let anchor = anchors.get(&node.id).copied().unwrap_or(node.anchor);
-            let (hw, hh) = relate_cell_half(&node.name);
+            let (hw, hh) = node.half;
             RelateSimNode {
                 id: node.id.clone(),
                 index,
@@ -963,21 +965,25 @@ mod tests {
             RelateNodeInput {
                 id: "el-1".into(),
                 name: "陈石".into(),
+                half: relate_cell_half("陈石"),
                 anchor: RelatePoint::new(-180.0, -90.0),
             },
             RelateNodeInput {
                 id: "el-2".into(),
                 name: "沈青".into(),
+                half: relate_cell_half("沈青"),
                 anchor: RelatePoint::new(160.0, -90.0),
             },
             RelateNodeInput {
                 id: "el-3".into(),
                 name: "北镇钟楼".into(),
+                half: relate_cell_half("北镇钟楼"),
                 anchor: RelatePoint::new(-120.0, 110.0),
             },
             RelateNodeInput {
                 id: "el-4".into(),
                 name: "银怀表".into(),
+                half: relate_cell_half("银怀表"),
                 anchor: RelatePoint::new(140.0, 110.0),
             },
         ]
@@ -1007,6 +1013,23 @@ mod tests {
                 count: 0,
             },
         ]
+    }
+
+    #[test]
+    fn collision_uses_the_measured_card_half_size() {
+        let mut nodes = sample_nodes();
+        nodes[0].half = (88.0, 29.0);
+        let springs = sample_springs();
+        let empty = BTreeMap::new();
+        let sim = create_relate_simulation(RelateSimulationInput {
+            nodes: &nodes,
+            springs: &springs,
+            start: &empty,
+            pins: &empty,
+            aspect: 1.6,
+            alpha: 1.0,
+        });
+        assert_eq!((sim.nodes()[0].hw, sim.nodes()[0].hh), nodes[0].half);
     }
 
     #[test]

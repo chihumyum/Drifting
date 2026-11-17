@@ -1095,3 +1095,173 @@ fn directed_graph_arrows_are_painted_towards_both_targets_after_zoom_and_pan(
         assert!((f32::from(after.y - before.y) - 15.0).abs() < 0.01);
     }
 }
+
+/// The sample's short names must fit in the actual text layout at the
+/// existing Find-to-focus zoom, including its largest mention-weight mark.
+#[gpui::test]
+fn graph_short_names_keep_their_glyph_width_when_zoomed_out(cx: &mut TestAppContext) {
+    use dr_ui::fonts::{Role, weight};
+    use gpui::{TextRun, px};
+    cx.executor().allow_parking();
+    let dir = tempfile::tempdir().unwrap();
+    let store = dr_store::Library::open(dir.path(), dr_workspace::library_options("test")).unwrap();
+    let seed = dr_testkit::samples::a_q_v3().unwrap();
+    let book = seed.book_id().to_string();
+    dr_testkit::seed::write_book_v3(&store, &seed).unwrap();
+    store.rebuild_stale_indexes().unwrap();
+    let lib = Library::open(store, WorkspaceOptions::default()).unwrap();
+    let entries = lib
+        .call(&Actor::User, "entry.list", json!({"book":book,"all":true}))
+        .unwrap()["output"]
+        .as_array()
+        .unwrap()
+        .clone();
+    let [a, b] = ["阿Q", "赵太爷"].map(|title| {
+        entries.iter().find(|e| e["title"] == title).unwrap()["id"]
+            .as_str()
+            .unwrap()
+            .to_owned()
+    });
+    lib.call(&Actor::User,"relation_row.create_pair",json!({"book":book,"left":a,"right":b,"new_type":{"name":"Graph legibility","direction":"directed"}})).unwrap();
+    init_test_shell(lib, book, cx);
+    let (shell, vcx) = cx.add_window_view(Workspace::new);
+    wait(vcx, |cx| {
+        shell.read_with(cx, |ws, _| ws.book.v3().is_some() && ws.book_memory_ready())
+    });
+    vcx.update(|window, cx| shell.update(cx, |ws, cx| ws.enter_fill(FillPlace::Left, window, cx)));
+    wait(vcx, |cx| {
+        shell.read_with(cx, |ws, _| ws.v3_sidebar.is_some())
+    });
+    vcx.update(|_, cx| {
+        let ws = shell.read(cx);
+        let root = ws
+            .book
+            .v3()
+            .unwrap()
+            .project
+            .tabs
+            .iter()
+            .find(|t| t.mount == dr_workspace::commands::v3::types::TabMount::Root)
+            .unwrap()
+            .id
+            .clone();
+        ws.v3_sidebar.clone().unwrap().update(cx, |side, cx| {
+            side.choose(&root, cx);
+            side.choose_fill_layout(dr_shell::v3::tab_fill::FillLayout::Relation, cx);
+        });
+    });
+    wait(vcx, |cx| {
+        cx.update(|_, cx| {
+            dr_view_element_overview::current(cx).is_some_and(|v| v.read(cx).is_ready())
+        })
+    });
+    let ov = vcx.update(|_, cx| dr_view_element_overview::current(cx).unwrap());
+    wait(vcx, |cx| {
+        shell.read_with(cx, |ws, _| ws.fill_progress(FillPlace::Left) >= 1.0)
+    });
+    vcx.update(|window, cx| ov.update(cx, |v, cx| v.fly_to_element(&a, window, cx)));
+    let selectors: Vec<(&'static str, &'static str, &str)> = [(&a, "阿Q"), (&b, "赵太爷")]
+        .into_iter()
+        .map(|(id, name)| {
+            let card: &'static str = Box::leak(format!("se-relate-card-{id}").into_boxed_str());
+            let label: &'static str = Box::leak(format!("se-relate-name-{id}").into_boxed_str());
+            (card, label, name)
+        })
+        .collect();
+    for zoom in [0.9, 0.65, 0.4, 1.25] {
+        let positions = ov.read_with(vcx, |v, _| position_bits(v.relate_positions()));
+        vcx.update(|_, cx| ov.update(cx, |v, cx| v.set_zoom(zoom, cx)));
+        wait(vcx, |cx| {
+            selectors
+                .iter()
+                .all(|(_, label, _)| cx.debug_bounds(*label).is_some())
+        });
+        assert_eq!(
+            ov.read_with(vcx, |v, _| position_bits(v.relate_positions())),
+            positions,
+            "zoom must not rerun layout"
+        );
+        for (card, label, name) in &selectors {
+            let card = vcx.debug_bounds(*card).unwrap();
+            let label = vcx.debug_bounds(*label).unwrap();
+            let width = vcx.update(|window, _| {
+                let run = TextRun {
+                    len: name.len(),
+                    font: Role::Ui.font(weight::REGULAR),
+                    color: gpui::black(),
+                    background_color: None,
+                    underline: None,
+                    strikethrough: None,
+                };
+                window
+                    .text_system()
+                    .shape_line((*name).into(), px(11.5), &[run], None)
+                    .width()
+            });
+            assert!(
+                label.size.width + px(0.01) >= width,
+                "{name} needs {width:?}, actual label {label:?} at zoom {zoom}"
+            );
+            assert!(
+                card.contains(&label.origin) && card.contains(&label.bottom_right()),
+                "the full name stays inside its card"
+            );
+        }
+    }
+}
+
+#[gpui::test]
+fn graph_opens_a_legal_multiline_title_without_changing_its_stored_text(cx: &mut TestAppContext) {
+    use dr_ui::fonts::{Role, weight};
+    use gpui::{TextRun, px};
+    cx.executor().allow_parking();
+    let (_dir, lib, books) = setup_seed_fixture(dr_testkit::seed::Preset::Tiny);
+    let book = books[0].clone();
+    let entries = dr_testkit::seed::acceptance::entries_by_template(&lib, &book, "tpl-character");
+    let id = entries[0]["id"].as_str().unwrap().to_owned();
+    let title = "阿Q\n赵太爷";
+    lib.call(
+        &Actor::User,
+        "entry.update",
+        json!({"book":book,"id":id,"title":title}),
+    )
+    .unwrap();
+    init_test_shell(lib, book, cx);
+    let (shell, vcx) = cx.add_window_view(Workspace::new);
+    wait(vcx, |cx| {
+        shell.read_with(cx, |ws, _| ws.book.v3().is_some() && ws.book_memory_ready())
+    });
+    let ov = mount_overview(&shell, vcx);
+    wait(vcx, |cx| {
+        shell.read_with(cx, |ws, _| ws.fill_progress(FillPlace::Left) >= 1.0)
+    });
+    vcx.update(|window, cx| ov.update(cx, |v, cx| v.fly_to_element(&id, window, cx)));
+    let selector: &'static str = Box::leak(format!("se-relate-name-{id}").into_boxed_str());
+    wait(vcx, |cx| cx.debug_bounds(selector).is_some());
+    assert_eq!(
+        ov.read_with(vcx, |v, _| v
+            .elements()
+            .iter()
+            .find(|e| e.id == id)
+            .unwrap()
+            .name
+            .clone()),
+        title
+    );
+    let width = vcx.update(|window, _| {
+        let text = "阿Q 赵太爷";
+        let run = TextRun {
+            len: text.len(),
+            font: Role::Ui.font(weight::REGULAR),
+            color: gpui::black(),
+            background_color: None,
+            underline: None,
+            strikethrough: None,
+        };
+        window
+            .text_system()
+            .shape_line(text.into(), px(11.5), &[run], None)
+            .width()
+    });
+    assert!(vcx.debug_bounds(selector).unwrap().size.width + px(0.01) >= width);
+}
