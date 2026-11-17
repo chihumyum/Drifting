@@ -980,6 +980,8 @@ fn directed_graph_arrows_are_painted_towards_both_targets_after_zoom_and_pan(
     let mut pair = [0, 1].map(|i| entries[i]["id"].as_str().unwrap().to_owned());
     pair.sort();
     let [a, b] = pair;
+    let a_selector: &'static str = Box::leak(format!("se-relate-card-{a}").into_boxed_str());
+    let b_selector: &'static str = Box::leak(format!("se-relate-card-{b}").into_boxed_str());
     let create =
         |name, left: &str, right: &str, direction| {
             lib.call(&Actor::User, "relation_row.create_pair", json!({
@@ -1030,7 +1032,9 @@ fn directed_graph_arrows_are_painted_towards_both_targets_after_zoom_and_pan(
             let arrow = found[0];
             assert_eq!((&arrow.from, &arrow.to), (from, to));
             assert_eq!(arrow.color, ink, "arrow uses the relation line's ink");
-            let target = vcx.debug_bounds(&format!("se-relate-card-{to}")).unwrap();
+            let target = vcx
+                .debug_bounds(if to == &a { a_selector } else { b_selector })
+                .unwrap();
             let center = target.center();
             assert!(
                 viewport.contains(&arrow.tip),
