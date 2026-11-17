@@ -87,9 +87,9 @@ def smoke(args, profile, data):
         links = until(lambda: [d for d in app("page.relations")["links"]
                                if d["id"].startswith("l") and d["boxes"]], "painted entry names")
         app("input.move", **center(links[0]["boxes"][0]))
-        app("ui.find", role="Button", label="Relate")
+        app("ui.find", role="MenuItem", label="Relate")
         screenshot("02-hover.png")
-        press("Relate")
+        press("Relate", role="MenuItem")
         frame = until(lambda: (f if (f := app("page.relations"))["compose"] else None), "composer")
         source = frame["compose"]["src"]
         assert by_id[source]["title"] == "阿Q", by_id[source]
@@ -112,7 +112,7 @@ def smoke(args, profile, data):
         links = app("page.relations")["links"]
         first = next(d for d in links if d["id"].startswith("l") and d["boxes"])
         app("input.move", **center(first["boxes"][0]))
-        app("ui.find", role="Button", label="Relate")
+        app("ui.find", role="MenuItem", label="Relate")
         drawn = app("page.relations")["drawn"]
         assert drawn and any(
             {line["from"], line["to"]} == {source, target}
