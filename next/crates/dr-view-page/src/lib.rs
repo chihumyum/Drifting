@@ -96,8 +96,11 @@ impl Chrome {
         }
     }
 
-    /// The chrome of a body on an entry page: the page's head is the title,
-    /// so this head draws none (its folio line, synopsis and rule stay).
+    /// The chrome of a body on an entry page: the page's own head has the
+    /// title and its fields the synopsis, so the body draws no head of its
+    /// own (UP, kernel-v5 §15 item 50: it drew a folio line, the synopsis
+    /// again and two rules). Its head views are still made and kept up to
+    /// date ([`page_views`]); only the end is drawn.
     pub fn on_entry_page(mut self) -> Self {
         self.titled = false;
         self
@@ -141,6 +144,9 @@ impl PageChrome for Chrome {
             return None;
         }
         let (head, _) = self.views(page, window, cx);
+        if !self.titled {
+            return None;
+        }
         Some(div().w_full().child(head).into_any_element())
     }
 
@@ -153,7 +159,7 @@ impl PageChrome for Chrome {
     }
 
     fn head_estimate(&self, page: &PageInfo) -> f32 {
-        if !page.chrome {
+        if !page.chrome || !self.titled {
             return 0.0;
         }
         let synopsis = if page.has_synopsis {

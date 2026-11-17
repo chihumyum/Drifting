@@ -661,7 +661,13 @@ impl Render for PageHead {
             .child(div().mb(px(tk::RULE_GAP)).h(px(1.0)).bg(p.rule.solid()));
         // The act this chapter opens (the whole book).
 
-        div().w_full().flex().flex_col().child(outer.child(text))
+        let drawn = format!("page-head-{}", self.page.doc);
+        div()
+            .debug_selector(move || drawn)
+            .w_full()
+            .flex()
+            .flex_col()
+            .child(outer.child(text))
     }
 }
 
