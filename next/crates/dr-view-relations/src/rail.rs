@@ -44,19 +44,19 @@ use dr_shell::{Workspace, pages::LeftPanel};
 use dr_ui::input::{FieldEvent, TextField};
 use dr_ui::linked::{AtItem, Candidates, Draft, Link, LinkedArea, LinkedEvent};
 use dr_ui::sand;
-use dr_workspace::commands::EntityIn;
 use dr_workspace::commands::v3::relations::{
-    AddEntry, AddEntryIn, Create, CreateGroup, CreateTypeIn, Delete, DeleteRow, DescriptionIn,
-    DirectionIn, GroupIn, List, ListIn, RelationInfo, RemoveEntry, RemoveEntryIn,
-    Rename as RenameOp, RenameIn, SetDescription, SetDirection,
+    Create, CreateGroup, CreateTypeIn, GroupIn, RelationInfo,
 };
 use dr_workspace::dto::LinkedTextIn;
 use dr_workspace::events::is_text_index;
-use dr_workspace::{Actor, Workspace as Library, WsEvent};
+use dr_workspace::{Actor, Workspace as Library, WritePreconditions, WsEvent};
 use gpui::{
     App, AppContext as _, Bounds, Context, Entity, FocusHandle, Focusable, Pixels, ScrollHandle,
     SharedString, Subscription, Task, WeakEntity, Window,
 };
+use serde_json::json;
+
+mod guarded;
 
 /// Which row: one in the book, or a draft only the rail has.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -83,6 +83,8 @@ pub struct Rename {
     pub field: Entity<TextField>,
     pub failed: bool,
     pub pending: bool,
+    start: String,
+    guard: WritePreconditions,
     _sub: Subscription,
 }
 
@@ -93,6 +95,7 @@ pub struct Describe {
     pub start: Draft,
     pub failed: bool,
     pub pending: bool,
+    guard: WritePreconditions,
     _sub: Subscription,
 }
 
@@ -125,6 +128,8 @@ pub struct RelationsRail {
     pub(crate) book: Rc<Book>,
     epoch: u64,
     pub(crate) relations: Vec<RelationInfo>,
+    shown: WritePreconditions,
+    shown_rows: Vec<dr_model::v3::RelationRow>,
     pub(crate) loaded: bool,
     load_gen: u64,
     load_task: Option<Task<()>>,
@@ -270,6 +275,8 @@ impl RelationsRail {
             book: Rc::default(),
             epoch: 0,
             relations: Vec::new(),
+            shown: WritePreconditions::default(),
+            shown_rows: Vec::new(),
             loaded: false,
             load_gen: 0,
             load_task: None,
@@ -359,6 +366,8 @@ impl RelationsRail {
             self.epoch += 1;
             self.writing = 0;
             self.relations.clear();
+            self.shown = WritePreconditions::default();
+            self.shown_rows.clear();
             self.loaded = false;
             self.rename = None;
             self.describe = None;
@@ -442,11 +451,9 @@ impl RelationsRail {
         self.loaded = false;
         self.load_gen += 1;
         let (generation, epoch, book) = (self.load_gen, self.epoch, self.book.id.clone());
-        let task = cx.background_executor().spawn(async move {
-            let snapshot = Book::load(&lib, &book)?;
-            lib.run::<List>(&Actor::User, ListIn { book, entry: None })
-                .map(|o| (o.output, snapshot))
-        });
+        let task = cx
+            .background_executor()
+            .spawn(async move { guarded::load(&lib, &book) });
         self.load_task = Some(cx.spawn(async move |this, cx| {
             let out = task.await;
             this.update(cx, |rail, cx| {
@@ -454,7 +461,7 @@ impl RelationsRail {
                     return;
                 }
                 match out {
-                    Ok((mut relations, book)) => {
+                    Ok((mut relations, book, shown, rows)) => {
                         if let Some(RowKey::Stored(row)) = &rail.hover
                             && !relations
                                 .iter()
@@ -479,6 +486,8 @@ impl RelationsRail {
                             }
                         }
                         rail.relations = relations;
+                        rail.shown = shown;
+                        rail.shown_rows = rows;
                         rail.book = Rc::new(book);
                         rail.loaded = true;
                         rail.forget_gone(cx);
@@ -849,7 +858,7 @@ impl RelationsRail {
                 cx,
             )
             .bare()
-            .with_text(name)
+            .with_text(name.clone())
         });
         let sub = cx.subscribe_in(
             &field,
@@ -868,6 +877,8 @@ impl RelationsRail {
             field,
             failed: false,
             pending: false,
+            start: name,
+            guard: self.shown.clone(),
             _sub: sub,
         });
         cx.notify();
@@ -897,11 +908,8 @@ impl RelationsRail {
         let field = r.field.clone();
         let name = r.field.read(cx).text().trim().to_owned();
         let relation = r.relation.clone();
-        let old = relation
-            .as_deref()
-            .and_then(|id| self.relations.iter().find(|x| x.id == id))
-            .map(|x| x.name.clone());
-        if name.is_empty() || old.as_deref() == Some(name.as_str()) {
+        let guard = r.guard.clone();
+        if name.is_empty() || r.start == name {
             self.cancel_rename(cx);
             return;
         }
@@ -937,7 +945,14 @@ impl RelationsRail {
             ),
             Some(id) => self.write(
                 cx,
-                move |lib, book| lib.run::<RenameOp>(&Actor::User, RenameIn { book, id, name }),
+                move |lib, book| {
+                    lib.call_guarded(
+                        &Actor::User,
+                        "relation_type.rename",
+                        json!({"book": book, "id": id, "name": name}),
+                        guard,
+                    )
+                },
                 |rail, out, cx| match out {
                     Ok(_) => rail.rename = None,
                     Err(_) => rail.rename_failed(cx),
@@ -965,16 +980,15 @@ impl RelationsRail {
             RelationDirection::Symmetric => RelationDirection::Directed,
         };
         let id = relation.to_owned();
+        let guard = self.shown.clone();
         self.write(
             cx,
             move |lib, book| {
-                lib.run::<SetDirection>(
+                lib.call_guarded(
                     &Actor::User,
-                    DirectionIn {
-                        book,
-                        id,
-                        direction,
-                    },
+                    "relation_type.set_direction",
+                    json!({"book": book, "id": id, "direction": direction}),
+                    guard,
                 )
             },
             |_, _, _| {},
@@ -1018,6 +1032,7 @@ impl RelationsRail {
             start,
             failed: false,
             pending: false,
+            guard: self.shown.clone(),
             _sub: sub,
         });
         cx.notify();
@@ -1040,6 +1055,7 @@ impl RelationsRail {
         }
         let id = d.relation.clone();
         let description = LinkedTextIn::Linked(linked_text(&draft));
+        let guard = d.guard.clone();
         if let Some(d) = &mut self.describe {
             d.pending = true;
             d.failed = false;
@@ -1048,13 +1064,11 @@ impl RelationsRail {
         self.write(
             cx,
             move |lib, book| {
-                lib.run::<SetDescription>(
+                lib.call_guarded(
                     &Actor::User,
-                    DescriptionIn {
-                        book,
-                        id,
-                        description,
-                    },
+                    "relation_type.set_description",
+                    json!({"book": book, "id": id, "description": description}),
+                    guard,
                 )
             },
             |rail, out, cx| match out {
@@ -1074,8 +1088,14 @@ impl RelationsRail {
     /// 重试 under a name or a description that did not save.
     pub fn retry(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.rename.as_ref().is_some_and(|r| r.failed) {
+            if let Some(r) = &mut self.rename {
+                r.guard = self.shown.clone();
+            }
             self.commit_rename(window, cx);
         } else if self.describe.as_ref().is_some_and(|d| d.failed) {
+            if let Some(d) = &mut self.describe {
+                d.guard = self.shown.clone();
+            }
             self.commit_describe(cx);
         }
     }
@@ -1202,18 +1222,32 @@ impl RelationsRail {
     ) {
         match row {
             RowKey::Stored(id) => {
+                let Some(relation) = self
+                    .relations
+                    .iter()
+                    .find(|r| r.rows.iter().any(|row| &row.id == id))
+                else {
+                    return;
+                };
+                let Some(shown) = self
+                    .shown_rows
+                    .iter()
+                    .find(|r| r.id.as_str() == id)
+                    .cloned()
+                else {
+                    return;
+                };
+                let relation_id = relation.id.clone();
+                let direction = relation.direction;
                 let (id, entry) = (id.clone(), entry.to_owned());
                 self.write(
                     cx,
                     move |lib, book| {
-                        lib.run::<AddEntry>(
+                        lib.call_guarded(
                             &Actor::User,
-                            AddEntryIn {
-                                book,
-                                id,
-                                side,
-                                entry,
-                            },
+                            "relation_row.add_entry",
+                            json!({"book": book, "id": id, "side": side, "entry": entry}),
+                            guarded::adding(lib, &book, shown, relation_id, direction, side)?,
                         )
                     },
                     |_, _, _| {},
@@ -1299,7 +1333,9 @@ impl RelationsRail {
     }
 
     fn draft_pending(&self, row: &RowKey) -> bool {
-        matches!(row, RowKey::Draft(key) if self.drafts.iter().any(|d| d.key == *key && d.pending))
+        matches!(row, RowKey::Draft(key) if self.drafts.iter().any(|d| {
+            d.key == *key && (d.pending || (d.relation.is_none() && self.rename.as_ref().is_some_and(|r| r.pending)))
+        }))
     }
 
     /// × after a name: out of this row (the row goes when its side empties).
@@ -1310,10 +1346,16 @@ impl RelationsRail {
         match row {
             RowKey::Stored(id) => {
                 let (id, entry) = (id.clone(), entry.to_owned());
+                let guard = self.shown.clone();
                 self.write(
                     cx,
                     move |lib, book| {
-                        lib.run::<RemoveEntry>(&Actor::User, RemoveEntryIn { book, id, entry })
+                        lib.call_guarded(
+                            &Actor::User,
+                            "relation_row.remove_entry",
+                            json!({"book": book, "id": id, "entry": entry}),
+                            guard,
+                        )
                     },
                     |_, _, _| {},
                 );
@@ -1345,9 +1387,17 @@ impl RelationsRail {
         match row {
             RowKey::Stored(id) => {
                 let id = id.clone();
+                let guard = self.shown.clone();
                 self.write(
                     cx,
-                    move |lib, book| lib.run::<DeleteRow>(&Actor::User, EntityIn { book, id }),
+                    move |lib, book| {
+                        lib.call_guarded(
+                            &Actor::User,
+                            "relation_row.delete",
+                            json!({"book": book, "id": id}),
+                            guard,
+                        )
+                    },
                     |_, _, _| {},
                 );
             }
@@ -1355,9 +1405,9 @@ impl RelationsRail {
                 let Some(d) = self.drafts.iter().find(|d| d.key == *key).cloned() else {
                     return;
                 };
-                self.drafts.retain(|x| x.key != *key);
                 let Some(relation) = d.relation else {
                     // The new card's only row: the card goes with it.
+                    self.drafts.retain(|x| x.key != *key);
                     self.rename = None;
                     cx.notify();
                     return;
@@ -1365,20 +1415,41 @@ impl RelationsRail {
                 let last = self
                     .drafts
                     .iter()
-                    .all(|x| x.relation.as_ref() != Some(&relation))
+                    .all(|x| x.key == *key || x.relation.as_ref() != Some(&relation))
                     && self
                         .relations
                         .iter()
                         .find(|r| r.id == relation)
                         .is_some_and(|r| r.rows.is_empty() && r.hidden_rows.is_empty());
                 if last {
+                    let key = *key;
+                    let guard = self.shown.clone();
+                    if let Some(d) = self.drafts.iter_mut().find(|d| d.key == key) {
+                        d.pending = true;
+                        d.failed = false;
+                    }
                     self.write(
                         cx,
                         move |lib, book| {
-                            lib.run::<Delete>(&Actor::User, EntityIn { book, id: relation })
+                            lib.call_guarded(
+                                &Actor::User,
+                                "relation_type.delete",
+                                json!({"book": book, "id": relation}),
+                                guard,
+                            )
                         },
-                        |_, _, _| {},
+                        move |rail, out, _| match out {
+                            Ok(_) => rail.drafts.retain(|d| d.key != key),
+                            Err(_) => {
+                                if let Some(d) = rail.drafts.iter_mut().find(|d| d.key == key) {
+                                    d.pending = false;
+                                    d.failed = true;
+                                }
+                            }
+                        },
                     );
+                } else {
+                    self.drafts.retain(|x| x.key != *key);
                 }
                 cx.notify();
             }
