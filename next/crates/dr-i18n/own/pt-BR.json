@@ -132,7 +132,8 @@
     "readOnly": "As propriedades somente leitura foram restauradas com os valores do projeto.",
     "malformedTable": "Não foi possível ler a tabela. A tabela original permanece no Drifting.",
     "unknownImage": "A imagem não aponta para um arquivo na biblioteca do projeto. A linha foi importada como texto.",
-    "fieldConflict": "Este campo também foi editado no Drifting. As duas versões foram preservadas."
+    "fieldConflict": "Não foi possível mesclar um campo: ele também foi editado no Drifting ou o valor não pôde ser lido. O Drifting manteve o valor e salvou uma cópia do arquivo.",
+    "keyCollision": "Uma propriedade inicial tem o mesmo nome de um campo recém-adicionado. O Drifting não vai gravar este arquivo até que um dos dois seja renomeado ou removido."
   },
   "positionLink": {
     "copied": "Link de posição copiado"

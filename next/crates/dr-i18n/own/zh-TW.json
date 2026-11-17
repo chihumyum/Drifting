@@ -123,7 +123,8 @@
     "readOnly": "修改過的唯讀屬性已按專案中的值寫回。",
     "malformedTable": "無法讀取表格，原表格留在 Drifting。",
     "unknownImage": "圖片未指向素材庫中已有的檔案，這一行以純文字合入。",
-    "fieldConflict": "這個欄位也在 Drifting 裡改過，兩個版本都已保留。"
+    "fieldConflict": "有欄位沒能合入：它在 Drifting 裡也改過，或者值的寫法讀不出來。保留了 Drifting 裡的值，檔案另存了一份。",
+    "keyCollision": "頂端屬性裡有一項和新加的欄位同名，這個檔案先不寫回。改名或刪掉其中一項後會繼續同步。"
   },
   "positionLink": {
     "copied": "已複製位置連結"

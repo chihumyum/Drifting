@@ -535,9 +535,10 @@
   },
   "mirrorV5": {
     "duplicate": "有兩個檔案帶著同一個 drifting-id。",
-    "fieldConflict": "這個欄位也在 Drifting 裡改過，兩個版本都已保留。",
+    "fieldConflict": "有欄位沒能合入：它在 Drifting 裡也改過，或者值的寫法讀不出來。保留了 Drifting 裡的值，檔案另存了一份。",
     "identity": "drifting-id 與條目或正文模組不符。",
     "intro": "每個專案都有一個 Markdown 資料夾。用其他編輯器修改裡面的正文和欄位，儲存後會合回 Drifting。",
+    "keyCollision": "頂端屬性裡有一項和新加的欄位同名，這個檔案先不寫回。改名或刪掉其中一項後會繼續同步。",
     "lineage": "條目或正文已復原、更換模板或刪除，檔案中的修改無法自動合入。",
     "malformedTable": "無法讀取表格，原表格留在 Drifting。",
     "moved": "這一期不會同步改名和移動。",

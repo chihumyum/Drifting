@@ -49,6 +49,9 @@ pub enum Problem {
     UnknownImage,
     FieldConflict,
     Disk,
+    /// A kept property has the key of a field added since: the file is held
+    /// until the author decides which wins (m40 section 15).
+    KeyCollision,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -756,8 +759,8 @@ impl BookPass<'_> {
         next.current.asset_links = asset_links;
         let markdown = match file::render(id, &next.current.fields, &extra, &body) {
             Ok(markdown) => markdown,
-            Err(_) => {
-                self.issue(project, Some(id), &file.path, Problem::Frontmatter);
+            Err(err) => {
+                self.issue(project, Some(id), &file.path, err.problem());
                 return Ok(());
             }
         };

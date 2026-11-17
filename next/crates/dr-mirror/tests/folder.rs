@@ -532,7 +532,7 @@ fn a_markdown_checklist_and_its_comments_stay_in_step_both_ways() {
     edit("- [ ] 核对", "- [x] 再核对");
     assert_eq!(comments()[0]["id"], comment);
     assert_eq!(comments()[0]["status"], "resolved");
-    assert_eq!(comments()[0]["body"], "再核对钟楼报时。");
+    assert_eq!(comments()[0]["body"]["text"], "再核对钟楼报时。");
     edit("- [x]", "- [ ]");
     assert_eq!(comments()[0]["status"], "open");
     f.call(
@@ -607,4 +607,260 @@ fn a_symlink_at_the_expected_path_never_reads_or_writes_its_target() {
     );
     assert_eq!(f.texts(&doc), ["她看向海。"]);
     assert_eq!(fs::read_to_string(&target).unwrap(), text);
+}
+
+impl Fixture {
+    fn field(&self, entry: &str, module: &str, field: &str) -> Value {
+        self.call("entry.get", json!({"book":self.book,"id":entry}))["fields"][module][field]
+            .clone()
+    }
+
+    fn set_field(&self, entry: &str, module: &str, field: &str, value: Value) {
+        self.call(
+            "module.set_field",
+            json!({"book":self.book,"entry":entry,"module":module,"field":field,"value":value}),
+        );
+    }
+
+    /// A fields module on the chapter template with one field per kind the
+    /// spellings below exercise.
+    fn more_fields(&self) {
+        self.call(
+            "entry_template.put_module",
+            json!({"book":self.book,"template":"tpl-chapter","module":{
+                "id":"mf-more","kind":"fields","name":"更多","config":{"defs":[
+                    {"id":"words","name":"字数目标","field_type":"number"},
+                    {"id":"proofread","name":"已校对","field_type":"toggle"},
+                    {"id":"names","name":"别名","field_type":"aliases"},
+                ]}
+            }}),
+        );
+    }
+}
+
+fn edit_file(path: &Path, from: &str, to: &str) -> String {
+    let before = fs::read_to_string(path).unwrap();
+    assert!(before.contains(from), "{from:?} not in {before}");
+    let after = before.replacen(from, to, 1);
+    fs::write(path, &after).unwrap();
+    after
+}
+
+#[test]
+fn other_editors_field_spellings_merge_and_values_that_do_not_fit_are_kept_aside() {
+    let f = Fixture::new(Preset::Tiny);
+    f.more_fields();
+    let (id, _) = f.chapter("字段写法", "她数着钟声。");
+    f.set_field(&id, "mod-fields", "summary", json!("旧梗概"));
+    f.set_field(&id, "mf-more", "words", json!(1200));
+    f.pass().run().unwrap();
+    let path = find(f.out.path(), "字段写法.md");
+    let written = fs::read_to_string(&path).unwrap();
+    for line in [
+        "梗概: 旧梗概\n",
+        "字数目标: 1200\n",
+        "已校对:\n",
+        "aliases:\n",
+    ] {
+        assert!(written.contains(line), "{line:?} in {written}");
+    }
+
+    // Numbers and booleans for text, a quoted number, one alias without a
+    // list: all read as the author meant them, nothing kept aside.
+    edit_file(&path, "梗概: 旧梗概\n", "梗概: 2026\n");
+    edit_file(&path, "字数目标: 1200\n", "字数目标: \"3000\"\n");
+    edit_file(&path, "已校对:\n", "已校对: true\n");
+    edit_file(&path, "aliases:\n", "aliases: 老王\n");
+    let report = f.pass().run().unwrap();
+    assert!(report.issues.is_empty(), "{:?}", report.issues);
+    assert!(report.preserved.is_empty());
+    assert_eq!(f.field(&id, "mod-fields", "summary"), json!("2026"));
+    assert_eq!(f.field(&id, "mf-more", "words"), json!(3000.0));
+    assert_eq!(f.field(&id, "mf-more", "proofread"), json!(true));
+    assert_eq!(f.field(&id, "mf-more", "names"), json!(["老王"]));
+    let rewritten = fs::read_to_string(&path).unwrap();
+    assert!(rewritten.contains("梗概: \"2026\"\n"), "{rewritten}");
+    assert!(rewritten.contains("aliases: [\"老王\"]\n"), "{rewritten}");
+
+    // What still does not fit keeps the App's value; the file is kept aside
+    // first and the author is told.
+    for (from, to) in [
+        ("梗概: \"2026\"\n", "梗概: [bad]\n"),
+        ("已校对: true\n", "已校对: yes\n"),
+    ] {
+        let unfit = edit_file(&path, from, to);
+        let report = f.pass().run().unwrap();
+        let notice: Vec<_> = report
+            .issues
+            .iter()
+            .filter(|i| i.problem == Problem::FieldConflict)
+            .collect();
+        assert_eq!(notice.len(), 1, "{:?}", report.issues);
+        assert_eq!(
+            notice[0].doc.as_deref(),
+            Some(format!("body:{id}/mod-prose").as_str())
+        );
+        assert_eq!(notice[0].path, path.canonicalize().unwrap());
+        assert_eq!(report.preserved.len(), 1);
+        assert_eq!(fs::read_to_string(&report.preserved[0]).unwrap(), unfit);
+        assert_eq!(fs::read_to_string(&path).unwrap(), rewritten);
+    }
+    assert_eq!(f.field(&id, "mod-fields", "summary"), json!("2026"));
+    assert_eq!(f.field(&id, "mf-more", "proofread"), json!(true));
+    // A later valid external edit resolves the problem. Merely reading the
+    // App's rewrite is not a resolution: the kept file still needs attention.
+    edit_file(&path, "梗概: \"2026\"\n", "梗概: 修好了\n");
+    let resolved = f.pass().run().unwrap();
+    assert!(resolved.issues.is_empty(), "{:?}", resolved.issues);
+    assert!(resolved.preserved.is_empty());
+    assert_eq!(f.field(&id, "mod-fields", "summary"), json!("修好了"));
+}
+
+#[test]
+fn a_kept_property_named_like_a_new_field_holds_the_file_with_its_own_notice() {
+    let f = Fixture::new(Preset::Tiny);
+    let (_, doc) = f.chapter("撞名", "她把钟拨慢了。");
+    f.pass().run().unwrap();
+    let path = find(f.out.path(), "撞名.md");
+    edit_file(&path, "\n---\n\n", "\n字数目标: 外面记的三千\n---\n\n");
+    assert!(f.pass().run().unwrap().issues.is_empty());
+    f.more_fields();
+    f.call(
+        "prose.replace",
+        json!({"doc":doc,"find":"拨慢","replace":"拨快"}),
+    );
+    let held = fs::read_to_string(&path).unwrap();
+    for _ in 0..2 {
+        let report = f.pass().run().unwrap();
+        let problems: Vec<_> = report.issues.iter().map(|i| i.problem).collect();
+        assert_eq!(problems, [Problem::KeyCollision], "{:?}", report.issues);
+        assert_eq!(fs::read_to_string(&path).unwrap(), held);
+        assert!(report.preserved.is_empty());
+    }
+    assert_eq!(f.texts(&doc), ["她把钟拨快了。"]);
+    edit_file(&path, "字数目标: 外面记的三千", "外面的字数: 外面记的三千");
+    let report = f.pass().run().unwrap();
+    assert!(report.issues.is_empty(), "{:?}", report.issues);
+    let now = fs::read_to_string(&path).unwrap();
+    assert!(now.contains("她把钟拨快了。") && now.contains("外面的字数: 外面记的三千\n"));
+    assert!(now.contains("字数目标:\n"), "{now}");
+}
+
+#[test]
+fn a_paragraph_with_an_open_conflict_comment_gets_no_second_one_in_any_language() {
+    let mut f = Fixture::new(Preset::Tiny);
+    f.options.author = "Markdown 文件夹".into();
+    f.options.conflict = "这一段同时在 Drifting 和外部文件里改过。".into();
+    let (id, doc) = f.chapter("再次冲突", "安娜在镇口等车。\n钟响了。");
+    f.pass().run().unwrap();
+    let path = find(f.out.path(), "再次冲突.md");
+    let comments = |f: &Fixture| {
+        f.call(
+            "comment.list",
+            json!({"book":f.book,"origin":"manual","target":{"kind":"entry","id":id}}),
+        )
+        .as_array()
+        .unwrap()
+        .clone()
+    };
+    let clash = |f: &Fixture, app: (&str, &str), file: (&str, &str)| {
+        f.call(
+            "prose.replace",
+            json!({"doc":doc,"find":app.0,"replace":app.1}),
+        );
+        edit_file(&path, file.0, file.1);
+        f.pass().run().unwrap();
+    };
+    clash(&f, ("口等", "口很久等"), ("口等", "口一直等"));
+    let first = comments(&f);
+    assert_eq!(first.len(), 1);
+    assert_eq!(
+        first[0]["body"]["text"],
+        "这一段同时在 Drifting 和外部文件里改过。"
+    );
+    assert_eq!(first[0]["author_name"], "Markdown 文件夹");
+    assert_eq!(first[0]["status"], "open");
+
+    // The interface language changed; the paragraph clashes again while the
+    // first comment is still open.
+    f.options.author = "Markdown folder".into();
+    f.options.conflict = "This paragraph was changed both in Drifting and in the file.".into();
+    clash(&f, ("车", "末班车"), ("车", "头班车"));
+    let body = f.texts(&doc);
+    assert!(
+        body[0].contains("末班") && body[0].contains("头班"),
+        "{body:?}"
+    );
+    assert_eq!(comments(&f), first);
+
+    // Once resolved, a new clash gets a new comment.
+    f.call(
+        "comment.update",
+        json!({"book":f.book,"id":first[0]["id"],"status":"resolved"}),
+    );
+    clash(&f, ("安娜", "安娜蒂"), ("安娜", "安娜卡"));
+    let now = comments(&f);
+    assert_eq!(now.len(), 2);
+    let open: Vec<_> = now.iter().filter(|c| c["status"] == "open").collect();
+    assert_eq!(open.len(), 1);
+    assert_eq!(open[0]["author_name"], "Markdown folder");
+    assert_eq!(
+        open[0]["body"]["text"],
+        "This paragraph was changed both in Drifting and in the file."
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_directory_symlink_out_of_the_folder_is_neither_read_nor_written() {
+    use std::os::unix::fs::symlink;
+    let f = Fixture::new(Preset::Tiny);
+    let (_, doc) = f.chapter("目录链接", "她看向海。");
+    f.pass().run().unwrap();
+    let path = find(f.out.path(), "目录链接.md");
+    let dir = path.parent().unwrap().to_path_buf();
+    let outside = f.db.path().join("outside-dir");
+    fs::create_dir(&outside).unwrap();
+    let mut listing = Vec::new();
+    for entry in fs::read_dir(&dir).unwrap() {
+        let entry = entry.unwrap();
+        if entry.file_type().unwrap().is_file() {
+            fs::copy(entry.path(), outside.join(entry.file_name())).unwrap();
+            listing.push(entry.file_name());
+        }
+    }
+    let target = outside.join("目录链接.md");
+    let text = fs::read_to_string(&target).unwrap().replace("海。", "山。");
+    fs::write(&target, &text).unwrap();
+    fs::remove_dir_all(&dir).unwrap();
+    symlink(&outside, &dir).unwrap();
+    let contents = |dir: &Path| {
+        let mut all: Vec<_> = fs::read_dir(dir)
+            .unwrap()
+            .map(|e| {
+                let e = e.unwrap();
+                (e.file_name(), fs::read(e.path()).unwrap())
+            })
+            .collect();
+        all.sort();
+        all
+    };
+    let before = contents(&outside);
+    f.call(
+        "prose.replace",
+        json!({"doc":doc,"find":"看向","replace":"望向"}),
+    );
+    let report = f.pass().run().unwrap();
+    assert!(
+        report
+            .issues
+            .iter()
+            .any(|i| i.problem == Problem::UnsafePath),
+        "{:?}",
+        report.issues
+    );
+    assert_eq!(f.texts(&doc), ["她望向海。"]);
+    assert_eq!(contents(&outside), before);
+    assert!(fs::symlink_metadata(&dir).unwrap().file_type().is_symlink());
+    assert!(!listing.is_empty());
 }

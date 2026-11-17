@@ -542,9 +542,10 @@
   },
   "mirrorV5": {
     "duplicate": "Zwei Dateien haben dieselbe drifting-id.",
-    "fieldConflict": "Dieses Feld wurde auch in Drifting bearbeitet. Beide Fassungen wurden gespeichert.",
+    "fieldConflict": "Ein Feld konnte nicht übernommen werden: Es wurde auch in Drifting bearbeitet, oder sein Wert war nicht lesbar. Drifting hat seinen Wert behalten und eine Kopie der Datei gesichert.",
     "identity": "Die drifting-id passt nicht zu diesem Eintrag und Textmodul.",
     "intro": "Jedes Projekt hat einen Markdown-Ordner. Änderungen an Text und Feldern in einem anderen Editor werden nach dem Speichern in Drifting übernommen.",
+    "keyCollision": "Eine Eigenschaft am Anfang heißt wie ein neu hinzugefügtes Feld. Drifting schreibt diese Datei erst wieder, wenn eines davon umbenannt oder entfernt ist.",
     "lineage": "Der Eintrag oder Text wurde wiederhergestellt, umgestaltet oder gelöscht. Die Dateiänderungen konnten nicht übernommen werden.",
     "malformedTable": "Die Tabelle konnte nicht gelesen werden. Die ursprüngliche Tabelle bleibt in Drifting erhalten.",
     "moved": "Umbenennen und Verschieben von Dateien wird in dieser Version nicht synchronisiert.",

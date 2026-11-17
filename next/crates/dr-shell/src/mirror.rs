@@ -368,6 +368,7 @@ fn problem_key(problem: Problem) -> Key {
         Problem::UnknownImage => mirror_v5::UNKNOWN_IMAGE,
         Problem::FieldConflict => mirror_v5::FIELD_CONFLICT,
         Problem::Disk => issue::UNREADABLE,
+        Problem::KeyCollision => mirror_v5::KEY_COLLISION,
     }
 }
 

@@ -31,7 +31,8 @@ use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 
 use dr_doc::prose::{
-    BorrowedProse, EmbedKind, EmbedView, FileEmbedLook, Paragraph, ProseDoc, ProseTxn, StyleKey,
+    BorrowedProse, EmbedKind, EmbedView, FileEmbedLook, Paragraph, ProseDoc, ProseTxn, ProseView,
+    StyleKey,
 };
 use dr_model::id::{AssetId, BlockId, EmbedId};
 use dr_model::kind::EntityKind;
@@ -144,10 +145,17 @@ pub fn merge_with(
         return Ok(Err(Refusal::Emptied));
     }
     let replayed = copy.oplog_vv().get(&peer).is_some();
-    let current: HashMap<_, _> = if copy.oplog_frontiers() == *base || replayed {
-        HashMap::new()
+    // The live document decides which table rows and columns the App
+    // changed. A replay reads it too, so it repeats the same edit.
+    let live = if copy.oplog_frontiers() == *base {
+        None
     } else {
-        BorrowedProse::new(copy, doc)?
+        Some(BorrowedProse::new(copy, doc)?)
+    };
+    let current: HashMap<_, _> = match &live {
+        None => HashMap::new(),
+        Some(_) if replayed => HashMap::new(),
+        Some(live) => live
             .view()
             .paragraphs()
             .filter_map(|p| {
@@ -161,10 +169,11 @@ pub fn merge_with(
                     )
                 })
             })
-            .collect()
+            .collect(),
     };
+    let live = live.as_ref().map(BorrowedProse::view);
     let (r, _) = prose.edit(Origin::Mirror, |txn| {
-        edit(txn, &paragraphs, file, names, links, peer, &current)
+        edit(txn, &paragraphs, file, names, links, peer, &current, live)
     });
     let (removed, conflicts) = r?;
     let update = if replayed || prose.version() == base_vv {
@@ -196,6 +205,7 @@ enum Action {
     Delete,
 }
 
+#[allow(clippy::too_many_arguments)]
 fn edit(
     txn: &mut ProseTxn<'_>,
     paragraphs: &[Paragraph],
@@ -204,6 +214,7 @@ fn edit(
     links: &FileLinks<'_>,
     peer: u64,
     current: &HashMap<BlockId, Vec<char>>,
+    live: Option<ProseView<'_>>,
 ) -> dr_doc::Result<(usize, Vec<BlockId>)> {
     let view = txn.view();
     let paras: Vec<Para> = paragraphs
@@ -323,17 +334,30 @@ fn edit(
             Some(Action::Change(f)) => {
                 let old = &base[b].1;
                 let new = &file[f].para;
+                let (gone, clash) = change(txn, p, old, new, peer, f, live)?;
+                removed += gone;
                 if let Some(id) = &p.id
-                    && let Some(now) = current.get(id)
-                    && overlap(&old.chars, &new.chars, now)
+                    && (clash
+                        || current
+                            .get(id)
+                            .is_some_and(|now| overlap(&old.chars, &new.chars, now)))
                 {
                     conflicts.push(id.clone());
                 }
-                removed += change(txn, p, old, new, peer, f)?;
                 if let Some(id) = &p.stored_id
                     && old.chars != new.chars
                 {
                     touched.insert(id.to_string());
+                }
+            }
+            // A table the App changed stays when the file drops it.
+            Some(Action::Delete)
+                if let (Some(live), Some(table)) = (live, p.embed())
+                    && matches!(base[b].1.kind, Kind::Table(_))
+                    && table::edited(txn.view(), live, table) =>
+            {
+                if let Some(id) = &p.id {
+                    conflicts.push(id.clone());
                 }
             }
             Some(Action::Delete) => {
@@ -437,7 +461,7 @@ fn attrs_of(p: &Para, keep: &BlockAttrs) -> BlockAttrs {
 }
 
 /// Edit paragraph `p` (read as `old`) into `new`; returns how many base
-/// characters went.
+/// characters went, and whether a table's edit met the App's.
 fn change(
     txn: &mut ProseTxn<'_>,
     p: &Paragraph,
@@ -445,11 +469,12 @@ fn change(
     new: &Para,
     peer: u64,
     index: usize,
-) -> dr_doc::Result<usize> {
+    live: Option<ProseView<'_>>,
+) -> dr_doc::Result<(usize, bool)> {
     if let Some(id) = p.embed() {
         return match (&old.kind, &new.kind) {
             (Kind::Table(before), Kind::Table(after)) => {
-                table::change(txn, id, before, after, peer, index)
+                table::change(txn, id, before, after, peer, index, live)
             }
             (Kind::Asset { .. }, Kind::Asset { caption, .. }) => {
                 if let Some(EmbedView::Asset { mut look, .. }) = txn.view().embed(id)
@@ -458,9 +483,9 @@ fn change(
                     look.caption.clone_from(caption);
                     txn.set_file_embed_look(id, &look)?;
                 }
-                Ok(0)
+                Ok((0, false))
             }
-            _ => Ok(0),
+            _ => Ok((0, false)),
         };
     }
     let start = p.range.start;
@@ -515,7 +540,7 @@ fn change(
         }
     }
     restyle(txn, start, new)?;
-    Ok(removed)
+    Ok((removed, false))
 }
 
 /// Make the marks of the paragraph at `start` the file's, only where they
@@ -658,7 +683,7 @@ fn insert_embed(
     match &para.kind {
         Kind::Table(rows) => {
             txn.insert_embed(pos, &id, &EmbedKind::Table)?;
-            table::change(txn, &id, &[], rows, peer, index)?;
+            table::change(txn, &id, &[], rows, peer, index, None)?;
         }
         Kind::Asset { asset, caption } => {
             txn.insert_embed(pos, &id, &EmbedKind::Asset(asset.clone()))?;

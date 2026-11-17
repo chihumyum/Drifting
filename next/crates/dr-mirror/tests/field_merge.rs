@@ -40,7 +40,7 @@ fn edits_to_distinct_fields_survive_and_a_third_value_is_left_alone() {
             field: "summary".into(),
         },
         expected: FieldValue::Text("旧梗概".into()),
-        value: FieldValue::Text("外面改的梗概".into()),
+        value: Some(FieldValue::Text("外面改的梗概".into())),
     };
     set("status", "finished");
     assert!(
@@ -55,7 +55,7 @@ fn edits_to_distinct_fields_survive_and_a_third_value_is_left_alone() {
     assert_eq!(values["status"], "finished");
     assert_eq!(values["summary"], "外面改的梗概");
     set("summary", "App 后来的梗概");
-    let refused = apply_fields(&ws, &book, &body, &template, &[edit]).unwrap();
+    let refused = apply_fields(&ws, &book, &body, &template, std::slice::from_ref(&edit)).unwrap();
     assert_eq!(refused.len(), 1);
     let state = ws
         .call(&Actor::User, "entry.get", json!({"book":book,"id":id}))
@@ -64,4 +64,16 @@ fn edits_to_distinct_fields_survive_and_a_third_value_is_left_alone() {
         state["output"]["fields"]["mod-fields"]["summary"],
         "App 后来的梗概"
     );
+
+    // A value that does not fit the field is refused without a write, even
+    // with a guard that holds.
+    let unfit = FieldEdit {
+        value: None,
+        expected: FieldValue::Text("App 后来的梗概".into()),
+        ..edit
+    };
+    let version = ws.version(&format!("book:{book}")).unwrap();
+    let refused = apply_fields(&ws, &book, &body, &template, &[unfit]).unwrap();
+    assert_eq!(refused.len(), 1);
+    assert_eq!(ws.version(&format!("book:{book}")).unwrap(), version);
 }

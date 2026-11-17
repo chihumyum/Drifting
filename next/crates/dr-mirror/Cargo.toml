@@ -23,10 +23,10 @@ loro.workspace = true
 notify.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-serde_yaml_ng.workspace = true
 sha2.workspace = true
 similar.workspace = true
 thiserror.workspace = true
+yaml-rust2.workspace = true
 
 [dev-dependencies]
 # Contract tests round-trip seeded books through the folder.

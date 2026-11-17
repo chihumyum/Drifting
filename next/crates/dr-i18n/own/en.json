@@ -130,7 +130,8 @@
     "readOnly": "The read-only properties were restored from the project.",
     "malformedTable": "The table could not be read. The original table is still in Drifting.",
     "unknownImage": "The image points outside the project’s file library. The line was imported as text.",
-    "fieldConflict": "This field was also edited in Drifting. Both versions were kept."
+    "fieldConflict": "A field could not be merged: it was also edited in Drifting, or its value could not be read. Drifting kept its value and saved a copy of the file.",
+    "keyCollision": "A property at the top has the same name as a newly added field. Drifting will not write this file until one of them is renamed or removed."
   },
   "positionLink": {
     "copied": "Location link copied"

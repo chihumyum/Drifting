@@ -430,7 +430,7 @@ pub fn parse_with(body: &str, links: &FileLinks<'_>) -> ReadBody {
 
     while i < lines.len() {
         let line = lines[i];
-        if line.trim().is_empty() {
+        if line.trim_matches([' ', '\t']).is_empty() {
             blank += 1;
             i += 1;
             continue;
@@ -574,7 +574,7 @@ fn fence_of(line: &str) -> Option<(char, usize, usize, &str)> {
 }
 
 fn quote_content(line: &str) -> Option<&str> {
-    let inner = line.trim_start().strip_prefix('>')?;
+    let inner = line.trim_start_matches([' ', '\t']).strip_prefix('>')?;
     Some(inner.strip_prefix(' ').unwrap_or(inner))
 }
 
@@ -735,6 +735,7 @@ fn escape(chars: &[char], preserve_start: bool, preserve_end: bool) -> String {
     let mut out = String::with_capacity(chars.len());
     for (i, &c) in chars.iter().enumerate() {
         if c.is_whitespace()
+            && c != '\u{3000}'
             && (c != ' ' || (preserve_start && i == 0) || (preserve_end && i + 1 == chars.len()))
         {
             write!(out, "&#{};", c as u32).unwrap();

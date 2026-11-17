@@ -153,8 +153,31 @@ proptest! {
         config
     })]
     #[test]
+    fn ideographic_spaces_stay_literal_and_round_trip(
+        leading in 1..6_usize,
+        middle in 1..6_usize,
+        trailing in 1..6_usize,
+        words in any::<bool>(),
+    ) {
+        use dr_mirror::body::Para;
+        let sample = if words {
+            format!("{}安娜{}钟楼{}", "　".repeat(leading), "　".repeat(middle), "　".repeat(trailing))
+        } else {
+            "　".repeat(leading + middle + trailing)
+        };
+        let links = FileLinks::default();
+        let original = vec![Para::plain(&sample)];
+        let written = render_with(&original, &links);
+        prop_assert_eq!(written.as_str(), format!("{sample}\n"));
+        let read = parse_with(&written, &links);
+        let got: Vec<_> = read.paragraphs.into_iter().map(|row| row.para).collect();
+        prop_assert_eq!(got, original);
+        prop_assert!(read.issues.is_empty());
+    }
+
+    #[test]
     fn structured_body_round_trips(
-        sample in prop::collection::vec(prop::sample::select(vec!['a', '钟', '。', ' ', '|', '\\', '`', '(', ')', '*', '=', '!', ']', '[', '#']), 1..16),
+        sample in prop::collection::vec(prop::sample::select(vec!['a', '钟', '。', ' ', '\u{3000}', '|', '\\', '`', '(', ')', '*', '=', '!', ']', '[', '#']), 1..16),
         level in 0..=8_u32,
         checked in any::<bool>(),
         code in any::<bool>(),
