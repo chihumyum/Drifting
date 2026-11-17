@@ -849,7 +849,7 @@ impl TemplateEditor {
                 .unwrap_or(0);
             let options = types
                 .iter()
-                .map(|ty| Choice::new(Icon::ChevronDown, type_label(ty, cx)))
+                .map(|ty| Choice::plain(type_label(ty, cx)))
                 .collect();
             let types: Vec<String> = types.into_iter().map(str::to_owned).collect();
             let (m, f) = (mid.clone(), fid.clone());

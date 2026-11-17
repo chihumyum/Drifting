@@ -30,14 +30,26 @@ use super::{
 #[derive(Clone, Debug)]
 pub struct Choice {
     pub label: SharedString,
-    pub icon: RowIcon,
+    /// `None`: words alone ([`Choice::plain`]).
+    pub icon: Option<RowIcon>,
 }
 
 impl Choice {
     pub fn new(icon: impl Into<RowIcon>, label: impl Into<SharedString>) -> Choice {
         Choice {
             label: label.into(),
-            icon: icon.into(),
+            icon: Some(icon.into()),
+        }
+    }
+
+    /// A choice of words alone, for choices that are not things (a field's
+    /// values, a template's levels): the trigger shows the name and its
+    /// fold, the list rows are words alone ([`MenuItem::plain`]). A select's
+    /// choices all have an icon or none do.
+    pub fn plain(label: impl Into<SharedString>) -> Choice {
+        Choice {
+            label: label.into(),
+            icon: None,
         }
     }
 }
@@ -199,8 +211,16 @@ impl RenderOnce for Select {
         .when_some(current_label, |el, l| el.aria_label(l))
         .child(overlay::probe(bounds_cell.clone()))
         .when_some(current, |el, c| {
-            el.child(row_icon(c.icon, &self.id, p.ink(2).solid()))
-                .child(div().flex_1().min_w_0().truncate().child(c.label))
+            el.when_some(c.icon, |el, icon| {
+                let mark_dbg = format!("{}-mark", self.id);
+                el.child(
+                    div()
+                        .flex_none()
+                        .debug_selector(move || mark_dbg)
+                        .child(row_icon(icon, &self.id, p.ink(2).solid())),
+                )
+            })
+            .child(div().flex_1().min_w_0().truncate().child(c.label))
         })
         .child(sand::icon(Icon::ChevronDown, 14.0, p.ink(3).solid()))
         .on_click(move |_, _, cx| {
@@ -229,12 +249,12 @@ impl RenderOnce for Select {
             for (i, c) in self.choices.iter().enumerate() {
                 let f = self.on_change.clone();
                 let close = state.clone();
+                let row_id = child_id(&self.id, format!("choice-{i}"));
                 items.push(
-                    MenuItem::new(
-                        child_id(&self.id, format!("choice-{i}")),
-                        c.icon,
-                        c.label.clone(),
-                    )
+                    match c.icon {
+                        Some(icon) => MenuItem::new(row_id, icon, c.label.clone()),
+                        None => MenuItem::plain(row_id, c.label.clone()),
+                    }
                     .checked(i == self.selected)
                     .on_click(move |_, w, cx| {
                         close.update(cx, |st, cx| {
