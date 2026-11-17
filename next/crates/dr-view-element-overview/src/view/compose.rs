@@ -1,8 +1,9 @@
 //! Shift selects two graph entries; the existing centred panel names their relation.
 
-use dr_i18n::keys::{common, relation_graph as k};
+use dr_i18n::keys::common;
+use dr_i18n::keys::relation_graph as k;
 use dr_model::{shared::normalize_relation_type_name, v3::RelationDirection};
-use dr_shell::{actions::RevealRelationRow, strings::t};
+use dr_shell::strings::t;
 use dr_ui::{
     Theme,
     components::Button,
@@ -223,7 +224,6 @@ impl ElementOverview {
                 self.cancel_relation(cx);
                 self.sync_workspace_book(cx);
                 window.focus(&self.relation_focus, cx);
-                window.dispatch_action(Box::new(RevealRelationRow { row: row.clone() }), cx);
                 Some(row)
             }
             Err(error) => {
