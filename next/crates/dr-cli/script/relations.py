@@ -164,6 +164,14 @@ def smoke(args, profile, data):
         app("input.key", keys="enter")
         screenshot("06b-graph-focused.png")
         app("input.key", keys="escape")
+        press("Close")
+        # Use the existing legend filters to see the particular new edge,
+        # rather than accepting only its name in a crowded all-book legend.
+        press("A sand line joins two elements mentioned in the same paragraph of a chapter")
+        for other in command("relation_type.list", book=book):
+            if other["id"] != relation["id"] and other["pair_count"]:
+                press(f'Hide "{other["name"]}"')
+        screenshot("06c-created-edge.png")
 
         # The same linked input is also used by a real prose comment composer.
         before = {c["id"] for c in command("comment.list", book=book)}
