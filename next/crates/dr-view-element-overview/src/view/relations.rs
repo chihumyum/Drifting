@@ -22,7 +22,7 @@ use gpui::{
 use super::ElementOverview;
 use crate::relate::{
     ElementLayoutMode, RelateEdgeInput, RelatePoint, RelateRoleLabel, relate_bend,
-    relate_cell_half, relate_edge_geometry, relate_role_half,
+    relate_edge_geometry, relate_role_half,
 };
 
 #[derive(Clone, Debug)]
@@ -170,6 +170,68 @@ impl RelateEdgeView {
 }
 
 impl ElementOverview {
+    /// Cache the actual UI glyph advance once per book snapshot; camera changes
+    /// reuse it and do not reshape names or restart the force layout.
+    pub(super) fn measure_relate_names(&mut self, cx: &gpui::App) {
+        use dr_ui::fonts::{Role, weight};
+        self.relate_name_widths = self
+            .elements
+            .iter()
+            .map(|el| {
+                let run = gpui::TextRun {
+                    len: el.name.len(),
+                    font: Role::Ui.font(weight::REGULAR),
+                    color: gpui::Hsla::default(),
+                    background_color: None,
+                    underline: None,
+                    strikethrough: None,
+                };
+                let line =
+                    cx.text_system()
+                        .shape_line(el.name.clone().into(), px(11.5), &[run], None);
+                (el.id.clone(), f32::from(line.width()))
+            })
+            .collect();
+    }
+
+    pub(super) fn relate_name_shown(
+        &self,
+        id: &str,
+        neighbours: &Option<std::collections::HashSet<String>>,
+    ) -> bool {
+        crate::isles::isles_lod(self.zoom) != crate::isles::IslesLod::Far
+            || self.isle_focus.as_deref() == Some(id)
+            || neighbours.as_ref().is_some_and(|n| n.contains(id))
+            || self.cached_major_ids.contains(id)
+    }
+
+    /// Card half-size in world coordinates. Its fixed-size label, mark, gap,
+    /// padding and border must still fit when the graph is zoomed out. Long
+    /// names retain the existing 160px cap; hidden Far-LOD names need no floor.
+    pub(super) fn relate_card_half(
+        &self,
+        el: &crate::isles::IslandItem,
+        show_name: bool,
+    ) -> (f64, f64) {
+        let (hw, hh) = crate::relate::relate_cell_half(&el.name);
+        let zoom = f64::from(self.zoom);
+        let mut width = (hw * 2.0 * zoom).max(24.0);
+        if show_name {
+            // 2px border + 12px padding + 4px gap + the largest 13px mark.
+            let text = f64::from(
+                self.relate_name_widths
+                    .get(&el.id)
+                    .copied()
+                    .unwrap_or_default(),
+            );
+            width = width.max((text.ceil() + 31.0).min(crate::relate::RELATE_CELL_MAX_W));
+        }
+        (
+            width / (2.0 * zoom),
+            (hh * 2.0 * zoom).max(20.0) / (2.0 * zoom),
+        )
+    }
+
     pub fn peek_relations(&self, entry: &str) -> Vec<PeekRelation> {
         self.relations
             .iter()
@@ -210,10 +272,16 @@ impl ElementOverview {
 
     pub(crate) fn build_relate_edges(&self, ink: Rgb) -> Vec<RelateEdgeView> {
         let present = self.present_element_ids();
-        let names_by_id: HashMap<&str, &str> = self
+        let neighbours = self.neighbourhood();
+        let sizes: HashMap<&str, (f64, f64)> = self
             .elements
             .iter()
-            .map(|e| (e.id.as_str(), e.name.as_str()))
+            .map(|el| {
+                (
+                    el.id.as_str(),
+                    self.relate_card_half(el, self.relate_name_shown(&el.id, &neighbours)),
+                )
+            })
             .collect();
         let centers: HashMap<&str, RelatePoint> = match self.layout_mode {
             ElementLayoutMode::Isles => self
@@ -280,8 +348,8 @@ impl ElementOverview {
                 .or_insert(0usize);
             let bend = relate_bend(idx, total);
             let roles = self.relate_roles_for(&r.relation_type);
-            let from_half = relate_cell_half(names_by_id.get(r.from.as_str()).unwrap_or(&""));
-            let to_half = relate_cell_half(names_by_id.get(r.to.as_str()).unwrap_or(&""));
+            let from_half = sizes[r.from.as_str()];
+            let to_half = sizes[r.to.as_str()];
             let geom = relate_edge_geometry(RelateEdgeInput {
                 from_id: &r.from,
                 to_id: &r.to,

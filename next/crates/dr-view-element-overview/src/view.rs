@@ -267,6 +267,7 @@ pub struct ElementOverview {
     pub(crate) cached_present_ids: HashSet<String>,
     pub(crate) cached_threshold_pairs: Rc<[IslePair]>,
     pub(crate) cached_mark_weights: HashMap<String, f32>,
+    pub(crate) relate_name_widths: HashMap<String, f32>,
     pub(crate) cached_major_ids: BTreeSet<String>,
     pub(crate) cached_isle_starts: BTreeMap<String, RelatePoint>,
 
@@ -343,6 +344,7 @@ impl ElementOverview {
             cached_present_ids: HashSet::new(),
             cached_threshold_pairs: Rc::from(&[][..]),
             cached_mark_weights: HashMap::new(),
+            relate_name_widths: HashMap::new(),
             cached_major_ids: BTreeSet::new(),
             cached_isle_starts: BTreeMap::new(),
             relate_live: BTreeMap::new(),
@@ -612,6 +614,7 @@ impl ElementOverview {
             self.close_island(cx);
         }
 
+        self.measure_relate_names(cx);
         self.reload_relations_and_cooccurrences();
         self.ensure_relate_settled(false, cx);
     }
@@ -704,6 +707,7 @@ impl ElementOverview {
     }
 
     pub(crate) fn relate_nodes_and_springs(&self) -> (Vec<RelateNodeInput>, Vec<RelateSpring>) {
+        let neighbours = self.neighbourhood();
         let nodes: Vec<RelateNodeInput> = self
             .elements
             .iter()
@@ -716,6 +720,7 @@ impl ElementOverview {
                 RelateNodeInput {
                     id: el.id.clone(),
                     name: el.name.clone(),
+                    half: self.relate_card_half(el, self.relate_name_shown(&el.id, &neighbours)),
                     anchor,
                 }
             })
@@ -1842,12 +1847,10 @@ impl ElementOverview {
     #[allow(clippy::too_many_arguments)]
     fn render_relate_cells(
         &self,
-        lod: IslesLod,
         weights: &HashMap<String, f32>,
         neighbourhood: &Option<HashSet<String>>,
         dimmed: &Option<HashSet<String>>,
         hidden: &Option<HashSet<String>>,
-        major_ids: &BTreeSet<String>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Vec<AnyElement> {
@@ -1867,7 +1870,8 @@ impl ElementOverview {
             else {
                 continue;
             };
-            let (hw, hh) = relate_cell_half(&element.name);
+            let show_name = self.relate_name_shown(&element.id, neighbourhood);
+            let (hw, hh) = self.relate_card_half(element, show_name);
             let sx = pos.x_f32() * self.zoom + self.pan.x;
             let sy = pos.y_f32() * self.zoom + self.pan.y;
             let cell_w = ((hw as f32) * 2.0 * self.zoom).max(24.0);
@@ -1884,13 +1888,9 @@ impl ElementOverview {
             let is_pinned = element.relation_pin.is_some();
             let weight = weights.get(&element.id).copied().unwrap_or(0.0);
 
-            let show_name = lod != IslesLod::Far
-                || is_focused
-                || is_neighbour
-                || major_ids.contains(&element.id);
-
             let el_id = element.id.clone();
             let el_name = element.name.clone();
+            let el_id_for_label = el_id.clone();
             let drag_payload = ElementCarryDrag {
                 element_id: el_id.clone(),
                 element_name: el_name.clone(),
@@ -1953,6 +1953,12 @@ impl ElementOverview {
                 .when(show_name, |d| {
                     d.child(
                         div()
+                            .id(SharedString::from(format!(
+                                "se-relate-name-{el_id_for_label}"
+                            )))
+                            .debug_selector(move || format!("se-relate-name-{el_id_for_label}"))
+                            .font_family(dr_ui::fonts::SANS)
+                            .font_weight(dr_ui::fonts::weight::REGULAR)
                             .text_size(px(11.5))
                             .text_color(p.ink(1).solid())
                             .truncate()
@@ -2171,12 +2177,10 @@ impl Render for ElementOverview {
                 cx,
             ),
             ElementLayoutMode::Relate => self.render_relate_cells(
-                lod,
                 &self.cached_mark_weights,
                 &neighbourhood,
                 &dimmed,
                 &hidden,
-                &self.cached_major_ids,
                 window,
                 cx,
             ),
