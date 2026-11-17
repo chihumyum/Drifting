@@ -92,9 +92,9 @@
     {
       "app": "ui.press",
       "params": {
-        "role": "Button",
-        "label": "Settings"
-      }
+        "label": "${books.0.name}"
+      },
+      "note": "T2: the project's name is edited in place on Project Home (the Settings dialog is gone)"
     },
     {
       "app": "input.key",
@@ -109,10 +109,9 @@
       }
     },
     {
-      "app": "ui.press",
+      "app": "input.key",
       "params": {
-        "role": "Button",
-        "label": "Save"
+        "keys": "enter"
       }
     },
     {
@@ -120,6 +119,25 @@
       "params": {
         "until": "ready",
         "state": {
+          "/book/name": "G4 synthetic book",
+          "/dialog": false
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "escape"
+      },
+      "note": "Enter moved into the summary (T2); Esc leaves it so the page opened next takes the keyboard"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/focus/workspace": true,
           "/dialog": false
         },
         "timeout_ms": 30000
