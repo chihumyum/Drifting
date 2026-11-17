@@ -1,0 +1,193 @@
+{
+  "about": "KB 左栏的键盘（kernel-v5 第 15 节第 48 条）：showcase 种子上《慢钟》真窗口走一遍。正文里 ⌘⇧L 把关着的左栏打开、键盘进树，↑↓→← 走、收起展开，回车两下（预览、固定去稿纸），空格开卡走到「层级」回车两次（卡不关、键盘留在这一行），Esc 关卡，↑ 进 Tab 行换一个 Tab，Esc 回稿纸接着打字；浅色、深色各截两张（键盘停在一行上、卡开着）。",
+  "steps": [
+    { "seed": "showcase" },
+    { "call": "book.list", "input": {}, "save": "books" },
+    { "call": "entry.list", "input": { "book": "${books.[name=慢钟].id}" }, "save": "roots" },
+    {
+      "call": "entry.list",
+      "input": { "book": "${books.[name=慢钟].id}", "parent": "${roots.[template=tpl-manuscript].id}" },
+      "save": "volumes"
+    },
+    {
+      "call": "entry.list",
+      "input": { "book": "${books.[name=慢钟].id}", "parent": "${volumes.0.id}" },
+      "save": "chapters"
+    },
+    {
+      "launch": {
+        "env": { "DRIFTING_APPEARANCE": "light" },
+        "settings": {
+          "device": { "modules": { "first_run.done": true } },
+          "account": { "language.ui_locale": "zh-CN" }
+        }
+      }
+    },
+    { "app": "ui.wait", "params": { "timeout_ms": 30000 } },
+    { "app": "window.focus" },
+    { "app": "book.open", "params": { "book": "${books.[name=慢钟].id}" } },
+    { "app": "ui.wait", "params": { "state": { "/book/version": 5 } } },
+    { "app": "nav.open", "params": { "target": "entry:${chapters.0.id}/mod-prose" } },
+    { "app": "ui.wait", "params": { "state": { "/v3Page/focus/within": true }, "timeout_ms": 15000 } },
+    {
+      "app": "state.get",
+      "expect": { "/left/open": false, "/v3Sidebar/keyboard/in": null },
+      "note": "起点：左栏关着，键盘在第一章的正文里"
+    },
+    { "app": "input.key", "params": { "keys": "secondary-shift-l" } },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/left/open": true,
+          "/v3Sidebar/keyboard/in": "tree",
+          "/v3Sidebar/keyboard/tree/row/entry": "${roots.[template=tpl-manuscript].id}"
+        }
+      },
+      "note": "⌘⇧L：左栏打开、键盘进树；「全部」里书稿收着，停在最近的、看得见的那一层（书稿）"
+    },
+    { "app": "input.key", "params": { "keys": "right right right" } },
+    {
+      "app": "state.get",
+      "expect": { "/v3Sidebar/keyboard/tree/row/entry": "${chapters.0.id}" },
+      "note": "→ 展开书稿，→ 走到卷一，→ 走到第一章"
+    },
+    { "app": "input.key", "params": { "keys": "down" } },
+    { "app": "state.get", "expect": { "/v3Sidebar/keyboard/tree/row/entry": "${chapters.1.id}" } },
+    { "app": "input.key", "params": { "keys": "up left" } },
+    {
+      "app": "state.get",
+      "expect": { "/v3Sidebar/keyboard/tree/row/entry": "${volumes.0.id}" },
+      "note": "↑ 回第一章，← 回到外面那一层（卷一）"
+    },
+    { "app": "input.key", "params": { "keys": "left right right down" } },
+    {
+      "app": "state.get",
+      "expect": { "/v3Sidebar/keyboard/tree/row/entry": "${chapters.1.id}", "/v3Sidebar/keyboard/in": "tree" },
+      "note": "← 收起卷一，→ 展开，→ 第一章，↓ 第二章"
+    },
+    { "app": "input.key", "params": { "keys": "enter" } },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "entry:${chapters.1.id}",
+          "/v3Sidebar/keyboard/in": "tree",
+          "/v3Sidebar/keyboard/tree/row/entry": "${chapters.1.id}"
+        }
+      },
+      "note": "回车一下：第二章预览打开，键盘还在左栏"
+    },
+    { "app": "input.key", "params": { "keys": "enter" } },
+    {
+      "app": "ui.wait",
+      "params": { "state": { "/v3Page/focus/within": true, "/v3Sidebar/keyboard/in": null } },
+      "note": "同一行再回车：固定下来，键盘去稿纸"
+    },
+    { "app": "input.type", "params": { "text": "（甲）" } },
+    { "app": "input.key", "params": { "keys": "secondary-shift-l" } },
+    {
+      "app": "ui.wait",
+      "params": { "state": { "/v3Sidebar/keyboard/in": "tree", "/v3Sidebar/keyboard/tree/row/entry": "${chapters.1.id}" } },
+      "note": "再进左栏：停在开着的第二章那一行"
+    },
+    { "app": "ui.screenshot", "png": "kb-row-light.png" },
+    { "app": "input.key", "params": { "keys": "space" } },
+    {
+      "app": "ui.wait",
+      "params": { "state": { "/v3Sidebar/keyboard/tree/card/entry": "${chapters.1.id}", "/v3Sidebar/keyboard/tree/cardRow": 0 } },
+      "note": "空格开卡，第一行（写批注）亮着"
+    },
+    { "app": "ui.screenshot", "png": "kb-card-light.png" },
+    { "app": "input.key", "params": { "keys": "up" } },
+    { "app": "state.get", "expect": { "/v3Sidebar/keyboard/tree/cardRow": 0 }, "note": "第一行按 ↑ 停住" },
+    { "app": "input.key", "params": { "keys": "down down down down down down down" } },
+    {
+      "app": "state.get",
+      "expect": { "/v3Sidebar/keyboard/tree/cardRow": 7 },
+      "note": "↓ 走到「层级」（写批注、打开、新建、编辑模板、换模板、归属到、快照历史、层级）"
+    },
+    { "app": "input.key", "params": { "keys": "enter" } },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/v3Sidebar/keyboard/tree/card/entry": "${chapters.1.id}",
+          "/v3Sidebar/keyboard/tree/cardRow": 8
+        }
+      },
+      "note": "回车「层级」：第二章开了层级，卡还开着；多出「整书视图」一行，键盘还在「层级」上"
+    },
+    { "app": "input.key", "params": { "keys": "enter" } },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/v3Sidebar/keyboard/tree/card/entry": "${chapters.1.id}",
+          "/v3Sidebar/keyboard/tree/cardRow": 7
+        }
+      },
+      "note": "再回车把层级关回去（下面没有条目，不问），卡还开着"
+    },
+    { "app": "input.key", "params": { "keys": "escape" } },
+    {
+      "app": "state.get",
+      "expect": {
+        "/v3Sidebar/keyboard/tree/card": null,
+        "/v3Sidebar/keyboard/in": "tree",
+        "/v3Sidebar/keyboard/tree/row/entry": "${chapters.1.id}"
+      },
+      "note": "Esc 关卡，键盘回到那一行"
+    },
+    { "app": "input.key", "params": { "keys": "up up up up" } },
+    { "app": "state.get", "expect": { "/v3Sidebar/keyboard/in": "tabs" }, "note": "树的第一行再按 ↑ 进 Tab 行" },
+    { "app": "input.key", "params": { "keys": "right" } },
+    {
+      "app": "ui.wait",
+      "params": { "state": { "/v3Sidebar/entry": "${roots.[template=tpl-manuscript].id}", "/v3Sidebar/keyboard/in": "tabs" } },
+      "note": "→ 换到「书稿」Tab，键盘还在 Tab 行"
+    },
+    { "app": "input.key", "params": { "keys": "escape" } },
+    {
+      "app": "ui.wait",
+      "params": { "state": { "/v3Page/focus/within": true, "/v3Sidebar/keyboard/in": null, "/left/open": true } },
+      "note": "Esc 回稿纸，左栏还开着"
+    },
+    { "app": "input.type", "params": { "text": "乙" } },
+    {
+      "app": "page.text",
+      "params": { "target": "entry:${chapters.1.id}/mod-prose" },
+      "contains": { "/paragraphs/0/text": "（甲）乙" },
+      "note": "接着打的字落在离开前的地方"
+    },
+    { "app": "app.quit", "expect": { "/quit": true } },
+
+    {
+      "launch": {
+        "env": { "DRIFTING_APPEARANCE": "dark" },
+        "settings": {
+          "device": { "modules": { "first_run.done": true } },
+          "account": { "language.ui_locale": "zh-CN" }
+        }
+      }
+    },
+    { "app": "ui.wait", "params": { "timeout_ms": 30000 } },
+    { "app": "window.focus" },
+    { "app": "book.open", "params": { "book": "${books.[name=慢钟].id}" } },
+    { "app": "ui.wait", "params": { "state": { "/book/version": 5 } } },
+    { "app": "nav.open", "params": { "target": "entry:${chapters.1.id}/mod-prose" } },
+    { "app": "ui.wait", "params": { "state": { "/v3Page/focus/within": true }, "timeout_ms": 15000 } },
+    { "app": "input.key", "params": { "keys": "secondary-shift-l" } },
+    {
+      "app": "ui.wait",
+      "params": { "state": { "/left/open": true, "/v3Sidebar/keyboard/in": "tree", "/v3Sidebar/keyboard/tree/row/entry": "${chapters.1.id}" } }
+    },
+    { "app": "ui.screenshot", "png": "kb-row-dark.png" },
+    { "app": "input.key", "params": { "keys": "space" } },
+    { "app": "ui.wait", "params": { "state": { "/v3Sidebar/keyboard/tree/cardRow": 0 } } },
+    { "app": "ui.screenshot", "png": "kb-card-dark.png" },
+    { "app": "input.key", "params": { "keys": "escape escape" } },
+    { "app": "ui.wait", "params": { "state": { "/v3Page/focus/within": true, "/v3Sidebar/keyboard/in": null } } },
+    { "app": "app.quit", "expect": { "/quit": true } }
+  ]
+}

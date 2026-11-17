@@ -1288,8 +1288,36 @@ impl Render for Sidebar {
         if std::mem::take(&mut self.want_tree_keys) && !self.filled && !self.in_structure {
             self.land_keyboard(window, cx);
         }
+        let keyed = !self.filled && !self.in_structure;
         content
-            .child(div().flex_1().min_h_0().px_2().py_2().child(body))
+            .child(
+                div()
+                    .flex_1()
+                    .min_h_0()
+                    .px_2()
+                    .py_2()
+                    // A press round the tree that nothing in it took: the
+                    // tree's blank space too, the keyboard landing in it.
+                    .when(keyed, |el| {
+                        el.on_mouse_down(
+                            MouseButton::Left,
+                            cx.listener(|this, _: &MouseDownEvent, window, cx| {
+                                let walks = this
+                                    .selected
+                                    .as_ref()
+                                    .and_then(|id| this.displays.get(id))
+                                    .is_some_and(|(_, part)| part.land.is_some());
+                                if window.default_prevented() || this.managing.is_some() || !walks {
+                                    return;
+                                }
+                                this.want_tree_keys = true;
+                                window.prevent_default();
+                                cx.notify();
+                            }),
+                        )
+                    })
+                    .child(body),
+            )
             .child(self.templates(window, cx))
             .into_any_element()
     }
