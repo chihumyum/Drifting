@@ -486,5 +486,20 @@
     "templateCount": "{{count}} 个模板",
     "templateStructure": "模板结构",
     "unusedTemplates": "未使用的模板"
+  },
+  "v5Relations": {
+    "addEntry": "加一个条目",
+    "addRow": "加一行",
+    "create": "建立",
+    "deleteRow": "删掉这一行",
+    "description": "描述",
+    "direction": "单向或双向",
+    "findEntry": "条目",
+    "kinds_other": "{{count}} 种",
+    "name": "关系的名字",
+    "newRelation": "新的关系",
+    "pairs_other": "{{count}} 对",
+    "removeEntry": "移出「{{name}}」",
+    "tab": "关系"
   }
 }

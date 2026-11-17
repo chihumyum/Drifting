@@ -504,5 +504,22 @@
     "templateCount": "{{count}} Vorlagen",
     "templateStructure": "Vorlagenstruktur",
     "unusedTemplates": "Unbenutzte Vorlagen"
+  },
+  "v5Relations": {
+    "addEntry": "Eintrag hinzufügen",
+    "addRow": "Zeile hinzufügen",
+    "create": "Erstellen",
+    "deleteRow": "Diese Zeile löschen",
+    "description": "Beschreibung",
+    "direction": "Einseitig oder wechselseitig",
+    "findEntry": "Eintrag",
+    "kinds_one": "{{count}} Beziehung",
+    "kinds_other": "{{count}} Beziehungen",
+    "name": "Name der Beziehung",
+    "newRelation": "Neue Beziehung",
+    "pairs_one": "{{count}} Paar",
+    "pairs_other": "{{count}} Paare",
+    "removeEntry": "„{{name}}“ entfernen",
+    "tab": "Beziehungen"
   }
 }
