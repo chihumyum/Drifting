@@ -401,6 +401,9 @@ pub fn run() {
             app.manage(dev_watchdog::DevWatchdog::start(
                 dev_watchdog::log_directory(&data_directories.diagnostics_anchor),
             ));
+            // From here a step that fails is named in the panic record Tauri's
+            // "Failed to setup app" leaves (docs/crash-reports.md).
+            crash_reports::enter_setup_step("database-gateway");
             let database_gateway = database::DatabaseGateway::new(database_directory)
                 .map_err(std::io::Error::other)?;
             if !app.manage(database_gateway) {
@@ -411,6 +414,7 @@ pub fn run() {
                 .into());
             }
 
+            crash_reports::enter_setup_step("deep-link");
             #[cfg(any(target_os = "linux", all(debug_assertions, windows)))]
             app.deep_link().register_all()?;
 
@@ -431,6 +435,7 @@ pub fn run() {
 
             #[cfg(target_os = "ios")]
             {
+                crash_reports::enter_setup_step("ios-window");
                 let main_window_config = app
                     .config()
                     .app
@@ -451,17 +456,31 @@ pub fn run() {
 
             if let Some(window) = app.get_webview_window("main") {
                 #[cfg(target_os = "macos")]
-                webview_media::enable_media_devices(&window)?;
+                {
+                    crash_reports::enter_setup_step("media-devices");
+                    webview_media::enable_media_devices(&window)?;
+                }
                 #[cfg(target_os = "windows")]
-                windows_webview::configure(&window)?;
+                {
+                    crash_reports::enter_setup_step("webview-configure");
+                    windows_webview::configure(&window)?;
+                }
                 #[cfg(desktop)]
-                window_fit::fit_main_window(&window)?;
+                {
+                    crash_reports::enter_setup_step("window-fit");
+                    window_fit::fit_main_window(&window)?;
+                }
+                crash_reports::enter_setup_step("window-show");
                 window.show()?;
             }
             #[cfg(target_os = "windows")]
-            windows_tray::install(app.handle())?;
+            {
+                crash_reports::enter_setup_step("tray");
+                windows_tray::install(app.handle())?;
+            }
             #[cfg(target_os = "macos")]
             macos_quit::route_terminate_through_flush(app.handle());
+            crash_reports::finish_setup_steps();
             Ok(())
         })
         .on_window_event(|_window, _event| {

@@ -244,6 +244,21 @@ it('sends native panics from the previous launch as fatal reports, and clears th
   expect(fetchMock).toHaveBeenCalledOnce();
 });
 
+it('says which launch step a failed native setup stopped at, its error and when it crashed', async () => {
+  const message = 'Failed to setup app: error encountered during setup hook: '
+    + 'runtime error: failed to receive message from webview';
+  nativeReports.take.mockResolvedValueOnce([{
+    message, location: 'src/app.rs:1425', thread: 'main', backtrace: '0: <unknown>',
+    occurredAtMs: Date.UTC(2026, 10, 16, 23, 0), appVersion: '0.1.0-alpha.12', setupStep: 'window-fit',
+  }]);
+  await reportNativeCrashes();
+  await flushCrashReports();
+  expect(sentBodies()[0]).toMatchObject({
+    kind: 'native-panic', message,
+    context: { thread: 'main', setupStep: 'window-fit', crashedAt: '2026-11-16T23:00:00.000Z' },
+  });
+});
+
 it('keeps sending live after an empty flush and never loses a report added during a send', async () => {
   await flushCrashReports(); // the startup flush with nothing queued
   let release!: () => void;
