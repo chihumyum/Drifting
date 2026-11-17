@@ -1003,12 +1003,35 @@ fn save_template_dialogs_tree_reaches_the_right_columns_foot(cx: &mut TestAppCon
                 .is_some_and(|d| d.read(cx).is_loaded())
         }) && vcx.debug_bounds("v3-save-tpl-form-scroll").is_some()
     });
-    let tree = vcx.debug_bounds("v3-save-tpl-tree").unwrap();
-    let form = vcx.debug_bounds("v3-save-tpl-form-scroll").unwrap();
-    assert!(
-        (tree.bottom() - form.bottom()).abs() <= px(1.0),
-        "the tree ends at {:?}, the right column at {:?}",
-        tree.bottom(),
-        form.bottom()
-    );
+    // These are the visible tree frame and the right scroll pane, not
+    // their outer flex containers. They stay aligned when a shorter
+    // window makes the form scroll, and after growing the window again.
+    for (width, height) in [
+        (1280.0, 960.0),
+        (1280.0, 700.0),
+        (1100.0, 1200.0),
+        (1280.0, 960.0),
+    ] {
+        vcx.simulate_resize(size(px(width), px(height)));
+        vcx.run_until_parked();
+        vcx.update(|window, cx| window.draw(cx).clear(cx));
+        let tree = vcx.debug_bounds("v3-save-tpl-tree").unwrap();
+        let form = vcx.debug_bounds("v3-save-tpl-form-scroll").unwrap();
+        assert!(
+            tree.size.height > px(100.0),
+            "the visible tree frame: {tree:?}"
+        );
+        assert!(
+            form.size.height > px(100.0),
+            "the visible form pane: {form:?}"
+        );
+        assert!(tree.origin.y >= px(0.0) && tree.bottom() <= px(height));
+        assert!(form.origin.y >= px(0.0) && form.bottom() <= px(height));
+        assert!(
+            (tree.bottom() - form.bottom()).abs() <= px(1.0),
+            "at {width}x{height}, the tree ends at {:?}, the right column at {:?}",
+            tree.bottom(),
+            form.bottom()
+        );
+    }
 }
