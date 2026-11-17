@@ -227,9 +227,24 @@ def inspect(w):
     w.shot("09-agent-closed-fallback")
     w.side("right", True)
     w.step(5)
-    agent = w.app("ui.find", label="Agent", role="RadioButton", count=1)["nodes"][0]
+    # Review's source filter also has an Agent radio button. Identify the
+    # real header group by all five tab labels, then resolve its one Agent;
+    # the bridge cannot scope `within` to an unnamed RadioGroup by bounds.
+    nodes = w.app("ui.find")["nodes"]
+    def inside(node, group):
+        x, y = node["center"]
+        b = group["bounds"]
+        return b["x"] <= x <= b["x"] + b["width"] and b["y"] <= y <= b["y"] + b["height"]
+    expected = {"Review", "Relations", "Library", "Stats", "Agent"}
+    headers = [g for g in nodes if g["role"] == "RadioGroup" and
+               {n["label"] for n in nodes if n["role"] == "RadioButton" and inside(n, g)} == expected]
+    assert len(headers) == 1, "one real right sidebar tab group must be present"
+    agents = w.app("ui.find", label="Agent", role="RadioButton")["nodes"]
+    indices = [i for i, node in enumerate(agents) if inside(node, headers[0])]
+    assert len(indices) == 1, "the header must contain exactly one Agent tab"
+    agent = agents[indices[0]]
     assert agent["bounds"]["width"] > 0
-    w.press("Agent", role="RadioButton")
+    w.press("Agent", role="RadioButton", nth=indices[0])
     until(lambda: any(p["tab"] == "companion" for p in w.state()["right"]["panes"]["panes"]),
           "Agent segment still switches the right panel")
     w.step(5)
