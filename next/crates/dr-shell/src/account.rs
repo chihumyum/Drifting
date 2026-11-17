@@ -26,8 +26,8 @@ use dr_ui::{
 use gpui::{
     AnyElement, App, Bounds, Div, Global, ImageSource, InteractiveElement, IntoElement, ObjectFit,
     ParentElement, Pixels, RenderImage, SharedString, StatefulInteractiveElement, Styled,
-    StyledImage, Window, div, img, linear_color_stop, linear_gradient, prelude::FluentBuilder as _,
-    px,
+    StyledImage, TextRun, Window, div, img, linear_color_stop, linear_gradient,
+    prelude::FluentBuilder as _, px,
 };
 
 use crate::actions::OpenSettings;
@@ -270,19 +270,48 @@ pub fn menu(
                         .child(header_status),
                 ),
         );
-    let themes = Segmented::new(
-        child("theme"),
-        [
-            t(cx, keys::user_menu::THEME_SYSTEM),
-            t(cx, keys::user_menu::THEME_LIGHT),
-            t(cx, keys::user_menu::THEME_DARK),
-        ],
-        mode_index,
-    )
-    .on_change(move |i, _, cx| {
-        let value = modes[i.min(2)];
-        Settings::update(cx, |f| f.set(registry::THEME, value.into(), None).ok());
-    });
+    let theme_label = t(cx, keys::user_menu::THEME);
+    let theme_choices = [
+        t(cx, keys::user_menu::THEME_SYSTEM),
+        t(cx, keys::user_menu::THEME_LIGHT),
+        t(cx, keys::user_menu::THEME_DARK),
+    ];
+    let theme_pad_x = 10.0;
+    // Keep the complete localized choices and the row's existing padding.
+    // A fixed 320px menu let the English last word paint outside its edge.
+    let text_width = |text: &SharedString, size| {
+        f32::from(
+            window
+                .text_system()
+                .shape_line(
+                    text.clone(),
+                    px(size),
+                    &[TextRun {
+                        len: text.len(),
+                        font: Role::Ui.font(weight::REGULAR),
+                        color: p.ink(1).solid(),
+                        background_color: None,
+                        underline: None,
+                        strikethrough: None,
+                    }],
+                    None,
+                )
+                .width,
+        )
+    };
+    let theme_width = 2.0 * (m::ROW_INSET + m::ROW_PAD_X + m::ICON_GAP)
+        + m::ICON
+        + text_width(&theme_label, s.menu_text)
+        + theme_choices
+            .iter()
+            .map(|label| text_width(label, s.secondary) + 2.0 * theme_pad_x)
+            .sum::<f32>();
+    let themes = Segmented::new(child("theme"), theme_choices, mode_index)
+        .pad_x(theme_pad_x)
+        .on_change(move |i, _, cx| {
+            let value = modes[i.min(2)];
+            Settings::update(cx, |f| f.set(registry::THEME, value.into(), None).ok());
+        });
     let languages = Select::new(
         child("language"),
         Locale::ALL
@@ -412,11 +441,11 @@ pub fn menu(
         .child(row(Icon::Torii, act.label, None))
     });
     let menu = Menu::new(child("menu"))
-        .width(MenuWidth::Wide)
+        .exactly(theme_width.ceil().max(MenuWidth::Wide.px()))
         .child(header)
         .child(row(
             theme_icon,
-            t(cx, keys::user_menu::THEME),
+            theme_label,
             Some(themes.into_any_element()),
         ))
         .child(row(
@@ -444,11 +473,13 @@ pub fn menu(
         None => Place::Center,
     };
     let language_id = child("language");
+    let float_selector = child("float");
     overlay::float(
         place,
         Layer::Popover,
         div()
             .id(child("float"))
+            .debug_selector(move || float_selector.to_string())
             .occlude()
             .on_mouse_down_out(move |e, window, cx| {
                 // The cell that owns the menu toggles it itself; an open
