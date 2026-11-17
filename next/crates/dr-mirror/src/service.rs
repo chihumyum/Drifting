@@ -285,6 +285,9 @@ struct Index {
 impl Index {
     fn absorb(&mut self, report: &Report) {
         for (book, seen) in &report.seen {
+            // The completed projection is already a polling baseline. A
+            // missed deletion before the first poll must not become invisible.
+            self.checked.extend(seen.files.clone());
             self.books.insert(book.clone(), seen.clone());
         }
     }
@@ -694,6 +697,27 @@ mod tests {
             b"projected body"
         );
         assert_eq!(fs::read(&dir).unwrap(), b"unavailable mount");
+    }
+
+    #[test]
+    fn a_file_removed_before_the_first_poll_is_detected() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("body.md");
+        fs::write(&path, b"projected body").unwrap();
+        let book = BookId::parse("book").unwrap();
+        let mut index = Index::default();
+        index.absorb(&Report {
+            seen: BTreeMap::from([(
+                book.clone(),
+                Seen {
+                    dir: dir.path().to_path_buf(),
+                    files: BTreeMap::from([(path.clone(), disk::stat(&path).unwrap().unwrap())]),
+                },
+            )]),
+            ..Default::default()
+        });
+        fs::remove_file(path).unwrap();
+        assert_eq!(index.check(), BTreeSet::from([book]));
     }
 
     #[test]
