@@ -543,6 +543,9 @@ pub mod v3 {
         /// `name_units`: one least width for every line, so the lines'
         /// tiles share columns (UP, P4).
         tile_units: f32,
+        /// The list body's drawn width and current body font size. Row
+        /// grouping follows this width as the column grows or shrinks.
+        tile_space: Option<(f32, f32)>,
     }
 
     /// Opt-in native draw timings for the G2 milestone. No prose, IDs, paths
@@ -738,6 +741,7 @@ pub mod v3 {
                 rebuilds: 0,
                 timestamp_reads,
                 tile_units: 0.0,
+                tile_space: None,
             };
             this.rebuild();
             this
@@ -833,16 +837,13 @@ pub mod v3 {
             cx.notify();
         }
         /// How many tiles a grid line holds.
-        fn tiles_per_row(&self) -> usize {
-            if self.host.surface == DisplaySurface::Sidebar {
-                2
-            } else {
-                4
-            }
+        fn tiles_per_row(&self, depth: usize) -> usize {
+            self.tile_space.map_or(1, |(width, body)| {
+                super::tile_columns(width - depth as f32 * 14.0, self.tile_units, body).0
+            })
         }
         fn rebuild(&mut self) {
             self.rebuilds += 1;
-            let columns = self.tiles_per_row();
             let rows = rows_sorted(
                 &self.host.page.book,
                 &self.host.level,
@@ -851,7 +852,7 @@ pub mod v3 {
                 self.sort,
                 &self.updated,
                 &self.folded,
-                columns,
+                usize::MAX,
             );
             self.tile_units = self
                 .host
@@ -870,12 +871,37 @@ pub mod v3 {
                         .fold(0.0, f32::max)
                 })
                 .unwrap_or(0.0);
+            // Keep virtualized rows, but group their tiles by the width
+            // actually available, not a fixed two/four columns. All lines
+            // use the same least width, including a short last line.
+            let rows: Vec<Row> = rows
+                .into_iter()
+                .flat_map(|row| match row {
+                    Row::Tiles { ids, depth } => ids
+                        .chunks(self.tiles_per_row(depth))
+                        .map(|ids| Row::Tiles {
+                            ids: ids.to_vec(),
+                            depth,
+                        })
+                        .collect(),
+                    row => vec![row],
+                })
+                .collect();
             // Keep the visible entry anchored when a book event inserts or
             // removes rows above it. reset() alone clears GPUI's anchor.
             if *self.rows != rows {
                 let mut offset = self.list.logical_scroll_top();
                 if let Some(row) = self.rows.get(offset.item_ix)
-                    && let Some(index) = rows.iter().position(|next| next == row)
+                    && let Some(index) = rows.iter().position(|next| match (row, next) {
+                        (
+                            Row::Tiles { ids, depth },
+                            Row::Tiles {
+                                ids: next,
+                                depth: next_depth,
+                            },
+                        ) => depth == next_depth && ids.first().is_some_and(|id| next.contains(id)),
+                        _ => next == row,
+                    })
                 {
                     offset.item_ix = index;
                 }
@@ -927,7 +953,15 @@ pub mod v3 {
         /// or grid (not a board, islands, the book, an entry page's lists).
         pub fn walks(&self) -> bool {
             self.host.surface == DisplaySurface::Sidebar
-                && matches!(self.display, Display::List | Display::Grid)
+                && (matches!(self.display, Display::List | Display::Grid)
+                    // P10 changes the compact presentation, not KB's
+                    // existing choice to walk a grid by its drawn cells.
+                    || (self.display == Display::Islands
+                        && self.host.page.book.v3().is_some_and(|v| {
+                            v.levels.get(&self.host.level).is_some_and(|level| {
+                                level.settings.display == "grid"
+                            })
+                        })))
         }
 
         /// Whether the keyboard walks it now: not while the left column
@@ -1071,7 +1105,33 @@ pub mod v3 {
                             });
                         }
                     }
-                    Row::Island { .. } => {}
+                    Row::Island { id, members } => {
+                        let parent = parent_at(&above, 0);
+                        let key = stop_key(parent.as_deref(), id, false);
+                        above.clear();
+                        out.push(KeyStop {
+                            key: key.clone(),
+                            id: id.clone(),
+                            parent,
+                            holds: true,
+                            folded: self.folded.contains(id),
+                            hung: false,
+                            list_row: Some(i),
+                            tile: false,
+                        });
+                        for member in members {
+                            out.push(KeyStop {
+                                key: stop_key(Some(&key), member, false),
+                                id: member.clone(),
+                                parent: Some(key.clone()),
+                                holds: false,
+                                folded: false,
+                                hung: false,
+                                list_row: Some(i),
+                                tile: true,
+                            });
+                        }
+                    }
                 }
             }
             out
@@ -1188,7 +1248,7 @@ pub mod v3 {
             let Some((i, stop)) = self.keyed(window, cx) else {
                 return;
             };
-            if stop.tile && self.display == Display::Grid {
+            if stop.tile {
                 return self.grid_step(GridStep::Up, i, &stop, cx);
             }
             if i == 0 {
@@ -1212,7 +1272,7 @@ pub mod v3 {
             let Some((i, stop)) = self.keyed(window, cx) else {
                 return;
             };
-            if stop.tile && self.display == Display::Grid {
+            if stop.tile {
                 return self.grid_step(GridStep::Down, i, &stop, cx);
             }
             if let Some(next) = self.stops.get(i + 1) {
@@ -1225,7 +1285,7 @@ pub mod v3 {
             let Some((i, stop)) = self.keyed(window, cx) else {
                 return;
             };
-            if stop.tile && self.display == Display::Grid {
+            if stop.tile {
                 return self.grid_step(GridStep::Right, i, &stop, cx);
             }
             if stop.holds && stop.folded {
@@ -1247,7 +1307,7 @@ pub mod v3 {
             let Some((i, stop)) = self.keyed(window, cx) else {
                 return;
             };
-            if stop.tile && self.display == Display::Grid {
+            if stop.tile {
                 return self.grid_step(GridStep::Left, i, &stop, cx);
             }
             if stop.holds && !stop.folded && stop.list_row.is_some() {
@@ -2035,22 +2095,15 @@ pub mod v3 {
         fn tile_columns(
             &self,
             key: String,
-            cap: Option<usize>,
             units: f32,
-            inset: f32,
             window: &mut Window,
             cx: &mut App,
         ) -> (Option<f32>, AnyElement) {
             let body_px = Theme::of(window, cx).scale.body;
-            let least = super::units_basis(units, body_px);
             let cell = window.use_keyed_state(SharedString::from(key), cx, |_, _| None::<f32>);
-            let width = cell.read(cx).map(|w| (w - inset).max(0.0)).map(|w| {
-                let fit = ((w + super::TILE_GAP) / (least + super::TILE_GAP)).floor();
-                let n = cap.map_or(fit, |cap| fit.min(cap as f32)).max(1.0);
-                ((w - (n - 1.0) * super::TILE_GAP) / n)
-                    .floor()
-                    .min(super::TILE_WIDEST)
-            });
+            let width = cell
+                .read(cx)
+                .map(|w| super::tile_columns(w, units, body_px).1);
             let probe = canvas(
                 move |bounds, window, cx| {
                     let w = f32::from(bounds.size.width);
@@ -2160,18 +2213,9 @@ pub mod v3 {
                 }
                 Row::Tiles { ids, depth } => {
                     let inset = *depth as f32 * 14.0;
-                    let (width, probe) = self.tile_columns(
-                        format!(
-                            "g2-tiles-{}-{scope}-{}",
-                            self.host.level,
-                            ids.first().map(String::as_str).unwrap_or_default()
-                        ),
-                        Some(self.tiles_per_row()),
-                        self.tile_units,
-                        inset,
-                        window,
-                        cx,
-                    );
+                    let width = self
+                        .tile_space
+                        .map(|(w, body)| super::tile_columns(w - inset, self.tile_units, body).1);
                     div()
                         .relative()
                         .w_full()
@@ -2180,7 +2224,6 @@ pub mod v3 {
                         .gap(px(super::TILE_GAP))
                         .py_1()
                         .pl(px(inset))
-                        .child(probe)
                         .children(ids.iter().map(|id| {
                             let key = list_row.and_then(|i| self.stop_of(i, id));
                             super::in_column(
@@ -2195,6 +2238,10 @@ pub mod v3 {
                         .and_then(|t| self.host.page.book.mark(&t).1)
                         .unwrap_or(theme.palette.accent);
                     div()
+                        .debug_selector({
+                            let id = id.clone();
+                            move || format!("g2-island-{id}")
+                        })
                         .relative()
                         .mx_2()
                         .my_2()
@@ -2210,7 +2257,7 @@ pub mod v3 {
                                 id: id.clone(),
                                 depth: 0,
                             },
-                            None,
+                            list_row,
                             entity,
                             scope,
                             window,
@@ -2232,9 +2279,7 @@ pub mod v3 {
                                 .unwrap_or(0.0);
                             let (width, probe) = self.tile_columns(
                                 format!("g2-island-tiles-{}-{scope}-{id}", self.host.level),
-                                None,
                                 units,
-                                0.0,
                                 window,
                                 cx,
                             );
@@ -2246,9 +2291,17 @@ pub mod v3 {
                                 .gap(px(super::TILE_GAP))
                                 .child(probe)
                                 .children(members.iter().map(|id| {
+                                    let key = list_row.and_then(|i| self.stop_of(i, id));
                                     super::in_column(
                                         width,
-                                        self.entry_scoped(id, true, scope, None, window, cx),
+                                        self.entry_scoped(
+                                            id,
+                                            true,
+                                            scope,
+                                            key.as_deref(),
+                                            window,
+                                            cx,
+                                        ),
                                     )
                                 }))
                         })
@@ -2512,12 +2565,64 @@ pub mod v3 {
             };
             root.child(
                 div()
+                    .relative()
                     .flex()
                     .flex_col()
                     .flex_1()
                     .h_full()
                     .min_h_0()
                     .overflow_hidden()
+                    .when(
+                        matches!(self.display, Display::Grid | Display::Islands),
+                        |el| {
+                            let weak = cx.weak_entity();
+                            let previous = self.tile_space;
+                            let body = Theme::of(window, cx).scale.body;
+                            el.child(
+                                canvas(
+                                    move |bounds, _, cx| {
+                                        let space = (f32::from(bounds.size.width), body);
+                                        if space.0 > 0.0 && previous != Some(space) {
+                                            cx.defer(move |cx| {
+                                                let _ = weak.update(cx, |this, cx| {
+                                                    if this.tile_space != Some(space) {
+                                                        let regroup = this.rows.iter().any(|row| {
+                                                            let Row::Tiles { depth, .. } = row
+                                                            else {
+                                                                return false;
+                                                            };
+                                                            this.tiles_per_row(*depth)
+                                                                != super::tile_columns(
+                                                                    space.0 - *depth as f32 * 14.0,
+                                                                    this.tile_units,
+                                                                    space.1,
+                                                                )
+                                                                .0
+                                                        });
+                                                        this.tile_space = Some(space);
+                                                        if regroup {
+                                                            this.rebuild();
+                                                        } else {
+                                                            // Resizing within a column count only
+                                                            // remeasures, without sorting the book.
+                                                            this.list.remeasure_items(
+                                                                0..this.rows.len(),
+                                                            );
+                                                        }
+                                                        cx.notify();
+                                                    }
+                                                });
+                                            });
+                                        }
+                                    },
+                                    |_, _, _, _| {},
+                                )
+                                .absolute()
+                                .inset_0()
+                                .size_full(),
+                            )
+                        },
+                    )
                     .child(body),
             )
             .into_any_element()
@@ -2560,6 +2665,17 @@ const TILE_WIDEST: f32 = 172.0;
 
 /// The gap between a compact index's tiles.
 const TILE_GAP: f32 = 4.0;
+
+/// As many equal columns as fit; spare space stays after the last column.
+fn tile_columns(width: f32, units: f32, body_px: f32) -> (usize, f32) {
+    let width = width.max(0.0);
+    let least = units_basis(units, body_px);
+    let count = ((width + TILE_GAP) / (least + TILE_GAP)).floor().max(1.0);
+    let cell = ((width - (count - 1.0) * TILE_GAP) / count)
+        .floor()
+        .min(TILE_WIDEST);
+    (count as usize, cell)
+}
 
 /// A tile in its column: `width` wide when the line's columns are known.
 fn in_column(width: Option<f32>, tile: gpui::AnyElement) -> gpui::AnyElement {

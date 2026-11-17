@@ -1332,12 +1332,12 @@ impl Render for Sidebar {
 
 /// How a Tab shows its entries while the column is not filled (UP,
 /// kernel-v5 §15 item 50: 「Tab只有铺满状态，才有五种。非铺满，只有列表树和
-/// 紧凑索引。」): the list tree, or the compact index (a grid's tiles, the
-/// islands' framed tiles). A board is drawn as the list tree there; filled,
-/// the Tab shows its own display again.
+/// 紧凑索引。」): grid and island both use the same category-framed compact
+/// index. The other choices use the list tree. This does not change the
+/// stored display or the Tab's independently remembered filled layout.
 pub fn unfilled_display(display: &str) -> &str {
     match display {
-        "grid" | "island" => display,
+        "grid" | "island" => "island",
         _ => "list",
     }
 }
