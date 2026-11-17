@@ -553,6 +553,7 @@ impl Render for Patches {
             let pid_action = id.clone();
             let focus_action = title_focus;
             let retry_id = id.clone();
+            let remove_id = id.clone();
             list = list.child(
                 div()
                     .id(patch_group.clone())
@@ -599,7 +600,17 @@ impl Render for Patches {
                                     .child(row.title.clone())
                                     .children(patch_ul),
                             )
-                            .children(comment_btn),
+                            .children(comment_btn)
+                            // 「删除」 at the title line's end (UP, kernel-v5
+                            // §15 item 50); it was a full-width button the
+                            // same as 「新建补丁」 right under it.
+                            .child(crate::page::danger_word(
+                                SharedString::from(format!("remove-patch-{id}")),
+                                t(cx, dr_i18n::keys::common::DELETE),
+                                cx.listener(move |v, _, _, cx| v.remove(&remove_id, cx)),
+                                window,
+                                cx,
+                            )),
                     )
                     .child(
                         div()
@@ -621,14 +632,7 @@ impl Render for Patches {
                             t(cx, dr_i18n::keys::markdown_share::RETRY),
                         )
                         .on_click(cx.listener(move |v, _, _, cx| v.save_draft(&retry_id, true, cx)))
-                    }))
-                    .child(
-                        Button::new(
-                            SharedString::from(format!("remove-patch-{id}")),
-                            t(cx, dr_i18n::keys::common::DELETE),
-                        )
-                        .on_click(cx.listener(move |v, _, _, cx| v.remove(&id, cx))),
-                    ),
+                    })),
             );
         }
         list.child(

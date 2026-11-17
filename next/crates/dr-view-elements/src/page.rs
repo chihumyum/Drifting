@@ -45,6 +45,39 @@ pub fn column(look: Look, content: impl IntoElement) -> Div {
         .child(div().w_full().max_w(px(look.width)).child(content))
 }
 
+/// A small word for a dangerous action in a row's title line (a patch's
+/// 「删除」, UP): the index ink at rest, the danger colour under the pointer,
+/// so it reads as dangerous only when the hand is on it.
+pub fn danger_word(
+    id: SharedString,
+    label: SharedString,
+    on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+    window: &Window,
+    cx: &App,
+) -> AnyElement {
+    let p = Theme::of(window, cx).palette;
+    let danger = p.danger.solid();
+    div()
+        .id(id.clone())
+        .debug_selector(move || id.to_string())
+        .flex_none()
+        .h(px(24.0))
+        .px(px(4.0))
+        .flex()
+        .items_center()
+        .cursor_pointer()
+        .role(gpui::Role::Button)
+        .aria_label(label.clone())
+        .font_role(Role::Ui)
+        .type_px(12.5, 16.0)
+        .weight(dr_ui::fonts::weight::MEDIUM)
+        .text_color(p.ink(4).solid())
+        .hover(move |st| st.text_color(danger))
+        .on_click(on_click)
+        .child(label)
+        .into_any_element()
+}
+
 /// A text action at a module title's right (`.refs-section__text-action`,
 /// 「+ 新增字段」): a small plus and words; the pointer deepens them.
 pub fn text_action(
