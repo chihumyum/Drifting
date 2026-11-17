@@ -264,6 +264,16 @@ impl Opened {
         self.cards().read_with(cx, |c, _| c.settled())
     }
 
+    /// Nothing runs in the controller: no run, no start, no suggestion job.
+    /// A card is `Started` only once its run is registered, so after that
+    /// this is the run settled, its model request made (the run's own
+    /// thread makes it, after the card already reads started).
+    fn agent_idle(&self, cx: &mut VisualTestContext) -> bool {
+        self.hub.read_with(cx, |h, _| {
+            h.controller.as_ref().is_some_and(|c| c.active_count() == 0)
+        })
+    }
+
     fn statuses(&self, cx: &mut VisualTestContext) -> Vec<CardStatus> {
         self.cards().read_with(cx, |c, _| {
             c.suggestions()
@@ -503,6 +513,7 @@ fn home_looks_once_shows_two_columns_and_a_card_opens_its_conversation(cx: &mut 
         w.ws.read_with(cx, |ws, _| ws.nav.active_tab().is_none()),
         "Home stays"
     );
+    wait(cx, "the card's run settled", |cx| w.agent_idle(cx));
     let requests = driver.requests();
     assert_eq!(requests.len(), 2);
     assert!(
@@ -618,6 +629,7 @@ fn a_dismissed_card_stays_gone_and_a_failed_start_says_so(cx: &mut TestAppContex
         matches!(w.statuses(cx)[0], CardStatus::Started { .. })
             && cx.debug_bounds("home-agent-card-failed-0").is_none()
     });
+    wait(cx, "the card's run settled", |cx| w.agent_idle(cx));
     assert_eq!(driver.requests().len(), 2);
     close(&w, cx, &f);
 }
@@ -895,6 +907,7 @@ fn while_the_agent_looks_the_cards_and_their_dismiss_hold_still(cx: &mut TestApp
         matches!(w.statuses(cx)[..], [CardStatus::Started { .. }])
     });
     assert!(cx.debug_bounds("home-agent-card-failed-0").is_none());
+    wait(cx, "the card's run settled", |cx| w.agent_idle(cx));
     assert_eq!(driver.requests().len(), 2);
     close(&w, cx, &f);
 }
