@@ -52,8 +52,8 @@ use crate::isles::{
 use crate::relate::{
     ElementLayoutMode, MEMORY_KEY, OverviewMemory, RELATE_DRAG_ALPHA, RELATE_LABEL_BUDGET,
     RELATE_MOVE_MS, RelateNodeInput, RelatePoint, RelateSimulationInput, RelateSpring, SpringKind,
-    create_relate_simulation, parse_overview_memory, relate_bounds, relate_cell_half, relate_ease,
-    relate_positions, relate_spring_signature, serialize_overview_memory, settle_relate,
+    create_relate_simulation, parse_overview_memory, relate_bounds, relate_ease, relate_positions,
+    relate_spring_signature, serialize_overview_memory, settle_relate,
 };
 
 pub use compose::{PairDirection, RelationDraft};

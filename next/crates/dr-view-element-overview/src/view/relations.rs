@@ -174,6 +174,7 @@ impl ElementOverview {
     /// reuse it and do not reshape names or restart the force layout.
     pub(super) fn measure_relate_names(&mut self, cx: &gpui::App) {
         use dr_ui::fonts::{Role, weight};
+        let text_system = gpui::WindowTextSystem::new(cx.text_system().clone());
         self.relate_name_widths = self
             .elements
             .iter()
@@ -186,9 +187,7 @@ impl ElementOverview {
                     underline: None,
                     strikethrough: None,
                 };
-                let line =
-                    cx.text_system()
-                        .shape_line(el.name.clone().into(), px(11.5), &[run], None);
+                let line = text_system.shape_line(el.name.clone().into(), px(11.5), &[run], None);
                 (el.id.clone(), f32::from(line.width()))
             })
             .collect();
