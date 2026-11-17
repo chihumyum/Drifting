@@ -741,6 +741,12 @@ fn shift_pair_reuses_the_named_row_and_duplicate_adds_no_undo_step(cx: &mut Test
         shell.read_with(cx, |ws, _| ws.book.v3().is_some() && ws.book_memory_ready())
     });
     let ov = mount_overview(&shell, vcx);
+    // A mouse test must wait for fill to finish: during the opening animation
+    // graph cells can be laid out beyond the moving viewport's clipping edge.
+    wait(vcx, |cx| {
+        shell.read_with(cx, |ws, _| ws.fill_progress(FillPlace::Left) >= 1.0)
+    });
+    vcx.update(|_, cx| ov.update(cx, |v, cx| v.reset_view(cx)));
     for _ in 0..2 {
         for id in [&a, &c] {
             let selector: &'static str = Box::leak(format!("se-relate-card-{id}").into_boxed_str());
@@ -756,7 +762,7 @@ fn shift_pair_reuses_the_named_row_and_duplicate_adds_no_undo_step(cx: &mut Test
         let row = vcx.update(|window, cx| {
             ov.update(cx, |v, cx| {
                 assert_eq!(v.relation_draft().unwrap().target, c);
-                v.set_relation_name("  graph   mentor  ", cx);
+                v.set_relation_name("  graph mentor  ", cx);
                 v.cycle_relation_direction(cx);
                 v.cycle_relation_direction(cx);
                 assert_eq!(
