@@ -4,6 +4,7 @@ mod compose;
 mod island;
 mod relations;
 
+use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
@@ -57,7 +58,7 @@ use crate::relate::{
 
 pub use compose::{PairDirection, RelationDraft};
 pub use island::{IslandEditorSheet, IslandMode, IslandSubject, SheetResizeDrag};
-pub use relations::{GraphRelation, PeekRelation, RelateEdgeView};
+pub use relations::{GraphRelation, PaintedRelationArrow, PeekRelation, RelateEdgeView};
 
 const CANVAS_FIT_LEFT: f32 = 24.0;
 const CANVAS_FIT_RIGHT: f32 = 180.0;
@@ -246,6 +247,7 @@ pub struct ElementOverview {
     pub(crate) pan: Point<f32>,
     pub(crate) zoom: f32,
     pub(crate) viewport_bounds: Option<Bounds<Pixels>>,
+    painted_relation_arrows: Rc<RefCell<Vec<PaintedRelationArrow>>>,
     pub(crate) pan_drag: Option<(Point<Pixels>, Point<f32>)>,
 
     // Canonical v3 islands (`群岛`) & unique canvas elements
@@ -320,6 +322,7 @@ impl ElementOverview {
             pan: point(480.0, 320.0),
             zoom: 0.9,
             viewport_bounds: None,
+            painted_relation_arrows: Rc::default(),
             pan_drag: None,
             island_models: Vec::new(),
             elements: Vec::new(),
@@ -1368,6 +1371,11 @@ impl ElementOverview {
         cx.notify();
     }
 
+    /// Arrows that the graph canvas submitted in its last paint.
+    pub fn painted_relation_arrows(&self) -> Vec<PaintedRelationArrow> {
+        self.painted_relation_arrows.borrow().clone()
+    }
+
     pub fn zoom(&self) -> f32 {
         self.zoom
     }
@@ -1986,10 +1994,13 @@ impl ElementOverview {
         };
         let active_id = self.isle_focus.clone();
         let selected_edge_id = self.selected_edge_id.clone();
+        let painted_arrows = self.painted_relation_arrows.clone();
 
         canvas(
             move |_, _, _| {},
             move |bounds, _, window, _| {
+                let mut painted_arrows = painted_arrows.borrow_mut();
+                painted_arrows.clear();
                 let origin = bounds.origin;
                 let min_sx = f32::from(origin.x) - 16.0;
                 let min_sy = f32::from(origin.y) - 16.0;
@@ -2100,6 +2111,19 @@ impl ElementOverview {
                     if let Ok(path) = builder.build() {
                         window.paint_path(path, edge.color.alpha(alpha));
                     }
+                    if mode == ElementLayoutMode::Relate
+                        && let Some(arrow) = edge.arrow(|p| to_screen(p.x_f32(), p.y_f32()), zoom)
+                    {
+                        let mut head = PathBuilder::fill();
+                        head.move_to(arrow.tip);
+                        head.line_to(arrow.wings[0]);
+                        head.line_to(arrow.wings[1]);
+                        head.close();
+                        if let Ok(path) = head.build() {
+                            window.paint_path(path, edge.color.alpha(alpha));
+                            painted_arrows.push(arrow);
+                        }
+                    }
                 }
             },
         )
@@ -2189,6 +2213,7 @@ impl Render for ElementOverview {
 
         div()
             .id("se-viewport")
+            .debug_selector(|| "se-viewport".into())
             .track_focus(&self.relation_focus)
             .on_action(cx.listener(|this, _: &dr_shell::actions::Dismiss, _, cx| {
                 if this.relation_source.is_some() || this.relation_draft.is_some() {
