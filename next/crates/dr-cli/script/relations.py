@@ -154,6 +154,16 @@ def smoke(args, profile, data):
         app("ui.wait", until="ready", state={"/v3Sidebar/fillLayout": "relation"}, timeout_ms=30000)
         app("ui.find", label=f'Hide "{name}"', role="Button")
         screenshot("06-graph.png")
+        # At the whole-book fit the existing Far LOD hides card titles. Use
+        # the existing Find field and its Enter-to-focus behavior to inspect
+        # the new edge at readable scale. TextField is not yet in AX; this
+        # point is the visible search box in the verified 1440 x 900 window.
+        assert window["bounds"]["width"] == 1440 and window["bounds"]["height"] == 900
+        app("input.click", x=620, y=91)
+        app("input.type", text=by_id[source]["title"])
+        app("input.key", keys="enter")
+        screenshot("06b-graph-focused.png")
+        app("input.key", keys="escape")
 
         # The same linked input is also used by a real prose comment composer.
         before = {c["id"] for c in command("comment.list", book=book)}
@@ -181,7 +191,7 @@ def smoke(args, profile, data):
         result = {"book": book, "chapter": chapter["id"], "source": source, "target": target,
                   "relation": relation, "comment": comment, "window": window}
         (args.out / "result.json").write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n")
-        print("Native hover → inline creation → revealed row → @ description → relation graph passed.", flush=True)
+        print("Native hover → inline creation → revealed row → @ description → focused relation graph → @ comment passed.", flush=True)
     except BaseException:
         if process.poll() is None:
             try:
