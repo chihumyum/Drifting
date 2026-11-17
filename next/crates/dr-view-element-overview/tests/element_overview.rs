@@ -1009,7 +1009,7 @@ fn directed_graph_arrows_are_painted_towards_both_targets_after_zoom_and_pan(
     });
     let assert_frame = |vcx: &mut VisualTestContext| {
         wait(vcx, |cx| {
-            ov.read_with(cx, |v, _| !v.painted_relation_arrows().is_empty())
+            cx.debug_bounds(a_selector).is_some() && cx.debug_bounds(b_selector).is_some()
         });
         let arrows = ov.read_with(vcx, |v, _| v.painted_relation_arrows());
         assert!(
