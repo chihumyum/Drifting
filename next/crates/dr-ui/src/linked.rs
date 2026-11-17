@@ -823,7 +823,7 @@ impl Render for LinkedArea {
             for (ix, item) in at.items.iter().enumerate() {
                 let picked = item.clone();
                 let row = MenuItem::new(
-                    crate::style::child_id(&self.id, &format!("at-{ix}")),
+                    crate::style::child_id(&self.id, format!("at-{ix}")),
                     RowIcon::Mark(item.mark, None),
                     item.label.clone(),
                 )
