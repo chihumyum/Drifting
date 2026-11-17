@@ -931,6 +931,7 @@ impl Render for TemplateEditor {
             )
             .on_click(cx.listener(|this, _, _, cx| this.save(cx)));
         let head = div()
+            .debug_selector(|| "k5-head".into())
             .flex()
             .items_center()
             .gap(px(12.))
@@ -1150,6 +1151,9 @@ impl Render for TemplateEditor {
             .flex()
             .flex_col()
             .px(px(if compact { 6. } else { 48. }))
+            // Clear the title bar's band, where the Tab dock's marks and
+            // pills sit over the paper (the material page does the same).
+            .when(!compact, |el| el.pt(px(dr_shell::workspace::TITLEBAR_HEIGHT)))
             .font_role(Role::Ui)
             .type_px(theme.scale.body, theme.scale.line_body)
             .text_color(p.ink(1).solid())
