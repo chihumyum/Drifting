@@ -1448,6 +1448,8 @@ fn module_kind(kind: &str, cx: &App) -> SharedString {
         "plot_grid" => k5::PLOT_GRID,
         "relations" => k5::RELATIONS,
         "children" => k5::CHILDREN,
+        "members" => keys::v3_shell::ATTACHED_ENTRIES,
+        "media" => k5::MEDIA,
         _ => return kind.to_owned().into(),
     };
     t(cx, key)

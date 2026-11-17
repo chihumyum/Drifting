@@ -1,5 +1,5 @@
 //! UP (visual polish): the full template editor clears the title bar's
-//! band.
+//! band, and every module kind has a name in the interface's language.
 use std::time::{Duration, Instant};
 
 use dr_shell::{
@@ -131,4 +131,16 @@ fn the_full_template_editor_starts_below_the_title_bar(cx: &mut TestAppContext) 
         "the head starts at {:?}",
         head.top()
     );
+}
+
+#[gpui::test]
+fn every_module_kind_has_a_name(cx: &mut TestAppContext) {
+    cx.update(|cx| {
+        dr_shell::strings::Strings::install(dr_i18n::Locale::ZhCn, cx);
+        for kind in dr_model::v3::ModuleKind::KNOWN {
+            let label = dr_view_templates::type_label(kind, cx);
+            assert_ne!(label.as_ref(), *kind, "{kind} shows as its code");
+        }
+        assert_eq!(dr_view_templates::type_label("media", cx).as_ref(), "媒体");
+    });
 }

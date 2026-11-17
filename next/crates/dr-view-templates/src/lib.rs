@@ -5,7 +5,7 @@ mod view;
 
 use dr_shell::{nav::Target, pages::ModulePage, strings::t, v3::Rendered, workspace::FillPlace};
 use gpui::{App, AppContext as _, Focusable as _};
-pub use view::TemplateEditor;
+pub use view::{TemplateEditor, type_label};
 
 pub fn init(cx: &mut App) {
     dr_shell::pages::add_page_view(cx, |target, host, window, cx| {
