@@ -148,7 +148,12 @@ def inspect(w):
     w.reveal("Content", role="Group", nth=len(old_fields))
     w.press("Content", role="Group", nth=len(old_fields))
     w.app("input.type", text="Synthetic UP value")
-    w.press("Field", role="Group", nth=len(old_fields))
+    # Leave the new row, rather than moving back to its own key. Queued
+    # row saves settle after neither editor in that row owns the focus.
+    assert old_fields, "the two acceptance seeds have an existing field"
+    w.reveal("Field", role="Group", nth=0)
+    w.press("Field", role="Group", nth=0)
+    w.app("app.info")
     def saved_field():
         data = w.query("module.read", book=book["id"], entry=character["id"], module=kv["id"])
         return data if any(row["key"] == "Synthetic UP field" and row["value"] == "Synthetic UP value"
@@ -219,12 +224,12 @@ def inspect_copy(w):
     labels = ["跟随系统", "浅色", "深色"] if zh else ["Follow system", "Light", "Dark"]
     w.press("本地书库菜单" if zh else "Local library menu")
     def ordered_modes():
-        nodes = [w.app("ui.find", label=label, role="RadioButton")["nodes"][0] for label in labels]
+        nodes = [w.app("ui.find", label=label, role="RadioButton", count=1)["nodes"][0] for label in labels]
         assert nodes[0]["center"][0] < nodes[1]["center"][0] < nodes[2]["center"][0], nodes
         return nodes
     ordered_modes()
     w.shot("15-account-appearance.png")
-    w.app("input.key", keys="escape secondary-,")
+    w.press("设置" if zh else "Settings")
     w.ready(**{"/layer": "settings"})
     w.app("ui.focus", field="settings.search")
     w.app("input.type", text="theme")
