@@ -302,9 +302,10 @@ impl Segmented {
     }
 
     /// The keyboard is on option `index` (KB: a left-column Tab the keyboard
-    /// walks): a still ring round it, the resting selection of the design
-    /// system. On the chosen word the block's own rim is that ring. The
-    /// option says so to tests through the debug selector `{id}-keyboard`.
+    /// walks): a still, thin ring round it, the resting selection of the
+    /// design system, over the chosen word's block too (the prototype's
+    /// `.tabs .tb.kb`), so the row shows where the keyboard is. The option
+    /// has the debug selector `{id}-keyboard`, the ring `{id}-keyboard-ring`.
     pub fn keyboard(mut self, index: Option<usize>) -> Self {
         self.keyboard = index;
         self
@@ -513,17 +514,35 @@ impl RenderOnce for Segmented {
                     .when(keyed, |el| {
                         el.debug_selector(move || format!("{keyed_selector}-keyboard"))
                     })
-                    .when(keyed && !on, |el| {
-                        el.child(glass::held_layer(
-                            glass::GlassState::held(
-                                Kind::Hidden,
-                                Mode::default(),
-                                glass::Held::Selected,
-                                0.0,
-                            ),
-                            Spec::new(Tone::Clear, 0.0),
-                            theme,
-                        ))
+                    .when(keyed, |el| {
+                        // On the chosen word the ring lies on the block's
+                        // paper.
+                        let outside = match glass::current_ground() {
+                            Some(Ground::Flat { inside, .. }) => inside,
+                            _ => p.desk,
+                        };
+                        let inside = if on { p.page } else { outside };
+                        let ring_selector = self.id.clone();
+                        el.child(
+                            div()
+                                .absolute()
+                                .top_0()
+                                .left_0()
+                                .size_full()
+                                .debug_selector(move || format!("{ring_selector}-keyboard-ring"))
+                                .child(glass::held_layer(
+                                    glass::GlassState::held(
+                                        Kind::Hidden,
+                                        Mode::default(),
+                                        glass::Held::Selected,
+                                        0.0,
+                                    ),
+                                    Spec::new(Tone::Clear, 0.0)
+                                        .rim(super::cell::RING_RIM)
+                                        .ground(Ground::Flat { inside, outside }),
+                                    theme,
+                                )),
+                        )
                     })
                     .child(measure(state.clone(), i))
                     .child(label)
