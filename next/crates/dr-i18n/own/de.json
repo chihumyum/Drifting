@@ -117,6 +117,21 @@
     "title": "Titel",
     "unset": "Nicht festgelegt"
   },
+  "mirrorV5": {
+    "intro": "Jedes Projekt hat einen Markdown-Ordner. Änderungen an Text und Feldern in einem anderen Editor werden nach dem Speichern in Drifting übernommen.",
+    "offWarning": "Drifting übernimmt ausstehende Änderungen, bevor der Ordner deaktiviert wird. Vorhandene Dateien bleiben erhalten. Unter Lokale Daten lässt sich der Ordner wieder aktivieren.",
+    "identity": "Die drifting-id passt nicht zu diesem Eintrag und Textmodul.",
+    "lineage": "Der Eintrag oder Text wurde wiederhergestellt, umgestaltet oder gelöscht. Die Dateiänderungen konnten nicht übernommen werden.",
+    "owned": "Eine andere Drifting-Installation verwendet diesen Ordner.",
+    "unsafePath": "Drifting konnte nicht sicher auf diesen Pfad im Projektordner zugreifen.",
+    "occupied": "An diesem Pfad liegt bereits eine Datei.",
+    "duplicate": "Zwei Dateien haben dieselbe drifting-id.",
+    "moved": "Umbenennen und Verschieben von Dateien wird in dieser Version nicht synchronisiert.",
+    "readOnly": "Die schreibgeschützten Eigenschaften wurden aus dem Projekt wiederhergestellt.",
+    "malformedTable": "Die Tabelle konnte nicht gelesen werden. Die ursprüngliche Tabelle bleibt in Drifting erhalten.",
+    "unknownImage": "Das Bild verweist auf keine Datei in der Projektbibliothek. Die Zeile wurde als Text importiert.",
+    "fieldConflict": "Dieses Feld wurde auch in Drifting bearbeitet. Beide Fassungen wurden gespeichert."
+  },
   "positionLink": {
     "copied": "Positionslink kopiert"
   },

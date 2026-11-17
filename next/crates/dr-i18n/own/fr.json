@@ -119,6 +119,21 @@
     "title": "Titre",
     "unset": "Non défini"
   },
+  "mirrorV5": {
+    "intro": "Chaque projet dispose d’un dossier Markdown. Après enregistrement, les modifications du texte et des champs dans un autre éditeur sont intégrées à Drifting.",
+    "offWarning": "Drifting intègre les modifications en attente avant la désactivation. Les fichiers existants restent en place. Vous pouvez réactiver le dossier dans Données locales.",
+    "identity": "Le drifting-id ne correspond pas à cette entrée et à ce module de texte.",
+    "lineage": "L’entrée ou le texte a été restauré, a changé de modèle ou a été supprimé. Les modifications du fichier n’ont pas pu être intégrées.",
+    "owned": "Une autre installation de Drifting utilise ce dossier.",
+    "unsafePath": "Drifting n’a pas pu accéder à ce chemin du projet en toute sécurité.",
+    "occupied": "Un fichier existe déjà à cet emplacement.",
+    "duplicate": "Deux fichiers ont le même drifting-id.",
+    "moved": "Cette version ne synchronise pas le renommage ni le déplacement des fichiers.",
+    "readOnly": "Les propriétés en lecture seule ont repris les valeurs du projet.",
+    "malformedTable": "Impossible de lire le tableau. Le tableau original reste dans Drifting.",
+    "unknownImage": "L’image ne pointe pas vers un fichier de la bibliothèque du projet. La ligne a été importée comme texte.",
+    "fieldConflict": "Ce champ a également été modifié dans Drifting. Les deux versions ont été conservées."
+  },
   "positionLink": {
     "copied": "Lien de position copié"
   },

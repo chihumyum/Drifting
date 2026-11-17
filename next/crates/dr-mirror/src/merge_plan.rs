@@ -74,7 +74,7 @@ fn pair(
     let (n, m) = (olds.len(), news.len());
     let alike = |i: usize, j: usize| {
         let (p, q) = (&base[olds.start + i].1, &file[news.start + j].1);
-        pairable(p, q) && dice(&p.chars, &q.chars) >= ALIKE
+        pairable(p, q)
     };
     // best[i][j]: most pairs in olds[i..] × news[j..].
     let mut best = vec![vec![0u32; m + 1]; n + 1];
@@ -118,7 +118,14 @@ fn pair(
 /// Whether one paragraph can become the other by editing it (an embed is
 /// only ever kept or deleted).
 fn pairable(a: &Para, b: &Para) -> bool {
-    !matches!(a.kind, Kind::Embed(_)) && !matches!(b.kind, Kind::Embed(_))
+    match (&a.kind, &b.kind) {
+        (Kind::Table(_), Kind::Table(_) | Kind::BrokenTable(_)) => true,
+        (Kind::Asset { asset: a, .. }, Kind::Asset { asset: b, .. }) => a == b,
+        (a_kind, b_kind) if crate::merge::is_embed(a_kind) || crate::merge::is_embed(b_kind) => {
+            false
+        }
+        _ => dice(&a.chars, &b.chars) >= ALIKE,
+    }
 }
 
 /// Sørensen–Dice over character bigrams; two texts with no bigram are

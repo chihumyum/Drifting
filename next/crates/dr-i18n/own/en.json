@@ -117,6 +117,21 @@
     "title": "Title",
     "unset": "Not set"
   },
+  "mirrorV5": {
+    "intro": "Each project has a Markdown folder. Edits to prose and fields in another editor merge into Drifting after you save.",
+    "offWarning": "Drifting merges pending edits before turning the folder off. Existing files stay where they are. You can turn it back on in Local Data.",
+    "identity": "The drifting-id does not match this entry and prose module.",
+    "lineage": "The entry or prose has been restored, reshaped, or deleted. The file’s edits could not be merged.",
+    "owned": "Another Drifting installation owns this folder.",
+    "unsafePath": "Drifting could not safely access this path in the project folder.",
+    "occupied": "A file already occupies this path.",
+    "duplicate": "Two files have the same drifting-id.",
+    "moved": "Renaming and moving files do not sync in this version.",
+    "readOnly": "The read-only properties were restored from the project.",
+    "malformedTable": "The table could not be read. The original table is still in Drifting.",
+    "unknownImage": "The image points outside the project’s file library. The line was imported as text.",
+    "fieldConflict": "This field was also edited in Drifting. Both versions were kept."
+  },
   "positionLink": {
     "copied": "Location link copied"
   },

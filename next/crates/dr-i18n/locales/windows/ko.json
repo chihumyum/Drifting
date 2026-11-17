@@ -15,6 +15,11 @@
         "storage_failed": "로그인 정보를 Windows 자격 증명 관리자에 저장할 수 없습니다."
       }
     },
+    "sync": {
+      "projection": {
+        "reveal": "파일 탐색기에서 보기"
+      }
+    },
     "update": {
       "channel_desc": "Windows 10/11 · x64 및 ARM64"
     }

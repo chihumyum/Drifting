@@ -479,7 +479,6 @@
     "choose": "選擇資料夾…",
     "chosen": "已選資料夾",
     "continue": "繼續",
-    "intro": "每部作品都會在你選擇的資料夾裡保留 Markdown 副本。可用任何編輯器修改章節與構想，變更會合併回 Drifting。",
     "title": "Markdown 資料夾要放在哪裡？"
   },
   "markdownShare": {
@@ -534,6 +533,21 @@
       "renderPdfFailed": "無法繪製 PDF"
     }
   },
+  "mirrorV5": {
+    "duplicate": "有兩個檔案帶著同一個 drifting-id。",
+    "fieldConflict": "這個欄位也在 Drifting 裡改過，兩個版本都已保留。",
+    "identity": "drifting-id 與條目或正文模組不符。",
+    "intro": "每個專案都有一個 Markdown 資料夾。用其他編輯器修改裡面的正文和欄位，儲存後會合回 Drifting。",
+    "lineage": "條目或正文已復原、更換模板或刪除，檔案中的修改無法自動合入。",
+    "malformedTable": "無法讀取表格，原表格留在 Drifting。",
+    "moved": "這一期不會同步改名和移動。",
+    "occupied": "這個位置已經有一個檔案。",
+    "offWarning": "關閉前會合入待處理的修改。已有檔案留在原處，可以在本機資料裡重新開啟。",
+    "owned": "這個資料夾由另一套 Drifting 安裝使用。",
+    "readOnly": "修改過的唯讀屬性已按專案中的值寫回。",
+    "unknownImage": "圖片未指向素材庫中已有的檔案，這一行以純文字合入。",
+    "unsafePath": "檔案路徑不在可用的專案資料夾內。"
+  },
   "mobileWorkspace": {
     "editorAccessory": {
       "redo": "重做",
@@ -563,6 +577,14 @@
     },
     "empty": "沒有通知",
     "markdownFolder": {
+      "issue": {
+        "empty": "正文已清空，未合併，檔案已保留",
+        "encoding": "不是 UTF-8，未讀取，檔案已保留",
+        "frontmatter": "頂端屬性格式錯誤，修正前不合併或覆寫",
+        "too-large": "檔案過大，未讀取，檔案已保留",
+        "unreadable": "無法讀取"
+      },
+      "overlap": "這段文字在 Drifting 和檔案中都曾修改。",
       "preserved_one": "已將 {{count}} 個編輯過的檔案保留在 .drifting/preserved",
       "preserved_other": "已將 {{count}} 個編輯過的檔案保留在 .drifting/preserved",
       "source": "Markdown 資料夾"
@@ -1198,7 +1220,15 @@
       "local_sub": "不使用 Drifting 帳號或託管雲端，隨時可匯出可讀副本。",
       "local_title": "作品留在這部裝置上。",
       "projection": {
-        "turnOff": "關閉 Markdown 資料夾"
+        "allProjects": "所有作品",
+        "allProjectsUnset": "所有作品 · 未選擇位置",
+        "choose": "選擇資料夾",
+        "offHint": "已關閉：作品不再寫入 Markdown，外部修改也不再合併回來。現有檔案保留原處。",
+        "offTitle": "要關閉 Markdown 資料夾嗎？",
+        "reveal": "在 Finder 中顯示",
+        "title": "Markdown 資料夾",
+        "turnOff": "關閉 Markdown 資料夾",
+        "turnOn": "開啟"
       }
     },
     "title": "設定",
