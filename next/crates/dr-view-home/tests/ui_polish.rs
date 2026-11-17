@@ -170,3 +170,80 @@ fn a_long_page_name_under_continue_stays_inside_the_column(cx: &mut TestAppConte
         block.right()
     );
 }
+
+/// A tall stack of unused templates makes the board narrow. The counts
+/// still need their natural localized width, rather than the old fixed
+/// 150px inside a 170px thumbnail. Check the actual text element's bounds,
+/// not a second copy of the thumbnail's width calculation.
+fn narrow_thumbnail_keeps_its_counts(cx: &mut TestAppContext, locale: &str) {
+    let (_dir, _root, lib, book) = seed_library();
+    for i in 0..32 {
+        lib.call(
+            &Actor::User,
+            "entry_template.put",
+            json!({
+                "book": book,
+                "template": {
+                    "id": format!("tpl-up-unused-{i}"),
+                    "name": format!("合成空置模板{i}"),
+                    "level": false,
+                    "linkable": false,
+                    "modules": [],
+                    "settings": {}
+                }
+            }),
+        )
+        .unwrap();
+    }
+    let (ws, _home, vcx) = open_workspace(cx, &lib, &book);
+    vcx.update(|_, cx| {
+        Settings::update(cx, |file| {
+            file.set(dr_shell::settings::registry::UI_LOCALE, locale.into(), None)
+                .unwrap();
+        });
+    });
+    wait(vcx, "localized thumbnail counts", |cx| {
+        cx.debug_bounds("v5-home-structure-meta-text").is_some()
+    });
+    let text = vcx.debug_bounds("v5-home-structure-meta-text").unwrap();
+    let thumb = vcx.debug_bounds("v5-home-structure-thumbnail").unwrap();
+    let board = vcx.debug_bounds("v5-home-structure-board").unwrap();
+    let meta = vcx.update(|_, cx| {
+        dr_shell::v3::template_structure::template_meta(ws.read(cx).book.v3().unwrap(), cx)
+    });
+    assert!(meta.contains(if locale == "de" {
+        "Vorlagen"
+    } else {
+        "templates"
+    }));
+    assert!(
+        board.size.width < px(150.0),
+        "the narrow-board case: {board:?}"
+    );
+    assert!(
+        text.size.width > px(150.0),
+        "{locale} {meta:?} needs more than the former count space: {text:?}"
+    );
+    assert!(text.left() >= thumb.left() + px(10.0));
+    assert!(
+        text.right() <= thumb.right() - px(10.0),
+        "{locale} {meta:?} ends at {:?}, past the thumbnail's inner edge {:?}",
+        text.right(),
+        thumb.right() - px(10.0)
+    );
+    assert!(
+        thumb.size.width < px(300.0),
+        "keep P9's compact frame, not the former 300px box"
+    );
+    assert_eq!(thumb.bottom() - board.bottom(), px(10.0));
+}
+
+#[gpui::test]
+fn a_narrow_thumbnail_keeps_english_counts_inside_its_frame(cx: &mut TestAppContext) {
+    narrow_thumbnail_keeps_its_counts(cx, "en");
+}
+
+#[gpui::test]
+fn a_narrow_thumbnail_keeps_german_counts_inside_its_frame(cx: &mut TestAppContext) {
+    narrow_thumbnail_keeps_its_counts(cx, "de");
+}
