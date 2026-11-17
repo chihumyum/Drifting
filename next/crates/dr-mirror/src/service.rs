@@ -477,10 +477,6 @@ fn publish(state: &Mutex<State>, report: &Report, books: Option<&BTreeSet<BookId
             .iter()
             .filter(|issue| {
                 !issue.book.is_empty()
-                    && matches!(
-                        issue.problem,
-                        sync::Problem::Disk | sync::Problem::UnsafePath
-                    )
                     && !report.seen.keys().any(|book| book.as_str() == issue.book)
             })
             .map(|issue| issue.book.as_str())
@@ -620,7 +616,11 @@ mod tests {
             problem: sync::Problem::FieldConflict,
             kept: Some(PathBuf::from("project/.drifting/preserved/body.md")),
         };
-        for problem in [sync::Problem::Disk, sync::Problem::UnsafePath] {
+        for problem in [
+            sync::Problem::Disk,
+            sync::Problem::UnsafePath,
+            sync::Problem::OwnedElsewhere,
+        ] {
             for partial in [false, true] {
                 let shared = Mutex::new(State::default());
                 let books = BTreeSet::from([book.clone()]);
