@@ -35,6 +35,7 @@ fn eid(s: &str) -> EntryId {
 fn choices() -> MappingChoices {
     MappingChoices {
         profile: Some("test-explicit".into()),
+        ..MappingChoices::default()
     }
 }
 
@@ -3302,7 +3303,12 @@ fn act_track_imports_all_eight_cases_preserves_color_and_leaves_source_untouched
             custom_track.settings.default_template = Some(Some(colored_leaf.id.clone()));
             t.template(&custom_track.id)?.set_full(&custom_track)?;
 
-            adapter::sync_catalog(t, &seeded.book.view(), &MappingChoices::default())
+            adapter::sync_catalog(
+                t,
+                &seeded.book.view(),
+                &MappingChoices::default(),
+                &adapter::ProjectedLines::default(),
+            )
         })
         .0
         .unwrap();
@@ -3793,6 +3799,8 @@ fn asset_import_keeps_comments_and_file_links_and_reports_retired_relation_ends(
         "relation-comment-end-dropped",
         "relation-patch-end-dropped",
         "built-in-relation-type-dropped",
+        // The fixture's note → chapter relation under the built-in type.
+        "relation-built-in-entries-dropped",
     ] {
         assert_eq!(book1_rec.notes.0.get(code), Some(&1), "{code}");
     }
@@ -3817,6 +3825,7 @@ fn asset_import_keeps_comments_and_file_links_and_reports_retired_relation_ends(
         "批注的关系",
         "待办的关系",
         "补丁的关系",
+        "两头都是条目的关系",
     ] {
         assert!(summary_md.contains(label), "{label}");
     }

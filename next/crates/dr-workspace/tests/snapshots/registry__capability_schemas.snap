@@ -458,7 +458,7 @@ expression: json
       "title": "Array_of_AssetInfo",
       "type": "array"
     },
-    "summary": "List assets in the project's built-in asset library (sorted by asset id), each with its folder, its place in it and its live usages (media modules, prose embeds and links, image fields, relations). Set `trashed: true` to include Recently Deleted."
+    "summary": "List assets in the project's built-in asset library (sorted by asset id), each with its folder, its place in it and its live usages (media modules, prose embeds and links, image fields). Set `trashed: true` to include Recently Deleted."
   },
   {
     "access": "write",
@@ -2559,7 +2559,7 @@ expression: json
               "$ref": "#/$defs/LinkedText"
             }
           ],
-          "description": "Commands accept plain text or text with explicit entry links."
+          "description": "Commands accept plain text or text with explicit entry links. Replacing\na stored text, plain text keeps the links on the spans it leaves\nunchanged, while text with links states its visible links itself (one\nleft out comes off). A link to an entry in Recently Deleted on an\nunchanged span is always kept, and comes back with the entry."
         },
         "Region": {
           "description": "A rectangle on an image, or on one page of a PDF, as fractions (0–1) of\nthe picture or the page, so it stays put at any size and zoom.",
@@ -3450,7 +3450,7 @@ expression: json
               "$ref": "#/$defs/LinkedText"
             }
           ],
-          "description": "Commands accept plain text or text with explicit entry links."
+          "description": "Commands accept plain text or text with explicit entry links. Replacing\na stored text, plain text keeps the links on the spans it leaves\nunchanged, while text with links states its visible links itself (one\nleft out comes off). A link to an entry in Recently Deleted on an\nunchanged span is always kept, and comes back with the entry."
         }
       },
       "properties": {
@@ -11434,7 +11434,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Remove one patch record without deleting relations or other entries."
+    "summary": "Remove one patch record from a patches module; the entry and its other records stay."
   },
   {
     "access": "write",
@@ -14853,7 +14853,7 @@ expression: json
               "$ref": "#/$defs/LinkedText"
             }
           ],
-          "description": "Commands accept plain text or text with explicit entry links."
+          "description": "Commands accept plain text or text with explicit entry links. Replacing\na stored text, plain text keeps the links on the spans it leaves\nunchanged, while text with links states its visible links itself (one\nleft out comes off). A link to an entry in Recently Deleted on an\nunchanged span is always kept, and comes back with the entry."
         },
         "RelationDirection": {
           "description": "A relation's direction applies to all its rows. Switching it never moves a member.",
@@ -15069,7 +15069,7 @@ expression: json
               "$ref": "#/$defs/LinkedText"
             }
           ],
-          "description": "Commands accept plain text or text with explicit entry links."
+          "description": "Commands accept plain text or text with explicit entry links. Replacing\na stored text, plain text keeps the links on the spans it leaves\nunchanged, while text with links states its visible links itself (one\nleft out comes off). A link to an entry in Recently Deleted on an\nunchanged span is always kept, and comes back with the entry."
         },
         "RelationDirection": {
           "description": "A relation's direction applies to all its rows. Switching it never moves a member.",
@@ -15427,7 +15427,7 @@ expression: json
               "$ref": "#/$defs/LinkedText"
             }
           ],
-          "description": "Commands accept plain text or text with explicit entry links."
+          "description": "Commands accept plain text or text with explicit entry links. Replacing\na stored text, plain text keeps the links on the spans it leaves\nunchanged, while text with links states its visible links itself (one\nleft out comes off). A link to an entry in Recently Deleted on an\nunchanged span is always kept, and comes back with the entry."
         }
       },
       "properties": {

@@ -75,7 +75,11 @@ impl From<&KvEntry> for FieldInfo {
     }
 }
 
-/// Commands accept plain text or text with explicit entry links.
+/// Commands accept plain text or text with explicit entry links. Replacing
+/// a stored text, plain text keeps the links on the spans it leaves
+/// unchanged, while text with links states its visible links itself (one
+/// left out comes off). A link to an entry in Recently Deleted on an
+/// unchanged span is always kept, and comes back with the entry.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(untagged)]
 pub enum LinkedTextIn {

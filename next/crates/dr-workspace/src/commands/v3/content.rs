@@ -239,7 +239,7 @@ pub struct RecordIn {
     pub id: String,
 }
 op! {
-    PatchRemove="module.remove_patch",Write,Book,"Remove one patch record without deleting relations or other entries.",fn(cx,input:RecordIn)->Done {
+    PatchRemove="module.remove_patch",Write,Book,"Remove one patch record from a patches module; the entry and its other records stay.",fn(cx,input:RecordIn)->Done {
         let (s, e, m) = selected(cx, &input.target, m::ModuleKind::Patches)?;
         if !s
             .reader_v3

@@ -4,7 +4,7 @@
 //! manifest (images and PDFs). Files stay in the library even when unreferenced;
 //! trashing an asset moves it to Recently Deleted (`deleted_at`) so places that
 //! reference it read as placeholders while disk bytes remain; purging a trashed
-//! asset deletes the record, dangling relations, and disk bytes.
+//! asset deletes the record and its disk bytes.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -1090,7 +1090,7 @@ op! {
 
 op! {
     AssetList = "asset.list", Read, Shared,
-    "List assets in the project's built-in asset library (sorted by asset id), each with its folder, its place in it and its live usages (media modules, prose embeds and links, image fields, relations). Set `trashed: true` to include Recently Deleted.",
+    "List assets in the project's built-in asset library (sorted by asset id), each with its folder, its place in it and its live usages (media modules, prose embeds and links, image fields). Set `trashed: true` to include Recently Deleted.",
     fn(cx, input: ListIn) -> Vec<AssetInfo> {
         let slot = cx.book(&input.book)?;
         let list = if input.trashed {

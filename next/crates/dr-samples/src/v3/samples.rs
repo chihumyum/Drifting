@@ -208,10 +208,33 @@ pub fn convert(source: &crate::SeededBook, choices: &MappingChoices) -> Result<S
         Ok(())
     });
     r?;
+    // The lines the projected comments follow, from the converted prose.
+    let marked: BTreeSet<(String, dr_model::id::BlockId)> = view
+        .comments()
+        .into_iter()
+        .filter_map(|c| {
+            let p = c
+                .projection
+                .as_ref()
+                .filter(|p| p.kind == dr_model::kind::ProjectionKind::Marker)?;
+            let old = super::catalog::target_doc(c.target.as_ref()?)?;
+            Some((
+                prose_id(source.book_id(), &old).to_string(),
+                p.block.clone(),
+            ))
+        })
+        .collect();
+    let mut lines = ProjectedLines::default();
+    for doc in &prose {
+        let at = doc.doc_id().to_string();
+        lines.add(doc.doc_id(), &doc.view(), |block| {
+            marked.contains(&(at.clone(), block.clone()))
+        });
+    }
     let id = source.book_id().clone();
     let mut book = BookDocV3::create(id.clone(), import_peer(&format!("sample-v3:{id}")))?;
     let (r, _) = book.edit_at(Origin::Import, Some(crate::build::T0 + 10_001), |t| {
-        sync_catalog(t, &catalog.view(), choices)
+        sync_catalog(t, &catalog.view(), choices, &lines)
     });
     r?;
     validate(&book.view()).map_err(super::catalog::invalid)?;

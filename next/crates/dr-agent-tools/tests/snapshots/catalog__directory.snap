@@ -3,7 +3,7 @@ source: crates/dr-agent-tools/tests/catalog.rs
 expression: table
 ---
 asset.get [read] Read an asset's metadata and live usages in the book (`usages: false` reads the record alone).
-asset.list [read] List assets in the project's built-in asset library (sorted by asset id), each with its folder, its place in it and its live usages (media modules, prose embeds and links, image fields, relations). Set `trashed: true` to include Recently Deleted.
+asset.list [read] List assets in the project's built-in asset library (sorted by asset id), each with its folder, its place in it and its live usages (media modules, prose embeds and links, image fields). Set `trashed: true` to include Recently Deleted.
 asset.move [write] Put a file of the asset library into another folder (or the top) and/or at another place among that folder's files (manual order).
 asset.rename [write] Rename a live asset in the built-in asset library.
 asset.restore [write] Restore a trashed asset from Recently Deleted back into the asset library (to the top when its folder is in Recently Deleted).
@@ -64,7 +64,7 @@ module.read [read] Read a current or retained module and its structured content;
 module.read_prose [read] Read an entry's or a template's prose module with block IDs and version.
 module.remove_kv [write] Remove a key/value row from a module.
 module.remove_media [write] Remove a file item from an entry's media module.
-module.remove_patch [write] Remove one patch record without deleting relations or other entries.
+module.remove_patch [write] Remove one patch record from a patches module; the entry and its other records stay.
 module.replace_prose [write] Replace an exact passage in an entry's prose module, addressed by block ID.
 module.set_arrangement [write] Choose how this entry lays out the files of its media module (`featured`, `grid` or `list`), or go back to its template's (`null`); the template is not changed.
 module.set_field [write] Set or clear a typed field value in an entry's fields module.
@@ -105,7 +105,7 @@ timeline_view.remove_pin [write] Remove a time pin from a timeline view.
 
 Schema and facade revisions:
 asset.get shared 753183dca7980c49458030e59c539b50ab548a5b1f22cc881230f41883330233
-asset.list shared 3fb8d0067bf09fa0c41e1dfd189758717eaf0abee6c24b011c451b06a20e9871
+asset.list shared c51dd10757874aadb26f790f635c3867ab3efaf913ec37c8bc6457fd217deaa3
 asset.move book 917ce4fd0e2aa2b57e0a99a423c3a98747ad3519c17d8a0c9e83924e48651c2f
 asset.rename book ea3ee0da64dbeb8bfb529ec2aeda15731ba5b4f4956f14a0cabb19814f6131a6
 asset.restore book b21a02b4edde7a744e324b912a97bd5a640caec6db07766001eaed72a7dc3c06
@@ -121,10 +121,10 @@ book.sequence shared fc4cb9ed814e91156adecde1db023ff89bd26adf6d59b997786c7d646d2
 book.update book c9b8c91de4f1331368b187db91a606e226dbf69490048290efecfd7a54f5448f
 book.writing_days shared 1666501ae181dc1e83a34e6f26a03fc9a21240aa81f61d2827cb860bc719b4fd
 comment.anchors shared 4d752a111e8d3be9cb0410c15a60d9e5a77f243816761fb8131e70074df16492
-comment.create book a601ea75f3cef73911dccd20365556fb533e23927d52aedbcb01dfc1ebba6a5b
+comment.create book 3670bb3df0dbf5f4dced51817946605523e84575b577cc312f6f1ccada907cc6
 comment.list shared 1a2ef39608df3daf3ebd5fc8f60aeda66156d7746db1ee86dc223831cf6dc717
 comment.reanchor book 36dca406adcb7a59134614d8da3b51f525078313f8df175f640a59a5222d038c
-comment.update book f5ba60c86d33a0be8cd5bafa2450111ed9ee48d8eac4e20baddee396471a6c9b
+comment.update book 547b1903442150c6ecea4089d448861679506687b4f61060d588e743a1c8a03c
 entry.create book ba0d93c79545961901dafdc6cffc4cc7b69af45ab410b949abf5dacbe12b4c73
 entry.get shared d76f37f50638937beda9dc348b1df78a2c5780bd14b4e0c74995993758d644f5
 entry.list shared 58ad76d736849b8fa189668e32176b4e42dee19ba26ee927788d2d8011f2a52e
@@ -166,7 +166,7 @@ module.read shared 0cb22be1bc0dd5fbfdb4696eb8b07f001e344251ea14a2244af6bff5ba209
 module.read_prose shared b6facfa8753e1c3f85fcae373219161e5d5e38367cd147040c03b8ccc22ca59b
 module.remove_kv book d85284a551f9faa1004a8f07b511e376679db66f8d114ae12299b8d574d9fc34
 module.remove_media book e70478beaf21b8854bd7983706a8665b47cb920498b771ea4a9a31286a4f8df7
-module.remove_patch book b2496984384d9ab6e800d68bc25cd1c4bc80f17bb8df7bc60d529665e8393757
+module.remove_patch book fa408f2f1d65e0662d6dc377a38332bd21fcdaf1fe76dff923fb300b5656b480
 module.replace_prose book 361c1bd302fe4686ec8f8436f775f745cc53d462662430b50e2a831a4c2c4dd3
 module.set_arrangement book c8baf155d081545d2e0ec82afb21683e91b57eefaa9b93a548da03a68d0175cc
 module.set_field book 92b766c15692773bb5a4a322939c033c267a4ea07312e63714df0be845989258
@@ -184,14 +184,14 @@ prose.shape shared 05387f9196c7c9346e7d57241e24f4648686980238fcd7030d508724784b9
 prose.unlink book 2647f19489c612a2909a603328f14636ad6e6b870a1334359ceea5798256f3fd
 recent.list shared bc76196f15de079012bdd643cac937fc642bb0303bc43e622f34d7d7ac85cdee
 relation_row.add_entry book 9768857751c01fdb8f58f2a04efb14adb257336415b6eda5b480c15e54d7484d
-relation_row.create_pair book e91f1a4e056aded4b724b4e63aa950cc7899f613f96c435614f6a45db53c6af1
+relation_row.create_pair book 7aad3e7a51a802dff94fab1ea61b7683fe96537bbab4d2ee8b291f78110ffaee
 relation_row.delete book 9ad2e3e7fa7aa5f2b440e5d6855efbd2a8cd07cd8f700a87fb7ddc4fe7bf61ec
 relation_row.remove_entry book da6615d43ed54680b2c774c53425cc74ced8530b55974f3143802633a0283cdb
-relation_type.create book ae3a2d601c3c5d6b24ef9a765a8a982e4cdb13910a9105c30debb3835c9fd729
+relation_type.create book a09fd406a6b2f6494d0aa78dfa4c1db8642a4259171142d601440018c4ae5dfe
 relation_type.delete book f40c296ab5eb14e6388fff8a1be55507854f9f9df38b8ed06f8a334b4058b7c2
 relation_type.list shared bb9bc07dbd68829133767d110607b5ad5bc4145e5efdef619760ef21f880784e
 relation_type.rename book 993241cc0ffd8fb6882970b3321a09cebe069c9fd3b2e5d199412906ea473625
-relation_type.set_description book 357bb4c2089eaba379563ef4339098c16defd273454c9da562c48b36ce8fdc92
+relation_type.set_description book 1c1f49a85691f00c26d9b3250abb1e51657b6babb7978dc4af96423ea5ae5807
 relation_type.set_direction book f13d9a825e5fb842c5a4a38a559a27221a63f2fa71ad31f0d8c2eab59182aaf5
 tab.move book b6cd2dba62c3e344b71bbc75972b479cb4bbbb1aa19cc70a0dcb699011f003d6
 tab.put book 50580f39f9e74333eff26ecc9ee395463cb1022cc3767c34639f7b3b682c2fa0

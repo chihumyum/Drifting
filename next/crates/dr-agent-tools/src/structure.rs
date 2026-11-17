@@ -751,7 +751,7 @@ impl StructureContext {
             schema_version: BOOK_SCHEMA_VERSION,
             structure_revision,
             catalog_revision,
-            relations: "Use relation_type.list to read relations. Each relation has a name, description and direction. A row connects each entry on the left to each entry on the right.".into(),
+            relations: "Use relation_type.list to read relations. Each relation has a name, description and direction. A row connects each entry on the left to each entry on the right; entries on the same side of a row are not related to each other. Relations connect entries only, never files, comments or patches.".into(),
             project_source,
             project_agent,
             project_book,

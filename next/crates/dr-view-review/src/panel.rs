@@ -3245,4 +3245,110 @@ mod v3_write_tests {
         assert!(view.read_with(cx, |v, _| v.editing.is_some()));
         lib.close();
     }
+
+    /// The composer saves plain text (`kernel-v5.md` §19): the links on the
+    /// words the edit leaves alone stay, a visible one picked with @ and one
+    /// to an entry in Recently Deleted, which comes back with the entry.
+    #[gpui::test]
+    fn an_edit_in_the_composer_keeps_the_links_on_unchanged_words(cx: &mut TestAppContext) {
+        cx.executor().allow_parking();
+        let dir = tempfile::tempdir().unwrap();
+        let lib = Workspace::open_dir(dir.path(), "v3-review-links").unwrap();
+        let seed = dr_testkit::seed::generate_v3(
+            dr_testkit::seed::Preset::Tiny,
+            dr_testkit::seed::DEFAULT_SEED,
+        )
+        .unwrap();
+        let book = seed.books[0].book_id().to_string();
+        let source = seed.books[0]
+            .book
+            .view()
+            .comments()
+            .into_iter()
+            .find(|c| c.target_module.is_some())
+            .unwrap();
+        let target = source.target.as_ref().unwrap().id.clone();
+        let module = source.target_module.as_ref().unwrap().to_string();
+        // Two leaf entries; a link reads under its entry's title.
+        let leaves: Vec<(String, String)> = {
+            let view = seed.books[0].book.view();
+            view.entries()
+                .into_iter()
+                .filter(|e| {
+                    e.parent.is_some()
+                        && e.id.as_str() != target
+                        && !e.title.is_empty()
+                        && view.children_of(Some(&e.id)).is_empty()
+                })
+                .map(|e| (e.id.to_string(), e.title))
+                .take(2)
+                .collect()
+        };
+        let [(picked, p), (trashed, t)] = [leaves[0].clone(), leaves[1].clone()];
+        let (pn, tn) = (p.chars().count(), t.chars().count());
+        seed.write_to(lib.library()).unwrap();
+        let link =
+            |start: usize, end: usize, entry: &str| json!({"start":start,"end":end,"entry":entry});
+        let text = format!("q{p} z{t}");
+        let id = call(
+            &lib,
+            "comment.create",
+            json!({"book":book,"target":{"kind":"entry","id":target},"module":module,
+            "body":{"text":text,"links":[
+                link(1, 1 + pn, &picked), link(3 + pn, 3 + pn + tn, &trashed),
+            ]}}),
+        )["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        call(&lib, "entry.trash", json!({"book":book,"id":trashed}));
+        let view = cx.new(|_| ReviewView::new("v3-links".into(), Some(lib.clone())));
+        let (_, cx) = cx.add_window_view(|_, _| Frame(view.clone()));
+        view.update(cx, |v, cx| {
+            v.show_v3(
+                &book,
+                Some(crate::v3::Target::Entry {
+                    id: target,
+                    module: Some(module),
+                }),
+                Locale::En,
+                Platform::Mac,
+                Rc::new(|_, _, _| {}),
+                Rc::new(|_| None),
+                cx,
+            );
+            v.set_current_only(true, cx);
+        });
+        wait(cx, |cx| view.read_with(cx, |v, _| v.loaded));
+        cx.update(|window, cx| view.update(cx, |v, cx| v.edit(&id, window, cx)));
+        let field = view.read_with(cx, |v, _| v.editing.as_ref().unwrap().1.clone());
+        assert_eq!(field.read_with(cx, |f, _| f.text()), text);
+        let edited = format!("w {text}");
+        view.update(cx, |v, cx| v.finish_edit(&id, Some(edited.clone()), cx));
+        wait(cx, |cx| {
+            view.read_with(cx, |v, _| v.writing.is_empty() && v.pending.is_none())
+        });
+        let body = |lib: &Workspace| {
+            call(lib, "comment.list", json!({"book":book}))
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|c| c["id"] == id)
+                .unwrap()["body"]
+                .clone()
+        };
+        assert_eq!(
+            body(&lib),
+            json!({"text":edited,"links":[link(3, 3 + pn, &picked)]})
+        );
+        call(&lib, "entry.restore", json!({"book":book,"id":trashed}));
+        assert_eq!(
+            body(&lib)["links"],
+            json!([
+                link(3, 3 + pn, &picked),
+                link(5 + pn, 5 + pn + tn, &trashed)
+            ])
+        );
+        lib.close();
+    }
 }

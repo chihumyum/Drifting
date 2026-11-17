@@ -3,7 +3,7 @@ source: crates/dr-workspace/tests/registry.rs
 expression: registry().table()
 ---
 asset.get                    query    shared   Read an asset's metadata and live usages in the book (`usages: false` reads the record alone).
-asset.list                   query    shared   List assets in the project's built-in asset library (sorted by asset id), each with its folder, its place in it and its live usages (media modules, prose embeds and links, image fields, relations). Set `trashed: true` to include Recently Deleted.
+asset.list                   query    shared   List assets in the project's built-in asset library (sorted by asset id), each with its folder, its place in it and its live usages (media modules, prose embeds and links, image fields). Set `trashed: true` to include Recently Deleted.
 asset.move                   command  book     Put a file of the asset library into another folder (or the top) and/or at another place among that folder's files (manual order).
 asset.purge                  command  book     Permanently purge a trashed asset from the book manifest and delete its stored bytes.
 asset.put                    command  book     Record an imported file in the project's built-in asset library (bytes live in storage). The same bytes are one file: when the library has them already, that file's id is given back (restored from Recently Deleted if it was there).
@@ -86,7 +86,7 @@ module.read                  query    shared   Read a current or retained module
 module.read_prose            query    shared   Read an entry's or a template's prose module with block IDs and version.
 module.remove_kv             command  book     Remove a key/value row from a module.
 module.remove_media          command  book     Remove a file item from an entry's media module.
-module.remove_patch          command  book     Remove one patch record without deleting relations or other entries.
+module.remove_patch          command  book     Remove one patch record from a patches module; the entry and its other records stay.
 module.replace_prose         command  book     Replace an exact passage in an entry's prose module, addressed by block ID.
 module.set_arrangement       command  book     Choose how this entry lays out the files of its media module (`featured`, `grid` or `list`), or go back to its template's (`null`); the template is not changed.
 module.set_field             command  book     Set or clear a typed field value in an entry's fields module.
