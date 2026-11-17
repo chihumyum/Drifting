@@ -1099,7 +1099,9 @@ fn keyed_card(
         },
     );
     match keys {
-        Some(keys) => card.keys(keys).into_any_element(),
+        // The keyboard's card floats beside its row, tops level (the
+        // prototype: right of the left column); the pointer's stays below.
+        Some(keys) => card.keys(keys).beside().into_any_element(),
         None => card.into_any_element(),
     }
 }
