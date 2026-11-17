@@ -30,7 +30,7 @@ pub use choice::{DraggedPill, Pill, PillGroup, Segmented};
 pub use color::ColorSwatch;
 pub use dock::{DockMark, DockTab, TabDock};
 pub use feedback::{EmptyState, Loading, NotificationPill, Progress};
-pub use hover_card::{CardAction, CardBody, HoverCard};
+pub use hover_card::{CardAction, CardBody, CardKeys, HoverCard};
 pub use menu::{Menu, MenuItem, MenuWidth, RowIcon};
 pub use overlay::{Align, Dialog, Layer, Place, float, place};
 pub use range::{NumberField, Range};

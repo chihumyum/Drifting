@@ -276,6 +276,7 @@ pub struct Segmented {
     text_size: Option<f32>,
     faint: Vec<usize>,
     pad_x: f32,
+    keyboard: Option<usize>,
 }
 
 impl Segmented {
@@ -296,7 +297,17 @@ impl Segmented {
             text_size: None,
             faint: Vec::new(),
             pad_x: 10.0,
+            keyboard: None,
         }
+    }
+
+    /// The keyboard is on option `index` (KB: a left-column Tab the keyboard
+    /// walks): a still ring round it, the resting selection of the design
+    /// system. On the chosen word the block's own rim is that ring. The
+    /// option says so to tests through the debug selector `{id}-keyboard`.
+    pub fn keyboard(mut self, index: Option<usize>) -> Self {
+        self.keyboard = index;
+        self
     }
 
     pub fn disabled(mut self, disabled: bool) -> Self {
@@ -466,8 +477,11 @@ impl RenderOnce for Segmented {
             .child(block);
         let disabled = self.disabled;
         let report_selected = self.report_selected;
+        let keyboard = self.keyboard.filter(|_| !disabled);
         for (i, label) in self.options.into_iter().enumerate() {
             let on = i == selected;
+            let keyed = keyboard == Some(i);
+            let keyed_selector = self.id.clone();
             let ink = match (disabled, on) {
                 (true, true) => p.ink(3),
                 (true, false) => p.ink(5),
@@ -496,6 +510,21 @@ impl RenderOnce for Segmented {
                     .role(gpui::Role::RadioButton)
                     .aria_label(label.clone())
                     .aria_selected(on)
+                    .when(keyed, |el| {
+                        el.debug_selector(move || format!("{keyed_selector}-keyboard"))
+                    })
+                    .when(keyed && !on, |el| {
+                        el.child(glass::held_layer(
+                            glass::GlassState::held(
+                                Kind::Hidden,
+                                Mode::default(),
+                                glass::Held::Selected,
+                                0.0,
+                            ),
+                            Spec::new(Tone::Clear, 0.0),
+                            theme,
+                        ))
+                    })
                     .child(measure(state.clone(), i))
                     .child(label)
                     .when_some(f, |el, f| el.on_click(move |_, w, cx| f(i, w, cx))),
