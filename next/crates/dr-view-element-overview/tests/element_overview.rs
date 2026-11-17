@@ -792,7 +792,7 @@ fn shift_pair_reuses_the_named_row_and_duplicate_adds_no_undo_step(cx: &mut Test
 }
 
 #[gpui::test]
-fn shift_pair_new_name_direction_enter_escape_and_failed_write_keep_the_draft(
+fn shift_pair_button_direction_enter_does_not_submit_and_failed_write_keeps_draft(
     cx: &mut TestAppContext,
 ) {
     use dr_view_element_overview::view::PairDirection;
@@ -840,9 +840,10 @@ fn shift_pair_new_name_direction_enter_escape_and_failed_write_keep_the_draft(
         })
     });
     vcx.simulate_keystrokes("enter");
-    wait(vcx, |cx| {
-        ov.read_with(cx, |v, _| v.relation_draft().is_none())
-    });
+    assert!(
+        ov.read_with(vcx, |v, _| v.relation_draft().is_some()),
+        "Enter has no approved create action; the draft stays open"
+    );
     let list = || {
         lib.call(&Actor::User, "relation_type.list", json!({"book":book}))
             .unwrap()["output"]
@@ -850,6 +851,20 @@ fn shift_pair_new_name_direction_enter_escape_and_failed_write_keep_the_draft(
             .unwrap()
             .clone()
     };
+    assert!(
+        !list().iter().any(|r| r["name"] == "Graph Reversed"),
+        "Enter must not save a relation"
+    );
+    wait(vcx, |cx| {
+        shell.read_with(cx, |ws, _| ws.fill_progress(FillPlace::Left) >= 1.0)
+    });
+    wait(vcx, |cx| cx.debug_bounds("se-relation-create").is_some());
+    let at = vcx.debug_bounds("se-relation-create").unwrap().center();
+    vcx.simulate_mouse_move(at, None, gpui::Modifiers::default());
+    vcx.simulate_click(at, gpui::Modifiers::default());
+    wait(vcx, |cx| {
+        ov.read_with(cx, |v, _| v.relation_draft().is_none())
+    });
     let rows = list();
     let made = rows.iter().find(|r| r["name"] == "Graph Reversed").unwrap();
     assert_eq!(made["direction"], "directed");
@@ -949,4 +964,134 @@ fn symmetric_reuse_locks_direction_and_peek_excludes_same_side_members(cx: &mut 
         })
     });
     wait(vcx, |cx| cx.debug_bounds("se-peek-relations").is_some());
+}
+
+/// Inspect the actual canvas paint after direction, zoom and pan. Merely
+/// checking GraphRelation::directed would miss an omitted arrow draw call.
+#[gpui::test]
+fn directed_graph_arrows_are_painted_towards_both_targets_after_zoom_and_pan(
+    cx: &mut TestAppContext,
+) {
+    use gpui::{Modifiers, MouseButton, ScrollDelta, ScrollEvent, point, px};
+    cx.executor().allow_parking();
+    let (_dir, lib, books) = setup_seed_fixture(dr_testkit::seed::Preset::Tiny);
+    let book = books[0].clone();
+    let entries = dr_testkit::seed::acceptance::entries_by_template(&lib, &book, "tpl-character");
+    let mut pair = [0, 1].map(|i| entries[i]["id"].as_str().unwrap().to_owned());
+    pair.sort();
+    let [a, b] = pair;
+    let a_selector: &'static str = Box::leak(format!("se-relate-card-{a}").into_boxed_str());
+    let b_selector: &'static str = Box::leak(format!("se-relate-card-{b}").into_boxed_str());
+    let create =
+        |name, left: &str, right: &str, direction| {
+            lib.call(&Actor::User, "relation_row.create_pair", json!({
+            "book":book,"left":left,"right":right,"new_type":{"name":name,"direction":direction}
+        })).unwrap()["output"]["relation_type"].as_str().unwrap().to_owned()
+        };
+    let forward = create("Graph Arrow Forward", &a, &b, "directed");
+    let reverse = create("Graph Arrow Reverse", &b, &a, "directed");
+    let symmetric = create("Graph Arrow Symmetric", &a, &b, "symmetric");
+    init_test_shell(lib, book, cx);
+    let (shell, vcx) = cx.add_window_view(Workspace::new);
+    wait(vcx, |cx| {
+        shell.read_with(cx, |ws, _| ws.book.v3().is_some() && ws.book_memory_ready())
+    });
+    let ov = mount_overview(&shell, vcx);
+    wait(vcx, |cx| {
+        shell.read_with(cx, |ws, _| ws.fill_progress(FillPlace::Left) >= 1.0)
+    });
+    vcx.update(|_, cx| {
+        ov.update(cx, |v, cx| {
+            v.pin_element_in_relate(&a, RelatePoint::new(-120.0, 0.0), cx);
+            v.pin_element_in_relate(&b, RelatePoint::new(120.0, 0.0), cx);
+            v.reset_view(cx);
+        })
+    });
+    let assert_frame = |vcx: &mut VisualTestContext| {
+        wait(vcx, |cx| {
+            cx.debug_bounds(a_selector).is_some() && cx.debug_bounds(b_selector).is_some()
+        });
+        let arrows = ov.read_with(vcx, |v, _| v.painted_relation_arrows());
+        assert!(
+            !arrows.iter().any(|x| x.relation_type == symmetric),
+            "symmetric relation has no painted arrow"
+        );
+        let viewport = vcx.debug_bounds("se-viewport").unwrap();
+        let ink = vcx.update(|window, cx| dr_ui::Theme::of(window, cx).palette.ink(2));
+        let mut tips = Vec::new();
+        for (relation, from, to) in [(&forward, &a, &b), (&reverse, &b, &a)] {
+            let found: Vec<_> = arrows
+                .iter()
+                .filter(|x| &x.relation_type == relation)
+                .collect();
+            assert_eq!(
+                found.len(),
+                1,
+                "exactly one arrow actually painted for this directed pair"
+            );
+            let arrow = found[0];
+            assert_eq!((&arrow.from, &arrow.to), (from, to));
+            assert_eq!(arrow.color, ink, "arrow uses the relation line's ink");
+            let target = vcx
+                .debug_bounds(if to == &a { a_selector } else { b_selector })
+                .unwrap();
+            let center = target.center();
+            assert!(
+                viewport.contains(&arrow.tip),
+                "arrow is in the visible graph viewport"
+            );
+            assert!(
+                !target.contains(&arrow.tip),
+                "tip is outside the target card, not hidden beneath it"
+            );
+            let gap_x = (f32::from(arrow.tip.x - center.x).abs()
+                - f32::from(target.size.width) * 0.5)
+                .max(0.0);
+            let gap_y = (f32::from(arrow.tip.y - center.y).abs()
+                - f32::from(target.size.height) * 0.5)
+                .max(0.0);
+            assert!(
+                gap_x.max(gap_y) < 2.05,
+                "arrow hugs the target card boundary: {gap_x}, {gap_y}"
+            );
+            let back = point(
+                (arrow.wings[0].x + arrow.wings[1].x) * 0.5,
+                (arrow.wings[0].y + arrow.wings[1].y) * 0.5,
+            );
+            let dot = f32::from(center.x - arrow.tip.x) * f32::from(arrow.tip.x - back.x)
+                + f32::from(center.y - arrow.tip.y) * f32::from(arrow.tip.y - back.y);
+            assert!(
+                dot > 0.0,
+                "triangle points at the target, regardless of sorted curve direction"
+            );
+            let length = f32::from(arrow.tip.x - back.x).hypot(f32::from(arrow.tip.y - back.y));
+            let width = f32::from(arrow.wings[0].x - arrow.wings[1].x)
+                .hypot(f32::from(arrow.wings[0].y - arrow.wings[1].y));
+            assert!(
+                (length - 9.0).abs() < 0.01 && (width - 8.0).abs() < 0.01,
+                "9 x 8 screen pixel arrow stays readable when zoomed"
+            );
+            tips.push(arrow.tip);
+        }
+        tips
+    };
+    let first = assert_frame(vcx);
+    vcx.update(|_, cx| ov.update(cx, |v, cx| v.set_zoom(v.zoom() * 0.7, cx)));
+    vcx.update(|window, cx| window.draw(cx).clear(cx));
+    let zoomed = assert_frame(vcx);
+    assert_ne!(first, zoomed, "arrow follows the scaled target");
+    let viewport = vcx.debug_bounds("se-viewport").unwrap();
+    let at = point(viewport.left() + px(8.0), viewport.bottom() - px(8.0));
+    vcx.simulate_mouse_move(at, None::<MouseButton>, Modifiers::default());
+    vcx.simulate_event(ScrollEvent {
+        position: at,
+        delta: ScrollDelta::Pixels(point(px(25.0), px(15.0))),
+        ..Default::default()
+    });
+    vcx.update(|window, cx| window.draw(cx).clear(cx));
+    let panned = assert_frame(vcx);
+    for (before, after) in zoomed.iter().zip(panned.iter()) {
+        assert!((f32::from(after.x - before.x) - 25.0).abs() < 0.01);
+        assert!((f32::from(after.y - before.y) - 15.0).abs() < 0.01);
+    }
 }

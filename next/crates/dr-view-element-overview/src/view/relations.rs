@@ -16,7 +16,7 @@ use dr_view_relations::legend::{Legend, Row as LegendRow, render as render_share
 use dr_workspace::commands::v3::relations::RelationInfo;
 use gpui::{
     AnyElement, Context, ElementId, InteractiveElement, IntoElement, MouseButton, ParentElement,
-    SharedString, StatefulInteractiveElement, Styled, Window, div, px,
+    Pixels, Point, SharedString, StatefulInteractiveElement, Styled, Window, div, point, px,
 };
 
 use super::ElementOverview;
@@ -84,7 +84,89 @@ pub struct RelateEdgeView {
     pub ctrl: RelatePoint,
     pub p2: RelatePoint,
     pub directed: bool,
+    pub target_half: (f32, f32),
     pub labels: Vec<RelateRoleLabel>,
+}
+
+/// An arrow submitted by the most recent graph canvas paint, in window pixels.
+/// This is paint evidence, not the set of directed relations in the book.
+#[derive(Clone, Debug)]
+pub struct PaintedRelationArrow {
+    pub relation_type: String,
+    pub from: String,
+    pub to: String,
+    pub tip: Point<Pixels>,
+    pub wings: [Point<Pixels>; 2],
+    pub color: Rgb,
+}
+
+impl RelateEdgeView {
+    /// The graph curve is ordered by id for stable bends, independently of
+    /// relation direction. Find where that curve leaves the target card, then
+    /// point the old graph's 9 × 8 triangle back towards the target.
+    pub(super) fn arrow(
+        &self,
+        to_screen: impl Fn(RelatePoint) -> Point<Pixels>,
+        zoom: f32,
+    ) -> Option<PaintedRelationArrow> {
+        if !self.directed {
+            return None;
+        }
+        let (target, source) = if self.from_id < self.to_id {
+            (to_screen(self.p2), to_screen(self.p0))
+        } else {
+            (to_screen(self.p0), to_screen(self.p2))
+        };
+        let ctrl = to_screen(self.ctrl);
+        // Match the rendered card's minimum dimensions, with a 2px gap so
+        // the triangle is not painted underneath the card at low zoom.
+        let half = (
+            (self.target_half.0 * zoom).max(12.0) + 2.0,
+            (self.target_half.1 * zoom).max(10.0) + 2.0,
+        );
+        let at = |t: f32| {
+            let u = 1.0 - t;
+            point(
+                target.x * (u * u) + ctrl.x * (2.0 * u * t) + source.x * (t * t),
+                target.y * (u * u) + ctrl.y * (2.0 * u * t) + source.y * (t * t),
+            )
+        };
+        let outside = |p: Point<Pixels>| {
+            f32::from(p.x - target.x).abs() >= half.0 || f32::from(p.y - target.y).abs() >= half.1
+        };
+        let step = (1..=32).find(|i| outside(at(*i as f32 / 32.0)))?;
+        let (mut lo, mut hi) = ((step - 1) as f32 / 32.0, step as f32 / 32.0);
+        for _ in 0..16 {
+            let mid = (lo + hi) * 0.5;
+            if outside(at(mid)) {
+                hi = mid;
+            } else {
+                lo = mid;
+            }
+        }
+        let tip = at(hi);
+        let dx = f32::from((target.x - ctrl.x) * (1.0 - hi) + (ctrl.x - source.x) * hi);
+        let dy = f32::from((target.y - ctrl.y) * (1.0 - hi) + (ctrl.y - source.y) * hi);
+        let len = dx.hypot(dy);
+        if len <= f32::EPSILON {
+            return None;
+        }
+        let (ux, uy) = (dx / len, dy / len);
+        let wing = |side: f32| {
+            point(
+                tip.x - px(ux * 9.0 + uy * 4.0 * side),
+                tip.y - px(uy * 9.0 - ux * 4.0 * side),
+            )
+        };
+        Some(PaintedRelationArrow {
+            relation_type: self.relation_type_id.clone(),
+            from: self.from_id.clone(),
+            to: self.to_id.clone(),
+            tip,
+            wings: [wing(-1.0), wing(1.0)],
+            color: self.color,
+        })
+    }
 }
 
 impl ElementOverview {
@@ -222,6 +304,7 @@ impl ElementOverview {
                 ctrl: geom.ctrl,
                 p2: geom.p2,
                 directed: r.directed,
+                target_half: (to_half.0 as f32, to_half.1 as f32),
                 labels: geom.labels,
             });
         }
