@@ -267,6 +267,9 @@ def main():
         w.ready()
         w.app("window.focus")
         if args.copy_check:
+            w.app("shelf.show")
+            w.ready(**{"/shelf": True})
+            w.shot("00-shelf-zh.png")
             book = w.query("book.list")[0]
             w.app("book.open", book=book["id"])
             w.ready(**{"/shelf": False})
