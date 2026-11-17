@@ -18,10 +18,10 @@ dr-workspace.workspace = true
 futures.workspace = true
 gpui.workspace = true
 log.workspace = true
+serde_json.workspace = true
 
 [dev-dependencies]
 dr-testkit.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
 loro.workspace = true
-serde_json.workspace = true
 tempfile.workspace = true
