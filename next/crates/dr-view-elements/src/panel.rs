@@ -1489,14 +1489,13 @@ pub mod v3 {
         fn entry_scoped(
             &self,
             id: &str,
-            depth: usize,
             tile: bool,
             scope: &str,
             key: Option<&str>,
             window: &mut Window,
             cx: &mut App,
         ) -> AnyElement {
-            self.entry_at(id, depth, tile, scope, None, None, key, window, cx)
+            self.entry_at(id, 0, tile, scope, None, None, key, window, cx)
         }
         /// The stop of list row `row` (its tile `id`'s for a grid's row).
         fn stop_of(&self, row: usize, id: &str) -> Option<String> {
@@ -2013,7 +2012,7 @@ pub mod v3 {
                     .pl(px(*depth as f32 * 14.0))
                     .children(ids.iter().map(|id| {
                         let key = list_row.and_then(|i| self.stop_of(i, id));
-                        self.entry_scoped(id, 0, true, scope, key.as_deref(), window, cx)
+                        self.entry_scoped(id, true, scope, key.as_deref(), window, cx)
                     }))
                     .into_any_element(),
                 Row::Island { id, members } => {
@@ -2044,9 +2043,9 @@ pub mod v3 {
                         ))
                         .child(
                             div().flex().flex_wrap().gap_1().children(
-                                members.iter().map(|id| {
-                                    self.entry_scoped(id, 0, true, scope, None, window, cx)
-                                }),
+                                members
+                                    .iter()
+                                    .map(|id| self.entry_scoped(id, true, scope, None, window, cx)),
                             ),
                         )
                         .into_any_element()
