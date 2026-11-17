@@ -1697,6 +1697,23 @@
     "templateStructure": "Estrutura dos modelos",
     "unusedTemplates": "Modelos não usados"
   },
+  "v5Relations": {
+    "addEntry": "Adicionar uma entrada",
+    "addRow": "Adicionar uma linha",
+    "create": "Criar",
+    "deleteRow": "Excluir esta linha",
+    "description": "Descrição",
+    "direction": "Unidirecional ou bidirecional",
+    "findEntry": "Entrada",
+    "kinds_one": "{{count}} relação",
+    "kinds_other": "{{count}} relações",
+    "name": "Nome da relação",
+    "newRelation": "Nova relação",
+    "pairs_one": "{{count}} par",
+    "pairs_other": "{{count}} pares",
+    "removeEntry": "Remover “{{name}}”",
+    "tab": "Relações"
+  },
   "v5RelationsProse": {
     "change": "Trocar",
     "confirm": "Criar",
