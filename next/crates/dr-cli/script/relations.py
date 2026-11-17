@@ -92,8 +92,9 @@ def smoke(args, profile, data):
         press("Relate")
         frame = until(lambda: (f if (f := app("page.relations"))["compose"] else None), "composer")
         source = frame["compose"]["src"]
-        picks = [p for p in frame["drawn"]["picks"] if p["entry"] != source]
-        assert picks, "The sample chapter must show another linked entry."
+        assert by_id[source]["title"] == "阿Q", by_id[source]
+        picks = [p for p in frame["drawn"]["picks"] if by_id[p["entry"]]["title"] == "赵太爷"]
+        assert picks, "The sample chapter must show 赵太爷 beside 阿Q."
         target = picks[0]["entry"]
         app("input.click", **center(picks[0]["box"]))
         name = "验收关系"
@@ -126,11 +127,18 @@ def smoke(args, profile, data):
         screenshot("05-linked-description.png")
 
         # A filled left Tab exposes its existing Relations arrangement.
+        state = app("state.get")
+        if not state["left"]["open"]:
+            press("Open left sidebar")
+        tabs = app("state.get")["v3Sidebar"]["tabs"]
+        graph_tab = next((tab for tab in tabs if tab["name"] == "人物"),
+                         next(tab for tab in tabs if tab["root"]))
+        press(graph_tab["name"], role="RadioButton")
         press("Fill left sidebar")
         app("ui.wait", until="ready", state={"/fill": "left"}, timeout_ms=30000)
         press("Relations", role="RadioButton")
         app("ui.wait", until="ready", state={"/v3Sidebar/fillLayout": "relation"}, timeout_ms=30000)
-        app("ui.find", contains=name)
+        app("ui.find", label=f'Hide "{name}"', role="Button")
         screenshot("06-graph.png")
         result = {"book": book, "chapter": chapter["id"], "source": source, "target": target,
                   "relation": relation, "window": window}
