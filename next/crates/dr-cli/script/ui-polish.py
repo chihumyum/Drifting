@@ -55,17 +55,6 @@ class Window:
     def press(self, label, role="Button", **extra):
         return self.app("ui.press", label=label, role=role, **extra)
 
-    def field_input(self, method, **params):
-        # Bridge pointer/typing injection does not activate a background
-        # native window. GPUI emits blur events only while it is active.
-        # Establish that precondition for each real input, then fail if
-        # another app steals activation; never retry or bypass the save.
-        self.app("window.focus")
-        self.ready(**{"/window/active": True})
-        result = self.app(method, **params)
-        assert self.state()["window"]["active"], "native window lost activation during field input"
-        return result
-
     def shot(self, name):
         png = self.app("ui.screenshot")["png"]
         (self.args.out / name).write_bytes(base64.b64decode(png))
@@ -154,22 +143,24 @@ def inspect(w):
     w.reveal("Add field")
     w.shot("07-fields-header.png")
     old_fields = w.query("module.read", book=book["id"], entry=character["id"], module=kv["id"])["kv"]
-    w.field_input("ui.press", label="Add field", role="Button")
-    w.field_input("input.type", text="Synthetic UP field")
+    w.app("ui.press", label="Add field", role="Button")
+    w.app("input.type", text="Synthetic UP field")
     w.reveal("Content", role="Group", nth=len(old_fields))
-    w.field_input("ui.press", label="Content", role="Group", nth=len(old_fields))
-    w.field_input("input.type", text="Synthetic UP value")
-    # Leave the new row, rather than moving back to its own key. Queued
-    # row saves settle after neither editor in that row owns the focus.
-    assert old_fields, "the two acceptance seeds have an existing field"
-    w.reveal("Field", role="Group", nth=0)
-    w.field_input("ui.press", label="Field", role="Group", nth=0)
-    w.app("app.info")
+    w.app("ui.press", label="Content", role="Group", nth=len(old_fields))
+    w.app("input.type", text="Synthetic UP value")
+    # Leave through the real Home button. The page release drains accepted
+    # edits even if this shared machine activates another app: native GPUI
+    # blur notifications do not run for background bridge pointer injection.
+    # Reading after a real page release proves persistence, not just draft UI.
+    w.press("Project Home")
+    w.ready(**{"/page": "home"})
     def saved_field():
         data = w.query("module.read", book=book["id"], entry=character["id"], module=kv["id"])
         return data if any(row["key"] == "Synthetic UP field" and row["value"] == "Synthetic UP value"
                            for row in data["kv"]) else None
-    until(saved_field, "field added from its module header")
+    until(saved_field, "field persisted after leaving its page")
+    w.open_module(character["id"], kv["id"])
+    w.reveal("Add field")
     w.shot("08-fields-added.png")
 
     patches = module_of(character, "patches")
