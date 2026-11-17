@@ -47,6 +47,18 @@ fn reference(ws: &Workspace, key: &TurnKey, call: &ResolvedCall) -> Result<Vec<S
             ids.insert(id.to_owned());
         }
     }
+    if call.name == "relation_row.create_group" {
+        for key in ["left", "right"] {
+            ids.extend(
+                args[key]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(Value::as_str)
+                    .map(str::to_owned),
+            );
+        }
+    }
     let copy = ws.library().load_copy(&format!("book:{book}"))?;
     let borrowed = BorrowedBookV3::new(&copy, &book).map_err(|e| Error::Invalid(e.to_string()))?;
     let view = borrowed.view();
