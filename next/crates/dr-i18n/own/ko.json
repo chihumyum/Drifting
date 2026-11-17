@@ -527,5 +527,11 @@
     "pairs_other": "{{count}}쌍",
     "removeEntry": "‘{{name}}’ 빼기",
     "tab": "관계"
+  },
+  "relationGraph": {
+    "create": "만들기",
+    "name": "관계 이름",
+    "relations": "관계",
+    "title": "관계 만들기"
   }
 }

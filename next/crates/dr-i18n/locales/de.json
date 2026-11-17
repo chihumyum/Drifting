@@ -828,6 +828,12 @@
       "storyline": "Handlungsstrang"
     }
   },
+  "relationGraph": {
+    "create": "Erstellen",
+    "name": "Name der Beziehung",
+    "relations": "Beziehungen",
+    "title": "Beziehung erstellen"
+  },
   "relationTypes": {
     "description": "Beschreibung"
   },

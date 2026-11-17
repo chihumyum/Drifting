@@ -545,5 +545,11 @@
     "pairs_other": "{{count}} pairs",
     "removeEntry": "Remove “{{name}}”",
     "tab": "Relations"
+  },
+  "relationGraph": {
+    "create": "Create",
+    "name": "Relation name",
+    "relations": "Relations",
+    "title": "Create relation"
   }
 }

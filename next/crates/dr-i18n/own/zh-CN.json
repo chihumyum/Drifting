@@ -525,5 +525,11 @@
     "pairs_other": "{{count}} 对",
     "removeEntry": "移出「{{name}}」",
     "tab": "关系"
+  },
+  "relationGraph": {
+    "create": "建立",
+    "name": "关系的名字",
+    "relations": "关系",
+    "title": "建关系"
   }
 }

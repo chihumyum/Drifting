@@ -821,6 +821,12 @@
       "storyline": "ストーリーライン"
     }
   },
+  "relationGraph": {
+    "create": "作成",
+    "name": "関係の名前",
+    "relations": "関係",
+    "title": "関係を作る"
+  },
   "relationTypes": {
     "description": "説明"
   },
