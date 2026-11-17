@@ -171,6 +171,14 @@
       "refused_version": "下载的更新不是它标明的版本，可能是旧版本，已拒绝。当前版本照常可用。",
       "restart": "重启以更新",
       "server_error": "更新服务暂时出了问题，稍后再试。当前版本照常可用。"
+    },
+    "keys": {
+      "actions": {
+        "focusLeftSidebar": {
+          "desc": "键盘到左栏里用方向键走；再按一次或按 Esc 回到稿纸",
+          "label": "进出左栏"
+        }
+      }
     }
   },
   "templateEditor": {

@@ -1004,6 +1004,45 @@ impl Workspace {
         Some((page.view.entity_id(), page.focus.clone()))
     }
 
+    /// Whether `handle` is the focused page's: its editor's text, or in its
+    /// entry page or module page (KB: where the keyboard goes back to).
+    pub(super) fn front_page_holds(
+        &self,
+        handle: &gpui::FocusHandle,
+        window: &Window,
+        cx: &App,
+    ) -> bool {
+        let Some(target) = self.nav.active_tab().map(|t| t.focused().target.clone()) else {
+            return false;
+        };
+        let Some(page) = self.editors.get(&target.key()) else {
+            return false;
+        };
+        if page
+            .v3
+            .as_ref()
+            .is_some_and(|v| v.read(cx).focus.contains(handle, window))
+            || page
+                .module
+                .as_ref()
+                .is_some_and(|m| m.focus.contains(handle, window))
+        {
+            return true;
+        }
+        self.page_view(&target)
+            .is_some_and(|v| v.prose(cx).focus_handle(cx) == *handle)
+    }
+
+    /// Whether the focused page's entry page itself (not a part in it) has
+    /// the keyboard: a press on it that no part took.
+    pub(super) fn front_page_itself_focused(&self, window: &Window, cx: &App) -> bool {
+        self.nav
+            .active_tab()
+            .and_then(|t| self.editors.get(&t.focused().target.key()))
+            .and_then(|p| p.v3.as_ref())
+            .is_some_and(|v| v.read(cx).focus.is_focused(window))
+    }
+
     /// Gives the focused page's editor the keyboard when the page (or its
     /// editor) changes, unless something over the workspace or in a sidebar
     /// has it.
@@ -1052,6 +1091,13 @@ impl Workspace {
         let key = self.nav.active_tab().map(|t| t.focused().target.key());
         if want.is_some() && key.is_some() && key == self.title_first {
             self.title_first = None;
+            self.focused_editor = want;
+            return;
+        }
+        // Opened with `Open::stay` (a preview from the left column's tree,
+        // KB): the page is in front, the keyboard stays where it is.
+        if want.is_some() && key.is_some() && key == self.stay_keyboard {
+            self.stay_keyboard = None;
             self.focused_editor = want;
             return;
         }

@@ -224,6 +224,7 @@ pub fn left(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>
             .clone();
         let want_struct = std::mem::take(&mut ws.want_template_structure);
         let new_template = std::mem::take(&mut ws.want_new_template);
+        let want_keyboard = ws.take_left_keyboard_wish();
         panel.update(cx, |panel, cx| {
             panel.sync(host, cx);
             panel.sync_fill(ws.is_filled(FillPlace::Left), &ws.tab_fill_layouts, cx);
@@ -232,6 +233,10 @@ pub fn left(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>
             }
             if new_template {
                 panel.new_structure_template(window, cx);
+            }
+            // ⌘⇧L (KB): the Tab's tree or the Tab row takes the keyboard.
+            if want_keyboard {
+                panel.take_keyboard(window, cx);
             }
         });
         div()
@@ -1061,14 +1066,42 @@ fn card(
     host: &crate::pages::PageMenuHost,
     extra: Rc<crate::pages::CardRows>,
 ) -> AnyElement {
+    keyed_card(id, el, target, ws, host, extra, None)
+}
+
+/// [`card`], walked by the keyboard when `keys` is given (KB).
+fn keyed_card(
+    id: SharedString,
+    el: AnyElement,
+    target: &Target,
+    ws: &gpui::Entity<Workspace>,
+    host: &crate::pages::PageMenuHost,
+    extra: Rc<crate::pages::CardRows>,
+    keys: Option<gpui::Entity<dr_ui::components::CardKeys>>,
+) -> AnyElement {
     let (target, ws, host) = (target.clone(), ws.clone(), host.clone());
     let card_id = id.clone();
-    dr_ui::components::HoverCard::new(
+    let body_keys = keys.clone();
+    let card = dr_ui::components::HoverCard::new(
         ElementId::Name(format!("{id}-card").into()),
         el,
-        move |window, cx| card_body(&card_id, &target, &ws, &host, &extra, window, cx),
-    )
-    .into_any_element()
+        move |window, cx| {
+            card_body(
+                &card_id,
+                &target,
+                &ws,
+                &host,
+                &extra,
+                body_keys.as_ref(),
+                window,
+                cx,
+            )
+        },
+    );
+    match keys {
+        Some(keys) => card.keys(keys).into_any_element(),
+        None => card.into_any_element(),
+    }
 }
 
 /// A page's hover card around a module's own element (M14's slabs and lane
@@ -1086,32 +1119,54 @@ pub fn page_hover_card(
     rows: crate::pages::CardRows,
     cx: &App,
 ) -> AnyElement {
+    page_hover_card_keyed(id, el, target, ws, rows, None, cx)
+}
+
+/// [`page_hover_card`] the keyboard can walk (KB: a left-column Tab's row):
+/// with `keys`, the card opens and closes with them ([`CardKeys`]), its
+/// rows are lit by the keyboard and say which can be stopped on (a row
+/// that does nothing cannot). The rows are [`crate::v3::card::rows`]' with
+/// `rows`, in that order.
+///
+/// [`CardKeys`]: dr_ui::components::CardKeys
+pub fn page_hover_card_keyed(
+    id: impl Into<SharedString>,
+    el: impl IntoElement,
+    target: &Target,
+    ws: &gpui::Entity<Workspace>,
+    rows: crate::pages::CardRows,
+    keys: Option<gpui::Entity<dr_ui::components::CardKeys>>,
+    cx: &App,
+) -> AnyElement {
     let host = crate::pages::PageMenuHost::of(ws, cx);
-    card(
+    keyed_card(
         id.into(),
         el.into_any_element(),
         target,
         ws,
         &host,
         Rc::new(rows),
+        keys,
     )
 }
 
 /// A page's hover card (the 0.1 client's `EntityHoverCard`): a chapter's
 /// words, its storylines (the primary first) and summary; a storyline's
 /// chapters and words, its summary. Then its actions.
+#[allow(clippy::too_many_arguments)]
 fn card_body(
     id: &SharedString,
     target: &Target,
     ws: &gpui::Entity<Workspace>,
     host: &crate::pages::PageMenuHost,
     extra: &crate::pages::CardRows,
+    keys: Option<&gpui::Entity<dr_ui::components::CardKeys>>,
     window: &mut Window,
     cx: &mut App,
 ) -> AnyElement {
     use dr_ui::components::{CardAction, CardBody};
     if host.book.v3().is_some() && matches!(target, Target::Entry { .. }) {
-        return crate::v3::card::body(id, target, host, extra, window, cx);
+        return crate::v3::card::body_keyed(id, target, host, extra, keys, window, cx);
     }
     let (mark, color) = host.book.mark(target);
     let mut body = CardBody::new(

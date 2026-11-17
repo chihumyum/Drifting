@@ -10,6 +10,10 @@ actions!(
     [
         /// Opens or closes the left sidebar.
         ToggleLeftSidebar,
+        /// The keyboard into the left column (⌘⇧L, KB): its tree, or its
+        /// Tab row; pressed again there, back to the page. A closed column
+        /// opens first; a filled one does nothing.
+        FocusLeftSidebar,
         /// Opens or closes the right sidebar.
         ToggleRightSidebar,
         /// The previous page (⌘[).
@@ -106,3 +110,30 @@ actions!(
         BringAllToFront,
     ]
 );
+
+/// The left column's own keys (KB, `kernel-v5.md` §15 item 48), bound in
+/// its tree's ([`crate::keymap::LEFT_TREE`]) and its Tab row's
+/// ([`crate::keymap::LEFT_TABS`]) key contexts only: not shortcuts, and
+/// nothing anywhere else.
+pub mod left {
+    gpui::actions!(
+        left_column,
+        [
+            /// ↑: the row above; on the tree's first row, the Tab row.
+            Up,
+            /// ↓: the row below; on the Tab row, the tree.
+            Down,
+            /// ←: fold, or the row outside; on the Tab row, the Tab before.
+            Left,
+            /// →: unfold, or the first row inside; on the Tab row, the Tab after.
+            Right,
+            /// Enter: open the row (a preview), or keep the row in front and
+            /// go to its page.
+            Enter,
+            /// Space: the row's hover card.
+            Space,
+            /// Esc: back to the page.
+            Back,
+        ]
+    );
+}

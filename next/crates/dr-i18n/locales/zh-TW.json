@@ -1118,6 +1118,10 @@
           "desc": "尋找目前開啟編輯器中的文字",
           "label": "在目前編輯器中尋找"
         },
+        "focusLeftSidebar": {
+          "desc": "鍵盤到左欄裡用方向鍵走；再按一次或按 Esc 回到頁面",
+          "label": "進出左欄"
+        },
         "globalSearch": {
           "desc": "搜尋章節、故事線、要素與類目",
           "label": "全域搜尋"

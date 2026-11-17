@@ -180,6 +180,14 @@
       "refused_version": "Das geladene Update ist nicht die angegebene Version, möglicherweise eine ältere, und wurde abgelehnt. Die aktuelle Version funktioniert weiter.",
       "restart": "Neu starten und aktualisieren",
       "server_error": "Der Update-Dienst hat gerade ein Problem. Versuche es später erneut; die aktuelle Version funktioniert weiter."
+    },
+    "keys": {
+      "actions": {
+        "focusLeftSidebar": {
+          "desc": "Die linke Seitenleiste mit den Pfeiltasten durchgehen; erneut drücken oder Esc, um zur Seite zurückzukehren",
+          "label": "In die linke Seitenleiste"
+        }
+      }
     }
   },
   "templateEditor": {

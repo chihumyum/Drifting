@@ -29,6 +29,11 @@ use serde_json::{Map, Value};
 pub const WORKSPACE: &str = "Workspace";
 /// The editor's key context (`gpui_prose::input::actions::KEY_CONTEXT`).
 pub const EDITOR: &str = "ProseEditor";
+/// The left column's tree while it has the keyboard (KB): its arrows, Enter,
+/// Space and Esc ([`crate::actions::left`]).
+pub const LEFT_TREE: &str = "LeftColumnTree";
+/// The left column's Tab row while it has the keyboard (KB): ← → ↓ and Esc.
+pub const LEFT_TABS: &str = "LeftColumnTabs";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Only {
@@ -152,6 +157,15 @@ pub static REGISTRY: &[Shortcut] = &[
         &["secondary-shift-enter"],
         a::toggle_immersive_writing::LABEL,
         a::toggle_immersive_writing::DESC,
+    ),
+    // KB (`kernel-v5.md` §15 item 48; the line's words are the
+    // supervisor's, after 「沉浸写作」's).
+    listed(
+        "focusLeftSidebar",
+        "workspace::FocusLeftSidebar",
+        &["secondary-shift-l"],
+        a::focus_left_sidebar::LABEL,
+        a::focus_left_sidebar::DESC,
     ),
     listed(
         "newEntity",
@@ -314,6 +328,10 @@ pub fn apply(overrides: &Map<String, Value>, cx: &mut App) {
     let os = cx.platform_info().os;
     cx.clear_key_bindings();
     cx.bind_keys(dr_ui::input::field::bindings());
+    // The left column's keys (KB) in its own contexts, and those of a hover
+    // card the keyboard walks.
+    cx.bind_keys(left_column_bindings());
+    cx.bind_keys(dr_ui::components::hover_card::key_bindings());
     // The editor's own keys (moving, deleting, Enter …) in its context; its
     // formatting keys are the registry's below as well.
     cx.bind_keys(gpui_prose::input::actions::key_bindings(
@@ -343,6 +361,27 @@ pub fn apply(overrides: &Map<String, Value>, cx: &mut App) {
     }
     cx.bind_keys(made);
     cx.set_menus(crate::menus::app_menus(cx));
+}
+
+/// The left column's own keys (KB): the tree's arrows, Enter, Space and
+/// Esc; the Tab row's ← → ↓ and Esc. Anything else there does nothing.
+pub fn left_column_bindings() -> Vec<KeyBinding> {
+    use crate::actions::left::{Back, Down, Enter, Left, Right, Space, Up};
+    let tree = Some(LEFT_TREE);
+    let tabs = Some(LEFT_TABS);
+    vec![
+        KeyBinding::new("up", Up, tree),
+        KeyBinding::new("down", Down, tree),
+        KeyBinding::new("left", Left, tree),
+        KeyBinding::new("right", Right, tree),
+        KeyBinding::new("enter", Enter, tree),
+        KeyBinding::new("space", Space, tree),
+        KeyBinding::new("escape", Back, tree),
+        KeyBinding::new("down", Down, tabs),
+        KeyBinding::new("left", Left, tabs),
+        KeyBinding::new("right", Right, tabs),
+        KeyBinding::new("escape", Back, tabs),
+    ]
 }
 
 #[derive(Default)]
@@ -495,8 +534,16 @@ mod tests {
             "Ctrl+Shift+F"
         );
         assert_eq!(display("secondary-alt-left", OperatingSystem::Mac), "⌘⌥←");
-        // The 0.1 client listed 11; 关闭项目 (⇧⌘W) went on 2026-11-14.
-        assert_eq!(listed_shortcuts().count(), 10);
+        // The 0.1 client listed 11; 关闭项目 (⇧⌘W) went on 2026-11-14;
+        // 进出左栏 (⌘⇧L) came with KB on 2026-11-17.
+        assert_eq!(listed_shortcuts().count(), 11);
+        let left = find("focusLeftSidebar").unwrap();
+        assert_eq!(left.effective(&none), ["secondary-shift-l"]);
+        assert_eq!(display("secondary-shift-l", OperatingSystem::Mac), "⌘⇧L");
+        assert_eq!(
+            display("secondary-shift-l", OperatingSystem::Windows),
+            "Ctrl+Shift+L"
+        );
         assert!(find("closeProject").is_none());
     }
 
