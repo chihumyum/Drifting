@@ -163,7 +163,22 @@ fn parse_as(name: &str, bytes: &[u8], format: ImportFormat) -> Result<ParsedDoc,
 /// (no title taken off). M40's Markdown folder reads the paragraphs an
 /// author changed with it.
 pub fn markdown_blocks(text: &str) -> Vec<Block> {
-    markdown::parse(text, &mut Vec::new())
+    markdown::for_mirror(text)
+}
+
+/// Inline syntax shared with the Markdown folder's line-oriented reader.
+pub fn markdown_runs(text: &str) -> Vec<crate::Run> {
+    markdown::mirror_runs(text)
+}
+
+/// The raw label and destination of a standalone Markdown image.
+pub fn markdown_image_line(text: &str) -> Option<(String, String)> {
+    markdown::image_line(text)
+}
+
+/// The kind in the first line of an Obsidian callout, after its quote marker.
+pub fn markdown_callout_kind(text: &str) -> Option<&str> {
+    markdown::callout_kind(text)
 }
 
 /// UTF-8 (a BOM dropped), or UTF-16 with its BOM; anything else is read as

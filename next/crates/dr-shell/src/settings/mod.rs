@@ -6,6 +6,7 @@
 //! crash reports, the keymap), every window repaints, and the file is written 300 ms later.
 
 pub mod panel;
+pub(crate) use panel::row;
 pub mod registry;
 pub mod store;
 

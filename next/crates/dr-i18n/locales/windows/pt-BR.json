@@ -15,6 +15,11 @@
         "storage_failed": "Não foi possível salvar a entrada no Gerenciador de Credenciais do Windows."
       }
     },
+    "sync": {
+      "projection": {
+        "reveal": "Mostrar no Explorador de Arquivos"
+      }
+    },
     "update": {
       "channel_desc": "Windows 10/11 · x64 e ARM64"
     }

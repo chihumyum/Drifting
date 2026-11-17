@@ -33,6 +33,7 @@ mod export_memory;
 pub mod keymap;
 pub mod library;
 pub mod menus;
+pub mod mirror;
 pub mod nav;
 pub mod notifications;
 pub mod pages;

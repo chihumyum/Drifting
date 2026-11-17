@@ -41,7 +41,8 @@ pub fn before_release(
 }
 
 /// Registers a fallible final checkpoint after all `before_release` futures
-/// and the shell's final Markdown pass have succeeded. Unlike a prepare
+/// and the shell's final Markdown pass have finished. Markdown copy errors
+/// are reported without blocking release. Unlike a prepare
 /// callback, its synchronous prefix is also
 /// delayed until those services finish. Author input and service admission
 /// remain paused, and `Services.library` still holds the original library.

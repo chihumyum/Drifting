@@ -18,9 +18,9 @@ use dr_shell::workspace::{Layer, title_of};
 use dr_shell::{Services, ShellInfo, Workspace};
 use dr_workspace::Actor;
 use gpui::{
-    AnyWindowHandle, App, AsyncApp, Context, Entity, Focusable as _, Keystroke, Modifiers,
-    MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, PlatformInput, Window, WindowHandle,
-    WindowVisibility, point, px,
+    AnyWindowHandle, App, AsyncApp, Context, Entity, EntityInputHandler as _, Focusable as _,
+    Keystroke, Modifiers, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, PlatformInput,
+    Window, WindowHandle, WindowVisibility, point, px,
 };
 use serde_json::{Value, json};
 
@@ -64,6 +64,10 @@ pub const METHODS: &[(&str, &str)] = &[
     (
         "input.type",
         "{text}: type through GPUI's input path into the focused text field (a newline presses Enter); fails with no_input when nothing takes it",
+    ),
+    (
+        "input.mark",
+        "{text}: set the focused prose editor's IME marked text, with the caret at its end; an empty string cancels the composition",
     ),
     (
         "input.key",
@@ -255,6 +259,10 @@ pub async fn call(method: &str, params: Value, cx: &mut AsyncApp) -> Out {
         "input.type" => cx.update(|cx| {
             pump(cx)?;
             type_text(&p, cx)
+        }),
+        "input.mark" => cx.update(|cx| {
+            pump(cx)?;
+            mark_text(&p, cx)
         }),
         "input.key" => cx.update(|cx| {
             pump(cx)?;
@@ -460,8 +468,12 @@ fn info(cx: &mut App) -> Out {
     for handle in cx.windows() {
         let id = handle.window_id().as_u64();
         let workspace = handle.downcast::<Workspace>().is_some();
-        let w = handle.update(cx, |_, window, _| {
+        let w = handle.update(cx, |_, window, cx| {
             let b = window.bounds();
+            let on_primary = window
+                .display(cx)
+                .zip(cx.primary_display())
+                .map(|(window_display, primary)| window_display.id() == primary.id());
             json!({
                 "id": id,
                 "workspace": workspace,
@@ -474,6 +486,7 @@ fn info(cx: &mut App) -> Out {
                 },
                 "scale": window.scale_factor(),
                 "appearance": format!("{:?}", window.appearance()),
+                "primaryDisplay": on_primary,
             })
         });
         if let Ok(w) = w {
@@ -587,6 +600,27 @@ fn type_text(p: &Value, cx: &mut App) -> Out {
             typed += 1;
         }
         Ok(json!({ "typed": typed }))
+    })?
+}
+
+fn mark_text(p: &Value, cx: &mut App) -> Out {
+    let text = string(p, "text")?;
+    let caret = text.encode_utf16().count();
+    in_window(cx, |view, window, cx| {
+        let ws = view.read(cx);
+        let editor = ws
+            .nav
+            .current()
+            .and_then(|target| ws.page_view(target))
+            .map(|page| page.prose(cx))
+            .filter(|editor| editor.focus_handle(cx).is_focused(window));
+        let editor = editor
+            .ok_or_else(|| BridgeError::new(codes::NO_INPUT, "no prose editor has the focus"))?;
+        let marked = editor.update(cx, |editor, cx| {
+            editor.replace_and_mark_text_in_range(None, text, Some(caret..caret), window, cx);
+            editor.composition().is_some()
+        });
+        Ok(json!({ "marked": marked }))
     })?
 }
 

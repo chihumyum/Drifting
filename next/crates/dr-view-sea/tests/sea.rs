@@ -129,6 +129,50 @@ fn holds_turn_the_sea_on_and_it_ebbs_when_they_go(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn the_workspace_keeps_its_ground_in_the_frame_the_sea_turns_off(cx: &mut TestAppContext) {
+    shell(cx);
+    cx.update(dr_view_sea::shell::init);
+    let (view, cx) = cx.add_window_view(dr_shell::Workspace::new);
+    cx.simulate_resize(gpui::size(px(1440.0), px(900.0)));
+    let mut now = Instant::now();
+    frame(cx, now);
+    let s = sea(cx);
+
+    // Restoring a library holds the sea as Loading, then releases it.
+    // Use the real shell and CharSea so render runs before sea prepaint.
+    let hold = cx.update(|window, _| s.hold(HoldKind::Loading, window));
+    frame(cx, now);
+    assert_eq!(s.mode(), Mode::Live);
+    drop(hold);
+    now += dr_view_sea::sea::HANDOVER + Duration::from_millis(1);
+    frame(cx, now);
+    assert_eq!(s.mode(), Mode::Ebb);
+
+    // A covered window can next draw after the whole ebb limit. Inspect
+    // that exact frame: another draw would conceal the missing ground.
+    now += dr_view_sea::sea::EBB_LIMIT + Duration::from_millis(1);
+    frame(cx, now);
+    assert_eq!(s.mode(), Mode::Off);
+    assert!(view.read_with(cx, |ws, _| ws.ebbing()));
+    cx.update(|window, cx| {
+        let desk: gpui::Background = dr_ui::Theme::of(window, cx).palette.desk.solid().into();
+        let quads = window.painted_quads();
+        for at in [point(px(20.0), px(300.0)), point(px(1420.0), px(300.0))] {
+            let at = at.scale(window.scale_factor());
+            assert!(
+                quads.iter().any(|q| {
+                    q.background == desk
+                        && q.bounds.contains(&at)
+                        && q.content_mask.bounds.contains(&at)
+                }),
+                "the paper's margin has an opaque desk fill when the sea stops: {at:?}"
+            );
+        }
+    });
+    dr_ui::anim::freeze(None);
+}
+
+#[gpui::test]
 fn a_hand_over_within_the_latch_keeps_the_sea_live(cx: &mut TestAppContext) {
     shell(cx);
     let (_view, cx) = cx.add_window_view(|_, _| Board {

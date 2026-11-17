@@ -6,7 +6,9 @@
 //!
 //! 1. [`request`] (⌘Q, the menu) first awaits the shared release hooks,
 //!    Markdown's final pass and fallible `release::after_drain` checkpoints,
-//!    keeping the app visible and usable if preparation fails. It then
+//!    keeping the app visible and usable if durable preparation fails.
+//!    A failed Markdown copy reports a notice and lets the other drains run.
+//!    It then
 //!    hides the app when the app asked
 //!    for it with [`hide_first`] (F7: the hooks may take a moment, an import
 //!    finishing its book up to two seconds, and a window standing frozen
