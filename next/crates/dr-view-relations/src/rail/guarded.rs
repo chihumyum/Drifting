@@ -15,9 +15,10 @@ pub(super) fn load(
     WritePreconditions,
     Vec<RelationRow>,
 )> {
-    let doc_id = format!("book:{book}");
-    for _ in 0..4 {
-        let before = lib.version(&doc_id)?;
+    let book_id = book
+        .parse::<dr_model::id::BookId>()
+        .map_err(|e| WsError::Invalid(e.to_string()))?;
+    lib.with_book_lease(&book_id, || {
         let snapshot = Book::load(lib, book)?;
         let relations = lib
             .run::<List>(
@@ -31,7 +32,7 @@ pub(super) fn load(
         let id = book
             .parse::<dr_model::id::BookId>()
             .map_err(|e| WsError::Invalid(e.to_string()))?;
-        let (after, records, rows) = lib.read_book_v3(book, move |doc, version| {
+        let (records, rows) = lib.read_book_v3(book, move |doc, _| {
             let borrowed = dr_doc::v3::BorrowedBookV3::new(doc, &id)
                 .map_err(|e| WsError::Invalid(e.to_string()))?;
             let view = borrowed.view();
@@ -48,18 +49,15 @@ pub(super) fn load(
                 )
                 .collect();
             let records = dr_workspace::observe_records_in(&format!("book:{id}"), doc, &id, &keys)?;
-            Ok((version, records, view.relations_raw()))
+            Ok((records, view.relations_raw()))
         })?;
-        if before == after {
-            return Ok((
-                relations,
-                snapshot,
-                WritePreconditions::default().with_shown(records.into_iter().map(Into::into)),
-                rows,
-            ));
-        }
-    }
-    Err(WsError::Conflict("relations changed while reading".into()))
+        Ok((
+            relations,
+            snapshot,
+            WritePreconditions::default().with_shown(records.into_iter().map(Into::into)),
+            rows,
+        ))
+    })
 }
 
 /// Accept concurrent additions on the same side, but never expand against an

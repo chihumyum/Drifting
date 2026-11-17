@@ -970,3 +970,294 @@ fn current_whole_book_scope_follows_attached_entries(cx: &mut TestAppContext) {
         },
     );
 }
+
+#[gpui::test]
+fn a_remote_name_change_keeps_the_local_name_draft_until_explicit_retry(cx: &mut TestAppContext) {
+    let e = env();
+    pair(&e, &e.entries[0].0, &e.entries[1].0, "RL 原名", "directed");
+    let id = relation(&e, "RL 原名").unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let remote_dir = tempfile::tempdir().unwrap();
+    let remote = Workspace::open_dir(remote_dir.path(), "0.2.0-dev").unwrap();
+    sync_book(&e.ws, &remote, &e.book);
+    let (rail, mut cx, _) = open(cx, &e);
+    let cx = &mut cx;
+    cx.update(|window, cx| {
+        rail.update(cx, |r, cx| {
+            r.start_rename(Some(id.clone()), window, cx);
+            r.rename
+                .as_ref()
+                .unwrap()
+                .field
+                .update(cx, |f, cx| f.set_text("RL 本地名字", cx));
+        })
+    });
+    call(
+        &remote,
+        "relation_type.rename",
+        json!({"book":e.book,"id":id,"name":"RL 远端名字"}),
+    );
+    sync_book(&remote, &e.ws, &e.book);
+    wait_for(cx, "remote name shown while editing", |cx| {
+        rail.read_with(cx, |r, _| rail_relation(r, "RL 远端名字").is_some())
+    });
+    cx.update(|window, cx| rail.update(cx, |r, cx| r.commit_rename(window, cx)));
+    wait_for(cx, "name conflict", |cx| {
+        rail.read_with(cx, |r, _| r.rename.as_ref().is_some_and(|d| d.failed))
+    });
+    assert_eq!(relation(&e, "RL 远端名字").unwrap()["id"], id);
+    assert_eq!(
+        rail.read_with(cx, |r, cx| r.rename.as_ref().unwrap().field.read(cx).text()),
+        "RL 本地名字"
+    );
+    settle(&rail, cx);
+    cx.update(|window, cx| rail.update(cx, |r, cx| r.retry(window, cx)));
+    settle(&rail, cx);
+    assert_eq!(relation(&e, "RL 本地名字").unwrap()["id"], id);
+    assert!(rail.read_with(cx, |r, _| r.rename.is_none()));
+}
+
+#[gpui::test]
+fn a_remote_description_change_keeps_the_local_linked_draft(cx: &mut TestAppContext) {
+    let e = env();
+    pair(
+        &e,
+        &e.entries[0].0,
+        &e.entries[1].0,
+        "RL 描述并发",
+        "directed",
+    );
+    let id = relation(&e, "RL 描述并发").unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let remote_dir = tempfile::tempdir().unwrap();
+    let remote = Workspace::open_dir(remote_dir.path(), "0.2.0-dev").unwrap();
+    sync_book(&e.ws, &remote, &e.book);
+    let (rail, mut cx, _) = open(cx, &e);
+    let cx = &mut cx;
+    cx.update(|window, cx| {
+        rail.update(cx, |r, cx| {
+            r.start_describe(&id, window, cx);
+            r.describe
+                .as_ref()
+                .unwrap()
+                .area
+                .update(cx, |a, cx| a.set_text("本地描述", cx));
+        })
+    });
+    call(
+        &remote,
+        "relation_type.set_description",
+        json!({"book":e.book,"id":id,"description":"远端描述"}),
+    );
+    sync_book(&remote, &e.ws, &e.book);
+    wait_for(cx, "remote description shown", |cx| {
+        rail.read_with(cx, |r, _| {
+            rail_relation(r, "RL 描述并发").is_some_and(|r| r.description.text == "远端描述")
+        })
+    });
+    rail.update(cx, |r, cx| r.commit_describe(cx));
+    wait_for(cx, "description conflict", |cx| {
+        rail.read_with(cx, |r, _| r.describe.as_ref().is_some_and(|d| d.failed))
+    });
+    assert_eq!(
+        relation(&e, "RL 描述并发").unwrap()["description"]["text"],
+        "远端描述"
+    );
+    assert_eq!(
+        rail.read_with(cx, |r, cx| r
+            .describe
+            .as_ref()
+            .unwrap()
+            .area
+            .read(cx)
+            .draft()
+            .text
+            .clone()),
+        "本地描述"
+    );
+}
+
+#[gpui::test]
+fn deleting_a_last_draft_cannot_delete_an_unseen_remote_row(cx: &mut TestAppContext) {
+    let e = env();
+    let id = call(
+        &e.ws,
+        "relation_type.create",
+        json!({"book":e.book,"name":"RL 空卡并发","direction":"directed"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let remote_dir = tempfile::tempdir().unwrap();
+    let remote = Workspace::open_dir(remote_dir.path(), "0.2.0-dev").unwrap();
+    sync_book(&e.ws, &remote, &e.book);
+    let (rail, mut cx, _) = open(cx, &e);
+    let cx = &mut cx;
+    rail.update(cx, |r, cx| r.add_row(&id, cx));
+    let key = rail.read_with(cx, |r, _| r.drafts()[0].key);
+    let remote_row = call(
+        &remote,
+        "relation_row.create_pair",
+        json!({"book":e.book,"relation_type":id,"left":e.entries[0].0,"right":e.entries[1].0}),
+    )["id"]
+        .clone();
+    sync_book(&remote, &e.ws, &e.book);
+    // Do not pump the event loop between the import and this old frame's bin.
+    rail.update(cx, |r, cx| {
+        assert!(rail_relation(r, "RL 空卡并发").unwrap().rows.is_empty());
+        r.delete_row(&RowKey::Draft(key), cx);
+        assert!(r.drafts()[0].pending);
+    });
+    wait_for(cx, "empty-card conflict", |cx| {
+        rail.read_with(cx, |r, _| {
+            r.drafts().iter().any(|d| d.key == key && d.failed)
+        })
+    });
+    assert_eq!(
+        relation(&e, "RL 空卡并发").unwrap()["rows"][0]["id"],
+        remote_row
+    );
+    settle(&rail, cx);
+    // Once that row is shown, retry only discards the local empty draft.
+    rail.update(cx, |r, cx| r.retry_draft(key, cx));
+    settle(&rail, cx);
+    assert!(rail.read_with(cx, |r, _| r.drafts().is_empty()));
+    assert_eq!(
+        relation(&e, "RL 空卡并发").unwrap()["rows"][0]["id"],
+        remote_row
+    );
+}
+
+#[gpui::test]
+fn a_new_card_cannot_be_binned_while_its_name_is_pending(cx: &mut TestAppContext) {
+    let e = env();
+    let (rail, mut cx, _) = open(cx, &e);
+    let cx = &mut cx;
+    // One foreground update holds the deterministic background executor before
+    // it can start the accepted command. Exercise the bin in that pending gap.
+    cx.update(|window, cx| {
+        rail.update(cx, |r, cx| {
+            r.new_card(window, cx);
+            r.rename
+                .as_ref()
+                .unwrap()
+                .field
+                .update(cx, |f, cx| f.set_text("RL 保存中", cx));
+            let key = RowKey::Draft(r.drafts()[0].key);
+            r.commit_rename(window, cx);
+            assert!(r.rename.as_ref().unwrap().pending);
+            assert!(relation(&e, "RL 保存中").is_none());
+            r.delete_row(&key, cx);
+            assert_eq!(r.drafts().len(), 1);
+            assert!(r.rename.as_ref().unwrap().pending);
+        })
+    });
+    settle(&rail, cx);
+    let id = relation(&e, "RL 保存中").unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert_eq!(
+        rail.read_with(cx, |r, _| r.drafts()[0].relation.clone()),
+        Some(id)
+    );
+}
+
+fn remote_row_change(e: &Env, row: &str, side: &str, entry: &str) {
+    let remote_dir = tempfile::tempdir().unwrap();
+    let remote = Workspace::open_dir(remote_dir.path(), "0.2.0-dev").unwrap();
+    sync_book(&e.ws, &remote, &e.book);
+    call(
+        &remote,
+        "relation_row.add_entry",
+        json!({"book":e.book,"id":row,"side":side,"entry":entry}),
+    );
+    sync_book(&remote, &e.ws, &e.book);
+}
+
+#[gpui::test]
+fn adding_a_member_merges_a_remote_addition_on_the_same_side(cx: &mut TestAppContext) {
+    let e = env();
+    let [a, b, c, d] = [
+        &e.entries[0].0,
+        &e.entries[1].0,
+        &e.entries[2].0,
+        &e.entries[3].0,
+    ];
+    let row = pair(&e, a, b, "RL 同侧并发", "directed")["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let (rail, mut cx, _) = open(cx, &e);
+    let cx = &mut cx;
+    remote_row_change(&e, &row, "left", c);
+    rail.update(cx, |r, cx| {
+        r.add_entry(&RowKey::Stored(row), RelationSide::Left, d, cx)
+    });
+    settle(&rail, cx);
+    let value = relation(&e, "RL 同侧并发").unwrap();
+    assert_eq!(value["pair_count"], 3);
+    let left = value["rows"][0]["left"].as_array().unwrap();
+    assert!(left.contains(&json!(a)) && left.contains(&json!(c)) && left.contains(&json!(d)));
+}
+
+#[gpui::test]
+fn adding_a_member_refuses_an_unseen_opposite_side(cx: &mut TestAppContext) {
+    let e = env();
+    let [a, b, c, d] = [
+        &e.entries[0].0,
+        &e.entries[1].0,
+        &e.entries[2].0,
+        &e.entries[3].0,
+    ];
+    let row = pair(&e, a, b, "RL 对侧并发", "directed")["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let (rail, mut cx, _) = open(cx, &e);
+    let cx = &mut cx;
+    remote_row_change(&e, &row, "right", c);
+    rail.update(cx, |r, cx| {
+        r.add_entry(&RowKey::Stored(row), RelationSide::Left, d, cx)
+    });
+    settle(&rail, cx);
+    let value = relation(&e, "RL 对侧并发").unwrap();
+    assert_eq!(value["pair_count"], 2);
+    assert_eq!(value["rows"][0]["left"], json!([a]));
+}
+
+#[gpui::test]
+fn deleting_a_row_refuses_unseen_remote_members(cx: &mut TestAppContext) {
+    let e = env();
+    let [a, b, c] = [&e.entries[0].0, &e.entries[1].0, &e.entries[2].0];
+    let row = pair(&e, a, b, "RL 删行并发", "directed")["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let (rail, mut cx, _) = open(cx, &e);
+    let cx = &mut cx;
+    remote_row_change(&e, &row, "left", c);
+    rail.update(cx, |r, cx| r.delete_row(&RowKey::Stored(row), cx));
+    settle(&rail, cx);
+    assert_eq!(relation(&e, "RL 删行并发").unwrap()["pair_count"], 2);
+}
+
+#[gpui::test]
+fn removing_a_member_refuses_unseen_remote_pairs(cx: &mut TestAppContext) {
+    let e = env();
+    let [a, b, c] = [&e.entries[0].0, &e.entries[1].0, &e.entries[2].0];
+    let row = pair(&e, a, b, "RL 移出并发", "directed")["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let (rail, mut cx, _) = open(cx, &e);
+    let cx = &mut cx;
+    remote_row_change(&e, &row, "right", c);
+    rail.update(cx, |r, cx| r.remove_entry(&RowKey::Stored(row), a, cx));
+    settle(&rail, cx);
+    assert_eq!(relation(&e, "RL 移出并发").unwrap()["pair_count"], 2);
+}
