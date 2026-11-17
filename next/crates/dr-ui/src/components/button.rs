@@ -59,6 +59,7 @@ pub struct Button {
     disabled: bool,
     busy: bool,
     full_width: bool,
+    truncate: bool,
     on_click: Option<OnClick>,
 }
 
@@ -73,6 +74,7 @@ impl Button {
             disabled: false,
             busy: false,
             full_width: false,
+            truncate: false,
             on_click: None,
         }
     }
@@ -120,6 +122,14 @@ impl Button {
 
     pub fn full_width(mut self) -> Self {
         self.full_width = true;
+        self
+    }
+
+    /// A label that may not fit (a page's title on Project Home): the
+    /// button gives way to its row and its words end in 「…」 instead of
+    /// running past the row.
+    pub fn truncate(mut self) -> Self {
+        self.truncate = true;
         self
     }
 
@@ -180,7 +190,8 @@ impl RenderOnce for Button {
                 }))
                 .flex()
                 .flex_row()
-                .flex_none()
+                .when(!self.truncate, |el| el.flex_none())
+                .when(self.truncate, |el| el.flex_shrink_1().min_w_0())
                 .items_center()
                 .justify_center()
                 .gap(px(6.0))
@@ -194,7 +205,13 @@ impl RenderOnce for Button {
                 .when_some(self.icon.filter(|_| !self.busy), |el, icon| {
                     el.child(sand::icon(icon, icon_size, ink))
                 })
-                .child(self.label.clone())
+                .map(|el| {
+                    if self.truncate {
+                        el.child(div().min_w_0().truncate().child(self.label.clone()))
+                    } else {
+                        el.child(self.label.clone())
+                    }
+                })
         };
         let interactive = !self.disabled;
         let el = if self.variant == Variant::Text {
@@ -224,7 +241,10 @@ impl RenderOnce for Button {
             );
             content(el, window)
         };
+        let selector = self.id.clone();
         el.role(gpui::Role::Button)
+            // Where it was drawn, by its id, for tests (as the select's).
+            .debug_selector(move || selector.to_string())
             .aria_label(self.label.clone())
             .when(interactive, |el| el.cursor_pointer())
             .when_some(self.on_click.filter(|_| interactive), |el, f| {
