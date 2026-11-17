@@ -483,6 +483,15 @@ pub mod v3 {
         pub tile: bool,
     }
 
+    /// [`LevelDisplay`]'s wait for a switch's question (KB).
+    #[derive(Clone, Debug)]
+    struct SwitchWait {
+        row_key: String,
+        row_id: SharedString,
+        /// The question is up (a dialog over the workspace).
+        asked: bool,
+    }
+
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     enum GridStep {
         Up,
@@ -515,6 +524,10 @@ pub mod v3 {
         pressing_row: bool,
         /// The row whose card the keyboard opened, and the keyboard in it.
         card_row: Option<String>,
+        /// A switch run from the card (「层级」) whose question may come up:
+        /// once it has been asked and answered, the card is back with the
+        /// keyboard on that row.
+        switch_wait: Option<SwitchWait>,
         card_keys: Option<Entity<CardKeys>>,
         /// The grid's tiles as last drawn, by stop.
         tile_bounds: RefCell<HashMap<String, Entity<Option<Bounds<Pixels>>>>>,
@@ -711,6 +724,7 @@ pub mod v3 {
                 keys_row: None,
                 pressing_row: false,
                 card_row: None,
+                switch_wait: None,
                 card_keys: None,
                 tile_bounds: RefCell::default(),
                 me: WeakEntity::new_invalid(),
@@ -1092,6 +1106,7 @@ pub mod v3 {
             }
             let key = self.landing(cx);
             self.card_row = None;
+            self.switch_wait = None;
             if let Some(keys) = &self.card_keys {
                 keys.update(cx, |k, _| k.close());
             }
@@ -1254,6 +1269,7 @@ pub mod v3 {
             let Some(keys) = self.card_keys.clone() else {
                 return;
             };
+            self.switch_wait = None;
             self.card_row = Some(stop.key);
             keys.update(cx, |k, cx| k.open(window, cx));
             cx.notify();
@@ -1277,6 +1293,7 @@ pub mod v3 {
 
         /// Esc or Space in the card: it closes, the keyboard back on its row.
         fn card_close(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+            self.switch_wait = None;
             if let Some(keys) = &self.card_keys {
                 keys.update(cx, |k, cx| {
                     k.close();
@@ -1296,11 +1313,15 @@ pub mod v3 {
         /// other row closes it, the keyboard going where the row goes (a
         /// page, a dialog).
         fn card_confirm(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+            self.switch_wait = None;
             let (Some(keys), Some(row_key)) = (self.card_keys.clone(), self.card_row.clone())
             else {
                 return;
             };
-            let Some(at) = keys.read(cx).at() else {
+            // The row the keyboard is on, by its id: rows that came or went
+            // since the card was drawn (a sync) never shift it onto another;
+            // a row that is gone runs nothing.
+            let Some(at_id) = keys.read(cx).at_id() else {
                 return;
             };
             let Some(stop) = self.stops.iter().find(|s| s.key == row_key).cloned() else {
@@ -1314,13 +1335,20 @@ pub mod v3 {
             let host = dr_shell::pages::PageMenuHost::of(&ws, cx);
             let rows =
                 dr_shell::v3::card::rows(&target, &host, &dr_shell::pages::CardRows::default(), cx);
-            let Some(row) = rows.get(at) else {
+            let Some(row) = rows.iter().find(|r| r.id == at_id) else {
                 return;
             };
             let Some(run) = row.run.clone() else {
                 return;
             };
             if row.stays_open {
+                // A question it asks takes the keyboard for a while; the card
+                // comes back on this row once it is answered.
+                self.switch_wait = Some(SwitchWait {
+                    row_key,
+                    row_id: row.id.clone(),
+                    asked: false,
+                });
                 window.defer(cx, move |window, cx| run(window, cx));
                 return;
             }
@@ -1338,14 +1366,65 @@ pub mod v3 {
             });
             self.card_row = None;
             cx.notify();
-            let card = keys.read(cx).focus_handle().clone();
+            // The row has the keyboard while the row runs: a dialog that
+            // gives back the keyboard it found on closing gives it back here.
+            let Some(tree) = self.focus.clone() else {
+                return;
+            };
+            window.focus(&tree, cx);
             window.defer(cx, move |window, cx| {
                 run(window, cx);
                 // Nothing took the keyboard (a page opened, not a dialog):
                 // it goes to the page in front.
-                if card.is_focused(window) {
+                if tree.is_focused(window) {
                     ws.update(cx, |ws, cx| ws.keyboard_to_page(window, cx));
                 }
+            });
+        }
+
+        /// A switch run from the card (KB): while its question is up, wait;
+        /// once it is answered (either way), the card is back, the keyboard
+        /// on the switch's row. Without a question the card never closed;
+        /// closed otherwise, the wait ends.
+        fn follow_switch(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+            let Some(wait) = self.switch_wait.as_mut() else {
+                return;
+            };
+            let Some(keys) = self.card_keys.clone() else {
+                self.switch_wait = None;
+                return;
+            };
+            let modal = self
+                .host
+                .page
+                .workspace
+                .upgrade()
+                .is_some_and(|ws| ws.read(cx).modal());
+            if modal {
+                wait.asked = true;
+                return;
+            }
+            if !wait.asked {
+                if !keys.read(cx).is_open() {
+                    self.switch_wait = None;
+                }
+                return;
+            }
+            let Some(wait) = self.switch_wait.take() else {
+                return;
+            };
+            if !self.stops.iter().any(|s| s.key == wait.row_key) {
+                return;
+            }
+            self.card_row = Some(wait.row_key);
+            // On the next frame: closing the question gives the page the
+            // keyboard, and a body hands it on to its editor a moment later
+            // (a deferred focus); the card takes it after that.
+            window.on_next_frame(move |window, cx| {
+                keys.update(cx, |k, cx| {
+                    k.open_on(&wait.row_id, window, cx);
+                    cx.notify();
+                });
             });
         }
 
@@ -1582,6 +1661,7 @@ pub mod v3 {
                             keys.update(cx, |k, _| k.close());
                         }
                         this.card_row = None;
+                        this.switch_wait = None;
                         this.keys_row = row_key.clone();
                         cx.notify();
                     });
@@ -2168,6 +2248,7 @@ pub mod v3 {
 
     impl Render for LevelDisplay {
         fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+            self.follow_switch(window, cx);
             let focus = self.focus.get_or_insert_with(|| cx.focus_handle()).clone();
             let walks = self.walks();
             let mut root = div()

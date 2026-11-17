@@ -139,6 +139,26 @@ impl CardKeys {
         window.focus(&self.focus, cx);
     }
 
+    /// Opens the card with the keyboard on the row `id` (one it can stop
+    /// on; else on the first it can), and gives it the keyboard: the card
+    /// back after a question its switch asked.
+    pub fn open_on(&mut self, id: &SharedString, window: &mut Window, cx: &mut App) {
+        self.open = true;
+        self.at = self
+            .ids
+            .iter()
+            .position(|i| i == id)
+            .filter(|&i| self.stops.get(i) == Some(&true))
+            .or_else(|| self.stops.iter().position(|s| *s));
+        window.focus(&self.focus, cx);
+    }
+
+    /// The id of the row the keyboard is on, while the card is open: the
+    /// row to run, whatever its place now.
+    pub fn at_id(&self) -> Option<SharedString> {
+        self.at().and_then(|i| self.ids.get(i).cloned())
+    }
+
     /// Closes the card; the keyboard is the owner's to place.
     pub fn close(&mut self) {
         self.open = false;
