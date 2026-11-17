@@ -516,13 +516,10 @@
   "v5Relations": {
     "addEntry": "항목 추가",
     "addRow": "행 추가",
-    "create": "만들기",
     "deleteRow": "이 행 삭제",
     "description": "설명",
     "direction": "단방향 또는 양방향",
-    "findEntry": "항목",
     "kinds_other": "{{count}}종",
-    "name": "관계 이름",
     "newRelation": "새 관계",
     "pairs_other": "{{count}}쌍",
     "removeEntry": "‘{{name}}’ 빼기",

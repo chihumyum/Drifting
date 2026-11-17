@@ -516,13 +516,10 @@
   "v5Relations": {
     "addEntry": "項目を追加",
     "addRow": "行を追加",
-    "create": "作成",
     "deleteRow": "この行を削除",
     "description": "説明",
     "direction": "一方向か双方向か",
-    "findEntry": "項目",
     "kinds_other": "{{count}} 種類",
-    "name": "関係の名前",
     "newRelation": "新しい関係",
     "pairs_other": "{{count}} 組",
     "removeEntry": "「{{name}}」を外す",
