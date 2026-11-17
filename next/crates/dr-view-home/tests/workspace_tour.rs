@@ -19,7 +19,7 @@ use serde_json::json;
 fn fixture() -> (tempfile::TempDir, Library, [String; 2]) {
     let dir = tempfile::tempdir().unwrap();
     let store = dr_store::Library::open(
-        &dir.path().join("library"),
+        dir.path().join("library"),
         dr_workspace::library_options("0.2.0-dev"),
     )
     .unwrap();
