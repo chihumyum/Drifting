@@ -705,6 +705,7 @@ fn card(
                     .type_px(s.secondary, 20.0)
                     .text_color(p.ink(1).solid())
                     .line_clamp(2)
+                    .text_ellipsis()
                     .child(dr_ui::text::wrapped(title.clone())),
             )
             .child(
@@ -734,6 +735,7 @@ fn card(
                     .type_px(s.secondary, 20.0)
                     .text_color(p.ink(1).solid())
                     .line_clamp(1)
+                    .text_ellipsis()
                     .child(dr_ui::text::wrapped(title.clone())),
             )
             .child(

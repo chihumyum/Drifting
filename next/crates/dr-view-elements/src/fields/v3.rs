@@ -810,9 +810,7 @@ impl Render for TypedFields {
                                 )),
                                 choices
                                     .iter()
-                                    .map(|(_, title)| {
-                                        Choice::new(Icon::ChevronRight, title.clone())
-                                    })
+                                    .map(|(_, title)| Choice::plain(title.clone()))
                                     .collect(),
                                 selected,
                             )
@@ -869,7 +867,7 @@ impl Render for TypedFields {
                     SharedString::from(format!("v3-select-{}-{id}", self.host.module.id)),
                     choices
                         .iter()
-                        .map(|(_, title)| Choice::new(Icon::ChevronRight, title.clone()))
+                        .map(|(_, title)| Choice::plain(title.clone()))
                         .collect(),
                     selected,
                 )

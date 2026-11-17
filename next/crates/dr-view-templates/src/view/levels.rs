@@ -146,12 +146,8 @@ impl TemplateEditor {
                     .map(|entry| (Some(entry.id.clone()), entry.title.clone().into())),
             );
         }
-        let mut choices = vec![Choice::new(Icon::ChevronDown, t(cx, k::INHERIT))];
-        choices.extend(
-            homes
-                .iter()
-                .map(|(_, label)| Choice::new(Icon::ChevronDown, label.clone())),
-        );
+        let mut choices = vec![Choice::plain(t(cx, k::INHERIT))];
+        choices.extend(homes.iter().map(|(_, label)| Choice::plain(label.clone())));
         let selected = self
             .draft
             .settings
@@ -219,14 +215,10 @@ impl TemplateEditor {
             .child(t(cx, k::THIS_LEVEL));
         let options = self.template_options();
         let mut choices = vec![
-            Choice::new(Icon::ChevronDown, t(cx, k::INHERIT)),
-            Choice::new(Icon::ChevronDown, t(cx, k::NONE)),
+            Choice::plain(t(cx, k::INHERIT)),
+            Choice::plain(t(cx, k::NONE)),
         ];
-        choices.extend(
-            options
-                .iter()
-                .map(|(_, name)| Choice::new(Icon::ChevronDown, name.clone())),
-        );
+        choices.extend(options.iter().map(|(_, name)| Choice::plain(name.clone())));
         let selected = match &self.draft.settings.default_template {
             None => 0,
             Some(None) => 1,
@@ -257,11 +249,11 @@ impl TemplateEditor {
             cx,
         ));
         let displays = ["list", "grid", "board", "island"];
-        let mut choices = vec![Choice::new(Icon::ChevronDown, t(cx, k::INHERIT))];
+        let mut choices = vec![Choice::plain(t(cx, k::INHERIT))];
         choices.extend(
             displays
                 .iter()
-                .map(|value| Choice::new(Icon::ChevronDown, display_label(value, cx))),
+                .map(|value| Choice::plain(display_label(value, cx))),
         );
         let selected = self
             .draft
@@ -292,11 +284,11 @@ impl TemplateEditor {
             section = section.child(self.bool_setting("auto_link", k::AUTO_LINK, true, cx));
         }
         let formats = ["full", "notes", "plain"];
-        let mut choices = vec![Choice::new(Icon::ChevronDown, t(cx, k::INHERIT))];
+        let mut choices = vec![Choice::plain(t(cx, k::INHERIT))];
         choices.extend(
             formats
                 .iter()
-                .map(|value| Choice::new(Icon::ChevronDown, format_label(value, cx))),
+                .map(|value| Choice::plain(format_label(value, cx))),
         );
         let selected = self
             .draft
@@ -342,12 +334,8 @@ impl TemplateEditor {
                 cx,
             );
             let targets: Vec<_> = options.to_vec();
-            let mut choices = vec![Choice::new(Icon::ChevronDown, t(cx, k::CHOOSE_TEMPLATE))];
-            choices.extend(
-                targets
-                    .iter()
-                    .map(|(_, name)| Choice::new(Icon::ChevronDown, name.clone())),
-            );
+            let mut choices = vec![Choice::plain(t(cx, k::CHOOSE_TEMPLATE))];
+            choices.extend(targets.iter().map(|(_, name)| Choice::plain(name.clone())));
             let selected = verb
                 .target_template
                 .as_ref()

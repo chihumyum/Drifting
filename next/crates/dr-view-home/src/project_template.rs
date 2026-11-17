@@ -1137,6 +1137,7 @@ impl Home {
         let agent_name_label = t(cx, keys::template_editor::NAME);
         let agent_desc_label = t(cx, keys::template_editor::DESCRIPTION);
         let agent_inst_label = t(cx, keys::template_editor::INSTRUCTIONS);
+        let sub_w = agent_label_width(&[&agent_name_label, &agent_desc_label, &agent_inst_label]);
 
         let agent_rows = div()
             .flex()
@@ -1145,6 +1146,7 @@ impl Home {
             .w_full()
             .child(agent_subrow(
                 agent_name_label.clone(),
+                sub_w,
                 div()
                     .id("v3-home-agent-name-input")
                     .debug_selector(|| "v3-home-agent-name-input".into())
@@ -1159,6 +1161,7 @@ impl Home {
             ))
             .child(agent_subrow(
                 agent_desc_label.clone(),
+                sub_w,
                 div()
                     .id("v3-home-agent-description-input")
                     .debug_selector(|| "v3-home-agent-description-input".into())
@@ -1173,6 +1176,7 @@ impl Home {
             ))
             .child(agent_subrow(
                 agent_inst_label.clone(),
+                sub_w,
                 div()
                     .id("v3-home-agent-instructions-input")
                     .debug_selector(|| "v3-home-agent-instructions-input".into())
@@ -1268,7 +1272,28 @@ fn hrow(label: SharedString, value: AnyElement, top: bool, p: &Palette) -> gpui:
         .child(div().flex_1().min_w_0().child(value))
 }
 
-fn agent_subrow(label: SharedString, input: AnyElement, top: bool, p: &Palette) -> gpui::Div {
+/// The 写给 Agent labels' column: 72px, or as wide as the widest label in
+/// the index face (14px; a Latin letter is half an em). 「Description」 and
+/// 「Instructions」 were broken inside the word in 72px.
+fn agent_label_width(labels: &[&SharedString]) -> f32 {
+    labels
+        .iter()
+        .map(|l| {
+            l.chars()
+                .map(|c| if c.is_ascii() { 7.0 } else { 14.0 })
+                .sum::<f32>()
+                + 2.0
+        })
+        .fold(72.0, f32::max)
+}
+
+fn agent_subrow(
+    label: SharedString,
+    label_w: f32,
+    input: AnyElement,
+    top: bool,
+    p: &Palette,
+) -> gpui::Div {
     div()
         .flex()
         .when(top, |d| d.items_start())
@@ -1277,7 +1302,7 @@ fn agent_subrow(label: SharedString, input: AnyElement, top: bool, p: &Palette) 
         .w_full()
         .child(
             div()
-                .w(px(72.0))
+                .w(px(label_w))
                 .flex_none()
                 .when(top, |d| d.pt(px(5.0)))
                 .font_role(Role::Index)
@@ -1286,4 +1311,20 @@ fn agent_subrow(label: SharedString, input: AnyElement, top: bool, p: &Palette) 
                 .child(label),
         )
         .child(input)
+}
+
+#[cfg(test)]
+mod label_tests {
+    use super::agent_label_width;
+    use gpui::SharedString;
+
+    #[test]
+    fn the_agent_labels_fit_their_column_in_every_language() {
+        let zh: Vec<SharedString> = ["名字", "说明", "注意事项"].map(Into::into).into();
+        assert_eq!(agent_label_width(&zh.iter().collect::<Vec<_>>()), 72.0);
+        let en: Vec<SharedString> = ["Name", "Description", "Instructions"]
+            .map(Into::into)
+            .into();
+        assert!(agent_label_width(&en.iter().collect::<Vec<_>>()) >= 12.0 * 7.0);
+    }
 }
