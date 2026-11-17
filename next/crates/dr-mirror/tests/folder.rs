@@ -175,6 +175,19 @@ fn editing_then_moving_a_markdown_file_keeps_the_prose_and_puts_the_file_back() 
 
 #[test]
 fn a_file_event_ingests_external_changes_without_advancing_the_app_writeback() {
+    check_external_save(|path, changed| {
+        let temporary = path.with_extension("new");
+        fs::write(&temporary, changed).unwrap();
+        fs::rename(temporary, path).unwrap();
+    });
+}
+
+#[test]
+fn an_in_place_save_ingests_external_changes_without_advancing_the_app_writeback() {
+    check_external_save(|path, changed| fs::write(path, changed).unwrap());
+}
+
+fn check_external_save(save: impl FnOnce(&Path, String)) {
     let mut f = Fixture::new(Preset::Tiny);
     let (_, local) = f.chapter("本机的一篇", "室内的灯还亮着。");
     let (_, outside) = f.chapter("外面的一篇", "天色早就暗了。");
@@ -194,14 +207,12 @@ fn a_file_event_ingests_external_changes_without_advancing_the_app_writeback() {
     let changed = fs::read_to_string(&outside_path)
         .unwrap()
         .replace("早就", "刚刚");
-    let temporary = outside_path.with_extension("new");
-    fs::write(&temporary, changed).unwrap();
-    fs::rename(temporary, &outside_path).unwrap();
+    save(&outside_path, changed);
     let start = std::time::Instant::now();
     while f.texts(&outside) != ["天色刚刚暗了。"] {
         assert!(
             start.elapsed() < Duration::from_secs(10),
-            "the file event did not merge: body {:?}, issues {:?}",
+            "the external save did not merge: body {:?}, issues {:?}",
             f.texts(&outside),
             mirror.issues()
         );

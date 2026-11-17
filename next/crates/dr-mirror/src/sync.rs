@@ -124,6 +124,36 @@ impl<'a> Pass<'a> {
         self.reconcile(|_| true)
     }
 
+    /// The fallback watcher only walks folders already recorded in the
+    /// ledger. Files are opened later, by the normal reconciliation pass.
+    pub(crate) fn disk_stamp(&self) -> Result<BTreeMap<PathBuf, disk::Stat>> {
+        let root = self.root()?;
+        let lib = self.ws.library();
+        let mut stamp = BTreeMap::new();
+        for doc in lib.docs(None, Some("book"))? {
+            let Ok(DocId::Book(book)) = DocId::parse(&doc.doc_id) else {
+                continue;
+            };
+            let Some(row) = Ledger::new(lib, &book, &root).project()? else {
+                continue;
+            };
+            let Ok(dir) = disk::checked(&root, &row.folder, false) else {
+                continue;
+            };
+            let Ok(files) = disk_markdown(&dir, "", "") else {
+                continue;
+            };
+            for file in files {
+                if let Ok(path) = disk::checked(&dir, &file, false)
+                    && let Ok(Some(stat)) = disk::stat(&path)
+                {
+                    stamp.insert(path, stat);
+                }
+            }
+        }
+        Ok(stamp)
+    }
+
     pub(crate) fn reconcile(&self, writeback: impl Fn(&BookId) -> bool) -> Result<Report> {
         let mut report = Report::default();
         for info in self

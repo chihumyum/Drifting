@@ -17,6 +17,8 @@ use crate::{
     sync::{Issue, Pass, Report},
 };
 
+const DISK_CHECK_INTERVAL: Duration = Duration::from_secs(4);
+
 #[derive(Clone)]
 pub struct Options {
     pub root: PathBuf,
@@ -214,6 +216,11 @@ impl Schedule {
             .min()
     }
 
+    fn disk_changed(&mut self, now: Instant, options: &Options) {
+        let due = now + options.settle;
+        self.disk = Some(self.disk.map_or(due, |previous| previous.min(due)));
+    }
+
     fn retry(&mut self, report: &Report, options: &Options) {
         if report.waiting {
             self.disk = Some(Instant::now() + options.settle.max(Duration::from_millis(100)));
@@ -227,12 +234,14 @@ fn run(ws: Workspace, options: Options, rx: mpsc::Receiver<Msg>, state: Arc<Mute
         disk: Some(Instant::now()),
         ..Default::default()
     };
+    let mut disk_stamp = BTreeMap::new();
+    let mut check_disk_at = Instant::now() + DISK_CHECK_INTERVAL;
     let mut running = true;
     while running {
-        let message = match schedule.next(&options) {
-            Some(due) => rx.recv_timeout(due.saturating_duration_since(Instant::now())),
-            None => rx.recv().map_err(|_| mpsc::RecvTimeoutError::Disconnected),
-        };
+        let due = schedule
+            .next(&options)
+            .map_or(check_disk_at, |due| due.min(check_disk_at));
+        let message = rx.recv_timeout(due.saturating_duration_since(Instant::now()));
         let now = Instant::now();
         match message {
             Ok(Msg::Change(book)) => {
@@ -242,10 +251,7 @@ fn run(ws: Workspace, options: Options, rx: mpsc::Receiver<Msg>, state: Arc<Mute
                     .and_modify(|(_, last)| *last = now)
                     .or_insert((now, now));
             }
-            Ok(Msg::Disk) => {
-                let due = now + options.settle;
-                schedule.disk = Some(schedule.disk.map_or(due, |previous| previous.min(due)));
-            }
+            Ok(Msg::Disk) => schedule.disk_changed(now, &options),
             Ok(Msg::Sync(reply)) => {
                 schedule = Schedule::default();
                 let result = pass.run();
@@ -265,6 +271,19 @@ fn run(ws: Workspace, options: Options, rx: mpsc::Receiver<Msg>, state: Arc<Mute
             }
             Err(mpsc::RecvTimeoutError::Timeout) => {}
             Err(mpsc::RecvTimeoutError::Disconnected) => break,
+        }
+        if check_disk_at <= now {
+            // Native watchers can delay or drop an event. A metadata-only
+            // check schedules the same pass if the projected files changed.
+            match pass.disk_stamp() {
+                Ok(stamp) if stamp != disk_stamp => {
+                    disk_stamp = stamp;
+                    schedule.disk_changed(now, &options);
+                }
+                Ok(_) => {}
+                Err(err) => log::warn!("Markdown folder metadata check: {err}"),
+            }
+            check_disk_at = Instant::now() + DISK_CHECK_INTERVAL;
         }
         if schedule.disk.is_some_and(|due| due <= now) {
             schedule.disk = None;
@@ -328,5 +347,68 @@ fn publish(state: &Mutex<State>, report: &Report, book: Option<&BookId>) {
         for listener in preserved {
             listener(&report.preserved);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use dr_testkit::seed::{DEFAULT_SEED, Preset, acceptance::novel_entry, generate_v3};
+    use dr_workspace::Actor;
+    use serde_json::json;
+    use std::fs;
+
+    #[test]
+    fn a_missed_disk_event_is_recovered_while_the_app_is_idle() {
+        let db = tempfile::tempdir().unwrap();
+        let output = tempfile::tempdir().unwrap();
+        let ws = Workspace::open_dir(db.path(), "mirror-acceptance").unwrap();
+        let seeded = generate_v3(Preset::Tiny, DEFAULT_SEED).unwrap();
+        let book = seeded.books[0].book_id().clone();
+        seeded.write_to(ws.library()).unwrap();
+        seeded.write_files_to(ws.library()).unwrap();
+        let title = "监听补扫";
+        let entry = novel_entry(&ws, book.as_str(), "tpl-chapter", title, Some("灯还亮着。"));
+        let doc = format!("body:{}/mod-prose", entry["id"].as_str().unwrap());
+        let options = Options {
+            settle: Duration::ZERO,
+            ..Options::new(output.path(), "test-installation", "test-app")
+        };
+
+        // Drive the real scheduler without a native watcher or App changes.
+        let (tx, rx) = mpsc::channel();
+        let worker = std::thread::spawn({
+            let ws = ws.clone();
+            let options = options.clone();
+            move || run(ws, options, rx, Arc::new(Mutex::new(State::default())))
+        });
+        let (reply, ack) = mpsc::channel();
+        tx.send(Msg::Sync(reply)).unwrap();
+        let report = ack.recv_timeout(Duration::from_secs(10)).unwrap().unwrap();
+        assert!(!report.waiting, "{report:?}");
+        let path = Pass::new(&ws, &options)
+            .folder(&book)
+            .unwrap()
+            .unwrap()
+            .join("书稿")
+            .join(format!("{title}.md"));
+        let changed = fs::read_to_string(&path)
+            .unwrap()
+            .replace("灯还亮着。", "灯已熄了。");
+        fs::write(path, changed).unwrap();
+
+        let start = Instant::now();
+        loop {
+            let read = ws
+                .call(&Actor::User, "prose.read", json!({"doc":doc}))
+                .unwrap();
+            if read["output"]["paragraphs"][0]["text"] == "灯已熄了。" {
+                break;
+            }
+            assert!(start.elapsed() < Duration::from_secs(10), "{read:?}");
+            std::thread::sleep(Duration::from_millis(25));
+        }
+        tx.send(Msg::Stop).unwrap();
+        worker.join().unwrap();
     }
 }
