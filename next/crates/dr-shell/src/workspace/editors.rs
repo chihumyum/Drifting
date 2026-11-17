@@ -1047,6 +1047,14 @@ impl Workspace {
     /// editor) changes, unless something over the workspace or in a sidebar
     /// has it.
     fn focus_page(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        // A page opened with `Open::stay` that is no longer the one in front
+        // (it never came to the front, or the author went elsewhere since):
+        // its mark goes, so a later return to it by another road (⌘[, ⌘],
+        // a tab key) hands its editor the keyboard as usual.
+        let front_key = self.nav.active_tab().map(|t| t.focused().target.key());
+        if self.stay_keyboard.is_some() && self.stay_keyboard != front_key {
+            self.stay_keyboard = None;
+        }
         let focused = window.focused(cx);
         let in_editor = focused.as_ref().is_some_and(|handle| {
             self.all_prose(cx)
@@ -1084,6 +1092,11 @@ impl Workspace {
         let front = self.front_focus(cx);
         let want = front.as_ref().map(|(id, _)| *id);
         if want == self.focused_editor {
+            // The page in front is the one that has been there: a stay mark
+            // for it has nothing left to keep.
+            if want.is_some() {
+                self.stay_keyboard = None;
+            }
             return;
         }
         // Opened at its title (`Open::at_title`): the page's head gives the

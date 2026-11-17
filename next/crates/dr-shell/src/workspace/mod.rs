@@ -1568,7 +1568,12 @@ impl Workspace {
         if how.title {
             self.title_first = Some(target.key());
         }
-        self.stay_keyboard = how.stay.then(|| target.key());
+        // Already in front, the page does not change: nothing to keep.
+        let in_front = self
+            .nav
+            .current()
+            .is_some_and(|current| current.same_page(&target));
+        self.stay_keyboard = (how.stay && !in_front).then(|| target.key());
         self.nav.open(target.clone(), how);
         self.visited_on_open_page(&target, cx);
         self.changed(cx);
