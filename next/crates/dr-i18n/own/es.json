@@ -530,5 +530,22 @@
     "otherEntry": "Otra entrada",
     "relation": "Relación",
     "change": "Cambiar"
+  },
+  "v5Relations": {
+    "addEntry": "Añadir una entrada",
+    "addRow": "Añadir una fila",
+    "create": "Crear",
+    "deleteRow": "Eliminar esta fila",
+    "description": "Descripción",
+    "direction": "Unidireccional o bidireccional",
+    "findEntry": "Entrada",
+    "kinds_one": "{{count}} relación",
+    "kinds_other": "{{count}} relaciones",
+    "name": "Nombre de la relación",
+    "newRelation": "Nueva relación",
+    "pairs_one": "{{count}} par",
+    "pairs_other": "{{count}} pares",
+    "removeEntry": "Quitar «{{name}}»",
+    "tab": "Relaciones"
   }
 }

@@ -890,6 +890,19 @@ pub(crate) fn resolve_v3(
                         *value = id.to_string().into();
                     }
                 }
+                "relation_row.create_group" => {
+                    for key in ["left", "right"] {
+                        let values = obj.get_mut(key).and_then(Value::as_array_mut)
+                            .ok_or_else(|| invalid(format!("missing {key} entry set")))?;
+                        for value in values {
+                            *value = resolve_entry_id(&cx, value, None, false, EntryRole::Any)?
+                                .to_string().into();
+                        }
+                    }
+                    let value = obj.get_mut("relation_type")
+                        .ok_or_else(|| invalid("missing relation type"))?;
+                    *value = resolve_relation_type_id(&cx.view, value)?.into();
+                }
                 "relation_row.add_entry" | "relation_row.remove_entry" | "relation_row.delete" => {
                     if let Some(value) = obj.get_mut("entry") {
                         *value = resolve_entry_id(&cx, value, None, name == "relation_row.remove_entry", EntryRole::Any)?
@@ -1782,6 +1795,21 @@ pub(crate) fn subjects_v3(name: &str, args: &Value) -> Vec<String> {
             }
             for key in ["left", "right"] {
                 if let Some(entry) = args[key].as_str() {
+                    subjects.insert(format!("entry:{entry}"));
+                }
+            }
+        }
+        "relation_row.create_group" => {
+            if let Some(id) = args["relation_type"].as_str() {
+                subjects.insert(format!("relation_type:{id}"));
+            }
+            for key in ["left", "right"] {
+                for entry in args[key]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(Value::as_str)
+                {
                     subjects.insert(format!("entry:{entry}"));
                 }
             }

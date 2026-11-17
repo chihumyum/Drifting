@@ -2,6 +2,8 @@
 
 **2026-11-17，RD。** 关系是项目级的名字、带条目链接的描述和方向。每行的左、右各有一组条目，跨两边的每一对都成立。同一边的成员可分别同步，关系图按当前方向摊成配对。条目页的「关联」模块和旧的图上类型管理已移除。参见 [规则](../kernel-v5.md#19-关系重做)和 [读写接口](../kernel-v5.md#rd-交回项目关系与带链接的短文字2026-11-17)。
 
+**RL 监管补口（实施中）。** 右栏草稿的一行不能拆成「建一对、再逐个加人」：会拆撤销，且已有行的其他对端会被误连。监管先记录缺口，再补 `relation_row.create_group` 一次提交明确左右集合，失败保留草稿；接口与守卫见 [第 18 节](../kernel-v5.md#rl-监管补口右栏的一行草稿2026-11-17实施中)。这段不是已验收声明，合树验收后更新。
+
 数据回归见 `dr-workspace/tests/relations_v5.rs`、`dr-doc/src/v3/tests.rs`，覆盖选行、方向、最近删除、清除、撤销、正文标记投影及并发追加。以下是切换前的历史记录。
 
 2026-11-08，第一个里程碑；同日第二个里程碑：挂到要素页上，用调试桥在真窗口里点了一遍。计划见 [modules.md 的 M17](../modules.md#阶段-3故事工坊)。界面在 `next/crates/dr-view-relations/`，数据全走 F3 的 `relation.*`（列出、建立、删除）和 `relation_type.*`（列出、新建、修改、删除），在 `next/crates/dr-workspace/src/commands/relation.rs`。对照的旧版是桌面端 `src/renderer/components/editor/ReferencesPanel.tsx` 的「关联」一节、`components/ui/RelationTypeField.tsx`、`components/ui/RelationKindMenu.tsx`（类型管理和 `RelationTypeEditor`）、`src/styles/entity-editors.css` 和 [docs/relation-types.md](../../relation-types.md)。截图在 [m17/](m17/)。

@@ -218,6 +218,8 @@ fn main() {
         dr_view_material::init(cx);
         // M22: Island / Relate layouts inside Left Tab Fill on canonical v3.
         dr_view_element_overview::init(cx);
+        // RL: the right sidebar's 「关系」.
+        dr_view_relations::init(cx);
         // M39: the feedback dialog (`SendFeedback`, a crash follow-up in the
         // notification center), by mail unless built with the Hosted service.
         dr_view_feedback::init(
