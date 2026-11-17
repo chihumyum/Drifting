@@ -25,8 +25,9 @@ const BOARD_H: f32 = 194.0;
 /// counts.
 const PAD: f32 = 10.0;
 const BOARD_TOP: f32 = 30.0;
-/// Never narrower than the counts at its head need.
+/// The visual minimum; the localized counts can require more room.
 pub const MIN_W: f32 = 170.0;
+const META_SIZE: f32 = 13.0;
 
 pub(crate) fn render(home: &Home, window: &mut Window, cx: &mut App) -> Option<AnyElement> {
     let book = home.source.as_ref()?;
@@ -99,6 +100,25 @@ pub(crate) fn render(home: &Home, window: &mut Window, cx: &mut App) -> Option<A
         );
 
     let meta = template_meta(v3, cx);
+    let meta_width = window
+        .text_system()
+        .shape_line(
+            meta.clone(),
+            px(META_SIZE),
+            &[TextRun {
+                len: meta.len(),
+                font: Role::Index.font(dr_ui::fonts::weight::REGULAR),
+                color: p.ink(4).solid(),
+                background_color: None,
+                underline: None,
+                strikethrough: None,
+            }],
+            None,
+        )
+        .width();
+    let width = (drawn_w + 2.0 * PAD)
+        .max(MIN_W)
+        .max(f32::from(meta_width).ceil() + 2.0 * PAD);
     let workspace = home.ws.clone();
     let book_id = book.id.clone();
     let label = t(cx, dr_i18n::keys::v5_fill::STRUCTURE);
@@ -117,7 +137,7 @@ pub(crate) fn render(home: &Home, window: &mut Window, cx: &mut App) -> Option<A
         .aria_label(label)
         .cursor_pointer()
         .flex_none()
-        .w(px((drawn_w + 2.0 * PAD).max(MIN_W)))
+        .w(px(width))
         .h(px(BOARD_TOP + drawn_h + PAD))
         .rounded(px(4.0))
         .bg(p.desk.solid())
@@ -145,9 +165,14 @@ pub(crate) fn render(home: &Home, window: &mut Window, cx: &mut App) -> Option<A
                 .items_center()
                 .whitespace_nowrap()
                 .font_role(Role::Index)
-                .type_px(13.0, 13.0)
+                .type_px(META_SIZE, META_SIZE)
                 .text_color(p.ink(4).solid())
-                .child(meta),
+                .child(
+                    div()
+                        .debug_selector(|| "v5-home-structure-meta-text".into())
+                        .flex_none()
+                        .child(meta),
+                ),
         )
         .child(board)
         .into_any_element(),
