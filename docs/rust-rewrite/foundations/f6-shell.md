@@ -2,6 +2,34 @@
 
 内核 v5 的栏开合与铺满见[栏的铺满](../modules/k4-panel-fill.md)。左栏、底栏和右栏直接占用中间列。下文原有的全窗舞台接口与 ⌘⌥3/4/5 属于历史交回。
 
+### 内核 v5：UP 第三版视觉打磨（2026-11-17）
+
+作者已对第三版说「迁」（kernel-v5 第 15 节第 50 条），本批把 P1–P11、C1–C3 和六步导览接到 MF/RL 已合入的树上；2026-11-17 审查、补修和最终验收后合进本地 `main`（`handback/v5-ui-polish-3`），未推送。旧第一、二批的交回和下面 F6 各轮流水仍保留原来的时间与范围，不把旧截图改称本批证据。
+
+| 作者的选择 | 本批行为 |
+| --- | --- |
+| P1 | 条目页正文不再自己画章头；标题、梗概等仍在页头和字段里 |
+| P2 / C3 | 键值表不重复画「字段」标题，空表不出旧说明；新增字段在模块标题行右端 |
+| P3 | 删除变成补丁标题右端小字，悬停才显危险色；新建补丁仍是通栏按钮 |
+| P4 / P10 | 未铺满只有树和分类框紧凑索引；索引按实际宽度、字号和最长名字分等宽列，短末行靠左 |
+| P5 / P11 | Tab 行的滚动/裁切、搜索浮层按作者选择保持原样 |
+| P6 | 浮起圆按钮不再按桌面补四角；稿纸角、沉浸出口、左栏收起时那组项目/主页/通知/头像按钮，以及纸角工具药丸用已定的纸底与均匀细线；已知平色底的其他座位沿原样 |
+| P7 | 零字热力图淡点浓度加倍，深色书卡封面压暗约 15%，文字不随封面压暗 |
+| P8 | 另存项目模板的两侧可见框齐底；高、矮窗口都由布局确定高度 |
+| P9 | 作品主页结构缩略图的外框随实际图收拢；P9 统计行按实际本地化字宽保留必要宽度，英文/德文的可见 bounds 回归与去修补负控已通过 |
+| C1 / C2 | 简中统一「设置」，头像菜单外观顺序与完整说法为「跟随系统 · 浅色 · 深色」；菜单按实际本地化字宽扩到足以保留既有行内边距 |
+| T | 左栏 Tab、叠月、新建、时间线、Agent、作品主页六步；设备一次，设置重放后下次开书再出 |
+
+**两种记忆分开。** 未铺满按条目保存在书里的 raw `settings.display`：grid/island 共用带类别砂笔框的紧凑索引，其余是树；铺满按设备内每 Tab 的 `FillLayout`，仍有 List/Grid/Board/Island/Relation 五种。改铺满选择不写回 raw display，收回再铺满以及重开设置都保留五种选择；原 island 首次默认 Relation 不变。原 raw grid 的空间方向键按实际格子 bounds 走，类别框头可进入/折叠/返回；没有给原 raw island 新加键盘规则。
+
+**导览是实际宿主。** Agent 只标自己的标签片段，栏关闭或开启动画尚未完成时保留各自月牙 fallback，真实控件可见后优先跟随它；新建圈来自主页的真实动作行，没有动作就跳过。书架、换书、设置或铺满遮住工作区时先收起，回来从头开始并从当前焦点取得返回位置；resize 先采下一帧重排的锚点，不拿旧窗坐标把还在屏上的步骤跳掉。设备 `guides.seen` 不跟书同步，换书或重启不重复；设置清除后重新打开同一本书也能再看。实现和键盘边界见 [M24](../modules/m24-sea.md)。
+
+**定向验证及负控。** 导览真实宿主六条测试在 `dr-view-home/tests/workspace_tour.rs`：同书重放、换书覆盖、当前书焦点、设置延时覆盖、resize 和独立 Agent 片段六处分别去修补即红；普通动画另分别去掉左右栏开启动画的 fallback，精确出现 Tabs→叠月、Agent→主页的错误跳步。恢复后宿主六绿、引擎十五绿，不以此前减少动画的测试覆盖正常动画。compact 的 shell/element ui_polish、v5_kb_keyboard、v5_t1_lists 合计 36 绿，去动态列数、去统一映射、去 raw grid 键盘资格三处各红，恢复后同套再绿。shell 使用 KindPart 标识路由，完整内容由原生验收另核；element tests 读真实类别外框与格子 bounds。模板另存保留真实打开路径与两可见框 ≤1 px 的断言，1280×960、1280×700、1100×1200 再回 1280×960 都齐底；临时去掉原树高度修补会红，恢复后五条 PT3 UI 测试绿。没有为了旧失败日志硬改已经正确的产品。账户主题行按真实 Ui 字体及各段字号测宽，九语言可见选项 bounds 保留右侧 16 px 行内边距；恢复旧 320 px 固定宽度会在英文 Dark 越框断言红，恢复后 shell ui_polish 五条和 M41 四条通过。九语言覆盖的是 GPUI 真实布局，最终原生窗口覆盖英文和简中。
+
+**最终合树验收（全套与原生窗口已通过）。** 检查提交 `3a6571f206004b5f8a03650408907ad85ad4d01c`。`cargo fmt --all --check`、全 workspace/all-targets Clippy（`-D warnings`）、workspace tests（3089 通过、0 失败、21 项原有忽略）、`cargo xtask check`、`pnpm public:check`、`pnpm ci:contract:check` 与语言文件一致性检查全部通过；审计为 963 个锁定依赖、0 漏洞、13 项依赖提示，原有过期测量提示保留。同树 `bf1e5344` 构建（比受检提交只多导览定位脚本，Rust 产品相同）的副屏真窗口七轮全部通过：showcase/lite 各浅深色、简中说法、六步导览浅深色；103 张原生 PNG 逐张复核，无新增合前阻断。窗口为 1440×900 逻辑像素、2 倍副屏；字段由真实 UI 输入、离页后只读查询精确核落盘，五种铺满选择往返保留，临时 profile 和应用进程已清理。原始日志和截图在 `~/Drifting-autopilot-logs/supervisor-codex-1117/`，失败、负控与 pilot 另存，不删失败记录，也不把分路定向测试当全套。最终目录为 `up-window-accepted-{showcase|lite}-{light|dark}`、`up-copy-accepted-zh` 和 `up-tour-accepted-{light|dark}`；逐图报告为 `up-native-visual-review.md` 的最终候选段、`up-final-visual-light-zh-review.md`、`up-lite-accepted-visual-review.md` 和 `up-tour-accepted-visual-review.md`。
+
+原生重现入口在 `next/crates/dr-cli/script/ui-polish.py`：用本树带 debug-bridge 的 drifting 与 dr-cli，在 `next/` 运行 `python3 -I crates/dr-cli/script/ui-polish.py --seed showcase --appearance light --out <空目录>`；分别改为 showcase/lite、light/dark，简中说法另用 `--copy-check`。脚本自己建一次性 profile，走真实 UI 后只读核落盘，结束清理；每张截图仍需人或监管逐张看。六步导览由 `next/crates/dr-cli/script/workspace-tour.py` 独立验收，不由 ui-polish 脚本设置的已看过标记冒充。GPUI fixed-step 测试不等于原生窗口，也不覆盖 Windows 实机、1 倍屏与实体输入设备。
+
 ### 格式 5 的 Markdown 文件夹收尾（2026-11-17）
 
 退出、换库前先等页面接受的字存好，再让 Markdown 文件夹完成最后一轮并停止。磁盘副本不可达或写不完时发通知，继续后面的快照与 Hosted 出站，不拦退出或换库；工作区本身的写入、快照失败仍照原来的释放规则拦住。改位置、关闭 Markdown 文件夹也不会被旧位置的失败挡住。通知按服务给出的完整未解决清单去重、置顶，问题解决才移走。
