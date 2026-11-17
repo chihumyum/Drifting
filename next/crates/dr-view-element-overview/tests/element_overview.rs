@@ -25,6 +25,26 @@ fn wait(cx: &mut VisualTestContext, done: impl Fn(&mut VisualTestContext) -> boo
     }
 }
 
+fn assert_graph_stays_open(
+    shell: &Entity<Workspace>,
+    overview: &Entity<ElementOverview>,
+    cx: &mut VisualTestContext,
+) {
+    // Run deferred shell actions before checking the real host, not just the
+    // graph entity which can stay alive after its filled sidebar is closed.
+    cx.run_until_parked();
+    cx.update(|window, cx| window.draw(cx).clear(cx));
+    assert!(
+        shell.read_with(cx, |ws, _| ws.is_filled(FillPlace::Left)),
+        "creating a graph relation must keep the graph's filled sidebar open"
+    );
+    assert_eq!(
+        overview.read_with(cx, |view, _| view.layout_mode()),
+        ElementLayoutMode::Relate
+    );
+    assert!(cx.debug_bounds("se-viewport").is_some());
+}
+
 fn setup_seed_fixture(
     preset: dr_testkit::seed::Preset,
 ) -> (tempfile::TempDir, Library, Vec<String>) {
@@ -773,6 +793,23 @@ fn shift_pair_reuses_the_named_row_and_duplicate_adds_no_undo_step(cx: &mut Test
             })
         });
         assert_eq!(row, original["id"].as_str().unwrap());
+        assert_graph_stays_open(&shell, &ov, vcx);
+        for id in [&a, &c] {
+            let selector: &'static str = Box::leak(format!("se-relate-card-{id}").into_boxed_str());
+            assert!(
+                vcx.debug_bounds(selector).is_some(),
+                "the paired card stays visible"
+            );
+        }
+        wait(vcx, |cx| {
+            ov.read_with(cx, |view, _| {
+                view.painted_relation_arrows().iter().any(|arrow| {
+                    arrow.relation_type == original["relation_type"].as_str().unwrap()
+                        && arrow.from == a
+                        && arrow.to == c
+                })
+            })
+        });
     }
     let read = || {
         lib.call(&Actor::User, "relation_type.list", json!({"book":book}))
@@ -865,6 +902,7 @@ fn shift_pair_button_direction_enter_does_not_submit_and_failed_write_keeps_draf
     wait(vcx, |cx| {
         ov.read_with(cx, |v, _| v.relation_draft().is_none())
     });
+    assert_graph_stays_open(&shell, &ov, vcx);
     let rows = list();
     let made = rows.iter().find(|r| r["name"] == "Graph Reversed").unwrap();
     assert_eq!(made["direction"], "directed");
@@ -963,6 +1001,7 @@ fn symmetric_reuse_locks_direction_and_peek_excludes_same_side_members(cx: &mut 
             v.focus_element(Some(b.clone()), window, cx);
         })
     });
+    assert_graph_stays_open(&shell, &ov, vcx);
     wait(vcx, |cx| cx.debug_bounds("se-peek-relations").is_some());
 }
 
