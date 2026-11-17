@@ -302,6 +302,15 @@ fn moon_pair(
             )
         }
     };
+    // Opening starts at zero drawn width: the tabs are not painted yet.
+    // Keep their existing toggle fallback through the reveal so the tour
+    // cannot mistake that first frame for a missing step. It prefers the
+    // actual Tab/Agent anchor as soon as that control is painted.
+    let toggle_fallback = !open
+        || match side {
+            Side::Left => ws.left.shown() < 1.0,
+            Side::Right => ws.right.shown() < 1.0,
+        };
 
     let (front_cx, back_cx) = if look.crescent_in_front {
         (cresc_cx, full_cx)
@@ -359,7 +368,12 @@ fn moon_pair(
         .absolute()
         .top_0()
         .left(px(if cresc_on_left { 0.0 } else { half_w }))
-        .child(closed_anchor(!open, closed_anchor_id, cresc_hit, cx));
+        .child(closed_anchor(
+            toggle_fallback,
+            closed_anchor_id,
+            cresc_hit,
+            cx,
+        ));
 
     let mut full_hit = div()
         .id(full_id)
