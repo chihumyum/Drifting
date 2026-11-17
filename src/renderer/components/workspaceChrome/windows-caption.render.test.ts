@@ -71,7 +71,9 @@ describe('Windows window buttons (docs/windows.md)', () => {
   it('keeps Drifting in the notification area when the shelf closes on Windows', () => {
     const lib = read('src-tauri/src/lib.rs');
     expect(lib).toMatch(/#\[cfg\(any\(target_os = "macos", target_os = "windows"\)\)\]\s+let _ = window\.hide\(\);/u);
-    expect(lib).toMatch(/#\[cfg\(target_os = "windows"\)\]\s+windows_tray::install\(app\.handle\(\)\)\?;/u);
+    expect(lib).toMatch(
+      /#\[cfg\(target_os = "windows"\)\]\s+\{\s+crash_reports::enter_setup_step\("tray"\);\s+windows_tray::install\(app\.handle\(\)\)\?;/u,
+    );
     expect(lib).toContain('windows_tray::tray_set_labels,');
     const tray = read('src-tauri/src/windows_tray.rs');
     expect(tray).toContain('crate::request_flushed_shutdown(app, crate::state::ShutdownAction::ExitApp)');
@@ -83,7 +85,9 @@ describe('Windows window buttons (docs/windows.md)', () => {
 
   it('turns the native title bar off on Windows only, and mounts the pill at the app root', () => {
     expect(read('src-tauri/src/windows_webview.rs')).toContain('window.set_decorations(false)?;');
-    expect(read('src-tauri/src/lib.rs')).toMatch(/#\[cfg\(target_os = "windows"\)\]\s+windows_webview::configure\(&window\)\?;/u);
+    expect(read('src-tauri/src/lib.rs')).toMatch(
+      /#\[cfg\(target_os = "windows"\)\]\s+\{\s+crash_reports::enter_setup_step\("webview-configure"\);\s+windows_webview::configure\(&window\)\?;/u,
+    );
     expect(read('src/renderer/App.tsx')).toContain('<WindowsCaption />');
     for (const file of [
       'src/renderer/components/workspaceChrome/WindowControlButtons.tsx',

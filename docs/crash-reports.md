@@ -61,6 +61,20 @@ the release's renderer variables (`VITE_LOCAL_ONLY_MODE=false`,
 (`index-<hash>.js`, `project-route-components-<hash>.js`) match the build's,
 the bundle is byte-identical and its maps resolve the frames.
 
+A `native-panic` carries the panicking thread, the panic's `location`, the
+version that crashed (`crashedVersion`) and when it crashed (`crashedAt`): the
+report itself goes out on a later launch, so its own time is that launch's.
+When a step of the Tauri `setup` hook in `src-tauri/src/lib.rs` fails, Tauri
+panics at its own `app.rs` with "Failed to setup app: error encountered during
+setup hook: " in front of the error; `setupStep` then names the step
+(`database-gateway`, `deep-link`, `webview-configure`, `window-fit`,
+`window-show`, `tray`, `media-devices`, `ios-window`; see
+`crash_reports::enter_setup_step`). A panic inside a step on the thread running
+it carries the step too. What fails before the panic hook is installed (the
+windows created from the configuration, plugins, the data folders) leaves no
+record. Reports before 2026-11-17 have neither field, and their message was
+usually `[text]` (see below).
+
 An `AggregateError` or an error with a `cause` lists what it was made of after
 its own message, one bracket per level: up to three inner errors per level and
 three levels deep, each as `Name: message` (or the bare string a native command
@@ -70,7 +84,9 @@ the steps that failed in its message, for example
 
 `crash-sanitize.ts` truncates messages to 300 characters, replaces runs of 12 or
 more CJK characters, quoted spans over 40 characters and runs of 13 or more
-words with `[text]`, replaces home-directory paths with `~` (the macOS, Linux
+words with `[text]` (a framework's fixed wording at the start of a message, such
+as Tauri's "Failed to setup app" sentence, is kept and not counted, so the short
+error after it survives), replaces home-directory paths with `~` (the macOS, Linux
 and Windows forms, a Windows account name with spaces included), and keeps
 only stack frame lines. Native panic records replace the home directory and are
 bounded to 12 KiB per field before they are written.

@@ -10,6 +10,8 @@ use std::backtrace::Backtrace;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Mutex;
+use std::thread::ThreadId;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
@@ -27,9 +29,41 @@ pub(crate) struct NativeCrashReport {
     backtrace: String,
     occurred_at_ms: u64,
     app_version: String,
+    /// The launch step (`enter_setup_step`) the panicking thread was in.
+    /// Records written before it existed have none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    setup_step: Option<String>,
 }
 
 pub(crate) struct CrashReportDirectory(PathBuf);
+
+/// The launch step Tauri's `setup` hook is in, and the thread running it.
+/// When a step returns an error Tauri panics with a fixed sentence around it,
+/// so the record names the step itself.
+static SETUP_STEP: Mutex<Option<(ThreadId, &'static str)>> = Mutex::new(None);
+
+/// Name the launch step that starts now on this thread.
+pub(crate) fn enter_setup_step(step: &'static str) {
+    if let Ok(mut current) = SETUP_STEP.lock() {
+        *current = Some((std::thread::current().id(), step));
+    }
+}
+
+/// The launch finished its steps: later panics belong to none of them.
+pub(crate) fn finish_setup_steps() {
+    if let Ok(mut current) = SETUP_STEP.lock() {
+        *current = None;
+    }
+}
+
+/// The step this thread is in, if it is the one running the launch steps.
+fn current_setup_step() -> Option<String> {
+    // try_lock: a panic must never wait on the lock it may be holding.
+    let current = SETUP_STEP.try_lock().ok()?;
+    current
+        .filter(|(thread, _)| *thread == std::thread::current().id())
+        .map(|(_, step)| step.to_owned())
+}
 
 pub(crate) fn report_directory(database_directory: &Path) -> PathBuf {
     database_directory
@@ -105,6 +139,7 @@ pub(crate) fn install_panic_hook(directory: PathBuf, app_version: String) {
                 .map(|duration| duration.as_millis() as u64)
                 .unwrap_or_default(),
             app_version: app_version.clone(),
+            setup_step: current_setup_step(),
         };
         // A failure to record must never turn one panic into another.
         let _ = write_report(&directory, &report);
@@ -175,6 +210,7 @@ mod tests {
             backtrace: "0: drifting::run".into(),
             occurred_at_ms: 1,
             app_version: "0.1.0-alpha.2".into(),
+            setup_step: Some("window-fit".into()),
         };
         write_report(&directory, &report).unwrap();
         fs::write(directory.join("panic-2-broken.json"), b"{").unwrap();
@@ -184,5 +220,26 @@ mod tests {
         assert!(taken[0].message.starts_with("boom in ~"));
         assert!(take_reports(&directory).is_empty());
         let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn a_record_written_before_setup_steps_existed_is_still_taken() {
+        let report: NativeCrashReport = serde_json::from_str(
+            r#"{"message":"boom","location":"src/lib.rs:1","thread":"main","backtrace":"","occurredAtMs":1,"appVersion":"0.1.0-alpha.11"}"#,
+        )
+        .unwrap();
+        assert_eq!(report.setup_step, None);
+        let json = serde_json::to_value(&report).unwrap();
+        assert!(json.get("setupStep").is_none());
+    }
+
+    #[test]
+    fn the_setup_step_belongs_to_the_thread_running_it() {
+        enter_setup_step("tray");
+        assert_eq!(current_setup_step().as_deref(), Some("tray"));
+        let elsewhere = std::thread::spawn(current_setup_step).join().unwrap();
+        assert_eq!(elsewhere, None);
+        finish_setup_steps();
+        assert_eq!(current_setup_step(), None);
     }
 }
