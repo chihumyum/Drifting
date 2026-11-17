@@ -1903,7 +1903,9 @@ impl Render for Workspace {
             .track_focus(&self.focus)
             .relative()
             .size_full()
-            .when(!ebbing, |el| el.bg(p.desk.solid()))
+            // The sea can finish ebbing during prepaint, after this render
+            // saw Ebb. Keep an opaque ground under it in that last frame.
+            .bg(p.desk.solid())
             .text_color(p.ink(1).solid())
             .on_drag_move::<sidebar::ResizeDrag>(cx.listener(sidebar::on_resize))
             .on_drag_move::<BottomResize>(cx.listener(bottom::on_resize))
