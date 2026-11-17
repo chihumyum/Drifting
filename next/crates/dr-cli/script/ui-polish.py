@@ -55,6 +55,17 @@ class Window:
     def press(self, label, role="Button", **extra):
         return self.app("ui.press", label=label, role=role, **extra)
 
+    def field_input(self, method, **params):
+        # Bridge pointer/typing injection does not activate a background
+        # native window. GPUI emits blur events only while it is active.
+        # Establish that precondition for each real input, then fail if
+        # another app steals activation; never retry or bypass the save.
+        self.app("window.focus")
+        self.ready(**{"/window/active": True})
+        result = self.app(method, **params)
+        assert self.state()["window"]["active"], "native window lost activation during field input"
+        return result
+
     def shot(self, name):
         png = self.app("ui.screenshot")["png"]
         (self.args.out / name).write_bytes(base64.b64decode(png))
@@ -143,16 +154,16 @@ def inspect(w):
     w.reveal("Add field")
     w.shot("07-fields-header.png")
     old_fields = w.query("module.read", book=book["id"], entry=character["id"], module=kv["id"])["kv"]
-    w.press("Add field")
-    w.app("input.type", text="Synthetic UP field")
+    w.field_input("ui.press", label="Add field", role="Button")
+    w.field_input("input.type", text="Synthetic UP field")
     w.reveal("Content", role="Group", nth=len(old_fields))
-    w.press("Content", role="Group", nth=len(old_fields))
-    w.app("input.type", text="Synthetic UP value")
+    w.field_input("ui.press", label="Content", role="Group", nth=len(old_fields))
+    w.field_input("input.type", text="Synthetic UP value")
     # Leave the new row, rather than moving back to its own key. Queued
     # row saves settle after neither editor in that row owns the focus.
     assert old_fields, "the two acceptance seeds have an existing field"
     w.reveal("Field", role="Group", nth=0)
-    w.press("Field", role="Group", nth=0)
+    w.field_input("ui.press", label="Field", role="Group", nth=0)
     w.app("app.info")
     def saved_field():
         data = w.query("module.read", book=book["id"], entry=character["id"], module=kv["id"])
