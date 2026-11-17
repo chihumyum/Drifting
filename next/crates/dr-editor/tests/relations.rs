@@ -153,9 +153,7 @@ fn open<'a>(cx: &'a mut TestAppContext, e: &Env, doc: &str, height: f32) -> Open
 
 impl Open<'_> {
     fn settle(&mut self) {
-        self.cx
-            .executor()
-            .advance_clock(Duration::from_millis(400));
+        self.cx.executor().advance_clock(Duration::from_millis(400));
         draw(self.cx);
         draw(self.cx);
     }
@@ -171,9 +169,7 @@ impl Open<'_> {
                 ids: vec![(chapter, key)],
             })
         });
-        self.cx
-            .executor()
-            .advance_clock(Duration::from_millis(260));
+        self.cx.executor().advance_clock(Duration::from_millis(260));
         draw(self.cx);
         draw(self.cx);
         assert!(
@@ -186,15 +182,14 @@ impl Open<'_> {
         self.editor.update(self.cx, |_, cx| {
             cx.emit(DecorationEvent::Pointed { ids: Vec::new() })
         });
-        self.cx
-            .executor()
-            .advance_clock(Duration::from_millis(400));
+        self.cx.executor().advance_clock(Duration::from_millis(400));
         draw(self.cx);
         draw(self.cx);
     }
 
     fn drawn(&mut self) -> Option<Drawn> {
-        self.assist.read_with(self.cx, |a, _| a.relation_drawn().cloned())
+        self.assist
+            .read_with(self.cx, |a, _| a.relation_drawn().cloned())
     }
 
     /// The lines drawn, each as its two entries (sorted) and its names.
@@ -302,9 +297,17 @@ fn the_card_brings_lines_between_every_related_pair_on_screen(cx: &mut TestAppCo
         .unwrap();
     let bully = aq_wh.labels.iter().find(|l| l.name == "欺辱").unwrap();
     assert_eq!(bully.to.as_deref(), Some(aq.as_str()));
-    assert!(aq_wh.labels.iter().any(|l| l.name == "冤家" && l.to.is_none()));
+    assert!(
+        aq_wh
+            .labels
+            .iter()
+            .any(|l| l.name == "冤家" && l.to.is_none())
+    );
     // The pointed 阿Q is joined where it is pointed; 王胡 at its nearer place.
-    assert_eq!(aq_wh.a.id.as_ref() == "l0" || aq_wh.b.id.as_ref() == "l0", true);
+    assert_eq!(
+        aq_wh.a.id.as_ref() == "l0" || aq_wh.b.id.as_ref() == "l0",
+        true
+    );
     assert!(
         aq_wh.a.id.as_ref() == "l1" || aq_wh.b.id.as_ref() == "l1",
         "the 王胡 on the pointed row"
@@ -418,16 +421,15 @@ fn the_composer_places_a_pair_picked_in_the_prose_in_the_row_it_belongs_to(
     let xn = element(&e, "小尼姑");
     // 「欺辱」: 阿Q → 王胡 already; picking 小尼姑 joins that row's right.
     let row = relate(&e, &aq, &wh, "欺辱", false);
-    let doc = chapter(
-        &e,
-        "一",
-        &["阿Q打了王胡。", "对面走来了静修庵里的小尼姑。"],
-    );
+    let doc = chapter(&e, "一", &["阿Q打了王胡。", "对面走来了静修庵里的小尼姑。"]);
     let mut o = open(cx, &e, &doc, 800.);
     let placed = o.placed();
     o.point(0, "l0");
     o.start();
-    assert!(o.assist.read_with(o.cx, |a, _| a.card().is_none()), "the card went");
+    assert!(
+        o.assist.read_with(o.cx, |a, _| a.card().is_none()),
+        "the card went"
+    );
     let state = o.assist.update(o.cx, |a, _| a.compose_state()).unwrap();
     assert_eq!(state.src, aq);
     assert!(!state.ready);
@@ -438,20 +440,30 @@ fn the_composer_places_a_pair_picked_in_the_prose_in_the_row_it_belongs_to(
     assert!(drawn.picks.iter().all(|n| n.id.as_ref() != "l0"));
     assert_eq!(drawn.lines.len(), 1);
     // A click on 小尼姑 (its outline's handler), then the used name.
-    let at = drawn.picks.iter().find(|n| n.entry == xn).unwrap().clone();
-    o.assist.update(o.cx, |a, cx| {
-        a.relation_pick(&xn, Some((at.chapter, at.id.clone())), cx)
-    });
-    o.assist.update(o.cx, |a, cx| a.set_relation_name("欺辱", cx));
+    let at = drawn.picks.iter().find(|n| n.entry == xn).unwrap();
+    o.cx.simulate_click(at.rect.center(), gpui::Modifiers::none());
+    draw(o.cx);
+    o.assist
+        .update(o.cx, |a, cx| a.set_relation_name("欺辱", cx));
     draw(o.cx);
     let state = o.assist.update(o.cx, |a, _| a.compose_state()).unwrap();
     assert_eq!(state.dst.as_deref(), Some(xn.as_str()));
-    assert_eq!(state.names, vec![("欺辱".to_owned(), true)], "the chosen name lit");
+    assert_eq!(
+        state.names,
+        vec![("欺辱".to_owned(), true)],
+        "the chosen name lit"
+    );
     assert!(state.ready);
     let pending = o.drawn().unwrap().pending.unwrap();
-    assert_eq!((pending.0.entry.as_str(), pending.1.entry.as_str()), (aq.as_str(), xn.as_str()));
+    assert_eq!(
+        (pending.0.entry.as_str(), pending.1.entry.as_str()),
+        (aq.as_str(), xn.as_str())
+    );
     assert!(o.commit());
-    assert!(o.assist.update(o.cx, |a, _| a.compose_state()).is_none(), "the bar went");
+    assert!(
+        o.assist.update(o.cx, |a, _| a.compose_state()).is_none(),
+        "the bar went"
+    );
     // Rule 1: the row whose left is only 阿Q took 小尼姑 on its right.
     let rows = rows_of(&e, "欺辱");
     assert_eq!(rows.len(), 1);
@@ -463,11 +475,16 @@ fn the_composer_places_a_pair_picked_in_the_prose_in_the_row_it_belongs_to(
         .map(|v| v.as_str().unwrap())
         .collect();
     assert!(right.contains(&xn.as_str()) && right.contains(&wh.as_str()));
-    assert_eq!(*placed.borrow(), vec![row.clone()], "the host is told the row");
+    assert_eq!(
+        *placed.borrow(),
+        vec![row.clone()],
+        "the host is told the row"
+    );
     // The new pair's lines stay a moment.
     let lines = o.lines();
     assert!(lines.contains(&(pair(&aq, &xn), vec!["欺辱".to_owned()])));
-    o.cx.executor().advance_clock(dr_editor::assist::relate::LINGER);
+    o.cx.executor()
+        .advance_clock(dr_editor::assist::relate::LINGER);
     draw(o.cx);
     draw(o.cx);
     assert!(o.drawn().is_none(), "then go");
@@ -483,9 +500,7 @@ fn the_composer_places_a_pair_picked_in_the_prose_in_the_row_it_belongs_to(
 }
 
 #[gpui::test]
-fn the_at_field_finds_an_entry_off_screen_and_a_new_name_makes_a_relation(
-    cx: &mut TestAppContext,
-) {
+fn the_at_field_finds_an_entry_off_screen_and_a_new_name_makes_a_relation(cx: &mut TestAppContext) {
     let e = env();
     let aq = element(&e, "阿Q");
     let _wh = element(&e, "王胡");
@@ -496,16 +511,23 @@ fn the_at_field_finds_an_entry_off_screen_and_a_new_name_makes_a_relation(
     o.point(0, "l0");
     o.start();
     assert!(
-        o.assist.update(o.cx, |a, _| a.compose_state()).unwrap().names.is_empty(),
+        o.assist
+            .update(o.cx, |a, _| a.compose_state())
+            .unwrap()
+            .names
+            .is_empty(),
         "no relation yet: no row of names"
     );
     // 小D is in no text on screen; the @ field finds it.
-    o.assist.update(o.cx, |a, cx| a.set_relation_query("小", cx));
+    o.assist
+        .update(o.cx, |a, cx| a.set_relation_query("小", cx));
     let state = o.assist.update(o.cx, |a, _| a.compose_state()).unwrap();
     assert_eq!(state.candidates, vec![xd.clone()]);
-    o.assist.update(o.cx, |a, cx| a.relation_pick(&xd, None, cx));
+    o.assist
+        .update(o.cx, |a, cx| a.relation_pick(&xd, None, cx));
     // A new name: the direction steps → ← ↔.
-    o.assist.update(o.cx, |a, cx| a.set_relation_name("同乡", cx));
+    o.assist
+        .update(o.cx, |a, cx| a.set_relation_name("同乡", cx));
     let dirs: Vec<Dir> = (0..3)
         .map(|_| {
             o.assist.update(o.cx, |a, cx| {
@@ -525,7 +547,10 @@ fn the_at_field_finds_an_entry_off_screen_and_a_new_name_makes_a_relation(
     assert_eq!(made[0]["direction"], "symmetric");
     assert_eq!(made[0]["rows"][0]["left"][0], aq.as_str());
     assert_eq!(made[0]["rows"][0]["right"][0], xd.as_str());
-    assert_eq!(*placed.borrow(), vec![made[0]["rows"][0]["id"].as_str().unwrap().to_owned()]);
+    assert_eq!(
+        *placed.borrow(),
+        vec![made[0]["rows"][0]["id"].as_str().unwrap().to_owned()]
+    );
     // Making the relation and its pair was one undo step.
     assert!(e.ws.undo_in(&Actor::User, &e.book, None).unwrap().is_some());
     assert!(
@@ -551,15 +576,21 @@ fn a_used_name_fixes_the_direction_and_an_existing_pair_is_not_written_again(
     let placed = o.placed();
     o.point(0, "l0");
     o.start();
-    o.assist.update(o.cx, |a, cx| a.relation_pick(&wh, None, cx));
+    o.assist
+        .update(o.cx, |a, cx| a.relation_pick(&wh, None, cx));
     // A symmetric name: ↔ and the button does nothing.
-    o.assist.update(o.cx, |a, cx| a.set_relation_name("冤家", cx));
+    o.assist
+        .update(o.cx, |a, cx| a.set_relation_name("冤家", cx));
     let s = o.assist.update(o.cx, |a, _| a.compose_state()).unwrap();
     assert_eq!((s.dir, s.dir_locked), (Dir::Both, true));
     o.assist.update(o.cx, |a, cx| a.relation_flip(cx));
-    assert_eq!(o.assist.update(o.cx, |a, _| a.compose_state()).unwrap().dir, Dir::Both);
+    assert_eq!(
+        o.assist.update(o.cx, |a, _| a.compose_state()).unwrap().dir,
+        Dir::Both
+    );
     // A directed name: only which end is left.
-    o.assist.update(o.cx, |a, cx| a.set_relation_name("欺辱", cx));
+    o.assist
+        .update(o.cx, |a, cx| a.set_relation_name("欺辱", cx));
     let s = o.assist.update(o.cx, |a, _| a.compose_state()).unwrap();
     assert_eq!((s.dir, s.dir_locked), (Dir::To, false));
     let dirs: Vec<Dir> = (0..2)
@@ -572,10 +603,15 @@ fn a_used_name_fixes_the_direction_and_an_existing_pair_is_not_written_again(
         .collect();
     assert_eq!(dirs, [Dir::From, Dir::To]);
     // 阿Q ↔ 王胡 is already 冤家: nothing is written, the row is shown.
-    o.assist.update(o.cx, |a, cx| a.set_relation_name("冤家", cx));
+    o.assist
+        .update(o.cx, |a, cx| a.set_relation_name("冤家", cx));
     let before = rows_of(&e, "冤家");
     assert!(o.commit());
-    assert_eq!(rows_of(&e, "冤家"), before, "the pair was there: nothing written");
+    assert_eq!(
+        rows_of(&e, "冤家"),
+        before,
+        "the pair was there: nothing written"
+    );
     assert_eq!(*placed.borrow(), vec![enemies]);
 }
 
@@ -605,15 +641,21 @@ fn esc_and_cancel_leave_the_composer(cx: &mut TestAppContext) {
     o.cx.executor().advance_clock(Duration::from_millis(300));
     draw(o.cx);
     assert!(o.assist.read_with(o.cx, |a, _| a.card().is_none()));
-    o.assist.update(o.cx, |a, cx| a.dismiss(cx));
+    o.cx.simulate_keystrokes("escape");
     draw(o.cx);
-    assert!(o.assist.update(o.cx, |a, _| a.compose_state()).is_none(), "Esc");
+    assert!(
+        o.assist.update(o.cx, |a, _| a.compose_state()).is_none(),
+        "Esc"
+    );
     o.point(0, "l0");
     o.start();
     o.assist
         .update_in(o.cx, |a, window, cx| a.close_compose(window, cx));
     draw(o.cx);
-    assert!(o.assist.update(o.cx, |a, _| a.compose_state()).is_none(), "取消");
+    assert!(
+        o.assist.update(o.cx, |a, _| a.compose_state()).is_none(),
+        "取消"
+    );
     assert_eq!(rows_of(&e, "冤家").len(), 1, "nothing written");
 }
 
@@ -657,19 +699,18 @@ fn links_to_files_have_no_part_in_the_lines(cx: &mut TestAppContext) {
     let file = e.dir.path().join("map.png");
     std::fs::write(&file, &bytes).unwrap();
     let asset = dr_model::id::new_uuid_v7();
-    let record = e
-        .ws
-        .library()
-        .import_asset(&dr_store::asset::SourceImport {
-            book_id: &e.book,
-            asset_id: &asset,
-            source: &file,
-            mime: "image/png",
-            ext: "png",
-            dimensions: Some((4, 4)),
-            limit: 1 << 20,
-        })
-        .unwrap();
+    let record =
+        e.ws.library()
+            .import_asset(&dr_store::asset::SourceImport {
+                book_id: &e.book,
+                asset_id: &asset,
+                source: &file,
+                mime: "image/png",
+                ext: "png",
+                dimensions: Some((4, 4)),
+                limit: 1 << 20,
+            })
+            .unwrap();
     out(
         &e.ws,
         "asset.put",
@@ -679,9 +720,12 @@ fn links_to_files_have_no_part_in_the_lines(cx: &mut TestAppContext) {
     let doc = chapter(&e, "一", &["阿Q看见王胡。"]);
     let mut o = open(cx, &e, &doc, 800.);
     // A file link at the end, through the @ picker.
-    let end = o.editor.read_with(o.cx, |p, _| p.book().chapters[0].doc.len_chars());
-    o.editor
-        .update_in(o.cx, |p, window, cx| p.select(0, end - 1..end - 1, window, cx));
+    let end = o
+        .editor
+        .read_with(o.cx, |p, _| p.book().chapters[0].doc.len_chars());
+    o.editor.update_in(o.cx, |p, window, cx| {
+        p.select(0, end - 1..end - 1, window, cx)
+    });
     for c in "@地图".chars() {
         let s = c.to_string();
         o.editor.update_in(o.cx, |p, window, cx| {
@@ -700,7 +744,11 @@ fn links_to_files_have_no_part_in_the_lines(cx: &mut TestAppContext) {
     let drawn = o.drawn().unwrap();
     assert_eq!(drawn.lines.len(), 1);
     assert!(
-        drawn.joined.iter().chain(&drawn.picks).all(|n| n.id.starts_with('l')),
+        drawn
+            .joined
+            .iter()
+            .chain(&drawn.picks)
+            .all(|n| n.id.starts_with('l')),
         "no file link among the names"
     );
     let _ = (aq, wh);
@@ -720,7 +768,10 @@ fn the_whole_book_joins_names_across_chapters(cx: &mut TestAppContext) {
     let lines = o.lines();
     assert_eq!(lines, vec![(pair(&aq, &wh), vec!["冤家".to_owned()])]);
     let drawn = o.drawn().unwrap();
-    assert_ne!(drawn.lines[0].a.chapter, drawn.lines[0].b.chapter, "across chapters");
+    assert_ne!(
+        drawn.lines[0].a.chapter, drawn.lines[0].b.chapter,
+        "across chapters"
+    );
 }
 
 fn open_book<'a>(cx: &'a mut TestAppContext, e: &Env, height: f32) -> Open<'a> {
@@ -756,4 +807,52 @@ fn first_linked_chapter(o: &mut Open) -> usize {
             .min()
             .expect("links painted")
     })
+}
+
+/// Six candidates exceed the prototype's 124 px list. Exercise the actual
+/// wheel dispatch and hit testing: calling relation_pick directly cannot
+/// detect a clipped, unreachable last row.
+#[gpui::test]
+fn the_sixth_at_candidate_scrolls_into_view_and_can_be_clicked(cx: &mut TestAppContext) {
+    let e = env();
+    element(&e, "阿Q");
+    for n in 1..=6 {
+        element(&e, &format!("候选{n}"));
+    }
+    let doc = chapter(&e, "一", &["阿Q坐在门口。"]);
+    let mut o = open(cx, &e, &doc, 700.);
+    o.point(0, "l0");
+    o.start();
+    o.assist
+        .update(o.cx, |a, cx| a.set_relation_query("候选", cx));
+    draw(o.cx);
+    draw(o.cx);
+    let state = o.assist.update(o.cx, |a, _| a.compose_state().unwrap());
+    assert_eq!(state.candidates.len(), 6);
+    let last = state.candidates[5].clone();
+    let list = o.cx.debug_bounds("dr-editor-relation-candidates").unwrap();
+    let row = o.cx.debug_bounds("dr-editor-relation-candidate-5").unwrap();
+    assert!(
+        row.bottom() > list.bottom(),
+        "the last row starts below the clip"
+    );
+    o.cx.simulate_event(gpui::ScrollEvent {
+        position: list.center(),
+        delta: gpui::ScrollDelta::Pixels(gpui::point(px(0.), px(-250.))),
+        modifiers: Default::default(),
+        touch_phase: gpui::TouchPhase::Moved,
+        source: gpui::ScrollSource::Pointer,
+    });
+    draw(o.cx);
+    draw(o.cx);
+    let row = o.cx.debug_bounds("dr-editor-relation-candidate-5").unwrap();
+    assert!(
+        list.contains(&row.center()),
+        "scroll exposes the last row for clicking"
+    );
+    o.cx.simulate_click(row.center(), gpui::Modifiers::none());
+    draw(o.cx);
+    let state = o.assist.update(o.cx, |a, _| a.compose_state().unwrap());
+    assert_eq!(state.dst, Some(last));
+    assert!(state.candidates.is_empty());
 }

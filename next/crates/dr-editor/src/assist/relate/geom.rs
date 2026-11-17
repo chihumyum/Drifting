@@ -66,7 +66,11 @@ fn distance(a: &Name, b: &Name) -> f32 {
 /// The occurrence each entry is joined at: `focus` (an index into `names`)
 /// for its own entry, and for the others the one nearest it; without a
 /// focus, the one nearest `middle`.
-pub fn anchors(names: &[Name], focus: Option<usize>, middle: (f32, f32)) -> BTreeMap<String, usize> {
+pub fn anchors(
+    names: &[Name],
+    focus: Option<usize>,
+    middle: (f32, f32),
+) -> BTreeMap<String, usize> {
     let mut out: BTreeMap<String, usize> = BTreeMap::new();
     let focus_name = focus.and_then(|f| names.get(f));
     for (ix, name) in names.iter().enumerate() {
@@ -356,7 +360,11 @@ mod tests {
 
     #[test]
     fn one_line_per_pair_and_only_related_pairs() {
-        let names = [name("aq", 0., 0.), name("wh", 0., 60.), name("xd", 0., 120.)];
+        let names = [
+            name("aq", 0., 0.),
+            name("wh", 0., 60.),
+            name("xd", 0., 120.),
+        ];
         let at = anchors(&names, Some(0), (0., 0.));
         let mut pairs = related(&[("aq", "wh", "冤家"), ("wh", "aq", "欺辱")]);
         let e = edges(&names, &at, &pairs);
@@ -364,7 +372,11 @@ mod tests {
         assert_eq!(e[0].labels.len(), 2);
         pairs.extend(related(&[("wh", "xd", "冤家")]));
         let e = edges(&names, &at, &pairs);
-        assert_eq!(e.len(), 2, "lines between names other than the pointed one too");
+        assert_eq!(
+            e.len(),
+            2,
+            "lines between names other than the pointed one too"
+        );
     }
 
     #[test]
@@ -396,17 +408,32 @@ mod tests {
         };
         let at = place_labels(&[c, c], &[40., 40.], &blanks);
         for (x, y) in &at {
-            assert!(blanks.iter().any(|b| (b - y).abs() < 0.01), "on a blank: {y}");
+            assert!(
+                blanks.iter().any(|b| (b - y).abs() < 0.01),
+                "on a blank: {y}"
+            );
             assert!(*x > 100.);
         }
-        assert!((at[0].1 - at[1].1).abs() >= LABEL_CLEAR, "the second moved to the next blank");
+        assert!(
+            (at[0].1 - at[1].1).abs() >= LABEL_CLEAR,
+            "the second moved to the next blank"
+        );
     }
 
     #[test]
     fn the_card_goes_where_fewer_lines_go() {
-        let names = [name("aq", 0., 200.), name("wh", 0., 300.), name("xd", 0., 400.), name("jy", 0., 50.)];
+        let names = [
+            name("aq", 0., 200.),
+            name("wh", 0., 300.),
+            name("xd", 0., 400.),
+            name("jy", 0., 50.),
+        ];
         let at = anchors(&names, Some(0), (0., 0.));
-        let pairs = related(&[("aq", "wh", "冤家"), ("aq", "xd", "冤家"), ("aq", "jy", "冤家")]);
+        let pairs = related(&[
+            ("aq", "wh", "冤家"),
+            ("aq", "xd", "冤家"),
+            ("aq", "jy", "冤家"),
+        ]);
         let e = edges(&names, &at, &pairs);
         assert!(card_above(&names, &e, 0), "two lines down, one up: above");
         let pairs = related(&[("aq", "jy", "冤家")]);

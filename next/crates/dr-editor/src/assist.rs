@@ -2672,8 +2672,7 @@ fn wrap_at(
             let key = event.keystroke.key.as_str();
             if key == "escape" {
                 let a = esc.read(cx);
-                if a.menu.is_some() || a.bar.is_some() || a.card.is_some() || a.relate.composing()
-                {
+                if a.menu.is_some() || a.bar.is_some() || a.card.is_some() || a.relate.composing() {
                     let focus = a.editor.read(cx).focus_handle(cx);
                     window.focus(&focus, cx);
                     esc.update(cx, |a, cx| a.dismiss(cx));

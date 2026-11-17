@@ -88,7 +88,14 @@ pub struct Scene {
 impl Strokes {
     /// Lays `scene` in `rgb` (already on the paper), the dashed line in
     /// `dash`, then lets go of images no line used for a while.
-    pub fn paint(&mut self, scene: &Scene, rgb: [u8; 3], dash: Hsla, window: &mut Window, cx: &App) {
+    pub fn paint(
+        &mut self,
+        scene: &Scene,
+        rgb: [u8; 3],
+        dash: Hsla,
+        window: &mut Window,
+        cx: &App,
+    ) {
         let _ = cx;
         self.frame += 1;
         let scale = window.scale_factor();
@@ -111,9 +118,10 @@ impl Strokes {
                         .map(|(x, y)| (x - start.0, y - start.1))
                         .collect();
                     // The seed follows the shape, so a line keeps its grain.
-                    let seed = key.shape.iter().fold(0x2545_f491u32, |h, v| {
-                        h.rotate_left(5) ^ (*v as u32)
-                    });
+                    let seed = key
+                        .shape
+                        .iter()
+                        .fold(0x2545_f491u32, |h, v| h.rotate_left(5) ^ (*v as u32));
                     let Some(line) = dr_ui::sand::line::along(&pts, *breadth, scale, seed) else {
                         continue;
                     };
@@ -147,7 +155,10 @@ impl Strokes {
         if let Some(c) = scene.dashed {
             let mut b = PathBuilder::stroke(px(1.1)).dash_array(&[px(3.), px(4.)]);
             b.move_to(point(px(c.from.0), px(c.from.1)));
-            b.curve_to(point(px(c.to.0), px(c.to.1)), point(px(c.ctrl.0), px(c.ctrl.1)));
+            b.curve_to(
+                point(px(c.to.0), px(c.to.1)),
+                point(px(c.ctrl.0), px(c.ctrl.1)),
+            );
             if let Ok(path) = b.build() {
                 window.paint_path(path, dash);
             }

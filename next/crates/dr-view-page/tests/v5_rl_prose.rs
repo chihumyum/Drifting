@@ -8,7 +8,9 @@ use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use dr_shell::actions::RevealRelationRow;
-use dr_shell::{Services, SettingsFile, ShellInfo, book::Book, pages::PageViewHost, v3::ModuleHost};
+use dr_shell::{
+    Services, SettingsFile, ShellInfo, book::Book, pages::PageViewHost, v3::ModuleHost,
+};
 use dr_view_page::v3::BodyModule;
 use dr_workspace::{Actor, Workspace, WorkspaceOptions, library_options};
 use gpui::{TestAppContext, VisualTestContext, WeakEntity, px, size};
@@ -61,6 +63,14 @@ fn a_pair_placed_in_a_body_reveals_its_row(cx: &mut TestAppContext) {
         .as_str()
         .unwrap()
         .to_owned();
+    // Another visible pair belongs to a different row: rail hover must
+    // restrict the layer to its row rather than all visible relations.
+    call(
+        &ws,
+        "relation_row.create_pair",
+        json!({"book": book, "left": wh, "right": xn,
+            "new_type": {"name": "相识", "direction": "symmetric"}}),
+    );
     let root = dr_testkit::seed::acceptance::novel_root(&ws, &book, "tpl-manuscript");
     let chapter = call(
         &ws,
@@ -95,6 +105,7 @@ fn a_pair_placed_in_a_body_reveals_its_row(cx: &mut TestAppContext) {
                 cx,
             );
         }
+        dr_view_page::init(cx);
     });
     let shown = Rc::new(RefCell::new(Vec::<String>::new()));
     {
@@ -142,6 +153,40 @@ fn a_pair_placed_in_a_body_reveals_its_row(cx: &mut TestAppContext) {
         vcx.executor().advance_clock(Duration::from_millis(400));
         draw(&mut vcx);
     }
+    // Drive the shell seam, not the editor global. The mounted page host
+    // must relay it into the actual painted prose, then remove the lines
+    // when the rail clears its hovered row.
+    vcx.update(|_, cx| {
+        dr_shell::relations::set_rail_hover(
+            Some(dr_shell::relations::RailRow {
+                book: book.clone(),
+                row: row.clone(),
+                name: "欺辱".into(),
+                directed: true,
+                left: vec![aq.clone()],
+                right: vec![wh.clone()],
+            }),
+            cx,
+        );
+    });
+    draw(&mut vcx);
+    draw(&mut vcx);
+    let lines = assist.read_with(&vcx, |a, _| {
+        a.relation_drawn()
+            .expect("the mounted host relays RailHover into painted prose")
+            .lines
+            .clone()
+    });
+    assert_eq!(lines.len(), 1);
+    let mut endpoints = vec![lines[0].a.entry.clone(), lines[0].b.entry.clone()];
+    endpoints.sort();
+    let mut expected = vec![aq.clone(), wh.clone()];
+    expected.sort();
+    assert_eq!(endpoints, expected);
+    vcx.update(|_, cx| dr_shell::relations::set_rail_hover(None, cx));
+    draw(&mut vcx);
+    draw(&mut vcx);
+    assert!(assist.read_with(&vcx, |a, _| a.relation_drawn().is_none()));
     // The page gave the composer its words.
     prose.update(&mut vcx, |_, cx| {
         cx.emit(DecorationEvent::Pointed {
@@ -157,7 +202,10 @@ fn a_pair_placed_in_a_body_reveals_its_row(cx: &mut TestAppContext) {
     vcx.executor().advance_clock(Duration::from_millis(300));
     draw(&mut vcx);
     draw(&mut vcx);
-    assert!(assist.read_with(&vcx, |a, _| a.card().is_some()), "阿Q's card");
+    assert!(
+        assist.read_with(&vcx, |a, _| a.card().is_some()),
+        "阿Q's card"
+    );
     assist.update_in(&mut vcx, |a, window, cx| a.start_relation(window, cx));
     draw(&mut vcx);
     assist.update(&mut vcx, |a, cx| {
@@ -170,7 +218,17 @@ fn a_pair_placed_in_a_body_reveals_its_row(cx: &mut TestAppContext) {
     draw(&mut vcx);
     // 阿Q → 王胡 was the row whose left is only 阿Q: 小尼姑 joined it.
     let rows = call(&ws, "relation_type.list", json!({"book": book}));
-    assert_eq!(rows[0]["rows"].as_array().unwrap().len(), 1);
-    assert_eq!(rows[0]["rows"][0]["id"], row.as_str());
-    assert_eq!(*shown.borrow(), vec![row], "RevealRelationRow carries the row");
+    let kind = rows
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|kind| kind["name"] == "欺辱")
+        .unwrap();
+    assert_eq!(kind["rows"].as_array().unwrap().len(), 1);
+    assert_eq!(kind["rows"][0]["id"], row.as_str());
+    assert_eq!(
+        *shown.borrow(),
+        vec![row],
+        "RevealRelationRow carries the row"
+    );
 }

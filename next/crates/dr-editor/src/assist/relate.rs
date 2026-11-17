@@ -376,10 +376,12 @@ impl Relate {
 
 /// The box of a name painted over `boxes` (its widest row).
 fn main_box(boxes: &[Bounds<Pixels>]) -> Option<Bounds<Pixels>> {
-    boxes
-        .iter()
-        .copied()
-        .max_by(|a, b| a.size.width.partial_cmp(&b.size.width).unwrap_or(std::cmp::Ordering::Equal))
+    boxes.iter().copied().max_by(|a, b| {
+        a.size
+            .width
+            .partial_cmp(&b.size.width)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    })
 }
 
 fn shows(view: &Bounds<Pixels>, r: &Bounds<Pixels>) -> bool {
@@ -424,9 +426,8 @@ impl Assist {
 
     /// Follows the right column's pointed row.
     pub(super) fn watch_relation_focus(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.relate._focus = Some(cx.observe_global_in::<RelationFocus>(window, |_, _, cx| {
-            cx.notify()
-        }));
+        self.relate._focus =
+            Some(cx.observe_global_in::<RelationFocus>(window, |_, _, cx| cx.notify()));
     }
 
     fn relation_index(&mut self) -> Option<Rc<Index>> {
@@ -470,7 +471,9 @@ impl Assist {
                     return None;
                 }
                 let target: LinkTarget = self.link_target(d.chapter, &d.key.id, cx)?;
-                if target.kind != dr_model::kind::EntityKind::Entry || index.entry(&target.id).is_none() {
+                if target.kind != dr_model::kind::EntityKind::Entry
+                    || index.entry(&target.id).is_none()
+                {
                     return None;
                 }
                 Some(Name {
@@ -589,7 +592,10 @@ impl Assist {
                         let of: Vec<&Name> = names.iter().filter(|n| &n.entry == dst).collect();
                         of.into_iter().min_by(|a, b| {
                             let d = |n: &Name| {
-                                let (x, y) = (n.rect.center().x - src.rect.center().x, n.rect.center().y - src.rect.center().y);
+                                let (x, y) = (
+                                    n.rect.center().x - src.rect.center().x,
+                                    n.rect.center().y - src.rect.center().y,
+                                );
                                 f32::from(x).hypot(f32::from(y) * 1.4)
                             };
                             d(a).total_cmp(&d(b))
@@ -630,7 +636,10 @@ impl Assist {
             .iter()
             .flat_map(|l| [l.a.clone(), l.b.clone()])
             .collect();
-        let Some(me) = names.iter().position(|n| n.chapter == key.0 && n.id == key.1) else {
+        let Some(me) = names
+            .iter()
+            .position(|n| n.chapter == key.0 && n.id == key.1)
+        else {
             return false;
         };
         let mut uniq: Vec<Name> = Vec::new();
@@ -671,7 +680,12 @@ impl Assist {
             return;
         }
         self.close_card();
-        self.open_compose(card.facts.target.id.clone(), Some((card.chapter, card.id)), window, cx);
+        self.open_compose(
+            card.facts.target.id.clone(),
+            Some((card.chapter, card.id)),
+            window,
+            cx,
+        );
     }
 
     /// Opens the composer for `entry` (at that occurrence).
@@ -686,20 +700,27 @@ impl Assist {
         self.relate.linger_task = None;
         self.relation_index();
         let at_field = cx.new(|cx| TextField::new("dr-editor-relation-at", window, cx).bare());
-        let name_field = cx.new(|cx| {
-            TextField::new("dr-editor-relation-name", window, cx).icon(Icon::KnotLinks)
-        });
+        let name_field = cx
+            .new(|cx| TextField::new("dr-editor-relation-name", window, cx).icon(Icon::KnotLinks));
         let subs = vec![
-            cx.subscribe_in(&at_field, window, |a, _, e: &FieldEvent, window, cx| match e {
-                FieldEvent::Changed(text) => a.relation_query_changed(text.clone(), cx),
-                FieldEvent::Cancelled => a.close_compose(window, cx),
-                _ => {}
-            }),
-            cx.subscribe_in(&name_field, window, |a, _, e: &FieldEvent, window, cx| match e {
-                FieldEvent::Changed(text) => a.relation_name_changed(text.clone(), cx),
-                FieldEvent::Cancelled => a.close_compose(window, cx),
-                _ => {}
-            }),
+            cx.subscribe_in(
+                &at_field,
+                window,
+                |a, _, e: &FieldEvent, window, cx| match e {
+                    FieldEvent::Changed(text) => a.relation_query_changed(text.clone(), cx),
+                    FieldEvent::Cancelled => a.close_compose(window, cx),
+                    _ => {}
+                },
+            ),
+            cx.subscribe_in(
+                &name_field,
+                window,
+                |a, _, e: &FieldEvent, window, cx| match e {
+                    FieldEvent::Changed(text) => a.relation_name_changed(text.clone(), cx),
+                    FieldEvent::Cancelled => a.close_compose(window, cx),
+                    _ => {}
+                },
+            ),
         ];
         self.relate.compose = Some(Compose {
             src: entry,
@@ -945,9 +966,11 @@ impl Assist {
         let ink = p.sand_on(p.ink(2), p.page).to_u8();
         let mut scene = paint::Scene::default();
         for line in &drawn.lines {
-            scene
-                .paths
-                .push((paint::Path::Arc(line.curve), paint::LINE_BREADTH, 0.7 * dark * p.pigment));
+            scene.paths.push((
+                paint::Path::Arc(line.curve),
+                paint::LINE_BREADTH,
+                0.7 * dark * p.pigment,
+            ));
         }
         for n in &drawn.joined {
             let y = f32::from(n.rect.bottom()) - 1.0;
@@ -978,7 +1001,9 @@ impl Assist {
             .child(
                 canvas(
                     |_, _, _| {},
-                    move |_, _, window, cx| strokes.borrow_mut().paint(&scene, ink, dash, window, cx),
+                    move |_, _, window, cx| {
+                        strokes.borrow_mut().paint(&scene, ink, dash, window, cx)
+                    },
                 )
                 .absolute()
                 .top_0()
@@ -1011,14 +1036,20 @@ impl Assist {
                 }
                 label = label.child(SharedString::from(l.name.clone()));
                 if let Some(to) = &l.to {
-                    let target = if &line.a.entry == to { &line.a } else { &line.b };
+                    let target = if &line.a.entry == to {
+                        &line.a
+                    } else {
+                        &line.b
+                    };
                     let c = target.rect.center();
-                    let angle = (f32::from(c.y) - line.label_at.1)
-                        .atan2(f32::from(c.x) - line.label_at.0);
+                    let angle =
+                        (f32::from(c.y) - line.label_at.1).atan2(f32::from(c.x) - line.label_at.0);
                     label = label.child(
                         sand::icon(Icon::ArrowForward, 10., arrow_ink)
                             .ml(px(2.))
-                            .with_transformation(gpui::Transformation::rotate(gpui::radians(angle))),
+                            .with_transformation(gpui::Transformation::rotate(gpui::radians(
+                                angle,
+                            ))),
                     );
                 }
             }
@@ -1080,7 +1111,12 @@ impl Assist {
     }
 
     /// The composer docked at the bottom of what the editor shows.
-    fn compose_bar(&mut self, root: gpui::Div, window: &mut Window, cx: &mut Context<Self>) -> gpui::Div {
+    fn compose_bar(
+        &mut self,
+        root: gpui::Div,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> gpui::Div {
         let Some(state) = self.compose_state() else {
             return root;
         };
@@ -1098,14 +1134,21 @@ impl Assist {
         let this = cx.entity();
         let mark = |id: &str, key: &str| {
             let color = index.entry(id).and_then(|e| e.color);
-            let m = KindMark::new(SharedString::from(format!("dr-editor-relation-mark-{key}-{id}")), sand::Kind::Category);
+            let m = KindMark::new(
+                SharedString::from(format!("dr-editor-relation-mark-{key}-{id}")),
+                sand::Kind::Category,
+            );
             match color {
                 Some(c) => m.color(c),
                 None => m,
             }
         };
         let title = |id: &str| -> SharedString {
-            index.entry(id).map(|e| e.title.clone()).unwrap_or_default().into()
+            index
+                .entry(id)
+                .map(|e| e.title.clone())
+                .unwrap_or_default()
+                .into()
         };
         let chip = |id: &str, key: &str| {
             div()
@@ -1124,14 +1167,25 @@ impl Assist {
                 .child(title(id))
         };
         // The list of the @ field, above everything.
-        let mut list = div().flex().flex_col().max_h(px(124.)).overflow_hidden();
+        let mut list = div()
+            .id("dr-editor-relation-candidates")
+            .debug_selector(|| "dr-editor-relation-candidates".into())
+            .flex()
+            .flex_col()
+            .max_h(px(124.))
+            .overflow_y_scroll();
         for (ix, id) in state.candidates.iter().enumerate() {
             let entry = id.clone();
             let this = this.clone();
-            let kind: SharedString = index.entry(id).map(|e| e.kind.clone()).unwrap_or_default().into();
+            let kind: SharedString = index
+                .entry(id)
+                .map(|e| e.kind.clone())
+                .unwrap_or_default()
+                .into();
             list = list.child(
                 div()
                     .id(("dr-editor-relation-candidate", ix))
+                    .debug_selector(move || format!("dr-editor-relation-candidate-{ix}"))
                     .w_full()
                     .flex()
                     .items_center()
@@ -1188,7 +1242,11 @@ impl Assist {
                     .text_color(if on { p.ink(1) } else { p.ink(2) }.solid())
                     .when(on, |d| d.border_1().border_color(ring))
                     .when(!on, |d| {
-                        d.hover(move |s| s.text_color(p.ink(1).solid()).border_1().border_color(p.hairline()))
+                        d.hover(move |s| {
+                            s.text_color(p.ink(1).solid())
+                                .border_1()
+                                .border_color(p.hairline())
+                        })
                     })
                     .cursor_pointer()
                     .role(gpui::Role::Button)
@@ -1219,12 +1277,15 @@ impl Assist {
                             .role(gpui::Role::Button)
                             .aria_label(labels.change.clone())
                             .child(sand::icon(Icon::Close, 12., p.ink(4).solid()))
-                            .on_click(move |_, _, cx| this.update(cx, |a, cx| a.relation_unpick(cx))),
+                            .on_click(move |_, _, cx| {
+                                this.update(cx, |a, cx| a.relation_unpick(cx))
+                            }),
                     )
                     .into_any_element()
             }
             None => {
-                let focused = gpui::Focusable::focus_handle(at_field.read(cx), cx).is_focused(window);
+                let focused =
+                    gpui::Focusable::focus_handle(at_field.read(cx), cx).is_focused(window);
                 glass::glass_box(
                     "dr-editor-relation-at-box",
                     GlassKind::Rest,
@@ -1267,6 +1328,7 @@ impl Assist {
             .child(chip(&state.src, "src"))
             .child(
                 div()
+                    .id("dr-editor-relation-direction")
                     .flex_none()
                     .role(gpui::Role::Group)
                     .aria_label(labels.direction.clone())
@@ -1274,14 +1336,13 @@ impl Assist {
                         Button::new("dr-editor-relation-dir", state.dir.glyph())
                             .small()
                             .disabled(state.dir_locked)
-                            .on_click(move |_, _, cx| {
-                                flip.update(cx, |a, cx| a.relation_flip(cx))
-                            }),
+                            .on_click(move |_, _, cx| flip.update(cx, |a, cx| a.relation_flip(cx))),
                     ),
             )
             .child(div().flex_1().min_w_0().flex().child(other))
             .child(
                 div()
+                    .id("dr-editor-relation-name-group")
                     .flex_1()
                     .min_w_0()
                     .role(gpui::Role::Group)
@@ -1378,7 +1439,12 @@ mod tests {
                 normalized: normalize_relation_type_name("Enemy"),
                 symmetric: true,
             }],
-            entries: vec![e("aq", "阿Q"), e("xd", "小D"), e("xn", "小尼姑"), e("wh", "王胡")],
+            entries: vec![
+                e("aq", "阿Q"),
+                e("xd", "小D"),
+                e("xn", "小尼姑"),
+                e("wh", "王胡"),
+            ],
             ..Index::default()
         }
     }

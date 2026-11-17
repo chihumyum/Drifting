@@ -52,6 +52,18 @@ pub use head::PageHead;
 /// editor it opens gets one.
 pub fn init(cx: &mut App) {
     links::init(cx);
+    // The shell owns the rail; the editor owns its painted relation layer.
+    // This host connects their app-global seams without a view-to-editor
+    // dependency in dr-view-relations.
+    let relay = |cx: &mut App| {
+        dr_editor::assist::relate::RelationFocus::point(
+            dr_shell::relations::rail_hover(cx).map(|row| row.row),
+            cx,
+        );
+    };
+    relay(cx);
+    cx.observe_global::<dr_shell::relations::RailHover>(relay)
+        .detach();
     settlement::init(cx);
     history::init(cx);
     entry_head::register(cx);

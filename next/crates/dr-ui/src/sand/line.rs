@@ -36,9 +36,10 @@ struct Mask {
 fn mask() -> &'static Mask {
     static MASK: OnceLock<Mask> = OnceLock::new();
     MASK.get_or_init(|| {
-        let image = image::load_from_memory_with_format(SandMask::Ul.png(), image::ImageFormat::Png)
-            .expect("dr-ui's ul.png is a PNG")
-            .to_rgba8();
+        let image =
+            image::load_from_memory_with_format(SandMask::Ul.png(), image::ImageFormat::Png)
+                .expect("dr-ui's ul.png is a PNG")
+                .to_rgba8();
         let (width, height) = (image.width() as usize, image.height() as usize);
         let alpha = image.pixels().map(|p| f32::from(p.0[3]) / 255.0).collect();
         Mask {
