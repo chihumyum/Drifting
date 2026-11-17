@@ -679,9 +679,9 @@ impl Render for Home {
                             .debug_selector(move || row_selector)
                             .child(
                                 Button::new(
-                                ElementId::Name(format!("v3-home-continue-{i}").into()),
-                                page.title,
-                            )
+                                    ElementId::Name(format!("v3-home-continue-{i}").into()),
+                                    page.title,
+                                )
                                 .text()
                                 .on_click(move |_, _, cx| {
                                     ws.update(cx, |ws, cx| {

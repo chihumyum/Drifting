@@ -147,11 +147,7 @@ impl TemplateEditor {
             );
         }
         let mut choices = vec![Choice::plain(t(cx, k::INHERIT))];
-        choices.extend(
-            homes
-                .iter()
-                .map(|(_, label)| Choice::plain(label.clone())),
-        );
+        choices.extend(homes.iter().map(|(_, label)| Choice::plain(label.clone())));
         let selected = self
             .draft
             .settings
@@ -222,11 +218,7 @@ impl TemplateEditor {
             Choice::plain(t(cx, k::INHERIT)),
             Choice::plain(t(cx, k::NONE)),
         ];
-        choices.extend(
-            options
-                .iter()
-                .map(|(_, name)| Choice::plain(name.clone())),
-        );
+        choices.extend(options.iter().map(|(_, name)| Choice::plain(name.clone())));
         let selected = match &self.draft.settings.default_template {
             None => 0,
             Some(None) => 1,
@@ -343,11 +335,7 @@ impl TemplateEditor {
             );
             let targets: Vec<_> = options.to_vec();
             let mut choices = vec![Choice::plain(t(cx, k::CHOOSE_TEMPLATE))];
-            choices.extend(
-                targets
-                    .iter()
-                    .map(|(_, name)| Choice::plain(name.clone())),
-            );
+            choices.extend(targets.iter().map(|(_, name)| Choice::plain(name.clone())));
             let selected = verb
                 .target_template
                 .as_ref()

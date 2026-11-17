@@ -102,7 +102,10 @@ fn a_fill_over_the_paper_takes_the_corner_with_the_paper(cx: &mut TestAppContext
     let (_dir, lib, id) = seed();
     let (view, cx) = open(cx, &lib, &id);
     wait(&view, cx, "the book", |ws, _| ws.book.v3().is_some());
-    assert!(cx.debug_bounds("paper-corner").is_some(), "the corner by the paper");
+    assert!(
+        cx.debug_bounds("paper-corner").is_some(),
+        "the corner by the paper"
+    );
     for place in [FillPlace::Left, FillPlace::Right] {
         cx.update(|window, cx| {
             view.update(cx, |ws, cx| {
@@ -118,6 +121,9 @@ fn a_fill_over_the_paper_takes_the_corner_with_the_paper(cx: &mut TestAppContext
         );
         cx.update(|window, cx| view.update(cx, |ws, cx| ws.exit_fill(window, cx)));
         wait(&view, cx, "the paper again", |ws, _| ws.filled().is_none());
-        assert!(cx.debug_bounds("paper-corner").is_some(), "the corner is back");
+        assert!(
+            cx.debug_bounds("paper-corner").is_some(),
+            "the corner is back"
+        );
     }
 }

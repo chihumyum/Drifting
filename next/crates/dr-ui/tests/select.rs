@@ -76,9 +76,7 @@ impl Render for DialogHost {
                 .body(
                     Select::new(
                         "in-dlg",
-                        (0..8)
-                            .map(|n| Choice::plain(format!("Row {n}")))
-                            .collect(),
+                        (0..8).map(|n| Choice::plain(format!("Row {n}"))).collect(),
                         0,
                     )
                     .in_dialog()

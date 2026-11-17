@@ -1322,7 +1322,9 @@ mod label_tests {
     fn the_agent_labels_fit_their_column_in_every_language() {
         let zh: Vec<SharedString> = ["名字", "说明", "注意事项"].map(Into::into).into();
         assert_eq!(agent_label_width(&zh.iter().collect::<Vec<_>>()), 72.0);
-        let en: Vec<SharedString> = ["Name", "Description", "Instructions"].map(Into::into).into();
+        let en: Vec<SharedString> = ["Name", "Description", "Instructions"]
+            .map(Into::into)
+            .into();
         assert!(agent_label_width(&en.iter().collect::<Vec<_>>()) >= 12.0 * 7.0);
     }
 }

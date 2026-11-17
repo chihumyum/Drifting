@@ -810,9 +810,7 @@ impl Render for TypedFields {
                                 )),
                                 choices
                                     .iter()
-                                    .map(|(_, title)| {
-                                        Choice::plain(title.clone())
-                                    })
+                                    .map(|(_, title)| Choice::plain(title.clone()))
                                     .collect(),
                                 selected,
                             )

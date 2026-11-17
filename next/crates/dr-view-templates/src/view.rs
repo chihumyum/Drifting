@@ -1155,7 +1155,9 @@ impl Render for TemplateEditor {
             .px(px(if compact { 6. } else { 48. }))
             // Clear the title bar's band, where the Tab dock's marks and
             // pills sit over the paper (the material page does the same).
-            .when(!compact, |el| el.pt(px(dr_shell::workspace::TITLEBAR_HEIGHT)))
+            .when(!compact, |el| {
+                el.pt(px(dr_shell::workspace::TITLEBAR_HEIGHT))
+            })
             .font_role(Role::Ui)
             .type_px(theme.scale.body, theme.scale.line_body)
             .text_color(p.ink(1).solid())
