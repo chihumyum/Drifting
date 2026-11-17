@@ -506,5 +506,13 @@
     "templateCount": "{{count}} plantillas",
     "templateStructure": "Estructura de plantillas",
     "unusedTemplates": "Plantillas sin usar"
+  },
+  "v5RelationsProse": {
+    "create": "Relacionar",
+    "confirm": "Crear",
+    "direction": "Dirección",
+    "otherEntry": "Otra entrada",
+    "relation": "Relación",
+    "change": "Cambiar"
   }
 }

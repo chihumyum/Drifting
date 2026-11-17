@@ -486,5 +486,13 @@
     "templateCount": "{{count}} 个模板",
     "templateStructure": "模板结构",
     "unusedTemplates": "未使用的模板"
+  },
+  "v5RelationsProse": {
+    "create": "建关系",
+    "confirm": "建立",
+    "direction": "方向",
+    "otherEntry": "另一个条目",
+    "relation": "关系",
+    "change": "换一个"
   }
 }

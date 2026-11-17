@@ -504,5 +504,13 @@
     "templateCount": "{{count}} Vorlagen",
     "templateStructure": "Vorlagenstruktur",
     "unusedTemplates": "Unbenutzte Vorlagen"
+  },
+  "v5RelationsProse": {
+    "create": "Beziehung anlegen",
+    "confirm": "Anlegen",
+    "direction": "Richtung",
+    "otherEntry": "Anderer Eintrag",
+    "relation": "Beziehung",
+    "change": "Ändern"
   }
 }

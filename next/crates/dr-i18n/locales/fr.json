@@ -1666,6 +1666,14 @@
     "templateStructure": "Structure des modèles",
     "unusedTemplates": "Modèles inutilisés"
   },
+  "v5RelationsProse": {
+    "change": "Changer",
+    "confirm": "Créer",
+    "create": "Relier",
+    "direction": "Sens",
+    "otherEntry": "Autre entrée",
+    "relation": "Relation"
+  },
   "windowCaption": {
     "close": "Fermer",
     "maximize": "Agrandir",

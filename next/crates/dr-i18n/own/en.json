@@ -504,5 +504,13 @@
     "templateCount": "{{count}} templates",
     "templateStructure": "Template structure",
     "unusedTemplates": "Unused templates"
+  },
+  "v5RelationsProse": {
+    "create": "Relate",
+    "confirm": "Create",
+    "direction": "Direction",
+    "otherEntry": "Other entry",
+    "relation": "Relation",
+    "change": "Change"
   }
 }

@@ -1635,6 +1635,14 @@
     "templateStructure": "模板结构",
     "unusedTemplates": "未使用的模板"
   },
+  "v5RelationsProse": {
+    "change": "换一个",
+    "confirm": "建立",
+    "create": "建关系",
+    "direction": "方向",
+    "otherEntry": "另一个条目",
+    "relation": "关系"
+  },
   "windowCaption": {
     "close": "关闭",
     "maximize": "最大化",

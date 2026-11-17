@@ -1641,6 +1641,14 @@
     "templateStructure": "템플릿 구조",
     "unusedTemplates": "사용하지 않는 템플릿"
   },
+  "v5RelationsProse": {
+    "change": "바꾸기",
+    "confirm": "만들기",
+    "create": "관계 만들기",
+    "direction": "방향",
+    "otherEntry": "다른 항목",
+    "relation": "관계"
+  },
   "windowCaption": {
     "close": "닫기",
     "maximize": "최대화",

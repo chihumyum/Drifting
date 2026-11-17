@@ -73,6 +73,8 @@ use loro::LoroValue;
 
 use crate::entity_links::{self, NameIndex};
 
+pub mod relate;
+
 /// The pause after typing before automatic links are written.
 pub const LINK_DELAY: Duration = Duration::from_millis(500);
 /// How long a selection rests before its bar shows.
@@ -378,6 +380,10 @@ pub enum AssistEvent {
     },
     /// The slash menu's 表格 (a material note): a table at the caret.
     InsertTable { chapter: usize },
+    /// 建立 in the relation composer placed a pair in relation row `row`
+    /// (`relation_row.create_pair`, which also answers an existing pair's
+    /// row): the host shows that row in the right column.
+    RelationPlaced { row: String },
     /// 插入素材…: material `material` embedded at the caret. `chapter` is
     /// the chapter the menu was opened in; the caret may have left it while
     /// the system's file window was open (`BookEditor::insert_material` says
@@ -473,6 +479,9 @@ pub struct Assist {
     /// The v3 page host supplies localized format names; legacy hosts keep their labels.
     block_labels: Option<[SharedString; 6]>,
     entry_label: Option<SharedString>,
+    /// Relations in the prose: lines between linked names, the card's
+    /// 「建关系」 and its composer ([`relate`]).
+    relate: relate::Relate,
 }
 
 /// A paragraph's links before an edit: chapter, block id, line, and
@@ -539,7 +548,9 @@ impl Assist {
             card_task: None,
             over_card: false,
             _decor_events: decor_events,
+            relate: relate::Relate::new(),
         };
+        assist.watch_relation_focus(window, cx);
         // What the book is called now: new names are told from these.
         assist.names();
         assist
@@ -591,6 +602,7 @@ impl Assist {
         self._decor_events = Self::watch_decorations(&editor, window, cx);
         self.pointed_link = None;
         self.close_card();
+        self.drop_compose();
         self.undo_counts = Self::counts(&editor, cx);
         self.line_counts = Self::lines(&editor, cx);
         self.editor = editor;
@@ -613,6 +625,7 @@ impl Assist {
     /// name in the text already written is the command's (F3's
     /// `autolink`); its links reach this editor as someone else's write.
     pub fn invalidate_names(&mut self, cx: &mut Context<Self>) {
+        self.relate.invalidate();
         self.names = None;
         self.mention_assets = None;
         self.names_dropped += 1;
@@ -1134,6 +1147,7 @@ impl Assist {
     /// Esc: the picker closes and stays closed for this trigger.
     pub fn dismiss(&mut self, cx: &mut Context<Self>) {
         self.close_card();
+        self.drop_compose();
         self.material_picker = None;
         if let Some(m) = self.menu.take() {
             self.dismissed = Some((m.chapter, m.at));
@@ -1727,6 +1741,7 @@ impl Assist {
         self.card = None;
         self.card_task = None;
         self.over_card = false;
+        self.relate.card_closed();
     }
 
     fn on_decoration(
@@ -1738,6 +1753,11 @@ impl Assist {
         let DecorationEvent::Pointed { ids } = event else {
             return;
         };
+        // While a relation is being made a name is picked, not carded.
+        if self.relate.composing() {
+            self.pointed_link = None;
+            return;
+        }
         let link = ids
             .iter()
             .find(|(_, k)| k.group == "links")
@@ -1812,6 +1832,9 @@ impl Assist {
 
     /// A plain click on a live link: the host opens its target.
     pub fn link_clicked(&mut self, cx: &mut Context<Self>) {
+        if self.relate.composing() {
+            return;
+        }
         let Some((chapter, id)) = self.pointed_link.clone() else {
             return;
         };
@@ -2488,6 +2511,8 @@ impl Render for Assist {
                 });
             }
         }
+        // The relation lines under the card, and the relation composer.
+        root = self.relation_overlay(root, window, cx);
         if let Some(card) = self.card.clone() {
             let painted = self
                 .editor
@@ -2496,7 +2521,25 @@ impl Render for Assist {
             if let Some(rect) =
                 painted.and_then(|p| p.boxes.iter().copied().reduce(|a, b| a.union(&b)))
             {
+                // Away from the lines: above the name when more go down.
+                let above = self.card_goes_above();
                 let this = cx.entity();
+                let actions = if card.facts.target.kind == dr_model::kind::EntityKind::Entry {
+                    let start = cx.entity();
+                    vec![
+                        dr_ui::components::CardAction::new(
+                            "dr-editor-link-card-relate",
+                            Icon::KnotLinks,
+                            self.relate_label(),
+                        )
+                        .on_click(move |_, window, cx| {
+                            start.update(cx, |a, cx| a.start_relation(window, cx));
+                        })
+                        .into_any_element(),
+                    ]
+                } else {
+                    Vec::new()
+                };
                 let body = div()
                     .id("dr-editor-link-card")
                     .occlude()
@@ -2510,12 +2553,22 @@ impl Render for Assist {
                             }
                         });
                     })
-                    .child(crate::link_card::card_element_in(&card.facts, window, cx));
-                root = root.child(dr_ui::components::float(
-                    Place::below(rect, 8.),
-                    Layer::Popover,
-                    body,
-                ));
+                    .child(crate::link_card::card_element_with(
+                        &card.facts,
+                        actions,
+                        window,
+                        cx,
+                    ));
+                let place = if above {
+                    Place::Above {
+                        rect,
+                        align: Align::Start,
+                        gap: 8.,
+                    }
+                } else {
+                    Place::below(rect, 8.)
+                };
+                root = root.child(dr_ui::components::float(place, Layer::Popover, body));
             }
         }
         if let Some((chapter, range)) = self.bar.clone().filter(|_| focused) {
@@ -2565,10 +2618,23 @@ fn wrap_at(
     let copy = assist.clone();
     let cut = assist.clone();
     let paste = assist.clone();
+    // Where the editor is, for the relation lines and their composer.
+    let viewport = {
+        let probe = assist.clone();
+        canvas(
+            move |bounds, _, cx| probe.read(cx).relate.viewport.set(Some(bounds)),
+            |_, _, _, _| {},
+        )
+        .absolute()
+        .top_0()
+        .left_0()
+        .size_full()
+    };
     div()
         .when(fit_content, |d| d.w_full())
         .when(!fit_content, |d| d.size_full())
         .relative()
+        .child(viewport)
         .capture_action(move |_: &gpui_prose::input::actions::Copy, window, cx| {
             if crate::clipboard::copy(&copy.read(cx).editor.clone(), false, window, cx) {
                 cx.stop_propagation();
@@ -2606,7 +2672,8 @@ fn wrap_at(
             let key = event.keystroke.key.as_str();
             if key == "escape" {
                 let a = esc.read(cx);
-                if a.menu.is_some() || a.bar.is_some() || a.card.is_some() {
+                if a.menu.is_some() || a.bar.is_some() || a.card.is_some() || a.relate.composing()
+                {
                     let focus = a.editor.read(cx).focus_handle(cx);
                     window.focus(&focus, cx);
                     esc.update(cx, |a, cx| a.dismiss(cx));

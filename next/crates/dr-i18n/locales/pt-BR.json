@@ -1666,6 +1666,14 @@
     "templateStructure": "Estrutura dos modelos",
     "unusedTemplates": "Modelos não usados"
   },
+  "v5RelationsProse": {
+    "change": "Trocar",
+    "confirm": "Criar",
+    "create": "Relacionar",
+    "direction": "Direção",
+    "otherEntry": "Outra entrada",
+    "relation": "Relação"
+  },
   "windowCaption": {
     "close": "Fechar",
     "maximize": "Maximizar",

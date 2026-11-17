@@ -1657,6 +1657,14 @@
     "templateStructure": "Template structure",
     "unusedTemplates": "Unused templates"
   },
+  "v5RelationsProse": {
+    "change": "Change",
+    "confirm": "Create",
+    "create": "Relate",
+    "direction": "Direction",
+    "otherEntry": "Other entry",
+    "relation": "Relation"
+  },
   "windowCaption": {
     "close": "Close",
     "maximize": "Maximize",

@@ -506,5 +506,13 @@
     "templateCount": "{{count}} modelos",
     "templateStructure": "Estrutura dos modelos",
     "unusedTemplates": "Modelos não usados"
+  },
+  "v5RelationsProse": {
+    "create": "Relacionar",
+    "confirm": "Criar",
+    "direction": "Direção",
+    "otherEntry": "Outra entrada",
+    "relation": "Relação",
+    "change": "Trocar"
   }
 }

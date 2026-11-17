@@ -488,5 +488,13 @@
     "templateCount": "テンプレート {{count}} 件",
     "templateStructure": "テンプレートの構造",
     "unusedTemplates": "未使用のテンプレート"
+  },
+  "v5RelationsProse": {
+    "create": "関係を作る",
+    "confirm": "作成",
+    "direction": "方向",
+    "otherEntry": "相手の項目",
+    "relation": "関係",
+    "change": "変更"
   }
 }

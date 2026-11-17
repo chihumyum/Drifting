@@ -141,9 +141,11 @@ impl WholeBook {
                             let labels = [k::BODY, k::H1, k::H2, k::H3, k::QUOTE, k::RULE]
                                 .map(|k| dr_shell::t(cx, k));
                             let entries = dr_shell::t(cx, k::ENTRIES);
+                            let relation_labels = crate::v3::relation_labels(cx);
                             e.assist().update(cx, |a, _| {
                                 a.set_block_labels(labels);
                                 a.set_entry_label(entries);
+                                a.set_relation_labels(relation_labels);
                             });
                             e.set_base_style(base, cx);
                             e.set_decor_looks(looks, cx);

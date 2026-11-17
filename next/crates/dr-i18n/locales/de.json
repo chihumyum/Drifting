@@ -1657,6 +1657,14 @@
     "templateStructure": "Vorlagenstruktur",
     "unusedTemplates": "Unbenutzte Vorlagen"
   },
+  "v5RelationsProse": {
+    "change": "Ändern",
+    "confirm": "Anlegen",
+    "create": "Beziehung anlegen",
+    "direction": "Richtung",
+    "otherEntry": "Anderer Eintrag",
+    "relation": "Beziehung"
+  },
   "windowCaption": {
     "close": "Schließen",
     "maximize": "Maximieren",

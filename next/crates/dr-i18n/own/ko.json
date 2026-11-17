@@ -488,5 +488,13 @@
     "templateCount": "템플릿 {{count}}개",
     "templateStructure": "템플릿 구조",
     "unusedTemplates": "사용하지 않는 템플릿"
+  },
+  "v5RelationsProse": {
+    "create": "관계 만들기",
+    "confirm": "만들기",
+    "direction": "방향",
+    "otherEntry": "다른 항목",
+    "relation": "관계",
+    "change": "바꾸기"
   }
 }

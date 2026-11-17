@@ -1641,6 +1641,14 @@
     "templateStructure": "テンプレートの構造",
     "unusedTemplates": "未使用のテンプレート"
   },
+  "v5RelationsProse": {
+    "change": "変更",
+    "confirm": "作成",
+    "create": "関係を作る",
+    "direction": "方向",
+    "otherEntry": "相手の項目",
+    "relation": "関係"
+  },
   "windowCaption": {
     "close": "閉じる",
     "maximize": "最大化",

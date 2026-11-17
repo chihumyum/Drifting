@@ -11,6 +11,7 @@
 //! along its path ([`SandFrame`]).
 
 mod icon_names;
+pub mod line;
 mod mask_names;
 pub mod stroke;
 

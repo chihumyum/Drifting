@@ -1666,6 +1666,14 @@
     "templateStructure": "Estructura de plantillas",
     "unusedTemplates": "Plantillas sin usar"
   },
+  "v5RelationsProse": {
+    "change": "Cambiar",
+    "confirm": "Crear",
+    "create": "Relacionar",
+    "direction": "Dirección",
+    "otherEntry": "Otra entrada",
+    "relation": "Relación"
+  },
   "windowCaption": {
     "close": "Cerrar",
     "maximize": "Maximizar",

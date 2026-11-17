@@ -506,5 +506,13 @@
     "templateCount": "{{count}} modèles",
     "templateStructure": "Structure des modèles",
     "unusedTemplates": "Modèles inutilisés"
+  },
+  "v5RelationsProse": {
+    "create": "Relier",
+    "confirm": "Créer",
+    "direction": "Sens",
+    "otherEntry": "Autre entrée",
+    "relation": "Relation",
+    "change": "Changer"
   }
 }
