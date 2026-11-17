@@ -150,6 +150,7 @@
     },
     { "app": "input.key", "params": { "keys": "up up up up" } },
     { "app": "state.get", "expect": { "/v3Sidebar/keyboard/in": "tabs" }, "note": "树的第一行再按 ↑ 进 Tab 行" },
+    { "app": "ui.screenshot", "png": "kb-tabs-light.png", "note": "Tab 行上选中的「全部」多一圈静止的细环" },
     { "app": "input.key", "params": { "keys": "right" } },
     {
       "app": "ui.wait",
