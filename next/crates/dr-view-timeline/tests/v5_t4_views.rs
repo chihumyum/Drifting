@@ -19,7 +19,7 @@ use dr_shell::{
     book::Book,
     nav::Target,
     pages::{BottomHost, PageViewHost},
-    v3::EntryDrag,
+    v3::{EntryDrag, sidebar::Sidebar},
 };
 use dr_view_timeline::v3::{Timeline, model};
 use dr_workspace::{Actor, Workspace as Library};
@@ -53,12 +53,16 @@ struct Host {
     timeline: Entity<Timeline>,
     workspace: Entity<Workspace>,
     drag: Option<EntryDrag>,
+    /// The left column beside the timeline, for drags between the two.
+    sidebar: Option<Entity<Sidebar>>,
 }
 
 impl Render for Host {
     fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        div()
-            .size_full()
+        let main = div()
+            .flex_1()
+            .min_w_0()
+            .h_full()
             .flex()
             .flex_col()
             .when_some(self.drag.clone(), |el, drag| {
@@ -72,7 +76,14 @@ impl Render for Host {
                         .on_drag(drag, |_, _, _, cx| cx.new(|_| DragPreview)),
                 )
             })
-            .child(div().flex_1().min_h_0().child(self.timeline.clone()))
+            .child(div().flex_1().min_h_0().child(self.timeline.clone()));
+        div()
+            .size_full()
+            .flex()
+            .when_some(self.sidebar.clone(), |el, sidebar| {
+                el.child(div().w(px(300.)).h_full().flex_none().child(sidebar))
+            })
+            .child(main)
     }
 }
 
@@ -154,6 +165,7 @@ fn visual<'a>(
             timeline: cx.new(|_| Timeline::new(&host)),
             workspace: ws,
             drag: None,
+            sidebar: None,
         }
     });
     vcx.simulate_resize(size(px(1280.0), px(720.0)));
@@ -174,6 +186,12 @@ fn sync_all(
         })
     });
     refresh(host, lib, id, cx);
+    // The left column follows the workspace's book, as the shell does.
+    if let Some(sidebar) = host.read_with(cx, |h, _| h.sidebar.clone()) {
+        let page = page_host(ws, lib, id, cx);
+        sidebar.update(cx, |s, cx| s.sync(page, cx));
+        frame(cx);
+    }
 }
 
 fn page_host(
@@ -189,6 +207,23 @@ fn page_host(
         book_id: id.to_owned(),
         book,
     }
+}
+
+/// Presses at `from`, moves past the drag threshold and lets go at `to`
+/// (holding `modifiers`): a real drag from whatever is drawn at `from`.
+fn drag_between(
+    from: gpui::Point<gpui::Pixels>,
+    to: gpui::Point<gpui::Pixels>,
+    modifiers: Modifiers,
+    cx: &mut VisualTestContext,
+) {
+    cx.simulate_mouse_down(from, MouseButton::Left, modifiers);
+    cx.simulate_mouse_move(from + point(px(8.), px(0.)), MouseButton::Left, modifiers);
+    frame(cx);
+    cx.simulate_mouse_move(to, MouseButton::Left, modifiers);
+    frame(cx);
+    cx.simulate_mouse_up(to, MouseButton::Left, modifiers);
+    frame(cx);
 }
 
 fn drag_entry_to(
@@ -818,4 +853,263 @@ fn lane_creation_offers_only_lanes_that_take_entries_and_creates_on_them_by_hang
         assert_eq!(sl.clips[0].entry, placed_sl_before.0);
         assert_eq!(sl.clips[0].at, 27.5);
     });
+}
+
+#[gpui::test]
+fn cross_lane_drag_moves_hang_option_multi_hangs_sidebar_drop_detaches_and_narrow_cards_slice_whole_chars(
+    cx: &mut TestAppContext,
+) {
+    let (_dir, lib, id) = seed();
+    let book = Book::load(&lib, &id).unwrap();
+    let v = book.v3().unwrap();
+    let manuscript = v
+        .entries
+        .iter()
+        .find(|e| e.template.as_deref() == Some("tpl-manuscript") && e.parent.is_none())
+        .unwrap()
+        .id
+        .clone();
+    let storylines = v
+        .entries
+        .iter()
+        .find(|e| e.template.as_deref() == Some("tpl-storylines") && e.parent.is_none())
+        .unwrap()
+        .id
+        .clone();
+    let chapter = call(
+        &lib,
+        "entry.create",
+        json!({"book": id, "parent": manuscript, "template": TPL_CHAPTER, "title": "第三章钟楼下"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let lane_a = call(
+        &lib,
+        "entry.create",
+        json!({"book": id, "parent": storylines, "template": TPL_STORYLINE, "title": "主线甲"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let lane_b = call(
+        &lib,
+        "entry.create",
+        json!({"book": id, "parent": storylines, "template": TPL_STORYLINE, "title": "支线乙"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    call(
+        &lib,
+        "timeline_view.put",
+        json!({"book": id, "view": {"id": "t9-drag-view", "name": "Drag View"}}),
+    );
+    call(
+        &lib,
+        "timeline_view.add_lane",
+        json!({"book": id, "view": "t9-drag-view", "lane": lane_a}),
+    );
+    call(
+        &lib,
+        "timeline_view.add_lane",
+        json!({"book": id, "view": "t9-drag-view", "lane": lane_b}),
+    );
+    // A Tab on lane_a: the left column lists what is hung on it.
+    let lane_a_tab = call(
+        &lib,
+        "tab.put",
+        json!({"book": id, "mount": {"kind": "entry", "entry": lane_a}}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    let (host, cx) = visual(cx, &lib, &id);
+    cx.update(|_, cx| dr_view_elements::init(cx));
+    let ws = host.read_with(cx, |h, _| h.workspace.clone());
+    sync_all(&host, &ws, &lib, &id, cx);
+    let t = host.read_with(cx, |h, _| h.timeline.clone());
+    t.update(cx, |t, cx| t.select("t9-drag-view".into(), cx));
+    let page = page_host(&ws, &lib, &id, cx);
+    host.update(cx, |h, cx| {
+        let sidebar = cx.new(|cx| Sidebar::new(page.clone(), cx));
+        sidebar.update(cx, |s, cx| {
+            s.sync(page, cx);
+            s.choose(&lane_a_tab, cx);
+        });
+        h.sidebar = Some(sidebar);
+        cx.notify();
+    });
+    sync_all(&host, &ws, &lib, &id, cx);
+
+    let track_a: &'static str = Box::leak(format!("v3-track-{lane_a}").into_boxed_str());
+    let track_b: &'static str = Box::leak(format!("v3-track-{lane_b}").into_boxed_str());
+    let hosts_of = |lib: &Library, member: &str| -> Vec<String> {
+        call(lib, "membership.list", json!({"book": id}))
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|m| m["member"] == member)
+            .map(|m| m["host"].as_str().unwrap().to_owned())
+            .collect()
+    };
+
+    // 1. Drag from left sidebar onto lane_a: hangs on lane_a, residence stays `manuscript`.
+    let page = page_host(&ws, &lib, &id, cx);
+    drag_entry_to(
+        &host,
+        EntryDrag::new(page, &chapter, "第三章钟楼下"),
+        track_a,
+        140.0,
+        cx,
+    );
+    wait(cx, |_| hosts_of(&lib, &chapter) == vec![lane_a.clone()]);
+    assert_eq!(
+        Book::load(&lib, &id)
+            .unwrap()
+            .v3()
+            .unwrap()
+            .entry(&chapter)
+            .unwrap()
+            .parent
+            .as_deref(),
+        Some(manuscript.as_str())
+    );
+    sync_all(&host, &ws, &lib, &id, cx);
+
+    let placements = || {
+        Book::load(&lib, &id)
+            .unwrap()
+            .v3()
+            .unwrap()
+            .timeline_view("t9-drag-view")
+            .unwrap()
+            .placements
+            .clone()
+    };
+    let before_move = placements();
+    // 2. Drag clip from lane_a onto lane_b without ⌥: moves hang (`换一处挂`).
+    let page = page_host(&ws, &lib, &id, cx);
+    drag_entry_to(
+        &host,
+        EntryDrag::new(page, &chapter, "第三章钟楼下").with_timeline_clip("t9-drag-view", &lane_a),
+        track_b,
+        200.0,
+        cx,
+    );
+    wait(cx, |_| hosts_of(&lib, &chapter) == vec![lane_b.clone()]);
+    sync_all(&host, &ws, &lib, &id, cx);
+
+    lib.undo(&Actor::User)
+        .unwrap()
+        .expect("one undo restores the hang and scale");
+    assert_eq!(hosts_of(&lib, &chapter), vec![lane_a.clone()]);
+    assert_eq!(placements(), before_move);
+    sync_all(&host, &ws, &lib, &id, cx);
+
+    // The hung row in the left column (its dotted guide drawn on lane_a's
+    // Tab) also transfers its hang to the other lane, dragged by the row
+    // itself onto the lane.
+    let hung_row: &'static str =
+        Box::leak(format!("v3-hung-guide-{lane_a}-{chapter}").into_boxed_str());
+    wait(cx, |cx| cx.debug_bounds(hung_row).is_some());
+    let row = cx.debug_bounds(hung_row).unwrap();
+    let lane = cx.debug_bounds(track_b).unwrap();
+    drag_between(
+        point(row.origin.x + px(60.), row.center().y),
+        point(lane.origin.x + px(212.0), lane.center().y),
+        Modifiers::none(),
+        cx,
+    );
+    wait(cx, |_| hosts_of(&lib, &chapter) == vec![lane_b.clone()]);
+    sync_all(&host, &ws, &lib, &id, cx);
+
+    // 3. Drag clip from lane_b onto lane_a WITH ⌥: multi-hangs (`多挂一处`).
+    let page = page_host(&ws, &lib, &id, cx);
+    host.update(cx, |h, cx| {
+        h.drag = Some(
+            EntryDrag::new(page, &chapter, "第三章钟楼下")
+                .with_timeline_clip("t9-drag-view", &lane_b),
+        );
+        cx.notify();
+    });
+    frame(cx);
+    let source = cx.debug_bounds("t4-test-drag-source").unwrap().center();
+    let bounds_a = cx.debug_bounds(track_a).unwrap();
+    let drop_pt = point(bounds_a.origin.x + px(260.0), bounds_a.center().y);
+    let alt = Modifiers {
+        alt: true,
+        ..Modifiers::none()
+    };
+    cx.simulate_mouse_down(source, MouseButton::Left, alt);
+    cx.simulate_mouse_move(source + point(px(8.), px(0.)), MouseButton::Left, alt);
+    frame(cx);
+    cx.simulate_mouse_move(drop_pt, MouseButton::Left, alt);
+    frame(cx);
+    cx.simulate_mouse_up(drop_pt, MouseButton::Left, alt);
+    frame(cx);
+    wait(cx, |_| hosts_of(&lib, &chapter).len() == 2);
+    sync_all(&host, &ws, &lib, &id, cx);
+
+    // 4. Drag clip from lane_a back onto left sidebar: detaches from lane_a (`摘名`),
+    // keeping lane_b and residence untouched. The clip on the timeline is
+    // dragged and let go over the left column, whose drop takes it.
+    let clip: &'static str = Box::leak(format!("v3-clip-{lane_a}-{chapter}").into_boxed_str());
+    wait(cx, |cx| cx.debug_bounds(clip).is_some());
+    let from = cx.debug_bounds(clip).unwrap();
+    let column = cx.debug_bounds("v3-sidebar").unwrap();
+    drag_between(
+        point(from.origin.x + px(12.), from.center().y),
+        point(
+            column.center().x,
+            column.origin.y + column.size.height - px(24.),
+        ),
+        Modifiers::none(),
+        cx,
+    );
+    wait(cx, |_| hosts_of(&lib, &chapter) == vec![lane_b.clone()]);
+    assert_eq!(
+        Book::load(&lib, &id)
+            .unwrap()
+            .v3()
+            .unwrap()
+            .entry(&chapter)
+            .unwrap()
+            .parent
+            .as_deref(),
+        Some(manuscript.as_str())
+    );
+
+    // 5. Whole-char narrowest card slicing: never clips half a character, never adds `…`.
+    cx.update(|window, _| {
+        let font = dr_ui::fonts::Role::Ui.font(dr_ui::fonts::weight::REGULAR);
+        let one_or_two =
+            model::slice_whole_chars("第三章钟楼下", 14.0, px(11.0), font.clone(), window);
+        assert!(!one_or_two.is_empty());
+        assert!(!one_or_two.contains('…'));
+        assert!("第三章钟楼下".starts_with(&one_or_two));
+        assert!(one_or_two.chars().count() <= 2);
+        let full = model::slice_whole_chars("第三章钟楼下", 200.0, px(13.0), font, window);
+        assert_eq!(full, "第三章钟楼下");
+    });
+
+    // 6. Pinch zooms horizontal scale, and ⌥+pinch zooms vertical lane height.
+    let track_center = cx.debug_bounds(track_b).unwrap().center();
+    cx.simulate_event(gpui::PinchEvent {
+        position: track_center,
+        delta: 0.25,
+        modifiers: Modifiers::none(),
+        phase: gpui::TouchPhase::Moved,
+    });
+    frame(cx);
+    assert!(t.read_with(cx, |t, _| t.zoom() > 1.1));
+    cx.simulate_event(gpui::PinchEvent {
+        position: track_center,
+        delta: 0.30,
+        modifiers: alt,
+        phase: gpui::TouchPhase::Moved,
+    });
+    frame(cx);
+    assert!(t.read_with(cx, |t, _| t.zoom_y() > 1.1));
 }

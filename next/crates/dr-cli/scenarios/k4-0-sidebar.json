@@ -199,14 +199,29 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "验收模板"
+        "label": "验收模板",
+        "absent": true
       },
-      "note": "模板集合随书变更刷新"
+      "note": "T9：左下模板集合只有总数和入口。模板卡在铺满后的模板结构。"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Template structure",
+        "role": "Button"
+      }
     },
     {
       "app": "ui.press",
       "params": {
         "label": "验收模板"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Full editor",
+        "role": "Button"
       }
     },
     {
@@ -246,6 +261,13 @@
       }
     },
     {
+      "app": "ui.press",
+      "params": {
+        "label": "Full editor",
+        "role": "Button"
+      }
+    },
+    {
       "app": "ui.wait",
       "params": {
         "state": {
@@ -266,6 +288,14 @@
           "/page": "entry:${entries.[template=tpl-chapter].parent}"
         }
       }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 600
+      },
+      "note": "Opening an entry from the filled column leaves fill; the left column closes back over 420 ms (motion::STRUCTURAL) and nothing in the state says when it is over. Hover once the rows have their open width, or the pointer lands outside the row before the card shows."
     },
     {
       "app": "ui.hover",

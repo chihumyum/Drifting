@@ -4,6 +4,7 @@
     "import": "匯入專案",
     "importFile": "匯入專案（.driftingproject）",
     "importLegacy": "匯入 Drifting 0.1",
+    "importTemplate": "匯入範本",
     "importTemplateFile": "匯入範本（.driftingtemplate）",
     "libraryProjects_one": "{{count}} 個專案",
     "libraryProjects_other": "{{count}} 個專案",
@@ -146,6 +147,21 @@
       "bodyWithoutChapters": "此專案（{{words}} 字 · {{elements}} 個要素）將從全部專案移走。30 天內可從「最近刪除」還原，之後會永久刪除。"
     }
   },
+  "projectTemplates": {
+    "bookDailyTarget": "每日 {{words}} 字",
+    "bookOff": "關",
+    "bookOn": "開",
+    "bookWordTarget": "全書 {{words}} 字",
+    "builtin": "內建",
+    "deleteTitle": "刪除範本「{{name}}」？",
+    "description": "描述",
+    "exportFile": "匯出（.driftingtemplate）",
+    "leftRail": "左欄",
+    "myTemplates": "我的範本",
+    "overwrite": "覆蓋…",
+    "structure": "結構",
+    "timePins": "時間釘"
+  },
   "settings": {
     "appearance": {
       "reduce_motion": "關閉動態效果"
@@ -172,6 +188,14 @@
       "refused_version": "下載的更新不是它標示的版本，可能是舊版本，已拒絕。目前版本仍可繼續使用。",
       "restart": "重新啟動以更新",
       "server_error": "更新服務暫時出了問題，請稍後重試。目前版本仍可繼續使用。"
+    },
+    "keys": {
+      "actions": {
+        "focusLeftSidebar": {
+          "desc": "鍵盤到左欄裡用方向鍵走；再按一次或按 Esc 回到頁面",
+          "label": "進出左欄"
+        }
+      }
     }
   },
   "templateEditor": {
@@ -451,5 +475,33 @@
     "usedIn": "用在",
     "viewList": "列表",
     "viewMasonry": "瀑布流"
+  },
+  "v5Fill": {
+    "attached": "掛在上方",
+    "below": "下面",
+    "cellOff": "關",
+    "cellOn": "開",
+    "entryCount_other": "{{count}} 個條目",
+    "exitFill": "退出鋪滿",
+    "fill": "鋪滿",
+    "fillLeft": "鋪滿左欄",
+    "fillRight": "鋪滿右欄",
+    "fullEditor": "完整編輯",
+    "hangsOn": "掛在",
+    "hungItems": "掛著 {{items}}",
+    "livesIn": "住在",
+    "livesInName": "住在{{name}}",
+    "moveHere": "搬到這裡",
+    "newDefault": "新建預設",
+    "noTemplateEntries": "沒有範本的條目",
+    "resides": "住在下方",
+    "resizeFill": "拖動調整鋪滿區域寬度",
+    "structure": "結構",
+    "structureEntries_other": "{{count}} 條目",
+    "structureLevels_other": "{{count}} 層",
+    "structureTemplates_other": "{{count}} 範本",
+    "templateCount": "{{count}} 個範本",
+    "templateStructure": "範本結構",
+    "unusedTemplates": "未使用的範本"
   }
 }

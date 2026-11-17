@@ -122,11 +122,68 @@
       }
     },
     {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ToggleBottomTimeline"
+      },
+      "note": "收起默认打开的时间线，露出作品主页下方的另存入口。"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/bottom/pane": null
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
       "app": "ui.find",
       "params": {
+        "role": "Button",
         "label": "Save as project template",
-        "absent": true,
-        "timeout_ms": 5000
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "Save as project template"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/dialog": true
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "Button",
+        "label": "New template",
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "escape"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/dialog": false
+        },
+        "timeout_ms": 10000
       }
     },
     {

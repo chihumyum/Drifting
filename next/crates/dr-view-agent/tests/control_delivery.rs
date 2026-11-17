@@ -20,7 +20,7 @@ use dr_agent::{
 use dr_agent_tools::AgentTools;
 use dr_model::id::ConversationId;
 use dr_shell::{
-    Services, SettingsFile, ShellInfo, Workspace as ShellWorkspace, workspace::SuperView,
+    Services, SettingsFile, ShellInfo, Workspace as ShellWorkspace, workspace::FillPlace,
 };
 use dr_store::StoreEvent;
 use dr_testkit::seed::{self, Preset};
@@ -170,16 +170,14 @@ fn terminal_append_cannot_block_control_delivery_close_or_the_window(cx: &mut Te
     .map(|action| action.now_or_never())
     .collect::<Vec<_>>();
     let control_elapsed = control_began.elapsed();
-    cx.simulate_keystrokes(if cfg!(target_os = "macos") {
-        "cmd-alt-4"
-    } else {
-        "ctrl-alt-4"
+    shell.update_in(cx, |shell, window, cx| {
+        shell.enter_fill(FillPlace::Left, window, cx)
     });
     draw(cx);
-    let opened = shell.read_with(cx, |shell, _| shell.super_view);
+    let opened = shell.read_with(cx, |shell, _| shell.filled());
     cx.simulate_keystrokes("escape");
     draw(cx);
-    let dismissed = shell.read_with(cx, |shell, _| shell.super_view.is_none());
+    let dismissed = shell.read_with(cx, |shell, _| shell.filled().is_none());
     let _ = finish_watchdog.send(());
     watchdog.join().unwrap();
     match closed_early {
@@ -241,7 +239,7 @@ fn terminal_append_cannot_block_control_delivery_close_or_the_window(cx: &mut Te
         waiting_for_terminal,
         "close cannot finish before the terminal append returns"
     );
-    assert_eq!(opened, Some(SuperView::Elements));
+    assert_eq!(opened, Some(FillPlace::Left));
     assert!(dismissed);
     assert!(
         !timed_out.load(Ordering::SeqCst),

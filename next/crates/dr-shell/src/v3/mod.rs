@@ -18,10 +18,12 @@ pub mod manage;
 pub mod mark;
 pub mod page;
 pub mod sidebar;
+pub mod tab_fill;
 pub mod tabs;
+pub mod template_structure;
 
 pub use crate::workspace::review::register_entry_comment_card;
-pub use drag::EntryDrag;
+pub use drag::{EntryDrag, TimelineClipDrag};
 pub use editor::{register_editor, register_editor_status};
 pub(crate) use editor::{registered_editor, registered_editor_status};
 
@@ -41,6 +43,14 @@ pub enum DisplaySurface {
     Members,
     /// A left-column Tab: the tree, the level itself first.
     Sidebar,
+    /// A book Tab's flat sequence, shown as grid or board while filled.
+    BookTab,
+}
+
+impl DisplaySurface {
+    pub fn is_sidebar(self) -> bool {
+        matches!(self, Self::Sidebar | Self::BookTab)
+    }
 }
 
 /// The entry an entry page's head or one of its head parts is drawn for.
@@ -77,7 +87,21 @@ pub struct Rendered {
     pub refresh: Option<Refresh>,
     pub reveal: Option<Reveal>,
     pub page_scroll: Option<GivePageScroll>,
+    /// Called when the shell takes the part away while it is still
+    /// wanted (the structure's floating panel closing), so what it holds
+    /// is stored rather than dropped. Not called when its thing is gone.
+    pub leave: Option<Leave>,
+    /// A left-column Tab's tree the keyboard walks (KB): the shell gives it
+    /// the keyboard with this, and it lands on the row of the page in front
+    /// (or the nearest row shown above it, or its first row). A part
+    /// without it (a board, islands) leaves the keyboard on the Tab row.
+    pub land: Option<Land>,
+    /// Where the keyboard is in that tree, for the debug bridge.
+    pub keyboard_state: Option<KeyboardState>,
 }
+pub type Leave = Rc<dyn Fn(&mut App)>;
+pub type Land = Rc<dyn Fn(&mut Window, &mut App)>;
+pub type KeyboardState = Rc<dyn Fn(&Window, &App) -> serde_json::Value>;
 impl Rendered {
     pub fn new(view: impl Into<AnyView>) -> Self {
         Self {
@@ -86,7 +110,27 @@ impl Rendered {
             refresh: None,
             reveal: None,
             page_scroll: None,
+            leave: None,
+            land: None,
+            keyboard_state: None,
         }
+    }
+    /// Where the keyboard is in this part, for the debug bridge.
+    pub fn on_keyboard_state(
+        mut self,
+        f: impl Fn(&Window, &App) -> serde_json::Value + 'static,
+    ) -> Self {
+        self.keyboard_state = Some(Rc::new(f));
+        self
+    }
+    /// The keyboard lands in this part ([`Rendered::land`]).
+    pub fn on_land(mut self, f: impl Fn(&mut Window, &mut App) + 'static) -> Self {
+        self.land = Some(Rc::new(f));
+        self
+    }
+    pub fn on_leave(mut self, f: impl Fn(&mut App) + 'static) -> Self {
+        self.leave = Some(Rc::new(f));
+        self
     }
     pub fn focus(mut self, focus: FocusHandle) -> Self {
         self.focus = Some(focus);
@@ -110,10 +154,12 @@ impl Rendered {
 }
 
 type ModuleMaker = Rc<dyn Fn(ModuleHost, &mut Window, &mut App) -> Rendered>;
+type TabCanvasMaker = Rc<dyn Fn(tab_fill::TabCanvasHost, &mut Window, &mut App) -> Rendered>;
 type DisplayMaker = Rc<dyn Fn(LevelHost, &mut Window, &mut App) -> Rendered>;
 type ActionMaker =
     Rc<dyn Fn(&Target, &crate::pages::PageMenuHost, &App) -> Option<crate::pages::RunRow>>;
 type CardMaker = Rc<dyn Fn(&Target, &crate::pages::PageMenuHost, &App) -> crate::pages::CardRows>;
+type CompactTemplateEditor = Rc<dyn Fn(CompactTemplate, &mut Window, &mut App) -> Option<Rendered>>;
 type TemplateCreator = Rc<dyn Fn(PageViewHost, &mut Window, &mut App)>;
 type HeadMaker = Rc<dyn Fn(EntryHost, &mut Window, &mut App) -> Rendered>;
 type HeadPartMaker = Rc<dyn Fn(EntryHost, &mut Window, &mut App) -> Option<Rendered>>;
@@ -121,12 +167,14 @@ type HeadPartMaker = Rc<dyn Fn(EntryHost, &mut Window, &mut App) -> Option<Rende
 struct Registry {
     modules: BTreeMap<String, ModuleMaker>,
     displays: BTreeMap<String, DisplayMaker>,
+    tab_canvas: Option<TabCanvasMaker>,
     settings: Option<DisplayMaker>,
     head: Option<HeadMaker>,
     head_parts: Vec<HeadPartMaker>,
     actions: BTreeMap<card::EntryAction, ActionMaker>,
     cards: Vec<CardMaker>,
     template_creator: Option<TemplateCreator>,
+    compact_template_editor: Option<CompactTemplateEditor>,
 }
 impl Global for Registry {}
 
@@ -238,6 +286,23 @@ pub fn level_display_as(
     Some(make(host, window, cx))
 }
 
+/// Registers the canvases for the Island and Relation choices of a left Tab.
+pub fn set_tab_canvas(
+    cx: &mut App,
+    make: impl Fn(tab_fill::TabCanvasHost, &mut Window, &mut App) -> Rendered + 'static,
+) {
+    cx.default_global::<Registry>().tab_canvas = Some(Rc::new(make));
+}
+
+pub fn tab_canvas(
+    host: tab_fill::TabCanvasHost,
+    window: &mut Window,
+    cx: &mut App,
+) -> Option<Rendered> {
+    let make = cx.try_global::<Registry>()?.tab_canvas.clone()?;
+    Some(make(host, window, cx))
+}
+
 /// The [`LevelHost::level`] of the outermost entries (a Tab mounted on the
 /// root, `kernel-v5.md` §5): they live under no entry.
 pub const ROOT_LEVEL: &str = "";
@@ -308,4 +373,45 @@ pub fn create_template(host: PageViewHost, window: &mut Window, cx: &mut App) {
     {
         create(host, window, cx);
     }
+}
+
+/// Opens a template's full editor, by its id.
+pub type OpenTemplate = Rc<dyn Fn(String, &mut Window, &mut App)>;
+/// A new template was stored under this id.
+pub type TemplateStored = Rc<dyn Fn(String, &mut App)>;
+
+/// What the structure's floating panel gives the settings-only template
+/// editor (`kernel-v5.md` §9 「在结构里改」).
+#[derive(Clone)]
+pub struct CompactTemplate {
+    pub page: PageViewHost,
+    /// The template; `None` for a new one, written only once the author
+    /// changes something in it.
+    pub template: Option<String>,
+    /// 「完整编辑」: opens the stored template's full editor.
+    pub full: OpenTemplate,
+    /// Esc in one of its fields: the panel closes.
+    pub close: crate::pages::RunRow,
+    /// A new template was stored under this id.
+    pub created: TemplateStored,
+}
+
+/// Registers the settings-only version of the template editor.
+pub fn add_compact_template_editor(
+    cx: &mut App,
+    make: impl Fn(CompactTemplate, &mut Window, &mut App) -> Option<Rendered> + 'static,
+) {
+    cx.default_global::<Registry>().compact_template_editor = Some(Rc::new(make));
+}
+
+pub fn compact_template_editor(
+    host: CompactTemplate,
+    window: &mut Window,
+    cx: &mut App,
+) -> Option<Rendered> {
+    let make = cx
+        .try_global::<Registry>()?
+        .compact_template_editor
+        .clone()?;
+    make(host, window, cx)
 }

@@ -96,6 +96,7 @@
     "import": "Projekt importieren",
     "importFile": "Projekt importieren (.driftingproject)",
     "importLegacy": "Drifting 0.1 importieren",
+    "importTemplate": "Vorlage importieren",
     "importTemplateFile": "Vorlage importieren (.driftingtemplate)",
     "libraryProjects_one": "{{count}} Projekt",
     "libraryProjects_other": "{{count}} Projekte",
@@ -194,11 +195,6 @@
       "submit": "Bestätigen und anmelden",
       "verifying": "Wird geprüft…"
     }
-  },
-  "bottomStatusBar": {
-    "elements": "Elemente",
-    "storyGraph": "Geschichtsgraph",
-    "todoLibrary": "Aufgaben und Materialsammlung"
   },
   "chapterEditor": {
     "synopsisPlaceholder": "Kurzfassung…",
@@ -346,10 +342,6 @@
         "body": "Das Gerüst des Buches. Die linke Seitenleiste lässt sich teilen, jede Hälfte mit einem eigenen Bereich.",
         "closedBody": "Das Gerüst des Buches liegt in der linken Seitenleiste: Kapitel, Elemente und Ideen. Hier öffnen.",
         "title": "Kapitel · Elemente · Ideen"
-      },
-      "superViews": {
-        "body": "Über die runde Schaltfläche im Kopf eines Bereichs öffnen.",
-        "title": "Ansichten im ganzen Fenster"
       },
       "timeline": {
         "body": "Handlungsstränge in Buchreihenfolge oder nach der Zeit der Geschichte, von unterhalb der Seite ausklappbar.",
@@ -519,24 +511,15 @@
     "zoomReset": "An Ansicht anpassen"
   },
   "materialFolders": {
-    "menu": {
-      "open": "Öffnen"
-    },
     "picker": {
       "createAndMove": "Erstellen und verschieben",
       "newPlaceholder": "Name des neuen Ordners"
     },
-    "root": "Alle Materialien",
     "untitled": "Neuer Ordner"
   },
   "memoMaterial": {
     "card": {
       "addSnippetBody": "In diese Notiz schreiben…"
-    },
-    "dialog": {
-      "create": "Erstellen",
-      "newTodo": "Neue Aufgabe",
-      "todoPlaceholder": "Aufgabeninhalt…"
     },
     "error": {
       "openFile": "Datei konnte nicht geöffnet werden: {{error}}",
@@ -547,9 +530,6 @@
       "pdf": "PDF",
       "text": "Notiz"
     },
-    "menu": {
-      "openInSystem": "In System-App öffnen"
-    },
     "preview": {
       "loading": "Wird geladen…",
       "loadingPdf": "PDF wird geladen…",
@@ -559,35 +539,6 @@
       "openPdfFailed": "PDF kann nicht geöffnet werden",
       "previousPage": "Vorherige",
       "renderPdfFailed": "PDF kann nicht dargestellt werden"
-    },
-    "super": {
-      "all": "Alle",
-      "clearEntityFilter": "Beziehungsfilter löschen",
-      "collapseDrawer": "Schublade einklappen",
-      "commentEmptyHint": "Mit + einen Kommentar erstellen oder im Editor Text markieren und kommentieren",
-      "comments": "Kommentare",
-      "entityFilterAll": "Beziehungen · Alle",
-      "expandDrawer": "Schublade aufklappen",
-      "hideKind": "Klicken, um diese Art auszublenden",
-      "material": "Material",
-      "meta": "{{todos}} Aufgaben · {{comments}} Kommentare · {{materials}} Materialien",
-      "noFilteredMaterials": "Keine Materialien entsprechen den Filtern.",
-      "noMaterials": "Dieses Projekt hat noch keine Materialien.",
-      "noOrphans": "Alle Materialien sind mit mindestens einer Entität verknüpft.",
-      "noResolved": "Noch nichts erledigt.",
-      "orphanHeader": "Unsortiert · Unverknüpfte Materialien",
-      "orphans": "Unsortiert",
-      "reopenShort": "Erneut öffnen",
-      "resizeComments": "Breite der Kommentarspalte ändern",
-      "resizeTodos": "Breite der Aufgabenspalte ändern",
-      "resolved": "Erledigt",
-      "resolvedHeader": "Erledigt · Archiv für Aufgaben und Kommentare",
-      "searchPlaceholder": "Titel oder Text durchsuchen…",
-      "showKind": "Klicken zum Anzeigen",
-      "todoEmptyHint": "Mit + eine Aufgabe erstellen oder auf einer Kommentarkarte „Zu Aufgabe“ wählen"
-    },
-    "todo": {
-      "empty": "(leere Aufgabe)"
     }
   },
   "mirrorV5": {
@@ -613,9 +564,6 @@
     "projectActions": {
       "deleteFailed": "Projekt konnte nicht gelöscht werden. Bitte erneut versuchen."
     }
-  },
-  "navigation": {
-    "back": "Zurück"
   },
   "nodeEditor": {
     "meta": {
@@ -651,9 +599,6 @@
     },
     "notice": {
       "source": "Mitteilung"
-    },
-    "organize": {
-      "source": "Agent"
     },
     "remove": "Entfernen",
     "shareComments": {
@@ -698,6 +643,14 @@
   "preAlphaGuide": {
     "crashReports": "Die App sendet Fehlerberichte ohne Manuskripttext, damit Probleme behoben werden können. Abschaltbar unter Einstellungen → Datenschutz.",
     "title": "Willkommen bei Drifting Alpha"
+  },
+  "projectAgent": {
+    "checkinFailed": "Deine letzten Änderungen wurden nicht fertig gelesen: {{error}}",
+    "checkinRunning": "Agent liest deine letzten Änderungen…",
+    "dismiss": "Verwerfen",
+    "openConversation": "Gespräch öffnen",
+    "start": "An Agent übergeben",
+    "startFailed": "Konnte nicht gestartet werden: {{error}}"
   },
   "projectHome": {
     "book": {
@@ -848,6 +801,21 @@
       "restoring": "Wird wiederhergestellt…"
     }
   },
+  "projectTemplates": {
+    "bookDailyTarget": "Täglich {{words}} Wörter",
+    "bookOff": "Aus",
+    "bookOn": "Ein",
+    "bookWordTarget": "Gesamt {{words}} Wörter",
+    "builtin": "Integriert",
+    "deleteTitle": "Vorlage „{{name}}“ löschen?",
+    "description": "Beschreibung",
+    "exportFile": "Exportieren (.driftingtemplate)",
+    "leftRail": "Linke Seitenleiste",
+    "myTemplates": "Meine Vorlagen",
+    "overwrite": "Überschreiben…",
+    "structure": "Struktur",
+    "timePins": "Zeitmarken"
+  },
   "referencesPanel": {
     "actions": {
       "linkEntity": "Entität verknüpfen"
@@ -887,15 +855,12 @@
     "commentPlaceholder": "Kommentar schreiben…",
     "empty": "Keine Prüfeinträge in diesem Bereich.",
     "filters": {
-      "all": "Beides",
-      "comment": "Kommentare",
-      "todo": "Aufgaben"
+      "all": "Beides"
     },
     "groups": {
       "deleted": "Gelöscht",
       "floating": "Nicht angehängt"
     },
-    "newComment": "Neuer Kommentar",
     "scopes": {
       "current": "Aktuell"
     },
@@ -1182,6 +1147,10 @@
           "desc": "Sucht Text im geöffneten Editor",
           "label": "Im aktuellen Editor suchen"
         },
+        "focusLeftSidebar": {
+          "desc": "Die linke Seitenleiste mit den Pfeiltasten durchgehen; erneut drücken oder Esc, um zur Seite zurückzukehren",
+          "label": "In die linke Seitenleiste"
+        },
         "globalSearch": {
           "desc": "Durchsucht Kapitel, Handlungsstränge, Elemente und Kategorien",
           "label": "Globale Suche"
@@ -1392,13 +1361,11 @@
       "unpin": "Zur automatischen Anordnung zurückkehren"
     },
     "layout": {
-      "isles": "Inseln",
       "relate": "Beziehungen"
     },
     "linkHintFrom": "Von",
     "linkHintTo": "zu… zweites Element oder Kapitel wählen, Esc bricht ab",
     "manualRelationTitle": "Neue manuelle Beziehung",
-    "meta": "{{categories}} Kategorien · {{elements}} Elemente",
     "relate": {
       "relayout": "Neu anordnen"
     },
@@ -1716,6 +1683,38 @@
     "usedIn": "Verwendet in",
     "viewList": "Liste",
     "viewMasonry": "Masonry"
+  },
+  "v5Fill": {
+    "attached": "Angehängt",
+    "below": "Darunter",
+    "cellOff": "Aus",
+    "cellOn": "An",
+    "entryCount_one": "{{count}} Eintrag",
+    "entryCount_other": "{{count}} Einträge",
+    "exitFill": "Füllen beenden",
+    "fill": "Füllen",
+    "fillLeft": "Linke Seitenleiste füllen",
+    "fillRight": "Rechte Seitenleiste füllen",
+    "fullEditor": "Vollständiger Editor",
+    "hangsOn": "Hängt an",
+    "hungItems": "Angehängt: {{items}}",
+    "livesIn": "Wohnt in",
+    "livesInName": "Wohnt in {{name}}",
+    "moveHere": "Hierher verschieben",
+    "newDefault": "Neu standardmäßig",
+    "noTemplateEntries": "Einträge ohne Vorlage",
+    "resides": "Untergeordnet",
+    "resizeFill": "Breite des gefüllten Bereichs anpassen",
+    "structure": "Struktur",
+    "structureEntries_one": "{{count}} Eintrag",
+    "structureEntries_other": "{{count}} Einträge",
+    "structureLevels_one": "{{count}} Ebene",
+    "structureLevels_other": "{{count}} Ebenen",
+    "structureTemplates_one": "{{count}} Vorlage",
+    "structureTemplates_other": "{{count}} Vorlagen",
+    "templateCount": "{{count}} Vorlagen",
+    "templateStructure": "Vorlagenstruktur",
+    "unusedTemplates": "Unbenutzte Vorlagen"
   },
   "windowCaption": {
     "close": "Schließen",

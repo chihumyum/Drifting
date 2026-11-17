@@ -478,6 +478,9 @@ pub const AGENT_PROVIDER: &str = "agent.provider";
 pub const AGENT_MODEL: &str = "agent.model";
 pub const AGENT_THINKING: &str = "agent.thinking";
 pub const AGENT_MAX_MODEL_ROUNDS: &str = "agent.max_model_rounds";
+/// 主动建议: whether the Agent looks at the latest changes and leaves
+/// suggestion cards on Project Home. Every project, this device only.
+pub const AGENT_PROACTIVE: &str = "agent.proactive_suggestions";
 pub const TEXT_SIZE: &str = "appearance.interface_text_size";
 /// 关闭动态效果: on, nothing moves whatever the system says; off, the
 /// system's 减少动态效果 decides.
@@ -603,6 +606,18 @@ pub static REGISTRY: &[SettingDef] = &[
         label: keys::settings::agent_limits::ITERATION_LABEL,
         description: Some(keys::settings::agent_limits::DESC),
         search: &["limit", "iterations", "上限", "迭代"],
+    },
+    // The last row of 智能 → Agent (HC, kernel-v5.md §15 #46).
+    SettingDef {
+        key: AGENT_PROACTIVE,
+        kind: Kind::Switch,
+        default: Initial::Bool(true),
+        scope: Scope::Device,
+        section: Section::Agent,
+        group: None,
+        label: keys::project_home::settings::PROACTIVE,
+        description: None,
+        search: &["proactive", "suggestions", "主动建议", "建议"],
     },
     SettingDef {
         key: THEME,

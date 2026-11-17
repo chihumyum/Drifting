@@ -24,12 +24,12 @@
         },
         "settings": {
           "device": {
+            "agent.proactive_suggestions": false,
             "modules": {
               "first_run.done": true,
               "guides.seen": [
                 "workspace-tour"
-              ],
-              "agent.proactive_suggestions": false
+              ]
             }
           },
           "account": {

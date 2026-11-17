@@ -1,0 +1,981 @@
+{
+  "about": "内核 v5 T9。用隔离的 lite 种子验收栏开关、三处铺满、Tab 的本机摆法和模板结构的改动。",
+  "steps": [
+    {
+      "seed": "lite"
+    },
+    {
+      "call": "book.list",
+      "input": {},
+      "save": "books"
+    },
+    {
+      "call": "entry_template.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "templates"
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "roots"
+    },
+    {
+      "call": "timeline_view.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "views"
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${views.0.lanes.0.entry}"
+      },
+      "save": "lane"
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_WINDOW_DISPLAY": "secondary",
+          "DRIFTING_APPEARANCE": "light"
+        },
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true
+            }
+          },
+          "account": {
+            "language.ui_locale": "en"
+          }
+        }
+      }
+    },
+    {
+      "app": "app.info",
+      "save": "window"
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${books.0.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/book/version": 5,
+          "/fill": null,
+          "/left/open": false
+        },
+        "timeout_ms": 12000
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-alt-3 secondary-alt-4 secondary-alt-5"
+      }
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/fill": null
+      }
+    },
+    {
+      "app": "ui.hover",
+      "params": {
+        "label": "Fill left sidebar",
+        "role": "Button"
+      },
+      "note": "W25Final: pointing at the moon behind only darkens it; the order and the ink stay."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 300
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "moons-closed-hover-back.png"
+    },
+    {
+      "app": "ui.hover",
+      "params": {
+        "label": "Open left sidebar",
+        "role": "Button"
+      },
+      "note": "Pointing at the moon in front changes nothing."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 300
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "moons-closed-hover-front.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Fill left sidebar",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/fill": "left",
+          "/left/open": true,
+          "/bottom/pane": null
+        },
+        "timeout_ms": 12000
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "left-filled.png"
+    },
+    {
+      "app": "ui.hover",
+      "params": {
+        "label": "Close left sidebar",
+        "role": "Button"
+      },
+      "note": "Filled: the black moon is in front, the crescent behind darkens under the pointer."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 300
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "moons-filled-hover-back.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Fill right sidebar",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/fill": "right",
+          "/left/open": false,
+          "/right/open": true,
+          "/bottom/pane": null
+        },
+        "timeout_ms": 12000
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "right-review.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Stats",
+        "role": "RadioButton"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/fill": null,
+          "/right/open": true
+        },
+        "timeout_ms": 12000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Fill right sidebar",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/fill": null
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Library",
+        "role": "RadioButton"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Fill right sidebar",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/fill": "right"
+        },
+        "timeout_ms": 12000
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "right-library.png"
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "escape"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/fill": null,
+          "/right/open": true
+        },
+        "timeout_ms": 12000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Open left sidebar",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/left/open": true,
+          "/bottom/pane": "timeline"
+        },
+        "timeout_ms": 12000
+      }
+    },
+    {
+      "app": "ui.hover",
+      "params": {
+        "label": "Fill left sidebar",
+        "role": "Button"
+      },
+      "note": "Open: the crescent in front, the hollow full moon behind darkens under the pointer."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 300
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "moons-open-hover-back.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Fill",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/fill": "bottom",
+          "/left/open": true,
+          "/right/open": true
+        },
+        "timeout_ms": 12000
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 500
+      },
+      "note": "The structural transition animates the lane height."
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Lane ${lane.title}",
+        "role": "Group"
+      },
+      "save": "laneTrack",
+      "expect": {
+        "/nodes/0/bounds/height": 76.0
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "bottom-filled.png"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${roots.1.title}",
+        "role": "Group",
+        "count": 1
+      },
+      "save": "residenceRow"
+    },
+    {
+      "app": "input.drag",
+      "params": {
+        "from": "${residenceRow.nodes.0.center}",
+        "to": [760, "${laneTrack.nodes.0.center.1}"],
+        "steps": 14
+      },
+      "note": "Drop on the visible first lane near the start of its scale."
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${roots.1.title}",
+        "role": "Button",
+        "within": {
+          "label": "Lane ${lane.title}",
+          "role": "Group"
+        }
+      },
+      "save": "hungClip"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Placement actions",
+        "role": "Button",
+        "within": {
+          "label": "${roots.1.title}",
+          "role": "Group",
+          "within": {
+            "label": "Lane ${lane.title}",
+            "role": "Group"
+          }
+        }
+      },
+      "note": "Wait for the persisted placement to become editable before dragging it back."
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${roots.1.id}"
+      },
+      "expect": {
+        "/parent": null
+      }
+    },
+    {
+      "app": "input.drag",
+      "params": {
+        "from": "${hungClip.nodes.0.center}",
+        "to": "${residenceRow.nodes.0.center}",
+        "steps": 14
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${roots.1.title}",
+        "role": "Button",
+        "within": {
+          "label": "Lane ${lane.title}",
+          "role": "Group"
+        },
+        "absent": true
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Exit fill",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/fill": null,
+          "/bottom/pane": "timeline"
+        },
+        "timeout_ms": 12000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Fill left sidebar",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/fill": "left",
+          "/bottom/pane": null
+        },
+        "timeout_ms": 12000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Relations",
+        "role": "RadioButton"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/v3Sidebar/fillLayout": "relation"
+        },
+        "timeout_ms": 12000
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "left-relations.png"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Resize filled area",
+        "role": "Button"
+      },
+      "save": "edge"
+    },
+    {
+      "app": "input.drag",
+      "params": {
+        "from": "${edge.nodes.0.center}",
+        "to": [
+          610,
+          320
+        ],
+        "steps": 14
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/fill": "left",
+          "/fillWidth": 610.0
+        },
+        "timeout_ms": 12000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Template structure",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/v3Sidebar/templateStructure": true,
+          "/v3Sidebar/structureView/face": "templates"
+        },
+        "timeout_ms": 12000
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "left-structure.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Level",
+        "role": "RadioButton"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/v3Sidebar/structureView/face": "levels"
+        },
+        "timeout_ms": 12000
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "structure-levels.png"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${roots.1.title}",
+        "role": "Button"
+      },
+      "save": "levelFrom"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${roots.0.title}",
+        "role": "Button"
+      },
+      "save": "levelTo"
+    },
+    {
+      "app": "input.drag",
+      "params": {
+        "from": "${levelFrom.nodes.0.center}",
+        "to": "${levelTo.nodes.0.center}",
+        "steps": 14
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 700
+      }
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${roots.1.id}"
+      },
+      "expect": {
+        "/parent": "${roots.0.id}"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-z"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 700
+      }
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${roots.1.id}"
+      },
+      "expect": {
+        "/parent": null
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Templates",
+        "role": "RadioButton"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "${templates.0.name}",
+        "role": "Button",
+        "dy": 30
+      },
+      "note": "The legend floats over the top right of the board (W12Template); press the card below it."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/v3Sidebar/structureView/edit": "template:${templates.0.id}"
+        },
+        "timeout_ms": 12000
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "structure-panel.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Template name"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-a"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "Synthetic T9 template name"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Save",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 700
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Full editor",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/fill": "left",
+          "/activeTab": 0,
+          "/page": "template:${templates.0.id}",
+          "/tabs/0/leaves/0/target": "template:${templates.0.id}"
+        },
+        "timeout_ms": 12000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Synthetic T9 template name",
+        "role": "RadioButton"
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "structure-full-editor.png"
+    },
+    {
+      "app": "ui.hover",
+      "params": {
+        "label": "Synthetic T9 template name",
+        "role": "RadioButton"
+      },
+      "note": "W11Right: above a fill the open documents are dots; under the hand they grow into pills."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 600
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "fill-pills-open.png"
+    },
+    {
+      "call": "entry_template.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "expect": {
+        "/0/name": "Synthetic T9 template name"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Synthetic T9 template name",
+        "role": "RadioButton"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/fill": null,
+          "/activeTab": 0
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Fill left sidebar",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/fill": "left"
+        }
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-["
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/fill": null,
+          "/activeTab": 0
+        },
+        "timeout_ms": 12000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "New template",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/fill": null,
+          "/activeTab": 1
+        },
+        "timeout_ms": 12000
+      },
+      "note": "Not filled, from the left foot (W12Template): the new template is stored and K5's full editor opens on it in a new pill."
+    },
+    {
+      "call": "entry_template.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "afterNew",
+      "expect": {
+        "/[name=Untitled]/name": "Untitled",
+        "/19": null
+      },
+      "note": "The lite seed's 18 templates and the new 「未命名」 one."
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/dialog": false,
+        "/page": "template:${afterNew.[name=Untitled].id}",
+        "/tabs/1/leaves/0/target": "template:${afterNew.[name=Untitled].id}"
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "new-template-pill.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Fill left sidebar",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/fill": "left"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Project Home",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/fill": null,
+          "/activeTab": null
+        },
+        "timeout_ms": 12000
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ToggleBottomTimeline"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/bottom/pane": null
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 500
+      },
+      "note": "Let the paper and the bottom panel finish resizing before scrolling the Home page."
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 840,
+        "y": 500,
+        "dy": 1800
+      }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 500,
+        "y": 500,
+        "dy": -260
+      },
+      "note": "Bring the project template block above the Agent fields into the screenshot."
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "home-structure.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Structure",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/fill": "left",
+          "/v3Sidebar/templateStructure": true
+        },
+        "timeout_ms": 12000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "All",
+        "role": "RadioButton"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/v3Sidebar/templateStructure": false,
+          "/v3Sidebar/fillLayout": "relation"
+        },
+        "timeout_ms": 12000
+      }
+    },
+    {
+      "app": "window.close"
+    },
+    {
+      "app": "window.open"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/book/version": 5,
+          "/fill": null
+        },
+        "timeout_ms": 12000
+      }
+    },
+    {
+      "app": "app.info",
+      "save": "reopenedWindow"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Fill left sidebar",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/fill": "left",
+          "/v3Sidebar/fillLayout": "relation"
+        },
+        "timeout_ms": 12000
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ToggleProjects"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/fill": null,
+          "/projects": true
+        }
+      }
+    },
+    {
+      "app": "app.quit"
+    }
+  ]
+}

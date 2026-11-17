@@ -65,7 +65,8 @@ impl From<Icon> for RowIcon {
 #[derive(IntoElement)]
 pub struct MenuItem {
     id: ElementId,
-    icon: RowIcon,
+    /// `None`: a row of words alone ([`MenuItem::plain`]).
+    icon: Option<RowIcon>,
     label: SharedString,
     danger: bool,
     checked: bool,
@@ -82,8 +83,17 @@ impl MenuItem {
         label: impl Into<SharedString>,
     ) -> MenuItem {
         MenuItem {
+            icon: Some(icon.into()),
+            ..MenuItem::plain(id, label)
+        }
+    }
+
+    /// A row of words alone, without an icon: a list of names (the save
+    /// dialog's 「覆盖…」 list). A menu's rows all have an icon or none do.
+    pub fn plain(id: impl Into<ElementId>, label: impl Into<SharedString>) -> MenuItem {
+        MenuItem {
             id: id.into(),
-            icon: icon.into(),
+            icon: None,
             label: label.into(),
             danger: false,
             checked: false,
@@ -194,7 +204,9 @@ impl RenderOnce for MenuItem {
         .type_px(s.menu_text, s.menu_line)
         .text_color(ink.solid())
         .when(self.checked, |el| el.weight(weight::MEDIUM))
-        .child(row_icon(self.icon, &id, ink.solid()))
+        .when_some(self.icon, |el, icon| {
+            el.child(row_icon(icon, &id, ink.solid()))
+        })
         .child(div().flex_1().min_w_0().child(self.label))
         .when_some(self.trailing, |el, t| {
             el.child(
@@ -296,6 +308,13 @@ impl Menu {
     /// A select's list is as wide as its trigger, never narrower than 240.
     pub fn at_least(mut self, width: f32) -> Self {
         self.width_px = Some(width.max(m::WIDTH_STANDARD));
+        self
+    }
+
+    /// Exactly `width` wide, where a design gives the width (the save
+    /// dialog's 「覆盖…」 list, 220).
+    pub fn exactly(mut self, width: f32) -> Self {
+        self.width_px = Some(width);
         self
     }
 

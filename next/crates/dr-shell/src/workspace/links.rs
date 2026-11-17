@@ -77,7 +77,7 @@ impl Workspace {
             end: (start != end).then_some(end),
         });
         self.shelf_open = false;
-        self.super_view = None;
+        self.exit_fill(window, cx);
         self.nav.open_at(target.clone(), lines);
         self.visited_on_open_page(&target, cx);
         self.changed(cx);

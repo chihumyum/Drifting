@@ -96,6 +96,7 @@
     "import": "Importar projeto",
     "importFile": "Importar projeto (.driftingproject)",
     "importLegacy": "Importar Drifting 0.1",
+    "importTemplate": "Importar modelo",
     "importTemplateFile": "Importar modelo (.driftingtemplate)",
     "libraryProjects_many": "{{count}} projetos",
     "libraryProjects_one": "{{count}} projeto",
@@ -196,11 +197,6 @@
       "submit": "Verificar e entrar",
       "verifying": "Verificando…"
     }
-  },
-  "bottomStatusBar": {
-    "elements": "Elementos",
-    "storyGraph": "Grafo da história",
-    "todoLibrary": "Tarefas e biblioteca de materiais"
   },
   "chapterEditor": {
     "synopsisPlaceholder": "Sinopse…",
@@ -348,10 +344,6 @@
         "body": "A estrutura do livro. A barra lateral esquerda pode ser dividida em duas, cada metade com seu próprio painel.",
         "closedBody": "A estrutura do livro fica na barra lateral esquerda: capítulos, elementos e ideias. Abra aqui.",
         "title": "Capítulos · Elementos · Ideias"
-      },
-      "superViews": {
-        "body": "Abra pelo botão redondo no cabeçalho de um painel.",
-        "title": "Visualizações de janela inteira"
       },
       "timeline": {
         "body": "As linhas narrativas aparecem sob a página, na ordem do livro ou no tempo da história.",
@@ -522,24 +514,15 @@
     "zoomReset": "Ajustar à visualização"
   },
   "materialFolders": {
-    "menu": {
-      "open": "Abrir"
-    },
     "picker": {
       "createAndMove": "Criar e mover",
       "newPlaceholder": "Nome da nova pasta"
     },
-    "root": "Todos os materiais",
     "untitled": "Nova pasta"
   },
   "memoMaterial": {
     "card": {
       "addSnippetBody": "Escreva nesta nota…"
-    },
-    "dialog": {
-      "create": "Criar",
-      "newTodo": "Nova tarefa",
-      "todoPlaceholder": "Conteúdo da tarefa…"
     },
     "error": {
       "openFile": "Não foi possível abrir o arquivo: {{error}}",
@@ -550,9 +533,6 @@
       "pdf": "PDF",
       "text": "Nota"
     },
-    "menu": {
-      "openInSystem": "Abrir no aplicativo do sistema"
-    },
     "preview": {
       "loading": "Carregando…",
       "loadingPdf": "Carregando PDF…",
@@ -562,35 +542,6 @@
       "openPdfFailed": "Não é possível abrir o PDF",
       "previousPage": "Anterior",
       "renderPdfFailed": "Não é possível renderizar o PDF"
-    },
-    "super": {
-      "all": "Todos",
-      "clearEntityFilter": "Limpar filtro de relações",
-      "collapseDrawer": "Recolher gaveta",
-      "commentEmptyHint": "Use + para criar um comentário ou selecione um texto no editor para comentar",
-      "comments": "Comentários",
-      "entityFilterAll": "Relações · Todas",
-      "expandDrawer": "Expandir gaveta",
-      "hideKind": "Clique para ocultar este tipo",
-      "material": "Material",
-      "meta": "{{todos}} tarefas · {{comments}} comentários · {{materials}} materiais",
-      "noFilteredMaterials": "Nenhum material corresponde aos filtros.",
-      "noMaterials": "Este projeto ainda não tem materiais.",
-      "noOrphans": "Todos os materiais estão vinculados a pelo menos uma entidade.",
-      "noResolved": "Ainda não há nada resolvido.",
-      "orphanHeader": "Não organizado · Materiais sem vínculos",
-      "orphans": "Não organizado",
-      "reopenShort": "Reabrir",
-      "resizeComments": "Redimensionar a coluna de comentários",
-      "resizeTodos": "Redimensionar a coluna de tarefas",
-      "resolved": "Resolvido",
-      "resolvedHeader": "Resolvido · Arquivo de tarefas e comentários",
-      "searchPlaceholder": "Buscar título ou texto…",
-      "showKind": "Clique para mostrar",
-      "todoEmptyHint": "Use + para criar uma tarefa ou escolha “Para tarefa” num cartão de comentário"
-    },
-    "todo": {
-      "empty": "(tarefa vazia)"
     }
   },
   "mirrorV5": {
@@ -616,9 +567,6 @@
     "projectActions": {
       "deleteFailed": "Não foi possível excluir o projeto. Tente novamente."
     }
-  },
-  "navigation": {
-    "back": "Voltar"
   },
   "nodeEditor": {
     "meta": {
@@ -655,9 +603,6 @@
     },
     "notice": {
       "source": "Aviso"
-    },
-    "organize": {
-      "source": "Agent"
     },
     "remove": "Remover",
     "shareComments": {
@@ -702,6 +647,14 @@
   "preAlphaGuide": {
     "crashReports": "O aplicativo envia relatórios de falha sem o texto do manuscrito para ajudar a corrigir problemas. Desative em Configurações → Privacidade.",
     "title": "Boas-vindas ao Drifting Alpha"
+  },
+  "projectAgent": {
+    "checkinFailed": "Não foi possível terminar de ler suas alterações recentes: {{error}}",
+    "checkinRunning": "O Agent está lendo suas alterações recentes…",
+    "dismiss": "Dispensar",
+    "openConversation": "Abrir conversa",
+    "start": "Entregar ao Agent",
+    "startFailed": "Não foi possível iniciar: {{error}}"
   },
   "projectHome": {
     "book": {
@@ -857,6 +810,21 @@
       "restoring": "Restaurando…"
     }
   },
+  "projectTemplates": {
+    "bookDailyTarget": "Diário {{words}} palavras",
+    "bookOff": "Desativado",
+    "bookOn": "Ativado",
+    "bookWordTarget": "Livro {{words}} palavras",
+    "builtin": "Integrado",
+    "deleteTitle": "Excluir o modelo “{{name}}”?",
+    "description": "Descrição",
+    "exportFile": "Exportar (.driftingtemplate)",
+    "leftRail": "Barra lateral esquerda",
+    "myTemplates": "Meus modelos",
+    "overwrite": "Substituir…",
+    "structure": "Estrutura",
+    "timePins": "Pinos de tempo"
+  },
   "referencesPanel": {
     "actions": {
       "linkEntity": "Vincular entidade"
@@ -896,15 +864,12 @@
     "commentPlaceholder": "Escreva um comentário…",
     "empty": "Não há itens de revisão neste escopo.",
     "filters": {
-      "all": "Ambos",
-      "comment": "Comentários",
-      "todo": "Tarefas"
+      "all": "Ambos"
     },
     "groups": {
       "deleted": "Excluídos",
       "floating": "Não vinculados"
     },
-    "newComment": "Novo comentário",
     "scopes": {
       "current": "Atual"
     },
@@ -1191,6 +1156,10 @@
           "desc": "Busca texto no editor aberto",
           "label": "Buscar no editor atual"
         },
+        "focusLeftSidebar": {
+          "desc": "Percorra a barra lateral esquerda com as setas; pressione de novo ou Esc para voltar à página",
+          "label": "Ir para a barra lateral esquerda"
+        },
         "globalSearch": {
           "desc": "Busca em capítulos, linhas narrativas, elementos e categorias",
           "label": "Busca global"
@@ -1401,13 +1370,11 @@
       "unpin": "Voltar ao layout automático"
     },
     "layout": {
-      "isles": "Ilhas",
       "relate": "Relações"
     },
     "linkHintFrom": "De",
     "linkHintTo": "para… escolha um segundo elemento ou capítulo; Esc cancela",
     "manualRelationTitle": "Nova relação manual",
-    "meta": "{{categories}} categorias · {{elements}} elementos",
     "relate": {
       "relayout": "Reorganizar"
     },
@@ -1725,6 +1692,38 @@
     "usedIn": "Usado em",
     "viewList": "Lista",
     "viewMasonry": "Mosaico"
+  },
+  "v5Fill": {
+    "attached": "Vinculado a",
+    "below": "Abaixo",
+    "cellOff": "Não",
+    "cellOn": "Sim",
+    "entryCount_one": "{{count}} entrada",
+    "entryCount_other": "{{count}} entradas",
+    "exitFill": "Sair do preenchimento",
+    "fill": "Preencher",
+    "fillLeft": "Preencher barra esquerda",
+    "fillRight": "Preencher barra direita",
+    "fullEditor": "Editor completo",
+    "hangsOn": "Vinculado a",
+    "hungItems": "Vinculados: {{items}}",
+    "livesIn": "Vive em",
+    "livesInName": "Vive em {{name}}",
+    "moveHere": "Mover para cá",
+    "newDefault": "Novo padrão",
+    "noTemplateEntries": "Entradas sem modelo",
+    "resides": "Dentro de",
+    "resizeFill": "Ajustar largura da área preenchida",
+    "structure": "Estrutura",
+    "structureEntries_one": "{{count}} entrada",
+    "structureEntries_other": "{{count}} entradas",
+    "structureLevels_one": "{{count}} nível",
+    "structureLevels_other": "{{count}} níveis",
+    "structureTemplates_one": "{{count}} modelo",
+    "structureTemplates_other": "{{count}} modelos",
+    "templateCount": "{{count}} modelos",
+    "templateStructure": "Estrutura dos modelos",
+    "unusedTemplates": "Modelos não usados"
   },
   "windowCaption": {
     "close": "Fechar",

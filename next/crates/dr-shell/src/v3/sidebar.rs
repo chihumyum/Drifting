@@ -13,20 +13,32 @@
 //! add a Tab. The button again, Esc or a click outside the column ends it.
 //! A Tab whose mount is gone stays, faded; it says so and offers to remove
 //! it. Which Tab is selected goes with the project (`tab.select`).
+//!
+//! The keyboard (KB, `kernel-v5.md` §15 item 48): ⌘⇧L gives the selected
+//! Tab's tree the keyboard ([`Sidebar::take_keyboard`]; the tree lands on the
+//! row of the page in front), or the Tab row when the Tab shows no tree the
+//! keyboard walks (a board, islands, the book, a gone mount). On the Tab row
+//! the selected Tab has the still ring; ← → choose the Tab before or after
+//! (written with `tab.select`, like a click), stopping at the ends, the
+//! manage button not on the way; ↓ goes back into the tree; Esc back to the
+//! page. A click on a Tab leaves the keyboard where it was, a tree's going
+//! into the new Tab's tree. Managing takes no keys; when it ends the
+//! keyboard goes back to where it was when it began.
 use super::{
     DisplaySurface, LevelHost, ROOT_LEVEL, Rendered,
     manage::{MountDrag, Structure},
+    tab_fill::{FillLayout, TabCanvasHost},
     tabs,
 };
 use crate::{
-    nav::{Open, Target},
+    actions::left,
     pages::PageViewHost,
-    strings::{t, tf},
+    strings::{t, tf, tp},
 };
 use dr_i18n::keys;
 use dr_ui::{
     Theme, anim,
-    components::{Button, DraggedPill, IconButton, Pill, SandCell, Segmented, overlay},
+    components::{Button, DraggedPill, IconButton, Pill, Segmented, overlay},
     fonts::Role,
     sand::{self, Icon},
     style::DrStyled,
@@ -63,7 +75,24 @@ pub struct Sidebar {
     slot: Option<usize>,
     dragging: Option<String>,
     focus: FocusHandle,
+    /// The Tab row's own focus, while the keyboard is on it (KB).
+    tab_focus: FocusHandle,
+    /// The keyboard is to land in the selected Tab's tree once it is drawn
+    /// (or on the Tab row, when the Tab shows no tree it walks).
+    want_tree_keys: bool,
+    /// Where the keyboard was when managing began: it goes back there.
+    managing_return: Option<FocusHandle>,
     structure: Entity<Structure>,
+    /// Whether the filled left sidebar is currently showing `模板结构` rather than `Tab`.
+    in_structure: bool,
+    filled: bool,
+    template_structure: Option<Entity<super::template_structure::Structure>>,
+    fill_layouts: BTreeMap<String, FillLayout>,
+    /// A filled Tab's view, with the book it last showed: it catches up
+    /// when it is drawn and the book has changed since, never while fill
+    /// is closed and never on a redraw of the same book.
+    filled_displays: BTreeMap<String, (TabMount, FillLayout, Rendered, Rc<crate::book::Book>)>,
+
     /// What a Tab on the root or an entry shows (its key: the mount and the
     /// display), made the first time it is selected.
     displays: BTreeMap<String, (String, Rendered)>,
@@ -81,9 +110,119 @@ impl Sidebar {
             slot: None,
             dragging: None,
             focus: cx.focus_handle(),
+            tab_focus: cx.focus_handle(),
+            want_tree_keys: false,
+            managing_return: None,
             structure,
+            in_structure: false,
+            filled: false,
+            template_structure: None,
+            fill_layouts: BTreeMap::new(),
+            filled_displays: BTreeMap::new(),
+
             displays: BTreeMap::new(),
         }
+    }
+
+    pub fn is_in_structure(&self) -> bool {
+        self.in_structure
+    }
+
+    /// The 模板结构 view, once the left column has filled into it.
+    pub fn template_structure(&self) -> Option<Entity<super::template_structure::Structure>> {
+        self.template_structure.clone()
+    }
+
+    pub fn enter_structure(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
+        self.managing = None;
+        self.slot = None;
+        self.dragging = None;
+        if self.template_structure.is_none() {
+            self.template_structure =
+                Some(cx.new(|_| super::template_structure::Structure::new(self.host.clone())));
+        }
+        if !self.in_structure {
+            self.in_structure = true;
+            cx.notify();
+        }
+    }
+
+    /// A new template in the structure's floating panel (`kernel-v5.md`
+    /// §9): nothing is stored until the author changes something in it.
+    pub fn new_structure_template(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(structure) = &self.template_structure {
+            structure.update(cx, |view, cx| view.new_template(window, cx));
+        }
+    }
+
+    /// Esc: closes the structure's floating panel. Whether one was open.
+    pub fn close_structure_panel(&mut self, cx: &mut Context<Self>) -> bool {
+        self.in_structure
+            && self
+                .template_structure
+                .as_ref()
+                .is_some_and(|structure| structure.update(cx, |view, cx| view.close_panel(cx)))
+    }
+
+    pub fn leave_fill(&mut self, cx: &mut Context<Self>) {
+        if self.in_structure {
+            self.in_structure = false;
+            if let Some(structure) = &self.template_structure {
+                structure.update(cx, |view, cx| view.dismiss_editor(cx));
+            }
+            cx.notify();
+        }
+    }
+
+    pub(crate) fn sync_fill(
+        &mut self,
+        filled: bool,
+        layouts: &BTreeMap<String, FillLayout>,
+        cx: &mut Context<Self>,
+    ) {
+        if self.filled != filled || &self.fill_layouts != layouts {
+            self.filled = filled;
+            self.fill_layouts = layouts.clone();
+            cx.notify();
+        }
+    }
+
+    fn fill_layout(&self, tab: &ProjectTab) -> FillLayout {
+        self.fill_layouts.get(&tab.id).copied().unwrap_or_else(|| {
+            let TabMount::Entry { entry } = &tab.mount else {
+                return FillLayout::List;
+            };
+            self.host
+                .book
+                .v3()
+                .and_then(|book| book.levels.get(entry))
+                .map_or(FillLayout::List, |level| {
+                    FillLayout::default_for(&level.settings.display)
+                })
+        })
+    }
+
+    pub fn shows_canvas(&self, tab: &str, layout: FillLayout) -> bool {
+        self.filled
+            && !self.in_structure
+            && !self.is_managing()
+            && self.selected.as_deref() == Some(tab)
+            && self
+                .tabs()
+                .iter()
+                .find(|candidate| candidate.id == tab)
+                .is_some_and(|candidate| self.fill_layout(candidate) == layout)
+    }
+
+    pub fn choose_fill_layout(&mut self, layout: FillLayout, cx: &mut Context<Self>) {
+        let Some(tab) = self.selected.clone() else {
+            return;
+        };
+        self.fill_layouts.insert(tab.clone(), layout);
+        let _ = self.host.workspace.update(cx, |ws, cx| {
+            ws.set_tab_fill_layout(tab, layout, cx);
+        });
+        cx.notify();
     }
 
     pub fn sync(&mut self, host: PageViewHost, cx: &mut Context<Self>) {
@@ -94,7 +233,10 @@ impl Sidebar {
             self.managing = None;
             self.slot = None;
             self.dragging = None;
+            self.in_structure = false;
             self.displays.clear();
+            self.filled_displays.clear();
+            self.template_structure = None;
         }
         let changed = !Rc::ptr_eq(&self.host.book, &host.book);
         self.host = host;
@@ -118,6 +260,9 @@ impl Sidebar {
             self.selected = tabs.first().cloned();
         }
         if changed {
+            if let Some(structure) = &self.template_structure {
+                structure.update(cx, |view, cx| view.refresh(self.host.book.clone(), cx));
+            }
             let keys: BTreeMap<String, String> = self
                 .tabs()
                 .iter()
@@ -125,7 +270,14 @@ impl Sidebar {
                 .collect();
             self.displays
                 .retain(|id, (key, _)| keys.get(id) == Some(key));
-            for (_, part) in self.displays.values() {
+            self.filled_displays.retain(|id, _| tabs.contains(id));
+            // Only a new book snapshot refreshes what the Tabs show: the
+            // column redraws every frame, and a refresh sorts the whole list
+            // and may read update times (T9 review). A filled Tab's view
+            // catches up in `filled_body` instead: only while it is shown,
+            // and outside the workspace's update (the relations layout
+            // writes the workspace's book memory as it refreshes).
+            for part in self.displays.values().map(|(_, part)| part) {
                 if let Some(refresh) = &part.refresh {
                     refresh(self.host.book.clone(), cx);
                 }
@@ -166,6 +318,7 @@ impl Sidebar {
             return;
         }
         self.selected = Some(id.into());
+        self.leave_fill(cx);
         self.restored = true;
         let stored = self
             .host
@@ -234,6 +387,13 @@ impl Sidebar {
             "entry": entry,
             "display": display,
             "managing": self.managing.is_some(),
+            "filled": self.filled,
+            "templateStructure": self.in_structure,
+            "structureView": self.template_structure.as_ref().filter(|_| self.in_structure)
+                .map(|view| view.read(cx).state()),
+            "fillLayout": selected.as_ref().filter(|_| self.filled && !self.in_structure)
+                .map(|tab| self.fill_layout(tab)),
+
             "slot": self.slot,
             "structure": self.managing.map(|_| self.structure.read(cx).state()),
             "registered": self.selected.as_ref().is_some_and(|id| self.displays.contains_key(id)),
@@ -247,6 +407,8 @@ impl Sidebar {
         self.managing.is_some()
     }
     /// Turns managing on (the column takes the keyboard, for Esc) or off.
+    /// Off, the keyboard goes back to where it was when managing began (the
+    /// tree's row, the Tab row or the page).
     pub fn set_managing(&mut self, on: bool, window: &mut Window, cx: &mut Context<Self>) {
         if on == self.managing.is_some() {
             return;
@@ -255,9 +417,116 @@ impl Sidebar {
         self.slot = None;
         self.dragging = None;
         if on {
+            self.managing_return = window.focused(cx).filter(|f| *f != self.focus);
             window.focus(&self.focus, cx);
+        } else if let Some(back) = self.managing_return.take()
+            && self.focus.is_focused(window)
+        {
+            window.focus(&back, cx);
         }
         cx.notify();
+    }
+
+    // The keyboard (KB).
+
+    /// Whether the keyboard is anywhere in the column: its tree, its Tab
+    /// row, a row's card, or the column itself (while managing).
+    pub fn has_keyboard(&self, window: &Window, cx: &App) -> bool {
+        self.focus.contains_focused(window, cx)
+    }
+
+    /// What the selected Tab shows in the column as it usually is (not
+    /// filled), once made: a tree's view (tests, the debug bridge).
+    pub fn shown_display(&self) -> Option<AnyView> {
+        let id = self.selected.as_ref()?;
+        self.displays.get(id).map(|(_, part)| part.view.clone())
+    }
+
+    /// Whether the keyboard is on the Tab row.
+    pub fn tabs_have_keyboard(&self, window: &Window) -> bool {
+        self.tab_focus.is_focused(window)
+    }
+
+    /// ⌘⇧L: the selected Tab's tree takes the keyboard once drawn, or the
+    /// Tab row when the Tab shows no tree the keyboard walks. Nothing while
+    /// managing or filled.
+    pub fn take_keyboard(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.managing.is_some() || self.filled || self.in_structure {
+            return;
+        }
+        let _ = window;
+        self.want_tree_keys = true;
+        cx.notify();
+    }
+
+    /// The keyboard onto the Tab row (from the tree's first row, ↑).
+    pub fn keyboard_to_tabs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.managing.is_some() || self.filled {
+            return;
+        }
+        window.focus(&self.tab_focus, cx);
+        cx.notify();
+    }
+
+    /// Where the keyboard is in the column, for the debug bridge: `tabs`,
+    /// `tree` (with the selected Tab's own reading of its row), `column`
+    /// (managing) or nothing.
+    pub fn keyboard_state(&self, window: &Window, cx: &App) -> Value {
+        let tree = self
+            .selected
+            .as_ref()
+            .and_then(|id| self.displays.get(id))
+            .and_then(|(_, part)| part.keyboard_state.as_ref())
+            .map(|state| state(window, cx));
+        let place = if self.tab_focus.is_focused(window) {
+            Some("tabs")
+        } else if tree
+            .as_ref()
+            .is_some_and(|t| t["focused"].as_bool() == Some(true))
+        {
+            Some("tree")
+        } else if self.has_keyboard(window, cx) {
+            Some("column")
+        } else {
+            None
+        };
+        json!({ "in": place, "tree": tree })
+    }
+
+    /// The selected Tab's tree takes the keyboard now, if it walks one;
+    /// else the Tab row does.
+    fn land_keyboard(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let land = self
+            .selected
+            .as_ref()
+            .and_then(|id| self.displays.get(id))
+            .and_then(|(_, part)| part.land.clone());
+        match land {
+            Some(land) => {
+                // Outside this view's update: the tree reads the workspace.
+                window.defer(cx, move |window, cx| land(window, cx));
+            }
+            None => window.focus(&self.tab_focus, cx),
+        }
+    }
+
+    /// The Tab row's keys (KB).
+    fn tab_key(&mut self, step: isize, window: &mut Window, cx: &mut Context<Self>) {
+        let ids = self.tab_ids();
+        let Some(at) = self
+            .selected
+            .as_ref()
+            .and_then(|id| ids.iter().position(|t| t == id))
+        else {
+            return;
+        };
+        let next = at as isize + step;
+        if next < 0 || next as usize >= ids.len() {
+            return;
+        }
+        let id = ids[next as usize].clone();
+        self.choose(&id, cx);
+        window.focus(&self.tab_focus, cx);
     }
 
     // Tab writes.
@@ -374,17 +643,28 @@ impl Sidebar {
 
     /// The row as it usually is: the Tabs, scrolling sideways, and the
     /// manage button.
-    fn tab_row(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    fn tab_row(
+        &mut self,
+        controls: Option<AnyElement>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
         let Some(v) = self.host.book.v3() else {
             return div().into_any_element();
         };
+        // The keyboard walks the row only in the column as it usually is.
+        let keyed = !self.filled && !self.in_structure;
+        let on_row = keyed && self.tab_focus.is_focused(window);
         let tabs = v.project.tabs.clone();
         let labels: Vec<SharedString> = tabs.iter().map(|t| self.name(t, cx)).collect();
-        let selected = self
-            .selected
-            .as_ref()
-            .and_then(|id| tabs.iter().position(|t| &t.id == id))
-            .unwrap_or(0);
+        let selected = if self.in_structure {
+            tabs.len()
+        } else {
+            self.selected
+                .as_ref()
+                .and_then(|id| tabs.iter().position(|t| &t.id == id))
+                .unwrap_or(0)
+        };
         let faint: Vec<usize> = tabs
             .iter()
             .enumerate()
@@ -396,6 +676,38 @@ impl Sidebar {
         div()
             .id("v3-tab-row")
             .debug_selector(|| "v3-tab-row".into())
+            .when(keyed, |el| {
+                el.track_focus(&self.tab_focus)
+                    .key_context(crate::keymap::LEFT_TABS)
+                    // A press on a Tab or the manage button leaves the
+                    // keyboard where it was (the prototype): no focus here.
+                    .on_mouse_down(MouseButton::Left, |_, window, _| window.prevent_default())
+                    .on_action(
+                        cx.listener(|this, _: &left::Left, window, cx| {
+                            this.tab_key(-1, window, cx)
+                        }),
+                    )
+                    .on_action(
+                        cx.listener(|this, _: &left::Right, window, cx| {
+                            this.tab_key(1, window, cx)
+                        }),
+                    )
+                    .on_action(cx.listener(|this, _: &left::Down, _, cx| {
+                        this.want_tree_keys = true;
+                        cx.notify();
+                    }))
+                    .on_action(cx.listener(|this, _: &left::Back, window, cx| {
+                        let ws = this.host.workspace.clone();
+                        let layer = ws
+                            .upgrade()
+                            .is_some_and(|ws| ws.read(cx).top_layer().is_some());
+                        if layer {
+                            cx.propagate();
+                            return;
+                        }
+                        let _ = ws.update(cx, |ws, cx| ws.keyboard_to_page(window, cx));
+                    }))
+            })
             .flex_shrink_0()
             .px_2()
             .flex()
@@ -418,15 +730,31 @@ impl Sidebar {
                         Segmented::new("v3-level-tabs", labels, selected)
                             .font(Role::Structure)
                             .faint(faint)
-                            .on_change(move |index, _, cx| {
+                            .keyboard(on_row.then_some(selected))
+                            .on_change(move |index, window, cx| {
                                 let _ = weak.update(cx, |this, cx| {
                                     if let Some(id) = ids.get(index) {
+                                        // The keyboard in the tree goes on
+                                        // into the new Tab's tree.
+                                        let in_tree = this.managing.is_none()
+                                            && this.has_keyboard(window, cx)
+                                            && !this.tab_focus.is_focused(window);
                                         this.choose(id, cx);
+                                        if in_tree {
+                                            this.want_tree_keys = true;
+                                        }
                                     }
                                 });
                             }),
                     ),
             )
+            .children(controls.map(|controls| {
+                div()
+                    .id("v5-left-fill-controls")
+                    .max_w(relative(0.67))
+                    .overflow_x_scroll()
+                    .child(controls)
+            }))
             .child(self.manage_button(cx))
             .into_any_element()
     }
@@ -656,6 +984,86 @@ impl Sidebar {
             .into_any_element()
     }
 
+    fn fill_layout_selector(&self, tab: ProjectTab, cx: &mut Context<Self>) -> AnyElement {
+        let selected = FillLayout::ALL
+            .iter()
+            .position(|layout| *layout == self.fill_layout(&tab))
+            .unwrap_or(0);
+        let weak = cx.weak_entity();
+        Segmented::new(
+            "v5-tab-fill-layout",
+            FillLayout::ALL.map(|layout| t(cx, layout.label())),
+            selected,
+        )
+        .report_selected()
+        .on_change(move |index, _, cx| {
+            let _ = weak.update(cx, |this, cx| {
+                this.choose_fill_layout(FillLayout::ALL[index], cx)
+            });
+        })
+        .into_any_element()
+    }
+
+    fn filled_body(
+        &mut self,
+        tab: &ProjectTab,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let layout = self.fill_layout(tab);
+        if matches!(tab.mount, TabMount::Book) && layout == FillLayout::List {
+            return tabs::book_list(&self.host, window, cx);
+        }
+        let book = self.host.book.clone();
+        if let Some((mount, saved, display, seen)) = self.filled_displays.get_mut(&tab.id)
+            && mount == &tab.mount
+            && *saved == layout
+        {
+            // Caught up only when the book changed since it last showed.
+            if !Rc::ptr_eq(seen, &book) {
+                *seen = book.clone();
+                if let Some(refresh) = &display.refresh {
+                    refresh(book, cx);
+                }
+            }
+            return display.view.clone().into_any_element();
+        }
+        let display = if let Some(kind) = layout.display() {
+            let (level, surface) = match &tab.mount {
+                TabMount::Entry { entry } => (entry.clone(), DisplaySurface::Sidebar),
+                TabMount::Book => (ROOT_LEVEL.into(), DisplaySurface::BookTab),
+                _ => (ROOT_LEVEL.into(), DisplaySurface::Sidebar),
+            };
+            super::level_display_as(
+                LevelHost {
+                    page: self.host.clone(),
+                    level,
+                    surface,
+                },
+                kind,
+                window,
+                cx,
+            )
+        } else {
+            super::tab_canvas(
+                TabCanvasHost {
+                    page: self.host.clone(),
+                    tab: tab.clone(),
+                    layout,
+                },
+                window,
+                cx,
+            )
+        };
+        let Some(display) = display else {
+            return div().into_any_element();
+        };
+        let view = display.view.clone();
+        self.filled_displays
+            .insert(tab.id.clone(), (tab.mount.clone(), layout, display, book));
+        view.into_any_element()
+    }
+
     /// What the selected Tab shows.
     fn body(
         &mut self,
@@ -690,6 +1098,9 @@ impl Sidebar {
                         .on_click(cx.listener(move |this, _, _, cx| this.remove_gone(&id, cx))),
                 )
                 .into_any_element();
+        }
+        if self.filled {
+            return self.filled_body(tab, window, cx);
         }
         match &tab.mount {
             // A Tab on a view is always gone (handled above): a Tab cannot
@@ -735,59 +1146,61 @@ impl Sidebar {
         }
     }
 
-    /// The template collection under the Tabs.
+    /// The template collection is a summary with two entry points
+    /// (`W12Template`: 「16 个模板 · 88 个条目」).
     fn templates(&self, window: &Window, cx: &mut Context<Self>) -> AnyElement {
         let theme = Theme::of(window, cx);
-        let book = self.host.book.clone();
-        let Some(v) = book.v3() else {
-            return div().into_any_element();
-        };
-        let mut templates = div()
-            .id("v3-template-list")
-            .overflow_y_scroll()
-            .max_h(px(168.0))
-            .flex()
-            .flex_col();
-        for template in v.templates.iter().filter(|t| t.deleted_at.is_none()) {
-            let Ok(id) = template.id.parse() else {
-                continue;
-            };
-            let target = Target::Template(id);
-            let (mark, color) = book.mark(&target);
-            let weak = self.host.workspace.clone();
-            let selected = weak
-                .upgrade()
-                .is_some_and(|ws| ws.read(cx).nav.is_selected(&target));
-            templates = templates.child(
-                SandCell::new(
-                    SharedString::from(format!("v3-template-{}", template.id)),
-                    template.name.clone(),
-                )
-                .mark(mark)
-                .color_opt(color)
-                .selected(selected)
-                .on_click(move |_, _, cx| {
-                    if let Some(ws) = weak.upgrade() {
-                        ws.update(cx, |ws, cx| ws.open(target.clone(), Open::KEEP, cx));
-                    }
-                }),
-            );
-        }
+        let (count, entries) = self.host.book.v3().map_or((0, 0), |book| {
+            (
+                book.templates
+                    .iter()
+                    .filter(|template| template.deleted_at.is_none())
+                    .count(),
+                book.entries.len(),
+            )
+        });
+        let open = self.host.workspace.clone();
         let host = self.host.clone();
+        let label = t(cx, keys::v5_fill::TEMPLATE_STRUCTURE);
         div()
-            .flex_shrink_0()
+            .id("v5-template-collection")
+            .flex_none()
             .flex()
-            .flex_col()
+            .items_center()
             .gap_2()
             .p_2()
             .child(
                 div()
-                    .text_color(theme.palette.muted().solid())
-                    .child(t(cx, keys::v3_shell::TEMPLATES)),
+                    .id("v5-template-collection-count")
+                    .debug_selector(|| "v5-template-collection-count".into())
+                    .flex_1()
+                    .min_w_0()
+                    .truncate()
+                    .font_role(Role::Index)
+                    .type_px(13.0, 18.0)
+                    .text_color(theme.palette.ink(3).solid())
+                    .child(format!(
+                        "{} · {}",
+                        tf(cx, keys::v5_fill::TEMPLATE_COUNT, &[("count", &count)]),
+                        tp(
+                            cx,
+                            keys::v5_fill::ENTRY_COUNT,
+                            entries as u64,
+                            &[("count", &entries)]
+                        )
+                    )),
             )
-            .child(templates)
             .child(
-                Button::new("v3-new-template", t(cx, keys::v3_shell::NEW_TEMPLATE))
+                IconButton::new("v5-open-structure", Icon::Fullscreen)
+                    .label(label)
+                    .selected(self.in_structure)
+                    .on_click(move |_, window, cx| {
+                        let _ = open.update(cx, |ws, cx| ws.open_template_structure(window, cx));
+                    }),
+            )
+            .child(
+                IconButton::new("v3-new-template", Icon::Plus)
+                    .label(t(cx, keys::v3_shell::NEW_TEMPLATE))
                     .disabled(!super::has_template_creator(cx))
                     .on_click(move |_, window, cx| {
                         super::create_template(host.clone(), window, cx)
@@ -803,13 +1216,26 @@ impl Render for Sidebar {
         let Some(v) = book.v3() else {
             return div().into_any_element();
         };
+        let can_host = self.host.clone();
+        let drop_host = self.host.clone();
+        let wash = Theme::of(window, cx).palette.page.alpha(0.45);
         let mut content = div()
             .id("v3-sidebar")
+            .debug_selector(|| "v3-sidebar".into())
             .track_focus(&self.focus)
             .flex()
             .flex_col()
             .min_h_0()
             .size_full()
+            .can_drop(move |value, _, _| {
+                value
+                    .downcast_ref::<super::EntryDrag>()
+                    .is_some_and(|drag| drag.timeline_clip.is_some() && drag.matches(&can_host))
+            })
+            .drag_over::<super::EntryDrag>(move |style, _, _, _| style.bg(wash))
+            .on_drop(move |drag: &super::EntryDrag, _, cx| {
+                let _ = tabs::detach_timeline_clip(&drop_host, drag, cx);
+            })
             .on_key_down(cx.listener(|this, e: &KeyDownEvent, window, cx| {
                 if this.managing.is_some() && e.keystroke.key == "escape" {
                     cx.stop_propagation();
@@ -830,18 +1256,68 @@ impl Render for Sidebar {
                 .child(div().flex_1().min_h_0().child(self.structure.clone()))
                 .into_any_element();
         }
-        content = content.child(self.tab_row(cx));
         let selected = self
             .selected
             .as_ref()
             .and_then(|id| v.project.tabs.iter().find(|t| &t.id == id))
             .cloned();
-        let body = match selected {
-            Some(tab) => self.body(&tab, window, cx),
-            None => div().into_any_element(),
+        let controls = if self.filled && self.in_structure {
+            self.template_structure
+                .as_ref()
+                .map(|view| view.update(cx, |view, cx| view.header(window, cx)))
+        } else {
+            selected
+                .as_ref()
+                .filter(|tab| self.filled && !tabs::is_gone(v, &tab.mount))
+                .map(|tab| self.fill_layout_selector(tab.clone(), cx))
         };
+        content = content.child(self.tab_row(controls, window, cx));
+        let body = if self.filled && self.in_structure {
+            self.template_structure.as_ref().map_or_else(
+                || div().into_any_element(),
+                |view| view.clone().into_any_element(),
+            )
+        } else {
+            selected.map_or_else(
+                || div().into_any_element(),
+                |tab| self.body(&tab, window, cx),
+            )
+        };
+        // The keyboard asked for (⌘⇧L, ↓ on the Tab row, a click on a Tab
+        // from the tree): the Tab's tree is made by now.
+        if std::mem::take(&mut self.want_tree_keys) && !self.filled && !self.in_structure {
+            self.land_keyboard(window, cx);
+        }
+        let keyed = !self.filled && !self.in_structure;
         content
-            .child(div().flex_1().min_h_0().px_2().py_2().child(body))
+            .child(
+                div()
+                    .flex_1()
+                    .min_h_0()
+                    .px_2()
+                    .py_2()
+                    // A press round the tree that nothing in it took: the
+                    // tree's blank space too, the keyboard landing in it.
+                    .when(keyed, |el| {
+                        el.on_mouse_down(
+                            MouseButton::Left,
+                            cx.listener(|this, _: &MouseDownEvent, window, cx| {
+                                let walks = this
+                                    .selected
+                                    .as_ref()
+                                    .and_then(|id| this.displays.get(id))
+                                    .is_some_and(|(_, part)| part.land.is_some());
+                                if window.default_prevented() || this.managing.is_some() || !walks {
+                                    return;
+                                }
+                                this.want_tree_keys = true;
+                                window.prevent_default();
+                                cx.notify();
+                            }),
+                        )
+                    })
+                    .child(body),
+            )
             .child(self.templates(window, cx))
             .into_any_element()
     }

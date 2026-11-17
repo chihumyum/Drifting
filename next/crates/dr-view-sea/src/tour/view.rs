@@ -194,7 +194,7 @@ impl TourView {
             .flatten()
     }
 
-    /// Covered by a Super View or the opening wait: put away, and back at
+    /// Covered by a filled panel or the opening wait: put away, and back at
     /// the first step when it shows again. The delay before it first comes
     /// up counts only while it is uncovered.
     pub(crate) fn set_covered(&mut self, covered: bool, window: &Window, cx: &mut Context<Self>) {

@@ -1,7 +1,13 @@
 //! Canonical Project Home (`kernel-v5.md` §2 & §3).
+mod agent_cards;
 mod project_template;
+pub mod save_template;
+mod structure_thumbnail;
 pub mod v3;
 
+pub use agent_cards::{
+    AgentCards, AgentCardsHost, clear_agent_cards, has_agent_cards, set_agent_cards,
+};
 pub use project_template::Field;
 
 use std::rc::Rc;
@@ -105,8 +111,12 @@ pub(crate) fn take_pending_title_focus(book_id: &str, cx: &mut App) -> bool {
     }
 }
 
-/// Registers Project Home with the shell.
+/// Registers Project Home and its 「另存为项目模板」 dialog with the shell.
 pub fn init(cx: &mut App) {
+    set_save_project_template(cx, save_template::open);
+    dr_view_shelf::set_on_project_created(cx, |book_id, cx| {
+        focus_project_title(book_id, cx);
+    });
     dr_shell::pages::set_v3_home(cx, |ws, window, cx| {
         cx.new(|cx| v3::Home::new(ws, window, cx)).into()
     });

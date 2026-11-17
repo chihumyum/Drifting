@@ -529,6 +529,18 @@ pub mod v3 {
         Membership {
             host: String,
         },
+        MoveMembership {
+            from_host: String,
+            to_host: String,
+        },
+        DetachMembership {
+            host: String,
+        },
+        ReorderMembership {
+            host: String,
+            anchor: String,
+            after: bool,
+        },
     }
 
     /// Resolve a UI drop slot against `onto`, distinguishing same-folder
@@ -548,20 +560,73 @@ pub mod v3 {
         resolve_drop_with(book, entry, onto, slot, can_reorder, is_member, false)
     }
 
-    /// Whether dropping onto `onto` attaches the entry rather than moving it
-    /// in (`kernel-v5.md` §16 「挂名」): an entry that only accepts entries
-    /// from elsewhere attaches; one that is only a level takes it in; one
-    /// that is both takes it in, and attaches it while ⌥ is held (`attach`).
+    /// Whether dropping a living row onto `onto` attaches the entry rather than
+    /// moving it in (`kernel-v5.md` §5, §16, `v5-tracks.md` T9.1): dragging in
+    /// the left tree moves house only, refusing accept-only entries; onto an
+    /// entry with both switches on it moves in, or attaches while ⌥ is held
+    /// (`attach`); onto a plain level it moves in even with ⌥ held.
     pub fn drop_attaches(book: &Book, onto: &str, attach: bool) -> Option<bool> {
         let v = book.v3()?;
         let level = v.entry(onto)?.level;
         let accepts = v.accepts_members(onto);
         match (level, accepts) {
             (true, true) => Some(attach),
-            (false, true) => Some(true),
+            (false, true) => None,
             (true, false) => Some(false),
             (false, false) => None,
         }
+    }
+
+    /// Resolves a hung row without a residence write. The home row takes
+    /// its hang off, another row in the group changes the order, and other
+    /// accepting entries gain a moved or copied hang.
+    pub fn resolve_hung_drop(
+        book: &Book,
+        entry: &str,
+        from_host: &str,
+        onto: &str,
+        onto_host: Option<&str>,
+        slot: DropSlot,
+        attach: bool,
+    ) -> Option<Drop> {
+        if entry == onto || from_host == onto {
+            return None;
+        }
+        let v = book.v3()?;
+        if !v
+            .memberships
+            .iter()
+            .any(|m| m.host == from_host && m.member == entry)
+        {
+            return None;
+        }
+        if onto_host == Some(from_host) {
+            return match slot {
+                DropSlot::Before | DropSlot::After => Some(Drop::ReorderMembership {
+                    host: from_host.into(),
+                    anchor: onto.into(),
+                    after: slot == DropSlot::After,
+                }),
+                DropSlot::Into => None,
+            };
+        }
+        let graph = Graph::of(book)?;
+        let id = entry.parse().ok()?;
+        let target = onto.parse().ok()?;
+        let parent = model::effective_parent_id(graph.entries.get(&id)?, &graph.entries);
+        if parent.as_ref() == Some(&target) {
+            return Some(Drop::DetachMembership {
+                host: from_host.into(),
+            });
+        }
+        model::check_membership(&target, &id, &graph.entries, &graph.templates).ok()?;
+        if attach {
+            return Some(Drop::Membership { host: onto.into() });
+        }
+        Some(Drop::MoveMembership {
+            from_host: from_host.into(),
+            to_host: onto.into(),
+        })
     }
 
     /// [`resolve_drop`], with ⌥ held (`attach`) or not.
@@ -666,6 +731,8 @@ pub mod v3 {
                 parent: Some(onto.into()),
                 anchor: None,
             })
+        } else if v.accepts_members(onto) {
+            None
         } else {
             let parent = model::effective_parent_id(target_entry, &graph.entries);
             model::check_entry_move(&graph.entries, &id, parent.as_ref()).ok()?;
@@ -696,7 +763,48 @@ pub mod v3 {
             Drop::Membership { host } => {
                 prepare(book, "membership.add", json!({"member":entry,"host":host}))
             }
+            Drop::MoveMembership { from_host, to_host } => prepare(
+                book,
+                "membership.add",
+                json!({"member":entry,"host":to_host,"from_host":from_host}),
+            ),
+            Drop::DetachMembership { host } => prepare(
+                book,
+                "membership.remove",
+                json!({"member":entry,"host":host}),
+            ),
+            Drop::ReorderMembership {
+                host,
+                anchor,
+                after,
+            } => prepare(
+                book,
+                "membership.add",
+                json!({"member":entry,"host":host, "order":{"anchor":anchor,"after":after}}),
+            ),
         }?;
+        let membership_guards = match &target {
+            Drop::MoveMembership { from_host, .. } => vec![RecordKey::membership(from_host, entry)],
+            Drop::DetachMembership { host } => vec![RecordKey::membership(host, entry)],
+            Drop::ReorderMembership { host, anchor, .. } => {
+                let mut keys = vec![
+                    RecordKey::membership(host, entry),
+                    RecordKey::membership(host, anchor),
+                ];
+                if let Some(view) = v.ordering_view(host) {
+                    keys.push(
+                        RecordKey::timeline_view(&view.id).at(["placements", anchor.as_str()]),
+                    );
+                }
+                keys
+            }
+            _ => Vec::new(),
+        };
+        for key in membership_guards {
+            if let Some(pre) = v.shown_precondition(&key) {
+                edit.preconditions.records.push(pre);
+            }
+        }
         if let Drop::Residence {
             parent,
             anchor: Some((onto, _)),

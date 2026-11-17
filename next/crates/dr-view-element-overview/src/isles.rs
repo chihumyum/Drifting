@@ -175,7 +175,7 @@ fn collect_content(
         if !seen.insert(cid.clone()) {
             continue;
         }
-        if v3.is_content(cid) {
+        if v3.is_content(cid) || !v3.has_below(cid) {
             items.push(cid.clone());
             if v3.levels.contains_key(cid) {
                 named.push(cid.clone());
@@ -205,19 +205,6 @@ fn named_groups(
         i += 1;
     }
     out
-}
-
-fn subtree_level_ids(v3: &BookV3, root_id: &str, seen: &mut HashSet<String>) {
-    if !seen.insert(root_id.to_owned()) {
-        return;
-    }
-    if let Some(level) = v3.levels.get(root_id) {
-        for cid in &level.children {
-            if v3.levels.contains_key(cid) {
-                subtree_level_ids(v3, cid, seen);
-            }
-        }
-    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -310,115 +297,73 @@ struct RawIsland {
     groups: Vec<(Option<String>, bool, Vec<String>)>,
 }
 
-/// Extract canonical v3 islands and the unique content entries on them from
-/// `BookV3`. Whether an entry is a card or a group follows its template
-/// ([`BookV3::is_content`]), never its switch.
+/// The Tab's groups form islands. Its other entries share the loose island.
 pub fn extract_v3_islands(
     v3: &BookV3,
+    mount: &dr_workspace::commands::v3::types::TabMount,
+    relation: bool,
     residents_label: &str,
     members_label: &str,
     uncategorized_label: &str,
 ) -> ExtractedIslands {
-    let mut claimed_levels: HashSet<String> = HashSet::new();
-    let mut raw_islands: Vec<RawIsland> = Vec::new();
-
-    // 1. Levels configured with `display == "island"` (e.g. novel `要素` root):
-    //    the organising levels under them are the islands, and the content
-    //    entries living or belonging directly on the wrapper form an
-    //    uncategorized island.
-    let mut uncat_counter = 0usize;
-    for entry in &v3.entries {
-        let Some(root_level) = v3.levels.get(&entry.id) else {
-            continue;
-        };
-        if root_level.settings.display != "island" || claimed_levels.contains(&entry.id) {
-            continue;
-        }
-        subtree_level_ids(v3, &entry.id, &mut claimed_levels);
-
-        let mut seen = HashSet::from([entry.id.clone()]);
-        let mut wrapper_direct = Vec::new();
-        let mut named = Vec::new();
-        for cid in &root_level.children {
-            if !seen.insert(cid.clone()) {
-                continue;
-            }
-            if v3.is_content(cid) {
-                wrapper_direct.push(cid.clone());
-                if v3.levels.contains_key(cid) {
-                    named.push(cid.clone());
-                }
-            } else if v3.levels.contains_key(cid) {
-                raw_islands.push(extract_one_level_island(
-                    v3,
-                    cid,
-                    residents_label,
-                    members_label,
-                ));
-            }
-        }
-        let named = named_groups(v3, named, &mut seen);
-        let resident_set: HashSet<&str> = wrapper_direct
-            .iter()
-            .chain(named.iter().flat_map(|(_, _, ids)| ids))
-            .map(String::as_str)
-            .collect();
-        let wrapper_members: Vec<String> = root_level
-            .members
-            .iter()
-            .filter(|mid| v3.is_content(mid) && !resident_set.contains(mid.as_str()))
-            .cloned()
-            .collect();
-
-        if !wrapper_direct.is_empty() || !wrapper_members.is_empty() {
-            uncat_counter += 1;
-            let island_id = if uncat_counter == 1 {
-                UNCATEGORIZED_KEY.to_owned()
-            } else {
-                format!("{UNCATEGORIZED_KEY}:{uncat_counter}")
-            };
-            let mut groups = Vec::new();
-            let res_label = (!wrapper_direct.is_empty() && !wrapper_members.is_empty())
-                .then(|| residents_label.to_owned());
-            if !wrapper_direct.is_empty() {
-                groups.push((res_label, false, wrapper_direct));
-            }
-            groups.extend(named);
-            if !wrapper_members.is_empty() {
-                groups.push((Some(members_label.to_owned()), true, wrapper_members));
-            }
-            raw_islands.push(RawIsland {
-                island_id,
-                creation_level_id: Some(entry.id.clone()),
-                is_uncategorized: true,
-                title: uncategorized_label.to_owned(),
-                color: v3.appearance(&entry.id).and_then(|a| a.color),
-                sand_kind: sand::Kind::Category,
-                groups,
-            });
+    use dr_workspace::commands::v3::types::TabMount;
+    let entries = dr_shell::v3::tab_fill::tab_entries(v3, mount);
+    let mut raw_islands = Vec::new();
+    let mut loose = Vec::new();
+    for id in &entries {
+        if !matches!(mount, TabMount::Book) && v3.has_below(id) {
+            raw_islands.push(extract_one_level_island(
+                v3,
+                id,
+                residents_label,
+                members_label,
+            ));
+        } else {
+            loose.push(id.clone());
         }
     }
-
-    // 2. Any standalone organising `auto_link` non-lane level not already
-    //    inside an `"island"` tree.
-    for entry in &v3.entries {
-        if claimed_levels.contains(&entry.id) || v3.is_content(&entry.id) {
-            continue;
+    if relation && !matches!(mount, TabMount::Book) {
+        // Level entries and nested attachments are also legitimate relation
+        // endpoints, including when their Tab groups have no cards.
+        let represented: HashSet<_> = raw_islands
+            .iter()
+            .flat_map(|island| {
+                island
+                    .groups
+                    .iter()
+                    .flat_map(|(_, _, entries)| entries.iter())
+            })
+            .chain(&loose)
+            .cloned()
+            .collect();
+        let mut stack = entries.iter().rev().collect::<Vec<_>>();
+        let mut visited = HashSet::new();
+        while let Some(id) = stack.pop() {
+            if !visited.insert(id) || matches!(mount, TabMount::Entry { entry } if entry == id) {
+                continue;
+            }
+            if !represented.contains(id) {
+                loose.push(id.clone());
+            }
+            if let Some(level) = v3.levels.get(id) {
+                stack.extend(level.members.iter().rev());
+                stack.extend(level.children.iter().rev());
+            }
         }
-        let Some(level) = v3.levels.get(&entry.id) else {
-            continue;
-        };
-        let is_lane = v3.is_lane(&entry.id);
-        if !level.settings.auto_link || is_lane {
-            continue;
-        }
-        subtree_level_ids(v3, &entry.id, &mut claimed_levels);
-        raw_islands.push(extract_one_level_island(
-            v3,
-            &entry.id,
-            residents_label,
-            members_label,
-        ));
+    }
+    if !loose.is_empty() {
+        raw_islands.push(RawIsland {
+            island_id: UNCATEGORIZED_KEY.to_owned(),
+            creation_level_id: match mount {
+                TabMount::Entry { entry } => Some(entry.clone()),
+                _ => None,
+            },
+            is_uncategorized: true,
+            title: uncategorized_label.to_owned(),
+            color: None,
+            sand_kind: sand::Kind::Category,
+            groups: vec![(None, false, loose)],
+        });
     }
 
     // Track each entry's resident island and membership islands so we can resolve its home island & color.
@@ -556,7 +501,7 @@ fn extract_one_level_island(
             if !seen.insert(cid.clone()) {
                 continue;
             }
-            if v3.is_content(cid) {
+            if v3.is_content(cid) || !v3.has_below(cid) {
                 direct.push(cid.clone());
                 if v3.levels.contains_key(cid) {
                     named.push(cid.clone());
@@ -580,7 +525,7 @@ fn extract_one_level_island(
         let members: Vec<String> = level
             .members
             .iter()
-            .filter(|mid| v3.is_content(mid) && !resident_ids.contains(mid.as_str()))
+            .filter(|mid| !resident_ids.contains(mid.as_str()))
             .cloned()
             .collect();
 

@@ -32,6 +32,7 @@ pub(super) struct Pending {
     pub view: String,
     pub place: TimelinePlacement,
     pub lane: Option<String>,
+    pub detach_from: Option<String>,
     pub base: String,
     pub settled: bool,
 }
@@ -62,12 +63,14 @@ impl Timeline {
         let Some(book) = self.book.v3() else {
             return;
         };
-        self.place_at(entry, lane, at, span, book.guard(), cx);
+        self.place_at(entry, lane, None, at, span, book.guard(), cx);
     }
+    #[allow(clippy::too_many_arguments)]
     fn place_at(
         &mut self,
         entry: String,
         lane: Option<String>,
+        detach_from: Option<String>,
         at: f64,
         span: Option<f64>,
         guard: WritePreconditions,
@@ -89,6 +92,7 @@ impl Timeline {
                     span,
                 },
                 lane: lane.clone(),
+                detach_from: detach_from.clone(),
                 base: self
                     .book
                     .v3()
@@ -106,7 +110,7 @@ impl Timeline {
             lib.call_guarded(
                 &Actor::User,
                 "timeline_view.place",
-                serde_json::json!({"book":book,"view":view,"entry":entry,"lane":lane,"at":at,"span":span}),
+                serde_json::json!({"book":book,"view":view,"entry":entry,"lane":lane,"from_host":detach_from,"at":at,"span":span}),
                 guard,
             )?;
             Ok(())
@@ -249,8 +253,10 @@ impl Timeline {
         let min = model::extent(view).0;
         Some(
             min + f64::from(
-                (f32::from(x - bounds.origin.x) - model::RAIL - f32::from(self.scroll.offset().x))
-                    / (model::UNIT * self.zoom),
+                (f32::from(x - bounds.origin.x)
+                    - self.rail_width()
+                    - f32::from(self.scroll.offset().x))
+                    / self.scale().unit(),
             ),
         )
     }
@@ -309,8 +315,24 @@ impl Timeline {
                         .and_then(|v| v.placements.iter().find(|p| p.entry == drag.entry))
                         .and_then(|p| p.span)
                 });
+            let source = drag
+                .timeline_clip
+                .as_ref()
+                .map(|clip| &clip.lane)
+                .or(drag.hung_host.as_ref());
+            let detach_from = source
+                .filter(|host| *host != &lane && !window.modifiers().alt)
+                .cloned();
             let guard = drag.page().book.v3().unwrap().guard();
-            self.place_at(drag.entry.clone(), Some(lane), at, span, guard, cx);
+            self.place_at(
+                drag.entry.clone(),
+                Some(lane),
+                detach_from,
+                at,
+                span,
+                guard,
+                cx,
+            );
         }
     }
     pub(super) fn resize_moved(&mut self, position: Point<Pixels>, cx: &mut Context<Self>) {
@@ -333,6 +355,7 @@ impl Timeline {
             self.place_at(
                 resize.entry,
                 None,
+                None,
                 resize.at,
                 Some((end - resize.at).max(0.25)),
                 resize.guard,
@@ -341,20 +364,75 @@ impl Timeline {
         }
         cx.notify();
     }
+    pub(super) fn sync_vertical_scroll(&mut self, from_rail: bool, cx: &mut Context<Self>) {
+        if from_rail {
+            let y = self.rail_scroll.offset().y;
+            if (f32::from(self.v_scroll.offset().y - y)).abs() > 0.5 {
+                self.v_scroll.set_offset(point(px(0.0), y));
+                cx.notify();
+            }
+        } else {
+            let y = self.v_scroll.offset().y;
+            if (f32::from(self.rail_scroll.offset().y - y)).abs() > 0.5 {
+                self.rail_scroll.set_offset(point(px(0.0), y));
+                cx.notify();
+            }
+        }
+    }
     pub(super) fn wheel(&mut self, e: &ScrollEvent, window: &mut Window, cx: &mut Context<Self>) {
         if (e.modifiers.platform || e.modifiers.control)
             && let Some(bounds) = self.bounds.get()
         {
             let delta = f32::from(e.delta.pixel_delta(window.line_height()).y);
-            let next = (self.zoom * (1. + delta * 0.002)).clamp(0.5, 3.);
-            let x = f32::from(e.position.x - bounds.origin.x) - model::RAIL;
-            let anchor = (x - f32::from(self.scroll.offset().x)) / self.zoom;
-            self.zoom = next;
-            self.scroll
-                .set_offset(point(px(-(anchor * next - x).max(0.)), px(0.)));
+            if e.modifiers.alt || e.modifiers.shift {
+                self.zoom_lanes(1. + delta * 0.002);
+            } else {
+                let x = f32::from(e.position.x - bounds.origin.x) - self.rail_width();
+                self.zoom_scale(1. + delta * 0.002, x);
+            }
             cx.stop_propagation();
         }
+        self.sync_vertical_scroll(false, cx);
         self.remember(cx);
         cx.notify();
+    }
+    pub(super) fn pinch(&mut self, e: &PinchEvent, _: &mut Window, cx: &mut Context<Self>) {
+        let Some(bounds) = self.bounds.get() else {
+            return;
+        };
+        let x = f32::from(e.position.x - bounds.origin.x) - self.rail_width();
+        if e.modifiers.alt || e.modifiers.shift || x < 0.0 {
+            self.zoom_lanes(1. + e.delta);
+        } else {
+            self.zoom_scale(1. + e.delta, x);
+        }
+        cx.stop_propagation();
+        self.remember(cx);
+        cx.notify();
+    }
+    /// The shown state's lane height times `by` (the other state keeps its
+    /// own).
+    fn zoom_lanes(&mut self, by: f32) {
+        let scale = self.active_mut();
+        *scale = model::Scale {
+            band: scale.band * by,
+            ..*scale
+        }
+        .clamped();
+    }
+    /// The shown state's scale times `by`, the point `x` px into the tracks
+    /// staying under the pointer.
+    fn zoom_scale(&mut self, by: f32, x: f32) {
+        let before = self.scale().unit();
+        let anchor = (x - f32::from(self.scroll.offset().x)) / before;
+        let scale = self.active_mut();
+        *scale = model::Scale {
+            step: scale.step * by,
+            ..*scale
+        }
+        .clamped();
+        let after = self.scale().unit();
+        self.scroll
+            .set_offset(point(px(-(anchor * after - x).max(0.)), px(0.)));
     }
 }

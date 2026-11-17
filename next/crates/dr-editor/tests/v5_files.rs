@@ -836,6 +836,15 @@ impl OpenBook<'_> {
         draw(self.cx);
     }
 
+    /// The caret `chars` characters into paragraph `line` of `chapter`.
+    fn caret_in(&mut self, chapter: usize, line: usize, chars: usize) {
+        self.editor.update_in(self.cx, |e, window, cx| {
+            let at = e.book().chapters[chapter].doc.line_start(line) + chars;
+            e.select(chapter, at..at, window, cx)
+        });
+        draw(self.cx);
+    }
+
     fn type_text(&mut self, text: &str) {
         for c in text.chars() {
             let s = c.to_string();
@@ -987,6 +996,116 @@ fn whole_book_slash_embeds_an_image_and_a_pdf_in_the_caret_chapter_undone_in_one
     assert_eq!(added.len(), 1, "the chosen file is in the library");
     assert_eq!(embedded_in(&e, &added[0]), [second.as_str()]);
     assert_eq!(o.lines(c1), ["启航"]);
+}
+
+/// `kernel-v5.md` §15 item 49: the system's file window of 「从电脑选…」 is
+/// open while the author clicks into another chapter; the chosen file goes
+/// to the caret there, below its paragraph, as in a chapter editor.
+#[gpui::test]
+fn whole_book_file_picked_from_the_computer_follows_the_caret_into_another_chapter(
+    cx: &mut TestAppContext,
+) {
+    let e = env();
+    let root = manuscript(&e);
+    let (first, first_doc) = entry_in(&e, &root, "tpl-chapter", "第一章", "启航\n远洋");
+    let (second, second_doc) = entry_in(&e, &root, "tpl-chapter", "第二章", "靠岸\n归港");
+    let mut o = open_book(cx, &e, &root);
+    let (c1, c2) = (o.chapter(&first_doc), o.chapter(&second_doc));
+    let assist = o.assist();
+    let picture = |name: &str, width: u32| {
+        let file = e.dir.path().join(name);
+        std::fs::write(&file, dr_testkit::media::png(width, 30)).unwrap();
+        file
+    };
+    let added = |known: &[String]| -> String {
+        let new: Vec<String> = library(&e)
+            .into_iter()
+            .map(|(id, _)| id)
+            .filter(|id| !known.contains(id))
+            .collect();
+        assert_eq!(new.len(), 1, "the chosen file is in the library");
+        new[0].clone()
+    };
+
+    // The menu opens at the end of the first chapter's first paragraph; the
+    // caret moves into the second chapter's first paragraph meanwhile.
+    o.caret_in(c1, 0, 2);
+    o.type_text("/图片");
+    o.action(Newline);
+    let (kind, chapter, _) = o.menu().unwrap();
+    assert_eq!((kind, chapter), (MenuKind::Material, c1));
+    assert_eq!(o.lines(c1), ["启航", "远洋"], "the slash query went");
+    let lighthouse = picture("灯塔.png", 40);
+    assist.update_in(o.cx, |a, window, cx| {
+        a.pick_material_from_computer(c1, window, cx)
+    });
+    o.caret_in(c2, 0, 1);
+    o.cx.simulate_path_prompt_response(|_| Some(vec![lighthouse.clone()]));
+    draw(o.cx);
+    draw(o.cx);
+    let moved = added(&[]);
+    assert_eq!(
+        o.lines(c2),
+        ["靠岸", OBJ, "", "归港"],
+        "the file is below the caret's paragraph in the caret's chapter, then a paragraph to go on"
+    );
+    assert_eq!(embedded_in(&e, &moved), [second.as_str()]);
+    assert_eq!(
+        o.lines(c1),
+        ["启航", "远洋"],
+        "the menu's chapter is untouched"
+    );
+    o.action(Undo);
+    assert_eq!(
+        o.lines(c2),
+        ["靠岸", "归港"],
+        "one ⌘Z in that chapter takes it back"
+    );
+    assert!(embedded_in(&e, &moved).is_empty());
+    assert_eq!(o.lines(c1), ["启航", "远洋"]);
+
+    // The caret still in the menu's chapter: the file goes there, at the caret.
+    o.caret_in(c1, 0, 2);
+    o.type_text("/图片");
+    o.action(Newline);
+    let chart = picture("海图.png", 44);
+    assist.update_in(o.cx, |a, window, cx| {
+        a.pick_material_from_computer(c1, window, cx)
+    });
+    o.cx.simulate_path_prompt_response(|_| Some(vec![chart.clone()]));
+    draw(o.cx);
+    draw(o.cx);
+    let stayed = added(std::slice::from_ref(&moved));
+    assert_eq!(o.lines(c1), ["启航", OBJ, "", "远洋"]);
+    assert_eq!(embedded_in(&e, &stayed), [first.as_str()]);
+    assert_eq!(o.lines(c2), ["靠岸", "归港"]);
+    o.action(Undo);
+    assert_eq!(o.lines(c1), ["启航", "远洋"], "one ⌘Z takes it back");
+    assert!(embedded_in(&e, &stayed).is_empty());
+
+    // The caret left the menu's chapter and then the text lost the keyboard
+    // (the author went on outside the prose): the file still goes where the
+    // caret was left, not to the end of the menu's chapter.
+    o.caret_in(c1, 0, 2);
+    o.type_text("/图片");
+    o.action(Newline);
+    let tide = picture("潮汐.png", 48);
+    assist.update_in(o.cx, |a, window, cx| {
+        a.pick_material_from_computer(c1, window, cx)
+    });
+    o.caret_in(c2, 0, 1);
+    o.cx.update(|window, cx| window.blur(cx));
+    o.cx.simulate_path_prompt_response(|_| Some(vec![tide.clone()]));
+    draw(o.cx);
+    draw(o.cx);
+    let unfocused = added(&[moved, stayed]);
+    assert_eq!(embedded_in(&e, &unfocused), [second.as_str()]);
+    assert_eq!(o.lines(c2), ["靠岸", OBJ, "", "归港"]);
+    assert_eq!(
+        o.lines(c1),
+        ["启航", "远洋"],
+        "the menu's chapter is untouched"
+    );
 }
 
 #[gpui::test]

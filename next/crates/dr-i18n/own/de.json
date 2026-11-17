@@ -4,6 +4,7 @@
     "import": "Projekt importieren",
     "importFile": "Projekt importieren (.driftingproject)",
     "importLegacy": "Drifting 0.1 importieren",
+    "importTemplate": "Vorlage importieren",
     "importTemplateFile": "Vorlage importieren (.driftingtemplate)",
     "libraryProjects_one": "{{count}} Projekt",
     "libraryProjects_other": "{{count}} Projekte",
@@ -153,6 +154,21 @@
       "bodyWithoutChapters": "Dieses Projekt ({{words}} Wörter · {{elements}} Elemente) verlässt „Alle Projekte“. Es kann 30 Tage lang unter kürzlich Gelöscht wiederhergestellt werden; danach wird es endgültig gelöscht."
     }
   },
+  "projectTemplates": {
+    "bookDailyTarget": "Täglich {{words}} Wörter",
+    "bookOff": "Aus",
+    "bookOn": "Ein",
+    "bookWordTarget": "Gesamt {{words}} Wörter",
+    "builtin": "Integriert",
+    "deleteTitle": "Vorlage „{{name}}“ löschen?",
+    "description": "Beschreibung",
+    "exportFile": "Exportieren (.driftingtemplate)",
+    "leftRail": "Linke Seitenleiste",
+    "myTemplates": "Meine Vorlagen",
+    "overwrite": "Überschreiben…",
+    "structure": "Struktur",
+    "timePins": "Zeitmarken"
+  },
   "settings": {
     "appearance": {
       "reduce_motion": "Animationen ausschalten"
@@ -179,6 +195,14 @@
       "refused_version": "Das geladene Update ist nicht die angegebene Version, möglicherweise eine ältere, und wurde abgelehnt. Die aktuelle Version funktioniert weiter.",
       "restart": "Neu starten und aktualisieren",
       "server_error": "Der Update-Dienst hat gerade ein Problem. Versuche es später erneut; die aktuelle Version funktioniert weiter."
+    },
+    "keys": {
+      "actions": {
+        "focusLeftSidebar": {
+          "desc": "Die linke Seitenleiste mit den Pfeiltasten durchgehen; erneut drücken oder Esc, um zur Seite zurückzukehren",
+          "label": "In die linke Seitenleiste"
+        }
+      }
     }
   },
   "templateEditor": {
@@ -463,5 +487,37 @@
     "usedIn": "Verwendet in",
     "viewList": "Liste",
     "viewMasonry": "Masonry"
+  },
+  "v5Fill": {
+    "attached": "Angehängt",
+    "below": "Darunter",
+    "cellOff": "Aus",
+    "cellOn": "An",
+    "entryCount_one": "{{count}} Eintrag",
+    "entryCount_other": "{{count}} Einträge",
+    "exitFill": "Füllen beenden",
+    "fill": "Füllen",
+    "fillLeft": "Linke Seitenleiste füllen",
+    "fillRight": "Rechte Seitenleiste füllen",
+    "fullEditor": "Vollständiger Editor",
+    "hangsOn": "Hängt an",
+    "hungItems": "Angehängt: {{items}}",
+    "livesIn": "Wohnt in",
+    "livesInName": "Wohnt in {{name}}",
+    "moveHere": "Hierher verschieben",
+    "newDefault": "Neu standardmäßig",
+    "noTemplateEntries": "Einträge ohne Vorlage",
+    "resides": "Untergeordnet",
+    "resizeFill": "Breite des gefüllten Bereichs anpassen",
+    "structure": "Struktur",
+    "structureEntries_one": "{{count}} Eintrag",
+    "structureEntries_other": "{{count}} Einträge",
+    "structureLevels_one": "{{count}} Ebene",
+    "structureLevels_other": "{{count}} Ebenen",
+    "structureTemplates_one": "{{count}} Vorlage",
+    "structureTemplates_other": "{{count}} Vorlagen",
+    "templateCount": "{{count}} Vorlagen",
+    "templateStructure": "Vorlagenstruktur",
+    "unusedTemplates": "Unbenutzte Vorlagen"
   }
 }

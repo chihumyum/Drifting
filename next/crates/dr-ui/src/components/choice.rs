@@ -276,6 +276,7 @@ pub struct Segmented {
     text_size: Option<f32>,
     faint: Vec<usize>,
     pad_x: f32,
+    keyboard: Option<usize>,
 }
 
 impl Segmented {
@@ -296,7 +297,18 @@ impl Segmented {
             text_size: None,
             faint: Vec::new(),
             pad_x: 10.0,
+            keyboard: None,
         }
+    }
+
+    /// The keyboard is on option `index` (KB: a left-column Tab the keyboard
+    /// walks): a still, thin ring round it, the resting selection of the
+    /// design system, over the chosen word's block too (the prototype's
+    /// `.tabs .tb.kb`), so the row shows where the keyboard is. The option
+    /// has the debug selector `{id}-keyboard`, the ring `{id}-keyboard-ring`.
+    pub fn keyboard(mut self, index: Option<usize>) -> Self {
+        self.keyboard = index;
+        self
     }
 
     pub fn disabled(mut self, disabled: bool) -> Self {
@@ -466,8 +478,11 @@ impl RenderOnce for Segmented {
             .child(block);
         let disabled = self.disabled;
         let report_selected = self.report_selected;
+        let keyboard = self.keyboard.filter(|_| !disabled);
         for (i, label) in self.options.into_iter().enumerate() {
             let on = i == selected;
+            let keyed = keyboard == Some(i);
+            let keyed_selector = self.id.clone();
             let ink = match (disabled, on) {
                 (true, true) => p.ink(3),
                 (true, false) => p.ink(5),
@@ -496,6 +511,39 @@ impl RenderOnce for Segmented {
                     .role(gpui::Role::RadioButton)
                     .aria_label(label.clone())
                     .aria_selected(on)
+                    .when(keyed, |el| {
+                        el.debug_selector(move || format!("{keyed_selector}-keyboard"))
+                    })
+                    .when(keyed, |el| {
+                        // On the chosen word the ring lies on the block's
+                        // paper.
+                        let outside = match glass::current_ground() {
+                            Some(Ground::Flat { inside, .. }) => inside,
+                            _ => p.desk,
+                        };
+                        let inside = if on { p.page } else { outside };
+                        let ring_selector = self.id.clone();
+                        el.child(
+                            div()
+                                .absolute()
+                                .top_0()
+                                .left_0()
+                                .size_full()
+                                .debug_selector(move || format!("{ring_selector}-keyboard-ring"))
+                                .child(glass::held_layer(
+                                    glass::GlassState::held(
+                                        Kind::Hidden,
+                                        Mode::default(),
+                                        glass::Held::Selected,
+                                        0.0,
+                                    ),
+                                    Spec::new(Tone::Clear, 0.0)
+                                        .rim(super::cell::RING_RIM)
+                                        .ground(Ground::Flat { inside, outside }),
+                                    theme,
+                                )),
+                        )
+                    })
                     .child(measure(state.clone(), i))
                     .child(label)
                     .when_some(f, |el, f| el.on_click(move |_, w, cx| f(i, w, cx))),

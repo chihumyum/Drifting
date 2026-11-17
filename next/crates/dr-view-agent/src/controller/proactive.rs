@@ -4,10 +4,30 @@ use super::*;
 use dr_agent::{Cancellation, RunConfig, proactive::*};
 use dr_model::id::new_uuid_v7;
 
+/// What a check-in whose model request did not complete keeps as its error
+/// (Project Home words it with an existing key, HC).
+pub const CHECKIN_REQUEST_FAILED: &str = "suggestion request did not complete";
+
 #[derive(Clone, Debug)]
 pub struct Suggestions {
     pub state: ProactiveState,
     pub enabled: bool,
+}
+
+/// A running suggestion operation as the service holds it. `cancel` reaches
+/// the model request, which also cancels it on its own failures; `stopped`
+/// is set only when the author stops it (主动建议 off, or the service
+/// closing), so a stop is told apart from a failure (HC).
+#[derive(Clone, Default)]
+pub(super) struct SuggestionStop {
+    cancel: Cancellation,
+    stopped: Cancellation,
+}
+impl SuggestionStop {
+    pub(super) fn stop(&self) {
+        self.stopped.cancel();
+        self.cancel.cancel();
+    }
 }
 
 struct Job {
@@ -15,6 +35,7 @@ struct Job {
     lease: ReadLease,
     book: BookId,
     cancel: Cancellation,
+    stopped: Cancellation,
 }
 impl Job {
     fn ws(&self) -> &Workspace {
@@ -25,6 +46,10 @@ impl Job {
             let state = self.controller.inner.state.lock().expect("Agent service");
             state.resources.is_some() && state.proactive_enabled
         }
+    }
+    /// The author stopped it: 主动建议 turned off, or the service closing.
+    fn stopped(&self) -> bool {
+        self.stopped.is_cancelled()
     }
 }
 impl Drop for Job {
@@ -115,12 +140,17 @@ fn checkin_project(ws: &Workspace, book: &BookId) -> Result<CheckinProject, Stri
 }
 
 impl AgentController {
+    /// Wakes the views only when the value changes: every settings write
+    /// hands it over again (HC).
     pub fn set_proactive_enabled(&self, enabled: bool) {
         let mut state = self.inner.state.lock().expect("Agent service");
+        if state.proactive_enabled == enabled {
+            return;
+        }
         state.proactive_enabled = enabled;
         if !enabled {
-            for cancel in state.suggestion_jobs.values() {
-                cancel.cancel();
+            for job in state.suggestion_jobs.values() {
+                job.stop();
             }
         }
         drop(state);
@@ -132,8 +162,8 @@ impl AgentController {
         if state.suggestion_jobs.contains_key(&book) {
             return Err("suggestion operation already running".into());
         }
-        let cancel = Cancellation::default();
-        state.suggestion_jobs.insert(book.clone(), cancel.clone());
+        let stop = SuggestionStop::default();
+        state.suggestion_jobs.insert(book.clone(), stop.clone());
         resources.reads.enter();
         Ok(Job {
             controller: self.clone(),
@@ -142,7 +172,8 @@ impl AgentController {
                 resources: Some(resources),
             },
             book,
-            cancel,
+            cancel: stop.cancel,
+            stopped: stop.stopped,
         })
     }
 
@@ -160,8 +191,9 @@ impl AgentController {
         })
     }
 
-    /// Called on Home open/focus and after successful organize settlement.
-    /// Reservation occurs now; view cancellation cannot orphan the worker.
+    /// Called when Project Home comes to the front or the window comes back
+    /// with it in front (HC). Reservation occurs now; view cancellation
+    /// cannot orphan the worker.
     pub fn trigger_suggestions(
         &self,
         book: BookId,
@@ -280,6 +312,9 @@ impl AgentController {
             else {
                 return Ok(());
             };
+            // Views re-read the state: a check-in is under way (Project
+            // Home's 「Agent 正在看你最近的改动……」, HC).
+            job.controller.inner.notify();
             let result = futures::executor::block_on(run_checkin_with_guidance(
                 job.lease.resources().driver.clone(),
                 CheckinInput {
@@ -292,25 +327,51 @@ impl AgentController {
                 project.guidance,
             ));
             match result {
+                // 主动建议 turned off (or the app closing) while it looked:
+                // the author's own stop is no failure, and the attempt
+                // does not count against the 90 minutes (HC). A request
+                // that failed cancelled itself, which is not a stop.
+                _ if job.stopped() => {
+                    ProactiveStore::cancel_checkin(lib, book, &ticket, state.last_attempt_ms)
+                        .map_err(string)?;
+                }
                 Ok(outcome) if job.allowed() => {
                     ProactiveStore::complete_checkin(lib, book, &ticket, &outcome)
                         .map_err(string)?;
                 }
                 Ok(_) => {
-                    ProactiveStore::fail_checkin(lib, book, &ticket, "cancelled")
+                    ProactiveStore::cancel_checkin(lib, book, &ticket, state.last_attempt_ms)
                         .map_err(string)?;
                 }
                 Err(_) => {
-                    ProactiveStore::fail_checkin(
-                        lib,
-                        book,
-                        &ticket,
-                        "suggestion request did not complete",
-                    )
-                    .map_err(string)?;
+                    ProactiveStore::fail_checkin(lib, book, &ticket, CHECKIN_REQUEST_FAILED)
+                        .map_err(string)?;
                 }
             }
             Ok(())
+        })
+    }
+
+    /// Whether `conversation` of `book` is still there (a doc or a session
+    /// of it): a card's 查看对话 opens nothing that is gone.
+    pub fn has_conversation(
+        &self,
+        book: &BookId,
+        conversation: &ConversationId,
+    ) -> Result<bool, String> {
+        self.with_workspace_read(|ws| {
+            let lib = ws.library();
+            let doc = DocId::Conversation(conversation.clone()).to_string();
+            if let Some(info) = lib.doc_info(&doc).map_err(string)? {
+                return Ok(
+                    info.kind == "conversation" && info.book_id.as_deref() == Some(book.as_str())
+                );
+            }
+            Ok(lib
+                .agent_sessions(Some(book.as_str()))
+                .map_err(string)?
+                .iter()
+                .any(|session| session.conversation == doc))
         })
     }
 

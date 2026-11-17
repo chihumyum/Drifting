@@ -1130,6 +1130,10 @@ impl Home {
             }
         }
 
+        if let Some(structure) = crate::structure_thumbnail::render(self, window, cx) {
+            block = block.child(hrow(t(cx, keys::v5_fill::STRUCTURE), structure, true, p));
+        }
+
         let agent_name_label = t(cx, keys::template_editor::NAME);
         let agent_desc_label = t(cx, keys::template_editor::DESCRIPTION);
         let agent_inst_label = t(cx, keys::template_editor::INSTRUCTIONS);

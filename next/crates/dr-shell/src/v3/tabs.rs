@@ -191,13 +191,18 @@ fn entry_row(
             },
         )
         .can_drop(move |value, _, _| {
-            value
-                .downcast_ref::<EntryDrag>()
-                .is_some_and(|drag| drag.matches(&can_page) && drag.entry != onto)
+            value.downcast_ref::<EntryDrag>().is_some_and(|drag| {
+                drag.matches(&can_page)
+                    && drag.hung_host.is_none()
+                    && (drag.timeline_clip.is_some() || drag.entry != onto)
+            })
         })
         .drag_over::<EntryDrag>(move |style, _, _, _| style.border_b_1().border_color(line))
         .on_drop(move |drag: &EntryDrag, window, cx| {
             if !drag.matches(&page) || !drag.is_current(cx) {
+                return;
+            }
+            if detach_timeline_clip(&page, drag, cx) {
                 return;
             }
             let after = drop_bounds
@@ -208,6 +213,29 @@ fn entry_row(
         .child(overlay::probe(bounds))
         .child(cell)
         .into_any_element()
+}
+
+/// Detaches a timeline lane clip dropped back onto the left sidebar (`摘名`),
+/// leaving its residence untouched (`kernel-v5.md` §16, `W9Bottom`).
+pub fn detach_timeline_clip(host: &PageViewHost, drag: &EntryDrag, cx: &mut App) -> bool {
+    let Some(clip) = &drag.timeline_clip else {
+        return false;
+    };
+    if !drag.matches(host) || !drag.is_current(cx) {
+        return true;
+    }
+    write(
+        host,
+        "timeline_view.remove",
+        json!({
+            "view": clip.view,
+            "entry": drag.entry,
+            "lane": clip.lane,
+        }),
+        |_, _| {},
+        cx,
+    );
+    true
 }
 
 /// Moves `moving` to live beside `onto` (before or after it), in `onto`'s

@@ -128,6 +128,10 @@ fn a_working_copy_uploads_no_document_asset_or_purge() {
         "the working copy's file waits to upload"
     );
 
+    // The copy's writes are saved over its template 250 ms after the last one,
+    // on the saver's own thread: save them now, so the first sync sees the
+    // settled state rather than a template write landing during it.
+    ws.flush_working_copies().unwrap();
     let server = FakeSyncServer::start(TOKEN);
     let mut engine = SyncEngine::new(server.base_url(), ws.library()).unwrap();
     engine.sync_once(ws.library(), TOKEN).unwrap();

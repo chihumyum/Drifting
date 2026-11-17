@@ -9,8 +9,7 @@ use dr_shell::book::MaterialInfo;
 use dr_shell::nav::{Open, Target as NavTarget};
 use dr_shell::pages::UsageFlash;
 use dr_shell::strings::tp;
-use dr_shell::t;
-use dr_shell::workspace::SuperView;
+use dr_shell::{t, workspace::FillPlace};
 use dr_ui::Theme;
 use dr_ui::components::{CardAction, CardBody, EmptyState, HoverCard, IconButton, SandCell};
 use dr_ui::fonts::{Role, weight};
@@ -45,10 +44,24 @@ enum MasonryEntry<'a> {
 }
 
 impl LibraryPanel {
+    fn filled(&self, cx: &App) -> bool {
+        self.shell
+            .upgrade()
+            .is_some_and(|ws| ws.read(cx).is_filled(FillPlace::Right))
+    }
+
     fn subline_of(&self, m: &MaterialInfo, cx: &App) -> SharedString {
         let kind = card::kind_label(&m.kind, cx);
         let n = self.usage_count(&m.id);
-        if n > 0 {
+        if self.filled(cx) && n > 0 {
+            let uses = self
+                .usages_of(&m.id)
+                .iter()
+                .map(|u| format!("{} · {}", u.entry_title, u.module_name))
+                .collect::<Vec<_>>()
+                .join(" / ");
+            format!("{kind} · {uses}").into()
+        } else if n > 0 {
             let count = tp(cx, keys::v5_files::USAGE_COUNT, n as u64, &[("count", &n)]);
             format!("{kind} · {count}").into()
         } else {
@@ -419,10 +432,15 @@ impl LibraryPanel {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let col_gap = 6.0;
-        let col_w = ((self.list_width - 24.0 - col_gap) / 2.0).max(96.0);
-        let mut left: Vec<AnyElement> = Vec::new();
-        let mut right: Vec<AnyElement> = Vec::new();
-        let (mut left_h, mut right_h) = (0.0f32, 0.0f32);
+        let count = if self.filled(cx) {
+            ((self.list_width - 24.0) / 190.0).floor().clamp(2.0, 6.0) as usize
+        } else {
+            2
+        };
+        let col_w =
+            ((self.list_width - 24.0 - col_gap * (count - 1) as f32) / count as f32).max(96.0);
+        let mut columns: Vec<(f32, Vec<AnyElement>)> =
+            (0..count).map(|_| (0.0, Vec::new())).collect();
 
         for item in items {
             let (norm_h, el) = match item {
@@ -439,13 +457,12 @@ impl LibraryPanel {
                     (ratio + 0.34, el)
                 }
             };
-            if left_h <= right_h {
-                left_h += norm_h;
-                left.push(el);
-            } else {
-                right_h += norm_h;
-                right.push(el);
-            }
+            let (height, column) = columns
+                .iter_mut()
+                .min_by(|a, b| a.0.total_cmp(&b.0))
+                .expect("at least two masonry columns");
+            *height += norm_h;
+            column.push(el);
         }
 
         div()
@@ -454,24 +471,15 @@ impl LibraryPanel {
             .flex_row()
             .items_start()
             .gap(px(col_gap))
-            .child(
+            .children(columns.into_iter().map(|(_, column)| {
                 div()
                     .flex_1()
                     .min_w_0()
                     .flex()
                     .flex_col()
                     .gap(px(col_gap))
-                    .children(left),
-            )
-            .child(
-                div()
-                    .flex_1()
-                    .min_w_0()
-                    .flex()
-                    .flex_col()
-                    .gap(px(col_gap))
-                    .children(right),
-            )
+                    .children(column)
+            }))
             .into_any_element()
     }
 
@@ -547,7 +555,11 @@ impl LibraryPanel {
                 .child(title)
                 .into_any_element()
         };
-        let sub = module_tag.unwrap_or_else(|| self.subline_of(m, cx));
+        let sub = if self.filled(cx) {
+            self.subline_of(m, cx)
+        } else {
+            module_tag.unwrap_or_else(|| self.subline_of(m, cx))
+        };
         let click = cx.entity();
         let k = key.clone();
 
@@ -1717,12 +1729,11 @@ impl Render for LibraryHead {
         let panel = self.panel.read(cx);
         let count = panel.live_count();
         let mode = panel.view_mode();
-        let (to_list, to_masonry, folder, plus, sv) = (
+        let (to_list, to_masonry, folder, plus) = (
             self.panel.clone(),
             self.panel.clone(),
             self.panel.clone(),
             self.panel.clone(),
-            panel.shell.clone(),
         );
 
         let view_btn = |id: &'static str,
@@ -1804,17 +1815,6 @@ impl Render for LibraryHead {
                         count as u64,
                         &[("count", &count)],
                     )),
-            )
-            .child(
-                IconButton::new("library-super-view", Icon::LibCurio)
-                    .label(t(cx, keys::bottom_status_bar::TODO_LIBRARY))
-                    .on_click(move |_, _, cx| {
-                        if let Some(ws) = sv.upgrade() {
-                            ws.update(cx, |ws, cx| {
-                                ws.toggle_super_view(SuperView::ReviewMaterials, cx)
-                            });
-                        }
-                    }),
             )
             .child(
                 IconButton::new("library-new-folder", Icon::FolderPlus)

@@ -41,6 +41,7 @@ use gpui::{
 use serde::{Deserialize, Serialize};
 
 use super::Workspace;
+use super::fill::FillPlace;
 use super::sidebar::NoPreview;
 use crate::book::Book;
 use crate::nav::Target;
@@ -132,7 +133,10 @@ fn bounds(pane_min: f32, column_h: f32) -> (f32, f32) {
 impl Workspace {
     /// What the Bottom Panel shows now, if anything.
     pub fn bottom_pane(&self, cx: &App) -> Option<BottomPane> {
-        if self.immersive || self.book_id.is_empty() {
+        if self.immersive
+            || self.book_id.is_empty()
+            || matches!(self.filled(), Some(FillPlace::Left | FillPlace::Right))
+        {
             return None;
         }
         let planned = matches!(self.nav.current(), Some(Target::Entry { .. }));
@@ -148,6 +152,9 @@ impl Workspace {
     /// ⌘J and the bamboo: shows the timeline (closing the planner), or puts
     /// it away.
     pub fn toggle_timeline(&mut self, cx: &mut Context<Self>) {
+        if self.is_filled(FillPlace::Bottom) {
+            self.exit_fill_in_cx(cx);
+        }
         let b = &mut self.bottom.layout;
         if b.timeline_hidden || b.planner_open {
             b.timeline_hidden = false;
@@ -261,6 +268,9 @@ pub(super) fn on_resize(
     window: &mut Window,
     cx: &mut Context<Workspace>,
 ) {
+    if ws.is_filled(FillPlace::Bottom) {
+        return;
+    }
     let column_h = f32::from(window.viewport_size().height);
     let pane_min = ws.bottom_min(cx);
     let (min, max) = bounds(pane_min, column_h);
@@ -309,7 +319,10 @@ pub(super) fn panel(
         ws.bottom.reveal.set(to);
     }
     let shown = ws.bottom.reveal.value(now);
-    anim::keep_going(!ws.bottom.reveal.settled(now), window);
+    anim::keep_going(
+        !ws.bottom.reveal.settled(now) || ws.fill.animating(),
+        window,
+    );
     ws.refresh_bottom(cx);
     // The planner goes once the timeline shows instead; while the panel is
     // only shut (no chapter in front) it waits for its chapter, and another
@@ -326,24 +339,31 @@ pub(super) fn panel(
     // The pane's own least height counts while the edge is dragged (as in
     // the 0.1 client), not on every frame.
     let (min, max) = bounds(MIN_HEIGHT, column_h);
-    let height = ws.bottom.layout.height.clamp(min, max);
+    let normal_h = ws.bottom.layout.height.clamp(min, max);
+    let fill_h = (column_h - super::chrome::TITLEBAR_HEIGHT).max(normal_h);
+    let fill_t = ws.fill.progress(FillPlace::Bottom);
+    let height = (normal_h + (fill_h - normal_h) * fill_t).round();
     let visible = (height * shown).round();
-    let grip = div()
-        .id("bottom-panel-grip")
-        .absolute()
-        .top_0()
-        .left_0()
-        .right_0()
-        .h(px(GRIP))
-        .cursor_row_resize()
-        .on_mouse_down(
-            MouseButton::Left,
-            cx.listener(move |ws, e: &gpui::MouseDownEvent, window, _| {
-                let top = f32::from(window.viewport_size().height) - visible;
-                ws.bottom.grab = f32::from(e.position.y) - top;
-            }),
-        )
-        .on_drag(BottomResize, |_, _, _, cx| cx.new(|_| NoPreview));
+    let bottom_filled = ws.is_filled(FillPlace::Bottom);
+    let grip = (!bottom_filled).then(|| {
+        div()
+            .id("bottom-panel-grip")
+            .debug_selector(|| "bottom-panel-grip".into())
+            .absolute()
+            .top_0()
+            .left_0()
+            .right_0()
+            .h(px(GRIP))
+            .cursor_row_resize()
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(move |ws, e: &gpui::MouseDownEvent, window, _| {
+                    let top = f32::from(window.viewport_size().height) - visible;
+                    ws.bottom.grab = f32::from(e.position.y) - top;
+                }),
+            )
+            .on_drag(BottomResize, |_, _, _, cx| cx.new(|_| NoPreview))
+    });
     Some((
         div()
             .id("bottom-panel")
@@ -366,7 +386,7 @@ pub(super) fn panel(
                     .flex_col()
                     .child(div().flex_1().min_h_0().size_full().child(made.view)),
             )
-            .child(grip)
+            .children(grip)
             .into_any_element(),
         visible,
     ))

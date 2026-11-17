@@ -17,7 +17,7 @@
 //!   value `first_run.done`), the first run lies over the bookshelf, which
 //!   is drawn under it once it says so.
 //! - **Tour**: started when a book's workspace first shows; its layer is
-//!   the root's last child, covered by a Super View or the wait.
+//!   the root's last child, covered by a panel fill or the wait.
 
 use std::any::Any;
 use std::time::{Duration, Instant};

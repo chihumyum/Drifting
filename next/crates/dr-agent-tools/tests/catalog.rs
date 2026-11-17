@@ -1203,3 +1203,108 @@ fn v5_catalog_exposes_media_project_tabs_assets_layout_and_binds_home_by_accept(
             .any(|m| m["host"] == folder && m["member"] == made_member["id"])
     );
 }
+
+/// T9 review item 1: the workspace UI's drag parameters (`membership.add`'s
+/// `from_host` and `order`, `timeline_view.place`'s `from_host`) stay out of
+/// the Agent's and MCP's tool schema, and passing them through the Agent's
+/// executor (the path MCP calls too) is refused without writing; the same
+/// calls without them still work.
+#[test]
+fn ui_only_drag_parameters_are_hidden_and_refused_for_the_agent() {
+    use dr_agent_tools::{AgentTools, CallRequest};
+    let f = V3Fixture::new();
+    let catalog = Catalog::for_book(&f.ws, &f.book).unwrap();
+    for (tool, field) in [
+        ("membership.add", "from_host"),
+        ("membership.add", "order"),
+        ("timeline_view.place", "from_host"),
+    ] {
+        let schema = catalog.descriptor(tool).unwrap().input_schema;
+        assert!(
+            !schema.to_string().contains(&format!("\"{field}\"")),
+            "{tool} shows {field}: {schema}"
+        );
+    }
+    let of = |template: &str| -> Vec<String> {
+        dr_testkit::seed::acceptance::entries_by_template(&f.ws, &f.book, template)
+            .iter()
+            .map(|e| e["id"].as_str().unwrap().to_owned())
+            .collect()
+    };
+    let roots = of("tpl-storylines");
+    let lane = |title: &str| -> String {
+        f.out(
+            "entry.create",
+            json!({"book":f.book,"parent":roots[0],"template":"tpl-storyline","title":title}),
+        )["id"]
+            .as_str()
+            .unwrap()
+            .to_owned()
+    };
+    let (a, b) = (lane("Synthetic lane A"), lane("Synthetic lane B"));
+    let chapters = of("tpl-chapter");
+    let (m, n) = (&chapters[0], &chapters[1]);
+    for member in [m, n] {
+        f.out(
+            "membership.add",
+            json!({"book":f.book,"host":a,"member":member}),
+        );
+    }
+    let view = f.out("timeline_view.list", json!({"book":f.book}))[0]["id"].clone();
+    let tools = AgentTools::new();
+    let actor = Actor::agent("t9-ui-only", 1, "write");
+    let invoke = |name: &str, arguments: Value| {
+        tools.invoke(
+            &f.ws,
+            &f.book,
+            &actor,
+            CallRequest {
+                name: name.into(),
+                arguments,
+                revision: None,
+                edited_text: None,
+            },
+        )
+    };
+    // Everything a call touches is read (again) before it: a refusal below
+    // is about the parameter, not a missing read.
+    let read_all = || {
+        invoke("entry.list", json!({"all": true})).unwrap();
+        for id in [&a, &b, m, n] {
+            invoke("entry.get", json!({"id": id})).unwrap();
+        }
+        invoke("membership.list", json!({})).unwrap();
+        invoke("timeline_view.list", json!({})).unwrap();
+    };
+    let before = f.ws.observe(&format!("book:{}", f.book)).unwrap();
+    let journal = f.ws.journal(None, 10_000).unwrap().len();
+    for (name, arguments) in [
+        ("membership.add", json!({"host":b,"member":m,"from_host":a})),
+        (
+            "membership.add",
+            json!({"host":a,"member":m,"order":{"anchor":n,"after":true}}),
+        ),
+        (
+            "timeline_view.place",
+            json!({"view":view,"entry":m,"lane":b,"from_host":a,"at":3}),
+        ),
+    ] {
+        read_all();
+        let result = invoke(name, arguments.clone());
+        assert!(
+            matches!(
+                result,
+                Err(dr_agent_tools::Error::Workspace(dr_workspace::WsError::Invalid(ref message)))
+                    if message.contains("workspace UI operation")
+            ),
+            "{name} {arguments}: {result:?}"
+        );
+        let after = f.ws.observe(&before.doc).unwrap();
+        assert_eq!(after.version, before.version, "{name} wrote");
+        assert_eq!(after.value, before.value);
+        assert_eq!(f.ws.journal(None, 10_000).unwrap().len(), journal);
+    }
+    read_all();
+    invoke("membership.add", json!({"host":b,"member":m}))
+        .expect("the same call without the UI's parameter");
+}
