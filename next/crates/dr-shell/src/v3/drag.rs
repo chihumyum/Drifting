@@ -6,6 +6,13 @@ use gpui::{App, SharedString};
 
 use crate::pages::PageViewHost;
 
+/// Source lane when dragging a card from a bottom timeline lane (`W9Bottom`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TimelineClipDrag {
+    pub view: String,
+    pub lane: String,
+}
+
 /// The source retains its observed book and library lease until the drag ends.
 /// Receivers must check `matches`/`is_current` and commit with version guards;
 /// these UI checks cannot replace a guarded backend write.
@@ -15,6 +22,10 @@ pub struct EntryDrag {
     pub entry: String,
     pub title: SharedString,
     pub span: Option<f64>,
+    /// Set when dragging a hung row (`Row::Member`) in the left tree (`W31Hung`).
+    pub hung_host: Option<String>,
+    /// Set when dragging a placement card from a bottom timeline lane (`W9Bottom`).
+    pub timeline_clip: Option<TimelineClipDrag>,
     page: PageViewHost,
     grab: Rc<Cell<f32>>,
     source: Option<Rc<dyn Any>>,
@@ -31,10 +42,25 @@ impl EntryDrag {
             entry: entry.into(),
             title: title.into(),
             span: None,
+            hung_host: None,
+            timeline_clip: None,
             page,
             grab: Rc::default(),
             source: None,
         }
+    }
+
+    pub fn with_hung_host(mut self, host: impl Into<String>) -> Self {
+        self.hung_host = Some(host.into());
+        self
+    }
+
+    pub fn with_timeline_clip(mut self, view: impl Into<String>, lane: impl Into<String>) -> Self {
+        self.timeline_clip = Some(TimelineClipDrag {
+            view: view.into(),
+            lane: lane.into(),
+        });
+        self
     }
 
     pub fn page(&self) -> &PageViewHost {

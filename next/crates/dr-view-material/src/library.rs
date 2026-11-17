@@ -655,10 +655,7 @@ impl LibraryPanel {
             return;
         };
         if let Some(ws) = self.shell.upgrade() {
-            ws.update(cx, |ws, cx| {
-                ws.super_view = None;
-                ws.open(Target::Material(id), how, cx)
-            });
+            ws.update(cx, |ws, cx| ws.open(Target::Material(id), how, cx));
         }
     }
 
@@ -670,7 +667,6 @@ impl LibraryPanel {
         dr_shell::pages::UsageFlash::trigger(usage.flash_keys.clone(), cx);
         if let Some(ws) = self.shell.upgrade() {
             ws.update(cx, |ws, cx| {
-                ws.super_view = None;
                 ws.open(
                     Target::Entry {
                         id: entry_id,

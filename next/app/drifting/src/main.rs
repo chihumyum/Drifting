@@ -20,7 +20,7 @@ use std::path::Path;
 use dr_platform::DeepLinks;
 use dr_platform::crash::CrashConfig;
 use dr_shell::{Services, SettingsFile, ShellInfo};
-use gpui::App;
+use gpui::{App, AppContext as _};
 use gpui_platform::application;
 
 /// The development switch: `DRIFTING_APPEARANCE=light|dark` forces one
@@ -194,6 +194,15 @@ fn main() {
         // around their text (M11).
         dr_view_shelf::init(cx);
         dr_view_home::init(cx);
+        // HC: the Agent's suggestion cards on Project Home.
+        dr_view_home::set_agent_cards(cx, |host, _, cx| {
+            let cards = cx.new(|cx| dr_view_agent::home_cards::HomeCards::new(host.workspace, cx));
+            dr_view_home::AgentCards::new(
+                cards,
+                dr_view_agent::home_cards::HomeCards::drawn,
+                dr_view_agent::home_cards::HomeCards::shown,
+            )
+        });
         // M03: the chapter page's head and end around every editor.
         dr_view_page::init(cx);
         dr_view_elements::init(cx);
@@ -205,10 +214,8 @@ fn main() {
         dr_view_plot::init(cx);
         // M19: image and PDF materials open in their viewer, not an editor.
         dr_view_material::init(cx);
-        // M22: Elements Overview Super View (⌘⌥4) on canonical v3.
+        // M22: Island / Relate layouts inside Left Tab Fill on canonical v3.
         dr_view_element_overview::init(cx);
-        // M23: Review & Materials Super View (⌘⌥5) on canonical v3.
-        dr_view_shelf_review::init(cx);
         // M39: the feedback dialog (`SendFeedback`, a crash follow-up in the
         // notification center), by mail unless built with the Hosted service.
         dr_view_feedback::init(

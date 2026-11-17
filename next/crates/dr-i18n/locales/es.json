@@ -96,6 +96,7 @@
     "import": "Importar proyecto",
     "importFile": "Importar proyecto (.driftingproject)",
     "importLegacy": "Importar Drifting 0.1",
+    "importTemplate": "Importar plantilla",
     "importTemplateFile": "Importar plantilla (.driftingtemplate)",
     "libraryProjects_many": "{{count}} proyectos",
     "libraryProjects_one": "{{count}} proyecto",
@@ -196,11 +197,6 @@
       "submit": "Verificar y entrar",
       "verifying": "Verificando…"
     }
-  },
-  "bottomStatusBar": {
-    "elements": "Elementos",
-    "storyGraph": "Mapa de la historia",
-    "todoLibrary": "Tareas y documentación"
   },
   "chapterEditor": {
     "synopsisPlaceholder": "Sinopsis…",
@@ -347,10 +343,6 @@
         "body": "El armazón del libro. La barra lateral izquierda se puede dividir en dos, cada parte con su propio panel.",
         "closedBody": "El armazón del libro está en la barra lateral izquierda: capítulos, elementos e ideas. Ábrela aquí.",
         "title": "Capítulos · Elementos · Ideas"
-      },
-      "superViews": {
-        "body": "Ábrelas desde el botón redondo de la cabecera de un panel.",
-        "title": "Vistas de ventana completa"
       },
       "timeline": {
         "body": "Las tramas se despliegan bajo la página en orden del libro o del tiempo de la historia.",
@@ -522,24 +514,15 @@
     "zoomReset": "Ajustar a la vista"
   },
   "materialFolders": {
-    "menu": {
-      "open": "Abrir"
-    },
     "picker": {
       "createAndMove": "Crear y mover",
       "newPlaceholder": "Nombre de la nueva carpeta"
     },
-    "root": "Todos los materiales",
     "untitled": "Nueva carpeta"
   },
   "memoMaterial": {
     "card": {
       "addSnippetBody": "Escribe en esta nota…"
-    },
-    "dialog": {
-      "create": "Crear",
-      "newTodo": "Nueva tarea",
-      "todoPlaceholder": "Contenido de la tarea…"
     },
     "error": {
       "openFile": "No se pudo abrir el archivo: {{error}}",
@@ -550,9 +533,6 @@
       "pdf": "PDF",
       "text": "Nota"
     },
-    "menu": {
-      "openInSystem": "Abrir en aplicación del sistema"
-    },
     "preview": {
       "loading": "Cargando…",
       "loadingPdf": "Cargando PDF…",
@@ -562,35 +542,6 @@
       "openPdfFailed": "No se puede abrir el PDF",
       "previousPage": "Anterior",
       "renderPdfFailed": "No se puede representar el PDF"
-    },
-    "super": {
-      "all": "Todo",
-      "clearEntityFilter": "Quitar filtro de relaciones",
-      "collapseDrawer": "Contraer panel",
-      "commentEmptyHint": "Pulsa + para crear un comentario o selecciona texto en el editor para comentar",
-      "comments": "Comentarios",
-      "entityFilterAll": "Relaciones · Todas",
-      "expandDrawer": "Expandir panel",
-      "hideKind": "Haz clic para ocultar esta clase",
-      "material": "Material",
-      "meta": "{{todos}} tareas · {{comments}} comentarios · {{materials}} materiales",
-      "noFilteredMaterials": "Ningún material coincide con los filtros.",
-      "noMaterials": "Este proyecto aún no tiene materiales.",
-      "noOrphans": "Todos los materiales están vinculados al menos a una entidad.",
-      "noResolved": "Aún no hay nada resuelto.",
-      "orphanHeader": "Sin ordenar · Materiales sin vincular",
-      "orphans": "Sin ordenar",
-      "reopenShort": "Reabrir",
-      "resizeComments": "Cambiar el ancho de la columna de comentarios",
-      "resizeTodos": "Cambiar el ancho de la columna de tareas",
-      "resolved": "Resuelto",
-      "resolvedHeader": "Resueltos · Archivo de tareas y comentarios",
-      "searchPlaceholder": "Buscar título o texto…",
-      "showKind": "Haz clic para mostrar",
-      "todoEmptyHint": "Pulsa + para crear una tarea o elige «A tarea» en una tarjeta de comentario"
-    },
-    "todo": {
-      "empty": "(tarea vacía)"
     }
   },
   "mobileWorkspace": {
@@ -601,9 +552,6 @@
     "projectActions": {
       "deleteFailed": "No se pudo eliminar el proyecto. Inténtalo de nuevo."
     }
-  },
-  "navigation": {
-    "back": "Volver"
   },
   "nodeEditor": {
     "meta": {
@@ -632,9 +580,6 @@
     },
     "notice": {
       "source": "Aviso"
-    },
-    "organize": {
-      "source": "Agent"
     },
     "remove": "Quitar",
     "shareComments": {
@@ -679,6 +624,14 @@
   "preAlphaGuide": {
     "crashReports": "La aplicación envía informes de fallos sin texto del manuscrito para corregir problemas. Puedes desactivarlos en Ajustes → Privacidad.",
     "title": "Bienvenido a Drifting Alpha"
+  },
+  "projectAgent": {
+    "checkinFailed": "No se terminó de leer tus cambios recientes: {{error}}",
+    "checkinRunning": "Agent está leyendo tus cambios recientes…",
+    "dismiss": "Descartar",
+    "openConversation": "Abrir conversación",
+    "start": "Encargar a Agent",
+    "startFailed": "No se pudo iniciar: {{error}}"
   },
   "projectHome": {
     "book": {
@@ -834,6 +787,21 @@
       "restoring": "Restaurando…"
     }
   },
+  "projectTemplates": {
+    "bookDailyTarget": "Diario {{words}} palabras",
+    "bookOff": "Desactivado",
+    "bookOn": "Activado",
+    "bookWordTarget": "Libro {{words}} palabras",
+    "builtin": "Integrada",
+    "deleteTitle": "¿Eliminar la plantilla «{{name}}»?",
+    "description": "Descripción",
+    "exportFile": "Exportar (.driftingtemplate)",
+    "leftRail": "Barra lateral izquierda",
+    "myTemplates": "Mis plantillas",
+    "overwrite": "Sobrescribir…",
+    "structure": "Estructura",
+    "timePins": "Marcas de tiempo"
+  },
   "referencesPanel": {
     "filters": {
       "all": "Todo"
@@ -853,15 +821,12 @@
     "commentPlaceholder": "Escribe un comentario…",
     "empty": "No hay elementos de revisión en este ámbito.",
     "filters": {
-      "all": "Ambos",
-      "comment": "Comentarios",
-      "todo": "Tareas"
+      "all": "Ambos"
     },
     "groups": {
       "deleted": "Eliminados",
       "floating": "Sin adjuntar"
     },
-    "newComment": "Nuevo comentario",
     "scopes": {
       "current": "Actual"
     },
@@ -1148,6 +1113,10 @@
           "desc": "Busca texto en el editor abierto",
           "label": "Buscar en el editor actual"
         },
+        "focusLeftSidebar": {
+          "desc": "Recorre la barra lateral izquierda con las flechas; vuelve a pulsar o pulsa Esc para volver a la página",
+          "label": "Ir a la barra lateral izquierda"
+        },
         "globalSearch": {
           "desc": "Busca en capítulos, tramas, elementos y categorías",
           "label": "Búsqueda global"
@@ -1346,10 +1315,8 @@
       "unpin": "Volver al diseño automático"
     },
     "layout": {
-      "isles": "Islas",
       "relate": "Relaciones"
     },
-    "meta": "{{categories}} categorías · {{elements}} elementos",
     "relate": {
       "relayout": "Reorganizar"
     },
@@ -1665,6 +1632,38 @@
     "usedIn": "Usado en",
     "viewList": "Lista",
     "viewMasonry": "Mosaico"
+  },
+  "v5Fill": {
+    "attached": "Vinculado a",
+    "below": "Debajo",
+    "cellOff": "No",
+    "cellOn": "Sí",
+    "entryCount_one": "{{count}} entrada",
+    "entryCount_other": "{{count}} entradas",
+    "exitFill": "Salir de expandir",
+    "fill": "Expandir",
+    "fillLeft": "Expandir barra izquierda",
+    "fillRight": "Expandir barra derecha",
+    "fullEditor": "Editor completo",
+    "hangsOn": "Vinculado a",
+    "hungItems": "Vinculados: {{items}}",
+    "livesIn": "Vive en",
+    "livesInName": "Vive en {{name}}",
+    "moveHere": "Mover aquí",
+    "newDefault": "Nuevo por defecto",
+    "noTemplateEntries": "Entradas sin plantilla",
+    "resides": "Dentro de",
+    "resizeFill": "Ajustar ancho del área expandida",
+    "structure": "Estructura",
+    "structureEntries_one": "{{count}} entrada",
+    "structureEntries_other": "{{count}} entradas",
+    "structureLevels_one": "{{count}} nivel",
+    "structureLevels_other": "{{count}} niveles",
+    "structureTemplates_one": "{{count}} plantilla",
+    "structureTemplates_other": "{{count}} plantillas",
+    "templateCount": "{{count}} plantillas",
+    "templateStructure": "Estructura de plantillas",
+    "unusedTemplates": "Plantillas sin usar"
   },
   "windowCaption": {
     "close": "Cerrar",

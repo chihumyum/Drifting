@@ -1,5 +1,6 @@
 //! Undo/redo of a membership cancellation: just its original record, primary
 //! field (if cleared), and positions actually removed. Never whole entries/views.
+//! A re-hang or a drag order (T9) names the further records it changed.
 use super::*;
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -17,6 +18,15 @@ pub struct RestoreIn {
     pub primary: bool,
     /// In each named view restore only this member's placement record.
     pub views: Vec<String>,
+    /// Further `(host, member)` membership records the same write changed
+    /// (a re-hang adds the new one; an order that renumbers a host's list
+    /// writes its other members): each record alone.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub memberships: Vec<(String, String)>,
+    /// Further `(view, entry)` placements the same write changed (an order
+    /// beside a tie on the scale moves what is tied after it): each alone.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub placements: Vec<(String, String)>,
 }
 
 op! {
@@ -36,7 +46,27 @@ op! {
         if views.iter().collect::<BTreeSet<_>>().len() != views.len() {
             return Err(WsError::invalid("duplicate timeline view"));
         }
-        if !input.membership && !input.primary && views.is_empty() {
+        // Every selected membership record and placement, the member's own
+        // first.
+        let mut pairs: Vec<(EntryId, EntryId)> = Vec::new();
+        if input.membership {
+            pairs.push((host.clone(), member.clone()));
+        }
+        for (h, e) in &input.memberships {
+            pairs.push((pid("host", h)?, pid("member", e)?));
+        }
+        if pairs.iter().collect::<BTreeSet<_>>().len() != pairs.len() {
+            return Err(WsError::invalid("duplicate membership"));
+        }
+        let mut spots: Vec<(TimelineViewId, EntryId)> =
+            views.iter().map(|v| (v.clone(), member.clone())).collect();
+        for (v, e) in &input.placements {
+            spots.push((pid("timeline view", v)?, pid("entry", e)?));
+        }
+        if spots.iter().collect::<BTreeSet<_>>().len() != spots.len() {
+            return Err(WsError::invalid("duplicate placement"));
+        }
+        if pairs.is_empty() && !input.primary && spots.is_empty() {
             cx.undo_nothing();
             return Ok(Done {id:key});
         }
@@ -49,21 +79,21 @@ op! {
         // Validate actual historical container kinds too: deep JSON equality
         // cannot prove a text's formatting or a movable list's identity.
         for view in [&old, &expected] {
-            if input.membership { view.check_membership_snapshot_restore(&host, &member)?; }
+            for (h, e) in &pairs { view.check_membership_snapshot_restore(h, e)?; }
             if input.primary { view.check_primary_restore(&member)?; }
-            for id in &views { view.check_timeline_placement_restore(id, &member)?; }
+            for (v, e) in &spots { view.check_timeline_placement_restore(v, e)?; }
         }
-        let expected_membership = input.membership.then(|| expected.membership_restore_state(&host, &member)).transpose()?;
+        let expected_memberships = pairs.iter().map(|(h, e)| expected.membership_restore_state(h, e)).collect::<std::result::Result<Vec<_>,_>>()?;
         let expected_primary = input.primary.then(|| expected.entry_snapshot(&member).and_then(|e| e.field("primary").cloned()));
-        let expected_placements = views.iter().map(|v| expected.timeline_placement_restore_state(v,&member)).collect::<std::result::Result<Vec<_>,_>>()?;
-        let old_membership = input.membership.then(|| old.map_snapshot(CollectionV3::Memberships, &key));
+        let expected_placements = spots.iter().map(|(v, e)| expected.timeline_placement_restore_state(v, e)).collect::<std::result::Result<Vec<_>,_>>()?;
+        let old_memberships: Vec<_> = pairs.iter().map(|(h, e)| old.map_snapshot(CollectionV3::Memberships, &m::Membership::key(h, e))).collect();
         let old_primary = if input.primary {
             Some(old.entry_snapshot(&member).ok_or_else(|| WsError::not_found("historical entry",member.as_str()))?
                 .field("primary").cloned())
         } else { None };
-        let placements = views.iter().map(|v| old.timeline_placement_snapshot(v,&member)).collect::<std::result::Result<Vec<_>,_>>()?;
+        let placements = spots.iter().map(|(v, e)| old.timeline_placement_snapshot(v, e)).collect::<std::result::Result<Vec<_>,_>>()?;
         let restored_memberships: Vec<_> = old.memberships_raw().into_iter()
-            .filter(|m| m.host == host && m.member == member).collect();
+            .filter(|m| pairs.iter().any(|(h, e)| &m.host == h && &m.member == e)).collect();
         let inverse = input.clone();
         // An inverse compares every selected value itself, below.
         let (after, before) = cx.write_book_v3(&slot, Replaces::nothing(), move |tx| {
@@ -73,31 +103,31 @@ op! {
             if old_primary.is_some() && v.entry_snapshot(&member).is_none() {
                 return Err(WsError::not_found("entry",member.as_str()));
             }
-            if old_membership.is_some() { v.check_membership_snapshot_restore(&host, &member)?; }
+            for (h, e) in &pairs { v.check_membership_snapshot_restore(h, e)?; }
             if old_primary.is_some() { v.check_primary_restore(&member)?; }
-            for view in &views { v.check_timeline_placement_restore(view, &member)?; }
-            let current_membership = old_membership.as_ref().map(|_| v.membership_restore_state(&host, &member)).transpose()?;
-            let current_placements = views.iter().map(|view| v.timeline_placement_restore_state(view, &member)).collect::<std::result::Result<Vec<_>, _>>()?;
-            if current_membership != expected_membership
+            for (view, e) in &spots { v.check_timeline_placement_restore(view, e)?; }
+            let current_memberships = pairs.iter().map(|(h, e)| v.membership_restore_state(h, e)).collect::<std::result::Result<Vec<_>, _>>()?;
+            let current_placements = spots.iter().map(|(view, e)| v.timeline_placement_restore_state(view, e)).collect::<std::result::Result<Vec<_>, _>>()?;
+            if current_memberships != expected_memberships
                 || expected_primary.as_ref().is_some_and(|want| v.entry_snapshot(&member).and_then(|e| e.field("primary").cloned()) != *want)
                 || current_placements != expected_placements {
                 return Err(WsError::Conflict("membership cancellation fields changed after the recorded write".into()));
             }
-            if old_membership.is_some() {
+            if !pairs.is_empty() {
                 let before = v.graph();
                 let mut memberships = before.memberships.clone();
-                memberships.retain(|m| m.host != host || m.member != member);
+                memberships.retain(|m| !pairs.iter().any(|(h, e)| &m.host == h && &m.member == e));
                 memberships.extend(restored_memberships);
                 changes_ok(&before, &BookGraphV3 { memberships, ..before.clone() })?;
             }
-            if let Some(old) = &old_membership {
-                tx.restore_membership_snapshot(&host, &member, old.as_ref())?;
+            for ((h, e), old) in pairs.iter().zip(&old_memberships) {
+                tx.restore_membership_snapshot(h, e, old.as_ref())?;
             }
             if let Some(primary) = &old_primary {
                 tx.entries().entry(&member)?.restore_primary(primary.as_ref())?;
             }
-            for (view, value) in views.iter().zip(&placements) {
-                tx.timeline_view(view)?.restore_placement(&member, value.as_ref())?;
+            for ((view, e), value) in spots.iter().zip(&placements) {
+                tx.timeline_view(view)?.restore_placement(e, value.as_ref())?;
             }
             Ok(frontiers_hex(&tx.view().state_frontiers()))
         })?;

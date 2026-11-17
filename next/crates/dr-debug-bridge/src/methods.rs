@@ -131,7 +131,7 @@ pub const METHODS: &[(&str, &str)] = &[
     ),
     (
         "ui.wait",
-        "{until: \"ready\", text?, state?, page?, timeout_ms?}: wait until the window has a library (it has none for a moment while a restore replaces it), the book and the pages on screen are read, and the page shows text, and state.get (page.text) has the values at the JSON pointers in state (page); {until: \"time\", ms}: just wait; {until: \"file\", path, timeout_ms?}: until a file the app writes is there",
+        "{until: \"ready\", text?, state?, page?, timeout_ms?}: wait until the window has a library (it has none for a moment while a restore replaces it), the book and the pages on screen are read, and the page shows text, and state.get (page.text) has the values at the JSON pointers in state (page); {until: \"time\", ms}: just wait (a covered window is drawn when it starts and when it ends); {until: \"file\", path, timeout_ms?}: until a file the app writes is there",
     ),
     (
         "panel.state",
@@ -250,8 +250,16 @@ pub async fn call(method: &str, params: Value, cx: &mut AsyncApp) -> Out {
         "command.call" => command(&p, cx).await,
         "action.list" => cx.update(|cx| Ok(json!(cx.all_action_names()))),
         "action.dispatch" => cx.update(|cx| dispatch(&p, cx)),
-        "input.type" => cx.update(|cx| type_text(&p, cx)),
-        "input.key" => cx.update(|cx| press(&p, cx)),
+        // Input lands on the window as it is now: a covered window is drawn
+        // first ([`pump`]), as a shown one is between any two events.
+        "input.type" => cx.update(|cx| {
+            pump(cx)?;
+            type_text(&p, cx)
+        }),
+        "input.key" => cx.update(|cx| {
+            pump(cx)?;
+            press(&p, cx)
+        }),
         "input.url" => cx.update(|cx| {
             let url = p
                 .get("url")
@@ -263,16 +271,29 @@ pub async fn call(method: &str, params: Value, cx: &mut AsyncApp) -> Out {
                 .ok_or_else(|| not_found("this application has no deep-link queue"))?;
             Ok(json!({"accepted":links.push_all([url])}))
         }),
-        "input.click" => cx.update(|cx| click(&p, cx)),
+        "input.click" => cx.update(|cx| {
+            pump(cx)?;
+            click(&p, cx)
+        }),
         "input.move" => cx.update(|cx| {
             let (x, y) = (coord(&p, "x")?, coord(&p, "y")?);
+            pump(cx)?;
             in_window(cx, |_, window, cx| hover_at(x, y, window, cx))?;
             Ok(json!({ "moved": [x, y] }))
         }),
-        "input.drag" => cx.update(|cx| drag(&p, cx)),
-        "input.drop" => cx.update(|cx| drop_files(&p, cx)),
+        "input.drag" => cx.update(|cx| {
+            pump(cx)?;
+            drag(&p, cx)
+        }),
+        "input.drop" => cx.update(|cx| {
+            pump(cx)?;
+            drop_files(&p, cx)
+        }),
         "input.scroll" => cx.update(|cx| {
             let (x, y) = (coord(&p, "x")?, coord(&p, "y")?);
+            // The wheel goes to what is under the pointer in the frame drawn
+            // last; on a covered window that is drawn here, not at the vsync.
+            pump(cx)?;
             let dy = coord(&p, "dy")?;
             let dx = p.get("dx").and_then(Value::as_f64).unwrap_or(0.0) as f32;
             in_window(cx, |_, window, cx| {
@@ -363,9 +384,7 @@ pub async fn call(method: &str, params: Value, cx: &mut AsyncApp) -> Out {
                 .and_then(Value::as_u64)
                 .unwrap_or(SETTLE_MS);
             if settle > 0 {
-                cx.background_executor()
-                    .timer(Duration::from_millis(settle))
-                    .await;
+                pause(settle, cx).await;
             }
             cx.update(screenshot)
         }
@@ -830,7 +849,7 @@ fn layer_name(l: Layer) -> &'static str {
         Layer::Projects => "projects",
         Layer::Search => "search",
         Layer::Settings => "settings",
-        Layer::SuperView => "super-view",
+        Layer::Fill => "fill",
     }
 }
 
@@ -921,7 +940,13 @@ fn state_of(owner: gpui::EntityId, ws: &Workspace, window: &Window, cx: &App) ->
             "version": book.v3().map(|_| dr_doc::schema::BOOK_SCHEMA_VERSION),
         },
         "v3": book.v3(),
-        "v3Sidebar": ws.v3_sidebar.as_ref().map(|s| s.read(cx).state(cx)),
+        "v3Sidebar": ws.v3_sidebar.as_ref().map(|s| {
+            let s = s.read(cx);
+            let mut state = s.state(cx);
+            // KB: where the keyboard is in the left column.
+            state["keyboard"] = s.keyboard_state(window, cx);
+            state
+        }),
         "v3Page": v3_page,
         "v3Appearance": ws.nav.current().and_then(|t| match t { Target::Entry { id, .. } => book.v3()?.appearance(id.as_str()), _ => None }).map(|a| json!({ "mark": a.mark, "color": a.color })),
         "shelf": ws.shelf_open,
@@ -933,7 +958,8 @@ fn state_of(owner: gpui::EntityId, ws: &Workspace, window: &Window, cx: &App) ->
         "layer": ws.top_layer().map(layer_name),
         "search": ws.search_state(cx),
         "recent": ws.recent_state(),
-        "superView": ws.super_view.map(|v| format!("{v:?}")),
+        "fill": ws.filled().map(|place| place.slug()),
+        "fillWidth": ws.fill_width(),
         "left": {
             "open": ws.left.open, "width": ws.left.width,
             "panes": serde_json::to_value(&ws.left.panes).unwrap_or(Value::Null),
@@ -1119,9 +1145,13 @@ fn title_field(target: &Target, doc: &str, cx: &App) -> Option<Entity<dr_view_pa
     dr_view_page::title_field(doc, entry, cx)
 }
 
-/// A covered or minimized window draws no frames, and the shell starts
-/// reading a page when it renders it: draw it here (without presenting),
-/// and mark it for a real frame once it shows again.
+/// A covered or minimized window, or one on a display that has gone to
+/// sleep, draws no frames (GPUI stops its display link), and the shell
+/// starts reading a page when it renders it: draw it here (without
+/// presenting), and mark it for a real frame once it shows again. Reads
+/// (`ui.wait`, `ui.find`, a screenshot), input (hit tests and key routing
+/// use the frame drawn last) and pauses ([`pause`]) draw a covered window
+/// first, so a scenario sees and drives it as it would on screen.
 fn pump(cx: &mut App) -> Result<bool, BridgeError> {
     in_window(cx, |_, window, cx| {
         let hidden = window.visibility() != WindowVisibility::Visible;
@@ -1132,6 +1162,23 @@ fn pump(cx: &mut App) -> Result<bool, BridgeError> {
         }
         hidden
     })
+}
+
+/// A pause of `ms` (`ui.wait` until a time, the settle before a press or a
+/// screenshot). A shown window draws all through it; a covered one is drawn
+/// when it starts and when it ends ([`pump`]): a motion something started
+/// since the last frame (a menu dropping in, a page turning, a panel
+/// closing) begins with the pause, as at the next vsync, and is where it
+/// stays once the pause is over. Drawn only at the end, a covered window
+/// would show such a motion at its first frame, as if no time had passed.
+/// With no window open (between `window.close` and `window.open`) there is
+/// nothing to draw, and the pause is only a pause.
+async fn pause(ms: u64, cx: &mut AsyncApp) {
+    let _ = cx.update(pump);
+    cx.background_executor()
+        .timer(Duration::from_millis(ms))
+        .await;
+    let _ = cx.update(pump);
 }
 
 /// Whether the wait is over, and if not, what it is waiting for.
@@ -1227,9 +1274,7 @@ async fn wait(p: &Value, cx: &mut AsyncApp) -> Out {
                 .and_then(Value::as_u64)
                 .unwrap_or(500)
                 .min(60_000);
-            cx.background_executor()
-                .timer(Duration::from_millis(ms))
-                .await;
+            pause(ms, cx).await;
             return Ok(json!({ "waitedMs": ms }));
         }
         // A file the app writes in the background with nothing on screen
@@ -1550,9 +1595,7 @@ async fn press_node(p: &Value, cx: &mut AsyncApp) -> Out {
     // stays (dr-ui's motions are 420 ms at most).
     let settle = p.get("settle_ms").and_then(Value::as_u64).unwrap_or(300);
     if settle > 0 {
-        cx.background_executor()
-            .timer(Duration::from_millis(settle))
-            .await;
+        pause(settle, cx).await;
     }
     let node = wait_for_node(p, cx).await?;
     let via = p.get("via").and_then(Value::as_str).unwrap_or("pointer");

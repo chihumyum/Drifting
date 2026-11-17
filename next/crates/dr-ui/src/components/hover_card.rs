@@ -13,6 +13,13 @@
 //! for a finger, the keyboard (Enter or Space) or a screen reader, and a
 //! press anywhere else or Escape closes it.
 //!
+//! A card the keyboard opens ([`HoverCard::keys`], KB: a left-column row's
+//! card on Space) holds open whatever the pointer does, takes the keyboard
+//! itself and lights one row at a time ([`CardAction::keys`]): ↑↓ walk the
+//! rows over the hairlines and stop at either end; Enter ([`Confirm`]) and
+//! Esc or Space ([`Close`]) are the owner's, who runs the row or closes the
+//! card ([`CardKeys`]). It closes when the keyboard goes elsewhere.
+//!
 //! Every hover card is one card: 248px, the desk's colour, a 16px corner, a
 //! resting line of glass and the floating shadow. One font size; only the
 //! title is heavier. What can be pressed sits at the bottom, one row each,
@@ -25,9 +32,10 @@ use std::{
 };
 
 use gpui::{
-    AnyElement, App, Bounds, ElementId, Entity, InteractiveElement, IntoElement, ParentElement,
-    Pixels, RenderOnce, SharedString, StatefulInteractiveElement, Styled, Task, Window, canvas,
-    div, prelude::FluentBuilder as _, px,
+    AnyElement, App, AppContext as _, Bounds, ElementId, Entity, FocusHandle, InteractiveElement,
+    IntoElement, KeyBinding, MouseButton, ParentElement, Pixels, RenderOnce, SharedString,
+    StatefulInteractiveElement, Styled, Task, Window, actions, canvas, div,
+    prelude::FluentBuilder as _, px,
 };
 
 use crate::{
@@ -44,6 +52,175 @@ use super::{
     menu::{RowIcon, float_shadow, row_icon, slab_edge},
     overlay::{self, Layer, Place},
 };
+
+actions!(
+    hover_card,
+    [
+        /// ↑ in a card the keyboard walks: the row above (over a hairline),
+        /// none past the first.
+        SelectPrevious,
+        /// ↓: the row below, none past the last.
+        SelectNext,
+        /// Enter: the owner runs the row the keyboard is on.
+        Confirm,
+        /// Esc or Space: the owner closes the card.
+        Close,
+        /// ← and →: nothing in a card (they are not the list's under it).
+        Stay,
+    ]
+);
+
+/// The key context of a card the keyboard walks.
+pub const KEY_CONTEXT: &str = "DrHoverCardKeys";
+
+/// The keys of a card the keyboard walks, in its own context.
+pub fn key_bindings() -> Vec<KeyBinding> {
+    let c = Some(KEY_CONTEXT);
+    vec![
+        KeyBinding::new("up", SelectPrevious, c),
+        KeyBinding::new("down", SelectNext, c),
+        KeyBinding::new("enter", Confirm, c),
+        KeyBinding::new("escape", Close, c),
+        KeyBinding::new("space", Close, c),
+        KeyBinding::new("left", Stay, c),
+        KeyBinding::new("right", Stay, c),
+    ]
+}
+
+/// The keyboard in a hover card (KB, `kernel-v5.md` §15 item 48): open or
+/// not, the row it is on, the rows it can stop on and the card's own
+/// focus. The owner opens it ([`CardKeys::open`]) and hands it to the card
+/// ([`HoverCard::keys`]) and to its rows ([`CardAction::keys`]); whoever
+/// builds the rows says which can be stopped on ([`CardKeys::set_rows`]:
+/// a row that does nothing cannot).
+pub struct CardKeys {
+    focus: FocusHandle,
+    open: bool,
+    at: Option<usize>,
+    stops: Vec<bool>,
+    /// The rows' ids, in order: the keyboard stays on its row when rows
+    /// come and go above it (a switch that adds one).
+    ids: Vec<SharedString>,
+}
+
+impl CardKeys {
+    pub fn new(cx: &mut App) -> CardKeys {
+        CardKeys {
+            focus: cx.focus_handle(),
+            open: false,
+            at: None,
+            stops: Vec::new(),
+            ids: Vec::new(),
+        }
+    }
+
+    /// A new keyboard for a card.
+    pub fn make(cx: &mut App) -> Entity<CardKeys> {
+        cx.new(|cx| CardKeys::new(cx))
+    }
+
+    pub fn focus_handle(&self) -> &FocusHandle {
+        &self.focus
+    }
+
+    pub fn is_open(&self) -> bool {
+        self.open
+    }
+
+    /// The row the keyboard is on, while the card is open.
+    pub fn at(&self) -> Option<usize> {
+        self.at.filter(|_| self.open)
+    }
+
+    /// Opens the card on its first row and gives it the keyboard.
+    pub fn open(&mut self, window: &mut Window, cx: &mut App) {
+        self.open = true;
+        self.at = self.stops.iter().position(|s| *s);
+        window.focus(&self.focus, cx);
+    }
+
+    /// Opens the card with the keyboard on the row `id` (one it can stop
+    /// on; else on the first it can), and gives it the keyboard: the card
+    /// back after a question its switch asked.
+    pub fn open_on(&mut self, id: &SharedString, window: &mut Window, cx: &mut App) {
+        self.open = true;
+        self.at = self
+            .ids
+            .iter()
+            .position(|i| i == id)
+            .filter(|&i| self.stops.get(i) == Some(&true))
+            .or_else(|| self.stops.iter().position(|s| *s));
+        window.focus(&self.focus, cx);
+    }
+
+    /// The id of the row the keyboard is on, while the card is open: the
+    /// row to run, whatever its place now.
+    pub fn at_id(&self) -> Option<SharedString> {
+        self.at().and_then(|i| self.ids.get(i).cloned())
+    }
+
+    /// Closes the card; the keyboard is the owner's to place.
+    pub fn close(&mut self) {
+        self.open = false;
+        self.at = None;
+    }
+
+    /// The rows, in order (an id each, unique in the card), and whether
+    /// the keyboard can stop on each. The keyboard stays on its row wherever
+    /// that row now is; on no row, or on one it cannot stop on any more, it
+    /// goes to the first it can.
+    pub fn set_rows(&mut self, rows: Vec<(SharedString, bool)>) {
+        let on = self.at.and_then(|i| self.ids.get(i).cloned());
+        let (ids, stops): (Vec<_>, Vec<_>) = rows.into_iter().unzip();
+        self.ids = ids;
+        self.stops = stops;
+        if !self.open {
+            return;
+        }
+        self.at = on
+            .and_then(|id| self.ids.iter().position(|i| *i == id))
+            .filter(|&i| self.stops[i])
+            .or_else(|| self.stops.iter().position(|s| *s));
+    }
+
+    pub fn stops(&self) -> &[bool] {
+        &self.stops
+    }
+
+    /// One row down (or up), over the rows it cannot stop on; at either end
+    /// it stays. Whether it moved.
+    pub fn step(&mut self, down: bool) -> bool {
+        if !self.open {
+            return false;
+        }
+        let Some(at) = self.at else {
+            self.at = self.stops.iter().position(|s| *s);
+            return self.at.is_some();
+        };
+        let next = if down {
+            (at + 1..self.stops.len()).find(|&i| self.stops[i])
+        } else {
+            (0..at).rev().find(|&i| self.stops[i])
+        };
+        match next {
+            Some(i) => {
+                self.at = Some(i);
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// The pointer came onto row `index`: the keyboard goes there. Whether
+    /// it moved.
+    pub fn point(&mut self, index: usize) -> bool {
+        if !self.open || self.at == Some(index) || self.stops.get(index) != Some(&true) {
+            return false;
+        }
+        self.at = Some(index);
+        true
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Phase {
@@ -65,6 +242,9 @@ pub struct HoverCardState {
     target: Option<Bounds<Pixels>>,
     scrolled_at: Option<Instant>,
     task: Option<Task<()>>,
+    /// Opened by the keyboard ([`HoverCard::keys`]): it goes when the
+    /// keyboard closes it.
+    keyed: bool,
 }
 
 impl HoverCardState {
@@ -78,6 +258,7 @@ impl HoverCardState {
             target: None,
             scrolled_at: None,
             task: None,
+            keyed: false,
         }
     }
 
@@ -173,6 +354,7 @@ pub struct HoverCard {
     hold: bool,
     beside: bool,
     press: Option<SharedString>,
+    keys: Option<Entity<CardKeys>>,
 }
 
 impl HoverCard {
@@ -189,7 +371,18 @@ impl HoverCard {
             hold: false,
             beside: false,
             press: None,
+            keys: None,
         }
+    }
+
+    /// A card the keyboard walks (KB): open while `keys` is, whatever the
+    /// pointer does, with the keyboard in it; ↑↓ walk its rows (the rows
+    /// built with [`CardAction::keys`] and the same `keys`), ← → do
+    /// nothing, Enter and Esc or Space go on to the owner ([`Confirm`],
+    /// [`Close`]). When the keyboard goes elsewhere it closes.
+    pub fn keys(mut self, keys: Entity<CardKeys>) -> Self {
+        self.keys = Some(keys);
+        self
     }
 
     /// Prevents an open card from dismissing while a child sub-flyout is active.
@@ -225,7 +418,33 @@ impl HoverCard {
 impl RenderOnce for HoverCard {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let state = window.use_keyed_state(self.id.clone(), cx, |_, _| HoverCardState::new());
-        let hold = self.hold;
+        // The keyboard's card: open while the keyboard holds it, gone once
+        // the keyboard is elsewhere.
+        let keyed = self.keys.as_ref().is_some_and(|keys| {
+            let (open, focused) = {
+                let k = keys.read(cx);
+                (k.open, k.focus.is_focused(window))
+            };
+            if open && !focused {
+                keys.update(cx, |k, cx| {
+                    k.close();
+                    cx.notify();
+                });
+            }
+            open && focused
+        });
+        state.update(cx, |s, _| {
+            if keyed {
+                s.keyed = true;
+                if s.phase != Phase::Open {
+                    s.open_now();
+                }
+            } else if s.keyed {
+                s.keyed = false;
+                s.dismiss();
+            }
+        });
+        let hold = self.hold || keyed;
         state.update(cx, |s, cx| {
             let was_held = s.hold;
             s.hold = hold;
@@ -382,12 +601,34 @@ impl RenderOnce for HoverCard {
             } else {
                 Place::below(bounds, m::HOVER_CARD_GAP)
             };
+            let keys = self.keys.clone().filter(|_| keyed);
             overlay::float(
                 place,
                 Layer::Popover,
                 div()
                     .id(crate::style::child_id(&self.id.clone(), "card"))
                     .occlude()
+                    .when_some(keys, |el, keys| {
+                        let focus = keys.read(cx).focus.clone();
+                        let (up, down) = (keys.clone(), keys);
+                        el.track_focus(&focus)
+                            .key_context(KEY_CONTEXT)
+                            .on_action(move |_: &SelectPrevious, _, cx| {
+                                up.update(cx, |k, cx| {
+                                    if k.step(false) {
+                                        cx.notify();
+                                    }
+                                })
+                            })
+                            .on_action(move |_: &SelectNext, _, cx| {
+                                down.update(cx, |k, cx| {
+                                    if k.step(true) {
+                                        cx.notify();
+                                    }
+                                })
+                            })
+                            .on_action(|_: &Stay, _, _| {})
+                    })
                     .on_hover(move |on, _, cx| {
                         if *on {
                             on_card.update(cx, |s, cx| {
@@ -418,6 +659,7 @@ pub struct CardAction {
     danger: bool,
     current: bool,
     on_click: Option<OnClick>,
+    keys: Option<(Entity<CardKeys>, usize)>,
 }
 
 impl CardAction {
@@ -433,7 +675,18 @@ impl CardAction {
             danger: false,
             current: false,
             on_click: None,
+            keys: None,
         }
+    }
+
+    /// Row `index` of a card the keyboard walks ([`HoverCard::keys`]): it
+    /// is lit, as under the pointer (the flowing ring), when the keyboard is
+    /// on it, and only then; the pointer coming onto it moves the keyboard
+    /// here, so one row of the card is lit at a time (a system menu). Tests
+    /// find the row by the debug selector `{id}`, lit `{id}-keyboard`.
+    pub fn keys(mut self, keys: &Entity<CardKeys>, index: usize) -> Self {
+        self.keys = Some((keys.clone(), index));
+        self
     }
 
     pub fn danger(mut self) -> Self {
@@ -469,45 +722,121 @@ impl RenderOnce for CardAction {
             p.ink(2)
         };
         let id = self.id.clone();
-        glass::glass_box(
-            self.id,
-            Kind::Hidden,
-            Mode::default(),
-            self.current,
-            Spec::new(
-                if self.danger {
-                    Tone::Danger
-                } else {
-                    Tone::Clear
-                },
-                radius::MENU_ROW,
-            )
-            .rim(3.0),
-            window,
-            cx,
+        let spec = Spec::new(
+            if self.danger {
+                Tone::Danger
+            } else {
+                Tone::Clear
+            },
+            radius::MENU_ROW,
         )
-        .mx(px(m::HOVER_CARD_PAD - 8.0))
-        .px(px(8.0))
-        .py(px(4.0))
-        .flex()
-        .flex_row()
-        .items_center()
-        .gap(px(8.0))
-        .rounded(px(radius::MENU_ROW))
-        .font_role(Role::Index)
-        .type_px(s.secondary, s.line_body)
-        .text_color(ink.solid())
-        .cursor_pointer()
-        // In the accessibility tree as the menu rows are (the debug bridge
-        // presses card rows by name too).
-        .role(gpui::Role::MenuItem)
-        .aria_label(self.label.clone())
-        .child(row_icon(self.icon, &id, ink.solid()))
-        .child(self.label)
-        .when_some(self.on_click, |el, f| {
-            el.on_click(move |e, w, cx| f(e, w, cx))
-        })
+        .rim(3.0);
+        let row = match self.keys {
+            None => glass::glass_box(
+                self.id,
+                Kind::Hidden,
+                Mode::default(),
+                self.current,
+                spec,
+                window,
+                cx,
+            ),
+            Some((keys, index)) => keyed_row(self.id, self.current, spec, keys, index, window, cx),
+        };
+        row.mx(px(m::HOVER_CARD_PAD - 8.0))
+            .px(px(8.0))
+            .py(px(4.0))
+            .flex()
+            .flex_row()
+            .items_center()
+            .gap(px(8.0))
+            .rounded(px(radius::MENU_ROW))
+            .font_role(Role::Index)
+            .type_px(s.secondary, s.line_body)
+            .text_color(ink.solid())
+            .cursor_pointer()
+            // In the accessibility tree as the menu rows are (the debug bridge
+            // presses card rows by name too).
+            .role(gpui::Role::MenuItem)
+            .aria_label(self.label.clone())
+            .child(row_icon(self.icon, &id, ink.solid()))
+            .child(self.label)
+            .when_some(self.on_click, |el, f| {
+                el.on_click(move |e, w, cx| f(e, w, cx))
+            })
     }
+}
+
+/// A card row the keyboard walks: lit (the flowing ring, as under the
+/// pointer) only while the keyboard is on it; the pointer coming onto it
+/// moves the keyboard there; a press still deepens it.
+fn keyed_row(
+    id: ElementId,
+    current: bool,
+    spec: Spec,
+    keys: Entity<CardKeys>,
+    index: usize,
+    window: &mut Window,
+    cx: &mut App,
+) -> gpui::Stateful<gpui::Div> {
+    let theme = Theme::of(window, cx);
+    let lit = keys.read(cx).at() == Some(index);
+    let state = glass::use_state(
+        id.clone(),
+        Kind::Hidden,
+        Mode::default(),
+        current && !lit,
+        theme,
+        window,
+        cx,
+    );
+    state.update(cx, |s, _| {
+        s.set_hover(lit);
+    });
+    let (down, up, out) = (state.clone(), state.clone(), state.clone());
+    let selector = id.clone();
+    div()
+        .id(id)
+        .relative()
+        .child(glass::layer(state, spec, theme))
+        // Tests find a row by its id, a lit one by `{id}-keyboard`.
+        .debug_selector(move || {
+            if lit {
+                format!("{selector}-keyboard")
+            } else {
+                selector.to_string()
+            }
+        })
+        .on_hover(move |hovered, _, cx| {
+            if *hovered {
+                keys.update(cx, |k, cx| {
+                    if k.point(index) {
+                        cx.notify();
+                    }
+                });
+            }
+        })
+        .on_mouse_down(MouseButton::Left, move |_, _, cx| {
+            down.update(cx, |s, cx| {
+                if s.set_pressed(true) {
+                    cx.notify();
+                }
+            })
+        })
+        .on_mouse_up(MouseButton::Left, move |_, _, cx| {
+            up.update(cx, |s, cx| {
+                if s.set_pressed(false) {
+                    cx.notify();
+                }
+            })
+        })
+        .on_mouse_up_out(MouseButton::Left, move |_, _, cx| {
+            out.update(cx, |s, cx| {
+                if s.set_pressed(false) {
+                    cx.notify();
+                }
+            })
+        })
 }
 
 /// The card itself: title (with the thing's own mark and an index count on

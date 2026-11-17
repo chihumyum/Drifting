@@ -38,12 +38,10 @@
 //! keeps the menu's order: share and export, its own sections, the modules'
 //! sections, 历史快照…, then everything dangerous last.
 //!
-//! And the bodies of the three Super Views ([`add_super_view`]: M21's story
-//! graph, M22's element overview, M23's review and materials), with two
-//! slots in the stage's header, and the right sidebar's 帮手 tab
-//! ([`set_companion`], M31). Without them the stage and the tab stay empty.
-//! The right sidebar's 素材库 tab is drawn the same way ([`set_library`],
-//! M19); without it the shell lists the folders and materials itself.
+//! And the right sidebar's 帮手 tab ([`set_companion`], M31). Without it the
+//! tab stays empty. The right sidebar's 素材库 tab is drawn the same way
+//! ([`set_library`], M19); without it the shell lists the folders and
+//! materials itself.
 //!
 //! And M24 (`dr-view-sea`): the sea of characters under every window
 //! ([`set_backdrop`]: drawn first, held by the bookshelf and the full-window
@@ -61,14 +59,12 @@ use std::rc::Rc;
 use dr_editor::page::PageChrome;
 use dr_editor::{BookEditor, ChapterEditor};
 use gpui::{
-    AnyView, App, Bounds, Context, Entity, FocusHandle, Global, Pixels, SharedString, Subscription,
-    WeakEntity, Window,
+    AnyView, App, Bounds, Entity, FocusHandle, Global, Pixels, SharedString, WeakEntity, Window,
 };
 
 use crate::Workspace;
 use crate::book::Book;
 use crate::nav::Target;
-use crate::workspace::SuperView;
 
 /// The bookshelf a window shows: its view, and the cell its notification
 /// bell records its bounds in (the notification center opens from there).
@@ -144,80 +140,6 @@ impl BottomPanel {
     }
 }
 
-/// What a Super View's content is made with: the window's workspace (to
-/// open pages, close the stage), the library, the book's id and its lists
-/// as the shell has them.
-#[derive(Clone)]
-pub struct SuperViewHost {
-    pub workspace: WeakEntity<Workspace>,
-    pub library: Option<dr_workspace::Workspace>,
-    pub book_id: String,
-    pub book: Rc<Book>,
-    /// Which of the stage's views this content is.
-    pub view: SuperView,
-}
-
-/// Whether `workspace`'s stage is showing `view` now.
-pub fn super_view_shown(workspace: &WeakEntity<Workspace>, view: SuperView, cx: &App) -> bool {
-    workspace
-        .upgrade()
-        .is_some_and(|ws| ws.read(cx).super_view == Some(view))
-}
-
-/// Follow `workspace` for a Super View's content, only while the stage shows
-/// `view`. The stage keeps the content it made while it is closed or showing
-/// another view, and content that is not on screen has nothing to redo: it
-/// hears nothing then. Showing it again notifies the workspace, so
-/// `on_change` runs and a content that compares what it holds with the
-/// workspace catches up with everything it missed in that one call.
-pub fn follow_super_view<V: 'static>(
-    workspace: &Entity<Workspace>,
-    view: SuperView,
-    cx: &mut Context<V>,
-    on_change: impl Fn(&mut V, Entity<Workspace>, &mut Context<V>) + 'static,
-) -> Subscription {
-    cx.observe(workspace, move |this, ws, cx| {
-        if ws.read(cx).super_view == Some(view) {
-            on_change(this, ws, cx);
-        }
-    })
-}
-
-/// A Super View a module draws: its body under the stage's header, and
-/// two slots in that header.
-#[derive(Clone)]
-pub struct SuperViewPage {
-    pub body: AnyView,
-    /// The header's left, after 返回 (M22's 群岛 / 关系 switch before its
-    /// count).
-    pub head_start: Option<AnyView>,
-    /// The header's right end, for a control of the view's own. Not the
-    /// line legend: the author put that at the top right of the content
-    /// (2026-11-03), so a view draws it in its body.
-    pub head_end: Option<AnyView>,
-}
-
-impl SuperViewPage {
-    pub fn new(body: impl Into<AnyView>) -> SuperViewPage {
-        SuperViewPage {
-            body: body.into(),
-            head_start: None,
-            head_end: None,
-        }
-    }
-
-    pub fn head_start(mut self, view: impl Into<AnyView>) -> SuperViewPage {
-        self.head_start = Some(view.into());
-        self
-    }
-
-    pub fn head_end(mut self, view: impl Into<AnyView>) -> SuperViewPage {
-        self.head_end = Some(view.into());
-        self
-    }
-}
-
-type MakeSuperView = Rc<dyn Fn(&SuperViewHost, &mut Window, &mut App) -> SuperViewPage>;
 type MakeCompanion = Rc<dyn Fn(WeakEntity<Workspace>, &mut Window, &mut App) -> LeftPanel>;
 
 /// A left sidebar tab a module draws: the header row's content and the
@@ -388,7 +310,7 @@ pub struct Guide {
     /// A book's workspace shows: the tour starts unless this device saw it.
     pub start: InWindow,
     /// The tour's layer, the workspace root's last child; `covered` while a
-    /// Super View or a full-window wait lies over the workspace.
+    /// panel fill or a full-window wait lies over the workspace.
     pub layer: LayerFn,
     /// Settings' 重新显示.
     pub reset: InApp,
@@ -401,8 +323,6 @@ pub mod anchors {
     pub const LEFT_PANEL_TAB: &str = "left-panel-tab";
     /// The left sidebar's toggle, marked only while the sidebar is closed.
     pub const LEFT_SIDEBAR_CLOSED_TOGGLE: &str = "left-sidebar-closed-toggle";
-    /// The round button on a panel's head that opens its Super View.
-    pub const SUPER_VIEW_ENTRY: &str = "super-view-entry";
     /// Project Home's 新建 section (M02 marks it).
     pub const HOME_CREATE: &str = "home-create";
     /// The timeline's toggle at the paper's bottom right.
@@ -433,7 +353,6 @@ struct Pages {
     backdrop: Option<Backdrop>,
     first_run: Option<MakeFirstRun>,
     guide: Option<Guide>,
-    super_views: Vec<(SuperView, MakeSuperView)>,
     companion: Option<MakeCompanion>,
     library: Option<MakeCompanion>,
     locate_asset: Option<LocateAsset>,
@@ -675,35 +594,6 @@ pub(crate) fn bottom_panel_for(
         .map(|(_, make)| make.clone())
         .collect();
     makers.iter().find_map(|make| make(host, window, cx))
-}
-
-/// Registers `view`'s content (M21, M22, M23): made the first time the
-/// stage shows `view` for a book in a window, then kept until another book
-/// or library; the first registration for a view wins. Called while the
-/// workspace draws: do not read or update the workspace in `make`.
-pub fn add_super_view(
-    cx: &mut App,
-    view: SuperView,
-    make: impl Fn(&SuperViewHost, &mut Window, &mut App) -> SuperViewPage + 'static,
-) {
-    cx.default_global::<Pages>()
-        .super_views
-        .push((view, Rc::new(make)));
-}
-
-pub(crate) fn super_view_for(
-    view: SuperView,
-    host: &SuperViewHost,
-    window: &mut Window,
-    cx: &mut App,
-) -> Option<SuperViewPage> {
-    let make = cx
-        .try_global::<Pages>()?
-        .super_views
-        .iter()
-        .find(|(v, _)| *v == view)
-        .map(|(_, make)| make.clone())?;
-    Some(make(host, window, cx))
 }
 
 /// Registers the right sidebar's 帮手 tab (M31): asked once per pane the

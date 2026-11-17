@@ -7,7 +7,7 @@ use crate::{
 };
 use dr_i18n::keys;
 use dr_ui::{
-    components::{CardAction, CardBody, menu::RowIcon},
+    components::{CardAction, CardBody, CardKeys, menu::RowIcon},
     sand::Icon,
 };
 use gpui::{prelude::*, *};
@@ -34,9 +34,19 @@ pub struct Row {
     pub checked: bool,
     /// None means the owning group has no handler for this entry yet.
     pub run: Option<RunRow>,
+    /// A switch that goes nowhere (「层级」): run from the keyboard, the
+    /// card stays open with the keyboard on it, its tick turned at once
+    /// (KB, `kernel-v5.md` §15 item 48). Every other row closes the card.
+    pub stays_open: bool,
 }
+/// The rows that are switches the card stays open for (KB): only 「层级」
+/// (`dr-view-elements`' `entry-toggle-level`).
+pub const STAYS_OPEN: &[&str] = &["entry-toggle-level"];
+/// The row that puts the entry into Recently Deleted.
+pub const TRASH: &str = "entry-trash";
 impl From<PageMenuItem> for Row {
     fn from(row: PageMenuItem) -> Self {
+        let stays_open = STAYS_OPEN.contains(&row.id.as_ref());
         Self {
             id: row.id,
             label: row.label,
@@ -44,6 +54,7 @@ impl From<PageMenuItem> for Row {
             danger: row.danger,
             checked: row.checked,
             run: Some(row.run),
+            stays_open,
         }
     }
 }
@@ -76,6 +87,7 @@ pub fn rows(target: &Target, host: &PageMenuHost, extra: &CardRows, cx: &App) ->
         danger: false,
         checked: false,
         run,
+        stays_open: false,
     };
     let mut extensions = super::entry_card_rows(target, host, cx);
     extensions.lead.extend(extra.lead.clone());
@@ -145,12 +157,7 @@ pub fn rows(target: &Target, host: &PageMenuHost, extra: &CardRows, cx: &App) ->
             });
         }
     });
-    let mut trash = row(
-        "entry-trash",
-        keys::v3_shell::TRASH,
-        Icon::Trash,
-        Some(trash),
-    );
+    let mut trash = row(TRASH, keys::v3_shell::TRASH, Icon::Trash, Some(trash));
     trash.danger = true;
     out.push(trash);
     out.sort_by_key(|r| r.danger);
@@ -165,6 +172,21 @@ pub fn body(
     window: &mut Window,
     cx: &mut App,
 ) -> AnyElement {
+    body_keyed(id, target, host, extra, None, window, cx)
+}
+
+/// [`body`], its rows walked by the keyboard when `keys` is given (KB): they
+/// are lit by it, in [`rows`]' order, and a row that does nothing is passed
+/// over.
+pub fn body_keyed(
+    id: &str,
+    target: &Target,
+    host: &PageMenuHost,
+    extra: &CardRows,
+    keys: Option<&Entity<CardKeys>>,
+    window: &mut Window,
+    cx: &mut App,
+) -> AnyElement {
     let (mark, color) = host.book.mark(target);
     let mut body = CardBody::new(
         SharedString::from(format!("{id}-body")),
@@ -172,17 +194,28 @@ pub fn body(
     )
     .mark(mark, color);
     let all = rows(target, host, extra, cx);
+    if let Some(keys) = keys {
+        let rows = all
+            .iter()
+            .map(|r| (r.id.clone(), r.run.is_some()))
+            .collect();
+        keys.update(cx, |k, _| k.set_rows(rows));
+    }
     for danger in [false, true] {
         let section: Vec<_> = all
             .iter()
-            .filter(|r| r.danger == danger)
-            .map(|row| {
+            .enumerate()
+            .filter(|(_, r)| r.danger == danger)
+            .map(|(index, row)| {
                 let mut action = CardAction::new(
                     SharedString::from(format!("{id}-{}", row.id)),
                     row.icon,
                     row.label.clone(),
                 )
                 .current(row.checked);
+                if let Some(keys) = keys {
+                    action = action.keys(keys, index);
+                }
                 if danger {
                     action = action.danger();
                 }

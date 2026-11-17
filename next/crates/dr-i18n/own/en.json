@@ -4,6 +4,7 @@
     "import": "Import project",
     "importFile": "Import project (.driftingproject)",
     "importLegacy": "Import Drifting 0.1",
+    "importTemplate": "Import template",
     "importTemplateFile": "Import template (.driftingtemplate)",
     "libraryProjects_one": "{{count}} project",
     "libraryProjects_other": "{{count}} projects",
@@ -138,6 +139,21 @@
       "bodyWithoutChapters": "This project ({{words}} words · {{elements}} elements) leaves All projects. You can restore it from Recently Deleted for 30 days; after that it is permanently deleted."
     }
   },
+  "projectTemplates": {
+    "bookDailyTarget": "Daily {{words}} words",
+    "bookOff": "Off",
+    "bookOn": "On",
+    "bookWordTarget": "Book {{words}} words",
+    "builtin": "Built-in",
+    "deleteTitle": "Delete template “{{name}}”?",
+    "description": "Description",
+    "exportFile": "Export (.driftingtemplate)",
+    "leftRail": "Left sidebar",
+    "myTemplates": "My templates",
+    "overwrite": "Overwrite…",
+    "structure": "Structure",
+    "timePins": "Time pins"
+  },
   "settings": {
     "appearance": {
       "reduce_motion": "Turn off animations"
@@ -164,6 +180,14 @@
       "refused_version": "The downloaded update isn't the version it claims to be, possibly an older one, and was refused. This version keeps working.",
       "restart": "Restart to Update",
       "server_error": "The update service has a problem right now. Try again later; this version keeps working."
+    },
+    "keys": {
+      "actions": {
+        "focusLeftSidebar": {
+          "desc": "Walk the left sidebar with the arrow keys; press again or Esc to return to the page",
+          "label": "Move into the left sidebar"
+        }
+      }
     }
   },
   "templateEditor": {
@@ -447,5 +471,37 @@
     "usedIn": "Used in",
     "viewList": "List",
     "viewMasonry": "Masonry"
+  },
+  "v5Fill": {
+    "attached": "Hangs on",
+    "below": "Below",
+    "cellOff": "Off",
+    "cellOn": "On",
+    "entryCount_one": "{{count}} entry",
+    "entryCount_other": "{{count}} entries",
+    "exitFill": "Exit fill",
+    "fill": "Fill",
+    "fillLeft": "Fill left sidebar",
+    "fillRight": "Fill right sidebar",
+    "fullEditor": "Full editor",
+    "hangsOn": "Hangs on",
+    "hungItems": "Hung: {{items}}",
+    "livesIn": "Lives in",
+    "livesInName": "Lives in {{name}}",
+    "moveHere": "Move here",
+    "newDefault": "New default",
+    "noTemplateEntries": "Entries without a template",
+    "resides": "Lives under",
+    "resizeFill": "Resize filled area",
+    "structure": "Structure",
+    "structureEntries_one": "{{count}} entry",
+    "structureEntries_other": "{{count}} entries",
+    "structureLevels_one": "{{count}} level",
+    "structureLevels_other": "{{count}} levels",
+    "structureTemplates_one": "{{count}} template",
+    "structureTemplates_other": "{{count}} templates",
+    "templateCount": "{{count}} templates",
+    "templateStructure": "Template structure",
+    "unusedTemplates": "Unused templates"
   }
 }

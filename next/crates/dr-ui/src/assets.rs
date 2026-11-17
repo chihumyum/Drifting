@@ -64,6 +64,29 @@ macro_rules! masks {
                 gpui::SharedString::new_static(self.path())
             }
 
+            /// The path `svg()` loads it by with a circular cutout on its left
+            /// (`hx = 1px` in an 18px box) or right (`hx = 17px` in an 18px
+            /// box), used when overlapping moons sit `8px` apart (`W25Final`).
+            pub const fn cut_left_path(self) -> &'static str {
+                match self {
+                    $($ty::$variant => concat!("dr-ui/", $prefix, "-cut-left/", $name, ".svg")),*
+                }
+            }
+
+            pub const fn cut_right_path(self) -> &'static str {
+                match self {
+                    $($ty::$variant => concat!("dr-ui/", $prefix, "-cut-right/", $name, ".svg")),*
+                }
+            }
+
+            pub fn cut_shared_path(self, cut_on_right: bool) -> gpui::SharedString {
+                gpui::SharedString::new_static(if cut_on_right {
+                    self.cut_right_path()
+                } else {
+                    self.cut_left_path()
+                })
+            }
+
             /// The folder the masks come from, for the consistency test.
             pub const DIR: &'static str = $dir;
         }
@@ -108,6 +131,29 @@ pub const GLASS_RING_DARK_PNG: &[u8] = include_bytes!(concat!(
 ));
 pub const GLASS_TILE_PATH: &str = "dr-ui/glass/thick.svg";
 
+/// Carves a circular hole (`hole = 18 * 0.345`, `0.6px` soft ramp in an `18px`
+/// glyph box) out of `png`'s alpha around a front glyph centered `8px` to the
+/// left (`cut_on_right == false`) or right (`cut_on_right == true`) (`W25Final`).
+fn cutout_png(png: &[u8], cut_on_right: bool) -> Option<Vec<u8>> {
+    let mut img = image::load_from_memory(png).ok()?.into_rgba8();
+    let (w, h) = img.dimensions();
+    let scale_x = w as f32 / 18.0;
+    let scale_y = h as f32 / 18.0;
+    let hx = (if cut_on_right { 9.0 + 8.0 } else { 9.0 - 8.0 }) * scale_x;
+    let hy = 9.0 * scale_y;
+    let hole = (18.0 * 0.345) * scale_x;
+    let soft = 0.6 * scale_x;
+    for (x, y, px) in img.enumerate_pixels_mut() {
+        let dist = (x as f32 + 0.5 - hx).hypot(y as f32 + 0.5 - hy);
+        let keep = ((dist - hole) / soft).clamp(0.0, 1.0);
+        px[3] = (px[3] as f32 * keep).round() as u8;
+    }
+    let mut out = Vec::new();
+    img.write_to(&mut std::io::Cursor::new(&mut out), image::ImageFormat::Png)
+        .ok()?;
+    Some(out)
+}
+
 /// dr-ui's asset source.
 #[derive(Clone, Default)]
 pub struct Assets {
@@ -138,6 +184,12 @@ impl Assets {
                 let (w, h) = png_size(png);
                 // Icons are square, except the 68-frame thinking strip.
                 Some(embed_svg(png, 96.0 * (w as f32 / h as f32), 96.0))
+            }
+            "icon-cut-left" | "icon-cut-right" => {
+                let icon = crate::sand::Icon::from_name(name)?;
+                let cut = cutout_png(icon.png(), kind == "icon-cut-right")?;
+                let (w, h) = png_size(&cut);
+                Some(embed_svg(&cut, 96.0 * (w as f32 / h as f32), 96.0))
             }
             "sand" => {
                 let mask = crate::sand::SandMask::from_name(name)?;
@@ -230,5 +282,31 @@ mod tests {
         assert_eq!(png_size(Icon::Close.png()), (96, 96));
         assert_eq!(png_size(Icon::Thinking.png()).0, 96 * 68);
         assert_eq!(png_size(GLASS_TILE_PNG), (320, 320));
+    }
+
+    #[test]
+    fn moon_cutout_paths_carve_transparent_holes_on_requested_side() {
+        for icon in [
+            Icon::MoonBlackLeft,
+            Icon::MoonBlackRight,
+            Icon::MoonHollowfullLeft,
+            Icon::MoonHollowfullRight,
+            Icon::MoonLeft,
+            Icon::MoonRight,
+        ] {
+            assert!(Assets::svg(icon.cut_left_path()).is_some());
+            assert!(Assets::svg(icon.cut_right_path()).is_some());
+        }
+        let left_cut = cutout_png(Icon::MoonBlackLeft.png(), false).expect("left cutout");
+        let left_img = image::load_from_memory(&left_cut).unwrap().into_rgba8();
+        // Hole center on left: x ~ 5.33, y = 48 -> pixel (5, 48) is fully carved out; far right stays opaque.
+        assert_eq!(left_img.get_pixel(5, 48)[3], 0);
+        assert!(left_img.get_pixel(64, 48)[3] > 200);
+
+        let right_cut = cutout_png(Icon::MoonBlackRight.png(), true).expect("right cutout");
+        let right_img = image::load_from_memory(&right_cut).unwrap().into_rgba8();
+        // Hole center on right: x ~ 90.67, y = 48 -> pixel (90, 48) is fully carved out; far left stays opaque.
+        assert_eq!(right_img.get_pixel(90, 48)[3], 0);
+        assert!(right_img.get_pixel(32, 48)[3] > 200);
     }
 }

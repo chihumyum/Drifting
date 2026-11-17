@@ -1,5 +1,9 @@
 # M31 帮手面板与改动显现
 
+> 2026-11-17（HC 建议卡回作品主页）：空对话里不再有建议卡和「主动建议」开关（`panel/continuity.rs` 只剩项目记忆、工作记忆和继续保存的运行）；面板打开、跟着换书、窗口重新激活都不再让 Agent 看（原来 `panel.rs` 三处 `trigger_suggestions` 拿掉了）。卡在作品主页（`src/home_cards.rs`），点卡时面板选中那段新对话（`AgentPanel::show_card_conversation`；面板还没造出来时它从工作区的书记忆 `agent.conversation` 读到同一段）。开关在设置 → 智能 → Agent 最后一行。详见 [M30](m30-long-tasks-memory.md)「建议卡回作品主页」。
+
+> 2026-11-17（HC 审阅修补）：空对话里项目记忆那一行（`agent-continuity`）和空对话的第一行（`agent-empty`，「试试」或「开始」那一句）加了测试用的 debug selector，测试量它们之间正好隔一格，中间没有卡和开关。主页「查看对话」的那段对话已经没了时，右栏照样打开到 Agent，面板什么都不选（不写书记忆 `agent.conversation`，不调 `show_card_conversation`）。`Workspace::reveal_companion` 先退出铺满。
+
 > 2026-11-16（LM 本地模型）：「连接模型」和设置「模型与 API」在四格下面隔一道细线多了「本地模型」的格子（`src/local.rs`、`src/local_view.rs`），按作者定稿（原型第 3 版）画；接入层见 [M28](m28-model-providers.md) 末「本地模型」一节。详见本页末「本地模型」一节。
 
 > 2026-11-15 内核 v5（T7）：系统提示词（`dr-view-agent/src/prompt.rs`）从项目定义读取 `project_agent`、`project_book`（成书根与字数目标）、`project_tabs`，接纳超过 32 个层级时的 `levels_by_depth` 摘要及模板动作的 `adds_membership`（「住进」与「挂到」分离），并对齐格式 5 统一批注与素材链接规则（批注无优先级；解决／重开清单批注会去正文打勾／去勾；改字或删除清单项须直接改或删正文对应行；`prose.link` 支持 `kind = "asset"`）。主动建议（`controller/proactive.rs`）收集全部未解决批注（含来源标记）送入 `open_comments`。「本轮改动」导航（`src/data.rs`）新增 `project`／`tab` 效果回到项目主页（`ChangeLocation::Home`），`asset` 效果打开对应文件目标（同时覆盖未放入媒体模块的素材库文件与已放入条目媒体模块的文件项）。见 [kernel-v5.md](../kernel-v5.md) 第 6、7、9、12 节。

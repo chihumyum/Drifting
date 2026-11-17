@@ -58,13 +58,42 @@
         "label": "New project",
         "timeout_ms": 15000
       },
-      "note": "The shelf is 「全部项目」 now (allProjects.*, 2026-11-14)."
+      "note": "The shelf is 「全部项目」 now (allProjects.*, 2026-11-14). Since PT3 the dialog only picks a template; the project is named on its Home."
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "写书",
+        "timeout_ms": 15000
+      },
+      "note": "The built-in template, picked by default; pressed to pick it explicitly."
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "Create"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/book/version": 5,
+          "/book/loaded": true,
+          "/book/name": "Untitled",
+          "/shelf": false
+        },
+        "timeout_ms": 30000
+      }
     },
     {
       "app": "input.type",
       "params": {
         "text": "Canonical switch probe"
-      }
+      },
+      "note": "The new project's Home opens with its title selected: typing names it."
     },
     {
       "app": "input.key",
@@ -76,12 +105,17 @@
       "app": "ui.wait",
       "params": {
         "state": {
-          "/book/version": 5,
-          "/book/loaded": true,
-          "/shelf": false
+          "/book/name": "Canonical switch probe"
         },
         "timeout_ms": 30000
       }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "escape"
+      },
+      "note": "Enter in the title goes on to the synopsis (T2); Esc there leaves the field, so the page opened next takes the keyboard."
     },
     {
       "app": "state.get",

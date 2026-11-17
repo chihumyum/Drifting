@@ -4,6 +4,7 @@
     "import": "프로젝트 가져오기",
     "importFile": "프로젝트 가져오기 (.driftingproject)",
     "importLegacy": "Drifting 0.1 가져오기",
+    "importTemplate": "템플릿 가져오기",
     "importTemplateFile": "템플릿 가져오기 (.driftingtemplate)",
     "libraryProjects_one": "프로젝트 {{count}}개",
     "libraryProjects_other": "프로젝트 {{count}}개",
@@ -131,6 +132,21 @@
       "bodyWithoutChapters": "프로젝트({{words}}자 · 요소 {{elements}}개)를 모든 프로젝트에서 옮깁니다. 최근 삭제 항목에서 30일 내 복원할 수 있으며 이후 영구 삭제됩니다."
     }
   },
+  "projectTemplates": {
+    "bookDailyTarget": "일일 {{words}}자",
+    "bookOff": "꺼짐",
+    "bookOn": "켜짐",
+    "bookWordTarget": "전체 {{words}}자",
+    "builtin": "기본 제공",
+    "deleteTitle": "템플릿 ‘{{name}}’을(를) 삭제할까요?",
+    "description": "설명",
+    "exportFile": "내보내기 (.driftingtemplate)",
+    "leftRail": "왼쪽 사이드바",
+    "myTemplates": "내 템플릿",
+    "overwrite": "덮어쓰기…",
+    "structure": "구조",
+    "timePins": "시간 핀"
+  },
   "settings": {
     "appearance": {
       "reduce_motion": "애니메이션 끄기"
@@ -157,6 +173,14 @@
       "refused_version": "내려받은 업데이트가 표시된 버전과 달라(이전 버전일 수 있음) 거부했습니다. 현재 버전은 계속 사용할 수 있습니다.",
       "restart": "다시 시작하여 업데이트",
       "server_error": "업데이트 서비스에 지금 문제가 있습니다. 나중에 다시 시도해 주세요. 현재 버전은 계속 사용할 수 있습니다."
+    },
+    "keys": {
+      "actions": {
+        "focusLeftSidebar": {
+          "desc": "왼쪽 사이드바를 화살표 키로 이동합니다. 다시 누르거나 Esc로 페이지에 돌아옵니다.",
+          "label": "왼쪽 사이드바로 이동"
+        }
+      }
     }
   },
   "templateEditor": {
@@ -435,5 +459,33 @@
     "usedIn": "사용처",
     "viewList": "목록",
     "viewMasonry": "폭포형"
+  },
+  "v5Fill": {
+    "attached": "연결 대상",
+    "below": "하위",
+    "cellOff": "끔",
+    "cellOn": "켬",
+    "entryCount_other": "항목 {{count}}개",
+    "exitFill": "채우기 종료",
+    "fill": "채우기",
+    "fillLeft": "왼쪽 사이드바 채우기",
+    "fillRight": "오른쪽 사이드바 채우기",
+    "fullEditor": "전체 편집기",
+    "hangsOn": "연결된 곳",
+    "hungItems": "연결됨: {{items}}",
+    "livesIn": "사는 곳",
+    "livesInName": "{{name}}에 삶",
+    "moveHere": "여기로 이동",
+    "newDefault": "새 항목 기본값",
+    "noTemplateEntries": "템플릿 없는 항목",
+    "resides": "하위에 배치",
+    "resizeFill": "채운 영역 너비 조절",
+    "structure": "구조",
+    "structureEntries_other": "항목 {{count}}",
+    "structureLevels_other": "계층 {{count}}",
+    "structureTemplates_other": "템플릿 {{count}}",
+    "templateCount": "템플릿 {{count}}개",
+    "templateStructure": "템플릿 구조",
+    "unusedTemplates": "사용하지 않는 템플릿"
   }
 }

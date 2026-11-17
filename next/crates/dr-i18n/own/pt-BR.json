@@ -4,6 +4,7 @@
     "import": "Importar projeto",
     "importFile": "Importar projeto (.driftingproject)",
     "importLegacy": "Importar Drifting 0.1",
+    "importTemplate": "Importar modelo",
     "importTemplateFile": "Importar modelo (.driftingtemplate)",
     "libraryProjects_many": "{{count}} projetos",
     "libraryProjects_one": "{{count}} projeto",
@@ -140,6 +141,21 @@
       "bodyWithoutChapters": "Este projeto ({{words}} palavras · {{elements}} elementos) sai de Todos os projetos. Pode ser restaurado por 30 dias em excluídos recentemente; depois será excluído permanentemente."
     }
   },
+  "projectTemplates": {
+    "bookDailyTarget": "Diário {{words}} palavras",
+    "bookOff": "Desativado",
+    "bookOn": "Ativado",
+    "bookWordTarget": "Livro {{words}} palavras",
+    "builtin": "Integrado",
+    "deleteTitle": "Excluir o modelo “{{name}}”?",
+    "description": "Descrição",
+    "exportFile": "Exportar (.driftingtemplate)",
+    "leftRail": "Barra lateral esquerda",
+    "myTemplates": "Meus modelos",
+    "overwrite": "Substituir…",
+    "structure": "Estrutura",
+    "timePins": "Pinos de tempo"
+  },
   "settings": {
     "appearance": {
       "reduce_motion": "Desativar animações"
@@ -166,6 +182,14 @@
       "refused_version": "A atualização baixada não é a versão que diz ser, talvez uma mais antiga, e foi recusada. Esta versão continua funcionando.",
       "restart": "Reiniciar para atualizar",
       "server_error": "O serviço de atualização está com problema agora. Tente mais tarde; esta versão continua funcionando."
+    },
+    "keys": {
+      "actions": {
+        "focusLeftSidebar": {
+          "desc": "Percorra a barra lateral esquerda com as setas; pressione de novo ou Esc para voltar à página",
+          "label": "Ir para a barra lateral esquerda"
+        }
+      }
     }
   },
   "templateEditor": {
@@ -449,5 +473,37 @@
     "usedIn": "Usado em",
     "viewList": "Lista",
     "viewMasonry": "Mosaico"
+  },
+  "v5Fill": {
+    "attached": "Vinculado a",
+    "below": "Abaixo",
+    "cellOff": "Não",
+    "cellOn": "Sim",
+    "entryCount_one": "{{count}} entrada",
+    "entryCount_other": "{{count}} entradas",
+    "exitFill": "Sair do preenchimento",
+    "fill": "Preencher",
+    "fillLeft": "Preencher barra esquerda",
+    "fillRight": "Preencher barra direita",
+    "fullEditor": "Editor completo",
+    "hangsOn": "Vinculado a",
+    "hungItems": "Vinculados: {{items}}",
+    "livesIn": "Vive em",
+    "livesInName": "Vive em {{name}}",
+    "moveHere": "Mover para cá",
+    "newDefault": "Novo padrão",
+    "noTemplateEntries": "Entradas sem modelo",
+    "resides": "Dentro de",
+    "resizeFill": "Ajustar largura da área preenchida",
+    "structure": "Estrutura",
+    "structureEntries_one": "{{count}} entrada",
+    "structureEntries_other": "{{count}} entradas",
+    "structureLevels_one": "{{count}} nível",
+    "structureLevels_other": "{{count}} níveis",
+    "structureTemplates_one": "{{count}} modelo",
+    "structureTemplates_other": "{{count}} modelos",
+    "templateCount": "{{count}} modelos",
+    "templateStructure": "Estrutura dos modelos",
+    "unusedTemplates": "Modelos não usados"
   }
 }

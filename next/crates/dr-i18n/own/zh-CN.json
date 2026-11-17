@@ -4,6 +4,7 @@
     "import": "导入项目",
     "importFile": "导入项目（.driftingproject）",
     "importLegacy": "导入 Drifting 0.1",
+    "importTemplate": "导入模板",
     "importTemplateFile": "导入模板（.driftingtemplate）",
     "library": "{{count}} 个项目 · {{words}}字",
     "libraryProjects": "{{count}} 个项目",
@@ -129,6 +130,21 @@
       "bodyWithoutChapters": "这个项目（{{words}} 字 · {{elements}} 个要素）会从全部项目里移走。30 天内可以在「最近删除」里恢复，之后永久删除。"
     }
   },
+  "projectTemplates": {
+    "bookDailyTarget": "每日 {{words}} 字",
+    "bookOff": "关",
+    "bookOn": "开",
+    "bookWordTarget": "全书 {{words}} 字",
+    "builtin": "内置",
+    "deleteTitle": "删除模板「{{name}}」？",
+    "description": "描述",
+    "exportFile": "导出（.driftingtemplate）",
+    "leftRail": "左栏",
+    "myTemplates": "我的模板",
+    "overwrite": "覆盖…",
+    "structure": "结构",
+    "timePins": "时间钉"
+  },
   "settings": {
     "appearance": {
       "reduce_motion": "关闭动态效果"
@@ -155,6 +171,14 @@
       "refused_version": "下载的更新不是它标明的版本，可能是旧版本，已拒绝。当前版本照常可用。",
       "restart": "重启以更新",
       "server_error": "更新服务暂时出了问题，稍后再试。当前版本照常可用。"
+    },
+    "keys": {
+      "actions": {
+        "focusLeftSidebar": {
+          "desc": "键盘到左栏里用方向键走；再按一次或按 Esc 回到稿纸",
+          "label": "进出左栏"
+        }
+      }
     }
   },
   "templateEditor": {
@@ -433,5 +457,33 @@
     "usedIn": "用在",
     "viewList": "列表",
     "viewMasonry": "瀑布流"
+  },
+  "v5Fill": {
+    "attached": "挂在上面",
+    "below": "下面",
+    "cellOff": "关",
+    "cellOn": "开",
+    "entryCount_other": "{{count}} 个条目",
+    "exitFill": "退出铺满",
+    "fill": "铺满",
+    "fillLeft": "铺满左栏",
+    "fillRight": "铺满右栏",
+    "fullEditor": "完整编辑",
+    "hangsOn": "挂在",
+    "hungItems": "挂着 {{items}}",
+    "livesIn": "住在",
+    "livesInName": "住在{{name}}",
+    "moveHere": "搬到这里",
+    "newDefault": "新建默认",
+    "noTemplateEntries": "没有模板的条目",
+    "resides": "住在下面",
+    "resizeFill": "拖动调铺满区的宽窄",
+    "structure": "结构",
+    "structureEntries_other": "{{count}} 条目",
+    "structureLevels_other": "{{count}} 层",
+    "structureTemplates_other": "{{count}} 模板",
+    "templateCount": "{{count}} 个模板",
+    "templateStructure": "模板结构",
+    "unusedTemplates": "未使用的模板"
   }
 }

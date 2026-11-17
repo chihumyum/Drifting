@@ -2,6 +2,8 @@
 //! Registrations are weak and carry no library handles. The asynchronous
 //! phase runs after the shell has blurred inputs, and waits for durable jobs
 //! and their foreground acknowledgements without blocking the UI executor.
+//! Leaving a project template's working copy settles the same way without
+//! pausing anything (`dr_shell::release::settle`, PT3).
 use futures::FutureExt as _;
 use gpui::{prelude::*, *};
 use std::{
@@ -101,68 +103,75 @@ pub fn init(cx: &mut App) {
     }
     cx.global_mut::<Saves>().installed = true;
     dr_shell::release::before_release(cx, |cx| {
-        let scope = cx
-            .try_global::<dr_shell::Services>()
-            .and_then(|s| s.library.as_ref())
-            .map(Scope::of);
         cx.global_mut::<Saves>().paused = true;
         cx.global_mut::<Saves>().draining = false;
-        let views = cx.global::<Saves>().views.clone();
-        let app = cx.to_async();
-        Box::pin(async move {
-            loop {
-                let result = app.update(|cx| {
-                    let mut pending = false;
-                    let mut error = None;
-                    cx.global_mut::<Saves>().draining = true;
-                    for view in views.iter().filter(|v| Some(v.scope) == scope) {
-                        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                            (view.poll)(cx)
-                        }))
-                        .unwrap_or_else(|_| Drain::Failed("G1 save preparation panicked".into()))
-                        {
-                            Drain::Ready => {}
-                            Drain::Pending => pending = true,
-                            Drain::Failed(e) => {
-                                error.get_or_insert(e);
-                            }
-                        }
-                    }
-                    cx.global_mut::<Saves>().draining = false;
-                    let saves = cx.global_mut::<Saves>();
-                    saves.jobs.retain(|j| {
-                        let state = j.state.lock().unwrap_or_else(|e| e.into_inner());
-                        !state.acknowledged && state.result != Some(Ok(()))
-                    });
-                    for job in saves.jobs.iter().filter(|j| Some(j.scope) == scope) {
-                        let state = job.state.lock().unwrap_or_else(|e| e.into_inner());
-                        match &state.result {
-                            None => pending = true,
-                            Some(Err(e)) => {
-                                error.get_or_insert_with(|| e.clone());
-                            }
-                            Some(Ok(())) => {}
-                        }
-                    }
-                    if pending {
-                        None
-                    } else {
-                        Some(error.map_or(Ok(()), Err))
-                    }
-                });
-                if let Some(result) = result {
-                    return result;
-                }
-                app.background_executor()
-                    .timer(Duration::from_millis(5))
-                    .await;
-            }
-        })
+        settle(cx)
     });
+    // Leaving a template's working copy settles the same way, without
+    // pausing anything (`dr_shell::release::settle`).
+    dr_shell::release::set_settle(cx, settle);
     dr_shell::release::after_release(cx, |cx| {
         cx.global_mut::<Saves>().paused = false;
         cx.global_mut::<Saves>().draining = false;
     });
+}
+
+/// The views registered for the library in use store what they accepted, and
+/// the accepted writes finish: polled until none is pending.
+fn settle(cx: &mut App) -> futures::future::LocalBoxFuture<'static, Result<(), String>> {
+    let scope = cx
+        .try_global::<dr_shell::Services>()
+        .and_then(|s| s.library.as_ref())
+        .map(Scope::of);
+    let views = cx.global::<Saves>().views.clone();
+    let app = cx.to_async();
+    Box::pin(async move {
+        loop {
+            let result = app.update(|cx| {
+                let mut pending = false;
+                let mut error = None;
+                cx.global_mut::<Saves>().draining = true;
+                for view in views.iter().filter(|v| Some(v.scope) == scope) {
+                    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| (view.poll)(cx)))
+                        .unwrap_or_else(|_| Drain::Failed("G1 save preparation panicked".into()))
+                    {
+                        Drain::Ready => {}
+                        Drain::Pending => pending = true,
+                        Drain::Failed(e) => {
+                            error.get_or_insert(e);
+                        }
+                    }
+                }
+                cx.global_mut::<Saves>().draining = false;
+                let saves = cx.global_mut::<Saves>();
+                saves.jobs.retain(|j| {
+                    let state = j.state.lock().unwrap_or_else(|e| e.into_inner());
+                    !state.acknowledged && state.result != Some(Ok(()))
+                });
+                for job in saves.jobs.iter().filter(|j| Some(j.scope) == scope) {
+                    let state = job.state.lock().unwrap_or_else(|e| e.into_inner());
+                    match &state.result {
+                        None => pending = true,
+                        Some(Err(e)) => {
+                            error.get_or_insert_with(|| e.clone());
+                        }
+                        Some(Ok(())) => {}
+                    }
+                }
+                if pending {
+                    None
+                } else {
+                    Some(error.map_or(Ok(()), Err))
+                }
+            });
+            if let Some(result) = result {
+                return result;
+            }
+            app.background_executor()
+                .timer(Duration::from_millis(5))
+                .await;
+        }
+    })
 }
 
 struct Completion(Arc<Mutex<JobState>>);

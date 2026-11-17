@@ -134,6 +134,13 @@ moon-left-hollow / moon-right-hollow  the sidebar toggles' crescents with the
                             inside cleared, the rim as thin, light and sandy as
                             the moon's faint outer ring: shown while that
                             sidebar is closed
+moon-black-left / moon-black-right    the full moon of the same outline as
+                            moon-left/right, filled solid with ink and finished
+                            with fine grain: shown in front when a sidebar is
+                            filled
+moon-hollowfull-left / moon-hollowfull-right  that full moon's outline with its
+                            inside cleared and sanded like moon-*-hollow: shown
+                            behind the crescent while a sidebar is not filled
 """
 import struct, sys, zlib
 from pathlib import Path
@@ -1805,6 +1812,28 @@ for seed, side in ((31, "left"), (32, "right")):
     grains = (rng.random(band.shape) < band * 0.42) * (0.55 + 0.4 * rng.random(band.shape))
     trace = band * (0.08 + 0.12 * rng.random(band.shape))
     masks[f"moon-{side}-hollow"] = np.where(body, np.maximum(grains, trace), rim)
+# The fill toggle's full moons: solid black (F=1 of ovalmoon.py) and hollow
+# (hollowfull.py), derived from the committed sidebar moons.
+for seed_solid, seed_hollow, side in ((6200, 41, "left"), (6201, 42, "right")):
+    moon = read_png_alpha(ICON_DIR / f"moon-{side}.png")
+    ys, xs = np.nonzero(moon > 0.08)
+    cy = (ys.min() + ys.max()) / 2; ry = (ys.max() - ys.min()) / 2
+    cx = (xs.min() + xs.max()) / 2; rx = (xs.max() - xs.min()) / 2
+    d = 1 - np.hypot((XX - cx) / rx, (YY - cy) / ry)
+    rng = np.random.default_rng(seed_solid)
+    edge = (rng.random((S, S)) - 0.5) * 0.012
+    body_solid = np.clip((d + edge) * min(rx, ry) / 1.1 + 0.5, 0, 1) * (0.93 + 0.07 * rng.random((S, S)))
+    solid_full = grain_fine(body_solid, rng)
+    masks[f"moon-black-{side}"] = solid_full
+    solid_q = (np.clip(solid_full, 0, 1) * 255).astype(np.uint8) / 255.0
+    inside = _blur(_erode((_blur(solid_q, 2) > 0.3).astype(float), 3), 1)
+    rim = solid_q * (1 - inside) * 0.5
+    rng_h = np.random.default_rng(seed_hollow)
+    body_h = solid_q > 0.55
+    band = np.clip(rim / 0.45, 0, 1) * body_h
+    grains = (rng_h.random(band.shape) < band * 0.42) * (0.55 + 0.4 * rng_h.random(band.shape))
+    trace = band * (0.08 + 0.12 * rng_h.random(band.shape))
+    masks[f"moon-hollowfull-{side}"] = np.where(body_h, np.maximum(grains, trace), rim)
 # One stroke turned or mirrored, so every direction carries the same grain.
 masks["arrow-forward"] = masks["arrow-back"][:, ::-1]
 for k, name in ((1, "chevron-right"), (2, "chevron-up"), (3, "chevron-left")):

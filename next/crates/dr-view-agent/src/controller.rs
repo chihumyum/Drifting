@@ -52,7 +52,7 @@ struct ServiceState {
     external: HashMap<String, ExternalScope>,
     starting: HashSet<ConversationId>,
     authorizations: HashMap<ConversationId, long_tasks::Authorization>,
-    suggestion_jobs: HashMap<BookId, dr_agent::Cancellation>,
+    suggestion_jobs: HashMap<BookId, proactive::SuggestionStop>,
     proactive_enabled: bool,
     close: Option<Completion>,
 }
@@ -481,8 +481,8 @@ impl AgentController {
         for authorization in state.authorizations.values_mut() {
             authorization.enabled = false;
         }
-        for cancellation in state.suggestion_jobs.values() {
-            cancellation.cancel();
+        for job in state.suggestion_jobs.values() {
+            job.stop();
         }
         let reads = resources
             .as_ref()

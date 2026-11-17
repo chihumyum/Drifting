@@ -33,17 +33,46 @@ pub mod data;
 pub mod format;
 mod jobs;
 pub mod projects;
+pub mod templates;
 mod view;
 
+pub use templates::{NewProjectModal, TemplatePick};
 pub use view::{
     ExportBook, ExportTemplate, ImportBook, ImportLegacyLibrary, ImportTemplate,
     PURGE_EXPIRED_AFTER, Shelf, ShelfDialog, SubmitDialog,
 };
 
-use gpui::{App, AppContext as _, KeyBinding};
+use std::rc::Rc;
 
-/// Registers the bookshelf as the shell's start page, and its key: ⌘↵
-/// (Ctrl+↵) in a dialog creates or saves, kept by the shell's keymap.
+use gpui::{App, AppContext as _, Global, KeyBinding};
+
+type OnProjectCreated = Rc<dyn Fn(&str, &mut App)>;
+
+#[derive(Clone, Default)]
+struct ProjectCreatedSlot(Option<OnProjectCreated>);
+
+impl Global for ProjectCreatedSlot {}
+
+/// Registers a callback notified whenever a new project is created from the
+/// template-picker dialog (used by `dr-view-home` to select the new project's
+/// inline title on first open).
+pub fn set_on_project_created(cx: &mut App, hook: impl Fn(&str, &mut App) + 'static) {
+    cx.default_global::<ProjectCreatedSlot>().0 = Some(Rc::new(hook));
+}
+
+pub(crate) fn notify_project_created(book_id: &str, cx: &mut App) {
+    if let Some(hook) = cx
+        .try_global::<ProjectCreatedSlot>()
+        .and_then(|s| s.0.clone())
+    {
+        hook(book_id, cx);
+    }
+}
+
+/// Registers the bookshelf as the shell's start page, and its keys: ⌘↵
+/// (Ctrl+↵) in a dialog creates or saves, and in the 「新建项目」 dialog
+/// (which holds the keyboard wherever it opens) ↩ does it too; kept by the
+/// shell's keymap.
 pub fn init(cx: &mut App) {
     dr_shell::keymap::add_bindings(cx, || {
         let keys = if cfg!(target_os = "macos") {
@@ -51,7 +80,11 @@ pub fn init(cx: &mut App) {
         } else {
             "ctrl-enter"
         };
-        vec![KeyBinding::new(keys, SubmitDialog, Some("Shelf"))]
+        vec![
+            KeyBinding::new(keys, SubmitDialog, Some("Shelf")),
+            KeyBinding::new(keys, SubmitDialog, Some(templates::NEW_PROJECT_CONTEXT)),
+            KeyBinding::new("enter", SubmitDialog, Some(templates::NEW_PROJECT_CONTEXT)),
+        ]
     });
     dr_shell::pages::set_projects(cx, |ws, window, cx| {
         cx.new(|cx| projects::Projects::new(ws, window, cx)).into()

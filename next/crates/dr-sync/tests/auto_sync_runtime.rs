@@ -474,6 +474,9 @@ fn two_devices_auto_sync_offline_recovery_drain_switch_and_book_purge_asset_recl
     drop(held_session_on_b);
     rt_b.notify_holder_released();
 
+    // `Library::remove_asset` deletes an asset's row before its directory, so
+    // the rows can be gone while the files are still going: the purge is
+    // finished once both are.
     wait_until(
         Duration::from_secs(5),
         "B finishes book purge and reclaims physical asset files",
@@ -486,6 +489,7 @@ fn two_devices_auto_sync_offline_recovery_drain_switch_and_book_purge_asset_recl
                     .assets_of_book(&book_1)
                     .map(|a| a.is_empty())
                     .unwrap_or(false)
+                && b_downloaded_assets.iter().all(|a| !a.path.exists())
         },
     );
     for asset in &b_downloaded_assets {

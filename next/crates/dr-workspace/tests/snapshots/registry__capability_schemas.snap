@@ -8865,6 +8865,40 @@ expression: json
           "description": "Restore this membership's stored record only when cancellation changed it.",
           "type": "boolean"
         },
+        "memberships": {
+          "description": "Further `(host, member)` membership records the same write changed\n(a re-hang adds the new one; an order that renumbers a host's list\nwrites its other members): each record alone.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "placements": {
+          "description": "Further `(view, entry)` placements the same write changed (an order\nbeside a tie on the scale moves what is tied after it): each alone.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "type": "array"
+          },
+          "type": "array"
+        },
         "primary": {
           "description": "Restore only the member's primary field, not its other metadata or home.",
           "type": "boolean"

@@ -1158,7 +1158,6 @@ impl MediaPage {
         UsageFlash::trigger(usage.flash_keys.clone(), cx);
         if let Some(ws) = self.workspace.upgrade() {
             ws.update(cx, |ws, cx| {
-                ws.super_view = None;
                 ws.open(NavTarget::Entry { id, module }, Open::KEEP, cx);
             });
         }
@@ -1938,7 +1937,6 @@ impl MediaPage {
         if let Some(ws) = self.workspace.upgrade() {
             let nav_target = target.clone();
             ws.update(cx, |ws, cx| {
-                ws.super_view = None;
                 ws.open(nav_target, dr_shell::nav::Open::KEEP, cx);
             });
         }

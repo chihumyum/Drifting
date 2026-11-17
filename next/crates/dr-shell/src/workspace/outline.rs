@@ -658,7 +658,7 @@ pub fn rail(
     window: &mut Window,
     cx: &mut App,
 ) -> Option<AnyElement> {
-    if w.outline_hidden || w.immersive || w.covered() {
+    if w.outline_hidden || w.immersive || w.covered() || w.fill_covers_paper() {
         return None;
     }
     let target = target?;

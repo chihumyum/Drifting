@@ -283,18 +283,26 @@ fn lane_page_orders_members_by_the_scale_and_keeps_residents_in_manual_order() {
         );
     }
 
-    // While `project.book.root` is still the manuscript entry, `lane` follows
-    // the first live view containing it (`view-a`), and local display sorts
-    // (`Name`, `Updated`) do NOT override its authoritative scale order!
+    // `lane`'s attached block follows the first live view containing it
+    // (`view-a`) regardless of local display sorts (`Name`, `Updated`), while
+    // its resident block (`DisplaySurface::Page`) keeps its manual stored order
+    // and applies local display sorts normally (`DV 交回`, `T9.1`).
     let snap_a = Book::load(&ws, &book).unwrap();
     let mut fake_updated = BTreeMap::new();
-    fake_updated.insert(r_a.clone(), (999, 999));
-    fake_updated.insert(m_x.clone(), (999, 999));
-    for (display, sort) in [
-        (Display::List, SortOrder::Manual),
-        (Display::List, SortOrder::Name),
-        (Display::List, SortOrder::Updated),
-        (Display::Grid, SortOrder::Name),
+    fake_updated.insert(r_a.clone(), (i64::MAX, 3));
+    fake_updated.insert(r_c.clone(), (i64::MAX, 2));
+    fake_updated.insert(r_b.clone(), (i64::MAX, 1));
+    fake_updated.insert(m_x.clone(), (i64::MAX, 4));
+    let by_name = vec![r_a.clone(), r_b.clone(), r_c.clone()];
+    for (display, sort, expected_residents) in [
+        (Display::List, SortOrder::Manual, manual.clone()),
+        (Display::List, SortOrder::Name, by_name.clone()),
+        (
+            Display::List,
+            SortOrder::Updated,
+            vec![r_a.clone(), r_c.clone(), r_b.clone()],
+        ),
+        (Display::Grid, SortOrder::Name, by_name.clone()),
     ] {
         let rows = both_blocks(
             &snap_a,
@@ -307,8 +315,8 @@ fn lane_page_orders_members_by_the_scale_and_keeps_residents_in_manual_order() {
         );
         assert_eq!(
             resident_ids(&rows),
-            manual,
-            "residents keep their manual order in a lane, whatever {display:?}/{sort:?}"
+            expected_residents,
+            "residents apply local sort on Page even when host is a lane ({display:?}/{sort:?})"
         );
         assert_eq!(
             member_ids(&rows),
@@ -317,7 +325,7 @@ fn lane_page_orders_members_by_the_scale_and_keeps_residents_in_manual_order() {
         );
     }
 
-    // Putting `view-b` before `view-a` makes `lane`'s own page follow
+    // Putting `view-b` before `view-a` makes `lane`'s attached block follow
     // `view-b`'s scale (the first view it is in), while `view-a` retains its
     // own placements untouched.
     let mut tv_b = call(&ws, "timeline_view.list", json!({"book": book}))
@@ -347,7 +355,7 @@ fn lane_page_orders_members_by_the_scale_and_keeps_residents_in_manual_order() {
         &BTreeSet::new(),
         2,
     );
-    assert_eq!(resident_ids(&rows_b), manual);
+    assert_eq!(resident_ids(&rows_b), by_name);
     assert_eq!(
         member_ids(&rows_b),
         vec![m_x.clone(), m_z.clone(), m_y.clone()]
@@ -626,8 +634,10 @@ fn lane_level_display_hides_sort_controls_and_keeps_reorder_enabled(cx: &mut Tes
     assert!(!display.read_with(vcx, |d, _| d.is_lane()));
     assert!(!display.read_with(vcx, |d, _| d.can_reorder()));
 
-    // Add `folder` to a live view and refresh `LevelDisplay`: sort switcher disappears
-    // and `can_reorder()` becomes true so dragging writes to the view's scale!
+    // Adding `folder` to a live view keeps the sort switcher visible on
+    // `DisplaySurface::Page` ("下面的条目") and keeps `Name` sort active
+    // (`can_reorder() == false`), because only `Members` ("挂在这里的条目")
+    // is governed by the view's scale (`DV 交回`, `T9.1`).
     call(
         &lib,
         "timeline_view.put",
@@ -640,9 +650,9 @@ fn lane_level_display_hides_sort_controls_and_keeps_reorder_enabled(cx: &mut Tes
     );
     let snap_in_view = Rc::new(Book::load(&lib, &book).unwrap());
     display.update(vcx, |d, cx| d.refresh(snap_in_view, cx));
-    wait_for(vcx, |vcx| vcx.debug_bounds(sort_sel).is_none());
+    wait_for(vcx, |vcx| vcx.debug_bounds(sort_sel).is_some());
     assert!(display.read_with(vcx, |d, _| d.is_lane()));
-    assert!(display.read_with(vcx, |d, _| d.can_reorder()));
+    assert!(!display.read_with(vcx, |d, _| d.can_reorder()));
 
     // Remove `folder` from its last view: sort switcher returns cleanly.
     call(

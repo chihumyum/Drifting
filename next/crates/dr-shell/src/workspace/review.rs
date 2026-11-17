@@ -145,14 +145,14 @@ impl Composer {
 impl Workspace {
     /// The same navigation as ShowProjectHome, for an accepted book change.
     pub fn open_home(&mut self, cx: &mut Context<Self>) {
-        self.super_view = None;
+        self.exit_fill_in_cx(cx);
         self.nav.go_home();
         self.changed(cx);
     }
 
     /// Opens the right sidebar on the 素材库 tab.
     pub fn reveal_library(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.super_view = None;
+        self.exit_fill(window, cx);
         let reduce = self.reduce_motion(window, cx);
         self.right.set_open(true, reduce);
         self.right.panes.reveal(super::RightTab::Library);
@@ -176,7 +176,7 @@ impl Workspace {
         {
             return None;
         }
-        self.super_view = None;
+        self.exit_fill(window, cx);
         if let Some(target) = target {
             self.open(target, Open::KEEP, cx);
         }
@@ -202,12 +202,23 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.super_view = None;
+        self.exit_fill(window, cx);
         let reduce = self.reduce_motion(window, cx);
         self.right.set_open(true, reduce);
         self.right.panes.focused = pane;
         self.right.panes.reveal(super::RightTab::Companion);
         dr_view_review::agent_bridge::request_open_conversation(req, cx);
+        self.changed(cx);
+    }
+
+    /// Opens the right sidebar on Agent (HC: a suggestion card opened on
+    /// Project Home; the Agent panel shows that card's conversation and
+    /// Home stays as it is).
+    pub fn reveal_companion(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.exit_fill(window, cx);
+        let reduce = self.reduce_motion(window, cx);
+        self.right.set_open(true, reduce);
+        self.right.panes.reveal(super::RightTab::Companion);
         self.changed(cx);
     }
 
@@ -419,7 +430,6 @@ impl Workspace {
             return;
         }
         cx.set_global(FrameCommentIntent(Some(scope)));
-        self.super_view = None;
         self.open(target, Open::KEEP, cx);
     }
 

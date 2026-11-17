@@ -14,7 +14,12 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use dr_workspace::{
     Actor, Workspace as Library, WsError,
-    commands::book::{BookShelf, ListBooksIn},
+    commands::{
+        book::{BookShelf, ListBooksIn},
+        v3::project_template::{
+            ProjectTemplateList, ProjectTemplateListIn, ProjectTemplateSummary,
+        },
+    },
 };
 
 /// Maximum number of recently modified entries shown on hover for a bookless project.
@@ -90,6 +95,19 @@ pub struct ShelfData {
     pub books: Vec<ShelfBook>,
     /// Most recently deleted first.
     pub trashed: Vec<TrashedBook>,
+    /// Saved project templates (`project-template:<id>`), most recently updated first.
+    pub templates: Vec<ProjectTemplateSummary>,
+}
+
+/// Whether `event` announces a saved project template created, updated, imported or deleted.
+pub fn is_template_store_event(event: &dr_store::StoreEvent) -> bool {
+    match event {
+        dr_store::StoreEvent::Doc(ev) => ev.doc_id.starts_with("project-template:"),
+        dr_store::StoreEvent::Local(c) => {
+            matches!(c.table.as_str(), "doc" | "purged_doc")
+                && c.key.starts_with("project-template:")
+        }
+    }
 }
 
 impl ShelfData {
@@ -147,6 +165,9 @@ impl ShelfData {
                 edited_ms: book.updated_at.map(|s| s * 1000),
             });
         }
+        data.templates = lib
+            .run::<ProjectTemplateList>(&Actor::User, ProjectTemplateListIn {})?
+            .output;
         Ok(data)
     }
 }

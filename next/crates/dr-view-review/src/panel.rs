@@ -88,6 +88,7 @@ pub struct ReviewView {
     status_filter: StatusFilter,
     origin_filter: OriginFilter,
     current_only: bool,
+    columns: usize,
     expanded_tasks: HashSet<String>,
     reveal: Option<Reveal>,
     reveal_serial: u64,
@@ -142,6 +143,7 @@ impl ReviewView {
             status_filter: StatusFilter::Open,
             origin_filter: OriginFilter::All,
             current_only: false,
+            columns: 1,
             expanded_tasks: HashSet::new(),
             reveal: None,
             reveal_serial: 0,
@@ -217,6 +219,16 @@ impl ReviewView {
             self.reload(cx);
         }
         if changed_book || changed_target {
+            cx.notify();
+        }
+    }
+
+    pub(crate) fn set_fill_width(&mut self, width: Option<f32>, cx: &mut Context<Self>) {
+        let columns = width
+            .map_or(1, |width| ((width - 24.0) / 275.0).floor() as usize)
+            .clamp(1, 6);
+        if self.columns != columns {
+            self.columns = columns;
             cx.notify();
         }
     }
@@ -2046,7 +2058,10 @@ impl Render for ReviewView {
         }
 
         let fold_tasks = self.origin_filter != OriginFilter::Task;
+        let mut tiles = Vec::new();
+        let mut reveal_tile = None;
         for group in &visible_groups {
+            let start = rows.len();
             let group_key = group.key();
             if !(self.current_only && visible_groups.len() == 1) {
                 let (mark, title, _) = self.group_header(group);
@@ -2166,8 +2181,42 @@ impl Render for ReviewView {
                     }
                 }
             }
+            if self.columns > 1 {
+                if reveal_index.take().is_some() {
+                    reveal_tile = Some(start + tiles.len() / self.columns);
+                }
+                let group_rows = rows.split_off(start);
+                tiles.push(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .flex()
+                        .flex_col()
+                        .gap_2()
+                        .children(group_rows),
+                );
+            }
         }
-        if let Some(index) = reveal_index {
+        if self.columns > 1 {
+            let mut tiles = tiles.into_iter();
+            loop {
+                let columns: Vec<_> = tiles.by_ref().take(self.columns).collect();
+                if columns.is_empty() {
+                    break;
+                }
+                let remaining = self.columns - columns.len();
+                rows.push(
+                    div()
+                        .flex()
+                        .items_start()
+                        .gap_3()
+                        .children(columns)
+                        .children((0..remaining).map(|_| div().flex_1()))
+                        .into_any_element(),
+                );
+            }
+        }
+        if let Some(index) = reveal_index.or(reveal_tile) {
             self.scroll.scroll_to_item(index);
         }
         div().size_full().flex().flex_col().child(toolbar).child(

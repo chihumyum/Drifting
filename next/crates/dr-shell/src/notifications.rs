@@ -30,7 +30,6 @@ pub const FOLLOW_UP_DELAY: Duration = Duration::from_secs(2);
 pub enum Source {
     Sync,
     ShareComments,
-    Organize,
     MarkdownFolder,
     Update,
     CrashFollowUp,
@@ -48,7 +47,6 @@ impl Source {
         match self {
             Source::Sync => n::cloud_sync::SOURCE,
             Source::ShareComments => n::share_comments::SOURCE,
-            Source::Organize => n::organize::SOURCE,
             Source::MarkdownFolder => n::markdown_folder::SOURCE,
             Source::Update => n::app_update::SOURCE,
             Source::CrashFollowUp => n::crash_follow_up::SOURCE,

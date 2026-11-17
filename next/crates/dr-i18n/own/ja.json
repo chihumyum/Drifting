@@ -4,6 +4,7 @@
     "import": "プロジェクトを読み込む",
     "importFile": "プロジェクトを読み込む（.driftingproject）",
     "importLegacy": "Drifting 0.1 を読み込む",
+    "importTemplate": "テンプレートを読み込む",
     "importTemplateFile": "テンプレートを読み込む（.driftingtemplate）",
     "libraryProjects_one": "{{count}}件のプロジェクト",
     "libraryProjects_other": "{{count}}件のプロジェクト",
@@ -131,6 +132,21 @@
       "bodyWithoutChapters": "プロジェクト（{{words}}文字・{{elements}}要素）を「すべてのプロジェクト」から移動します。「最近削除した項目」から30日以内に復元でき、その後は完全削除します。"
     }
   },
+  "projectTemplates": {
+    "bookDailyTarget": "1日 {{words}} 字",
+    "bookOff": "オフ",
+    "bookOn": "オン",
+    "bookWordTarget": "全体 {{words}} 字",
+    "builtin": "内蔵",
+    "deleteTitle": "テンプレート「{{name}}」を削除しますか？",
+    "description": "説明",
+    "exportFile": "書き出す（.driftingtemplate）",
+    "leftRail": "左サイドバー",
+    "myTemplates": "マイテンプレート",
+    "overwrite": "上書き…",
+    "structure": "構造",
+    "timePins": "タイムピン"
+  },
   "settings": {
     "appearance": {
       "reduce_motion": "アニメーションをオフにする"
@@ -157,6 +173,14 @@
       "refused_version": "ダウンロードした更新は表示されたバージョンと一致せず、古い版の可能性があるため拒否しました。現在の版は引き続き使えます。",
       "restart": "再起動して更新",
       "server_error": "更新サービスで問題が起きています。後ほど再試行してください。現在の版は引き続き使えます。"
+    },
+    "keys": {
+      "actions": {
+        "focusLeftSidebar": {
+          "desc": "左サイドバーを矢印キーで移動します。もう一度押すか Esc でページに戻ります。",
+          "label": "左サイドバーへ移動"
+        }
+      }
     }
   },
   "templateEditor": {
@@ -435,5 +459,33 @@
     "usedIn": "使用箇所",
     "viewList": "リスト",
     "viewMasonry": "メイソンリー"
+  },
+  "v5Fill": {
+    "attached": "関連付ける",
+    "below": "配下",
+    "cellOff": "オフ",
+    "cellOn": "オン",
+    "entryCount_other": "{{count}} 件の項目",
+    "exitFill": "広げる表示を終了",
+    "fill": "広げる",
+    "fillLeft": "左サイドバーを広げる",
+    "fillRight": "右サイドバーを広げる",
+    "fullEditor": "フルエディター",
+    "hangsOn": "関連付け先",
+    "hungItems": "関連付け: {{items}}",
+    "livesIn": "配下にいる場所",
+    "livesInName": "{{name}} の配下",
+    "moveHere": "ここへ移動",
+    "newDefault": "新規の既定",
+    "noTemplateEntries": "テンプレートのない項目",
+    "resides": "配下に置く",
+    "resizeFill": "広げた領域の幅を調整",
+    "structure": "構造",
+    "structureEntries_other": "項目 {{count}}",
+    "structureLevels_other": "階層 {{count}}",
+    "structureTemplates_other": "テンプレート {{count}}",
+    "templateCount": "テンプレート {{count}} 件",
+    "templateStructure": "テンプレートの構造",
+    "unusedTemplates": "未使用のテンプレート"
   }
 }

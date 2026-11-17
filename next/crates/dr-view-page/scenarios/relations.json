@@ -1,5 +1,5 @@
 {
-  "about": "RD: a relation row is readable through the live app and expands into two graph edges.",
+  "about": "RD: a relation row expands into two graph edges in T9's filled left Tab.",
   "steps": [
     {"seed": "lite"},
     {"call": "book.list", "save": "books"},
@@ -54,11 +54,18 @@
         "/[name=RD alliance]/rows/0/id":"${row.id}"
       }
     },
-    {"app":"action.dispatch","params":{"name":"workspace::ToggleElementOverview"}},
+    {"app":"ui.press","params":{"label":"Fill left sidebar", "role":"Button"}},
+    {"app":"ui.wait","params":{"state":{"/fill":"left"}, "timeout_ms":12000}},
+    {"app":"ui.press","params":{"label":"Relations", "role":"RadioButton"}},
+    {"app":"ui.wait","params":{"state":{"/v3Sidebar/fillLayout":"relation"}, "timeout_ms":12000}},
+    {"app":"ui.find","params":{"label":"RD counterpart", "role":"Button"}},
+    {"app":"ui.find","params":{"label":"RD witness", "role":"Button"}},
     {
       "app":"ui.find",
-      "params":{"label":"Hide \"RD alliance\"", "role":"Button", "timeout_ms":30000}
+      "params":{"label":"Hide \"RD alliance\"", "role":"Button", "timeout_ms":30000},
+      "save":"legend"
     },
+    {"app":"app.info","save":"graph_window","expect":{"/windows/0/visible":true}},
     {"app":"ui.screenshot","png":"relations-graph.png"},
     {"app":"app.quit"}
   ]

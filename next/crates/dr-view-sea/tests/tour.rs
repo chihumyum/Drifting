@@ -19,7 +19,7 @@ use gpui::{
 struct Mock {
     left_open: bool,
     right_open: bool,
-    super_entry: bool,
+    home_create: bool,
     anything: bool,
     /// Where the first left Panel Tab label starts.
     tabs_at: f32,
@@ -31,7 +31,7 @@ impl Default for Mock {
         Mock {
             left_open: true,
             right_open: true,
-            super_entry: true,
+            home_create: true,
             anything: true,
             tabs_at: 40.0,
             covered: false,
@@ -65,9 +65,6 @@ impl Render for Mock {
                     at(80.0, 6.0, 28.0, 28.0),
                 ));
             }
-            if self.super_entry {
-                root = root.child(anchor(ids::SUPER_VIEW_ENTRY, at(200.0, 44.0, 28.0, 28.0)));
-            }
             if self.right_open {
                 root = root.child(anchor(ids::AGENT_TAB, at(1800.0, 10.0, 40.0, 20.0)));
             } else {
@@ -76,9 +73,10 @@ impl Render for Mock {
                     at(1880.0, 6.0, 28.0, 28.0),
                 ));
             }
-            root = root
-                .child(anchor(ids::HOME_CREATE, at(600.0, 300.0, 400.0, 120.0)))
-                .child(anchor(ids::TIMELINE_TOGGLE, at(1500.0, 1040.0, 28.0, 28.0)));
+            if self.home_create {
+                root = root.child(anchor(ids::HOME_CREATE, at(600.0, 300.0, 400.0, 120.0)));
+            }
+            root = root.child(anchor(ids::TIMELINE_TOGGLE, at(1500.0, 1040.0, 28.0, 28.0)));
         }
         root.children(tour::layer(self.covered, window, cx))
     }
@@ -169,27 +167,22 @@ fn next_and_back_pass_over_a_step_whose_control_is_not_drawn(cx: &mut TestAppCon
     let (_, cx) = open(
         cx,
         Mock {
-            super_entry: false,
+            home_create: false,
             ..Mock::default()
         },
     );
     assert_eq!(start(cx).id, "panels");
-    // Return walks the tour: the Super View step has nothing to point at.
+    // Project Home is elsewhere, so Return walks straight to the timeline.
     cx.simulate_keystrokes("enter");
     frames(cx, 3);
     let state = current(cx).unwrap();
-    assert_eq!((state.step, state.id), (2, "create"));
-    assert_eq!(state.target, rect(600.0, 300.0, 400.0, 120.0));
-    cx.dispatch_action(tour::Next);
-    frames(cx, 3);
-    let timeline = current(cx).unwrap();
+    assert_eq!((state.step, state.id), (2, "timeline"));
+    assert_eq!(state.target, rect(1500.0, 1040.0, 28.0, 28.0));
+    let timeline = state;
     assert_eq!(timeline.id, "timeline");
     // Low in the window: the card goes above, right edges together.
     assert_eq!(timeline.card.right(), timeline.ring.right());
     assert!(timeline.card.bottom() <= timeline.ring.top());
-    cx.dispatch_action(tour::Back);
-    frames(cx, 3);
-    assert_eq!(current(cx).unwrap().id, "create");
     cx.dispatch_action(tour::Back);
     frames(cx, 3);
     assert_eq!(current(cx).unwrap().id, "panels", "back past the gap");
@@ -227,12 +220,12 @@ fn the_ring_follows_its_control(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
-fn a_super_view_puts_it_away_and_it_starts_again_from_the_top(cx: &mut TestAppContext) {
+fn a_filled_panel_puts_it_away_and_it_starts_again_from_the_top(cx: &mut TestAppContext) {
     let (view, cx) = open(cx, Mock::default());
     start(cx);
     cx.dispatch_action(tour::Next);
     frames(cx, 3);
-    assert_eq!(current(cx).unwrap().id, "super-views");
+    assert_eq!(current(cx).unwrap().id, "create");
     change(cx, &view, |m| m.covered = true);
     assert_eq!(current(cx), None);
     assert!(running(cx));
@@ -244,7 +237,7 @@ fn a_super_view_puts_it_away_and_it_starts_again_from_the_top(cx: &mut TestAppCo
 fn done_ends_it_and_a_second_start_does_nothing(cx: &mut TestAppContext) {
     let (_, cx) = open(cx, Mock::default());
     start(cx);
-    let ids: Vec<&str> = (0..6)
+    let ids: Vec<&str> = (0..5)
         .map(|k| {
             if k > 0 {
                 cx.dispatch_action(tour::Next);
@@ -253,17 +246,7 @@ fn done_ends_it_and_a_second_start_does_nothing(cx: &mut TestAppContext) {
             current(cx).unwrap().id
         })
         .collect();
-    assert_eq!(
-        ids,
-        [
-            "panels",
-            "super-views",
-            "create",
-            "timeline",
-            "agent",
-            "home"
-        ]
-    );
+    assert_eq!(ids, ["panels", "create", "timeline", "agent", "home"]);
     // The torii and the bell in one ring.
     assert_eq!(current(cx).unwrap().target, rect(12.0, 900.0, 60.0, 28.0));
     assert!(!seen(cx));
@@ -310,8 +293,8 @@ fn the_cards_buttons_walk_and_skip(cx: &mut TestAppContext) {
     let row = card.bottom() - px(23.0);
     cx.simulate_click(point(card.right() - px(22.0), row), Modifiers::default());
     frames(cx, 3);
-    assert_eq!(current(cx).unwrap().id, "super-views");
-    for _ in 0..3 {
+    assert_eq!(current(cx).unwrap().id, "create");
+    for _ in 0..2 {
         cx.dispatch_action(tour::Next);
         frames(cx, 3);
     }

@@ -96,6 +96,7 @@
     "import": "Importer un projet",
     "importFile": "Importer un projet (.driftingproject)",
     "importLegacy": "Importer Drifting 0.1",
+    "importTemplate": "Importer un modèle",
     "importTemplateFile": "Importer un modèle (.driftingtemplate)",
     "libraryProjects_many": "{{count}} projets",
     "libraryProjects_one": "{{count}} projet",
@@ -196,11 +197,6 @@
       "submit": "Vérifier et se connecter",
       "verifying": "Vérification…"
     }
-  },
-  "bottomStatusBar": {
-    "elements": "Éléments",
-    "storyGraph": "Graphe du récit",
-    "todoLibrary": "Tâches et documentation"
   },
   "chapterEditor": {
     "synopsisPlaceholder": "Synopsis…",
@@ -347,10 +343,6 @@
         "body": "L’ossature du livre. La barre latérale gauche peut être divisée en deux, chaque moitié ayant son propre panneau.",
         "closedBody": "L’ossature du livre se trouve dans la barre latérale gauche : chapitres, éléments et idées. Ouvrez-la ici.",
         "title": "Chapitres · Éléments · Idées"
-      },
-      "superViews": {
-        "body": "Ouvrez-les depuis le bouton rond dans l’en-tête d’un panneau.",
-        "title": "Vues pleine fenêtre"
       },
       "timeline": {
         "body": "Les intrigues se déploient sous la page, dans l’ordre du livre ou du temps du récit.",
@@ -522,24 +514,15 @@
     "zoomReset": "Ajuster à la vue"
   },
   "materialFolders": {
-    "menu": {
-      "open": "Ouvrir"
-    },
     "picker": {
       "createAndMove": "Créer et déplacer",
       "newPlaceholder": "Nom du nouveau dossier"
     },
-    "root": "Toutes les ressources",
     "untitled": "Nouveau dossier"
   },
   "memoMaterial": {
     "card": {
       "addSnippetBody": "Écrivez dans cette note…"
-    },
-    "dialog": {
-      "create": "Créer",
-      "newTodo": "Nouvelle tâche",
-      "todoPlaceholder": "Contenu de la tâche…"
     },
     "error": {
       "openFile": "Impossible d’ouvrir le fichier : {{error}}",
@@ -550,9 +533,6 @@
       "pdf": "PDF",
       "text": "Note"
     },
-    "menu": {
-      "openInSystem": "Ouvrir dans l’application système"
-    },
     "preview": {
       "loading": "Chargement…",
       "loadingPdf": "Chargement du PDF…",
@@ -562,35 +542,6 @@
       "openPdfFailed": "Impossible d’ouvrir le PDF",
       "previousPage": "Précédent",
       "renderPdfFailed": "Impossible d’afficher le PDF"
-    },
-    "super": {
-      "all": "Tout",
-      "clearEntityFilter": "Effacer le filtre de relations",
-      "collapseDrawer": "Réduire le tiroir",
-      "commentEmptyHint": "Cliquez sur + pour créer un commentaire ou sélectionnez du texte dans l’éditeur pour commenter",
-      "comments": "Commentaires",
-      "entityFilterAll": "Relations · Toutes",
-      "expandDrawer": "Développer le tiroir",
-      "hideKind": "Cliquez pour masquer ce type",
-      "material": "Ressource",
-      "meta": "{{todos}} tâches · {{comments}} commentaires · {{materials}} ressources",
-      "noFilteredMaterials": "Aucune ressource ne correspond aux filtres.",
-      "noMaterials": "Ce projet n’a pas encore de ressources.",
-      "noOrphans": "Chaque ressource est liée à au moins une entité.",
-      "noResolved": "Rien n’a encore été résolu.",
-      "orphanHeader": "Non classé · Ressources sans lien",
-      "orphans": "Non classé",
-      "reopenShort": "Rouvrir",
-      "resizeComments": "Redimensionner la colonne des commentaires",
-      "resizeTodos": "Redimensionner la colonne des tâches",
-      "resolved": "Résolu",
-      "resolvedHeader": "Résolu · Archives des tâches et commentaires",
-      "searchPlaceholder": "Rechercher dans les titres ou le texte…",
-      "showKind": "Cliquez pour afficher",
-      "todoEmptyHint": "Cliquez sur + pour créer une tâche ou choisissez « En tâche » sur une carte de commentaire"
-    },
-    "todo": {
-      "empty": "(tâche vide)"
     }
   },
   "mobileWorkspace": {
@@ -601,9 +552,6 @@
     "projectActions": {
       "deleteFailed": "Impossible de supprimer le projet. Réessayez."
     }
-  },
-  "navigation": {
-    "back": "Retour"
   },
   "nodeEditor": {
     "meta": {
@@ -632,9 +580,6 @@
     },
     "notice": {
       "source": "Annonce"
-    },
-    "organize": {
-      "source": "Agent"
     },
     "remove": "Retirer",
     "shareComments": {
@@ -679,6 +624,14 @@
   "preAlphaGuide": {
     "crashReports": "L’application envoie des rapports d’erreur sans texte du manuscrit pour corriger les problèmes. Désactivez-les dans Réglages → Confidentialité.",
     "title": "Bienvenue dans Drifting Alpha"
+  },
+  "projectAgent": {
+    "checkinFailed": "Lecture de vos modifications récentes inachevée : {{error}}",
+    "checkinRunning": "Agent lit vos modifications récentes…",
+    "dismiss": "Ignorer",
+    "openConversation": "Ouvrir la conversation",
+    "start": "Confier à Agent",
+    "startFailed": "Impossible de démarrer : {{error}}"
   },
   "projectHome": {
     "book": {
@@ -834,6 +787,21 @@
       "restoring": "Restauration…"
     }
   },
+  "projectTemplates": {
+    "bookDailyTarget": "Quotidien {{words}} mots",
+    "bookOff": "Désactivé",
+    "bookOn": "Activé",
+    "bookWordTarget": "Livre {{words}} mots",
+    "builtin": "Intégré",
+    "deleteTitle": "Supprimer le modèle « {{name}} » ?",
+    "description": "Description",
+    "exportFile": "Exporter (.driftingtemplate)",
+    "leftRail": "Barre latérale gauche",
+    "myTemplates": "Mes modèles",
+    "overwrite": "Écraser…",
+    "structure": "Structure",
+    "timePins": "Repères temporels"
+  },
   "referencesPanel": {
     "filters": {
       "all": "Tout"
@@ -853,15 +821,12 @@
     "commentPlaceholder": "Rédiger un commentaire…",
     "empty": "Aucun élément à réviser dans cette portée.",
     "filters": {
-      "all": "Les deux",
-      "comment": "Commentaires",
-      "todo": "Tâches"
+      "all": "Les deux"
     },
     "groups": {
       "deleted": "Supprimés",
       "floating": "Non rattachés"
     },
-    "newComment": "Nouveau commentaire",
     "scopes": {
       "current": "Actuel"
     },
@@ -1148,6 +1113,10 @@
           "desc": "Recherche du texte dans l’éditeur ouvert",
           "label": "Rechercher dans l’éditeur actif"
         },
+        "focusLeftSidebar": {
+          "desc": "Parcourez la barre latérale gauche avec les flèches ; appuyez à nouveau ou sur Échap pour revenir à la page",
+          "label": "Aller dans la barre latérale gauche"
+        },
         "globalSearch": {
           "desc": "Recherche dans les chapitres, intrigues, éléments et catégories",
           "label": "Recherche globale"
@@ -1346,10 +1315,8 @@
       "unpin": "Revenir à la disposition automatique"
     },
     "layout": {
-      "isles": "Îles",
       "relate": "Relations"
     },
-    "meta": "{{categories}} catégories · {{elements}} éléments",
     "relate": {
       "relayout": "Réorganiser"
     },
@@ -1665,6 +1632,38 @@
     "usedIn": "Utilisé dans",
     "viewList": "Liste",
     "viewMasonry": "Mosaïque"
+  },
+  "v5Fill": {
+    "attached": "Rattaché à",
+    "below": "Dessous",
+    "cellOff": "Non",
+    "cellOn": "Oui",
+    "entryCount_one": "{{count}} entrée",
+    "entryCount_other": "{{count}} entrées",
+    "exitFill": "Quitter l’extension",
+    "fill": "Étendre",
+    "fillLeft": "Étendre le panneau gauche",
+    "fillRight": "Étendre le panneau droit",
+    "fullEditor": "Éditeur complet",
+    "hangsOn": "Rattaché à",
+    "hungItems": "Rattachés : {{items}}",
+    "livesIn": "Réside dans",
+    "livesInName": "Réside dans {{name}}",
+    "moveHere": "Déplacer ici",
+    "newDefault": "Nouveau par défaut",
+    "noTemplateEntries": "Entrées sans modèle",
+    "resides": "Réside sous",
+    "resizeFill": "Redimensionner la zone étendue",
+    "structure": "Structure",
+    "structureEntries_one": "{{count}} entrée",
+    "structureEntries_other": "{{count}} entrées",
+    "structureLevels_one": "{{count}} niveau",
+    "structureLevels_other": "{{count}} niveaux",
+    "structureTemplates_one": "{{count}} modèle",
+    "structureTemplates_other": "{{count}} modèles",
+    "templateCount": "{{count}} modèles",
+    "templateStructure": "Structure des modèles",
+    "unusedTemplates": "Modèles inutilisés"
   },
   "windowCaption": {
     "close": "Fermer",

@@ -1,4 +1,4 @@
-//! M22: Element Overview Super View (`SuperView::Elements`, `⌘⌥4`) on canonical v3.
+//! Island and Relation canvases for a filled left Tab.
 //!
 //! Provides two synchronised canvas layouts over canonical v3 element levels and the
 //! content entries in them:
@@ -17,8 +17,12 @@ pub mod isles;
 pub mod relate;
 pub mod view;
 
+use dr_shell::v3::Rendered;
 use futures::FutureExt as _;
-use gpui::{App, AppContext as _, Entity, Global, WeakEntity};
+use gpui::{
+    App, AppContext as _, Context, Entity, Global, IntoElement, ParentElement, Render, Styled,
+    WeakEntity, Window, div,
+};
 
 pub use isles::{
     CELL_H, CELL_W, ElementCenter, ExtractedIslands, IslandGroupLayout, IslandItem, IslandModel,
@@ -35,8 +39,7 @@ pub use relate::{
     serialize_overview_memory, settle_relate,
 };
 pub use view::{
-    ElementCarryDrag, ElementOverview, IslandMode, IslandSubject, OverviewHeadEnd,
-    OverviewHeadStart, RelateEdgeView,
+    ElementCarryDrag, ElementOverview, IslandMode, IslandSubject, OverviewHeadEnd, RelateEdgeView,
 };
 
 #[derive(Default)]
@@ -51,7 +54,7 @@ pub(crate) fn is_frozen(cx: &App) -> bool {
     cx.try_global::<Registry>().is_some_and(|r| r.frozen) || dr_shell::release::is_releasing(cx)
 }
 
-/// Registers `SuperView::Elements` (`⌘⌥4`) and library-release barriers.
+/// Registers the two Tab canvases and their library-release barriers.
 pub fn init(cx: &mut App) {
     if !cx.has_global::<Registry>() {
         cx.set_global(Registry::default());
@@ -95,21 +98,37 @@ pub fn init(cx: &mut App) {
         }
     });
 
-    dr_shell::pages::add_super_view(
-        cx,
-        dr_shell::workspace::SuperView::Elements,
-        |host, window, cx| {
-            let host = host.clone();
-            let overview = cx.new(|cx| ElementOverview::new(host, window, cx));
-            let weak_start = overview.downgrade();
-            let weak_end = overview.downgrade();
-            let start = cx.new(|_| OverviewHeadStart::new(weak_start));
-            let end = cx.new(|cx| OverviewHeadEnd::new(weak_end, window, cx));
-            dr_shell::pages::SuperViewPage::new(overview)
-                .head_start(start)
-                .head_end(end)
-        },
-    );
+    dr_shell::v3::set_tab_canvas(cx, |host, window, cx| {
+        let overview = cx.new(|cx| ElementOverview::new(host, window, cx));
+        let header = cx.new(|cx| OverviewHeadEnd::new(overview.downgrade(), window, cx));
+        let weak = overview.downgrade();
+        let view = cx.new(|_| TabCanvas { overview, header });
+        Rendered::new(view).on_refresh(move |book, cx| {
+            let _ = weak.update(cx, |view, cx| view.refresh_snapshot(book, cx));
+        })
+    });
+}
+
+struct TabCanvas {
+    overview: Entity<ElementOverview>,
+    header: Entity<OverviewHeadEnd>,
+}
+
+impl Render for TabCanvas {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        div()
+            .size_full()
+            .flex()
+            .flex_col()
+            .child(
+                div()
+                    .flex_none()
+                    .flex()
+                    .justify_end()
+                    .child(self.header.clone()),
+            )
+            .child(div().flex_1().min_h_0().child(self.overview.clone()))
+    }
 }
 
 /// Returns the most recently mounted `ElementOverview` entity, if still alive (for tests).

@@ -50,6 +50,7 @@ pub fn init(cx: &mut App) {
     cx.bind_keys(library::bindings());
     menu::register(cx);
     dr_shell::pages::set_library(cx, library::make);
+    previews::follow_releases(cx);
     dr_shell::pages::set_locate_asset(cx, library::locate_asset);
     dr_shell::pages::add_page_view(cx, |target, host, window, cx| {
         let Target::Material(id) = target else {

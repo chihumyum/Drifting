@@ -101,6 +101,7 @@ impl Block {
 }
 
 pub struct EntryPage {
+    full_editor: Option<crate::pages::RunRow>,
     host: PageViewHost,
     target: Target,
     pub focus: FocusHandle,
@@ -147,6 +148,7 @@ impl EntryPage {
     pub fn new(host: PageViewHost, target: Target, cx: &mut Context<Self>) -> Self {
         let review_focus = cx.observe_global::<crate::ReviewFocus>(|_, cx| cx.notify());
         Self {
+            full_editor: None,
             host,
             target,
             focus: cx.focus_handle(),
@@ -163,6 +165,17 @@ impl EntryPage {
             _review_focus: review_focus,
         }
     }
+    pub fn new_settings(
+        host: PageViewHost,
+        target: Target,
+        full_editor: crate::pages::RunRow,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        let mut page = Self::new(host, target, cx);
+        page.full_editor = Some(full_editor);
+        page
+    }
+
     pub fn refresh(&mut self, book: Rc<Book>, cx: &mut Context<Self>) {
         self.host.book = book.clone();
         self.synced = false;
@@ -538,6 +551,25 @@ impl EntryPage {
             {
                 self.parts.insert("head".into(), ("head".into(), head));
             }
+            if self.full_editor.is_some() {
+                if v3.has_below(&id)
+                    && !self.parts.contains_key("settings")
+                    && let Some(view) = super::level_settings(
+                        LevelHost {
+                            page: self.host.clone(),
+                            level: id,
+                            surface: DisplaySurface::Page,
+                        },
+                        window,
+                        cx,
+                    )
+                {
+                    self.parts
+                        .insert("settings".into(), ("settings".into(), view));
+                }
+                self.synced = true;
+                return;
+            }
             active.push("head".into());
             for (i, make) in super::entry_head_parts(cx).into_iter().enumerate() {
                 let key = format!("head-part:{i}");
@@ -696,20 +728,8 @@ impl EntryPage {
             .into_any_element()
     }
 
-    /// A block's head: its switch, its name, the switch's name in small
-    /// grey, the view that orders it, and 「新建」 while it is on.
-    fn block_head(
-        &self,
-        id: &str,
-        block: Block,
-        name: &str,
-        window: &Window,
-        cx: &App,
-    ) -> AnyElement {
-        let theme = Theme::of(window, cx);
-        let p = theme.palette;
-        let book = &self.host.book;
-        let on = block.on(book, id);
+    fn block_switch(&self, id: &str, block: Block, cx: &App) -> (AnyElement, SharedString) {
+        let on = block.on(&self.host.book, id);
         let (switch_id, switch_label) = match block {
             Block::Below => ("v3-entry-level-toggle", keys::v3_shell::LEVEL_SWITCH),
             Block::Attached => ("v3-entry-accept-toggle", keys::v3_levels::ACCEPT),
@@ -738,6 +758,24 @@ impl EntryPage {
                 SharedString::from(format!("{switch_id}-switch-{id}")),
                 on,
             ));
+        (switch.into_any_element(), label)
+    }
+
+    /// A block's head: its switch, its name, the switch's name in small
+    /// grey, the view that orders it, and 「新建」 while it is on.
+    fn block_head(
+        &self,
+        id: &str,
+        block: Block,
+        name: &str,
+        window: &Window,
+        cx: &App,
+    ) -> AnyElement {
+        let theme = Theme::of(window, cx);
+        let p = theme.palette;
+        let book = &self.host.book;
+        let on = block.on(book, id);
+        let (switch, label) = self.block_switch(id, block, cx);
         let view_tag = (block == Block::Attached && on)
             .then(|| book.v3().and_then(|v| v.ordering_view(id)))
             .flatten()
@@ -995,10 +1033,75 @@ pub fn set_override(
     .detach();
 }
 
+impl EntryPage {
+    fn render_settings(&self, full: crate::pages::RunRow, window: &Window, cx: &App) -> AnyElement {
+        let Target::Entry { id, .. } = &self.target else {
+            return div().into_any_element();
+        };
+        let id = id.as_str();
+        let head = self
+            .parts
+            .get("head")
+            .map(|(_, part)| part.view.clone().into_any_element())
+            .unwrap_or_else(|| self.plain_head(id, window, cx));
+        let mut body = div().flex().flex_col().gap_3().child(head);
+        for block in [Block::Below, Block::Attached] {
+            let (switch, label) = self.block_switch(id, block, cx);
+            body = body.child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap_2()
+                    .child(switch)
+                    .child(label),
+            );
+            if block.on(&self.host.book, id) {
+                body = body.child(self.block_setting(id, block, window, cx));
+            }
+        }
+        if let Some((_, settings)) = self.parts.get("settings") {
+            body = body
+                .child(t(cx, keys::template_editor::CHILDREN))
+                .child(settings.view.clone());
+        }
+        if let Some(template) = self.host.book.v3().and_then(|v| v.template_of(id)) {
+            body = body.child(t(cx, keys::template_editor::MODULES)).children(
+                template
+                    .modules
+                    .iter()
+                    .map(|module| div().child(module.name.clone())),
+            );
+        }
+        div()
+            .id("v5-entry-quick-settings")
+            .track_focus(&self.focus)
+            .size_full()
+            .flex()
+            .flex_col()
+            .child(
+                div()
+                    .id("v5-entry-quick-scroll")
+                    .flex_1()
+                    .min_h_0()
+                    .overflow_y_scroll()
+                    .child(body),
+            )
+            .child(
+                Button::new("v5-structure-full-entry", t(cx, keys::v5_fill::FULL_EDITOR))
+                    .small()
+                    .on_click(move |_, window, cx| full(window, cx)),
+            )
+            .into_any_element()
+    }
+}
+
 impl Render for EntryPage {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::of(window, cx);
         self.sync_parts(window, cx);
+        if let Some(full) = &self.full_editor {
+            return self.render_settings(full.clone(), window, cx);
+        }
         let book = self.host.book.clone();
         let mut content = div().flex().flex_col().gap_4();
         let Some(v3) = book.v3() else {

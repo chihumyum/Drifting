@@ -96,6 +96,7 @@
     "import": "プロジェクトを読み込む",
     "importFile": "プロジェクトを読み込む（.driftingproject）",
     "importLegacy": "Drifting 0.1 を読み込む",
+    "importTemplate": "テンプレートを読み込む",
     "importTemplateFile": "テンプレートを読み込む（.driftingtemplate）",
     "libraryProjects_one": "{{count}}件のプロジェクト",
     "libraryProjects_other": "{{count}}件のプロジェクト",
@@ -194,11 +195,6 @@
       "submit": "確認してログイン",
       "verifying": "検証中…"
     }
-  },
-  "bottomStatusBar": {
-    "elements": "要素",
-    "storyGraph": "物語グラフ",
-    "todoLibrary": "TODOと資料庫"
   },
   "chapterEditor": {
     "synopsisPlaceholder": "あらすじ…",
@@ -345,10 +341,6 @@
         "body": "本の骨組みです。左サイドバーは2つに分割でき、それぞれに別のパネルを表示できます。",
         "closedBody": "本の骨組みは左サイドバーにあります。章、要素、アイデアをここから開きます。",
         "title": "章 · 要素 · アイデア"
-      },
-      "superViews": {
-        "body": "パネルの見出しにある丸いボタンから開きます。",
-        "title": "ウィンドウ全体のビュー"
       },
       "timeline": {
         "body": "ページの下から引き出し、ストーリーラインを本の順序や物語内の時間で表示します。",
@@ -512,24 +504,15 @@
     "zoomReset": "表示範囲に合わせる"
   },
   "materialFolders": {
-    "menu": {
-      "open": "開く"
-    },
     "picker": {
       "createAndMove": "作成して移動",
       "newPlaceholder": "新しいフォルダー名"
     },
-    "root": "すべての資料",
     "untitled": "新しいフォルダー"
   },
   "memoMaterial": {
     "card": {
       "addSnippetBody": "このメモに書く…"
-    },
-    "dialog": {
-      "create": "作成",
-      "newTodo": "新しいTODO",
-      "todoPlaceholder": "TODOの内容…"
     },
     "error": {
       "openFile": "ファイルを開けません：{{error}}",
@@ -540,9 +523,6 @@
       "pdf": "PDF",
       "text": "メモ"
     },
-    "menu": {
-      "openInSystem": "システムのアプリで開く"
-    },
     "preview": {
       "loading": "読み込み中…",
       "loadingPdf": "PDFを読み込み中…",
@@ -552,35 +532,6 @@
       "openPdfFailed": "PDFを開けません",
       "previousPage": "前へ",
       "renderPdfFailed": "PDFを描画できません"
-    },
-    "super": {
-      "all": "すべて",
-      "clearEntityFilter": "関連フィルターを解除",
-      "collapseDrawer": "引き出しを閉じる",
-      "commentEmptyHint": "＋でコメントを作るか、エディタで文字を選んでコメントできます",
-      "comments": "コメント",
-      "entityFilterAll": "関係・すべて",
-      "expandDrawer": "引き出しを開く",
-      "hideKind": "クリックでこの種類を隠す",
-      "material": "資料",
-      "meta": "TODO {{todos}}件・コメント{{comments}}件・資料{{materials}}件",
-      "noFilteredMaterials": "条件に一致する資料はありません。",
-      "noMaterials": "この作品に資料はまだありません。",
-      "noOrphans": "すべての資料が1つ以上のエンティティに関連付いています。",
-      "noResolved": "解決済みの項目はまだありません。",
-      "orphanHeader": "未整理・未関連の資料",
-      "orphans": "未整理",
-      "reopenShort": "開き直す",
-      "resizeComments": "コメント列の幅を変更",
-      "resizeTodos": "TODO列の幅を変更",
-      "resolved": "解決済み",
-      "resolvedHeader": "解決済み・TODOとコメントのアーカイブ",
-      "searchPlaceholder": "タイトル・本文を検索…",
-      "showKind": "クリックで表示",
-      "todoEmptyHint": "＋でTODOを作るか、コメントカードの「TODO に変換」を使います"
-    },
-    "todo": {
-      "empty": "（空のTODO）"
     }
   },
   "mobileWorkspace": {
@@ -591,9 +542,6 @@
     "projectActions": {
       "deleteFailed": "作品を削除できませんでした。もう一度お試しください。"
     }
-  },
-  "navigation": {
-    "back": "戻る"
   },
   "nodeEditor": {
     "meta": {
@@ -621,9 +569,6 @@
     },
     "notice": {
       "source": "お知らせ"
-    },
-    "organize": {
-      "source": "Agent"
     },
     "remove": "削除",
     "shareComments": {
@@ -668,6 +613,14 @@
   "preAlphaGuide": {
     "crashReports": "問題の修正に役立てるため、原稿を含まない障害レポートを送信します。「設定 → プライバシー」で無効にできます。",
     "title": "Drifting Alphaへようこそ"
+  },
+  "projectAgent": {
+    "checkinFailed": "最近の変更を読み終えられませんでした：{{error}}",
+    "checkinRunning": "Agent が最近の変更を読んでいます…",
+    "dismiss": "閉じる",
+    "openConversation": "会話を開く",
+    "start": "Agent に任せる",
+    "startFailed": "開始できませんでした：{{error}}"
   },
   "projectHome": {
     "book": {
@@ -818,6 +771,21 @@
       "restoring": "復元中…"
     }
   },
+  "projectTemplates": {
+    "bookDailyTarget": "1日 {{words}} 字",
+    "bookOff": "オフ",
+    "bookOn": "オン",
+    "bookWordTarget": "全体 {{words}} 字",
+    "builtin": "内蔵",
+    "deleteTitle": "テンプレート「{{name}}」を削除しますか？",
+    "description": "説明",
+    "exportFile": "書き出す（.driftingtemplate）",
+    "leftRail": "左サイドバー",
+    "myTemplates": "マイテンプレート",
+    "overwrite": "上書き…",
+    "structure": "構造",
+    "timePins": "タイムピン"
+  },
   "referencesPanel": {
     "filters": {
       "all": "すべて"
@@ -837,15 +805,12 @@
     "commentPlaceholder": "コメントを入力…",
     "empty": "この範囲にレビュー項目はありません。",
     "filters": {
-      "all": "両方",
-      "comment": "コメント",
-      "todo": "TODO"
+      "all": "両方"
     },
     "groups": {
       "deleted": "削除済み",
       "floating": "未添付"
     },
-    "newComment": "新しいコメント",
     "scopes": {
       "current": "現在"
     },
@@ -1132,6 +1097,10 @@
           "desc": "現在開いているエディタのテキストを検索します",
           "label": "現在のエディタ内を検索"
         },
+        "focusLeftSidebar": {
+          "desc": "左サイドバーを矢印キーで移動します。もう一度押すか Esc でページに戻ります。",
+          "label": "左サイドバーへ移動"
+        },
         "globalSearch": {
           "desc": "章、ストーリーライン、要素、カテゴリを横断して検索します",
           "label": "全体を検索"
@@ -1330,10 +1299,8 @@
       "unpin": "自動配置に戻す"
     },
     "layout": {
-      "isles": "島々",
       "relate": "関係"
     },
-    "meta": "{{categories}}カテゴリ・{{elements}}要素",
     "relate": {
       "relayout": "再配置"
     },
@@ -1644,6 +1611,34 @@
     "usedIn": "使用箇所",
     "viewList": "リスト",
     "viewMasonry": "メイソンリー"
+  },
+  "v5Fill": {
+    "attached": "関連付ける",
+    "below": "配下",
+    "cellOff": "オフ",
+    "cellOn": "オン",
+    "entryCount_other": "{{count}} 件の項目",
+    "exitFill": "広げる表示を終了",
+    "fill": "広げる",
+    "fillLeft": "左サイドバーを広げる",
+    "fillRight": "右サイドバーを広げる",
+    "fullEditor": "フルエディター",
+    "hangsOn": "関連付け先",
+    "hungItems": "関連付け: {{items}}",
+    "livesIn": "配下にいる場所",
+    "livesInName": "{{name}} の配下",
+    "moveHere": "ここへ移動",
+    "newDefault": "新規の既定",
+    "noTemplateEntries": "テンプレートのない項目",
+    "resides": "配下に置く",
+    "resizeFill": "広げた領域の幅を調整",
+    "structure": "構造",
+    "structureEntries_other": "項目 {{count}}",
+    "structureLevels_other": "階層 {{count}}",
+    "structureTemplates_other": "テンプレート {{count}}",
+    "templateCount": "テンプレート {{count}} 件",
+    "templateStructure": "テンプレートの構造",
+    "unusedTemplates": "未使用のテンプレート"
   },
   "windowCaption": {
     "close": "閉じる",

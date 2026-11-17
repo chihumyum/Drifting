@@ -2093,6 +2093,7 @@ dependencies = [
  "dr-store",
  "dr-testkit",
  "dr-ui",
+ "dr-view-home",
  "dr-workspace",
  "futures",
  "gpui",
@@ -2319,6 +2320,7 @@ dependencies = [
  "dr-view-material",
  "dr-view-search",
  "dr-view-stats",
+ "dr-view-templates",
  "dr-workspace",
  "futures",
  "gpui",
@@ -2468,30 +2470,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "dr-view-shelf-review"
-version = "0.0.0"
-dependencies = [
- "anyhow",
- "dr-doc",
- "dr-i18n",
- "dr-model",
- "dr-shell",
- "dr-store",
- "dr-testkit",
- "dr-ui",
- "dr-view-material",
- "dr-view-review",
- "dr-workspace",
- "futures",
- "gpui",
- "gpui_platform",
- "log",
- "serde",
- "serde_json",
- "tempfile",
-]
-
-[[package]]
 name = "dr-view-stats"
 version = "0.0.0"
 dependencies = [
@@ -2545,6 +2523,7 @@ dependencies = [
  "dr-store",
  "dr-testkit",
  "dr-ui",
+ "dr-view-elements",
  "dr-workspace",
  "futures",
  "gpui",
@@ -2654,7 +2633,6 @@ dependencies = [
  "dr-view-sea",
  "dr-view-search",
  "dr-view-shelf",
- "dr-view-shelf-review",
  "dr-view-templates",
  "dr-view-timeline",
  "dr-view-transfer",

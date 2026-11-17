@@ -96,6 +96,7 @@
     "import": "Import project",
     "importFile": "Import project (.driftingproject)",
     "importLegacy": "Import Drifting 0.1",
+    "importTemplate": "Import template",
     "importTemplateFile": "Import template (.driftingtemplate)",
     "libraryProjects_one": "{{count}} project",
     "libraryProjects_other": "{{count}} projects",
@@ -194,11 +195,6 @@
       "submit": "Verify and sign in",
       "verifying": "Verifying…"
     }
-  },
-  "bottomStatusBar": {
-    "elements": "Elements",
-    "storyGraph": "Story graph",
-    "todoLibrary": "TODO & Library"
   },
   "chapterEditor": {
     "synopsisPlaceholder": "Synopsis…",
@@ -345,10 +341,6 @@
         "body": "The book's frame. The left sidebar can split in two, each half with its own panel.",
         "closedBody": "The book's frame lives in the left sidebar: chapters, elements and ideas. Open it here.",
         "title": "Chapters · Elements · Ideas"
-      },
-      "superViews": {
-        "body": "Open them from the round button in a panel's header.",
-        "title": "Whole-window views"
       },
       "timeline": {
         "body": "Storylines laid out in book order or story time, sliding up from under the page.",
@@ -519,24 +511,15 @@
     "zoomReset": "Fit to view"
   },
   "materialFolders": {
-    "menu": {
-      "open": "Open"
-    },
     "picker": {
       "createAndMove": "Create and move",
       "newPlaceholder": "New folder name"
     },
-    "root": "All materials",
     "untitled": "New folder"
   },
   "memoMaterial": {
     "card": {
       "addSnippetBody": "Write in this note…"
-    },
-    "dialog": {
-      "create": "Create",
-      "newTodo": "New TODO",
-      "todoPlaceholder": "Todo content…"
     },
     "error": {
       "openFile": "Could not open file: {{error}}",
@@ -547,9 +530,6 @@
       "pdf": "PDF",
       "text": "Note"
     },
-    "menu": {
-      "openInSystem": "Open in system app"
-    },
     "preview": {
       "loading": "Loading…",
       "loadingPdf": "Loading PDF…",
@@ -559,35 +539,6 @@
       "openPdfFailed": "Cannot open PDF",
       "previousPage": "Previous",
       "renderPdfFailed": "Cannot render PDF"
-    },
-    "super": {
-      "all": "All",
-      "clearEntityFilter": "Clear relation filter",
-      "collapseDrawer": "Collapse drawer",
-      "commentEmptyHint": "Click + to add a comment, or select text in an editor to leave one",
-      "comments": "Comments",
-      "entityFilterAll": "Relations · All",
-      "expandDrawer": "Expand drawer",
-      "hideKind": "Click to hide this kind",
-      "material": "Material",
-      "meta": "{{todos}} TODO · {{comments}} comments · {{materials}} materials",
-      "noFilteredMaterials": "No materials match the current filters.",
-      "noMaterials": "No materials in this project yet.",
-      "noOrphans": "Every material is linked to at least one entity.",
-      "noResolved": "Nothing resolved yet.",
-      "orphanHeader": "Unsorted · unlinked materials",
-      "orphans": "Unsorted",
-      "reopenShort": "Reopen",
-      "resizeComments": "Resize the comment column",
-      "resizeTodos": "Resize the TODO column",
-      "resolved": "Resolved",
-      "resolvedHeader": "Resolved · TODO & comment archive",
-      "searchPlaceholder": "Search title or body…",
-      "showKind": "Click to show",
-      "todoEmptyHint": "Click + to create a TODO, or choose To TODO on a comment card"
-    },
-    "todo": {
-      "empty": "(empty TODO)"
     }
   },
   "mobileWorkspace": {
@@ -598,9 +549,6 @@
     "projectActions": {
       "deleteFailed": "The project could not be deleted. Please try again."
     }
-  },
-  "navigation": {
-    "back": "Back"
   },
   "nodeEditor": {
     "meta": {
@@ -628,9 +576,6 @@
     },
     "notice": {
       "source": "Announcement"
-    },
-    "organize": {
-      "source": "Agent"
     },
     "remove": "Remove",
     "shareComments": {
@@ -675,6 +620,14 @@
   "preAlphaGuide": {
     "crashReports": "The app sends fault reports without manuscript text so problems can be fixed; turn this off in Settings → Privacy.",
     "title": "Welcome to Drifting Alpha"
+  },
+  "projectAgent": {
+    "checkinFailed": "Couldn’t finish reading your recent changes: {{error}}",
+    "checkinRunning": "The Agent is reading your recent changes…",
+    "dismiss": "Dismiss",
+    "openConversation": "Open conversation",
+    "start": "Hand to Agent",
+    "startFailed": "Could not start: {{error}}"
   },
   "projectHome": {
     "book": {
@@ -825,6 +778,21 @@
       "restoring": "Restoring…"
     }
   },
+  "projectTemplates": {
+    "bookDailyTarget": "Daily {{words}} words",
+    "bookOff": "Off",
+    "bookOn": "On",
+    "bookWordTarget": "Book {{words}} words",
+    "builtin": "Built-in",
+    "deleteTitle": "Delete template “{{name}}”?",
+    "description": "Description",
+    "exportFile": "Export (.driftingtemplate)",
+    "leftRail": "Left sidebar",
+    "myTemplates": "My templates",
+    "overwrite": "Overwrite…",
+    "structure": "Structure",
+    "timePins": "Time pins"
+  },
   "referencesPanel": {
     "filters": {
       "all": "All"
@@ -844,15 +812,12 @@
     "commentPlaceholder": "Write a comment…",
     "empty": "No review items in this scope.",
     "filters": {
-      "all": "Both",
-      "comment": "Comments",
-      "todo": "TODOs"
+      "all": "Both"
     },
     "groups": {
       "deleted": "Deleted",
       "floating": "Not attached"
     },
-    "newComment": "New comment",
     "scopes": {
       "current": "Current"
     },
@@ -1139,6 +1104,10 @@
           "desc": "Find text in the currently open editor",
           "label": "Find in current editor"
         },
+        "focusLeftSidebar": {
+          "desc": "Walk the left sidebar with the arrow keys; press again or Esc to return to the page",
+          "label": "Move into the left sidebar"
+        },
         "globalSearch": {
           "desc": "Search across chapters, storylines, elements, and categories",
           "label": "Global search"
@@ -1337,10 +1306,8 @@
       "unpin": "Back to automatic layout"
     },
     "layout": {
-      "isles": "Islands",
       "relate": "Relations"
     },
-    "meta": "{{categories}} categories · {{elements}} elements",
     "relate": {
       "relayout": "Re-arrange"
     },
@@ -1656,6 +1623,38 @@
     "usedIn": "Used in",
     "viewList": "List",
     "viewMasonry": "Masonry"
+  },
+  "v5Fill": {
+    "attached": "Hangs on",
+    "below": "Below",
+    "cellOff": "Off",
+    "cellOn": "On",
+    "entryCount_one": "{{count}} entry",
+    "entryCount_other": "{{count}} entries",
+    "exitFill": "Exit fill",
+    "fill": "Fill",
+    "fillLeft": "Fill left sidebar",
+    "fillRight": "Fill right sidebar",
+    "fullEditor": "Full editor",
+    "hangsOn": "Hangs on",
+    "hungItems": "Hung: {{items}}",
+    "livesIn": "Lives in",
+    "livesInName": "Lives in {{name}}",
+    "moveHere": "Move here",
+    "newDefault": "New default",
+    "noTemplateEntries": "Entries without a template",
+    "resides": "Lives under",
+    "resizeFill": "Resize filled area",
+    "structure": "Structure",
+    "structureEntries_one": "{{count}} entry",
+    "structureEntries_other": "{{count}} entries",
+    "structureLevels_one": "{{count}} level",
+    "structureLevels_other": "{{count}} levels",
+    "structureTemplates_one": "{{count}} template",
+    "structureTemplates_other": "{{count}} templates",
+    "templateCount": "{{count}} templates",
+    "templateStructure": "Template structure",
+    "unusedTemplates": "Unused templates"
   },
   "windowCaption": {
     "close": "Close",

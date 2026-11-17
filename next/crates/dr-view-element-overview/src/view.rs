@@ -11,16 +11,17 @@ use dr_i18n::keys;
 use dr_i18n::keys::super_element as k_se;
 use dr_i18n::keys::super_element::empty as k_empty;
 use dr_i18n::keys::super_element::isles as k_isles;
-use dr_i18n::keys::super_element::layout as k_layout;
 use dr_i18n::keys::super_element::relate as k_relate;
 use dr_model::id::EntryId;
 use dr_shell::Workspace;
 use dr_shell::book::{Book, color_of};
 use dr_shell::nav::{Open, Target};
-use dr_shell::pages::{PageViewHost, SuperViewHost};
+use dr_shell::pages::PageViewHost;
 use dr_shell::strings::{t, tf};
+use dr_shell::v3::tab_fill::{FillLayout, TabCanvasHost};
+use dr_shell::workspace::FillPlace;
 use dr_ui::Theme;
-use dr_ui::components::{Button, Segmented};
+use dr_ui::components::Button;
 use dr_ui::input::field::{FieldEvent, TextField};
 use dr_ui::sand::{Icon, KindMark};
 use dr_ui::tokens::{Rgb, radius};
@@ -29,6 +30,7 @@ use dr_view_elements::dialogs::v3::{EntryMode, open_entry};
 use dr_workspace::commands::v3::relations::{
     List as RelationList, ListIn as RelationListIn, RelationInfo,
 };
+use dr_workspace::commands::v3::types::TabMount;
 use dr_workspace::{Actor, EntryCooccurrenceGraph, Workspace as Library};
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
@@ -94,76 +96,6 @@ impl Render for ElementCarryDrag {
                     .text_color(p.ink(1).solid())
                     .child(SharedString::from(self.element_name.clone())),
             )
-    }
-}
-
-pub struct OverviewHeadStart {
-    overview: WeakEntity<ElementOverview>,
-}
-
-impl OverviewHeadStart {
-    pub fn new(overview: WeakEntity<ElementOverview>) -> Self {
-        Self { overview }
-    }
-}
-
-impl Render for OverviewHeadStart {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let p = Theme::of(window, cx).palette;
-        let Some(ov) = self.overview.upgrade() else {
-            return div().into_any_element();
-        };
-        let state = ov.read(cx);
-        let mode = state.layout_mode;
-        let categories_count = state
-            .island_models
-            .iter()
-            .filter(|m| !m.is_uncategorized)
-            .count();
-        let elements_count = state.elements.len();
-        let meta_label = tf(
-            cx,
-            k_se::META,
-            &[
-                ("categories", &categories_count),
-                ("elements", &elements_count),
-            ],
-        );
-        let labels = vec![t(cx, k_layout::ISLES), t(cx, k_layout::RELATE)];
-        let selected_idx = match mode {
-            ElementLayoutMode::Isles => 0,
-            ElementLayoutMode::Relate => 1,
-        };
-        let weak = self.overview.clone();
-        let switcher = Segmented::new("se-layout-switch", labels, selected_idx).on_change(
-            move |idx, window, cx| {
-                let next = if idx == 0 {
-                    ElementLayoutMode::Isles
-                } else {
-                    ElementLayoutMode::Relate
-                };
-                if let Some(ov) = weak.upgrade() {
-                    ov.update(cx, |this, cx| {
-                        this.set_layout_mode(next, window, cx);
-                    });
-                }
-            },
-        );
-
-        div()
-            .id("se-head-start")
-            .flex()
-            .flex_row()
-            .items_center()
-            .gap(px(10.0))
-            .child(switcher)
-            .child(
-                div()
-                    .text_size(px(12.0))
-                    .text_color(p.ink(3).solid())
-                    .child(meta_label),
-            )
-            .into_any_element()
     }
 }
 
@@ -303,6 +235,9 @@ pub struct ElementOverview {
     pub(crate) book_id: String,
     pub(crate) book: Rc<Book>,
     pub(crate) memory_loaded_for: Option<String>,
+    tab_id: String,
+    mount: TabMount,
+    fill_layout: FillLayout,
 
     // Layout mode & camera
     pub(crate) layout_mode: ElementLayoutMode,
@@ -356,18 +291,24 @@ pub struct ElementOverview {
 }
 
 impl ElementOverview {
-    pub fn new(host: SuperViewHost, _window: &mut Window, cx: &mut Context<Self>) -> Self {
+    pub fn new(host: TabCanvasHost, _window: &mut Window, cx: &mut Context<Self>) -> Self {
         let weak_self = cx.entity().downgrade();
         cx.default_global::<crate::Registry>().views.push(weak_self);
 
-        let shown_as = host.view;
         let mut view = Self {
-            ws: host.workspace.clone(),
-            lib: host.library,
-            book_id: host.book_id,
-            book: host.book,
+            ws: host.page.workspace.clone(),
+            lib: Some(host.page.library),
+            book_id: host.page.book_id,
+            book: host.page.book,
             memory_loaded_for: None,
-            layout_mode: ElementLayoutMode::Relate,
+            tab_id: host.tab.id,
+            mount: host.tab.mount,
+            fill_layout: host.layout,
+            layout_mode: if host.layout == FillLayout::Island {
+                ElementLayoutMode::Isles
+            } else {
+                ElementLayoutMode::Relate
+            },
             pan: point(480.0, 320.0),
             zoom: 0.9,
             viewport_bounds: None,
@@ -414,18 +355,24 @@ impl ElementOverview {
         view.reload_all_headless(cx);
         view.reset_view(cx);
 
-        // SuperView construction happens inside `Workspace::render`, so never borrow
-        // `host.workspace` synchronously here; attach observation in a microtask.
-        // The stage keeps this view while it is closed or showing another
-        // one; it follows the workspace only while it is the view shown.
-        let ws_weak = host.workspace;
+        // Mounting happens inside the shell's render. Observe the workspace
+        // after that update, and refresh only the canvas currently on screen.
+        let ws_weak = view.ws.clone();
         cx.spawn(async move |this, cx| {
             let _ = this.update(cx, |v, cx| {
                 if let Some(ws) = ws_weak.upgrade() {
-                    let sub =
-                        dr_shell::pages::follow_super_view(&ws, shown_as, cx, |this, ws, cx| {
+                    let sub = cx.observe(&ws, |this, ws, cx| {
+                        let shell = ws.read(cx);
+                        if shell.is_filled(FillPlace::Left)
+                            && shell.v3_sidebar.as_ref().is_none_or(|sidebar| {
+                                sidebar
+                                    .read(cx)
+                                    .shows_canvas(&this.tab_id, this.fill_layout)
+                            })
+                        {
                             this.sync_from_workspace(ws, cx);
-                        });
+                        }
+                    });
                     v._subs.push(sub);
                     v.sync_from_workspace(ws, cx);
                 }
@@ -462,6 +409,18 @@ impl ElementOverview {
         }
     }
 
+    pub(crate) fn refresh_snapshot(&mut self, book: Rc<Book>, cx: &mut Context<Self>) {
+        if Rc::ptr_eq(&self.book, &book) || self.book_id != book.id || crate::is_frozen(cx) {
+            return;
+        }
+        self.book = book;
+        if let Some(sheet) = &self.island_sheet {
+            sheet.refresh(self.book.clone(), cx);
+        }
+        self.reload_all_headless(cx);
+        cx.notify();
+    }
+
     pub(crate) fn sync_from_workspace(&mut self, ws: Entity<Workspace>, cx: &mut Context<Self>) {
         if crate::is_frozen(cx) {
             return;
@@ -473,7 +432,7 @@ impl ElementOverview {
                 w.book.clone(),
                 w.library.clone(),
                 w.book_memory_ready(),
-                w.book_memory(MEMORY_KEY).cloned(),
+                w.book_memory(&self.memory_key()).cloned(),
             )
         };
 
@@ -520,10 +479,7 @@ impl ElementOverview {
                     self.relate_rest = Some(stored_pos);
                 }
             }
-            if parsed.mode != self.layout_mode {
-                self.layout_mode = parsed.mode;
-                self.reset_view(cx);
-            } else if had_positions {
+            if had_positions {
                 self.reset_view(cx);
             }
         }
@@ -595,7 +551,14 @@ impl ElementOverview {
         let uncat_label = t(cx, k_se::UNCATEGORIZED).to_string();
 
         if let Some(v3) = self.book.v3() {
-            let extracted = extract_v3_islands(v3, &res_label, &mem_label, &uncat_label);
+            let extracted = extract_v3_islands(
+                v3,
+                &self.mount,
+                self.layout_mode == ElementLayoutMode::Relate,
+                &res_label,
+                &mem_label,
+                &uncat_label,
+            );
             self.island_models = extracted.islands;
             self.elements = extracted.elements;
         } else {
@@ -835,6 +798,10 @@ impl ElementOverview {
         self.persist_overview_memory(cx);
     }
 
+    fn memory_key(&self) -> String {
+        format!("{MEMORY_KEY}:{}", self.tab_id)
+    }
+
     pub(crate) fn persist_overview_memory(&self, cx: &mut Context<Self>) {
         if crate::is_frozen(cx) {
             return;
@@ -852,7 +819,9 @@ impl ElementOverview {
         };
         let value = serialize_overview_memory(&record);
         ws.update(cx, |w, cx| {
-            w.set_book_memory(MEMORY_KEY, value, cx);
+            if w.book_id == self.book_id {
+                w.set_book_memory(&self.memory_key(), value, cx);
+            };
         });
     }
 
@@ -1251,7 +1220,6 @@ impl ElementOverview {
         };
         if let Some(ws) = self.ws.upgrade() {
             ws.update(cx, |w, cx| {
-                w.super_view = None;
                 w.open(target, Open::KEEP, cx);
             });
         }
@@ -1421,7 +1389,6 @@ impl ElementOverview {
                 module: None,
             };
             ws.update(cx, |w, cx| {
-                w.super_view = None;
                 w.open(target, Open::KEEP, cx);
             });
         }
