@@ -106,12 +106,20 @@ def smoke(args, profile, data):
         press("Create", settle_ms=0)
         app("ui.find", label=name, role="Button")
         screenshot("04-revealed-row.png", settle=0)
+        # Opening the right column can reflow the prose. Hover its freshly
+        # painted name again, so this assertion is not a race against the
+        # composer's intentionally short 2.6 s lingering animation.
+        links = app("page.relations")["links"]
+        first = next(d for d in links if d["id"].startswith("l") and d["boxes"])
+        app("input.move", **center(first["boxes"][0]))
+        app("ui.find", role="Button", label="Relate")
         drawn = app("page.relations")["drawn"]
         assert drawn and any(
             {line["from"], line["to"]} == {source, target}
             and any(label["name"] == name for label in line["labels"])
             for line in drawn["lines"]
         ), "The created relation must actually be drawn beside the two sample names."
+        screenshot("04b-created-line.png")
         relation = next(r for r in command("relation_type.list", book=book) if r["name"] == name)
         assert relation["pair_count"] == 1 and len(relation["rows"]) == 1, relation
         row = relation["rows"][0]
