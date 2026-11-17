@@ -668,20 +668,31 @@ impl Render for Home {
             for (i, page) in pages.into_iter().enumerate() {
                 let ws = self.ws.clone();
                 let expected_book = book.id.clone();
+                // A row of its own so the button keeps its width: a column's
+                // child is stretched, and the stretched text button centred
+                // the page's name in the middle of the sheet.
+                let row_selector = format!("v3-home-continue-{i}-row");
                 column = column.child(
-                    Button::new(
-                        ElementId::Name(format!("v3-home-continue-{i}").into()),
-                        page.title,
-                    )
-                    .text()
-                    .on_click(move |_, _, cx| {
-                        ws.update(cx, |ws, cx| {
-                            if ws.book_id == expected_book {
-                                ws.open(page.target.clone(), Open::KEEP, cx);
-                            }
-                        })
-                        .ok();
-                    }),
+                    div().flex().child(
+                        div()
+                            .flex_none()
+                            .debug_selector(move || row_selector)
+                            .child(
+                                Button::new(
+                                ElementId::Name(format!("v3-home-continue-{i}").into()),
+                                page.title,
+                            )
+                                .text()
+                                .on_click(move |_, _, cx| {
+                                    ws.update(cx, |ws, cx| {
+                                        if ws.book_id == expected_book {
+                                            ws.open(page.target.clone(), Open::KEEP, cx);
+                                        }
+                                    })
+                                    .ok();
+                                }),
+                            ),
+                    ),
                 );
             }
         }
