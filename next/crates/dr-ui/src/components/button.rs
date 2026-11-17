@@ -336,6 +336,20 @@ impl IconButton {
     }
 }
 
+/// A round button's glass. What lies under a floating one is not known (the
+/// desk, the paper, both): it is round with nothing round its corners, a
+/// paper disc in a uniform line, the same wherever it floats. Filled, its
+/// corners were covered with the desk's colour and showed as a grey square
+/// on the paper (UP, kernel-v5 §15 item 50).
+fn round_spec(seat: Seat, tone: Tone) -> Spec {
+    let spec = Spec::new(tone, g::ROUND / 2.0);
+    if seat == Seat::Floating {
+        spec.ground(glass::Ground::Uneven)
+    } else {
+        spec
+    }
+}
+
 impl RenderOnce for IconButton {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = Theme::of(window, cx);
@@ -349,10 +363,7 @@ impl RenderOnce for IconButton {
             primary: self.tone == Tone::Accent,
             ..Mode::default()
         };
-        let mut spec = Spec::new(self.tone, g::ROUND / 2.0);
-        if self.seat == Seat::Floating {
-            spec = spec.filled(p.page);
-        }
+        let spec = round_spec(self.seat, self.tone);
         let ink = if self.disabled {
             p.ink(4).solid()
         } else if self.tone == Tone::Accent {
@@ -468,5 +479,26 @@ impl RenderOnce for PanelIconButton {
             .when_some(self.on_click, |el, f| {
                 el.on_click(move |e, w, cx| f(e, w, cx))
             })
+    }
+}
+
+#[cfg(test)]
+mod round_tests {
+    use super::*;
+    use crate::tokens::Palette;
+
+    #[test]
+    fn a_floating_round_button_paints_nothing_round_its_corners() {
+        for palette in [&Palette::LIGHT, &Palette::DARK] {
+            assert_eq!(
+                round_spec(Seat::Floating, Tone::Clear).resolve_ground(palette),
+                glass::Ground::Uneven,
+                "a floating button's corners took a colour"
+            );
+            assert!(matches!(
+                round_spec(Seat::Alone, Tone::Clear).resolve_ground(palette),
+                glass::Ground::Flat { .. }
+            ));
+        }
     }
 }
