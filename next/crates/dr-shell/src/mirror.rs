@@ -2,7 +2,7 @@
 
 use std::{
     cell::Cell,
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::PathBuf,
     rc::Rc,
     sync::{
@@ -84,7 +84,19 @@ pub fn init(cx: &mut App) {
     .detach();
     // M40 may write after the editor and field drains, so it runs before
     // checkpoints and the Hosted outbound drain take their frontiers.
-    release::after_drain(cx, |cx| drain(cx).boxed_local());
+    release::after_drain(cx, |cx| {
+        let pending = drain(cx);
+        let app = cx.to_async();
+        async move {
+            if let Err(error) = pending.await {
+                app.update(|cx| report_drain_failure(error, cx));
+            }
+            // The library already owns the durable prose. An unavailable
+            // Markdown copy must not prevent checkpoints or Hosted's drain.
+            Ok(())
+        }
+        .boxed_local()
+    });
     release::after_release(cx, start);
     settings::set_module_row(cx, "local.markdown_folder", setting);
     cx.observe_global::<Strings>(|cx| reconfigure(cx, |_| {}))
@@ -185,17 +197,20 @@ fn reconfigure(cx: &mut App, apply: impl FnOnce(&mut App) + 'static) {
         let result = pending.await;
         cx.update(|cx| {
             cx.default_global::<State>().pending = None;
-            match result {
-                Ok(()) => apply(cx),
-                Err(error) => {
-                    Notifications::post(Source::MarkdownFolder, error, cx);
-                }
-            };
+            if let Err(error) = result {
+                report_drain_failure(error, cx);
+            }
+            apply(cx);
             start(cx);
             cx.refresh_windows();
         });
     })
     .detach();
+}
+
+fn report_drain_failure(error: String, cx: &mut App) {
+    log::warn!("Markdown folder could not finish its final pass: {error}");
+    Notifications::post(Source::MarkdownFolder, error, cx);
 }
 
 fn start(cx: &mut App) {
@@ -290,30 +305,44 @@ fn tell(heard: Heard, cx: &mut App) {
         }
         Heard::Issues(issues) => {
             let mut before = std::mem::take(&mut cx.default_global::<State>().told);
+            let active: HashSet<_> = issues
+                .iter()
+                .map(|issue| (issue.path.clone(), issue.problem))
+                .collect();
+            // Free resolved notices before adding new ones: the notification
+            // center is bounded, including pinned notices.
+            before.retain(|key, id| {
+                if active.contains(key) {
+                    true
+                } else {
+                    Notifications::remove(*id, cx);
+                    false
+                }
+            });
             let mut next = HashMap::new();
             for issue in issues {
                 let key = (issue.path, issue.problem);
                 if next.contains_key(&key) {
                     continue;
                 }
-                let id = before.remove(&key).unwrap_or_else(|| {
-                    let text = format!("{}\n{}", issue.title, t(cx, problem_key(issue.problem)));
-                    let opens = issue.doc.map(|doc| (issue.book, doc));
-                    Notifications::post_opening(Source::MarkdownFolder, text, opens, cx)
-                });
+                let id = before
+                    .remove(&key)
+                    .filter(|id| {
+                        Notifications::items(cx)
+                            .iter()
+                            .any(|notice| notice.id == *id)
+                    })
+                    .unwrap_or_else(|| {
+                        let text =
+                            format!("{}\n{}", issue.title, t(cx, problem_key(issue.problem)));
+                        let opens = issue.doc.map(|doc| (issue.book, doc));
+                        Notifications::post_opening(Source::MarkdownFolder, text, opens, cx)
+                    });
+                Notifications::set_pinned(id, true, cx);
                 next.insert(key, id);
             }
-            for ((_, problem), id) in before {
-                if !matches!(
-                    problem,
-                    Problem::Moved
-                        | Problem::ReadOnly
-                        | Problem::UnknownImage
-                        | Problem::MalformedTable
-                        | Problem::FieldConflict
-                ) {
-                    Notifications::remove(id, cx);
-                }
+            for (_, id) in before {
+                Notifications::remove(id, cx);
             }
             cx.default_global::<State>().told = next;
         }
@@ -470,3 +499,6 @@ pub fn ask_turn_off_then(cx: &mut App, after: impl Fn(&mut App) + 'static) {
     });
     crate::dialogs::show(cx, view.into());
 }
+
+#[cfg(test)]
+mod tests;
