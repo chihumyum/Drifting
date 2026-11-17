@@ -255,14 +255,6 @@
       "resting": "정박 중"
     }
   },
-  "elementEditor": {
-    "empty": {
-      "noFacts": "아직 필드가 없습니다. 요소를 만들면 분류의 '필드 템플릿'으로 채워집니다."
-    },
-    "sections": {
-      "facts": "설정 정보"
-    }
-  },
   "entrySnapshot": {
     "empty": "아직 스냅샷이 없습니다",
     "save": "스냅샷 저장",
@@ -1238,7 +1230,6 @@
         "turnOn": "켜기"
       }
     },
-    "title": "설정",
     "update": {
       "channel_desc": "Apple Silicon · macOS 13 이상",
       "check": "새 버전",
@@ -1289,17 +1280,11 @@
     }
   },
   "storylineEditor": {
-    "empty": {
-      "noFacts": "아직 필드가 없습니다. 스토리라인을 만들면 작품 홈의 '스토리라인 템플릿'으로 채워집니다."
-    },
     "filters": {
       "all": "전체"
     },
     "labels": {
       "color": "색상"
-    },
-    "sections": {
-      "facts": "설정 정보"
     }
   },
   "superElement": {
@@ -1433,16 +1418,12 @@
     "language": "언어",
     "localMenu": "로컬 라이브러리 메뉴",
     "localStatus": "로컬 · 이 기기에 저장",
-    "settings": "설정",
     "signOut": "로그아웃",
     "signingOut": "로그아웃 중…",
     "theme": "테마",
     "themeDark": "어둡게",
-    "themeDarkShort": "어둡게",
     "themeLight": "밝게",
-    "themeLightShort": "밝게",
-    "themeSystem": "시스템 설정 따르기",
-    "themeSystemShort": "시스템"
+    "themeSystem": "시스템 설정 따르기"
   },
   "v3Levels": {
     "accept": "다른 곳의 항목 받기",

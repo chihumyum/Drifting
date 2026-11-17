@@ -62,7 +62,6 @@ use crate::SaveProjectTemplateHost;
 
 pub const DIALOG_WIDTH: f32 = 860.0;
 const LEFT_COL_WIDTH: f32 = 400.0;
-const TREE_HEIGHT: f32 = 600.0;
 const OVERWRITE_MENU_WIDTH: f32 = 220.0;
 const OVERWRITE_MENU_GAP: f32 = 6.0;
 
@@ -1094,18 +1093,21 @@ impl Render for SaveTemplateDialog {
         // Keep the header and actions visible on shorter windows and when
         // the project's instructions take many lines. Both panes can scroll.
         let pane_height = (window.viewport_size().height - px(150.0)).max(px(0.0));
-        let tree_height = (pane_height - px(26.0)).clamp(px(0.0), px(TREE_HEIGHT));
 
         let mut tree_rows = Vec::new();
         if let Some(roots) = self.snapshot.as_ref().map(|s| s.roots.clone()) {
             self.render_tree_rows(&roots, 0, &mut tree_rows, window, cx);
         }
 
+        // As tall as the right column (UP, kernel-v5 §15 item 50): the row
+        // stretches both, up to the panes' height; it stopped short of the
+        // right column at a fixed height before.
         let tree_box = div()
             .id("v3-save-tpl-tree")
             .debug_selector(|| "v3-save-tpl-tree".into())
             .w_full()
-            .h(tree_height)
+            .flex_1()
+            .min_h_0()
             .p(px(4.0))
             .bg(p.page.solid())
             .border(px(0.5))
@@ -1118,14 +1120,19 @@ impl Render for SaveTemplateDialog {
 
         let left_col = div()
             .w(px(LEFT_COL_WIDTH))
+            .max_h(pane_height)
             .flex_none()
             .flex()
             .flex_col()
-            .child(label_above(
-                t(cx, keys::k4_pages::ENTRIES),
-                tree_box.into_any_element(),
-                p,
-            ));
+            .child(
+                label_above(
+                    t(cx, keys::k4_pages::ENTRIES),
+                    tree_box.into_any_element(),
+                    p,
+                )
+                .flex_1()
+                .min_h_0(),
+            );
 
         let book_summary = self.book_summary_text(cx);
         let rail_summary = self.rail_summary_text(cx);
@@ -1298,7 +1305,7 @@ impl Render for SaveTemplateDialog {
             .w_full()
             .flex()
             .flex_row()
-            .items_start()
+            .items_stretch()
             .gap(px(20.0))
             .on_mouse_down(MouseButton::Left, {
                 let entity = entity.clone();
@@ -1315,6 +1322,7 @@ impl Render for SaveTemplateDialog {
             .child(
                 div()
                     .id("v3-save-tpl-form-scroll")
+                    .debug_selector(|| "v3-save-tpl-form-scroll".into())
                     .flex_1()
                     .min_w_0()
                     .max_h(pane_height)

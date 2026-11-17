@@ -172,20 +172,26 @@ pub fn corner(
             Kind::Surface,
             Mode::default(),
             false,
+            // Round with nothing round its corners, as a floating button:
+            // the corner may stand on the desk or on the paper (UP).
             Spec::new(Tone::Clear, (g::PILL_HEIGHT + 2.0 * g::TRAY_PADDING) / 2.0)
                 .origin(glass::SAMPLE_ORIGINS[0])
                 .rim(12.0)
-                .filled(p.page),
+                .ground(glass::Ground::Uneven),
             window,
             cx,
         )
-        .flex()
-        .flex_row()
-        .gap(px(2.0))
-        .p(px(g::TRAY_PADDING))
         .rounded_full()
         .bg(p.page.solid())
-        .children(tools)
+        .child(glass::surface(
+            glass::Ground::flat(p.page),
+            div()
+                .flex()
+                .flex_row()
+                .gap(px(2.0))
+                .p(px(g::TRAY_PADDING))
+                .children(tools),
+        ))
     });
 
     let timeline = (trailing && pages::has_bottom_panel_for(BottomPane::Timeline, &w.book, cx))

@@ -29,10 +29,21 @@ fn call(ws: &Workspace, name: &str, input: Value) -> Value {
         .clone()
 }
 
+/// At the largest interface size: the old least width fell furthest short
+/// of a CJK name there.
 fn open<'a>(
     cx: &'a mut TestAppContext,
     lib: &Workspace,
     book: &str,
+) -> (Entity<Shell>, &'a mut VisualTestContext) {
+    open_at(cx, lib, book, "largest")
+}
+
+fn open_at<'a>(
+    cx: &'a mut TestAppContext,
+    lib: &Workspace,
+    book: &str,
+    text_size: &str,
 ) -> (Entity<Shell>, &'a mut VisualTestContext) {
     cx.executor().allow_parking();
     cx.update(|cx| {
@@ -50,13 +61,11 @@ fn open<'a>(
                 ..Services::default()
             },
             {
-                // The largest interface size: the old least width fell
-                // furthest short of a CJK name there.
                 let mut settings = SettingsFile::in_memory();
                 settings
                     .set(
                         dr_shell::settings::registry::TEXT_SIZE,
-                        "largest".into(),
+                        text_size.into(),
                         None,
                     )
                     .unwrap();
@@ -234,4 +243,100 @@ fn a_grid_tile_is_drawn_wide_enough_for_its_name(cx: &mut TestAppContext) {
             drawn.size.width
         );
     }
+}
+
+/// UP (kernel-v5 §15 item 50, P4 甲): the compact index's tiles stand in
+/// columns of one width, and a short last line keeps to them. A tile was as
+/// wide as its own name, so names of different lengths stood off one
+/// another's columns.
+#[gpui::test]
+fn the_compact_indexs_tiles_stand_in_columns(cx: &mut TestAppContext) {
+    let (_dir, lib, book) = seed();
+    let snapshot = dr_shell::book::Book::load(&lib, &book).unwrap();
+    let v = snapshot.v3().unwrap();
+    let people = v
+        .entries
+        .iter()
+        .find(|e| e.title == "人物")
+        .unwrap()
+        .id
+        .clone();
+    // Names of different lengths, all different (auto-link names are
+    // unique): a tile as wide as its own name stands off the columns.
+    let names = [
+        "钟楼",
+        "周记面馆",
+        "县档案馆",
+        "怀表",
+        "镇广播站",
+        "河埠",
+        "火柴厂",
+    ];
+    let mut tiles = v.levels[&people].children.clone();
+    assert!(tiles.len() <= names.len());
+    while tiles.len() < names.len() {
+        tiles.push(
+            call(
+                &lib,
+                "entry.create",
+                json!({"book": book, "parent": people, "template": "tpl-character", "title": format!("合成{}", tiles.len())}),
+            )["id"]
+                .as_str()
+                .unwrap()
+                .to_owned(),
+        );
+    }
+    for (tile, name) in tiles.iter().zip(names) {
+        call(
+            &lib,
+            "entry.update",
+            json!({"book": book, "id": tile, "title": name}),
+        );
+    }
+    call(
+        &lib,
+        "tab.put",
+        json!({"book": book, "mount": {"kind": "entry", "entry": people}}),
+    );
+    let (ws, cx) = open_at(cx, &lib, &book, "standard");
+    // The column's own width: two columns narrower than a tile's widest,
+    // so a tile left to grow on a short last line stands off them.
+    tab(&ws, cx, Some(&people));
+    let selectors: Vec<&'static str> = tiles
+        .iter()
+        .map(|tile| &*Box::leak(format!("g2-tile-name-{tile}").into_boxed_str()))
+        .collect();
+    wait_until(cx, "the tiles drawn", |cx| {
+        selectors.iter().all(|s| cx.debug_bounds(s).is_some())
+    });
+    // A second frame: the columns come from the line's drawn width.
+    pump(cx);
+    let bounds: Vec<_> = selectors
+        .iter()
+        .map(|s| cx.debug_bounds(s).unwrap())
+        .collect();
+    let first_line = bounds
+        .iter()
+        .filter(|b| b.origin.y == bounds[0].origin.y)
+        .count();
+    let last = bounds.last().unwrap();
+    let last_line = bounds
+        .iter()
+        .filter(|b| b.origin.y == last.origin.y)
+        .count();
+    assert!(
+        last_line < first_line,
+        "the setup wants a short last line: {first_line} then {last_line}"
+    );
+    let widths: Vec<f32> = bounds.iter().map(|b| f32::from(b.size.width)).collect();
+    assert!(
+        widths.iter().all(|w| (w - widths[0]).abs() <= 0.5),
+        "tiles of different widths: {widths:?}"
+    );
+    let first_x = f32::from(bounds[0].origin.x);
+    let last_x = f32::from(bounds[bounds.len() - last_line].origin.x);
+    assert!(
+        (last_x - first_x).abs() <= 0.5,
+        "the last line starts at {last_x}, the first column at {first_x}"
+    );
 }

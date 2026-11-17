@@ -255,14 +255,6 @@
       "resting": "Resting"
     }
   },
-  "elementEditor": {
-    "empty": {
-      "noFacts": "No fields yet. When an element is created, its category's Field template fills them in."
-    },
-    "sections": {
-      "facts": "Facts"
-    }
-  },
   "entrySnapshot": {
     "empty": "No snapshots yet",
     "save": "Save snapshot",
@@ -1245,7 +1237,6 @@
         "turnOn": "Turn on"
       }
     },
-    "title": "Settings",
     "update": {
       "channel_desc": "Apple Silicon · macOS 13+",
       "check": "New version",
@@ -1296,17 +1287,11 @@
     }
   },
   "storylineEditor": {
-    "empty": {
-      "noFacts": "No fields yet. When a storyline is created, the Storyline template on project home fills them in."
-    },
     "filters": {
       "all": "All"
     },
     "labels": {
       "color": "Color"
-    },
-    "sections": {
-      "facts": "Facts"
     }
   },
   "superElement": {
@@ -1440,16 +1425,12 @@
     "language": "Language",
     "localMenu": "Local library menu",
     "localStatus": "LOCAL · ON DEVICE",
-    "settings": "Settings",
     "signOut": "Sign out",
     "signingOut": "Signing out…",
     "theme": "Theme",
     "themeDark": "Dark",
-    "themeDarkShort": "Dark",
     "themeLight": "Light",
-    "themeLightShort": "Light",
-    "themeSystem": "Follow system",
-    "themeSystemShort": "System"
+    "themeSystem": "Follow system"
   },
   "v3Levels": {
     "accept": "Accept entries from elsewhere",

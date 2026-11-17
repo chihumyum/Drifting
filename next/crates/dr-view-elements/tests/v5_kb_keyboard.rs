@@ -411,10 +411,18 @@ fn cmd_shift_l_goes_in_on_the_page_in_front_and_three_ways_back(cx: &mut TestApp
 
 /// It lands on the row of the page in front; folded away, on the nearest
 /// row shown above it; not in the Tab (or nothing in front), on the first.
+/// A board's Tab is drawn as the list tree while the column is not filled
+/// (UP, P10), so the keyboard walks it; islands walk no tree, so it stops
+/// on the Tab row.
 #[gpui::test]
 fn the_keyboard_lands_on_the_page_in_front_or_nearest_or_first(cx: &mut TestAppContext) {
     let (_dir, lib, book) = seed();
     let ids = ids(&lib, &book);
+    call(
+        &lib,
+        "entry.update",
+        json!({"book": book, "id": ids.storylines, "overrides": {"display": "island"}}),
+    );
     let (ws, cx) = open(cx, &lib, &book);
     tab(&ws, cx, Some(&ids.manuscript));
     let ch3 = ids.ch[2].clone();
@@ -432,10 +440,20 @@ fn the_keyboard_lands_on_the_page_in_front_or_nearest_or_first(cx: &mut TestAppC
         "not in this Tab: the first row"
     );
     keys(cx, "escape");
-    // A board's Tab (构想) walks no tree: the keyboard stops on the Tab row.
+    // A board's Tab (构想) shows its list tree here: the keyboard walks it.
     tab(&ws, cx, Some(&ids.ideas));
     keys(cx, "cmd-shift-l");
-    assert!(tabs_have_keys(&ws, cx), "a board: the Tab row");
+    let first_idea = tree(&ws, cx).read_with(cx, |t, _| t.stops()[0].id.clone());
+    assert!(
+        in_tree(&ws, cx, &first_idea),
+        "a board, not filled: its list's first row, not {:?}",
+        kb(&ws, cx)
+    );
+    keys(cx, "escape");
+    // Islands (故事线 here) walk no tree: the keyboard stops on the Tab row.
+    tab(&ws, cx, Some(&ids.storylines));
+    keys(cx, "cmd-shift-l");
+    assert!(tabs_have_keys(&ws, cx), "islands: the Tab row");
     keys(cx, "escape");
     assert!(editor_has_keys(&ws, cx, &ch3));
     ws.update(cx, |w, cx| {

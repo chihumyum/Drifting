@@ -257,14 +257,6 @@
       "resting": "Au repos"
     }
   },
-  "elementEditor": {
-    "empty": {
-      "noFacts": "Aucun champ pour le moment. À la création d’un élément, le Modèle de champs de sa catégorie les renseigne."
-    },
-    "sections": {
-      "facts": "Faits"
-    }
-  },
   "entrySnapshot": {
     "empty": "Aucun instantané pour le moment",
     "save": "Enregistrer un instantané",
@@ -1254,7 +1246,6 @@
         "turnOn": "Activer"
       }
     },
-    "title": "Réglages",
     "update": {
       "channel_desc": "Apple Silicon · macOS 13 ou ultérieur",
       "check": "Nouvelle version",
@@ -1305,17 +1296,11 @@
     }
   },
   "storylineEditor": {
-    "empty": {
-      "noFacts": "Aucun champ pour le moment. À la création d’une intrigue, le Modèle d’intrigue de l’accueil du projet les renseigne."
-    },
     "filters": {
       "all": "Tout"
     },
     "labels": {
       "color": "Couleur"
-    },
-    "sections": {
-      "facts": "Faits"
     }
   },
   "superElement": {
@@ -1449,16 +1434,12 @@
     "language": "Langue",
     "localMenu": "Menu de la bibliothèque locale",
     "localStatus": "LOCAL · SUR CET APPAREIL",
-    "settings": "Réglages",
     "signOut": "Se déconnecter",
     "signingOut": "Déconnexion…",
     "theme": "Thème",
     "themeDark": "Sombre",
-    "themeDarkShort": "Sombre",
     "themeLight": "Clair",
-    "themeLightShort": "Clair",
-    "themeSystem": "Suivre le système",
-    "themeSystemShort": "Système"
+    "themeSystem": "Suivre le système"
   },
   "v3Levels": {
     "accept": "Accepter les entrées d’ailleurs",

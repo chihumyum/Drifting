@@ -190,12 +190,14 @@ pub fn paint_heatmap(levels: &[u8], columns: usize, dpr: f32) -> (SandMask, Sand
         let cx = (i / 7) as f32 * HEAT_STEP + HEAT_CELL / 2.0;
         let cy = (i % 7) as f32 * HEAT_STEP + HEAT_CELL / 2.0;
         if level == 0 {
+            // Twice as dense as before: a year without words showed next to
+            // nothing (UP, kernel-v5 §15 item 50).
             loose(
                 &mut grains,
                 cx,
                 cy,
                 2,
-                0.5,
+                1.0,
                 (i as u32).wrapping_mul(131).wrapping_add(17),
             );
         } else {
@@ -260,6 +262,17 @@ mod tests {
         assert_eq!(paint_heatmap(&levels, 53, 2.0).0, dabs);
         let strip = paint_strip(&[0, 10, 200, 0, 50], 100.0, 20.0, 2.0, 7);
         assert!(strip.coverage() > 0);
+    }
+
+    /// A year without words shows its days: each empty day's grains are
+    /// laid at full strength (they were at half, and the map looked blank).
+    #[test]
+    fn an_empty_years_grains_can_be_seen() {
+        let (_, grains) = paint_heatmap(&[0; 371], 53, 2.0);
+        let laid: Vec<u8> = grains.alpha.iter().copied().filter(|&a| a > 0).collect();
+        assert!(!laid.is_empty());
+        let mean = laid.iter().map(|&a| f32::from(a)).sum::<f32>() / laid.len() as f32;
+        assert!(mean >= 0.6 * 255.0, "an empty day's grains at {mean}");
     }
 
     #[test]

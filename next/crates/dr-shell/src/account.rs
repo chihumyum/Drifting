@@ -192,12 +192,13 @@ pub fn menu(
     let s = theme.scale;
     let info = current_info(cx);
     let file = Settings::read(cx);
-    let modes = ["light", "dark", "system"];
+    // The settings panel's three words, in its order (UP, kernel-v5 §15 50).
+    let modes = ["system", "light", "dark"];
     let mode = file.str(registry::THEME).unwrap_or_else(|| "system".into());
-    let mode_index = modes.iter().position(|m| *m == mode).unwrap_or(2);
+    let mode_index = modes.iter().position(|m| *m == mode).unwrap_or(0);
     let theme_icon = match mode_index {
-        0 => Icon::Enso,
-        1 => Icon::InkDisc,
+        1 => Icon::Enso,
+        2 => Icon::InkDisc,
         _ => Icon::Taiji,
     };
     let locale = Settings::locale(cx);
@@ -272,9 +273,9 @@ pub fn menu(
     let themes = Segmented::new(
         child("theme"),
         [
-            t(cx, keys::user_menu::THEME_LIGHT_SHORT),
-            t(cx, keys::user_menu::THEME_DARK_SHORT),
-            t(cx, keys::user_menu::THEME_SYSTEM_SHORT),
+            t(cx, keys::user_menu::THEME_SYSTEM),
+            t(cx, keys::user_menu::THEME_LIGHT),
+            t(cx, keys::user_menu::THEME_DARK),
         ],
         mode_index,
     )
@@ -386,7 +387,7 @@ pub fn menu(
     })
     .child(row(
         Icon::DharmaWheel,
-        t(cx, keys::user_menu::SETTINGS),
+        t(cx, keys::v3_shell::SETTINGS),
         None,
     ));
     let account_action = info.action.map(|act| {

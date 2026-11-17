@@ -6,7 +6,7 @@ use crate::{
     pages::PageViewHost,
 };
 use dr_workspace::commands::v3::types::ModuleSpec;
-use gpui::{AnyView, App, FocusHandle, Global, Window};
+use gpui::{AnyElement, AnyView, App, FocusHandle, Global, Window};
 use std::{collections::BTreeMap, rc::Rc};
 
 pub mod card;
@@ -98,8 +98,13 @@ pub struct Rendered {
     pub land: Option<Land>,
     /// Where the keyboard is in that tree, for the debug bridge.
     pub keyboard_state: Option<KeyboardState>,
+    /// What a module puts at the right end of its title row on the entry
+    /// page (the key-value table's 「新增字段」), instead of a second title
+    /// row of its own (UP, kernel-v5 §15 item 50).
+    pub head_action: Option<HeadAction>,
 }
 pub type Leave = Rc<dyn Fn(&mut App)>;
+pub type HeadAction = Rc<dyn Fn(&Window, &App) -> AnyElement>;
 pub type Land = Rc<dyn Fn(&mut Window, &mut App)>;
 pub type KeyboardState = Rc<dyn Fn(&Window, &App) -> serde_json::Value>;
 impl Rendered {
@@ -113,7 +118,14 @@ impl Rendered {
             leave: None,
             land: None,
             keyboard_state: None,
+            head_action: None,
         }
+    }
+    /// Something at the right end of the module's title row
+    /// ([`Rendered::head_action`]).
+    pub fn with_head_action(mut self, f: impl Fn(&Window, &App) -> AnyElement + 'static) -> Self {
+        self.head_action = Some(Rc::new(f));
+        self
     }
     /// Where the keyboard is in this part, for the debug bridge.
     pub fn on_keyboard_state(

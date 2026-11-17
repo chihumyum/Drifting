@@ -17,8 +17,9 @@
 //! The keyboard (KB, `kernel-v5.md` §15 item 48): ⌘⇧L gives the selected
 //! Tab's tree the keyboard ([`Sidebar::take_keyboard`]; the tree lands on the
 //! row of the page in front), or the Tab row when the Tab shows no tree the
-//! keyboard walks (a board, islands, the book, a gone mount). On the Tab row
-//! the selected Tab has the still ring; ← → choose the Tab before or after
+//! keyboard walks (islands, the book, a gone mount; a board is drawn as the
+//! list tree while the column is not filled, [`unfilled_display`]). On the
+//! Tab row the selected Tab has the still ring; ← → choose the Tab before or after
 //! (written with `tab.select`, like a click), stopping at the ends, the
 //! manage button not on the way; ↓ goes back into the tree; Esc back to the
 //! page. A click on a Tab leaves the keyboard where it was, a tree's going
@@ -1117,7 +1118,7 @@ impl Sidebar {
                             entry.clone(),
                             v.levels
                                 .get(entry)
-                                .map(|l| l.settings.display.clone())
+                                .map(|l| unfilled_display(&l.settings.display).to_owned())
                                 .unwrap_or_else(|| "list".into()),
                         ),
                         _ => (ROOT_LEVEL.to_owned(), "list".to_owned()),
@@ -1320,6 +1321,18 @@ impl Render for Sidebar {
             )
             .child(self.templates(window, cx))
             .into_any_element()
+    }
+}
+
+/// How a Tab shows its entries while the column is not filled (UP,
+/// kernel-v5 §15 item 50: 「Tab只有铺满状态，才有五种。非铺满，只有列表树和
+/// 紧凑索引。」): the list tree, or the compact index (a grid's tiles, the
+/// islands' framed tiles). A board is drawn as the list tree there; filled,
+/// the Tab shows its own display again.
+pub fn unfilled_display(display: &str) -> &str {
+    match display {
+        "grid" | "island" => display,
+        _ => "list",
     }
 }
 

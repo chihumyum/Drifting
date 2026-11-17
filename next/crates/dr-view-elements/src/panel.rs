@@ -539,6 +539,10 @@ pub mod v3 {
         /// redraw with the same book does neither (T9 review).
         rebuilds: usize,
         timestamp_reads: usize,
+        /// The widest tile name of the display's grid lines, in
+        /// `name_units`: one least width for every line, so the lines'
+        /// tiles share columns (UP, P4).
+        tile_units: f32,
     }
 
     /// Opt-in native draw timings for the G2 milestone. No prose, IDs, paths
@@ -733,6 +737,7 @@ pub mod v3 {
                 scroll: ScrollHandle::new(),
                 rebuilds: 0,
                 timestamp_reads,
+                tile_units: 0.0,
             };
             this.rebuild();
             this
@@ -827,13 +832,17 @@ pub mod v3 {
             }
             cx.notify();
         }
-        fn rebuild(&mut self) {
-            self.rebuilds += 1;
-            let columns = if self.host.surface == DisplaySurface::Sidebar {
+        /// How many tiles a grid line holds.
+        fn tiles_per_row(&self) -> usize {
+            if self.host.surface == DisplaySurface::Sidebar {
                 2
             } else {
                 4
-            };
+            }
+        }
+        fn rebuild(&mut self) {
+            self.rebuilds += 1;
+            let columns = self.tiles_per_row();
             let rows = rows_sorted(
                 &self.host.page.book,
                 &self.host.level,
@@ -844,6 +853,23 @@ pub mod v3 {
                 &self.folded,
                 columns,
             );
+            self.tile_units = self
+                .host
+                .page
+                .book
+                .v3()
+                .map(|v| {
+                    rows.iter()
+                        .filter_map(|row| match row {
+                            Row::Tiles { ids, .. } => Some(ids),
+                            _ => None,
+                        })
+                        .flatten()
+                        .filter_map(|id| v.entry(id))
+                        .map(|e| super::name_units(&e.title))
+                        .fold(0.0, f32::max)
+                })
+                .unwrap_or(0.0);
             // Keep the visible entry anchored when a book event inserts or
             // removes rows above it. reset() alone clears GPUI's anchor.
             if *self.rows != rows {
@@ -1898,7 +1924,7 @@ pub mod v3 {
                 .min_w_0()
                 .when(tile, |el| {
                     el.min_w(px(super::tile_basis(&entry.title, body_px)))
-                        .max_w(px(172.0))
+                        .max_w(px(super::TILE_WIDEST))
                         .flex_1()
                 })
                 .on_mouse_down(MouseButton::Left, move |event, _, cx| {
@@ -1998,6 +2024,51 @@ pub mod v3 {
                 .child(cell)
                 .into_any_element()
         }
+        /// The compact index's columns (UP, kernel-v5 §15 item 50, P4):
+        /// tiles of one width, as many to a line as it holds (`cap`, when
+        /// the rows were cut to a count) and as fit, the last line from the
+        /// left. The widest name (`units`) sets the least width, so a name
+        /// is cut only past a tile's widest; a column is no wider than that,
+        /// so the columns stand together from the left. The line's width is last
+        /// frame's (`None` before it is drawn: the tiles then size as
+        /// before); a change draws again.
+        fn tile_columns(
+            &self,
+            key: String,
+            cap: Option<usize>,
+            units: f32,
+            inset: f32,
+            window: &mut Window,
+            cx: &mut App,
+        ) -> (Option<f32>, AnyElement) {
+            let body_px = Theme::of(window, cx).scale.body;
+            let least = super::units_basis(units, body_px);
+            let cell = window.use_keyed_state(SharedString::from(key), cx, |_, _| None::<f32>);
+            let width = cell.read(cx).map(|w| (w - inset).max(0.0)).map(|w| {
+                let fit = ((w + super::TILE_GAP) / (least + super::TILE_GAP)).floor();
+                let n = cap.map_or(fit, |cap| fit.min(cap as f32)).max(1.0);
+                ((w - (n - 1.0) * super::TILE_GAP) / n)
+                    .floor()
+                    .min(super::TILE_WIDEST)
+            });
+            let probe = canvas(
+                move |bounds, window, cx| {
+                    let w = f32::from(bounds.size.width);
+                    if *cell.read(cx) != Some(w) {
+                        cell.update(cx, |c, _| *c = Some(w));
+                        window.refresh();
+                    }
+                },
+                |_, _, _, _| {},
+            )
+            .absolute()
+            .top_0()
+            .left_0()
+            .size_full()
+            .into_any_element();
+            (width, probe)
+        }
+
         fn row(
             &self,
             row: &Row,
@@ -2087,17 +2158,38 @@ pub mod v3 {
                     )))
                     .into_any_element()
                 }
-                Row::Tiles { ids, depth } => div()
-                    .flex()
-                    .flex_wrap()
-                    .gap_1()
-                    .py_1()
-                    .pl(px(*depth as f32 * 14.0))
-                    .children(ids.iter().map(|id| {
-                        let key = list_row.and_then(|i| self.stop_of(i, id));
-                        self.entry_scoped(id, true, scope, key.as_deref(), window, cx)
-                    }))
-                    .into_any_element(),
+                Row::Tiles { ids, depth } => {
+                    let inset = *depth as f32 * 14.0;
+                    let (width, probe) = self.tile_columns(
+                        format!(
+                            "g2-tiles-{}-{scope}-{}",
+                            self.host.level,
+                            ids.first().map(String::as_str).unwrap_or_default()
+                        ),
+                        Some(self.tiles_per_row()),
+                        self.tile_units,
+                        inset,
+                        window,
+                        cx,
+                    );
+                    div()
+                        .relative()
+                        .w_full()
+                        .flex()
+                        .flex_wrap()
+                        .gap(px(super::TILE_GAP))
+                        .py_1()
+                        .pl(px(inset))
+                        .child(probe)
+                        .children(ids.iter().map(|id| {
+                            let key = list_row.and_then(|i| self.stop_of(i, id));
+                            super::in_column(
+                                width,
+                                self.entry_scoped(id, true, scope, key.as_deref(), window, cx),
+                            )
+                        }))
+                        .into_any_element()
+                }
                 Row::Island { id, members } => {
                     let color = entry_target(id)
                         .and_then(|t| self.host.page.book.mark(&t).1)
@@ -2124,13 +2216,42 @@ pub mod v3 {
                             window,
                             cx,
                         ))
-                        .child(
-                            div().flex().flex_wrap().gap_1().children(
-                                members
-                                    .iter()
-                                    .map(|id| self.entry_scoped(id, true, scope, None, window, cx)),
-                            ),
-                        )
+                        .child({
+                            let units = self
+                                .host
+                                .page
+                                .book
+                                .v3()
+                                .map(|v| {
+                                    members
+                                        .iter()
+                                        .filter_map(|id| v.entry(id))
+                                        .map(|e| super::name_units(&e.title))
+                                        .fold(0.0, f32::max)
+                                })
+                                .unwrap_or(0.0);
+                            let (width, probe) = self.tile_columns(
+                                format!("g2-island-tiles-{}-{scope}-{id}", self.host.level),
+                                None,
+                                units,
+                                0.0,
+                                window,
+                                cx,
+                            );
+                            div()
+                                .relative()
+                                .w_full()
+                                .flex()
+                                .flex_wrap()
+                                .gap(px(super::TILE_GAP))
+                                .child(probe)
+                                .children(members.iter().map(|id| {
+                                    super::in_column(
+                                        width,
+                                        self.entry_scoped(id, true, scope, None, window, cx),
+                                    )
+                                }))
+                        })
                         .into_any_element()
                 }
             }
@@ -2410,8 +2531,13 @@ pub mod v3 {
 /// 12.5px a character, short of the 16px of the standard size, so a
 /// four-character name (「周记面馆」) was cut to 「周记…」 with room beside it.
 pub fn tile_basis(name: &str, body_px: f32) -> f32 {
-    let units: f32 = name
-        .chars()
+    units_basis(name_units(name), body_px)
+}
+
+/// A name's width in ems: a CJK character a full em, Latin about 0.62, a
+/// space 0.35.
+fn name_units(name: &str) -> f32 {
+    name.chars()
         .map(|c| {
             if c == ' ' {
                 0.35
@@ -2421,8 +2547,32 @@ pub fn tile_basis(name: &str, body_px: f32) -> f32 {
                 1.0
             }
         })
-        .sum();
-    (TILE_CHROME + units * body_px).clamp(80.0, 172.0)
+        .sum()
+}
+
+/// A tile's least width for a name `units` ems wide.
+fn units_basis(units: f32, body_px: f32) -> f32 {
+    (TILE_CHROME + units * body_px).clamp(80.0, TILE_WIDEST)
+}
+
+/// A tile's widest: a longer name is cut.
+const TILE_WIDEST: f32 = 172.0;
+
+/// The gap between a compact index's tiles.
+const TILE_GAP: f32 = 4.0;
+
+/// A tile in its column: `width` wide when the line's columns are known.
+fn in_column(width: Option<f32>, tile: gpui::AnyElement) -> gpui::AnyElement {
+    use gpui::{IntoElement as _, ParentElement as _, Styled as _};
+    match width {
+        Some(w) => gpui::div()
+            .flex_none()
+            .w(gpui::px(w))
+            .overflow_hidden()
+            .child(tile)
+            .into_any_element(),
+        None => tile,
+    }
 }
 
 /// A tile's width besides its name: the 8px insets either side, the 10px

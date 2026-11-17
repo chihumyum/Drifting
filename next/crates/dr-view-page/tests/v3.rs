@@ -971,3 +971,23 @@ fn stats_pages_and_export_dialog_agree_on_the_book_read_from_the_root(cx: &mut T
     assert_eq!(book.first(), Some(&outside_ch));
     e.ws.close();
 }
+
+/// UP (kernel-v5 §15 item 50, P1 甲): on an entry page the body draws no
+/// head of its own. The page's head has the title and its fields the
+/// synopsis; the body drew a folio line, the synopsis again and two rules.
+/// Its head views are still made (the bridge and the folio read them).
+#[gpui::test]
+fn a_body_on_an_entry_page_draws_no_head_of_its_own(cx: &mut TestAppContext) {
+    let e = env();
+    let (_view, mut vcx) = open(cx, &e, "mod-prose");
+    let doc = format!("body:{}/mod-prose", e.entry);
+    wait(&mut vcx, |cx| {
+        cx.update(|_, cx| dr_view_page::page_views(&doc, cx).is_some())
+    });
+    draw(&mut vcx);
+    let drawn: &'static str = Box::leak(format!("page-head-{doc}").into_boxed_str());
+    assert!(
+        vcx.debug_bounds(drawn).is_none(),
+        "the body drew its own head on the entry page"
+    );
+}

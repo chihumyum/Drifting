@@ -253,14 +253,6 @@
       "resting": "休眠"
     }
   },
-  "elementEditor": {
-    "empty": {
-      "noFacts": "尚无字段。新建要素时，所属类目的「字段模版」会自动填入"
-    },
-    "sections": {
-      "facts": "字段"
-    }
-  },
   "entrySnapshot": {
     "empty": "暂无快照",
     "save": "保存快照",
@@ -1232,7 +1224,6 @@
         "turnOn": "开启"
       }
     },
-    "title": "设定",
     "update": {
       "channel_desc": "Apple Silicon · macOS 13+",
       "check": "新版本",
@@ -1283,17 +1274,11 @@
     }
   },
   "storylineEditor": {
-    "empty": {
-      "noFacts": "尚无字段。新建故事线时，项目主页的「故事线字段模版」会自动填入"
-    },
     "filters": {
       "all": "全部"
     },
     "labels": {
       "color": "色标"
-    },
-    "sections": {
-      "facts": "字段"
     }
   },
   "superElement": {
@@ -1427,16 +1412,12 @@
     "language": "语言",
     "localMenu": "本地书库菜单",
     "localStatus": "本地 · 本机存储",
-    "settings": "设定",
     "signOut": "登出账号",
     "signingOut": "登出中…",
     "theme": "主题",
     "themeDark": "深色",
-    "themeDarkShort": "暗",
     "themeLight": "浅色",
-    "themeLightShort": "明",
-    "themeSystem": "跟随系统",
-    "themeSystemShort": "系统"
+    "themeSystem": "跟随系统"
   },
   "v3Levels": {
     "accept": "收别处的条目",

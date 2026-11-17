@@ -8,9 +8,11 @@
 //! - Leaving the key or the value saves that field (F3 `element.update`
 //!   `put_fields`); a row whose key and value are both blank goes (a stored
 //!   one is removed). × removes at once. Fields keep their order.
-//! - 「新增字段」 at the section head's right opens a blank row at the end and
-//!   puts the caret in its key (only the caret, when the last row is already
-//!   blank).
+//! - 「新增字段」 at the right of the module's title row on the entry page
+//!   (the module's head action; it had a second title row of its own, 「字段」
+//!   under 「字段」, before UP) opens a blank row at the end and puts the
+//!   caret in its key (only the caret, when the last row is already blank).
+//!   An empty table shows nothing but that action.
 //! - No key is checked against the others (the 0.1 editor did not either).
 
 use std::rc::Rc;
@@ -387,43 +389,8 @@ impl Render for Fields {
         let p = theme.palette;
         let look = page::look(cx);
         let entity = cx.entity();
-        let add = {
-            let entity = entity.clone();
-            page::text_action(
-                "fields-add",
-                t(cx, keys::kv_editor::ADD_FIELD),
-                move |_, window, cx| entity.update(cx, |f, cx| f.add_row(window, cx)),
-                window,
-                cx,
-            )
-        };
-        let head = page::section(
-            t(
-                cx,
-                match self.owner {
-                    Owner::Module { .. } => keys::element_editor::sections::FACTS,
-                },
-            ),
-            Some(add),
-            false,
-            window,
-            cx,
-        );
         let remove_label = t(cx, keys::kv_editor::REMOVE_ROW);
         let mut list = div().flex().flex_col().gap(px(6.0));
-        if self.rows.is_empty() {
-            list = list.child(page::empty_line(
-                t(
-                    cx,
-                    match self.owner {
-                        Owner::Module { .. } => keys::element_editor::empty::NO_FACTS,
-                    },
-                ),
-                look,
-                window,
-                cx,
-            ));
-        }
         for (ix, row) in self.rows.iter().enumerate() {
             let focused = Self::row_focused(row, window, cx);
             let retry_n = row.n;
@@ -607,8 +574,28 @@ impl Render for Fields {
                 .child(x),
             );
         }
-        page::column(look, div().flex().flex_col().child(head).child(list))
+        page::column(look, div().flex().flex_col().child(list))
             .when(self.last, |el| el.pb(px(80.0)))
+    }
+}
+
+impl Fields {
+    /// 「新增字段」, drawn at the right of the module's title row
+    /// ([`dr_shell::v3::Rendered::head_action`]).
+    pub fn add_action(
+        fields: WeakEntity<Fields>,
+        window: &Window,
+        cx: &gpui::App,
+    ) -> gpui::AnyElement {
+        page::text_action(
+            "fields-add",
+            t(cx, keys::kv_editor::ADD_FIELD),
+            move |_, window, cx| {
+                fields.update(cx, |f, cx| f.add_row(window, cx)).ok();
+            },
+            window,
+            cx,
+        )
     }
 }
 

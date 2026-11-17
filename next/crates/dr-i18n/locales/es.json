@@ -257,14 +257,6 @@
       "resting": "En reposo"
     }
   },
-  "elementEditor": {
-    "empty": {
-      "noFacts": "Aún no hay campos. Al crear un elemento, la Plantilla de campos de su categoría los rellena."
-    },
-    "sections": {
-      "facts": "Datos"
-    }
-  },
   "entrySnapshot": {
     "empty": "Aún no hay instantáneas",
     "save": "Guardar instantánea",
@@ -1254,7 +1246,6 @@
         "turnOn": "Activar"
       }
     },
-    "title": "Ajustes",
     "update": {
       "channel_desc": "Apple Silicon · macOS 13 o posterior",
       "check": "Nueva versión",
@@ -1305,17 +1296,11 @@
     }
   },
   "storylineEditor": {
-    "empty": {
-      "noFacts": "Aún no hay campos. Al crear una trama, la Plantilla de trama del inicio del proyecto los rellena."
-    },
     "filters": {
       "all": "Todo"
     },
     "labels": {
       "color": "Color"
-    },
-    "sections": {
-      "facts": "Datos"
     }
   },
   "superElement": {
@@ -1449,16 +1434,12 @@
     "language": "Idioma",
     "localMenu": "Menú de biblioteca local",
     "localStatus": "LOCAL · EN ESTE DISPOSITIVO",
-    "settings": "Ajustes",
     "signOut": "Cerrar sesión",
     "signingOut": "Cerrando sesión…",
     "theme": "Tema",
     "themeDark": "Oscuro",
-    "themeDarkShort": "Oscuro",
     "themeLight": "Claro",
-    "themeLightShort": "Claro",
-    "themeSystem": "Seguir el sistema",
-    "themeSystemShort": "Sistema"
+    "themeSystem": "Seguir el sistema"
   },
   "v3Levels": {
     "accept": "Aceptar entradas de otros lugares",

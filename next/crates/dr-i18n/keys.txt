@@ -58,7 +58,6 @@ feedback.crash.title
 feedback.crash.placeholder
 feedback.crash.ignore
 feedback.crash.emailSubject
-settings.title
 settings.search_placeholder
 settings.groups.preferences
 settings.groups.control
@@ -256,13 +255,9 @@ userMenu.localMenu
 userMenu.localStatus
 userMenu.theme
 userMenu.themeLight
-userMenu.themeLightShort
 userMenu.themeDark
-userMenu.themeDarkShort
 userMenu.themeSystem
-userMenu.themeSystemShort
 userMenu.language
-userMenu.settings
 common.untitled
 common.customColor
 common.counting
@@ -368,8 +363,6 @@ chapterEditor.untitledChapter
 chapterEditor.synopsisPlaceholder
 guide.hints.search
 guide.hints.timeline
-elementEditor.sections.facts
-elementEditor.empty.noFacts
 kvEditor.keyPlaceholder
 kvEditor.valuePlaceholder
 kvEditor.addField
@@ -387,8 +380,6 @@ settings.appearance.guides
 settings.appearance.replay_guides
 settings.appearance.replay_guides_action
 settings.sync.projection.turnOff
-storylineEditor.sections.facts
-storylineEditor.empty.noFacts
 common.words
 plotGrid.title
 plotGrid.addRowShort

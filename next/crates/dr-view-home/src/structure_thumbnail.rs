@@ -16,11 +16,17 @@ use gpui::{prelude::*, *};
 
 use crate::v3::Home;
 
-/// The thumbnail and the board drawn in it (`.w8-thumb`, `.w8-th-b`).
-const W: f32 = 300.0;
-const H: f32 = 226.0;
+/// The board's largest size in the thumbnail (`.w8-th-b`); the thumbnail is
+/// the board as drawn and its margins, no larger (UP, kernel-v5 §15 item 50:
+/// it was a fixed 300 × 226 with the board in a corner of it).
 const BOARD_W: f32 = 262.0;
 const BOARD_H: f32 = 194.0;
+/// The thumbnail's margins round the board, and the board's top under the
+/// counts.
+const PAD: f32 = 10.0;
+const BOARD_TOP: f32 = 30.0;
+/// Never narrower than the counts at its head need.
+pub const MIN_W: f32 = 170.0;
 
 pub(crate) fn render(home: &Home, window: &mut Window, cx: &mut App) -> Option<AnyElement> {
     let book = home.source.as_ref()?;
@@ -43,6 +49,8 @@ pub(crate) fn render(home: &Home, window: &mut Window, cx: &mut App) -> Option<A
         }
     }
     let scale = (BOARD_W / layout.width.max(1.0)).min(BOARD_H / layout.height.max(1.0));
+    let drawn_w = (layout.width * scale).min(BOARD_W);
+    let drawn_h = (layout.height * scale).min(BOARD_H);
     let p = Theme::of(window, cx).palette;
     let routes: Vec<(Route, EdgeKind)> = graph
         .edges
@@ -53,37 +61,42 @@ pub(crate) fn render(home: &Home, window: &mut Window, cx: &mut App) -> Option<A
     let line = p.ink(4).alpha(0.8);
     let page = p.page.solid();
     let hair = p.local_hairline();
-    let board = canvas(
-        |_, _, _| (),
-        move |bounds, _, window, _| {
-            for (route, kind) in &routes {
-                let stroke = Stroke {
-                    color: line,
-                    width: 0.8,
-                    dot: false,
-                    thin: true,
-                };
-                paint_route(route, *kind, stroke, bounds, scale, window);
-            }
-            for [x, y, w, h] in &cards {
-                let at = Bounds::new(
-                    bounds.origin + point(px(x * scale), px(y * scale)),
-                    size(px(w * scale), px(h * scale)),
-                );
-                window.paint_quad(
-                    gpui::fill(at, page)
-                        .corner_radii(px(1.5))
-                        .border_widths(px(0.5))
-                        .border_color(hair),
-                );
-            }
-        },
-    )
-    .absolute()
-    .left(px(10.0))
-    .top(px(30.0))
-    .w(px(BOARD_W))
-    .h(px(BOARD_H));
+    let board = div()
+        .debug_selector(|| "v5-home-structure-board".into())
+        .absolute()
+        .left(px(PAD))
+        .top(px(BOARD_TOP))
+        .w(px(drawn_w))
+        .h(px(drawn_h))
+        .child(
+            canvas(
+                |_, _, _| (),
+                move |bounds, _, window, _| {
+                    for (route, kind) in &routes {
+                        let stroke = Stroke {
+                            color: line,
+                            width: 0.8,
+                            dot: false,
+                            thin: true,
+                        };
+                        paint_route(route, *kind, stroke, bounds, scale, window);
+                    }
+                    for [x, y, w, h] in &cards {
+                        let at = Bounds::new(
+                            bounds.origin + point(px(x * scale), px(y * scale)),
+                            size(px(w * scale), px(h * scale)),
+                        );
+                        window.paint_quad(
+                            gpui::fill(at, page)
+                                .corner_radii(px(1.5))
+                                .border_widths(px(0.5))
+                                .border_color(hair),
+                        );
+                    }
+                },
+            )
+            .size_full(),
+        );
 
     let meta = template_meta(v3, cx);
     let workspace = home.ws.clone();
@@ -104,8 +117,8 @@ pub(crate) fn render(home: &Home, window: &mut Window, cx: &mut App) -> Option<A
         .aria_label(label)
         .cursor_pointer()
         .flex_none()
-        .w(px(W))
-        .h(px(H))
+        .w(px((drawn_w + 2.0 * PAD).max(MIN_W)))
+        .h(px(BOARD_TOP + drawn_h + PAD))
         .rounded(px(4.0))
         .bg(p.desk.solid())
         .overflow_hidden()

@@ -114,7 +114,22 @@ fn the_structure_row_draws_the_board_small_under_its_counts_and_opens_the_struct
     let (ws, vcx) = open_workspace(cx, &lib, &book);
 
     let thumb = vcx.debug_bounds("v5-home-structure-thumbnail").unwrap();
-    assert_eq!(thumb.size, size(px(300.0), px(226.0)));
+    // The thumbnail is the board as drawn and its margins, never larger
+    // (UP, kernel-v5 §15 item 50; it was a fixed 300 × 226 with the board
+    // in a corner): 10 round the board, 30 above it for the counts, and
+    // no narrower than the counts need (170).
+    let board = vcx
+        .debug_bounds("v5-home-structure-board")
+        .expect("the board");
+    assert!(board.size.width <= px(262.0) && board.size.height <= px(194.0));
+    assert_eq!(board.origin - thumb.origin, point(px(10.0), px(30.0)));
+    assert_eq!(thumb.bottom() - board.bottom(), px(10.0));
+    assert!(
+        thumb.right() - board.right() == px(10.0) || thumb.size.width == px(170.0),
+        "the thumbnail {:?} round the board {:?}",
+        thumb.size,
+        board.size
+    );
     // The head: the counts, 10 in and 6 down.
     let head = vcx
         .debug_bounds("v5-home-structure-meta")

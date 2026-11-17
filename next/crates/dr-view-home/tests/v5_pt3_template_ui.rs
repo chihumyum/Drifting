@@ -980,3 +980,35 @@ fn new_project_from_the_row_of_projects_holds_the_keyboard(cx: &mut TestAppConte
     });
     lib.close();
 }
+
+/// UP (kernel-v5 §15 item 50, P8 甲): the save dialog's 「条目」 box is as
+/// tall as the right column; it stopped short of it at a fixed height.
+#[gpui::test]
+fn save_template_dialogs_tree_reaches_the_right_columns_foot(cx: &mut TestAppContext) {
+    let (_dir, _root, lib, book) = seed_library();
+    let (ws, vcx) = setup_app(cx, &lib, Some(&book));
+    wait(vcx, "book opened on Home", |vcx| {
+        ws.read_with(vcx, |ws, _| ws.book.id == book && !ws.shelf_open)
+            && vcx.debug_bounds("v3-home-save-project-template").is_some()
+    });
+    let save_btn = vcx
+        .debug_bounds("v3-home-save-project-template")
+        .expect("save button");
+    vcx.simulate_click(save_btn.center(), Modifiers::none());
+    wait(vcx, "save dialog drawn", |vcx| {
+        ws.read_with(vcx, |ws, cx| {
+            ws.dialog
+                .as_ref()
+                .and_then(|d| d.clone().downcast::<SaveTemplateDialog>().ok())
+                .is_some_and(|d| d.read(cx).is_loaded())
+        }) && vcx.debug_bounds("v3-save-tpl-form-scroll").is_some()
+    });
+    let tree = vcx.debug_bounds("v3-save-tpl-tree").unwrap();
+    let form = vcx.debug_bounds("v3-save-tpl-form-scroll").unwrap();
+    assert!(
+        (tree.bottom() - form.bottom()).abs() <= px(1.0),
+        "the tree ends at {:?}, the right column at {:?}",
+        tree.bottom(),
+        form.bottom()
+    );
+}

@@ -255,14 +255,6 @@
       "resting": "停泊中"
     }
   },
-  "elementEditor": {
-    "empty": {
-      "noFacts": "尚無欄位。建立要素時，所屬分類的「欄位範本」會自動填入。"
-    },
-    "sections": {
-      "facts": "設定資料"
-    }
-  },
   "entrySnapshot": {
     "empty": "尚無快照",
     "save": "儲存快照",
@@ -1238,7 +1230,6 @@
         "turnOn": "開啟"
       }
     },
-    "title": "設定",
     "update": {
       "channel_desc": "Apple Silicon · macOS 13 以上",
       "check": "新版本",
@@ -1289,17 +1280,11 @@
     }
   },
   "storylineEditor": {
-    "empty": {
-      "noFacts": "尚無欄位。建立故事線時，作品首頁的「故事線範本」會自動填入。"
-    },
     "filters": {
       "all": "全部"
     },
     "labels": {
       "color": "顏色"
-    },
-    "sections": {
-      "facts": "設定資料"
     }
   },
   "superElement": {
@@ -1433,16 +1418,12 @@
     "language": "語言",
     "localMenu": "本機資料庫選單",
     "localStatus": "本機 · 存於此裝置",
-    "settings": "設定",
     "signOut": "登出",
     "signingOut": "正在登出…",
     "theme": "主題",
     "themeDark": "深色",
-    "themeDarkShort": "深色",
     "themeLight": "淺色",
-    "themeLightShort": "淺色",
-    "themeSystem": "跟隨系統",
-    "themeSystemShort": "系統"
+    "themeSystem": "跟隨系統"
   },
   "v3Levels": {
     "accept": "收別處的條目",

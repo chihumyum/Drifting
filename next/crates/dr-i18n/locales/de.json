@@ -255,14 +255,6 @@
       "resting": "Ruhend"
     }
   },
-  "elementEditor": {
-    "empty": {
-      "noFacts": "Noch keine Felder. Beim Erstellen eines Elements füllt die Feldvorlage seiner Kategorie sie aus."
-    },
-    "sections": {
-      "facts": "Fakten"
-    }
-  },
   "entrySnapshot": {
     "empty": "Noch keine Momentaufnahmen",
     "save": "Momentaufnahme speichern",
@@ -1245,7 +1237,6 @@
         "turnOn": "Aktivieren"
       }
     },
-    "title": "Einstellungen",
     "update": {
       "channel_desc": "Apple Silicon · macOS 13 oder neuer",
       "check": "Neue Version",
@@ -1296,17 +1287,11 @@
     }
   },
   "storylineEditor": {
-    "empty": {
-      "noFacts": "Noch keine Felder. Beim Erstellen eines Handlungsstrangs füllt die Handlungsstrang-Vorlage auf der Projektstartseite sie aus."
-    },
     "filters": {
       "all": "Alle"
     },
     "labels": {
       "color": "Farbe"
-    },
-    "sections": {
-      "facts": "Fakten"
     }
   },
   "superElement": {
@@ -1440,16 +1425,12 @@
     "language": "Sprache",
     "localMenu": "Menü der lokalen Bibliothek",
     "localStatus": "LOKAL · AUF DIESEM GERÄT",
-    "settings": "Einstellungen",
     "signOut": "Abmelden",
     "signingOut": "Abmeldung läuft…",
     "theme": "Design",
     "themeDark": "Dunkel",
-    "themeDarkShort": "Dunkel",
     "themeLight": "Hell",
-    "themeLightShort": "Hell",
-    "themeSystem": "Systemeinstellung",
-    "themeSystemShort": "System"
+    "themeSystem": "Systemeinstellung"
   },
   "v3Levels": {
     "accept": "Einträge von anderswo aufnehmen",

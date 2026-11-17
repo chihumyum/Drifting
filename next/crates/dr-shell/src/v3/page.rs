@@ -449,6 +449,11 @@ impl EntryPage {
                     theme.palette.ink(3).solid(),
                 ))
         });
+        let head_action = self
+            .parts
+            .get(&key)
+            .and_then(|(_, part)| part.head_action.clone())
+            .map(|action| action(window, cx));
         div()
             .id(SharedString::from(key.clone()))
             .debug_selector(move || selector.clone())
@@ -476,7 +481,15 @@ impl EntryPage {
                             )
                             .children(mod_ul),
                     )
-                    .children(comment_btn),
+                    .child(
+                        div()
+                            .flex()
+                            .flex_row()
+                            .items_center()
+                            .gap_2()
+                            .children(comment_btn)
+                            .children(head_action),
+                    ),
             )
             .children(self.parts.get(&key).map(|(_, p)| p.view.clone()))
             .into_any_element()
