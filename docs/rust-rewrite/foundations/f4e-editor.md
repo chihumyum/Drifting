@@ -154,7 +154,7 @@ editor.update(cx, |editor, cx| {
 - **给 F4d**：格子选区要「不画光标」（见上面的限制第 3 条）。现在是表格自己不挂光标层；`gpui-prose` 要是给一个开关（比如 `set_caret_hidden`），表格就改用它。不急。
 - **给 F3**：Agent 读写表格（`prose.*` 里的表格、素材嵌入）还没有，照旧。
 - **给 F1**：格子里的行内标记，导入和 `insert_copy` 还没带上，照旧。
-- **给书架封面（M01/M02）**：`dr-view-shelf-art` 的 `a_cover_is_read_from_the_book` 在没有构建 dr-ui 字体的检出里必挂（「chars drew nothing」）。它的模块说明写的是「没有字体就不排字」，测试却要求每种画风都画出东西。借别的工作区构建好的字体（`DRIFTING_FONTS_DIR`）就能过。建议没有字体时跳过字海那一种。
+- **给书架封面（M01/M02）**：`dr-view-shelf-art` 的 `a_cover_is_read_from_the_book` 在没有构建 dr-ui 字体的检出里必挂（「chars drew nothing」）。它的模块说明写的是「没有字体就不排字」，测试却要求每种画风都画出东西。借别的工作区构建好的字体（`DRIFTING_FONTS_DIR`）就能过。建议没有字体时跳过字海那一种。**2026-11-17 已这样改**（没设 `DR_UI_REQUIRE_FONTS` 时才跳过，见 [m25-shelf-art.md](../modules/m25-shelf-art.md) 的「测试」）。
 
 **检查**（合了 main `4e40ee20` 以后）：
 - **通过**：
