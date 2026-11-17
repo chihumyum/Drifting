@@ -94,6 +94,60 @@ fn pump(cx: &mut VisualTestContext) {
     cx.run_until_parked();
 }
 
+/// C2's complete theme words must fit inside the real account menu, including
+/// the row's existing right padding (the native English menu overflowed).
+#[gpui::test]
+fn account_theme_words_keep_their_menu_padding(cx: &mut TestAppContext) {
+    use dr_i18n::{Locale, keys};
+    use dr_ui::tokens::menu as m;
+    use gpui::px;
+
+    let (_dir, lib, id) = seed();
+    let (view, cx) = open(cx, &lib, &id);
+    wait(&view, cx, "the book", |ws, _| ws.book.v3().is_some());
+    for locale in Locale::ALL {
+        let labels = cx.update(|_, cx| {
+            dr_shell::strings::Strings::install(locale, cx);
+            view.update(cx, |ws, cx| {
+                ws.account_open = true;
+                cx.notify();
+            });
+            [
+                keys::user_menu::THEME_SYSTEM,
+                keys::user_menu::THEME_LIGHT,
+                keys::user_menu::THEME_DARK,
+            ]
+            .map(|key| dr_shell::t(cx, key))
+        });
+        if locale == Locale::En {
+            assert_eq!(
+                labels.each_ref().map(|s| s.to_string()),
+                ["Follow system", "Light", "Dark"]
+            );
+        }
+        pump(cx);
+        let menu = cx.debug_bounds("workspace-account-float").unwrap();
+        let mut last_right = menu.left();
+        for label in labels {
+            let option = dr_ui::style::child_id(&"workspace-account-theme".into(), label.clone());
+            let selector = Box::leak(option.to_string().into_boxed_str());
+            let bounds = cx
+                .debug_bounds(selector)
+                .expect("the complete theme choice");
+            assert!(
+                bounds.left() >= last_right,
+                "theme order: {locale:?} {label}"
+            );
+            assert!(bounds.size.width > px(20.0), "a visible full word");
+            assert!(
+                bounds.right() <= menu.right() - px(m::ROW_INSET + m::ROW_PAD_X),
+                "{locale:?} {label}: choice {bounds:?} must stay inside {menu:?} with row padding"
+            );
+            last_right = bounds.right();
+        }
+    }
+}
+
 fn wait(
     view: &Entity<Shell>,
     cx: &mut VisualTestContext,
