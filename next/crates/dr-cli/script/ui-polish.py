@@ -229,7 +229,12 @@ def inspect_copy(w):
         return nodes
     ordered_modes()
     w.shot("15-account-appearance.png")
-    w.press("设置" if zh else "Settings")
+    # The account settings row has no AX role. Close the actual avatar
+    # toggle before using the native shortcut, so the menu cannot obscure
+    # Settings or supply duplicate appearance controls.
+    w.press("本地书库菜单" if zh else "Local library menu")
+    w.app("ui.find", label=labels[0], role="RadioButton", absent=True)
+    w.app("input.key", keys="secondary-,")
     w.ready(**{"/layer": "settings"})
     w.app("ui.focus", field="settings.search")
     w.app("input.type", text="theme")
