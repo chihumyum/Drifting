@@ -262,6 +262,9 @@ fn picture(drawn: &Drawn, window: &Window, cx: &App) -> Arc<RenderImage> {
     }
 }
 
+/// How far an art cover lies in the shade in the dark appearance.
+pub const DARK_SHADE: f32 = 0.15;
+
 /// A book's cover in `style`.
 #[derive(IntoElement)]
 pub struct ShelfCover {
@@ -364,6 +367,19 @@ impl RenderOnce for ShelfCover {
                         .left_0()
                         .size_full()
                         .child(img(image).size_full()),
+                )
+            })
+            // In the dark the paper-coloured art covers were the brightest
+            // things on the shelf: they lie a little in the shade there
+            // (UP, kernel-v5 §15 item 50). The words on them are not dimmed.
+            .when(p.dark && s.art, |el| {
+                el.child(
+                    div()
+                        .absolute()
+                        .top_0()
+                        .left_0()
+                        .size_full()
+                        .bg(gpui::black().opacity(DARK_SHADE)),
                 )
             })
             .when_some(self.label, |el, label| {
