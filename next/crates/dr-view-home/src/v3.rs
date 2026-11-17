@@ -703,7 +703,12 @@ impl Render for Home {
         if let Some(cards) = self.agent_cards(window, cx) {
             column = column.child(cards);
         }
-        let mut creations = div().flex().flex_wrap().gap(px(12.0));
+        let mut creations = div()
+            .id("v3-home-create-row")
+            .debug_selector(|| "v3-home-create-row".into())
+            .flex()
+            .flex_wrap()
+            .gap(px(12.0));
         let all = actions(&book);
         for action in all.clone() {
             let home = cx.weak_entity();

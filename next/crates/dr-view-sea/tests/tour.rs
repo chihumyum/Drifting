@@ -1,6 +1,7 @@
 //! The workspace tour (M24) on GPUI's test platform, over a mock workspace
-//! whose controls are anchors at fixed places (the real window's six are in
-//! dr-view-home's `tests/tour.rs`): it comes up after its delay
+//! whose controls are anchors at fixed places. Real-host GPUI coverage is
+//! in dr-view-home's `tests/workspace_tour.rs`; neither is native-window
+//! acceptance. It comes up after its delay
 //! with the ring on the first step's controls, Next and Back pass over a
 //! step whose control is not drawn, a closed sidebar's toggle stands in for
 //! its tabs until it opens, the ring follows a control that moves, a Super

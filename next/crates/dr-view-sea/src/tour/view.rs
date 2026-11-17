@@ -129,6 +129,8 @@ pub(crate) struct TourView {
     forward: bool,
     /// The anchors of the last frame drawn.
     shown: Option<Shown>,
+    /// The viewport those anchors were drawn in.
+    viewport: Option<Size<Pixels>>,
     placed: Option<TourState>,
     /// x, y, width, height, corner.
     ring: Option<Glide<5>>,
@@ -162,6 +164,7 @@ impl TourView {
             index: 0,
             forward: true,
             shown: None,
+            viewport: None,
             placed: None,
             ring: None,
             card_at: None,
@@ -230,6 +233,9 @@ impl TourView {
         self.card_at = None;
         self.text_step = None;
         self.focused_step = None;
+        // A different book or a modal can own the keyboard while covered.
+        // Capture that current destination when the next step comes up.
+        self.before = None;
     }
 
     /// Next (or Done on the last step) and Back.
@@ -527,6 +533,14 @@ impl Render for TourView {
             self.glass.retarget(now);
         }
         let entity = cx.entity();
+        // A resize moves the real controls. Do not interpret coordinates from
+        // the old viewport as a missing control and skip this step; first
+        // collect the anchors laid out in this viewport.
+        let viewport = window.viewport_size();
+        if self.viewport != Some(viewport) {
+            self.viewport = Some(viewport);
+            self.shown = None;
+        }
         // Nothing seen yet: one frame to look round.
         let Some(shown) = self.shown.take() else {
             return overlay::float(Place::Center, Layer::Popover, TourLayer::new(entity, None))

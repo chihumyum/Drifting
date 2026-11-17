@@ -185,6 +185,15 @@ impl Workspace {
         cx.defer_in(window, move |_, window, cx| (guide.start)(window, cx));
     }
 
+    /// A real open, including reopening the same book after Settings reset:
+    /// offer the guide once again and put an unfinished old step away until
+    /// this book's workspace is ready. The device store still decides whether
+    /// the guide has already been seen.
+    pub(super) fn sea_guide_opening(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.sea.guided = None;
+        self.guide_layer(true, window, cx);
+    }
+
     /// The tour's layer, the root's last child.
     pub(super) fn guide_layer(
         &self,

@@ -482,8 +482,10 @@ impl RenderOnce for Segmented {
         .top_0()
         .left_0()
         .size_full();
+        let row_selector = self.id.clone();
         let mut row = div()
             .id(self.id.clone())
+            .debug_selector(move || row_selector.to_string())
             .role(gpui::Role::RadioGroup)
             .relative()
             .h(px(height))
@@ -522,8 +524,11 @@ impl RenderOnce for Segmented {
                     None
                 }
             };
+            let option_id = crate::style::child_id(&self.id, label.clone());
+            let option_selector = option_id.clone();
             let option = div()
-                .id(crate::style::child_id(&self.id.clone(), label.clone()))
+                .id(option_id)
+                .debug_selector(move || option_selector.to_string())
                 .relative()
                 .px(px(self.pad_x))
                 .flex()

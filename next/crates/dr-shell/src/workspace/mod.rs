@@ -1188,6 +1188,7 @@ impl Workspace {
         self.set_immersive(false, cx);
         self.projects_open = false;
         self.shelf_open = true;
+        self.guide_layer(true, window, cx);
         self.exit_fill(window, cx);
         self.notifications_open = false;
         self.sync_active_book();
@@ -1236,6 +1237,7 @@ impl Workspace {
             self.sea_opening(window, cx);
         }
         let changed_book = book != self.book_id;
+        self.sea_guide_opening(window, cx);
         self.shelf_open = false;
         self.projects_open = false;
         self.notifications_open = false;
@@ -1957,7 +1959,7 @@ impl Render for Workspace {
             .when(self.account_open && !self.immersive, |el| {
                 el.child(sidebar::account_menu(self, window, cx))
             })
-            .children(self.guide_layer(self.filled().is_some(), window, cx))
+            .children(self.guide_layer(self.filled().is_some() || self.covered(), window, cx))
             .children(crate::release::curtain(window, cx));
         let root = self.on_actions(root, cx);
         glass::surface(Ground::flat(p.desk), root).into_any_element()
