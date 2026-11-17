@@ -1356,7 +1356,7 @@ impl ReviewView {
                         .type_px(s.secondary, s.line_body)
                         .text_color(p.ink(3).solid())
                         .when(target_missing, |d| d.line_through())
-                        .child(short),
+                        .child(dr_ui::text::wrapped(short)),
                 );
             }
             if target_missing {
@@ -1440,7 +1440,9 @@ impl ReviewView {
                         .font_role(Role::Ui)
                         .type_px(s.secondary, s.line_body)
                         .text_color(p.ink(1).solid())
-                        .child(text)
+                        // The writing rules for a line's start and end (「：」
+                        // and 「。」 never open a line), as everywhere else.
+                        .child(dr_ui::text::wrapped(text))
                         .when(!is_task, |d| {
                             d.on_click(move |e: &ClickEvent, window, cx| {
                                 if e.click_count() >= 2 {

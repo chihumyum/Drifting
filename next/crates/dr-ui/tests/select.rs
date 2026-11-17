@@ -18,7 +18,7 @@ impl Render for Host {
             Select::new(
                 "many",
                 (0..100)
-                    .map(|n| Choice::new(Icon::ChevronRight, format!("Choice {n}")))
+                    .map(|n| Choice::plain(format!("Choice {n}")))
                     .collect(),
                 0,
             )
@@ -76,9 +76,7 @@ impl Render for DialogHost {
                 .body(
                     Select::new(
                         "in-dlg",
-                        (0..8)
-                            .map(|n| Choice::new(Icon::ChevronRight, format!("Row {n}")))
-                            .collect(),
+                        (0..8).map(|n| Choice::plain(format!("Row {n}"))).collect(),
                         0,
                     )
                     .in_dialog()
@@ -113,4 +111,35 @@ fn in_dialog_select_floats_above_dialog_and_mist(cx: &mut TestAppContext) {
     draw(cx);
     assert_eq!(res.get(), Some(7));
     assert!(!closed.get(), "clicking a choice must not trigger on_mist");
+}
+
+/// A field's values and a template's levels are words, not things: their
+/// trigger draws the name and the one fold at its end, no mark before it
+/// (it used to draw a chevron there too, so the trigger read "v Alias v").
+struct MarkHost;
+impl Render for MarkHost {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        div()
+            .size_full()
+            .child(Select::new(
+                "words",
+                vec![Choice::plain("Alias"), Choice::plain("Long text")],
+                0,
+            ))
+            .child(Select::new(
+                "things",
+                vec![Choice::new(Icon::Layers, "Chapter")],
+                0,
+            ))
+    }
+}
+
+#[gpui::test]
+fn plain_choices_draw_no_mark_before_the_name(cx: &mut TestAppContext) {
+    let (_, cx) = cx.add_window_view(|_, _| MarkHost);
+    cx.simulate_resize(size(px(600.), px(400.)));
+    draw(cx);
+    assert!(cx.debug_bounds("words").is_some());
+    assert!(cx.debug_bounds("words-mark").is_none());
+    assert!(cx.debug_bounds("things-mark").is_some());
 }

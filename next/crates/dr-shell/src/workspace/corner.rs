@@ -67,7 +67,9 @@ pub fn corner(
 ) -> AnyElement {
     let theme = Theme::of(window, cx);
     let p = theme.palette;
-    if w.immersive {
+    // A filled panel covers the paper: the corner would stand on the
+    // filled panel's own foot (the left column's 进模板结构 and 新建模板).
+    if w.immersive || w.fill_covers_paper() {
         return div().into_any_element();
     }
     let key = target.map_or_else(|| "home".to_owned(), Target::key);
@@ -230,6 +232,7 @@ pub fn corner(
     };
 
     div()
+        .debug_selector(|| "paper-corner".into())
         .absolute()
         .right(px(CORNER_INSET))
         .bottom(px(CORNER_INSET))

@@ -1875,6 +1875,9 @@ fn card(
             .type_px(s.secondary, s.secondary * 1.6)
             .text_color(p.muted().solid())
             .line_clamp(2)
+            // The second row ends in 「…」 when the summary goes on, as the
+            // 0.1 client's two-line clamp did; it was cut mid-sentence.
+            .text_ellipsis()
             .child(dr_ui::text::wrapped(book.summary.clone()))
     });
     // On the sea the sea draws the card's resting line (M24): the card is

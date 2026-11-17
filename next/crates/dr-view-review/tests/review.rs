@@ -1191,3 +1191,47 @@ fn handoff_to_agent_tracks_pinwheel_states_and_reuses_conversation(cx: &mut Test
     assert_eq!(opened_agent.borrow()[0].conversation_id, conv_id);
     assert_eq!(opened_agent.borrow()[0].return_title, "一 · 正文");
 }
+
+/// A card's comment wraps by the writing rules: a 「。」 that does not fit
+/// hangs at the end of its line instead of opening a line of its own, so a
+/// comment and the same comment with a full stop take the same rows. The
+/// cards broke lines anywhere before (GPUI's own wrapping), and a lone 「。」
+/// opened a line.
+#[gpui::test]
+fn a_full_stop_never_opens_a_line_in_a_card(cx: &mut TestAppContext) {
+    let e = env();
+    let lengths: Vec<usize> = (4..=60).collect();
+    let pairs: Vec<(String, String)> = lengths
+        .iter()
+        .map(|&n| {
+            let words = "一".repeat(n);
+            (
+                comment(&e, None, "note", &words),
+                comment(&e, None, "note", &format!("{words}。")),
+            )
+        })
+        .collect();
+    let (view, _, cx) = open_tab(cx, &e, None);
+    cx.simulate_resize(gpui::size(gpui::px(320.0), gpui::px(14000.0)));
+    assert!(wait_for(cx, |cx| ids(&view, cx).concat().len() == pairs.len() * 2));
+    redraw(cx);
+    redraw(cx);
+    let height = |cx: &mut VisualTestContext, id: &str| {
+        cx.debug_bounds(Box::leak(
+            format!("review-test-comment-{id}").into_boxed_str(),
+        ))
+        .unwrap_or_else(|| panic!("card {id} drawn"))
+        .size
+        .height
+    };
+    let mut grew = Vec::new();
+    for ((plain, stopped), n) in pairs.iter().zip(&lengths) {
+        if height(cx, stopped) != height(cx, plain) {
+            grew.push(*n);
+        }
+    }
+    assert!(
+        grew.is_empty(),
+        "a full stop took a row of its own after {grew:?} characters"
+    );
+}
