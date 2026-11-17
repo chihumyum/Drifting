@@ -3,10 +3,14 @@
 //! tree walked with the arrows, a click or Enter previewing while the keys
 //! stay in the tree, Space opening the row's card and the arrows walking
 //! it, the Tab row taking ← →, the keyboard's row with a still ring.
-use std::time::{Duration, Instant};
+use std::{
+    rc::Rc,
+    time::{Duration, Instant},
+};
 
 use dr_shell::{
     Services, Settings, SettingsFile, ShellInfo, Workspace as Shell,
+    book::Book,
     nav::{Open, Target},
 };
 use dr_ui::components::CardKeys;
@@ -361,6 +365,10 @@ fn cmd_shift_l_goes_in_on_the_page_in_front_and_three_ways_back(cx: &mut TestApp
     cx.simulate_input("甲");
     pump(cx);
     let before = selection(&ws, cx, &ch1);
+    // The page scrolled away from the caret: coming back does not scroll it.
+    scroll_page(&ws, cx);
+    let scrolled = page_scroll(&ws, cx);
+    assert!(scrolled > 0.0, "the page scrolls");
 
     keys(cx, "cmd-shift-l");
     assert!(in_tree(&ws, cx, &ch1), "the tree, on the page in front");
@@ -369,12 +377,14 @@ fn cmd_shift_l_goes_in_on_the_page_in_front_and_three_ways_back(cx: &mut TestApp
     assert!(editor_has_keys(&ws, cx, &ch1), "⌘⇧L again: the page");
     assert_eq!(selection(&ws, cx, &ch1), before);
     assert!(!kb(&ws, cx).1);
+    assert_eq!(page_scroll(&ws, cx), scrolled, "the page did not scroll");
 
     keys(cx, "cmd-shift-l");
     assert!(in_tree(&ws, cx, &ch1));
     keys(cx, "escape");
     assert!(editor_has_keys(&ws, cx, &ch1), "Esc: the page");
     assert_eq!(selection(&ws, cx, &ch1), before);
+    assert_eq!(page_scroll(&ws, cx), scrolled, "the page did not scroll");
 
     // A selection, not only a caret, comes back as it was.
     keys(cx, "shift-left");
@@ -384,12 +394,14 @@ fn cmd_shift_l_goes_in_on_the_page_in_front_and_three_ways_back(cx: &mut TestApp
     assert!(in_tree(&ws, cx, &ch1));
     // A press on the paper's margin, beside the text.
     let left = ws.read_with(cx, |w, _| w.left.width);
+    let scrolled = page_scroll(&ws, cx);
     click(cx, point(px(left + 14.0), px(520.0)), 1);
     assert!(
         editor_has_keys(&ws, cx, &ch1),
         "a press on the paper: the page"
     );
     assert_eq!(selection(&ws, cx, &ch1), selected);
+    assert_eq!(page_scroll(&ws, cx), scrolled, "the page did not scroll");
     keys(cx, "right");
     cx.simulate_input("乙");
     wait_until(cx, "the words typed where the caret was", |_| {
@@ -622,6 +634,7 @@ fn walking_past_what_shows_scrolls_the_tree(cx: &mut TestAppContext) {
     let (ws, cx) = open(cx, &lib, &book);
     tab(&ws, cx, Some(&ids.manuscript));
     open_page(&ws, cx, &ids.ch[0]);
+    let page = page_scroll(&ws, cx);
     keys(cx, "cmd-shift-l");
     let t = tree(&ws, cx);
     let top = t.read_with(cx, |t, _| t.scroll_state().logical_scroll_top().item_ix);
@@ -635,6 +648,7 @@ fn walking_past_what_shows_scrolls_the_tree(cx: &mut TestAppContext) {
     assert!(painted(cx, format!("kb-row-{key}")), "the row is drawn");
     let top = t.read_with(cx, |t, _| t.scroll_state().logical_scroll_top().item_ix);
     assert!(top > 0, "the tree scrolled");
+    assert_eq!(page_scroll(&ws, cx), page, "the page did not");
     assert!(kb(&ws, cx).1);
 }
 
@@ -744,6 +758,26 @@ fn card_rows(ws: &Entity<Shell>, cx: &mut VisualTestContext, id: &str) -> Vec<St
             .map(|r| r.id.to_string())
             .collect()
     })
+}
+
+/// The keyboard in the tree onto `id`'s first row, with ↑↓.
+fn walk_to(ws: &Entity<Shell>, cx: &mut VisualTestContext, id: &str) {
+    let target = keys_of(ws, cx, id).remove(0);
+    for _ in 0..40 {
+        let t = tree(ws, cx);
+        let (at, to) = t.read_with(cx, |t, _| {
+            let stops = t.stops();
+            let pos = |k: &str| stops.iter().position(|s| s.key == k);
+            (t.keyboard_row().and_then(pos), pos(&target))
+        });
+        match (at, to) {
+            (Some(a), Some(b)) if a == b => return,
+            (Some(a), Some(b)) if a < b => keys(cx, "down"),
+            (Some(_), Some(_)) => keys(cx, "up"),
+            _ => panic!("the keyboard is not in the tree"),
+        }
+    }
+    panic!("{id} cannot be reached");
 }
 
 fn card_at(ws: &Entity<Shell>, cx: &mut VisualTestContext) -> Option<usize> {
@@ -1269,7 +1303,7 @@ fn cmd_z_in_the_column_is_the_books_and_typing_does_nothing(cx: &mut TestAppCont
         kb_key(&ws, cx),
         ws.read_with(cx, |w, _| w.book.v3().unwrap().revision.clone()),
     );
-    cx.simulate_input("字 abc");
+    cx.simulate_input("字abc");
     for _ in 0..4 {
         pump(cx);
     }
@@ -1334,4 +1368,411 @@ fn the_keyboards_row_has_the_ring_only_while_it_is_there(cx: &mut TestAppContext
         "the Tab row's"
     );
     assert!(!ring(cx, &ws, &ch[0]));
+}
+
+/// Where the page in front is scrolled (the outline rail reads it).
+fn page_scroll(ws: &Entity<Shell>, cx: &mut VisualTestContext) -> f64 {
+    cx.update(|window, cx| {
+        let w = ws.read(cx);
+        let target = w.nav.current().cloned().expect("a page in front");
+        dr_shell::workspace::outline::rows(w, ws.entity_id(), &target, window, cx)
+            .expect("the page's rail")
+            .scroll
+    })
+}
+
+/// Scrolls the page in front down a little, over its middle.
+fn scroll_page(ws: &Entity<Shell>, cx: &mut VisualTestContext) {
+    let left = ws.read_with(cx, |w, _| w.left.width);
+    cx.simulate_event(gpui::ScrollEvent {
+        position: point(px(left + 400.0), px(500.0)),
+        delta: gpui::ScrollDelta::Pixels(point(px(0.0), px(-240.0))),
+        ..Default::default()
+    });
+    pump(cx);
+    pump(cx);
+}
+
+/// A click on the row of the page already in front leaves no mark behind:
+/// back on the page, ⌘[ and ⌘] to it again hand its editor the keyboard
+/// (review, 1).
+#[gpui::test]
+fn a_click_on_the_page_in_front_leaves_no_stay_mark(cx: &mut TestAppContext) {
+    let (_dir, lib, book) = seed();
+    let ids = ids(&lib, &book);
+    let (ws, cx) = open(cx, &lib, &book);
+    tab(&ws, cx, Some(&ids.manuscript));
+    let ch = ids.ch.clone();
+    for id in &ch[..2] {
+        ws.update(cx, |w, cx| w.open(entry(id), Open::KEEP, cx));
+        let id = id.clone();
+        wait_until(cx, "the editor with the keyboard", |cx| {
+            editor_has_keys(&ws, cx, &id)
+        });
+    }
+    let key = keys_of(&ws, cx, &ch[1]).remove(0);
+    let at = row_at(cx, &key);
+    click(cx, at, 1);
+    for _ in 0..4 {
+        pump(cx);
+    }
+    assert!(in_tree(&ws, cx, &ch[1]));
+    keys(cx, "escape");
+    assert!(editor_has_keys(&ws, cx, &ch[1]));
+    keys(cx, "cmd-[");
+    wait_until(cx, "第1章's editor with the keyboard", |cx| {
+        editor_has_keys(&ws, cx, &ch[0])
+    });
+    keys(cx, "cmd-]");
+    wait_until(cx, "第2章's editor with the keyboard again", |cx| {
+        editor_has_keys(&ws, cx, &ch[1])
+    });
+    // And by the tab keys.
+    keys(cx, "ctrl-tab");
+    keys(cx, "cmd-alt-left");
+    wait_until(cx, "第1章 by the tab key", |cx| {
+        editor_has_keys(&ws, cx, &ch[0])
+    });
+    keys(cx, "cmd-alt-right");
+    wait_until(cx, "第2章 by the tab key", |cx| {
+        editor_has_keys(&ws, cx, &ch[1])
+    });
+}
+
+/// On the Tab row the selected Tab has a ring of its own, laid over its
+/// block: the row looks different with the keyboard on it (review, 2).
+#[gpui::test]
+fn the_tab_row_rings_the_selected_tab(cx: &mut TestAppContext) {
+    let (_dir, lib, book) = seed();
+    let ids = ids(&lib, &book);
+    let (ws, cx) = open(cx, &lib, &book);
+    tab(&ws, cx, Some(&ids.manuscript));
+    open_page(&ws, cx, &ids.ch[0]);
+    assert!(cx.debug_bounds("v3-level-tabs-keyboard-ring").is_none());
+    keys(cx, "cmd-shift-l up up up");
+    assert!(tabs_have_keys(&ws, cx));
+    let sb = sidebar(&ws, cx);
+    let (tabs, selected) = sb.read_with(cx, |s, cx| {
+        let state = s.state(cx);
+        (state["tabs"].clone(), state["selected"].clone())
+    });
+    let index = tabs
+        .as_array()
+        .unwrap()
+        .iter()
+        .position(|t| t["id"] == selected)
+        .unwrap();
+    assert_eq!(index, 1, "书稿 is selected");
+    // The keyboard is on the selected option, and the ring lies on it.
+    let option = cx
+        .debug_bounds("v3-level-tabs-keyboard")
+        .expect("the keyed Tab");
+    let ring = cx
+        .debug_bounds("v3-level-tabs-keyboard-ring")
+        .expect("the ring is drawn on the selected Tab");
+    assert_eq!(ring, option, "the ring covers the selected Tab");
+    let strip = cx.debug_bounds("v3-tab-strip").unwrap();
+    assert!(ring.origin.x > strip.origin.x, "not on 「全部」, the first");
+    keys(cx, "right");
+    let moved = cx.debug_bounds("v3-level-tabs-keyboard-ring").unwrap();
+    assert!(
+        moved.origin.x > ring.origin.x,
+        "it moves with the selected Tab"
+    );
+    keys(cx, "escape");
+    assert!(cx.debug_bounds("v3-level-tabs-keyboard-ring").is_none());
+}
+
+/// The keyboard's card floats beside its row, tops level, right of the left
+/// column; the pointer's still opens below its row (review, 3).
+#[gpui::test]
+fn the_keyboards_card_floats_beside_its_row(cx: &mut TestAppContext) {
+    let (_dir, lib, book) = seed();
+    let ids = ids(&lib, &book);
+    let (ws, cx) = open(cx, &lib, &book);
+    tab(&ws, cx, Some(&ids.manuscript));
+    let ch = ids.ch.clone();
+    open_page(&ws, cx, &ch[0]);
+    keys(cx, "cmd-shift-l down space");
+    let key = kb_key(&ws, cx).unwrap();
+    let row = list_row(&ws, cx, &key);
+    let rows = card_rows(&ws, cx, &ch[1]);
+    let first = card_row_selector(&ids.manuscript, row, &ch[1], &rows[0]);
+    let lit = cx
+        .debug_bounds(Box::leak(format!("{first}-keyboard").into_boxed_str()))
+        .expect("the card's first row");
+    let row_bounds = cx
+        .debug_bounds(Box::leak(format!("kb-row-{key}").into_boxed_str()))
+        .unwrap();
+    let column = ws.read_with(cx, |w, _| w.left.width);
+    assert!(
+        lit.origin.x >= row_bounds.right() && lit.origin.x >= px(column),
+        "right of the column: {lit:?} {row_bounds:?}"
+    );
+    assert!(
+        lit.origin.y >= row_bounds.origin.y && lit.origin.y < row_bounds.origin.y + px(80.0),
+        "its top level with the row's: {lit:?} {row_bounds:?}"
+    );
+}
+
+/// The column closing with the keyboard in it (its crescent, the toggle
+/// action, filling it) gives the page back the keyboard (review, 4).
+#[gpui::test]
+fn closing_the_column_gives_the_page_the_keyboard(cx: &mut TestAppContext) {
+    let (_dir, lib, book) = seed();
+    let ids = ids(&lib, &book);
+    let (ws, cx) = open(cx, &lib, &book);
+    tab(&ws, cx, Some(&ids.manuscript));
+    let ch1 = ids.ch[0].clone();
+    open_page(&ws, cx, &ch1);
+    cx.simulate_input("甲");
+    pump(cx);
+    // The crescent.
+    keys(cx, "cmd-shift-l");
+    assert!(in_tree(&ws, cx, &ch1));
+    ws.update_in(cx, |w, window, cx| {
+        w.click_crescent(dr_shell::workspace::Side::Left, window, cx)
+    });
+    wait(&ws, cx, "the column closed", |w, _| !w.left.open);
+    assert!(editor_has_keys(&ws, cx, &ch1), "the crescent: the page");
+    // The toggle action.
+    keys(cx, "cmd-shift-l");
+    wait_until(cx, "the tree", |cx| in_tree(&ws, cx, &ch1));
+    cx.dispatch_action(dr_shell::actions::ToggleLeftSidebar);
+    pump(cx);
+    wait(&ws, cx, "the column closed", |w, _| !w.left.open);
+    assert!(editor_has_keys(&ws, cx, &ch1), "the toggle: the page");
+    // Filling it.
+    keys(cx, "cmd-shift-l");
+    wait_until(cx, "the tree", |cx| in_tree(&ws, cx, &ch1));
+    ws.update_in(cx, |w, window, cx| {
+        w.click_full_moon(dr_shell::workspace::Side::Left, window, cx)
+    });
+    wait(&ws, cx, "the column filled", |w, _| {
+        w.is_filled(dr_shell::workspace::FillPlace::Left)
+    });
+    assert!(!kb(&ws, cx).1, "out of the column");
+    ws.update_in(cx, |w, window, cx| {
+        w.click_full_moon(dr_shell::workspace::Side::Left, window, cx)
+    });
+    wait_until(cx, "the page once the fill goes", |cx| {
+        editor_has_keys(&ws, cx, &ch1)
+    });
+    cx.simulate_input("乙");
+    wait_until(cx, "typing reaching the page", |_| {
+        stored(&lib, &ch1).starts_with("甲乙")
+    });
+}
+
+/// 「层级」 off on a level with entries under it asks first; answered
+/// either way, the card is back with the keyboard on 「层级」 (review, 5).
+#[gpui::test]
+fn the_card_is_back_after_the_level_switch_asks(cx: &mut TestAppContext) {
+    let (_dir, lib, book) = seed();
+    let ids = ids(&lib, &book);
+    let (ws, cx) = open(cx, &lib, &book);
+    tab(&ws, cx, Some(&ids.manuscript));
+    open_page(&ws, cx, &ids.ch[0]);
+    keys(cx, "cmd-shift-l up");
+    assert!(in_tree(&ws, cx, &ids.act1));
+    keys(cx, "space");
+    let keys_in = card_keys(&ws, cx);
+    let level = |ws: &Entity<Shell>, cx: &mut VisualTestContext| {
+        card_rows(ws, cx, &ids.act1)
+            .iter()
+            .position(|r| r == "entry-toggle-level")
+            .unwrap()
+    };
+    let to = level(&ws, cx);
+    card_to(&ws, cx, to);
+    let card_focused = |cx: &mut VisualTestContext, keys: &Entity<CardKeys>| {
+        let focus = keys.read_with(cx, |k, _| k.focus_handle().clone());
+        cx.update(|window, _| focus.is_focused(window))
+    };
+    // Asked, then cancelled.
+    keys(cx, "enter");
+    wait(&ws, cx, "the question", |w, _| w.dialog.is_some());
+    keys(cx, "escape");
+    wait(&ws, cx, "the question gone", |w, _| w.dialog.is_none());
+    wait_until(cx, "the card back", |cx| {
+        keys_in.read_with(cx, |k, _| k.is_open()) && card_focused(cx, &keys_in)
+    });
+    let to = level(&ws, cx);
+    assert_eq!(card_at(&ws, cx), Some(to), "on 「层级」");
+    assert!(ws.read_with(cx, |w, _| {
+        w.book.v3().unwrap().entry(&ids.act1).unwrap().level
+    }));
+    // Asked, then confirmed.
+    keys(cx, "enter");
+    wait(&ws, cx, "the question again", |w, _| w.dialog.is_some());
+    let dialog = ws.read_with(cx, |w, _| {
+        w.dialog
+            .clone()
+            .unwrap()
+            .downcast::<dr_shell::v3::level_switch::TurnOffLevelDialog>()
+            .ok()
+            .expect("the level switch's question")
+    });
+    dialog.update_in(cx, |d, window, cx| d.confirm(window, cx));
+    wait(&ws, cx, "the level off", |w, _| {
+        w.dialog.is_none() && !w.book.v3().unwrap().entry(&ids.act1).unwrap().level
+    });
+    wait_until(cx, "the card back", |cx| {
+        keys_in.read_with(cx, |k, _| k.is_open()) && card_focused(cx, &keys_in)
+    });
+    let to = level(&ws, cx);
+    assert_eq!(card_at(&ws, cx), Some(to), "on 「层级」");
+}
+
+/// Enter runs the row the keyboard is on by its id: rows that came in
+/// since the card was drawn do not move it onto another row, and a row that
+/// went runs nothing (review, 6). The shell has the new book before the
+/// card is drawn again, and Enter comes then.
+#[gpui::test]
+fn enter_in_the_card_runs_the_row_by_its_id(cx: &mut TestAppContext) {
+    let (_dir, lib, book) = seed();
+    let ids = ids(&lib, &book);
+    let (ws, cx) = open(cx, &lib, &book);
+    tab(&ws, cx, Some(&ids.manuscript));
+    let ch = ids.ch.clone();
+    open_page(&ws, cx, &ch[0]);
+    let enter_on = |cx: &mut VisualTestContext, fresh: Rc<Book>| {
+        cx.update(|window, cx| {
+            ws.update(cx, |w, _| w.book = fresh);
+            window.dispatch_action(Box::new(dr_ui::components::hover_card::Confirm), cx)
+        });
+    };
+    keys(cx, "cmd-shift-l down space");
+    let rows = card_rows(&ws, cx, &ch[1]);
+    let level = rows.iter().position(|r| r == "entry-toggle-level").unwrap();
+    card_to(&ws, cx, level);
+    // Another device makes 第2章 a level: 「整书视图」 comes in above
+    // 「层级」.
+    call(
+        &lib,
+        "entry.set_level",
+        json!({"book": book, "id": ch[1], "level": true}),
+    );
+    let fresh = Rc::new(Book::load(&lib, &book).unwrap());
+    let now = cx.update(|_, cx| {
+        let mut host = dr_shell::pages::PageMenuHost::of(&ws, cx);
+        host.book = fresh.clone();
+        dr_shell::v3::card::rows(&entry(&ch[1]), &host, &Default::default(), cx)
+            .iter()
+            .map(|r| r.id.to_string())
+            .collect::<Vec<_>>()
+    });
+    assert_ne!(now[level], "entry-toggle-level", "the rows moved under it");
+    enter_on(cx, fresh);
+    let ch2 = ch[1].clone();
+    wait(
+        &ws,
+        cx,
+        "「层级」 run: 第2章 no level again",
+        move |w, _| !w.book.v3().unwrap().entry(&ch2).unwrap().level,
+    );
+    assert!(
+        ws.read_with(cx, |w, _| w.dialog.is_none() && w.history.is_none()),
+        "not the row now in its place (快照历史)"
+    );
+    // On 「整书视图」 of a level that stops being one before Enter: nothing.
+    keys(cx, "escape escape");
+    assert!(editor_has_keys(&ws, cx, &ch[0]));
+    keys(cx, "cmd-shift-l");
+    walk_to(&ws, cx, &ids.act2);
+    keys(cx, "space");
+    assert!(card_keys(&ws, cx).read_with(cx, |k, _| k.is_open()));
+    let rows = card_rows(&ws, cx, &ids.act2);
+    let book_row = rows.iter().position(|r| r == "entry-open-book").unwrap();
+    card_to(&ws, cx, book_row);
+    call(
+        &lib,
+        "entry.set_level",
+        json!({"book": book, "id": ids.act2, "level": false}),
+    );
+    let fresh = Rc::new(Book::load(&lib, &book).unwrap());
+    let page = ws.read_with(cx, |w, _| w.nav.current().cloned());
+    assert!(page.as_ref().is_some_and(|p| p.same_page(&entry(&ch[0]))));
+    enter_on(cx, fresh);
+    for _ in 0..4 {
+        pump(cx);
+    }
+    assert_eq!(
+        ws.read_with(cx, |w, _| w.nav.current().cloned()),
+        page,
+        "a row that went runs nothing"
+    );
+    assert!(ws.read_with(cx, |w, _| w.dialog.is_none() && w.composer.is_none()));
+}
+
+/// Where the keyboard goes from the card's other rows: 「写批注」 into the
+/// comment box, 「编辑模板」 into the template's page, 「快照历史」 into the
+/// history, and back to the row when the history closes.
+#[gpui::test]
+fn the_keyboard_follows_the_cards_rows(cx: &mut TestAppContext) {
+    let (_dir, lib, book) = seed();
+    let ids = ids(&lib, &book);
+    let (ws, cx) = open(cx, &lib, &book);
+    tab(&ws, cx, Some(&ids.manuscript));
+    let ch = ids.ch.clone();
+    open_page(&ws, cx, &ch[0]);
+    let run = |ws: &Entity<Shell>, cx: &mut VisualTestContext, row: &str| {
+        keys(cx, "cmd-shift-l");
+        walk_to(ws, cx, &ch[1]);
+        keys(cx, "space");
+        let rows = card_rows(ws, cx, &ch[1]);
+        card_to(ws, cx, rows.iter().position(|r| r == row).unwrap());
+        keys(cx, "enter");
+    };
+    run(&ws, cx, "entry-write-comment");
+    wait(&ws, cx, "the comment box", |w, _| w.composer.is_some());
+    let in_text = cx.update(|window, _| {
+        window
+            .context_stack()
+            .iter()
+            .any(|c| c.contains(dr_ui::input::area::KEY_CONTEXT))
+    });
+    assert!(in_text, "「写批注」: the comment box has the keyboard");
+    assert!(!kb(&ws, cx).1);
+    keys(cx, "escape");
+    wait(&ws, cx, "the comment box gone", |w, _| w.composer.is_none());
+    run(&ws, cx, "entry-edit-template");
+    wait(&ws, cx, "the template's page", |w, _| {
+        matches!(w.nav.current(), Some(Target::Template(_)))
+    });
+    wait_until(cx, "the template's page with the keyboard", |cx| {
+        cx.update(|window, cx| {
+            let w = ws.read(cx);
+            let key = w.nav.current().unwrap().key();
+            w.editors
+                .get(&key)
+                .and_then(|p| p.v3.as_ref())
+                .is_some_and(|page| page.read(cx).focus.contains_focused(window, cx))
+        })
+    });
+    assert!(!kb(&ws, cx).1);
+    open_page(&ws, cx, &ch[0]);
+    run(&ws, cx, "entry-snapshot-history");
+    wait(&ws, cx, "the history", |w, _| w.dialog.is_some());
+    wait_until(cx, "the history with the keyboard", |cx| {
+        cx.update(|window, cx| {
+            let w = ws.read(cx);
+            !w.focus_handle().is_focused(window)
+                && window.focused(cx).is_some()
+                && !w
+                    .v3_sidebar
+                    .as_ref()
+                    .is_some_and(|s| s.read(cx).has_keyboard(window, cx))
+                && !w.editor_of(&body(&ch[0])).is_some_and(|e| {
+                    use gpui::Focusable as _;
+                    e.read(cx).editor().focus_handle(cx).is_focused(window)
+                })
+        })
+    });
+    // Closed, the history gives the keyboard back to the row it came from.
+    keys(cx, "escape");
+    wait(&ws, cx, "the history closed", |w, _| w.dialog.is_none());
+    wait_until(cx, "the keyboard back on the row", |cx| {
+        in_tree(&ws, cx, &ch[1])
+    });
 }

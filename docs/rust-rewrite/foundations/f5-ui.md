@@ -9,8 +9,8 @@ M15 旧模块收尾增加 `TextArea::wrap_punctuation()`：窄格会裁切行尾
 **大白话。** 左栏的树能用键盘走了（任务书 KB，kernel-v5 第 15 节第 48 条），dr-ui 只加了几个口，原来用这些组件的地方一样都没变：
 
 - **`SandCell::keyboard(bool)`**：键盘停在这一行时，那圈细玻璃环一直亮着、不流动（设计系统里「常驻选中」那一种：强度 1、内晕 1 倍、静止），指针停上去也不流；开着那一页的砂笔框照旧，两样能叠在同一行上。环用的就是这一行原来那块悬停玻璃，只是把它放进「选中」状态，所以减少动态效果时也一样。画出来的这一行带调试选择器 `{id}-keyboard`，测试照它读。
-- **`Segmented::keyboard(Option<usize>)`**：键盘停在第几个选项上。选中的那一个底下的方块本来就是这圈静止的环，所以停在选中项上不另画；停在别的选项上时画一圈静止的环。带 `{id}-keyboard` 的调试选择器。左栏的 Tab 行用它。
-- **`HoverCard::keys(Entity<CardKeys>)`**：键盘打开的卡（左栏一行按空格）。`CardKeys` 记着卡开没开、键盘在第几行、哪几行能停（什么都不做的行不能停）和卡自己的 `FocusHandle`；画卡的一方每次用 `set_rows`（每行一个 id、能不能停）告诉它，行有增减（「层级」打开以后多出「整书视图」）时键盘按 id 留在原来那一行；`CardKeys::open` 开卡并把键盘交给卡，第一行亮着。卡开着时不管指针、一直开着，卡带键上下文 `DrHoverCardKeys`：↑↓（`hover_card::SelectPrevious` / `SelectNext`）一行一行走、跨过细线、到头停住；←→（`Stay`）不做事；回车（`Confirm`）和 Esc、空格（`Close`）往上交给开卡的那一方去执行这一行或关卡。键盘去了别处（点了别的地方、开了对话框），卡自己关上。按键表 `hover_card::key_bindings()` 由外壳绑。
+- **`Segmented::keyboard(Option<usize>)`**：键盘停在第几个选项上，那个选项上画一圈静止的细环（细环用 `cell::RING_RIM`），选中的那一个也画，叠在方块的玻璃边上（原型的 `.tabs .tb.kb`），所以进 Tab 行前后看得出来。选项带 `{id}-keyboard`、环带 `{id}-keyboard-ring` 的调试选择器。不传这个参数时 `Segmented` 和原来一样。左栏的 Tab 行用它。
+- **`HoverCard::keys(Entity<CardKeys>)`**：键盘打开的卡（左栏一行按空格）。`CardKeys` 记着卡开没开、键盘在第几行、哪几行能停（什么都不做的行不能停）和卡自己的 `FocusHandle`；画卡的一方每次用 `set_rows`（每行一个 id、能不能停）告诉它，行有增减（「层级」打开以后多出「整书视图」）时键盘按 id 留在原来那一行；`at_id` 给出键盘那一行的 id（开卡的一方按 id 执行，不按下标）；`open_on(id)` 开卡时键盘就停在那一行（开关问完一句以后卡回来用）；`CardKeys::open` 开卡并把键盘交给卡，第一行亮着。卡开着时不管指针、一直开着，卡带键上下文 `DrHoverCardKeys`：↑↓（`hover_card::SelectPrevious` / `SelectNext`）一行一行走、跨过细线、到头停住；←→（`Stay`）不做事；回车（`Confirm`）和 Esc、空格（`Close`）往上交给开卡的那一方去执行这一行或关卡。键盘去了别处（点了别的地方、开了对话框），卡自己关上。按键表 `hover_card::key_bindings()` 由外壳绑。
 - **`CardAction::keys(&Entity<CardKeys>, 第几行)`**：这样的卡里的一行只在键盘停在它上面时亮（和指针指着一样的流动环），指针移上来就把键盘挪过来，所以卡里同一时间只有一行亮着；「层级」那种勾着的行，键盘不在它上面时照旧是静止的环。调试选择器平时是 `{id}`，亮着是 `{id}-keyboard`。
 
 ## 轨道 2：输入取消与迟到消息（2026-11-09）
