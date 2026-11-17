@@ -377,6 +377,18 @@ impl Named {
                     .map(str::to_owned),
             );
         }
+        if call.name == "relation_row.create_group" {
+            named
+                .entries
+                .extend(["left", "right"].into_iter().flat_map(|key| {
+                    args[key]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .filter_map(Value::as_str)
+                        .map(str::to_owned)
+                }));
+        }
         if matches!(
             call.name.as_str(),
             "relation_row.add_entry" | "relation_row.remove_entry" | "relation_row.delete"

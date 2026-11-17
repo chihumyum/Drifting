@@ -14,6 +14,8 @@ use dr_model::v3::{LinkedText, PairPlacement, RelationDirection, RelationRow, Re
 
 mod restore;
 pub use restore::{RelationRestore, RestoreIn, RowStep, StoredPair, StoredRelation, TypeStep};
+mod create_group;
+pub use create_group::{CreateGroup, GroupIn};
 
 pub(crate) fn register(r: &mut Registry) {
     r.add::<List>()
@@ -24,6 +26,7 @@ pub(crate) fn register(r: &mut Registry) {
         .add::<SetDirection>()
         .add::<Delete>()
         .add::<CreatePair>()
+        .add::<CreateGroup>()
         .add::<AddEntry>()
         .add::<RemoveEntry>()
         .add::<DeleteRow>();

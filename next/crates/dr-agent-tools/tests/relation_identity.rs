@@ -119,6 +119,54 @@ fn assert_id_rejected(result: dr_agent_tools::Result<Value>) {
 }
 
 #[test]
+fn creating_a_group_requires_read_coverage_of_every_member() {
+    let f = Fixture::new();
+    let tools = AgentTools::new();
+    let actor = Actor::agent("rl-group-coverage", 1, "relations");
+    f.invoke(&tools, &actor, "relation_type.list", json!({}))
+        .unwrap();
+    for entry in [&f.chapters[0], &f.chapters[1], &f.elements[0]] {
+        f.invoke(&tools, &actor, "entry.get", json!({"id":entry["id"]}))
+            .unwrap();
+    }
+    let args = json!({"relation_type":f.types[0],"expected_direction":"directed",
+        "left":[f.chapters[0]["title"],f.chapters[1]["id"]],
+        "right":[f.elements[0]["id"],f.elements[1]["id"]]});
+    let before = f.book_bytes();
+    assert!(
+        f.invoke(&tools, &actor, "relation_row.create_group", args.clone())
+            .is_err()
+    );
+    assert_eq!(
+        f.book_bytes(),
+        before,
+        "an unread member cannot be hidden in an array"
+    );
+
+    f.invoke(
+        &tools,
+        &actor,
+        "entry.get",
+        json!({"id":f.elements[1]["id"]}),
+    )
+    .unwrap();
+    let made = f
+        .invoke(&tools, &actor, "relation_row.create_group", args)
+        .unwrap();
+    let row = f
+        .stored_relations()
+        .into_iter()
+        .find(|row| row.id.as_str() == made["output"]["id"].as_str().unwrap())
+        .unwrap();
+    assert_eq!(row.pairs().count(), 4);
+    assert!(
+        row.left
+            .iter()
+            .any(|id| id.as_str() == f.chapters[0]["id"].as_str().unwrap())
+    );
+}
+
+#[test]
 fn a_visible_relation_list_cannot_authorize_overwriting_a_hidden_relation_id() {
     let f = Fixture::new();
     let made = author(&f.ws, "relation_row.create_pair", f.relation(0));

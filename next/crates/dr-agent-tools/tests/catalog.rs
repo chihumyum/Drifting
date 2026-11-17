@@ -429,6 +429,7 @@ fn v3_catalog_exposes_generic_commands_and_excludes_v2_2_fixed_domains() {
         "relation_type.set_direction",
         "relation_type.delete",
         "relation_row.create_pair",
+        "relation_row.create_group",
         "relation_row.add_entry",
         "relation_row.remove_entry",
         "relation_row.delete",
