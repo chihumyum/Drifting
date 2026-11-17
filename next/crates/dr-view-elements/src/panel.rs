@@ -1819,6 +1819,7 @@ pub mod v3 {
                 depth.min(20) as f32 * 14.0
             };
             let palette = Theme::of(window, cx).palette;
+            let body_px = Theme::of(window, cx).scale.body;
             let wash = palette.accent.alpha(0.08);
             let line = palette.accent.alpha(0.55);
             let dot_color = palette.ink(4).solid();
@@ -1894,7 +1895,7 @@ pub mod v3 {
                 .pl(px(pad_left))
                 .min_w_0()
                 .when(tile, |el| {
-                    el.min_w(px(super::tile_basis(&entry.title)))
+                    el.min_w(px(super::tile_basis(&entry.title, body_px)))
                         .max_w(px(172.0))
                         .flex_1()
                 })
@@ -2401,7 +2402,12 @@ pub mod v3 {
     }
 }
 
-pub fn tile_basis(name: &str) -> f32 {
+/// A grid tile's least width for `name` at the interface's body size: its
+/// 8px insets, the 10px mark and its 6px gap, and the name in `body_px`
+/// characters (a CJK character is a full em, Latin about 0.62). It counted
+/// 12.5px a character, short of the 16px of the standard size, so a
+/// four-character name (「周记面馆」) was cut to 「周记…」 with room beside it.
+pub fn tile_basis(name: &str, body_px: f32) -> f32 {
     let units: f32 = name
         .chars()
         .map(|c| {
@@ -2414,5 +2420,39 @@ pub fn tile_basis(name: &str) -> f32 {
             }
         })
         .sum();
-    (44.0 + units * 12.5).clamp(80.0, 172.0)
+    (TILE_CHROME + units * body_px).clamp(80.0, 172.0)
+}
+
+/// A tile's width besides its name: the 8px insets either side, the 10px
+/// mark and its 6px gap, and 4px for a glyph's side bearings.
+const TILE_CHROME: f32 = 8.0 * 2.0 + 10.0 + 6.0 + 4.0;
+
+#[cfg(test)]
+mod tile_tests {
+    use super::*;
+
+    #[test]
+    fn a_short_name_fits_its_tile_at_every_interface_size() {
+        for step in [
+            dr_ui::tokens::TextSize::Smallest,
+            dr_ui::tokens::TextSize::Standard,
+            dr_ui::tokens::TextSize::Largest,
+        ] {
+            let body = dr_ui::tokens::TypeScale::at(step).body;
+            for name in ["周记面馆", "镇广播站", "Lin Wan"] {
+                let units: f32 = name
+                    .chars()
+                    .map(|c| match c {
+                        ' ' => 0.35,
+                        c if c.is_ascii() => 0.62,
+                        _ => 1.0,
+                    })
+                    .sum();
+                assert!(
+                    tile_basis(name, body) >= 8.0 * 2.0 + 10.0 + 6.0 + units * body,
+                    "{name} at {body}px"
+                );
+            }
+        }
+    }
 }
