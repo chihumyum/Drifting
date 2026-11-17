@@ -520,5 +520,11 @@
     "templateCount": "{{count}} Vorlagen",
     "templateStructure": "Vorlagenstruktur",
     "unusedTemplates": "Unbenutzte Vorlagen"
+  },
+  "relationGraph": {
+    "create": "Erstellen",
+    "name": "Name der Beziehung",
+    "relations": "Beziehungen",
+    "title": "Beziehung erstellen"
   }
 }

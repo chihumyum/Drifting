@@ -504,5 +504,11 @@
     "templateCount": "{{count}} 個範本",
     "templateStructure": "範本結構",
     "unusedTemplates": "未使用的範本"
+  },
+  "relationGraph": {
+    "create": "建立",
+    "name": "關係的名字",
+    "relations": "關係",
+    "title": "建立關係"
   }
 }

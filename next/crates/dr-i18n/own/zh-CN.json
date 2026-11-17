@@ -502,5 +502,11 @@
     "templateCount": "{{count}} 个模板",
     "templateStructure": "模板结构",
     "unusedTemplates": "未使用的模板"
+  },
+  "relationGraph": {
+    "create": "建立",
+    "name": "关系的名字",
+    "relations": "关系",
+    "title": "建关系"
   }
 }

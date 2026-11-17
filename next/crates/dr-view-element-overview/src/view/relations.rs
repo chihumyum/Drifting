@@ -63,6 +63,16 @@ pub(super) fn graph_relations(types: &[RelationInfo]) -> Vec<GraphRelation> {
     result
 }
 
+/// An explicit relation incident on a peeked entry. Same-side row members
+/// never appear here; `graph_relations` has already expanded only cross pairs.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PeekRelation {
+    pub relation: String,
+    pub name: String,
+    pub other: String,
+    pub direction: super::PairDirection,
+}
+
 #[derive(Clone, Debug)]
 pub struct RelateEdgeView {
     pub id: String,
@@ -78,6 +88,36 @@ pub struct RelateEdgeView {
 }
 
 impl ElementOverview {
+    pub fn peek_relations(&self, entry: &str) -> Vec<PeekRelation> {
+        self.relations
+            .iter()
+            .filter_map(|edge| {
+                let (other, direction) = if edge.from == entry {
+                    (&edge.to, super::PairDirection::Forward)
+                } else if edge.to == entry {
+                    (&edge.from, super::PairDirection::Reverse)
+                } else {
+                    return None;
+                };
+                self.book.v3()?.entry(other)?;
+                let relation = self
+                    .relation_types
+                    .iter()
+                    .find(|r| r.id == edge.relation_type)?;
+                Some(PeekRelation {
+                    relation: relation.id.clone(),
+                    name: relation.name.clone(),
+                    other: other.clone(),
+                    direction: if edge.directed {
+                        direction
+                    } else {
+                        super::PairDirection::Both
+                    },
+                })
+            })
+            .collect()
+    }
+
     pub(crate) fn relate_roles_for(&self, type_id: &str) -> Vec<String> {
         self.relation_types
             .iter()

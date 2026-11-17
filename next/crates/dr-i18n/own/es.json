@@ -522,5 +522,11 @@
     "templateCount": "{{count}} plantillas",
     "templateStructure": "Estructura de plantillas",
     "unusedTemplates": "Plantillas sin usar"
+  },
+  "relationGraph": {
+    "create": "Crear",
+    "name": "Nombre de la relación",
+    "relations": "Relaciones",
+    "title": "Crear relación"
   }
 }

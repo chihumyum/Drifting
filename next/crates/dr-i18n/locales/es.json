@@ -837,6 +837,12 @@
       "storyline": "Trama"
     }
   },
+  "relationGraph": {
+    "create": "Crear",
+    "name": "Nombre de la relación",
+    "relations": "Relaciones",
+    "title": "Crear relación"
+  },
   "relationTypes": {
     "description": "Descripción"
   },

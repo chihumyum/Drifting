@@ -724,3 +724,223 @@ fn heavy_seed_reference_timings(cx: &mut TestAppContext) {
         "[m22-heavy-reference] elements={el_count} cooccurrence_pairs={pair_count} first_frame_ms={first_frame_ms:.2} open_first_frame_ms={open_ms:.2} draw_p50_ms={p50_draw_ms:.2} draw_p95_ms={p95_draw_ms:.2} pin_reheat_settle_ms={pin_settle_ms:.2}"
     );
 }
+
+#[gpui::test]
+fn shift_pair_reuses_the_named_row_and_duplicate_adds_no_undo_step(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    let (_dir, lib, books) = setup_seed_fixture(dr_testkit::seed::Preset::Tiny);
+    let book = books[0].clone();
+    let entries = dr_testkit::seed::acceptance::entries_by_template(&lib, &book, "tpl-character");
+    let [a, b, c] = [0, 1, 2].map(|i| entries[i]["id"].as_str().unwrap().to_owned());
+    let original = lib.call(&Actor::User, "relation_row.create_pair", json!({
+        "book":book,"left":a,"right":b,"new_type":{"name":"Graph Mentor","direction":"directed"}
+    })).unwrap()["output"].clone();
+    init_test_shell(lib.clone(), book.clone(), cx);
+    let (shell, vcx) = cx.add_window_view(Workspace::new);
+    wait(vcx, |cx| {
+        shell.read_with(cx, |ws, _| ws.book.v3().is_some() && ws.book_memory_ready())
+    });
+    let ov = mount_overview(&shell, vcx);
+    for _ in 0..2 {
+        for id in [&a, &c] {
+            let selector: &'static str = Box::leak(format!("se-relate-card-{id}").into_boxed_str());
+            wait(vcx, |cx| cx.debug_bounds(selector).is_some());
+            let at = vcx.debug_bounds(selector).unwrap().center();
+            let modifiers = gpui::Modifiers {
+                shift: true,
+                ..Default::default()
+            };
+            vcx.simulate_mouse_move(at, None, modifiers);
+            vcx.simulate_click(at, modifiers);
+        }
+        let row = vcx.update(|window, cx| {
+            ov.update(cx, |v, cx| {
+                assert_eq!(v.relation_draft().unwrap().target, c);
+                v.set_relation_name("  graph   mentor  ", cx);
+                v.cycle_relation_direction(cx);
+                v.cycle_relation_direction(cx);
+                assert_eq!(
+                    v.relation_draft().unwrap().direction,
+                    dr_view_element_overview::view::PairDirection::Forward
+                );
+                v.confirm_relation(window, cx).expect("pair committed")
+            })
+        });
+        assert_eq!(row, original["id"].as_str().unwrap());
+    }
+    let read = || {
+        lib.call(&Actor::User, "relation_type.list", json!({"book":book}))
+            .unwrap()["output"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|r| r["id"] == original["relation_type"])
+            .unwrap()
+            .clone()
+    };
+    assert_eq!(read()["rows"][0]["right"].as_array().unwrap().len(), 2);
+    lib.undo(&Actor::User)
+        .unwrap()
+        .expect("one added pair to undo");
+    assert_eq!(read()["rows"][0]["right"], json!([b]));
+}
+
+#[gpui::test]
+fn shift_pair_new_name_direction_enter_escape_and_failed_write_keep_the_draft(
+    cx: &mut TestAppContext,
+) {
+    use dr_view_element_overview::view::PairDirection;
+    cx.executor().allow_parking();
+    let (_dir, lib, books) = setup_seed_fixture(dr_testkit::seed::Preset::Tiny);
+    let book = books[0].clone();
+    let entries = dr_testkit::seed::acceptance::entries_by_template(&lib, &book, "tpl-character");
+    let [a, b] = [0, 1].map(|i| entries[i]["id"].as_str().unwrap().to_owned());
+    init_test_shell(lib.clone(), book.clone(), cx);
+    let (shell, vcx) = cx.add_window_view(Workspace::new);
+    wait(vcx, |cx| {
+        shell.read_with(cx, |ws, _| ws.book.v3().is_some() && ws.book_memory_ready())
+    });
+    let ov = mount_overview(&shell, vcx);
+    let begin = |vcx: &mut VisualTestContext| {
+        vcx.update(|window, cx| {
+            ov.update(cx, |v, cx| {
+                v.click_entity("entry", &a, true, window, cx);
+                v.click_entity("entry", &a, true, window, cx);
+                assert!(v.relation_draft().is_none(), "self-pair never opens");
+                v.click_entity("entry", &b, true, window, cx);
+            })
+        })
+    };
+    begin(vcx);
+    vcx.simulate_keystrokes("escape");
+    assert!(ov.read_with(vcx, |v, _| v.relation_draft().is_none()));
+    assert!(
+        shell.read_with(vcx, |ws, _| ws.is_filled(FillPlace::Left)),
+        "Esc closes the draft before exiting fill"
+    );
+    begin(vcx);
+    vcx.update(|window, cx| {
+        ov.update(cx, |v, cx| {
+            assert!(
+                v.confirm_relation(window, cx).is_none(),
+                "a name is required"
+            );
+            v.set_relation_name("Graph Reversed", cx);
+            v.cycle_relation_direction(cx);
+            assert_eq!(
+                v.relation_draft().unwrap().direction,
+                PairDirection::Reverse
+            );
+        })
+    });
+    vcx.simulate_keystrokes("enter");
+    wait(vcx, |cx| {
+        ov.read_with(cx, |v, _| v.relation_draft().is_none())
+    });
+    let list = || {
+        lib.call(&Actor::User, "relation_type.list", json!({"book":book}))
+            .unwrap()["output"]
+            .as_array()
+            .unwrap()
+            .clone()
+    };
+    let rows = list();
+    let made = rows.iter().find(|r| r["name"] == "Graph Reversed").unwrap();
+    assert_eq!(made["direction"], "directed");
+    assert_eq!(made["rows"][0]["left"], json!([b]));
+    assert_eq!(made["rows"][0]["right"], json!([a]));
+    lib.undo(&Actor::User)
+        .unwrap()
+        .expect("one edit creates both name and pair");
+    assert!(!list().iter().any(|r| r["name"] == "Graph Reversed"));
+    begin(vcx);
+    vcx.update(|window, cx| {
+        ov.update(cx, |v, cx| {
+            v.set_relation_name("Graph Symmetric", cx);
+            v.cycle_relation_direction(cx);
+            v.cycle_relation_direction(cx);
+            assert_eq!(v.relation_draft().unwrap().direction, PairDirection::Both);
+            v.confirm_relation(window, cx)
+                .expect("new symmetric relation");
+        })
+    });
+    assert_eq!(
+        list()
+            .iter()
+            .find(|r| r["name"] == "Graph Symmetric")
+            .unwrap()["direction"],
+        "symmetric"
+    );
+    lib.undo(&Actor::User)
+        .unwrap()
+        .expect("undo symmetric relation in one step");
+    assert!(!list().iter().any(|r| r["name"] == "Graph Symmetric"));
+    begin(vcx);
+    vcx.update(|_, cx| ov.update(cx, |v, cx| v.set_relation_name("Graph Failed", cx)));
+    lib.call(&Actor::User, "entry.trash", json!({"book":book,"id":b}))
+        .unwrap();
+    // Deliberately keep the UI snapshot: the command must reject a now-deleted endpoint.
+    vcx.update(|window, cx| {
+        ov.update(cx, |v, cx| {
+            assert!(v.confirm_relation(window, cx).is_none());
+            assert!(v.relation_error());
+            assert_eq!(v.relation_draft().unwrap().name, "Graph Failed");
+            assert_eq!(v.relation_draft().unwrap().target, b);
+        })
+    });
+}
+
+#[gpui::test]
+fn symmetric_reuse_locks_direction_and_peek_excludes_same_side_members(cx: &mut TestAppContext) {
+    use dr_view_element_overview::view::PairDirection;
+    cx.executor().allow_parking();
+    let (_dir, lib, books) = setup_seed_fixture(dr_testkit::seed::Preset::Tiny);
+    let book = books[0].clone();
+    let entries = dr_testkit::seed::acceptance::entries_by_template(&lib, &book, "tpl-character");
+    let [a, b, c] = [0, 1, 2].map(|i| entries[i]["id"].as_str().unwrap().to_owned());
+    let made = lib
+        .call(
+            &Actor::User,
+            "relation_row.create_pair",
+            json!({"book":book,"left":a,"right":b,
+        "new_type":{"name":"Graph Allies","direction":"symmetric"}}),
+        )
+        .unwrap()["output"]
+        .clone();
+    lib.call(
+        &Actor::User,
+        "relation_row.add_entry",
+        json!({"book":book,"id":made["id"],"side":"right","entry":c}),
+    )
+    .unwrap();
+    init_test_shell(lib, book, cx);
+    let (shell, vcx) = cx.add_window_view(Workspace::new);
+    wait(vcx, |cx| {
+        shell.read_with(cx, |ws, _| ws.book.v3().is_some() && ws.book_memory_ready())
+    });
+    let ov = mount_overview(&shell, vcx);
+    vcx.update(|window, cx| {
+        ov.update(cx, |v, cx| {
+            let peers = v.peek_relations(&b);
+            let own: Vec<_> = peers
+                .iter()
+                .filter(|r| r.relation == made["relation_type"].as_str().unwrap())
+                .collect();
+            assert_eq!(own.len(), 1);
+            assert_eq!(own[0].other, a);
+            assert_eq!(own[0].name, "Graph Allies");
+            assert_eq!(own[0].direction, PairDirection::Both);
+            v.click_entity("entry", &b, true, window, cx);
+            v.click_entity("entry", &a, true, window, cx);
+            v.set_relation_name("Graph Allies", cx);
+            v.cycle_relation_direction(cx);
+            assert_eq!(v.relation_draft().unwrap().direction, PairDirection::Both);
+            assert_eq!(
+                v.confirm_relation(window, cx).unwrap(),
+                made["id"].as_str().unwrap()
+            );
+            v.focus_element(Some(b.clone()), window, cx);
+        })
+    });
+    wait(vcx, |cx| cx.debug_bounds("se-peek-relations").is_some());
+}

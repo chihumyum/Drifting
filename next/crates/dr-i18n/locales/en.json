@@ -828,6 +828,12 @@
       "storyline": "Storyline"
     }
   },
+  "relationGraph": {
+    "create": "Create",
+    "name": "Relation name",
+    "relations": "Relations",
+    "title": "Create relation"
+  },
   "relationTypes": {
     "description": "Description"
   },

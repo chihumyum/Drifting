@@ -504,5 +504,11 @@
     "templateCount": "テンプレート {{count}} 件",
     "templateStructure": "テンプレートの構造",
     "unusedTemplates": "未使用のテンプレート"
+  },
+  "relationGraph": {
+    "create": "作成",
+    "name": "関係の名前",
+    "relations": "関係",
+    "title": "関係を作る"
   }
 }

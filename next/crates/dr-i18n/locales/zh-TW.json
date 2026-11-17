@@ -821,6 +821,12 @@
       "storyline": "故事線"
     }
   },
+  "relationGraph": {
+    "create": "建立",
+    "name": "關係的名字",
+    "relations": "關係",
+    "title": "建立關係"
+  },
   "relationTypes": {
     "description": "說明"
   },

@@ -522,5 +522,11 @@
     "templateCount": "{{count}} modelos",
     "templateStructure": "Estrutura dos modelos",
     "unusedTemplates": "Modelos não usados"
+  },
+  "relationGraph": {
+    "create": "Criar",
+    "name": "Nome da relação",
+    "relations": "Relações",
+    "title": "Criar relação"
   }
 }

@@ -1,5 +1,6 @@
 //! Main canvas, header slots, and state machine for M22 Element Overview (`ElementOverview`).
 
+mod compose;
 mod island;
 mod relations;
 
@@ -54,8 +55,9 @@ use crate::relate::{
     relate_positions, relate_spring_signature, serialize_overview_memory, settle_relate,
 };
 
+pub use compose::{PairDirection, RelationDraft};
 pub use island::{IslandEditorSheet, IslandMode, IslandSubject, SheetResizeDrag};
-pub use relations::{GraphRelation, RelateEdgeView};
+pub use relations::{GraphRelation, PeekRelation, RelateEdgeView};
 
 const CANVAS_FIT_LEFT: f32 = 24.0;
 const CANVAS_FIT_RIGHT: f32 = 180.0;
@@ -286,6 +288,12 @@ pub struct ElementOverview {
     pub(crate) relation_types: Vec<RelationInfo>,
     pub(crate) hidden_relation_type_ids: HashSet<String>,
     pub(crate) selected_edge_id: Option<String>,
+    pub(crate) relation_source: Option<String>,
+    pub(crate) relation_draft: Option<RelationDraft>,
+    pub(crate) relation_name: Option<Entity<TextField>>,
+    pub(crate) relation_field_sub: Option<Subscription>,
+    pub(crate) relation_error: bool,
+    relation_focus: gpui::FocusHandle,
 
     _subs: Vec<Subscription>,
 }
@@ -349,6 +357,12 @@ impl ElementOverview {
             relation_types: Vec::new(),
             hidden_relation_type_ids: HashSet::new(),
             selected_edge_id: None,
+            relation_source: None,
+            relation_draft: None,
+            relation_name: None,
+            relation_field_sub: None,
+            relation_error: false,
+            relation_focus: cx.focus_handle(),
             _subs: Vec::new(),
         };
 
@@ -384,6 +398,7 @@ impl ElementOverview {
     }
 
     pub(crate) fn drop_library_handles(&mut self, cx: &mut Context<Self>) {
+        self.cancel_relation(cx);
         self._tween_task = None;
         self.island_sheet = None;
         self.lib = None;
@@ -448,6 +463,7 @@ impl ElementOverview {
         }
 
         if id_changed {
+            self.cancel_relation(cx);
             self.book_id = book_id;
             self.book = book;
             self.memory_loaded_for = None;
@@ -1368,11 +1384,16 @@ impl ElementOverview {
         &mut self,
         kind: &str,
         id: &str,
-        _shift: bool,
+        shift: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         if kind == "entry" && self.elements.iter().any(|e| e.id == id) {
+            if shift && self.layout_mode == ElementLayoutMode::Relate {
+                self.pick_relation_endpoint(id, window, cx);
+                return;
+            }
+            self.cancel_relation(cx);
             let next =
                 if self.isle_focus.as_deref() == Some(id) && self.island_mode == IslandMode::Peek {
                     None
@@ -1882,6 +1903,10 @@ impl ElementOverview {
             let mark_id = format!("se-relate-mark-{el_id}");
             let cell = div()
                 .id(ElementId::Name(format!("se-relate-card-{el_id}").into()))
+                .debug_selector({
+                    let id = el_id.clone();
+                    move || format!("se-relate-card-{id}")
+                })
                 .role(gpui::Role::Button)
                 .aria_label(SharedString::from(el_name.clone()))
                 .absolute()
@@ -2149,6 +2174,7 @@ impl Render for ElementOverview {
 
         let legend = self.render_legend(window, cx);
         let island = self.render_floating_island(window, cx);
+        let relation_composer = self.render_relation_composer(window, cx);
 
         let entity = cx.entity();
         let bounds_probe = canvas(
@@ -2163,6 +2189,15 @@ impl Render for ElementOverview {
 
         div()
             .id("se-viewport")
+            .track_focus(&self.relation_focus)
+            .on_action(cx.listener(|this, _: &dr_shell::actions::Dismiss, _, cx| {
+                if this.relation_source.is_some() || this.relation_draft.is_some() {
+                    this.cancel_relation(cx);
+                    cx.stop_propagation();
+                } else {
+                    cx.propagate();
+                }
+            }))
             .relative()
             .size_full()
             .overflow_hidden()
@@ -2237,5 +2272,6 @@ impl Render for ElementOverview {
             })
             .child(legend)
             .children(island)
+            .children(relation_composer)
     }
 }

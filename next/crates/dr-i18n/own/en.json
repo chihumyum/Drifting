@@ -520,5 +520,11 @@
     "templateCount": "{{count}} templates",
     "templateStructure": "Template structure",
     "unusedTemplates": "Unused templates"
+  },
+  "relationGraph": {
+    "create": "Create",
+    "name": "Relation name",
+    "relations": "Relations",
+    "title": "Create relation"
   }
 }
