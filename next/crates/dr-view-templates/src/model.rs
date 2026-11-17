@@ -10,14 +10,7 @@ use dr_workspace::{
 };
 use serde_json::{Value, json};
 
-pub const MODULES: &[&str] = &[
-    "prose",
-    "kv",
-    "patches",
-    "plot_grid",
-    "relations",
-    "children",
-];
+pub const MODULES: &[&str] = &["prose", "kv", "patches", "plot_grid", "children"];
 pub const FIELDS: &[&str] = &[
     "text",
     "long_text",

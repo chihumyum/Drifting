@@ -147,73 +147,42 @@ fn internal_note_task_projection_is_never_discovered_or_authorized_by_prose_read
 }
 
 #[test]
-fn deleting_a_read_comment_cannot_purge_its_unread_hidden_relation() {
+fn comment_deletion_stays_author_only_and_leaves_relation_rows_untouched() {
     let f = Fixture::new();
-    let chapter = dr_testkit::seed::acceptance::entries_by_template(&f.ws, &f.book, "tpl-chapter")
-        [0]["id"]
-        .clone();
+    let chapters = dr_testkit::seed::acceptance::entries_by_template(&f.ws, &f.book, "tpl-chapter");
     let comment = f.author("comment.create", json!({"book":f.book,"body":f.text}))["id"].clone();
-    let relation=f.author("relation.create",json!({"book":f.book,"from":{"kind":"comment","id":comment},"to":{"kind":"entry","id":chapter}}))["id"].clone();
-    let visible = f.author("relation.list", json!({"book":f.book}));
-    let original = visible
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|row| row["id"] == relation)
-        .unwrap()
-        .clone();
-    f.author("entry.trash", json!({"book":f.book,"id":chapter}));
-    let copy =
-        f.ws.library()
-            .load_copy(&format!("book:{}", f.book))
-            .unwrap();
-    let borrowed = dr_doc::v3::BorrowedBookV3::new(&copy, &f.book).unwrap();
-    assert!(
-        borrowed
-            .view()
-            .relations()
-            .iter()
-            .all(|row| row.id.as_str() != relation.as_str().unwrap())
+    f.author(
+        "relation_row.create_pair",
+        json!({
+            "book":f.book,"left":chapters[0]["id"],"right":chapters[1]["id"],
+            "new_type":{"name":"Synthetic connection"},
+        }),
     );
-
+    let original = f.author("relation_type.list", json!({"book":f.book}));
     let tools = AgentTools::new();
-    let actor = Actor::agent("review-hidden-comment", 1, "delete");
-    let comments = f.invoke(&tools, &actor, "comment.list", json!({})).unwrap();
+    let actor = Actor::agent("review-comment-delete", 1, "delete");
+    let listed = f.invoke(&tools, &actor, "comment.list", json!({})).unwrap();
     assert!(
-        comments["output"]
+        listed["output"]
             .as_array()
             .unwrap()
             .iter()
-            .any(|row| row["id"] == comment)
+            .any(|item| item["id"] == comment)
     );
     let before = f.documents();
     unavailable(f.invoke(&tools, &actor, "comment.delete", json!({"id":comment})));
     assert_eq!(f.documents(), before);
-    assert!(
-        f.ws.library()
-            .settlements(Some("review-hidden-comment"), None)
-            .unwrap()
-            .is_empty()
-    );
-
-    // Restoring the endpoint makes the original edge visible again. This
-    // would fail if deleting the comment had run F3's hidden purge_fallout.
-    f.author("entry.restore", json!({"book":f.book,"id":chapter}));
-    let restored = f.author("relation.list", json!({"book":f.book}));
+    f.author("comment.delete", json!({"book":f.book,"id":comment}));
     assert_eq!(
-        restored
-            .as_array()
-            .unwrap()
-            .iter()
-            .find(|row| row["id"] == relation),
-        Some(&original)
+        f.author("relation_type.list", json!({"book":f.book})),
+        original
     );
     assert!(
         f.author("comment.list", json!({"book":f.book}))
             .as_array()
             .unwrap()
             .iter()
-            .any(|row| row["id"] == comment)
+            .all(|item| item["id"] != comment)
     );
 }
 

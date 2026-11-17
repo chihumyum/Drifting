@@ -18,9 +18,9 @@ use dr_shell::workspace::{Layer, title_of};
 use dr_shell::{Services, ShellInfo, Workspace};
 use dr_workspace::Actor;
 use gpui::{
-    AnyWindowHandle, App, AsyncApp, Context, Entity, Focusable as _, Keystroke, Modifiers,
-    MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, PlatformInput, Window, WindowHandle,
-    WindowVisibility, point, px,
+    AnyWindowHandle, App, AsyncApp, Context, Entity, EntityInputHandler as _, Focusable as _,
+    Keystroke, Modifiers, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, PlatformInput,
+    Window, WindowHandle, WindowVisibility, point, px,
 };
 use serde_json::{Value, json};
 
@@ -64,6 +64,10 @@ pub const METHODS: &[(&str, &str)] = &[
     (
         "input.type",
         "{text}: type through GPUI's input path into the focused text field (a newline presses Enter); fails with no_input when nothing takes it",
+    ),
+    (
+        "input.mark",
+        "{text}: set the focused prose editor's IME marked text, with the caret at its end; an empty string cancels the composition",
     ),
     (
         "input.key",
@@ -128,6 +132,10 @@ pub const METHODS: &[(&str, &str)] = &[
     (
         "page.text",
         "{target?}: the paragraphs a page shows (default: the page on the paper): a prose page's editor, or the whole book's rows",
+    ),
+    (
+        "page.relations",
+        "the active prose editor's painted link boxes, relation lines and open composer; read-only frame inspection for native pointer acceptance, in logical window pixels",
     ),
     (
         "ui.wait",
@@ -256,6 +264,10 @@ pub async fn call(method: &str, params: Value, cx: &mut AsyncApp) -> Out {
             pump(cx)?;
             type_text(&p, cx)
         }),
+        "input.mark" => cx.update(|cx| {
+            pump(cx)?;
+            mark_text(&p, cx)
+        }),
         "input.key" => cx.update(|cx| {
             pump(cx)?;
             press(&p, cx)
@@ -376,6 +388,7 @@ pub async fn call(method: &str, params: Value, cx: &mut AsyncApp) -> Out {
         }
         "state.get" => cx.update(state),
         "page.text" => cx.update(|cx| page_text(&p, cx)),
+        "page.relations" => cx.update(page_relations),
         "ui.wait" => wait(&p, cx).await,
         "ui.screenshot" => {
             // Let page turns, sidebars and pills finish moving first.
@@ -460,8 +473,12 @@ fn info(cx: &mut App) -> Out {
     for handle in cx.windows() {
         let id = handle.window_id().as_u64();
         let workspace = handle.downcast::<Workspace>().is_some();
-        let w = handle.update(cx, |_, window, _| {
+        let w = handle.update(cx, |_, window, cx| {
             let b = window.bounds();
+            let on_primary = window
+                .display(cx)
+                .zip(cx.primary_display())
+                .map(|(window_display, primary)| window_display.id() == primary.id());
             json!({
                 "id": id,
                 "workspace": workspace,
@@ -474,6 +491,7 @@ fn info(cx: &mut App) -> Out {
                 },
                 "scale": window.scale_factor(),
                 "appearance": format!("{:?}", window.appearance()),
+                "primaryDisplay": on_primary,
             })
         });
         if let Ok(w) = w {
@@ -587,6 +605,27 @@ fn type_text(p: &Value, cx: &mut App) -> Out {
             typed += 1;
         }
         Ok(json!({ "typed": typed }))
+    })?
+}
+
+fn mark_text(p: &Value, cx: &mut App) -> Out {
+    let text = string(p, "text")?;
+    let caret = text.encode_utf16().count();
+    in_window(cx, |view, window, cx| {
+        let ws = view.read(cx);
+        let editor = ws
+            .nav
+            .current()
+            .and_then(|target| ws.page_view(target))
+            .map(|page| page.prose(cx))
+            .filter(|editor| editor.focus_handle(cx).is_focused(window));
+        let editor = editor
+            .ok_or_else(|| BridgeError::new(codes::NO_INPUT, "no prose editor has the focus"))?;
+        let marked = editor.update(cx, |editor, cx| {
+            editor.replace_and_mark_text_in_range(None, text, Some(caret..caret), window, cx);
+            editor.composition().is_some()
+        });
+        Ok(json!({ "marked": marked }))
     })?
 }
 
@@ -1107,6 +1146,60 @@ fn page_text(p: &Value, cx: &mut App) -> Out {
 /// What a page shows around its text and which of its fields has the
 /// keyboard: a chapter page's title and synopsis (M03), an element
 /// page's name, aliases input, summary and field rows (M11).
+/// Inspect the frame that ordinary mouse input will hit. This does not open
+/// a hover card, select a counterpart or submit a relation: acceptance must
+/// still move, click and type through the platform input methods.
+fn page_relations(cx: &mut App) -> Out {
+    pump(cx)?;
+    in_window(cx, |owner, _, cx| {
+        let (prose, assist) = {
+            let ws = owner.read(cx);
+            let view = ws
+                .nav
+                .current()
+                .and_then(|target| ws.page_view(target))
+                .ok_or_else(|| not_found("no prose editor is open"))?;
+            let assist = match view {
+                PageView::Doc(editor) => editor.read(cx).assist().clone(),
+                PageView::Book(editor) => editor.read(cx).assist().clone(),
+            };
+            (view.prose(cx), assist)
+        };
+        let rect = |b: gpui::Bounds<gpui::Pixels>| {
+            json!({"x": f32::from(b.left()), "y": f32::from(b.top()),
+                "width": f32::from(b.size.width), "height": f32::from(b.size.height)})
+        };
+        let links: Vec<Value> = prose
+            .read(cx)
+            .painted_group("links")
+            .iter()
+            .map(|d| {
+                json!({"chapter": d.chapter, "line": d.line, "id": d.key.id.as_ref(),
+                "boxes": d.boxes.iter().copied().map(rect).collect::<Vec<_>>()})
+            })
+            .collect();
+        let compose = assist.update(cx, |a, _| a.compose_state()).map(|c| {
+            json!({"src": c.src, "dst": c.dst, "name": c.name,
+                "direction": c.dir.glyph(), "directionLocked": c.dir_locked,
+                "candidates": c.candidates, "names": c.names, "ready": c.ready})
+        });
+        let a = assist.read(cx);
+        let drawn = a.relation_drawn().map(|d| {
+            json!({
+                "lines": d.lines.iter().map(|l| json!({
+                    "from": l.a.entry, "to": l.b.entry,
+                    "fromBox": rect(l.a.rect), "toBox": rect(l.b.rect),
+                    "labels": l.labels.iter().map(|label| json!({"name": label.name, "to": label.to})).collect::<Vec<_>>(),
+                    "labelAt": l.label_at,
+                })).collect::<Vec<_>>(),
+                "picks": d.picks.iter().map(|n| json!({"entry": n.entry, "box": rect(n.rect)})).collect::<Vec<_>>(),
+                "pending": d.pending.as_ref().map(|(a,b)| json!([a.entry, b.entry])),
+            })
+        });
+        Ok(json!({"links": links, "drawn": drawn, "compose": compose}))
+    })?
+}
+
 fn head_of(target: &Target, doc: &str, window: &Window, cx: &App) -> Value {
     let focused = |h: gpui::FocusHandle| h.is_focused(window);
     match target {

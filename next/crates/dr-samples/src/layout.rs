@@ -16,7 +16,7 @@ use dr_doc::Result;
 use dr_model::id::*;
 use dr_model::import_v1::{
     ActId, CategoryId, CategoryLayout, ElementId, EntityRef, KvEntry, MaterialId, MaterialKind,
-    NodeId, NodeKind, NodeStatus, StorylineId, canonical_symmetric,
+    NodeId, NodeKind, NodeStatus, StorylineId,
 };
 use dr_model::kind::*;
 use dr_model::pos::PosKey;
@@ -534,17 +534,8 @@ fn lay_out(s: &SampleBook, key: &str) -> Result<SeededBook> {
                     None => continue,
                 },
             };
-            let (a, z) = if s
-                .relation_types
-                .iter()
-                .any(|t| t.key == r.kind && t.orientation == "symmetric")
-            {
-                canonical_symmetric(element_refs[from].clone(), to)
-            } else {
-                (element_refs[from].clone(), to)
-            };
             t.relation(&RelationId::parse(&sid("relation", k)).expect("id"))?
-                .ends(&a, &z)?
+                .ends(&element_refs[from], &to)?
                 .relation_type(rt)?
                 .created_at(Some(Timestamp(T0 + k as i64)))?;
         }

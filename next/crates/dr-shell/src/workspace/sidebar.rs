@@ -1,7 +1,7 @@
 //! The two sidebars (workspace.md): a drawer from each window edge, one or
 //! two halves, each half its own tab row over its own panel.
 //!
-//! - Left: 章节 / 要素 / 构想; right: 审阅 / 素材库 / 统计 / 帮手.
+//! - Left: 章节 / 要素 / 构想; right: 审阅 / 关系 / 素材库 / 统计 / 帮手.
 //! - Opening and closing is the structural motion (420 ms); switching a
 //!   half's tab pushes its panel like a block of ice (265 ms), and the glass
 //!   block under the tab rides the same push.
@@ -75,6 +75,9 @@ impl LeftTab {
 #[serde(rename_all = "kebab-case")]
 pub enum RightTab {
     Review,
+    /// 「关系」 (RL, `kernel-v5.md` §19): drawn by a module
+    /// ([`crate::pages::set_relations`]); it never fills the window.
+    Relations,
     Library,
     Stats,
     /// Agent.
@@ -82,8 +85,9 @@ pub enum RightTab {
 }
 
 impl RightTab {
-    pub const ORDER: [RightTab; 4] = [
+    pub const ORDER: [RightTab; 5] = [
         RightTab::Review,
+        RightTab::Relations,
         RightTab::Library,
         RightTab::Stats,
         RightTab::Companion,
@@ -92,6 +96,7 @@ impl RightTab {
     pub fn label(self) -> Key {
         match self {
             RightTab::Review => keys::right_sidebar::tabs::REVIEW,
+            RightTab::Relations => keys::v5_relations::TAB,
             RightTab::Library => keys::right_sidebar::tabs::LIBRARY,
             RightTab::Stats => keys::right_sidebar::tabs::STATS,
             RightTab::Companion => keys::v3_settings::RAIL_AGENT,
@@ -450,6 +455,7 @@ impl PanelTab for RightTab {
     fn slug(self) -> &'static str {
         match self {
             RightTab::Review => "review",
+            RightTab::Relations => "relations",
             RightTab::Library => "library",
             RightTab::Stats => "stats",
             RightTab::Companion => "companion",
@@ -709,6 +715,23 @@ fn library_panel(
     made
 }
 
+/// The 「关系」 tab a module draws for `pane` ([`crate::pages::set_relations`]),
+/// made the first time the pane shows it, then kept.
+fn relations_panel(
+    ws: &Workspace,
+    pane: PaneId,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) -> Option<crate::pages::LeftPanel> {
+    let key = pane_slug(pane);
+    if let Some(made) = ws.relations_panel.borrow().get(key) {
+        return made.clone();
+    }
+    let made = crate::pages::relations_for(cx.weak_entity(), window, cx);
+    ws.relations_panel.borrow_mut().insert(key, made.clone());
+    made
+}
+
 fn right_header(
     tab: RightTab,
     ws: &Workspace,
@@ -722,6 +745,11 @@ fn right_header(
         RightTab::Review => row
             .child(meta(t(cx, keys::right_sidebar::kickers::REVIEW), &theme))
             .into_any_element(),
+        RightTab::Relations => match relations_panel(ws, pane, window, cx) {
+            // RL: the module's head row.
+            Some(panel) => div().size_full().child(panel.head).into_any_element(),
+            None => row.into_any_element(),
+        },
         RightTab::Library => match library_panel(ws, pane, window, cx) {
             // M19: the module's head row.
             Some(panel) => div().size_full().child(panel.head).into_any_element(),
@@ -1409,6 +1437,11 @@ fn right_body(
     match tab {
         // M31: the 帮手 panel, when the app has one.
         RightTab::Companion => match companion_panel(ws, pane, window, cx) {
+            Some(panel) => div().size_full().child(panel.body).into_any_element(),
+            None => div().size_full().into_any_element(),
+        },
+        // RL: the module's panel, when the app has one.
+        RightTab::Relations => match relations_panel(ws, pane, window, cx) {
             Some(panel) => div().size_full().child(panel.body).into_any_element(),
             None => div().size_full().into_any_element(),
         },

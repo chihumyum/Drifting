@@ -41,7 +41,8 @@
 //! And the right sidebar's 帮手 tab ([`set_companion`], M31). Without it the
 //! tab stays empty. The right sidebar's 素材库 tab is drawn the same way
 //! ([`set_library`], M19); without it the shell lists the folders and
-//! materials itself.
+//! materials itself. The right sidebar's 「关系」 tab (RL) is drawn the same
+//! way ([`set_relations`]); without it the tab stays empty.
 //!
 //! And M24 (`dr-view-sea`): the sea of characters under every window
 //! ([`set_backdrop`]: drawn first, held by the bookshelf and the full-window
@@ -361,6 +362,7 @@ struct Pages {
     guide: Option<Guide>,
     companion: Option<MakeCompanion>,
     library: Option<MakeCompanion>,
+    relations: Option<MakeCompanion>,
     locate_asset: Option<LocateAsset>,
     pending_locate_asset: Option<String>,
     file_drop: Option<(CanDropFiles, OnDropFiles)>,
@@ -639,6 +641,27 @@ pub(crate) fn library_for(
     cx: &mut App,
 ) -> Option<LeftPanel> {
     let make = cx.try_global::<Pages>()?.library.clone()?;
+    Some(make(ws, window, cx))
+}
+
+/// Registers the right sidebar's 「关系」 tab (RL, `dr-view-relations`), as
+/// [`set_library`]: asked once per pane the first time that pane shows the
+/// tab; its head goes in the tab's header row, its body fills the pane.
+/// Called while the workspace draws: do not read or update the workspace
+/// in `make`.
+pub fn set_relations(
+    cx: &mut App,
+    make: impl Fn(WeakEntity<Workspace>, &mut Window, &mut App) -> LeftPanel + 'static,
+) {
+    cx.default_global::<Pages>().relations = Some(Rc::new(make));
+}
+
+pub(crate) fn relations_for(
+    ws: WeakEntity<Workspace>,
+    window: &mut Window,
+    cx: &mut App,
+) -> Option<LeftPanel> {
+    let make = cx.try_global::<Pages>()?.relations.clone()?;
     Some(make(ws, window, cx))
 }
 

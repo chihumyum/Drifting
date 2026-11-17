@@ -29,6 +29,7 @@ pub mod origin;
 pub mod pos;
 pub mod project_template;
 pub mod prose;
+pub mod relations;
 pub mod shared;
 pub mod time;
 pub mod v3;

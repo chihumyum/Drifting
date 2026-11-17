@@ -1178,6 +1178,13 @@ fn write_library(
             std::collections::HashSet::new();
         let n_bodies = bodies.len() as u64;
         let mut stopped = false;
+        // The lines projected comments follow, from the final bodies.
+        let mut projected_lines = dr_samples::v3::ProjectedLines::default();
+        let marked: std::collections::HashSet<(&DocId, &BlockId)> = projected
+            .values()
+            .filter(|(_, kind, ..)| *kind == ProjectionKind::Marker)
+            .map(|(_, _, doc, block)| (doc, block))
+            .collect();
         for (body_no, b) in bodies.iter().enumerate() {
             if options.cancel.now_requested() {
                 stopped = true;
@@ -1353,6 +1360,9 @@ fn write_library(
                 t.repair_block_ids()
             });
             let repaired = repaired?;
+            projected_lines.add(&b.doc_id, &doc.view(), |block| {
+                marked.contains(&(&b.doc_id, block))
+            });
             if let Ok(v2_doc) = DocId::parse(&b.owner.new_doc_id()) {
                 for p in doc.view().paragraphs() {
                     if p.attrs.list != Some(dr_model::kind::ListKind::Task) {
@@ -1574,7 +1584,7 @@ fn write_library(
                     .map_err(|e| ImportError::Invalid(format!("catalog recovery frontier: {e}")))?
                 } else {
                     let (r, _) = v3doc.edit_at(Origin::Import, Some(ts), |t| {
-                        dr_samples::v3::sync_catalog(t, &bdoc.view(), &options.v3)
+                        dr_samples::v3::sync_catalog(t, &bdoc.view(), &options.v3, &projected_lines)
                     });
                     r?;
                     dr_samples::v3::validate(&v3doc.view()).map_err(ImportError::Invalid)?;

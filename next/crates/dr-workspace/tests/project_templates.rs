@@ -125,7 +125,7 @@ fn builtin_novel_project_round_trips_through_saved_template() {
         proj_a["source"],
         json!({
             "id": "builtin:novel",
-            "version": 4,
+            "version": 5,
             "origin": "builtin",
             "name": "写书"
         })
@@ -707,25 +707,6 @@ fn rich_project_save_and_create_preserves_samples_rewrites_ids_and_strips_exclud
         }),
     );
 
-    // Custom relation type referencing `tpl-dossier` and `tpl-obsolete`, then delete `tpl-obsolete`.
-    e.call(
-        "entry_relation_type.put",
-        json!({
-            "book": a,
-            "definition": {
-                "id": "rt-contradicts",
-                "name": "证词矛盾",
-                "description": "证词前后冲突",
-                "orientation": "directed",
-                "source_role": "主张方",
-                "target_role": "被反驳方",
-                "source_kinds": ["entry"],
-                "target_kinds": ["entry"],
-                "source_templates": ["tpl-dossier"],
-                "target_templates": ["tpl-dossier", "tpl-obsolete"]
-            }
-        }),
-    );
     e.call(
         "entry_template.delete",
         json!({"book": a, "id": "tpl-obsolete"}),
@@ -927,14 +908,23 @@ fn rich_project_save_and_create_preserves_samples_rewrites_ids_and_strips_exclud
         json!({"book": a, "view": view_a, "pin": {"id": "pin-unchecked", "at": 9.0, "label": "草稿钉", "entry": unchecked3}}),
     );
 
-    // Add items that must NEVER be carried: relation, comment, fact, memory, layout.
-    e.call(
-        "relation.create",
+    let kind = e.out(
+        "relation_type.create",
         json!({
-            "book": a,
-            "from": {"kind": "entry", "id": sample1},
-            "to": {"kind": "entry", "id": sample2},
-            "relation_type": "rt-contradicts"
+            "book":a,"name":"证词矛盾","direction":"directed","description":{
+                "text":"见证对照草案","links":[
+                    {"start":0,"end":2,"entry":sample2},
+                    {"start":4,"end":6,"entry":unchecked3}
+                ]
+            }
+        }),
+    )["id"]
+        .clone();
+    // Rows and project-local writing are excluded from a template.
+    e.call(
+        "relation_row.create_pair",
+        json!({
+            "book":a,"left":sample1,"right":sample2,"relation_type":kind
         }),
     );
     e.call(
@@ -1039,7 +1029,7 @@ fn rich_project_save_and_create_preserves_samples_rewrites_ids_and_strips_exclud
     );
     assert_eq!(s1_b["primary"], main_line_b_id);
 
-    // Deleted template `tpl-obsolete` references were cleared from `tpl-dossier` and `rt-contradicts`.
+    // Deleted template `tpl-obsolete` references were cleared from `tpl-dossier` .
     let tpls_b = e
         .out("entry_template.list", json!({"book": b}))
         .as_array()
@@ -1067,7 +1057,7 @@ fn rich_project_save_and_create_preserves_samples_rewrites_ids_and_strips_exclud
     assert_eq!(tpl_prose_b["paragraphs"][0]["heading"], 1);
 
     let rts_b = e
-        .out("entry_relation_type.list", json!({"book": b}))
+        .out("relation_type.list", json!({"book": b}))
         .as_array()
         .unwrap()
         .clone();
@@ -1075,7 +1065,18 @@ fn rich_project_save_and_create_preserves_samples_rewrites_ids_and_strips_exclud
         .iter()
         .find(|rt| rt["name"] == "证词矛盾")
         .expect("custom relation type preserved");
-    assert_eq!(contra_b["target_templates"], json!(["tpl-dossier"]));
+    assert_eq!(contra_b["rows"], json!([]));
+    assert_eq!(contra_b["direction"], "directed");
+    assert_eq!(
+        contra_b["description"]["links"],
+        json!([{"start":0,"end":s2_b["title"].as_str().unwrap().chars().count(),"entry":s2_b_id}])
+    );
+    assert!(
+        contra_b["description"]["text"]
+            .as_str()
+            .unwrap()
+            .ends_with("对照草案")
+    );
 
     // Inspect materialized prose on `s1_b`: heading, table, rewritten link to `s2_b` (`mod-notes`),
     // degraded plain text (preserving Bold & Italic) for `unchecked3` and `asset-photo`, and zero asset embeds!
@@ -1146,7 +1147,6 @@ fn rich_project_save_and_create_preserves_samples_rewrites_ids_and_strips_exclud
     assert!(pins_b[1]["entry"].is_null());
 
     // Never-carried book data is empty in `b`.
-    assert_eq!(e.out("relation.list", json!({"book": b})), json!([]));
     assert_eq!(e.out("comment.list", json!({"book": b})), json!([]));
     assert_eq!(e.out("fact.list", json!({"book": b})), json!([]));
     assert_eq!(e.out("memory.list", json!({"book": b})), json!([]));

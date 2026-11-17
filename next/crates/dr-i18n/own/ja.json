@@ -110,6 +110,22 @@
     "title": "タイトル",
     "unset": "未設定"
   },
+  "mirrorV5": {
+    "intro": "プロジェクトごとに Markdown フォルダがあります。他のエディターで本文やフィールドを編集して保存すると、変更が Drifting に取り込まれます。",
+    "offWarning": "無効にする前に保留中の変更を取り込みます。既存のファイルはそのまま残ります。ローカルデータから再び有効にできます。",
+    "identity": "drifting-id が項目または本文モジュールと一致しません。",
+    "lineage": "項目または本文が復元、テンプレート変更、削除されたため、ファイルの編集を取り込めませんでした。",
+    "owned": "このフォルダは別の Drifting インストールが使用しています。",
+    "unsafePath": "プロジェクトフォルダ内のこのパスに安全にアクセスできませんでした。",
+    "occupied": "この場所にはすでにファイルがあります。",
+    "duplicate": "同じ drifting-id を持つファイルが 2 つあります。",
+    "moved": "このバージョンでは名前の変更とファイルの移動は同期されません。",
+    "readOnly": "読み取り専用のプロパティをプロジェクトの値に戻しました。",
+    "malformedTable": "表を読み込めませんでした。元の表は Drifting に残っています。",
+    "unknownImage": "画像は素材ライブラリにあるファイルを参照していません。この行はテキストとして取り込みました。",
+    "fieldConflict": "フィールドを取り込めませんでした。Drifting でも編集されたか、値を読み取れませんでした。Drifting の値を残し、ファイルのコピーを保存しました。",
+    "keyCollision": "冒頭のプロパティに、新しく追加したフィールドと同じ名前の項目があります。どちらかの名前を変えるか削除するまで、このファイルには書き戻しません。"
+  },
   "positionLink": {
     "copied": "位置リンクをコピーしました"
   },
@@ -246,7 +262,6 @@
     "preview_failed": "プレビューを読み込めません",
     "preview_loading": "プレビューを読み込み中…",
     "prose": "本文",
-    "relations": "関連",
     "reorder": "ドラッグで並べ替え",
     "restore": "元に戻す",
     "saved": "保存済み",
@@ -489,6 +504,32 @@
     "templateCount": "テンプレート {{count}} 件",
     "templateStructure": "テンプレートの構造",
     "unusedTemplates": "未使用のテンプレート"
+  },
+  "v5RelationsProse": {
+    "create": "関係を作る",
+    "confirm": "作成",
+    "direction": "方向",
+    "otherEntry": "相手の項目",
+    "relation": "関係",
+    "change": "変更"
+  },
+  "v5Relations": {
+    "addEntry": "項目を追加",
+    "addRow": "行を追加",
+    "deleteRow": "この行を削除",
+    "description": "説明",
+    "direction": "一方向か双方向か",
+    "kinds_other": "{{count}} 種類",
+    "newRelation": "新しい関係",
+    "pairs_other": "{{count}} 組",
+    "removeEntry": "「{{name}}」を外す",
+    "tab": "関係"
+  },
+  "relationGraph": {
+    "create": "作成",
+    "name": "関係の名前",
+    "relations": "関係",
+    "title": "関係を作る"
   },
   "v5Tour": {
     "agent": {

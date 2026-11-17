@@ -1004,7 +1004,7 @@ fn about_header(theme: &Theme, cx: &App) -> AnyElement {
         .into_any_element()
 }
 
-fn row(
+pub(crate) fn row(
     id: &str,
     label: SharedString,
     description: Option<SharedString>,

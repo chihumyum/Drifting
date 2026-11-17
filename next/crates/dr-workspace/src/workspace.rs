@@ -109,19 +109,11 @@ fn validate_book_header(book: &BookId, bytes: &[u8]) -> dr_store::Result<()> {
     dr_doc::schema::configure(&incoming);
     incoming.import(bytes)?;
     let meta = incoming.get_map("meta");
-    if let Some(version) = meta.get("v") {
-        let current = dr_doc::schema::BOOK_SCHEMA_VERSION;
-        let valid = match version {
-            loro::ValueOrContainer::Value(loro::LoroValue::I64(v)) => v == current,
-            loro::ValueOrContainer::Value(loro::LoroValue::Double(v)) => v == current as f64,
-            _ => false,
-        };
-        if !valid {
-            return Err(StoreError::Invalid {
-                what: "book import",
-                value: "a current-format book is required; reimport into a new library".into(),
-            });
-        }
+    if meta.get("v").is_some() && !dr_doc::v3::is_book_doc(&incoming) {
+        return Err(StoreError::Invalid {
+            what: "book import",
+            value: "a current-format book is required; reimport into a new library".into(),
+        });
     }
     if let Some(identity) = meta.get("book")
         && !matches!(identity, loro::ValueOrContainer::Value(loro::LoroValue::String(ref id)) if id.as_str()==book.as_str())
@@ -1233,6 +1225,17 @@ impl Workspace {
         if let DocId::Book(book) = &doc {
             validate_book_header(book, &bytes)?;
         }
+        // Remote trash/template/restore changes share the same commit
+        // boundary as book commands and Markdown body imports.
+        let gated_book = match &doc {
+            DocId::Book(book)
+            | DocId::Stats(book)
+            | DocId::Checkpoints(book)
+            | DocId::Layout(book) => Some(book.clone()),
+            _ => None,
+        };
+        let gate = gated_book.as_ref().map(|book| self.book_gate(book));
+        let _lease = gate.as_ref().map(|gate| gate.enter());
         if let Some((kind, book)) = kind_book {
             let book_opt = if matches!(doc, DocId::ProjectTemplate(_)) || book.is_empty() {
                 None
@@ -1381,6 +1384,18 @@ impl Workspace {
         self.inner.journal.forget_book(book.as_str())?;
         lock(&self.inner.gates).remove(book);
         Ok((purged, assets.len()))
+    }
+
+    /// Runs `f` holding `book`'s write lease, the one every `Write, Book`
+    /// command and book metadata sync import hold: such writers wait until `f`
+    /// returns, and a command `f` runs itself takes it again (the lease is
+    /// re-entrant on this thread). For a writer outside the command layer
+    /// (the Markdown folder's prose commit) whose checks of the book must
+    /// still hold when it commits.
+    pub fn with_book_lease<R>(&self, book: &BookId, f: impl FnOnce() -> R) -> R {
+        let gate = self.book_gate(book);
+        let _lease = gate.enter();
+        f()
     }
 
     pub(crate) fn book_gate(&self, book: &BookId) -> Arc<Gate> {

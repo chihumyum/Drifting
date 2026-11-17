@@ -161,9 +161,11 @@ impl BodyModule {
                             let labels = [k::BODY, k::H1, k::H2, k::H3, k::QUOTE, k::RULE]
                                 .map(|key| dr_shell::t(cx, key));
                             let entry_label = dr_shell::t(cx, k::ENTRIES);
+                            let relation_labels = relation_labels(cx);
                             e.assist().update(cx, |a, _| {
                                 a.set_block_labels(labels);
                                 a.set_entry_label(entry_label);
+                                a.set_relation_labels(relation_labels);
                             });
                             e.set_base_style(base, cx);
                             e.set_decor_looks(looks, cx);
@@ -306,6 +308,38 @@ impl Render for BodyModule {
     }
 }
 
+/// The relation layer's words (RL, `kernel-v5.md` §19).
+pub(crate) fn relation_labels(cx: &App) -> dr_editor::assist::relate::RelationLabels {
+    use dr_i18n::keys::v5_relations_prose as k;
+    dr_editor::assist::relate::RelationLabels {
+        create: dr_shell::t(cx, k::CREATE),
+        confirm: dr_shell::t(cx, k::CONFIRM),
+        cancel: dr_shell::t(cx, dr_i18n::keys::common::CANCEL),
+        direction: dr_shell::t(cx, k::DIRECTION),
+        other_entry: dr_shell::t(cx, k::OTHER_ENTRY),
+        relation: dr_shell::t(cx, k::RELATION),
+        change: dr_shell::t(cx, k::CHANGE),
+    }
+}
+
+/// A relation placed in the prose: the right column shows its row
+/// (`dr_shell::actions::RevealRelationRow`, handled by the relations rail
+/// on the workspace; with no rail nothing happens).
+pub fn bind_relations<T: 'static>(
+    assist: &Entity<dr_editor::assist::Assist>,
+    window: &mut Window,
+    cx: &mut Context<T>,
+) -> Subscription {
+    cx.subscribe_in(assist, window, move |_, _, event, window, cx| {
+        if let dr_editor::assist::AssistEvent::RelationPlaced { row } = event {
+            window.dispatch_action(
+                Box::new(dr_shell::actions::RevealRelationRow { row: row.clone() }),
+                cx,
+            );
+        }
+    })
+}
+
 /// The G1 hosts consume v3 entity links directly until the shell registers module editors.
 pub(crate) fn bind_links<T: 'static>(
     assist: &Entity<dr_editor::assist::Assist>,
@@ -314,7 +348,8 @@ pub(crate) fn bind_links<T: 'static>(
     cx: &mut Context<T>,
 ) -> Subscription {
     let host = host.clone();
-    cx.subscribe_in(assist, window, move |_, _, event, window, cx| {
+    let relations = bind_relations(assist, window, cx);
+    let links = cx.subscribe_in(assist, window, move |_, _, event, window, cx| {
         let dr_editor::assist::AssistEvent::OpenLink { target, module, .. } = event else {
             return;
         };
@@ -349,5 +384,6 @@ pub(crate) fn bind_links<T: 'static>(
                 })
                 .ok();
         });
-    })
+    });
+    Subscription::join(links, relations)
 }

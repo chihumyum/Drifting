@@ -119,6 +119,22 @@
     "title": "Título",
     "unset": "Sin definir"
   },
+  "mirrorV5": {
+    "intro": "Cada proyecto tiene una carpeta de Markdown. Al guardar cambios en el texto o los campos en otro editor, Drifting los incorpora.",
+    "offWarning": "Drifting incorpora los cambios pendientes antes de desactivar la carpeta. Los archivos existentes permanecen en su sitio. Puedes reactivarla en Datos locales.",
+    "identity": "El drifting-id no corresponde a esta entrada y módulo de texto.",
+    "lineage": "La entrada o el texto se restauraron, cambiaron de plantilla o se eliminaron. No fue posible incorporar los cambios del archivo.",
+    "owned": "Otra instalación de Drifting usa esta carpeta.",
+    "unsafePath": "Drifting no pudo acceder de forma segura a esta ruta del proyecto.",
+    "occupied": "Ya hay un archivo en esta ruta.",
+    "duplicate": "Dos archivos tienen el mismo drifting-id.",
+    "moved": "Esta versión no sincroniza cambios de nombre ni movimientos de archivos.",
+    "readOnly": "Las propiedades de solo lectura se restauraron con los valores del proyecto.",
+    "malformedTable": "No se pudo leer la tabla. La tabla original sigue en Drifting.",
+    "unknownImage": "La imagen no apunta a un archivo de la biblioteca. La línea se importó como texto.",
+    "fieldConflict": "No se pudo combinar un campo: también se editó en Drifting o no se pudo leer su valor. Drifting conservó su valor y guardó una copia del archivo.",
+    "keyCollision": "Una propiedad inicial tiene el mismo nombre que un campo recién añadido. Drifting no escribirá este archivo hasta que uno de los dos se renombre o se elimine."
+  },
   "positionLink": {
     "copied": "Enlace de posición copiado"
   },
@@ -255,7 +271,6 @@
     "preview_failed": "No se pudo cargar la vista previa",
     "preview_loading": "Cargando vista previa…",
     "prose": "Texto principal",
-    "relations": "Relaciones",
     "reorder": "Arrastrar para ordenar",
     "restore": "Restaurar",
     "saved": "Guardado",
@@ -507,6 +522,34 @@
     "templateCount": "{{count}} plantillas",
     "templateStructure": "Estructura de plantillas",
     "unusedTemplates": "Plantillas sin usar"
+  },
+  "v5RelationsProse": {
+    "create": "Relacionar",
+    "confirm": "Crear",
+    "direction": "Dirección",
+    "otherEntry": "Otra entrada",
+    "relation": "Relación",
+    "change": "Cambiar"
+  },
+  "v5Relations": {
+    "addEntry": "Añadir una entrada",
+    "addRow": "Añadir una fila",
+    "deleteRow": "Eliminar esta fila",
+    "description": "Descripción",
+    "direction": "Unidireccional o bidireccional",
+    "kinds_one": "{{count}} relación",
+    "kinds_other": "{{count}} relaciones",
+    "newRelation": "Nueva relación",
+    "pairs_one": "{{count}} par",
+    "pairs_other": "{{count}} pares",
+    "removeEntry": "Quitar «{{name}}»",
+    "tab": "Relaciones"
+  },
+  "relationGraph": {
+    "create": "Crear",
+    "name": "Nombre de la relación",
+    "relations": "Relaciones",
+    "title": "Crear relación"
   },
   "v5Tour": {
     "agent": {

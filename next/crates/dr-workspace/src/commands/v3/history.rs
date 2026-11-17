@@ -124,19 +124,36 @@ fn restore(cx: &Cx<'_>, input: RestoreIn) -> Result<Vec<Done>> {
                 let c = CollectionV3::from_root(&target.collection).unwrap();
                 if c == CollectionV3::RelationTypes {
                     let id = pid("relation type", &target.id)?;
-                    if current
-                        .relation_type(&id)
-                        .is_some_and(|t| t.locked || t.system_key.is_some())
-                    {
-                        return Err(WsError::invalid("locked relation type cannot be restored"));
-                    }
                     if old.relation_type(&id).is_none()
-                        && current
-                            .relations_raw()
-                            .iter()
-                            .any(|r| r.relation_type == id)
+                        && current.relations_raw().iter().any(|r| {
+                            r.relation_type == id
+                                && !input.targets.iter().any(|target| {
+                                    target.collection == "relations"
+                                        && target.id == r.id.as_str()
+                                        && old
+                                            .map_snapshot(CollectionV3::Relations, r.id.as_str())
+                                            .is_none()
+                                })
+                        })
                     {
                         return Err(WsError::invalid("relation type is in use"));
+                    }
+                }
+                if c == CollectionV3::Comments && matches!(cx.actor(), crate::Actor::Agent { .. }) {
+                    // Only the author deletes comments (the Agent's catalog has
+                    // no `comment.delete`); a restore to a point before a
+                    // comment would delete it, so the Agent may do that only
+                    // to a comment an Agent wrote.
+                    let id: CommentId = pid("comment", &target.id)?;
+                    if old.map_snapshot(c, id.as_str()).is_none()
+                        && current.map_snapshot(c, id.as_str()).is_some()
+                        && current.comment(&id).is_none_or(|now| {
+                            now.author_kind != dr_model::kind::CommentAuthorKind::Ai
+                        })
+                    {
+                        return Err(WsError::invalid(
+                            "comment deletion is reserved for the author",
+                        ));
                     }
                 }
                 if c == CollectionV3::Assets {
@@ -163,7 +180,11 @@ fn restore(cx: &Cx<'_>, input: RestoreIn) -> Result<Vec<Done>> {
                 }
                 if matches!(
                     c,
-                    CollectionV3::Facts | CollectionV3::Memory | CollectionV3::Relations
+                    CollectionV3::Facts
+                        | CollectionV3::Memory
+                        | CollectionV3::Relations
+                        | CollectionV3::RelationTypes
+                        | CollectionV3::Comments
                 ) {
                     plans.push(Plan::SharedMap(c, target.id.clone()));
                 } else {

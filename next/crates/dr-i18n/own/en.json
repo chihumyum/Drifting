@@ -117,6 +117,22 @@
     "title": "Title",
     "unset": "Not set"
   },
+  "mirrorV5": {
+    "intro": "Each project has a Markdown folder. Edits to prose and fields in another editor merge into Drifting after you save.",
+    "offWarning": "Drifting merges pending edits before turning the folder off. Existing files stay where they are. You can turn it back on in Local Data.",
+    "identity": "The drifting-id does not match this entry and prose module.",
+    "lineage": "The entry or prose has been restored, reshaped, or deleted. The file’s edits could not be merged.",
+    "owned": "Another Drifting installation owns this folder.",
+    "unsafePath": "Drifting could not safely access this path in the project folder.",
+    "occupied": "A file already occupies this path.",
+    "duplicate": "Two files have the same drifting-id.",
+    "moved": "Renaming and moving files do not sync in this version.",
+    "readOnly": "The read-only properties were restored from the project.",
+    "malformedTable": "The table could not be read. The original table is still in Drifting.",
+    "unknownImage": "The image points outside the project’s file library. The line was imported as text.",
+    "fieldConflict": "A field could not be merged: it was also edited in Drifting, or its value could not be read. Drifting kept its value and saved a copy of the file.",
+    "keyCollision": "A property at the top has the same name as a newly added field. Drifting will not write this file until one of them is renamed or removed."
+  },
   "positionLink": {
     "copied": "Location link copied"
   },
@@ -253,7 +269,6 @@
     "preview_failed": "Could not load preview",
     "preview_loading": "Loading preview…",
     "prose": "Prose",
-    "relations": "Relations",
     "reorder": "Drag to reorder",
     "restore": "Restore",
     "saved": "Saved",
@@ -505,6 +520,34 @@
     "templateCount": "{{count}} templates",
     "templateStructure": "Template structure",
     "unusedTemplates": "Unused templates"
+  },
+  "v5RelationsProse": {
+    "create": "Relate",
+    "confirm": "Create",
+    "direction": "Direction",
+    "otherEntry": "Other entry",
+    "relation": "Relation",
+    "change": "Change"
+  },
+  "v5Relations": {
+    "addEntry": "Add an entry",
+    "addRow": "Add a row",
+    "deleteRow": "Delete this row",
+    "description": "Description",
+    "direction": "One-way or two-way",
+    "kinds_one": "{{count}} relation",
+    "kinds_other": "{{count}} relations",
+    "newRelation": "New relation",
+    "pairs_one": "{{count}} pair",
+    "pairs_other": "{{count}} pairs",
+    "removeEntry": "Remove “{{name}}”",
+    "tab": "Relations"
+  },
+  "relationGraph": {
+    "create": "Create",
+    "name": "Relation name",
+    "relations": "Relations",
+    "title": "Create relation"
   },
   "v5Tour": {
     "agent": {

@@ -117,6 +117,22 @@
     "title": "Titel",
     "unset": "Nicht festgelegt"
   },
+  "mirrorV5": {
+    "intro": "Jedes Projekt hat einen Markdown-Ordner. Änderungen an Text und Feldern in einem anderen Editor werden nach dem Speichern in Drifting übernommen.",
+    "offWarning": "Drifting übernimmt ausstehende Änderungen, bevor der Ordner deaktiviert wird. Vorhandene Dateien bleiben erhalten. Unter Lokale Daten lässt sich der Ordner wieder aktivieren.",
+    "identity": "Die drifting-id passt nicht zu diesem Eintrag und Textmodul.",
+    "lineage": "Der Eintrag oder Text wurde wiederhergestellt, umgestaltet oder gelöscht. Die Dateiänderungen konnten nicht übernommen werden.",
+    "owned": "Eine andere Drifting-Installation verwendet diesen Ordner.",
+    "unsafePath": "Drifting konnte nicht sicher auf diesen Pfad im Projektordner zugreifen.",
+    "occupied": "An diesem Pfad liegt bereits eine Datei.",
+    "duplicate": "Zwei Dateien haben dieselbe drifting-id.",
+    "moved": "Umbenennen und Verschieben von Dateien wird in dieser Version nicht synchronisiert.",
+    "readOnly": "Die schreibgeschützten Eigenschaften wurden aus dem Projekt wiederhergestellt.",
+    "malformedTable": "Die Tabelle konnte nicht gelesen werden. Die ursprüngliche Tabelle bleibt in Drifting erhalten.",
+    "unknownImage": "Das Bild verweist auf keine Datei in der Projektbibliothek. Die Zeile wurde als Text importiert.",
+    "fieldConflict": "Ein Feld konnte nicht übernommen werden: Es wurde auch in Drifting bearbeitet, oder sein Wert war nicht lesbar. Drifting hat seinen Wert behalten und eine Kopie der Datei gesichert.",
+    "keyCollision": "Eine Eigenschaft am Anfang heißt wie ein neu hinzugefügtes Feld. Drifting schreibt diese Datei erst wieder, wenn eines davon umbenannt oder entfernt ist."
+  },
   "positionLink": {
     "copied": "Positionslink kopiert"
   },
@@ -253,7 +269,6 @@
     "preview_failed": "Vorschau konnte nicht geladen werden",
     "preview_loading": "Vorschau wird geladen…",
     "prose": "Fließtext",
-    "relations": "Beziehungen",
     "reorder": "Zum Sortieren ziehen",
     "restore": "Wiederherstellen",
     "saved": "Gespeichert",
@@ -505,6 +520,34 @@
     "templateCount": "{{count}} Vorlagen",
     "templateStructure": "Vorlagenstruktur",
     "unusedTemplates": "Unbenutzte Vorlagen"
+  },
+  "v5RelationsProse": {
+    "create": "Beziehung anlegen",
+    "confirm": "Anlegen",
+    "direction": "Richtung",
+    "otherEntry": "Anderer Eintrag",
+    "relation": "Beziehung",
+    "change": "Ändern"
+  },
+  "v5Relations": {
+    "addEntry": "Eintrag hinzufügen",
+    "addRow": "Zeile hinzufügen",
+    "deleteRow": "Diese Zeile löschen",
+    "description": "Beschreibung",
+    "direction": "Einseitig oder wechselseitig",
+    "kinds_one": "{{count}} Beziehung",
+    "kinds_other": "{{count}} Beziehungen",
+    "newRelation": "Neue Beziehung",
+    "pairs_one": "{{count}} Paar",
+    "pairs_other": "{{count}} Paare",
+    "removeEntry": "„{{name}}“ entfernen",
+    "tab": "Beziehungen"
+  },
+  "relationGraph": {
+    "create": "Erstellen",
+    "name": "Name der Beziehung",
+    "relations": "Beziehungen",
+    "title": "Beziehung erstellen"
   },
   "v5Tour": {
     "agent": {

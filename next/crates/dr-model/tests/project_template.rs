@@ -8,10 +8,9 @@ use dr_model::project_template::{
     TemplateEntryTemplate, TemplateFieldDef, TemplateFieldType, TemplateFormatShortcuts,
     TemplateKvRow, TemplateLevelSettings, TemplateMediaArrangement, TemplateMembership,
     TemplateModuleAgent, TemplateModuleConfig, TemplateModuleKind, TemplateModuleSpec,
-    TemplateParagraph, TemplateProject, TemplateProjectBook, TemplateRelationEndpointKind,
-    TemplateRelationOrientation, TemplateRelationType, TemplateRun, TemplateTab, TemplateTabMount,
-    TemplateTable, TemplateVerbSpec, TemplateView, TemplateViewLane, TemplateViewPin,
-    TemplateViewPlacement, parse_project_template_json, to_canonical_json,
+    TemplateParagraph, TemplateProject, TemplateProjectBook, TemplateRelationType, TemplateRun,
+    TemplateTab, TemplateTabMount, TemplateTable, TemplateVerbSpec, TemplateView, TemplateViewLane,
+    TemplateViewPin, TemplateViewPlacement, parse_project_template_json, to_canonical_json,
     validate_project_template_value,
 };
 use dr_model::v3::FieldValue;
@@ -230,15 +229,8 @@ fn minimal_valid_template() -> ProjectTemplateValue {
         )]),
         relation_types: vec![TemplateRelationType {
             name: "线索指向".to_owned(),
-            description: "连接章节线索与相关人物".to_owned(),
-            orientation: TemplateRelationOrientation::Directed,
-            source_role: "线索".to_owned(),
-            target_role: "嫌疑人".to_owned(),
-            color: Some("#4a7c59".to_owned()),
-            source_kinds: vec![TemplateRelationEndpointKind::Entry],
-            target_kinds: vec![TemplateRelationEndpointKind::Entry],
-            source_templates: vec!["utpl-chapter".to_owned()],
-            target_templates: vec!["utpl-character".to_owned()],
+            description: dr_model::v3::LinkedText::plain("连接章节线索与相关人物"),
+            direction: dr_model::v3::RelationDirection::Directed,
         }],
         entries: vec![
             TemplateEntry {
@@ -437,7 +429,7 @@ fn rejects_unknown_fields_and_unknown_enum_variants() {
 
     // Unknown `RelationOrientation`
     let mut v = base_val.clone();
-    v["relation_types"][0]["orientation"] = json!("bidirectional_custom");
+    v["relation_types"][0]["direction"] = json!("bidirectional_custom");
     assert!(matches!(
         parse_project_template_json(&serde_json::to_string(&v).unwrap()).unwrap_err(),
         ProjectTemplateError::MalformedJson(_)

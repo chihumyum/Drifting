@@ -1,5 +1,3 @@
-use dr_model::{id::RelationId, kind::EntityKind, shared::EntityRef};
-use dr_view_material::v3;
 use dr_workspace::{Actor, Workspace};
 use serde_json::{Value, json};
 
@@ -40,98 +38,46 @@ fn place_in_media_entry(
 }
 
 #[test]
-fn entry_associations_remain_read_only_and_survive_hidden_ancestors() {
+fn current_files_follow_direct_usage_and_exclude_related_entries() {
     let dir = tempfile::tempdir().unwrap();
-    let store =
-        dr_store::Library::open(dir.path(), dr_workspace::library_options("0.2.0-dev")).unwrap();
-    let seed = dr_testkit::seed::generate_v3(
-        dr_testkit::seed::Preset::Tiny,
-        dr_testkit::seed::DEFAULT_SEED,
-    )
-    .unwrap();
-    let book_id = seed.books[0].book_id().to_string();
-    let entries = seed.books[0].book.view().entries();
-    let entry = entries
-        .iter()
-        .find(|e| {
-            e.template
-                .as_ref()
-                .is_some_and(|t| t.as_str() == "tpl-chapter")
-        })
-        .unwrap();
-    let entry_id = entry.id.to_string();
-    let parent = entry.parent.clone().unwrap();
-    let generic = dr_doc::catalog::generic_relation_type_id(seed.books[0].book_id());
-    seed.write_to(&store).unwrap();
-    store.close().unwrap();
     let ws = Workspace::open_dir(dir.path(), "0.2.0-dev").unwrap();
+    let book = call(&ws, "project.create", json!({"name":"Synthetic assets"}))["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let chapter = dr_testkit::seed::acceptance::novel_entry(
+        &ws,
+        &book,
+        "tpl-chapter",
+        "Synthetic chapter",
+        None,
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
     let asset = dr_view_material::import::import_bytes(
         &ws,
-        &book_id,
+        &book,
         None,
         dr_testkit::media::png(16, 16),
         "测试图",
     )
     .unwrap()
     .material;
-    // The file shown as an item of an entry's media module (the import puts
-    // it into the asset library only).
-    let (media_entry_id, _, material) =
-        place_in_media_entry(&ws, &book_id, &asset, "测试图").unwrap();
-    let parsed_book = book_id.parse().unwrap();
-    let target_entry = entry_id.clone();
-    ws.library()
-        .open_doc(&format!("book:{book_id}"), dr_store::OpenDoc::Existing)
-        .unwrap()
-        .write(dr_store::Origin::User, move |doc| {
-            dr_doc::v3::BorrowedBookV3::new(doc, &parsed_book)
-                .unwrap()
-                .txn()
-                .relation(&RelationId::new_v7())
-                .unwrap()
-                .ends(
-                    &EntityRef::new(EntityKind::Entry, &media_entry_id),
-                    &EntityRef::new(EntityKind::Entry, &target_entry),
-                )
-                .unwrap()
-                .relation_type(&generic)
-                .unwrap();
-        })
-        .unwrap();
-    let before = ws.observe(&format!("book:{book_id}")).unwrap().version;
-    assert!(
-        v3::related(&ws, &book_id, &entry_id)
-            .unwrap()
-            .contains(material.as_str())
+    let (media, _, _) = place_in_media_entry(&ws, &book, &asset, "测试图").unwrap();
+    call(
+        &ws,
+        "relation_row.create_pair",
+        json!({
+            "book":book,"left":chapter,"right":media,"new_type":{"name":"书信来源"},
+        }),
     );
-    assert!(
-        v3::related(&ws, &book_id, "missing-entry")
-            .unwrap()
-            .is_empty()
-    );
-    assert_eq!(
-        ws.observe(&format!("book:{book_id}")).unwrap().version,
-        before
-    );
-    call(&ws, "entry.trash", json!({"book":book_id,"id":parent}));
-    assert!(v3::related(&ws, &book_id, &entry_id).unwrap().is_empty());
-    call(&ws, "entry.restore", json!({"book":book_id,"id":parent}));
-    assert!(
-        v3::related(&ws, &book_id, &entry_id)
-            .unwrap()
-            .contains(material.as_str())
-    );
-    let old = dr_testkit::seed::acceptance::empty_source(ws.library());
-    let old_doc = format!("book:{old}");
-    let before = ws.library().load_copy(&old_doc).unwrap();
-    assert!(v3::related(&ws, &old, &entry_id).is_err());
-    assert!(
-        ws.call(&Actor::User, "relation.list", json!({"book":old}))
-            .is_err()
-    );
-    let after = ws.library().load_copy(&old_doc).unwrap();
-    assert_eq!(before.oplog_frontiers(), after.oplog_frontiers());
-    assert_eq!(before.get_deep_value(), after.get_deep_value());
+    let at = ws.observe(&format!("book:{book}")).unwrap().version;
+    let snap = dr_view_material::library_data::load_snapshot(&ws, &book, "未命名").unwrap();
+    assert_eq!(snap.current_for_entry(&media)[0].asset_id, asset);
+    assert!(snap.current_for_entry(&chapter).is_empty());
+    assert!(snap.current_for_entry("missing").is_empty());
+    assert_eq!(ws.observe(&format!("book:{book}")).unwrap().version, at);
     ws.shutdown().unwrap();
 }
 
@@ -247,7 +193,7 @@ fn v5_folder_tree_move_trash_restore_and_duplicate_byte_reuse() {
     )
     .unwrap();
 
-    let snap = library_data::load_snapshot(&ws, &book, "关系", "未命名").unwrap();
+    let snap = library_data::load_snapshot(&ws, &book, "未命名").unwrap();
     let row_a = snap
         .live_materials
         .iter()
@@ -269,7 +215,7 @@ fn v5_folder_tree_move_trash_restore_and_duplicate_byte_reuse() {
         &folders::Selection::of(&[folders::folder_key(&parent_folder)]),
     )
     .unwrap();
-    let trashed = library_data::load_snapshot(&ws, &book, "关系", "未命名").unwrap();
+    let trashed = library_data::load_snapshot(&ws, &book, "未命名").unwrap();
     assert!(
         !trashed
             .live_materials
@@ -290,7 +236,7 @@ fn v5_folder_tree_move_trash_restore_and_duplicate_byte_reuse() {
     );
 
     folders::restore_folder(&ws, &book, &parent_folder).unwrap();
-    let restored = library_data::load_snapshot(&ws, &book, "关系", "未命名").unwrap();
+    let restored = library_data::load_snapshot(&ws, &book, "未命名").unwrap();
     assert!(
         restored
             .live_materials

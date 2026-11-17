@@ -1249,7 +1249,7 @@ fn a_comment_is_written_in_the_whole_book(cx: &mut TestAppContext) {
             .as_array()
             .unwrap()
             .iter()
-            .find(|c| c["body"] == "要改")
+            .find(|c| c["body"]["text"] == "要改")
             .cloned()
     };
     let deadline = Instant::now() + Duration::from_secs(5);
@@ -1483,7 +1483,7 @@ fn a_comment_asked_for_from_the_selection_bar_is_written(cx: &mut TestAppContext
         .as_array()
         .unwrap()
         .iter()
-        .filter(|c| c["body"] == "看这里")
+        .filter(|c| c["body"]["text"] == "看这里")
         .collect();
     assert_eq!(mine.len(), 1, "{list}");
     assert_eq!(mine[0]["target"]["id"], id.to_string());

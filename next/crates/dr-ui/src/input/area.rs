@@ -126,6 +126,9 @@ pub struct TextArea {
     /// In a slip at least this many rows high ([`TextArea::framed`]).
     frame: Option<f32>,
     glass: Option<Entity<GlassState>>,
+    /// Entry links in the committed text (byte ranges, in order): drawn in
+    /// the accent over a dry sand stroke ([`crate::linked::LinkedArea`]).
+    links: Vec<Range<usize>>,
 }
 
 impl EventEmitter<FieldEvent> for TextArea {}
@@ -169,6 +172,7 @@ impl TextArea {
             id: id.into(),
             frame: None,
             glass: None,
+            links: Vec::new(),
         }
     }
 
@@ -245,6 +249,61 @@ impl TextArea {
     /// How many rows the text took at its last layout (0 before the first).
     pub fn rows(&self) -> usize {
         self.layout.as_ref().map_or(0, |l| l.rows.len())
+    }
+
+    /// Ranges of the committed text drawn as entry links: the accent's
+    /// words over a dry sand stroke, as in the prose
+    /// ([`crate::linked::LinkedArea`] keeps them in step with the words).
+    pub fn set_links(&mut self, links: Vec<Range<usize>>, cx: &mut Context<Self>) {
+        if self.links != links {
+            self.links = links;
+            cx.notify();
+        }
+    }
+
+    /// The row-high rectangle at `offset` of the text as last laid out, in
+    /// window coordinates (an `@` list opens under it). `None` before the
+    /// first layout.
+    pub fn offset_bounds(&self, offset: usize) -> Option<Bounds<Pixels>> {
+        let layout = self.layout.as_ref()?;
+        let last = layout.rows.last()?.end;
+        let at = layout.point_of(offset.min(last), false);
+        Some(Bounds::new(
+            layout.bounds.origin + at,
+            size(px(1.0), layout.line_height),
+        ))
+    }
+
+    /// Replaces `range` of the committed text with `text` (an `@` and its
+    /// letters with a picked name), as typing it would: the owner hears
+    /// [`FieldEvent::Changed`]. Nothing happens while composing.
+    pub fn replace_committed(
+        &mut self,
+        range: Range<usize>,
+        text: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let len = self.composer.text().len();
+        if self.composer.is_composing() || range.end > len || range.start > range.end {
+            return;
+        }
+        self.composer.move_to(range.start);
+        self.composer.select_to(range.end);
+        let change = self.composer.insert(&self.clean(text));
+        self.report(change, window, cx);
+    }
+
+    /// Puts the caret at `offset` of the committed text.
+    pub fn move_caret(&mut self, offset: usize, cx: &mut Context<Self>) {
+        if self.composer.is_composing() {
+            return;
+        }
+        self.composer
+            .move_to(offset.min(self.composer.text().len()));
+        self.upstream = false;
+        self.goal_x = None;
+        cx.notify();
     }
 
     /// Newlines as this field takes them: `\r\n` and `\r` are `\n`, and a
@@ -586,6 +645,13 @@ impl TextArea {
             return (self.placeholder.clone(), vec![run], true);
         }
         let run = style.to_run(text.len());
+        if !self.links.is_empty() {
+            return (
+                text.to_string().into(),
+                self.link_runs(text, &run, p),
+                false,
+            );
+        }
         let runs = match self.composer.marked() {
             Some(m) => [
                 TextRun {
@@ -612,6 +678,56 @@ impl TextArea {
             None => vec![run],
         };
         (text.to_string().into(), runs, false)
+    }
+}
+
+impl TextArea {
+    /// The links in the text on screen: shifted past the composition, and
+    /// left out where the composition is inside one.
+    fn shown_links(&self) -> Vec<Range<usize>> {
+        let marked = self.composer.marked();
+        self.links
+            .iter()
+            .filter_map(|r| match &marked {
+                None => Some(r.clone()),
+                Some(m) if r.end <= m.start => Some(r.clone()),
+                Some(m) if r.start >= m.start => Some(r.start + m.len()..r.end + m.len()),
+                Some(_) => None,
+            })
+            .filter(|r| r.end <= self.composer.text().len())
+            .collect()
+    }
+
+    /// The runs of `text` with the links in the accent and the composition
+    /// underlined.
+    fn link_runs(&self, text: &str, run: &TextRun, p: &Palette) -> Vec<TextRun> {
+        let links = self.shown_links();
+        let marked = self.composer.marked();
+        let mut cuts: Vec<usize> = vec![0, text.len()];
+        for r in links.iter().chain(marked.iter()) {
+            cuts.push(r.start);
+            cuts.push(r.end);
+        }
+        cuts.sort_unstable();
+        cuts.dedup();
+        cuts.windows(2)
+            .filter(|w| w[0] < w[1])
+            .map(|w| {
+                let (a, b) = (w[0], w[1]);
+                let in_link = links.iter().any(|r| r.start <= a && b <= r.end);
+                let in_marked = marked.as_ref().is_some_and(|m| m.start <= a && b <= m.end);
+                TextRun {
+                    len: b - a,
+                    color: if in_link { p.accent.solid() } else { run.color },
+                    underline: in_marked.then(|| UnderlineStyle {
+                        color: Some(p.ink(2).solid()),
+                        thickness: px(1.0),
+                        wavy: false,
+                    }),
+                    ..run.clone()
+                }
+            })
+            .collect()
     }
 }
 
@@ -1028,6 +1144,8 @@ struct AreaPrepaint {
     layout: Rc<Layout>,
     selection: Vec<PaintQuad>,
     caret: Option<PaintQuad>,
+    /// The sand strokes under the links, in window coordinates.
+    links: Vec<Bounds<Pixels>>,
 }
 
 impl IntoElement for AreaElement {
@@ -1127,12 +1245,32 @@ impl gpui::Element for AreaElement {
                         p.accent.solid(),
                     )
                 });
+        // Under each link, gpui-prose's entity stroke: 7 px high, its middle
+        // 4 px below the baseline.
+        let links = match layout.paragraphs.first() {
+            Some(para) if !area.links.is_empty() => {
+                let (ascent, descent) = (para.line.ascent, para.line.descent);
+                let drop = (line_height - (ascent + descent)) / 2.0 + ascent + px(0.5);
+                area.shown_links()
+                    .into_iter()
+                    .flat_map(|r| layout.selection(r, px(0.0)))
+                    .map(|b| {
+                        Bounds::new(
+                            bounds.origin + point(b.origin.x - px(1.0), b.origin.y + drop),
+                            size(b.size.width + px(2.0), px(7.0)),
+                        )
+                    })
+                    .collect()
+            }
+            _ => Vec::new(),
+        };
         let stored = layout.clone();
         self.area.update(cx, |a, _| a.layout = Some(stored));
         AreaPrepaint {
             layout,
             selection,
             caret,
+            links,
         }
     }
 
@@ -1169,6 +1307,12 @@ impl gpui::Element for AreaElement {
                     window,
                     cx,
                 );
+            }
+        }
+        if !prepaint.links.is_empty() {
+            let ink = Theme::of(window, cx).palette.accent.alpha(0.7);
+            for stroke in prepaint.links.drain(..) {
+                crate::sand::paint_mask(crate::sand::SandMask::Ul, stroke, ink, window, cx);
             }
         }
         if focus.is_focused(window)

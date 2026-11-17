@@ -1,5 +1,5 @@
 //! The canvas legend shared by Super Views. The host owns filtering and the
-//! type editor; this surface only renders their rows and forwards actions.
+//! visibility; this surface renders the rows and forwards toggles.
 
 use std::rc::Rc;
 
@@ -27,16 +27,12 @@ pub struct Row {
 }
 
 pub type Toggle = Rc<dyn Fn(&str, &mut Window, &mut App)>;
-pub type Edit = Rc<dyn Fn(&mut Window, &mut App)>;
 
 pub struct Legend {
     pub id: &'static str,
     pub rows: Vec<Row>,
     pub empty: SharedString,
-    pub edit_label: SharedString,
-    pub edit_id: &'static str,
     pub toggle: Toggle,
-    pub edit: Edit,
 }
 
 pub fn render(legend: Legend, window: &mut Window, cx: &mut App) -> AnyElement {
@@ -114,23 +110,5 @@ pub fn render(legend: Legend, window: &mut Window, cx: &mut App) -> AnyElement {
                 ),
         );
     }
-    surface
-        .child(
-            div()
-                .id(legend.edit_id)
-                .role(gpui::Role::Button)
-                .aria_label(legend.edit_label.clone())
-                .mt(px(2.0))
-                .px(px(6.0))
-                .py(px(3.0))
-                .rounded(px(radius::SM))
-                .cursor_pointer()
-                .hover(|s| s.bg(p.rule.alpha(0.18)))
-                .font_role(Role::Index)
-                .type_px(10.5, 15.0)
-                .text_color(p.ink(3).solid())
-                .on_click(move |_, window, cx| (legend.edit)(window, cx))
-                .child(legend.edit_label),
-        )
-        .into_any_element()
+    surface.into_any_element()
 }

@@ -3,7 +3,7 @@ source: crates/dr-workspace/tests/registry.rs
 expression: registry().table()
 ---
 asset.get                    query    shared   Read an asset's metadata and live usages in the book (`usages: false` reads the record alone).
-asset.list                   query    shared   List assets in the project's built-in asset library (sorted by asset id), each with its folder, its place in it and its live usages (media modules, prose embeds and links, image fields, relations). Set `trashed: true` to include Recently Deleted.
+asset.list                   query    shared   List assets in the project's built-in asset library (sorted by asset id), each with its folder, its place in it and its live usages (media modules, prose embeds and links, image fields). Set `trashed: true` to include Recently Deleted.
 asset.move                   command  book     Put a file of the asset library into another folder (or the top) and/or at another place among that folder's files (manual order).
 asset.purge                  command  book     Permanently purge a trashed asset from the book manifest and delete its stored bytes.
 asset.put                    command  book     Record an imported file in the project's built-in asset library (bytes live in storage). The same bytes are one file: when the library has them already, that file's id is given back (restored from Recently Deleted if it was there).
@@ -29,10 +29,11 @@ book.update                  command  book     Update selected book metadata fie
 book.writing_days            query    shared   A book's writing days: words written per day (all devices), today, the last seven days, active days and the streak.
 comment.anchors              query    shared   The stored anchors of the comments on one entity's prose, for an editor laying them out (comments without an anchor are not listed).
 comment.create               command  book     Add a comment on an entry, any module of an entry, a sub-part inside that module, a passage of prose, or floating.
-comment.delete               command  book     Delete a comment (its relations go with it). A checklist item's comment is not deleted here: it goes when its line is deleted in the prose.
+comment.delete               command  book     Delete a comment. A checklist item's comment is not deleted here: it goes when its line is deleted in the prose.
 comment.list                 query    shared   List comments (a target or module sub-part in the trash or gone shows as unlocated).
 comment.project              command  book     Keep projected comments from TODO markers (origin = marker) and checklist items (origin = task) in one prose document in step with it: a new marker or checklist item gets a comment; a marker's open comment whose line is gone is deleted and its resolved one stays; a checklist item's comment follows the line's text and tick (ticked = resolved) and is deleted with the line, resolved or not; deterministic ids merge across devices.
 comment.reanchor             command  book     Put a comment's anchor back where the editor's undo brought its text back (the author's change, synced; it follows the editor's undo, so it is not an entry of the object-level undo).
+comment.restore_body         command  book     Undo or redo a change of a comment's text: bring back `body` while the text still reads `expected`; any other change since refuses it. Status, resolution time and linked conversation are not touched.
 comment.update               command  book     Change a comment: its text, status (resolve / reopen; a checklist item's comment ticks or clears the item in the prose) or linked Agent conversation. A checklist item's comment takes no other text: its words are the line's, so change the line in the prose.
 entry.create                 command  book     Create an entry either residing under `parent` (without membership) or attached to `host` (residing in `host`'s home, `host` itself when `level`, or the root).
 entry.get                    query    shared   Read an entry including retained module values; an entry whose switch is on also carries what lies below it (resolved settings and their sources, children, members).
@@ -44,9 +45,6 @@ entry.trash                  command  book     Trash an entry with what lives un
 entry.update                 command  book     Rename an entry, set its mark, switch its template or change the overrides of what lives below it, without deleting retained content or touching its switch.
 entry_history.restore        command  book     Restore selected entry metadata (switch included) or structural records from a snapshot as a new undoable commit.
 entry_history.version        query    shared   Read the current book version for per-entry snapshot restoration.
-entry_relation_type.delete   command  book     Delete an unused unlocked relation type.
-entry_relation_type.list     query    shared   List relation types available to entry modules.
-entry_relation_type.put      command  book     Create or edit a relation type with endpoint and template restrictions.
 entry_snapshot.capture       command  book     Capture changed entry content periodically or on close using the existing history interval; unchanged content is skipped.
 entry_snapshot.create        command  book     Save a complete entry checkpoint, including retained modules and all body versions. Call before an Agent writes the entry.
 entry_snapshot.create_with_receipt command  book     Save a complete entry checkpoint and return its exact committed versions for a guarded host write. Never infer these versions from a later observation.
@@ -85,13 +83,11 @@ module.put_grid              command  book     Replace the rows, columns, cells 
 module.put_kv                command  book     Add or update an ordered key/value row in a module.
 module.put_media             command  book     Add or update an ordered file item in an entry's media module.
 module.put_patch             command  book     Create or edit the text of a patch module record, preserving its source reference.
-module.put_relation          command  book     Associate an entry with a live endpoint through its relations module.
 module.read                  query    shared   Read a current or retained module and its structured content; a children module reads what lies below the entry.
 module.read_prose            query    shared   Read an entry's or a template's prose module with block IDs and version.
 module.remove_kv             command  book     Remove a key/value row from a module.
 module.remove_media          command  book     Remove a file item from an entry's media module.
-module.remove_patch          command  book     Remove one patch record without deleting relations or other entries.
-module.remove_relation       command  book     Remove one relation projected in an entry's relations module.
+module.remove_patch          command  book     Remove one patch record from a patches module; the entry and its other records stay.
 module.replace_prose         command  book     Replace an exact passage in an entry's prose module, addressed by block ID.
 module.set_arrangement       command  book     Choose how this entry lays out the files of its media module (`featured`, `grid` or `list`), or go back to its template's (`null`); the template is not changed.
 module.set_field             command  book     Set or clear a typed field value in an entry's fields module.
@@ -116,9 +112,18 @@ prose.shape                  query    shared   Shape of a prose document: paragr
 prose.unlink                 command  book     Take links to entities off anchored ranges of prose documents (anchors, not positions: the undo of automatic links).
 recent.list                  query    shared   List this device's live pages, retaining each entry's selected module.
 recent.touch                 command  book     Record an entry and optional module on this device without an undo step.
-relation.create              command  book     Create a canonical relation, validating live endpoints and template restrictions; return an existing semantic edge without a write.
-relation.delete              command  book     Delete one canonical relation without deleting either endpoint.
-relation.list                query    shared   List canonical relations whose endpoints are live, optionally scoped to an endpoint or type.
+relation_row.add_entry       command  book     Add a live entry to one side of a row. Every new pair must be unique within the relation.
+relation_row.create_group    command  book     Create one exact relation row from two nonempty disjoint live-entry sets, in one undo step. Refuse stale direction or any pair already in another row.
+relation_row.create_pair     command  book     Relate two distinct live entries. Reuse a matching row or start a new one. Return the row ID, with no write if the pair already exists.
+relation_row.delete          command  book     Delete a row. Removing the last row also removes the relation.
+relation_row.remove_entry    command  book     Remove an entry from a row. An empty side removes the row; removing the last row also removes the relation.
+relation_type.create         command  book     Create a named relation with a description and direction, initially without rows.
+relation_type.delete         command  book     Delete a relation and all its rows in one edit.
+relation_type.list           query    shared   List each relation with its description, direction and rows of live entries. Each row relates every left entry to every right entry.
+relation_type.rename         command  book     Rename a relation. Normalized names are unique within the project.
+relation_type.restore        command  book     Undo or redo one relation write: put back or take out the pairs, definition values and relations it names while they still read as that write left them. Anything changed since refuses the whole step; what others added stays.
+relation_type.set_description command  book     Edit a relation's description, which can contain links to entries.
+relation_type.set_direction  command  book     Change the direction of every row of a relation, preserving its left and right entries.
 tab.move                     command  book     Change a left-sidebar tab's position (「全部」 included).
 tab.put                      command  book     Add a left-sidebar tab that mounts a level entry or the book sequence; one thing is mounted on one tab. A tab cannot mount a view (views go with the bottom panel).
 tab.remove                   command  book     Remove a left-sidebar tab (not what it mounts); 「全部」 stays.

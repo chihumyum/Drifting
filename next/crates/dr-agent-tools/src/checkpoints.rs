@@ -49,9 +49,10 @@ fn selection(ws: &Workspace, key: &TurnKey, call: &ResolvedCall) -> Result<Selec
     let Lookups {
         mut patches,
         relations,
+        relation_types,
         memberships,
         children_of,
-        mut comments,
+        comments,
         mut assets,
         asset_folders,
     } = named.lookups;
@@ -108,25 +109,20 @@ fn selection(ws: &Workspace, key: &TurnKey, call: &ResolvedCall) -> Result<Selec
             }
         }
     }
-    let stored_relations = if !relations.is_empty() || !assets.is_empty() {
-        view.relations_raw()
-    } else {
-        Vec::new()
-    };
-    if !relations.is_empty() {
-        for id in relations {
-            if let Some(r) = stored_relations.iter().find(|r| r.id.as_str() == id) {
-                for (kind, id) in [(&r.from.kind, &r.from.id), (&r.to.kind, &r.to.id)] {
-                    match *kind {
-                        EntityKind::Entry => {
-                            ids.insert(id.clone());
-                        }
-                        EntityKind::Patch => patches.push(id.clone()),
-                        EntityKind::Comment => comments.push(id.clone()),
-                        EntityKind::Asset => assets.push(id.clone()),
-                        _ => {}
-                    }
-                }
+    if !relations.is_empty() || !relation_types.is_empty() {
+        // A row of a relation a merge reads as another one (`RT-NAME`) is
+        // that relation's row.
+        let winners = view.relation_type_winners();
+        for row in view.relations_raw() {
+            let reads_as = winners
+                .get(&row.relation_type)
+                .unwrap_or(&row.relation_type);
+            if relations.iter().any(|id| id == row.id.as_str())
+                || relation_types
+                    .iter()
+                    .any(|id| id == row.relation_type.as_str() || id == reads_as.as_str())
+            {
+                ids.extend(row.left.union(&row.right).map(ToString::to_string));
             }
         }
     }
@@ -149,19 +145,6 @@ fn selection(ws: &Workspace, key: &TurnKey, call: &ResolvedCall) -> Result<Selec
     }
     if !assets.is_empty() {
         let asset_set: BTreeSet<String> = assets.into_iter().collect();
-        for r in &stored_relations {
-            for (a_end, other) in [(&r.from, &r.to), (&r.to, &r.from)] {
-                if a_end.kind == EntityKind::Asset && asset_set.contains(&a_end.id) {
-                    match other.kind {
-                        EntityKind::Entry => {
-                            ids.insert(other.id.clone());
-                        }
-                        EntityKind::Patch => patches.push(other.id.clone()),
-                        _ => {}
-                    }
-                }
-            }
-        }
         ids.extend(entries_referencing_assets(
             ws, &book, &view, &headers, &asset_set,
         )?);
@@ -285,8 +268,9 @@ struct Named {
 struct Lookups {
     /// Patch ids: the patch's entry.
     patches: Vec<String>,
-    /// Relation ids: each endpoint that is an entry, patch, comment or asset.
+    /// Relation rows and kinds: all their member entries.
     relations: Vec<String>,
+    relation_types: Vec<String>,
     /// Membership keys: the host and the member.
     memberships: Vec<String>,
     /// Entries whose switch is being turned off: live descendants moved to
@@ -304,6 +288,7 @@ impl Lookups {
     fn is_empty(&self) -> bool {
         self.patches.is_empty()
             && self.relations.is_empty()
+            && self.relation_types.is_empty()
             && self.memberships.is_empty()
             && self.children_of.is_empty()
             && self.comments.is_empty()
@@ -379,24 +364,44 @@ impl Named {
         {
             named.lookups.asset_folders.push(parent.to_owned());
         }
-        if matches!(
-            call.name.as_str(),
-            "relation.create" | "module.put_relation"
-        ) {
-            for key in ["from", "to", "other"] {
-                if let (Some(kind), Some(id)) =
-                    (args[key]["kind"].as_str(), args[key]["id"].as_str())
-                {
-                    named.endpoint(EntityKind::from(kind), id);
-                }
-            }
+        if call.name == "relation_row.add_entry" || call.name == "relation_row.remove_entry" {
+            named
+                .entries
+                .extend(args["entry"].as_str().map(str::to_owned));
+        }
+        if call.name == "relation_row.create_pair" {
+            named.entries.extend(
+                ["left", "right"]
+                    .into_iter()
+                    .filter_map(|key| args[key].as_str())
+                    .map(str::to_owned),
+            );
+        }
+        if call.name == "relation_row.create_group" {
+            named
+                .entries
+                .extend(["left", "right"].into_iter().flat_map(|key| {
+                    args[key]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .filter_map(serde_json::Value::as_str)
+                        .map(str::to_owned)
+                }));
         }
         if matches!(
             call.name.as_str(),
-            "relation.delete" | "module.remove_relation"
+            "relation_row.add_entry" | "relation_row.remove_entry" | "relation_row.delete"
         ) && let Some(id) = args["id"].as_str()
         {
             named.lookups.relations.push(id.to_owned());
+        }
+        if matches!(
+            call.name.as_str(),
+            "relation_type.set_direction" | "relation_type.delete"
+        ) && let Some(id) = args["id"].as_str()
+        {
+            named.lookups.relation_types.push(id.to_owned());
         }
         if call.name == "entry_history.restore" {
             for target in args["targets"].as_array().into_iter().flatten() {
@@ -415,6 +420,7 @@ impl Named {
                         }
                     }
                     Some("relations") => named.lookups.relations.push(id.to_owned()),
+                    Some("relation_types") => named.lookups.relation_types.push(id.to_owned()),
                     Some("comments") => named.lookups.comments.push(id.to_owned()),
                     Some("assets") => named.lookups.assets.push(id.to_owned()),
                     Some("asset_folders") => named.lookups.asset_folders.push(id.to_owned()),

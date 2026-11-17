@@ -795,6 +795,31 @@ fn the_showcase_books_keep_the_v3_invariants() {
     }
 }
 
+#[test]
+fn the_showcase_covers_both_directions_and_a_row_with_several_members() {
+    use dr_model::v3::RelationDirection;
+
+    let books = dr_testkit::samples::showcase_v3(DEFAULT_SEED).unwrap();
+    let mut directed = false;
+    let mut symmetric = false;
+    let mut multi_member = false;
+    for book in &books {
+        let view = book.book.view();
+        for row in view.relations() {
+            match view
+                .relation_type_raw(&row.relation_type)
+                .unwrap()
+                .direction
+            {
+                RelationDirection::Directed => directed = true,
+                RelationDirection::Symmetric => symmetric = true,
+            }
+            multi_member |= row.left.len() > 1 || row.right.len() > 1;
+        }
+    }
+    assert!(directed && symmetric && multi_member);
+}
+
 /// The outermost entries of the book sequence that carry book prose (the
 /// chapters; one living under an entry with book prose of its own is part of
 /// it). The App numbers nothing.

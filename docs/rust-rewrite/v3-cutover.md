@@ -11,6 +11,8 @@
 >
 > 现在到哪一步、还开着什么，看 [progress.md](progress.md)。
 
+2026-11-17，RD。书目保留格式号 5，创世版本为 6，写入 `meta.relation_rows = true`。缺少标记的开发库、书文件和导入续跑均须回到 0.1 源库走新的导入，旧文件照原样保留。门禁还扫描退役的 `relation.*`、`entry_relation_type.*`、`module.put_relation` 和 `module.remove_relation`。参见 [RD 交回](kernel-v5.md#rd-交回项目关系与带链接的短文字2026-11-17)。
+
 ## 做了什么
 
 普通书架新建直接调用 `project.create`，生成真实 canonical v3 文档、小说模板和根；没有 `book.create` 注册别名。普通、preferred、直接打开和系统／正文链接都只接受真实 v3。旧书不做就地补版本、修复或删除，首选旧书可以略过并选择有效 v3 书；显式旧书打开被拒。书架编辑读取同一 v3 元数据，字数来自真实文稿树的正文模块；已有正文索引未就绪显示 pending，尚未创建的空正文为 0。

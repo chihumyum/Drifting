@@ -468,6 +468,7 @@ cargo drifting app quit
 | `nav.open` | `{target}`（页面键）、`{chapter}`（章名或 id）或 `{link}`（位置链接）：开成留下的标签（`preview: true` 是预览） |
 | `state.get` | 外壳的状态：书、书架是否盖着、当前页、标签、侧栏、浮层、焦点（`focus.editor`：当前页的编辑器有没有拿到键盘）、当前页的选区和选区浮条（`selectionBar`）、盖在稿纸上的东西（`dialog`、`history`、`composer`、`cornerMenu`）、打开着的编辑器；M41 的对话框是盖着的那一个时，`transfer` 是它的状态（`working` / `done` / `confirm` / `failed`）、标题、正文、确认键、失败的原因键；`panel` 同 `panel.state` |
 | `page.text` | 一页的段落（默认稿纸上那一页）：编辑器里的文字（每个键都已经在里面）和选区，通览全书每章前面加章名；带标题级别。`head` 是正文外面那一圈：章节页的标题、梗概、状态、第几章、⁂ 展开没有；要素页的名字、别名输入框、简介、字段行、提示；类目页的名字；以及哪个框有键盘 |
+| `page.relations` | 当前正文编辑器上一帧实际画出的条目链接位置、关系连线和就地建关系草稿（窗口逻辑像素）；只读，不打开悬停卡、不挑对端、不提交。RL 原生场景据此移动真实指针，再用键鼠完成创建 |
 | `ui.wait` | 等到窗口有库（恢复备份换库时会有一会儿没有）、书目到了、当前标签里每一页的编辑器都打开了（打不开就报错）、书架盖着时不等书；还可以要求页上出现某段文字、`state.get`（`state`）或 `page.text`（`page`）的某些字段等于某些值；超时报 `timeout` 并说明还在等什么。`{until: "time", ms}` 只是等一会儿；`{until: "file", path}` 等到应用在后台写的一个文件出现（书的导出写完以后不弹什么，只有文件），回答它的大小 |
 | `panel.state` | 系统的打开、存储面板：给下一个面板想好的答案（`armed`）、应用上一次要的面板（`last`：`kind` 是 `open` 还是 `save`、文件夹、建议的文件名、按钮上的字、答了什么）、屏幕上有没有一个真面板（`shown`）。只在 macOS |
 | `panel.answer` | `{path}`：给应用下一个要的打开或存储面板想好答案，之后再按应用的按钮：面板不显示，应用的回调马上拿到这个路径，和作者选完一样。只在 macOS |
@@ -587,7 +588,7 @@ done
 | M39 反馈对话框 | `feedback.json` | 只截图、不发送：中文浅色写一条合成的反馈、展开诊断摘要的预览；英文深色再拍一张；都按「取消」关掉。开发构建没有 Hosted 服务，发送键是「用邮件发送」，没点 | 25 |
 | M41 整库备份与恢复 | `restore.json` | 设置里搜「backup」，点「Export backup…」：应用要的是存储面板、建议的文件名是 `Drifting-<日期>.drifting`，桥答上输出目录里的路径，对话框说「Saved …」和几本书、多大，点「Close」关掉；备份以后在第一章开头打字、新建一本书；「Choose backup…」答那个备份：先核对，再问「Replace and restore」（文件名、几本书、书名）；按下去外壳关库、换库、重开，窗口回到书架：新建的书没了（F3 `not_found`），第一章回到备份时，换掉的库存成了恢复前副本；再打开《慢钟》第一章，编辑器里也是备份时的字；最后答一个不是备份的文件：说「not a valid Drifting backup」（原因键 `errors.invalid`），库没动 | 64 |
 | M41 一本书导出再导入 | `book-transfer.json` | 书架上《慢钟》书卡悬停才出来的导出箭头（`within` 挑这一张卡）：存储面板建议 `慢钟.driftingbook`，答上路径，文件写出，书架还在；左栏「Import book」答这个文件：「Importing」走完就消失，书架上两本《慢钟》并排，原书 24 章没动；再答一个不是书的文件：「Could not import」「not a book exported from Drifting」（原因键 `notABook`），关掉以后还是两本 | 27 |
-| M17 关系与关系类型 | `relations.json` | 打开「沈知微」滚到页尾的「关联」；「Edit types」→「New」写「宿敌」保存；色条换第三个颜色（F3 存 `hsl(var(--story-3))`）；「Link entity」搜「林晚秋」、选「宿敌」、「Create」，F3 里有这条；× 移除；类型列表滚到底，「宿敌」的垃圾桶，对话框确认，F3 里没有了（m17-relations.md） | 57 |
+| M17 旧关系界面（历史，RD 后退役） | `relations.json` | 打开「沈知微」滚到页尾的「关联」；「Edit types」→「New」写「宿敌」保存；色条换第三个颜色（F3 存 `hsl(var(--story-3))`）；「Link entity」搜「林晚秋」、选「宿敌」、「Create」，F3 里有这条；× 移除；类型列表滚到底，「宿敌」的垃圾桶，对话框确认，F3 里没有了（m17-relations.md） | 57 |
 
 - **结果**：2026-11-08 在这台 Mac 上，带调试桥的开发版，七个场景都跑过（M18 一步按待协调跳过），写作闭环也重跑了一遍，46 步全过。截图在各自的输出目录（`target/acceptance/<场景>/`，不提交）；反馈对话框的三张真窗口截图提交在 [modules/m39/](../modules/m39/)：`window-feedback-zh-light.png`、`window-feedback-preview-zh-light.png`、`window-feedback-en-dark.png`。
 - **第五个里程碑的结果**：2026-11-08，同一台 Mac，`restore.json` 64 步、`book-transfer.json` 27 步全过，没有跳过的步。截图在 `target/acceptance/restore/`、`target/acceptance/book-transfer/`（不提交）。
@@ -756,3 +757,19 @@ K4-0 第二次交回实跑：`k4-0-sidebar.json` 84/84 步、0 pending，三图�
 全 workspace test 2039 passed / 0 failed / 22 ignored（测试线程 3），全套门禁通过。
 检查日志在忽略目录 `next/target/acceptance/k4-0-checks/`；永久证据仍由上述场景
 的断言和 `dr-shell/tests/v3.rs` 提供，不提交运行结果 JSON。
+
+M17 上面的 57 步记录旧「关联」模块和类型管理，RD 后已退役，不证明内核 v5 关系界面可用；当前 RL 的原生串联脚本和证据见下节。
+
+## 内核 v5 · RL 关系的原生串联验收
+
+当前脚本是 `next/crates/dr-cli/script/relations.py`。在 `next/` 构建带 `debug-bridge` 的 `drifting` 和 `dr-cli` 后运行：
+
+```bash
+python3 -I crates/dr-cli/script/relations.py --out <空输出目录>
+```
+
+脚本以 showcase 样书和一次性开发 profile 打开 macOS 副屏，真实指针/键盘完成悬停→正文就地建立→右栏定位→描述 @→关系图→批注 @；`page.relations` 只读上一帧的链接/连线坐标，写入走界面，`command.call` 的查询独立核对结果。输出 `calls.jsonl`、`window.json`、`result.json`、应用日志和截图，profile 在 finally 清理。这是 Python 断言脚本，不套用旧 JSON 场景的 57 步。
+
+本次产品树 `63eb6b918`：完整串联通过，1440×900 逻辑像素、2 倍副屏；保存的关系与批注链接经只读查询核对，11 张原生截图逐张复核，临时 profile 已清理；右栏亮起证据：`rl-window-accepted/04-revealed-row.png` 可见新建的「阿Q → 赵太爷」一行整行亮起；聚焦后图中同一条新关系及箭头：`rl-window-accepted/06c-created-edge.png` 可见完整的「阿Q」「赵太爷」、中间的「验收关系」以及指向赵太爷的箭头。不要只凭图例出现名字、关系小卡出现名字，或 `directed` 数据字段为 true，就说图上的线和箭头已看见。图的 Shift 创建和 Enter 不提交有 GPUI 真实鼠标/按键回归；除非本次原生流程另外实际操作过，不把它们写成这份串联脚本已覆盖。
+
+本轮 macOS 副屏开发构建证据不覆盖 Windows 实机、1 倍屏与实体触控板/额外真实输入法；跨独立正文编辑器的连线仍未实现。

@@ -467,6 +467,7 @@ pub fn path_of(p: &Path) -> String {
 pub fn v3_choices() -> dr_import_v1::v3::MappingChoices {
     dr_import_v1::v3::MappingChoices {
         profile: Some("test-fixture-explicit".into()),
+        ..dr_import_v1::v3::MappingChoices::default()
     }
 }
 

@@ -276,7 +276,7 @@ fn markers_project_into_todos_by_the_old_rules() {
     let list = todos(&e, &ch);
     assert_eq!(list.len(), 1);
     let t = &list[0];
-    assert_eq!(t["body"], "查一查赵太爷的年纪");
+    assert_eq!(t["body"]["text"], "查一查赵太爷的年纪");
     assert_eq!(t["projection"], "marker");
     assert_eq!(t["target_block"], ch.blocks[1].as_str());
     assert_eq!(t["status"], "open");
@@ -292,7 +292,7 @@ fn markers_project_into_todos_by_the_old_rules() {
         .iter()
         .find(|t| t["id"] == todo_id(&ch, 2).as_str())
         .unwrap();
-    assert_eq!(empty["body"], "（此处待办）");
+    assert_eq!(empty["body"]["text"], "（此处待办）");
     // Editing the marker's text does not touch the TODO (the author may have
     // edited it in the sidebar), and nothing is written.
     let o = project(&e, &ch, &[(1, "查一查赵太爷的生日"), (2, "")], None);
@@ -381,7 +381,7 @@ fn two_devices_project_one_todo() {
         let list = todos(dev, &ch);
         assert_eq!(list.len(), 1, "one entity");
         assert_eq!(list[0]["id"], todo_id(&ch, 1).as_str());
-        assert_eq!(list[0]["body"], "补一场雨");
+        assert_eq!(list[0]["body"]["text"], "补一场雨");
         assert_eq!(list[0]["status"], "open");
     }
 }
@@ -411,7 +411,7 @@ fn a_todo_resolved_on_one_device_stays_resolved_when_another_projects_it_late() 
             list[0]["status"], "resolved",
             "the author's edit wins over a seed"
         );
-        assert_eq!(list[0]["body"], "下一场雨");
+        assert_eq!(list[0]["body"]["text"], "下一场雨");
     }
 }
 
@@ -507,7 +507,7 @@ fn checklist_items_are_comments_whose_tick_is_their_status_both_ways() {
     assert_eq!(created, want);
     let first = task_comment(&e, &ch, 0).unwrap();
     assert_eq!(
-        (&first["body"], &first["status"], &first["origin"]),
+        (&first["body"]["text"], &first["status"], &first["origin"]),
         (&json!("买灯芯"), &json!("open"), &json!("task"))
     );
     // A tick in the prose resolves the item's comment.
@@ -540,7 +540,7 @@ fn checklist_items_are_comments_whose_tick_is_their_status_both_ways() {
     s.edit(|t| t.insert_text(10, "和年月")).unwrap();
     project_tasks(&e, &ch);
     assert_eq!(
-        task_comment(&e, &ch, 1).unwrap()["body"],
+        task_comment(&e, &ch, 1).unwrap()["body"]["text"],
         "问钟楼的年代和年月"
     );
     // A resolved item whose line is gone: its comment goes too.
@@ -604,7 +604,7 @@ fn a_checklist_comment_takes_no_other_words_and_is_not_deleted() {
     assert!(matches!(refused, Err(WsError::Invalid(_))), "{refused:?}");
     let refused = e.try_call("comment.delete", json!({"book": b, "id": id}));
     assert!(matches!(refused, Err(WsError::Invalid(_))), "{refused:?}");
-    assert_eq!(task_comment(&e, &ch, 0).unwrap()["body"], "买灯芯");
+    assert_eq!(task_comment(&e, &ch, 0).unwrap()["body"]["text"], "买灯芯");
     // The same words are no change; the conversation and the status go through.
     e.call(
         "comment.update",

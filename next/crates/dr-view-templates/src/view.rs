@@ -211,7 +211,6 @@ pub fn type_label(kind: &str, cx: &App) -> SharedString {
         "kv" => k::KV,
         "patches" => k::PATCHES,
         "plot_grid" => k::PLOT_GRID,
-        "relations" => k::RELATIONS,
         "children" => k::CHILDREN,
         "members" => dr_i18n::keys::v3_shell::ATTACHED_ENTRIES,
         "media" => k::MEDIA,

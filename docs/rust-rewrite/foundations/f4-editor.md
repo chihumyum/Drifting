@@ -339,6 +339,13 @@ Drifting 的正文能在新版里编辑并落盘了：新的 AGPL crate `next/cr
 - `BookPos`、`BookRange`、`Book::split_range`、`Book::text_in`：全书里的位置和范围，给以后的跨章选区（F4b）。
 - `ProseEditor::undo_in(chapter)` / `redo_in(chapter)`：只撤、只重做某一章，全书模式里 ⌘Z 撤光标所在的章。
 
+### RL（关系的界面，正文一边）给 `gpui-prose` 加的
+
+只读、只加，见 [m17-relations.md](../modules/m17-relations.md#rl-正文一边悬停连线和就地建关系2026-11-17分路实现)：
+
+- `ProseEditor::painted_group(group)`：上一帧画出来的这一组装饰，每个连同它在各段里的部分合成一个（和 `painted_decoration` 一样，框只算看得见的行和上下各一行）。`dr-editor` 拿它找屏上的条目名字。
+- `ProseEditor::painted_rows()`：上一帧画出来的每一行字的位置（从这一行顶到下一行顶，宽是这一段的栏宽）；行顶就是两行字之间空白的中线，关系的名字放在那里。
+
 ### Drifting 的编辑器（`dr-editor`，F4e，AGPL）
 
 | 项 | 说明 |
@@ -353,6 +360,7 @@ Drifting 的正文能在新版里编辑并落盘了：新的 AGPL crate `next/cr
 | `anchors::{comment_anchors, encode, decode}` | 读一篇正文上的批注锚点；`gpui-prose` 与书目文档之间的锚点编码 |
 | `convert::{apply, OwnedEdit, entity_link, entity_value}` | `gpui-prose` 的编辑（原始键值）到 `dr-doc` 类型化事务 |
 | `BookEditor::open(ws, book, settings, window, cx)` | 全书视图（M05）：每章一个会话、一个滚动区；`jump_to`、`reveal_line`、`reading_position` / `restore`、按章撤销。见 [m05-book.md](../modules/m05-book.md#给-f6-的用法) |
+| `assist::relate` | 关系在正文里（RL）：悬停卡开着时屏上有关系的名字之间连砂笔线、线上写关系的名字；悬停卡最后一行「建关系」和稿纸底下那一条；`RelationFocus` 是右栏指着的行。见 [m17-relations.md](../modules/m17-relations.md#rl-正文一边悬停连线和就地建关系2026-11-17分路实现) |
 
 ### 格式（`gpui_prose::schema`）
 

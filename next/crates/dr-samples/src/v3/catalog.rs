@@ -8,7 +8,7 @@ use dr_doc::v3::novel::*;
 use dr_doc::v3::{BookTxnV3, BookViewV3};
 use dr_doc::{Anchor, DocError, Result};
 use dr_model::id::*;
-use dr_model::import_v1::{EntityRef, MaterialKind, NodeId, canonical_symmetric};
+use dr_model::import_v1::{EntityRef, MaterialKind, NodeId};
 use dr_model::kind::*;
 use dr_model::pos::PosKey;
 use dr_model::v3::*;
@@ -214,19 +214,6 @@ impl Entries<'_, '_> {
 fn text(w: &dr_doc::v3::write::EntryWriterV3, key: &str, value: &str) -> Result<()> {
     w.set_field(&mid(MOD_FIELDS), key, Some(&FieldValue::Text(value.into())))?;
     Ok(())
-}
-
-fn restrictions(kinds: &[EntityKind]) -> Vec<EntityKind> {
-    let mut out = BTreeSet::new();
-    for kind in kinds {
-        if *kind == EntityKind::Material {
-            out.insert(EntityKind::Entry);
-            out.insert(EntityKind::Asset);
-        } else {
-            out.insert(map_kind(kind));
-        }
-    }
-    out.into_iter().collect()
 }
 
 /// The asset library's folders and the files' places, rebuilt from 0.1
@@ -516,13 +503,94 @@ fn apply_act_color_if_supported(
     Ok(())
 }
 
+/// The prose lines the projected comments of a converted book follow
+/// (checklist items and TODO marker lines), by body document and block:
+/// each line's text and start and the document's entry links over it. A
+/// projected comment takes its words and links from its line, not from its
+/// names (`kernel-v5.md` §19), with the rule `comment.project` uses
+/// ([`dr_workspace::commands::comment::projected_body`]), so the first
+/// projection after an import finds nothing to change.
+#[derive(Clone, Debug, Default)]
+pub struct ProjectedLines(BTreeMap<(String, BlockId), ProjectedLine>);
+
+#[derive(Clone, Debug)]
+struct ProjectedLine {
+    text: String,
+    start: usize,
+    links: Vec<(std::ops::Range<usize>, EntityLinkV3)>,
+}
+
+impl ProjectedLines {
+    /// The lines of body document `doc` (its final prose `view`) that a
+    /// comment can be projected from: every checklist item, and the lines
+    /// `marked` names (a TODO marker's).
+    pub fn add(
+        &mut self,
+        doc: &DocId,
+        view: &dr_doc::prose::ProseView<'_>,
+        marked: impl Fn(&BlockId) -> bool,
+    ) {
+        let mut links = None;
+        for p in view.paragraphs() {
+            let Some(block) = p.id.clone() else {
+                continue;
+            };
+            if p.attrs.list != Some(ListKind::Task) && !marked(&block) {
+                continue;
+            }
+            let all = links.get_or_insert_with(|| view.entity_links_v3());
+            let range = p.range.clone();
+            self.0.insert(
+                (doc.to_string(), block),
+                ProjectedLine {
+                    text: p.text(),
+                    start: range.start,
+                    links: all
+                        .iter()
+                        .filter(|(r, _)| r.start < range.end && range.start < r.end)
+                        .cloned()
+                        .collect(),
+                },
+            );
+        }
+    }
+
+    /// The body `comment.project` gives the comment of `kind` projected from
+    /// `block` of `doc`, the prose of entry `owner`. `task` is a marker's
+    /// words (a checklist item's are its line). `None` when the line is not
+    /// known.
+    fn body(
+        &self,
+        doc: &DocId,
+        block: &BlockId,
+        kind: &ProjectionKind,
+        task: &str,
+        owner: &str,
+    ) -> Option<LinkedText> {
+        let line = self.0.get(&(doc.to_string(), block.clone()))?;
+        let task = match kind {
+            ProjectionKind::NoteTask => line.text.trim(),
+            _ => task.trim(),
+        };
+        Some(dr_workspace::commands::comment::projected_body(
+            &line.text,
+            line.start,
+            task,
+            &line.links,
+            owner,
+        ))
+    }
+}
+
 /// Copy the source catalog. Anchors must already refer to the target prose
 /// documents (the importer writes there directly; sample conversion remakes
-/// anchors by resolving their exact source ranges).
+/// anchors by resolving their exact source ranges). `lines` are the lines
+/// its projected comments follow ([`ProjectedLines`]).
 pub fn sync_catalog(
     txn: &mut BookTxnV3<'_>,
     source: &BookView<'_>,
     choices: &MappingChoices,
+    lines: &ProjectedLines,
 ) -> Result<()> {
     let pending = choices.pending(source);
     if !pending.is_empty() {
@@ -1092,7 +1160,7 @@ pub fn sync_catalog(
             }
         }
     }
-    copy_rest(txn, source)?;
+    copy_rest(txn, source, choices, lines)?;
     Ok(())
 }
 
@@ -1106,7 +1174,12 @@ fn node_fields(
     Ok(())
 }
 
-fn copy_rest(txn: &mut BookTxnV3<'_>, source: &BookView<'_>) -> Result<()> {
+fn copy_rest(
+    txn: &mut BookTxnV3<'_>,
+    source: &BookView<'_>,
+    choices: &MappingChoices,
+    lines: &ProjectedLines,
+) -> Result<()> {
     let folders = source.material_folders();
     let materials = source.materials();
     let materials_by_id: BTreeMap<&str, &dr_model::import_v1::Material> =
@@ -1200,54 +1273,107 @@ fn copy_rest(txn: &mut BookTxnV3<'_>, source: &BookView<'_>) -> Result<()> {
         }
         Some(new)
     };
+    let mut directions = BTreeMap::new();
     for rt in source.relation_types() {
-        if rt.locked || rt.system_key.is_some() {
+        if rt.system_key == Some(SystemRelationKey::GenericAssociation) {
             continue;
         }
+        let direction = match rt.orientation {
+            RelationOrientation::Symmetric => RelationDirection::Symmetric,
+            _ => RelationDirection::Directed,
+        };
+        directions.insert(rt.id.clone(), direction);
         txn.relation_type(&rt.id)?
             .name(&rt.name)?
-            .description(&rt.description)?
-            .orientation(&rt.orientation)?
-            .source_role(&rt.source_role)?
-            .target_role(&rt.target_role)?
-            .color(rt.color.as_deref())?
-            .source_kinds(&restrictions(&rt.source_kinds))?
-            .target_kinds(&restrictions(&rt.target_kinds))?
-            .source_templates(&[])?
-            .target_templates(&[])?;
+            .description(&LinkedText::plain(rt.description))?
+            .direction(direction)?;
     }
-    let symmetric: BTreeSet<_> = source
-        .relation_types()
-        .into_iter()
-        .filter(|r| r.orientation == RelationOrientation::Symmetric)
-        .map(|r| r.id)
-        .collect();
-    let mut seen_relations: BTreeSet<(EntityRef, EntityRef, RelationTypeId)> = BTreeSet::new();
-    let mut wanted_relations: BTreeSet<RelationId> = BTreeSet::new();
-    for relation in source.relations_raw() {
-        let (Some(from), Some(to)) = (map(&relation.from), map(&relation.to)) else {
+    let entry_ids: BTreeSet<_> = txn.view().entries_raw().into_iter().map(|e| e.id).collect();
+    let entry_end = |r: &EntityRef| {
+        let target = map(r)?;
+        if target.kind != EntityKind::Entry {
+            return None;
+        }
+        EntryId::parse(&target.id)
+            .ok()
+            .filter(|id| entry_ids.contains(id))
+    };
+    let mut wanted: BTreeMap<RelationTypeId, Vec<RelationRow>> = BTreeMap::new();
+    let mut source_pairs = source.relations_raw();
+    source_pairs.sort_by(|a, b| (a.created_at, &a.id).cmp(&(b.created_at, &b.id)));
+    for pair in source_pairs {
+        let Some(&direction) = directions.get(&pair.relation_type) else {
             continue;
         };
-        let (from, to) = if symmetric.contains(&relation.relation_type) {
-            canonical_symmetric(from, to)
-        } else {
-            (from, to)
-        };
-        if from == to
-            || !seen_relations.insert((from.clone(), to.clone(), relation.relation_type.clone()))
+        // Sample recipes still use the isolated source catalog; file/comment
+        // endpoints in it have no row in the project.
+        if !matches!(map(&pair.from), Some(r) if r.kind == EntityKind::Entry)
+            || !matches!(map(&pair.to), Some(r) if r.kind == EntityKind::Entry)
         {
             continue;
         }
-        wanted_relations.insert(relation.id.clone());
-        txn.relation(&relation.id)?
-            .ends(&from, &to)?
-            .relation_type(&relation.relation_type)?
-            .created_at(relation.created_at)?;
-    }
-    for old in txn.view().relations_raw() {
-        if !wanted_relations.contains(&old.id) {
-            txn.purge(dr_doc::v3::CollectionV3::Relations, old.id.as_str())?;
+        let (Some(left), Some(right)) = (entry_end(&pair.from), entry_end(&pair.to)) else {
+            return Err(invalid("source relation references a missing entry"));
+        };
+        if left == right {
+            return Err(invalid("source relation references the same entry twice"));
         }
+        let rows = wanted.entry(pair.relation_type.clone()).or_default();
+        match plan_relation_pair(rows, direction, &left, &right) {
+            PairPlacement::Existing(_) => {}
+            PairPlacement::Add(id, side, entry) => {
+                let row = rows
+                    .iter_mut()
+                    .find(|row| row.id == id)
+                    .expect("planned row");
+                match side {
+                    RelationSide::Left => row.left.insert(entry),
+                    RelationSide::Right => row.right.insert(entry),
+                };
+            }
+            PairPlacement::NewRow => rows.push(RelationRow {
+                id: pair.id,
+                relation_type: pair.relation_type,
+                left: BTreeSet::from([left]),
+                right: BTreeSet::from([right]),
+                created_at: pair.created_at,
+            }),
+        }
+    }
+    let old_rows: BTreeMap<_, _> = txn
+        .view()
+        .relations_raw()
+        .into_iter()
+        .map(|row| (row.id.clone(), row))
+        .collect();
+    let wanted: BTreeMap<_, _> = wanted
+        .into_values()
+        .flatten()
+        .map(|row| (row.id.clone(), row))
+        .collect();
+    for row in wanted.values() {
+        let writer = txn.relation_row(&row.id)?;
+        writer
+            .relation_type(&row.relation_type)?
+            .created_at(row.created_at)?;
+        if let Some(old) = old_rows.get(&row.id) {
+            for entry in old
+                .left
+                .union(&old.right)
+                .filter(|entry| !row.contains(entry))
+            {
+                writer.remove_member(entry)?;
+            }
+        }
+        for entry in &row.left {
+            writer.member(RelationSide::Left, entry)?;
+        }
+        for entry in &row.right {
+            writer.member(RelationSide::Right, entry)?;
+        }
+    }
+    for id in old_rows.keys().filter(|id| !wanted.contains_key(*id)) {
+        txn.purge(dr_doc::v3::CollectionV3::Relations, id.as_str())?;
     }
     for patch in source.patches() {
         txn.patch(&patch.id)?
@@ -1265,6 +1391,11 @@ fn copy_rest(txn: &mut BookTxnV3<'_>, source: &BookView<'_>) -> Result<()> {
             txn.patch(&patch.id)?.pos(&pos)?;
         }
     }
+    // Comments link names by one matcher for this revision of the book: its
+    // names do not change while the comments are written.
+    let names = choices
+        .auto_entity_links
+        .then(|| dr_workspace::autolink::book_text_matcher(&txn.view()));
     for comment in source.comments() {
         let origin = match &comment.projection {
             Some(p) => match &p.kind {
@@ -1291,12 +1422,30 @@ fn copy_rest(txn: &mut BookTxnV3<'_>, source: &BookView<'_>) -> Result<()> {
             },
             other => (other.as_ref().and_then(target_module), None),
         };
+        let mut line_body = None;
         let w = if let (Some(projection), Some(target)) = (&comment.projection, &comment.target) {
             let old = target_doc(target);
             let new = old
                 .as_ref()
                 .map(|id| prose_id(source.book_id(), id))
                 .ok_or_else(|| invalid("projected TODO without prose target"))?;
+            let owner = match &new {
+                DocId::Body(body) => body.entry().as_str(),
+                other => other.entity_id(),
+            };
+            // A projected comment follows its line: its links are the line's,
+            // or none when the line is not known (never its names).
+            line_body = Some(
+                lines
+                    .body(
+                        &new,
+                        &projection.block,
+                        &projection.kind,
+                        &comment.body,
+                        owner,
+                    )
+                    .unwrap_or_else(|| LinkedText::plain(comment.body.clone())),
+            );
             let (_, w) = txn.projected_todo(&projection.kind, &new, &projection.block)?;
             w
         } else {
@@ -1315,6 +1464,21 @@ fn copy_rest(txn: &mut BookTxnV3<'_>, source: &BookView<'_>) -> Result<()> {
         let kept_metadata = (!material_whole)
             .then_some(comment.metadata.as_deref())
             .flatten();
+        let owner = mapped_comment_target
+            .as_ref()
+            .filter(|t| t.kind == EntityKind::Entry)
+            .and_then(|t| EntryId::parse(&t.id).ok());
+        let linked = match line_body {
+            Some(body) => body,
+            None => dr_workspace::autolink::plan_book_text(
+                &txn.view(),
+                owner.as_ref(),
+                names.as_ref(),
+                None,
+                &comment.body.into(),
+            )
+            .map_err(|error| invalid(error.to_string()))?,
+        };
         w.origin(&origin)?
             .target(mapped_comment_target.as_ref())?
             .module(module.as_ref())?
@@ -1326,7 +1490,7 @@ fn copy_rest(txn: &mut BookTxnV3<'_>, source: &BookView<'_>) -> Result<()> {
             .author_kind(&comment.author_kind)?
             .author(comment.author.as_deref())?
             .author_name(comment.author_name.as_deref())?
-            .body(&comment.body)?
+            .linked_body(&linked)?
             .status(&comment.status)?
             .source(&comment.source)?
             .metadata(kept_metadata)?
@@ -1457,29 +1621,10 @@ pub fn validate(view: &BookViewV3<'_>) -> std::result::Result<(), String> {
     let check = |result: std::result::Result<(), dr_model::check::Violation>| {
         result.map_err(|v| format!("{v:?}"))
     };
-    for relation_type in view.relation_types() {
-        for template in relation_type
-            .source_templates
-            .iter()
-            .chain(&relation_type.target_templates)
-        {
-            check(check_entry_template(&templates, Some(template)))?;
-        }
-        if relation_type
-            .source_kinds
-            .iter()
-            .chain(&relation_type.target_kinds)
-            .any(|kind| {
-                !matches!(
-                    kind,
-                    EntityKind::Entry | EntityKind::Comment | EntityKind::Patch | EntityKind::Asset
-                )
-            })
-        {
-            return Err(format!(
-                "relation type {} has an unknown endpoint kind",
-                relation_type.id
-            ));
+    let mut names = BTreeSet::new();
+    for relation in view.relation_types_raw() {
+        if !names.insert(relation.normalized_name) {
+            return Err("duplicate normalized relation name".into());
         }
     }
     for entry in entries.values() {
@@ -1541,8 +1686,17 @@ pub fn validate(view: &BookViewV3<'_>) -> std::result::Result<(), String> {
             }
         }
     }
-    if view.relations_raw().len() != view.relations().len() {
-        return Err("relation constraints reject an imported endpoint".into());
+    for row in view.relations_raw() {
+        if row.left.is_empty()
+            || row.right.is_empty()
+            || row
+                .left
+                .union(&row.right)
+                .any(|id| !entries.contains_key(id))
+            || view.relation_type_raw(&row.relation_type).is_none()
+        {
+            return Err("invalid imported relation row".into());
+        }
     }
     if !view.repair_plan().is_empty() {
         return Err("import requires a repair; source must be reviewed".into());

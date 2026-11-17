@@ -159,6 +159,22 @@ impl Workspace {
         self.changed(cx);
     }
 
+    /// RL: a relation row was just made in place in the prose
+    /// ([`crate::actions::RevealRelationRow`]): the right sidebar opens on
+    /// 「关系」, which scrolls to `row` and flashes it once drawn
+    /// ([`crate::relations::request_reveal`]).
+    pub fn reveal_relation_row(&mut self, row: &str, window: &mut Window, cx: &mut Context<Self>) {
+        if self.book_id.is_empty() {
+            return;
+        }
+        self.exit_fill(window, cx);
+        let reduce = self.reduce_motion(window, cx);
+        self.right.set_open(true, reduce);
+        self.right.panes.reveal(super::RightTab::Relations);
+        crate::relations::request_reveal(&self.book_id, row, cx);
+        self.changed(cx);
+    }
+
     /// Reveal a comment which the caller has resolved in the current book.
     /// Floating/unlocated comments belong in Review; located comments also
     /// open their actual page and use M18's existing focus signal.

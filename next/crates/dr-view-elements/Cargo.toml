@@ -22,8 +22,6 @@ dr-i18n.workspace = true
 dr-model.workspace = true
 dr-shell.workspace = true
 dr-ui.workspace = true
-# M17: 「关联」 under an element's fields.
-dr-view-relations.workspace = true
 dr-view-page.workspace = true
 dr-workspace.workspace = true
 futures.workspace = true

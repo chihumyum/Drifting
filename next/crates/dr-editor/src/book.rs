@@ -506,6 +506,8 @@ impl BookEditor {
                 crate::assist::AssistEvent::InsertMaterial { chapter, material } => {
                     this.insert_material(*chapter, material, window, cx);
                 }
+                // The host shows the row (dr-view-page).
+                crate::assist::AssistEvent::RelationPlaced { .. } => {}
             },
         );
         let decor = crate::decor::Decor::for_book(

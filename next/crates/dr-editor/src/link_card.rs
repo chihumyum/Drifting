@@ -80,6 +80,24 @@ fn rgb(hex: &str) -> Option<Rgb> {
 
 /// The card, as dr-ui draws hover cards.
 pub fn card_element(facts: &CardFacts) -> AnyElement {
+    card_body(facts, Vec::new())
+}
+
+/// [`card_element_in`] with `actions` as the card's last rows (an entry
+/// link's 「建关系」, `kernel-v5.md` §19). A file link's card has none.
+pub fn card_element_with(
+    facts: &CardFacts,
+    actions: Vec<AnyElement>,
+    window: &Window,
+    cx: &App,
+) -> AnyElement {
+    if facts.asset.is_some() || actions.is_empty() {
+        return card_element_in(facts, window, cx);
+    }
+    card_body(facts, actions)
+}
+
+fn card_body(facts: &CardFacts, actions: Vec<AnyElement>) -> AnyElement {
     let id = SharedString::from(format!("dr-editor-link-card-{}", facts.target.id));
     let mut body = CardBody::new(id, facts.title.clone())
         .mark(facts.mark, facts.color.as_deref().and_then(rgb));
@@ -113,6 +131,9 @@ pub fn card_element(facts: &CardFacts) -> AnyElement {
             })
             .collect();
         body = body.section(rows);
+    }
+    if !actions.is_empty() {
+        body = body.section(actions);
     }
     body.into_any_element()
 }

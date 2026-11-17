@@ -206,7 +206,7 @@ fn pending_is_prewrite_then_explicit_choices_import_into_a_new_preferred_v3_libr
             .as_array()
             .unwrap()
             .iter()
-            .all(|c| c["body"] != "未庄的土谷祠"),
+            .all(|c| c["body"]["text"] != "未庄的土谷祠"),
         "resolved material description comment must not appear in open filter: {open_comments}"
     );
     let resolved_comments = current
@@ -221,7 +221,7 @@ fn pending_is_prewrite_then_explicit_choices_import_into_a_new_preferred_v3_libr
         .as_array()
         .unwrap()
         .iter()
-        .find(|c| c["body"] == "未庄的土谷祠")
+        .find(|c| c["body"]["text"] == "未庄的土谷祠")
         .expect("material description comment in resolved list");
     assert_eq!(
         img_desc["target"],
@@ -627,10 +627,10 @@ fn library_without_act_drift_imports_with_default_choices(cx: &mut TestAppContex
     let rt = view
         .relation_type(&dr_model::id::RelationTypeId::parse(common::REL_TYPE).unwrap())
         .unwrap();
-    assert_eq!(rt.source_kinds, [dr_model::kind::EntityKind::Entry]);
-    assert_eq!(rt.target_kinds, [dr_model::kind::EntityKind::Entry]);
-    assert!(rt.source_templates.is_empty());
-    assert!(rt.target_templates.is_empty());
+    assert_eq!(rt.name, "同乡");
+    assert_eq!(rt.description, dr_model::v3::LinkedText::default());
+    assert_eq!(rt.direction, dr_model::v3::RelationDirection::Symmetric);
+    assert!(view.relations().is_empty());
 }
 
 #[test]

@@ -651,6 +651,45 @@ impl ProseEditor {
         self.frame.borrow().decorations.len()
     }
 
+    /// Every decoration of `group` painted in the last frame, each as
+    /// [`ProseEditor::painted_decoration`] gives it (its parts across
+    /// paragraphs joined), in paint order. Boxes are only worked out for the
+    /// rows in view and one either side. For drawing things between the
+    /// decorations on screen (Drifting: lines between linked names).
+    pub fn painted_group(&self, group: &str) -> Vec<super::frame::PaintedDecoration> {
+        let frame = self.frame.borrow();
+        let mut out: Vec<super::frame::PaintedDecoration> = Vec::new();
+        for part in frame.decorations.iter().filter(|d| d.key.group == group) {
+            match out
+                .iter_mut()
+                .find(|d| d.chapter == part.chapter && d.key.id == part.key.id)
+            {
+                Some(known) => known.boxes.extend(part.boxes.iter().copied()),
+                None => out.push(part.clone()),
+            }
+        }
+        out
+    }
+
+    /// The text rows painted in the last frame, in window coordinates: each
+    /// visual row of each painted paragraph, from its top to the next row's
+    /// top and as wide as the paragraph's column. A row's top is the middle
+    /// of the blank between it and the row above.
+    pub fn painted_rows(&self) -> Vec<gpui::Bounds<Pixels>> {
+        let frame = self.frame.borrow();
+        let mut rows = Vec::new();
+        for line in &frame.lines {
+            let n = line.layout.rows.len().max(1);
+            for row in 0..n {
+                rows.push(gpui::Bounds::new(
+                    gpui::point(line.origin.x, line.origin.y + line.line_height * row as f32),
+                    gpui::size(line.layout.wrap_width, line.line_height),
+                ));
+            }
+        }
+        rows
+    }
+
     /// Draws F4c's find matches ([`ProseEditor::find_matches`]) with `look`:
     /// `strength.rest` for every match, `strength.hot` for the current one
     /// (the selection). Read every frame, so typing a query or stepping

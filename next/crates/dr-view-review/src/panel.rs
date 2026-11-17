@@ -41,6 +41,7 @@ use dr_ui::components::{
 use dr_ui::fonts::Role;
 use dr_ui::glass::{self, Ground, Kind, Mode, Spec, Tone};
 use dr_ui::input::{FieldEvent, TextArea};
+use dr_ui::linked::{LinkedArea, LinkedEvent};
 use dr_ui::sand::{self, Icon, KindMark};
 use dr_ui::style::DrStyled;
 use dr_ui::tokens::{Easing, menu as menu_tokens, motion, radius};
@@ -93,7 +94,7 @@ pub struct ReviewView {
     reveal: Option<Reveal>,
     reveal_serial: u64,
     scroll: ScrollHandle,
-    editing: Option<(String, Entity<TextArea>, Subscription)>,
+    editing: Option<(String, Entity<LinkedArea>, Subscription)>,
     agent_flyout: Option<AgentSubFlyout>,
     writing: HashSet<String>,
     in_flight: Vec<futures::future::Shared<futures::channel::oneshot::Receiver<()>>>,
@@ -421,7 +422,7 @@ impl ReviewView {
         self.data_rev
     }
 
-    /// Current v3 snapshot (comments, targets and built-in entry associations).
+    /// Current v3 snapshot (comments and targets).
     pub fn v3_snapshot(&self) -> Option<&crate::v3::Snapshot> {
         self.v3.as_ref().map(|s| &s.snapshot)
     }
@@ -682,27 +683,43 @@ impl ReviewView {
         let Some(item) = self.items.iter().find(|i| i.id == id) else {
             return;
         };
-        if item.origin == "task" {
+        if matches!(item.origin.as_str(), "task" | "marker") {
             return;
         }
-        let body = item.body.clone();
+        let body = crate::linked::draft(&item.body);
+        let Some(lib) = self.lib.clone() else {
+            return;
+        };
+        let excluded = item
+            .target
+            .as_ref()
+            .filter(|t| t.kind == "entry")
+            .map(|t| t.id.clone());
+        let candidates = crate::linked::candidates(lib, self.book.clone(), excluded);
         let placeholder = self
             .i18n
             .t(keys::review_panel::COMMENT_PLACEHOLDER)
             .to_owned();
         let field_id = ElementId::Name(format!("{}-edit-{id}", self.id).into());
         let field = cx.new(|cx| {
-            TextArea::new(field_id, window, cx)
-                .placeholder(placeholder)
-                .with_text(body)
+            LinkedArea::new(
+                field_id,
+                body,
+                candidates,
+                |a| a.placeholder(placeholder),
+                window,
+                cx,
+            )
         });
         let comment = id.to_owned();
         let sub = cx.subscribe_in(
             &field,
             window,
-            move |this, _, e: &FieldEvent, _, cx| match e {
-                FieldEvent::Submitted(text) => this.finish_edit(&comment, Some(text.clone()), cx),
-                FieldEvent::Cancelled => this.finish_edit(&comment, None, cx),
+            move |this, field, e: &LinkedEvent, _, cx| match e {
+                LinkedEvent::Submitted => {
+                    this.finish_edit(&comment, Some(field.read(cx).text()), cx)
+                }
+                LinkedEvent::Cancelled => this.finish_edit(&comment, None, cx),
                 _ => {}
             },
         );
@@ -720,7 +737,20 @@ impl ReviewView {
         }
         if let Some(text) = text {
             let mut input = self.update_in(id);
-            input.body = Some(text);
+            let mut draft = self
+                .editing
+                .as_ref()
+                .filter(|(editing, _, _)| editing == id)
+                .map(|(_, field, _)| field.read(cx).draft().clone())
+                .or_else(|| {
+                    self.items
+                        .iter()
+                        .find(|item| item.id == id)
+                        .map(|item| crate::linked::draft(&item.body))
+                })
+                .unwrap_or_default();
+            draft.changed(&text);
+            input.body = Some(crate::linked::input(&draft));
             self.write_v3(
                 id.to_owned(),
                 "comment.update",
@@ -797,7 +827,7 @@ impl ReviewView {
             existing_conversation: v3_item.comment.agent_conversation.clone(),
             header,
             quote,
-            body: v3_item.comment.body.clone(),
+            body: v3_item.comment.body.text.clone(),
             extra_note: extra_note.trim().to_owned(),
         };
         if let Some(flyout) = &mut self.agent_flyout
@@ -1425,10 +1455,10 @@ impl ReviewView {
                 );
             }
             _ => {
-                let text: SharedString = if item.body.trim().is_empty() {
+                let text: SharedString = if item.body.text.trim().is_empty() {
                     self.i18n.t(keys::comment_rail::card::EMPTY_COMMENT).into()
                 } else {
-                    item.body.clone().into()
+                    item.body.text.clone().into()
                 };
                 let (entity, comment) = (entity.clone(), comment.clone());
                 body = body.child(
@@ -1442,8 +1472,8 @@ impl ReviewView {
                         .text_color(p.ink(1).solid())
                         // The writing rules for a line's start and end (「：」
                         // and 「。」 never open a line), as everywhere else.
-                        .child(dr_ui::text::wrapped(text))
-                        .when(!is_task, |d| {
+                        .child(self.linked_body(item, id("linked-body"), text))
+                        .when(!is_task && item.origin != "marker", |d| {
                             d.on_click(move |e: &ClickEvent, window, cx| {
                                 if e.click_count() >= 2 {
                                     entity.update(cx, |this, cx| this.edit(&comment, window, cx));
@@ -1532,6 +1562,32 @@ impl ReviewView {
         hc.into_any_element()
     }
 
+    fn linked_body(
+        &self,
+        item: &CommentInfo,
+        id: ElementId,
+        fallback: SharedString,
+    ) -> impl IntoElement + use<> {
+        let draft = if item.body.text.trim().is_empty() {
+            dr_ui::linked::Draft::plain(fallback.to_string())
+        } else {
+            crate::linked::draft(&item.body)
+        };
+        let open = self.v3.as_ref().map(|s| s.open.clone());
+        dr_ui::linked::linked(id, draft).on_open(move |entry, window, cx| {
+            if let Some(open) = &open {
+                open(
+                    crate::v3::Target::Entry {
+                        id: entry.to_string(),
+                        module: None,
+                    },
+                    window,
+                    cx,
+                );
+            }
+        })
+    }
+
     fn task_row(
         &self,
         item: &CommentInfo,
@@ -1553,10 +1609,10 @@ impl ReviewView {
             .map(|i| matches!(i.place, crate::v3::Place::On(_)) && i.target.is_some())
             .unwrap_or(item.target.is_some() && !item.unlocated);
 
-        let text: SharedString = if item.body.trim().is_empty() {
+        let text: SharedString = if item.body.text.trim().is_empty() {
             self.i18n.t(keys::comment_rail::card::EMPTY_COMMENT).into()
         } else {
-            item.body.clone().into()
+            item.body.text.clone().into()
         };
         let pinwheel = self.pinwheel_corner(item, window, cx);
 
@@ -1575,7 +1631,7 @@ impl ReviewView {
                     .type_px(s.secondary, s.line_body)
                     .text_color(if done { p.ink(3) } else { p.ink(1) }.solid())
                     .when(done, |d| d.line_through())
-                    .child(text),
+                    .child(self.linked_body(item, id("linked-body"), text)),
             );
         if can_jump {
             let (entity, comment) = (entity.clone(), comment.clone());
@@ -1804,6 +1860,7 @@ impl ReviewView {
                 entity.clone(),
                 card_comment.clone(),
                 is_task,
+                is_marker,
                 done,
                 has_conversation,
                 readonly,
@@ -2326,6 +2383,7 @@ fn source_card(
     view: Entity<ReviewView>,
     comment: String,
     is_task: bool,
+    is_marker: bool,
     done: bool,
     has_conversation: bool,
     readonly: bool,
@@ -2358,7 +2416,7 @@ fn source_card(
     let p = theme.palette;
     let s = theme.scale;
 
-    if !is_task {
+    if !is_task && !is_marker {
         let (v1, c1) = (view.clone(), comment.clone());
         body = body.section(vec![
             CardAction::new(rid("edit"), Icon::Edit, labels.edit.clone())
@@ -2819,28 +2877,6 @@ mod reveal_tests {
                 );
             });
         }
-        ws.call(
-            &Actor::User,
-            "relation.create",
-            json!({
-                "book":book,"from":{"kind":"comment","id":floating},
-                "to":{"kind":"entry","id":chapter}
-            }),
-        )
-        .unwrap();
-        view.update(cx, |view, cx| view.set_current_only(true, cx));
-        let mut related = cx
-            .update(|_, cx| crate::reveal_comment("reveal", &book, &floating, cx))
-            .unwrap();
-        painted(cx, &view);
-        assert_eq!(related.try_recv().unwrap(), Some(true));
-        view.read_with(cx, |view, _| {
-            assert!(
-                view.current_only,
-                "generic association already includes this card"
-            );
-            assert!(visible(view, &floating));
-        });
         let other_book = dr_model::id::BookId::new_v7().to_string();
         let mut switched = cx
             .update(|_, cx| crate::reveal_comment("reveal", &other_book, &floating, cx))
@@ -2853,7 +2889,7 @@ mod reveal_tests {
                 .snapshot
                 .items
                 .is_empty()),
-            "reveal book switch clears the old associations immediately"
+            "reveal book switch clears the old comments immediately"
         );
         painted(cx, &view);
         assert_eq!(switched.try_recv().unwrap(), Some(false));
@@ -3174,7 +3210,7 @@ mod v3_write_tests {
             .unwrap();
         let target = source.target.as_ref().unwrap().id.clone();
         let module = source.target_module.as_ref().unwrap().to_string();
-        let body = source.body.clone();
+        let body = source.body.text.clone();
         seed.write_to(lib.library()).unwrap();
         let a = call(
             &lib,
@@ -3249,10 +3285,10 @@ mod v3_write_tests {
                 .find(|c| c["id"] == id)
                 .unwrap()
         };
-        assert_eq!(get(&a)["body"], draft);
+        assert_eq!(get(&a)["body"]["text"], draft);
         assert_eq!(get(&a)["agent_conversation"], "conv-elsewhere");
         assert_eq!(get(&b)["status"], "resolved");
-        assert_eq!(get(&hidden)["body"], body);
+        assert_eq!(get(&hidden)["body"]["text"], body);
         cx.update(|window, cx| view.update(cx, |v, cx| v.edit(&a, window, cx)));
         let field = view.read_with(cx, |v, _| v.editing.as_ref().unwrap().1.clone());
         let refused = format!("{draft}\n{body}");
@@ -3267,6 +3303,112 @@ mod v3_write_tests {
         });
         assert_eq!(field.read_with(cx, |f, _| f.text()), refused);
         assert!(view.read_with(cx, |v, _| v.editing.is_some()));
+        lib.close();
+    }
+
+    /// The composer saves plain text (`kernel-v5.md` §19): the links on the
+    /// words the edit leaves alone stay, a visible one picked with @ and one
+    /// to an entry in Recently Deleted, which comes back with the entry.
+    #[gpui::test]
+    fn an_edit_in_the_composer_keeps_the_links_on_unchanged_words(cx: &mut TestAppContext) {
+        cx.executor().allow_parking();
+        let dir = tempfile::tempdir().unwrap();
+        let lib = Workspace::open_dir(dir.path(), "v3-review-links").unwrap();
+        let seed = dr_testkit::seed::generate_v3(
+            dr_testkit::seed::Preset::Tiny,
+            dr_testkit::seed::DEFAULT_SEED,
+        )
+        .unwrap();
+        let book = seed.books[0].book_id().to_string();
+        let source = seed.books[0]
+            .book
+            .view()
+            .comments()
+            .into_iter()
+            .find(|c| c.target_module.is_some())
+            .unwrap();
+        let target = source.target.as_ref().unwrap().id.clone();
+        let module = source.target_module.as_ref().unwrap().to_string();
+        // Two leaf entries; a link reads under its entry's title.
+        let leaves: Vec<(String, String)> = {
+            let view = seed.books[0].book.view();
+            view.entries()
+                .into_iter()
+                .filter(|e| {
+                    e.parent.is_some()
+                        && e.id.as_str() != target
+                        && !e.title.is_empty()
+                        && view.children_of(Some(&e.id)).is_empty()
+                })
+                .map(|e| (e.id.to_string(), e.title))
+                .take(2)
+                .collect()
+        };
+        let [(picked, p), (trashed, t)] = [leaves[0].clone(), leaves[1].clone()];
+        let (pn, tn) = (p.chars().count(), t.chars().count());
+        seed.write_to(lib.library()).unwrap();
+        let link =
+            |start: usize, end: usize, entry: &str| json!({"start":start,"end":end,"entry":entry});
+        let text = format!("q{p} z{t}");
+        let id = call(
+            &lib,
+            "comment.create",
+            json!({"book":book,"target":{"kind":"entry","id":target},"module":module,
+            "body":{"text":text,"links":[
+                link(1, 1 + pn, &picked), link(3 + pn, 3 + pn + tn, &trashed),
+            ]}}),
+        )["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        call(&lib, "entry.trash", json!({"book":book,"id":trashed}));
+        let view = cx.new(|_| ReviewView::new("v3-links".into(), Some(lib.clone())));
+        let (_, cx) = cx.add_window_view(|_, _| Frame(view.clone()));
+        view.update(cx, |v, cx| {
+            v.show_v3(
+                &book,
+                Some(crate::v3::Target::Entry {
+                    id: target,
+                    module: Some(module),
+                }),
+                Locale::En,
+                Platform::Mac,
+                Rc::new(|_, _, _| {}),
+                Rc::new(|_| None),
+                cx,
+            );
+            v.set_current_only(true, cx);
+        });
+        wait(cx, |cx| view.read_with(cx, |v, _| v.loaded));
+        cx.update(|window, cx| view.update(cx, |v, cx| v.edit(&id, window, cx)));
+        let field = view.read_with(cx, |v, _| v.editing.as_ref().unwrap().1.clone());
+        assert_eq!(field.read_with(cx, |f, _| f.text()), text);
+        let edited = format!("w {text}");
+        view.update(cx, |v, cx| v.finish_edit(&id, Some(edited.clone()), cx));
+        wait(cx, |cx| {
+            view.read_with(cx, |v, _| v.writing.is_empty() && v.pending.is_none())
+        });
+        let body = |lib: &Workspace| {
+            call(lib, "comment.list", json!({"book":book}))
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|c| c["id"] == id)
+                .unwrap()["body"]
+                .clone()
+        };
+        assert_eq!(
+            body(&lib),
+            json!({"text":edited,"links":[link(3, 3 + pn, &picked)]})
+        );
+        call(&lib, "entry.restore", json!({"book":book,"id":trashed}));
+        assert_eq!(
+            body(&lib)["links"],
+            json!([
+                link(3, 3 + pn, &picked),
+                link(5 + pn, 5 + pn + tn, &trashed)
+            ])
+        );
         lib.close();
     }
 }

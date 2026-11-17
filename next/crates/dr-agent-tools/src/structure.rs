@@ -273,6 +273,8 @@ pub struct StructureContext {
     pub schema_version: i64,
     pub structure_revision: String,
     pub catalog_revision: String,
+    /// How relations are stored and where the Agent reads them.
+    pub relations: String,
     /// Where the project came from: its project template's name and credit
     /// ([`ProjectSourceSummary`]); absent when none is recorded by name.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -749,6 +751,7 @@ impl StructureContext {
             schema_version: BOOK_SCHEMA_VERSION,
             structure_revision,
             catalog_revision,
+            relations: "Use relation_type.list to read relations. Each relation has a name, description and direction. A row connects each entry on the left to each entry on the right; entries on the same side of a row are not related to each other. Relations connect entries only, never files, comments or patches.".into(),
             project_source,
             project_agent,
             project_book,
@@ -846,10 +849,6 @@ fn summarize_module(m: &ModuleSpec, catalog: &Catalog) -> ModuleSummary {
             vec!["module.put_patch", "module.remove_patch"],
         ),
         ModuleKind::PlotGrid => (vec!["module.read", "module.list"], vec!["module.put_grid"]),
-        ModuleKind::Relations => (
-            vec!["module.read", "module.list"],
-            vec!["module.put_relation", "module.remove_relation"],
-        ),
         ModuleKind::Media => (
             vec!["module.read", "module.list"],
             vec![

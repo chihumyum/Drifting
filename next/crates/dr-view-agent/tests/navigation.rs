@@ -460,66 +460,37 @@ fn changing_right_tab_cancels_unpainted_navigation_and_allows_a_new_inspection(
 }
 
 fn relation_rounds(fixture: &Fixture) -> (Vec<Vec<Step>>, String) {
-    let read = |name| {
-        fixture
-            .ws
-            .call(&Actor::User, name, json!({"book":fixture.book,"all":true}))
-            .unwrap()["output"]
-            .clone()
-    };
-    let elements = json!(dr_testkit::seed::acceptance::entries_by_template(
+    let entries = dr_testkit::seed::acceptance::entries_by_template(
         &fixture.ws,
         &fixture.book,
-        "tpl-character"
-    ));
-    let types = read("entry_relation_type.list");
-    let relations = read("relation.list");
-    let kind = types
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|kind| {
-            kind["source_kinds"] == json!(["entry"])
-                && kind["target_kinds"] == json!(["entry"])
-                && kind["source_templates"]
-                    .as_array()
-                    .is_some_and(|ts| ts.iter().any(|t| t == "tpl-character"))
-        })
-        .unwrap();
-    let elements = elements.as_array().unwrap();
-    let (from, to) = elements
-        .iter()
-        .flat_map(|from| elements.iter().map(move |to| (from, to)))
-        .find(|(from, to)| {
-            from["id"] != to["id"]
-                && !relations.as_array().unwrap().iter().any(|relation| {
-                    relation["relation_type"] == kind["id"]
-                        && relation["from"]["id"] == from["id"]
-                        && relation["to"]["id"] == to["id"]
-                })
-        })
-        .expect("the synthetic book has an unrelated directed pair");
-    let from = from["id"].as_str().unwrap().to_owned();
+        "tpl-character",
+    );
+    let left = entries[0]["id"].as_str().unwrap().to_owned();
+    let right = entries[1]["id"].as_str().unwrap();
+    let ty = fixture
+        .ws
+        .call(
+            &Actor::User,
+            "relation_type.create",
+            json!({"book":fixture.book,"name":"Synthetic navigation relation"}),
+        )
+        .unwrap()["output"]["id"]
+        .clone();
     (
         vec![
             tool(
-                "elements",
+                "entries",
                 "entry.list",
                 json!({"book":fixture.book,"all":true}),
             ),
-            tool(
-                "types",
-                "entry_relation_type.list",
-                json!({"book":fixture.book,"all":true}),
-            ),
-            tool("relations", "relation.list", json!({"book":fixture.book})),
+            tool("types", "relation_type.list", json!({"book":fixture.book})),
             tool(
                 "write",
-                "relation.create",
-                json!({"book":fixture.book,"from":{"kind":"entry","id":from},"to":{"kind":"entry","id":to["id"]},"relation_type":kind["id"]}),
+                "relation_row.create_pair",
+                json!({"book":fixture.book,"left":left,"right":right,"relation_type":ty}),
             ),
         ],
-        from,
+        left,
     )
 }
 
@@ -533,7 +504,7 @@ fn created_relation(panel: &Entity<AgentPanel>, cx: &VisualTestContext) -> Strin
             .flat_map(|result| result.output["effects"].as_array().into_iter().flatten())
             .collect::<Vec<_>>();
         assert_eq!(effects.len(), 1, "the first run only creates a relation");
-        assert_eq!(effects[0]["kind"], "relation");
+        assert_eq!(effects[0]["kind"], "relation_row");
         effects[0]["id"].as_str().unwrap().to_owned()
     })
 }
@@ -546,7 +517,7 @@ fn first_relation_only_change_opens_its_live_endpoint_without_prose_history(
     let (rounds, endpoint) = relation_rounds(&fixture);
     let (shell, panel, cx) = open(cx, &fixture, rounds);
     let relation = created_relation(&panel, cx);
-    let id = changed(&panel, &format!("relation:{relation}"), cx);
+    let id = changed(&panel, &format!("relation_row:{relation}"), cx);
     click(&id, cx);
     wait(cx, |cx| {
         cx.update(|_, cx| onboarding::step(cx)) == onboarding::Step::Done
@@ -652,12 +623,12 @@ fn a_relation_deleted_before_inspection_does_not_open_an_endpoint_or_finish_the_
     let (rounds, _) = relation_rounds(&fixture);
     let (shell, panel, cx) = open(cx, &fixture, rounds);
     let relation = created_relation(&panel, cx);
-    let id = changed(&panel, &format!("relation:{relation}"), cx);
+    let id = changed(&panel, &format!("relation_row:{relation}"), cx);
     fixture
         .ws
         .call(
             &Actor::User,
-            "relation.delete",
+            "relation_row.delete",
             json!({"book":fixture.book,"id":relation}),
         )
         .unwrap();

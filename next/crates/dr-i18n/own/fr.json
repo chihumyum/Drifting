@@ -119,6 +119,22 @@
     "title": "Titre",
     "unset": "Non défini"
   },
+  "mirrorV5": {
+    "intro": "Chaque projet dispose d’un dossier Markdown. Après enregistrement, les modifications du texte et des champs dans un autre éditeur sont intégrées à Drifting.",
+    "offWarning": "Drifting intègre les modifications en attente avant la désactivation. Les fichiers existants restent en place. Vous pouvez réactiver le dossier dans Données locales.",
+    "identity": "Le drifting-id ne correspond pas à cette entrée et à ce module de texte.",
+    "lineage": "L’entrée ou le texte a été restauré, a changé de modèle ou a été supprimé. Les modifications du fichier n’ont pas pu être intégrées.",
+    "owned": "Une autre installation de Drifting utilise ce dossier.",
+    "unsafePath": "Drifting n’a pas pu accéder à ce chemin du projet en toute sécurité.",
+    "occupied": "Un fichier existe déjà à cet emplacement.",
+    "duplicate": "Deux fichiers ont le même drifting-id.",
+    "moved": "Cette version ne synchronise pas le renommage ni le déplacement des fichiers.",
+    "readOnly": "Les propriétés en lecture seule ont repris les valeurs du projet.",
+    "malformedTable": "Impossible de lire le tableau. Le tableau original reste dans Drifting.",
+    "unknownImage": "L’image ne pointe pas vers un fichier de la bibliothèque du projet. La ligne a été importée comme texte.",
+    "fieldConflict": "Un champ n’a pas pu être fusionné : il a aussi été modifié dans Drifting, ou sa valeur est illisible. Drifting a gardé sa valeur et enregistré une copie du fichier.",
+    "keyCollision": "Une propriété initiale porte le même nom qu’un champ ajouté récemment. Drifting n’écrira pas ce fichier tant que l’un des deux n’est pas renommé ou supprimé."
+  },
   "positionLink": {
     "copied": "Lien de position copié"
   },
@@ -255,7 +271,6 @@
     "preview_failed": "Impossible de charger l’aperçu",
     "preview_loading": "Chargement de l’aperçu…",
     "prose": "Texte principal",
-    "relations": "Relations",
     "reorder": "Glisser pour réordonner",
     "restore": "Rétablir",
     "saved": "Enregistré",
@@ -507,6 +522,34 @@
     "templateCount": "{{count}} modèles",
     "templateStructure": "Structure des modèles",
     "unusedTemplates": "Modèles inutilisés"
+  },
+  "v5RelationsProse": {
+    "create": "Relier",
+    "confirm": "Créer",
+    "direction": "Sens",
+    "otherEntry": "Autre entrée",
+    "relation": "Relation",
+    "change": "Changer"
+  },
+  "v5Relations": {
+    "addEntry": "Ajouter une entrée",
+    "addRow": "Ajouter une ligne",
+    "deleteRow": "Supprimer cette ligne",
+    "description": "Description",
+    "direction": "À sens unique ou réciproque",
+    "kinds_one": "{{count}} relation",
+    "kinds_other": "{{count}} relations",
+    "newRelation": "Nouvelle relation",
+    "pairs_one": "{{count}} paire",
+    "pairs_other": "{{count}} paires",
+    "removeEntry": "Retirer « {{name}} »",
+    "tab": "Relations"
+  },
+  "relationGraph": {
+    "create": "Créer",
+    "name": "Nom de la relation",
+    "relations": "Relations",
+    "title": "Créer une relation"
   },
   "v5Tour": {
     "agent": {

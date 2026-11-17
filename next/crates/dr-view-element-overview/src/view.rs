@@ -1,8 +1,10 @@
 //! Main canvas, header slots, and state machine for M22 Element Overview (`ElementOverview`).
 
+mod compose;
 mod island;
 mod relations;
 
+use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
@@ -27,11 +29,10 @@ use dr_ui::sand::{Icon, KindMark};
 use dr_ui::tokens::{Rgb, radius};
 use dr_view_elements::data::v3 as g2_data;
 use dr_view_elements::dialogs::v3::{EntryMode, open_entry};
-use dr_workspace::commands::BookIn;
-use dr_workspace::commands::v3::content::{RelationTypeInfo, RelationTypes};
-use dr_workspace::commands::v3::relations::{List as RelationList, ListIn as RelationListIn};
+use dr_workspace::commands::v3::relations::{
+    List as RelationList, ListIn as RelationListIn, RelationInfo,
+};
 use dr_workspace::commands::v3::types::TabMount;
-use dr_workspace::dto::RelationInfo;
 use dr_workspace::{Actor, EntryCooccurrenceGraph, Workspace as Library};
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
@@ -51,12 +52,13 @@ use crate::isles::{
 use crate::relate::{
     ElementLayoutMode, MEMORY_KEY, OverviewMemory, RELATE_DRAG_ALPHA, RELATE_LABEL_BUDGET,
     RELATE_MOVE_MS, RelateNodeInput, RelatePoint, RelateSimulationInput, RelateSpring, SpringKind,
-    create_relate_simulation, parse_overview_memory, relate_bounds, relate_cell_half, relate_ease,
-    relate_positions, relate_spring_signature, serialize_overview_memory, settle_relate,
+    create_relate_simulation, parse_overview_memory, relate_bounds, relate_ease, relate_positions,
+    relate_spring_signature, serialize_overview_memory, settle_relate,
 };
 
+pub use compose::{PairDirection, RelationDraft};
 pub use island::{IslandEditorSheet, IslandMode, IslandSubject, SheetResizeDrag};
-pub use relations::{PendingLink, RelateEdgeView, TypeManagerState};
+pub use relations::{GraphRelation, PaintedRelationArrow, PeekRelation, RelateEdgeView};
 
 const CANVAS_FIT_LEFT: f32 = 24.0;
 const CANVAS_FIT_RIGHT: f32 = 180.0;
@@ -152,11 +154,6 @@ impl Render for OverviewHeadEnd {
         let state = ov.read(cx);
         let mode = state.layout_mode;
         let threshold = state.line_threshold;
-        let link_source = state.link_source.clone();
-        let link_label = link_source
-            .as_ref()
-            .map(|(k, id)| state.endpoint_label(k, id));
-
         let weak_thresh = self.overview.clone();
         let next_threshold = match threshold {
             1 => 2,
@@ -214,25 +211,6 @@ impl Render for OverviewHeadEnd {
             .flex_row()
             .items_center()
             .gap(px(8.0))
-            .when_some(link_label, |el, src_name| {
-                el.child(
-                    div()
-                        .flex()
-                        .flex_row()
-                        .items_center()
-                        .gap(px(4.0))
-                        .text_size(px(11.5))
-                        .text_color(p.ink(2).solid())
-                        .child(t(cx, k_se::LINK_HINT_FROM))
-                        .child(
-                            div()
-                                .font_weight(gpui::FontWeight::MEDIUM)
-                                .text_color(p.ink(1).solid())
-                                .child(SharedString::from(src_name)),
-                        )
-                        .child(t(cx, k_se::LINK_HINT_TO)),
-                )
-            })
             .child(
                 div()
                     .w(px(148.0))
@@ -269,6 +247,7 @@ pub struct ElementOverview {
     pub(crate) pan: Point<f32>,
     pub(crate) zoom: f32,
     pub(crate) viewport_bounds: Option<Bounds<Pixels>>,
+    painted_relation_arrows: Rc<RefCell<Vec<PaintedRelationArrow>>>,
     pub(crate) pan_drag: Option<(Point<Pixels>, Point<f32>)>,
 
     // Canonical v3 islands (`群岛`) & unique canvas elements
@@ -288,6 +267,7 @@ pub struct ElementOverview {
     pub(crate) cached_present_ids: HashSet<String>,
     pub(crate) cached_threshold_pairs: Rc<[IslePair]>,
     pub(crate) cached_mark_weights: HashMap<String, f32>,
+    pub(crate) relate_name_widths: HashMap<String, f32>,
     pub(crate) cached_major_ids: BTreeSet<String>,
     pub(crate) cached_isle_starts: BTreeMap<String, RelatePoint>,
 
@@ -307,14 +287,16 @@ pub struct ElementOverview {
     pub(crate) island_sheet: Option<IslandEditorSheet>,
 
     // Canonical v3 relations, shared legend & linking
-    pub(crate) relations: Vec<RelationInfo>,
-    pub(crate) relation_types: Vec<RelationTypeInfo>,
+    pub(crate) relations: Vec<GraphRelation>,
+    pub(crate) relation_types: Vec<RelationInfo>,
     pub(crate) hidden_relation_type_ids: HashSet<String>,
-    pub(crate) link_mode: bool,
-    pub(crate) link_source: Option<(String, String)>,
-    pub(crate) pending_link: Option<PendingLink>,
     pub(crate) selected_edge_id: Option<String>,
-    pub(crate) type_manager: Option<TypeManagerState>,
+    pub(crate) relation_source: Option<String>,
+    pub(crate) relation_draft: Option<RelationDraft>,
+    pub(crate) relation_name: Option<Entity<TextField>>,
+    pub(crate) relation_field_sub: Option<Subscription>,
+    pub(crate) relation_error: bool,
+    relation_focus: gpui::FocusHandle,
 
     _subs: Vec<Subscription>,
 }
@@ -341,6 +323,7 @@ impl ElementOverview {
             pan: point(480.0, 320.0),
             zoom: 0.9,
             viewport_bounds: None,
+            painted_relation_arrows: Rc::default(),
             pan_drag: None,
             island_models: Vec::new(),
             elements: Vec::new(),
@@ -361,6 +344,7 @@ impl ElementOverview {
             cached_present_ids: HashSet::new(),
             cached_threshold_pairs: Rc::from(&[][..]),
             cached_mark_weights: HashMap::new(),
+            relate_name_widths: HashMap::new(),
             cached_major_ids: BTreeSet::new(),
             cached_isle_starts: BTreeMap::new(),
             relate_live: BTreeMap::new(),
@@ -377,11 +361,13 @@ impl ElementOverview {
             relations: Vec::new(),
             relation_types: Vec::new(),
             hidden_relation_type_ids: HashSet::new(),
-            link_mode: false,
-            link_source: None,
-            pending_link: None,
             selected_edge_id: None,
-            type_manager: None,
+            relation_source: None,
+            relation_draft: None,
+            relation_name: None,
+            relation_field_sub: None,
+            relation_error: false,
+            relation_focus: cx.focus_handle(),
             _subs: Vec::new(),
         };
 
@@ -417,10 +403,9 @@ impl ElementOverview {
     }
 
     pub(crate) fn drop_library_handles(&mut self, cx: &mut Context<Self>) {
+        self.cancel_relation(cx);
         self._tween_task = None;
         self.island_sheet = None;
-        self.pending_link = None;
-        self.type_manager = None;
         self.lib = None;
         self.loaded_lib_ptr = 0;
         cx.notify();
@@ -483,6 +468,7 @@ impl ElementOverview {
         }
 
         if id_changed {
+            self.cancel_relation(cx);
             self.book_id = book_id;
             self.book = book;
             self.memory_loaded_for = None;
@@ -568,7 +554,7 @@ impl ElementOverview {
         &self.elements
     }
 
-    pub fn relations(&self) -> &[RelationInfo] {
+    pub fn relations(&self) -> &[GraphRelation] {
         &self.relations
     }
 
@@ -628,6 +614,7 @@ impl ElementOverview {
             self.close_island(cx);
         }
 
+        self.measure_relate_names(cx);
         self.reload_relations_and_cooccurrences();
         self.ensure_relate_settled(false, cx);
     }
@@ -645,23 +632,15 @@ impl ElementOverview {
         };
         self.loaded_lib_ptr = lib.library() as *const _ as usize;
         let me = &Actor::User;
-        if let Ok(out) = lib.run::<RelationTypes>(
-            me,
-            BookIn {
-                book: self.book_id.clone(),
-            },
-        ) {
-            self.relation_types = out.output;
-        }
         if let Ok(out) = lib.run::<RelationList>(
             me,
             RelationListIn {
                 book: self.book_id.clone(),
-                entity: None,
-                relation_type: None,
+                entry: None,
             },
         ) {
-            self.relations = out.output;
+            self.relations = relations::graph_relations(&out.output);
+            self.relation_types = out.output;
         }
         if let Ok(graph) = lib.entry_cooccurrences(&self.book_id) {
             self.cooccurrences = graph;
@@ -728,6 +707,7 @@ impl ElementOverview {
     }
 
     pub(crate) fn relate_nodes_and_springs(&self) -> (Vec<RelateNodeInput>, Vec<RelateSpring>) {
+        let neighbours = self.neighbourhood();
         let nodes: Vec<RelateNodeInput> = self
             .elements
             .iter()
@@ -740,6 +720,7 @@ impl ElementOverview {
                 RelateNodeInput {
                     id: el.id.clone(),
                     name: el.name.clone(),
+                    half: self.relate_card_half(el, self.relate_name_shown(&el.id, &neighbours)),
                     anchor,
                 }
             })
@@ -748,18 +729,15 @@ impl ElementOverview {
         let present = self.present_element_ids();
         let mut springs = Vec::new();
         for r in &self.relations {
-            if r.from.kind != "entry"
-                || r.to.kind != "entry"
-                || self.hidden_relation_type_ids.contains(&r.relation_type)
-            {
+            if self.hidden_relation_type_ids.contains(&r.relation_type) {
                 continue;
             }
-            if !present.contains(&r.from.id) || !present.contains(&r.to.id) {
+            if !present.contains(&r.from) || !present.contains(&r.to) {
                 continue;
             }
             springs.push(RelateSpring {
-                a: r.from.id.clone(),
-                b: r.to.id.clone(),
+                a: r.from.clone(),
+                b: r.to.clone(),
                 kind: SpringKind::Relation,
                 roles: self.relate_roles_for(&r.relation_type),
                 count: 0,
@@ -1398,6 +1376,11 @@ impl ElementOverview {
         cx.notify();
     }
 
+    /// Arrows that the graph canvas submitted in its last paint.
+    pub fn painted_relation_arrows(&self) -> Vec<PaintedRelationArrow> {
+        self.painted_relation_arrows.borrow().clone()
+    }
+
     pub fn zoom(&self) -> f32 {
         self.zoom
     }
@@ -1410,12 +1393,6 @@ impl ElementOverview {
         cx.notify();
     }
 
-    pub fn start_edge_from(&mut self, kind: &str, id: &str, cx: &mut Context<Self>) {
-        self.link_source = Some((kind.to_owned(), id.to_owned()));
-        self.pending_link = None;
-        cx.notify();
-    }
-
     pub fn click_entity(
         &mut self,
         kind: &str,
@@ -1424,48 +1401,12 @@ impl ElementOverview {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if shift || self.link_mode {
-            if let Some((src_kind, src_id)) = self.link_source.take() {
-                if src_kind == kind && src_id == id {
-                    cx.notify();
-                    return;
-                }
-                let default_type = self
-                    .compatible_relation_types(&src_kind, &src_id, kind, id)
-                    .first()
-                    .map(|t| t.definition.id.clone());
-                self.pending_link = Some(PendingLink {
-                    source: (src_kind, src_id),
-                    target: (kind.to_owned(), id.to_owned()),
-                    relation_type_id: default_type,
-                    reversed: false,
-                });
-                self.link_mode = false;
-            } else {
-                self.link_source = Some((kind.to_owned(), id.to_owned()));
-            }
-            cx.notify();
-            return;
-        }
-
-        if let Some((src_kind, src_id)) = self.link_source.take()
-            && !(src_kind == kind && src_id == id)
-        {
-            let default_type = self
-                .compatible_relation_types(&src_kind, &src_id, kind, id)
-                .first()
-                .map(|t| t.definition.id.clone());
-            self.pending_link = Some(PendingLink {
-                source: (src_kind, src_id),
-                target: (kind.to_owned(), id.to_owned()),
-                relation_type_id: default_type,
-                reversed: false,
-            });
-            cx.notify();
-            return;
-        }
-
         if kind == "entry" && self.elements.iter().any(|e| e.id == id) {
+            if shift && self.layout_mode == ElementLayoutMode::Relate {
+                self.pick_relation_endpoint(id, window, cx);
+                return;
+            }
+            self.cancel_relation(cx);
             let next =
                 if self.isle_focus.as_deref() == Some(id) && self.island_mode == IslandMode::Peek {
                     None
@@ -1512,13 +1453,11 @@ impl ElementOverview {
             .relations
             .iter()
             .filter(|r| {
-                r.from.kind == "entry"
-                    && r.to.kind == "entry"
-                    && present.contains(&r.from.id)
-                    && present.contains(&r.to.id)
+                present.contains(&r.from)
+                    && present.contains(&r.to)
                     && !self.hidden_relation_type_ids.contains(&r.relation_type)
             })
-            .map(|r| (r.from.id.clone(), r.to.id.clone()))
+            .map(|r| (r.from.clone(), r.to.clone()))
             .collect();
         Some(isle_neighbours(focus_id, pairs, &rel_pairs))
     }
@@ -1736,10 +1675,7 @@ impl ElementOverview {
 
                     let card_color = self.element_color(element).unwrap_or(isl_color);
                     let is_focused = self.isle_focus.as_deref() == Some(element.id.as_str());
-                    let is_link_source = self
-                        .link_source
-                        .as_ref()
-                        .is_some_and(|(k, id)| k == "entry" && id == &element.id);
+
                     let is_neighbour = neighbourhood
                         .as_ref()
                         .is_some_and(|set| set.contains(&element.id));
@@ -1764,7 +1700,7 @@ impl ElementOverview {
                         origin_world: RelatePoint::default(),
                     };
 
-                    let border_c = if is_focused || is_link_source {
+                    let border_c = if is_focused {
                         card_color.solid()
                     } else if is_neighbour {
                         card_color.alpha(0.55)
@@ -1911,12 +1847,10 @@ impl ElementOverview {
     #[allow(clippy::too_many_arguments)]
     fn render_relate_cells(
         &self,
-        lod: IslesLod,
         weights: &HashMap<String, f32>,
         neighbourhood: &Option<HashSet<String>>,
         dimmed: &Option<HashSet<String>>,
         hidden: &Option<HashSet<String>>,
-        major_ids: &BTreeSet<String>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Vec<AnyElement> {
@@ -1936,7 +1870,8 @@ impl ElementOverview {
             else {
                 continue;
             };
-            let (hw, hh) = relate_cell_half(&element.name);
+            let show_name = self.relate_name_shown(&element.id, neighbourhood);
+            let (hw, hh) = self.relate_card_half(element, show_name);
             let sx = pos.x_f32() * self.zoom + self.pan.x;
             let sy = pos.y_f32() * self.zoom + self.pan.y;
             let cell_w = ((hw as f32) * 2.0 * self.zoom).max(24.0);
@@ -1944,10 +1879,7 @@ impl ElementOverview {
 
             let cat_color = self.element_color(element).unwrap_or_else(|| p.ink(2));
             let is_focused = self.isle_focus.as_deref() == Some(element.id.as_str());
-            let is_link_source = self
-                .link_source
-                .as_ref()
-                .is_some_and(|(k, id)| k == "entry" && id == &element.id);
+
             let is_neighbour = neighbourhood
                 .as_ref()
                 .is_some_and(|set| set.contains(&element.id));
@@ -1956,13 +1888,9 @@ impl ElementOverview {
             let is_pinned = element.relation_pin.is_some();
             let weight = weights.get(&element.id).copied().unwrap_or(0.0);
 
-            let show_name = lod != IslesLod::Far
-                || is_focused
-                || is_neighbour
-                || major_ids.contains(&element.id);
-
             let el_id = element.id.clone();
-            let el_name = element.name.clone();
+            let el_name = relations::card_name(&element.name);
+            let el_id_for_label = el_id.clone();
             let drag_payload = ElementCarryDrag {
                 element_id: el_id.clone(),
                 element_name: el_name.clone(),
@@ -1972,7 +1900,7 @@ impl ElementOverview {
                 origin_world: pos,
             };
 
-            let border_c = if is_focused || is_link_source {
+            let border_c = if is_focused {
                 cat_color.solid()
             } else if is_pinned || is_neighbour {
                 cat_color.alpha(0.65)
@@ -1983,6 +1911,10 @@ impl ElementOverview {
             let mark_id = format!("se-relate-mark-{el_id}");
             let cell = div()
                 .id(ElementId::Name(format!("se-relate-card-{el_id}").into()))
+                .debug_selector({
+                    let id = el_id.clone();
+                    move || format!("se-relate-card-{id}")
+                })
                 .role(gpui::Role::Button)
                 .aria_label(SharedString::from(el_name.clone()))
                 .absolute()
@@ -2021,6 +1953,12 @@ impl ElementOverview {
                 .when(show_name, |d| {
                     d.child(
                         div()
+                            .id(SharedString::from(format!(
+                                "se-relate-name-{el_id_for_label}"
+                            )))
+                            .debug_selector(move || format!("se-relate-name-{el_id_for_label}"))
+                            .font_family(dr_ui::fonts::SANS)
+                            .font_weight(dr_ui::fonts::weight::REGULAR)
                             .text_size(px(11.5))
                             .text_color(p.ink(1).solid())
                             .truncate()
@@ -2062,10 +2000,13 @@ impl ElementOverview {
         };
         let active_id = self.isle_focus.clone();
         let selected_edge_id = self.selected_edge_id.clone();
+        let painted_arrows = self.painted_relation_arrows.clone();
 
         canvas(
             move |_, _, _| {},
             move |bounds, _, window, _| {
+                let mut painted_arrows = painted_arrows.borrow_mut();
+                painted_arrows.clear();
                 let origin = bounds.origin;
                 let min_sx = f32::from(origin.x) - 16.0;
                 let min_sy = f32::from(origin.y) - 16.0;
@@ -2176,6 +2117,19 @@ impl ElementOverview {
                     if let Ok(path) = builder.build() {
                         window.paint_path(path, edge.color.alpha(alpha));
                     }
+                    if mode == ElementLayoutMode::Relate
+                        && let Some(arrow) = edge.arrow(|p| to_screen(p.x_f32(), p.y_f32()), zoom)
+                    {
+                        let mut head = PathBuilder::fill();
+                        head.move_to(arrow.tip);
+                        head.line_to(arrow.wings[0]);
+                        head.line_to(arrow.wings[1]);
+                        head.close();
+                        if let Ok(path) = head.build() {
+                            window.paint_path(path, edge.color.alpha(alpha));
+                            painted_arrows.push(arrow);
+                        }
+                    }
                 }
             },
         )
@@ -2208,7 +2162,7 @@ impl Render for ElementOverview {
             });
 
         let sand_pairs = self.active_sand_pairs_rc();
-        let relate_edges = self.build_relate_edges();
+        let relate_edges = self.build_relate_edges(p.ink(2));
         let crowded = relate_edges.len() > RELATE_LABEL_BUDGET;
         let role_labels_all = lod != IslesLod::Far && !crowded;
 
@@ -2223,12 +2177,10 @@ impl Render for ElementOverview {
                 cx,
             ),
             ElementLayoutMode::Relate => self.render_relate_cells(
-                lod,
                 &self.cached_mark_weights,
                 &neighbourhood,
                 &dimmed,
                 &hidden,
-                &self.cached_major_ids,
                 window,
                 cx,
             ),
@@ -2250,9 +2202,7 @@ impl Render for ElementOverview {
 
         let legend = self.render_legend(window, cx);
         let island = self.render_floating_island(window, cx);
-        let pending_modal = self.render_pending_link_modal(window, cx);
-        let edge_popover = self.render_selected_edge_popover(window, cx);
-        let type_modal = self.render_type_manager_modal(window, cx);
+        let relation_composer = self.render_relation_composer(window, cx);
 
         let entity = cx.entity();
         let bounds_probe = canvas(
@@ -2267,6 +2217,16 @@ impl Render for ElementOverview {
 
         div()
             .id("se-viewport")
+            .debug_selector(|| "se-viewport".into())
+            .track_focus(&self.relation_focus)
+            .on_action(cx.listener(|this, _: &dr_shell::actions::Dismiss, _, cx| {
+                if this.relation_source.is_some() || this.relation_draft.is_some() {
+                    this.cancel_relation(cx);
+                    cx.stop_propagation();
+                } else {
+                    cx.propagate();
+                }
+            }))
             .relative()
             .size_full()
             .overflow_hidden()
@@ -2341,8 +2301,6 @@ impl Render for ElementOverview {
             })
             .child(legend)
             .children(island)
-            .children(pending_modal)
-            .children(edge_popover)
-            .children(type_modal)
+            .children(relation_composer)
     }
 }

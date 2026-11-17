@@ -2,7 +2,7 @@
 //!
 //! A book's structured content lives in a single entry tree (`entries`). There
 //! is one kind of entry: its [`EntryTemplate`] composes any modules (`prose`,
-//! `fields`, `kv`, `patches`, `plot_grid`, `relations`, `children`), and the
+//! `fields`, `kv`, `patches`, `plot_grid`, `children`), and the
 //! entry's own switch ([`Entry::level`], shown as 「层级」) says whether entries
 //! can live under it. An entry with the switch on is called a level: its
 //! settings for what lives below ([`LevelSettings`], inherited down the tree),
@@ -25,12 +25,14 @@ pub use crate::id::{
     PlotRowId, ProjectTemplateDocId, RelationId, RelationTypeId, TabId, TemplateId, TimePinId,
     TimelineViewId,
 };
-use crate::kind::{
-    CommentAuthorKind, CommentOrigin, CommentSource, CommentStatus, EntityKind,
-    RelationOrientation, SystemRelationKey,
-};
+use crate::kind::{CommentAuthorKind, CommentOrigin, CommentSource, CommentStatus, EntityKind};
 use crate::order::cmp_order;
 use crate::pos::{PosKey, cmp_pos};
+pub use crate::relations::{
+    EntryTextLink, LinkedText, PairPlacement, RelationDirection, RelationRow, RelationSide,
+    RelationTypeV3, kept_relation_rows, pair_key, plan_pair_removal, plan_relation_pair,
+    relation_type_winners, visible_relation_rows,
+};
 pub use crate::shared::sort_kv;
 use crate::shared::{
     BlockSnapshot, DEFAULT_DAILY_WORD_TARGET, DEFAULT_WORD_TARGET, EncodedAnchor, EntityRef,
@@ -144,8 +146,6 @@ v3_open_enum!(
         KeyValue = "kv",
         /// Excerpt patches attached to `(entry_id, module_id)` in `patches`.
         Patches = "patches",
-        /// Entity relations view scoped to this entry in `relations`.
-        Relations = "relations",
         /// A 2D plot grid keyed by `<entry_id>/<module_id>` in `plot_grids`.
         PlotGrid = "plot_grid",
         /// What lives below the entry (`下面的条目`): its resident children,
@@ -481,17 +481,6 @@ impl ModuleSpec {
         Self {
             id,
             kind: ModuleKind::Patches,
-            name: name.into(),
-            pos: None,
-            config: ModuleConfig::default(),
-            agent: None,
-        }
-    }
-
-    pub fn relations(id: ModuleId, name: impl Into<String>) -> Self {
-        Self {
-            id,
-            kind: ModuleKind::Relations,
             name: name.into(),
             pos: None,
             config: ModuleConfig::default(),
@@ -1351,28 +1340,6 @@ fn default_v3_plot_line(entry: &EntryId, module: &ModuleId, axis: char, n: usize
     format!("{hex}:{axis}{n}")
 }
 
-/// A relation type in v3: endpoints are `entry`, `material`, `comment`, or `patch`,
-/// and `source_templates` / `target_templates` optionally filter by entry template.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct RelationTypeV3 {
-    pub id: RelationTypeId,
-    pub name: String,
-    pub normalized_name: String,
-    pub description: String,
-    pub orientation: RelationOrientation,
-    pub system_key: Option<SystemRelationKey>,
-    pub locked: bool,
-    pub source_role: String,
-    pub target_role: String,
-    pub color: Option<String>,
-    pub source_kinds: Vec<EntityKind>,
-    pub target_kinds: Vec<EntityKind>,
-    #[serde(default)]
-    pub source_templates: Vec<EntryTemplateId>,
-    #[serde(default)]
-    pub target_templates: Vec<EntryTemplateId>,
-}
-
 /// Where inside `target_module` (or directly on an asset) a comment sits (`comments.<id>.part`, `kernel-v5.md` §6, §7 & §10).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -1435,7 +1402,7 @@ pub struct CommentV3 {
     pub author_kind: CommentAuthorKind,
     pub author: Option<String>,
     pub author_name: Option<String>,
-    pub body: String,
+    pub body: LinkedText,
     /// Open or resolved; a comment has no priority (`kernel-v5.md` §7).
     pub status: CommentStatus,
     pub source: CommentSource,

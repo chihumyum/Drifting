@@ -8,8 +8,7 @@ pub use crate::commands::comment_shared::{
 use crate::commands::comment_shared::{
     MARKER_META_KIND, ProjectionMeta, TASK_META_KIND, anchor_known_in, decode_anchor, has_seen,
 };
-use crate::commands::purge_fallout;
-use crate::dto::{AnchorBytes, CommentAnchor, CommentPartDto, Region};
+use crate::dto::{AnchorBytes, CommentAnchor, CommentPartDto, LinkedTextIn, Region};
 use dr_doc::prose::{BorrowedProse, EmbedView};
 use dr_model::DocId;
 use dr_model::id::{BodyDocId, EmbedId};
@@ -17,8 +16,78 @@ use dr_model::kind::{
     CommentAuthorKind, CommentOrigin, CommentSource, CommentStatus, EntityKind, ProjectionKind,
 };
 use dr_model::shared::{BlockSnapshot, EntityRef};
-use dr_model::v3::{CommentPart, CommentV3 as Comment, ModuleKind, check_comment_part_kind};
-use std::collections::HashSet;
+use dr_model::v3::{
+    CommentPart, CommentV3 as Comment, EntityLinkV3, EntryTextLink, LinkedText, ModuleKind,
+    check_comment_part_kind,
+};
+use std::ops::Range;
+
+/// The links a comment's text gets (`autolink::plan_book_text`): `stored` is
+/// the body it replaces (`None` for a new comment).
+fn planned_body(
+    cx: &Cx<'_>,
+    slot: &BookSlot,
+    target: Option<&EntityRef>,
+    stored: Option<&LinkedText>,
+    body: &LinkedTextIn,
+) -> Result<LinkedText> {
+    let owner = target
+        .filter(|r| r.kind == EntityKind::Entry)
+        .and_then(|r| EntryId::parse(&r.id).ok());
+    let automatic = cx.workspace().auto_links()
+        && (crate::autolink::links_for(cx.actor()) || matches!(cx.actor(), crate::Actor::User));
+    let names = automatic.then(|| crate::autolink::book_cache(slot).2);
+    crate::autolink::plan_book_text(
+        &slot.reader_v3.view(),
+        owner.as_ref(),
+        names.as_deref(),
+        stored,
+        body,
+    )
+}
+
+/// The body of the comment projected from a checklist item or a TODO marker
+/// (`kernel-v5.md` §19): `task`, the end of prose line `line` (which starts
+/// at character `line_start` of its document), with the entry links `links`
+/// (character ranges of the document, in order) put on it, except those to
+/// `owner`, the entry whose prose it is. Overlapping prose links take each
+/// character once, in order. An import makes the same body from the line it
+/// brings over, so the first projection finds nothing to change.
+pub fn projected_body(
+    line: &str,
+    line_start: usize,
+    task: &str,
+    links: &[(Range<usize>, EntityLinkV3)],
+    owner: &str,
+) -> LinkedText {
+    if task.is_empty() {
+        return LinkedText::plain(EMPTY_MARKER_TASK);
+    }
+    let mut body = LinkedText::plain(task);
+    let Some(prefix) = line.trim_end().strip_suffix(task) else {
+        return body;
+    };
+    let start = line_start + prefix.chars().count();
+    let end = start + task.chars().count();
+    let mut next = start;
+    for (range, link) in links.iter().take_while(|(r, _)| r.start < end) {
+        let from = next.max(range.start);
+        let to = range.end.min(end);
+        if from < to
+            && link.kind == EntityKind::Entry
+            && link.target != owner
+            && let Ok(entry) = EntryId::parse(&link.target)
+        {
+            body.links.push(EntryTextLink {
+                start: from - start,
+                end: to - start,
+                entry,
+            });
+            next = to;
+        }
+    }
+    body
+}
 
 fn comments(slot: &BookSlot) -> Vec<Comment> {
     slot.reader_v3.view().comments()
@@ -196,7 +265,7 @@ pub struct CommentInfo {
     pub target_block: Option<String>,
     pub anchored: bool,
     pub quote: Option<String>,
-    pub body: String,
+    pub body: LinkedText,
     /// `open` or `resolved` (a comment has no priority).
     pub status: String,
     /// `manual`, `marker`, `task`, `agent` or `reader`.
@@ -289,7 +358,7 @@ pub struct CommentCreateIn {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub anchor: Option<AnchorBytes>,
     #[serde(default)]
-    pub body: String,
+    pub body: LinkedTextIn,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub author_name: Option<String>,
 }
@@ -536,14 +605,16 @@ op! {
             })?;
         }
         let id = CommentId::new_v7();
-        let (i2, body, an) = (id.clone(), input.body.clone(), input.author_name.clone());
+        let body = planned_body(cx, &slot, target.as_ref(), None, &input.body)?;
+        let (i2, an) = (id.clone(), input.author_name.clone());
+        let author = cx.actor().comment_author();
         cx.write_book_v3(&slot, Replaces::nothing(), move |txn| {
             let w = txn.comment(&i2)?;
             w.origin(&origin)?.target(target.as_ref())?.module(module.as_ref())?.part(part.as_ref())?
                 .target_block(block.as_ref())?.anchor(anchor.as_ref())?
-                .quote(quote.as_deref())?.body(&body)?.status(&CommentStatus::Open)?
+                .quote(quote.as_deref())?.linked_body(&body)?.status(&CommentStatus::Open)?
                 .author_kind(if agent { &CommentAuthorKind::Ai } else { &CommentAuthorKind::User })?
-                .author_name(an.as_deref())?
+                .author(author)?.author_name(an.as_deref())?
                 .source(if agent { &CommentSource::Api } else { &CommentSource::Manual })?
                 .created_at(Some(now()))?.updated_at(Some(now()))?;
             if !snapshots.is_empty() { w.snapshots(&snapshots)?; }
@@ -568,11 +639,26 @@ op! {
         // the author 2026-11-15): its words are read from the line, so other
         // words are refused here instead of being overwritten by the next
         // projection.
-        if is_checklist(&old) && input.body.as_ref().is_some_and(|b| b != &old.body) {
-            return Err(WsError::invalid(
-                "a checklist item's comment follows its line: change the line in the prose",
-            ));
-        }
+        let checklist = is_checklist(&old);
+        let body = if checklist {
+            let changed = match &input.body {
+                Some(LinkedTextIn::Plain(text)) => text != &old.body.text,
+                Some(LinkedTextIn::Linked(body)) => body != &old.body,
+                None => false,
+            };
+            if changed {
+                return Err(WsError::invalid(
+                    "a checklist item's comment follows its line: change the line in the prose",
+                ));
+            }
+            None
+        } else {
+            let stored = slot.reader_v3.view().comment_body_raw(&old.id);
+            input.body.as_ref()
+                .map(|draft| planned_body(cx, &slot, old.target.as_ref(), stored.as_ref(), draft))
+                .transpose()?
+        };
+        let editing_text = body.is_some();
         // A checklist item's comment is the line's shadow: resolving it ticks
         // the item in the prose and reopening clears the tick, one ordinary
         // prose change before the comment follows (`kernel-v5.md` §7).
@@ -587,31 +673,91 @@ op! {
             _ => None,
         };
         let (id, i) = (old.id.clone(), input.clone());
-        cx.write_book_v3(&slot, Replaces::record(CollectionV3::Comments, &id), move |txn| {
+        let (texts, _) = cx.write_book_v3(&slot, Replaces::record(CollectionV3::Comments, &id), move |txn| {
+            let was = txn.view().comment_body_raw(&id).unwrap_or_default();
             let w = txn.comment(&id)?;
-            if let Some(b) = &i.body { w.body(b)?; }
+            if let Some(b) = &body { w.linked_body(b)?; }
             if let Some(s) = &status {
                 w.status(s)?.resolved_at((*s == CommentStatus::Resolved).then(now))?;
             }
             if let Some(meta) = &task_meta { w.metadata(Some(meta))?; }
             if let Some(a) = &i.agent_conversation { w.agent_conversation(a.as_deref())?; }
             w.updated_at(Some(now()))?;
-            Ok(())
+            let written = txn.view().comment_body_raw(&id).unwrap_or_default();
+            Ok((was, written))
         })?;
         cx.effect(EffectAction::Updated, "comment", &input.id, None);
-        cx.undo_with(Invocation::new("comment.update", CommentUpdateIn {
-            book: input.book.clone(), id: input.id.clone(),
-            body: input.body.as_ref().map(|_| old.body.clone()),
-            status: input.status.as_ref().map(|_| old.status.as_str().to_string()),
-            agent_conversation: input.agent_conversation.as_ref().map(|_| old.agent_conversation.clone()),
-        }));
+        // The undo of the text brings back only the text, while it still
+        // reads as written here: a later resolve, conversation or other text
+        // stays (`comment.restore_body`). Status and conversation go back
+        // the way they came, as before.
+        let (was, written) = texts;
+        let text_changed = editing_text && was != written;
+        if text_changed {
+            cx.undo_with(Invocation::new("comment.restore_body", CommentRestoreBodyIn {
+                book: input.book.clone(), id: input.id.clone(), expected: written, body: was,
+            }));
+        }
+        if input.status.is_some() || input.agent_conversation.is_some() {
+            cx.undo_with(Invocation::new("comment.update", CommentUpdateIn {
+                book: input.book.clone(), id: input.id.clone(),
+                body: None,
+                status: input.status.as_ref().map(|_| old.status.as_str().to_string()),
+                agent_conversation: input.agent_conversation.as_ref().map(|_| old.agent_conversation.clone()),
+            }));
+        } else if !text_changed {
+            cx.undo_nothing();
+        }
         Ok(Done { id: input.id })
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+pub struct CommentRestoreBodyIn {
+    pub book: String,
+    pub id: String,
+    /// The text as the recorded write left it, links included.
+    pub expected: LinkedText,
+    /// The text to bring back.
+    pub body: LinkedText,
+}
+
+op! {
+    CommentRestoreBody = "comment.restore_body", Write, Book,
+    "Undo or redo a change of a comment's text: bring back `body` while the text still reads `expected`; any other change since refuses it. Status, resolution time and linked conversation are not touched.",
+    fn(cx, input: CommentRestoreBodyIn) -> Done {
+        let slot = cx.book_v3(&input.book)?;
+        let id: CommentId = pid("comment", &input.id)?;
+        let saved = id.clone();
+        let (expected, body) = (input.expected.clone(), input.body.clone());
+        let (written, _) = cx.write_book_v3(&slot, Replaces::nothing(), move |txn| {
+            let current = txn.view().comment_body_raw(&saved)
+                .ok_or_else(|| WsError::not_found("comment", saved.as_str()))?;
+            if current == body {
+                return Ok(None);
+            }
+            if current != expected {
+                return Err(WsError::Conflict("the comment's text changed after the recorded write".into()));
+            }
+            txn.comment(&saved)?.linked_body(&body)?.updated_at(Some(now()))?;
+            Ok(txn.view().comment_body_raw(&saved))
+        })?;
+        match written {
+            Some(written) => {
+                cx.effect(EffectAction::Updated, "comment", id.as_str(), None);
+                cx.undo_with(Invocation::new("comment.restore_body", CommentRestoreBodyIn {
+                    book: input.book, id: input.id.clone(), expected: written, body: input.expected,
+                }));
+            }
+            None => cx.undo_nothing(),
+        }
+        Ok(Done { id: id.to_string() })
     }
 }
 
 op! {
     CommentDelete = "comment.delete", Write, Book,
-    "Delete a comment (its relations go with it). A checklist item's comment is not deleted here: it goes when its line is deleted in the prose.",
+    "Delete a comment. A checklist item's comment is not deleted here: it goes when its line is deleted in the prose.",
     fn(cx, input: EntityIn) -> Done {
         let slot = cx.book_v3(&input.book)?;
         let id: CommentId = pid("comment", &input.id)?;
@@ -624,19 +770,13 @@ op! {
                 "a checklist item's comment goes with its line: delete the line in the prose",
             ));
         }
-        let target = dr_model::shared::EntityRef::new(EntityKind::Comment, input.id.clone());
-        let (rels, _) = purge_fallout(&slot, &target);
-        let mut touched: Vec<(String, String)> = vec![("comments".into(), input.id.clone())];
-        touched.extend(rels.iter().map(|r| ("relations".to_string(), r.to_string())));
-        let (i2, r2) = (id.clone(), rels.clone());
+        let saved = id.clone();
         let (_, before) = cx.write_book_v3(&slot, Replaces::record(CollectionV3::Comments, &id), move |txn| {
-            for r in &r2 { txn.purge(CollectionV3::Relations, r.as_str())?; }
-            txn.purge(CollectionV3::Comments, i2.as_str())?;
+            txn.purge(CollectionV3::Comments, saved.as_str())?;
             Ok(())
         })?;
-        for r in &rels { cx.effect(EffectAction::Purged, "relation", r.as_str(), None); }
         cx.effect(EffectAction::Purged, "comment", &input.id, None);
-        undo(cx, &slot, &before, touched.into_iter().map(|(collection,id)| history::Key { collection,id }).collect());
+        undo(cx, &slot, &before, vec![key("comments", &id)]);
         Ok(Done { id: input.id })
     }
 }
@@ -735,25 +875,30 @@ op! {
 
         // The document now: its blocks and its version.
         let view = cx.prose_view(&ps);
-        let blocks: HashSet<BlockId> = view.blocks().into_iter().filter_map(|b| b.id).collect();
+        let links = if input.tasks.is_some() || !markers.is_empty() {
+            view.entity_links_v3()
+        } else {
+            Vec::new()
+        };
         let vv = ps.handle.doc().with_doc(|d| d.oplog_vv());
-        // Checklist items (`kernel-v5.md` §7): the document is the truth.
-        // Each item's text and tick are read from it, so a list an editor
-        // sent before a resolve reached it never unticks the item; the list
-        // only asks for the items to be projected.
-        let tasks: Option<Vec<(BlockId, String, bool)>> = input.tasks.as_ref().map(|_| {
-            let mut items: Vec<(BlockId, String, bool)> = Vec::new();
-            for p in view.paragraphs() {
-                if p.attrs.list != Some(dr_model::kind::ListKind::Task) {
-                    continue;
-                }
-                let Some(b) = p.id.clone() else { continue };
-                if !items.iter().any(|(x, _, _)| x == &b) {
-                    items.push((b, p.text().trim().to_string(), p.attrs.checked));
-                }
+        let mut marker_bodies = BTreeMap::new();
+        let mut tasks = input.tasks.as_ref().map(|_| BTreeMap::new());
+        for p in view.paragraphs() {
+            let Some(block) = p.id.clone() else { continue };
+            if let Some((_, task)) = markers.iter().find(|(id, _)| id == &block) {
+                marker_bodies.entry(block.clone()).or_insert_with(|| {
+                    projected_body(&p.text(), p.range.start, task, &links, &owner.id)
+                });
             }
-            items
-        });
+            if p.attrs.list == Some(dr_model::kind::ListKind::Task)
+                && let Some(tasks) = &mut tasks
+            {
+                tasks.entry(block).or_insert_with(|| {
+                    let text = p.text();
+                    (projected_body(&text, p.range.start, text.trim(), &links, &owner.id), p.attrs.checked)
+                });
+            }
+        }
 
         let doc_comments: Vec<Comment> = comments(&slot)
             .into_iter()
@@ -777,16 +922,14 @@ op! {
             .collect();
 
         let mut out = CommentProjected::default();
-        let mut create: Vec<(ProjectionKind, BlockId, String, bool)> = Vec::new();
-        let mut sync_tasks: Vec<(CommentId, Option<String>, Option<CommentStatus>)> = Vec::new();
+        let mut create: Vec<(ProjectionKind, BlockId, LinkedText, bool)> = Vec::new();
+        let mut sync_tasks: Vec<(CommentId, Option<LinkedText>, Option<CommentStatus>)> = Vec::new();
         let mut remove: Vec<CommentId> = Vec::new();
 
-        for (b, task) in &markers {
-            if existing_markers.contains_key(b) || editing.as_ref() == Some(b) || !blocks.contains(b) {
-                continue;
+        for (b, body) in marker_bodies {
+            if !existing_markers.contains_key(&b) && editing.as_ref() != Some(&b) {
+                create.push((ProjectionKind::Marker, b, body, false));
             }
-            let body = if task.is_empty() { EMPTY_MARKER_TASK.to_string() } else { task.clone() };
-            create.push((ProjectionKind::Marker, b.clone(), body, false));
         }
         for (b, c) in &existing_markers {
             if c.status != CommentStatus::Open || markers.iter().any(|(x, _)| x == b) {
@@ -800,8 +943,8 @@ op! {
         }
 
         if let Some(ref tasks) = tasks {
-            for (b, task, checked) in tasks {
-                let body = if task.is_empty() { EMPTY_MARKER_TASK.to_string() } else { task.clone() };
+            let book = slot.reader_v3.view();
+            for (b, (body, checked)) in tasks {
                 if let Some(existing) = existing_tasks.get(b) {
                     // A resolve or reopen made on another device writes the
                     // tick first; until that prose is here the comment is
@@ -812,22 +955,23 @@ op! {
                     }
                     let want_status = if *checked { CommentStatus::Resolved } else { CommentStatus::Open };
                     let status_change = (existing.status != want_status).then_some(want_status);
-                    let body_change = (editing.as_ref() != Some(b) && existing.body != body).then_some(body);
+                    let body_change = (editing.as_ref() != Some(b)
+                        && book.comment_body_raw(&existing.id).as_ref() != Some(body)).then(|| body.clone());
                     if status_change.is_some() || body_change.is_some() {
                         sync_tasks.push((existing.id.clone(), body_change, status_change));
                     }
                     continue;
                 }
-                if editing.as_ref() == Some(b) || !blocks.contains(b) {
+                if editing.as_ref() == Some(b) {
                     continue;
                 }
-                create.push((ProjectionKind::NoteTask, b.clone(), body, *checked));
+                create.push((ProjectionKind::NoteTask, b.clone(), body.clone(), *checked));
             }
             // An item that is gone takes its comment with it, resolved or not
             // (the comment is only the line's shadow; a marker's resolved
             // comment stays, a checklist item's does not).
             for (b, c) in &existing_tasks {
-                if tasks.iter().any(|(x, _, _)| x == b) {
+                if tasks.contains_key(b) {
                     continue;
                 }
                 if has_seen(&vv, c.metadata.as_deref()) {
@@ -843,11 +987,6 @@ op! {
             cx.undo_nothing();
             return Ok(out);
         }
-        let mut rels = Vec::new();
-        for id in &remove {
-            let target = EntityRef::new(EntityKind::Comment, id.as_str());
-            rels.extend(purge_fallout(&slot, &target).0);
-        }
         let prose_vv: BTreeMap<String, i64> =
             vv.iter().map(|(p, c)| (p.to_string(), i64::from(*c))).collect();
         let marker_meta = serde_json::to_string(&ProjectionMeta {
@@ -859,7 +998,7 @@ op! {
             prose_vv,
         }).map_err(|e| WsError::Internal(e.to_string()))?;
         let agent = matches!(cx.actor(), crate::Actor::Agent { .. });
-        let (d2, c2, s2, r2, rm2) = (doc.clone(), create.clone(), sync_tasks.clone(), rels.clone(), remove.clone());
+        let (d2, c2, s2, rm2) = (doc.clone(), create, sync_tasks.clone(), remove.clone());
         let created = cx.write_book_v3(&slot, Replaces::nothing(), move |txn| {
             let mut ids = Vec::new();
             for (kind, b, task, checked) in &c2 {
@@ -880,7 +1019,7 @@ op! {
             for (id, body_change, status_change) in &s2 {
                 let w = txn.comment(id)?;
                 if let Some(body) = body_change {
-                    w.body(body)?;
+                    w.linked_body(body)?;
                 }
                 if let Some(status) = status_change {
                     w.status(status)?.resolved_at((*status == CommentStatus::Resolved).then(now))?;
@@ -889,7 +1028,6 @@ op! {
                 // keeps this until it has that prose too.
                 w.metadata(Some(&task_meta))?.updated_at(Some(now()))?;
             }
-            for r in &r2 { txn.purge(CollectionV3::Relations, r.as_str())?; }
             for c in &rm2 { txn.purge(CollectionV3::Comments, c.as_str())?; }
             Ok(ids)
         })?.0;
@@ -900,7 +1038,6 @@ op! {
         for (id, _, _) in &sync_tasks {
             cx.effect(EffectAction::Updated, "comment", id.as_str(), None);
         }
-        for r in &rels { cx.effect(EffectAction::Purged, "relation", r.as_str(), None); }
         for id in &remove {
             cx.effect(EffectAction::Purged, "comment", id.as_str(), None);
             out.removed.push(id.to_string());

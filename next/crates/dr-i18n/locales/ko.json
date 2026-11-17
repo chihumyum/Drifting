@@ -236,7 +236,6 @@
     }
   },
   "edgeKindManager": {
-    "editTypes": "유형 편집",
     "empty": "이 보기에는 아직 관계가 없습니다"
   },
   "editorOutline": {
@@ -459,7 +458,6 @@
     "choose": "폴더 선택…",
     "chosen": "선택한 폴더",
     "continue": "계속",
-    "intro": "각 작품의 Markdown 사본이 선택한 폴더에 저장됩니다. 다른 편집기로 장과 아이디어를 편집하면 변경 사항이 Drifting에 병합됩니다.",
     "title": "Markdown 폴더를 어디에 둘까요?"
   },
   "markdownShare": {
@@ -514,6 +512,22 @@
       "renderPdfFailed": "PDF를 렌더링할 수 없습니다"
     }
   },
+  "mirrorV5": {
+    "duplicate": "drifting-id가 같은 파일이 두 개 있습니다.",
+    "fieldConflict": "필드를 병합하지 못했습니다. Drifting에서도 편집되었거나 값을 읽을 수 없습니다. Drifting의 값을 유지하고 파일 사본을 저장했습니다.",
+    "identity": "drifting-id가 이 항목 또는 본문 모듈과 일치하지 않습니다.",
+    "intro": "프로젝트마다 Markdown 폴더가 있습니다. 다른 편집기에서 본문이나 필드를 편집하고 저장하면 변경 사항이 Drifting에 반영됩니다.",
+    "keyCollision": "상단 속성 중 하나가 새로 추가한 필드와 이름이 같습니다. 둘 중 하나의 이름을 바꾸거나 삭제할 때까지 이 파일에 다시 쓰지 않습니다.",
+    "lineage": "항목이나 본문이 복원되었거나 템플릿이 바뀌었거나 삭제되어 파일 편집을 병합할 수 없습니다.",
+    "malformedTable": "표를 읽을 수 없습니다. 원래 표는 Drifting에 남아 있습니다.",
+    "moved": "이 버전에서는 파일 이름 변경과 이동이 동기화되지 않습니다.",
+    "occupied": "이 경로에 이미 파일이 있습니다.",
+    "offWarning": "폴더를 끄기 전에 보류 중인 편집을 병합합니다. 기존 파일은 그대로 남습니다. 로컬 데이터에서 다시 켤 수 있습니다.",
+    "owned": "다른 Drifting 설치에서 이 폴더를 사용합니다.",
+    "readOnly": "읽기 전용 속성을 프로젝트의 값으로 되돌렸습니다.",
+    "unknownImage": "이미지가 자료함에 있는 파일을 가리키지 않아 이 줄을 일반 텍스트로 가져왔습니다.",
+    "unsafePath": "프로젝트 폴더의 이 경로에 안전하게 접근할 수 없습니다."
+  },
   "mobileWorkspace": {
     "editorAccessory": {
       "redo": "다시 실행",
@@ -543,6 +557,14 @@
     },
     "empty": "알림 없음",
     "markdownFolder": {
+      "issue": {
+        "empty": "본문이 비어 있어 병합하지 않고 파일을 보존했습니다",
+        "encoding": "UTF-8이 아니어서 읽지 않고 파일을 보존했습니다",
+        "frontmatter": "상단 속성 형식이 잘못되어 수정 전에는 병합하거나 덮어쓰지 않습니다",
+        "too-large": "너무 커서 읽지 않고 파일을 보존했습니다",
+        "unreadable": "읽을 수 없습니다"
+      },
+      "overlap": "이 문단은 Drifting과 파일 양쪽에서 수정되었습니다.",
       "preserved_one": "수정된 파일 {{count}}개를 .drifting/preserved에 보존함",
       "preserved_other": "수정된 파일 {{count}}개를 .drifting/preserved에 보존함",
       "source": "Markdown 폴더"
@@ -767,9 +789,6 @@
     "timePins": "시간 핀"
   },
   "referencesPanel": {
-    "actions": {
-      "linkEntity": "엔터티 연결"
-    },
     "filters": {
       "all": "전체"
     },
@@ -779,27 +798,16 @@
       "node": "장",
       "patch": "변화 기록",
       "storyline": "스토리라인"
-    },
-    "sections": {
-      "relations": "관계"
     }
   },
+  "relationGraph": {
+    "create": "만들기",
+    "name": "관계 이름",
+    "relations": "관계",
+    "title": "관계 만들기"
+  },
   "relationTypes": {
-    "builtIn": "기본 제공",
-    "create": "새로 만들기",
-    "createInline": "관계 유형 만들기",
-    "delete": "관계 유형 삭제",
-    "description": "설명",
-    "directed": "방향 있음",
-    "genericAssociation": {
-      "name": "연관"
-    },
-    "name": "이름",
-    "sourceRole": "출발점 역할",
-    "swap": "관계 끝점 맞바꾸기",
-    "symmetric": "대칭",
-    "targetRole": "대상 역할",
-    "title": "관계 유형 정의"
+    "description": "설명"
   },
   "reviewPanel": {
     "commentPlaceholder": "댓글 작성…",
@@ -1198,7 +1206,15 @@
       "local_sub": "Drifting 계정이나 호스팅 클라우드를 사용하지 않습니다. 언제든 읽을 수 있는 사본을 내보낼 수 있습니다.",
       "local_title": "작품은 이 기기에 보관됩니다.",
       "projection": {
-        "turnOff": "Markdown 폴더 끄기"
+        "allProjects": "모든 작품",
+        "allProjectsUnset": "모든 작품 · 위치를 선택하지 않음",
+        "choose": "폴더 선택",
+        "offHint": "꺼짐: Markdown을 기록하지 않고 외부 수정도 병합하지 않습니다. 기존 파일은 그대로 남습니다.",
+        "offTitle": "Markdown 폴더를 끌까요?",
+        "reveal": "Finder에서 보기",
+        "title": "Markdown 폴더",
+        "turnOff": "Markdown 폴더 끄기",
+        "turnOn": "켜기"
       }
     },
     "update": {
@@ -1246,10 +1262,7 @@
   },
   "storyGraph": {
     "edge": {
-      "create": "만들기",
-      "delete": "관계 삭제",
       "hideKind": "“{{label}}” 숨기기",
-      "kindLabel": "관계 유형",
       "showKind": "“{{label}}” 표시"
     }
   },
@@ -1273,7 +1286,6 @@
         "companions": "자주 함께 등장",
         "edit": "편집",
         "isolate": "이 항목만",
-        "relations": "관계",
         "showAll": "모두 표시",
         "times": "× {{count}}"
       },
@@ -1298,14 +1310,10 @@
     "layout": {
       "relate": "관계"
     },
-    "linkHintFrom": "출발",
-    "linkHintTo": "대상… 두 번째 요소나 장 선택, Esc로 취소",
-    "manualRelationTitle": "새 수동 관계",
     "relate": {
       "relayout": "재배치"
     },
     "reset": "초기화",
-    "startEdgeFromElement": "이 요소에서 관계 만들기",
     "uncategorized": "미분류",
     "unnamedCategory": "이름 없는 분류"
   },
@@ -1372,7 +1380,6 @@
     "preview_failed": "미리보기를 불러올 수 없습니다",
     "preview_loading": "미리보기를 불러오는 중…",
     "prose": "본문",
-    "relations": "관계",
     "reorder": "드래그하여 순서 변경",
     "restore": "되돌리기",
     "saved": "저장됨",
@@ -1638,6 +1645,26 @@
     "templateCount": "템플릿 {{count}}개",
     "templateStructure": "템플릿 구조",
     "unusedTemplates": "사용하지 않는 템플릿"
+  },
+  "v5Relations": {
+    "addEntry": "항목 추가",
+    "addRow": "행 추가",
+    "deleteRow": "이 행 삭제",
+    "description": "설명",
+    "direction": "단방향 또는 양방향",
+    "kinds_other": "{{count}}종",
+    "newRelation": "새 관계",
+    "pairs_other": "{{count}}쌍",
+    "removeEntry": "‘{{name}}’ 빼기",
+    "tab": "관계"
+  },
+  "v5RelationsProse": {
+    "change": "바꾸기",
+    "confirm": "만들기",
+    "create": "관계 만들기",
+    "direction": "방향",
+    "otherEntry": "다른 항목",
+    "relation": "관계"
   },
   "v5Tour": {
     "agent": {

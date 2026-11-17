@@ -25,6 +25,26 @@ fn wait(cx: &mut VisualTestContext, done: impl Fn(&mut VisualTestContext) -> boo
     }
 }
 
+fn assert_graph_stays_open(
+    shell: &Entity<Workspace>,
+    overview: &Entity<ElementOverview>,
+    cx: &mut VisualTestContext,
+) {
+    // Run deferred shell actions before checking the real host, not just the
+    // graph entity which can stay alive after its filled sidebar is closed.
+    cx.run_until_parked();
+    cx.update(|window, cx| window.draw(cx).clear(cx));
+    assert!(
+        shell.read_with(cx, |ws, _| ws.is_filled(FillPlace::Left)),
+        "creating a graph relation must keep the graph's filled sidebar open"
+    );
+    assert_eq!(
+        overview.read_with(cx, |view, _| view.layout_mode()),
+        ElementLayoutMode::Relate
+    );
+    assert!(cx.debug_bounds("se-viewport").is_some());
+}
+
 fn setup_seed_fixture(
     preset: dr_testkit::seed::Preset,
 ) -> (tempfile::TempDir, Library, Vec<String>) {
@@ -541,61 +561,50 @@ fn pin_and_unpin_preserve_board_and_grid_and_survive_relayout(cx: &mut TestAppCo
 }
 
 #[gpui::test]
-fn shift_click_relation_create_legend_filter_and_delete(cx: &mut TestAppContext) {
+fn graph_expands_a_relation_row_to_one_edge_per_pair(cx: &mut TestAppContext) {
     cx.executor().allow_parking();
     let (_dir, lib, books) = setup_seed_fixture(dr_testkit::seed::Preset::Tiny);
     let book_id = books[0].clone();
-
+    let entries =
+        dr_testkit::seed::acceptance::entries_by_template(&lib, &book_id, "tpl-character");
+    let [a, b, c] = [0, 1, 2].map(|n| entries[n]["id"].as_str().unwrap().to_owned());
+    let call =
+        |name, input| lib.call(&dr_workspace::Actor::User, name, input).unwrap()["output"].clone();
+    let made = call(
+        "relation_row.create_pair",
+        serde_json::json!({
+            "book":book_id,"left":a,"right":b,"new_type":{"name":"同盟契约","direction":"symmetric"},
+        }),
+    );
+    call(
+        "relation_row.add_entry",
+        serde_json::json!({"book":book_id,"id":made["id"],"side":"right","entry":c}),
+    );
     init_test_shell(lib, book_id, cx);
     let (shell, vcx) = cx.add_window_view(Workspace::new);
     wait(vcx, |cx| {
         shell.read_with(cx, |ws, _| ws.book.v3().is_some() && ws.book_memory_ready())
     });
-
     let ov = mount_overview(&shell, vcx);
-    let (el_a, el_b, initial_rel_count) = vcx.update(|_, cx| {
+    vcx.update(|_, cx| {
         let v = ov.read(cx);
-        assert!(v.elements().len() >= 2);
-        (
-            v.elements()[0].id.clone(),
-            v.elements()[1].id.clone(),
-            v.relations().len(),
-        )
+        let pairs: Vec<_> = v
+            .relations()
+            .iter()
+            .filter(|r| r.relation_type == made["relation_type"].as_str().unwrap())
+            .map(|r| {
+                assert!(!r.directed);
+                (r.from.as_str(), r.to.as_str())
+            })
+            .collect();
+        assert_eq!(pairs.len(), 2);
+        assert!(pairs.contains(&(a.as_str(), b.as_str())));
+        assert!(pairs.contains(&(a.as_str(), c.as_str())));
     });
-
-    // Shift-click A then Shift-click B to open `pending_link`, create a dedicated relation type,
-    // and confirm the canonical v3 relation.
-    let (created_type_id, created_rel_id) = vcx.update(|window, cx| {
+    vcx.update(|_, cx| {
         ov.update(cx, |v, cx| {
-            v.click_entity("entry", &el_a, true, window, cx);
-            v.click_entity("entry", &el_b, true, window, cx);
-            let tid = v
-                .create_relation_type("同盟契约", true, "主导方", "响应方", cx)
-                .expect("create relation type");
-            let rid = v
-                .confirm_pending_link(cx)
-                .expect("confirm canonical v3 relation");
-            (tid, rid)
+            v.toggle_relation_type(made["relation_type"].as_str().unwrap(), cx)
         })
-    });
-
-    vcx.update(|_, cx| {
-        let v = ov.read(cx);
-        assert_eq!(v.relations().len(), initial_rel_count + 1);
-        assert!(v.relations().iter().any(|r| r.id == created_rel_id));
-    });
-
-    // Toggle legend visibility for the type, then delete the relation and unused custom type.
-    vcx.update(|_, cx| {
-        ov.update(cx, |v, cx| {
-            v.toggle_relation_type(&created_type_id, cx);
-            v.toggle_relation_type(&created_type_id, cx);
-            assert!(v.delete_relation(&created_rel_id, cx));
-            assert!(v.delete_relation_type(&created_type_id, cx));
-        });
-    });
-    vcx.update(|_, cx| {
-        assert_eq!(ov.read(cx).relations().len(), initial_rel_count);
     });
 }
 
@@ -734,4 +743,564 @@ fn heavy_seed_reference_timings(cx: &mut TestAppContext) {
     eprintln!(
         "[m22-heavy-reference] elements={el_count} cooccurrence_pairs={pair_count} first_frame_ms={first_frame_ms:.2} open_first_frame_ms={open_ms:.2} draw_p50_ms={p50_draw_ms:.2} draw_p95_ms={p95_draw_ms:.2} pin_reheat_settle_ms={pin_settle_ms:.2}"
     );
+}
+
+#[gpui::test]
+fn shift_pair_reuses_the_named_row_and_duplicate_adds_no_undo_step(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    let (_dir, lib, books) = setup_seed_fixture(dr_testkit::seed::Preset::Tiny);
+    let book = books[0].clone();
+    let entries = dr_testkit::seed::acceptance::entries_by_template(&lib, &book, "tpl-character");
+    let [a, b, c] = [0, 1, 2].map(|i| entries[i]["id"].as_str().unwrap().to_owned());
+    let original = lib.call(&Actor::User, "relation_row.create_pair", json!({
+        "book":book,"left":a,"right":b,"new_type":{"name":"Graph Mentor","direction":"directed"}
+    })).unwrap()["output"].clone();
+    init_test_shell(lib.clone(), book.clone(), cx);
+    let (shell, vcx) = cx.add_window_view(Workspace::new);
+    wait(vcx, |cx| {
+        shell.read_with(cx, |ws, _| ws.book.v3().is_some() && ws.book_memory_ready())
+    });
+    let ov = mount_overview(&shell, vcx);
+    // A mouse test must wait for fill to finish: during the opening animation
+    // graph cells can be laid out beyond the moving viewport's clipping edge.
+    wait(vcx, |cx| {
+        shell.read_with(cx, |ws, _| ws.fill_progress(FillPlace::Left) >= 1.0)
+    });
+    vcx.update(|_, cx| ov.update(cx, |v, cx| v.reset_view(cx)));
+    for _ in 0..2 {
+        for id in [&a, &c] {
+            let selector: &'static str = Box::leak(format!("se-relate-card-{id}").into_boxed_str());
+            wait(vcx, |cx| cx.debug_bounds(selector).is_some());
+            let at = vcx.debug_bounds(selector).unwrap().center();
+            let modifiers = gpui::Modifiers {
+                shift: true,
+                ..Default::default()
+            };
+            vcx.simulate_mouse_move(at, None, modifiers);
+            vcx.simulate_click(at, modifiers);
+        }
+        let row = vcx.update(|window, cx| {
+            ov.update(cx, |v, cx| {
+                assert_eq!(v.relation_draft().unwrap().target, c);
+                v.set_relation_name("  graph mentor  ", cx);
+                v.cycle_relation_direction(cx);
+                v.cycle_relation_direction(cx);
+                assert_eq!(
+                    v.relation_draft().unwrap().direction,
+                    dr_view_element_overview::view::PairDirection::Forward
+                );
+                v.confirm_relation(window, cx).expect("pair committed")
+            })
+        });
+        assert_eq!(row, original["id"].as_str().unwrap());
+        assert_graph_stays_open(&shell, &ov, vcx);
+        for id in [&a, &c] {
+            let selector: &'static str = Box::leak(format!("se-relate-card-{id}").into_boxed_str());
+            assert!(
+                vcx.debug_bounds(selector).is_some(),
+                "the paired card stays visible"
+            );
+        }
+        wait(vcx, |cx| {
+            ov.read_with(cx, |view, _| {
+                view.painted_relation_arrows().iter().any(|arrow| {
+                    arrow.relation_type == original["relation_type"].as_str().unwrap()
+                        && arrow.from == a
+                        && arrow.to == c
+                })
+            })
+        });
+    }
+    let read = || {
+        lib.call(&Actor::User, "relation_type.list", json!({"book":book}))
+            .unwrap()["output"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|r| r["id"] == original["relation_type"])
+            .unwrap()
+            .clone()
+    };
+    assert_eq!(read()["rows"][0]["right"].as_array().unwrap().len(), 2);
+    lib.undo(&Actor::User)
+        .unwrap()
+        .expect("one added pair to undo");
+    assert_eq!(read()["rows"][0]["right"], json!([b]));
+}
+
+#[gpui::test]
+fn shift_pair_button_direction_enter_does_not_submit_and_failed_write_keeps_draft(
+    cx: &mut TestAppContext,
+) {
+    use dr_view_element_overview::view::PairDirection;
+    cx.executor().allow_parking();
+    let (_dir, lib, books) = setup_seed_fixture(dr_testkit::seed::Preset::Tiny);
+    let book = books[0].clone();
+    let entries = dr_testkit::seed::acceptance::entries_by_template(&lib, &book, "tpl-character");
+    let [a, b] = [0, 1].map(|i| entries[i]["id"].as_str().unwrap().to_owned());
+    init_test_shell(lib.clone(), book.clone(), cx);
+    let (shell, vcx) = cx.add_window_view(Workspace::new);
+    wait(vcx, |cx| {
+        shell.read_with(cx, |ws, _| ws.book.v3().is_some() && ws.book_memory_ready())
+    });
+    let ov = mount_overview(&shell, vcx);
+    let begin = |vcx: &mut VisualTestContext| {
+        vcx.update(|window, cx| {
+            ov.update(cx, |v, cx| {
+                v.click_entity("entry", &a, true, window, cx);
+                v.click_entity("entry", &a, true, window, cx);
+                assert!(v.relation_draft().is_none(), "self-pair never opens");
+                v.click_entity("entry", &b, true, window, cx);
+            })
+        })
+    };
+    begin(vcx);
+    vcx.simulate_keystrokes("escape");
+    assert!(ov.read_with(vcx, |v, _| v.relation_draft().is_none()));
+    assert!(
+        shell.read_with(vcx, |ws, _| ws.is_filled(FillPlace::Left)),
+        "Esc closes the draft before exiting fill"
+    );
+    begin(vcx);
+    vcx.update(|window, cx| {
+        ov.update(cx, |v, cx| {
+            assert!(
+                v.confirm_relation(window, cx).is_none(),
+                "a name is required"
+            );
+            v.set_relation_name("Graph Reversed", cx);
+            v.cycle_relation_direction(cx);
+            assert_eq!(
+                v.relation_draft().unwrap().direction,
+                PairDirection::Reverse
+            );
+        })
+    });
+    vcx.simulate_keystrokes("enter");
+    assert!(
+        ov.read_with(vcx, |v, _| v.relation_draft().is_some()),
+        "Enter has no approved create action; the draft stays open"
+    );
+    let list = || {
+        lib.call(&Actor::User, "relation_type.list", json!({"book":book}))
+            .unwrap()["output"]
+            .as_array()
+            .unwrap()
+            .clone()
+    };
+    assert!(
+        !list().iter().any(|r| r["name"] == "Graph Reversed"),
+        "Enter must not save a relation"
+    );
+    wait(vcx, |cx| {
+        shell.read_with(cx, |ws, _| ws.fill_progress(FillPlace::Left) >= 1.0)
+    });
+    wait(vcx, |cx| cx.debug_bounds("se-relation-create").is_some());
+    let at = vcx.debug_bounds("se-relation-create").unwrap().center();
+    vcx.simulate_mouse_move(at, None, gpui::Modifiers::default());
+    vcx.simulate_click(at, gpui::Modifiers::default());
+    wait(vcx, |cx| {
+        ov.read_with(cx, |v, _| v.relation_draft().is_none())
+    });
+    assert_graph_stays_open(&shell, &ov, vcx);
+    let rows = list();
+    let made = rows.iter().find(|r| r["name"] == "Graph Reversed").unwrap();
+    assert_eq!(made["direction"], "directed");
+    assert_eq!(made["rows"][0]["left"], json!([b]));
+    assert_eq!(made["rows"][0]["right"], json!([a]));
+    lib.undo(&Actor::User)
+        .unwrap()
+        .expect("one edit creates both name and pair");
+    assert!(!list().iter().any(|r| r["name"] == "Graph Reversed"));
+    begin(vcx);
+    vcx.update(|window, cx| {
+        ov.update(cx, |v, cx| {
+            v.set_relation_name("Graph Symmetric", cx);
+            v.cycle_relation_direction(cx);
+            v.cycle_relation_direction(cx);
+            assert_eq!(v.relation_draft().unwrap().direction, PairDirection::Both);
+            v.confirm_relation(window, cx)
+                .expect("new symmetric relation");
+        })
+    });
+    assert_eq!(
+        list()
+            .iter()
+            .find(|r| r["name"] == "Graph Symmetric")
+            .unwrap()["direction"],
+        "symmetric"
+    );
+    lib.undo(&Actor::User)
+        .unwrap()
+        .expect("undo symmetric relation in one step");
+    assert!(!list().iter().any(|r| r["name"] == "Graph Symmetric"));
+    begin(vcx);
+    vcx.update(|_, cx| ov.update(cx, |v, cx| v.set_relation_name("Graph Failed", cx)));
+    lib.call(&Actor::User, "entry.trash", json!({"book":book,"id":b}))
+        .unwrap();
+    // Deliberately keep the UI snapshot: the command must reject a now-deleted endpoint.
+    vcx.update(|window, cx| {
+        ov.update(cx, |v, cx| {
+            assert!(v.confirm_relation(window, cx).is_none());
+            assert!(v.relation_error());
+            assert_eq!(v.relation_draft().unwrap().name, "Graph Failed");
+            assert_eq!(v.relation_draft().unwrap().target, b);
+        })
+    });
+}
+
+#[gpui::test]
+fn symmetric_reuse_locks_direction_and_peek_excludes_same_side_members(cx: &mut TestAppContext) {
+    use dr_view_element_overview::view::PairDirection;
+    cx.executor().allow_parking();
+    let (_dir, lib, books) = setup_seed_fixture(dr_testkit::seed::Preset::Tiny);
+    let book = books[0].clone();
+    let entries = dr_testkit::seed::acceptance::entries_by_template(&lib, &book, "tpl-character");
+    let [a, b, c] = [0, 1, 2].map(|i| entries[i]["id"].as_str().unwrap().to_owned());
+    let made = lib
+        .call(
+            &Actor::User,
+            "relation_row.create_pair",
+            json!({"book":book,"left":a,"right":b,
+        "new_type":{"name":"Graph Allies","direction":"symmetric"}}),
+        )
+        .unwrap()["output"]
+        .clone();
+    lib.call(
+        &Actor::User,
+        "relation_row.add_entry",
+        json!({"book":book,"id":made["id"],"side":"right","entry":c}),
+    )
+    .unwrap();
+    init_test_shell(lib, book, cx);
+    let (shell, vcx) = cx.add_window_view(Workspace::new);
+    wait(vcx, |cx| {
+        shell.read_with(cx, |ws, _| ws.book.v3().is_some() && ws.book_memory_ready())
+    });
+    let ov = mount_overview(&shell, vcx);
+    vcx.update(|window, cx| {
+        ov.update(cx, |v, cx| {
+            let peers = v.peek_relations(&b);
+            let own: Vec<_> = peers
+                .iter()
+                .filter(|r| r.relation == made["relation_type"].as_str().unwrap())
+                .collect();
+            assert_eq!(own.len(), 1);
+            assert_eq!(own[0].other, a);
+            assert_eq!(own[0].name, "Graph Allies");
+            assert_eq!(own[0].direction, PairDirection::Both);
+            v.click_entity("entry", &b, true, window, cx);
+            v.click_entity("entry", &a, true, window, cx);
+            v.set_relation_name("Graph Allies", cx);
+            v.cycle_relation_direction(cx);
+            assert_eq!(v.relation_draft().unwrap().direction, PairDirection::Both);
+            assert_eq!(
+                v.confirm_relation(window, cx).unwrap(),
+                made["id"].as_str().unwrap()
+            );
+            v.focus_element(Some(b.clone()), window, cx);
+        })
+    });
+    assert_graph_stays_open(&shell, &ov, vcx);
+    wait(vcx, |cx| cx.debug_bounds("se-peek-relations").is_some());
+}
+
+/// Inspect the actual canvas paint after direction, zoom and pan. Merely
+/// checking GraphRelation::directed would miss an omitted arrow draw call.
+#[gpui::test]
+fn directed_graph_arrows_are_painted_towards_both_targets_after_zoom_and_pan(
+    cx: &mut TestAppContext,
+) {
+    use gpui::{Modifiers, MouseButton, ScrollDelta, ScrollEvent, point, px};
+    cx.executor().allow_parking();
+    let (_dir, lib, books) = setup_seed_fixture(dr_testkit::seed::Preset::Tiny);
+    let book = books[0].clone();
+    let entries = dr_testkit::seed::acceptance::entries_by_template(&lib, &book, "tpl-character");
+    let mut pair = [0, 1].map(|i| entries[i]["id"].as_str().unwrap().to_owned());
+    pair.sort();
+    let [a, b] = pair;
+    let a_selector: &'static str = Box::leak(format!("se-relate-card-{a}").into_boxed_str());
+    let b_selector: &'static str = Box::leak(format!("se-relate-card-{b}").into_boxed_str());
+    let create =
+        |name, left: &str, right: &str, direction| {
+            lib.call(&Actor::User, "relation_row.create_pair", json!({
+            "book":book,"left":left,"right":right,"new_type":{"name":name,"direction":direction}
+        })).unwrap()["output"]["relation_type"].as_str().unwrap().to_owned()
+        };
+    let forward = create("Graph Arrow Forward", &a, &b, "directed");
+    let reverse = create("Graph Arrow Reverse", &b, &a, "directed");
+    let symmetric = create("Graph Arrow Symmetric", &a, &b, "symmetric");
+    init_test_shell(lib, book, cx);
+    let (shell, vcx) = cx.add_window_view(Workspace::new);
+    wait(vcx, |cx| {
+        shell.read_with(cx, |ws, _| ws.book.v3().is_some() && ws.book_memory_ready())
+    });
+    let ov = mount_overview(&shell, vcx);
+    wait(vcx, |cx| {
+        shell.read_with(cx, |ws, _| ws.fill_progress(FillPlace::Left) >= 1.0)
+    });
+    vcx.update(|_, cx| {
+        ov.update(cx, |v, cx| {
+            v.pin_element_in_relate(&a, RelatePoint::new(-120.0, 0.0), cx);
+            v.pin_element_in_relate(&b, RelatePoint::new(120.0, 0.0), cx);
+            v.reset_view(cx);
+        })
+    });
+    let assert_frame = |vcx: &mut VisualTestContext| {
+        wait(vcx, |cx| {
+            cx.debug_bounds(a_selector).is_some() && cx.debug_bounds(b_selector).is_some()
+        });
+        let arrows = ov.read_with(vcx, |v, _| v.painted_relation_arrows());
+        assert!(
+            !arrows.iter().any(|x| x.relation_type == symmetric),
+            "symmetric relation has no painted arrow"
+        );
+        let viewport = vcx.debug_bounds("se-viewport").unwrap();
+        let ink = vcx.update(|window, cx| dr_ui::Theme::of(window, cx).palette.ink(2));
+        let mut tips = Vec::new();
+        for (relation, from, to) in [(&forward, &a, &b), (&reverse, &b, &a)] {
+            let found: Vec<_> = arrows
+                .iter()
+                .filter(|x| &x.relation_type == relation)
+                .collect();
+            assert_eq!(
+                found.len(),
+                1,
+                "exactly one arrow actually painted for this directed pair"
+            );
+            let arrow = found[0];
+            assert_eq!((&arrow.from, &arrow.to), (from, to));
+            assert_eq!(arrow.color, ink, "arrow uses the relation line's ink");
+            let target = vcx
+                .debug_bounds(if to == &a { a_selector } else { b_selector })
+                .unwrap();
+            let center = target.center();
+            assert!(
+                viewport.contains(&arrow.tip),
+                "arrow is in the visible graph viewport"
+            );
+            assert!(
+                !target.contains(&arrow.tip),
+                "tip is outside the target card, not hidden beneath it"
+            );
+            let gap_x = (f32::from(arrow.tip.x - center.x).abs()
+                - f32::from(target.size.width) * 0.5)
+                .max(0.0);
+            let gap_y = (f32::from(arrow.tip.y - center.y).abs()
+                - f32::from(target.size.height) * 0.5)
+                .max(0.0);
+            assert!(
+                gap_x.max(gap_y) < 2.05,
+                "arrow hugs the target card boundary: {gap_x}, {gap_y}"
+            );
+            let back = point(
+                (arrow.wings[0].x + arrow.wings[1].x) * 0.5,
+                (arrow.wings[0].y + arrow.wings[1].y) * 0.5,
+            );
+            let dot = f32::from(center.x - arrow.tip.x) * f32::from(arrow.tip.x - back.x)
+                + f32::from(center.y - arrow.tip.y) * f32::from(arrow.tip.y - back.y);
+            assert!(
+                dot > 0.0,
+                "triangle points at the target, regardless of sorted curve direction"
+            );
+            let length = f32::from(arrow.tip.x - back.x).hypot(f32::from(arrow.tip.y - back.y));
+            let width = f32::from(arrow.wings[0].x - arrow.wings[1].x)
+                .hypot(f32::from(arrow.wings[0].y - arrow.wings[1].y));
+            assert!(
+                (length - 9.0).abs() < 0.01 && (width - 8.0).abs() < 0.01,
+                "9 x 8 screen pixel arrow stays readable when zoomed"
+            );
+            tips.push(arrow.tip);
+        }
+        tips
+    };
+    let first = assert_frame(vcx);
+    vcx.update(|_, cx| ov.update(cx, |v, cx| v.set_zoom(v.zoom() * 0.7, cx)));
+    vcx.update(|window, cx| window.draw(cx).clear(cx));
+    let zoomed = assert_frame(vcx);
+    assert_ne!(first, zoomed, "arrow follows the scaled target");
+    let viewport = vcx.debug_bounds("se-viewport").unwrap();
+    let at = point(viewport.left() + px(8.0), viewport.bottom() - px(8.0));
+    vcx.simulate_mouse_move(at, None::<MouseButton>, Modifiers::default());
+    vcx.simulate_event(ScrollEvent {
+        position: at,
+        delta: ScrollDelta::Pixels(point(px(25.0), px(15.0))),
+        ..Default::default()
+    });
+    vcx.update(|window, cx| window.draw(cx).clear(cx));
+    let panned = assert_frame(vcx);
+    for (before, after) in zoomed.iter().zip(panned.iter()) {
+        assert!((f32::from(after.x - before.x) - 25.0).abs() < 0.01);
+        assert!((f32::from(after.y - before.y) - 15.0).abs() < 0.01);
+    }
+}
+
+/// The sample's short names must fit in the actual text layout at the
+/// existing Find-to-focus zoom, including its largest mention-weight mark.
+#[gpui::test]
+fn graph_short_names_keep_their_glyph_width_when_zoomed_out(cx: &mut TestAppContext) {
+    use dr_ui::fonts::{Role, weight};
+    use gpui::{TextRun, px};
+    cx.executor().allow_parking();
+    let dir = tempfile::tempdir().unwrap();
+    let store = dr_store::Library::open(dir.path(), dr_workspace::library_options("test")).unwrap();
+    let seed = dr_testkit::samples::a_q_v3().unwrap();
+    let book = seed.book_id().to_string();
+    dr_testkit::seed::write_book_v3(&store, &seed).unwrap();
+    store.rebuild_stale_indexes().unwrap();
+    let lib = Library::open(store, WorkspaceOptions::default()).unwrap();
+    let entries = lib
+        .call(&Actor::User, "entry.list", json!({"book":book,"all":true}))
+        .unwrap()["output"]
+        .as_array()
+        .unwrap()
+        .clone();
+    let [a, b] = ["阿Q", "赵太爷"].map(|title| {
+        entries.iter().find(|e| e["title"] == title).unwrap()["id"]
+            .as_str()
+            .unwrap()
+            .to_owned()
+    });
+    lib.call(&Actor::User,"relation_row.create_pair",json!({"book":book,"left":a,"right":b,"new_type":{"name":"Graph legibility","direction":"directed"}})).unwrap();
+    init_test_shell(lib, book, cx);
+    let (shell, vcx) = cx.add_window_view(Workspace::new);
+    wait(vcx, |cx| {
+        shell.read_with(cx, |ws, _| ws.book.v3().is_some() && ws.book_memory_ready())
+    });
+    vcx.update(|window, cx| shell.update(cx, |ws, cx| ws.enter_fill(FillPlace::Left, window, cx)));
+    wait(vcx, |cx| {
+        shell.read_with(cx, |ws, _| ws.v3_sidebar.is_some())
+    });
+    vcx.update(|_, cx| {
+        let ws = shell.read(cx);
+        let root = ws
+            .book
+            .v3()
+            .unwrap()
+            .project
+            .tabs
+            .iter()
+            .find(|t| t.mount == dr_workspace::commands::v3::types::TabMount::Root)
+            .unwrap()
+            .id
+            .clone();
+        ws.v3_sidebar.clone().unwrap().update(cx, |side, cx| {
+            side.choose(&root, cx);
+            side.choose_fill_layout(dr_shell::v3::tab_fill::FillLayout::Relation, cx);
+        });
+    });
+    wait(vcx, |cx| {
+        cx.update(|_, cx| {
+            dr_view_element_overview::current(cx).is_some_and(|v| v.read(cx).is_ready())
+        })
+    });
+    let ov = vcx.update(|_, cx| dr_view_element_overview::current(cx).unwrap());
+    wait(vcx, |cx| {
+        shell.read_with(cx, |ws, _| ws.fill_progress(FillPlace::Left) >= 1.0)
+    });
+    vcx.update(|window, cx| ov.update(cx, |v, cx| v.fly_to_element(&a, window, cx)));
+    let selectors: Vec<(&'static str, &'static str, &str)> = [(&a, "阿Q"), (&b, "赵太爷")]
+        .into_iter()
+        .map(|(id, name)| {
+            let card: &'static str = Box::leak(format!("se-relate-card-{id}").into_boxed_str());
+            let label: &'static str = Box::leak(format!("se-relate-name-{id}").into_boxed_str());
+            (card, label, name)
+        })
+        .collect();
+    for zoom in [0.9, 0.65, 0.4, 1.25] {
+        let positions = ov.read_with(vcx, |v, _| position_bits(v.relate_positions()));
+        vcx.update(|_, cx| ov.update(cx, |v, cx| v.set_zoom(zoom, cx)));
+        wait(vcx, |cx| {
+            selectors
+                .iter()
+                .all(|(_, label, _)| cx.debug_bounds(label).is_some())
+        });
+        assert_eq!(
+            ov.read_with(vcx, |v, _| position_bits(v.relate_positions())),
+            positions,
+            "zoom must not rerun layout"
+        );
+        for (card, label, name) in &selectors {
+            let card = vcx.debug_bounds(card).unwrap();
+            let label = vcx.debug_bounds(label).unwrap();
+            let width = vcx.update(|window, _| {
+                let run = TextRun {
+                    len: name.len(),
+                    font: Role::Ui.font(weight::REGULAR),
+                    color: gpui::black(),
+                    background_color: None,
+                    underline: None,
+                    strikethrough: None,
+                };
+                window
+                    .text_system()
+                    .shape_line((*name).into(), px(11.5), &[run], None)
+                    .width()
+            });
+            assert!(
+                label.size.width + px(0.01) >= width,
+                "{name} needs {width:?}, actual label {label:?} at zoom {zoom}"
+            );
+            assert!(
+                card.contains(&label.origin) && card.contains(&label.bottom_right()),
+                "the full name stays inside its card"
+            );
+        }
+    }
+}
+
+#[gpui::test]
+fn graph_opens_a_legal_multiline_title_without_changing_its_stored_text(cx: &mut TestAppContext) {
+    use dr_ui::fonts::{Role, weight};
+    use gpui::{TextRun, px};
+    cx.executor().allow_parking();
+    let (_dir, lib, books) = setup_seed_fixture(dr_testkit::seed::Preset::Tiny);
+    let book = books[0].clone();
+    let entries = dr_testkit::seed::acceptance::entries_by_template(&lib, &book, "tpl-character");
+    let id = entries[0]["id"].as_str().unwrap().to_owned();
+    let title = "阿Q\n赵太爷";
+    lib.call(
+        &Actor::User,
+        "entry.update",
+        json!({"book":book,"id":id,"title":title}),
+    )
+    .unwrap();
+    init_test_shell(lib, book, cx);
+    let (shell, vcx) = cx.add_window_view(Workspace::new);
+    wait(vcx, |cx| {
+        shell.read_with(cx, |ws, _| ws.book.v3().is_some() && ws.book_memory_ready())
+    });
+    let ov = mount_overview(&shell, vcx);
+    wait(vcx, |cx| {
+        shell.read_with(cx, |ws, _| ws.fill_progress(FillPlace::Left) >= 1.0)
+    });
+    vcx.update(|window, cx| ov.update(cx, |v, cx| v.fly_to_element(&id, window, cx)));
+    let selector: &'static str = Box::leak(format!("se-relate-name-{id}").into_boxed_str());
+    wait(vcx, |cx| cx.debug_bounds(selector).is_some());
+    assert_eq!(
+        ov.read_with(vcx, |v, _| v
+            .elements()
+            .iter()
+            .find(|e| e.id == id)
+            .unwrap()
+            .name
+            .clone()),
+        title
+    );
+    let width = vcx.update(|window, _| {
+        let text = "阿Q 赵太爷";
+        let run = TextRun {
+            len: text.len(),
+            font: Role::Ui.font(weight::REGULAR),
+            color: gpui::black(),
+            background_color: None,
+            underline: None,
+            strikethrough: None,
+        };
+        window
+            .text_system()
+            .shape_line(text.into(), px(11.5), &[run], None)
+            .width()
+    });
+    assert!(vcx.debug_bounds(selector).unwrap().size.width + px(0.01) >= width);
 }

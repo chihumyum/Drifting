@@ -137,11 +137,6 @@ impl CatalogTxn<'_> {
     pub(super) fn entity(&self, root: &str, id: &str) -> Result<LoroMap> {
         Ok(self.view.doc.get_map(root).ensure_mergeable_map(id)?)
     }
-    pub fn relation(&mut self, id: &RelationId) -> Result<RelationWriter> {
-        Ok(RelationWriter {
-            map: self.entity(book::RELATIONS, id.as_str())?,
-        })
-    }
     pub fn asset(&mut self, id: &AssetId) -> Result<AssetWriter> {
         Ok(AssetWriter {
             map: self.entity(book::ASSETS, id.as_str())?,

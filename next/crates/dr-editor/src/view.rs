@@ -299,6 +299,8 @@ impl ChapterEditor {
                 crate::assist::AssistEvent::InsertMaterial { material, .. } => {
                     this.insert_material(material, window, cx);
                 }
+                // The host shows the row (dr-view-page).
+                crate::assist::AssistEvent::RelationPlaced { .. } => {}
             },
         );
         (assist, events)
@@ -697,7 +699,9 @@ impl ChapterEditor {
         cx: &mut Context<Self>,
     ) {
         self.page_scroll = page.clone();
+        let handle = page.as_ref().map(|p| p.handle.clone());
         self.editor.update(cx, |e, _| e.set_page_scroll(page));
+        self.assist.update(cx, |a, _| a.set_page(handle));
     }
 
     pub fn todo_markers(&self) -> &[TodoMarker] {

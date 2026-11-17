@@ -411,17 +411,6 @@ impl AgentTools {
                 "tool definition changed; search it again".into(),
             ));
         }
-        // A creation request must not imply replacing an unread hidden edge.
-        if matches!(
-            request.name.as_str(),
-            "relation.create" | "module.put_relation"
-        ) && request.arguments.get("id").is_some()
-        {
-            return Err(Error::Invalid(format!(
-                "{} assigns its own id; omit id",
-                request.name
-            )));
-        }
         let canonical_name = request.canonical_name_in(&catalog, book)?;
         let key = turn_key(book, actor);
         let mut resolved = resolve::resolve_with_catalog(
@@ -1131,9 +1120,6 @@ fn covering(turn: &TurnState, call: &ResolvedCall, subject: &str) -> Option<Stri
     let named = match (call.name.as_str(), subject) {
         ("timeline_view.put", "timeline_view:*") => call.arguments["view"]["id"].as_str(),
         ("entry_template.put", "entry_template:*") => call.arguments["template"]["id"].as_str(),
-        ("entry_relation_type.put", "entry_relation_type:*") => {
-            call.arguments["definition"]["id"].as_str()
-        }
         ("tab.put", "tab:*") => call.arguments["id"].as_str(),
         _ => None,
     };
@@ -1164,7 +1150,7 @@ fn covering(turn: &TurnState, call: &ResolvedCall, subject: &str) -> Option<Stri
     for prefix in [
         "entry_template:",
         "timeline_view:",
-        "entry_relation_type:",
+        "relation_type:",
         "membership:",
         "tab:",
     ] {
@@ -1175,7 +1161,7 @@ fn covering(turn: &TurnState, call: &ResolvedCall, subject: &str) -> Option<Stri
         }
     }
     if call.name == "entry_history.restore" {
-        for prefix in ["fact:", "relation:", "comment:"] {
+        for prefix in ["fact:", "comment:"] {
             if let Some(id) = subject.strip_prefix(prefix)
                 && !matches!(id, "*" | "all")
             {

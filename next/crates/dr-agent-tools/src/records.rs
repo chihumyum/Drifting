@@ -73,7 +73,6 @@ pub(super) fn backing(subject: &str, name: &str, output: &Value) -> Backing {
                     .collect::<Vec<_>>()
             };
             keys.extend(rows("patches", "patches"));
-            keys.extend(rows("relations", "relations"));
             Backing::Records(keys)
         }
         "project" => Backing::Records(vec![
@@ -88,13 +87,13 @@ pub(super) fn backing(subject: &str, name: &str, output: &Value) -> Backing {
         }]),
         "entry_template" => collection("templates"),
         "timeline_view" => collection("timeline_views"),
-        "entry_relation_type" => collection("relation_types"),
+        "relation_type" => collection("relation_types"),
         "membership" => collection("memberships"),
         "book" => Backing::Records(vec![RecordKey::collection("meta")]),
         "fact" => collection("facts"),
         "memory" => collection("memory"),
         "comment" => collection("comments"),
-        "relation" => collection("relations"),
+        "relation_row" => collection("relations"),
         "patch" => collection("patches"),
         "plot_grid" => collection("plot_grids"),
         "asset" => collection("assets"),
@@ -137,13 +136,6 @@ pub(super) fn also_read(name: &str, output: &Value) -> Vec<String> {
                 .into_iter()
                 .flatten()
                 .filter_map(|row| Some(format!("patch:{}", row["id"].as_str()?)))
-                .chain(
-                    output["relations"]
-                        .as_array()
-                        .into_iter()
-                        .flatten()
-                        .filter_map(|row| Some(format!("relation:{}", row["id"].as_str()?))),
-                )
                 .collect();
             if let (Some(entry), Some(module)) =
                 (output["entry"].as_str(), output["module"].as_str())

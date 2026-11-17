@@ -182,6 +182,6 @@ fn a_region_composer_keeps_the_keyboard_on_a_page_opened_from_a_side_column(
         .filter(|c| c["target"]["id"] == media.as_str())
         .collect();
     assert_eq!(on_file.len(), 1);
-    assert_eq!(on_file[0]["body"], "潮位要核对");
+    assert_eq!(on_file[0]["body"]["text"], "潮位要核对");
     drop(elsewhere);
 }

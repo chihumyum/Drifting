@@ -4,7 +4,7 @@
 use std::collections::BTreeSet;
 
 use dr_doc::v3::BorrowedBookV3;
-use dr_model::{DocId, id::BookId, id::RelationId, kind::EntityKind, shared::EntityRef};
+use dr_model::{DocId, id::BookId, id::RelationId, kind::EntityKind};
 use dr_store::{OpenDoc, Origin};
 use dr_testkit::seed::{self, Preset};
 use dr_workspace::{Actor, Workspace};
@@ -37,12 +37,26 @@ fn reference(ws: &Workspace, key: &TurnKey, call: &ResolvedCall) -> Result<Vec<S
         "membership.add" | "membership.remove" => &["host", "member"],
         "membership.primary" => &["member"],
         "timeline_view.place" | "timeline_view.remove" => &["lane", "entry"],
+        "relation_row.create_pair" => &["left", "right"],
+        "relation_row.add_entry" | "relation_row.remove_entry" => &["entry"],
         name if name.starts_with("module.") && args["template"] != true => &["entry", "owner"],
         _ => &[],
     };
     for key in keys {
         if let Some(id) = args[*key].as_str() {
             ids.insert(id.to_owned());
+        }
+    }
+    if call.name == "relation_row.create_group" {
+        for key in ["left", "right"] {
+            ids.extend(
+                args[key]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(Value::as_str)
+                    .map(str::to_owned),
+            );
         }
     }
     let copy = ws.library().load_copy(&format!("book:{book}"))?;
@@ -83,10 +97,8 @@ fn reference(ws: &Workspace, key: &TurnKey, call: &ResolvedCall) -> Result<Vec<S
     {
         endpoints.push((EntityKind::from(kind), id.to_owned()));
     }
-    if matches!(
-        call.name.as_str(),
-        "comment.update" | "comment.reanchor" | "comment.trash" | "comment.restore"
-    ) && let Some(id) = args["id"].as_str()
+    if matches!(call.name.as_str(), "comment.update" | "comment.reanchor")
+        && let Some(id) = args["id"].as_str()
     {
         comments.push(id.to_owned());
     }
@@ -109,28 +121,24 @@ fn reference(ws: &Workspace, key: &TurnKey, call: &ResolvedCall) -> Result<Vec<S
     {
         folders.push(parent.to_owned());
     }
-    if matches!(
-        call.name.as_str(),
-        "relation.create" | "module.put_relation"
-    ) {
-        for key in ["from", "to", "other"] {
-            if let (Some(kind), Some(id)) = (args[key]["kind"].as_str(), args[key]["id"].as_str()) {
-                endpoints.push((EntityKind::from(kind), id.to_owned()));
-            }
+    let rows = view.relations_raw();
+    for row in &rows {
+        let selected = if matches!(
+            call.name.as_str(),
+            "relation_row.add_entry" | "relation_row.remove_entry" | "relation_row.delete"
+        ) {
+            Some(row.id.as_str()) == args["id"].as_str()
+        } else if matches!(
+            call.name.as_str(),
+            "relation_type.set_direction" | "relation_type.delete"
+        ) {
+            Some(row.relation_type.as_str()) == args["id"].as_str()
+        } else {
+            false
+        };
+        if selected {
+            ids.extend(row.left.union(&row.right).map(ToString::to_string));
         }
-    }
-    if matches!(
-        call.name.as_str(),
-        "relation.delete" | "module.remove_relation"
-    ) && let Some(relation) = view
-        .relations_raw()
-        .into_iter()
-        .find(|r| Some(r.id.as_str()) == args["id"].as_str())
-    {
-        endpoints.extend([
-            (relation.from.kind, relation.from.id),
-            (relation.to.kind, relation.to.id),
-        ]);
     }
     if call.name == "entry_history.restore" {
         for target in args["targets"].as_array().into_iter().flatten() {
@@ -156,13 +164,16 @@ fn reference(ws: &Workspace, key: &TurnKey, call: &ResolvedCall) -> Result<Vec<S
                         ids.insert(entry.to_owned());
                     }
                 }
-                Some("relations") => {
-                    if let Some(r) = view
-                        .relations_raw()
-                        .into_iter()
-                        .find(|r| r.id.as_str() == id)
-                    {
-                        endpoints.extend([(r.from.kind, r.from.id), (r.to.kind, r.to.id)]);
+                Some("relations") | Some("relation_types") => {
+                    let relation_type = target["collection"] == "relation_types";
+                    for row in rows.iter().filter(|r| {
+                        if relation_type {
+                            r.relation_type.as_str() == id
+                        } else {
+                            r.id.as_str() == id
+                        }
+                    }) {
+                        ids.extend(row.left.union(&row.right).map(ToString::to_string));
                     }
                 }
                 Some("comments") => comments.push(id.to_owned()),
@@ -209,19 +220,6 @@ fn reference(ws: &Workspace, key: &TurnKey, call: &ResolvedCall) -> Result<Vec<S
     }
     if !assets.is_empty() {
         let asset_set: BTreeSet<String> = assets.into_iter().collect();
-        for r in view.relations_raw() {
-            for (a_end, other) in [(&r.from, &r.to), (&r.to, &r.from)] {
-                if a_end.kind == EntityKind::Asset && asset_set.contains(&a_end.id) {
-                    match other.kind {
-                        EntityKind::Entry => {
-                            ids.insert(other.id.clone());
-                        }
-                        EntityKind::Patch => patches.push(other.id.clone()),
-                        _ => {}
-                    }
-                }
-            }
-        }
         ids.extend(super::entries_referencing_assets(
             ws, &book, &view, &headers, &asset_set,
         )?);
@@ -250,10 +248,11 @@ const LOOKUPS: &[&str] = &[
     "comment.update",
     "entry.set_level",
     "entry_history.restore",
-    "module.put_relation",
-    "module.remove_relation",
-    "relation.create",
-    "relation.delete",
+    "relation_row.add_entry",
+    "relation_row.remove_entry",
+    "relation_row.delete",
+    "relation_type.set_direction",
+    "relation_type.delete",
 ];
 
 #[test]
@@ -269,8 +268,7 @@ fn every_write_selects_the_same_entries_and_only_lookups_need_the_book() {
     let out =
         |name: &str, input: Value| ws.call(&Actor::User, name, input).unwrap()["output"].clone();
 
-    // Records to name: entries, a patch, relations between entries and from
-    // the patch, memberships.
+    // Records to name: entries, a patch, relation rows, and memberships.
     let rows = out("entry.list", json!({"book":book,"all":true}));
     let of = |tpl: &str| {
         rows.as_array()
@@ -306,32 +304,29 @@ fn every_write_selects_the_same_entries_and_only_lookups_need_the_book() {
                 .expect("the seed has memberships"),
         )
     };
-    let from_patch = RelationId::new_v7();
+    let second_row = RelationId::new_v7();
     {
+        use dr_model::v3::{EntryId, RelationSide};
         let h = ws.library().open_doc(&doc, OpenDoc::Existing).unwrap();
         let (book, id, ty) = (
             book.clone(),
-            from_patch.clone(),
+            second_row.clone(),
             relation.relation_type.clone(),
         );
-        let ends = (
-            EntityRef {
-                kind: EntityKind::Patch,
-                id: patch.clone(),
-            },
-            EntityRef {
-                kind: EntityKind::Entry,
-                id: chapter.clone(),
-            },
+        let (left, right) = (
+            EntryId::parse(&character).unwrap(),
+            EntryId::parse(&chapter).unwrap(),
         );
         h.write(Origin::User, move |d| {
             let b = BorrowedBookV3::new(d, &book).unwrap();
-            let mut t = b.txn();
-            t.relation(&id)
-                .unwrap()
-                .ends(&ends.0, &ends.1)
+            b.txn()
+                .relation_row(&id)
                 .unwrap()
                 .relation_type(&ty)
+                .unwrap()
+                .member(RelationSide::Left, &left)
+                .unwrap()
+                .member(RelationSide::Right, &right)
                 .unwrap();
         })
         .unwrap();
@@ -347,8 +342,7 @@ fn every_write_selects_the_same_entries_and_only_lookups_need_the_book() {
             "book": book, "id": id, "template": template, "level": false,
             "host": membership.host.to_string(), "member": membership.member.to_string(),
             "lane": chapter, "entry": character, "owner": chapter,
-            "from": {"kind": "entry", "id": chapter},
-            "to": {"kind": "patch", "id": patch},
+            "left": chapter, "right": character,
             "other": {"kind": "material", "id": "synthetic-material"},
             "targets": [
                 {"collection": "entries", "id": character},
@@ -356,7 +350,7 @@ fn every_write_selects_the_same_entries_and_only_lookups_need_the_book() {
                 {"collection": "patches", "id": patch},
                 {"collection": "plot_grids", "id": format!("{chapter}/synthetic-grid")},
                 {"collection": "relations", "id": relation.id.to_string()},
-                {"collection": "relations", "id": from_patch.to_string()},
+                {"collection": "relations", "id": second_row.to_string()},
                 {"collection": "templates", "id": "tpl-character"},
                 {"collection": "entries"},
             ],
@@ -373,7 +367,7 @@ fn every_write_selects_the_same_entries_and_only_lookups_need_the_book() {
             vec![doc.clone()],
         ),
         (
-            everything(json!(from_patch.to_string()), true),
+            everything(json!(second_row.to_string()), true),
             vec![doc.clone(), body.clone()],
         ),
         (
@@ -446,8 +440,11 @@ fn every_write_selects_the_same_entries_and_only_lookups_need_the_book() {
                     looks_up,
                     matches!(
                         name.as_str(),
-                        "relation.delete"
-                            | "module.remove_relation"
+                        "relation_row.add_entry"
+                            | "relation_row.remove_entry"
+                            | "relation_row.delete"
+                            | "relation_type.set_direction"
+                            | "relation_type.delete"
                             | "comment.update"
                             | "comment.reanchor"
                             | "asset.rename"
@@ -479,19 +476,17 @@ fn every_write_selects_the_same_entries_and_only_lookups_need_the_book() {
         entries(
             &ws,
             &key,
-            &call("relation.delete", json!({"id": from_patch.to_string()}))
+            &call("relation_row.delete", json!({"id": second_row.to_string()}))
         )
         .unwrap(),
         both,
-        "a relation from a patch checkpoints the patch's entry and the other end"
+        "a relation row write checkpoints its member entries"
     );
-    assert_eq!(
-        (&relation.from.kind, &relation.to.kind),
-        (&EntityKind::Entry, &EntityKind::Entry)
-    );
-    let mut ends = vec![relation.from.id.clone(), relation.to.id.clone()];
-    ends.sort();
-    ends.dedup();
+    let ends: Vec<_> = relation
+        .left
+        .union(&relation.right)
+        .map(ToString::to_string)
+        .collect();
     assert_eq!(
         entries(
             &ws,

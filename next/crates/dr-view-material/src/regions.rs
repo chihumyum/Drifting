@@ -269,7 +269,7 @@ mod tests {
             target_block: None,
             anchored: false,
             quote: None,
-            body: id.into(),
+            body: dr_model::v3::LinkedText::plain(id),
             status: "open".into(),
             author_kind: "user".into(),
             author_name: None,

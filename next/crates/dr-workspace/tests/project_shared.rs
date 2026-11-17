@@ -14,101 +14,34 @@ fn entry(e: &Env, b: &str, title: &str) -> String {
 fn raw(e: &Env, b: &str) -> Value {
     e.ws().observe(&format!("book:{b}")).unwrap().value
 }
-fn head(e: &Env, b: &str) -> String {
-    e.ws().observe(&format!("book:{b}")).unwrap().version
-}
-
 #[test]
-fn canonical_relations_validate_dedupe_filter_and_restore_without_losing_raw_values() {
+fn relation_history_restores_the_row_members_and_unknown_fields() {
     let e = env();
     let b = e.book();
     let a = entry(&e, &b, "A");
     let z = entry(&e, &b, "Z");
-    e.call("entry_relation_type.put",json!({"book":b,"definition":{"id":"pair","name":" Pair ","orientation":"symmetric","source_kinds":["entry"],"target_kinds":["entry"],"source_templates":["tpl-chapter"],"target_templates":["tpl-chapter"]}}));
-    let request = |from: &str, to: &str| json!({"book":b,"from":{"kind":"entry","id":from},"to":{"kind":"entry","id":to},"relation_type":"pair"});
-    let made = e.out("relation.create", request(&a, &z));
-    let before = head(&e, &b);
-    assert_eq!(e.out("relation.create", request(&z, &a))["id"], made["id"]);
-    assert_eq!(head(&e, &b), before, "semantic replay is not a write");
-    for args in [
-        request(&a, &a),
-        request(&a, "missing"),
-        json!({"book":b,"from":{"kind":"entry","id":a},"to":{"kind":"entry","id":z},"relation_type":"missing"}),
-    ] {
-        assert!(e.try_call("relation.create", args).is_err());
-        assert_eq!(head(&e, &b), before);
-    }
-    for definition in [
-        json!({"id":"duplicate","name":"PAIR"}),
-        json!({"id":"bad","name":"Bad","orientation":"unknown"}),
-        json!({"id":"bad","name":"Bad","source_kinds":["unknown"]}),
-    ] {
-        assert!(
-            e.try_call(
-                "entry_relation_type.put",
-                json!({"book":b,"definition":definition})
-            )
-            .is_err()
-        );
-        assert_eq!(head(&e, &b), before);
-    }
-    let comment=e.out("comment.create",json!({"book":b,"target":{"kind":"entry","id":z},"module":"mod-prose","range":[0,4],"body":"Synthetic comment"}))["id"].clone();
-    e.call("entry.trash", json!({"book":b,"id":z}));
-    assert!(
-        e.out("relation.list", json!({"book":b}))
-            .as_array()
-            .unwrap()
-            .is_empty()
+    let pair = e.out(
+        "relation_row.create_pair",
+        json!({"book":b,"left":a,"right":z,"new_type":{"name":"Pair","direction":"symmetric"}}),
     );
-    let comments = e.out("comment.list", json!({"book":b}));
-    assert_eq!(comments[0]["id"], comment);
-    assert_eq!(comments[0]["target"]["id"], z);
-    assert_eq!(comments[0]["unlocated"], true);
-    e.call("entry.restore", json!({"book":b,"id":z}));
-    assert_eq!(
-        e.out("relation.list", json!({"book":b}))
-            .as_array()
-            .unwrap()
-            .len(),
-        1
-    );
-    let id = made["id"].as_str().unwrap().to_owned();
+    let id = pair["id"].as_str().unwrap().to_owned();
     let key = id.clone();
     e.ws()
         .library()
         .open_doc(&format!("book:{b}"), dr_store::OpenDoc::Existing)
         .unwrap()
         .write(dr_store::Origin::Sync, move |d| {
-            use loro::ValueOrContainer;
-            let ValueOrContainer::Container(loro::Container::Map(m)) =
-                d.get_map("relations").get(&key).unwrap()
-            else {
-                panic!("relation map")
-            };
-            m.insert("future-field", "opaque").unwrap();
-            // Imported/merged catalogs can store the opposite symmetric order.
-            m.insert("from", z).unwrap();
-            m.insert("to", a).unwrap();
+            let row = d.get_map("relations").ensure_mergeable_map(&key).unwrap();
+            row.insert("future-field", "opaque").unwrap();
         })
         .unwrap();
-    let before = head(&e, &b);
-    let list = e.out("relation.list", json!({"book":b}));
-    let endpoints = &list[0];
-    assert_eq!(
-        e.out(
-            "relation.create",
-            json!({"book":b,"from":endpoints["to"],"to":endpoints["from"],"relation_type":"pair"})
-        )["id"],
-        made["id"]
-    );
-    assert_eq!(head(&e, &b), before);
     let expected = raw(&e, &b)["relations"][&id].clone();
-    e.call("relation.delete", json!({"book":b,"id":id}));
-    e.ws().undo(&Actor::User).unwrap();
+    e.call("relation_row.delete", json!({"book":b,"id":id}));
+    e.ws().undo(&Actor::User).unwrap().unwrap();
     assert_eq!(raw(&e, &b)["relations"][&id], expected);
-    assert!(
-        e.try_call("entry_relation_type.delete", json!({"book":b,"id":"pair"}))
-            .is_err()
+    assert_eq!(
+        e.out("relation_type.list", json!({"book":b}))[0]["pair_count"],
+        1
     );
 }
 

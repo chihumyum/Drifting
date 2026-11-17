@@ -14,16 +14,16 @@ use dr_i18n::{I18n, Locale, Platform, keys};
 use dr_ui::Theme;
 use dr_ui::components::Button;
 use dr_ui::fonts::Role;
-use dr_ui::input::{FieldEvent, TextArea};
+use dr_ui::linked::{Draft, LinkedArea, LinkedEvent};
 use dr_ui::style::DrStyled;
 use dr_ui::tokens::radius;
 use dr_workspace::commands::comment::CommentCreateIn;
 use dr_workspace::dto::{AnchorBytes, CommentPartDto, Region, Target};
 use dr_workspace::{Actor, Workspace};
 use gpui::{
-    AppContext, Bounds, Context, Entity, EntityInputHandler, EventEmitter, Focusable,
-    InteractiveElement as _, IntoElement, ParentElement, Pixels, Point, Render, Styled,
-    Subscription, Window, div, point, px,
+    AppContext, Bounds, Context, Entity, EntityInputHandler, EventEmitter, InteractiveElement as _,
+    IntoElement, ParentElement, Pixels, Point, Render, Styled, Subscription, Window, div, point,
+    px,
 };
 use gpui_prose::ProseEditor;
 
@@ -61,7 +61,7 @@ pub struct CommentComposer {
     /// Captured while opening a v3 composer, before another writer can move
     /// the selected characters. A capture failure never falls back to offsets.
     source_anchor: Option<Result<AnchorBytes, String>>,
-    field: Entity<TextArea>,
+    field: Entity<LinkedArea>,
     at: Point<Pixels>,
     i18n: I18n,
     saving: bool,
@@ -363,15 +363,6 @@ impl CommentComposer {
     ) -> CommentComposer {
         let i18n = I18n::new(locale, Platform::current());
         let placeholder = i18n.t(keys::review_panel::COMMENT_PLACEHOLDER).to_owned();
-        let field = cx
-            .new(|cx| TextArea::new("comment-composer-field", window, cx).placeholder(placeholder));
-        let sub = cx.subscribe_in(&field, window, |this, _, e: &FieldEvent, _, cx| match e {
-            FieldEvent::Submitted(_) => this.save(cx),
-            FieldEvent::Cancelled if !this.saving => cx.emit(ComposerEvent::Done),
-            _ => {}
-        });
-        let handle = field.read(cx).focus_handle(cx);
-        window.focus(&handle, cx);
         let source_doc = format!("{}:{}", target.kind, target.id);
         let v3_prose = target.kind == "body";
         let source_anchor = match &anchor {
@@ -391,6 +382,24 @@ impl CommentComposer {
                 ),
                 _ => (target, explicit_module),
             };
+        let excluded = (target.kind == "entry").then(|| target.id.clone());
+        let candidates = crate::linked::candidates(ws.clone(), book.clone(), excluded);
+        let field = cx.new(|cx| {
+            LinkedArea::new(
+                "comment-composer-field",
+                Draft::default(),
+                candidates,
+                |a| a.placeholder(placeholder),
+                window,
+                cx,
+            )
+        });
+        let sub = cx.subscribe_in(&field, window, |this, _, e: &LinkedEvent, _, cx| match e {
+            LinkedEvent::Submitted => this.save(cx),
+            LinkedEvent::Cancelled if !this.saving => cx.emit(ComposerEvent::Done),
+            _ => {}
+        });
+        field.update(cx, |f, cx| f.focus(window, cx));
         CommentComposer {
             ws,
             book,
@@ -436,7 +445,7 @@ impl CommentComposer {
         self.error = None;
         self.field
             .update(cx, |field, cx| field.set_disabled(true, cx));
-        let body = self.field.read(cx).text();
+        let body = crate::linked::input(self.field.read(cx).draft());
         let (range, part) = match &self.anchor {
             Anchor::Range(start, end) => (Some((*start, *end)), None),
             // Straight on a file of the asset library: a region of it.
@@ -680,7 +689,7 @@ mod v3_tests {
             .unwrap();
         b.prose.push(prose);
         seed.write_to(ws.library()).unwrap();
-        let body = format!("{}\n{}", source.body, source.body);
+        let body = format!("{}\n{}", source.body.text, source.body.text);
         let (frame, cx) = cx.add_window_view(|window, cx| {
             Frame(cx.new(|cx| {
                 CommentComposer::new(
@@ -724,7 +733,7 @@ mod v3_tests {
             "a second submit while saving cannot duplicate the comment"
         );
         assert_eq!(comments[0]["module"], module.as_str());
-        assert_eq!(comments[0]["body"], body);
+        assert_eq!(comments[0]["body"]["text"], body);
         assert_eq!(comments[0]["target"]["id"], entry);
         assert_eq!(
             comments[0]["quote"], quote,
@@ -916,26 +925,26 @@ mod v3_tests {
             .clone();
         let arr = all.as_array().unwrap();
         assert!(arr.iter().any(|c| {
-            c["body"] == "整条设定再核对"
+            c["body"]["text"] == "整条设定再核对"
                 && c["target"]["kind"] == "entry"
                 && c["target"]["id"] == entry_id
                 && c["module"].is_null()
                 && c["part"].is_null()
         }));
         assert!(arr.iter().any(|c| {
-            c["body"] == "整块属性补全"
+            c["body"]["text"] == "整块属性补全"
                 && c["target"]["id"] == entry_id
                 && c["module"] == mod_id
                 && c["part"].is_null()
         }));
         assert!(arr.iter().any(|c| {
-            c["body"] == "字段值改一下"
+            c["body"]["text"] == "字段值改一下"
                 && c["module"] == mod_id
                 && c["part"]["kind"] == "field"
                 && c["part"]["field"] == field_id
         }));
         assert!(arr.iter().any(|c| {
-            c["body"] == "城门高度要标尺寸"
+            c["body"]["text"] == "城门高度要标尺寸"
                 && c["target"]["kind"] == "asset"
                 && c["target"]["id"] == "asset-map"
                 && c["part"].is_null()

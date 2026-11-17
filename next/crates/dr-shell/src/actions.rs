@@ -137,3 +137,16 @@ pub mod left {
         ]
     );
 }
+
+/// RL (`v5-tracks.md` § RL, kernel-v5 § 19): after a relation is made in
+/// place in the prose, the right sidebar opens on 「关系」, scrolls to row
+/// `row` of the open book and flashes it. The prose side dispatches it; the
+/// workspace handles it (`Workspace::reveal_relation_row`) and the rail
+/// (`dr-view-relations`) scrolls to the row once it has drawn it
+/// ([`crate::relations::request_reveal`]).
+#[derive(Clone, Debug, PartialEq, Eq, gpui::Action)]
+#[action(namespace = workspace, no_json)]
+pub struct RevealRelationRow {
+    /// The relation row's id (`RelationRow::id`).
+    pub row: String,
+}

@@ -428,6 +428,8 @@ pub struct Workspace {
     companion: std::cell::RefCell<HashMap<&'static str, Option<pages::LeftPanel>>>,
     /// The 素材库 tab a module draws, per pane slug (as the 帮手 tab).
     library_panel: std::cell::RefCell<HashMap<&'static str, Option<pages::LeftPanel>>>,
+    /// The 「关系」 tab a module draws, per pane slug (as the 素材库 tab).
+    relations_panel: std::cell::RefCell<HashMap<&'static str, Option<pages::LeftPanel>>>,
     /// The notice at the bottom of the window, and the timer that ends it.
     pub toast: Option<toast::Toast>,
     toast_timer: Option<Task<()>>,
@@ -626,6 +628,7 @@ impl Workspace {
             structure_undo: undo::StructureUndo::default(),
             companion: Default::default(),
             library_panel: Default::default(),
+            relations_panel: Default::default(),
             outline_rails: Default::default(),
             unchecked: Default::default(),
             caret_paragraph: None,
@@ -1258,8 +1261,7 @@ impl Workspace {
         cx.notify();
     }
 
-    /// A notice's document (M40's file that could not be merged): its page
-    /// in this book; in another book, that book opens.
+    /// Open the prose module named by a Markdown folder notice.
     pub(crate) fn open_noticed(
         &mut self,
         book: &str,
@@ -1270,17 +1272,23 @@ impl Workspace {
         self.notifications_open = false;
         if book != self.book_id {
             self.open_book(book, window, cx);
-            return;
         }
-        let target = dr_model::DocId::parse(doc).ok().and_then(|id| match id {
-            dr_model::DocId::Body(body) => Some(Target::Entry {
-                id: body.entry().clone(),
-                module: Some(body.module().clone()),
-            }),
-            _ => None,
-        });
-        if let Some(target) = target {
-            self.open(target, Open::KEEP, cx);
+        if self.book_id == book
+            && let Ok(dr_model::DocId::Body(body)) = dr_model::DocId::parse(doc)
+            && let Ok(id) = dr_model::id::BookId::parse(book)
+        {
+            self.open_v3_link(
+                dr_editor::v3_link::Address {
+                    book: Some(id),
+                    endpoint: dr_editor::v3_link::Endpoint::Entry {
+                        id: body.entry().clone(),
+                        module: Some(body.module().clone()),
+                    },
+                    lines: None,
+                },
+                window,
+                cx,
+            );
         }
         cx.notify();
     }
@@ -1314,6 +1322,7 @@ impl Workspace {
         self.v3_home = None;
         self.companion.borrow_mut().clear();
         self.library_panel.borrow_mut().clear();
+        self.relations_panel.borrow_mut().clear();
         self.fill.reset();
         self.want_new_template = false;
         self.pending_created_template = None;
@@ -1818,6 +1827,12 @@ impl Workspace {
                 ws.toggle_projects(window, cx)
             }),
         )
+        // RL: a relation made in place in the prose shows its row in 「关系」.
+        .on_action(
+            cx.listener(|ws, a: &crate::actions::RevealRelationRow, window, cx| {
+                ws.reveal_relation_row(&a.row, window, cx)
+            }),
+        )
         // ⌘Z / ⇧⌘Z outside the prose: the book's commands (`undo.rs`).
         .on_action(cx.listener(|ws, _: &crate::actions::Undo, window, cx| {
             ws.on_edit_undo(false, window, cx)
@@ -1898,7 +1913,9 @@ impl Render for Workspace {
             .track_focus(&self.focus)
             .relative()
             .size_full()
-            .when(!ebbing, |el| el.bg(p.desk.solid()))
+            // The sea can finish ebbing during prepaint, after this render
+            // saw Ebb. Keep an opaque ground under it in that last frame.
+            .bg(p.desk.solid())
             .text_color(p.ink(1).solid())
             .on_drag_move::<sidebar::ResizeDrag>(cx.listener(sidebar::on_resize))
             .on_drag_move::<BottomResize>(cx.listener(bottom::on_resize))

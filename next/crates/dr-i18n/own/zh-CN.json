@@ -108,6 +108,22 @@
     "title": "标题",
     "unset": "未设置"
   },
+  "mirrorV5": {
+    "intro": "每个项目都有一个 Markdown 文件夹。用其他编辑器修改里面的正文和字段，保存后会合回 Drifting。",
+    "offWarning": "关闭前会合入待处理的修改。已有文件留在原处，可以在本地数据里重新开启。",
+    "identity": "drifting-id 与条目或正文模块不符。",
+    "lineage": "条目或正文已恢复、换模板或删除，文件里的修改无法自动合入。",
+    "owned": "这个文件夹由另一套 Drifting 安装使用。",
+    "unsafePath": "文件的路径不在可用的项目文件夹内。",
+    "occupied": "这个位置已经有一个文件。",
+    "duplicate": "有两个文件带着同一个 drifting-id。",
+    "moved": "改名、挪位置这一期不同步。",
+    "readOnly": "改过的只读属性已按项目里的值写回。",
+    "malformedTable": "表格读不出来，原表留在 Drifting。",
+    "unknownImage": "图片未指向素材库里已有的文件，这行按普通文字合入。",
+    "fieldConflict": "有字段没能合入：它在 Drifting 里也改过，或者值的写法读不出来。保留了 Drifting 里的值，文件另存了一份。",
+    "keyCollision": "开头的属性里有一项和新加的字段同名，这个文件先不写回。改名或删掉其中一项后会接着同步。"
+  },
   "positionLink": {
     "copied": "已复制位置链接"
   },
@@ -244,7 +260,6 @@
     "preview_failed": "无法加载预览",
     "preview_loading": "正在加载预览…",
     "prose": "正文",
-    "relations": "关联",
     "reorder": "拖动排序",
     "restore": "还原",
     "saved": "已保存",
@@ -487,6 +502,32 @@
     "templateCount": "{{count}} 个模板",
     "templateStructure": "模板结构",
     "unusedTemplates": "未使用的模板"
+  },
+  "v5RelationsProse": {
+    "create": "建关系",
+    "confirm": "建立",
+    "direction": "方向",
+    "otherEntry": "另一个条目",
+    "relation": "关系",
+    "change": "换一个"
+  },
+  "v5Relations": {
+    "addEntry": "加一个条目",
+    "addRow": "加一行",
+    "deleteRow": "删掉这一行",
+    "description": "描述",
+    "direction": "单向或双向",
+    "kinds_other": "{{count}} 种",
+    "newRelation": "新的关系",
+    "pairs_other": "{{count}} 对",
+    "removeEntry": "移出「{{name}}」",
+    "tab": "关系"
+  },
+  "relationGraph": {
+    "create": "建立",
+    "name": "关系的名字",
+    "relations": "关系",
+    "title": "建关系"
   },
   "v5Tour": {
     "agent": {

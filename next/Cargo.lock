@@ -245,6 +245,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "arraydeque"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7d902e3d592a523def97af8f317b08ce16b7ab854c1985a0c671e6f15cebc236"
+
+[[package]]
 name = "arrayref"
 version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1848,6 +1854,7 @@ dependencies = [
  "dr-text",
  "dr-workspace",
  "icu_normalizer",
+ "libc",
  "log",
  "loro",
  "notify",
@@ -1858,12 +1865,14 @@ dependencies = [
  "similar",
  "tempfile",
  "thiserror 2.0.21",
+ "yaml-rust2",
 ]
 
 [[package]]
 name = "dr-model"
 version = "0.0.0"
 dependencies = [
+ "schemars",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -1930,6 +1939,7 @@ dependencies = [
  "dr-doc",
  "dr-editor",
  "dr-i18n",
+ "dr-mirror",
  "dr-model",
  "dr-platform",
  "dr-store",
@@ -2148,7 +2158,6 @@ dependencies = [
  "dr-ui",
  "dr-view-page",
  "dr-view-plot",
- "dr-view-relations",
  "dr-workspace",
  "futures",
  "gpui",
@@ -2359,8 +2368,6 @@ dependencies = [
 name = "dr-view-relations"
 version = "0.0.0"
 dependencies = [
- "anyhow",
- "color_quant",
  "dr-doc",
  "dr-i18n",
  "dr-model",
@@ -2371,9 +2378,8 @@ dependencies = [
  "dr-workspace",
  "futures",
  "gpui",
- "gpui_platform",
  "log",
- "png 0.18.1",
+ "loro",
  "serde_json",
  "tempfile",
 ]
@@ -2611,6 +2617,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.9",
+ "similar",
  "tempfile",
  "thiserror 2.0.21",
 ]
@@ -2643,6 +2650,7 @@ dependencies = [
  "dr-view-material",
  "dr-view-page",
  "dr-view-plot",
+ "dr-view-relations",
  "dr-view-sea",
  "dr-view-search",
  "dr-view-shelf",
@@ -10318,6 +10326,16 @@ name = "y4m"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a5a4b21e1a62b67a2970e6831bc091d7b87e119e7f9791aef9702e3bef04448"
+
+[[package]]
+name = "yaml-rust2"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "57e5b818a27a4cd30884ea380857a5e56f7ec3ba24a3990a3cc0b95af3238e18"
+dependencies = [
+ "arraydeque",
+ "hashlink",
+]
 
 [[package]]
 name = "yansi"

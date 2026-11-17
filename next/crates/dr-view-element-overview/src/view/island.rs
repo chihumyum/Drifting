@@ -215,84 +215,65 @@ impl ElementOverview {
             })
             .collect();
 
-        let rel_rows: Vec<AnyElement> = self
-            .relations
-            .iter()
-            .filter(|r| {
-                (r.from.kind == "entry" && r.from.id == element_id)
-                    || (r.to.kind == "entry" && r.to.id == element_id)
-            })
-            .map(|r| {
-                let incoming = !(r.from.kind == "entry" && r.from.id == element_id);
-                let other = if incoming { &r.from } else { &r.to };
-                let type_label = self.relation_type_label(&r.relation_type, cx);
-                let type_color = self.relation_type_color(&r.relation_type, window, cx);
-                let other_name = self.endpoint_label(&other.kind, &other.id);
-                let other_kind = other.kind.clone();
-                let other_id = other.id.clone();
-                let rel_id = r.id.clone();
-                let is_canvas_element =
-                    other_kind == "entry" && present.contains(other_id.as_str());
-                let dir_text = if incoming {
-                    format!("{type_label} ←")
-                } else {
-                    type_label
-                };
-                div()
-                    .id(ElementId::Name(format!("se-detail-rel-{rel_id}").into()))
-                    .w_full()
-                    .px(px(6.0))
-                    .py(px(3.0))
-                    .rounded(px(radius::SM))
-                    .cursor_pointer()
-                    .hover(|s| s.bg(p.ink(4).alpha(0.12)))
-                    .flex()
-                    .flex_row()
-                    .items_center()
-                    .justify_between()
-                    .on_click(cx.listener(move |this, _, window, cx| {
-                        if is_canvas_element {
-                            this.focus_element(Some(other_id.clone()), window, cx);
-                        } else {
-                            this.selected_edge_id = Some(rel_id.clone());
-                            cx.notify();
-                        }
-                    }))
-                    .child(
-                        div()
-                            .flex()
-                            .flex_row()
-                            .items_center()
-                            .gap(px(5.0))
-                            .child(
-                                KindMark::new(
-                                    ElementId::Name(format!("se-detail-rel-mark-{}", r.id).into()),
-                                    sand::Kind::Storyline,
-                                )
-                                .color(type_color)
-                                .scale(10.0 / 14.0),
+        let relation_rows: Vec<AnyElement> = self
+            .peek_relations(element_id)
+            .into_iter()
+            .filter_map(|relation| {
+                let book = self.book.v3()?;
+                let other = book.entry(&relation.other)?;
+                let mark = book.appearance(&relation.other)?.sand;
+                let name = other.title.clone();
+                let target = relation.other.clone();
+                Some(
+                    div()
+                        .id(ElementId::Name(
+                            format!(
+                                "se-peek-relation-{}-{}-{}",
+                                relation.relation,
+                                relation.other,
+                                relation.direction.glyph()
                             )
-                            .child(
-                                div()
-                                    .text_size(px(11.0))
-                                    .text_color(p.ink(3).solid())
-                                    .child(SharedString::from(dir_text)),
-                            ),
-                    )
-                    .child(
-                        div()
-                            .text_size(px(11.5))
-                            .text_color(p.ink(1).solid())
-                            .child(SharedString::from(other_name)),
-                    )
-                    .into_any_element()
+                            .into(),
+                        ))
+                        .w_full()
+                        .px(px(6.0))
+                        .py(px(3.0))
+                        .rounded(px(radius::SM))
+                        .cursor_pointer()
+                        .hover(|s| s.bg(p.ink(4).alpha(0.12)))
+                        .flex()
+                        .items_center()
+                        .gap(px(5.0))
+                        .text_size(px(11.5))
+                        .text_color(p.ink(1).solid())
+                        .on_click(cx.listener(move |this, _, window, cx| {
+                            this.click_entity("entry", &target, false, window, cx);
+                        }))
+                        .child(SharedString::from(relation.name))
+                        .child(relation.direction.glyph())
+                        .child(
+                            KindMark::new(
+                                ElementId::Name(
+                                    format!(
+                                        "se-peer-mark-{}-{}",
+                                        relation.relation, relation.other
+                                    )
+                                    .into(),
+                                ),
+                                mark,
+                            )
+                            .color(p.ink(2))
+                            .scale(11.0 / 14.0),
+                        )
+                        .child(div().flex_1().min_w_0().child(SharedString::from(name)))
+                        .into_any_element(),
+                )
             })
             .collect();
 
         let is_pinned =
             self.layout_mode == ElementLayoutMode::Relate && element.relation_pin.is_some();
         let eid_unpin = element_id.to_owned();
-        let eid_edge = element_id.to_owned();
         let isolate_label = if self.isolated {
             t(cx, k_detail::SHOW_ALL)
         } else {
@@ -408,6 +389,33 @@ impl ElementOverview {
                         .child(SharedString::from(element.summary.clone())),
                 )
             })
+            .when(!relation_rows.is_empty(), |d| {
+                d.child(
+                    div()
+                        .pt(px(6.0))
+                        .border_t_1()
+                        .border_color(p.hairline())
+                        .flex()
+                        .flex_col()
+                        .gap(px(3.0))
+                        .child(
+                            div()
+                                .text_size(px(10.5))
+                                .text_color(p.ink(3).solid())
+                                .child(t(cx, dr_i18n::keys::relation_graph::RELATIONS)),
+                        )
+                        .child(
+                            div()
+                                .id("se-peek-relations")
+                                .debug_selector(|| "se-peek-relations".into())
+                                .max_h(px(180.0))
+                                .overflow_y_scroll()
+                                .flex()
+                                .flex_col()
+                                .children(relation_rows),
+                        ),
+                )
+            })
             .when(!companion_rows.is_empty(), |d| {
                 d.child(
                     div()
@@ -426,24 +434,6 @@ impl ElementOverview {
                         .children(companion_rows),
                 )
             })
-            .when(!rel_rows.is_empty(), |d| {
-                d.child(
-                    div()
-                        .pt(px(6.0))
-                        .border_t_1()
-                        .border_color(p.hairline())
-                        .flex()
-                        .flex_col()
-                        .gap(px(3.0))
-                        .child(
-                            div()
-                                .text_size(px(10.5))
-                                .text_color(p.ink(3).solid())
-                                .child(t(cx, k_detail::RELATIONS)),
-                        )
-                        .children(rel_rows),
-                )
-            })
             .child(
                 div()
                     .pt(px(6.0))
@@ -452,14 +442,6 @@ impl ElementOverview {
                     .flex()
                     .flex_wrap()
                     .gap(px(6.0))
-                    .child(
-                        Button::new("se-detail-start-edge", t(cx, k_se::START_EDGE_FROM_ELEMENT))
-                            .text()
-                            .small()
-                            .on_click(cx.listener(move |this, _, _, cx| {
-                                this.start_edge_from("entry", &eid_edge, cx);
-                            })),
-                    )
                     .child(
                         Button::new("se-detail-isolate", isolate_label)
                             .text()

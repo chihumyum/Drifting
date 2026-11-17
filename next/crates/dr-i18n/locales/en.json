@@ -236,7 +236,6 @@
     }
   },
   "edgeKindManager": {
-    "editTypes": "Edit types",
     "empty": "No relations in this view yet"
   },
   "editorOutline": {
@@ -466,7 +465,6 @@
     "choose": "Choose folder…",
     "chosen": "Chosen folder",
     "continue": "Continue",
-    "intro": "Every project keeps a Markdown copy in the folder you choose. Edit chapters and ideas in any editor and the changes merge back into Drifting.",
     "title": "Where should the Markdown folder go?"
   },
   "markdownShare": {
@@ -521,6 +519,22 @@
       "renderPdfFailed": "Cannot render PDF"
     }
   },
+  "mirrorV5": {
+    "duplicate": "Two files have the same drifting-id.",
+    "fieldConflict": "A field could not be merged: it was also edited in Drifting, or its value could not be read. Drifting kept its value and saved a copy of the file.",
+    "identity": "The drifting-id does not match this entry and prose module.",
+    "intro": "Each project has a Markdown folder. Edits to prose and fields in another editor merge into Drifting after you save.",
+    "keyCollision": "A property at the top has the same name as a newly added field. Drifting will not write this file until one of them is renamed or removed.",
+    "lineage": "The entry or prose has been restored, reshaped, or deleted. The file’s edits could not be merged.",
+    "malformedTable": "The table could not be read. The original table is still in Drifting.",
+    "moved": "Renaming and moving files do not sync in this version.",
+    "occupied": "A file already occupies this path.",
+    "offWarning": "Drifting merges pending edits before turning the folder off. Existing files stay where they are. You can turn it back on in Local Data.",
+    "owned": "Another Drifting installation owns this folder.",
+    "readOnly": "The read-only properties were restored from the project.",
+    "unknownImage": "The image points outside the project’s file library. The line was imported as text.",
+    "unsafePath": "Drifting could not safely access this path in the project folder."
+  },
   "mobileWorkspace": {
     "editorAccessory": {
       "redo": "Redo",
@@ -550,6 +564,14 @@
     },
     "empty": "No notifications",
     "markdownFolder": {
+      "issue": {
+        "empty": "The text was emptied; not merged, file kept",
+        "encoding": "Not UTF-8; not read, file kept",
+        "frontmatter": "The properties at the top are malformed; neither merged nor overwritten until fixed",
+        "too-large": "Too large; not read, file kept",
+        "unreadable": "Could not be read"
+      },
+      "overlap": "This paragraph was changed both in Drifting and in the file.",
       "preserved_one": "{{count}} edited file was kept in .drifting/preserved",
       "preserved_other": "{{count}} edited files were kept in .drifting/preserved",
       "source": "Markdown folder"
@@ -774,9 +796,6 @@
     "timePins": "Time pins"
   },
   "referencesPanel": {
-    "actions": {
-      "linkEntity": "Link entity"
-    },
     "filters": {
       "all": "All"
     },
@@ -786,27 +805,16 @@
       "node": "Chapter",
       "patch": "Patch",
       "storyline": "Storyline"
-    },
-    "sections": {
-      "relations": "Relations"
     }
   },
+  "relationGraph": {
+    "create": "Create",
+    "name": "Relation name",
+    "relations": "Relations",
+    "title": "Create relation"
+  },
   "relationTypes": {
-    "builtIn": "Built-in",
-    "create": "New",
-    "createInline": "Create relation type",
-    "delete": "Delete relation type",
-    "description": "Description",
-    "directed": "Directed",
-    "genericAssociation": {
-      "name": "Association"
-    },
-    "name": "Name",
-    "sourceRole": "Source role",
-    "swap": "Swap relation endpoints",
-    "symmetric": "Symmetric",
-    "targetRole": "Target role",
-    "title": "Relation type definitions"
+    "description": "Description"
   },
   "reviewPanel": {
     "commentPlaceholder": "Write a comment…",
@@ -1205,7 +1213,15 @@
       "local_sub": "No Drifting account or hosted cloud is used. Export a readable copy whenever you want.",
       "local_title": "Your work stays on this device.",
       "projection": {
-        "turnOff": "Turn off Markdown folder"
+        "allProjects": "All projects",
+        "allProjectsUnset": "All projects · No location chosen",
+        "choose": "Choose folder",
+        "offHint": "Off: projects no longer write Markdown and outside edits no longer merge back. Existing files stay where they are.",
+        "offTitle": "Turn off the Markdown folder?",
+        "reveal": "Show in Finder",
+        "title": "Markdown folder",
+        "turnOff": "Turn off Markdown folder",
+        "turnOn": "Turn on"
       }
     },
     "update": {
@@ -1253,10 +1269,7 @@
   },
   "storyGraph": {
     "edge": {
-      "create": "Create",
-      "delete": "Delete relation",
       "hideKind": "Hide \"{{label}}\"",
-      "kindLabel": "Relation type",
       "showKind": "Show \"{{label}}\""
     }
   },
@@ -1280,7 +1293,6 @@
         "companions": "Often together",
         "edit": "Edit",
         "isolate": "Only this",
-        "relations": "Relations",
         "showAll": "Show all",
         "times": "× {{count}}"
       },
@@ -1305,14 +1317,10 @@
     "layout": {
       "relate": "Relations"
     },
-    "linkHintFrom": "From",
-    "linkHintTo": "to… pick a second element or chapter, Esc cancels",
-    "manualRelationTitle": "New manual relation",
     "relate": {
       "relayout": "Re-arrange"
     },
     "reset": "Reset",
-    "startEdgeFromElement": "Create relation from this element",
     "uncategorized": "Uncategorized",
     "unnamedCategory": "Untitled category"
   },
@@ -1379,7 +1387,6 @@
     "preview_failed": "Could not load preview",
     "preview_loading": "Loading preview…",
     "prose": "Prose",
-    "relations": "Relations",
     "reorder": "Drag to reorder",
     "restore": "Restore",
     "saved": "Saved",
@@ -1654,6 +1661,28 @@
     "templateCount": "{{count}} templates",
     "templateStructure": "Template structure",
     "unusedTemplates": "Unused templates"
+  },
+  "v5Relations": {
+    "addEntry": "Add an entry",
+    "addRow": "Add a row",
+    "deleteRow": "Delete this row",
+    "description": "Description",
+    "direction": "One-way or two-way",
+    "kinds_one": "{{count}} relation",
+    "kinds_other": "{{count}} relations",
+    "newRelation": "New relation",
+    "pairs_one": "{{count}} pair",
+    "pairs_other": "{{count}} pairs",
+    "removeEntry": "Remove “{{name}}”",
+    "tab": "Relations"
+  },
+  "v5RelationsProse": {
+    "change": "Change",
+    "confirm": "Create",
+    "create": "Relate",
+    "direction": "Direction",
+    "otherEntry": "Other entry",
+    "relation": "Relation"
   },
   "v5Tour": {
     "agent": {

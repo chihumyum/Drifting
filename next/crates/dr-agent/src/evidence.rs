@@ -224,7 +224,7 @@ fn book_entities(
         }
         entities.insert(key, (serde_json::to_value(&folder)?, targets));
     }
-    for rt in view.relation_types() {
+    for rt in view.relation_types_raw() {
         let key = format!("relation_type:{}", rt.id);
         entities.insert(
             key.clone(),
@@ -284,19 +284,27 @@ fn book_entities(
         let targets = BTreeSet::from([key.clone(), format!("entry:{}", grid.entry)]);
         entities.insert(key, (serde_json::to_value(&grid)?, targets));
     }
-    for comment in view.comments() {
+    for mut comment in view.comments() {
         let key = format!("comment:{}", comment.id);
         let mut targets = BTreeSet::from([key.clone()]);
         if let Some(target) = &comment.target {
             targets.insert(format!("{}:{}", target.kind.as_str(), target.id));
         }
+        // A title change can change a comment's display without editing its body.
+        comment.body = view.comment_body_raw(&comment.id).unwrap_or_default();
         entities.insert(key, (serde_json::to_value(&comment)?, targets));
     }
+    for relation in view.relation_types_raw() {
+        let key = format!("relation_type:{}", relation.id);
+        let targets = BTreeSet::from([key.clone()]);
+        entities.insert(key, (serde_json::to_value(&relation)?, targets));
+    }
     for relation in view.relations_raw() {
-        let key = format!("relation:{}", relation.id);
+        let key = format!("relation_row:{}", relation.id);
         let mut targets = BTreeSet::from([key.clone()]);
-        for endpoint in [&relation.from, &relation.to] {
-            targets.insert(format!("{}:{}", endpoint.kind.as_str(), endpoint.id));
+        targets.insert(format!("relation_type:{}", relation.relation_type));
+        for entry in relation.left.union(&relation.right) {
+            targets.insert(format!("entry:{entry}"));
         }
         entities.insert(key, (serde_json::to_value(&relation)?, targets));
     }

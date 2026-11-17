@@ -238,7 +238,6 @@
     }
   },
   "edgeKindManager": {
-    "editTypes": "Modifier les types",
     "empty": "Aucune relation dans cette vue pour le moment"
   },
   "editorOutline": {
@@ -469,7 +468,6 @@
     "choose": "Choisir un dossier…",
     "chosen": "Dossier choisi",
     "continue": "Continuer",
-    "intro": "Chaque projet conserve une copie Markdown dans le dossier que vous choisissez. Modifiez chapitres et idées dans l’éditeur de votre choix : les changements seront intégrés à Drifting.",
     "title": "Où placer le dossier Markdown ?"
   },
   "markdownShare": {
@@ -524,6 +522,22 @@
       "renderPdfFailed": "Impossible d’afficher le PDF"
     }
   },
+  "mirrorV5": {
+    "duplicate": "Deux fichiers ont le même drifting-id.",
+    "fieldConflict": "Un champ n’a pas pu être fusionné : il a aussi été modifié dans Drifting, ou sa valeur est illisible. Drifting a gardé sa valeur et enregistré une copie du fichier.",
+    "identity": "Le drifting-id ne correspond pas à cette entrée et à ce module de texte.",
+    "intro": "Chaque projet dispose d’un dossier Markdown. Après enregistrement, les modifications du texte et des champs dans un autre éditeur sont intégrées à Drifting.",
+    "keyCollision": "Une propriété initiale porte le même nom qu’un champ ajouté récemment. Drifting n’écrira pas ce fichier tant que l’un des deux n’est pas renommé ou supprimé.",
+    "lineage": "L’entrée ou le texte a été restauré, a changé de modèle ou a été supprimé. Les modifications du fichier n’ont pas pu être intégrées.",
+    "malformedTable": "Impossible de lire le tableau. Le tableau original reste dans Drifting.",
+    "moved": "Cette version ne synchronise pas le renommage ni le déplacement des fichiers.",
+    "occupied": "Un fichier existe déjà à cet emplacement.",
+    "offWarning": "Drifting intègre les modifications en attente avant la désactivation. Les fichiers existants restent en place. Vous pouvez réactiver le dossier dans Données locales.",
+    "owned": "Une autre installation de Drifting utilise ce dossier.",
+    "readOnly": "Les propriétés en lecture seule ont repris les valeurs du projet.",
+    "unknownImage": "L’image ne pointe pas vers un fichier de la bibliothèque du projet. La ligne a été importée comme texte.",
+    "unsafePath": "Drifting n’a pas pu accéder à ce chemin du projet en toute sécurité."
+  },
   "mobileWorkspace": {
     "editorAccessory": {
       "redo": "Rétablir",
@@ -553,6 +567,14 @@
     },
     "empty": "Aucune notification",
     "markdownFolder": {
+      "issue": {
+        "empty": "Texte vidé ; non fusionné, fichier conservé",
+        "encoding": "Pas en UTF-8 ; non lu, fichier conservé",
+        "frontmatter": "Propriétés initiales mal formées ; ni fusion ni écrasement avant correction",
+        "too-large": "Trop volumineux ; non lu, fichier conservé",
+        "unreadable": "Lecture impossible"
+      },
+      "overlap": "Ce paragraphe a été modifié dans Drifting et dans le fichier.",
       "preserved_many": "{{count}} fichiers modifiés conservés dans .drifting/preserved",
       "preserved_one": "{{count}} fichier modifié conservé dans .drifting/preserved",
       "preserved_other": "{{count}} fichiers modifiés conservés dans .drifting/preserved",
@@ -783,9 +805,6 @@
     "timePins": "Repères temporels"
   },
   "referencesPanel": {
-    "actions": {
-      "linkEntity": "Lier une entité"
-    },
     "filters": {
       "all": "Tout"
     },
@@ -795,27 +814,16 @@
       "node": "Chapitre",
       "patch": "Évolution",
       "storyline": "Intrigue"
-    },
-    "sections": {
-      "relations": "Relations"
     }
   },
+  "relationGraph": {
+    "create": "Créer",
+    "name": "Nom de la relation",
+    "relations": "Relations",
+    "title": "Créer une relation"
+  },
   "relationTypes": {
-    "builtIn": "Intégré",
-    "create": "Nouveau",
-    "createInline": "Créer un type de relation",
-    "delete": "Supprimer le type de relation",
-    "description": "Description",
-    "directed": "Orientée",
-    "genericAssociation": {
-      "name": "Association"
-    },
-    "name": "Nom",
-    "sourceRole": "Rôle source",
-    "swap": "Inverser les extrémités de la relation",
-    "symmetric": "Symétrique",
-    "targetRole": "Rôle cible",
-    "title": "Définitions des types de relation"
+    "description": "Description"
   },
   "reviewPanel": {
     "commentPlaceholder": "Rédiger un commentaire…",
@@ -1214,7 +1222,15 @@
       "local_sub": "Sans compte Drifting ni cloud hébergé. Exportez une copie lisible quand vous voulez.",
       "local_title": "Votre travail reste sur cet appareil.",
       "projection": {
-        "turnOff": "Désactiver le dossier Markdown"
+        "allProjects": "Tous les projets",
+        "allProjectsUnset": "Tous les projets · Aucun emplacement choisi",
+        "choose": "Choisir un dossier",
+        "offHint": "Désactivé : plus d’écriture Markdown ni d’intégration des éditions externes. Les fichiers existants restent en place.",
+        "offTitle": "Désactiver le dossier Markdown ?",
+        "reveal": "Afficher dans le Finder",
+        "title": "Dossier Markdown",
+        "turnOff": "Désactiver le dossier Markdown",
+        "turnOn": "Activer"
       }
     },
     "update": {
@@ -1262,10 +1278,7 @@
   },
   "storyGraph": {
     "edge": {
-      "create": "Créer",
-      "delete": "Supprimer la relation",
       "hideKind": "Masquer « {{label}} »",
-      "kindLabel": "Type de relation",
       "showKind": "Afficher « {{label}} »"
     }
   },
@@ -1289,7 +1302,6 @@
         "companions": "Souvent ensemble",
         "edit": "Modifier",
         "isolate": "Celui-ci uniquement",
-        "relations": "Relations",
         "showAll": "Tout afficher",
         "times": "× {{count}}"
       },
@@ -1314,14 +1326,10 @@
     "layout": {
       "relate": "Relations"
     },
-    "linkHintFrom": "De",
-    "linkHintTo": "vers… choisissez un second élément ou chapitre, Échap pour annuler",
-    "manualRelationTitle": "Nouvelle relation manuelle",
     "relate": {
       "relayout": "Réorganiser"
     },
     "reset": "Réinitialiser",
-    "startEdgeFromElement": "Créer une relation depuis cet élément",
     "uncategorized": "Sans catégorie",
     "unnamedCategory": "Catégorie sans titre"
   },
@@ -1388,7 +1396,6 @@
     "preview_failed": "Impossible de charger l’aperçu",
     "preview_loading": "Chargement de l’aperçu…",
     "prose": "Texte principal",
-    "relations": "Relations",
     "reorder": "Glisser pour réordonner",
     "restore": "Rétablir",
     "saved": "Enregistré",
@@ -1663,6 +1670,28 @@
     "templateCount": "{{count}} modèles",
     "templateStructure": "Structure des modèles",
     "unusedTemplates": "Modèles inutilisés"
+  },
+  "v5Relations": {
+    "addEntry": "Ajouter une entrée",
+    "addRow": "Ajouter une ligne",
+    "deleteRow": "Supprimer cette ligne",
+    "description": "Description",
+    "direction": "À sens unique ou réciproque",
+    "kinds_one": "{{count}} relation",
+    "kinds_other": "{{count}} relations",
+    "newRelation": "Nouvelle relation",
+    "pairs_one": "{{count}} paire",
+    "pairs_other": "{{count}} paires",
+    "removeEntry": "Retirer « {{name}} »",
+    "tab": "Relations"
+  },
+  "v5RelationsProse": {
+    "change": "Changer",
+    "confirm": "Créer",
+    "create": "Relier",
+    "direction": "Sens",
+    "otherEntry": "Autre entrée",
+    "relation": "Relation"
   },
   "v5Tour": {
     "agent": {

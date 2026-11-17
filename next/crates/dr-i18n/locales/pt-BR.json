@@ -238,7 +238,6 @@
     }
   },
   "edgeKindManager": {
-    "editTypes": "Editar tipos",
     "empty": "Ainda não há relações nesta visualização"
   },
   "editorOutline": {
@@ -469,7 +468,6 @@
     "choose": "Escolher pasta…",
     "chosen": "Pasta escolhida",
     "continue": "Continuar",
-    "intro": "Cada projeto mantém uma cópia Markdown na pasta que você escolher. Edite capítulos e ideias em qualquer editor e as alterações serão mescladas no Drifting.",
     "title": "Onde colocar a pasta Markdown?"
   },
   "markdownShare": {
@@ -524,6 +522,22 @@
       "renderPdfFailed": "Não é possível renderizar o PDF"
     }
   },
+  "mirrorV5": {
+    "duplicate": "Dois arquivos têm o mesmo drifting-id.",
+    "fieldConflict": "Não foi possível mesclar um campo: ele também foi editado no Drifting ou o valor não pôde ser lido. O Drifting manteve o valor e salvou uma cópia do arquivo.",
+    "identity": "O drifting-id não corresponde a esta entrada e módulo de texto.",
+    "intro": "Cada projeto tem uma pasta Markdown. Ao salvar alterações no texto ou nos campos em outro editor, o Drifting incorpora as mudanças.",
+    "keyCollision": "Uma propriedade inicial tem o mesmo nome de um campo recém-adicionado. O Drifting não vai gravar este arquivo até que um dos dois seja renomeado ou removido.",
+    "lineage": "A entrada ou o texto foi restaurado, mudou de modelo ou foi excluído. As alterações do arquivo não puderam ser incorporadas.",
+    "malformedTable": "Não foi possível ler a tabela. A tabela original permanece no Drifting.",
+    "moved": "Esta versão não sincroniza renomeações nem movimentações de arquivos.",
+    "occupied": "Já existe um arquivo neste caminho.",
+    "offWarning": "O Drifting incorpora as alterações pendentes antes de desativar a pasta. Os arquivos existentes ficam onde estão. Você pode reativá-la em Dados locais.",
+    "owned": "Outra instalação do Drifting usa esta pasta.",
+    "readOnly": "As propriedades somente leitura foram restauradas com os valores do projeto.",
+    "unknownImage": "A imagem não aponta para um arquivo na biblioteca do projeto. A linha foi importada como texto.",
+    "unsafePath": "O Drifting não pôde acessar com segurança este caminho na pasta do projeto."
+  },
   "mobileWorkspace": {
     "editorAccessory": {
       "redo": "Refazer",
@@ -553,6 +567,14 @@
     },
     "empty": "Nenhuma notificação",
     "markdownFolder": {
+      "issue": {
+        "empty": "Texto esvaziado; não mesclado, arquivo preservado",
+        "encoding": "Não está em UTF-8; não lido, arquivo preservado",
+        "frontmatter": "Propriedades iniciais malformadas; sem mescla nem sobrescrita até a correção",
+        "too-large": "Grande demais; não lido, arquivo preservado",
+        "unreadable": "Não foi possível ler"
+      },
+      "overlap": "Este parágrafo foi alterado no Drifting e no arquivo.",
       "preserved_many": "{{count}} arquivos editados preservados em .drifting/preserved",
       "preserved_one": "{{count}} arquivo editado preservado em .drifting/preserved",
       "preserved_other": "{{count}} arquivos editados preservados em .drifting/preserved",
@@ -783,9 +805,6 @@
     "timePins": "Pinos de tempo"
   },
   "referencesPanel": {
-    "actions": {
-      "linkEntity": "Vincular entidade"
-    },
     "filters": {
       "all": "Todos"
     },
@@ -795,27 +814,16 @@
       "node": "Capítulo",
       "patch": "Evolução",
       "storyline": "Linha narrativa"
-    },
-    "sections": {
-      "relations": "Relações"
     }
   },
+  "relationGraph": {
+    "create": "Criar",
+    "name": "Nome da relação",
+    "relations": "Relações",
+    "title": "Criar relação"
+  },
   "relationTypes": {
-    "builtIn": "Integrado",
-    "create": "Novo",
-    "createInline": "Criar tipo de relação",
-    "delete": "Excluir tipo de relação",
-    "description": "Descrição",
-    "directed": "Direcionada",
-    "genericAssociation": {
-      "name": "Associação"
-    },
-    "name": "Nome",
-    "sourceRole": "Papel de origem",
-    "swap": "Inverter extremidades da relação",
-    "symmetric": "Simétrica",
-    "targetRole": "Papel de destino",
-    "title": "Definições dos tipos de relação"
+    "description": "Descrição"
   },
   "reviewPanel": {
     "commentPlaceholder": "Escreva um comentário…",
@@ -1214,7 +1222,15 @@
       "local_sub": "Sem conta Drifting ou nuvem hospedada. Exporte uma cópia legível quando quiser.",
       "local_title": "Seu trabalho fica neste dispositivo.",
       "projection": {
-        "turnOff": "Desativar pasta Markdown"
+        "allProjects": "Todos os projetos",
+        "allProjectsUnset": "Todos os projetos · Nenhum local escolhido",
+        "choose": "Escolher pasta",
+        "offHint": "Desativada: não grava Markdown nem mescla edições externas. Os arquivos existentes permanecem.",
+        "offTitle": "Desativar a pasta Markdown?",
+        "reveal": "Mostrar no Finder",
+        "title": "Pasta Markdown",
+        "turnOff": "Desativar pasta Markdown",
+        "turnOn": "Ativar"
       }
     },
     "update": {
@@ -1262,10 +1278,7 @@
   },
   "storyGraph": {
     "edge": {
-      "create": "Criar",
-      "delete": "Excluir relação",
       "hideKind": "Ocultar “{{label}}”",
-      "kindLabel": "Tipo de relação",
       "showKind": "Mostrar “{{label}}”"
     }
   },
@@ -1289,7 +1302,6 @@
         "companions": "Costumam aparecer juntos",
         "edit": "Editar",
         "isolate": "Somente este",
-        "relations": "Relações",
         "showAll": "Mostrar tudo",
         "times": "× {{count}}"
       },
@@ -1314,14 +1326,10 @@
     "layout": {
       "relate": "Relações"
     },
-    "linkHintFrom": "De",
-    "linkHintTo": "para… escolha um segundo elemento ou capítulo; Esc cancela",
-    "manualRelationTitle": "Nova relação manual",
     "relate": {
       "relayout": "Reorganizar"
     },
     "reset": "Redefinir",
-    "startEdgeFromElement": "Criar relação a partir deste elemento",
     "uncategorized": "Sem categoria",
     "unnamedCategory": "Categoria sem título"
   },
@@ -1388,7 +1396,6 @@
     "preview_failed": "Não foi possível carregar a prévia",
     "preview_loading": "Carregando prévia…",
     "prose": "Texto principal",
-    "relations": "Relações",
     "reorder": "Arrastar para reordenar",
     "restore": "Restaurar",
     "saved": "Salvo",
@@ -1663,6 +1670,28 @@
     "templateCount": "{{count}} modelos",
     "templateStructure": "Estrutura dos modelos",
     "unusedTemplates": "Modelos não usados"
+  },
+  "v5Relations": {
+    "addEntry": "Adicionar uma entrada",
+    "addRow": "Adicionar uma linha",
+    "deleteRow": "Excluir esta linha",
+    "description": "Descrição",
+    "direction": "Unidirecional ou bidirecional",
+    "kinds_one": "{{count}} relação",
+    "kinds_other": "{{count}} relações",
+    "newRelation": "Nova relação",
+    "pairs_one": "{{count}} par",
+    "pairs_other": "{{count}} pares",
+    "removeEntry": "Remover “{{name}}”",
+    "tab": "Relações"
+  },
+  "v5RelationsProse": {
+    "change": "Trocar",
+    "confirm": "Criar",
+    "create": "Relacionar",
+    "direction": "Direção",
+    "otherEntry": "Outra entrada",
+    "relation": "Relação"
   },
   "v5Tour": {
     "agent": {

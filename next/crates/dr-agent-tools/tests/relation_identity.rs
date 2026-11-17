@@ -1,8 +1,8 @@
 //! Caller-supplied relation identities cannot turn creation into an unread edit.
 
-use dr_agent_tools::{AgentTools, CallRequest, Error};
+use dr_agent_tools::{AgentTools, CallRequest};
 use dr_doc::v3::BorrowedBookV3;
-use dr_model::{id::BookId, shared::Relation};
+use dr_model::{id::BookId, v3::RelationRow};
 use dr_store::OpenDoc;
 use dr_testkit::seed::{self, Preset};
 use dr_workspace::{Actor, Workspace};
@@ -34,13 +34,8 @@ impl Fixture {
             .map(|chapter| {
                 author(
                     &ws,
-                    "entry_relation_type.put",
-                    json!({
-                        "book":book,
-                        "definition": {"id":dr_model::id::RelationTypeId::new_v7(),"name":chapter["title"],
-                        "orientation":"directed","source_role":chapter["title"],"target_role":elements[0]["title"],
-                        "source_kinds":["entry"],"target_kinds":["entry"],"source_templates":["tpl-chapter"],"target_templates":["tpl-character"]}
-                    }),
+                    "relation_type.create",
+                    json!({"book":book,"name":chapter["title"],"direction":"directed"}),
                 )["id"]
                     .clone()
             })
@@ -58,8 +53,8 @@ impl Fixture {
     fn relation(&self, index: usize) -> Value {
         json!({
             "book":self.book,
-            "from":{"kind":"entry","id":self.chapters[index]["id"]},
-            "to":{"kind":"entry","id":self.elements[index]["id"]},
+            "left":self.chapters[index]["id"],
+            "right":self.elements[index]["id"],
             "relation_type":self.types[index]
         })
     }
@@ -84,7 +79,7 @@ impl Fixture {
         )
     }
 
-    fn stored_relations(&self) -> Vec<Relation> {
+    fn stored_relations(&self) -> Vec<RelationRow> {
         let book = self.book.clone();
         self.ws
             .library()
@@ -120,16 +115,61 @@ fn author(ws: &Workspace, name: &str, arguments: Value) -> Value {
 }
 
 fn assert_id_rejected(result: dr_agent_tools::Result<Value>) {
+    assert!(result.is_err(), "{result:?}");
+}
+
+#[test]
+fn creating_a_group_requires_read_coverage_of_every_member() {
+    let f = Fixture::new();
+    let tools = AgentTools::new();
+    let actor = Actor::agent("rl-group-coverage", 1, "relations");
+    f.invoke(&tools, &actor, "relation_type.list", json!({}))
+        .unwrap();
+    for entry in [&f.chapters[0], &f.chapters[1], &f.elements[0]] {
+        f.invoke(&tools, &actor, "entry.get", json!({"id":entry["id"]}))
+            .unwrap();
+    }
+    let args = json!({"relation_type":f.types[0],"expected_direction":"directed",
+        "left":[f.chapters[0]["title"],f.chapters[1]["id"]],
+        "right":[f.elements[0]["id"],f.elements[1]["id"]]});
+    let before = f.book_bytes();
     assert!(
-        matches!(&result, Err(Error::Invalid(message)) if message == "relation.create assigns its own id; omit id"),
-        "{result:?}"
+        f.invoke(&tools, &actor, "relation_row.create_group", args.clone())
+            .is_err()
+    );
+    assert_eq!(
+        f.book_bytes(),
+        before,
+        "an unread member cannot be hidden in an array"
+    );
+
+    f.invoke(
+        &tools,
+        &actor,
+        "entry.get",
+        json!({"id":f.elements[1]["id"]}),
+    )
+    .unwrap();
+    let made = f
+        .invoke(&tools, &actor, "relation_row.create_group", args)
+        .unwrap();
+    let row = f
+        .stored_relations()
+        .into_iter()
+        .find(|row| row.id.as_str() == made["output"]["id"].as_str().unwrap())
+        .unwrap();
+    assert_eq!(row.pairs().count(), 4);
+    assert!(
+        row.left
+            .iter()
+            .any(|id| id.as_str() == f.chapters[0]["id"].as_str().unwrap())
     );
 }
 
 #[test]
 fn a_visible_relation_list_cannot_authorize_overwriting_a_hidden_relation_id() {
     let f = Fixture::new();
-    let made = author(&f.ws, "relation.create", f.relation(0));
+    let made = author(&f.ws, "relation_row.create_pair", f.relation(0));
 
     let id = made["id"].as_str().unwrap();
     let original = f
@@ -148,26 +188,25 @@ fn a_visible_relation_list_cannot_authorize_overwriting_a_hidden_relation_id() {
     // Fixture setup and raw-state inspection are author reads. This is the
     // only successful read that establishes coverage for the new Agent turn.
     let listed = f
-        .invoke(&tools, &actor, "relation.list", json!({}))
+        .invoke(&tools, &actor, "relation_type.list", json!({}))
         .unwrap();
     assert!(
         listed["output"]
             .as_array()
             .unwrap()
             .iter()
-            .all(|relation| relation["id"] != made["id"])
+            .flat_map(|relation| relation["rows"].as_array().unwrap())
+            .all(|row| row["id"] != made["id"])
     );
     let before = f.book_bytes();
     let receipts = f.ws.library().settlements(None, None).unwrap();
     let mut replacement = f.relation(1);
     replacement["id"] = made["id"].clone();
-    assert_ne!(replacement["from"]["id"], original.from.id);
-    assert_ne!(replacement["to"]["id"], original.to.id);
     assert_ne!(
         replacement["relation_type"],
         original.relation_type.as_str()
     );
-    assert_id_rejected(f.invoke(&tools, &actor, "relation.create", replacement));
+    assert_id_rejected(f.invoke(&tools, &actor, "relation_row.create_pair", replacement));
 
     let retained = f
         .stored_relations()
@@ -186,8 +225,10 @@ fn a_visible_relation_list_cannot_authorize_overwriting_a_hidden_relation_id() {
 
     // Refusing the supplied id does not consume the successful read, and an
     // ordinary creation still receives a fresh identity from F3.
+    f.invoke(&tools, &actor, "entry.list", json!({"all":true}))
+        .unwrap();
     let created = f
-        .invoke(&tools, &actor, "relation.create", f.relation(1))
+        .invoke(&tools, &actor, "relation_row.create_pair", f.relation(1))
         .unwrap();
 
     assert_ne!(created["output"]["id"], made["id"]);
@@ -198,8 +239,8 @@ fn a_visible_relation_list_cannot_authorize_overwriting_a_hidden_relation_id() {
         .iter()
         .find(|relation| relation.id.as_str() == new_id)
         .unwrap();
-    assert_eq!(new_relation.from.id, f.chapters[1]["id"]);
-    assert_eq!(new_relation.to.id, f.elements[1]["id"]);
+    assert_eq!(json!(new_relation.left), json!([f.chapters[1]["id"]]));
+    assert_eq!(json!(new_relation.right), json!([f.elements[1]["id"]]));
     assert_eq!(new_relation.relation_type.as_str(), f.types[1]);
     assert_eq!(
         f.ws.library().settlements(None, None).unwrap().len(),
@@ -212,7 +253,9 @@ fn relation_create_rejects_any_supplied_identity_even_if_unused_or_null() {
     let f = Fixture::new();
     let tools = AgentTools::new();
     let actor = Actor::agent("new-relation-id", 1, "create");
-    f.invoke(&tools, &actor, "relation.list", json!({}))
+    f.invoke(&tools, &actor, "relation_type.list", json!({}))
+        .unwrap();
+    f.invoke(&tools, &actor, "entry.list", json!({"all":true}))
         .unwrap();
     let before = f.book_bytes();
     let receipts = f.ws.library().settlements(None, None).unwrap().len();
@@ -223,7 +266,7 @@ fn relation_create_rejects_any_supplied_identity_even_if_unused_or_null() {
     ] {
         let mut input = f.relation(0);
         input["id"] = id;
-        assert_id_rejected(f.invoke(&tools, &actor, "relation.create", input));
+        assert_id_rejected(f.invoke(&tools, &actor, "relation_row.create_pair", input));
     }
     assert_eq!(f.book_bytes(), before);
     assert_eq!(

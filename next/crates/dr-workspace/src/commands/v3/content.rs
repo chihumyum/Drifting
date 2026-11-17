@@ -1,19 +1,13 @@
 //! Data modules whose records live outside entry metadata.
 use super::*;
-use dr_model::kind::{EntityKind, RelationOrientation};
 use dr_model::pos::PosKey;
-use dr_model::shared::{EntityRef, PLOT_CELL_H, PLOT_CELL_W, PlotLine};
+use dr_model::shared::{PLOT_CELL_H, PLOT_CELL_W, PlotLine};
 
 pub(crate) fn register(r: &mut Registry) {
     r.add::<PatchPut>()
         .add::<PatchEdit>()
         .add::<PatchRemove>()
-        .add::<GridPut>()
-        .add::<RelationPut>()
-        .add::<RelationRemove>()
-        .add::<RelationTypes>()
-        .add::<RelationTypePut>()
-        .add::<RelationTypeDelete>();
+        .add::<GridPut>();
 }
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct Patch {
@@ -106,53 +100,6 @@ pub(super) fn grid_value(g: m::PlotGridV3) -> Grid {
             })
             .collect(),
     }
-}
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub struct Ref {
-    pub kind: String,
-    pub id: String,
-}
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
-pub struct Relation {
-    pub id: String,
-    pub from: Ref,
-    pub to: Ref,
-    pub relation_type: String,
-    pub created_at: Option<i64>,
-}
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
-pub struct RelationType {
-    pub id: String,
-    pub name: String,
-    #[serde(default)]
-    pub description: String,
-    #[serde(default = "directed")]
-    pub orientation: String,
-    #[serde(default)]
-    pub source_role: String,
-    #[serde(default)]
-    pub target_role: String,
-    #[serde(default)]
-    pub color: Option<String>,
-    #[serde(default)]
-    pub source_kinds: Vec<String>,
-    #[serde(default)]
-    pub target_kinds: Vec<String>,
-    #[serde(default)]
-    pub source_templates: Vec<String>,
-    #[serde(default)]
-    pub target_templates: Vec<String>,
-}
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
-pub struct RelationTypeInfo {
-    #[serde(flatten)]
-    pub definition: RelationType,
-    pub normalized_name: String,
-    pub system_key: Option<String>,
-    pub locked: bool,
-}
-fn directed() -> String {
-    "directed".into()
 }
 fn selected(
     cx: &Cx<'_>,
@@ -292,7 +239,7 @@ pub struct RecordIn {
     pub id: String,
 }
 op! {
-    PatchRemove="module.remove_patch",Write,Book,"Remove one patch record without deleting relations or other entries.",fn(cx,input:RecordIn)->Done {
+    PatchRemove="module.remove_patch",Write,Book,"Remove one patch record from a patches module; the entry and its other records stay.",fn(cx,input:RecordIn)->Done {
         let (s, e, m) = selected(cx, &input.target, m::ModuleKind::Patches)?;
         if !s
             .reader_v3
@@ -399,215 +346,4 @@ fn put_grid(cx: &Cx<'_>, input: GridIn) -> Result<Done> {
     undo(cx, &s, &at, vec![key("plot_grids", &id)]);
     cx.effect(EffectAction::Updated, "plot_grid", &id, None);
     Ok(Done { id })
-}
-op! {
-    RelationTypes="entry_relation_type.list",Read,Shared,"List relation types available to entry modules.",fn(cx,input:BookIn)->Vec<RelationTypeInfo> {
-        let s = cx.book_v3(&input.book)?;
-        convert(s.reader_v3.view().relation_types())
-    }
-}
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
-pub struct TypeIn {
-    pub book: String,
-    pub definition: RelationType,
-}
-op! {
-    RelationTypePut="entry_relation_type.put",Write,Book,"Create or edit a relation type with endpoint and template restrictions.",fn(cx,input:TypeIn)->Done {
-        put_type(cx, input)
-    }
-}
-fn put_type(cx: &Cx<'_>, input: TypeIn) -> Result<Done> {
-    let s = cx.book_v3(&input.book)?;
-    let v = s.reader_v3.view();
-    let d = input.definition;
-    let id: RelationTypeId = pid("relation type", &d.id)?;
-    name_ok(&d.name)?;
-    if v.relation_type(&id)
-        .is_some_and(|t| t.locked || t.system_key.is_some())
-    {
-        return Err(WsError::invalid("locked relation type"));
-    }
-    if v.relation_types().iter().any(|t| {
-        t.id != id && t.normalized_name == dr_model::shared::normalize_relation_type_name(&d.name)
-    }) {
-        return Err(WsError::invalid("duplicate relation type name"));
-    }
-    let orientation = RelationOrientation::from(d.orientation.as_str());
-    if !matches!(
-        orientation,
-        RelationOrientation::Directed | RelationOrientation::Symmetric
-    ) {
-        return Err(WsError::invalid("unknown relation orientation"));
-    }
-    let kinds = |xs: &[String]| -> Result<Vec<EntityKind>> {
-        xs.iter()
-            .map(|s| {
-                let k = EntityKind::from(s.as_str());
-                if matches!(
-                    k,
-                    EntityKind::Entry | EntityKind::Comment | EntityKind::Patch | EntityKind::Asset
-                ) {
-                    Ok(k)
-                } else {
-                    Err(WsError::invalid("invalid endpoint kind"))
-                }
-            })
-            .collect()
-    };
-    let source = kinds(&d.source_kinds)?;
-    let target = kinds(&d.target_kinds)?;
-    let templates = |xs: &[String]| -> Result<Vec<EntryTemplateId>> {
-        xs.iter()
-            .map(|id| template_of(&v, id).map(|t| t.id))
-            .collect()
-    };
-    let st = templates(&d.source_templates)?;
-    let tt = templates(&d.target_templates)?;
-    let saved = id.clone();
-    let replaced = Replaces::record(CollectionV3::RelationTypes, &id);
-    let (_, at) = cx.write_book_v3(&s, replaced, move |t| {
-        t.relation_type(&saved)?
-            .name(&d.name)?
-            .description(&d.description)?
-            .orientation(&orientation)?
-            .source_role(&d.source_role)?
-            .target_role(&d.target_role)?
-            .color(d.color.as_deref())?
-            .source_kinds(&source)?
-            .target_kinds(&target)?
-            .source_templates(&st)?
-            .target_templates(&tt)?;
-        Ok(())
-    })?;
-    undo(cx, &s, &at, vec![key("relation_types", &id)]);
-    cx.effect(EffectAction::Updated, "relation_type", id.as_str(), None);
-    Ok(Done { id: id.to_string() })
-}
-op! {
-    RelationTypeDelete="entry_relation_type.delete",Write,Book,"Delete an unused unlocked relation type.",fn(cx,input:EntityIn)->Done {
-        let s = cx.book_v3(&input.book)?;
-        let v = s.reader_v3.view();
-        let id: RelationTypeId = pid("relation type", &input.id)?;
-        let ty = v
-            .relation_type(&id)
-            .ok_or_else(|| WsError::not_found("relation type", &input.id))?;
-        if ty.locked
-            || ty.system_key.is_some()
-            || v.relations_raw().iter().any(|r| r.relation_type == id)
-        {
-            return Err(WsError::invalid("relation type is locked or in use"));
-        }
-        let saved = id.clone();
-        let removed = Replaces::record(CollectionV3::RelationTypes, &id);
-        let (_, at) = cx.write_book_v3(&s, removed, move |t| {
-            Ok(t.purge(CollectionV3::RelationTypes, saved.as_str())?)
-        })?;
-        undo(cx, &s, &at, vec![key("relation_types", &id)]);
-        cx.effect(EffectAction::Purged, "relation_type", id.as_str(), None);
-        Ok(Done { id: input.id })
-    }
-}
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
-pub struct RelationIn {
-    #[serde(flatten)]
-    pub target: module::In,
-    pub other: Ref,
-    pub relation_type: String,
-    #[serde(default)]
-    pub incoming: bool,
-}
-op! {
-    RelationPut="module.put_relation",Write,Book,"Associate an entry with a live endpoint through its relations module.",fn(cx,input:RelationIn)->Done {
-        put_relation(cx, input)
-    }
-}
-fn put_relation(cx: &Cx<'_>, input: RelationIn) -> Result<Done> {
-    let (s, e, _) = selected(cx, &input.target, m::ModuleKind::Relations)?;
-    let v = s.reader_v3.view();
-    let other: EntityRef = convert(input.other)?;
-    let own = EntityRef {
-        kind: EntityKind::Entry,
-        id: e.id.to_string(),
-    };
-    if !v.entity_exists(&other) || own == other {
-        return Err(WsError::invalid("relation needs distinct live endpoints"));
-    }
-    let ty = v
-        .relation_type(&pid("relation type", &input.relation_type)?)
-        .ok_or_else(|| WsError::not_found("relation type", &input.relation_type))?;
-    let (mut from, mut to) = if input.incoming {
-        (other, own)
-    } else {
-        (own, other)
-    };
-    if ty.orientation == RelationOrientation::Symmetric && from > to {
-        std::mem::swap(&mut from, &mut to);
-    }
-    if !from.kind.may_start_relation_v3() || !to.kind.is_structural_v3() {
-        return Err(WsError::invalid(
-            "unsupported canonical relation endpoint roles",
-        ));
-    }
-    let allows = |r: &EntityRef, kinds: &[EntityKind], templates: &[EntryTemplateId]| {
-        (kinds.is_empty() || kinds.contains(&r.kind))
-            && (templates.is_empty()
-                || r.kind != EntityKind::Entry
-                || v.entry(&EntryId::parse(&r.id).expect("live entry"))
-                    .is_some_and(|e| e.template.is_some_and(|t| templates.contains(&t))))
-    };
-    if !allows(&from, &ty.source_kinds, &ty.source_templates)
-        || !allows(&to, &ty.target_kinds, &ty.target_templates)
-    {
-        return Err(WsError::invalid(
-            "relation endpoints violate type restrictions",
-        ));
-    }
-    if let Some(r) = v.relations_raw().iter().find(|r| {
-        r.relation_type == ty.id
-            && ((r.from == from && r.to == to)
-                || (ty.orientation == RelationOrientation::Symmetric
-                    && r.from == to
-                    && r.to == from))
-    }) {
-        cx.undo_nothing();
-        return Ok(Done {
-            id: r.id.to_string(),
-        });
-    }
-    let id = RelationId::new_v7();
-    let saved = id.clone();
-    let (_, at) = cx.write_book_v3(&s, Replaces::nothing(), move |t| {
-        t.relation(&saved)?
-            .ends(&from, &to)?
-            .relation_type(&ty.id)?
-            .created_at(Some(now()))?;
-        Ok(())
-    })?;
-    undo(cx, &s, &at, vec![key("relations", &id)]);
-    cx.effect(EffectAction::Created, "relation", id.as_str(), None);
-    Ok(Done { id: id.to_string() })
-}
-op! {
-    RelationRemove="module.remove_relation",Write,Book,"Remove one relation projected in an entry's relations module.",fn(cx,input:RecordIn)->Done {
-        let (s, e, _) = selected(cx, &input.target, m::ModuleKind::Relations)?;
-        let own = EntityRef {
-            kind: EntityKind::Entry,
-            id: e.id.to_string(),
-        };
-        if !s
-            .reader_v3
-            .view()
-            .relations_raw()
-            .iter()
-            .any(|r| r.id.as_str() == input.id && (r.from == own || r.to == own))
-        {
-            return Err(WsError::not_found("relation", &input.id));
-        }
-        let id = input.id.clone();
-        let removed = Replaces::record(CollectionV3::Relations, &id);
-        let (_, at) = cx.write_book_v3(&s, removed, move |t| Ok(t.purge(CollectionV3::Relations, &id)?))?;
-        undo(cx, &s, &at, vec![key("relations", &input.id)]);
-        cx.effect(EffectAction::Purged, "relation", &input.id, None);
-        Ok(Done { id: input.id })
-    }
 }
