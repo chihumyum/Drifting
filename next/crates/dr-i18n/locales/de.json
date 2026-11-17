@@ -1229,7 +1229,6 @@
         "turnOff": "Markdown-Ordner deaktivieren"
       }
     },
-    "title": "Einstellungen",
     "update": {
       "channel_desc": "Apple Silicon · macOS 13 oder neuer",
       "check": "Neue Version",
@@ -1433,16 +1432,12 @@
     "language": "Sprache",
     "localMenu": "Menü der lokalen Bibliothek",
     "localStatus": "LOKAL · AUF DIESEM GERÄT",
-    "settings": "Einstellungen",
     "signOut": "Abmelden",
     "signingOut": "Abmeldung läuft…",
     "theme": "Design",
     "themeDark": "Dunkel",
-    "themeDarkShort": "Dunkel",
     "themeLight": "Hell",
-    "themeLightShort": "Hell",
-    "themeSystem": "Systemeinstellung",
-    "themeSystemShort": "System"
+    "themeSystem": "Systemeinstellung"
   },
   "v3Levels": {
     "accept": "Einträge von anderswo aufnehmen",

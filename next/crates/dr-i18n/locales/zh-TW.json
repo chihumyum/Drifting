@@ -1222,7 +1222,6 @@
         "turnOff": "關閉 Markdown 資料夾"
       }
     },
-    "title": "設定",
     "update": {
       "channel_desc": "Apple Silicon · macOS 13 以上",
       "check": "新版本",
@@ -1426,16 +1425,12 @@
     "language": "語言",
     "localMenu": "本機資料庫選單",
     "localStatus": "本機 · 存於此裝置",
-    "settings": "設定",
     "signOut": "登出",
     "signingOut": "正在登出…",
     "theme": "主題",
     "themeDark": "深色",
-    "themeDarkShort": "深色",
     "themeLight": "淺色",
-    "themeLightShort": "淺色",
-    "themeSystem": "跟隨系統",
-    "themeSystemShort": "系統"
+    "themeSystem": "跟隨系統"
   },
   "v3Levels": {
     "accept": "收別處的條目",

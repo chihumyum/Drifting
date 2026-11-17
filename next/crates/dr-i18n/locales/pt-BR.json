@@ -1238,7 +1238,6 @@
         "turnOff": "Desativar pasta Markdown"
       }
     },
-    "title": "Configurações",
     "update": {
       "channel_desc": "Apple Silicon · macOS 13 ou posterior",
       "check": "Nova versão",
@@ -1442,16 +1441,12 @@
     "language": "Idioma",
     "localMenu": "Menu da biblioteca local",
     "localStatus": "LOCAL · NESTE DISPOSITIVO",
-    "settings": "Configurações",
     "signOut": "Sair",
     "signingOut": "Saindo…",
     "theme": "Tema",
     "themeDark": "Escuro",
-    "themeDarkShort": "Escuro",
     "themeLight": "Claro",
-    "themeLightShort": "Claro",
-    "themeSystem": "Seguir o sistema",
-    "themeSystemShort": "Sistema"
+    "themeSystem": "Seguir o sistema"
   },
   "v3Levels": {
     "accept": "Aceitar entradas de outros locais",

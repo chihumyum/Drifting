@@ -361,7 +361,7 @@ fn rail(
                 .font_role(Role::Structure)
                 .type_px(s.secondary, s.line_body)
                 .text_color(p.ink(2).solid())
-                .child(t(cx, keys::settings::TITLE)),
+                .child(t(cx, keys::v3_shell::SETTINGS)),
         )
         .child(div().px(px(4.0)).pb(px(8.0)).child(search.clone()));
     let mut group: Option<Key> = None;

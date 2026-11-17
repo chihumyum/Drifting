@@ -58,7 +58,6 @@ feedback.crash.title
 feedback.crash.placeholder
 feedback.crash.ignore
 feedback.crash.emailSubject
-settings.title
 settings.search_placeholder
 settings.groups.preferences
 settings.groups.control
@@ -256,13 +255,9 @@ userMenu.localMenu
 userMenu.localStatus
 userMenu.theme
 userMenu.themeLight
-userMenu.themeLightShort
 userMenu.themeDark
-userMenu.themeDarkShort
 userMenu.themeSystem
-userMenu.themeSystemShort
 userMenu.language
-userMenu.settings
 common.untitled
 common.customColor
 common.counting

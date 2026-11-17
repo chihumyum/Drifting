@@ -1222,7 +1222,6 @@
         "turnOff": "Markdown 폴더 끄기"
       }
     },
-    "title": "설정",
     "update": {
       "channel_desc": "Apple Silicon · macOS 13 이상",
       "check": "새 버전",
@@ -1426,16 +1425,12 @@
     "language": "언어",
     "localMenu": "로컬 라이브러리 메뉴",
     "localStatus": "로컬 · 이 기기에 저장",
-    "settings": "설정",
     "signOut": "로그아웃",
     "signingOut": "로그아웃 중…",
     "theme": "테마",
     "themeDark": "어둡게",
-    "themeDarkShort": "어둡게",
     "themeLight": "밝게",
-    "themeLightShort": "밝게",
-    "themeSystem": "시스템 설정 따르기",
-    "themeSystemShort": "시스템"
+    "themeSystem": "시스템 설정 따르기"
   },
   "v3Levels": {
     "accept": "다른 곳의 항목 받기",

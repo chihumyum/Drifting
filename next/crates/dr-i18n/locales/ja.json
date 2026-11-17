@@ -1222,7 +1222,6 @@
         "turnOff": "Markdownフォルダを無効化"
       }
     },
-    "title": "設定",
     "update": {
       "channel_desc": "Apple Silicon・macOS 13以降",
       "check": "新しいバージョン",
@@ -1426,16 +1425,12 @@
     "language": "言語",
     "localMenu": "ローカルライブラリのメニュー",
     "localStatus": "ローカル・この端末に保存",
-    "settings": "設定",
     "signOut": "ログアウト",
     "signingOut": "ログアウト中…",
     "theme": "テーマ",
     "themeDark": "ダーク",
-    "themeDarkShort": "ダーク",
     "themeLight": "ライト",
-    "themeLightShort": "ライト",
-    "themeSystem": "システムに合わせる",
-    "themeSystemShort": "システム"
+    "themeSystem": "システムに合わせる"
   },
   "v3Levels": {
     "accept": "ほかの場所の項目を受け入れる",

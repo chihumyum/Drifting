@@ -1238,7 +1238,6 @@
         "turnOff": "Désactiver le dossier Markdown"
       }
     },
-    "title": "Réglages",
     "update": {
       "channel_desc": "Apple Silicon · macOS 13 ou ultérieur",
       "check": "Nouvelle version",
@@ -1442,16 +1441,12 @@
     "language": "Langue",
     "localMenu": "Menu de la bibliothèque locale",
     "localStatus": "LOCAL · SUR CET APPAREIL",
-    "settings": "Réglages",
     "signOut": "Se déconnecter",
     "signingOut": "Déconnexion…",
     "theme": "Thème",
     "themeDark": "Sombre",
-    "themeDarkShort": "Sombre",
     "themeLight": "Clair",
-    "themeLightShort": "Clair",
-    "themeSystem": "Suivre le système",
-    "themeSystemShort": "Système"
+    "themeSystem": "Suivre le système"
   },
   "v3Levels": {
     "accept": "Accepter les entrées d’ailleurs",
