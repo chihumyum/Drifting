@@ -234,7 +234,8 @@ const LABEL_CLEAR: f32 = 12.0;
 
 /// Where each curve's name goes (its centre), `widths` its estimated
 /// width: on a blank near the curve's middle that the curve crosses within
-/// 4 px and no earlier name touches; else at the nearest blank's crossing.
+/// 4 px and no earlier name touches. A short arc may reach only one blank;
+/// if it is occupied, use a free neighboring blank even beyond the arc.
 pub fn place_labels(curves: &[Curve], widths: &[f32], blanks: &[f32]) -> Vec<(f32, f32)> {
     let mut placed: Vec<(f32, f32, f32)> = Vec::new();
     let mut out = Vec::with_capacity(curves.len());
@@ -242,13 +243,12 @@ pub fn place_labels(curves: &[Curve], widths: &[f32], blanks: &[f32]) -> Vec<(f3
         let mid = curve.at(0.5);
         let mut rows: Vec<f32> = blanks.to_vec();
         rows.sort_by(|p, q| (p - mid.1).abs().total_cmp(&(q - mid.1).abs()));
-        rows.truncate(6);
         let at = |y: f32| {
             let (p, off) = curve.nearest_to_height(y);
             ((p.0, if off > 4.0 { p.1 } else { y }), off)
         };
         let mut pos = None;
-        for &y in &rows {
+        for &y in rows.iter().take(6) {
             let (c, off) = at(y);
             if off > 4.0 {
                 continue;
@@ -260,6 +260,19 @@ pub fn place_labels(curves: &[Curve], widths: &[f32], blanks: &[f32]) -> Vec<(f3
             }
             pos = Some(c);
             break;
+        }
+        // Two distinct same-line pairs can have their labels at the same
+        // blank. Do not fall straight back onto the occupied position just
+        // because the short arcs cannot reach the neighboring blank.
+        if pos.is_none() {
+            pos = rows.iter().find_map(|&y| {
+                let (on_curve, _) = curve.nearest_to_height(y);
+                let c = (on_curve.0, y);
+                let occupied = placed.iter().any(|&(qx, qy, qw)| {
+                    (qy - c.1).abs() < LABEL_CLEAR && (qx - c.0).abs() < (qw + w) / 2.0 + 4.0
+                });
+                (!occupied).then_some(c)
+            });
         }
         let pos = pos.unwrap_or_else(|| match rows.first() {
             Some(&y) => at(y).0,
@@ -417,6 +430,37 @@ mod tests {
         assert!(
             (at[0].1 - at[1].1).abs() >= LABEL_CLEAR,
             "the second moved to the next blank"
+        );
+    }
+
+    #[test]
+    fn short_arcs_move_colliding_names_to_a_neighboring_blank() {
+        // Four distinct names on one prose row, ordered A C D B, with
+        // relations A-B and C-D. These are actual name-box-generated arcs,
+        // not duplicate edges (which the prose layer would coalesce).
+        let [a, c, d, b] = [
+            name("a", 100., 9.),
+            name("c", 140., 9.),
+            name("d", 260., 9.),
+            name("b", 300., 9.),
+        ];
+        let curves = [curve(&a.rect, &b.rect), curve(&c.rect, &d.rect)];
+        let rows = [
+            Bounds::new(point(px(0.), px(0.)), size(px(500.), px(34.))),
+            Bounds::new(point(px(0.), px(34.)), size(px(500.), px(34.))),
+        ];
+        let blanks = blanks(&rows);
+        let at = place_labels(&curves, &[100., 100.], &blanks);
+        assert_eq!(at[0].1, 34., "the first name keeps its place on the arc");
+        for (_, y) in &at {
+            assert!(
+                blanks.contains(y),
+                "a relation name stays between text rows"
+            );
+        }
+        assert!(
+            (at[0].1 - at[1].1).abs() >= 14.,
+            "the second 14 px label moves to a free neighboring blank"
         );
     }
 
