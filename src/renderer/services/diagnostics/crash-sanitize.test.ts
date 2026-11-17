@@ -23,6 +23,17 @@ describe('crash report sanitizing', () => {
     expect(sanitizeReportText('x'.repeat(400))).toHaveLength(300);
   });
 
+  it('keeps the fixed wording of a failed native setup, and redacts what follows it on its own', () => {
+    const prefix = 'Failed to setup app: error encountered during setup hook: ';
+    expect(sanitizeReportText(`${prefix}runtime error: failed to receive message from webview`)).toBe(
+      `${prefix}runtime error: failed to receive message from webview`,
+    );
+    expect(sanitizeReportText(`${prefix}the quick brown fox jumps over the lazy dog again and again and again`))
+      .toBe(`${prefix}[text]`);
+    // Only at the start: the same words elsewhere count like any others.
+    expect(sanitizeReportText(`while closing: ${prefix}window not found`)).toBe('[text]');
+  });
+
   it('redacts a Windows home folder, spaces in the name included', () => {
     // Built at runtime so the source holds no personal absolute path.
     const home = ['C:', 'Users', 'Some One'].join('\\');
