@@ -940,7 +940,13 @@ fn state_of(owner: gpui::EntityId, ws: &Workspace, window: &Window, cx: &App) ->
             "version": book.v3().map(|_| dr_doc::schema::BOOK_SCHEMA_VERSION),
         },
         "v3": book.v3(),
-        "v3Sidebar": ws.v3_sidebar.as_ref().map(|s| s.read(cx).state(cx)),
+        "v3Sidebar": ws.v3_sidebar.as_ref().map(|s| {
+            let s = s.read(cx);
+            let mut state = s.state(cx);
+            // KB: where the keyboard is in the left column.
+            state["keyboard"] = s.keyboard_state(window, cx);
+            state
+        }),
         "v3Page": v3_page,
         "v3Appearance": ws.nav.current().and_then(|t| match t { Target::Entry { id, .. } => book.v3()?.appearance(id.as_str()), _ => None }).map(|a| json!({ "mark": a.mark, "color": a.color })),
         "shelf": ws.shelf_open,

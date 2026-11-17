@@ -263,6 +263,10 @@ pub struct Open {
     /// from a create row: its head focuses the title once drawn, so the
     /// shell does not hand the editor the keyboard).
     pub title: bool,
+    /// The keyboard stays where it is: the shell does not hand the page's
+    /// editor the keyboard when it comes to the front (a preview from the
+    /// left column's tree, KB).
+    pub stay: bool,
 }
 
 impl Open {
@@ -271,12 +275,14 @@ impl Open {
         preview: true,
         activate: true,
         title: false,
+        stay: false,
     };
     /// A double click, a new entity, a link: kept.
     pub const KEEP: Open = Open {
         preview: false,
         activate: true,
         title: false,
+        stay: false,
     };
 
     /// The same, the page's title taking the caret.
@@ -285,6 +291,12 @@ impl Open {
             title: true,
             ..self
         }
+    }
+
+    /// The same, the keyboard staying where it is (in the left column's
+    /// tree): the page comes to the front without it.
+    pub const fn stay(self) -> Open {
+        Open { stay: true, ..self }
     }
 }
 

@@ -1125,6 +1125,10 @@
           "desc": "Sucht Text im geöffneten Editor",
           "label": "Im aktuellen Editor suchen"
         },
+        "focusLeftSidebar": {
+          "desc": "Die linke Seitenleiste mit den Pfeiltasten durchgehen; erneut drücken oder Esc, um zur Seite zurückzukehren",
+          "label": "In die linke Seitenleiste"
+        },
         "globalSearch": {
           "desc": "Durchsucht Kapitel, Handlungsstränge, Elemente und Kategorien",
           "label": "Globale Suche"

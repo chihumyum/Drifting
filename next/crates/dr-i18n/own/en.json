@@ -180,6 +180,14 @@
       "refused_version": "The downloaded update isn't the version it claims to be, possibly an older one, and was refused. This version keeps working.",
       "restart": "Restart to Update",
       "server_error": "The update service has a problem right now. Try again later; this version keeps working."
+    },
+    "keys": {
+      "actions": {
+        "focusLeftSidebar": {
+          "desc": "Walk the left sidebar with the arrow keys; press again or Esc to return to the page",
+          "label": "Move into the left sidebar"
+        }
+      }
     }
   },
   "templateEditor": {

@@ -21,6 +21,7 @@ pub mod editors;
 mod fill;
 pub mod find;
 pub mod immersive;
+mod left_keys;
 mod links;
 mod mounted;
 pub mod outline;
@@ -56,8 +57,8 @@ use gpui::{
 use serde::{Deserialize, Serialize};
 
 use crate::actions::{
-    CloseActiveTab, Dismiss, FindInEditor, GlobalSearch, GoBack, GoForward, NewEntity, NextTab,
-    OpenSettings, PreviousTab, ReplaceInEditor, SendFeedback, ShowProjectHome,
+    CloseActiveTab, Dismiss, FindInEditor, FocusLeftSidebar, GlobalSearch, GoBack, GoForward,
+    NewEntity, NextTab, OpenSettings, PreviousTab, ReplaceInEditor, SendFeedback, ShowProjectHome,
     ToggleBottomTimeline, ToggleImmersiveWriting, ToggleLeftSidebar, ToggleNotifications,
     ToggleRightSidebar,
 };
@@ -79,7 +80,7 @@ pub use dock::{DOCK_NEW, DOCK_ROW, DockDrag};
 pub use editors::PageEditor;
 pub use fill::FillPlace;
 pub use sea::{FIRST_RUN_DONE, SeaState};
-pub use sidebar::{LeftTab, RightTab, Side, page_hover_card};
+pub use sidebar::{LeftTab, RightTab, Side, page_hover_card, page_hover_card_keyed};
 pub use stage::EditorLook;
 
 /// The 0.1 client's default and minimum window sizes.
@@ -413,6 +414,14 @@ pub struct Workspace {
     /// The page (its target key) opened with [`Open::at_title`]: its
     /// editor does not get the keyboard when it opens.
     title_first: Option<String>,
+    /// The page (its target key) opened with [`Open::stay`]: it comes to the
+    /// front without the keyboard (a preview from the left column's tree).
+    stay_keyboard: Option<String>,
+    /// ⌘⇧L asked for the keyboard in the left column: the column takes it
+    /// once it is drawn (KB).
+    want_left_keyboard: bool,
+    /// A press on the paper began with the keyboard in the left column.
+    paper_press_from_left: bool,
     /// The left tabs modules draw, made the first time a pane shows them
     /// (pane slug and tab; `None`: no module draws it).
     /// The 帮手 tab a module draws, per pane slug (as the left panels).
@@ -609,6 +618,9 @@ impl Workspace {
             touched: None,
             recent_recorder: None,
             title_first: None,
+            stay_keyboard: None,
+            want_left_keyboard: false,
+            paper_press_from_left: false,
             toast: None,
             toast_timer: None,
             structure_undo: undo::StructureUndo::default(),
@@ -1556,6 +1568,12 @@ impl Workspace {
         if how.title {
             self.title_first = Some(target.key());
         }
+        // Already in front, the page does not change: nothing to keep.
+        let in_front = self
+            .nav
+            .current()
+            .is_some_and(|current| current.same_page(&target));
+        self.stay_keyboard = (how.stay && !in_front).then(|| target.key());
         self.nav.open(target.clone(), how);
         self.visited_on_open_page(&target, cx);
         self.changed(cx);
@@ -1717,6 +1735,10 @@ impl Workspace {
         )
         .on_action(
             cx.listener(|ws, _: &ToggleRightSidebar, window, cx| ws.toggle_right(window, cx)),
+        )
+        // ⌘⇧L: the keyboard into the left column and back (KB, `left_keys.rs`).
+        .on_action(
+            cx.listener(|ws, _: &FocusLeftSidebar, window, cx| ws.toggle_left_keyboard(window, cx)),
         )
         .on_action(cx.listener(|ws, _: &GoBack, window, cx| {
             if ws.exit_fill(window, cx) {

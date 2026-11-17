@@ -13,6 +13,17 @@
 //! add a Tab. The button again, Esc or a click outside the column ends it.
 //! A Tab whose mount is gone stays, faded; it says so and offers to remove
 //! it. Which Tab is selected goes with the project (`tab.select`).
+//!
+//! The keyboard (KB, `kernel-v5.md` §15 item 48): ⌘⇧L gives the selected
+//! Tab's tree the keyboard ([`Sidebar::take_keyboard`]; the tree lands on the
+//! row of the page in front), or the Tab row when the Tab shows no tree the
+//! keyboard walks (a board, islands, the book, a gone mount). On the Tab row
+//! the selected Tab has the still ring; ← → choose the Tab before or after
+//! (written with `tab.select`, like a click), stopping at the ends, the
+//! manage button not on the way; ↓ goes back into the tree; Esc back to the
+//! page. A click on a Tab leaves the keyboard where it was, a tree's going
+//! into the new Tab's tree. Managing takes no keys; when it ends the
+//! keyboard goes back to where it was when it began.
 use super::{
     DisplaySurface, LevelHost, ROOT_LEVEL, Rendered,
     manage::{MountDrag, Structure},
@@ -20,6 +31,7 @@ use super::{
     tabs,
 };
 use crate::{
+    actions::left,
     pages::PageViewHost,
     strings::{t, tf, tp},
 };
@@ -63,6 +75,13 @@ pub struct Sidebar {
     slot: Option<usize>,
     dragging: Option<String>,
     focus: FocusHandle,
+    /// The Tab row's own focus, while the keyboard is on it (KB).
+    tab_focus: FocusHandle,
+    /// The keyboard is to land in the selected Tab's tree once it is drawn
+    /// (or on the Tab row, when the Tab shows no tree it walks).
+    want_tree_keys: bool,
+    /// Where the keyboard was when managing began: it goes back there.
+    managing_return: Option<FocusHandle>,
     structure: Entity<Structure>,
     /// Whether the filled left sidebar is currently showing `模板结构` rather than `Tab`.
     in_structure: bool,
@@ -91,6 +110,9 @@ impl Sidebar {
             slot: None,
             dragging: None,
             focus: cx.focus_handle(),
+            tab_focus: cx.focus_handle(),
+            want_tree_keys: false,
+            managing_return: None,
             structure,
             in_structure: false,
             filled: false,
@@ -385,6 +407,8 @@ impl Sidebar {
         self.managing.is_some()
     }
     /// Turns managing on (the column takes the keyboard, for Esc) or off.
+    /// Off, the keyboard goes back to where it was when managing began (the
+    /// tree's row, the Tab row or the page).
     pub fn set_managing(&mut self, on: bool, window: &mut Window, cx: &mut Context<Self>) {
         if on == self.managing.is_some() {
             return;
@@ -393,9 +417,116 @@ impl Sidebar {
         self.slot = None;
         self.dragging = None;
         if on {
+            self.managing_return = window.focused(cx).filter(|f| *f != self.focus);
             window.focus(&self.focus, cx);
+        } else if let Some(back) = self.managing_return.take()
+            && self.focus.is_focused(window)
+        {
+            window.focus(&back, cx);
         }
         cx.notify();
+    }
+
+    // The keyboard (KB).
+
+    /// Whether the keyboard is anywhere in the column: its tree, its Tab
+    /// row, a row's card, or the column itself (while managing).
+    pub fn has_keyboard(&self, window: &Window, cx: &App) -> bool {
+        self.focus.contains_focused(window, cx)
+    }
+
+    /// What the selected Tab shows in the column as it usually is (not
+    /// filled), once made: a tree's view (tests, the debug bridge).
+    pub fn shown_display(&self) -> Option<AnyView> {
+        let id = self.selected.as_ref()?;
+        self.displays.get(id).map(|(_, part)| part.view.clone())
+    }
+
+    /// Whether the keyboard is on the Tab row.
+    pub fn tabs_have_keyboard(&self, window: &Window) -> bool {
+        self.tab_focus.is_focused(window)
+    }
+
+    /// ⌘⇧L: the selected Tab's tree takes the keyboard once drawn, or the
+    /// Tab row when the Tab shows no tree the keyboard walks. Nothing while
+    /// managing or filled.
+    pub fn take_keyboard(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.managing.is_some() || self.filled || self.in_structure {
+            return;
+        }
+        let _ = window;
+        self.want_tree_keys = true;
+        cx.notify();
+    }
+
+    /// The keyboard onto the Tab row (from the tree's first row, ↑).
+    pub fn keyboard_to_tabs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.managing.is_some() || self.filled {
+            return;
+        }
+        window.focus(&self.tab_focus, cx);
+        cx.notify();
+    }
+
+    /// Where the keyboard is in the column, for the debug bridge: `tabs`,
+    /// `tree` (with the selected Tab's own reading of its row), `column`
+    /// (managing) or nothing.
+    pub fn keyboard_state(&self, window: &Window, cx: &App) -> Value {
+        let tree = self
+            .selected
+            .as_ref()
+            .and_then(|id| self.displays.get(id))
+            .and_then(|(_, part)| part.keyboard_state.as_ref())
+            .map(|state| state(window, cx));
+        let place = if self.tab_focus.is_focused(window) {
+            Some("tabs")
+        } else if tree
+            .as_ref()
+            .is_some_and(|t| t["focused"].as_bool() == Some(true))
+        {
+            Some("tree")
+        } else if self.has_keyboard(window, cx) {
+            Some("column")
+        } else {
+            None
+        };
+        json!({ "in": place, "tree": tree })
+    }
+
+    /// The selected Tab's tree takes the keyboard now, if it walks one;
+    /// else the Tab row does.
+    fn land_keyboard(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let land = self
+            .selected
+            .as_ref()
+            .and_then(|id| self.displays.get(id))
+            .and_then(|(_, part)| part.land.clone());
+        match land {
+            Some(land) => {
+                // Outside this view's update: the tree reads the workspace.
+                window.defer(cx, move |window, cx| land(window, cx));
+            }
+            None => window.focus(&self.tab_focus, cx),
+        }
+    }
+
+    /// The Tab row's keys (KB).
+    fn tab_key(&mut self, step: isize, window: &mut Window, cx: &mut Context<Self>) {
+        let ids = self.tab_ids();
+        let Some(at) = self
+            .selected
+            .as_ref()
+            .and_then(|id| ids.iter().position(|t| t == id))
+        else {
+            return;
+        };
+        let next = at as isize + step;
+        if next < 0 || next as usize >= ids.len() {
+            return;
+        }
+        let id = ids[next as usize].clone();
+        self.choose(&id, cx);
+        window.focus(&self.tab_focus, cx);
     }
 
     // Tab writes.
@@ -512,10 +643,18 @@ impl Sidebar {
 
     /// The row as it usually is: the Tabs, scrolling sideways, and the
     /// manage button.
-    fn tab_row(&mut self, controls: Option<AnyElement>, cx: &mut Context<Self>) -> AnyElement {
+    fn tab_row(
+        &mut self,
+        controls: Option<AnyElement>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
         let Some(v) = self.host.book.v3() else {
             return div().into_any_element();
         };
+        // The keyboard walks the row only in the column as it usually is.
+        let keyed = !self.filled && !self.in_structure;
+        let on_row = keyed && self.tab_focus.is_focused(window);
         let tabs = v.project.tabs.clone();
         let labels: Vec<SharedString> = tabs.iter().map(|t| self.name(t, cx)).collect();
         let selected = if self.in_structure {
@@ -537,6 +676,38 @@ impl Sidebar {
         div()
             .id("v3-tab-row")
             .debug_selector(|| "v3-tab-row".into())
+            .when(keyed, |el| {
+                el.track_focus(&self.tab_focus)
+                    .key_context(crate::keymap::LEFT_TABS)
+                    // A press on a Tab or the manage button leaves the
+                    // keyboard where it was (the prototype): no focus here.
+                    .on_mouse_down(MouseButton::Left, |_, window, _| window.prevent_default())
+                    .on_action(
+                        cx.listener(|this, _: &left::Left, window, cx| {
+                            this.tab_key(-1, window, cx)
+                        }),
+                    )
+                    .on_action(
+                        cx.listener(|this, _: &left::Right, window, cx| {
+                            this.tab_key(1, window, cx)
+                        }),
+                    )
+                    .on_action(cx.listener(|this, _: &left::Down, _, cx| {
+                        this.want_tree_keys = true;
+                        cx.notify();
+                    }))
+                    .on_action(cx.listener(|this, _: &left::Back, window, cx| {
+                        let ws = this.host.workspace.clone();
+                        let layer = ws
+                            .upgrade()
+                            .is_some_and(|ws| ws.read(cx).top_layer().is_some());
+                        if layer {
+                            cx.propagate();
+                            return;
+                        }
+                        let _ = ws.update(cx, |ws, cx| ws.keyboard_to_page(window, cx));
+                    }))
+            })
             .flex_shrink_0()
             .px_2()
             .flex()
@@ -559,10 +730,19 @@ impl Sidebar {
                         Segmented::new("v3-level-tabs", labels, selected)
                             .font(Role::Structure)
                             .faint(faint)
-                            .on_change(move |index, _, cx| {
+                            .keyboard(on_row.then_some(selected))
+                            .on_change(move |index, window, cx| {
                                 let _ = weak.update(cx, |this, cx| {
                                     if let Some(id) = ids.get(index) {
+                                        // The keyboard in the tree goes on
+                                        // into the new Tab's tree.
+                                        let in_tree = this.managing.is_none()
+                                            && this.has_keyboard(window, cx)
+                                            && !this.tab_focus.is_focused(window);
                                         this.choose(id, cx);
+                                        if in_tree {
+                                            this.want_tree_keys = true;
+                                        }
                                     }
                                 });
                             }),
@@ -1091,7 +1271,7 @@ impl Render for Sidebar {
                 .filter(|tab| self.filled && !tabs::is_gone(v, &tab.mount))
                 .map(|tab| self.fill_layout_selector(tab.clone(), cx))
         };
-        content = content.child(self.tab_row(controls, cx));
+        content = content.child(self.tab_row(controls, window, cx));
         let body = if self.filled && self.in_structure {
             self.template_structure.as_ref().map_or_else(
                 || div().into_any_element(),
@@ -1103,8 +1283,41 @@ impl Render for Sidebar {
                 |tab| self.body(&tab, window, cx),
             )
         };
+        // The keyboard asked for (⌘⇧L, ↓ on the Tab row, a click on a Tab
+        // from the tree): the Tab's tree is made by now.
+        if std::mem::take(&mut self.want_tree_keys) && !self.filled && !self.in_structure {
+            self.land_keyboard(window, cx);
+        }
+        let keyed = !self.filled && !self.in_structure;
         content
-            .child(div().flex_1().min_h_0().px_2().py_2().child(body))
+            .child(
+                div()
+                    .flex_1()
+                    .min_h_0()
+                    .px_2()
+                    .py_2()
+                    // A press round the tree that nothing in it took: the
+                    // tree's blank space too, the keyboard landing in it.
+                    .when(keyed, |el| {
+                        el.on_mouse_down(
+                            MouseButton::Left,
+                            cx.listener(|this, _: &MouseDownEvent, window, cx| {
+                                let walks = this
+                                    .selected
+                                    .as_ref()
+                                    .and_then(|id| this.displays.get(id))
+                                    .is_some_and(|(_, part)| part.land.is_some());
+                                if window.default_prevented() || this.managing.is_some() || !walks {
+                                    return;
+                                }
+                                this.want_tree_keys = true;
+                                window.prevent_default();
+                                cx.notify();
+                            }),
+                        )
+                    })
+                    .child(body),
+            )
             .child(self.templates(window, cx))
             .into_any_element()
     }

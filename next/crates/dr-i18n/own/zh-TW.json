@@ -173,6 +173,14 @@
       "refused_version": "下載的更新不是它標示的版本，可能是舊版本，已拒絕。目前版本仍可繼續使用。",
       "restart": "重新啟動以更新",
       "server_error": "更新服務暫時出了問題，請稍後重試。目前版本仍可繼續使用。"
+    },
+    "keys": {
+      "actions": {
+        "focusLeftSidebar": {
+          "desc": "鍵盤到左欄裡用方向鍵走；再按一次或按 Esc 回到頁面",
+          "label": "進出左欄"
+        }
+      }
     }
   },
   "templateEditor": {

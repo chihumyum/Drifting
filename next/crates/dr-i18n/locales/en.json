@@ -1125,6 +1125,10 @@
           "desc": "Find text in the currently open editor",
           "label": "Find in current editor"
         },
+        "focusLeftSidebar": {
+          "desc": "Walk the left sidebar with the arrow keys; press again or Esc to return to the page",
+          "label": "Move into the left sidebar"
+        },
         "globalSearch": {
           "desc": "Search across chapters, storylines, elements, and categories",
           "label": "Global search"

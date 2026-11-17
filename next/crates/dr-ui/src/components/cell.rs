@@ -14,6 +14,12 @@
 //! thumbnail: [`SandCell::lead`]) and carry a quieter second line under
 //! its name ([`SandCell::subline`]: a material's kind or first words); with a
 //! second line the row grows to fit it.
+//!
+//! Where the keyboard is in a list (a left-column Tab's tree, KB:
+//! [`SandCell::keyboard`]) the ring stays, still: the resting selection of
+//! the design system, strength 1, not flowing, under the pointer too, and
+//! with the brush frame round an open row as well. It goes when the
+//! keyboard leaves the list.
 
 use std::rc::Rc;
 
@@ -48,6 +54,7 @@ pub struct SandCell {
     hollow: bool,
     color: Option<Rgb>,
     selected: bool,
+    keyboard: bool,
     disabled: bool,
     font: Role,
     italic: bool,
@@ -68,6 +75,7 @@ impl SandCell {
             hollow: false,
             color: None,
             selected: false,
+            keyboard: false,
             disabled: false,
             font: Role::Ui,
             italic: false,
@@ -120,6 +128,14 @@ impl SandCell {
     /// Open in the editor: the brush goes round it.
     pub fn selected(mut self, selected: bool) -> Self {
         self.selected = selected;
+        self
+    }
+
+    /// The keyboard is on this row (KB): the ring stays, still, whatever
+    /// the pointer does, beside the frame of an open row. A painted cell
+    /// with it says so to tests through the debug selector `{id}-keyboard`.
+    pub fn keyboard(mut self, keyboard: bool) -> Self {
+        self.keyboard = keyboard;
         self
     }
 
@@ -182,13 +198,16 @@ impl RenderOnce for SandCell {
         let s = theme.scale;
         let selected = self.selected;
         let interactive = !self.disabled;
+        let keyboard = self.keyboard && interactive;
         // The ring: hidden glass that answers hover only, and never while
-        // the cell is selected (the frame shows it then).
+        // the cell is selected (the frame shows it then). Where the
+        // keyboard is, it is held still (the glass's selected state, which
+        // the pointer does not set drifting).
         let ring = glass::use_state(
             child_id(&self.id, "ring"),
             Kind::Hidden,
             Mode::default(),
-            false,
+            keyboard,
             theme,
             window,
             cx,
@@ -251,8 +270,12 @@ impl RenderOnce for SandCell {
                 )
                 .into_any_element(),
         };
+        let keyboard_selector = self.id.clone();
         div()
             .id(self.id.clone())
+            .when(keyboard, |el| {
+                el.debug_selector(move || format!("{keyboard_selector}-keyboard"))
+            })
             .relative()
             .when(!two_lines, |el| {
                 el.h(px(if dense { 22.0 } else { s.row_height }))
