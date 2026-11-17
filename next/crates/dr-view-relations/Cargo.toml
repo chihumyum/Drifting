@@ -5,10 +5,21 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
-description = "Drifting's relation graph legend and shared rule rendering"
+description = "Drifting's relation graph legend and the right sidebar's relations"
 
 [dependencies]
 dr-i18n.workspace = true
+dr-model.workspace = true
 dr-shell.workspace = true
+dr-store.workspace = true
 dr-ui.workspace = true
+dr-workspace.workspace = true
+futures.workspace = true
 gpui.workspace = true
+log.workspace = true
+
+[dev-dependencies]
+dr-testkit.workspace = true
+gpui = { workspace = true, features = ["test-support"] }
+serde_json.workspace = true
+tempfile.workspace = true

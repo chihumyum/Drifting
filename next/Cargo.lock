@@ -2360,9 +2360,17 @@ name = "dr-view-relations"
 version = "0.0.0"
 dependencies = [
  "dr-i18n",
+ "dr-model",
  "dr-shell",
+ "dr-store",
+ "dr-testkit",
  "dr-ui",
+ "dr-workspace",
+ "futures",
  "gpui",
+ "log",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]
@@ -2631,6 +2639,7 @@ dependencies = [
  "dr-view-material",
  "dr-view-page",
  "dr-view-plot",
+ "dr-view-relations",
  "dr-view-sea",
  "dr-view-search",
  "dr-view-shelf",
