@@ -92,6 +92,15 @@
       "note": "再进左栏：停在开着的第二章那一行"
     },
     { "app": "ui.screenshot", "png": "kb-row-light.png" },
+    { "app": "input.key", "params": { "keys": "down" } },
+    {
+      "app": "state.get",
+      "expect": { "/v3Sidebar/keyboard/tree/row/entry": "${chapters.2.id}" },
+      "note": "键盘停在第三章，砂笔框还在开着的第二章上：两样分开看"
+    },
+    { "app": "ui.screenshot", "png": "kb-row-apart-light.png" },
+    { "app": "input.key", "params": { "keys": "up" } },
+    { "app": "state.get", "expect": { "/v3Sidebar/keyboard/tree/row/entry": "${chapters.1.id}" } },
     { "app": "input.key", "params": { "keys": "space" } },
     {
       "app": "ui.wait",
@@ -156,9 +165,9 @@
     { "app": "input.type", "params": { "text": "乙" } },
     {
       "app": "page.text",
-      "params": { "target": "entry:${chapters.1.id}/mod-prose" },
+      "save": "typed",
       "contains": { "/paragraphs/0/text": "（甲）乙" },
-      "note": "接着打的字落在离开前的地方"
+      "note": "接着打的字落在离开前的地方（第二章正文开头，「（甲）」后面）"
     },
     { "app": "app.quit", "expect": { "/quit": true } },
 
@@ -173,16 +182,24 @@
     },
     { "app": "ui.wait", "params": { "timeout_ms": 30000 } },
     { "app": "window.focus" },
-    { "app": "book.open", "params": { "book": "${books.[name=慢钟].id}" } },
-    { "app": "ui.wait", "params": { "state": { "/book/version": 5 } } },
-    { "app": "nav.open", "params": { "target": "entry:${chapters.1.id}/mod-prose" } },
-    { "app": "ui.wait", "params": { "state": { "/v3Page/focus/within": true }, "timeout_ms": 15000 } },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": { "/book/version": 5, "/page": "entry:${chapters.1.id}", "/v3Page/focus/within": true },
+        "timeout_ms": 15000
+      },
+      "note": "重开 App 回到《慢钟》和开着的第二章，键盘在它的正文里，左栏照上次开着、停在「书稿」Tab（不再 book.open：对已经开着的书再 book.open 会把键盘交给窗口本身，见交回报告）"
+    },
     { "app": "input.key", "params": { "keys": "secondary-shift-l" } },
     {
       "app": "ui.wait",
       "params": { "state": { "/left/open": true, "/v3Sidebar/keyboard/in": "tree", "/v3Sidebar/keyboard/tree/row/entry": "${chapters.1.id}" } }
     },
     { "app": "ui.screenshot", "png": "kb-row-dark.png" },
+    { "app": "input.key", "params": { "keys": "down" } },
+    { "app": "state.get", "expect": { "/v3Sidebar/keyboard/tree/row/entry": "${chapters.2.id}" } },
+    { "app": "ui.screenshot", "png": "kb-row-apart-dark.png" },
+    { "app": "input.key", "params": { "keys": "up" } },
     { "app": "input.key", "params": { "keys": "space" } },
     { "app": "ui.wait", "params": { "state": { "/v3Sidebar/keyboard/tree/cardRow": 0 } } },
     { "app": "ui.screenshot", "png": "kb-card-dark.png" },
