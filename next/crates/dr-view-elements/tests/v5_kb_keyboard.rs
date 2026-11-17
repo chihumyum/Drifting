@@ -1185,6 +1185,11 @@ fn a_grid_is_walked_by_where_its_tiles_are(cx: &mut TestAppContext) {
         .as_str()
         .unwrap()
         .to_owned();
+    let grouped = call(
+        &lib,
+        "entry.create",
+        json!({"book": book, "parent": after, "template": "tpl-character", "title": "合成框内人物"}),
+    )["id"].as_str().unwrap().to_owned();
     call(
         &lib,
         "tab.put",
@@ -1202,7 +1207,7 @@ fn a_grid_is_walked_by_where_its_tiles_are(cx: &mut TestAppContext) {
     assert_eq!(
         stops
             .iter()
-            .filter(|s| s.tile)
+            .filter(|s| s.tile && s.parent.as_deref() == Some(people.as_str()))
             .map(|s| s.id.clone())
             .collect::<Vec<_>>(),
         tiles
@@ -1253,6 +1258,64 @@ fn a_grid_is_walked_by_where_its_tiles_are(cx: &mut TestAppContext) {
         in_tree(&ws, cx, &tiles[3]),
         "back into the grid: its last line"
     );
+    // The common compact presentation frames this category, but a stored
+    // grid keeps its existing keyboard walk, including cells in the frame.
+    keys(cx, "down right");
+    assert!(
+        in_tree(&ws, cx, &grouped),
+        "→ into the category's drawn tile"
+    );
+    assert!(
+        tile_ring(cx, &ws, &grouped),
+        "the framed tile has its keyboard ring"
+    );
+    keys(cx, "left");
+    assert!(
+        in_tree(&ws, cx, &after),
+        "← from its first cell returns to the category"
+    );
+    keys(cx, "left right right");
+    assert!(
+        in_tree(&ws, cx, &grouped),
+        "fold / unfold / enter the category"
+    );
+    keys(cx, "escape");
+    let selectors: Vec<&'static str> = tiles
+        .iter()
+        .map(|id| &*Box::leak(format!("g2-tile-name-{id}").into_boxed_str()))
+        .collect();
+    let mut lines = Vec::new();
+    for width in [600.0, 280.0, 600.0] {
+        ws.update(cx, |ws, cx| {
+            ws.left.width = width;
+            cx.notify();
+        });
+        for _ in 0..5 {
+            pump(cx);
+        }
+        let places: Vec<_> = selectors
+            .iter()
+            .map(|s| cx.debug_bounds(s).expect("resized grid tile"))
+            .collect();
+        let first_line = places
+            .iter()
+            .filter(|b| b.origin.y == places[0].origin.y)
+            .count();
+        lines.push(first_line);
+        keys(cx, "cmd-shift-l down");
+        assert!(in_tree(&ws, cx, &tiles[0]));
+        keys(cx, "down");
+        let destination = places
+            .iter()
+            .position(|b| b.origin.y > places[0].origin.y)
+            .map_or(after.as_str(), |i| tiles[i].as_str());
+        assert!(
+            in_tree(&ws, cx, destination),
+            "↓ follows the painted row after resizing to {width}: {places:?}"
+        );
+        keys(cx, "escape");
+    }
+    assert_eq!(lines, [4, 2, 4], "grid keys saw the actual reflowed rows");
 }
 
 /// ⌘Z with the keyboard in the column (the tree, a card, the Tab row) undoes

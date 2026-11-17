@@ -299,44 +299,153 @@ fn the_compact_indexs_tiles_stand_in_columns(cx: &mut TestAppContext) {
         json!({"book": book, "mount": {"kind": "entry", "entry": people}}),
     );
     let (ws, cx) = open_at(cx, &lib, &book, "standard");
-    // The column's own width: two columns narrower than a tile's widest,
-    // so a tile left to grow on a short last line stands off them.
     tab(&ws, cx, Some(&people));
     let selectors: Vec<&'static str> = tiles
         .iter()
         .map(|tile| &*Box::leak(format!("g2-tile-name-{tile}").into_boxed_str()))
         .collect();
-    wait_until(cx, "the tiles drawn", |cx| {
-        selectors.iter().all(|s| cx.debug_bounds(s).is_some())
-    });
-    // A second frame: the columns come from the line's drawn width.
-    pump(cx);
-    let bounds: Vec<_> = selectors
-        .iter()
-        .map(|s| cx.debug_bounds(s).unwrap())
+    let mut counts = Vec::new();
+    for width in [600.0, 280.0, 600.0] {
+        ws.update(cx, |w, cx| {
+            w.left.width = width;
+            cx.notify();
+        });
+        wait_until(cx, "the tiles drawn after resizing", |cx| {
+            selectors.iter().all(|s| cx.debug_bounds(s).is_some())
+        });
+        // Reflow follows the real list body; let the deferred measurement
+        // and the virtual list's new rows both reach paint.
+        for _ in 0..4 {
+            pump(cx);
+        }
+        let bounds: Vec<_> = selectors
+            .iter()
+            .map(|s| cx.debug_bounds(s).unwrap())
+            .collect();
+        let first_line = bounds
+            .iter()
+            .filter(|b| b.origin.y == bounds[0].origin.y)
+            .count();
+        counts.push(first_line);
+        let last = bounds.last().unwrap();
+        let last_line = bounds
+            .iter()
+            .filter(|b| b.origin.y == last.origin.y)
+            .count();
+        assert!(
+            last_line < first_line,
+            "a short last line at {width}: {first_line} then {last_line}"
+        );
+        let widths: Vec<f32> = bounds.iter().map(|b| f32::from(b.size.width)).collect();
+        assert!(
+            widths.iter().all(|w| (w - widths[0]).abs() <= 0.5),
+            "unequal columns at {width}: {widths:?}"
+        );
+        assert!(
+            (f32::from(bounds[bounds.len() - last_line].origin.x) - f32::from(bounds[0].origin.x))
+                .abs()
+                <= 0.5,
+            "the last line stays in the left columns at {width}"
+        );
+    }
+    assert!(
+        counts[0] >= 4,
+        "a 600px column can fit at least four of these names: {counts:?}"
+    );
+    assert_eq!(counts[1], 2, "the narrow column fits two: {counts:?}");
+    assert_eq!(
+        counts[2], counts[0],
+        "growing again restores the columns: {counts:?}"
+    );
+}
+
+/// The same categories and their drawn cells are used for both stored
+/// compact choices. The entry settings themselves are left alone.
+#[gpui::test]
+fn grid_and_island_share_the_category_framed_compact_index(cx: &mut TestAppContext) {
+    let (_dir, lib, book) = seed();
+    let parent = call(
+        &lib,
+        "entry.create",
+        json!({"book": book, "template": "tpl-group", "title": "合成索引", "level": true}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let group = call(&lib, "entry.create", json!({"book": book, "parent": parent, "template": "tpl-group", "title": "合成分类", "level": true}))["id"].as_str().unwrap().to_owned();
+    let mut members = Vec::new();
+    for title in ["钟楼", "周记面馆", "怀表"] {
+        members.push(
+            call(
+                &lib,
+                "entry.create",
+                json!({"book": book, "parent": group, "template": "tpl-character", "title": title}),
+            )["id"]
+                .as_str()
+                .unwrap()
+                .to_owned(),
+        );
+    }
+    call(
+        &lib,
+        "entry.update",
+        json!({"book": book, "id": parent, "overrides": {"display": "grid"}}),
+    );
+    call(
+        &lib,
+        "tab.put",
+        json!({"book": book, "mount": {"kind": "entry", "entry": parent}}),
+    );
+    let (ws, cx) = open_at(cx, &lib, &book, "standard");
+    tab(&ws, cx, Some(&parent));
+    let selectors: Vec<&'static str> = std::iter::once(format!("g2-island-{group}"))
+        .chain(members.iter().map(|id| format!("g2-tile-name-{id}")))
+        .map(|s| &*Box::leak(s.into_boxed_str()))
         .collect();
-    let first_line = bounds
-        .iter()
-        .filter(|b| b.origin.y == bounds[0].origin.y)
-        .count();
-    let last = bounds.last().unwrap();
-    let last_line = bounds
-        .iter()
-        .filter(|b| b.origin.y == last.origin.y)
-        .count();
-    assert!(
-        last_line < first_line,
-        "the setup wants a short last line: {first_line} then {last_line}"
-    );
-    let widths: Vec<f32> = bounds.iter().map(|b| f32::from(b.size.width)).collect();
-    assert!(
-        widths.iter().all(|w| (w - widths[0]).abs() <= 0.5),
-        "tiles of different widths: {widths:?}"
-    );
-    let first_x = f32::from(bounds[0].origin.x);
-    let last_x = f32::from(bounds[bounds.len() - last_line].origin.x);
-    assert!(
-        (last_x - first_x).abs() <= 0.5,
-        "the last line starts at {last_x}, the first column at {first_x}"
+    let mut drawn = Vec::new();
+    for display in ["grid", "island"] {
+        if display == "island" {
+            call(
+                &lib,
+                "entry.update",
+                json!({"book": book, "id": parent, "overrides": {"display": display}}),
+            );
+        }
+        wait(&ws, cx, "the stored display", |w, _| {
+            w.book
+                .v3()
+                .is_some_and(|v| v.levels[&parent].settings.display == display)
+        });
+        wait_until(cx, "the category frame and all its tiles", |cx| {
+            selectors.iter().all(|s| cx.debug_bounds(s).is_some())
+        });
+        for _ in 0..4 {
+            pump(cx);
+        }
+        let tree = tree_of(&ws, cx).unwrap();
+        assert_eq!(
+            tree.read_with(cx, |t, _| t.display),
+            dr_view_elements::panel::v3::Display::Islands
+        );
+        drawn.push(
+            selectors
+                .iter()
+                .map(|s| cx.debug_bounds(s).unwrap())
+                .collect::<Vec<_>>(),
+        );
+        assert_eq!(
+            dr_shell::book::Book::load(&lib, &book)
+                .unwrap()
+                .v3()
+                .unwrap()
+                .levels[&parent]
+                .settings
+                .display,
+            display
+        );
+    }
+    assert_eq!(
+        drawn[0], drawn[1],
+        "both choices draw the same category frame and tiles"
     );
 }

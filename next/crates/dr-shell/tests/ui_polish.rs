@@ -40,6 +40,15 @@ fn open<'a>(
     lib: &Workspace,
     id: &str,
 ) -> (Entity<Shell>, &'a mut VisualTestContext) {
+    open_with_settings(cx, lib, id, SettingsFile::in_memory())
+}
+
+fn open_with_settings<'a>(
+    cx: &'a mut TestAppContext,
+    lib: &Workspace,
+    id: &str,
+    settings: SettingsFile,
+) -> (Entity<Shell>, &'a mut VisualTestContext) {
     cx.executor().allow_parking();
     cx.update(|cx| {
         dr_shell::init(
@@ -55,14 +64,24 @@ fn open<'a>(
                 book: Some(id.to_owned()),
                 ..Default::default()
             },
-            SettingsFile::in_memory(),
+            settings,
             cx,
         );
         dr_shell::strings::Strings::install(dr_i18n::Locale::ZhCn, cx);
         for display in ["list", "board", "grid", "island"] {
-            v3::add_level_display(cx, display, |_, _, cx| Rendered::new(cx.new(|_| DummyPart)));
+            v3::add_level_display(cx, display, move |_, _, cx| {
+                Rendered::new(cx.new(|_| KindPart(display)))
+            });
         }
         v3::add_level_settings(cx, |_, _, cx| Rendered::new(cx.new(|_| DummyPart)));
+        v3::set_tab_canvas(cx, |host, _, cx| {
+            let kind = match host.layout {
+                dr_shell::v3::tab_fill::FillLayout::Island => "canvas-island",
+                dr_shell::v3::tab_fill::FillLayout::Relation => "canvas-relation",
+                _ => panic!("only the two canvas layouts use this host"),
+            };
+            Rendered::new(cx.new(|_| KindPart(kind)))
+        });
     });
     let (view, cx) = cx.add_window_view(Shell::new);
     cx.update(|window, _| window.activate_window());
@@ -193,7 +212,7 @@ impl Render for KindPart {
 
 /// UP (kernel-v5 §15 item 50, P10): a Tab has its five displays only when
 /// the left column is filled; unfilled, a board is drawn as the list tree
-/// (the grid and the islands, the compact index, stay as they are).
+/// (grid and island both use the category-framed compact index).
 #[gpui::test]
 fn an_unfilled_column_draws_a_board_tab_as_the_list(cx: &mut TestAppContext) {
     use dr_workspace::Actor;
@@ -253,4 +272,167 @@ fn an_unfilled_column_draws_a_board_tab_as_the_list(cx: &mut TestAppContext) {
         );
     }
     assert!(cx.debug_bounds("kind-part-board").is_none());
+}
+
+fn drawn_kind(cx: &mut VisualTestContext, kind: &'static str) {
+    let selector: &'static str = Box::leak(format!("kind-part-{kind}").into_boxed_str());
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        cx.executor().advance_clock(Duration::from_millis(40));
+        pump(cx);
+        if cx
+            .debug_bounds(selector)
+            .is_some_and(|b| b.size.width > gpui::px(0.0) && b.size.height > gpui::px(0.0))
+        {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "the routed {kind} surface was not drawn"
+        );
+    }
+    for other in [
+        "list",
+        "board",
+        "grid",
+        "island",
+        "canvas-island",
+        "canvas-relation",
+    ] {
+        if other != kind {
+            let selector: &'static str = Box::leak(format!("kind-part-{other}").into_boxed_str());
+            assert!(
+                cx.debug_bounds(selector).is_none(),
+                "{other} was also drawn with {kind}"
+            );
+        }
+    }
+}
+
+/// Actual shell routing through fill / exit / refill for all five choices,
+/// followed by a fresh app context using the saved device settings. The
+/// registered parts identify their real host; compact frame geometry is
+/// exercised with the real display in dr-view-elements::ui_polish.
+#[gpui::test]
+fn all_five_filled_choices_survive_compact_round_trips_and_device_restore(
+    cx: &mut TestAppContext,
+    again: &mut TestAppContext,
+) {
+    use dr_shell::v3::tab_fill::FillLayout;
+    use dr_workspace::Actor;
+    use serde_json::json;
+    let (_dir, lib, book) = seed();
+    let settings = tempfile::tempdir().unwrap();
+    let raw = ["list", "grid", "board", "island", "list"];
+    let unfilled = ["list", "island", "list", "island", "list"];
+    let filled = ["list", "grid", "board", "canvas-island", "canvas-relation"];
+    let mut entries = Vec::new();
+    for (i, display) in raw.iter().enumerate() {
+        let made = lib.call(&Actor::User, "entry.create", json!({"book": book, "template": "tpl-group", "title": format!("合成摆法{i}"), "level": true})).unwrap();
+        let entry = made["output"]["id"].as_str().unwrap().to_owned();
+        lib.call(
+            &Actor::User,
+            "entry.update",
+            json!({"book": book, "id": entry, "overrides": {"display": display}}),
+        )
+        .unwrap();
+        lib.call(
+            &Actor::User,
+            "tab.put",
+            json!({"book": book, "mount": {"kind": "entry", "entry": entry}}),
+        )
+        .unwrap();
+        entries.push(entry);
+    }
+    let (view, cx) = open_with_settings(cx, &lib, &book, SettingsFile::open(settings.path()));
+    wait(&view, cx, "the loaded book", |ws, _| {
+        ws.book.v3().is_some() && ws.book_memory_ready()
+    });
+    view.update_in(cx, |ws, window, cx| {
+        if !ws.left.open {
+            ws.toggle_left(window, cx);
+        }
+    });
+    wait(&view, cx, "the open left column", |ws, _| {
+        ws.v3_sidebar.is_some() && ws.left.shown() >= 1.0
+    });
+    let sidebar = view.read_with(cx, |ws, _| ws.v3_sidebar.clone().unwrap());
+    let mut tab_ids = Vec::new();
+    for (i, layout) in FillLayout::ALL.into_iter().enumerate() {
+        sidebar.update(cx, |s, cx| s.select(&entries[i], cx));
+        tab_ids.push(sidebar.read_with(cx, |s, cx| {
+            s.state(cx)["selected"].as_str().unwrap().to_owned()
+        }));
+        drawn_kind(cx, unfilled[i]);
+        view.update_in(cx, |ws, window, cx| {
+            ws.enter_fill(FillPlace::Left, window, cx)
+        });
+        wait(&view, cx, "filled", |ws, _| {
+            ws.is_filled(FillPlace::Left) && ws.fill_progress(FillPlace::Left) >= 1.0
+        });
+        if raw[i] == "island" {
+            drawn_kind(cx, "canvas-relation");
+            assert_eq!(
+                sidebar.read_with(cx, |s, cx| s.state(cx)["fillLayout"].clone()),
+                json!(FillLayout::Relation),
+                "island's original default remains Relation"
+            );
+        }
+        sidebar.update(cx, |s, cx| s.choose_fill_layout(layout, cx));
+        drawn_kind(cx, filled[i]);
+        view.update_in(cx, |ws, window, cx| ws.exit_fill(window, cx));
+        wait(&view, cx, "unfilled", |ws, _| ws.filled().is_none());
+        drawn_kind(cx, unfilled[i]);
+        view.update_in(cx, |ws, window, cx| {
+            ws.enter_fill(FillPlace::Left, window, cx)
+        });
+        wait(&view, cx, "refilled", |ws, _| {
+            ws.is_filled(FillPlace::Left) && ws.fill_progress(FillPlace::Left) >= 1.0
+        });
+        drawn_kind(cx, filled[i]);
+        view.update_in(cx, |ws, window, cx| ws.exit_fill(window, cx));
+        wait(&view, cx, "unfilled again", |ws, _| ws.filled().is_none());
+    }
+    view.update(cx, |ws, cx| ws.store_layout(cx));
+    cx.update(|_, cx| dr_shell::Settings::flush(cx));
+    let saved = SettingsFile::open(settings.path());
+    for (i, layout) in FillLayout::ALL.into_iter().enumerate() {
+        assert_eq!(
+            saved.layout(&book).unwrap()["tab_fill_layouts"][&tab_ids[i]],
+            json!(layout)
+        );
+    }
+    let (restored, again) = open_with_settings(again, &lib, &book, saved);
+    wait(&restored, again, "the restored book", |ws, _| {
+        ws.book.v3().is_some() && ws.book_memory_ready() && ws.v3_sidebar.is_some()
+    });
+    let sidebar = restored.read_with(again, |ws, _| ws.v3_sidebar.clone().unwrap());
+    for (i, layout) in FillLayout::ALL.into_iter().enumerate() {
+        sidebar.update(again, |s, cx| s.select(&entries[i], cx));
+        drawn_kind(again, unfilled[i]);
+        restored.update_in(again, |ws, window, cx| {
+            ws.enter_fill(FillPlace::Left, window, cx)
+        });
+        wait(&restored, again, "restored fill", |ws, _| {
+            ws.is_filled(FillPlace::Left) && ws.fill_progress(FillPlace::Left) >= 1.0
+        });
+        drawn_kind(again, filled[i]);
+        assert_eq!(
+            sidebar.read_with(again, |s, cx| s.state(cx)["fillLayout"].clone()),
+            json!(layout)
+        );
+        restored.update_in(again, |ws, window, cx| ws.exit_fill(window, cx));
+        wait(&restored, again, "restored compact", |ws, _| {
+            ws.filled().is_none()
+        });
+        drawn_kind(again, unfilled[i]);
+    }
+    let snapshot = dr_shell::book::Book::load(&lib, &book).unwrap();
+    for (i, entry) in entries.iter().enumerate() {
+        assert_eq!(
+            snapshot.v3().unwrap().levels[entry].settings.display,
+            raw[i],
+            "fill choice never writes the entry's display"
+        );
+    }
 }
