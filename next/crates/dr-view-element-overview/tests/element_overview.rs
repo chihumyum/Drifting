@@ -1174,7 +1174,7 @@ fn graph_short_names_keep_their_glyph_width_when_zoomed_out(cx: &mut TestAppCont
         wait(vcx, |cx| {
             selectors
                 .iter()
-                .all(|(_, label, _)| cx.debug_bounds(*label).is_some())
+                .all(|(_, label, _)| cx.debug_bounds(label).is_some())
         });
         assert_eq!(
             ov.read_with(vcx, |v, _| position_bits(v.relate_positions())),
@@ -1182,8 +1182,8 @@ fn graph_short_names_keep_their_glyph_width_when_zoomed_out(cx: &mut TestAppCont
             "zoom must not rerun layout"
         );
         for (card, label, name) in &selectors {
-            let card = vcx.debug_bounds(*card).unwrap();
-            let label = vcx.debug_bounds(*label).unwrap();
+            let card = vcx.debug_bounds(card).unwrap();
+            let label = vcx.debug_bounds(label).unwrap();
             let width = vcx.update(|window, _| {
                 let run = TextRun {
                     len: name.len(),
