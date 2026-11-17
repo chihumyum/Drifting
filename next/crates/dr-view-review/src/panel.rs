@@ -421,7 +421,7 @@ impl ReviewView {
         self.data_rev
     }
 
-    /// Current v3 snapshot (comments, targets and built-in entry associations).
+    /// Current v3 snapshot (comments and targets).
     pub fn v3_snapshot(&self) -> Option<&crate::v3::Snapshot> {
         self.v3.as_ref().map(|s| &s.snapshot)
     }
@@ -685,7 +685,7 @@ impl ReviewView {
         if item.origin == "task" {
             return;
         }
-        let body = item.body.clone();
+        let body = item.body.text.clone();
         let placeholder = self
             .i18n
             .t(keys::review_panel::COMMENT_PLACEHOLDER)
@@ -720,7 +720,7 @@ impl ReviewView {
         }
         if let Some(text) = text {
             let mut input = self.update_in(id);
-            input.body = Some(text);
+            input.body = Some(text.into());
             self.write_v3(
                 id.to_owned(),
                 "comment.update",
@@ -797,7 +797,7 @@ impl ReviewView {
             existing_conversation: v3_item.comment.agent_conversation.clone(),
             header,
             quote,
-            body: v3_item.comment.body.clone(),
+            body: v3_item.comment.body.text.clone(),
             extra_note: extra_note.trim().to_owned(),
         };
         if let Some(flyout) = &mut self.agent_flyout
@@ -1425,10 +1425,10 @@ impl ReviewView {
                 );
             }
             _ => {
-                let text: SharedString = if item.body.trim().is_empty() {
+                let text: SharedString = if item.body.text.trim().is_empty() {
                     self.i18n.t(keys::comment_rail::card::EMPTY_COMMENT).into()
                 } else {
-                    item.body.clone().into()
+                    item.body.text.clone().into()
                 };
                 let (entity, comment) = (entity.clone(), comment.clone());
                 body = body.child(
@@ -1551,10 +1551,10 @@ impl ReviewView {
             .map(|i| matches!(i.place, crate::v3::Place::On(_)) && i.target.is_some())
             .unwrap_or(item.target.is_some() && !item.unlocated);
 
-        let text: SharedString = if item.body.trim().is_empty() {
+        let text: SharedString = if item.body.text.trim().is_empty() {
             self.i18n.t(keys::comment_rail::card::EMPTY_COMMENT).into()
         } else {
-            item.body.clone().into()
+            item.body.text.clone().into()
         };
         let pinwheel = self.pinwheel_corner(item, window, cx);
 
@@ -2817,28 +2817,6 @@ mod reveal_tests {
                 );
             });
         }
-        ws.call(
-            &Actor::User,
-            "relation.create",
-            json!({
-                "book":book,"from":{"kind":"comment","id":floating},
-                "to":{"kind":"entry","id":chapter}
-            }),
-        )
-        .unwrap();
-        view.update(cx, |view, cx| view.set_current_only(true, cx));
-        let mut related = cx
-            .update(|_, cx| crate::reveal_comment("reveal", &book, &floating, cx))
-            .unwrap();
-        painted(cx, &view);
-        assert_eq!(related.try_recv().unwrap(), Some(true));
-        view.read_with(cx, |view, _| {
-            assert!(
-                view.current_only,
-                "generic association already includes this card"
-            );
-            assert!(visible(view, &floating));
-        });
         let other_book = dr_model::id::BookId::new_v7().to_string();
         let mut switched = cx
             .update(|_, cx| crate::reveal_comment("reveal", &other_book, &floating, cx))
@@ -2851,7 +2829,7 @@ mod reveal_tests {
                 .snapshot
                 .items
                 .is_empty()),
-            "reveal book switch clears the old associations immediately"
+            "reveal book switch clears the old comments immediately"
         );
         painted(cx, &view);
         assert_eq!(switched.try_recv().unwrap(), Some(false));
@@ -3172,7 +3150,7 @@ mod v3_write_tests {
             .unwrap();
         let target = source.target.as_ref().unwrap().id.clone();
         let module = source.target_module.as_ref().unwrap().to_string();
-        let body = source.body.clone();
+        let body = source.body.text.clone();
         seed.write_to(lib.library()).unwrap();
         let a = call(
             &lib,
@@ -3247,10 +3225,10 @@ mod v3_write_tests {
                 .find(|c| c["id"] == id)
                 .unwrap()
         };
-        assert_eq!(get(&a)["body"], draft);
+        assert_eq!(get(&a)["body"]["text"], draft);
         assert_eq!(get(&a)["agent_conversation"], "conv-elsewhere");
         assert_eq!(get(&b)["status"], "resolved");
-        assert_eq!(get(&hidden)["body"], body);
+        assert_eq!(get(&hidden)["body"]["text"], body);
         cx.update(|window, cx| view.update(cx, |v, cx| v.edit(&a, window, cx)));
         let field = view.read_with(cx, |v, _| v.editing.as_ref().unwrap().1.clone());
         let refused = format!("{draft}\n{body}");

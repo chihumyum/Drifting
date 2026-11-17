@@ -29,8 +29,8 @@ pub const PROJECT_TEMPLATE_SCHEMA_VERSION: i64 = 1;
 pub const GENESIS_VERSION: u32 = 2;
 
 /// Version of the book document genesis content. Part of the genesis
-/// peer's hash, so a version 5 book's genesis is not a version 4 book's.
-pub const BOOK_GENESIS_VERSION: u32 = 5;
+/// peer's hash. RD changes genesis within the unreleased book format 5.
+pub const BOOK_GENESIS_VERSION: u32 = 6;
 
 /// Version of the genesis content of the documents beside a book.
 pub const SIDE_GENESIS_VERSION: u32 = 1;
@@ -45,6 +45,8 @@ pub mod meta {
     pub const DOC: &str = "doc";
     /// Book document: the book id.
     pub const BOOK: &str = "book";
+    /// RD genesis flag: rows of entry memberships and linked text in the book.
+    pub const RELATION_ROWS: &str = "relation_rows";
     /// Book document (format 5, DV2): `true` once the book holds no old
     /// lane that is only a level left to clear: the open-time repair
     /// cleared them, or the lanes were written by a build that refuses them

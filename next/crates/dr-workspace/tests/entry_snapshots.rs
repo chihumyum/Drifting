@@ -358,7 +358,7 @@ fn raw_entry(d: &loro::LoroDoc, id: &str) -> loro::LoroMap {
     }).unwrap()
 }
 #[test]
-fn hidden_future_fields_grids_and_relations_survive_without_touching_other_entries() {
+fn hidden_fields_and_grids_restore_without_rewinding_shared_relations_or_other_entries() {
     let (mut e, b, id) = setup();
     let other = e.out(
         "entry.create",
@@ -396,20 +396,25 @@ fn hidden_future_fields_grids_and_relations_survive_without_touching_other_entri
             .get_map("relations")
             .ensure_mergeable_map("hidden-relation")
             .unwrap();
-        for (k, v) in [
-            ("from_kind", "entry"),
-            ("from", one.as_str()),
-            ("to_kind", "entry"),
-            ("to", two.as_str()),
-            ("type", "missing-type"),
-        ] {
-            r.insert(k, v).unwrap();
-        }
+        r.insert("type", "missing-type").unwrap();
+        let members = r.ensure_mergeable_map("members").unwrap();
+        members.insert(&one, "left").unwrap();
+        members.insert(&two, "right").unwrap();
         r.insert("future", "retained relation").unwrap();
     })
     .unwrap();
     let p = capture(&e, &b, &id);
     let original = preview(&e, &b, &id, &p);
+    assert!(original["records"].get("relations").is_none());
+    let raw_relation = |e: &Env| {
+        e.ws().observe(&format!("book:{b}")).unwrap().value["relations"]["hidden-relation"].clone()
+    };
+    let stored = raw_relation(&e);
+    assert_eq!(stored["future"], "retained relation");
+    assert_eq!(
+        stored["members"],
+        json!({id.clone(): "left", other.clone(): "right"})
+    );
     let (one, two) = (id.clone(), other.clone());
     h.write(dr_store::Origin::User, move |d| {
         raw_entry(d, &one)
@@ -434,10 +439,7 @@ fn hidden_future_fields_grids_and_relations_survive_without_touching_other_entri
     assert_eq!(now["metadata"], original["metadata"]);
     assert_eq!(now["records"], original["records"]);
     assert_eq!(now["metadata"]["future"]["hidden"], "before");
-    assert_eq!(
-        now["records"]["relations"]["hidden-relation"]["future"],
-        "retained relation"
-    );
+    assert!(raw_relation(&e).is_null());
     assert_eq!(
         now["records"]["plot_grids"][format!("{id}/retained-grid")]["cells"]["unknown-row|unknown-col"],
         "hidden cell"
@@ -453,6 +455,7 @@ fn hidden_future_fields_grids_and_relations_survive_without_touching_other_entri
     let reopened = preview(&e, &b, &id, &p);
     assert_eq!(reopened["metadata"], original["metadata"]);
     assert_eq!(reopened["records"], original["records"]);
+    assert!(raw_relation(&e).is_null());
 }
 #[test]
 fn body_added_after_checkpoint_is_empty_on_restore_and_recoverable_from_before_point() {

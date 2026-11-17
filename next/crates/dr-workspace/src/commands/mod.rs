@@ -2,9 +2,6 @@
 //! materials, comments, recent visits, statistics and raw history recovery.
 //! Every caller uses the same validation and settlement pipeline.
 
-use std::sync::Arc;
-
-use dr_model::shared::*;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -12,7 +9,6 @@ use crate::cx::Cx;
 use crate::error::{Result, WsError};
 pub(crate) use crate::guard::Replaces;
 use crate::registry::Registry;
-use crate::workspace::BookSlot;
 
 pub mod asset;
 pub mod book;
@@ -143,27 +139,4 @@ pub(crate) fn name_ok(s: &str) -> Result<()> {
 
 pub(crate) fn now() -> dr_model::Timestamp {
     dr_model::Timestamp::now()
-}
-
-pub(crate) fn relations_raw(slot: &BookSlot) -> Arc<Vec<Relation>> {
-    Arc::new(slot.reader_v3.view().relations_raw())
-}
-pub(crate) fn purge_fallout(
-    slot: &BookSlot,
-    target: &EntityRef,
-) -> (Vec<dr_model::id::RelationId>, Vec<dr_model::id::CommentId>) {
-    (
-        relations_raw(slot)
-            .iter()
-            .filter(|r| &r.from == target || &r.to == target)
-            .map(|r| r.id.clone())
-            .collect(),
-        slot.reader_v3
-            .view()
-            .comments()
-            .iter()
-            .filter(|c| c.target.as_ref() == Some(target))
-            .map(|c| c.id.clone())
-            .collect(),
-    )
 }

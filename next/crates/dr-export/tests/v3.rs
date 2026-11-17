@@ -788,7 +788,6 @@ fn tree_selection_exports_all_content_modules_with_tree_hierarchy_across_formats
                     {"id": "mod-media", "kind": "media", "name": "附件"},
                     {"id": "mod-patches", "kind": "patches", "name": "摘录补丁"},
                     {"id": "mod-grid", "kind": "plot_grid", "name": "阶段规划"},
-                    {"id": "mod-rels", "kind": "relations", "name": "关联"},
                     {"id": "mod-kids", "kind": "children", "name": "下面的条目"},
                     {"id": "mod-members", "kind": "members", "name": "挂在这里的条目"}
                 ]
@@ -934,20 +933,11 @@ fn tree_selection_exports_all_content_modules_with_tree_hierarchy_across_formats
             "body": "与十年前台风夜有关。"
         }),
     );
-    let rel_types = call(&ws, "entry_relation_type.list", json!({"book": book}));
-    let rel_type = rel_types.as_array().unwrap()[0]["id"]
-        .as_str()
-        .unwrap()
-        .to_owned();
     call(
         &ws,
-        "module.put_relation",
+        "relation_row.create_pair",
         json!({
-            "book": book,
-            "entry": card,
-            "module": "mod-rels",
-            "other": {"kind": "entry", "id": mentor},
-            "relation_type": rel_type
+            "book":book,"left":card,"right":mentor,"new_type":{"name":"只在关系中"},
         }),
     );
 
@@ -981,6 +971,7 @@ fn tree_selection_exports_all_content_modules_with_tree_hierarchy_across_formats
         unreachable!()
     };
     let rendered_json = serde_json::to_string(blocks).unwrap();
+    assert!(!rendered_json.contains("只在关系中"));
     for expected in [
         "备注正文：只在自己勾时导出。",
         "校对员",

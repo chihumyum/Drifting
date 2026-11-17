@@ -109,19 +109,11 @@ fn validate_book_header(book: &BookId, bytes: &[u8]) -> dr_store::Result<()> {
     dr_doc::schema::configure(&incoming);
     incoming.import(bytes)?;
     let meta = incoming.get_map("meta");
-    if let Some(version) = meta.get("v") {
-        let current = dr_doc::schema::BOOK_SCHEMA_VERSION;
-        let valid = match version {
-            loro::ValueOrContainer::Value(loro::LoroValue::I64(v)) => v == current,
-            loro::ValueOrContainer::Value(loro::LoroValue::Double(v)) => v == current as f64,
-            _ => false,
-        };
-        if !valid {
-            return Err(StoreError::Invalid {
-                what: "book import",
-                value: "a current-format book is required; reimport into a new library".into(),
-            });
-        }
+    if meta.get("v").is_some() && !dr_doc::v3::is_book_doc(&incoming) {
+        return Err(StoreError::Invalid {
+            what: "book import",
+            value: "a current-format book is required; reimport into a new library".into(),
+        });
     }
     if let Some(identity) = meta.get("book")
         && !matches!(identity, loro::ValueOrContainer::Value(loro::LoroValue::String(ref id)) if id.as_str()==book.as_str())

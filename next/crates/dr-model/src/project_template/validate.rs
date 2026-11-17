@@ -10,7 +10,7 @@ use super::{
     MAX_PROJECT_TEMPLATE_TEMPLATES, PROJECT_TEMPLATE_FORMAT, PROJECT_TEMPLATE_FORMAT_VERSION,
     ProjectTemplateCredit, ProjectTemplateValue, TemplateBlockAttrs, TemplateEntry,
     TemplateFieldDef, TemplateFieldType, TemplateLevelSettings, TemplateModuleKind,
-    TemplateParagraph, TemplateRelationEndpointKind, TemplateRun, TemplateTabMount, TemplateTable,
+    TemplateParagraph, TemplateRun, TemplateTabMount, TemplateTable,
 };
 use crate::check::{Violation, non_empty_name};
 use crate::id::{EntryId, EntryTemplateId, FieldId, ModuleId, TimePinId, TimelineViewId, check_id};
@@ -474,42 +474,23 @@ pub fn validate_project_template_value(
     let mut rt_names = BTreeSet::new();
     for rt in &val.relation_types {
         non_empty_name(&rt.name)?;
-        if has_bad_inline_control(&rt.name)
-            || has_bad_inline_control(&rt.source_role)
-            || has_bad_inline_control(&rt.target_role)
-            || has_bad_multiline_control(&rt.description)
-        {
+        if has_bad_inline_control(&rt.name) || has_bad_multiline_control(&rt.description.text) {
             return inv(format!(
-                "relation type {:?} contains control characters",
+                "relation {:?} contains control characters",
                 rt.name
             ));
         }
-        if let Some(color) = &rt.color
-            && (color.trim().is_empty() || has_bad_inline_control(color))
-        {
-            return inv(format!("relation type {:?} has invalid color", rt.name));
+        if !rt_names.insert(normalize_relation_type_name(&rt.name)) {
+            return inv(format!("duplicate relation name {:?}", rt.name));
         }
-        let norm = normalize_relation_type_name(&rt.name);
-        if norm == "generic association" {
-            return inv("relation type cannot reuse the built-in generic association name");
-        }
-        if !rt_names.insert(norm) {
-            return inv(format!("duplicate relation type name {:?}", rt.name));
-        }
-        if rt
-            .target_kinds
-            .contains(&TemplateRelationEndpointKind::Comment)
-        {
-            return inv(format!(
-                "relation type {:?} cannot use comment as a target endpoint kind",
-                rt.name
-            ));
-        }
-        for tid_str in rt.source_templates.iter().chain(&rt.target_templates) {
-            let tid = EntryTemplateId::parse(tid_str).map_err(|e| {
-                ProjectTemplateError::Invalid(format!("relation_type template ref: {e}"))
-            })?;
-            check_entry_template(&templates, Some(&tid))?;
+        rt.description.validate()?;
+        for link in &rt.description.links {
+            if !entry_sym_set.contains(link.entry.as_str()) {
+                return inv(format!(
+                    "relation {:?} links to an unknown symbolic entry",
+                    rt.name
+                ));
+            }
         }
     }
 

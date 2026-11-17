@@ -525,18 +525,13 @@ fn v3_content_modules_roundtrip_and_restore_independently() {
     let e = env();
     let b = project(&e);
     let ms = root(&e, &b, "tpl-manuscript");
-    for (id, kind) in [
-        ("test-patches", "patches"),
-        ("test-grid", "plot_grid"),
-        ("test-relations", "relations"),
-    ] {
+    for (id, kind) in [("test-patches", "patches"), ("test-grid", "plot_grid")] {
         e.call(
             "entry_template.put_module",
             json!({"book":b,"template":"tpl-chapter","module":{"id":id,"kind":kind,"name":id}}),
         );
     }
     let a = create(&e, &b, &ms, "A", "tpl-chapter");
-    let z = create(&e, &b, &ms, "Z", "tpl-chapter");
     let target = |module: &str| json!({"book":b,"entry":a,"module":module});
     let patch=e.out("module.put_patch",json!({"book":b,"entry":a,"module":"test-patches","title":"Synthetic patch","body":"Before"}))["id"].as_str().unwrap().to_owned();
     e.call(
@@ -566,36 +561,6 @@ fn v3_content_modules_roundtrip_and_restore_independently() {
             .as_array()
             .unwrap()
             .is_empty()
-    );
-    e.call("entry_relation_type.put",json!({"book":b,"definition":{"id":"test-relation","name":"Synthetic association","source_kinds":["entry"],"target_kinds":["entry"],"source_templates":["tpl-chapter"],"target_templates":["tpl-chapter"]}}));
-    let request = json!({"book":b,"entry":a,"module":"test-relations","other":{"kind":"entry","id":z},"relation_type":"test-relation"});
-    let r = e.out("module.put_relation", request.clone());
-    assert_eq!(e.out("module.put_relation", request), r);
-    assert_eq!(
-        e.out("module.read", target("test-relations"))["relations"]
-            .as_array()
-            .unwrap()
-            .len(),
-        1
-    );
-    assert!(
-        e.try_call(
-            "entry_relation_type.delete",
-            json!({"book":b,"id":"test-relation"})
-        )
-        .is_err()
-    );
-    e.call(
-        "module.remove_relation",
-        json!({"book":b,"entry":a,"module":"test-relations","id":r["id"]}),
-    );
-    e.ws().undo(&dr_workspace::Actor::User).unwrap();
-    assert_eq!(
-        e.out("module.read", target("test-relations"))["relations"]
-            .as_array()
-            .unwrap()
-            .len(),
-        1
     );
     assert_eq!(
         e.out("module.read", target("test-patches"))["patches"][0]["body"],
@@ -931,32 +896,17 @@ fn v3_restore_primary_pins_and_record_deletion_have_real_inverses() {
     e.ws().undo(&dr_workspace::Actor::User).unwrap();
     assert!(view()["deleted_at"].is_null());
     assert_eq!(get(&e, &b, &a)["parent"], ms);
-    e.call(
-        "entry_relation_type.put",
-        json!({"book":b,"definition":{"id":"unused","name":"Synthetic unused type"}}),
-    );
-    let types = e.out("entry_relation_type.list", json!({"book":b}));
-    let locked = types
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|t| t["locked"] == true)
-        .unwrap()["id"]
+    let kind = e.out(
+        "relation_type.create",
+        json!({"book":b,"name":"Synthetic unused type"}),
+    )["id"]
         .clone();
-    assert!(
-        e.try_call("entry_relation_type.delete", json!({"book":b,"id":locked}))
-            .is_err()
-    );
-    e.call(
-        "entry_relation_type.delete",
-        json!({"book":b,"id":"unused"}),
-    );
-    assert!(
-        !ids(&e.out("entry_relation_type.list", json!({"book":b}))).contains(&"unused".to_owned())
-    );
-    e.ws().undo(&dr_workspace::Actor::User).unwrap();
-    assert!(
-        ids(&e.out("entry_relation_type.list", json!({"book":b}))).contains(&"unused".to_owned())
+    e.call("relation_type.delete", json!({"book":b,"id":kind}));
+    assert_eq!(e.out("relation_type.list", json!({"book":b})), json!([]));
+    e.ws().undo(&dr_workspace::Actor::User).unwrap().unwrap();
+    assert_eq!(
+        e.out("relation_type.list", json!({"book":b}))[0]["id"],
+        kind
     );
     for (id, kind) in [("test-kv", "kv"), ("test-patch", "patches")] {
         e.call(
@@ -1102,19 +1052,11 @@ fn entry_list_below_matches_entry_get_and_reports_canonical_sources() {
 }
 
 #[test]
-fn module_put_relation_checks_book_observations_before_writing() {
+fn relation_pair_checks_book_observations_before_writing() {
     use dr_workspace::{Actor, WritePreconditions, WsError};
     let e = env();
     let book = project(&e);
     let entry = root(&e, &book, "tpl-manuscript");
-    e.call(
-        "entry_template.put_module",
-        json!({
-            "book": book,
-            "template": "tpl-note",
-            "module": {"id": "mod-relations", "kind": "relations", "name": "关联"}
-        }),
-    );
     let note = e.out(
         "entry.create",
         json!({
@@ -1127,34 +1069,18 @@ fn module_put_relation_checks_book_observations_before_writing() {
     let ws = e.ws();
     let doc = format!("book:{book}");
     let stale = ws.observe(&doc).unwrap();
-    // Touching the entry we are relating to invalidates a whole-book observation when
-    // creating a relation via `relation.create` with guarded preconditions.
-    ws.call(
-        &Actor::User,
-        "entry_relation_type.put",
-        json!({
-            "book": book,
-            "definition": {
-                "id": "rel-ref",
-                "name": "引用",
-                "source_kinds": ["entry"],
-                "target_kinds": ["entry"]
-            }
-        }),
-    )
-    .unwrap();
+    let kind = e.out("relation_type.create", json!({"book":book,"name":"引用"}))["id"].clone();
     let before = ws.observe(&doc).unwrap();
     let input = json!({
         "book": book,
-        "entry": note,
-        "module": "mod-relations",
-        "other": {"kind": "entry", "id": entry},
-        "relation_type": "rel-ref"
+        "left": note,
+        "right": entry,
+        "relation_type": kind
     });
     assert!(matches!(
         ws.call_guarded(
             &Actor::User,
-            "module.put_relation",
+            "relation_row.create_pair",
             input.clone(),
             WritePreconditions::from_observations([stale])
         ),
@@ -1165,7 +1091,7 @@ fn module_put_relation_checks_book_observations_before_writing() {
     assert_eq!(refused.value, before.value);
     ws.call_guarded(
         &Actor::User,
-        "module.put_relation",
+        "relation_row.create_pair",
         input,
         WritePreconditions::from_observations([before.clone()]),
     )
@@ -1501,7 +1427,7 @@ fn field_rename_keeps_comment_on_field_id() {
 }
 
 #[test]
-fn asset_direct_region_comment_and_relation_survive_reopen() {
+fn asset_direct_region_comments_survive_reopen() {
     let mut e = env();
     let b = e.book();
     let sha_img = "1".repeat(64);
@@ -1573,28 +1499,6 @@ fn asset_direct_region_comment_and_relation_survive_reopen() {
         .unwrap()
         .to_owned();
 
-    let manuscript = common::acceptance::novel_root(e.ws(), &b, "tpl-manuscript");
-    let ch = e.out(
-        "entry.create",
-        json!({"book": b, "parent": manuscript, "template": "tpl-chapter", "title": "序章"}),
-    )["id"]
-        .as_str()
-        .unwrap()
-        .to_owned();
-    let generic_rt = format!("system:generic-association:{b}");
-    let rel = e.out(
-        "relation.create",
-        json!({
-            "book": b,
-            "relation_type": generic_rt,
-            "from": {"kind": "asset", "id": "asset-img-1"},
-            "to": {"kind": "entry", "id": ch}
-        }),
-    )["id"]
-        .as_str()
-        .unwrap()
-        .to_owned();
-
     e.reopen();
     let comments = e.out("comment.list", json!({"book": b}));
     let ic = comments
@@ -1618,9 +1522,8 @@ fn asset_direct_region_comment_and_relation_survive_reopen() {
         .unwrap();
     assert_eq!(pc["unlocated"], false);
     assert_eq!(pc["part"]["region"]["page"], 2);
-    assert_eq!(e.out("relation.list", json!({"book": b}))[0]["id"], rel);
 
-    // Trashing the asset marks its direct comment unlocated and hides its relation; restoring recovers both.
+    // A direct comment keeps its place while the asset is in Recently Deleted.
     e.call("asset.trash", json!({"book": b, "id": "asset-img-1"}));
     let ic_trashed = e
         .out("comment.list", json!({"book": b}))
@@ -1631,7 +1534,6 @@ fn asset_direct_region_comment_and_relation_survive_reopen() {
         .unwrap()
         .clone();
     assert_eq!(ic_trashed["unlocated"], true);
-    assert_eq!(e.out("relation.list", json!({"book": b})), json!([]));
 
     e.call("asset.restore", json!({"book": b, "id": "asset-img-1"}));
     let ic_restored = e
@@ -1643,5 +1545,4 @@ fn asset_direct_region_comment_and_relation_survive_reopen() {
         .unwrap()
         .clone();
     assert_eq!(ic_restored["unlocated"], false);
-    assert_eq!(e.out("relation.list", json!({"book": b}))[0]["id"], rel);
 }

@@ -131,7 +131,7 @@ fn checkin_project(ws: &Workspace, book: &BookId) -> Result<CheckinProject, Stri
                 .comments()
                 .into_iter()
                 .filter(|c| c.status == dr_model::kind::CommentStatus::Open)
-                .map(|c| format!("{} [{}]: {}", c.id, c.origin.as_str(), c.body))
+                .map(|c| format!("{} [{}]: {}", c.id, c.origin.as_str(), c.body.text))
                 .collect(),
             guidance: Some(guidance),
         }))

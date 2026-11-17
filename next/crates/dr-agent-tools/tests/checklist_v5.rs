@@ -117,7 +117,7 @@ impl Drop for Fixture {
 
 fn by_body<'a>(rows: &'a [Value], body: &str) -> &'a Value {
     rows.iter()
-        .find(|c| c["body"] == body)
+        .find(|c| c["body"]["text"] == body)
         .unwrap_or_else(|| panic!("no checklist comment {body:?} in {rows:?}"))
 }
 

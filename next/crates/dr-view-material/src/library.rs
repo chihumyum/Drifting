@@ -400,11 +400,10 @@ impl LibraryPanel {
         self.snapshot_gen += 1;
         let generation = self.snapshot_gen;
         let epoch = self.book_epoch;
-        let relations_label = t(cx, keys::references_panel::sections::RELATIONS).to_string();
         let untitled_label = t(cx, keys::common::UNTITLED).to_string();
         let requested_book = book.clone();
         let task = cx.background_executor().spawn(async move {
-            library_data::load_snapshot(&lib, &requested_book, &relations_label, &untitled_label)
+            library_data::load_snapshot(&lib, &requested_book, &untitled_label)
         });
         self.snapshot_task = Some(cx.spawn(async move |this, cx| {
             let result = task.await;
@@ -516,17 +515,16 @@ impl LibraryPanel {
     }
 
     /// Computes `当前` items for an explicit `entry_id`.
-    pub fn current_for_entry(&self, entry_id: &str, cx: &App) -> Vec<CurrentItem> {
+    pub fn current_for_entry(&self, entry_id: &str, _cx: &App) -> Vec<CurrentItem> {
         let Some(snap) = &self.snapshot else {
             return Vec::new();
         };
-        let relations = t(cx, keys::references_panel::sections::RELATIONS);
         let live: HashSet<&str> = self
             .live_materials()
             .iter()
             .map(|m| m.id.as_str())
             .collect();
-        snap.current_for_entry(entry_id, &relations)
+        snap.current_for_entry(entry_id)
             .into_iter()
             .filter(|c| live.contains(c.asset_id.as_str()))
             .collect()

@@ -86,18 +86,18 @@ fn fixture() -> Fixture {
             t.comment(&second)?
                 .target(original.target.as_ref())?
                 .module(Some(&module))?
-                .body(&original.body)?
+                .linked_body(&original.body)?
                 .origin(&CommentOrigin::Marker)?
                 .status(&CommentStatus::Resolved)?
                 .anchor(Some(&anchor))?
                 .quote(Some(&quote))?;
             t.comment(&floating)?
-                .body(&original.body)?
+                .linked_body(&original.body)?
                 .origin(&CommentOrigin::Marker)?;
             t.comment(&missing)?
                 .target(original.target.as_ref())?
                 .module(Some(&ModuleId::parse("missing-body").unwrap()))?
-                .body(&original.body)?
+                .linked_body(&original.body)?
                 .anchor(Some(&anchor))?
                 .quote(Some(&quote))?;
             Ok(())
@@ -194,40 +194,17 @@ fn sources_and_current_scope_keep_entry_and_module_identity() {
 }
 
 #[test]
-fn generic_associations_do_not_change_sources_or_duplicate_cards() {
+fn current_review_is_scoped_to_the_comment_target() {
     let f = fixture();
-    let relation_type = dr_doc::catalog::generic_relation_type_id(&f.book.parse().unwrap());
-    call(
-        &f.ws,
-        "entry_template.put_module",
-        json!({"book":f.book,"template":"tpl-chapter",
-        "module":{"id":"review-relations","kind":"relations","name":"Relations"}}),
-    );
-    let relation = call(
-        &f.ws,
-        "module.put_relation",
-        json!({"book":f.book,"entry":f.entry,"module":"review-relations",
-        "other":{"kind":"comment","id":f.floating},"incoming":true,"relation_type":relation_type}),
-    );
     let scope = Target::Entry {
         id: f.entry.clone(),
         module: Some("second-body".into()),
     };
     let snapshot = v3::load(&f.ws, &f.book).unwrap();
-    let listed = snapshot.listing(Filter::All, Some(&scope));
-    assert_eq!(ids(&listed).iter().filter(|i| **i == f.floating).count(), 1);
-    assert_eq!(listed.open.last().unwrap().place, Place::Floating);
-    call(
-        &f.ws,
-        "module.remove_relation",
-        json!({"book":f.book,"entry":f.entry,"module":"review-relations","id":relation["id"]}),
-    );
-    assert!(
-        !ids(&v3::load(&f.ws, &f.book)
-            .unwrap()
-            .listing(Filter::All, Some(&scope)))
-        .contains(&f.floating)
-    );
+    let listed = ids(&snapshot.listing(Filter::All, Some(&scope)));
+    assert!(listed.contains(&f.second));
+    assert!(!listed.contains(&f.floating));
+    assert!(ids(&snapshot.listing(Filter::All, None)).contains(&f.floating));
     f.ws.shutdown().unwrap();
 }
 

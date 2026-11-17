@@ -467,7 +467,7 @@ impl CommentComposer {
             anchor: None,
             block_id: None,
             range,
-            body,
+            body: body.into(),
             author_name: None,
         };
         // Named calls select the book version. A v3 body always carries the
@@ -680,7 +680,7 @@ mod v3_tests {
             .unwrap();
         b.prose.push(prose);
         seed.write_to(ws.library()).unwrap();
-        let body = format!("{}\n{}", source.body, source.body);
+        let body = format!("{}\n{}", source.body.text, source.body.text);
         let (frame, cx) = cx.add_window_view(|window, cx| {
             Frame(cx.new(|cx| {
                 CommentComposer::new(
@@ -724,7 +724,7 @@ mod v3_tests {
             "a second submit while saving cannot duplicate the comment"
         );
         assert_eq!(comments[0]["module"], module.as_str());
-        assert_eq!(comments[0]["body"], body);
+        assert_eq!(comments[0]["body"]["text"], body);
         assert_eq!(comments[0]["target"]["id"], entry);
         assert_eq!(
             comments[0]["quote"], quote,
@@ -916,26 +916,26 @@ mod v3_tests {
             .clone();
         let arr = all.as_array().unwrap();
         assert!(arr.iter().any(|c| {
-            c["body"] == "整条设定再核对"
+            c["body"]["text"] == "整条设定再核对"
                 && c["target"]["kind"] == "entry"
                 && c["target"]["id"] == entry_id
                 && c["module"].is_null()
                 && c["part"].is_null()
         }));
         assert!(arr.iter().any(|c| {
-            c["body"] == "整块属性补全"
+            c["body"]["text"] == "整块属性补全"
                 && c["target"]["id"] == entry_id
                 && c["module"] == mod_id
                 && c["part"].is_null()
         }));
         assert!(arr.iter().any(|c| {
-            c["body"] == "字段值改一下"
+            c["body"]["text"] == "字段值改一下"
                 && c["module"] == mod_id
                 && c["part"]["kind"] == "field"
                 && c["part"]["field"] == field_id
         }));
         assert!(arr.iter().any(|c| {
-            c["body"] == "城门高度要标尺寸"
+            c["body"]["text"] == "城门高度要标尺寸"
                 && c["target"]["kind"] == "asset"
                 && c["target"]["id"] == "asset-map"
                 && c["part"].is_null()

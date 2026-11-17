@@ -137,44 +137,8 @@ expression: json
                 "field"
               ],
               "type": "object"
-            },
-            {
-              "description": "A relation where one end is this asset and the other end is live.",
-              "properties": {
-                "kind": {
-                  "const": "relation",
-                  "type": "string"
-                },
-                "other": {
-                  "$ref": "#/$defs/Ref"
-                },
-                "relation": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "relation",
-                "other"
-              ],
-              "type": "object"
             }
           ]
-        },
-        "Ref": {
-          "properties": {
-            "id": {
-              "type": "string"
-            },
-            "kind": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "kind",
-            "id"
-          ],
-          "type": "object"
         }
       },
       "description": "An asset's recorded metadata and live usages in the book.",
@@ -484,44 +448,8 @@ expression: json
                 "field"
               ],
               "type": "object"
-            },
-            {
-              "description": "A relation where one end is this asset and the other end is live.",
-              "properties": {
-                "kind": {
-                  "const": "relation",
-                  "type": "string"
-                },
-                "other": {
-                  "$ref": "#/$defs/Ref"
-                },
-                "relation": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "relation",
-                "other"
-              ],
-              "type": "object"
             }
           ]
-        },
-        "Ref": {
-          "properties": {
-            "id": {
-              "type": "string"
-            },
-            "kind": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "kind",
-            "id"
-          ],
-          "type": "object"
         }
       },
       "items": {
@@ -2577,6 +2505,62 @@ expression: json
           ],
           "type": "object"
         },
+        "EntryTextLink": {
+          "additionalProperties": false,
+          "description": "One entry link, using half-open Unicode scalar offsets in the accompanying text.",
+          "properties": {
+            "end": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "entry": {
+              "type": "string"
+            },
+            "start": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "start",
+            "end",
+            "entry"
+          ],
+          "type": "object"
+        },
+        "LinkedText": {
+          "additionalProperties": false,
+          "description": "Text with ordered, non-overlapping entry links. The saved spelling is the\nfallback when an entry cannot be resolved.",
+          "properties": {
+            "links": {
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/EntryTextLink"
+              },
+              "type": "array"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "text"
+          ],
+          "type": "object"
+        },
+        "LinkedTextIn": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/LinkedText"
+            }
+          ],
+          "description": "Commands accept plain text or text with explicit entry links."
+        },
         "Region": {
           "description": "A rectangle on an image, or on one page of a PDF, as fractions (0–1) of\nthe picture or the page, so it stays put at any size and zoom.",
           "properties": {
@@ -2641,8 +2625,8 @@ expression: json
           ]
         },
         "body": {
-          "default": "",
-          "type": "string"
+          "$ref": "#/$defs/LinkedTextIn",
+          "default": ""
         },
         "book": {
           "type": "string"
@@ -2764,7 +2748,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Delete a comment (its relations go with it). A checklist item's comment is not deleted here: it goes when its line is deleted in the prose."
+    "summary": "Delete a comment. A checklist item's comment is not deleted here: it goes when its line is deleted in the prose."
   },
   {
     "access": "read",
@@ -2859,7 +2843,7 @@ expression: json
               ]
             },
             "body": {
-              "type": "string"
+              "$ref": "#/$defs/LinkedText"
             },
             "created_at": {
               "format": "int64",
@@ -3129,6 +3113,52 @@ expression: json
           ],
           "type": "object"
         },
+        "EntryTextLink": {
+          "additionalProperties": false,
+          "description": "One entry link, using half-open Unicode scalar offsets in the accompanying text.",
+          "properties": {
+            "end": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "entry": {
+              "type": "string"
+            },
+            "start": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "start",
+            "end",
+            "entry"
+          ],
+          "type": "object"
+        },
+        "LinkedText": {
+          "additionalProperties": false,
+          "description": "Text with ordered, non-overlapping entry links. The saved spelling is the\nfallback when an entry cannot be resolved.",
+          "properties": {
+            "links": {
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/EntryTextLink"
+              },
+              "type": "array"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "text",
+            "links"
+          ],
+          "type": "object"
+        },
         "Region": {
           "description": "A rectangle on an image, or on one page of a PDF, as fractions (0–1) of\nthe picture or the page, so it stays put at any size and zoom.",
           "properties": {
@@ -3365,6 +3395,64 @@ expression: json
     "book_version": 5,
     "concurrency": "book",
     "input": {
+      "$defs": {
+        "EntryTextLink": {
+          "additionalProperties": false,
+          "description": "One entry link, using half-open Unicode scalar offsets in the accompanying text.",
+          "properties": {
+            "end": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "entry": {
+              "type": "string"
+            },
+            "start": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "start",
+            "end",
+            "entry"
+          ],
+          "type": "object"
+        },
+        "LinkedText": {
+          "additionalProperties": false,
+          "description": "Text with ordered, non-overlapping entry links. The saved spelling is the\nfallback when an entry cannot be resolved.",
+          "properties": {
+            "links": {
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/EntryTextLink"
+              },
+              "type": "array"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "text"
+          ],
+          "type": "object"
+        },
+        "LinkedTextIn": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/LinkedText"
+            }
+          ],
+          "description": "Commands accept plain text or text with explicit entry links."
+        }
+      },
       "properties": {
         "agent_conversation": {
           "description": "The Agent conversation started from this comment.",
@@ -3374,9 +3462,13 @@ expression: json
           ]
         },
         "body": {
-          "type": [
-            "string",
-            "null"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LinkedTextIn"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "book": {
@@ -5302,269 +5394,6 @@ expression: json
       "type": "object"
     },
     "summary": "Read the current book version for per-entry snapshot restoration."
-  },
-  {
-    "access": "write",
-    "book_version": 5,
-    "concurrency": "book",
-    "input": {
-      "description": "One entity of a book.",
-      "properties": {
-        "book": {
-          "type": "string"
-        },
-        "id": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "book",
-        "id"
-      ],
-      "title": "EntityIn",
-      "type": "object"
-    },
-    "kind": "command",
-    "name": "entry_relation_type.delete",
-    "output": {
-      "description": "The entity a command changed.",
-      "properties": {
-        "id": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "id"
-      ],
-      "title": "Done",
-      "type": "object"
-    },
-    "summary": "Delete an unused unlocked relation type."
-  },
-  {
-    "access": "read",
-    "book_version": 5,
-    "concurrency": "shared",
-    "input": {
-      "description": "A book.",
-      "properties": {
-        "book": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "book"
-      ],
-      "title": "BookIn",
-      "type": "object"
-    },
-    "kind": "query",
-    "name": "entry_relation_type.list",
-    "output": {
-      "$defs": {
-        "RelationTypeInfo": {
-          "properties": {
-            "color": {
-              "default": null,
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "description": {
-              "default": "",
-              "type": "string"
-            },
-            "id": {
-              "type": "string"
-            },
-            "locked": {
-              "type": "boolean"
-            },
-            "name": {
-              "type": "string"
-            },
-            "normalized_name": {
-              "type": "string"
-            },
-            "orientation": {
-              "default": "directed",
-              "type": "string"
-            },
-            "source_kinds": {
-              "default": [],
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "source_role": {
-              "default": "",
-              "type": "string"
-            },
-            "source_templates": {
-              "default": [],
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "system_key": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "target_kinds": {
-              "default": [],
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "target_role": {
-              "default": "",
-              "type": "string"
-            },
-            "target_templates": {
-              "default": [],
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            }
-          },
-          "required": [
-            "id",
-            "name",
-            "description",
-            "orientation",
-            "source_role",
-            "target_role",
-            "color",
-            "source_kinds",
-            "target_kinds",
-            "source_templates",
-            "target_templates",
-            "normalized_name",
-            "system_key",
-            "locked"
-          ],
-          "type": "object"
-        }
-      },
-      "items": {
-        "$ref": "#/$defs/RelationTypeInfo"
-      },
-      "title": "Array_of_RelationTypeInfo",
-      "type": "array"
-    },
-    "summary": "List relation types available to entry modules."
-  },
-  {
-    "access": "write",
-    "book_version": 5,
-    "concurrency": "book",
-    "input": {
-      "$defs": {
-        "RelationType": {
-          "properties": {
-            "color": {
-              "default": null,
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "description": {
-              "default": "",
-              "type": "string"
-            },
-            "id": {
-              "type": "string"
-            },
-            "name": {
-              "type": "string"
-            },
-            "orientation": {
-              "default": "directed",
-              "type": "string"
-            },
-            "source_kinds": {
-              "default": [],
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "source_role": {
-              "default": "",
-              "type": "string"
-            },
-            "source_templates": {
-              "default": [],
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "target_kinds": {
-              "default": [],
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "target_role": {
-              "default": "",
-              "type": "string"
-            },
-            "target_templates": {
-              "default": [],
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            }
-          },
-          "required": [
-            "id",
-            "name"
-          ],
-          "type": "object"
-        }
-      },
-      "properties": {
-        "book": {
-          "type": "string"
-        },
-        "definition": {
-          "$ref": "#/$defs/RelationType"
-        }
-      },
-      "required": [
-        "book",
-        "definition"
-      ],
-      "title": "TypeIn",
-      "type": "object"
-    },
-    "kind": "command",
-    "name": "entry_relation_type.put",
-    "output": {
-      "description": "The entity a command changed.",
-      "properties": {
-        "id": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "id"
-      ],
-      "title": "Done",
-      "type": "object"
-    },
-    "summary": "Create or edit a relation type with endpoint and template restrictions."
   },
   {
     "access": "write",
@@ -9119,7 +8948,7 @@ expression: json
     "input": {
       "$defs": {
         "Target": {
-          "description": "A reference to an entity (relation end, comment or memory target).",
+          "description": "A reference to an entity (comment or memory target).",
           "properties": {
             "id": {
               "type": "string"
@@ -9268,7 +9097,7 @@ expression: json
           "type": "object"
         },
         "Target": {
-          "description": "A reference to an entity (relation end, comment or memory target).",
+          "description": "A reference to an entity (comment or memory target).",
           "properties": {
             "id": {
               "type": "string"
@@ -10373,76 +10202,6 @@ expression: json
     "summary": "Create or edit the text of a patch module record, preserving its source reference."
   },
   {
-    "access": "write",
-    "book_version": 5,
-    "concurrency": "book",
-    "input": {
-      "$defs": {
-        "Ref": {
-          "properties": {
-            "id": {
-              "type": "string"
-            },
-            "kind": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "kind",
-            "id"
-          ],
-          "type": "object"
-        }
-      },
-      "properties": {
-        "book": {
-          "type": "string"
-        },
-        "entry": {
-          "type": "string"
-        },
-        "incoming": {
-          "default": false,
-          "type": "boolean"
-        },
-        "module": {
-          "type": "string"
-        },
-        "other": {
-          "$ref": "#/$defs/Ref"
-        },
-        "relation_type": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "book",
-        "entry",
-        "module",
-        "other",
-        "relation_type"
-      ],
-      "title": "RelationIn",
-      "type": "object"
-    },
-    "kind": "command",
-    "name": "module.put_relation",
-    "output": {
-      "description": "The entity a command changed.",
-      "properties": {
-        "id": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "id"
-      ],
-      "title": "Done",
-      "type": "object"
-    },
-    "summary": "Associate an entry with a live endpoint through its relations module."
-  },
-  {
     "access": "read",
     "book_version": 5,
     "concurrency": "shared",
@@ -11261,52 +11020,6 @@ expression: json
           ],
           "type": "object"
         },
-        "Ref": {
-          "properties": {
-            "id": {
-              "type": "string"
-            },
-            "kind": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "kind",
-            "id"
-          ],
-          "type": "object"
-        },
-        "Relation": {
-          "properties": {
-            "created_at": {
-              "format": "int64",
-              "type": [
-                "integer",
-                "null"
-              ]
-            },
-            "from": {
-              "$ref": "#/$defs/Ref"
-            },
-            "id": {
-              "type": "string"
-            },
-            "relation_type": {
-              "type": "string"
-            },
-            "to": {
-              "$ref": "#/$defs/Ref"
-            }
-          },
-          "required": [
-            "id",
-            "from",
-            "to",
-            "relation_type",
-            "created_at"
-          ],
-          "type": "object"
-        },
         "SettingSource": {
           "description": "Where one resolved setting comes from (the same precedence as its value).",
           "oneOf": [
@@ -11459,12 +11172,6 @@ expression: json
             "$ref": "#/$defs/Patch"
           },
           "type": "array"
-        },
-        "relations": {
-          "items": {
-            "$ref": "#/$defs/Relation"
-          },
-          "type": "array"
         }
       },
       "required": [
@@ -11474,8 +11181,7 @@ expression: json
         "kv",
         "media",
         "patches",
-        "grid",
-        "relations"
+        "grid"
       ],
       "title": "Data",
       "type": "object"
@@ -11729,51 +11435,6 @@ expression: json
       "type": "object"
     },
     "summary": "Remove one patch record without deleting relations or other entries."
-  },
-  {
-    "access": "write",
-    "book_version": 5,
-    "concurrency": "book",
-    "input": {
-      "properties": {
-        "book": {
-          "type": "string"
-        },
-        "entry": {
-          "type": "string"
-        },
-        "id": {
-          "type": "string"
-        },
-        "module": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "book",
-        "entry",
-        "module",
-        "id"
-      ],
-      "title": "RecordIn",
-      "type": "object"
-    },
-    "kind": "command",
-    "name": "module.remove_relation",
-    "output": {
-      "description": "The entity a command changed.",
-      "properties": {
-        "id": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "id"
-      ],
-      "title": "Done",
-      "type": "object"
-    },
-    "summary": "Remove one relation projected in an entry's relations module."
   },
   {
     "access": "write",
@@ -14446,7 +14107,7 @@ expression: json
           "type": "object"
         },
         "Target": {
-          "description": "A reference to an entity (relation end, comment or memory target).",
+          "description": "A reference to an entity (comment or memory target).",
           "properties": {
             "id": {
               "type": "string"
@@ -14858,7 +14519,7 @@ expression: json
           "type": "object"
         },
         "Target": {
-          "description": "A reference to an entity (relation end, comment or memory target).",
+          "description": "A reference to an entity (comment or memory target).",
           "properties": {
             "id": {
               "type": "string"
@@ -15064,60 +14725,189 @@ expression: json
     "concurrency": "book",
     "input": {
       "$defs": {
-        "Target": {
-          "description": "A reference to an entity (relation end, comment or memory target).",
-          "properties": {
-            "id": {
-              "type": "string"
-            },
-            "kind": {
-              "description": "Canonical `entry`, `patch` or `comment`.",
-              "type": "string"
-            }
-          },
-          "required": [
-            "kind",
-            "id"
+        "RelationSide": {
+          "enum": [
+            "left",
+            "right"
           ],
-          "type": "object"
+          "type": "string"
         }
       },
       "properties": {
         "book": {
           "type": "string"
         },
-        "from": {
-          "$ref": "#/$defs/Target"
+        "entry": {
+          "type": "string"
         },
         "id": {
-          "default": null,
-          "description": "An explicitly unused identity for author-side replay; Agent creation\nrejects this property before any reads or writes.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": "string"
         },
-        "relation_type": {
-          "default": null,
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "to": {
-          "$ref": "#/$defs/Target"
+        "side": {
+          "$ref": "#/$defs/RelationSide"
         }
       },
       "required": [
         "book",
-        "from",
-        "to"
+        "id",
+        "side",
+        "entry"
       ],
-      "title": "CreateIn",
+      "title": "AddEntryIn",
       "type": "object"
     },
     "kind": "command",
-    "name": "relation.create",
+    "name": "relation_row.add_entry",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Add a live entry to one side of a row. Every new pair must be unique within the relation."
+  },
+  {
+    "access": "write",
+    "book_version": 5,
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "Definition": {
+          "additionalProperties": false,
+          "properties": {
+            "description": {
+              "$ref": "#/$defs/LinkedTextIn",
+              "default": ""
+            },
+            "direction": {
+              "$ref": "#/$defs/RelationDirection",
+              "default": "directed"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "type": "object"
+        },
+        "EntryTextLink": {
+          "additionalProperties": false,
+          "description": "One entry link, using half-open Unicode scalar offsets in the accompanying text.",
+          "properties": {
+            "end": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "entry": {
+              "type": "string"
+            },
+            "start": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "start",
+            "end",
+            "entry"
+          ],
+          "type": "object"
+        },
+        "LinkedText": {
+          "additionalProperties": false,
+          "description": "Text with ordered, non-overlapping entry links. The saved spelling is the\nfallback when an entry cannot be resolved.",
+          "properties": {
+            "links": {
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/EntryTextLink"
+              },
+              "type": "array"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "text"
+          ],
+          "type": "object"
+        },
+        "LinkedTextIn": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/LinkedText"
+            }
+          ],
+          "description": "Commands accept plain text or text with explicit entry links."
+        },
+        "RelationDirection": {
+          "description": "A relation's direction applies to all its rows. Switching it never moves a member.",
+          "enum": [
+            "directed",
+            "symmetric"
+          ],
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "left": {
+          "description": "The left live entry's ID.",
+          "type": "string"
+        },
+        "new_type": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Definition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Create the relation and the pair in the same edit."
+        },
+        "relation_type": {
+          "default": null,
+          "description": "An existing relation type. Supply exactly one of this and `new_type`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "right": {
+          "description": "The right live entry's ID.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "left",
+        "right"
+      ],
+      "title": "PairIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "relation_row.create_pair",
     "output": {
       "properties": {
         "existing": {
@@ -15125,16 +14915,20 @@ expression: json
         },
         "id": {
           "type": "string"
+        },
+        "relation_type": {
+          "type": "string"
         }
       },
       "required": [
         "id",
+        "relation_type",
         "existing"
       ],
-      "title": "Made",
+      "title": "Placed",
       "type": "object"
     },
-    "summary": "Create a canonical relation, validating live endpoints and template restrictions; return an existing semantic edge without a write."
+    "summary": "Relate two distinct live entries. Reuse a matching row or start a new one. Return the row ID, with no write if the pair already exists."
   },
   {
     "access": "write",
@@ -15158,7 +14952,7 @@ expression: json
       "type": "object"
     },
     "kind": "command",
-    "name": "relation.delete",
+    "name": "relation_row.delete",
     "output": {
       "description": "The entity a command changed.",
       "properties": {
@@ -15172,49 +14966,210 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Delete one canonical relation without deleting either endpoint."
+    "summary": "Delete a row. Removing the last row also removes the relation."
   },
   {
-    "access": "read",
+    "access": "write",
     "book_version": 5,
-    "concurrency": "shared",
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "entry": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id",
+        "entry"
+      ],
+      "title": "RemoveEntryIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "relation_row.remove_entry",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Remove an entry from a row. An empty side removes the row; removing the last row also removes the relation."
+  },
+  {
+    "access": "write",
+    "book_version": 5,
+    "concurrency": "book",
     "input": {
       "$defs": {
-        "Target": {
-          "description": "A reference to an entity (relation end, comment or memory target).",
+        "EntryTextLink": {
+          "additionalProperties": false,
+          "description": "One entry link, using half-open Unicode scalar offsets in the accompanying text.",
           "properties": {
-            "id": {
+            "end": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "entry": {
               "type": "string"
             },
-            "kind": {
-              "description": "Canonical `entry`, `patch` or `comment`.",
+            "start": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "start",
+            "end",
+            "entry"
+          ],
+          "type": "object"
+        },
+        "LinkedText": {
+          "additionalProperties": false,
+          "description": "Text with ordered, non-overlapping entry links. The saved spelling is the\nfallback when an entry cannot be resolved.",
+          "properties": {
+            "links": {
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/EntryTextLink"
+              },
+              "type": "array"
+            },
+            "text": {
               "type": "string"
             }
           },
           "required": [
-            "kind",
-            "id"
+            "text"
           ],
           "type": "object"
+        },
+        "LinkedTextIn": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/LinkedText"
+            }
+          ],
+          "description": "Commands accept plain text or text with explicit entry links."
+        },
+        "RelationDirection": {
+          "description": "A relation's direction applies to all its rows. Switching it never moves a member.",
+          "enum": [
+            "directed",
+            "symmetric"
+          ],
+          "type": "string"
         }
       },
       "properties": {
         "book": {
           "type": "string"
         },
-        "entity": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/Target"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
+        "description": {
+          "$ref": "#/$defs/LinkedTextIn",
+          "default": ""
         },
-        "relation_type": {
+        "direction": {
+          "$ref": "#/$defs/RelationDirection",
+          "default": "directed"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "name"
+      ],
+      "title": "CreateTypeIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "relation_type.create",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Create a named relation with a description and direction, initially without rows."
+  },
+  {
+    "access": "write",
+    "book_version": 5,
+    "concurrency": "book",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "relation_type.delete",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Delete a relation and all its rows in one edit."
+  },
+  {
+    "access": "read",
+    "book_version": 5,
+    "concurrency": "shared",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "entry": {
           "default": null,
+          "description": "Include only rows containing this live entry.",
           "type": [
             "string",
             "null"
@@ -15228,46 +15183,137 @@ expression: json
       "type": "object"
     },
     "kind": "query",
-    "name": "relation.list",
+    "name": "relation_type.list",
     "output": {
       "$defs": {
+        "EntryTextLink": {
+          "additionalProperties": false,
+          "description": "One entry link, using half-open Unicode scalar offsets in the accompanying text.",
+          "properties": {
+            "end": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "entry": {
+              "type": "string"
+            },
+            "start": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "start",
+            "end",
+            "entry"
+          ],
+          "type": "object"
+        },
+        "LinkedText": {
+          "additionalProperties": false,
+          "description": "Text with ordered, non-overlapping entry links. The saved spelling is the\nfallback when an entry cannot be resolved.",
+          "properties": {
+            "links": {
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/EntryTextLink"
+              },
+              "type": "array"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "text",
+            "links"
+          ],
+          "type": "object"
+        },
+        "RelationDirection": {
+          "description": "A relation's direction applies to all its rows. Switching it never moves a member.",
+          "enum": [
+            "directed",
+            "symmetric"
+          ],
+          "type": "string"
+        },
         "RelationInfo": {
           "properties": {
-            "from": {
-              "$ref": "#/$defs/Target"
+            "created_at": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "description": {
+              "$ref": "#/$defs/LinkedText"
+            },
+            "direction": {
+              "$ref": "#/$defs/RelationDirection"
             },
             "id": {
               "type": "string"
             },
-            "relation_type": {
+            "name": {
               "type": "string"
             },
-            "to": {
-              "$ref": "#/$defs/Target"
+            "pair_count": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "rows": {
+              "items": {
+                "$ref": "#/$defs/RowInfo"
+              },
+              "type": "array"
             }
           },
           "required": [
             "id",
-            "from",
-            "to",
-            "relation_type"
+            "name",
+            "description",
+            "direction",
+            "created_at",
+            "pair_count",
+            "rows"
           ],
           "type": "object"
         },
-        "Target": {
-          "description": "A reference to an entity (relation end, comment or memory target).",
+        "RowInfo": {
           "properties": {
+            "created_at": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
             "id": {
               "type": "string"
             },
-            "kind": {
-              "description": "Canonical `entry`, `patch` or `comment`.",
-              "type": "string"
+            "left": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "right": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
             }
           },
           "required": [
-            "kind",
-            "id"
+            "id",
+            "left",
+            "right",
+            "created_at"
           ],
           "type": "object"
         }
@@ -15278,7 +15324,198 @@ expression: json
       "title": "Array_of_RelationInfo",
       "type": "array"
     },
-    "summary": "List canonical relations whose endpoints are live, optionally scoped to an endpoint or type."
+    "summary": "List each relation with its description, direction and rows of live entries. Each row relates every left entry to every right entry."
+  },
+  {
+    "access": "write",
+    "book_version": 5,
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id",
+        "name"
+      ],
+      "title": "RenameIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "relation_type.rename",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Rename a relation. Normalized names are unique within the project."
+  },
+  {
+    "access": "write",
+    "book_version": 5,
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "EntryTextLink": {
+          "additionalProperties": false,
+          "description": "One entry link, using half-open Unicode scalar offsets in the accompanying text.",
+          "properties": {
+            "end": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "entry": {
+              "type": "string"
+            },
+            "start": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "start",
+            "end",
+            "entry"
+          ],
+          "type": "object"
+        },
+        "LinkedText": {
+          "additionalProperties": false,
+          "description": "Text with ordered, non-overlapping entry links. The saved spelling is the\nfallback when an entry cannot be resolved.",
+          "properties": {
+            "links": {
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/EntryTextLink"
+              },
+              "type": "array"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "text"
+          ],
+          "type": "object"
+        },
+        "LinkedTextIn": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/LinkedText"
+            }
+          ],
+          "description": "Commands accept plain text or text with explicit entry links."
+        }
+      },
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "description": {
+          "$ref": "#/$defs/LinkedTextIn"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id",
+        "description"
+      ],
+      "title": "DescriptionIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "relation_type.set_description",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Edit a relation's description, which can contain links to entries."
+  },
+  {
+    "access": "write",
+    "book_version": 5,
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "RelationDirection": {
+          "description": "A relation's direction applies to all its rows. Switching it never moves a member.",
+          "enum": [
+            "directed",
+            "symmetric"
+          ],
+          "type": "string"
+        }
+      },
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "direction": {
+          "$ref": "#/$defs/RelationDirection"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id",
+        "direction"
+      ],
+      "title": "DirectionIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "relation_type.set_direction",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Change the direction of every row of a relation, preserving its left and right entries."
   },
   {
     "access": "write",

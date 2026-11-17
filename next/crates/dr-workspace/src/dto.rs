@@ -2,10 +2,11 @@
 //! values are strings; positions are the stored keys.
 
 use dr_model::shared::*;
+use dr_model::v3::LinkedText;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// A reference to an entity (relation end, comment or memory target).
+/// A reference to an entity (comment or memory target).
 #[derive(
     Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
 )]
@@ -74,21 +75,37 @@ impl From<&KvEntry> for FieldInfo {
     }
 }
 
-#[derive(Clone, Debug, Serialize, JsonSchema)]
-pub struct RelationInfo {
-    pub id: String,
-    pub from: Target,
-    pub to: Target,
-    pub relation_type: String,
+/// Commands accept plain text or text with explicit entry links.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(untagged)]
+pub enum LinkedTextIn {
+    Plain(String),
+    Linked(LinkedText),
 }
 
-impl From<&Relation> for RelationInfo {
-    fn from(r: &Relation) -> Self {
-        RelationInfo {
-            id: r.id.to_string(),
-            from: (&r.from).into(),
-            to: (&r.to).into(),
-            relation_type: r.relation_type.to_string(),
+impl Default for LinkedTextIn {
+    fn default() -> Self {
+        Self::Plain(String::new())
+    }
+}
+
+impl From<String> for LinkedTextIn {
+    fn from(text: String) -> Self {
+        Self::Plain(text)
+    }
+}
+
+impl From<&str> for LinkedTextIn {
+    fn from(text: &str) -> Self {
+        Self::Plain(text.into())
+    }
+}
+
+impl From<LinkedTextIn> for LinkedText {
+    fn from(input: LinkedTextIn) -> Self {
+        match input {
+            LinkedTextIn::Plain(text) => Self::plain(text),
+            LinkedTextIn::Linked(text) => text,
         }
     }
 }
@@ -112,7 +129,7 @@ pub struct CommentInfo {
     pub target_block: Option<String>,
     pub anchored: bool,
     pub quote: Option<String>,
-    pub body: String,
+    pub body: LinkedText,
     /// `open` or `resolved` (a comment has no priority).
     pub status: String,
     /// `manual`, `marker`, `task`, `agent` or `reader`.

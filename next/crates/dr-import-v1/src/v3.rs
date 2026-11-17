@@ -26,7 +26,9 @@ pub use dr_samples::v3::{MappingChoices, Pending, category_template};
 
 pub(crate) fn mapping_key(options: &Options) -> Result<String> {
     Ok(format!(
-        "5:{:x}",
+        "{}-g{}:{:x}",
+        dr_doc::schema::BOOK_SCHEMA_VERSION,
+        dr_doc::schema::BOOK_GENESIS_VERSION,
         Sha256::digest(serde_json::to_vec(&options.v3)?)
     ))
 }
@@ -352,7 +354,6 @@ pub fn pending(legacy: &Legacy, choices: &MappingChoices) -> Result<Vec<Pending>
                 || c.as_str() == "plot-grid-position-key-regenerated"
                 || c.as_str() == "writing-day-invalid"
                 || c.as_str() == "chapter-in-group-dropped"
-                || c.as_str() == "locked-relation-type-imported-unlocked"
         }) {
             add(code, &project.id);
         }
@@ -361,9 +362,12 @@ pub fn pending(legacy: &Legacy, choices: &MappingChoices) -> Result<Vec<Pending>
                 add("comment-target-missing-or-trashed", comment.id.as_str());
             }
         }
-        // A tolerant v2 reader can hide broken edges. The v3 import does
-        // not turn those hidden records into successful imports.
-        if catalog.view().relations_raw().len() != catalog.view().relations().len() {
+        // These are the source pairs that can reach the project. Retired
+        // endpoints have already been reported and dropped in book::write.
+        let source = catalog.view();
+        if source.relations_raw().iter().any(|row| {
+            row.from == row.to || !source.entity_exists(&row.from) || !source.entity_exists(&row.to)
+        }) {
             add("invalid-or-duplicate-source-relation", &project.id);
         }
         pending.extend(choices.pending(&catalog.view()));

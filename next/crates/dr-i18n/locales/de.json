@@ -236,7 +236,6 @@
     }
   },
   "edgeKindManager": {
-    "editTypes": "Typen bearbeiten",
     "empty": "In dieser Ansicht gibt es noch keine Beziehungen"
   },
   "editorOutline": {
@@ -795,9 +794,6 @@
     "timePins": "Zeitmarken"
   },
   "referencesPanel": {
-    "actions": {
-      "linkEntity": "Entität verknüpfen"
-    },
     "filters": {
       "all": "Alle"
     },
@@ -807,27 +803,10 @@
       "node": "Kapitel",
       "patch": "Entwicklung",
       "storyline": "Handlungsstrang"
-    },
-    "sections": {
-      "relations": "Beziehungen"
     }
   },
   "relationTypes": {
-    "builtIn": "Integriert",
-    "create": "Neu",
-    "createInline": "Beziehungstyp erstellen",
-    "delete": "Beziehungstyp löschen",
-    "description": "Beschreibung",
-    "directed": "Gerichtet",
-    "genericAssociation": {
-      "name": "Zuordnung"
-    },
-    "name": "Name",
-    "sourceRole": "Quellrolle",
-    "swap": "Beziehungsendpunkte tauschen",
-    "symmetric": "Symmetrisch",
-    "targetRole": "Zielrolle",
-    "title": "Definitionen der Beziehungstypen"
+    "description": "Beschreibung"
   },
   "reviewPanel": {
     "commentPlaceholder": "Kommentar schreiben…",
@@ -1275,10 +1254,7 @@
   },
   "storyGraph": {
     "edge": {
-      "create": "Erstellen",
-      "delete": "Beziehung löschen",
       "hideKind": "„{{label}}“ ausblenden",
-      "kindLabel": "Beziehungstyp",
       "showKind": "„{{label}}“ anzeigen"
     }
   },
@@ -1308,7 +1284,6 @@
         "companions": "Häufig gemeinsam",
         "edit": "Bearbeiten",
         "isolate": "Nur dieses",
-        "relations": "Beziehungen",
         "showAll": "Alle anzeigen",
         "times": "× {{count}}"
       },
@@ -1333,14 +1308,10 @@
     "layout": {
       "relate": "Beziehungen"
     },
-    "linkHintFrom": "Von",
-    "linkHintTo": "zu… zweites Element oder Kapitel wählen, Esc bricht ab",
-    "manualRelationTitle": "Neue manuelle Beziehung",
     "relate": {
       "relayout": "Neu anordnen"
     },
     "reset": "Zurücksetzen",
-    "startEdgeFromElement": "Beziehung von diesem Element erstellen",
     "uncategorized": "Ohne Kategorie",
     "unnamedCategory": "Unbenannte Kategorie"
   },
@@ -1406,7 +1377,6 @@
     "preview_failed": "Vorschau konnte nicht geladen werden",
     "preview_loading": "Vorschau wird geladen…",
     "prose": "Fließtext",
-    "relations": "Beziehungen",
     "reorder": "Zum Sortieren ziehen",
     "restore": "Wiederherstellen",
     "saved": "Gespeichert",

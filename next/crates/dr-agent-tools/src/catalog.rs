@@ -308,16 +308,6 @@ impl Catalog {
             }
             let mut input_schema =
                 crate::resolve::facade_schema_v3(spec.name, input_schema_for(spec, version));
-            if matches!(spec.name, "relation.create" | "module.put_relation") {
-                // Relations modules always create their own identity; reject a supplied id.
-                // The facade only creates fresh identities; omitting a
-                // property alone would still accept it in an open schema.
-                input_schema["properties"]
-                    .as_object_mut()
-                    .expect("registered command properties")
-                    .remove("id");
-                input_schema["not"] = json!({"required":["id"]});
-            }
             if spec.name == "project_template.save" {
                 // A template is credited to the account that exports it
                 // (v5-tracks 第 48 条); the Agent gives no credit.
@@ -1194,15 +1184,14 @@ fn exclusion_v3(spec: &Spec) -> Option<&'static str> {
 }
 
 fn common_exclusion(spec: &Spec, version: BookKernelVersion) -> Option<&'static str> {
-    if (spec.name.ends_with(".purge") && spec.concurrency != Concurrency::Library)
-        || matches!(
-            spec.name,
-            "comment.delete" | "patch.delete" | "relation_type.delete"
-        )
-    {
-        return Some(
-            "cascade needs an F3 query exposing affected relations, including hidden endpoints",
-        );
+    if spec.name.ends_with(".purge") && spec.concurrency != Concurrency::Library {
+        return Some("permanent deletion needs complete cascade coverage");
+    }
+    if spec.name == "comment.delete" {
+        return Some("comment deletion is reserved for the author");
+    }
+    if spec.name == "patch.delete" {
+        return Some("use the patch module's guarded delete command");
     }
 
     if spec.name == "history.restore_point" {

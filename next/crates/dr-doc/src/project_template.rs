@@ -9,7 +9,7 @@ use dr_model::id::{
     EmbedId, EntryId, EntryTemplateId, KvEntryId, ModuleId, ProjectTemplateDocId, RelationTypeId,
     TabId, TimePinId, TimelineViewId,
 };
-use dr_model::kind::{EntityKind, RelationOrientation};
+use dr_model::kind::EntityKind;
 use dr_model::pos::PosKey;
 use dr_model::project_template::{
     PROJECT_TEMPLATE_FORMAT, PROJECT_TEMPLATE_FORMAT_VERSION, ProjectTemplateCredit,
@@ -18,19 +18,18 @@ use dr_model::project_template::{
     TemplateFieldDef, TemplateFieldType, TemplateFormatShortcuts, TemplateKvRow,
     TemplateLevelSettings, TemplateMediaArrangement, TemplateMembership, TemplateModuleConfig,
     TemplateModuleKind, TemplateModuleSpec, TemplateParagraph, TemplateProject,
-    TemplateProjectBook, TemplateRelationEndpointKind, TemplateRelationOrientation,
-    TemplateRelationType, TemplateRun, TemplateTab, TemplateTabMount, TemplateTable,
-    TemplateVerbSpec, TemplateView, TemplateViewLane, TemplateViewPin, TemplateViewPlacement,
-    parse_project_template_json, rewrite_entity_ref_value, to_canonical_json,
-    validate_project_template_value,
+    TemplateProjectBook, TemplateRelationType, TemplateRun, TemplateTab, TemplateTabMount,
+    TemplateTable, TemplateVerbSpec, TemplateView, TemplateViewLane, TemplateViewPin,
+    TemplateViewPlacement, parse_project_template_json, rewrite_entity_ref_value,
+    to_canonical_json, validate_project_template_value,
 };
 use dr_model::prose::{InlineMarks, InlineStyle};
 use dr_model::shared::KvEntry;
 use dr_model::v3::{
-    EntityLinkV3, Entry, EntryTemplate, FieldType, FieldValue, LevelSettingsOverride,
+    EntityLinkV3, Entry, EntryTemplate, FieldType, FieldValue, LevelSettingsOverride, LinkedText,
     MediaArrangement, Membership, ModuleKind, ProjectBook, ProjectDefinition, ProjectTab,
-    ProjectTemplate, ProjectTemplateRef, TabMount, TimelineLane, TimelinePin, TimelinePlacement,
-    TimelineView, check_timeline_placement_in_lane, effective_timeline_lanes,
+    ProjectTemplate, ProjectTemplateRef, RelationDirection, TabMount, TimelineLane, TimelinePin,
+    TimelinePlacement, TimelineView, check_timeline_placement_in_lane, effective_timeline_lanes,
     effective_timeline_placements, is_entry_live, sort_timeline_pins,
 };
 use dr_model::{DocId, Origin, Timestamp};
@@ -1178,61 +1177,20 @@ where
         }
     }
 
-    // 3. Extract author-defined `relation_types` (skip built-in locked / system types).
-    let mut relation_types = Vec::new();
-    for rt in book_view.relation_types() {
-        if rt.locked || rt.system_key.is_some() {
-            continue;
-        }
-        let orientation = match &rt.orientation {
-            RelationOrientation::Directed => TemplateRelationOrientation::Directed,
-            RelationOrientation::Symmetric => TemplateRelationOrientation::Symmetric,
-            RelationOrientation::Other(s) => {
-                return Err(ProjectTemplateError::Invalid(format!(
-                    "relation type {:?} has unsupported orientation {s:?}",
-                    rt.name
-                )));
-            }
-        };
-        let map_kinds = |kinds: &[EntityKind], allow_comment: bool| {
-            kinds
-                .iter()
-                .filter_map(|k| match k {
-                    EntityKind::Entry => Some(TemplateRelationEndpointKind::Entry),
-                    EntityKind::Patch => Some(TemplateRelationEndpointKind::Patch),
-                    EntityKind::Comment if allow_comment => {
-                        Some(TemplateRelationEndpointKind::Comment)
-                    }
-                    EntityKind::Asset => Some(TemplateRelationEndpointKind::Asset),
-                    _ => None,
-                })
-                .collect::<Vec<_>>()
-        };
-        let source_templates: Vec<String> = rt
-            .source_templates
-            .iter()
-            .filter(|t| live_templates.contains_key(*t))
-            .map(ToString::to_string)
-            .collect();
-        let target_templates: Vec<String> = rt
-            .target_templates
-            .iter()
-            .filter(|t| live_templates.contains_key(*t))
-            .map(ToString::to_string)
-            .collect();
-        relation_types.push(TemplateRelationType {
+    // 3. Carry names, descriptions and directions, in stable name order.
+    // Links outside the selection keep their saved characters only.
+    let mut stored_relations = book_view.relation_types_raw();
+    stored_relations.sort_by(|a, b| a.normalized_name.cmp(&b.normalized_name));
+    let relation_types = stored_relations
+        .into_iter()
+        .map(|rt| TemplateRelationType {
             name: rt.name,
-            description: rt.description,
-            orientation,
-            source_role: rt.source_role,
-            target_role: rt.target_role,
-            color: rt.color,
-            source_kinds: map_kinds(&rt.source_kinds, true),
-            target_kinds: map_kinds(&rt.target_kinds, false),
-            source_templates,
-            target_templates,
-        });
-    }
+            description: rt
+                .description
+                .remap_links(|id| EntryId::parse(entry_refs.get(id)?).ok()),
+            direction: rt.direction,
+        })
+        .collect();
 
     // 4. Extract `entries` (skeleton-only vs checked sample entries).
     let mut extracted_entries = Vec::with_capacity(included_ordered.len());
@@ -2032,15 +1990,8 @@ pub fn from_seed_template(
 pub struct MaterializedRelationType {
     pub id: RelationTypeId,
     pub name: String,
-    pub description: String,
-    pub orientation: RelationOrientation,
-    pub source_role: String,
-    pub target_role: String,
-    pub color: Option<String>,
-    pub source_kinds: Vec<EntityKind>,
-    pub target_kinds: Vec<EntityKind>,
-    pub source_templates: Vec<EntryTemplateId>,
-    pub target_templates: Vec<EntryTemplateId>,
+    pub description: LinkedText,
+    pub direction: RelationDirection,
 }
 
 /// Materialized entry ready to be written into a new book (with fresh [`EntryId`]
@@ -2166,36 +2117,14 @@ pub fn materialize_project_template(
 
     // Custom relation types.
     let mut relation_types = Vec::with_capacity(val.relation_types.len());
-    let map_endpoint = |k: TemplateRelationEndpointKind| match k {
-        TemplateRelationEndpointKind::Entry => EntityKind::Entry,
-        TemplateRelationEndpointKind::Patch => EntityKind::Patch,
-        TemplateRelationEndpointKind::Comment => EntityKind::Comment,
-        TemplateRelationEndpointKind::Asset => EntityKind::Asset,
-    };
     for rt in &val.relation_types {
         relation_types.push(MaterializedRelationType {
             id: RelationTypeId::new_v7(),
             name: rt.name.trim().to_owned(),
-            description: rt.description.clone(),
-            orientation: match rt.orientation {
-                TemplateRelationOrientation::Directed => RelationOrientation::Directed,
-                TemplateRelationOrientation::Symmetric => RelationOrientation::Symmetric,
-            },
-            source_role: rt.source_role.clone(),
-            target_role: rt.target_role.clone(),
-            color: rt.color.clone(),
-            source_kinds: rt.source_kinds.iter().copied().map(map_endpoint).collect(),
-            target_kinds: rt.target_kinds.iter().copied().map(map_endpoint).collect(),
-            source_templates: rt
-                .source_templates
-                .iter()
-                .map(|s| EntryTemplateId::parse(s).expect("validated"))
-                .collect(),
-            target_templates: rt
-                .target_templates
-                .iter()
-                .map(|s| EntryTemplateId::parse(s).expect("validated"))
-                .collect(),
+            description: rt
+                .description
+                .remap_links(|id| entry_map.get(id.as_str()).cloned()),
+            direction: rt.direction,
         });
     }
 
@@ -2399,14 +2328,8 @@ pub fn apply_materialized_project_template(
         let w = txn.relation_type(&rt.id)?;
         w.name(&rt.name)?
             .description(&rt.description)?
-            .orientation(&rt.orientation)?
-            .source_role(&rt.source_role)?
-            .target_role(&rt.target_role)?
-            .color(rt.color.as_deref())?
-            .source_kinds(&rt.source_kinds)?
-            .target_kinds(&rt.target_kinds)?
-            .source_templates(&rt.source_templates)?
-            .target_templates(&rt.target_templates)?;
+            .direction(rt.direction)?
+            .created_at(Some(created_at))?;
     }
     for entry in &mat.entries {
         let w = txn.entries().create(

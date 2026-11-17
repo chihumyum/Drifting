@@ -1,5 +1,7 @@
 # M32 MCP
 
+**2026-11-17，RD。** 入站工具从共享目录读取 `relation_type.*` 和 `relation_row.*`。关系查询返回定义和左右两组条目的行，创建配对返回落到的行 id。批注与关系描述可附条目链接。入站合成测试覆盖建配对、扩行、记录读取及删行。
+
 > 2026-11-15 内核 v5（T7）：入站 MCP 继续直接复用 `AgentTools` 生成的同一份目录，不另建工具表。基础目录同步更新为格式 5 的 **94** 项开放工具（新增 `project.*`、`tab.*`、`book.sequence`、`module.put_media`／`remove_media`／`set_arrangement`、`asset.*`、`asset_folder.*`、`layout.*`；`comment.update` Schema 移除 `priority`；`prose.link` Schema 允许 `asset` 目标），继续排除已退役的 `material.*`／`todo.*` 以及 `asset.purge`、`asset_folder.purge`、`comment.delete`、`comment.project`。开着书时附加的模板动作随格式 5 按 `accept` 判住进（`home`）并用 `adds_membership` 区分「住进」与「挂到」。`dr-mcp/tests/inbound.rs` 已补齐格式 5 入站目录与 Schema 一致性回归。
 >
 > 2026-11-16 内核 v5（PT4）：入站目录跟着 M29 多了 `project_template.list`、`get`、`save`，没有导入、导出、编辑模板（`edit`、`working_copies`）和改名、删除；服务说明（`get_info` 的 instructions）末尾加了通用规则 `dr_agent::guidance::PROJECT_GUIDANCE_RULE`。回归：`dr-mcp/tests/inbound.rs` 的 `project_templates_reach_mcp_through_list_get_and_save_only`。

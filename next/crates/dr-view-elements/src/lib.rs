@@ -14,7 +14,6 @@ pub use fields::Fields;
 pub fn init(cx: &mut gpui::App) {
     fields::v3::register(cx);
     patches::register(cx);
-    dr_view_relations::register_modules(cx);
     storyline::init_v3(cx);
     panel::v3::register(cx);
     category::v3::register(cx);

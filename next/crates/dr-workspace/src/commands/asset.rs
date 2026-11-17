@@ -10,9 +10,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use dr_doc::v3::CollectionV3;
 use dr_model::id::{AssetFolderId, AssetId};
-use dr_model::kind::{AssetKind, EntityKind};
+use dr_model::kind::AssetKind;
 use dr_model::pos::PosKey;
-use dr_model::shared::{Asset, EntityRef};
+use dr_model::shared::Asset;
 use dr_model::v3::ModuleKind;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -20,6 +20,7 @@ use serde::{Deserialize, Serialize};
 use super::*;
 use crate::cx::EffectAction;
 use crate::registry::Registry;
+use crate::workspace::BookSlot;
 
 pub(crate) fn register(r: &mut Registry) {
     r.add::<AssetPut>()
@@ -348,7 +349,7 @@ op! {
     }
 }
 
-/// Purge `files` (records, the relations to them, the image fields holding
+/// Purge `files` (records, the image fields holding
 /// them, this book's bytes) and the folders `folders`, in one commit.
 fn purge_files(
     cx: &Cx<'_>,
@@ -356,29 +357,21 @@ fn purge_files(
     files: &[Asset],
     folders: &[AssetFolderId],
 ) -> Result<()> {
-    let mut rels = Vec::new();
     let mut fields = Vec::new();
     let mut replaced = Vec::new();
     for a in files {
-        let target = EntityRef::new(EntityKind::Asset, a.id.to_string());
-        rels.extend(purge_fallout(slot, &target).0);
         // Image fields holding the file are cleared: no value is left
         // pointing at bytes that are gone.
         fields.extend(image_field_values(slot, &a.id));
         replaced.push(rec(CollectionV3::Assets, &a.id));
     }
-    rels.sort();
-    rels.dedup();
     replaced.extend(fields.iter().map(|(entry, module, field)| {
         rec(CollectionV3::Entries, entry).at(["fields", module.as_str(), field.as_str()])
     }));
     replaced.extend(folders.iter().map(|f| rec(CollectionV3::AssetFolders, f)));
     let ids: Vec<AssetId> = files.iter().map(|a| a.id.clone()).collect();
-    let (rels2, fields2, folders2) = (rels.clone(), fields.clone(), folders.to_vec());
+    let (fields2, folders2) = (fields.clone(), folders.to_vec());
     cx.write_book_v3(slot, Replaces::records(replaced), move |txn| {
-        for r in &rels2 {
-            txn.purge(CollectionV3::Relations, r.as_str())?;
-        }
         for (entry, module, field) in &fields2 {
             txn.entries().entry(entry)?.set_field(module, field, None)?;
         }
@@ -411,9 +404,6 @@ fn purge_files(
     }
     for (entry, _, _) in &fields {
         cx.effect(EffectAction::Updated, "entry", entry.as_str(), None);
-    }
-    for r in &rels {
-        cx.effect(EffectAction::Purged, "relation", r.as_str(), None);
     }
     for a in files {
         cx.effect(
@@ -874,11 +864,6 @@ pub enum AssetUsage {
         module: String,
         field: String,
     },
-    /// A relation where one end is this asset and the other end is live.
-    Relation {
-        relation: String,
-        other: v3::content::Ref,
-    },
 }
 
 /// `(module, field)` of every image field any template declares, by template.
@@ -1062,33 +1047,6 @@ fn compute_usages(cx: &Cx<'_>, slot: &BookSlot) -> Result<BTreeMap<AssetId, Vec<
                     module,
                     block,
                 }
-            });
-        }
-    }
-
-    for r in view.relations_raw() {
-        if r.from.kind == EntityKind::Asset
-            && view.entity_exists(&r.to)
-            && let Ok(aid) = AssetId::parse(r.from.id.as_str())
-        {
-            by_asset.entry(aid).or_default().push(AssetUsage::Relation {
-                relation: r.id.to_string(),
-                other: v3::content::Ref {
-                    kind: r.to.kind.as_str().to_owned(),
-                    id: r.to.id.clone(),
-                },
-            });
-        }
-        if r.to.kind == EntityKind::Asset
-            && view.entity_exists(&r.from)
-            && let Ok(aid) = AssetId::parse(r.to.id.as_str())
-        {
-            by_asset.entry(aid).or_default().push(AssetUsage::Relation {
-                relation: r.id.to_string(),
-                other: v3::content::Ref {
-                    kind: r.from.kind.as_str().to_owned(),
-                    id: r.from.id.clone(),
-                },
             });
         }
     }

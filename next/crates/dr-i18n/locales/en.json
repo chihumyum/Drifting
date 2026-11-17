@@ -236,7 +236,6 @@
     }
   },
   "edgeKindManager": {
-    "editTypes": "Edit types",
     "empty": "No relations in this view yet"
   },
   "editorOutline": {
@@ -795,9 +794,6 @@
     "timePins": "Time pins"
   },
   "referencesPanel": {
-    "actions": {
-      "linkEntity": "Link entity"
-    },
     "filters": {
       "all": "All"
     },
@@ -807,27 +803,10 @@
       "node": "Chapter",
       "patch": "Patch",
       "storyline": "Storyline"
-    },
-    "sections": {
-      "relations": "Relations"
     }
   },
   "relationTypes": {
-    "builtIn": "Built-in",
-    "create": "New",
-    "createInline": "Create relation type",
-    "delete": "Delete relation type",
-    "description": "Description",
-    "directed": "Directed",
-    "genericAssociation": {
-      "name": "Association"
-    },
-    "name": "Name",
-    "sourceRole": "Source role",
-    "swap": "Swap relation endpoints",
-    "symmetric": "Symmetric",
-    "targetRole": "Target role",
-    "title": "Relation type definitions"
+    "description": "Description"
   },
   "reviewPanel": {
     "commentPlaceholder": "Write a comment…",
@@ -1275,10 +1254,7 @@
   },
   "storyGraph": {
     "edge": {
-      "create": "Create",
-      "delete": "Delete relation",
       "hideKind": "Hide \"{{label}}\"",
-      "kindLabel": "Relation type",
       "showKind": "Show \"{{label}}\""
     }
   },
@@ -1308,7 +1284,6 @@
         "companions": "Often together",
         "edit": "Edit",
         "isolate": "Only this",
-        "relations": "Relations",
         "showAll": "Show all",
         "times": "× {{count}}"
       },
@@ -1333,14 +1308,10 @@
     "layout": {
       "relate": "Relations"
     },
-    "linkHintFrom": "From",
-    "linkHintTo": "to… pick a second element or chapter, Esc cancels",
-    "manualRelationTitle": "New manual relation",
     "relate": {
       "relayout": "Re-arrange"
     },
     "reset": "Reset",
-    "startEdgeFromElement": "Create relation from this element",
     "uncategorized": "Uncategorized",
     "unnamedCategory": "Untitled category"
   },
@@ -1406,7 +1377,6 @@
     "preview_failed": "Could not load preview",
     "preview_loading": "Loading preview…",
     "prose": "Prose",
-    "relations": "Relations",
     "reorder": "Drag to reorder",
     "restore": "Restore",
     "saved": "Saved",

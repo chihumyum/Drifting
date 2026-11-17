@@ -433,7 +433,7 @@ fn a_rectangle_drawn_on_a_page_becomes_a_region_comment(cx: &mut TestAppContext)
     wait_for(cx, |cx| page.read_with(cx, |p, _| p.comments().len() == 1));
     let listed = out(&e.ws, "comment.list", json!({"book": e.book}));
     let stored = &listed.as_array().unwrap()[0];
-    assert_eq!(stored["body"], "这一段潮位要核对");
+    assert_eq!(stored["body"]["text"], "这一段潮位要核对");
     assert_eq!(stored["part"]["region"]["page"], 2);
     assert!(page.read_with(cx, |p, _| p.composer().is_none() && !p.drawing()));
     let new = stored["id"].as_str().unwrap().to_owned();
@@ -505,7 +505,7 @@ fn the_region_composer_takes_the_keyboard(cx: &mut TestAppContext) {
     composer.update(cx, |c, cx| c.save(cx));
     wait_for(cx, |cx| page.read_with(cx, |p, _| p.comments().len() == 1));
     let listed = out(&e.ws, "comment.list", json!({"book": e.book}));
-    assert_eq!(listed.as_array().unwrap()[0]["body"], "潮位要核对");
+    assert_eq!(listed.as_array().unwrap()[0]["body"]["text"], "潮位要核对");
 }
 
 #[gpui::test]
@@ -537,7 +537,10 @@ fn the_column_reads_in_page_order_and_a_choice_turns_to_its_page(cx: &mut TestAp
     let cx = &mut cx;
     wait_for(cx, |cx| page.read_with(cx, |p, _| p.comments().len() == 3));
     let bodies: Vec<String> = page.read_with(cx, |p, _| {
-        p.comments().iter().map(|l| l.item.body.clone()).collect()
+        p.comments()
+            .iter()
+            .map(|l| l.item.body.text.clone())
+            .collect()
     });
     assert_eq!(bodies, ["一页的海岸", "三页的礁石", "整份"]);
     // Choosing the one on page 3 turns to it.

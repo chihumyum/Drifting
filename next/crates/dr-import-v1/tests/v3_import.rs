@@ -332,20 +332,25 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
         view.level_settings(Some(&unaffiliated_id)).home,
         Some(manuscript_root)
     );
-    let rel_type = view
-        .relation_type(&RelationTypeId::parse(REL_TYPE).unwrap())
-        .unwrap();
-    assert_eq!(rel_type.source_kinds, [EntityKind::Entry]);
-    assert_eq!(rel_type.target_kinds, [EntityKind::Entry]);
-    assert!(rel_type.source_templates.is_empty());
-    assert!(rel_type.target_templates.is_empty());
-    let patch_rt = view
-        .relation_type(&RelationTypeId::parse(fixture::PATCH_RELATION).unwrap())
-        .unwrap();
-    assert_eq!(patch_rt.source_kinds, [EntityKind::Patch]);
-    assert_eq!(patch_rt.target_kinds, [EntityKind::Entry]);
-    assert!(patch_rt.source_templates.is_empty());
-    assert!(patch_rt.target_templates.is_empty());
+    let type_records = &expected.source_rows["entity_relation_type"];
+    let author_types: Vec<_> = type_records
+        .iter()
+        .filter(|row| row["system_key"] != "generic-association")
+        .collect();
+    assert_eq!(view.relation_types_raw().len(), author_types.len());
+    for row in author_types {
+        let id = RelationTypeId::parse(row["id"].as_str().unwrap()).unwrap();
+        let actual = view.relation_type_raw(&id).unwrap();
+        assert_eq!(actual.name, row["name"].as_str().unwrap());
+        assert_eq!(
+            actual.description,
+            LinkedText::plain(row["description"].as_str().unwrap())
+        );
+        assert_eq!(
+            serde_json::to_value(actual.direction).unwrap(),
+            row["orientation"]
+        );
+    }
     for leaf in &expected.leaves {
         let actual = view.entry(&entry_id(view, &leaf.entry)).unwrap();
         assert!(
@@ -623,7 +628,7 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
                     .map(|p| (&p.kind, p.block.as_str())),
                 Some((&ProjectionKind::NoteTask, block_id.as_str()))
             );
-            assert_eq!(actual.body, *want_text);
+            assert_eq!(view.comment_body_raw(&cid).unwrap().text, *want_text);
             let want_status = if *want_checked {
                 dr_model::kind::CommentStatus::Resolved
             } else {
@@ -642,7 +647,7 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
             assert_eq!(actual.status, CommentStatus::Resolved);
             assert!(actual.resolved_at.is_some());
             assert_eq!(actual.metadata, None);
-            assert_eq!(actual.body, *want_body);
+            assert_eq!(view.comment_body_raw(&cid).unwrap().text, *want_body);
             continue;
         }
         let row = expected.source_rows["comment"]
@@ -680,31 +685,48 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
             }
         }
         assert_eq!(
-            actual.body,
+            view.comment_body_raw(&cid).unwrap().text,
             dr_import_v1::book::plain_text(row["body_json"].as_str().unwrap()).0
         );
         assert_eq!(actual.metadata.as_deref(), row["metadata_json"].as_str());
     }
-    assert_eq!(view.relations_raw().len(), expected.relations.len());
-    for relation in &expected.relations {
-        let actual = view
-            .relations_raw()
-            .into_iter()
-            .find(|r| r.id.as_str() == relation.old_id)
-            .unwrap();
-        let (from, to) = if relation.orientation == "symmetric" {
-            dr_model::import_v1::canonical_symmetric(
-                endpoint(view, &relation.from),
-                endpoint(view, &relation.to),
-            )
-        } else {
-            (endpoint(view, &relation.from), endpoint(view, &relation.to))
-        };
-        assert_eq!(
-            (actual.from, actual.to, actual.relation_type.to_string()),
-            (from, to, relation.relation_type.clone())
-        );
+    let expected_pairs: BTreeSet<_> = expected
+        .relations
+        .iter()
+        .filter_map(|relation| {
+            let (manifest::Endpoint::Entry(left), manifest::Endpoint::Entry(right)) =
+                (&relation.from, &relation.to)
+            else {
+                return None;
+            };
+            if type_records.iter().any(|row| {
+                row["id"] == relation.relation_type && row["system_key"] == "generic-association"
+            }) {
+                return None;
+            }
+            let (mut left, mut right) = (entry_id(view, left), entry_id(view, right));
+            if relation.orientation == "symmetric" && right < left {
+                std::mem::swap(&mut left, &mut right);
+            }
+            Some((relation.relation_type.clone(), left, right))
+        })
+        .collect();
+    let mut actual_pairs = BTreeSet::new();
+    for row in view.relations_raw() {
+        let direction = view
+            .relation_type_raw(&row.relation_type)
+            .unwrap()
+            .direction;
+        for (left, right) in row.pairs() {
+            let (left, right) = direction.pair(left, right);
+            assert!(actual_pairs.insert((
+                row.relation_type.to_string(),
+                left.clone(),
+                right.clone()
+            )));
+        }
     }
+    assert_eq!(actual_pairs, expected_pairs);
     assert_eq!(
         view.assets().len(),
         expected.source_rows["project_asset"].len()
@@ -2586,8 +2608,7 @@ fn default_unaffiliated_lane_created_only_when_needed_and_placed_last_under_stor
 }
 
 #[test]
-fn default_relation_type_endpoints_dedup_leave_templates_empty_and_preserve_legacy_kinds_in_receipt()
- {
+fn relation_import_preserves_author_fields_and_archives_old_metadata() {
     use dr_import_v1::gate::Accept;
 
     const RT_ALL_KINDS: &str = "custom-rt-all-seven-legacy-kinds";
@@ -2659,68 +2680,30 @@ fn default_relation_type_endpoints_dedup_leave_templates_empty_and_preserve_lega
     let view = book.view();
     adapter::validate(&view).unwrap();
 
-    // 1. Custom relation type with all 7 legacy kinds: mapped + deduplicated, templates empty.
     let all_rt = view
-        .relation_type(&RelationTypeId::parse(RT_ALL_KINDS).unwrap())
+        .relation_type_raw(&RelationTypeId::parse(RT_ALL_KINDS).unwrap())
         .unwrap();
-    assert_eq!(
-        all_rt.source_kinds,
-        [
-            EntityKind::Patch,
-            EntityKind::Entry,
-            EntityKind::Comment,
-            EntityKind::Asset,
-        ],
-        "node/element/category/storyline collapse to Entry and library_item expands to Entry + Asset alongside Patch and Comment"
-    );
-    assert_eq!(
-        all_rt.target_kinds,
-        [EntityKind::Patch, EntityKind::Entry],
-        "node/element/category/storyline collapse to one Entry alongside Patch"
-    );
-    assert!(all_rt.source_templates.is_empty());
-    assert!(all_rt.target_templates.is_empty());
-
-    // 2. Fixture custom relation types also have mapped kinds and empty template lists.
-    let rel_rt = view
-        .relation_type(&RelationTypeId::parse(REL_TYPE).unwrap())
-        .unwrap();
-    assert_eq!(rel_rt.source_kinds, [EntityKind::Entry]);
-    assert_eq!(rel_rt.target_kinds, [EntityKind::Entry]);
-    assert!(rel_rt.source_templates.is_empty());
-    assert!(rel_rt.target_templates.is_empty());
-
-    let patch_rt = view
-        .relation_type(&RelationTypeId::parse(fixture::PATCH_RELATION).unwrap())
-        .unwrap();
-    assert_eq!(patch_rt.source_kinds, [EntityKind::Patch]);
-    assert_eq!(patch_rt.target_kinds, [EntityKind::Entry]);
-    assert!(patch_rt.source_templates.is_empty());
-    assert!(patch_rt.target_templates.is_empty());
-
-    // 3. Built-in generic-association relation type stays completely untouched.
+    assert_eq!(all_rt.name, "全端点测试");
+    assert_eq!(all_rt.description, LinkedText::plain("覆盖七种旧端点"));
+    assert_eq!(all_rt.direction, RelationDirection::Directed);
     let generic_id = dr_doc::catalog::generic_relation_type_id(&BookId::parse(BOOK).unwrap());
-    let generic = view.relation_type(&generic_id).unwrap();
-    assert!(generic.locked);
-    assert_eq!(
-        generic.system_key,
-        Some(SystemRelationKey::GenericAssociation)
-    );
-    assert_eq!(
-        generic.source_kinds,
-        [EntityKind::Comment, EntityKind::Entry, EntityKind::Asset]
-    );
-    assert_eq!(
-        generic.target_kinds,
-        [EntityKind::Entry, EntityKind::Patch, EntityKind::Asset]
-    );
-    assert!(generic.source_templates.is_empty());
-    assert!(generic.target_templates.is_empty());
+    assert!(view.relation_type(&generic_id).is_none());
     lib.close().unwrap();
 
-    // 4. Verbatim legacy endpoint kinds are preserved in receipt.originals AND
-    //    durably stored in import_original (`collection = 'relation_types'`),
-    //    while the built-in generic-association type is never recorded there.
+    let receipt_value = |id: &str, field: &str| {
+        receipt
+            .originals
+            .iter()
+            .find(|(collection, key, f, _)| {
+                collection == "relation_types" && key == id && f == field
+            })
+            .map(|(_, _, _, value)| serde_json::from_str::<serde_json::Value>(value).unwrap())
+            .unwrap()
+    };
+    assert_eq!(receipt_value(RT_ALL_KINDS, "source_role"), "起");
+    assert_eq!(receipt_value(RT_ALL_KINDS, "target_role"), "止");
+    assert_eq!(receipt_value(REL_TYPE, "color"), "#aa5500");
+
     let want_originals = [
         (
             RT_ALL_KINDS.to_owned(),
@@ -2765,7 +2748,9 @@ fn default_relation_type_endpoints_dedup_leave_templates_empty_and_preserve_lega
     let mut receipt_rt: Vec<(String, String, Vec<String>)> = receipt
         .originals
         .iter()
-        .filter(|(c, _, _, _)| c == "relation_types")
+        .filter(|(c, id, field, _)| {
+            c == "relation_types" && id != generic_id.as_str() && field.ends_with("_kinds")
+        })
         .map(|(_, id, field, json)| {
             let mut kinds: Vec<String> = serde_json::from_str(json).unwrap();
             kinds.sort();
@@ -2791,12 +2776,13 @@ fn default_relation_type_endpoints_dedup_leave_templates_empty_and_preserve_lega
     let mut stmt = conn
         .prepare(
             "SELECT id, field, json FROM import_original
-             WHERE collection = 'relation_types'
+             WHERE collection = 'relation_types' AND id <> ?1
+               AND field IN ('source_kinds', 'target_kinds')
              ORDER BY id, field",
         )
         .unwrap();
     let stored: Vec<(String, String, Vec<String>)> = stmt
-        .query_map([], |r| {
+        .query_map([generic_id.as_str()], |r| {
             let json: String = r.get(2)?;
             let mut kinds: Vec<String> = serde_json::from_str(&json).unwrap();
             kinds.sort();
@@ -2806,10 +2792,6 @@ fn default_relation_type_endpoints_dedup_leave_templates_empty_and_preserve_lega
         .collect::<rusqlite::Result<_>>()
         .unwrap();
     assert_eq!(stored, expected_sorted);
-    assert!(
-        !stored.iter().any(|(id, _, _)| id == generic_id.as_str()),
-        "built-in relation type must not be written into import_original"
-    );
 }
 
 #[test]
@@ -3423,9 +3405,8 @@ fn unified_entry_v4_side_documents_summary_copy_and_format3_resume_guard() {
     assert_eq!(cp_vv, fresh_cp.version());
     lib.close().unwrap();
 
-    // 2. An interrupted target directory carrying an earlier format-3 kernel
-    //    marker (`3:<sha256>`) is refused before resuming, leaving source untouched.
-    let interrupted = temp.path().join("library-interrupted-v3");
+    // 2. Interrupted imports before RD cannot replay into RD's genesis.
+    let interrupted = temp.path().join("library-interrupted-before-rd");
     let opts = options(&old);
     let cancel = opts.cancel.clone();
     let (first, _) = run::import_with(&old.db, &interrupted, &opts, &mut |p| {
@@ -3446,20 +3427,20 @@ fn unified_entry_v4_side_documents_summary_copy_and_format3_resume_guard() {
             )
             .unwrap();
         assert!(
-            cur.starts_with("5:"),
-            "v5 kernel marker must use prefix 5:, got {cur}"
+            cur.starts_with("5-g6:"),
+            "the mapping key must carry the format and genesis, got {cur}"
         );
-        let legacy_v4_marker = cur.replacen("5:", "4:", 1);
+        let pre_rd_marker = cur.replacen("5-g6:", "5:", 1);
         conn.execute(
             "UPDATE local_state SET value = ?1 WHERE scope = 'import-v1-kernel' AND key = ?2",
-            rusqlite::params![&legacy_v4_marker, BOOK],
+            rusqlite::params![&pre_rd_marker, BOOK],
         )
         .unwrap();
     }
     let err = run::import(&old.db, &interrupted, &options(&old)).unwrap_err();
     assert!(
         matches!(&err, dr_import_v1::ImportError::Invalid(m) if m.contains("mapping policy")),
-        "expected format-3 target refusal, got {err:?}"
+        "expected refusal to resume a catalog from before RD, got {err:?}"
     );
     assert_eq!(
         source_tree_snapshot(&old.root),
@@ -3469,7 +3450,7 @@ fn unified_entry_v4_side_documents_summary_copy_and_format3_resume_guard() {
 }
 
 #[test]
-fn step8_asset_library_imports_folders_direct_comments_relations_and_file_links() {
+fn asset_import_keeps_comments_and_file_links_and_reports_retired_relation_ends() {
     use dr_model::id::AssetFolderId;
     use dr_model::shared::{EntityRef, MaterialRegion};
     use serde_json::json;
@@ -3543,7 +3524,7 @@ fn step8_asset_library_imports_folders_direct_comments_relations_and_file_links(
     // Page-2 region comment on the PDF item, plus a direct relation between IMAGE and CHAPTER.
     let pdf_comment_body = json!({
         "type": "doc",
-        "content": [{"type": "paragraph", "content": [{"type": "text", "text": "城门尺寸"}]}]
+        "content": [{"type": "paragraph", "content": [{"type": "text", "text": "未庄的城门尺寸"}]}]
     })
     .to_string();
     c.execute(
@@ -3557,6 +3538,21 @@ fn step8_asset_library_imports_folders_direct_comments_relations_and_file_links(
         rusqlite::params![BOOK, IMAGE, CHAPTER, generic, T0],
     )
     .unwrap();
+
+    c.execute(
+        "INSERT INTO entity_relation_type (id, project_id, name, normalized_name, description, orientation, system_key, locked, source_role, target_role, created_at, updated_at) VALUES ('rd-import-type', ?1, '证据指向', '证据指向', '合成关系', 'directed', NULL, 0, '源', '证据', ?2, ?2)",
+        rusqlite::params![BOOK,T0],
+    ).unwrap();
+    for (id, kind, from, at) in [
+        ("rd-pair-first", "element", ELEMENT, T0),
+        ("rd-pair-second", "node", IDEA, T1),
+        ("rd-pdf", "library_item", PDF_ITEM, T0),
+        ("rd-comment", "comment", COMMENT, T0),
+        ("rd-todo", "comment", NOTE_TODO, T0),
+    ] {
+        c.execute("INSERT INTO entity_relation (id,project_id,from_kind,from_id,to_kind,to_id,relation_type_id,created_at,updated_at) VALUES (?1,?2,?3,?4,'node',?5,'rd-import-type',?6,?6)",
+            rusqlite::params![id, BOOK,kind,from,CHAPTER,at]).unwrap();
+    }
 
     // Seed-only idea linking IMAGE (a link to its file), the image without a
     // file (plain text + receipt entry) and NOTE (stays linked).
@@ -3692,7 +3688,7 @@ fn step8_asset_library_imports_folders_direct_comments_relations_and_file_links(
     let note_entry = v.entry(&eid(NOTE)).unwrap();
     assert_eq!(note_entry.parent.as_ref(), Some(&eid(FOLDER)));
 
-    // 3. Direct asset region comments (image & PDF page) and asset relation survive intact.
+    // 3. Direct asset region comments survive on both kinds of file.
     let comments = v.comments();
     let c_img = comments
         .iter()
@@ -3735,13 +3731,33 @@ fn step8_asset_library_imports_folders_direct_comments_relations_and_file_links(
             }
         })
     );
-    let rel = v
+    assert!(
+        v.relations_raw()
+            .iter()
+            .all(|r| r.id.as_str() != "rel-img-chapter")
+    );
+    assert!(
+        v.relation_type(&RelationTypeId::parse(&generic).unwrap())
+            .is_none()
+    );
+    let entry_to_entry = v
         .relations()
         .into_iter()
-        .find(|r| r.id.as_str() == "rel-img-chapter")
+        .find(|r| r.relation_type.as_str() == "rd-import-type")
         .unwrap();
-    assert_eq!(rel.from, EntityRef::new(EntityKind::Asset, ASSET));
-    assert_eq!(rel.to, EntityRef::new(EntityKind::Entry, CHAPTER));
+    assert_eq!(
+        entry_to_entry.left,
+        BTreeSet::from([eid(ELEMENT), eid(IDEA)])
+    );
+    assert_eq!(entry_to_entry.right, BTreeSet::from([eid(CHAPTER)]));
+    assert_eq!(
+        v.relations_raw()
+            .iter()
+            .filter(|r| r.relation_type.as_str() == "rd-import-type")
+            .count(),
+        1
+    );
+    assert_eq!(c_pdf.body.links[0].entry, eid(fixture::ELEMENT_OTHER));
 
     // 4. The prose link to IMAGE points at its file; the one to the image
     // without a file is plain text + receipt/summary record; NOTE's remains.
@@ -3771,6 +3787,18 @@ fn step8_asset_library_imports_folders_direct_comments_relations_and_file_links(
     assert_eq!(linked_run.marks.entities[0].target, NOTE);
 
     let book1_rec = receipt.books.iter().find(|b| b.book_id == BOOK).unwrap();
+    for code in [
+        "relation-image-end-dropped",
+        "relation-pdf-end-dropped",
+        "relation-comment-end-dropped",
+        "relation-patch-end-dropped",
+        "built-in-relation-type-dropped",
+    ] {
+        assert_eq!(book1_rec.notes.0.get(code), Some(&1), "{code}");
+    }
+    // The fixture already has one TODO edge under the built-in type.
+    // This case adds a second one under its custom type.
+    assert_eq!(book1_rec.notes.0.get("relation-todo-end-dropped"), Some(&2));
     assert_eq!(book1_rec.unlinked_asset_links.len(), 1);
     assert_eq!(book1_rec.unlinked_asset_links[0].material_id, IMAGE_NO_FILE);
     assert_eq!(book1_rec.unlinked_asset_links[0].material_title, "缺图");
@@ -3783,6 +3811,15 @@ fn step8_asset_library_imports_folders_direct_comments_relations_and_file_links(
         book1_rec.notes
     );
     let summary_md = std::fs::read_to_string(root.join("import-v1").join("summary.md")).unwrap();
+    for label in [
+        "图片的关系",
+        "PDF 的关系",
+        "批注的关系",
+        "待办的关系",
+        "补丁的关系",
+    ] {
+        assert!(summary_md.contains(label), "{label}");
+    }
     assert!(summary_md.contains("缺图"));
     assert!(summary_md.contains("批注的优先级没有导入"));
 
@@ -3991,7 +4028,7 @@ fn note_order_in_folder_and_cross_doc_checklist_ticks_stay_independent() {
         ))
         .expect("projected comment for task item without authored paragraph id");
     assert_eq!(unlinked_generated.status, CommentStatus::Resolved);
-    assert_eq!(unlinked_generated.body, "无段落号已勾");
+    assert_eq!(unlinked_generated.body.text, "无段落号已勾");
     lib.close().unwrap();
 }
 
@@ -4142,14 +4179,10 @@ fn merged_duplicate_files_rebuild_second_folder_retarget_all_references_and_repo
     );
     assert!(!dup_comment.target_missing);
 
-    let dup_rel = view
-        .relations()
-        .into_iter()
-        .find(|r| r.id.as_str() == "rel-dup-img")
-        .expect("relation on merged duplicate material");
-    assert_eq!(
-        dup_rel.from,
-        dr_model::shared::EntityRef::new(EntityKind::Asset, ASSET)
+    assert!(
+        view.relations_raw()
+            .iter()
+            .all(|r| r.id.as_str() != "rel-dup-img")
     );
 
     let idea_doc = load_prose(&lib, &adapter::body_id(IDEA, MOD_PROSE));
@@ -4210,7 +4243,7 @@ fn merged_duplicate_files_rebuild_second_folder_retarget_all_references_and_repo
         assert_eq!(c.part, None);
         assert_eq!(c.status, CommentStatus::Resolved);
         assert_eq!(c.origin, CommentOrigin::Manual);
-        assert_eq!(c.body, want_desc);
+        assert_eq!(c.body.text, want_desc);
     }
     assert!(
         view.comment(&dr_import_v1::book::material_comment_id(
@@ -4417,7 +4450,7 @@ fn material_descriptions_and_provenance_become_resolved_manual_comments_hidden_f
         assert_eq!(c.author_kind, CommentAuthorKind::User);
         assert_eq!(c.source, CommentSource::Manual);
         assert_eq!(c.metadata, None);
-        assert_eq!(c.body, want_body);
+        assert_eq!(c.body.text, want_body);
         assert_eq!(c.created_at, Some(want_ts));
         assert_eq!(c.updated_at, Some(want_ts));
         assert_eq!(c.resolved_at, Some(want_ts));

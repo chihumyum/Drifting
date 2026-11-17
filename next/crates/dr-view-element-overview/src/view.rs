@@ -27,11 +27,10 @@ use dr_ui::sand::{Icon, KindMark};
 use dr_ui::tokens::{Rgb, radius};
 use dr_view_elements::data::v3 as g2_data;
 use dr_view_elements::dialogs::v3::{EntryMode, open_entry};
-use dr_workspace::commands::BookIn;
-use dr_workspace::commands::v3::content::{RelationTypeInfo, RelationTypes};
-use dr_workspace::commands::v3::relations::{List as RelationList, ListIn as RelationListIn};
+use dr_workspace::commands::v3::relations::{
+    List as RelationList, ListIn as RelationListIn, RelationInfo,
+};
 use dr_workspace::commands::v3::types::TabMount;
-use dr_workspace::dto::RelationInfo;
 use dr_workspace::{Actor, EntryCooccurrenceGraph, Workspace as Library};
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
@@ -56,7 +55,7 @@ use crate::relate::{
 };
 
 pub use island::{IslandEditorSheet, IslandMode, IslandSubject, SheetResizeDrag};
-pub use relations::{PendingLink, RelateEdgeView, TypeManagerState};
+pub use relations::{GraphRelation, RelateEdgeView};
 
 const CANVAS_FIT_LEFT: f32 = 24.0;
 const CANVAS_FIT_RIGHT: f32 = 180.0;
@@ -152,11 +151,6 @@ impl Render for OverviewHeadEnd {
         let state = ov.read(cx);
         let mode = state.layout_mode;
         let threshold = state.line_threshold;
-        let link_source = state.link_source.clone();
-        let link_label = link_source
-            .as_ref()
-            .map(|(k, id)| state.endpoint_label(k, id));
-
         let weak_thresh = self.overview.clone();
         let next_threshold = match threshold {
             1 => 2,
@@ -214,25 +208,6 @@ impl Render for OverviewHeadEnd {
             .flex_row()
             .items_center()
             .gap(px(8.0))
-            .when_some(link_label, |el, src_name| {
-                el.child(
-                    div()
-                        .flex()
-                        .flex_row()
-                        .items_center()
-                        .gap(px(4.0))
-                        .text_size(px(11.5))
-                        .text_color(p.ink(2).solid())
-                        .child(t(cx, k_se::LINK_HINT_FROM))
-                        .child(
-                            div()
-                                .font_weight(gpui::FontWeight::MEDIUM)
-                                .text_color(p.ink(1).solid())
-                                .child(SharedString::from(src_name)),
-                        )
-                        .child(t(cx, k_se::LINK_HINT_TO)),
-                )
-            })
             .child(
                 div()
                     .w(px(148.0))
@@ -307,14 +282,10 @@ pub struct ElementOverview {
     pub(crate) island_sheet: Option<IslandEditorSheet>,
 
     // Canonical v3 relations, shared legend & linking
-    pub(crate) relations: Vec<RelationInfo>,
-    pub(crate) relation_types: Vec<RelationTypeInfo>,
+    pub(crate) relations: Vec<GraphRelation>,
+    pub(crate) relation_types: Vec<RelationInfo>,
     pub(crate) hidden_relation_type_ids: HashSet<String>,
-    pub(crate) link_mode: bool,
-    pub(crate) link_source: Option<(String, String)>,
-    pub(crate) pending_link: Option<PendingLink>,
     pub(crate) selected_edge_id: Option<String>,
-    pub(crate) type_manager: Option<TypeManagerState>,
 
     _subs: Vec<Subscription>,
 }
@@ -377,11 +348,7 @@ impl ElementOverview {
             relations: Vec::new(),
             relation_types: Vec::new(),
             hidden_relation_type_ids: HashSet::new(),
-            link_mode: false,
-            link_source: None,
-            pending_link: None,
             selected_edge_id: None,
-            type_manager: None,
             _subs: Vec::new(),
         };
 
@@ -419,8 +386,6 @@ impl ElementOverview {
     pub(crate) fn drop_library_handles(&mut self, cx: &mut Context<Self>) {
         self._tween_task = None;
         self.island_sheet = None;
-        self.pending_link = None;
-        self.type_manager = None;
         self.lib = None;
         self.loaded_lib_ptr = 0;
         cx.notify();
@@ -568,7 +533,7 @@ impl ElementOverview {
         &self.elements
     }
 
-    pub fn relations(&self) -> &[RelationInfo] {
+    pub fn relations(&self) -> &[GraphRelation] {
         &self.relations
     }
 
@@ -645,23 +610,15 @@ impl ElementOverview {
         };
         self.loaded_lib_ptr = lib.library() as *const _ as usize;
         let me = &Actor::User;
-        if let Ok(out) = lib.run::<RelationTypes>(
-            me,
-            BookIn {
-                book: self.book_id.clone(),
-            },
-        ) {
-            self.relation_types = out.output;
-        }
         if let Ok(out) = lib.run::<RelationList>(
             me,
             RelationListIn {
                 book: self.book_id.clone(),
-                entity: None,
-                relation_type: None,
+                entry: None,
             },
         ) {
-            self.relations = out.output;
+            self.relations = relations::graph_relations(&out.output);
+            self.relation_types = out.output;
         }
         if let Ok(graph) = lib.entry_cooccurrences(&self.book_id) {
             self.cooccurrences = graph;
@@ -748,18 +705,15 @@ impl ElementOverview {
         let present = self.present_element_ids();
         let mut springs = Vec::new();
         for r in &self.relations {
-            if r.from.kind != "entry"
-                || r.to.kind != "entry"
-                || self.hidden_relation_type_ids.contains(&r.relation_type)
-            {
+            if self.hidden_relation_type_ids.contains(&r.relation_type) {
                 continue;
             }
-            if !present.contains(&r.from.id) || !present.contains(&r.to.id) {
+            if !present.contains(&r.from) || !present.contains(&r.to) {
                 continue;
             }
             springs.push(RelateSpring {
-                a: r.from.id.clone(),
-                b: r.to.id.clone(),
+                a: r.from.clone(),
+                b: r.to.clone(),
                 kind: SpringKind::Relation,
                 roles: self.relate_roles_for(&r.relation_type),
                 count: 0,
@@ -1410,61 +1364,14 @@ impl ElementOverview {
         cx.notify();
     }
 
-    pub fn start_edge_from(&mut self, kind: &str, id: &str, cx: &mut Context<Self>) {
-        self.link_source = Some((kind.to_owned(), id.to_owned()));
-        self.pending_link = None;
-        cx.notify();
-    }
-
     pub fn click_entity(
         &mut self,
         kind: &str,
         id: &str,
-        shift: bool,
+        _shift: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if shift || self.link_mode {
-            if let Some((src_kind, src_id)) = self.link_source.take() {
-                if src_kind == kind && src_id == id {
-                    cx.notify();
-                    return;
-                }
-                let default_type = self
-                    .compatible_relation_types(&src_kind, &src_id, kind, id)
-                    .first()
-                    .map(|t| t.definition.id.clone());
-                self.pending_link = Some(PendingLink {
-                    source: (src_kind, src_id),
-                    target: (kind.to_owned(), id.to_owned()),
-                    relation_type_id: default_type,
-                    reversed: false,
-                });
-                self.link_mode = false;
-            } else {
-                self.link_source = Some((kind.to_owned(), id.to_owned()));
-            }
-            cx.notify();
-            return;
-        }
-
-        if let Some((src_kind, src_id)) = self.link_source.take()
-            && !(src_kind == kind && src_id == id)
-        {
-            let default_type = self
-                .compatible_relation_types(&src_kind, &src_id, kind, id)
-                .first()
-                .map(|t| t.definition.id.clone());
-            self.pending_link = Some(PendingLink {
-                source: (src_kind, src_id),
-                target: (kind.to_owned(), id.to_owned()),
-                relation_type_id: default_type,
-                reversed: false,
-            });
-            cx.notify();
-            return;
-        }
-
         if kind == "entry" && self.elements.iter().any(|e| e.id == id) {
             let next =
                 if self.isle_focus.as_deref() == Some(id) && self.island_mode == IslandMode::Peek {
@@ -1512,13 +1419,11 @@ impl ElementOverview {
             .relations
             .iter()
             .filter(|r| {
-                r.from.kind == "entry"
-                    && r.to.kind == "entry"
-                    && present.contains(&r.from.id)
-                    && present.contains(&r.to.id)
+                present.contains(&r.from)
+                    && present.contains(&r.to)
                     && !self.hidden_relation_type_ids.contains(&r.relation_type)
             })
-            .map(|r| (r.from.id.clone(), r.to.id.clone()))
+            .map(|r| (r.from.clone(), r.to.clone()))
             .collect();
         Some(isle_neighbours(focus_id, pairs, &rel_pairs))
     }
@@ -1736,10 +1641,7 @@ impl ElementOverview {
 
                     let card_color = self.element_color(element).unwrap_or(isl_color);
                     let is_focused = self.isle_focus.as_deref() == Some(element.id.as_str());
-                    let is_link_source = self
-                        .link_source
-                        .as_ref()
-                        .is_some_and(|(k, id)| k == "entry" && id == &element.id);
+
                     let is_neighbour = neighbourhood
                         .as_ref()
                         .is_some_and(|set| set.contains(&element.id));
@@ -1764,7 +1666,7 @@ impl ElementOverview {
                         origin_world: RelatePoint::default(),
                     };
 
-                    let border_c = if is_focused || is_link_source {
+                    let border_c = if is_focused {
                         card_color.solid()
                     } else if is_neighbour {
                         card_color.alpha(0.55)
@@ -1944,10 +1846,7 @@ impl ElementOverview {
 
             let cat_color = self.element_color(element).unwrap_or_else(|| p.ink(2));
             let is_focused = self.isle_focus.as_deref() == Some(element.id.as_str());
-            let is_link_source = self
-                .link_source
-                .as_ref()
-                .is_some_and(|(k, id)| k == "entry" && id == &element.id);
+
             let is_neighbour = neighbourhood
                 .as_ref()
                 .is_some_and(|set| set.contains(&element.id));
@@ -1972,7 +1871,7 @@ impl ElementOverview {
                 origin_world: pos,
             };
 
-            let border_c = if is_focused || is_link_source {
+            let border_c = if is_focused {
                 cat_color.solid()
             } else if is_pinned || is_neighbour {
                 cat_color.alpha(0.65)
@@ -2208,7 +2107,7 @@ impl Render for ElementOverview {
             });
 
         let sand_pairs = self.active_sand_pairs_rc();
-        let relate_edges = self.build_relate_edges();
+        let relate_edges = self.build_relate_edges(p.ink(2));
         let crowded = relate_edges.len() > RELATE_LABEL_BUDGET;
         let role_labels_all = lod != IslesLod::Far && !crowded;
 
@@ -2250,9 +2149,6 @@ impl Render for ElementOverview {
 
         let legend = self.render_legend(window, cx);
         let island = self.render_floating_island(window, cx);
-        let pending_modal = self.render_pending_link_modal(window, cx);
-        let edge_popover = self.render_selected_edge_popover(window, cx);
-        let type_modal = self.render_type_manager_modal(window, cx);
 
         let entity = cx.entity();
         let bounds_probe = canvas(
@@ -2341,8 +2237,5 @@ impl Render for ElementOverview {
             })
             .child(legend)
             .children(island)
-            .children(pending_modal)
-            .children(edge_popover)
-            .children(type_modal)
     }
 }

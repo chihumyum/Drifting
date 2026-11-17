@@ -17,14 +17,14 @@ use crate::anchor::Anchor;
 use crate::catalog::EntitySnapshot;
 use crate::catalog::fields::{comment_part_to_loro, set};
 use crate::catalog::read::forest;
-use crate::catalog::write::{MemoryWriter, PlotGridWriter, RelationWriter};
+use crate::catalog::write::{MemoryWriter, PlotGridWriter};
 use crate::error::{DocError, Result};
 use crate::peer::seed_peer;
 use crate::schema::book_v3;
 use crate::v3::CollectionV3;
 use crate::v3::read::{BookViewV3, EntrySnapshotV3, RepairPlanV3, TimelineFieldV3};
 
-const TODO_SEED_V3: &str = "comment-v5-1";
+const TODO_SEED_V3: &str = "comment-v5-2";
 const PLOT_GRID_SEED_V3: &str = "plot-grid-v3-1";
 
 const TODO_SEED_KEYS_V3: &[&str] = &[
@@ -35,7 +35,7 @@ const TODO_SEED_KEYS_V3: &[&str] = &[
     "target_block",
     "projection",
     "projection_block",
-    "projection_text",
+    "body",
     "status",
 ];
 
@@ -956,6 +956,7 @@ impl EntriesTreeWriterV3<'_> {
                 self.tree.delete(*t)?;
             }
         }
+        self.prune_relations()?;
         Ok(parent_id)
     }
 
@@ -971,6 +972,28 @@ impl EntriesTreeWriterV3<'_> {
         for t in &me.tree_ids {
             if !self.tree.is_node_deleted(t).unwrap_or(true) {
                 self.tree.delete(*t)?;
+            }
+        }
+        self.prune_relations()
+    }
+
+    fn prune_relations(&self) -> Result<()> {
+        let (_, stored) = crate::catalog::read::forest_entry_status(&self.tree);
+        let mut txn = BookTxnV3 { view: self.view };
+        for row in self.view.relations_raw() {
+            let survives = |side: &std::collections::BTreeSet<EntryId>| {
+                side.iter().any(|entry| stored.contains(entry.as_str()))
+            };
+            if !survives(&row.left) || !survives(&row.right) {
+                txn.purge(CollectionV3::Relations, row.id.as_str())?;
+                continue;
+            }
+            for entry in row
+                .left
+                .union(&row.right)
+                .filter(|entry| !stored.contains(entry.as_str()))
+            {
+                txn.relation_row(&row.id)?.remove_member(entry)?;
             }
         }
         Ok(())
@@ -1183,60 +1206,59 @@ impl RelationTypeWriterV3 {
         Ok(self)
     }
 
-    pub fn description(&self, v: &str) -> Result<&Self> {
-        set(&self.map, "description", v)?;
+    pub fn description(&self, value: &LinkedText) -> Result<&Self> {
+        super::linked_text::write(&self.map, "description", value)?;
         Ok(self)
     }
 
-    pub fn orientation(&self, v: &RelationOrientation) -> Result<&Self> {
-        set(&self.map, "orientation", v)?;
+    pub fn direction(&self, direction: RelationDirection) -> Result<&Self> {
+        let value = match direction {
+            RelationDirection::Directed => "directed",
+            RelationDirection::Symmetric => "symmetric",
+        };
+        set(&self.map, "direction", value)?;
         Ok(self)
     }
 
-    pub fn source_role(&self, v: &str) -> Result<&Self> {
-        set(&self.map, "source_role", v)?;
+    pub fn created_at(&self, time: Option<Timestamp>) -> Result<&Self> {
+        set(&self.map, "created_at", time)?;
+        Ok(self)
+    }
+}
+
+/// Each entry owns its map key. Concurrent additions of two distinct entries
+/// merge, and adding the same entry to opposite sides still gives it one side.
+pub struct RelationRowWriter {
+    map: LoroMap,
+}
+
+impl RelationRowWriter {
+    pub fn relation_type(&self, relation: &RelationTypeId) -> Result<&Self> {
+        set(&self.map, "type", relation)?;
         Ok(self)
     }
 
-    pub fn target_role(&self, v: &str) -> Result<&Self> {
-        set(&self.map, "target_role", v)?;
+    pub fn member(&self, side: RelationSide, entry: &EntryId) -> Result<&Self> {
+        let value = match side {
+            RelationSide::Left => "left",
+            RelationSide::Right => "right",
+        };
+        self.map
+            .ensure_mergeable_map("members")?
+            .insert(entry.as_str(), value)?;
         Ok(self)
     }
 
-    pub fn color(&self, v: Option<&str>) -> Result<&Self> {
-        set(&self.map, "color", v)?;
+    pub fn remove_member(&self, entry: &EntryId) -> Result<&Self> {
+        let members = self.map.ensure_mergeable_map("members")?;
+        if members.get(entry.as_str()).is_some() {
+            members.delete(entry.as_str())?;
+        }
         Ok(self)
     }
 
-    pub fn source_kinds(&self, v: &[EntityKind]) -> Result<&Self> {
-        set(&self.map, "source_kinds", v)?;
-        Ok(self)
-    }
-
-    pub fn target_kinds(&self, v: &[EntityKind]) -> Result<&Self> {
-        set(&self.map, "target_kinds", v)?;
-        Ok(self)
-    }
-
-    pub fn source_templates(&self, v: &[EntryTemplateId]) -> Result<&Self> {
-        let lv = LoroValue::List(
-            v.iter()
-                .map(|t| LoroValue::from(t.as_str()))
-                .collect::<Vec<_>>()
-                .into(),
-        );
-        self.map.insert("source_templates", lv)?;
-        Ok(self)
-    }
-
-    pub fn target_templates(&self, v: &[EntryTemplateId]) -> Result<&Self> {
-        let lv = LoroValue::List(
-            v.iter()
-                .map(|t| LoroValue::from(t.as_str()))
-                .collect::<Vec<_>>()
-                .into(),
-        );
-        self.map.insert("target_templates", lv)?;
+    pub fn created_at(&self, time: Option<Timestamp>) -> Result<&Self> {
+        set(&self.map, "created_at", time)?;
         Ok(self)
     }
 }
@@ -1383,8 +1405,12 @@ impl CommentWriterV3 {
         Ok(self)
     }
 
-    pub fn body(&self, s: &str) -> Result<&Self> {
-        set_text(&self.map, "body", s)?;
+    pub fn body(&self, text: &str) -> Result<&Self> {
+        self.linked_body(&LinkedText::plain(text))
+    }
+
+    pub fn linked_body(&self, body: &LinkedText) -> Result<&Self> {
+        super::linked_text::write(&self.map, "body", body)?;
         Ok(self)
     }
 }
@@ -1414,7 +1440,7 @@ fn write_todo_v3(
     kind: &ProjectionKind,
     doc: &DocId,
     block: &BlockId,
-    task: &str,
+    task: &LinkedText,
 ) -> Result<()> {
     let (target, module) = projection_target_v3(doc)?;
     let origin = projection_origin(kind);
@@ -1425,7 +1451,7 @@ fn write_todo_v3(
         .status(&CommentStatus::Open)?;
     set(&w.map, "projection", kind)?;
     set(&w.map, "projection_block", block)?;
-    w.map.insert("projection_text", task)?;
+    super::linked_text::seed_projection(&w.map, task)?;
     Ok(())
 }
 
@@ -1469,6 +1495,7 @@ impl<'a> BookTxnV3<'a> {
 
     fn import_seed(&self, key: &str, write: impl FnOnce(&LoroDoc) -> Result<()>) -> Result<()> {
         let seed = LoroDoc::new();
+        crate::schema::configure(&seed);
         let doc_id = DocId::Book(self.view.book.clone()).to_string();
         seed.set_peer_id(seed_peer(&doc_id, key))?;
         write(&seed)?;
@@ -1623,30 +1650,45 @@ impl<'a> BookTxnV3<'a> {
         self.plot_grid(entry, module)
     }
 
-    fn refuse_locked(&self, id: &RelationTypeId) -> Result<()> {
-        if self
-            .view
-            .relation_type(id)
-            .is_some_and(|t| t.locked || t.system_key.is_some())
-            || id == &crate::catalog::generic_relation_type_id(self.view.book)
-        {
-            return Err(DocError::Locked(id.to_string()));
-        }
-        Ok(())
-    }
-
     pub fn relation_type(&mut self, id: &RelationTypeId) -> Result<RelationTypeWriterV3> {
-        self.refuse_locked(id)?;
         Ok(RelationTypeWriterV3 {
             map: self.entity(book_v3::RELATION_TYPES, id.as_str())?,
         })
     }
 
-    pub fn relation(&mut self, id: &RelationId) -> Result<RelationWriter> {
-        crate::catalog::write::CatalogTxn {
-            view: crate::catalog::read::CatalogView { doc: self.view.doc },
+    pub fn relation_row(&mut self, id: &RelationId) -> Result<RelationRowWriter> {
+        Ok(RelationRowWriter {
+            map: self.entity(book_v3::RELATIONS, id.as_str())?,
+        })
+    }
+
+    /// Add one pair using the shared placement rules. The caller supplies
+    /// a fresh row id for the case where neither side has a reusable row.
+    pub fn put_relation_pair(
+        &mut self,
+        relation: &RelationTypeId,
+        rows: &[RelationRow],
+        direction: RelationDirection,
+        pair: (&EntryId, &EntryId),
+        id: &RelationId,
+        time: Option<Timestamp>,
+    ) -> Result<(RelationId, bool)> {
+        let (left, right) = pair;
+        match plan_relation_pair(rows, direction, left, right) {
+            PairPlacement::Existing(id) => Ok((id, true)),
+            PairPlacement::Add(id, side, entry) => {
+                self.relation_row(&id)?.member(side, &entry)?;
+                Ok((id, false))
+            }
+            PairPlacement::NewRow => {
+                self.relation_row(id)?
+                    .relation_type(relation)?
+                    .member(RelationSide::Left, left)?
+                    .member(RelationSide::Right, right)?
+                    .created_at(time)?;
+                Ok((id.clone(), false))
+            }
         }
-        .relation(id)
     }
 
     pub fn comment(&mut self, id: &CommentId) -> Result<CommentWriterV3> {
@@ -1662,7 +1704,7 @@ impl<'a> BookTxnV3<'a> {
         kind: &ProjectionKind,
         doc: &DocId,
         block: &BlockId,
-        task: &str,
+        task: &LinkedText,
     ) -> Result<(CommentId, CommentWriterV3)> {
         projection_target_v3(doc)?;
         let id = CommentId::for_projection(kind, doc, block);
@@ -1674,7 +1716,8 @@ impl<'a> BookTxnV3<'a> {
             .is_some();
         if !live {
             if self.never_written(book_v3::COMMENTS, id.as_str()) {
-                let key = format!("{TODO_SEED_V3}\0{id}\0{doc}\0{block}\0{task}");
+                let body = serde_json::to_string(task).expect("linked text serializes");
+                let key = format!("{TODO_SEED_V3}\0{id}\0{doc}\0{block}\0{body}");
                 self.import_seed(&key, |seed| {
                     let map = seed
                         .get_map(book_v3::COMMENTS)
@@ -1985,6 +2028,8 @@ impl<'a> BookTxnV3<'a> {
                 CollectionV3::Facts
                     | CollectionV3::Memory
                     | CollectionV3::Relations
+                    | CollectionV3::RelationTypes
+                    | CollectionV3::Comments
                     | CollectionV3::Assets
             ) {
                 return Err(DocError::NotInProfile("not a shared history record"));
@@ -2132,8 +2177,6 @@ impl<'a> BookTxnV3<'a> {
                 | CollectionV3::Patches
                 | CollectionV3::PlotGrids
                 | CollectionV3::Relations
-                | CollectionV3::RelationTypes
-                | CollectionV3::Comments
                 | CollectionV3::Assets
                 | CollectionV3::AssetFolders
         ) {
@@ -2144,33 +2187,20 @@ impl<'a> BookTxnV3<'a> {
             let LoroValue::Map(want) = &old.value else {
                 return Err(DocError::NotInProfile("snapshot is not a map"));
             };
-            if collection == CollectionV3::RelationTypes {
-                self.refuse_locked(
-                    &RelationTypeId::parse(id)
-                        .map_err(|_| DocError::NotInProfile("invalid relation type"))?,
-                )?;
-            }
             let map = root.ensure_mergeable_map(id)?;
             sync_record_with_values(
                 &map,
                 want,
                 match collection {
-                    CollectionV3::Patches | CollectionV3::Comments => Some("body"),
+                    CollectionV3::Patches => Some("body"),
                     _ => None,
                 },
                 match collection {
-                    CollectionV3::Comments => &["part"],
                     CollectionV3::Project if id == "book" => &["root"],
                     _ => &[],
                 },
             )?;
         } else if root.get(id).is_some() {
-            if collection == CollectionV3::RelationTypes {
-                self.refuse_locked(
-                    &RelationTypeId::parse(id)
-                        .map_err(|_| DocError::NotInProfile("invalid relation type"))?,
-                )?;
-            }
             root.delete(id)?;
         }
         Ok(())
@@ -2193,12 +2223,6 @@ impl<'a> BookTxnV3<'a> {
         ) {
             return Err(DocError::NotInProfile("restore of a tree or meta"));
         }
-        if collection == CollectionV3::RelationTypes {
-            self.refuse_locked(
-                &RelationTypeId::parse(id)
-                    .map_err(|_| DocError::NotInProfile("invalid relation type"))?,
-            )?;
-        }
         crate::catalog::write::CatalogTxn {
             view: crate::catalog::read::CatalogView { doc: self.view.doc },
         }
@@ -2206,12 +2230,6 @@ impl<'a> BookTxnV3<'a> {
     }
 
     pub fn purge(&mut self, collection: CollectionV3, id: &str) -> Result<()> {
-        if collection == CollectionV3::RelationTypes {
-            self.refuse_locked(&RelationTypeId::parse(id).map_err(|_| DocError::Missing {
-                collection: book_v3::RELATION_TYPES,
-                id: id.to_string(),
-            })?)?;
-        }
         if collection.is_tree() || collection == CollectionV3::Meta {
             return Err(DocError::NotInProfile("purge of a tree or meta"));
         }
@@ -2223,9 +2241,6 @@ impl<'a> BookTxnV3<'a> {
     }
 
     pub fn apply_repair(&mut self, plan: &RepairPlanV3) -> Result<()> {
-        for id in &plan.duplicate_relations {
-            self.purge(CollectionV3::Relations, id.as_str())?;
-        }
         // DV2: the old lanes that are only a level leave their views, with
         // the places that went with them; the book is marked so this runs
         // once.

@@ -25,7 +25,6 @@ use dr_model::import_v1::legacy;
 use dr_model::import_v1::{
     ActId, Asset, CategoryId, CategoryLayout, DriftGroupId, ElementId, EntityRef, KvEntry,
     MaterialFolderId, MaterialId, MaterialKind, NodeId, NodeKind, NodeStatus, StorylineId,
-    canonical_symmetric,
 };
 use dr_model::kind::*;
 use dr_model::pos::{PosKey, keys_between};
@@ -608,25 +607,12 @@ pub fn write(txn: &mut BookTxn<'_>, inp: &Inputs<'_>, notes: &mut Notes) -> Resu
         }
     }
 
-    // Relation types and relations.
+    // Keep the source-only fields in the receipt. The temporary replay
+    // catalog holds only the relation definitions and pairs we can port.
     let generic = generic_relation_type_id(book);
     let colors = inp.settings.map(|s| &s.relation_type_colors);
-    let mut orientation: HashMap<&str, RelationOrientation> = HashMap::new();
+    let mut keep_types = HashSet::new();
     for t in &r.relation_types {
-        let o = RelationOrientation::parse(&t.orientation);
-        orientation.insert(t.id.as_str(), o.clone());
-        if t.id == generic.as_str() || t.system_key.as_deref() == Some("generic-association") {
-            if colors.is_some_and(|c| c.contains_key(&t.id)) {
-                notes.add("built-in-relation-color-dropped");
-            }
-            continue;
-        }
-        let Some(tid) = id(RelationTypeId::parse, &t.id) else {
-            continue;
-        };
-        if t.locked || t.system_key.is_some() {
-            notes.add("locked-relation-type-imported-unlocked");
-        }
         let raw_kinds = |side: &str| -> Vec<&str> {
             r.endpoints
                 .iter()
@@ -634,51 +620,79 @@ pub fn write(txn: &mut BookTxn<'_>, inp: &Inputs<'_>, notes: &mut Notes) -> Resu
                 .map(|e| e.kind.as_str())
                 .collect()
         };
-        let raw_source = raw_kinds("source");
-        let raw_target = raw_kinds("target");
-        originals.push((
-            "relation_types",
-            t.id.clone(),
-            "source_kinds",
-            serde_json::to_string(&raw_source).expect("vec<&str> serializes"),
-        ));
-        originals.push((
-            "relation_types",
-            t.id.clone(),
-            "target_kinds",
-            serde_json::to_string(&raw_target).expect("vec<&str> serializes"),
-        ));
-        let kinds = |raw: &[&str]| -> Vec<EntityKind> {
-            raw.iter().map(|k| legacy::entity_kind(k)).collect()
-        };
-        let w = txn.relation_type(&tid)?;
-        w.name(&t.name)?
-            .description(&t.description)?
-            .orientation(&o)?
-            .source_role(&t.source_role)?
-            .target_role(&t.target_role)?
-            .source_kinds(&kinds(&raw_source))?
-            .target_kinds(&kinds(&raw_target))?;
-        if let Some(c) = colors.and_then(|c| c.get(&t.id)) {
-            w.color(Some(c))?;
+        for (field, value) in [
+            ("source_role", serde_json::json!(t.source_role)),
+            ("locked", serde_json::json!(t.locked)),
+            ("target_role", serde_json::json!(t.target_role)),
+            (
+                "color",
+                serde_json::json!(colors.and_then(|c| c.get(&t.id))),
+            ),
+            ("source_kinds", serde_json::json!(raw_kinds("source"))),
+            ("target_kinds", serde_json::json!(raw_kinds("target"))),
+        ] {
+            originals.push(("relation_types", t.id.clone(), field, value.to_string()));
         }
-    }
-    for rel in &r.relations {
-        let Some(rid) = id(RelationId::parse, &rel.id) else {
+        if t.id == generic.as_str() || t.system_key.as_deref() == Some("generic-association") {
+            notes.add("built-in-relation-type-dropped");
+            continue;
+        }
+        let Some(tid) = id(RelationTypeId::parse, &t.id) else {
             continue;
         };
+        keep_types.insert(tid.clone());
+        txn.relation_type(&tid)?
+            .name(&t.name)?
+            .description(&t.description)?
+            .orientation(&RelationOrientation::parse(&t.orientation))?;
+    }
+    let materials: HashMap<_, _> = r
+        .materials
+        .iter()
+        .map(|m| (m.id.as_str(), MaterialKind::parse(&m.kind)))
+        .collect();
+    let comment_kinds: HashMap<_, _> = r
+        .comments
+        .iter()
+        .map(|c| (c.id.as_str(), c.kind.as_str()))
+        .collect();
+    let excluded = |kind: &str, id: &str| match legacy::entity_kind(kind) {
+        EntityKind::Material => match materials.get(id) {
+            Some(MaterialKind::Text) | None => None,
+            Some(MaterialKind::Image) => Some("relation-image-end-dropped"),
+            Some(MaterialKind::Pdf) => Some("relation-pdf-end-dropped"),
+            Some(_) => Some("relation-other-end-dropped"),
+        },
+        EntityKind::Comment if comment_kinds.get(id) == Some(&"todo") => {
+            Some("relation-todo-end-dropped")
+        }
+        EntityKind::Comment => Some("relation-comment-end-dropped"),
+        EntityKind::Patch => Some("relation-patch-end-dropped"),
+        _ => None,
+    };
+    for rel in &r.relations {
+        let from_dropped = excluded(&rel.from_kind, &rel.from_id);
+        let to_dropped = excluded(&rel.to_kind, &rel.to_id);
+        for code in [
+            from_dropped,
+            to_dropped.filter(|code| Some(*code) != from_dropped),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            notes.add(code);
+        }
         let Some(tid) = id(RelationTypeId::parse, &rel.relation_type) else {
             continue;
         };
-        let mut from = entity(&rel.from_kind, &rel.from_id, &new_comment_ids);
-        let mut to = entity(&rel.to_kind, &rel.to_id, &new_comment_ids);
-        if orientation.get(rel.relation_type.as_str()) == Some(&RelationOrientation::Symmetric) {
-            let (a, b) = canonical_symmetric(from.clone(), to.clone());
-            if a != from {
-                notes.add("symmetric-relation-ends-ordered");
-            }
-            (from, to) = (a, b);
+        if !keep_types.contains(&tid) || from_dropped.is_some() || to_dropped.is_some() {
+            continue;
         }
+        let Some(rid) = id(RelationId::parse, &rel.id) else {
+            continue;
+        };
+        let from = entity(&rel.from_kind, &rel.from_id, &new_comment_ids);
+        let to = entity(&rel.to_kind, &rel.to_id, &new_comment_ids);
         txn.relation(&rid)?
             .ends(&from, &to)?
             .relation_type(&tid)?

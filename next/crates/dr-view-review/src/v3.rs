@@ -10,7 +10,6 @@ use dr_model::{
     DocId,
     id::{BodyDocId, BookId, CommentId},
     kind::EntityKind,
-    shared::Relation,
     v3::{self as m, CommentV3, FieldType, FieldValue},
 };
 use dr_store::OpenDoc;
@@ -141,8 +140,6 @@ pub struct Listing {
 pub struct Snapshot {
     pub book_name: String,
     pub items: Vec<Item>,
-    /// Read projections are never offered back as a replacement write.
-    associations: Vec<Relation>,
     by_id: HashMap<String, usize>,
     by_place: HashMap<Target, usize>,
 }
@@ -250,7 +247,7 @@ pub fn load(ws: &Workspace, book: &str) -> Result<Snapshot> {
         embeds.insert((e, module), set);
     }
 
-    let (book_name, mut items, associations, pending_retained) = ws
+    let (book_name, mut items, pending_retained) = ws
         .library()
         .open_doc(&format!("book:{book}"), OpenDoc::Existing)?
         .read(move |doc| {
@@ -277,14 +274,8 @@ pub fn load(ws: &Workspace, book: &str) -> Result<Snapshot> {
             let comments = v.comments_with_embeds(Some(&entry_sets), &mut |e, module| {
                 embeds.get(&(e.clone(), module.clone())).cloned().flatten()
             });
-            let generic = dr_doc::catalog::generic_relation_type_id(&id);
             if comments.is_empty() {
-                let associations = v.relations_matching_with_entries(&entry_sets, |r| {
-                    r.relation_type == generic
-                        && r.from.kind == EntityKind::Comment
-                        && r.to.kind == EntityKind::Entry
-                });
-                return Ok((book_name, Vec::new(), associations, Vec::new()));
+                return Ok((book_name, Vec::new(), Vec::new()));
             }
             let templates = v.templates_map();
             let live_ids: HashSet<String> = entries
@@ -719,16 +710,7 @@ pub fn load(ws: &Workspace, book: &str) -> Result<Snapshot> {
                     }
                 })
                 .collect();
-            let associations = v
-                .relations_matching_with_entries(&entry_sets, |r| {
-                    r.relation_type == generic
-                        && r.from.kind == EntityKind::Comment
-                        && r.to.kind == EntityKind::Entry
-                })
-                .into_iter()
-                .filter(|r| live_ids.contains(&r.to.id))
-                .collect();
-            Ok((book_name, items, associations, pending_retained))
+            Ok((book_name, items, pending_retained))
         })??;
 
     if !pending_retained.is_empty() {
@@ -767,7 +749,6 @@ pub fn load(ws: &Workspace, book: &str) -> Result<Snapshot> {
     Ok(Snapshot {
         book_name,
         items,
-        associations,
         by_id,
         by_place,
     })
@@ -799,11 +780,6 @@ fn gone_item(comment: CommentV3) -> Item {
 }
 
 impl Snapshot {
-    /// Built-in generic `comment -> entry` associations on live entries.
-    pub fn associations(&self) -> &[Relation] {
-        &self.associations
-    }
-
     pub(crate) fn item(&self, id: &str) -> Option<&Item> {
         self.by_id.get(id).and_then(|&idx| self.items.get(idx))
     }
@@ -845,8 +821,7 @@ impl Snapshot {
         }
     }
 
-    /// Current includes direct module matches and generic entry associations;
-    /// an association affects inclusion only, never the card's actual source.
+    /// Filter comments by their direct target and module.
     pub fn listing(&self, filter: Filter, scope: Option<&Target>) -> Listing {
         self.listing_filtered(OriginFilter::All, filter, scope)
     }
@@ -857,15 +832,6 @@ impl Snapshot {
         legacy_filter: Filter,
         scope: Option<&Target>,
     ) -> Listing {
-        let related: HashSet<&str> = match scope {
-            Some(Target::Entry { id, .. }) => self
-                .associations
-                .iter()
-                .filter(|r| r.to.id == *id)
-                .map(|r| r.from.id.as_str())
-                .collect(),
-            _ => HashSet::new(),
-        };
         let mut chosen: Vec<_> = self
             .items
             .iter()
@@ -882,9 +848,7 @@ impl Snapshot {
                 let matches_origin = origin_filter.matches(item.comment.origin.as_str());
                 matches_legacy
                     && matches_origin
-                    && scope.is_none_or(|scope| {
-                        item.matches_scope(scope) || related.contains(item.comment.id.as_str())
-                    })
+                    && scope.is_none_or(|scope| item.matches_scope(scope))
             })
             .cloned()
             .collect();

@@ -220,7 +220,7 @@ pub struct Receipt {
     pub docs: Vec<DocRecord>,
     pub anchors: Vec<AnchorRecord>,
     /// (collection, id, field, original JSON) of bodies kept as plain text and
-    /// legacy relation-type endpoint kinds preserved for future restoration.
+    /// legacy relation metadata preserved for future reference.
     pub originals: Vec<(String, String, String, String)>,
     pub orphan_yjs_docs: usize,
     pub archived_rows: BTreeMap<String, i64>,
@@ -516,7 +516,13 @@ fn explain(key: &str) -> Option<&'static str> {
         "material-embed-dropped" => "素材嵌入找不到对应的素材，按空段落导入",
         "comment-priority-dropped" => "批注的优先级没有导入（批注不再分优先级）",
         "heading-level-clamped" | "indent-clamped" => "标题层级或缩进超出范围，已收进 H1–H3、0–8",
-        "built-in-relation-color-dropped" => "内置关系类型的颜色没有导入（它不能改）",
+        "built-in-relation-type-dropped" => "内置的「关联」类型及其关系没有导入",
+        "relation-image-end-dropped" => "端点为图片的关系没有导入",
+        "relation-pdf-end-dropped" => "端点为 PDF 的关系没有导入",
+        "relation-comment-end-dropped" => "端点为批注的关系没有导入",
+        "relation-todo-end-dropped" => "端点为待办的关系没有导入",
+        "relation-patch-end-dropped" => "端点为补丁的关系没有导入",
+        "relation-other-end-dropped" => "端点为其他素材的关系没有导入",
         "act-binding-shared-idea-split" => {
             "同一个构想绑了多个幕：最早的一幕沿用该构想，其余各幕在「幕」下新建了同名条目"
         }

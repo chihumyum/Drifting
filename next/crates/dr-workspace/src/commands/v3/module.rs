@@ -113,7 +113,6 @@ pub struct Data {
     pub own_arrangement: bool,
     pub patches: Vec<content::Patch>,
     pub grid: Option<content::Grid>,
-    pub relations: Vec<content::Relation>,
     /// A `children` module (`下面的条目`) of an entry whose switch is on:
     /// what lies below it, as `entry.get` gives it.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -161,17 +160,6 @@ fn read(cx: &Cx<'_>, input: In) -> Result<Data> {
             super::entry::mark_missing_media(member, &files);
         }
     }
-    let relations = if definition
-        .as_ref()
-        .is_some_and(|m| m.kind == m::ModuleKind::Relations)
-    {
-        convert(v.relations_of(&dr_model::shared::EntityRef {
-            kind: dr_model::kind::EntityKind::Entry,
-            id: e.id.to_string(),
-        }))?
-    } else {
-        Vec::new()
-    };
     let mut media: Vec<types::MediaItem> = e
         .media
         .get(&id)
@@ -202,7 +190,6 @@ fn read(cx: &Cx<'_>, input: In) -> Result<Data> {
         media,
         patches: convert(v.patches_of(&e.id, &id))?,
         grid,
-        relations,
         below,
     })
 }

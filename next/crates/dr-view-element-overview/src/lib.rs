@@ -39,8 +39,7 @@ pub use relate::{
     serialize_overview_memory, settle_relate,
 };
 pub use view::{
-    ElementCarryDrag, ElementOverview, IslandMode, IslandSubject, OverviewHeadEnd, PendingLink,
-    RelateEdgeView,
+    ElementCarryDrag, ElementOverview, IslandMode, IslandSubject, OverviewHeadEnd, RelateEdgeView,
 };
 
 #[derive(Default)]

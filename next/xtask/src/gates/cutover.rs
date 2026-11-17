@@ -94,7 +94,7 @@ fn retired_param() -> Regex {
     Regex::new(r#""priority"\s*:"#).expect("retired parameter pattern")
 }
 fn old_command() -> Regex {
-    Regex::new(r#"\"(?:book\.create|todo\.project|history\.(?:agent_changes|undo_agent)|level\.(?:get|list)|(?:act|chapter|idea|idea_group|element|category|storyline|category_template|chapter_template|storyline_template|plot_grid|time_pin|material|material_folder)\.[a-z_]+)\""#).expect("cutover pattern")
+    Regex::new(r#"\"(?:book\.create|todo\.project|history\.(?:agent_changes|undo_agent)|relation\.(?:create|delete|list)|entry_relation_type\.[a-z_]+|module\.(?:put_relation|remove_relation)|level\.(?:get|list)|(?:act|chapter|idea|idea_group|element|category|storyline|category_template|chapter_template|storyline_template|plot_grid|time_pin|material|material_folder)\.[a-z_]+)\""#).expect("cutover pattern")
 }
 pub fn run(repo: &Repo) -> Result<Outcome, String> {
     let mut out = Outcome::default();
@@ -244,6 +244,12 @@ mod tests {
             "todo.project",
             "material.create",
             "material_folder.list",
+            "module.put_relation",
+            "module.remove_relation",
+            "entry_relation_type.put",
+            "relation.create",
+            "relation.delete",
+            "relation.list",
         ] {
             assert!(old_command().is_match(&format!("\"{name}\"")));
         }
@@ -256,7 +262,8 @@ mod tests {
             "asset.list",
             "memory.add",
             "fact.put",
-            "relation.create",
+            "relation_row.create_pair",
+            "relation_type.list",
             "entry.set_level",
             "comment.project",
         ] {

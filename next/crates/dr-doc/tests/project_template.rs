@@ -40,8 +40,8 @@ fn builtin_novel_template_passes_unified_validator_and_round_trips() {
     assert_eq!(src.origin, Some(ProjectTemplateOrigin::Builtin));
     assert_eq!(src.name.as_deref(), Some("写书"));
     assert_eq!(src.id, "builtin:novel");
-    // `4` since the tabs are 「全部」 and four levels and carry no names.
-    assert_eq!(src.version, 4);
+    // Version 5 uses project-wide relations and project-level guidance.
+    assert_eq!(src.version, 5);
 }
 
 #[test]

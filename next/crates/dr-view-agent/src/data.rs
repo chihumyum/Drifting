@@ -90,7 +90,7 @@ pub fn change_targets(run: &crate::state::RunSnapshot, turn: u32) -> Vec<ChangeT
             use dr_doc::v3::CollectionV3 as Collection;
             let (kind, id) = match Collection::from_root(&effect.kind) {
                 Some(Collection::Comments) => ("comment", effect.id),
-                Some(Collection::Relations) => ("relation", effect.id),
+                Some(Collection::Relations) => ("relation_row", effect.id),
                 _ => match effect.kind.as_str() {
                     "entries" | "entry" => ("entry", effect.id),
                     "entry_templates" | "entry_template" => ("entry_template", effect.id),
@@ -118,7 +118,7 @@ pub fn change_targets(run: &crate::state::RunSnapshot, turn: u32) -> Vec<ChangeT
                     | "material"
                     | "asset"
                     | "comment"
-                    | "relation"
+                    | "relation_row"
                     | "entry"
                     | "entry_template"
                     | "timeline_view"
@@ -225,7 +225,7 @@ pub fn resolve_change(
             .then_some(ChangeLocation::Home)
             .ok_or_else(missing);
     }
-    if change.kind == "relation" {
+    if change.kind == "relation_row" {
         let book_id: dr_model::id::BookId = book
             .parse()
             .map_err(|e: dr_model::id::IdError| e.to_string())?;
@@ -242,9 +242,11 @@ pub fn resolve_change(
             })
             .map_err(|e| e.to_string())?
             .ok_or_else(missing)?;
-        return [&r.from, &r.to]
-            .into_iter()
-            .find_map(|e| locate(e.kind.as_str(), &e.id, None))
+        return r
+            .left
+            .iter()
+            .chain(&r.right)
+            .find_map(|entry| locate("entry", entry.as_str(), None))
             .map(|(target, _)| ChangeLocation::Page(target))
             .ok_or_else(missing);
     }

@@ -184,7 +184,7 @@ fn ids(view: &Entity<ReviewView>, cx: &mut VisualTestContext) -> Vec<Vec<String>
         v.listing()
             .open
             .iter()
-            .map(|g| g.items.iter().map(|i| i.body.clone()).collect())
+            .map(|g| g.items.iter().map(|i| i.body.text.clone()).collect())
             .collect()
     })
 }
@@ -250,7 +250,7 @@ fn a_todo_is_completed_and_a_body_edited_in_place(cx: &mut TestAppContext) {
     });
     assert!(wait_for(cx, |_| listed(&e).iter().any(|c| c["id"]
         == note.as_str()
-        && c["body"] == "这里写得太快")));
+        && c["body"]["text"] == "这里写得太快")));
     redraw(cx);
 }
 
@@ -304,7 +304,7 @@ fn the_composer_writes_a_comment_on_the_selection(cx: &mut TestAppContext) {
     assert!(wait_for(cx, |_| listed(&e).len() == 1));
     let made = &listed(&e)[0];
     assert_eq!(made["origin"], "manual", "written in the composer: by hand");
-    assert_eq!(made["body"], "钟楼要写清楚");
+    assert_eq!(made["body"]["text"], "钟楼要写清楚");
     assert_eq!(made["anchored"], true);
     // Written: chosen, so the editor draws its sand along its rows.
     let jump = cx.update(|_, cx| ReviewFocus::get(cx).jump.map(|j| j.comment));
@@ -375,7 +375,7 @@ fn listed_ids(view: &Entity<ReviewView>, cx: &mut VisualTestContext) -> Vec<Stri
 }
 
 #[gpui::test]
-fn current_scope_follows_generic_associations_and_source_changes(cx: &mut TestAppContext) {
+fn current_scope_stays_direct_and_follows_source_changes(cx: &mut TestAppContext) {
     let e = sample_env();
     let chapters = serde_json::json!(dr_testkit::seed::acceptance::entries_by_template(
         &e.ws,
@@ -409,41 +409,18 @@ fn current_scope_follows_generic_associations_and_source_changes(cx: &mut TestAp
     view.update(cx, |v, cx| v.set_current_only(true, cx));
     assert!(!listed_ids(&view, cx).contains(&floating));
     assert!(!listed_ids(&view, cx).contains(&from_two));
-    let relate = |id: &str| {
-        out(
-            &e.ws,
-            "relation.create",
-            json!({
-                "book": e.book, "from": {"kind": "comment", "id": id}, "to": {"kind": "entry", "id": one}
-            }),
-        )
-    };
-    let floating_relation = relate(&floating);
-    relate(&from_two);
-    relate(&direct);
-    assert!(wait_for(cx, |cx| {
-        let ids = listed_ids(&view, cx);
-        ids.contains(&floating) && ids.contains(&from_two)
-    }));
-    assert_eq!(
-        listed_ids(&view, cx)
-            .iter()
-            .filter(|id| **id == direct)
-            .count(),
-        1
-    );
-    assert!(view.read_with(cx, |v, _| {
-        v.listing()
-            .open
-            .iter()
-            .any(|g| g.key() == format!("entry:{two}") && g.items.iter().any(|i| i.id == from_two))
-    }));
     out(
         &e.ws,
-        "relation.delete",
-        json!({"book": e.book, "id": floating_relation["id"]}),
+        "relation_row.create_pair",
+        json!({
+            "book":e.book,"left":one,"right":two,"new_type":{"name":"章节相连"},
+        }),
     );
-    assert!(wait_for(cx, |cx| !listed_ids(&view, cx).contains(&floating)));
+    let ids = listed_ids(&view, cx);
+    assert_eq!(ids.iter().filter(|id| **id == direct).count(), 1);
+    assert!(!ids.contains(&floating));
+    assert!(!ids.contains(&from_two));
+    view.update(cx, |v, cx| v.set_current_only(false, cx));
     let renamed = format!(
         "{} · {}",
         chapters[1]["title"].as_str().unwrap(),
@@ -1064,7 +1041,7 @@ fn two_row_filters_checklist_fold_task_guards_and_prose_tick_undo(cx: &mut TestA
 
     let task_id = listed(&e)
         .into_iter()
-        .find(|c| c["origin"] == "task" && c["body"] == "核查海图")
+        .find(|c| c["origin"] == "task" && c["body"]["text"] == "核查海图")
         .unwrap()["id"]
         .as_str()
         .unwrap()
