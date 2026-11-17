@@ -24,9 +24,9 @@ use gpui::{
     App, AppContext as _, AvailableSpace, Bounds, Context, CursorStyle, DispatchPhase, ElementId,
     Entity, EventEmitter, FocusHandle, Focusable, GlobalElementId, Hitbox, HitboxBehavior,
     InspectorElementId, InteractiveElement as _, IntoElement, LayoutId, MouseButton,
-    MouseDownEvent, MouseMoveEvent, MouseUpEvent, ParentElement as _, Pixels, Render,
-    SharedString, Style, Styled as _, Subscription, TextAlign, TextRun, Window, div, point,
-    prelude::FluentBuilder as _, px, relative, size,
+    MouseDownEvent, MouseMoveEvent, MouseUpEvent, ParentElement as _, Pixels, Render, ScrollHandle,
+    SharedString, StatefulInteractiveElement as _, Style, Styled as _, Subscription, TextAlign,
+    TextRun, Window, div, point, prelude::FluentBuilder as _, px, relative, size,
 };
 use prose_linebreak as linebreak;
 
@@ -34,7 +34,7 @@ use crate::{
     components::{Layer, Menu, MenuItem, Place, RowIcon, float},
     input::{
         FieldEvent, TextArea,
-        area::Newline,
+        area::{Down, Newline, Up},
         field::{Cancel, Submit},
     },
     sand::{self, SandMask},
@@ -170,8 +170,7 @@ impl Draft {
                     .take(room)
                     .take_while(|(a, b)| a == b)
                     .count();
-                while !old.is_char_boundary(old.len() - s)
-                    || !text.is_char_boundary(text.len() - s)
+                while !old.is_char_boundary(old.len() - s) || !text.is_char_boundary(text.len() - s)
                 {
                     s -= 1;
                 }
@@ -358,7 +357,13 @@ fn runs(text: &str, links: &[Link], base: &TextRun, link: gpui::Hsla) -> Vec<Tex
 
 /// Where a link's stroke sits under a row: 7 px high, its middle 4 px
 /// below the baseline (gpui-prose's entity underline).
-fn stroke_under(para: &Paragraph, x0: Pixels, x1: Pixels, row_top: Pixels, lh: Pixels) -> Bounds<Pixels> {
+fn stroke_under(
+    para: &Paragraph,
+    x0: Pixels,
+    x1: Pixels,
+    row_top: Pixels,
+    lh: Pixels,
+) -> Bounds<Pixels> {
     let (ascent, descent) = (para.line.ascent, para.line.descent);
     let baseline = row_top + (lh - (ascent + descent)) / 2.0 + ascent;
     Bounds::new(
@@ -394,28 +399,29 @@ impl gpui::Element for LinkedText {
         let runs = runs(&text, &self.links, &style.to_run(text.len()), accent);
         let mut layout_style = Style::default();
         layout_style.size.width = relative(1.).into();
-        let id = window.request_measured_layout(layout_style, move |known, available, window, _| {
-            let wrap = known.width.or(match available.width {
-                AvailableSpace::Definite(w) => Some(w),
-                _ => None,
+        let id =
+            window.request_measured_layout(layout_style, move |known, available, window, _| {
+                let wrap = known.width.or(match available.width {
+                    AvailableSpace::Definite(w) => Some(w),
+                    _ => None,
+                });
+                let paragraphs = shape(
+                    &text,
+                    &runs,
+                    font_size,
+                    wrap,
+                    linebreak::Overflow::Hang,
+                    window,
+                );
+                let rows: usize = paragraphs.iter().map(|p| p.breaks.len()).sum();
+                let width = wrap.unwrap_or_else(|| {
+                    paragraphs
+                        .iter()
+                        .map(|p| p.line.width())
+                        .fold(px(0.0), |a, b| a.max(b))
+                });
+                size(width, line_height * rows.max(1) as f32)
             });
-            let paragraphs = shape(
-                &text,
-                &runs,
-                font_size,
-                wrap,
-                linebreak::Overflow::Hang,
-                window,
-            );
-            let rows: usize = paragraphs.iter().map(|p| p.breaks.len()).sum();
-            let width = wrap.unwrap_or_else(|| {
-                paragraphs
-                    .iter()
-                    .map(|p| p.line.width())
-                    .fold(px(0.0), |a, b| a.max(b))
-            });
-            size(width, line_height * rows.max(1) as f32)
-        });
         (id, ())
     }
 
@@ -432,7 +438,12 @@ impl gpui::Element for LinkedText {
         let font_size = style.font_size.to_pixels(window.rem_size());
         let line_height = window.pixel_snap(window.line_height());
         let accent = Theme::of(window, cx).palette.accent.solid();
-        let runs = runs(&self.text, &self.links, &style.to_run(self.text.len()), accent);
+        let runs = runs(
+            &self.text,
+            &self.links,
+            &style.to_run(self.text.len()),
+            accent,
+        );
         let paragraphs = shape(
             &self.text,
             &runs,
@@ -460,13 +471,7 @@ impl gpui::Element for LinkedText {
                     let seg = Bounds::new(point(left + xa, top), size(xb - xa, line_height));
                     let stroke = stroke_under(para, left + xa, left + xb, top, line_height);
                     let hitbox = window.insert_hitbox(seg, HitboxBehavior::Normal);
-                    segments.push((
-                        Segment {
-                            link: ix,
-                            stroke,
-                        },
-                        hitbox,
-                    ));
+                    segments.push((Segment { link: ix, stroke }, hitbox));
                 }
                 rows.push((cursor.take_until(range.end), y));
                 y += line_height;
@@ -515,7 +520,13 @@ impl gpui::Element for LinkedText {
         state.hovered.set(hovered);
         for (seg, hitbox) in &prepaint.segments {
             let strength = if hovered == Some(seg.link) { 0.95 } else { 0.7 };
-            sand::paint_mask(SandMask::Ul, seg.stroke, p.accent.alpha(strength), window, cx);
+            sand::paint_mask(
+                SandMask::Ul,
+                seg.stroke,
+                p.accent.alpha(strength),
+                window,
+                cx,
+            );
             window.set_cursor_style(CursorStyle::PointingHand, hitbox);
         }
         if prepaint.segments.is_empty() {
@@ -583,7 +594,7 @@ pub struct AtItem {
 }
 
 /// The entries the `@` list offers for the letters typed after `@` (all of
-/// them for none), best first; the list shows the first seven.
+/// them for none), best first; the list scrolls after seven rows.
 pub type Candidates = Rc<dyn Fn(&str, &App) -> Vec<AtItem>>;
 
 /// How many rows the `@` list shows.
@@ -604,6 +615,8 @@ pub enum LinkedEvent {
 struct At {
     range: Range<usize>,
     items: Vec<AtItem>,
+    selected: usize,
+    scroll: ScrollHandle,
 }
 
 /// F5's multi-line input with links; see the module notes.
@@ -679,13 +692,38 @@ impl LinkedArea {
         &self.draft
     }
 
+    /// Replaces the words while retaining links outside the changed range.
+    pub fn set_text(&mut self, text: impl Into<String>, cx: &mut Context<Self>) {
+        let text = text.into();
+        self.draft.changed(&text);
+        self.at = None;
+        self.area.update(cx, |a, cx| a.set_text(text, cx));
+        self.push_links(cx);
+        cx.notify();
+    }
+
+    pub fn text(&self) -> String {
+        self.draft.text.clone()
+    }
+
+    pub fn set_disabled(&mut self, disabled: bool, cx: &mut Context<Self>) {
+        if disabled {
+            self.at = None;
+        }
+        self.area.update(cx, |a, cx| a.set_disabled(disabled, cx));
+        cx.notify();
+    }
+
     pub fn area(&self) -> &Entity<TextArea> {
         &self.area
     }
 
     /// The entries the open `@` list shows (none when it is closed).
     pub fn at_items(&self) -> Vec<AtItem> {
-        self.at.as_ref().map(|a| a.items.clone()).unwrap_or_default()
+        self.at
+            .as_ref()
+            .map(|a| a.items.clone())
+            .unwrap_or_default()
     }
 
     /// Puts the caret in the field, at the end.
@@ -706,10 +744,9 @@ impl LinkedArea {
             .at_query(committed_cursor)
             .map(|(range, query)| At {
                 range,
-                items: (self.candidates)(&query, cx)
-                    .into_iter()
-                    .take(AT_ROWS)
-                    .collect(),
+                items: (self.candidates)(&query, cx),
+                selected: 0,
+                scroll: ScrollHandle::new(),
             })
             .filter(|a| !a.items.is_empty());
         let _ = window;
@@ -738,11 +775,35 @@ impl LinkedArea {
     }
 
     fn pick_first(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
-        let Some(first) = self.at.as_ref().and_then(|a| a.items.first().cloned()) else {
+        if self.area.read(cx).is_composing() {
+            return false;
+        }
+        let Some(first) = self
+            .at
+            .as_ref()
+            .and_then(|a| a.items.get(a.selected).cloned())
+        else {
             return false;
         };
         self.pick(&first, window, cx);
         true
+    }
+
+    fn move_choice(&mut self, next: bool, cx: &mut Context<Self>) {
+        let Some(at) = &mut self.at else {
+            return;
+        };
+        if self.area.read(cx).is_composing() {
+            return;
+        }
+        at.selected = if next {
+            (at.selected + 1).min(at.items.len().saturating_sub(1))
+        } else {
+            at.selected.saturating_sub(1)
+        };
+        at.scroll.scroll_to_item(at.selected);
+        cx.stop_propagation();
+        cx.notify();
     }
 }
 
@@ -754,7 +815,11 @@ impl Render for LinkedArea {
                 .read(cx)
                 .offset_bounds(at.range.start)
                 .unwrap_or_default();
-            let mut menu = Menu::new(crate::style::child_id(&self.id, "at")).exactly(220.0);
+            let mut rows = div()
+                .id(crate::style::child_id(&self.id, "at-scroll"))
+                .max_h(px(Theme::of(window, cx).scale.menu_row * AT_ROWS as f32))
+                .overflow_y_scroll()
+                .track_scroll(&at.scroll);
             for (ix, item) in at.items.iter().enumerate() {
                 let picked = item.clone();
                 let row = MenuItem::new(
@@ -762,21 +827,27 @@ impl Render for LinkedArea {
                     RowIcon::Mark(item.mark, None),
                     item.label.clone(),
                 )
+                .current(at.selected == ix)
                 .on_click(cx.listener(move |this, _, window, cx| {
                     this.pick(&picked, window, cx);
                     this.focus(window, cx);
                 }));
-                menu = menu.item(match &item.detail {
+                rows = rows.child(match &item.detail {
                     Some(d) => row.trailing(d.clone()),
                     None => row,
                 });
             }
+            let menu = Menu::new(crate::style::child_id(&self.id, "at"))
+                .exactly(220.0)
+                .child(rows);
             float(Place::below(rect, 4.0), Layer::Popover, menu)
         });
         let _ = window;
         div()
             .id(self.id.clone())
             .w_full()
+            .capture_action(cx.listener(|this, _: &Up, _, cx| this.move_choice(false, cx)))
+            .capture_action(cx.listener(|this, _: &Down, _, cx| this.move_choice(true, cx)))
             .capture_action(cx.listener(|this, _: &Newline, window, cx| {
                 if this.pick_first(window, cx) {
                     cx.stop_propagation();
@@ -788,6 +859,9 @@ impl Render for LinkedArea {
                 }
             }))
             .capture_action(cx.listener(|this, _: &Cancel, _, cx| {
+                if this.area.read(cx).is_composing() {
+                    return;
+                }
                 if this.at.take().is_some() {
                     cx.stop_propagation();
                     cx.notify();

@@ -299,7 +299,8 @@ impl TextArea {
         if self.composer.is_composing() {
             return;
         }
-        self.composer.move_to(offset.min(self.composer.text().len()));
+        self.composer
+            .move_to(offset.min(self.composer.text().len()));
         self.upstream = false;
         self.goal_x = None;
         cx.notify();
@@ -717,11 +718,7 @@ impl TextArea {
                 let in_marked = marked.as_ref().is_some_and(|m| m.start <= a && b <= m.end);
                 TextRun {
                     len: b - a,
-                    color: if in_link {
-                        p.accent.solid()
-                    } else {
-                        run.color
-                    },
+                    color: if in_link { p.accent.solid() } else { run.color },
                     underline: in_marked.then(|| UnderlineStyle {
                         color: Some(p.ink(2).solid()),
                         thickness: px(1.0),

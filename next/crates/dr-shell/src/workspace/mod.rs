@@ -1828,11 +1828,11 @@ impl Workspace {
             }),
         )
         // RL: a relation made in place in the prose shows its row in 「关系」.
-        .on_action(cx.listener(
-            |ws, a: &crate::actions::RevealRelationRow, window, cx| {
+        .on_action(
+            cx.listener(|ws, a: &crate::actions::RevealRelationRow, window, cx| {
                 ws.reveal_relation_row(&a.row, window, cx)
-            },
-        ))
+            }),
+        )
         // ⌘Z / ⇧⌘Z outside the prose: the book's commands (`undo.rs`).
         .on_action(cx.listener(|ws, _: &crate::actions::Undo, window, cx| {
             ws.on_edit_undo(false, window, cx)

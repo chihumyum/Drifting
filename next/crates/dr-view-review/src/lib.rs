@@ -18,6 +18,7 @@
 
 pub mod agent_bridge;
 pub mod composer;
+mod linked;
 pub mod model;
 pub mod panel;
 pub mod v3;

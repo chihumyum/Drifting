@@ -17,7 +17,7 @@
 //!   the end (the row). The prose draws the row's pairs meanwhile
 //!   ([`dr_shell::relations::set_rail_hover`]).
 //! - A new row is a draft here until both sides have an entry; it is written
-//!   then (`relation_row.create_pair`, its first pair, then the rest). The
+//!   then, in one `relation_row.create_group` command. The
 //!   last row of a card going (a draft included, no hidden rows left) takes
 //!   the relation with it; a relation left without rows when its entries were
 //!   purged keeps its card.
@@ -42,13 +42,13 @@ use dr_shell::relations::{self as shell_rel, RailRow};
 use dr_shell::strings::t;
 use dr_shell::{Workspace, pages::LeftPanel};
 use dr_ui::input::{FieldEvent, TextField};
-use dr_ui::linked::{AtItem, Candidates, Draft, LinkedArea, LinkedEvent, Link};
+use dr_ui::linked::{AtItem, Candidates, Draft, Link, LinkedArea, LinkedEvent};
 use dr_ui::sand;
 use dr_workspace::commands::EntityIn;
 use dr_workspace::commands::v3::relations::{
-    AddEntry, AddEntryIn, Create, CreatePair, CreateTypeIn, Delete, DeleteRow, DescriptionIn,
-    DirectionIn, List, ListIn, PairIn, RelationInfo, RemoveEntry, RemoveEntryIn, Rename as RenameOp, RenameIn,
-    SetDescription, SetDirection,
+    AddEntry, AddEntryIn, Create, CreateGroup, CreateTypeIn, Delete, DeleteRow, DescriptionIn,
+    DirectionIn, GroupIn, List, ListIn, RelationInfo, RemoveEntry, RemoveEntryIn,
+    Rename as RenameOp, RenameIn, SetDescription, SetDirection,
 };
 use dr_workspace::dto::LinkedTextIn;
 use dr_workspace::events::is_text_index;
@@ -73,6 +73,8 @@ pub struct DraftRow {
     pub relation: Option<String>,
     pub left: Vec<String>,
     pub right: Vec<String>,
+    pub pending: bool,
+    pub failed: bool,
 }
 
 /// A name being edited: `relation` is `None` for a new card.
@@ -80,6 +82,7 @@ pub struct Rename {
     pub relation: Option<String>,
     pub field: Entity<TextField>,
     pub failed: bool,
+    pub pending: bool,
     _sub: Subscription,
 }
 
@@ -89,6 +92,7 @@ pub struct Describe {
     pub area: Entity<LinkedArea>,
     pub start: Draft,
     pub failed: bool,
+    pub pending: bool,
     _sub: Subscription,
 }
 
@@ -196,13 +200,32 @@ impl RelationsRail {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) -> RelationsRail {
-        let mut subs = Vec::new();
+        let mut subs = vec![cx.on_release(|rail, cx| {
+            if rail.owns_hover(cx) {
+                shell_rel::set_rail_hover(None, cx);
+            }
+        })];
         if let Some(ws) = shell.upgrade() {
             subs.push(cx.observe(&ws, |rail, ws, cx| {
                 let (book, front) = {
                     let w = ws.read(cx);
                     (w.book.clone(), w.nav.current().cloned())
                 };
+                let hidden = {
+                    let w = ws.read(cx);
+                    !w.right.open
+                        || !rail.owns_shell(cx)
+                        || w.covered()
+                        || !w
+                            .right
+                            .panes
+                            .panes
+                            .iter()
+                            .any(|p| p.tab == dr_shell::workspace::RightTab::Relations)
+                };
+                if hidden {
+                    rail.set_hover(None, cx);
+                }
                 if !Rc::ptr_eq(&book, &rail.book) {
                     rail.set_book(book, cx);
                 }
@@ -282,6 +305,32 @@ impl RelationsRail {
         self.open = open;
     }
 
+    /// A callback from this frame cannot navigate a different book/library.
+    pub fn entry_opener(&self, cx: &Context<Self>) -> OpenEntry {
+        let rail = cx.weak_entity();
+        let epoch = self.epoch;
+        let open = self.open.clone();
+        Rc::new(move |entry, window, cx| {
+            let valid = rail.upgrade().is_some_and(|rail| {
+                let rail = rail.read(cx);
+                rail.epoch == epoch && rail.owns_shell(cx)
+            });
+            if valid {
+                open(entry, window, cx);
+            }
+        })
+    }
+
+    fn owns_shell(&self, cx: &App) -> bool {
+        self.shell.upgrade().is_none_or(|shell| {
+            let shell = shell.read(cx);
+            shell.book.id == self.book.id
+                && shell.book_id == self.book.id
+                && shell.library.as_ref().map(Library::instance_id)
+                    == self.lib.as_ref().map(Library::instance_id)
+        })
+    }
+
     pub fn book(&self) -> &Rc<Book> {
         &self.book
     }
@@ -306,7 +355,9 @@ impl RelationsRail {
     /// Shows another book (the shell's, or a test's).
     pub fn set_book(&mut self, book: Rc<Book>, cx: &mut Context<Self>) {
         if self.book.id != book.id {
+            self.set_hover(None, cx);
             self.epoch += 1;
+            self.writing = 0;
             self.relations.clear();
             self.loaded = false;
             self.rename = None;
@@ -323,6 +374,7 @@ impl RelationsRail {
             self.reload_page(cx);
         } else {
             self.book = book;
+            self.reload_page(cx);
         }
         cx.notify();
     }
@@ -330,6 +382,7 @@ impl RelationsRail {
     /// The page in front changed (the shell's navigation, or a test's).
     pub fn set_front(&mut self, front: Option<Target>, cx: &mut Context<Self>) {
         if self.front != front {
+            self.set_hover(None, cx);
             self.front = front;
             self.reload_page(cx);
         }
@@ -386,11 +439,13 @@ impl RelationsRail {
         if self.book.id.is_empty() {
             return;
         }
+        self.loaded = false;
         self.load_gen += 1;
         let (generation, epoch, book) = (self.load_gen, self.epoch, self.book.id.clone());
         let task = cx.background_executor().spawn(async move {
+            let snapshot = Book::load(&lib, &book)?;
             lib.run::<List>(&Actor::User, ListIn { book, entry: None })
-                .map(|o| o.output)
+                .map(|o| (o.output, snapshot))
         });
         self.load_task = Some(cx.spawn(async move |this, cx| {
             let out = task.await;
@@ -399,10 +454,35 @@ impl RelationsRail {
                     return;
                 }
                 match out {
-                    Ok(relations) => {
+                    Ok((mut relations, book)) => {
+                        if let Some(RowKey::Stored(row)) = &rail.hover
+                            && !relations
+                                .iter()
+                                .any(|r| r.rows.iter().any(|r| &r.id == row))
+                        {
+                            rail.set_hover(None, cx);
+                        }
+                        // A remote deletion must not erase an unsaved local edit.
+                        // Keep its last card until the author cancels; writes still
+                        // validate the live relation and fail without discarding it.
+                        for old in &rail.relations {
+                            let edited = rail
+                                .drafts
+                                .iter()
+                                .any(|d| d.relation.as_deref() == Some(old.id.as_str()))
+                                || rail.rename.as_ref().is_some_and(|r| {
+                                    r.relation.as_deref() == Some(old.id.as_str())
+                                })
+                                || rail.describe.as_ref().is_some_and(|d| d.relation == old.id);
+                            if edited && !relations.iter().any(|r| r.id == old.id) {
+                                relations.push(old.clone());
+                            }
+                        }
                         rail.relations = relations;
+                        rail.book = Rc::new(book);
                         rail.loaded = true;
-                        rail.forget_gone();
+                        rail.forget_gone(cx);
+                        rail.reload_page(cx);
                     }
                     Err(e) => log::warn!("relations rail: relation_type.list: {e}"),
                 }
@@ -413,7 +493,7 @@ impl RelationsRail {
     }
 
     /// Drafts, edits and the hovered row of relations no longer there go.
-    fn forget_gone(&mut self) {
+    fn forget_gone(&mut self, cx: &mut Context<Self>) {
         let ids: HashSet<&str> = self.relations.iter().map(|r| r.id.as_str()).collect();
         self.drafts
             .retain(|d| d.relation.as_deref().is_none_or(|r| ids.contains(r)));
@@ -439,6 +519,18 @@ impl RelationsRail {
         {
             self.picker = None;
         }
+        // Refresh the hovered row too: remote removal/direction/name edits
+        // cannot leave old pairs or labels painted in the prose.
+        let row = self.hover.as_ref().and_then(|key| match key {
+            RowKey::Stored(id) => self.rail_row(id),
+            RowKey::Draft(_) => None,
+        });
+        if row.is_none() {
+            self.hover = None;
+        }
+        if self.owns_hover(cx) {
+            shell_rel::set_rail_hover(row, cx);
+        }
     }
 
     /// The entries of the page in front, for 「当前」: its entry (or what a
@@ -457,7 +549,32 @@ impl RelationsRail {
             return;
         };
         let epoch = self.epoch;
+        let from = front.flatten_from();
+        let book = self.book.id.clone();
         let task = cx.background_executor().spawn(async move {
+            let roots = if let Some(from) = from {
+                let id = book.parse::<dr_model::id::BookId>();
+                id.ok()
+                    .and_then(|id| {
+                        lib.read_book_v3(&book, move |doc, _| {
+                            let b = dr_doc::v3::BorrowedBookV3::new(doc, &id)
+                                .map_err(|e| dr_workspace::WsError::Invalid(e.to_string()))?;
+                            let structure = b.view().structure_snapshot();
+                            Ok(structure
+                                .sequence(&from, false)
+                                .map(|rows| {
+                                    rows.into_iter()
+                                        .map(|r| r.entry.id.to_string())
+                                        .collect::<Vec<_>>()
+                                })
+                                .unwrap_or_default())
+                        })
+                        .ok()
+                    })
+                    .unwrap_or_default()
+            } else {
+                roots
+            };
             let mut set: HashSet<String> = roots.iter().cloned().collect();
             for entry in &roots {
                 if let Ok(refs) = lib.library().references_from_entry(entry) {
@@ -627,6 +744,7 @@ impl RelationsRail {
     }
 
     pub fn set_current_only(&mut self, on: bool, cx: &mut Context<Self>) {
+        self.set_hover(None, cx);
         self.current = on;
         cx.notify();
     }
@@ -641,6 +759,17 @@ impl RelationsRail {
         work: impl FnOnce(&Library, String) -> dr_workspace::Result<R> + Send + 'static,
         done: impl FnOnce(&mut Self, dr_workspace::Result<R>, &mut Context<Self>) + 'static,
     ) {
+        if !self.owns_shell(cx) {
+            done(
+                self,
+                Err(dr_workspace::WsError::Conflict(
+                    "the open library changed".into(),
+                )),
+                cx,
+            );
+            cx.notify();
+            return;
+        }
         let Some(lib) = self.lib.clone() else {
             return;
         };
@@ -656,10 +785,10 @@ impl RelationsRail {
         cx.spawn(async move |this, cx| {
             let out = task.await;
             this.update(cx, |rail, cx| {
-                rail.writing = rail.writing.saturating_sub(1);
                 if rail.epoch != epoch {
                     return;
                 }
+                rail.writing = rail.writing.saturating_sub(1);
                 if let Err(e) = &out {
                     log::warn!("relations rail: {e}");
                 }
@@ -674,6 +803,11 @@ impl RelationsRail {
 
     /// ＋ in the head: a new card, the caret in its name.
     pub fn new_card(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.rename.as_ref().is_some_and(|r| r.pending)
+            || self.describe.as_ref().is_some_and(|d| d.pending)
+        {
+            return;
+        }
         self.drafts.retain(|d| d.relation.is_some());
         self.describe = None;
         self.next_draft += 1;
@@ -682,9 +816,12 @@ impl RelationsRail {
             relation: None,
             left: Vec::new(),
             right: Vec::new(),
+            pending: false,
+            failed: false,
         });
         self.start_rename(None, window, cx);
-        self.scroll.set_offset(gpui::point(gpui::px(0.0), gpui::px(0.0)));
+        self.scroll
+            .set_offset(gpui::point(gpui::px(0.0), gpui::px(0.0)));
     }
 
     /// Starts editing a card's name (`None`: the new card's).
@@ -694,6 +831,9 @@ impl RelationsRail {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.rename.as_ref().is_some_and(|r| r.pending) {
+            return;
+        }
         let name = relation
             .as_deref()
             .and_then(|id| self.relations.iter().find(|r| r.id == id))
@@ -711,11 +851,15 @@ impl RelationsRail {
             .bare()
             .with_text(name)
         });
-        let sub = cx.subscribe_in(&field, window, |rail, _, e: &FieldEvent, window, cx| match e {
-            FieldEvent::Submitted(_) | FieldEvent::Blurred => rail.commit_rename(window, cx),
-            FieldEvent::Cancelled => rail.cancel_rename(cx),
-            FieldEvent::Changed(_) => {}
-        });
+        let sub = cx.subscribe_in(
+            &field,
+            window,
+            |rail, _, e: &FieldEvent, window, cx| match e {
+                FieldEvent::Submitted(_) | FieldEvent::Blurred => rail.commit_rename(window, cx),
+                FieldEvent::Cancelled => rail.cancel_rename(cx),
+                FieldEvent::Changed(_) => {}
+            },
+        );
         field.update(cx, |f, cx| f.select_all_text(cx));
         let handle = field.read(cx).focus_handle(cx);
         window.focus(&handle, cx);
@@ -723,12 +867,16 @@ impl RelationsRail {
             relation,
             field,
             failed: false,
+            pending: false,
             _sub: sub,
         });
         cx.notify();
     }
 
     fn cancel_rename(&mut self, cx: &mut Context<Self>) {
+        if self.rename.as_ref().is_some_and(|r| r.pending) {
+            return;
+        }
         if let Some(r) = self.rename.take()
             && r.relation.is_none()
         {
@@ -743,6 +891,10 @@ impl RelationsRail {
         let Some(r) = &self.rename else {
             return;
         };
+        if r.pending {
+            return;
+        }
+        let field = r.field.clone();
         let name = r.field.read(cx).text().trim().to_owned();
         let relation = r.relation.clone();
         let old = relation
@@ -753,6 +905,11 @@ impl RelationsRail {
             self.cancel_rename(cx);
             return;
         }
+        if let Some(r) = &mut self.rename {
+            r.pending = true;
+            r.failed = false;
+        }
+        field.update(cx, |f, cx| f.set_disabled(true, cx));
         match relation {
             None => self.write(
                 cx,
@@ -792,6 +949,8 @@ impl RelationsRail {
     fn rename_failed(&mut self, cx: &mut Context<Self>) {
         if let Some(r) = &mut self.rename {
             r.failed = true;
+            r.pending = false;
+            r.field.update(cx, |f, cx| f.set_disabled(false, cx));
         }
         cx.notify();
     }
@@ -809,7 +968,14 @@ impl RelationsRail {
         self.write(
             cx,
             move |lib, book| {
-                lib.run::<SetDirection>(&Actor::User, DirectionIn { book, id, direction })
+                lib.run::<SetDirection>(
+                    &Actor::User,
+                    DirectionIn {
+                        book,
+                        id,
+                        direction,
+                    },
+                )
             },
             |_, _, _| {},
         );
@@ -817,31 +983,32 @@ impl RelationsRail {
 
     /// Starts editing a card's description.
     pub fn start_describe(&mut self, relation: &str, window: &mut Window, cx: &mut Context<Self>) {
+        if self.describe.as_ref().is_some_and(|d| d.pending)
+            || self.rename.as_ref().is_some_and(|r| r.pending)
+        {
+            return;
+        }
         let Some(r) = self.relations.iter().find(|r| r.id == relation) else {
             return;
         };
         let start = draft_of(&r.description);
-        let book = self.book.clone();
-        let candidates: Candidates =
-            Rc::new(move |query, _| entry_candidates(&book, query, &[]));
+        let rail = cx.weak_entity();
+        let candidates: Candidates = Rc::new(move |query, cx| {
+            rail.upgrade()
+                .map(|rail| entry_candidates(&rail.read(cx).book, query, &[]))
+                .unwrap_or_default()
+        });
         let id = SharedString::from(format!("relations-desc-{relation}"));
         let draft = start.clone();
-        let area = cx.new(|cx| {
-            LinkedArea::new(
-                id,
-                draft,
-                candidates,
-                |a| a.submit_on_enter(),
-                window,
-                cx,
-            )
-        });
+        let area = cx
+            .new(|cx| LinkedArea::new(id, draft, candidates, |a| a.submit_on_enter(), window, cx));
         let sub = cx.subscribe_in(&area, window, |rail, _, e: &LinkedEvent, _, cx| match e {
             LinkedEvent::Submitted | LinkedEvent::Blurred => rail.commit_describe(cx),
-            LinkedEvent::Cancelled => {
+            LinkedEvent::Cancelled if !rail.describe.as_ref().is_some_and(|d| d.pending) => {
                 rail.describe = None;
                 cx.notify();
             }
+            LinkedEvent::Cancelled => {}
         });
         area.update(cx, |a, cx| a.focus(window, cx));
         self.rename = None;
@@ -850,6 +1017,7 @@ impl RelationsRail {
             area,
             start,
             failed: false,
+            pending: false,
             _sub: sub,
         });
         cx.notify();
@@ -861,6 +1029,9 @@ impl RelationsRail {
         let Some(d) = &self.describe else {
             return;
         };
+        if d.pending {
+            return;
+        }
         let draft = d.area.read(cx).draft().clone();
         if draft == d.start {
             self.describe = None;
@@ -869,6 +1040,11 @@ impl RelationsRail {
         }
         let id = d.relation.clone();
         let description = LinkedTextIn::Linked(linked_text(&draft));
+        if let Some(d) = &mut self.describe {
+            d.pending = true;
+            d.failed = false;
+            d.area.update(cx, |a, cx| a.set_disabled(true, cx));
+        }
         self.write(
             cx,
             move |lib, book| {
@@ -886,6 +1062,8 @@ impl RelationsRail {
                 Err(_) => {
                     if let Some(d) = &mut rail.describe {
                         d.failed = true;
+                        d.pending = false;
+                        d.area.update(cx, |a, cx| a.set_disabled(false, cx));
                     }
                     cx.notify();
                 }
@@ -910,6 +1088,8 @@ impl RelationsRail {
             relation: Some(relation.to_owned()),
             left: Vec::new(),
             right: Vec::new(),
+            pending: false,
+            failed: false,
         });
         cx.notify();
     }
@@ -924,24 +1104,31 @@ impl RelationsRail {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.draft_pending(&row) {
+            return;
+        }
         let field = cx.new(|cx| {
             TextField::new(SharedString::from("relations-pick-field"), window, cx).bare()
         });
-        let sub = cx.subscribe_in(&field, window, |rail, _, e: &FieldEvent, window, cx| match e {
-            FieldEvent::Changed(text) => {
-                if let Some(p) = &mut rail.picker {
-                    p.query = text.clone();
+        let sub = cx.subscribe_in(
+            &field,
+            window,
+            |rail, _, e: &FieldEvent, window, cx| match e {
+                FieldEvent::Changed(text) => {
+                    if let Some(p) = &mut rail.picker {
+                        p.query = text.clone();
+                    }
+                    cx.notify();
                 }
-                cx.notify();
-            }
-            FieldEvent::Submitted(_) => {
-                if let Some(first) = rail.picker_items().first().cloned() {
-                    rail.pick(&first.target, window, cx);
+                FieldEvent::Submitted(_) => {
+                    if let Some(first) = rail.picker_items().first().cloned() {
+                        rail.pick(&first.target, window, cx);
+                    }
                 }
-            }
-            FieldEvent::Cancelled => rail.close_picker(cx),
-            FieldEvent::Blurred => {}
-        });
+                FieldEvent::Cancelled => rail.close_picker(cx),
+                FieldEvent::Blurred => {}
+            },
+        );
         let handle = field.read(cx).focus_handle(cx);
         window.focus(&handle, cx);
         self.picker = Some(Picker {
@@ -1036,6 +1223,10 @@ impl RelationsRail {
                 let Some(d) = self.drafts.iter_mut().find(|d| d.key == *key) else {
                     return;
                 };
+                if d.pending {
+                    return;
+                }
+                d.failed = false;
                 let (mine, other) = match side {
                     RelationSide::Left => (&mut d.left, &d.right),
                     RelationSide::Right => (&mut d.right, &d.left),
@@ -1052,51 +1243,70 @@ impl RelationsRail {
         }
     }
 
-    /// Writes a draft whose sides both have an entry: its first pair, then
-    /// the others on the row it landed on.
+    /// One explicit group, one command/receipt. The draft stays until success;
+    /// any rejected member, duplicate pair or stale direction keeps both sides.
     fn write_draft(&mut self, d: DraftRow, cx: &mut Context<Self>) {
         let Some(relation) = d.relation.clone() else {
             return;
         };
-        self.drafts.retain(|x| x.key != d.key);
+        let Some(info) = self.relations.iter().find(|r| r.id == relation) else {
+            return;
+        };
+        if d.pending || d.left.is_empty() || d.right.is_empty() {
+            return;
+        }
+        let direction = info.direction;
+        let key = d.key;
+        if let Some(draft) = self.drafts.iter_mut().find(|d| d.key == key) {
+            draft.pending = true;
+            draft.failed = false;
+        }
         self.write(
             cx,
             move |lib, book| {
-                let placed = lib
-                    .run::<CreatePair>(
-                        &Actor::User,
-                        PairIn {
-                            book: book.clone(),
-                            left: d.left[0].clone(),
-                            right: d.right[0].clone(),
-                            relation_type: Some(relation),
-                            new_type: None,
-                        },
-                    )?
-                    .output;
-                let rest = d.left[1..]
-                    .iter()
-                    .map(|e| (RelationSide::Left, e))
-                    .chain(d.right[1..].iter().map(|e| (RelationSide::Right, e)));
-                for (side, entry) in rest {
-                    lib.run::<AddEntry>(
-                        &Actor::User,
-                        AddEntryIn {
-                            book: book.clone(),
-                            id: placed.id.clone(),
-                            side,
-                            entry: entry.clone(),
-                        },
-                    )?;
-                }
-                Ok(placed.id)
+                lib.run::<CreateGroup>(
+                    &Actor::User,
+                    GroupIn {
+                        book,
+                        relation_type: relation,
+                        expected_direction: direction,
+                        left: d.left,
+                        right: d.right,
+                    },
+                )
+                .map(|o| o.output.id)
             },
-            |_, _, _| {},
+            move |rail, out, _| match out {
+                Ok(_) => rail.drafts.retain(|d| d.key != key),
+                Err(_) => {
+                    if let Some(d) = rail.drafts.iter_mut().find(|d| d.key == key) {
+                        d.pending = false;
+                        d.failed = true;
+                    }
+                }
+            },
         );
+    }
+
+    pub fn retry_draft(&mut self, key: u64, cx: &mut Context<Self>) {
+        if let Some(d) = self.drafts.iter().find(|d| d.key == key).cloned() {
+            if d.left.is_empty() || d.right.is_empty() {
+                self.delete_row(&RowKey::Draft(key), cx);
+            } else {
+                self.write_draft(d, cx);
+            }
+        }
+    }
+
+    fn draft_pending(&self, row: &RowKey) -> bool {
+        matches!(row, RowKey::Draft(key) if self.drafts.iter().any(|d| d.key == *key && d.pending))
     }
 
     /// × after a name: out of this row (the row goes when its side empties).
     pub fn remove_entry(&mut self, row: &RowKey, entry: &str, cx: &mut Context<Self>) {
+        if self.draft_pending(row) {
+            return;
+        }
         match row {
             RowKey::Stored(id) => {
                 let (id, entry) = (id.clone(), entry.to_owned());
@@ -1110,8 +1320,13 @@ impl RelationsRail {
             }
             RowKey::Draft(key) => {
                 if let Some(d) = self.drafts.iter_mut().find(|d| d.key == *key) {
+                    let left = d.left.iter().any(|e| e == entry);
+                    let right = d.right.iter().any(|e| e == entry);
                     d.left.retain(|e| e != entry);
                     d.right.retain(|e| e != entry);
+                    if (left && d.left.is_empty()) || (right && d.right.is_empty()) {
+                        self.delete_row(row, cx);
+                    }
                 }
                 cx.notify();
             }
@@ -1121,9 +1336,11 @@ impl RelationsRail {
     /// The row's bin. A draft going that was its card's last row takes the
     /// relation with it (one with no rows in the book, hidden ones neither).
     pub fn delete_row(&mut self, row: &RowKey, cx: &mut Context<Self>) {
+        if self.draft_pending(row) {
+            return;
+        }
         if self.hover.as_ref() == Some(row) {
-            self.hover = None;
-            shell_rel::set_rail_hover(None, cx);
+            self.set_hover(None, cx);
         }
         match row {
             RowKey::Stored(id) => {
@@ -1145,7 +1362,10 @@ impl RelationsRail {
                     cx.notify();
                     return;
                 };
-                let last = self.drafts.iter().all(|x| x.relation.as_ref() != Some(&relation))
+                let last = self
+                    .drafts
+                    .iter()
+                    .all(|x| x.relation.as_ref() != Some(&relation))
                     && self
                         .relations
                         .iter()
@@ -1170,13 +1390,24 @@ impl RelationsRail {
         if self.hover == row {
             return;
         }
+        let owned = self.owns_hover(cx);
         self.hover = row.clone();
         let rail_row = match &row {
             Some(RowKey::Stored(id)) => self.rail_row(id),
             _ => None,
         };
-        shell_rel::set_rail_hover(rail_row, cx);
+        if rail_row.is_some() || owned {
+            shell_rel::set_rail_hover(rail_row, cx);
+        }
         cx.notify();
+    }
+
+    fn owns_hover(&self, cx: &App) -> bool {
+        let Some(RowKey::Stored(row)) = &self.hover else {
+            return false;
+        };
+        shell_rel::rail_hover(cx)
+            .is_some_and(|hover| hover.book == self.book.id && hover.row == *row)
     }
 
     /// A row as the prose draws it.
@@ -1329,7 +1560,11 @@ pub fn shown_text(text: &LinkedText) -> Draft {
 
 /// The links of a draft by target, for tests.
 pub fn link_targets(draft: &Draft) -> BTreeSet<String> {
-    draft.links.iter().map(|l: &Link| l.target.to_string()).collect()
+    draft
+        .links
+        .iter()
+        .map(|l: &Link| l.target.to_string())
+        .collect()
 }
 
 /// The 「关系」 tab's words (the shell's label), for tests.

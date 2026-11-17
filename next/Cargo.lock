@@ -2368,6 +2368,7 @@ dependencies = [
 name = "dr-view-relations"
 version = "0.0.0"
 dependencies = [
+ "dr-doc",
  "dr-i18n",
  "dr-model",
  "dr-shell",
@@ -2378,6 +2379,7 @@ dependencies = [
  "futures",
  "gpui",
  "log",
+ "loro",
  "serde_json",
  "tempfile",
 ]
