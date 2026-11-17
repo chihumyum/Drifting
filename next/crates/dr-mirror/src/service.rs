@@ -317,6 +317,9 @@ impl Index {
         let mut changed = BTreeSet::new();
         for (book, seen) in &self.books {
             let Ok(files) = sync::disk_markdown(&seen.dir, "", "") else {
+                // A missing, replaced or inaccessible project directory also
+                // needs a pass when the native watcher misses its event.
+                changed.insert(book.clone());
                 continue;
             };
             for file in files {
@@ -469,22 +472,39 @@ fn publish(state: &Mutex<State>, report: &Report, books: Option<&BTreeSet<BookId
         let mut state = lock(state);
         let before = state.issues.clone();
         let unreachable = report.issues.iter().any(|issue| issue.book.is_empty());
-        if unreachable {
-            state.issues.remove("");
-        } else if let Some(books) = books {
-            for book in books {
-                state.issues.remove(book.as_str());
+        let failed: BTreeSet<_> = report
+            .issues
+            .iter()
+            .filter(|issue| {
+                !issue.book.is_empty()
+                    && matches!(
+                        issue.problem,
+                        sync::Problem::Disk | sync::Problem::UnsafePath
+                    )
+                    && !report.seen.keys().any(|book| book.as_str() == issue.book)
+            })
+            .map(|issue| issue.book.as_str())
+            .collect();
+        state.issues.retain(|book, issues| {
+            if book.is_empty() {
+                return false;
             }
-            state.issues.remove("");
-        } else {
-            state.issues.clear();
-        }
+            if unreachable || books.is_some_and(|books| !books.iter().any(|b| b.as_str() == book)) {
+                return true;
+            }
+            // A failed project never reached settle, so it cannot confirm
+            // that its previously preserved files have been dealt with.
+            if failed.contains(book.as_str()) {
+                issues.retain(|issue| issue.kept.is_some());
+                return !issues.is_empty();
+            }
+            false
+        });
         for issue in &report.issues {
-            state
-                .issues
-                .entry(issue.book.clone())
-                .or_default()
-                .push(issue.clone());
+            let issues = state.issues.entry(issue.book.clone()).or_default();
+            if !issues.contains(issue) {
+                issues.push(issue.clone());
+            }
         }
         let listeners = if state.issues == before {
             Vec::new()
@@ -587,6 +607,93 @@ mod tests {
         assert!(!schedule.dirty.all && schedule.dirty.books.is_empty());
         assert_eq!(schedule.composing, BTreeSet::from([book]));
         assert!(schedule.composing_check.is_some());
+    }
+
+    #[test]
+    fn a_failed_project_pass_keeps_its_preserved_issues_until_a_successful_pass() {
+        let book = BookId::parse("book").unwrap();
+        let kept = Issue {
+            book: book.to_string(),
+            doc: Some("body:entry/mod-prose".into()),
+            title: "preserved change".into(),
+            path: PathBuf::from("project/body.md"),
+            problem: sync::Problem::FieldConflict,
+            kept: Some(PathBuf::from("project/.drifting/preserved/body.md")),
+        };
+        for problem in [sync::Problem::Disk, sync::Problem::UnsafePath] {
+            for partial in [false, true] {
+                let shared = Mutex::new(State::default());
+                let books = BTreeSet::from([book.clone()]);
+                let selected = partial.then_some(&books);
+                publish(
+                    &shared,
+                    &Report {
+                        issues: vec![kept.clone()],
+                        ..Default::default()
+                    },
+                    None,
+                );
+                let failure = Issue {
+                    book: book.to_string(),
+                    doc: None,
+                    title: "unavailable project".into(),
+                    path: PathBuf::from("project"),
+                    problem,
+                    kept: None,
+                };
+                let failed = Report {
+                    issues: vec![failure.clone()],
+                    ..Default::default()
+                };
+                publish(&shared, &failed, selected);
+                publish(&shared, &failed, selected);
+                assert_eq!(
+                    lock(&shared).issues[book.as_str()],
+                    vec![kept.clone(), failure]
+                );
+                let successful = Report {
+                    seen: BTreeMap::from([(
+                        book.clone(),
+                        Seen {
+                            dir: PathBuf::from("project"),
+                            files: BTreeMap::new(),
+                        },
+                    )]),
+                    ..Default::default()
+                };
+                publish(&shared, &successful, selected);
+                assert!(lock(&shared).issues.is_empty());
+            }
+        }
+    }
+
+    #[test]
+    fn a_missing_project_folder_schedules_a_pass_without_a_native_event() {
+        let root = tempfile::tempdir().unwrap();
+        let dir = root.path().join("project");
+        fs::create_dir(&dir).unwrap();
+        let path = dir.join("body.md");
+        fs::write(&path, b"projected body").unwrap();
+        let book = BookId::parse("book").unwrap();
+        let mut index = Index::default();
+        index.books.insert(
+            book.clone(),
+            Seen {
+                dir: dir.clone(),
+                files: BTreeMap::from([(path.clone(), disk::stat(&path).unwrap().unwrap())]),
+            },
+        );
+        assert!(index.check().is_empty());
+        fs::rename(&dir, root.path().join("moved-project")).unwrap();
+        assert_eq!(index.check(), BTreeSet::from([book.clone()]));
+        // A regular file at the old directory name is also an error to report.
+        fs::write(&dir, b"unavailable mount").unwrap();
+        assert_eq!(index.check(), BTreeSet::from([book]));
+        assert_eq!(
+            fs::read(root.path().join("moved-project/body.md")).unwrap(),
+            b"projected body"
+        );
+        assert_eq!(fs::read(&dir).unwrap(), b"unavailable mount");
     }
 
     #[test]
