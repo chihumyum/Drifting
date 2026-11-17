@@ -258,14 +258,6 @@
       "resting": "Em repouso"
     }
   },
-  "elementEditor": {
-    "empty": {
-      "noFacts": "Ainda não há campos. Ao criar um elemento, o Modelo de campos da categoria os preenche."
-    },
-    "sections": {
-      "facts": "Dados"
-    }
-  },
   "entrySnapshot": {
     "empty": "Ainda não há instantâneos",
     "save": "Salvar instantâneo",
@@ -1291,17 +1283,11 @@
     }
   },
   "storylineEditor": {
-    "empty": {
-      "noFacts": "Ainda não há campos. Ao criar uma linha narrativa, o Modelo de linha narrativa do início do projeto os preenche."
-    },
     "filters": {
       "all": "Todos"
     },
     "labels": {
       "color": "Cor"
-    },
-    "sections": {
-      "facts": "Dados"
     }
   },
   "superElement": {

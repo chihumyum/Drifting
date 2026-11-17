@@ -256,14 +256,6 @@
       "resting": "Ruhend"
     }
   },
-  "elementEditor": {
-    "empty": {
-      "noFacts": "Noch keine Felder. Beim Erstellen eines Elements füllt die Feldvorlage seiner Kategorie sie aus."
-    },
-    "sections": {
-      "facts": "Fakten"
-    }
-  },
   "entrySnapshot": {
     "empty": "Noch keine Momentaufnahmen",
     "save": "Momentaufnahme speichern",
@@ -1282,17 +1274,11 @@
     }
   },
   "storylineEditor": {
-    "empty": {
-      "noFacts": "Noch keine Felder. Beim Erstellen eines Handlungsstrangs füllt die Handlungsstrang-Vorlage auf der Projektstartseite sie aus."
-    },
     "filters": {
       "all": "Alle"
     },
     "labels": {
       "color": "Farbe"
-    },
-    "sections": {
-      "facts": "Fakten"
     }
   },
   "superElement": {

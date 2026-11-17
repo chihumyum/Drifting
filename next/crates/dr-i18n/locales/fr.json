@@ -258,14 +258,6 @@
       "resting": "Au repos"
     }
   },
-  "elementEditor": {
-    "empty": {
-      "noFacts": "Aucun champ pour le moment. À la création d’un élément, le Modèle de champs de sa catégorie les renseigne."
-    },
-    "sections": {
-      "facts": "Faits"
-    }
-  },
   "entrySnapshot": {
     "empty": "Aucun instantané pour le moment",
     "save": "Enregistrer un instantané",
@@ -1291,17 +1283,11 @@
     }
   },
   "storylineEditor": {
-    "empty": {
-      "noFacts": "Aucun champ pour le moment. À la création d’une intrigue, le Modèle d’intrigue de l’accueil du projet les renseigne."
-    },
     "filters": {
       "all": "Tout"
     },
     "labels": {
       "color": "Couleur"
-    },
-    "sections": {
-      "facts": "Faits"
     }
   },
   "superElement": {

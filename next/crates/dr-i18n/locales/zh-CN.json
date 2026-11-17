@@ -254,14 +254,6 @@
       "resting": "休眠"
     }
   },
-  "elementEditor": {
-    "empty": {
-      "noFacts": "尚无字段。新建要素时，所属类目的「字段模版」会自动填入"
-    },
-    "sections": {
-      "facts": "字段"
-    }
-  },
   "entrySnapshot": {
     "empty": "暂无快照",
     "save": "保存快照",
@@ -1269,17 +1261,11 @@
     }
   },
   "storylineEditor": {
-    "empty": {
-      "noFacts": "尚无字段。新建故事线时，项目主页的「故事线字段模版」会自动填入"
-    },
     "filters": {
       "all": "全部"
     },
     "labels": {
       "color": "色标"
-    },
-    "sections": {
-      "facts": "字段"
     }
   },
   "superElement": {

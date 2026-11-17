@@ -256,14 +256,6 @@
       "resting": "停泊中"
     }
   },
-  "elementEditor": {
-    "empty": {
-      "noFacts": "尚無欄位。建立要素時，所屬分類的「欄位範本」會自動填入。"
-    },
-    "sections": {
-      "facts": "設定資料"
-    }
-  },
   "entrySnapshot": {
     "empty": "尚無快照",
     "save": "儲存快照",
@@ -1275,17 +1267,11 @@
     }
   },
   "storylineEditor": {
-    "empty": {
-      "noFacts": "尚無欄位。建立故事線時，作品首頁的「故事線範本」會自動填入。"
-    },
     "filters": {
       "all": "全部"
     },
     "labels": {
       "color": "顏色"
-    },
-    "sections": {
-      "facts": "設定資料"
     }
   },
   "superElement": {

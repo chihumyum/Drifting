@@ -46,9 +46,12 @@ pub fn register(cx: &mut App) {
     dr_shell::v3::add_module_view(cx, "kv", |host, _, cx| {
         let view = cx.new(|cx| super::Fields::for_module(host, cx));
         let weak = view.downgrade();
-        Rendered::new(view).on_refresh(move |book, cx| {
-            weak.update(cx, |v, cx| v.refresh_module(book, cx)).ok();
-        })
+        let add = view.downgrade();
+        Rendered::new(view)
+            .on_refresh(move |book, cx| {
+                weak.update(cx, |v, cx| v.refresh_module(book, cx)).ok();
+            })
+            .with_head_action(move |window, cx| super::Fields::add_action(add.clone(), window, cx))
     });
 }
 

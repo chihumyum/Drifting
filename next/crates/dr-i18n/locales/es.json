@@ -258,14 +258,6 @@
       "resting": "En reposo"
     }
   },
-  "elementEditor": {
-    "empty": {
-      "noFacts": "Aún no hay campos. Al crear un elemento, la Plantilla de campos de su categoría los rellena."
-    },
-    "sections": {
-      "facts": "Datos"
-    }
-  },
   "entrySnapshot": {
     "empty": "Aún no hay instantáneas",
     "save": "Guardar instantánea",
@@ -1291,17 +1283,11 @@
     }
   },
   "storylineEditor": {
-    "empty": {
-      "noFacts": "Aún no hay campos. Al crear una trama, la Plantilla de trama del inicio del proyecto los rellena."
-    },
     "filters": {
       "all": "Todo"
     },
     "labels": {
       "color": "Color"
-    },
-    "sections": {
-      "facts": "Datos"
     }
   },
   "superElement": {

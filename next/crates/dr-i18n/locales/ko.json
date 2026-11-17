@@ -256,14 +256,6 @@
       "resting": "정박 중"
     }
   },
-  "elementEditor": {
-    "empty": {
-      "noFacts": "아직 필드가 없습니다. 요소를 만들면 분류의 '필드 템플릿'으로 채워집니다."
-    },
-    "sections": {
-      "facts": "설정 정보"
-    }
-  },
   "entrySnapshot": {
     "empty": "아직 스냅샷이 없습니다",
     "save": "스냅샷 저장",
@@ -1275,17 +1267,11 @@
     }
   },
   "storylineEditor": {
-    "empty": {
-      "noFacts": "아직 필드가 없습니다. 스토리라인을 만들면 작품 홈의 '스토리라인 템플릿'으로 채워집니다."
-    },
     "filters": {
       "all": "전체"
     },
     "labels": {
       "color": "색상"
-    },
-    "sections": {
-      "facts": "설정 정보"
     }
   },
   "superElement": {

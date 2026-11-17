@@ -256,14 +256,6 @@
       "resting": "停泊中"
     }
   },
-  "elementEditor": {
-    "empty": {
-      "noFacts": "フィールドはまだありません。要素を作成すると、カテゴリの「フィールドのテンプレート」から入力されます。"
-    },
-    "sections": {
-      "facts": "設定情報"
-    }
-  },
   "entrySnapshot": {
     "empty": "スナップショットはまだありません",
     "save": "スナップショットを保存",
@@ -1275,17 +1267,11 @@
     }
   },
   "storylineEditor": {
-    "empty": {
-      "noFacts": "フィールドはまだありません。ストーリーラインを作成すると、作品ホームの「ストーリーラインのテンプレート」から入力されます。"
-    },
     "filters": {
       "all": "すべて"
     },
     "labels": {
       "color": "色"
-    },
-    "sections": {
-      "facts": "設定情報"
     }
   },
   "superElement": {

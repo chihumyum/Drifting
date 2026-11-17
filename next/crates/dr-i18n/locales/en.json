@@ -256,14 +256,6 @@
       "resting": "Resting"
     }
   },
-  "elementEditor": {
-    "empty": {
-      "noFacts": "No fields yet. When an element is created, its category's Field template fills them in."
-    },
-    "sections": {
-      "facts": "Facts"
-    }
-  },
   "entrySnapshot": {
     "empty": "No snapshots yet",
     "save": "Save snapshot",
@@ -1282,17 +1274,11 @@
     }
   },
   "storylineEditor": {
-    "empty": {
-      "noFacts": "No fields yet. When a storyline is created, the Storyline template on project home fills them in."
-    },
     "filters": {
       "all": "All"
     },
     "labels": {
       "color": "Color"
-    },
-    "sections": {
-      "facts": "Facts"
     }
   },
   "superElement": {
