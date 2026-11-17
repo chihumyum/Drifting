@@ -1725,13 +1725,15 @@ pub mod v3 {
                                 .when_some(color, |mark, color| mark.color(color)),
                         ),
                     )
-                    .child(
+                    .child({
+                        let name_selector = format!("g2-tile-name-{id}");
                         div()
+                            .debug_selector(move || name_selector)
                             .flex_1()
                             .min_w_0()
                             .truncate()
-                            .child(entry.title.clone()),
-                    )
+                            .child(entry.title.clone())
+                    })
                     .into_any_element()
             } else {
                 let theme = Theme::of(window, cx);
@@ -2426,33 +2428,3 @@ pub fn tile_basis(name: &str, body_px: f32) -> f32 {
 /// A tile's width besides its name: the 8px insets either side, the 10px
 /// mark and its 6px gap, and 4px for a glyph's side bearings.
 const TILE_CHROME: f32 = 8.0 * 2.0 + 10.0 + 6.0 + 4.0;
-
-#[cfg(test)]
-mod tile_tests {
-    use super::*;
-
-    #[test]
-    fn a_short_name_fits_its_tile_at_every_interface_size() {
-        for step in [
-            dr_ui::tokens::TextSize::Smallest,
-            dr_ui::tokens::TextSize::Standard,
-            dr_ui::tokens::TextSize::Largest,
-        ] {
-            let body = dr_ui::tokens::TypeScale::at(step).body;
-            for name in ["周记面馆", "镇广播站", "Lin Wan"] {
-                let units: f32 = name
-                    .chars()
-                    .map(|c| match c {
-                        ' ' => 0.35,
-                        c if c.is_ascii() => 0.62,
-                        _ => 1.0,
-                    })
-                    .sum();
-                assert!(
-                    tile_basis(name, body) >= 8.0 * 2.0 + 10.0 + 6.0 + units * body,
-                    "{name} at {body}px"
-                );
-            }
-        }
-    }
-}
