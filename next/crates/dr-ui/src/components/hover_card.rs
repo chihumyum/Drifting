@@ -91,13 +91,16 @@ pub fn key_bindings() -> Vec<KeyBinding> {
 /// not, the row it is on, the rows it can stop on and the card's own
 /// focus. The owner opens it ([`CardKeys::open`]) and hands it to the card
 /// ([`HoverCard::keys`]) and to its rows ([`CardAction::keys`]); whoever
-/// builds the rows says which can be stopped on ([`CardKeys::set_stops`]:
+/// builds the rows says which can be stopped on ([`CardKeys::set_rows`]:
 /// a row that does nothing cannot).
 pub struct CardKeys {
     focus: FocusHandle,
     open: bool,
     at: Option<usize>,
     stops: Vec<bool>,
+    /// The rows' ids, in order: the keyboard stays on its row when rows
+    /// come and go above it (a switch that adds one).
+    ids: Vec<SharedString>,
 }
 
 impl CardKeys {
@@ -107,6 +110,7 @@ impl CardKeys {
             open: false,
             at: None,
             stops: Vec::new(),
+            ids: Vec::new(),
         }
     }
 
@@ -141,14 +145,22 @@ impl CardKeys {
         self.at = None;
     }
 
-    /// The rows, in order, and which the keyboard can stop on. A keyboard
-    /// on no row, or on one it cannot stop on any more, goes to the first
-    /// it can.
-    pub fn set_stops(&mut self, stops: Vec<bool>) {
+    /// The rows, in order (an id each, unique in the card), and whether
+    /// the keyboard can stop on each. The keyboard stays on its row wherever
+    /// that row now is; on no row, or on one it cannot stop on any more, it
+    /// goes to the first it can.
+    pub fn set_rows(&mut self, rows: Vec<(SharedString, bool)>) {
+        let on = self.at.and_then(|i| self.ids.get(i).cloned());
+        let (ids, stops): (Vec<_>, Vec<_>) = rows.into_iter().unzip();
+        self.ids = ids;
         self.stops = stops;
-        if self.open && !self.at.is_some_and(|i| self.stops.get(i) == Some(&true)) {
-            self.at = self.stops.iter().position(|s| *s);
+        if !self.open {
+            return;
         }
+        self.at = on
+            .and_then(|id| self.ids.iter().position(|i| *i == id))
+            .filter(|&i| self.stops[i])
+            .or_else(|| self.stops.iter().position(|s| *s));
     }
 
     pub fn stops(&self) -> &[bool] {

@@ -195,8 +195,11 @@ pub fn body_keyed(
     .mark(mark, color);
     let all = rows(target, host, extra, cx);
     if let Some(keys) = keys {
-        let stops = all.iter().map(|r| r.run.is_some()).collect();
-        keys.update(cx, |k, _| k.set_stops(stops));
+        let rows = all
+            .iter()
+            .map(|r| (r.id.clone(), r.run.is_some()))
+            .collect();
+        keys.update(cx, |k, _| k.set_rows(rows));
     }
     for danger in [false, true] {
         let section: Vec<_> = all

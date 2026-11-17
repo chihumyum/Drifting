@@ -858,7 +858,13 @@ fn space_opens_the_card_and_the_arrows_walk_it(cx: &mut TestAppContext) {
         keys_in.read_with(cx, |k, _| k.is_open()),
         "a switch leaves it open"
     );
-    assert_eq!(card_at(&ws, cx), Some(level));
+    // A level now, the card has 「整书视图」 too: the keyboard stays on
+    // 「层级」, wherever it now is.
+    let rows = card_rows(&ws, cx, &ch[1]);
+    assert!(rows.iter().any(|r| r == "entry-open-book"));
+    let level_now = rows.iter().position(|r| r == "entry-toggle-level").unwrap();
+    assert_ne!(level_now, level);
+    assert_eq!(card_at(&ws, cx), Some(level_now));
     // 「打开」: kept, the page with the keyboard, the card gone.
     let open_row = card_rows(&ws, cx, &ch[1])
         .iter()
