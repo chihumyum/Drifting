@@ -154,8 +154,32 @@ def smoke(args, profile, data):
         app("ui.wait", until="ready", state={"/v3Sidebar/fillLayout": "relation"}, timeout_ms=30000)
         app("ui.find", label=f'Hide "{name}"', role="Button")
         screenshot("06-graph.png")
+
+        # The same linked input is also used by a real prose comment composer.
+        before = {c["id"] for c in command("comment.list", book=book)}
+        press("Exit fill")
+        app("nav.open", target=f"entry:{chapter['id']}/mod-prose")
+        app("ui.wait", until="ready", state={"/focus/editor": True}, timeout_ms=30000)
+        app("input.key", keys="secondary-up shift-right")
+        app("input.key", keys="secondary-alt-m")
+        app("ui.find", label="Save", role="Button")
+        app("input.type", text="@" + linked["title"])
+        press(linked["title"], role="MenuItem")
+        screenshot("07-comment-composer.png")
+        press("Save")
+        def saved_comment():
+            new = [c for c in command("comment.list", book=book) if c["id"] not in before]
+            if not new:
+                return None
+            assert len(new) == 1, new
+            return new[0]
+        comment = until(saved_comment, "one saved linked comment")
+        assert comment["body"]["text"].strip() == linked["title"], comment
+        assert any(link["entry"] == target for link in comment["body"]["links"]), comment
+        press("Review", role="RadioButton")
+        screenshot("08-linked-review.png")
         result = {"book": book, "chapter": chapter["id"], "source": source, "target": target,
-                  "relation": relation, "window": window}
+                  "relation": relation, "comment": comment, "window": window}
         (args.out / "result.json").write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n")
         print("Native hover → inline creation → revealed row → @ description → relation graph passed.", flush=True)
     except BaseException:
