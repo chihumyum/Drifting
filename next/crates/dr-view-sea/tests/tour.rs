@@ -1,5 +1,7 @@
 //! The workspace tour (M24) on GPUI's test platform, over a mock workspace
-//! whose controls are anchors at fixed places: it comes up after its delay
+//! whose controls are anchors at fixed places. Real-host GPUI coverage is
+//! in dr-view-home's `tests/workspace_tour.rs`; neither is native-window
+//! acceptance. It comes up after its delay
 //! with the ring on the first step's controls, Next and Back pass over a
 //! step whose control is not drawn, a closed sidebar's toggle stands in for
 //! its tabs until it opens, the ring follows a control that moves, a Super
@@ -57,8 +59,9 @@ impl Render for Mock {
                         ids::LEFT_PANEL_TAB,
                         at(self.tabs_at + 60.0, 10.0, 48.0, 20.0),
                     ))
-                    .child(anchor(ids::PROJECT_HOME, at(12.0, 900.0, 28.0, 28.0)))
-                    .child(anchor(ids::NOTIFICATIONS, at(44.0, 900.0, 28.0, 28.0)));
+                    .child(anchor(ids::ALL_PROJECTS, at(12.0, 900.0, 28.0, 28.0)))
+                    .child(anchor(ids::PROJECT_HOME, at(44.0, 900.0, 28.0, 28.0)))
+                    .child(anchor(ids::NOTIFICATIONS, at(76.0, 900.0, 28.0, 28.0)));
             } else {
                 root = root.child(anchor(
                     ids::LEFT_SIDEBAR_CLOSED_TOGGLE,
@@ -76,7 +79,9 @@ impl Render for Mock {
             if self.home_create {
                 root = root.child(anchor(ids::HOME_CREATE, at(600.0, 300.0, 400.0, 120.0)));
             }
-            root = root.child(anchor(ids::TIMELINE_TOGGLE, at(1500.0, 1040.0, 28.0, 28.0)));
+            root = root
+                .child(anchor(ids::TIMELINE_TOGGLE, at(1500.0, 1040.0, 28.0, 28.0)))
+                .child(anchor(ids::LEFT_MOONS, at(300.0, 4.0, 44.0, 32.0)));
         }
         root.children(tour::layer(self.covered, window, cx))
     }
@@ -153,7 +158,7 @@ fn comes_up_after_its_delay_ringing_both_tab_rows(cx: &mut TestAppContext) {
     cx.executor().advance_clock(Duration::from_millis(60));
     frames(cx, 3);
     let state = current(cx).expect("not up after its delay");
-    assert_eq!((state.step, state.id, state.fallback), (0, "panels", false));
+    assert_eq!((state.step, state.id, state.fallback), (0, "tabs", false));
     // Both labels in one ring, 4px outside them.
     assert_eq!(state.target, rect(40.0, 10.0, 108.0, 20.0));
     assert_eq!(state.ring, rect(36.0, 6.0, 116.0, 28.0));
@@ -171,12 +176,15 @@ fn next_and_back_pass_over_a_step_whose_control_is_not_drawn(cx: &mut TestAppCon
             ..Mock::default()
         },
     );
-    assert_eq!(start(cx).id, "panels");
-    // Project Home is elsewhere, so Return walks straight to the timeline.
+    assert_eq!(start(cx).id, "tabs");
+    cx.simulate_keystrokes("enter");
+    frames(cx, 3);
+    assert_eq!(current(cx).unwrap().id, "moons");
+    // Project Home is elsewhere, so Return walks past 新建 to the timeline.
     cx.simulate_keystrokes("enter");
     frames(cx, 3);
     let state = current(cx).unwrap();
-    assert_eq!((state.step, state.id), (2, "timeline"));
+    assert_eq!((state.step, state.id), (3, "timeline"));
     assert_eq!(state.target, rect(1500.0, 1040.0, 28.0, 28.0));
     let timeline = state;
     assert_eq!(timeline.id, "timeline");
@@ -185,7 +193,7 @@ fn next_and_back_pass_over_a_step_whose_control_is_not_drawn(cx: &mut TestAppCon
     assert!(timeline.card.bottom() <= timeline.ring.top());
     cx.dispatch_action(tour::Back);
     frames(cx, 3);
-    assert_eq!(current(cx).unwrap().id, "panels", "back past the gap");
+    assert_eq!(current(cx).unwrap().id, "moons", "back past the gap");
 }
 
 #[gpui::test]
@@ -198,13 +206,13 @@ fn a_closed_sidebar_points_at_its_toggle_until_it_opens(cx: &mut TestAppContext)
         },
     );
     let state = start(cx);
-    assert_eq!((state.id, state.fallback), ("panels", true));
+    assert_eq!((state.id, state.fallback), ("tabs", true));
     assert_eq!(state.target, rect(80.0, 6.0, 28.0, 28.0));
     // A round button keeps a round ring.
     assert_eq!(state.ring, rect(76.0, 2.0, 36.0, 36.0));
     change(cx, &view, |m| m.left_open = true);
     let state = current(cx).unwrap();
-    assert_eq!((state.id, state.fallback), ("panels", false));
+    assert_eq!((state.id, state.fallback), ("tabs", false));
     assert_eq!(state.target, rect(40.0, 10.0, 108.0, 20.0));
 }
 
@@ -225,19 +233,19 @@ fn a_filled_panel_puts_it_away_and_it_starts_again_from_the_top(cx: &mut TestApp
     start(cx);
     cx.dispatch_action(tour::Next);
     frames(cx, 3);
-    assert_eq!(current(cx).unwrap().id, "create");
+    assert_eq!(current(cx).unwrap().id, "moons");
     change(cx, &view, |m| m.covered = true);
     assert_eq!(current(cx), None);
     assert!(running(cx));
     change(cx, &view, |m| m.covered = false);
-    assert_eq!(current(cx).unwrap().id, "panels");
+    assert_eq!(current(cx).unwrap().id, "tabs");
 }
 
 #[gpui::test]
 fn done_ends_it_and_a_second_start_does_nothing(cx: &mut TestAppContext) {
     let (_, cx) = open(cx, Mock::default());
     start(cx);
-    let ids: Vec<&str> = (0..5)
+    let ids: Vec<&str> = (0..6)
         .map(|k| {
             if k > 0 {
                 cx.dispatch_action(tour::Next);
@@ -246,9 +254,12 @@ fn done_ends_it_and_a_second_start_does_nothing(cx: &mut TestAppContext) {
             current(cx).unwrap().id
         })
         .collect();
-    assert_eq!(ids, ["panels", "create", "timeline", "agent", "home"]);
-    // The torii and the bell in one ring.
-    assert_eq!(current(cx).unwrap().target, rect(12.0, 900.0, 60.0, 28.0));
+    assert_eq!(
+        ids,
+        ["tabs", "moons", "create", "timeline", "agent", "home"]
+    );
+    // 全部项目, the torii and the bell in one ring.
+    assert_eq!(current(cx).unwrap().target, rect(12.0, 900.0, 92.0, 28.0));
     assert!(!seen(cx));
     cx.dispatch_action(tour::Next);
     frames(cx, 2);
@@ -263,7 +274,7 @@ fn done_ends_it_and_a_second_start_does_nothing(cx: &mut TestAppContext) {
     // Settings' 「再次显示」.
     cx.update(|_, cx| tour::reset_seen(cx));
     assert!(!seen(cx));
-    assert_eq!(start(cx).id, "panels");
+    assert_eq!(start(cx).id, "tabs");
 }
 
 #[gpui::test]
@@ -293,8 +304,8 @@ fn the_cards_buttons_walk_and_skip(cx: &mut TestAppContext) {
     let row = card.bottom() - px(23.0);
     cx.simulate_click(point(card.right() - px(22.0), row), Modifiers::default());
     frames(cx, 3);
-    assert_eq!(current(cx).unwrap().id, "create");
-    for _ in 0..2 {
+    assert_eq!(current(cx).unwrap().id, "moons");
+    for _ in 0..3 {
         cx.dispatch_action(tour::Next);
         frames(cx, 3);
     }

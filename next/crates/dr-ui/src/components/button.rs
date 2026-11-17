@@ -374,7 +374,9 @@ impl RenderOnce for IconButton {
             p.ink(3).solid()
         };
         let interactive = !self.disabled;
+        let selector = self.id.clone();
         glass::glass_box(self.id, kind, mode, self.selected, spec, window, cx)
+            .debug_selector(move || selector.to_string())
             .size(px(g::ROUND))
             .flex()
             .flex_none()

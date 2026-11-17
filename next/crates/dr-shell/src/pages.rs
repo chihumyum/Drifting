@@ -320,19 +320,25 @@ pub struct Guide {
 /// The ids of the controls the workspace tour points at (`dr-view-sea`'s
 /// `tour::ids` re-exports them).
 pub mod anchors {
-    /// The left sidebar's Panel Tabs (章节, 要素, 构想), each half's.
+    /// The left column's Tab row, its manage button (筝柱) with it.
     pub const LEFT_PANEL_TAB: &str = "left-panel-tab";
-    /// The left sidebar's toggle, marked only while the sidebar is closed.
+    /// The left sidebar's toggle (the left crescent), marked only while the
+    /// sidebar is closed.
     pub const LEFT_SIDEBAR_CLOSED_TOGGLE: &str = "left-sidebar-closed-toggle";
-    /// Project Home's 新建 section (M02 marks it).
+    /// The left moon pair: the crescent opens the column, the full moon
+    /// fills the middle with it.
+    pub const LEFT_MOONS: &str = "left-moons";
+    /// Project Home's 新建 row (dr-view-home marks it).
     pub const HOME_CREATE: &str = "home-create";
-    /// The timeline's toggle at the paper's bottom right.
+    /// The timeline's toggle at the paper's bottom right (the bamboo).
     pub const TIMELINE_TOGGLE: &str = "timeline-toggle";
-    /// The Agent's Panel Tab in the right sidebar (its tab row, for now).
+    /// The Agent's tab in the right sidebar.
     pub const AGENT_TAB: &str = "agent-tab";
     /// The right sidebar's toggle, marked only while the sidebar is closed.
     pub const RIGHT_SIDEBAR_CLOSED_TOGGLE: &str = "right-sidebar-closed-toggle";
-    /// The torii right of the traffic lights: back to Project Home.
+    /// 全部项目, right of the traffic lights.
+    pub const ALL_PROJECTS: &str = "all-projects";
+    /// The torii right of it: back to Project Home.
     pub const PROJECT_HOME: &str = "project-home";
     /// The wind bell beside it: the notification center.
     pub const NOTIFICATIONS: &str = "notifications";
@@ -700,6 +706,22 @@ pub fn anchor(id: &'static str, el: impl gpui::IntoElement, cx: &App) -> gpui::A
     let el = el.into_any_element();
     match cx.try_global::<Pages>().and_then(|p| p.guide.as_ref()) {
         Some(guide) => (guide.anchor)(id, el),
+        None => el,
+    }
+}
+
+/// [`anchor`] for later: what marks an element as `id`, for a component
+/// that draws the element itself (one segment of a [`dr_ui::components::Segmented`]).
+pub fn anchor_with(
+    id: &'static str,
+    cx: &App,
+) -> impl FnOnce(gpui::AnyElement) -> gpui::AnyElement + 'static {
+    let mark = cx
+        .try_global::<Pages>()
+        .and_then(|p| p.guide.as_ref())
+        .map(|guide| guide.anchor.clone());
+    move |el| match mark {
+        Some(mark) => mark(id, el),
         None => el,
     }
 }

@@ -703,7 +703,12 @@ impl Render for Home {
         if let Some(cards) = self.agent_cards(window, cx) {
             column = column.child(cards);
         }
-        let mut creations = div().flex().flex_wrap().gap(px(12.0));
+        let mut creations = div()
+            .id("v3-home-create-row")
+            .debug_selector(|| "v3-home-create-row".into())
+            .flex()
+            .flex_wrap()
+            .gap(px(12.0));
         let all = actions(&book);
         for action in all.clone() {
             let home = cx.weak_entity();
@@ -722,11 +727,18 @@ impl Render for Home {
                 }),
             );
         }
-        column = column.child(creations).child(
-            div()
-                .font_role(Role::Structure)
-                .child(t(cx, keys::project_home::book::TITLE)),
-        );
+        // The workspace tour's 新建 step rings the row (M24).
+        column = column
+            .child(dr_shell::pages::anchor(
+                dr_shell::pages::anchors::HOME_CREATE,
+                creations,
+                cx,
+            ))
+            .child(
+                div()
+                    .font_role(Role::Structure)
+                    .child(t(cx, keys::project_home::book::TITLE)),
+            );
         if let Some(v3) = book.v3() {
             for id in &v3.roots {
                 let Some(entry) = v3.entry(id) else {

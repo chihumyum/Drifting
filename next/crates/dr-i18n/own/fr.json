@@ -550,5 +550,29 @@
     "name": "Nom de la relation",
     "relations": "Relations",
     "title": "Créer une relation"
+  },
+  "v5Tour": {
+    "agent": {
+      "body": "Lit, recherche et modifie tout le projet. Ses changements peuvent être annulés depuis l’historique.",
+      "closedBody": "Agent se trouve dans la barre latérale droite et peut lire, rechercher et modifier tout le projet. Ouvrez-le ici."
+    },
+    "create": {
+      "body": "Ce que ce projet peut créer, tel que son modèle de projet le prévoit."
+    },
+    "home": {
+      "body": "La porte vous ramène à cette page ; à sa gauche, tous les projets, et le carillon à sa droite rassemble les notifications."
+    },
+    "moons": {
+      "body": "Le croissant ouvre et ferme le panneau gauche ; la pleine lune l’étend sur la colonne centrale, un second clic le ramène. Même chose à droite.",
+      "title": "Ouvrir et étendre"
+    },
+    "tabs": {
+      "body": "Les entrées du projet sont réparties en onglets. La marque au bout de la rangée ajoute, ordonne et retire les onglets.",
+      "closedBody": "Les entrées du projet se trouvent dans la barre latérale gauche. Ouvrez-la ici.",
+      "title": "Panneau gauche"
+    },
+    "timeline": {
+      "body": "Glisse depuis le bas de la page et range les entrées rattachées par vue."
+    }
   }
 }

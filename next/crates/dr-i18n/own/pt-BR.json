@@ -550,5 +550,29 @@
     "name": "Nome da relação",
     "relations": "Relações",
     "title": "Criar relação"
+  },
+  "v5Tour": {
+    "agent": {
+      "body": "Lê, pesquisa e edita o projeto inteiro. As alterações podem ser desfeitas pelo histórico.",
+      "closedBody": "O Agent fica na barra lateral direita e pode ler, pesquisar e editar o projeto inteiro. Abra aqui."
+    },
+    "create": {
+      "body": "O que este projeto pode criar, conforme o modelo de projeto."
+    },
+    "home": {
+      "body": "A porta traz você de volta a esta página; à esquerda ficam todos os projetos, e o sino de vento à direita reúne as notificações."
+    },
+    "moons": {
+      "body": "A lua crescente abre e fecha a barra esquerda; a lua cheia faz ela preencher a coluna do meio, e outro clique a traz de volta. À direita é igual.",
+      "title": "Abrir e preencher"
+    },
+    "tabs": {
+      "body": "As entradas do projeto ficam divididas em abas. A marca no fim da linha adiciona, ordena e remove abas.",
+      "closedBody": "As entradas do projeto ficam na barra lateral esquerda. Abra aqui.",
+      "title": "Barra esquerda"
+    },
+    "timeline": {
+      "body": "Sobe de baixo da página e organiza as entradas vinculadas por visualização."
+    }
   }
 }

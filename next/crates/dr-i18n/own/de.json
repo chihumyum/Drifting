@@ -548,5 +548,29 @@
     "name": "Name der Beziehung",
     "relations": "Beziehungen",
     "title": "Beziehung erstellen"
+  },
+  "v5Tour": {
+    "agent": {
+      "body": "Liest, durchsucht und bearbeitet das ganze Projekt. Änderungen lassen sich über den Verlauf rückgängig machen.",
+      "closedBody": "Agent befindet sich in der rechten Seitenleiste und kann das ganze Projekt lesen, durchsuchen und bearbeiten. Hier öffnen."
+    },
+    "create": {
+      "body": "Was dieses Projekt neu anlegen kann, wie seine Projektvorlage es vorsieht."
+    },
+    "home": {
+      "body": "Das Tor bringt dich auf diese Seite zurück; links davon liegen alle Projekte, das Windspiel rechts enthält Benachrichtigungen."
+    },
+    "moons": {
+      "body": "Die Mondsichel öffnet und schließt die linke Seitenleiste; der Vollmond lässt sie die mittlere Spalte füllen, ein zweiter Klick holt sie zurück. Rechts genauso.",
+      "title": "Öffnen und füllen"
+    },
+    "tabs": {
+      "body": "Die Einträge des Projekts sind auf Tabs verteilt. Das Zeichen am Ende der Zeile fügt Tabs hinzu, ordnet und entfernt sie.",
+      "closedBody": "Die Einträge des Projekts liegen in der linken Seitenleiste. Hier öffnen.",
+      "title": "Linke Seitenleiste"
+    },
+    "timeline": {
+      "body": "Gleitet unter der Seite hervor und ordnet die angehängten Einträge nach Ansicht."
+    }
   }
 }

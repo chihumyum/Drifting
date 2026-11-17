@@ -114,7 +114,11 @@ pub fn sidebar_toggles(
 ) -> impl IntoElement {
     let top = (TITLEBAR_HEIGHT - g::ROUND) / 2.0;
     let buttons = cluster(ws, window, cx);
-    let left_moons = moon_pair(ws, Side::Left, window, cx);
+    let left_moons = crate::pages::anchor(
+        crate::pages::anchors::LEFT_MOONS,
+        moon_pair(ws, Side::Left, window, cx),
+        cx,
+    );
     let right_moons = moon_pair(ws, Side::Right, window, cx);
     div()
         .absolute()
@@ -466,12 +470,16 @@ fn cluster(ws: &Workspace, window: &mut Window, cx: &mut Context<Workspace>) -> 
     let home = ws.nav.current().is_none() && ws.filled().is_none();
     let bell = overlay::use_bounds("bell-bounds", window, cx);
     let account = overlay::use_bounds("account-bounds", window, cx);
-    let projects = seat(
-        IconButton::new("projects", Icon::Books)
-            .label(t(cx, dr_i18n::keys::all_projects::TITLE))
-            .selected(ws.projects_open),
-    )
-    .on_click(|_, window, cx| window.dispatch_action(Box::new(ToggleProjects), cx));
+    let projects = crate::pages::anchor(
+        crate::pages::anchors::ALL_PROJECTS,
+        seat(
+            IconButton::new("projects", Icon::Books)
+                .label(t(cx, dr_i18n::keys::all_projects::TITLE))
+                .selected(ws.projects_open),
+        )
+        .on_click(|_, window, cx| window.dispatch_action(Box::new(ToggleProjects), cx)),
+        cx,
+    );
     let home = crate::pages::anchor(
         crate::pages::anchors::PROJECT_HOME,
         seat(

@@ -277,7 +277,11 @@ pub struct Segmented {
     faint: Vec<usize>,
     pad_x: f32,
     keyboard: Option<usize>,
+    wrap: Option<(usize, WrapOption)>,
 }
+
+/// What [`Segmented::wrap_option`] puts round an option.
+type WrapOption = Box<dyn FnOnce(AnyElement) -> AnyElement>;
 
 impl Segmented {
     pub fn new(
@@ -298,7 +302,21 @@ impl Segmented {
             faint: Vec::new(),
             pad_x: 10.0,
             keyboard: None,
+            wrap: None,
         }
+    }
+
+    /// Hands option `index`, as drawn, to `wrap` and draws what it returns
+    /// in its place: something that marks one option without a box of its
+    /// own (the workspace tour's anchor on the right sidebar's Agent tab).
+    /// What `wrap` returns lays out in the option's place.
+    pub fn wrap_option(
+        mut self,
+        index: usize,
+        wrap: impl FnOnce(AnyElement) -> AnyElement + 'static,
+    ) -> Self {
+        self.wrap = Some((index, Box::new(wrap)));
+        self
     }
 
     /// The keyboard is on option `index` (KB: a left-column Tab the keyboard
@@ -464,8 +482,10 @@ impl RenderOnce for Segmented {
         .top_0()
         .left_0()
         .size_full();
+        let row_selector = self.id.clone();
         let mut row = div()
             .id(self.id.clone())
+            .debug_selector(move || row_selector.to_string())
             .role(gpui::Role::RadioGroup)
             .relative()
             .h(px(height))
@@ -479,6 +499,7 @@ impl RenderOnce for Segmented {
         let disabled = self.disabled;
         let report_selected = self.report_selected;
         let keyboard = self.keyboard.filter(|_| !disabled);
+        let mut wrap = self.wrap;
         for (i, label) in self.options.into_iter().enumerate() {
             let on = i == selected;
             let keyed = keyboard == Some(i);
@@ -496,58 +517,71 @@ impl RenderOnce for Segmented {
                 .clone()
                 .filter(|_| !disabled && (!on || report_selected));
             let clickable = f.is_some();
-            row = row.child(
-                div()
-                    .id(crate::style::child_id(&self.id.clone(), label.clone()))
-                    .relative()
-                    .px(px(self.pad_x))
-                    .flex()
-                    .items_center()
-                    .text_color(ink.solid())
-                    .when(!on && !disabled, |el| {
-                        el.hover(move |st| st.text_color(hover))
-                    })
-                    .when(clickable, |el| el.cursor_pointer())
-                    .role(gpui::Role::RadioButton)
-                    .aria_label(label.clone())
-                    .aria_selected(on)
-                    .when(keyed, |el| {
-                        el.debug_selector(move || format!("{keyed_selector}-keyboard"))
-                    })
-                    .when(keyed, |el| {
-                        // On the chosen word the ring lies on the block's
-                        // paper.
-                        let outside = match glass::current_ground() {
-                            Some(Ground::Flat { inside, .. }) => inside,
-                            _ => p.desk,
-                        };
-                        let inside = if on { p.page } else { outside };
-                        let ring_selector = self.id.clone();
-                        el.child(
-                            div()
-                                .absolute()
-                                .top_0()
-                                .left_0()
-                                .size_full()
-                                .debug_selector(move || format!("{ring_selector}-keyboard-ring"))
-                                .child(glass::held_layer(
-                                    glass::GlassState::held(
-                                        Kind::Hidden,
-                                        Mode::default(),
-                                        glass::Held::Selected,
-                                        0.0,
-                                    ),
-                                    Spec::new(Tone::Clear, 0.0)
-                                        .rim(super::cell::RING_RIM)
-                                        .ground(Ground::Flat { inside, outside }),
-                                    theme,
-                                )),
-                        )
-                    })
-                    .child(measure(state.clone(), i))
-                    .child(label)
-                    .when_some(f, |el, f| el.on_click(move |_, w, cx| f(i, w, cx))),
-            );
+            let wrap_this = match wrap.take() {
+                Some((at, f)) if at == i => Some(f),
+                other => {
+                    wrap = other;
+                    None
+                }
+            };
+            let option_id = crate::style::child_id(&self.id, label.clone());
+            let option_selector = option_id.clone();
+            let option = div()
+                .id(option_id)
+                .debug_selector(move || option_selector.to_string())
+                .relative()
+                .px(px(self.pad_x))
+                .flex()
+                .items_center()
+                .text_color(ink.solid())
+                .when(!on && !disabled, |el| {
+                    el.hover(move |st| st.text_color(hover))
+                })
+                .when(clickable, |el| el.cursor_pointer())
+                .role(gpui::Role::RadioButton)
+                .aria_label(label.clone())
+                .aria_selected(on)
+                .when(keyed, |el| {
+                    el.debug_selector(move || format!("{keyed_selector}-keyboard"))
+                })
+                .when(keyed, |el| {
+                    // On the chosen word the ring lies on the block's
+                    // paper.
+                    let outside = match glass::current_ground() {
+                        Some(Ground::Flat { inside, .. }) => inside,
+                        _ => p.desk,
+                    };
+                    let inside = if on { p.page } else { outside };
+                    let ring_selector = self.id.clone();
+                    el.child(
+                        div()
+                            .absolute()
+                            .top_0()
+                            .left_0()
+                            .size_full()
+                            .debug_selector(move || format!("{ring_selector}-keyboard-ring"))
+                            .child(glass::held_layer(
+                                glass::GlassState::held(
+                                    Kind::Hidden,
+                                    Mode::default(),
+                                    glass::Held::Selected,
+                                    0.0,
+                                ),
+                                Spec::new(Tone::Clear, 0.0)
+                                    .rim(super::cell::RING_RIM)
+                                    .ground(Ground::Flat { inside, outside }),
+                                theme,
+                            )),
+                    )
+                })
+                .child(measure(state.clone(), i))
+                .child(label)
+                .when_some(f, |el, f| el.on_click(move |_, w, cx| f(i, w, cx)))
+                .into_any_element();
+            row = row.child(match wrap_this {
+                Some(f) => f(option),
+                None => option,
+            });
         }
         row
     }

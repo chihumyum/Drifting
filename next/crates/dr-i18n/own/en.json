@@ -548,5 +548,29 @@
     "name": "Relation name",
     "relations": "Relations",
     "title": "Create relation"
+  },
+  "v5Tour": {
+    "agent": {
+      "body": "Reads, searches and edits the whole project. Its changes can be undone from history.",
+      "closedBody": "The Agent lives in the right sidebar and can read, search and edit the whole project. Open it here."
+    },
+    "create": {
+      "body": "What this project can create, as its project template lists it."
+    },
+    "home": {
+      "body": "The gate brings you back to this page; All projects is to its left, and the wind chime to its right holds notifications."
+    },
+    "moons": {
+      "body": "The crescent opens and closes the left sidebar; the full moon has it fill the middle column, and a second click brings it back. The right side works the same way.",
+      "title": "Open and fill"
+    },
+    "tabs": {
+      "body": "The project's entries are split across tabs. The mark at the end of the row adds, orders and removes tabs.",
+      "closedBody": "The project's entries are in the left sidebar. Open it here.",
+      "title": "Left sidebar"
+    },
+    "timeline": {
+      "body": "Slides up from under the page and lays out the attached entries by view."
+    }
   }
 }

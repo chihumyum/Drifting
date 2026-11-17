@@ -613,17 +613,20 @@ where
     if split_at_start {
         tab_row = tab_row.child(split.take().expect("just checked"));
     }
-    // M24's tour rings the left tabs, and (until the Agent's own tab can be
-    // marked) the right ones.
-    let tabs = crate::pages::anchor(
-        if side == Side::Left {
-            crate::pages::anchors::LEFT_PANEL_TAB
-        } else {
-            crate::pages::anchors::AGENT_TAB
-        },
-        tabs,
-        cx,
-    );
+    // M24's tour rings the left tabs, and the Agent's tab on the right.
+    let tabs = if side == Side::Left {
+        crate::pages::anchor(crate::pages::anchors::LEFT_PANEL_TAB, tabs, cx)
+    } else {
+        match T::ORDER.iter().position(|tab| tab.slug() == "companion") {
+            Some(agent) => tabs
+                .wrap_option(
+                    agent,
+                    crate::pages::anchor_with(crate::pages::anchors::AGENT_TAB, cx),
+                )
+                .into_any_element(),
+            None => tabs.into_any_element(),
+        }
+    };
     tab_row = tab_row.child(tabs).child(div().flex_1());
     if let Some(button) = split {
         tab_row = tab_row.child(button);

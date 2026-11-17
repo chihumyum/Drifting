@@ -319,25 +319,12 @@
     "skip": "Pular apresentação",
     "workspace": {
       "agent": {
-        "body": "Lê, pesquisa e edita o livro inteiro. As alterações são marcadas no texto e podem ser desfeitas pelo histórico.",
-        "closedBody": "O Agent fica na barra lateral direita e pode ler, pesquisar e editar o livro inteiro. Abra aqui.",
         "title": "Agent"
       },
       "create": {
-        "body": "Capítulos, ideias, elementos, linhas narrativas, categorias e materiais são criados aqui.",
         "title": "Novo"
       },
-      "home": {
-        "body": "A porta traz você de volta a esta página; o sino de vento ao lado reúne as notificações.",
-        "title": "Início do projeto"
-      },
-      "panels": {
-        "body": "A estrutura do livro. A barra lateral esquerda pode ser dividida em duas, cada metade com seu próprio painel.",
-        "closedBody": "A estrutura do livro fica na barra lateral esquerda: capítulos, elementos e ideias. Abra aqui.",
-        "title": "Capítulos · Elementos · Ideias"
-      },
       "timeline": {
-        "body": "As linhas narrativas aparecem sob a página, na ordem do livro ou no tempo da história.",
         "title": "Linha do tempo"
       }
     }
@@ -1705,6 +1692,30 @@
     "direction": "Direção",
     "otherEntry": "Outra entrada",
     "relation": "Relação"
+  },
+  "v5Tour": {
+    "agent": {
+      "body": "Lê, pesquisa e edita o projeto inteiro. As alterações podem ser desfeitas pelo histórico.",
+      "closedBody": "O Agent fica na barra lateral direita e pode ler, pesquisar e editar o projeto inteiro. Abra aqui."
+    },
+    "create": {
+      "body": "O que este projeto pode criar, conforme o modelo de projeto."
+    },
+    "home": {
+      "body": "A porta traz você de volta a esta página; à esquerda ficam todos os projetos, e o sino de vento à direita reúne as notificações."
+    },
+    "moons": {
+      "body": "A lua crescente abre e fecha a barra esquerda; a lua cheia faz ela preencher a coluna do meio, e outro clique a traz de volta. À direita é igual.",
+      "title": "Abrir e preencher"
+    },
+    "tabs": {
+      "body": "As entradas do projeto ficam divididas em abas. A marca no fim da linha adiciona, ordena e remove abas.",
+      "closedBody": "As entradas do projeto ficam na barra lateral esquerda. Abra aqui.",
+      "title": "Barra esquerda"
+    },
+    "timeline": {
+      "body": "Sobe de baixo da página e organiza as entradas vinculadas por visualização."
+    }
   },
   "windowCaption": {
     "close": "Fechar",

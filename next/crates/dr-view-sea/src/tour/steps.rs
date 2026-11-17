@@ -9,6 +9,7 @@ use gpui::{App, Bounds, Pixels, SharedString, Size};
 use super::{anchor::Shown, geometry};
 
 use keys::guide::workspace as w;
+use keys::v5_tour as t;
 
 /// The anchor ids the workspace tour points at. A control is marked with
 /// [`super::anchor`] under one of these.
@@ -116,21 +117,31 @@ fn pick(
     }
 }
 
-/// The first time a book opens on this device: where the book's parts
-/// live, making things, the timeline, the Agent and
-/// the way back to the book's home page. Each step points at the control
-/// itself.
-pub static WORKSPACE_TOUR: [Step; 5] = [
+/// The first time a book opens on this device: the left column's Tabs,
+/// its moons (open and fill), making things, the timeline, the Agent and
+/// the way back to Project Home (UP, kernel-v5 §15 item 50: six steps,
+/// the prototype's cards). Each step points at the control itself; a
+/// closed column's step points at its crescent until it opens.
+pub static WORKSPACE_TOUR: [Step; 6] = [
     Step {
-        id: "panels",
+        id: "tabs",
         targets: &[ids::LEFT_PANEL_TAB],
         pick: Pick::Union,
-        title: w::panels::TITLE,
-        body: w::panels::BODY,
+        title: t::tabs::TITLE,
+        body: t::tabs::BODY,
         fallback: Some(Fallback {
             targets: &[ids::LEFT_SIDEBAR_CLOSED_TOGGLE],
-            body: w::panels::CLOSED_BODY,
+            body: t::tabs::CLOSED_BODY,
         }),
+        shortcuts: &[],
+    },
+    Step {
+        id: "moons",
+        targets: &[ids::LEFT_MOONS],
+        pick: Pick::First,
+        title: t::moons::TITLE,
+        body: t::moons::BODY,
+        fallback: None,
         shortcuts: &[],
     },
     Step {
@@ -138,7 +149,7 @@ pub static WORKSPACE_TOUR: [Step; 5] = [
         targets: &[ids::HOME_CREATE],
         pick: Pick::First,
         title: w::create::TITLE,
-        body: w::create::BODY,
+        body: t::create::BODY,
         fallback: None,
         shortcuts: &[Shortcut::Bound("newEntity")],
     },
@@ -147,7 +158,7 @@ pub static WORKSPACE_TOUR: [Step; 5] = [
         targets: &[ids::TIMELINE_TOGGLE],
         pick: Pick::First,
         title: w::timeline::TITLE,
-        body: w::timeline::BODY,
+        body: t::timeline::BODY,
         fallback: None,
         shortcuts: &[Shortcut::Bound("toggleBottomTimeline")],
     },
@@ -156,20 +167,19 @@ pub static WORKSPACE_TOUR: [Step; 5] = [
         targets: &[ids::AGENT_TAB],
         pick: Pick::First,
         title: w::agent::TITLE,
-        body: w::agent::BODY,
+        body: t::agent::BODY,
         fallback: Some(Fallback {
             targets: &[ids::RIGHT_SIDEBAR_CLOSED_TOGGLE],
-            body: w::agent::CLOSED_BODY,
+            body: t::agent::CLOSED_BODY,
         }),
-        // The Agent's composer sends with ⌘↩.
-        shortcuts: &[Shortcut::Keys("secondary-enter")],
+        shortcuts: &[],
     },
     Step {
         id: "home",
-        targets: &[ids::PROJECT_HOME, ids::NOTIFICATIONS],
+        targets: &[ids::ALL_PROJECTS, ids::PROJECT_HOME, ids::NOTIFICATIONS],
         pick: Pick::Union,
-        title: w::home::TITLE,
-        body: w::home::BODY,
+        title: keys::project_home::KICKER,
+        body: t::home::BODY,
         fallback: None,
         shortcuts: &[],
     },
