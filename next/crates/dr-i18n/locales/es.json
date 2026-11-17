@@ -320,25 +320,12 @@
     "skip": "Omitir recorrido",
     "workspace": {
       "agent": {
-        "body": "Lee, busca y edita todo el libro. Sus cambios se marcan en el texto y se pueden deshacer desde el historial.",
-        "closedBody": "Agent está en la barra lateral derecha y puede leer, buscar y editar todo el libro. Ábrelo aquí.",
         "title": "Agent"
       },
       "create": {
-        "body": "Capítulos, ideas, elementos, tramas, categorías y materiales se crean aquí.",
         "title": "Nuevo"
       },
-      "home": {
-        "body": "La puerta te trae de vuelta a esta página; la campanilla de al lado guarda las notificaciones.",
-        "title": "Inicio del proyecto"
-      },
-      "panels": {
-        "body": "El armazón del libro. La barra lateral izquierda se puede dividir en dos, cada parte con su propio panel.",
-        "closedBody": "El armazón del libro está en la barra lateral izquierda: capítulos, elementos e ideas. Ábrela aquí.",
-        "title": "Capítulos · Elementos · Ideas"
-      },
       "timeline": {
-        "body": "Las tramas se despliegan bajo la página en orden del libro o del tiempo de la historia.",
         "title": "Cronología"
       }
     }
@@ -1676,6 +1663,30 @@
     "templateCount": "{{count}} plantillas",
     "templateStructure": "Estructura de plantillas",
     "unusedTemplates": "Plantillas sin usar"
+  },
+  "v5Tour": {
+    "agent": {
+      "body": "Lee, busca y edita todo el proyecto. Sus cambios se pueden deshacer desde el historial.",
+      "closedBody": "Agent está en la barra lateral derecha y puede leer, buscar y editar todo el proyecto. Ábrelo aquí."
+    },
+    "create": {
+      "body": "Lo que este proyecto puede crear, según su plantilla de proyecto."
+    },
+    "home": {
+      "body": "La puerta te trae de vuelta a esta página; a su izquierda están todos los proyectos, y la campanilla de la derecha guarda las notificaciones."
+    },
+    "moons": {
+      "body": "La luna creciente abre y cierra la barra izquierda; la luna llena la expande sobre la columna central, y otro clic la devuelve. A la derecha funciona igual.",
+      "title": "Abrir y expandir"
+    },
+    "tabs": {
+      "body": "Las entradas del proyecto se reparten en pestañas. La marca al final de la fila añade, ordena y quita pestañas.",
+      "closedBody": "Las entradas del proyecto están en la barra lateral izquierda. Ábrela aquí.",
+      "title": "Barra izquierda"
+    },
+    "timeline": {
+      "body": "Sube desde debajo de la página y ordena las entradas vinculadas por vista."
+    }
   },
   "windowCaption": {
     "close": "Cerrar",

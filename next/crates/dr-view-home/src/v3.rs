@@ -722,11 +722,18 @@ impl Render for Home {
                 }),
             );
         }
-        column = column.child(creations).child(
-            div()
-                .font_role(Role::Structure)
-                .child(t(cx, keys::project_home::book::TITLE)),
-        );
+        // The workspace tour's 新建 step rings the row (M24).
+        column = column
+            .child(dr_shell::pages::anchor(
+                dr_shell::pages::anchors::HOME_CREATE,
+                creations,
+                cx,
+            ))
+            .child(
+                div()
+                    .font_role(Role::Structure)
+                    .child(t(cx, keys::project_home::book::TITLE)),
+            );
         if let Some(v3) = book.v3() {
             for id in &v3.roots {
                 let Some(entry) = v3.entry(id) else {

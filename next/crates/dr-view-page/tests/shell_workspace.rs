@@ -2176,18 +2176,20 @@ fn the_sea_lies_under_the_shelf_and_the_opening_wait(cx: &mut TestAppContext) {
     }
     draw(cx);
     draw(cx);
-    assert_eq!(
-        started.get(),
-        0,
-        "the fixed-domain v2 tour is not shown for canonical books"
-    );
-    assert!(
-        marked
-            .borrow()
-            .contains(&pages::anchors::LEFT_SIDEBAR_CLOSED_TOGGLE),
-        "{:?}",
-        marked.borrow()
-    );
+    // The six steps' tour starts on a current-format book (UP, kernel-v5
+    // §15 item 50), once for the book; the device decides whether it shows.
+    assert_eq!(started.get(), 1, "the tour starts once for the book");
+    draw(cx);
+    assert_eq!(started.get(), 1, "and only once");
+    for id in [
+        pages::anchors::LEFT_SIDEBAR_CLOSED_TOGGLE,
+        pages::anchors::LEFT_MOONS,
+        pages::anchors::ALL_PROJECTS,
+        pages::anchors::PROJECT_HOME,
+        pages::anchors::NOTIFICATIONS,
+    ] {
+        assert!(marked.borrow().contains(&id), "{id}: {:?}", marked.borrow());
+    }
 }
 
 /// A registered left Tab canvas is mounted only when selected, then kept

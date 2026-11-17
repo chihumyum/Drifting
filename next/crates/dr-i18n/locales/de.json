@@ -318,25 +318,12 @@
     "skip": "Tour überspringen",
     "workspace": {
       "agent": {
-        "body": "Liest, durchsucht und bearbeitet das ganze Buch. Änderungen werden im Text markiert und lassen sich über den Verlauf rückgängig machen.",
-        "closedBody": "Agent befindet sich in der rechten Seitenleiste und kann das ganze Buch lesen, durchsuchen und bearbeiten. Hier öffnen.",
         "title": "Agent"
       },
       "create": {
-        "body": "Kapitel, Ideen, Elemente, Handlungsstränge, Kategorien und Materialien entstehen alle hier.",
         "title": "Neu"
       },
-      "home": {
-        "body": "Das Tor bringt dich auf diese Seite zurück; das Windspiel daneben enthält Benachrichtigungen.",
-        "title": "Projektstartseite"
-      },
-      "panels": {
-        "body": "Das Gerüst des Buches. Die linke Seitenleiste lässt sich teilen, jede Hälfte mit einem eigenen Bereich.",
-        "closedBody": "Das Gerüst des Buches liegt in der linken Seitenleiste: Kapitel, Elemente und Ideen. Hier öffnen.",
-        "title": "Kapitel · Elemente · Ideen"
-      },
       "timeline": {
-        "body": "Handlungsstränge in Buchreihenfolge oder nach der Zeit der Geschichte, von unterhalb der Seite ausklappbar.",
         "title": "Zeitleiste"
       }
     }
@@ -1667,6 +1654,30 @@
     "templateCount": "{{count}} Vorlagen",
     "templateStructure": "Vorlagenstruktur",
     "unusedTemplates": "Unbenutzte Vorlagen"
+  },
+  "v5Tour": {
+    "agent": {
+      "body": "Liest, durchsucht und bearbeitet das ganze Projekt. Änderungen lassen sich über den Verlauf rückgängig machen.",
+      "closedBody": "Agent befindet sich in der rechten Seitenleiste und kann das ganze Projekt lesen, durchsuchen und bearbeiten. Hier öffnen."
+    },
+    "create": {
+      "body": "Was dieses Projekt neu anlegen kann, wie seine Projektvorlage es vorsieht."
+    },
+    "home": {
+      "body": "Das Tor bringt dich auf diese Seite zurück; links davon liegen alle Projekte, das Windspiel rechts enthält Benachrichtigungen."
+    },
+    "moons": {
+      "body": "Die Mondsichel öffnet und schließt die linke Seitenleiste; der Vollmond lässt sie die mittlere Spalte füllen, ein zweiter Klick holt sie zurück. Rechts genauso.",
+      "title": "Öffnen und füllen"
+    },
+    "tabs": {
+      "body": "Die Einträge des Projekts sind auf Tabs verteilt. Das Zeichen am Ende der Zeile fügt Tabs hinzu, ordnet und entfernt sie.",
+      "closedBody": "Die Einträge des Projekts liegen in der linken Seitenleiste. Hier öffnen.",
+      "title": "Linke Seitenleiste"
+    },
+    "timeline": {
+      "body": "Gleitet unter der Seite hervor und ordnet die angehängten Einträge nach Ansicht."
+    }
   },
   "windowCaption": {
     "close": "Schließen",

@@ -1,11 +1,13 @@
 //! The workspace tour (M24, 「6 步导览」; the 0.1 client's
 //! `features/guide/` and `shells/desktop/WorkspaceGuide.tsx`).
 //!
-//! The first time a book opens on this device, once the workspace has come
-//! up uncovered, the tour waits [`START_DELAY`] and walks six steps, each
-//! pointing at a real control ([`WORKSPACE_TOUR`]): the left sidebar's
-//! Panel Tabs, Project Home's 新建, the timeline's
-//! toggle, the Agent's tab, the torii and the wind bell. A ring of waiting
+//! The first time a book opens on this device (once a device, not once a
+//! book), once the workspace has come up uncovered, the tour waits
+//! [`START_DELAY`] and walks six steps, each pointing at a real control
+//! ([`WORKSPACE_TOUR`], UP's prototype, kernel-v5 §15 item 50): the left
+//! column's Tab row, the left moons (open and fill), Project Home's 新建
+//! row, the timeline's bamboo, the Agent's tab, and 全部项目 with the torii
+//! and the wind bell. A ring of waiting
 //! glass (the accent, drifting on its own) stands 4px round the control,
 //! round buttons keep it round; beside it the card in the hover card's
 //! shell: the title with the step count in index type, one sentence, the
@@ -20,7 +22,9 @@
 //! control once it shows; a step with neither on screen is passed over,
 //! going either way; if nothing is left the tour ends. Return walks it, Esc
 //! skips it (while the card has the keyboard, which it takes when a step
-//! comes up and gives back at the end). Finishing or skipping marks it seen
+//! comes up and gives back at the end; ⌘⇧L can take it into the left
+//! column meanwhile, and Esc there is the column's, back to the page, the
+//! tour staying up). Finishing or skipping marks it seen
 //! on this device ([`SeenStore`]); Settings can show it again
 //! ([`reset_seen`]). Unlike the 0.1 client, a tour that never found a
 //! control to point at ends without counting as seen. While a filled panel
@@ -37,13 +41,14 @@
 //!
 //! | Id | Control | Owner |
 //! | --- | --- | --- |
-//! | [`ids::LEFT_PANEL_TAB`] | every left Panel Tab label | shell |
-//! | [`ids::LEFT_SIDEBAR_CLOSED_TOGGLE`] | the left toggle, only while closed | shell |
-//! | [`ids::HOME_CREATE`] | Project Home's 新建 section | M02 |
-//! | [`ids::TIMELINE_TOGGLE`] | the timeline toggle | shell |
-//! | [`ids::AGENT_TAB`] | the Agent's Panel Tab label | shell |
-//! | [`ids::RIGHT_SIDEBAR_CLOSED_TOGGLE`] | the right toggle, only while closed | shell |
-//! | [`ids::PROJECT_HOME`], [`ids::NOTIFICATIONS`] | torii and wind bell | shell |
+//! | [`ids::LEFT_PANEL_TAB`] | the left column's Tab row | shell |
+//! | [`ids::LEFT_SIDEBAR_CLOSED_TOGGLE`] | the left crescent, only while closed | shell |
+//! | [`ids::LEFT_MOONS`] | the left moon pair | shell |
+//! | [`ids::HOME_CREATE`] | Project Home's 新建 row | dr-view-home |
+//! | [`ids::TIMELINE_TOGGLE`] | the timeline toggle (bamboo) | shell |
+//! | [`ids::AGENT_TAB`] | the Agent's tab (one segment, `Segmented::wrap_option`) | shell |
+//! | [`ids::RIGHT_SIDEBAR_CLOSED_TOGGLE`] | the right crescent, only while closed | shell |
+//! | [`ids::ALL_PROJECTS`], [`ids::PROJECT_HOME`], [`ids::NOTIFICATIONS`] | 全部项目, torii and wind bell | shell |
 //!
 //! ## Wiring
 //!

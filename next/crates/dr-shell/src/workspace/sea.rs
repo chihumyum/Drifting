@@ -172,15 +172,13 @@ impl Workspace {
     }
 
     /// A book's workspace shows: the tour, once per book opened (the tour
-    /// itself knows whether this device saw it).
+    /// itself knows whether this device saw it: once on a device, UP,
+    /// kernel-v5 §15 item 50).
     pub(super) fn sea_guide(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(guide) = pages::guide(cx) else {
             return;
         };
-        if self.book.is_empty()
-            || self.book.v3().is_some()
-            || self.sea.guided.as_deref() == Some(self.book_id.as_str())
-        {
+        if self.book.is_empty() || self.sea.guided.as_deref() == Some(self.book_id.as_str()) {
             return;
         }
         self.sea.guided = Some(self.book_id.clone());
@@ -194,9 +192,6 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Option<AnyElement> {
-        if self.book.v3().is_some() {
-            return None;
-        }
         let guide = pages::guide(cx)?;
         (guide.layer)(covered, window, cx)
     }

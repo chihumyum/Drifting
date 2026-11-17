@@ -1272,7 +1272,13 @@ impl Render for Sidebar {
                 .filter(|tab| self.filled && !tabs::is_gone(v, &tab.mount))
                 .map(|tab| self.fill_layout_selector(tab.clone(), cx))
         };
-        content = content.child(self.tab_row(controls, window, cx));
+        // The workspace tour's first step rings the row (M24).
+        let row = self.tab_row(controls, window, cx);
+        content = content.child(crate::pages::anchor(
+            crate::pages::anchors::LEFT_PANEL_TAB,
+            row,
+            cx,
+        ));
         let body = if self.filled && self.in_structure {
             self.template_structure.as_ref().map_or_else(
                 || div().into_any_element(),
