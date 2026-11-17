@@ -91,8 +91,17 @@ pub struct Rendered {
     /// wanted (the structure's floating panel closing), so what it holds
     /// is stored rather than dropped. Not called when its thing is gone.
     pub leave: Option<Leave>,
+    /// A left-column Tab's tree the keyboard walks (KB): the shell gives it
+    /// the keyboard with this, and it lands on the row of the page in front
+    /// (or the nearest row shown above it, or its first row). A part
+    /// without it (a board, islands) leaves the keyboard on the Tab row.
+    pub land: Option<Land>,
+    /// Where the keyboard is in that tree, for the debug bridge.
+    pub keyboard_state: Option<KeyboardState>,
 }
 pub type Leave = Rc<dyn Fn(&mut App)>;
+pub type Land = Rc<dyn Fn(&mut Window, &mut App)>;
+pub type KeyboardState = Rc<dyn Fn(&Window, &App) -> serde_json::Value>;
 impl Rendered {
     pub fn new(view: impl Into<AnyView>) -> Self {
         Self {
@@ -102,7 +111,22 @@ impl Rendered {
             reveal: None,
             page_scroll: None,
             leave: None,
+            land: None,
+            keyboard_state: None,
         }
+    }
+    /// Where the keyboard is in this part, for the debug bridge.
+    pub fn on_keyboard_state(
+        mut self,
+        f: impl Fn(&Window, &App) -> serde_json::Value + 'static,
+    ) -> Self {
+        self.keyboard_state = Some(Rc::new(f));
+        self
+    }
+    /// The keyboard lands in this part ([`Rendered::land`]).
+    pub fn on_land(mut self, f: impl Fn(&mut Window, &mut App) + 'static) -> Self {
+        self.land = Some(Rc::new(f));
+        self
     }
     pub fn on_leave(mut self, f: impl Fn(&mut App) + 'static) -> Self {
         self.leave = Some(Rc::new(f));

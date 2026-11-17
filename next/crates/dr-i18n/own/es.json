@@ -182,6 +182,14 @@
       "refused_version": "La actualización descargada no es la versión que dice ser, quizá una anterior, y se rechazó. Esta versión sigue funcionando.",
       "restart": "Reiniciar para actualizar",
       "server_error": "El servicio de actualizaciones tiene un problema ahora. Inténtalo más tarde. Esta versión sigue funcionando."
+    },
+    "keys": {
+      "actions": {
+        "focusLeftSidebar": {
+          "desc": "Recorre la barra lateral izquierda con las flechas; vuelve a pulsar o pulsa Esc para volver a la página",
+          "label": "Ir a la barra lateral izquierda"
+        }
+      }
     }
   },
   "templateEditor": {

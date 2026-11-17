@@ -182,6 +182,14 @@
       "refused_version": "La mise à jour téléchargée n'est pas la version annoncée, peut-être une plus ancienne, et a été refusée. Cette version reste utilisable.",
       "restart": "Redémarrer pour mettre à jour",
       "server_error": "Le service de mise à jour rencontre un problème. Réessayez plus tard ; cette version reste utilisable."
+    },
+    "keys": {
+      "actions": {
+        "focusLeftSidebar": {
+          "desc": "Parcourez la barre latérale gauche avec les flèches ; appuyez à nouveau ou sur Échap pour revenir à la page",
+          "label": "Aller dans la barre latérale gauche"
+        }
+      }
     }
   },
   "templateEditor": {

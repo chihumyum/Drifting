@@ -329,6 +329,8 @@ export interface NativeCrashReport {
   backtrace: string;
   occurredAtMs: number;
   appVersion: string;
+  /** The launch step the panic stopped (`crash_reports::enter_setup_step`). */
+  setupStep?: string;
 }
 
 export interface AppUpdateMetadata {

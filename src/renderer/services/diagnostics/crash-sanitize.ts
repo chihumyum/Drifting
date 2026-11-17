@@ -17,6 +17,10 @@ const LONG_SENTENCE = /(?:\b[\p{L}'’-]+\b[ ,;:]+){12,}\b[\p{L}'’-]+\b/gu;
 const HOME_PATH = /\/(?:Users|home)\/[^/\s:)]+/g;
 // `C:\Users\<name>`: the same folder on Windows, where a name may hold spaces.
 const WINDOWS_HOME_PATH = /\b[A-Za-z]:\\Users\\[^\\/:*?"<>|\r\n]+/g;
+// Fixed wording a framework puts in front of Drifting's own error, never
+// content. Counted with the error after it, its nine words would make even a
+// short error a run of prose (`LONG_SENTENCE`) and the whole message `[text]`.
+const FRAMEWORK_PREFIXES = ['Failed to setup app: error encountered during setup hook: '];
 
 /** A path under someone's home folder says who they are; keep what follows it. */
 export function redactHomePaths(text: string): string {
@@ -24,7 +28,13 @@ export function redactHomePaths(text: string): string {
 }
 
 export function sanitizeReportText(text: string, max = MAX_MESSAGE): string {
-  const redacted = text
+  const prefix = FRAMEWORK_PREFIXES.find((candidate) => text.startsWith(candidate)) ?? '';
+  const redacted = `${prefix}${redactContent(text.slice(prefix.length))}`.trim();
+  return redacted.length > max ? `${redacted.slice(0, max - 1)}…` : redacted;
+}
+
+function redactContent(text: string): string {
+  return text
     .replace(/\bBearer\s+[^\s,;]+/gi, 'Bearer [redacted]')
     .replace(/\b(?:sk-|sk_)[A-Za-z0-9_-]{8,}/g, '[credential]')
     .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, '[credential]')
@@ -38,7 +48,6 @@ export function sanitizeReportText(text: string, max = MAX_MESSAGE): string {
     .replace(LONG_SENTENCE, '[text]')
     .replace(/\s+/g, ' ')
     .trim();
-  return redacted.length > max ? `${redacted.slice(0, max - 1)}…` : redacted;
 }
 
 /** Keep only stack frames (JS and Rust), without the leading message line. */

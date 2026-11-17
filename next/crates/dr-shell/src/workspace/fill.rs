@@ -384,6 +384,11 @@ impl Workspace {
                 if !self.left.open {
                     self.left.set_open(true, reduce);
                 } else {
+                    // KB: the keyboard in the column goes back to the page
+                    // as the column closes (the prototype's `toPaper`).
+                    if self.keyboard_in_left(window, cx) {
+                        self.keyboard_to_page(window, cx);
+                    }
                     if self.is_filled(FillPlace::Left) {
                         self.want_template_structure = false;
                         if let Some(sb) = &self.v3_sidebar {

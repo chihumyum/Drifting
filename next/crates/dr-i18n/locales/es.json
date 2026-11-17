@@ -1134,6 +1134,10 @@
           "desc": "Busca texto en el editor abierto",
           "label": "Buscar en el editor actual"
         },
+        "focusLeftSidebar": {
+          "desc": "Recorre la barra lateral izquierda con las flechas; vuelve a pulsar o pulsa Esc para volver a la página",
+          "label": "Ir a la barra lateral izquierda"
+        },
         "globalSearch": {
           "desc": "Busca en capítulos, tramas, elementos y categorías",
           "label": "Búsqueda global"

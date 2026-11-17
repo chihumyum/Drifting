@@ -1134,6 +1134,10 @@
           "desc": "Recherche du texte dans l’éditeur ouvert",
           "label": "Rechercher dans l’éditeur actif"
         },
+        "focusLeftSidebar": {
+          "desc": "Parcourez la barre latérale gauche avec les flèches ; appuyez à nouveau ou sur Échap pour revenir à la page",
+          "label": "Aller dans la barre latérale gauche"
+        },
         "globalSearch": {
           "desc": "Recherche dans les chapitres, intrigues, éléments et catégories",
           "label": "Recherche globale"

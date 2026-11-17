@@ -276,6 +276,15 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
         .min_h_0()
         .w_full()
         .pt(px(fill_header))
+        // KB: a press on the paper gives it the keyboard back from the left
+        // column, caret and selection as they were (`left_keys.rs`).
+        .capture_any_mouse_down(
+            cx.listener(|ws, _: &gpui::MouseDownEvent, window, cx| ws.pressing_paper(window, cx)),
+        )
+        .on_mouse_down(
+            MouseButton::Left,
+            cx.listener(|ws, _: &gpui::MouseDownEvent, window, cx| ws.pressed_paper(window, cx)),
+        )
         .child(pages)
         .when(bottom_fill_t > 0.0, |el| {
             el.child(div().absolute().inset_0().bg(desk).opacity(bottom_fill_t))

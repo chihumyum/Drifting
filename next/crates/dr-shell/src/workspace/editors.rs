@@ -1004,10 +1004,57 @@ impl Workspace {
         Some((page.view.entity_id(), page.focus.clone()))
     }
 
+    /// Whether `handle` is the focused page's: its editor's text, or in its
+    /// entry page or module page (KB: where the keyboard goes back to).
+    pub(super) fn front_page_holds(
+        &self,
+        handle: &gpui::FocusHandle,
+        window: &Window,
+        cx: &App,
+    ) -> bool {
+        let Some(target) = self.nav.active_tab().map(|t| t.focused().target.clone()) else {
+            return false;
+        };
+        let Some(page) = self.editors.get(&target.key()) else {
+            return false;
+        };
+        if page
+            .v3
+            .as_ref()
+            .is_some_and(|v| v.read(cx).focus.contains(handle, window))
+            || page
+                .module
+                .as_ref()
+                .is_some_and(|m| m.focus.contains(handle, window))
+        {
+            return true;
+        }
+        self.page_view(&target)
+            .is_some_and(|v| v.prose(cx).focus_handle(cx) == *handle)
+    }
+
+    /// Whether the focused page's entry page itself (not a part in it) has
+    /// the keyboard: a press on it that no part took.
+    pub(super) fn front_page_itself_focused(&self, window: &Window, cx: &App) -> bool {
+        self.nav
+            .active_tab()
+            .and_then(|t| self.editors.get(&t.focused().target.key()))
+            .and_then(|p| p.v3.as_ref())
+            .is_some_and(|v| v.read(cx).focus.is_focused(window))
+    }
+
     /// Gives the focused page's editor the keyboard when the page (or its
     /// editor) changes, unless something over the workspace or in a sidebar
     /// has it.
     fn focus_page(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        // A page opened with `Open::stay` that is no longer the one in front
+        // (it never came to the front, or the author went elsewhere since):
+        // its mark goes, so a later return to it by another road (⌘[, ⌘],
+        // a tab key) hands its editor the keyboard as usual.
+        let front_key = self.nav.active_tab().map(|t| t.focused().target.key());
+        if self.stay_keyboard.is_some() && self.stay_keyboard != front_key {
+            self.stay_keyboard = None;
+        }
         let focused = window.focused(cx);
         let in_editor = focused.as_ref().is_some_and(|handle| {
             self.all_prose(cx)
@@ -1045,6 +1092,11 @@ impl Workspace {
         let front = self.front_focus(cx);
         let want = front.as_ref().map(|(id, _)| *id);
         if want == self.focused_editor {
+            // The page in front is the one that has been there: a stay mark
+            // for it has nothing left to keep.
+            if want.is_some() {
+                self.stay_keyboard = None;
+            }
             return;
         }
         // Opened at its title (`Open::at_title`): the page's head gives the
@@ -1052,6 +1104,13 @@ impl Workspace {
         let key = self.nav.active_tab().map(|t| t.focused().target.key());
         if want.is_some() && key.is_some() && key == self.title_first {
             self.title_first = None;
+            self.focused_editor = want;
+            return;
+        }
+        // Opened with `Open::stay` (a preview from the left column's tree,
+        // KB): the page is in front, the keyboard stays where it is.
+        if want.is_some() && key.is_some() && key == self.stay_keyboard {
+            self.stay_keyboard = None;
             self.focused_editor = want;
             return;
         }
