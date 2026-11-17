@@ -545,9 +545,10 @@
   },
   "mirrorV5": {
     "duplicate": "Dos archivos tienen el mismo drifting-id.",
-    "fieldConflict": "Este campo también se editó en Drifting. Se conservaron ambas versiones.",
+    "fieldConflict": "No se pudo combinar un campo: también se editó en Drifting o no se pudo leer su valor. Drifting conservó su valor y guardó una copia del archivo.",
     "identity": "El drifting-id no corresponde a esta entrada y módulo de texto.",
     "intro": "Cada proyecto tiene una carpeta de Markdown. Al guardar cambios en el texto o los campos en otro editor, Drifting los incorpora.",
+    "keyCollision": "Una propiedad inicial tiene el mismo nombre que un campo recién añadido. Drifting no escribirá este archivo hasta que uno de los dos se renombre o se elimine.",
     "lineage": "La entrada o el texto se restauraron, cambiaron de plantilla o se eliminaron. No fue posible incorporar los cambios del archivo.",
     "malformedTable": "No se pudo leer la tabla. La tabla original sigue en Drifting.",
     "moved": "Esta versión no sincroniza cambios de nombre ni movimientos de archivos.",

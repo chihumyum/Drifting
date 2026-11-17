@@ -545,9 +545,10 @@
   },
   "mirrorV5": {
     "duplicate": "Deux fichiers ont le même drifting-id.",
-    "fieldConflict": "Ce champ a également été modifié dans Drifting. Les deux versions ont été conservées.",
+    "fieldConflict": "Un champ n’a pas pu être fusionné : il a aussi été modifié dans Drifting, ou sa valeur est illisible. Drifting a gardé sa valeur et enregistré une copie du fichier.",
     "identity": "Le drifting-id ne correspond pas à cette entrée et à ce module de texte.",
     "intro": "Chaque projet dispose d’un dossier Markdown. Après enregistrement, les modifications du texte et des champs dans un autre éditeur sont intégrées à Drifting.",
+    "keyCollision": "Une propriété initiale porte le même nom qu’un champ ajouté récemment. Drifting n’écrira pas ce fichier tant que l’un des deux n’est pas renommé ou supprimé.",
     "lineage": "L’entrée ou le texte a été restauré, a changé de modèle ou a été supprimé. Les modifications du fichier n’ont pas pu être intégrées.",
     "malformedTable": "Impossible de lire le tableau. Le tableau original reste dans Drifting.",
     "moved": "Cette version ne synchronise pas le renommage ni le déplacement des fichiers.",

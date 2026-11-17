@@ -170,12 +170,14 @@ proptest = "1.12"
 rusqlite = { version = "0.41", features = ["bundled"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-serde_yaml_ng = "0.10"
 sha2 = "0.10"
 # M40's diffs (paragraphs, characters); already in the tree through insta.
 similar = "2.7"
 # M40 watches the Markdown folder.
 notify = { version = "8.2", default-features = false, features = ["macos_fsevent"] }
+# M40 reads the YAML frontmatter of files other editors save: a pure-Rust
+# parser (RUSTSEC-2024-0449 marks unsafe-libyaml unmaintained), events only.
+yaml-rust2 = { version = "0.13", default-features = false }
 # dr-store: typed errors, temporary directories in tests, OS randomness for
 # peer and installation ids, and text ZIPs (zip pinned exactly as in the 0.1
 # client, which audited this version).

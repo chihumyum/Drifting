@@ -121,7 +121,8 @@
     "readOnly": "改过的只读属性已按项目里的值写回。",
     "malformedTable": "表格读不出来，原表留在 Drifting。",
     "unknownImage": "图片未指向素材库里已有的文件，这行按普通文字合入。",
-    "fieldConflict": "这个字段也在 Drifting 里改过，两个版本都保留了。"
+    "fieldConflict": "有字段没能合入：它在 Drifting 里也改过，或者值的写法读不出来。保留了 Drifting 里的值，文件另存了一份。",
+    "keyCollision": "开头的属性里有一项和新加的字段同名，这个文件先不写回。改名或删掉其中一项后会接着同步。"
   },
   "positionLink": {
     "copied": "已复制位置链接"

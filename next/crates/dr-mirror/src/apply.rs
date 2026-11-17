@@ -15,7 +15,8 @@ use serde_json::json;
 use crate::file::{FieldEdit, FieldSlot};
 
 /// Apply only the edited slots, each with a guard for the value the file
-/// came from (or the value it already supplied on an earlier pass).
+/// came from (or the value it already supplied on an earlier pass). A slot
+/// whose file value does not fit the field is refused without a write.
 pub fn apply_fields(
     ws: &Workspace,
     book: &BookId,
@@ -28,10 +29,14 @@ pub fn apply_fields(
     let mut refused = Vec::new();
     for edit in fields {
         let slot = &edit.slot;
+        let Some(value) = &edit.value else {
+            refused.push(slot.clone());
+            continue;
+        };
         let key = entry
             .clone()
             .at(["fields", slot.module.as_str(), &slot.field]);
-        let want = json!(edit.value);
+        let want = json!(value);
         let guards = WritePreconditions::default()
             .with_value(&doc, key, [json!(edit.expected), want.clone()])
             .with_value(&doc, entry.clone().at(["template"]), [json!(template)])
@@ -77,6 +82,9 @@ pub fn save_before_removal(
 
 /// One open conflict comment per paragraph. The same notification can be
 /// processed again after interruption without adding another open comment.
+/// The comments are found by the folder's stable author id and the
+/// paragraph, never by the shown name or text, which follow the interface
+/// language.
 pub fn record_conflicts(
     ws: &Workspace,
     book: &BookId,
@@ -88,10 +96,10 @@ pub fn record_conflicts(
     if blocks.is_empty() {
         return Ok(());
     }
+    let mirror = Actor::Mirror.comment_author();
     let found = {
         let book = book.clone();
         let owning = body.clone();
-        let author = author.to_owned();
         ws.read_book_v3(book.as_str(), {
             let book = book.clone();
             move |raw, _| {
@@ -103,7 +111,7 @@ pub fn record_conflicts(
                     .filter(|c| {
                         !c.is_done()
                             && c.origin == CommentOrigin::Manual
-                            && c.author_name.as_deref() == Some(author.as_str())
+                            && c.author.as_deref() == mirror
                             && c.target
                                 .as_ref()
                                 .is_some_and(|t| t.id == owning.entry().as_str())

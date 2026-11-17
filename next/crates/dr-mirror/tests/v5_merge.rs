@@ -215,3 +215,206 @@ fn an_image_caption_edit_keeps_look_and_deleting_its_line_only_removes_the_embed
     assert!(prose.view().embed_refs().is_empty());
     assert_eq!(written(&prose, &links), "她在楼下。\n");
 }
+
+/// `门开着。` and a two-row table (`物品 | 状态`, `钥匙 | 在桌上`).
+fn with_table() -> (ProseDoc, EmbedId) {
+    let mut prose = seeded_prose("门开着。");
+    let table_id = EmbedId::parse("table").unwrap();
+    let (r, _) = prose.edit(Origin::User, |txn| {
+        let table = txn.insert_embed(0, &table_id, &EmbedKind::Table)?;
+        let first = PosKey::first();
+        table.add_row("r1", &first)?;
+        table.add_row("r2", &first.after())?;
+        table.add_col("name", &first)?;
+        table.add_col("value", &first.after())?;
+        for (row, col, text) in [
+            ("r1", "name", "物品"),
+            ("r1", "value", "状态"),
+            ("r2", "name", "钥匙"),
+            ("r2", "value", "在桌上"),
+        ] {
+            table.set_cell(row, col, text)?;
+        }
+        Ok(())
+    });
+    r.unwrap();
+    (prose, table_id)
+}
+
+fn table_block(prose: &ProseDoc) -> dr_model::id::BlockId {
+    prose
+        .view()
+        .paragraphs()
+        .find(|p| p.embed().is_some())
+        .and_then(|p| p.id)
+        .unwrap()
+}
+
+fn rows_of(prose: &ProseDoc, id: &EmbedId) -> Vec<Vec<String>> {
+    let Some(EmbedView::Table {
+        rows, cols, cells, ..
+    }) = prose.view().embed(id)
+    else {
+        return Vec::new();
+    };
+    rows.iter()
+        .map(|r| {
+            cols.iter()
+                .map(|c| {
+                    cells
+                        .get(&(r.id.clone(), c.id.clone()))
+                        .cloned()
+                        .unwrap_or_default()
+                })
+                .collect()
+        })
+        .collect()
+}
+
+#[test]
+fn a_row_the_file_replaces_keeps_the_apps_edit_beside_the_files_row() {
+    let links = FileLinks::default();
+    let replaced =
+        |prose: &ProseDoc| written(prose, &links).replace("| 钥匙 | 在桌上 |", "| 石头 | 在门口 |");
+
+    // Without an App edit the old row simply goes.
+    let (mut prose, table) = with_table();
+    let at = prose.frontiers();
+    let file = replaced(&prose);
+    let merged = ingest(&mut prose, &at, &file, &links);
+    assert!(merged.conflicts.is_empty());
+    assert_eq!(
+        rows_of(&prose, &table),
+        [["物品", "状态"], ["石头", "在门口"]]
+    );
+
+    // The App changed a cell of that row meanwhile: its row stays, the
+    // file's row is added, and the paragraph gets one conflict.
+    let (mut prose, table) = with_table();
+    let at = prose.frontiers();
+    let file = replaced(&prose);
+    let (r, _) = prose.edit(Origin::User, |txn| {
+        txn.table(&table)?.set_cell("r2", "name", "铜钥匙")
+    });
+    r.unwrap();
+    let merged = ingest(&mut prose, &at, &file, &links);
+    assert_eq!(merged.conflicts, [table_block(&prose)]);
+    let rows = rows_of(&prose, &table);
+    assert_eq!(rows.len(), 3, "{rows:?}");
+    assert!(rows.contains(&vec!["铜钥匙".to_owned(), "在桌上".to_owned()]));
+    assert!(rows.contains(&vec!["石头".to_owned(), "在门口".to_owned()]));
+    // Replaying the same file over the same base changes nothing more.
+    let head = prose.frontiers();
+    let again = ingest(&mut prose, &at, &file, &links);
+    assert!(again.replayed);
+    assert_eq!(again.frontiers, merged.frontiers);
+    assert_eq!(prose.frontiers(), head);
+    assert_eq!(rows_of(&prose, &table), rows);
+}
+
+#[test]
+fn a_column_the_file_drops_keeps_the_apps_edit() {
+    let links = FileLinks::default();
+    let (mut prose, table) = with_table();
+    let at = prose.frontiers();
+    let file = written(&prose, &links)
+        .replace("| 物品 | 状态 |", "| 物品 |")
+        .replace("| --- | --- |", "| --- |")
+        .replace("| 钥匙 | 在桌上 |", "| 钥匙 |");
+    let (r, _) = prose.edit(Origin::User, |txn| {
+        txn.table(&table)?.set_cell("r2", "value", "在窗台上")
+    });
+    r.unwrap();
+    let merged = ingest(&mut prose, &at, &file, &links);
+    assert_eq!(merged.conflicts, [table_block(&prose)]);
+    assert_eq!(
+        rows_of(&prose, &table),
+        [["物品", "状态"], ["钥匙", "在窗台上"]]
+    );
+}
+
+#[test]
+fn a_column_the_file_drops_keeps_words_in_a_row_the_app_added() {
+    let links = FileLinks::default();
+    let (mut prose, table) = with_table();
+    let at = prose.frontiers();
+    let file = written(&prose, &links)
+        .replace("| 物品 | 状态 |", "| 物品 |")
+        .replace("| --- | --- |", "| --- |")
+        .replace("| 钥匙 | 在桌上 |", "| 钥匙 |");
+    let (result, _) = prose.edit(Origin::User, |txn| {
+        let table = txn.table(&table)?;
+        table.add_row("new-row", &PosKey::first().after().after())?;
+        table.set_cell("new-row", "name", "石头")?;
+        table.set_cell("new-row", "value", "在门口")?;
+        Ok(())
+    });
+    result.unwrap();
+    let merged = ingest(&mut prose, &at, &file, &links);
+    assert_eq!(merged.conflicts, [table_block(&prose)]);
+    assert_eq!(
+        rows_of(&prose, &table),
+        [["物品", "状态"], ["钥匙", "在桌上"], ["石头", "在门口"]]
+    );
+}
+
+#[test]
+fn a_row_the_app_removed_comes_back_with_the_files_edit() {
+    let links = FileLinks::default();
+    let (mut prose, table) = with_table();
+    let at = prose.frontiers();
+    let file = written(&prose, &links).replace("| 钥匙 | 在桌上 |", "| 钥匙 | 在桌子上 |");
+    let (r, _) = prose.edit(Origin::User, |txn| txn.table(&table)?.remove_row("r2"));
+    r.unwrap();
+    let merged = ingest(&mut prose, &at, &file, &links);
+    assert_eq!(merged.conflicts, [table_block(&prose)]);
+    assert_eq!(
+        rows_of(&prose, &table),
+        [["物品", "状态"], ["钥匙", "在桌子上"]]
+    );
+}
+
+#[test]
+fn both_sides_editing_one_cell_keep_both_words_and_name_the_table() {
+    let links = FileLinks::default();
+    let (mut prose, table) = with_table();
+    let at = prose.frontiers();
+    let file = written(&prose, &links).replace("在桌上", "在桌面上");
+    let (r, _) = prose.edit(Origin::User, |txn| {
+        txn.table(&table)?.cell("r2", "value")?.insert(2, "子")?;
+        Ok(())
+    });
+    r.unwrap();
+    let merged = ingest(&mut prose, &at, &file, &links);
+    assert_eq!(merged.conflicts, [table_block(&prose)]);
+    let cell = &rows_of(&prose, &table)[1][1];
+    assert!(cell.contains('子') && cell.contains('面'), "{cell}");
+}
+
+#[test]
+fn deleting_a_table_the_app_edited_keeps_it_with_one_conflict() {
+    let links = FileLinks::default();
+    let deleted = "门开着。\n";
+
+    let (mut prose, table) = with_table();
+    let at = prose.frontiers();
+    let merged = ingest(&mut prose, &at, deleted, &links);
+    assert!(merged.conflicts.is_empty());
+    assert!(prose.view().embed_refs().is_empty());
+
+    let (mut prose, table_after) = with_table();
+    assert_eq!(table, table_after);
+    let at = prose.frontiers();
+    let block = table_block(&prose);
+    let (r, _) = prose.edit(Origin::User, |txn| {
+        txn.table(&table)?.set_cell("r2", "value", "在窗台上")
+    });
+    r.unwrap();
+    let merged = ingest(&mut prose, &at, deleted, &links);
+    assert_eq!(merged.conflicts, [block]);
+    assert_eq!(
+        rows_of(&prose, &table),
+        [["物品", "状态"], ["钥匙", "在窗台上"]]
+    );
+    assert!(written(&prose, &links).contains("| 钥匙 | 在窗台上 |"));
+}

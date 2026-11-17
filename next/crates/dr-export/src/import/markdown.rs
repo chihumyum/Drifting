@@ -107,8 +107,19 @@ fn indent(line: &str) -> usize {
     line.chars().take_while(|c| *c == ' ').count()
 }
 
-fn is_blank(line: &str) -> bool {
-    line.trim().is_empty()
+/// Mirror files preserve the author's non-ASCII spaces, including U+3000.
+/// Only spaces and tabs separate Markdown blocks and cells. The ordinary
+/// importer keeps its existing whitespace normalization.
+fn syntax_space(c: char, mirror: bool) -> bool {
+    if mirror {
+        matches!(c, ' ' | '\t')
+    } else {
+        c.is_whitespace()
+    }
+}
+
+fn is_blank(line: &str, mirror: bool) -> bool {
+    line.trim_matches(|c| syntax_space(c, mirror)).is_empty()
 }
 
 /// `***`, `- - -`, `___`: three or more of one of them, spaces between.
@@ -124,11 +135,11 @@ fn is_rule(line: &str) -> bool {
 }
 
 /// `# Title #` → (1, "Title").
-fn atx(line: &str) -> Option<(u8, String)> {
+fn atx(line: &str, mirror: bool) -> Option<(u8, String)> {
     if indent(line) > 3 {
         return None;
     }
-    let s = line.trim_start();
+    let s = line.trim_start_matches(|c| syntax_space(c, mirror));
     let hashes = s.chars().take_while(|c| *c == '#').count();
     if !(1..=6).contains(&hashes) {
         return None;
@@ -137,11 +148,11 @@ fn atx(line: &str) -> Option<(u8, String)> {
     if !(rest.is_empty() || rest.starts_with(' ') || rest.starts_with('\t')) {
         return None;
     }
-    let mut text = rest.trim();
+    let mut text = rest.trim_matches(|c| syntax_space(c, mirror));
     // A closing run of `#` after a space goes.
     let without = text.trim_end_matches('#');
     if without.len() < text.len() && (without.is_empty() || without.ends_with(' ')) {
-        text = without.trim_end();
+        text = without.trim_end_matches(|c| syntax_space(c, mirror));
     }
     Some((hashes as u8, text.to_owned()))
 }
@@ -242,8 +253,8 @@ fn normalize_label(s: &str) -> String {
 }
 
 /// `| a | b |` → ["a", "b"].
-fn cells(line: &str) -> Vec<String> {
-    let s = line.trim();
+fn cells(line: &str, mirror: bool) -> Vec<String> {
+    let s = line.trim_matches(|c| syntax_space(c, mirror));
     let s = s.strip_prefix('|').unwrap_or(s);
     let s = s.strip_suffix('|').unwrap_or(s);
     let mut out = Vec::new();
@@ -259,7 +270,7 @@ fn cells(line: &str) -> Vec<String> {
         } else if c == '\\' {
             escaped = true;
         } else if c == '|' {
-            out.push(cur.trim().to_owned());
+            out.push(cur.trim_matches(|c| syntax_space(c, mirror)).to_owned());
             cur.clear();
         } else {
             cur.push(c);
@@ -268,14 +279,14 @@ fn cells(line: &str) -> Vec<String> {
     if escaped {
         cur.push('\\');
     }
-    out.push(cur.trim().to_owned());
+    out.push(cur.trim_matches(|c| syntax_space(c, mirror)).to_owned());
     out
 }
 
 /// A table's delimiter row: `|---|:--:|`.
-fn is_delimiter_row(line: &str) -> bool {
+fn is_delimiter_row(line: &str, mirror: bool) -> bool {
     line.contains('-')
-        && cells(line).iter().all(|c| {
+        && cells(line, mirror).iter().all(|c| {
             let c = c.trim();
             let inner = c.trim_start_matches(':').trim_end_matches(':');
             !inner.is_empty() && inner.chars().all(|x| x == '-')
@@ -297,7 +308,7 @@ fn blocks(lines: &[String], defs: &mut Defs, mirror: bool) -> Vec<Raw> {
     let mut i = 0;
     while i < lines.len() {
         let mut line: &str = &lines[i];
-        if is_blank(line) {
+        if is_blank(line, mirror) {
             close(&mut para, &mut out);
             i += 1;
             continue;
@@ -329,7 +340,7 @@ fn blocks(lines: &[String], defs: &mut Defs, mirror: bool) -> Vec<Raw> {
                     Some(col) if indent(l) >= col => &l[col..],
                     _ => l,
                 };
-                if is_blank(l) {
+                if is_blank(l, mirror) {
                     code.push(String::new());
                 } else if indent(l) >= 4 {
                     code.push(l[4..].to_owned());
@@ -366,7 +377,7 @@ fn blocks(lines: &[String], defs: &mut Defs, mirror: bool) -> Vec<Raw> {
             out.push(Raw::Code(code));
             continue;
         }
-        if let Some((level, text)) = atx(line) {
+        if let Some((level, text)) = atx(line, mirror) {
             close(&mut para, &mut out);
             out.push(Raw::Heading(level, text));
             i += 1;
@@ -378,24 +389,28 @@ fn blocks(lines: &[String], defs: &mut Defs, mirror: bool) -> Vec<Raw> {
             i += 1;
             continue;
         }
-        if indent(line) <= 3 && line.trim_start().starts_with('>') {
+        if indent(line) <= 3
+            && line
+                .trim_start_matches(|c| syntax_space(c, mirror))
+                .starts_with('>')
+        {
             close(&mut para, &mut out);
             let mut inner: Vec<String> = Vec::new();
             while i < lines.len() {
                 let l: &str = &lines[i];
-                let t = l.trim_start();
+                let t = l.trim_start_matches(|c| syntax_space(c, mirror));
                 if indent(l) <= 3 && t.starts_with('>') {
                     let rest = &t[1..];
                     inner.push(rest.strip_prefix(' ').unwrap_or(rest).to_owned());
-                } else if !is_blank(l)
-                    && inner.last().is_some_and(|x| !is_blank(x))
+                } else if !is_blank(l, mirror)
+                    && inner.last().is_some_and(|x| !is_blank(x, mirror))
                     && fence(l).is_none()
-                    && atx(l).is_none()
+                    && atx(l, mirror).is_none()
                     && !is_rule(l)
                     && list_item(l).is_none()
                 {
                     // A lazy continuation of the quoted paragraph.
-                    inner.push(l.trim_start().to_owned());
+                    inner.push(l.trim_start_matches(|c| syntax_space(c, mirror)).to_owned());
                 } else {
                     break;
                 }
@@ -416,7 +431,7 @@ fn blocks(lines: &[String], defs: &mut Defs, mirror: bool) -> Vec<Raw> {
         {
             close(&mut para, &mut out);
             let content = line.get(col.min(line.len())..).unwrap_or("");
-            let content = content.trim_start();
+            let content = content.trim_start_matches(|c| syntax_space(c, mirror));
             let content = ["[ ] ", "[x] ", "[X] "]
                 .iter()
                 .find_map(|m| content.strip_prefix(m))
@@ -439,13 +454,13 @@ fn blocks(lines: &[String], defs: &mut Defs, mirror: bool) -> Vec<Raw> {
             // A table: a row, then its delimiter row with as many cells.
             if line.contains('|')
                 && i + 1 < lines.len()
-                && is_delimiter_row(&lines[i + 1])
-                && cells(&lines[i + 1]).len() == cells(line).len()
+                && is_delimiter_row(&lines[i + 1], mirror)
+                && cells(&lines[i + 1], mirror).len() == cells(line, mirror).len()
             {
-                let mut rows = vec![cells(line)];
+                let mut rows = vec![cells(line, mirror)];
                 i += 2;
-                while i < lines.len() && !is_blank(&lines[i]) && lines[i].contains('|') {
-                    rows.push(cells(&lines[i]));
+                while i < lines.len() && !is_blank(&lines[i], mirror) && lines[i].contains('|') {
+                    rows.push(cells(&lines[i], mirror));
                     i += 1;
                 }
                 if mirror {
@@ -460,7 +475,10 @@ fn blocks(lines: &[String], defs: &mut Defs, mirror: bool) -> Vec<Raw> {
                 continue;
             }
         }
-        para.push(line.trim_start().to_owned());
+        para.push(
+            line.trim_start_matches(|c| syntax_space(c, mirror))
+                .to_owned(),
+        );
         i += 1;
     }
     close(&mut para, &mut out);

@@ -57,6 +57,17 @@ impl Actor {
         }
     }
 
+    /// The stable author id `comment.create` stores on a comment this actor
+    /// makes (the comment's `author`), `None` for the author and the Agent.
+    /// The Markdown folder finds its own conflict comments by it: the name
+    /// shown follows the interface language.
+    pub fn comment_author(&self) -> Option<&'static str> {
+        match self {
+            Actor::Mirror => Some("mirror"),
+            _ => None,
+        }
+    }
+
     /// The settlement an Agent write leaves, `None` for everyone else.
     pub(crate) fn agent_write(&self, summary: &str) -> Option<AgentWrite> {
         match self {

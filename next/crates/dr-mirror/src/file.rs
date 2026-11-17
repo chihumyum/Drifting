@@ -2,6 +2,8 @@
 //! the filename. YAML validates the whole header; unmanaged properties retain
 //! their source text instead of being serialized again.
 
+mod yaml;
+
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt::Write as _;
@@ -10,7 +12,9 @@ use dr_export::Labels;
 use dr_model::id::{BodyDocId, ModuleId};
 use dr_model::v3::{Entry, EntryTemplate, FieldType, FieldValue, ModuleKind};
 use serde::{Deserialize, Serialize};
-use serde_yaml_ng::{Mapping, Value};
+
+use self::yaml::{Mapping, Scalar, Value};
+use crate::sync::Problem;
 
 pub const ID_KEY: &str = "drifting-id";
 const ALIASES_KEY: &str = "aliases";
@@ -19,6 +23,29 @@ const HOSTS_KEY: &str = "挂在";
 #[derive(Debug, thiserror::Error)]
 #[error("unreadable Markdown frontmatter")]
 pub struct BrokenFrontmatter;
+
+/// Why the App cannot write a file's frontmatter. The file is held.
+#[derive(Debug, thiserror::Error)]
+pub enum Unwritable {
+    /// A property kept from the file has the key of a field added since. Which
+    /// one wins is the author's decision (m40 section 15), so neither is
+    /// written over the other.
+    #[error("the kept property {0:?} has the key of a field")]
+    KeyCollision(String),
+    /// The header would not read back, e.g. a kept alias whose anchor was on
+    /// a value the App regenerates.
+    #[error(transparent)]
+    Broken(#[from] BrokenFrontmatter),
+}
+
+impl Unwritable {
+    pub fn problem(&self) -> Problem {
+        match self {
+            Self::KeyCollision(_) => Problem::KeyCollision,
+            Self::Broken(_) => Problem::Frontmatter,
+        }
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FieldSlot {
@@ -43,16 +70,23 @@ impl Field {
 
     fn emitted(&self) -> Value {
         if self.read_only() {
-            return self.reference.clone().map_or(Value::Null, Value::String);
+            return self
+                .reference
+                .clone()
+                .map_or_else(Value::null, Value::string);
         }
         match &self.value {
             FieldValue::Text(value) if self.kind == FieldType::Select => {
-                Value::String(self.label(value).to_owned())
+                Value::string(self.label(value))
             }
             FieldValue::List(values) if self.kind == FieldType::MultiSelect => {
-                sequence(values.iter().map(|value| self.label(value).to_owned()))
+                Value::strings(values.iter().map(|value| self.label(value).to_owned()))
             }
-            value => serde_yaml_ng::to_value(value).unwrap_or(Value::Null),
+            FieldValue::Bool(value) => Value::bool(*value),
+            FieldValue::Number(value) if value.is_finite() => Value::number(*value),
+            FieldValue::Text(value) => Value::string(value),
+            FieldValue::List(values) => Value::strings(values.iter().cloned()),
+            FieldValue::Number(_) | FieldValue::Null => Value::null(),
         }
     }
 
@@ -72,38 +106,57 @@ impl Field {
         found.next().is_none().then(|| stored.clone())
     }
 
+    /// The file's value for this field, in the spellings other editors use:
+    /// a number or a boolean written for text is that text, a single value
+    /// is a one-item list, a quoted number is a number. `None`: it does not
+    /// fit the field.
     fn decode(&self, value: &Value) -> Option<FieldValue> {
         use FieldType as T;
         use FieldValue as V;
-        if value.is_null() {
+        let text = matches!(self.kind, T::Text | T::LongText);
+        if value.is_null() || (!text && value.as_str() == Some("")) {
             return Some(V::Null);
         }
+        let items = || match value.as_seq() {
+            Some(items) => items.iter().map(Value::text).collect::<Option<Vec<_>>>(),
+            None => value.text().map(|one| vec![one]),
+        };
         match self.kind {
-            T::Text | T::LongText => Some(V::Text(value.as_str()?.to_owned())),
-            T::Number => Some(V::Number(value.as_f64().filter(|n| n.is_finite())?)),
+            T::Text | T::LongText => Some(V::Text(value.text()?.to_owned())),
+            T::Number => {
+                let number = match value.scalar()? {
+                    Scalar::Number(n) => n,
+                    Scalar::Text(quoted) => match yaml::resolve(quoted.trim()) {
+                        Scalar::Number(n) => n,
+                        _ => return None,
+                    },
+                    _ => return None,
+                };
+                number.is_finite().then_some(V::Number(number))
+            }
             T::Date => {
-                let raw = value.as_str()?;
+                let raw = value.text()?;
                 if !raw.is_ascii() {
                     return None;
                 }
                 Some(V::Text(dr_model::Day::parse(raw)?.as_str().to_owned()))
             }
-            T::Select => Some(V::Text(self.choice(value.as_str()?)?)),
+            T::Select => Some(V::Text(self.choice(value.text()?)?)),
             T::MultiSelect => Some(V::List(
-                value
-                    .as_sequence()?
-                    .iter()
-                    .map(|value| self.choice(value.as_str()?))
+                items()?
+                    .into_iter()
+                    .map(|item| self.choice(item))
                     .collect::<Option<_>>()?,
             )),
-            T::Toggle => Some(V::Bool(value.as_bool()?)),
-            T::Aliases => Some(V::List(
-                value
-                    .as_sequence()?
-                    .iter()
-                    .map(|v| v.as_str().map(str::to_owned))
-                    .collect::<Option<_>>()?,
-            )),
+            T::Toggle => match value.scalar()? {
+                Scalar::Bool(on) => Some(V::Bool(on)),
+                Scalar::Text(quoted) => match yaml::resolve(quoted) {
+                    Scalar::Bool(on) => Some(V::Bool(on)),
+                    _ => None,
+                },
+                _ => None,
+            },
+            T::Aliases => Some(V::List(items()?.into_iter().map(str::to_owned).collect())),
             _ => None,
         }
     }
@@ -195,7 +248,7 @@ impl Header {
     }
 
     fn hosts(&self) -> Option<Value> {
-        (!self.hosts.is_empty()).then(|| sequence(self.hosts.iter().cloned()))
+        (!self.hosts.is_empty()).then(|| Value::strings(self.hosts.iter().cloned()))
     }
 }
 
@@ -203,7 +256,9 @@ impl Header {
 pub struct FieldEdit {
     pub slot: FieldSlot,
     pub expected: FieldValue,
-    pub value: FieldValue,
+    /// `None`: the file's value does not fit the field. Nothing is written
+    /// and the slot is refused, like one whose guard failed.
+    pub value: Option<FieldValue>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -220,8 +275,10 @@ pub struct Parsed {
 }
 
 impl Parsed {
-    /// Only keys present in the file can change a stored field. A valid YAML
-    /// value of the wrong type is ignored. Invalid YAML does not get here.
+    /// Only keys present in the file can change a stored field. A changed
+    /// value that does not fit its field is an edit without a value, so the
+    /// file is kept aside before the App's value is written back. Invalid
+    /// YAML does not get here.
     pub fn edits(&self, base: &Header) -> Edits {
         let mut edits = Edits {
             read_only_changed: self.values.get(HOSTS_KEY) != base.hosts().as_ref(),
@@ -232,14 +289,15 @@ impl Parsed {
             let emitted = field.emitted();
             if field.read_only() {
                 edits.read_only_changed |= external != Some(&emitted);
-            } else if let Some(external) = external.filter(|external| *external != &emitted)
-                && let Some(value) = field.decode(external).filter(|value| *value != field.value)
-            {
-                edits.fields.push(FieldEdit {
-                    slot: field.slot.clone(),
-                    expected: field.value.clone(),
-                    value,
-                });
+            } else if let Some(external) = external.filter(|external| *external != &emitted) {
+                let value = field.decode(external);
+                if value.as_ref() != Some(&field.value) {
+                    edits.fields.push(FieldEdit {
+                        slot: field.slot.clone(),
+                        expected: field.value.clone(),
+                        value,
+                    });
+                }
             }
         }
         edits
@@ -265,10 +323,6 @@ impl Parsed {
     }
 }
 
-fn sequence(values: impl IntoIterator<Item = String>) -> Value {
-    Value::Sequence(values.into_iter().map(Value::String).collect())
-}
-
 /// Write managed keys first. Check the resulting header before handing it to
 /// disk: an unmanaged key may now collide with a field, or refer to an anchor
 /// a regenerated managed key no longer defines.
@@ -277,7 +331,14 @@ pub fn render(
     header: &Header,
     extra: &str,
     body: &str,
-) -> Result<String, BrokenFrontmatter> {
+) -> Result<String, Unwritable> {
+    if let Some(key) = extra
+        .lines()
+        .filter_map(property_key)
+        .find(|key| header.owns(key))
+    {
+        return Err(Unwritable::KeyCollision(key));
+    }
     let mut fields = String::new();
     writeln!(fields, "{ID_KEY}: {}", yaml_string(id.as_str())).unwrap();
     for field in &header.fields {
@@ -311,18 +372,20 @@ pub fn render(
     Ok(result)
 }
 
+/// Fields project only scalars and lists of strings (`Field::emitted`).
 fn write_value(out: &mut String, key: &str, value: &Value) {
     match value {
-        Value::Null => writeln!(out, "{key}:").unwrap(),
-        Value::String(text) => writeln!(out, "{key}: {}", yaml_string(text)).unwrap(),
-        Value::Number(n) => writeln!(out, "{key}: {n}").unwrap(),
-        Value::Bool(b) => writeln!(out, "{key}: {b}").unwrap(),
-        Value::Sequence(values) => {
+        Value::Seq(values) => {
             let strings: Vec<_> = values.iter().filter_map(Value::as_str).collect();
             let inline = serde_json::to_string(&strings).expect("list of strings");
             writeln!(out, "{key}: {inline}").unwrap();
         }
-        _ => unreachable!("fields project only scalars and lists of strings"),
+        Value::Scalar { text, typed: false } => {
+            writeln!(out, "{key}: {}", yaml_string(text)).unwrap()
+        }
+        _ if value.is_null() => writeln!(out, "{key}:").unwrap(),
+        Value::Scalar { text, typed: true } => writeln!(out, "{key}: {text}").unwrap(),
+        Value::Map(_) => unreachable!("fields project no mappings"),
     }
 }
 
@@ -346,8 +409,9 @@ fn yaml_string(value: &str) -> Cow<'_, str> {
             .chars()
             .any(|c| c.is_control() || ":#{}[],\\\"'".contains(c))
         && !matches!(value, "---" | "...")
-        && serde_yaml_ng::from_str::<Value>(value)
+        && yaml::parse(value)
             .ok()
+            .flatten()
             .as_ref()
             .and_then(Value::as_str)
             == Some(value);
@@ -369,7 +433,7 @@ pub fn parse(raw: &str) -> Result<Parsed, BrokenFrontmatter> {
         return Ok(Parsed {
             id: None,
             body: text,
-            values: Mapping::new(),
+            values: Mapping::default(),
             properties: Vec::new(),
         });
     };
@@ -402,14 +466,16 @@ struct Property {
 }
 
 fn read_properties(raw: &str) -> Result<(Mapping, Vec<Property>), BrokenFrontmatter> {
-    let values = match serde_yaml_ng::from_str::<Value>(raw).map_err(|_| BrokenFrontmatter)? {
-        Value::Mapping(map) => map,
-        Value::Null
-            if raw
-                .lines()
-                .all(|line| line.trim().is_empty() || line.trim_start().starts_with('#')) =>
+    let values = match yaml::parse(raw).map_err(|_| BrokenFrontmatter)? {
+        Some(Value::Map(map)) => map,
+        None => Mapping::default(),
+        Some(value)
+            if value.is_null()
+                && raw
+                    .lines()
+                    .all(|line| line.trim().is_empty() || line.trim_start().starts_with('#')) =>
         {
-            Mapping::new()
+            Mapping::default()
         }
         _ => return Err(BrokenFrontmatter),
     };
@@ -431,7 +497,7 @@ fn read_properties(raw: &str) -> Result<(Mapping, Vec<Property>), BrokenFrontmat
     if !chunks
         .iter()
         .filter_map(|p| p.key.as_deref())
-        .eq(values.keys().map(|k| k.as_str().unwrap_or("")))
+        .eq(values.keys().map(|k| k.unwrap_or("")))
     {
         return Err(BrokenFrontmatter);
     }
@@ -461,8 +527,8 @@ fn property_key(line: &str) -> Option<String> {
     }
     let (colon, _) = chars
         .find(|&(i, c)| c == ':' && line[i + 1..].chars().next().is_none_or(char::is_whitespace))?;
-    match serde_yaml_ng::from_str::<Value>(line[..colon].trim_end()).ok()? {
-        Value::String(key) => Some(key),
-        _ => None,
-    }
+    yaml::parse(line[..colon].trim_end())
+        .ok()??
+        .as_str()
+        .map(str::to_owned)
 }

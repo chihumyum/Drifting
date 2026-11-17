@@ -533,9 +533,10 @@
   },
   "mirrorV5": {
     "duplicate": "有两个文件带着同一个 drifting-id。",
-    "fieldConflict": "这个字段也在 Drifting 里改过，两个版本都保留了。",
+    "fieldConflict": "有字段没能合入：它在 Drifting 里也改过，或者值的写法读不出来。保留了 Drifting 里的值，文件另存了一份。",
     "identity": "drifting-id 与条目或正文模块不符。",
     "intro": "每个项目都有一个 Markdown 文件夹。用其他编辑器修改里面的正文和字段，保存后会合回 Drifting。",
+    "keyCollision": "开头的属性里有一项和新加的字段同名，这个文件先不写回。改名或删掉其中一项后会接着同步。",
     "lineage": "条目或正文已恢复、换模板或删除，文件里的修改无法自动合入。",
     "malformedTable": "表格读不出来，原表留在 Drifting。",
     "moved": "改名、挪位置这一期不同步。",

@@ -542,9 +542,10 @@
   },
   "mirrorV5": {
     "duplicate": "Two files have the same drifting-id.",
-    "fieldConflict": "This field was also edited in Drifting. Both versions were kept.",
+    "fieldConflict": "A field could not be merged: it was also edited in Drifting, or its value could not be read. Drifting kept its value and saved a copy of the file.",
     "identity": "The drifting-id does not match this entry and prose module.",
     "intro": "Each project has a Markdown folder. Edits to prose and fields in another editor merge into Drifting after you save.",
+    "keyCollision": "A property at the top has the same name as a newly added field. Drifting will not write this file until one of them is renamed or removed.",
     "lineage": "The entry or prose has been restored, reshaped, or deleted. The file’s edits could not be merged.",
     "malformedTable": "The table could not be read. The original table is still in Drifting.",
     "moved": "Renaming and moving files do not sync in this version.",

@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use dr_export::Labels;
-use dr_mirror::file::{Header, parse, render};
+use dr_mirror::file::{Edits, Header, Unwritable, parse, render};
 use dr_model::id::{BodyDocId, BookId, EntryId, EntryTemplateId, ModuleId};
 use dr_model::v3::{EntryTemplate, FieldDef, FieldType as T, FieldValue as V, ModuleSpec};
 use dr_testkit::seed::BuilderV3;
@@ -27,6 +27,10 @@ fn list(xs: &[&str]) -> V {
 }
 
 fn fixture() -> (BodyDocId, Header) {
+    text_fixture("安娜回到钟楼。", "  她等到四点。\n钟停了。\n\n")
+}
+
+fn text_fixture(summary: &str, blurb: &str) -> (BodyDocId, Header) {
     let entry = EntryId::parse("rain").unwrap();
     let main = ModuleId::parse("properties").unwrap();
     let more = ModuleId::parse("other-properties").unwrap();
@@ -81,8 +85,8 @@ fn fixture() -> (BodyDocId, Header) {
             .entries()
             .create(&entry, None, "雨夜", Some(&template.id), false)?;
         for (field, value) in [
-            ("summary", text("安娜回到钟楼。")),
-            ("blurb", text("  她等到四点。\n钟停了。\n\n")),
+            ("summary", text(summary)),
+            ("blurb", text(blurb)),
             ("time", text("2026-11-16")),
             ("number", V::Number(1.25)),
             ("status", text("draft")),
@@ -172,27 +176,75 @@ aliases: ['她''的章', "第二个"]
 "#;
     let parsed = parse(altered).unwrap();
     let edits = parsed.edits(&header);
-    let changed: BTreeMap<_, _> = edits
-        .fields
-        .iter()
-        .map(|e| (e.slot.field.as_str(), (&e.expected, &e.value)))
-        .collect();
+    let changed = changes(&edits);
     assert_eq!(parsed.id.as_deref(), Some(id.as_str()));
-    assert_eq!(changed.len(), 7);
-    assert_eq!(changed["summary"], (&text("安娜回到钟楼。"), &V::Null));
-    assert_eq!(changed["number"].1, &V::Number(2.5));
-    assert_eq!(changed["status"].1, &text("finished"));
-    assert_eq!(changed["weather"].1, &list(&["晴"]));
-    assert_eq!(changed["flag"].1, &V::Bool(true));
-    assert_eq!(changed["alias"].1, &list(&["她'的章", "第二个"]));
-    assert_eq!(changed["empty"], (&V::Null, &text("新填的")));
+    assert_eq!(changed.len(), 8);
+    assert_eq!(changed["time"].1, None);
+    assert_eq!(
+        changed["summary"],
+        (&text("安娜回到钟楼。"), Some(&V::Null))
+    );
+    assert_eq!(changed["number"].1, Some(&V::Number(2.5)));
+    assert_eq!(changed["status"].1, Some(&text("finished")));
+    assert_eq!(changed["weather"].1, Some(&list(&["晴"])));
+    assert_eq!(changed["flag"].1, Some(&V::Bool(true)));
+    assert_eq!(changed["alias"].1, Some(&list(&["她'的章", "第二个"])));
+    assert_eq!(changed["empty"], (&V::Null, Some(&text("新填的"))));
     assert!(edits.read_only_changed);
 
     let label = altered.replace("写作状态: finished", "写作状态: 已完成");
     assert_eq!(parse(&label).unwrap().edits(&header), edits);
-    let invalid =
-        "---\n梗概: [bad]\n写作状态: 不知道\n次序: .inf\n已校对: 'false'\n天气: [未知]\n---\n";
-    assert!(parse(invalid).unwrap().edits(&header).fields.is_empty());
+}
+
+fn changes(edits: &Edits) -> BTreeMap<&str, (&V, Option<&V>)> {
+    edits
+        .fields
+        .iter()
+        .map(|e| (e.slot.field.as_str(), (&e.expected, e.value.as_ref())))
+        .collect()
+}
+
+#[test]
+fn other_editors_spellings_are_read_and_values_that_do_not_fit_are_refused() {
+    let (_, header) = fixture();
+    let spelled = "---\n梗概: 2026\n长备注: true\n日期: '2026-11-17'\n次序: \"3000\"\n写作状态: 已完成\n天气: 晴\n已校对: 'true'\naliases: 老王\n空着的: 1.50\n---\n";
+    let edits = parse(spelled).unwrap().edits(&header);
+    let changed = changes(&edits);
+    assert_eq!(changed.len(), 9, "{changed:?}");
+    assert_eq!(changed["summary"].1, Some(&text("2026")));
+    assert_eq!(changed["blurb"].1, Some(&text("true")));
+    assert_eq!(changed["time"].1, Some(&text("2026-11-17")));
+    assert_eq!(changed["number"].1, Some(&V::Number(3000.0)));
+    assert_eq!(changed["status"].1, Some(&text("finished")));
+    assert_eq!(changed["weather"].1, Some(&list(&["晴"])));
+    assert_eq!(changed["flag"].1, Some(&V::Bool(true)));
+    assert_eq!(changed["alias"].1, Some(&list(&["老王"])));
+    assert_eq!(changed["empty"].1, Some(&text("1.50")));
+
+    // Each of these is refused (an edit without a value), so the file is kept
+    // aside before the App's value is written back. The unchanged literal
+    // key is no edit.
+    let unfit = "---\n梗概: [bad]\n写作状态: 不知道\n次序: .inf\n已校对: yes\n天气: [未知]\naliases: [{a: b}]\n日期: 明天\n\"title: \\\"quoted\\\"\": \"true\"\n---\n";
+    let edits = parse(unfit).unwrap().edits(&header);
+    let changed = changes(&edits);
+    assert_eq!(
+        changed.keys().copied().collect::<Vec<_>>(),
+        [
+            "alias", "flag", "number", "status", "summary", "time", "weather"
+        ]
+    );
+    assert!(changed.values().all(|(_, value)| value.is_none()));
+    assert_eq!(changed["summary"].0, &text("安娜回到钟楼。"));
+    let empty = "---\n次序: ''\n已校对: \"\"\n---\n";
+    let empty_edits = parse(empty).unwrap().edits(&header);
+    let changed = changes(&empty_edits)
+        .into_iter()
+        .map(|(k, (_, v))| (k, v.cloned()))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        changed,
+        [("flag", Some(V::Null)), ("number", Some(V::Null))]
+    );
 }
 
 #[test]
@@ -209,7 +261,7 @@ fn other_editors_frontmatter_is_read_and_their_properties_are_kept() {
     let edits = parsed.edits(&header);
     assert_eq!(edits.fields.len(), 1);
     assert_eq!(edits.fields[0].slot.field, "blurb");
-    assert_eq!(edits.fields[0].value, text("一行 两行\n"));
+    assert_eq!(edits.fields[0].value, Some(text("一行 两行\n")));
 }
 
 #[test]
@@ -235,7 +287,39 @@ fn preserves_unmanaged_text_on_transitions_that_would_make_it_invalid() {
     let (id, header) = fixture();
     let anchor = "---\ndrifting-id: rain/body\n梗概: &summary 一句\nother: *summary\n---\n正文\n";
     let parsed = parse(anchor).unwrap();
-    assert!(render(&id, &header, &parsed.extra(&header), &parsed.body).is_err());
-    // A definition added in Drifting may now occupy a key formerly unmanaged.
-    assert!(render(&id, &header, "已校对: 外面作者的属性\n", "正文\n").is_err());
+    assert!(matches!(
+        render(&id, &header, &parsed.extra(&header), &parsed.body),
+        Err(Unwritable::Broken(_))
+    ));
+    // A definition added in Drifting may now occupy a key formerly unmanaged:
+    // a collision of its own, not a malformed header.
+    assert!(matches!(
+        render(&id, &header, "tags: [a]\n已校对: 外面作者的属性\n", "正文\n"),
+        Err(Unwritable::KeyCollision(key)) if key == "已校对"
+    ));
+    assert!(matches!(
+        render(&id, &header, "\"aliases\": [别处的名字]\n", "正文\n"),
+        Err(Unwritable::KeyCollision(key)) if key == "aliases"
+    ));
+}
+
+use proptest::prelude::*;
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(256))]
+    #[test]
+    fn text_fields_round_trip_through_yaml(
+        chars in prop::collection::vec(prop::sample::select(vec![
+            'a', '钟', ' ', '　', '\n', '\r', '\t', '\u{0085}', '\u{2028}', '\u{2029}',
+            ':', '#', '\\', '"', '\'', '[', ']', '{', '}', '&', '*', '?', '-', '1', '0',
+        ]), 0..64),
+    ) {
+        let text: String = chars.into_iter().collect();
+        let (id, header) = text_fixture(&text, &text);
+        let raw = render(&id, &header, "tags: [outside]\n", "正文\n").unwrap();
+        let parsed = parse(&raw).unwrap();
+        prop_assert!(parsed.edits(&header).fields.is_empty(), "{:?}", raw);
+        prop_assert_eq!(parsed.extra(&header), "tags: [outside]\n");
+        prop_assert_eq!(parsed.body, "正文\n");
+    }
 }
