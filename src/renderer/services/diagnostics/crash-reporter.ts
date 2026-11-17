@@ -405,7 +405,14 @@ export async function reportNativeCrashes(): Promise<void> {
       message: report.message,
       stack: report.backtrace,
       code: report.location || 'unknown-location',
-      context: { thread: report.thread, location: report.location, crashedVersion: report.appVersion },
+      context: {
+        thread: report.thread,
+        location: report.location,
+        crashedVersion: report.appVersion,
+        // The report goes out on a later launch; this is when it crashed.
+        ...(report.occurredAtMs > 0 ? { crashedAt: new Date(report.occurredAtMs).toISOString() } : {}),
+        ...(report.setupStep ? { setupStep: report.setupStep } : {}),
+      },
     });
   }
 }
