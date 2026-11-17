@@ -612,6 +612,7 @@ pub fn write(txn: &mut BookTxn<'_>, inp: &Inputs<'_>, notes: &mut Notes) -> Resu
     let generic = generic_relation_type_id(book);
     let colors = inp.settings.map(|s| &s.relation_type_colors);
     let mut keep_types = HashSet::new();
+    let mut built_in_types = HashSet::new();
     for t in &r.relation_types {
         let raw_kinds = |side: &str| -> Vec<&str> {
             r.endpoints
@@ -635,6 +636,7 @@ pub fn write(txn: &mut BookTxn<'_>, inp: &Inputs<'_>, notes: &mut Notes) -> Resu
         }
         if t.id == generic.as_str() || t.system_key.as_deref() == Some("generic-association") {
             notes.add("built-in-relation-type-dropped");
+            built_in_types.insert(t.id.as_str());
             continue;
         }
         let Some(tid) = id(RelationTypeId::parse, &t.id) else {
@@ -671,21 +673,40 @@ pub fn write(txn: &mut BookTxn<'_>, inp: &Inputs<'_>, notes: &mut Notes) -> Resu
         _ => None,
     };
     for rel in &r.relations {
-        let from_dropped = excluded(&rel.from_kind, &rel.from_id);
-        let to_dropped = excluded(&rel.to_kind, &rel.to_id);
-        for code in [
-            from_dropped,
-            to_dropped.filter(|code| Some(*code) != from_dropped),
-        ]
-        .into_iter()
-        .flatten()
-        {
+        // A relation that does not come over is counted once, by the first
+        // of its ends that cannot (its source end first); with two entries
+        // for ends, by its built-in type (`kernel-v5.md` §19 「导入 0.1」).
+        // Whether the built-in type's entry–entry relations should come over
+        // is the author's to decide; until then they stay out like the rest.
+        let dropped = excluded(&rel.from_kind, &rel.from_id)
+            .or_else(|| excluded(&rel.to_kind, &rel.to_id))
+            .or_else(|| {
+                built_in_types
+                    .contains(rel.relation_type.as_str())
+                    .then_some("relation-built-in-entries-dropped")
+            });
+        if let Some(code) = dropped {
             notes.add(code);
+            let end = |kind: &str, id: &str| serde_json::json!({ "kind": kind, "id": id });
+            originals.push((
+                "relations",
+                rel.id.clone(),
+                "dropped",
+                serde_json::json!({
+                    "reason": code,
+                    "relationType": rel.relation_type,
+                    "from": end(&rel.from_kind, &rel.from_id),
+                    "to": end(&rel.to_kind, &rel.to_id),
+                    "createdAt": rel.created_at,
+                })
+                .to_string(),
+            ));
+            continue;
         }
         let Some(tid) = id(RelationTypeId::parse, &rel.relation_type) else {
             continue;
         };
-        if !keep_types.contains(&tid) || from_dropped.is_some() || to_dropped.is_some() {
+        if !keep_types.contains(&tid) {
             continue;
         }
         let Some(rid) = id(RelationId::parse, &rel.id) else {

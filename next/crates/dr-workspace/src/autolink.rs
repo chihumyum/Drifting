@@ -404,55 +404,238 @@ fn link_written_with_v3(
     Ok(linked)
 }
 
-/// Plan links for a comment or a relation description without writing the
-/// book. Explicit entry links take precedence over all automatic matches.
-/// The owner of a comment is excluded, as for a prose document.
+/// The compiled names of `book` for [`plan_book_text`], for a writer
+/// without an open book (an import): build it once for a book's revision and
+/// plan every text of that revision with it. Open books use [`book_cache`].
+pub fn book_text_matcher(book: &dr_doc::v3::BookViewV3<'_>) -> LinkMatcher<LinkTarget> {
+    LinkMatcher::new(book_link_names_v3(book))
+}
+
+/// One link of a text being planned, and whether automatic links leave it
+/// alone.
+struct Planned {
+    link: dr_model::v3::EntryTextLink,
+    pinned: bool,
+}
+
+/// Where each character of `old` is in `new`, for the characters the edit
+/// left as they were. A text so long and so changed that the diff runs out
+/// of time counts as rewritten where the diff stopped looking.
+fn unchanged(old: &str, new: &str) -> Vec<Option<usize>> {
+    let old: Vec<char> = old.chars().collect();
+    let new: Vec<char> = new.chars().collect();
+    let mut at = vec![None; old.len()];
+    let deadline = std::time::Instant::now() + std::time::Duration::from_millis(100);
+    for op in
+        similar::capture_diff_slices_deadline(similar::Algorithm::Myers, &old, &new, Some(deadline))
+    {
+        if let similar::DiffOp::Equal {
+            old_index,
+            new_index,
+            len,
+        } = op
+        {
+            for (k, slot) in at[old_index..old_index + len].iter_mut().enumerate() {
+                *slot = Some(new_index + k);
+            }
+        }
+    }
+    at
+}
+
+/// `range` of the old text in the new one, when every character of it is
+/// unchanged and nothing was written between them.
+fn carried(at: &[Option<usize>], range: Range<usize>) -> Option<Range<usize>> {
+    let start = (*at.get(range.start)?)?;
+    for (k, i) in range.clone().enumerate() {
+        if *at.get(i)? != Some(start + k) {
+            return None;
+        }
+    }
+    Some(start..start + range.len())
+}
+
+/// Plan the links of a comment's or a relation description's text without
+/// writing the book (`kernel-v5.md` §19 「描述和批注里的链接」).
+///
+/// - `stored` is the text the draft replaces, as stored (`comment_body_raw`,
+///   `relation_type_raw`). Its writer read it with live links under their
+///   entries' titles and the links to entries in Recently Deleted as plain
+///   text. A link on a span the edit leaves unchanged (characters diffed
+///   against what the writer read) is carried over when its entry is in
+///   Recently Deleted: the writer could not see it, and it comes back with
+///   the entry. A plain-string draft (a writer that sends no links: the
+///   review panel's composer, an Agent) carries every link of an unchanged
+///   span. A draft with links states the visible ones itself, so a visible
+///   link it leaves out comes off.
+/// - The links the draft adds (picked with @: not the stored link of the
+///   same span) and those carried to entries in Recently Deleted stay as they
+///   are. The rest are automatic and follow the prose rule (module
+///   documentation): a shorter one lying inside a longer name gives way to
+///   it.
+/// - `names` is the book's compiled matcher ([`book_cache`],
+///   [`book_text_matcher`]), `None` when the text gets no automatic links. A
+///   comment never links the entry it is on (`owner`), as a prose document
+///   never links itself.
 pub fn plan_book_text(
     book: &dr_doc::v3::BookViewV3<'_>,
     owner: Option<&dr_model::id::EntryId>,
-    automatic: bool,
-    draft: &dr_model::v3::LinkedText,
+    names: Option<&LinkMatcher<LinkTarget>>,
+    stored: Option<&dr_model::v3::LinkedText>,
+    draft: &crate::dto::LinkedTextIn,
 ) -> crate::Result<dr_model::v3::LinkedText> {
     use dr_model::id::EntryId;
-    use dr_model::v3::EntryTextLink;
+    use dr_model::v3::{EntryTextLink, LinkedText};
 
+    let plain = matches!(draft, crate::dto::LinkedTextIn::Plain(_));
+    let draft = LinkedText::from(draft.clone());
     draft.validate()?;
-    let mut result = draft.remap_links(|id| (Some(id) != owner).then(|| id.clone()));
-    for link in &result.links {
+    let not_owner = |entry: &EntryId| Some(entry) != owner;
+    for link in &draft.links {
         if book.entry_raw(&link.entry).is_none() {
             return Err(crate::WsError::not_found("entry", link.entry.as_str()));
         }
     }
-    if !automatic || result.text.is_empty() {
-        return Ok(result);
-    }
-    let names = LinkMatcher::new(
-        book_link_names_v3(book)
-            .into_iter()
-            .filter(|n| owner.is_none_or(|id| n.target.id != id.as_str())),
-    );
-    let additions = plan(&result.text, &[], &names, 0..result.text.chars().count());
-    let explicit = result.links.len();
-    for edit in additions {
-        if let LinkEdit::Link { range, target } = edit
-            && !result.links[..explicit]
-                .iter()
-                .any(|link| link.start < range.end && range.start < link.end)
-            && let Ok(entry) = EntryId::parse(&target.id)
-        {
-            result.links.push(EntryTextLink {
+    let mut planned: Vec<Planned> = Vec::new();
+    let mut hidden_links = Vec::new();
+    let mut echoed = Vec::new();
+    if let Some(stored) = stored.filter(|s| !s.links.is_empty()) {
+        let mut hidden = std::collections::BTreeSet::new();
+        // What the writer read, with the hidden links still in it: an empty
+        // title keeps the stored spelling.
+        let read = stored.with_titles(|id| {
+            let entry = book.entry_raw(id)?;
+            if entry.deleted_at.is_some() {
+                hidden.insert(id.clone());
+                return Some(String::new());
+            }
+            Some(entry.title)
+        });
+        let at = unchanged(&read.text, &draft.text);
+        for link in read.links.iter().filter(|l| not_owner(&l.entry)) {
+            let Some(range) = carried(&at, link.range()) else {
+                continue;
+            };
+            let link = EntryTextLink {
                 start: range.start,
                 end: range.end,
-                entry,
-            });
+                entry: link.entry.clone(),
+            };
+            if hidden.contains(&link.entry) {
+                hidden_links.push(link);
+            } else if plain {
+                planned.push(Planned {
+                    link,
+                    pinned: false,
+                });
+            } else {
+                echoed.push(link);
+            }
         }
     }
-    result.links.sort_by_key(|link| link.start);
+    for link in draft.links.iter().filter(|l| not_owner(&l.entry)) {
+        planned.push(Planned {
+            pinned: !echoed.contains(link),
+            link: link.clone(),
+        });
+    }
+    for link in hidden_links {
+        if !planned
+            .iter()
+            .any(|p| p.link.start < link.end && link.start < p.link.end)
+        {
+            planned.push(Planned { link, pinned: true });
+        }
+    }
+    planned.sort_by_key(|p| p.link.start);
+    if let Some(full) = names.filter(|_| !draft.text.is_empty()) {
+        // The book's matcher, without the owner's names only when the text
+        // holds one: leftmost-longest matching finds the same names either
+        // way when none of the owner's is among them.
+        let own;
+        let names = match owner {
+            Some(owner)
+                if full
+                    .find(&draft.text)
+                    .iter()
+                    .any(|m| full.target(m).id == owner.as_str()) =>
+            {
+                own = LinkMatcher::new(
+                    full.names()
+                        .iter()
+                        .filter(|n| n.target.id != owner.as_str())
+                        .cloned(),
+                );
+                &own
+            }
+            _ => full,
+        };
+        let runs: Vec<LinkRun> = planned
+            .iter()
+            .map(|p| LinkRun {
+                range: p.link.range(),
+                target: p.link.entry.to_string(),
+            })
+            .collect();
+        let pinned: Vec<Range<usize>> = planned
+            .iter()
+            .filter(|p| p.pinned)
+            .map(|p| p.link.range())
+            .collect();
+        let mut pending = Vec::new();
+        for edit in plan(&draft.text, &runs, names, 0..draft.text.chars().count()) {
+            match edit {
+                LinkEdit::Unlink { range, target } => pending.push((range, target)),
+                LinkEdit::Link { range, target } => {
+                    let gone = std::mem::take(&mut pending);
+                    let Ok(entry) = EntryId::parse(&target.id) else {
+                        continue;
+                    };
+                    if pinned
+                        .iter()
+                        .any(|p| p.start < range.end && range.start < p.end)
+                    {
+                        continue;
+                    }
+                    planned.retain(|p| {
+                        !gone
+                            .iter()
+                            .any(|(r, t)| *r == p.link.range() && *t == p.link.entry.as_str())
+                    });
+                    // A split link of the same entry heals into one.
+                    let mut whole = range;
+                    planned.retain(|p| {
+                        let over = p.link.start < whole.end && whole.start < p.link.end;
+                        if over && p.link.entry == entry {
+                            whole = whole.start.min(p.link.start)..whole.end.max(p.link.end);
+                        }
+                        !over
+                    });
+                    planned.push(Planned {
+                        link: EntryTextLink {
+                            start: whole.start,
+                            end: whole.end,
+                            entry,
+                        },
+                        pinned: false,
+                    });
+                }
+            }
+        }
+        planned.sort_by_key(|p| p.link.start);
+    }
+    let result = LinkedText {
+        text: draft.text,
+        links: planned.into_iter().map(|p| p.link).collect(),
+    };
+    result.validate()?;
     Ok(result)
 }
 
 impl crate::Workspace {
-    /// The author's automatic-link setting applied to a draft of linked text.
+    /// The author's automatic-link setting applied to a draft of linked text
+    /// that replaces nothing (a new comment or description), with the book's
+    /// cached matcher. The draft's links are the author's own picks.
     pub fn plan_entry_text_links(
         &self,
         book: &dr_model::id::BookId,
@@ -460,6 +643,13 @@ impl crate::Workspace {
         draft: &dr_model::v3::LinkedText,
     ) -> crate::Result<dr_model::v3::LinkedText> {
         let slot = self.book_slot(book)?;
-        plan_book_text(&slot.reader_v3.view(), owner, self.auto_links(), draft)
+        let names = self.auto_links().then(|| book_cache(&slot).2);
+        plan_book_text(
+            &slot.reader_v3.view(),
+            owner,
+            names.as_deref(),
+            None,
+            &crate::dto::LinkedTextIn::Linked(draft.clone()),
+        )
     }
 }

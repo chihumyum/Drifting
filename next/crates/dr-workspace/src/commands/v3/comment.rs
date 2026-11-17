@@ -22,29 +22,38 @@ use dr_model::v3::{
 };
 use std::ops::Range;
 
+/// The links a comment's text gets (`autolink::plan_book_text`): `stored` is
+/// the body it replaces (`None` for a new comment).
 fn planned_body(
     cx: &Cx<'_>,
     slot: &BookSlot,
     target: Option<&EntityRef>,
-    body: LinkedTextIn,
+    stored: Option<&LinkedText>,
+    body: &LinkedTextIn,
 ) -> Result<LinkedText> {
     let owner = target
         .filter(|r| r.kind == EntityKind::Entry)
         .and_then(|r| EntryId::parse(&r.id).ok());
     let automatic = cx.workspace().auto_links()
         && (crate::autolink::links_for(cx.actor()) || matches!(cx.actor(), crate::Actor::User));
+    let names = automatic.then(|| crate::autolink::book_cache(slot).2);
     crate::autolink::plan_book_text(
         &slot.reader_v3.view(),
         owner.as_ref(),
-        automatic,
-        &body.into(),
+        names.as_deref(),
+        stored,
+        body,
     )
 }
 
-/// Copy the marks in the saved task suffix of a prose line. Only entry
-/// targets belong in a comment. The stable order resolves overlapping
-/// prose links, taking each character once.
-fn projected_body(
+/// The body of the comment projected from a checklist item or a TODO marker
+/// (`kernel-v5.md` §19): `task`, the end of prose line `line` (which starts
+/// at character `line_start` of its document), with the entry links `links`
+/// (character ranges of the document, in order) put on it, except those to
+/// `owner`, the entry whose prose it is. Overlapping prose links take each
+/// character once, in order. An import makes the same body from the line it
+/// brings over, so the first projection finds nothing to change.
+pub fn projected_body(
     line: &str,
     line_start: usize,
     task: &str,
@@ -596,7 +605,7 @@ op! {
             })?;
         }
         let id = CommentId::new_v7();
-        let body = planned_body(cx, &slot, target.as_ref(), input.body)?;
+        let body = planned_body(cx, &slot, target.as_ref(), None, &input.body)?;
         let (i2, an) = (id.clone(), input.author_name.clone());
         cx.write_book_v3(&slot, Replaces::nothing(), move |txn| {
             let w = txn.comment(&i2)?;
@@ -643,8 +652,9 @@ op! {
             }
             None
         } else {
-            input.body.clone()
-                .map(|draft| planned_body(cx, &slot, old.target.as_ref(), draft))
+            let stored = slot.reader_v3.view().comment_body_raw(&old.id);
+            input.body.as_ref()
+                .map(|draft| planned_body(cx, &slot, old.target.as_ref(), stored.as_ref(), draft))
                 .transpose()?
         };
         let editing_text = body.is_some();

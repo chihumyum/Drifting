@@ -503,13 +503,94 @@ fn apply_act_color_if_supported(
     Ok(())
 }
 
+/// The prose lines the projected comments of a converted book follow
+/// (checklist items and TODO marker lines), by body document and block:
+/// each line's text and start and the document's entry links over it. A
+/// projected comment takes its words and links from its line, not from its
+/// names (`kernel-v5.md` §19), with the rule `comment.project` uses
+/// ([`dr_workspace::commands::comment::projected_body`]), so the first
+/// projection after an import finds nothing to change.
+#[derive(Clone, Debug, Default)]
+pub struct ProjectedLines(BTreeMap<(String, BlockId), ProjectedLine>);
+
+#[derive(Clone, Debug)]
+struct ProjectedLine {
+    text: String,
+    start: usize,
+    links: Vec<(std::ops::Range<usize>, EntityLinkV3)>,
+}
+
+impl ProjectedLines {
+    /// The lines of body document `doc` (its final prose `view`) that a
+    /// comment can be projected from: every checklist item, and the lines
+    /// `marked` names (a TODO marker's).
+    pub fn add(
+        &mut self,
+        doc: &DocId,
+        view: &dr_doc::prose::ProseView<'_>,
+        marked: impl Fn(&BlockId) -> bool,
+    ) {
+        let mut links = None;
+        for p in view.paragraphs() {
+            let Some(block) = p.id.clone() else {
+                continue;
+            };
+            if p.attrs.list != Some(ListKind::Task) && !marked(&block) {
+                continue;
+            }
+            let all = links.get_or_insert_with(|| view.entity_links_v3());
+            let range = p.range.clone();
+            self.0.insert(
+                (doc.to_string(), block),
+                ProjectedLine {
+                    text: p.text(),
+                    start: range.start,
+                    links: all
+                        .iter()
+                        .filter(|(r, _)| r.start < range.end && range.start < r.end)
+                        .cloned()
+                        .collect(),
+                },
+            );
+        }
+    }
+
+    /// The body `comment.project` gives the comment of `kind` projected from
+    /// `block` of `doc`, the prose of entry `owner`. `task` is a marker's
+    /// words (a checklist item's are its line). `None` when the line is not
+    /// known.
+    fn body(
+        &self,
+        doc: &DocId,
+        block: &BlockId,
+        kind: &ProjectionKind,
+        task: &str,
+        owner: &str,
+    ) -> Option<LinkedText> {
+        let line = self.0.get(&(doc.to_string(), block.clone()))?;
+        let task = match kind {
+            ProjectionKind::NoteTask => line.text.trim(),
+            _ => task.trim(),
+        };
+        Some(dr_workspace::commands::comment::projected_body(
+            &line.text,
+            line.start,
+            task,
+            &line.links,
+            owner,
+        ))
+    }
+}
+
 /// Copy the source catalog. Anchors must already refer to the target prose
 /// documents (the importer writes there directly; sample conversion remakes
-/// anchors by resolving their exact source ranges).
+/// anchors by resolving their exact source ranges). `lines` are the lines
+/// its projected comments follow ([`ProjectedLines`]).
 pub fn sync_catalog(
     txn: &mut BookTxnV3<'_>,
     source: &BookView<'_>,
     choices: &MappingChoices,
+    lines: &ProjectedLines,
 ) -> Result<()> {
     let pending = choices.pending(source);
     if !pending.is_empty() {
@@ -1079,7 +1160,7 @@ pub fn sync_catalog(
             }
         }
     }
-    copy_rest(txn, source)?;
+    copy_rest(txn, source, choices, lines)?;
     Ok(())
 }
 
@@ -1093,7 +1174,12 @@ fn node_fields(
     Ok(())
 }
 
-fn copy_rest(txn: &mut BookTxnV3<'_>, source: &BookView<'_>) -> Result<()> {
+fn copy_rest(
+    txn: &mut BookTxnV3<'_>,
+    source: &BookView<'_>,
+    choices: &MappingChoices,
+    lines: &ProjectedLines,
+) -> Result<()> {
     let folders = source.material_folders();
     let materials = source.materials();
     let materials_by_id: BTreeMap<&str, &dr_model::import_v1::Material> =
@@ -1305,6 +1391,11 @@ fn copy_rest(txn: &mut BookTxnV3<'_>, source: &BookView<'_>) -> Result<()> {
             txn.patch(&patch.id)?.pos(&pos)?;
         }
     }
+    // Comments link names by one matcher for this revision of the book: its
+    // names do not change while the comments are written.
+    let names = choices
+        .auto_entity_links
+        .then(|| dr_workspace::autolink::book_text_matcher(&txn.view()));
     for comment in source.comments() {
         let origin = match &comment.projection {
             Some(p) => match &p.kind {
@@ -1331,12 +1422,30 @@ fn copy_rest(txn: &mut BookTxnV3<'_>, source: &BookView<'_>) -> Result<()> {
             },
             other => (other.as_ref().and_then(target_module), None),
         };
+        let mut line_body = None;
         let w = if let (Some(projection), Some(target)) = (&comment.projection, &comment.target) {
             let old = target_doc(target);
             let new = old
                 .as_ref()
                 .map(|id| prose_id(source.book_id(), id))
                 .ok_or_else(|| invalid("projected TODO without prose target"))?;
+            let owner = match &new {
+                DocId::Body(body) => body.entry().as_str(),
+                other => other.entity_id(),
+            };
+            // A projected comment follows its line: its links are the line's,
+            // or none when the line is not known (never its names).
+            line_body = Some(
+                lines
+                    .body(
+                        &new,
+                        &projection.block,
+                        &projection.kind,
+                        &comment.body,
+                        owner,
+                    )
+                    .unwrap_or_else(|| LinkedText::plain(comment.body.clone())),
+            );
             let (_, w) = txn.projected_todo(&projection.kind, &new, &projection.block)?;
             w
         } else {
@@ -1359,13 +1468,17 @@ fn copy_rest(txn: &mut BookTxnV3<'_>, source: &BookView<'_>) -> Result<()> {
             .as_ref()
             .filter(|t| t.kind == EntityKind::Entry)
             .and_then(|t| EntryId::parse(&t.id).ok());
-        let linked = dr_workspace::autolink::plan_book_text(
-            &txn.view(),
-            owner.as_ref(),
-            true,
-            &LinkedText::plain(comment.body),
-        )
-        .map_err(|error| invalid(error.to_string()))?;
+        let linked = match line_body {
+            Some(body) => body,
+            None => dr_workspace::autolink::plan_book_text(
+                &txn.view(),
+                owner.as_ref(),
+                names.as_ref(),
+                None,
+                &comment.body.into(),
+            )
+            .map_err(|error| invalid(error.to_string()))?,
+        };
         w.origin(&origin)?
             .target(mapped_comment_target.as_ref())?
             .module(module.as_ref())?

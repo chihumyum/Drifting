@@ -320,21 +320,30 @@ impl LegacyImport {
         cx: &mut Context<Self>,
     ) {
         self.window = Some(window.window_handle());
-        let original = cx
-            .try_global::<Services>()
-            .and_then(|s| s.library.as_ref())
-            .map(|ws| ws.library().paths().root.clone());
+        let library = cx.try_global::<Services>().and_then(|s| s.library.as_ref());
+        let original = library.map(|ws| ws.library().paths().root.clone());
+        // The author's 「自动要素链接」 decides whether names in the imported
+        // comments become links (`kernel-v5.md` §19).
+        let auto_entity_links = library.is_none_or(|ws| ws.auto_links());
         match original
             .ok_or_else(|| "no library is open".to_owned())
             .and_then(|old| Destination::prepare(&old, &picked))
         {
-            Ok(job) => {
+            Ok(mut job) => {
+                let explicit_choices = serde_json::to_value(&job.choices).ok()
+                    != serde_json::to_value(MappingChoices::default()).ok();
+                // An interrupted import refuses the change and carries on
+                // with the value it began with.
+                let choices = MappingChoices {
+                    auto_entity_links,
+                    ..job.choices.clone()
+                };
+                let _ = job.set_choices(choices);
                 self.state = State::Ready(Ready {
                     folder,
                     target: job.target(),
                     pending: Vec::new(),
-                    explicit_choices: serde_json::to_value(&job.choices).ok()
-                        != serde_json::to_value(MappingChoices::default()).ok(),
+                    explicit_choices,
                 });
                 self.destination = Some(job);
                 self.take_focus(window, cx);

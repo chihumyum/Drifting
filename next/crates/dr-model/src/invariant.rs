@@ -608,7 +608,7 @@ pub const INVARIANTS: &[Invariant] = &[
         "PROJECTED-TODO-ID",
         "从正文生成的批注（TODO: 标记、正文清单项）在每台设备上是同一个实体",
         [Structure],
-        "id 由（种类、文档 id、块 ID）算出：CommentId::for_projection；来源种类和块是正式字段 projection / projection_block；两台设备各自生成也只有一个，不需要去重。投出的内容（origin、目标、状态、任务文字 projection_text）是种子变更（BookTxnV3::project_todo）：两边投同一个标记只有一份正文，晚到的投影不会把已解决的重新打开",
+        "id 由（种类、文档 id、块 ID）算出：CommentId::for_projection；来源种类和块是正式字段 projection / projection_block；两台设备各自生成也只有一个，不需要去重。投出的内容（origin、目标、状态、任务文字 body）是种子变更（BookTxnV3::project_todo）：两边投同一个标记只有一份正文，晚到的投影不会把已解决的重新打开",
         [
             "projected_todos_are_one_entity_on_every_device",
             "derived_ids",

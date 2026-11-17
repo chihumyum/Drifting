@@ -403,7 +403,12 @@ pub fn pending(legacy: &Legacy, choices: &MappingChoices) -> Result<Vec<Pending>
         if choices.pending(&catalog.view()).is_empty() {
             let mut target = dr_doc::v3::BookDocV3::create(id, import_peer("v3-preflight-target"))?;
             let (r, _) = target.edit(Origin::Import, |t| {
-                dr_samples::v3::sync_catalog(t, &catalog.view(), choices)
+                dr_samples::v3::sync_catalog(
+                    t,
+                    &catalog.view(),
+                    choices,
+                    &dr_samples::v3::ProjectedLines::default(),
+                )
             });
             if let Err(error) = r {
                 pending.push(Pending {

@@ -6,8 +6,8 @@
 mod catalog;
 mod samples;
 pub use catalog::{
-    FileFolders, TEXT_MATERIALS_TAB, act_import_notes, file_folders, note_material_folder_ids,
-    side_documents, sync_catalog, validate,
+    FileFolders, ProjectedLines, TEXT_MATERIALS_TAB, act_import_notes, file_folders,
+    note_material_folder_ids, side_documents, sync_catalog, validate,
 };
 pub use samples::{SampleBookV3, a_q, convert, pride_and_prejudice, write_book};
 
@@ -21,11 +21,30 @@ use serde::{Deserialize, Serialize};
 /// Items 22 (act track), 23 (`未归属`) and 25 (relation-type endpoint kinds)
 /// all use settled product defaults (author decision, 2026-11-11). Optional
 /// `profile` remains available for developer/test resume-policy tags.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct MappingChoices {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub profile: Option<String>,
+    /// The author's `editor.auto_entity_links` when the import starts (on by
+    /// default): whether entry names in the comments brought over become
+    /// links (`kernel-v5.md` §19). Written only when off, so the default
+    /// keeps its mapping key; a resumed import keeps the value it began with.
+    #[serde(skip_serializing_if = "is_on")]
+    pub auto_entity_links: bool,
+}
+
+impl Default for MappingChoices {
+    fn default() -> Self {
+        Self {
+            profile: None,
+            auto_entity_links: true,
+        }
+    }
+}
+
+fn is_on(value: &bool) -> bool {
+    *value
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

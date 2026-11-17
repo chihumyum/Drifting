@@ -516,13 +516,17 @@ fn explain(key: &str) -> Option<&'static str> {
         "material-embed-dropped" => "素材嵌入找不到对应的素材，按空段落导入",
         "comment-priority-dropped" => "批注的优先级没有导入（批注不再分优先级）",
         "heading-level-clamped" | "indent-clamped" => "标题层级或缩进超出范围，已收进 H1–H3、0–8",
-        "built-in-relation-type-dropped" => "内置的「关联」类型及其关系没有导入",
-        "relation-image-end-dropped" => "端点为图片的关系没有导入",
-        "relation-pdf-end-dropped" => "端点为 PDF 的关系没有导入",
-        "relation-comment-end-dropped" => "端点为批注的关系没有导入",
-        "relation-todo-end-dropped" => "端点为待办的关系没有导入",
-        "relation-patch-end-dropped" => "端点为补丁的关系没有导入",
-        "relation-other-end-dropped" => "端点为其他素材的关系没有导入",
+        "built-in-relation-type-dropped" => "内置的「关联」类型没有导入",
+        // Each relation not brought over is counted once, under the first
+        // of its ends that cannot come (the source end first); each is in
+        // the receipt's originals (`relations`, `dropped`).
+        "relation-image-end-dropped" => "一头是图片的关系没有导入",
+        "relation-pdf-end-dropped" => "一头是 PDF 的关系没有导入",
+        "relation-comment-end-dropped" => "一头是批注的关系没有导入",
+        "relation-todo-end-dropped" => "一头是待办的关系没有导入",
+        "relation-patch-end-dropped" => "一头是补丁的关系没有导入",
+        "relation-other-end-dropped" => "一头是其他素材的关系没有导入",
+        "relation-built-in-entries-dropped" => "内置的「关联」下两头都是条目的关系没有导入",
         "act-binding-shared-idea-split" => {
             "同一个构想绑了多个幕：最早的一幕沿用该构想，其余各幕在「幕」下新建了同名条目"
         }

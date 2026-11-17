@@ -223,13 +223,19 @@ fn require_row(view: &BookViewV3<'_>, id: &RelationId) -> Result<RelationRow> {
         .ok_or_else(|| WsError::not_found("relation row", id.as_str()))
 }
 
-fn linked_description(cx: &Cx<'_>, slot: &BookSlot, text: LinkedTextIn) -> Result<LinkedText> {
-    crate::autolink::plan_book_text(
-        &slot.reader_v3.view(),
-        None,
-        cx.workspace().auto_links(),
-        &text.into(),
-    )
+/// The links a relation's description gets (`autolink::plan_book_text`):
+/// `stored` is the description it replaces (`None` for a new relation).
+fn linked_description(
+    cx: &Cx<'_>,
+    slot: &BookSlot,
+    stored: Option<&LinkedText>,
+    text: &LinkedTextIn,
+) -> Result<LinkedText> {
+    let names = cx
+        .workspace()
+        .auto_links()
+        .then(|| crate::autolink::book_cache(slot).2);
+    crate::autolink::plan_book_text(&slot.reader_v3.view(), None, names.as_deref(), stored, text)
 }
 
 op! {
@@ -239,7 +245,7 @@ op! {
         let slot = cx.book_v3(&input.book)?;
         let CreateTypeIn { name, description, direction, .. } = input;
         name_available(&slot.reader_v3.view(), &name, None)?;
-        let description = linked_description(cx, &slot, description)?;
+        let description = linked_description(cx, &slot, None, &description)?;
         let id = RelationTypeId::new_v7();
         let saved = id.clone();
         let book = input.book;
@@ -316,7 +322,8 @@ op! {
     fn(cx, input: DescriptionIn) -> Done {
         let slot = cx.book_v3(&input.book)?;
         let id = require_type(&slot.reader_v3.view(), &pid("relation type", &input.id)?)?.id;
-        let description = linked_description(cx, &slot, input.description)?;
+        let stored = slot.reader_v3.view().relation_type_raw(&id).map(|r| r.description);
+        let description = linked_description(cx, &slot, stored.as_ref(), &input.description)?;
         let saved = id.clone();
         let book = input.book;
         let (receipt, _) = cx.write_book_v3(&slot, Replaces::record(CollectionV3::RelationTypes, &id), move |txn| {
@@ -465,7 +472,7 @@ fn create_pair(cx: &Cx<'_>, input: PairIn) -> Result<Placed> {
         }
         (None, Some(d)) => {
             name_available(&view, &d.name, None)?;
-            let description = linked_description(cx, &slot, d.description)?;
+            let description = linked_description(cx, &slot, None, &d.description)?;
             (
                 RelationTypeId::new_v7(),
                 d.direction,
