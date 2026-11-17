@@ -16,9 +16,7 @@ use dr_shell::nav::Target;
 use dr_shell::{Services, SettingsFile, ShellInfo, Workspace as Shell};
 use dr_view_relations::rail::{RelationsRail, RowKey, open_rails};
 use dr_workspace::{Actor, Workspace};
-use gpui::{
-    AppContext as _, Entity, TestAppContext, VisualTestContext, WeakEntity, size, px,
-};
+use gpui::{Entity, TestAppContext, VisualTestContext, WeakEntity, px, size};
 use serde_json::{Value, json};
 
 fn call(ws: &Workspace, name: &str, input: Value) -> Value {
@@ -92,7 +90,11 @@ fn draw(cx: &mut VisualTestContext) {
     cx.run_until_parked();
 }
 
-fn wait_for(cx: &mut VisualTestContext, what: &str, mut done: impl FnMut(&mut VisualTestContext) -> bool) {
+fn wait_for(
+    cx: &mut VisualTestContext,
+    what: &str,
+    mut done: impl FnMut(&mut VisualTestContext) -> bool,
+) {
     let deadline = Instant::now() + Duration::from_secs(10);
     loop {
         cx.executor().advance_clock(Duration::from_millis(40));
@@ -110,7 +112,11 @@ fn wait_for(cx: &mut VisualTestContext, what: &str, mut done: impl FnMut(&mut Vi
 fn open(
     cx: &mut TestAppContext,
     e: &Env,
-) -> (Entity<RelationsRail>, VisualTestContext, Rc<std::cell::RefCell<Vec<String>>>) {
+) -> (
+    Entity<RelationsRail>,
+    VisualTestContext,
+    Rc<std::cell::RefCell<Vec<String>>>,
+) {
     init(cx, Services::default());
     let book = Rc::new(Book::load(&e.ws, &e.book).unwrap());
     let lib = e.ws.clone();
@@ -124,7 +130,9 @@ fn open(
     let opened = Rc::new(std::cell::RefCell::new(Vec::new()));
     let record = opened.clone();
     rail.update(&mut vcx, |r, _| {
-        r.set_open(Rc::new(move |id, _, _| record.borrow_mut().push(id.to_owned())))
+        r.set_open(Rc::new(move |id, _, _| {
+            record.borrow_mut().push(id.to_owned())
+        }))
     });
     settle(&rail, &mut vcx);
     (rail, vcx, opened)
@@ -175,9 +183,7 @@ fn a_name_is_changed_in_place_and_a_taken_one_is_refused(cx: &mut TestAppContext
     let id = rail.read_with(cx, |r, _| rail_relation(r, "RL 冤家").unwrap().id.clone());
 
     // A taken name: refused, the draft kept, 未能保存.
-    cx.update(|window, cx| {
-        rail.update(cx, |r, cx| r.start_rename(Some(id.clone()), window, cx))
-    });
+    cx.update(|window, cx| rail.update(cx, |r, cx| r.start_rename(Some(id.clone()), window, cx)));
     draw(cx);
     cx.simulate_input("RL 欺辱");
     cx.simulate_keystrokes("enter");
@@ -253,7 +259,11 @@ fn a_description_takes_an_entry_picked_with_at(cx: &mut TestAppContext) {
         "the @ list finds {title} by {first}: {items:?}"
     );
     // Picking it (a press here) puts the name there as a link.
-    let item = items.iter().find(|i| i.target.as_ref() == target).unwrap().clone();
+    let item = items
+        .iter()
+        .find(|i| i.target.as_ref() == target)
+        .unwrap()
+        .clone();
     cx.update(|window, cx| area.update(cx, |a, cx| a.pick(&item, window, cx)));
     draw(cx);
     // Enter saves (one paragraph).
@@ -275,10 +285,17 @@ fn a_description_takes_an_entry_picked_with_at(cx: &mut TestAppContext) {
     );
     assert!(rail.read_with(cx, |r, _| r.describe.is_none()));
 
-    // Shown with the link: a press on it opens the entry, not the editor.
+    // The display projection keeps the picked entry identity. Click routing
+    // is exercised by dr-ui/tests/linked.rs and the combined native smoke.
     rail.read_with(cx, |r, _| {
-        let shown = dr_view_relations::rail::shown_text(&rail_relation(r, "RL 本家").unwrap().description);
-        assert_eq!(dr_view_relations::rail::link_targets(&shown).into_iter().collect::<Vec<_>>(), vec![target.clone()]);
+        let shown =
+            dr_view_relations::rail::shown_text(&rail_relation(r, "RL 本家").unwrap().description);
+        assert_eq!(
+            dr_view_relations::rail::link_targets(&shown)
+                .into_iter()
+                .collect::<Vec<_>>(),
+            vec![target.clone()]
+        );
     });
     let _ = opened;
 
@@ -289,7 +306,11 @@ fn a_description_takes_an_entry_picked_with_at(cx: &mut TestAppContext) {
             rail_relation(r, "RL 本家").is_some_and(|x| x.description.links.is_empty())
         })
     });
-    call(&e.ws, "entry.restore", json!({"book": e.book, "id": target}));
+    call(
+        &e.ws,
+        "entry.restore",
+        json!({"book": e.book, "id": target}),
+    );
     wait_for(cx, "the link to come back", |cx| {
         rail.read_with(cx, |r, _| {
             rail_relation(r, "RL 本家").is_some_and(|x| x.description.links.len() == 1)
@@ -311,15 +332,16 @@ fn a_written_name_becomes_a_link_when_the_description_is_saved(cx: &mut TestAppC
         .find(|x| x.template.as_deref() == Some("tpl-character") && !x.title.trim().is_empty())
         .or_else(|| {
             v3.entries.iter().find(|x| {
-                x.template.as_deref().is_some_and(|t| t.starts_with("tpl-") && t != "tpl-chapter")
+                x.template
+                    .as_deref()
+                    .is_some_and(|t| t.starts_with("tpl-") && t != "tpl-chapter")
                     && !x.title.trim().is_empty()
                     && x.title.chars().count() >= 2
             })
         })
         .unwrap();
-    let plan = e
-        .ws
-        .plan_entry_text_links(
+    let plan =
+        e.ws.plan_entry_text_links(
             &e.book.parse().unwrap(),
             None,
             &dr_model::v3::LinkedText::plain(format!("给{}做工", element.title)),
@@ -360,19 +382,36 @@ fn a_new_row_is_written_once_both_sides_have_an_entry(cx: &mut TestAppContext) {
     rail.update(cx, |r, cx| r.add_entry(&key, RelationSide::Left, c, cx));
     rail.update(cx, |r, cx| r.add_entry(&key, RelationSide::Left, d, cx));
     draw(cx);
-    assert_eq!(relation(&e, "RL 求爱").unwrap()["rows"].as_array().unwrap().len(), 1);
-    // Both sides now: written, its first pair then the rest.
+    assert_eq!(
+        relation(&e, "RL 求爱").unwrap()["rows"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    // Both sides now: one explicit group, separate from the existing row.
     rail.update(cx, |r, cx| r.add_entry(&key, RelationSide::Right, b, cx));
     settle(&rail, cx);
     let rows = relation(&e, "RL 求爱").unwrap()["rows"].clone();
     assert!(rail.read_with(cx, |r, _| r.drafts().is_empty()));
-    // c → b lands in the row whose right is only b (the second step of
-    // the rule), so one row: a, c, d → b.
-    assert_eq!(rows.as_array().unwrap().len(), 1, "{rows}");
-    let left: Vec<&str> = rows[0]["left"].as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect();
-    for x in [a, c, d] {
-        assert!(left.contains(&x.as_str()), "{rows}");
-    }
+    assert_eq!(rows.as_array().unwrap().len(), 2, "{rows}");
+    let group = rows
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|row| row["left"].as_array().unwrap().len() == 2)
+        .unwrap();
+    let mut expected = vec![c.clone(), d.clone()];
+    expected.sort();
+    assert_eq!(group["left"], json!(expected));
+    assert_eq!(group["right"], json!([b]));
+    // All of the explicit group's pairs disappear in one undo, with the
+    // pre-existing a → b row intact.
+    e.ws.undo_in(&Actor::User, &e.book, None).unwrap().unwrap();
+    let rows = relation(&e, "RL 求爱").unwrap()["rows"].clone();
+    assert_eq!(rows.as_array().unwrap().len(), 1);
+    assert_eq!(rows[0]["left"], json!([a]));
+    assert_eq!(rows[0]["right"], json!([b]));
 }
 
 #[gpui::test]
@@ -380,7 +419,10 @@ fn names_go_out_of_a_row_and_the_last_row_takes_the_card(cx: &mut TestAppContext
     let e = env();
     let [a, b, c] = [&e.entries[0].0, &e.entries[1].0, &e.entries[2].0];
     pair(&e, a, b, "RL 住在", "directed");
-    let row = pair(&e, a, c, "RL 住在", "directed")["id"].as_str().unwrap().to_owned();
+    let row = pair(&e, a, c, "RL 住在", "directed")["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
     let (rail, mut cx, _) = open(cx, &e);
     let cx = &mut cx;
     let key = RowKey::Stored(row.clone());
@@ -395,7 +437,10 @@ fn names_go_out_of_a_row_and_the_last_row_takes_the_card(cx: &mut TestAppContext
     assert_eq!(relation(&e, "RL 住在").unwrap()["pair_count"], 2);
     rail.update(cx, |r, cx| r.delete_row(&key, cx));
     settle(&rail, cx);
-    assert!(relation(&e, "RL 住在").is_none(), "the last row took the relation");
+    assert!(
+        relation(&e, "RL 住在").is_none(),
+        "the last row took the relation"
+    );
     assert!(rail.read_with(cx, |r, _| {
         r.cards()
             .iter()
@@ -439,7 +484,12 @@ fn a_new_card_is_named_then_filled_and_an_empty_one_goes(cx: &mut TestAppContext
     assert_eq!(relation(&e, "RL 师徒").unwrap()["pair_count"], 1);
     // The newest card is on top.
     assert_eq!(
-        rail.read_with(cx, |r, _| r.cards()[0].relation.as_ref().unwrap().name.clone()),
+        rail.read_with(cx, |r, _| r.cards()[0]
+            .relation
+            .as_ref()
+            .unwrap()
+            .name
+            .clone()),
         "RL 师徒"
     );
 
@@ -499,17 +549,27 @@ fn current_keeps_the_rows_of_the_page_entry(cx: &mut TestAppContext) {
 fn the_row_under_the_pointer_is_offered_to_the_prose(cx: &mut TestAppContext) {
     let e = env();
     let [a, b] = [&e.entries[0].0, &e.entries[1].0];
-    let row = pair(&e, a, b, "RL 欺辱", "directed")["id"].as_str().unwrap().to_owned();
+    let row = pair(&e, a, b, "RL 欺辱", "directed")["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
     let (rail, mut cx, _) = open(cx, &e);
     let cx = &mut cx;
-    rail.update(cx, |r, cx| r.set_hover(Some(RowKey::Stored(row.clone())), cx));
-    let hot = cx.update(|_, cx| dr_shell::relations::rail_hover(cx)).unwrap();
+    rail.update(cx, |r, cx| {
+        r.set_hover(Some(RowKey::Stored(row.clone())), cx)
+    });
+    let hot = cx
+        .update(|_, cx| dr_shell::relations::rail_hover(cx))
+        .unwrap();
     assert_eq!(hot.row, row);
     assert_eq!(hot.name, "RL 欺辱");
     assert!(hot.directed);
     assert_eq!((hot.left, hot.right), (vec![a.clone()], vec![b.clone()]));
     rail.update(cx, |r, cx| r.set_hover(None, cx));
-    assert!(cx.update(|_, cx| dr_shell::relations::rail_hover(cx)).is_none());
+    assert!(
+        cx.update(|_, cx| dr_shell::relations::rail_hover(cx))
+            .is_none()
+    );
 }
 
 #[gpui::test]
@@ -538,7 +598,10 @@ fn a_write_from_elsewhere_shows_in_the_rail(cx: &mut TestAppContext) {
 fn reveal_relation_row_opens_the_rail_on_the_row(cx: &mut TestAppContext) {
     let e = env();
     let [a, b] = [&e.entries[0].0, &e.entries[1].0];
-    let row = pair(&e, a, b, "RL 冤家", "symmetric")["id"].as_str().unwrap().to_owned();
+    let row = pair(&e, a, b, "RL 冤家", "symmetric")["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
     init(
         cx,
         Services {
@@ -561,11 +624,349 @@ fn reveal_relation_row_opens_the_rail_on_the_row(cx: &mut TestAppContext) {
         )
     });
     wait_for(cx, "the rail on the row", |cx| {
-        let (open, tab) = shell.read_with(cx, |ws, _| (ws.right.open, ws.right.panes.focused_tab()));
+        let (open, tab) =
+            shell.read_with(cx, |ws, _| (ws.right.open, ws.right.panes.focused_tab()));
         open && tab == dr_shell::workspace::RightTab::Relations
-            && cx.update(|_, cx| open_rails(cx))
+            && cx
+                .update(|_, cx| open_rails(cx))
                 .iter()
-                .any(|r| r.read(cx).flashing() == Some(row.as_str()))
+                .any(|r| r.read_with(cx, |rail, _| rail.flashing() == Some(row.as_str())))
     });
-    assert!(cx.update(|_, cx| dr_shell::relations::pending_reveal(&e.book, cx)).is_none());
+    assert!(
+        cx.update(|_, cx| dr_shell::relations::pending_reveal(&e.book, cx))
+            .is_none()
+    );
+    let rail = cx
+        .update(|_, cx| open_rails(cx))
+        .into_iter()
+        .next()
+        .unwrap();
+    rail.update(cx, |r, cx| {
+        r.set_hover(Some(RowKey::Stored(row.clone())), cx)
+    });
+    assert!(
+        cx.update(|_, cx| dr_shell::relations::rail_hover(cx))
+            .is_some()
+    );
+    shell.update(cx, |ws, cx| {
+        ws.right.open = false;
+        cx.notify();
+    });
+    draw(cx);
+    assert!(
+        cx.update(|_, cx| dr_shell::relations::rail_hover(cx))
+            .is_none()
+    );
+    shell.update(cx, |ws, cx| {
+        ws.right.open = true;
+        cx.notify();
+    });
+    draw(cx);
+    rail.update(cx, |r, cx| r.set_hover(Some(RowKey::Stored(row)), cx));
+    shell.update(cx, |ws, cx| {
+        for pane in &mut ws.right.panes.panes {
+            pane.tab = dr_shell::workspace::RightTab::Review;
+        }
+        cx.notify();
+    });
+    draw(cx);
+    assert!(
+        cx.update(|_, cx| dr_shell::relations::rail_hover(cx))
+            .is_none()
+    );
+    // An old frame's callback cannot open the same synthetic id in a
+    // different library, nor can an old rail write back to the released one.
+    let stale_open = rail.update(cx, |r, cx| r.entry_opener(cx));
+    let other = env();
+    let before = shell.read_with(cx, |ws, _| ws.nav.current().cloned());
+    shell.update(cx, |ws, cx| {
+        ws.library = Some(other.ws.clone());
+        cx.notify();
+    });
+    cx.update(|window, cx| stale_open(a, window, cx));
+    assert_eq!(
+        shell.read_with(cx, |ws, _| ws.nav.current().cloned()),
+        before
+    );
+    let id = relation(&e, "RL 冤家").unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    rail.update(cx, |r, cx| r.toggle_direction(&id, cx));
+    draw(cx);
+    assert_eq!(relation(&e, "RL 冤家").unwrap()["direction"], "symmetric");
+}
+
+fn sync_book(from: &Workspace, to: &Workspace, book: &str) {
+    let doc = format!("book:{book}");
+    let bytes = from
+        .library()
+        .load_copy(&doc)
+        .unwrap()
+        .export(loro::ExportMode::all_updates())
+        .unwrap();
+    to.import_remote(&doc, Some(("book", book)), bytes, &Actor::Sync)
+        .unwrap();
+}
+
+#[gpui::test]
+fn a_rejected_group_keeps_every_member_and_retries_without_duplicate_submissions(
+    cx: &mut TestAppContext,
+) {
+    let e = env();
+    let [a, b, c] = [&e.entries[0].0, &e.entries[1].0, &e.entries[2].0];
+    pair(&e, a, b, "RL 草稿", "directed");
+    let (rail, mut cx, _) = open(cx, &e);
+    let cx = &mut cx;
+    let id = rail.read_with(cx, |r, _| rail_relation(r, "RL 草稿").unwrap().id.clone());
+    rail.update(cx, |r, cx| r.add_row(&id, cx));
+    let key = rail.read_with(cx, |r, _| RowKey::Draft(r.drafts()[0].key));
+    rail.update(cx, |r, cx| {
+        r.add_entry(&key, RelationSide::Left, a, cx);
+        r.add_entry(&key, RelationSide::Left, c, cx);
+        r.add_entry(&key, RelationSide::Right, b, cx);
+        // Neither repeated submit nor changing a submitted group can race it.
+        let RowKey::Draft(draft) = key else {
+            unreachable!()
+        };
+        r.retry_draft(draft, cx);
+        r.remove_entry(&key, a, cx);
+        r.delete_row(&key, cx);
+        assert!(r.drafts()[0].pending);
+        assert_eq!(r.drafts()[0].left, vec![a.clone(), c.clone()]);
+    });
+    wait_for(cx, "duplicate conflict", |cx| {
+        rail.read_with(cx, |r, _| r.drafts().first().is_some_and(|d| d.failed))
+    });
+    assert_eq!(relation(&e, "RL 草稿").unwrap()["pair_count"], 1);
+    assert_eq!(
+        rail.read_with(cx, |r, _| r.drafts()[0].right.clone()),
+        vec![b.clone()]
+    );
+    rail.update(cx, |r, cx| {
+        r.remove_entry(&key, a, cx);
+        let RowKey::Draft(key) = key else {
+            unreachable!()
+        };
+        r.retry_draft(key, cx);
+    });
+    settle(&rail, cx);
+    assert!(rail.read_with(cx, |r, _| r.drafts().is_empty()));
+    assert_eq!(relation(&e, "RL 草稿").unwrap()["pair_count"], 2);
+    e.ws.undo_in(&Actor::User, &e.book, None).unwrap().unwrap();
+    assert_eq!(relation(&e, "RL 草稿").unwrap()["pair_count"], 1);
+}
+
+#[gpui::test]
+fn remote_changes_refresh_labels_rows_and_clear_the_hover(cx: &mut TestAppContext) {
+    let e = env();
+    let [a, b] = [&e.entries[0].0, &e.entries[1].0];
+    let row = pair(&e, a, b, "RL 远端", "directed")["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let remote_dir = tempfile::tempdir().unwrap();
+    let remote = Workspace::open_dir(remote_dir.path(), "0.2.0-dev").unwrap();
+    sync_book(&e.ws, &remote, &e.book);
+    let (rail, mut cx, _) = open(cx, &e);
+    let cx = &mut cx;
+    rail.update(cx, |r, cx| {
+        r.set_hover(Some(RowKey::Stored(row.clone())), cx)
+    });
+    let id = relation(&e, "RL 远端").unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    call(
+        &remote,
+        "relation_type.rename",
+        json!({"book":e.book,"id":id,"name":"RL 远端改名"}),
+    );
+    call(
+        &remote,
+        "entry.update",
+        json!({"book":e.book,"id":b,"title":"RL 远端条目"}),
+    );
+    sync_book(&remote, &e.ws, &e.book);
+    wait_for(cx, "remote relation and entry names", |cx| {
+        rail.read_with(cx, |r, _| {
+            rail_relation(r, "RL 远端改名").is_some()
+                && r.entry_look(b).is_some_and(|e| e.title == "RL 远端条目")
+        })
+    });
+    assert_eq!(
+        cx.update(|_, cx| dr_shell::relations::rail_hover(cx))
+            .unwrap()
+            .name,
+        "RL 远端改名"
+    );
+    call(
+        &remote,
+        "relation_row.delete",
+        json!({"book":e.book,"id":row}),
+    );
+    sync_book(&remote, &e.ws, &e.book);
+    wait_for(cx, "remote deletion clears hover", |cx| {
+        cx.update(|_, cx| dr_shell::relations::rail_hover(cx))
+            .is_none()
+    });
+    assert!(rail.read_with(cx, |r, _| rail_relation(r, "RL 远端改名").is_none()));
+}
+
+#[gpui::test]
+fn switching_books_discards_old_callbacks_and_hover(cx: &mut TestAppContext) {
+    let e = env();
+    let row = pair(&e, &e.entries[0].0, &e.entries[1].0, "RL 换书", "directed")["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let other = call(&e.ws, "project.create", json!({"name":"RL 另一书"}))["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let (rail, mut cx, _) = open(cx, &e);
+    let cx = &mut cx;
+    let book = Rc::new(Book::load(&e.ws, &other).unwrap());
+    cx.update(|window, cx| {
+        rail.update(cx, |r, cx| {
+            r.set_hover(Some(RowKey::Stored(row)), cx);
+            r.new_card(window, cx);
+            r.rename
+                .as_ref()
+                .unwrap()
+                .field
+                .update(cx, |f, cx| f.set_text("RL 旧书异步", cx));
+            r.commit_rename(window, cx);
+            r.set_book(book, cx);
+            r.new_card(window, cx);
+            r.rename
+                .as_ref()
+                .unwrap()
+                .field
+                .update(cx, |f, cx| f.set_text("RL 新书草稿", cx));
+        })
+    });
+    wait_for(cx, "old write complete", |_| {
+        relation(&e, "RL 旧书异步").is_some()
+    });
+    settle(&rail, cx);
+    assert!(
+        cx.update(|_, cx| dr_shell::relations::rail_hover(cx))
+            .is_none()
+    );
+    assert_eq!(
+        rail.read_with(cx, |r, cx| r.rename.as_ref().unwrap().field.read(cx).text()),
+        "RL 新书草稿"
+    );
+    assert_eq!(rail.read_with(cx, |r, _| r.book().id.clone()), other);
+    assert!(rail.read_with(cx, |r, _| rail_relation(r, "RL 旧书异步").is_none()));
+}
+
+#[gpui::test]
+fn current_tracks_entry_links_from_the_pages_prose(cx: &mut TestAppContext) {
+    let e = env();
+    let doc =
+        e.ws.library()
+            .docs(Some(&e.book), None)
+            .unwrap()
+            .into_iter()
+            .find(|d| d.kind == "body")
+            .unwrap()
+            .doc_id;
+    let dr_model::DocId::Body(body) = doc.parse().unwrap() else {
+        unreachable!()
+    };
+    let a = body.entry().to_string();
+    let refs = e.ws.library().references_from_entry(&a).unwrap();
+    let others: Vec<_> = e
+        .entries
+        .iter()
+        .filter(|(id, _)| id != &a && !refs.iter().any(|r| &r.target_id == id))
+        .take(2)
+        .map(|(id, _)| id.clone())
+        .collect();
+    let [b, c] = [&others[0], &others[1]];
+    pair(&e, b, c, "RL 正文链接", "directed");
+    let (rail, mut cx, _) = open(cx, &e);
+    let cx = &mut cx;
+    rail.update(cx, |r, cx| {
+        r.set_front(
+            Some(Target::Entry {
+                id: a.parse().unwrap(),
+                module: None,
+            }),
+            cx,
+        );
+        r.set_current_only(true, cx);
+    });
+    wait_for(cx, "initial page set", |cx| {
+        rail.read_with(cx, |r, _| r.page.is_some())
+    });
+    assert!(!rail.read_with(cx, |r, _| {
+        r.cards()
+            .iter()
+            .any(|r| r.relation.as_ref().is_some_and(|r| r.name == "RL 正文链接"))
+    }));
+    let session = e.ws.prose_session(&doc).unwrap();
+    let reader = session.reader();
+    let anchor = reader.view().anchor(0..1).unwrap().encode();
+    call(
+        &e.ws,
+        "prose.link",
+        json!({"links":[{"doc":doc,"anchors":[dr_workspace::dto::AnchorBytes::from(&anchor)],"target":{"kind":"entry","id":b}}]}),
+    );
+    wait_for(cx, "page link index refresh", |cx| {
+        rail.read_with(cx, |r, _| {
+            r.cards()
+                .iter()
+                .any(|r| r.relation.as_ref().is_some_and(|r| r.name == "RL 正文链接"))
+        })
+    });
+}
+
+#[gpui::test]
+fn current_whole_book_scope_follows_attached_entries(cx: &mut TestAppContext) {
+    let e = env();
+    let host = dr_testkit::seed::acceptance::novel_entry(
+        &e.ws,
+        &e.book,
+        "tpl-storyline",
+        "RL 收纳范围",
+        None,
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let [a, b] = [&e.entries[0].0, &e.entries[1].0];
+    pair(&e, a, b, "RL 收纳关系", "directed");
+    let (rail, mut cx, _) = open(cx, &e);
+    let cx = &mut cx;
+    rail.update(cx, |r, cx| {
+        r.set_front(Some(Target::Book(host.parse().unwrap())), cx);
+        r.set_current_only(true, cx);
+    });
+    wait_for(cx, "whole book scope", |cx| {
+        rail.read_with(cx, |r, _| r.page.is_some())
+    });
+    assert!(!rail.read_with(cx, |r, _| {
+        r.cards()
+            .iter()
+            .any(|r| r.relation.as_ref().is_some_and(|r| r.name == "RL 收纳关系"))
+    }));
+    call(
+        &e.ws,
+        "membership.add",
+        json!({"book":e.book,"host":host,"member":a}),
+    );
+    wait_for(
+        cx,
+        "attached entry visible in whole-book current scope",
+        |cx| {
+            rail.read_with(cx, |r, _| {
+                r.cards()
+                    .iter()
+                    .any(|r| r.relation.as_ref().is_some_and(|r| r.name == "RL 收纳关系"))
+            })
+        },
+    );
 }

@@ -82,6 +82,7 @@ prose.shape [read] Shape of a prose document: paragraphs, sentences, the share o
 prose.unlink [write] Take links to entities off anchored ranges of prose documents (anchors, not positions: the undo of automatic links). Link targets may be entries or asset-library files (kind = "asset"). Read the full prose document first.
 recent.list [read] List this device's live pages, retaining each entry's selected module.
 relation_row.add_entry [write] Add a live entry to one side of a row. Every new pair must be unique within the relation.
+relation_row.create_group [write] Create one exact relation row from two nonempty disjoint live-entry sets, in one undo step. Refuse stale direction or any pair already in another row.
 relation_row.create_pair [write] Relate two distinct live entries. Reuse a matching row or start a new one. Return the row ID, with no write if the pair already exists.
 relation_row.delete [write] Delete a row. Removing the last row also removes the relation.
 relation_row.remove_entry [write] Remove an entry from a row. An empty side removes the row; removing the last row also removes the relation.
@@ -184,6 +185,7 @@ prose.shape shared 05387f9196c7c9346e7d57241e24f4648686980238fcd7030d508724784b9
 prose.unlink book 2647f19489c612a2909a603328f14636ad6e6b870a1334359ceea5798256f3fd
 recent.list shared bc76196f15de079012bdd643cac937fc642bb0303bc43e622f34d7d7ac85cdee
 relation_row.add_entry book 9768857751c01fdb8f58f2a04efb14adb257336415b6eda5b480c15e54d7484d
+relation_row.create_group book 1be96244a1422816f6da3fe8a28ed5c5a2df057943d7461c5143fbf5cad6f9e0
 relation_row.create_pair book 7aad3e7a51a802dff94fab1ea61b7683fe96537bbab4d2ee8b291f78110ffaee
 relation_row.delete book 9ad2e3e7fa7aa5f2b440e5d6855efbd2a8cd07cd8f700a87fb7ddc4fe7bf61ec
 relation_row.remove_entry book da6615d43ed54680b2c774c53425cc74ced8530b55974f3143802633a0283cdb

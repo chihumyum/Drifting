@@ -113,6 +113,7 @@ prose.unlink                 command  book     Take links to entities off anchor
 recent.list                  query    shared   List this device's live pages, retaining each entry's selected module.
 recent.touch                 command  book     Record an entry and optional module on this device without an undo step.
 relation_row.add_entry       command  book     Add a live entry to one side of a row. Every new pair must be unique within the relation.
+relation_row.create_group    command  book     Create one exact relation row from two nonempty disjoint live-entry sets, in one undo step. Refuse stale direction or any pair already in another row.
 relation_row.create_pair     command  book     Relate two distinct live entries. Reuse a matching row or start a new one. Return the row ID, with no write if the pair already exists.
 relation_row.delete          command  book     Delete a row. Removing the last row also removes the relation.
 relation_row.remove_entry    command  book     Remove an entry from a row. An empty side removes the row; removing the last row also removes the relation.

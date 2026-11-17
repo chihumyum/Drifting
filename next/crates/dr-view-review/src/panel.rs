@@ -41,6 +41,7 @@ use dr_ui::components::{
 use dr_ui::fonts::Role;
 use dr_ui::glass::{self, Ground, Kind, Mode, Spec, Tone};
 use dr_ui::input::{FieldEvent, TextArea};
+use dr_ui::linked::{LinkedArea, LinkedEvent};
 use dr_ui::sand::{self, Icon, KindMark};
 use dr_ui::style::DrStyled;
 use dr_ui::tokens::{Easing, menu as menu_tokens, motion, radius};
@@ -93,7 +94,7 @@ pub struct ReviewView {
     reveal: Option<Reveal>,
     reveal_serial: u64,
     scroll: ScrollHandle,
-    editing: Option<(String, Entity<TextArea>, Subscription)>,
+    editing: Option<(String, Entity<LinkedArea>, Subscription)>,
     agent_flyout: Option<AgentSubFlyout>,
     writing: HashSet<String>,
     in_flight: Vec<futures::future::Shared<futures::channel::oneshot::Receiver<()>>>,
@@ -682,27 +683,43 @@ impl ReviewView {
         let Some(item) = self.items.iter().find(|i| i.id == id) else {
             return;
         };
-        if item.origin == "task" {
+        if matches!(item.origin.as_str(), "task" | "marker") {
             return;
         }
-        let body = item.body.text.clone();
+        let body = crate::linked::draft(&item.body);
+        let Some(lib) = self.lib.clone() else {
+            return;
+        };
+        let excluded = item
+            .target
+            .as_ref()
+            .filter(|t| t.kind == "entry")
+            .map(|t| t.id.clone());
+        let candidates = crate::linked::candidates(lib, self.book.clone(), excluded);
         let placeholder = self
             .i18n
             .t(keys::review_panel::COMMENT_PLACEHOLDER)
             .to_owned();
         let field_id = ElementId::Name(format!("{}-edit-{id}", self.id).into());
         let field = cx.new(|cx| {
-            TextArea::new(field_id, window, cx)
-                .placeholder(placeholder)
-                .with_text(body)
+            LinkedArea::new(
+                field_id,
+                body,
+                candidates,
+                |a| a.placeholder(placeholder),
+                window,
+                cx,
+            )
         });
         let comment = id.to_owned();
         let sub = cx.subscribe_in(
             &field,
             window,
-            move |this, _, e: &FieldEvent, _, cx| match e {
-                FieldEvent::Submitted(text) => this.finish_edit(&comment, Some(text.clone()), cx),
-                FieldEvent::Cancelled => this.finish_edit(&comment, None, cx),
+            move |this, field, e: &LinkedEvent, _, cx| match e {
+                LinkedEvent::Submitted => {
+                    this.finish_edit(&comment, Some(field.read(cx).text()), cx)
+                }
+                LinkedEvent::Cancelled => this.finish_edit(&comment, None, cx),
                 _ => {}
             },
         );
@@ -720,7 +737,20 @@ impl ReviewView {
         }
         if let Some(text) = text {
             let mut input = self.update_in(id);
-            input.body = Some(text.into());
+            let mut draft = self
+                .editing
+                .as_ref()
+                .filter(|(editing, _, _)| editing == id)
+                .map(|(_, field, _)| field.read(cx).draft().clone())
+                .or_else(|| {
+                    self.items
+                        .iter()
+                        .find(|item| item.id == id)
+                        .map(|item| crate::linked::draft(&item.body))
+                })
+                .unwrap_or_default();
+            draft.changed(&text);
+            input.body = Some(crate::linked::input(&draft));
             self.write_v3(
                 id.to_owned(),
                 "comment.update",
@@ -1442,8 +1472,8 @@ impl ReviewView {
                         .text_color(p.ink(1).solid())
                         // The writing rules for a line's start and end (「：」
                         // and 「。」 never open a line), as everywhere else.
-                        .child(dr_ui::text::wrapped(text))
-                        .when(!is_task, |d| {
+                        .child(self.linked_body(item, id("linked-body"), text))
+                        .when(!is_task && item.origin != "marker", |d| {
                             d.on_click(move |e: &ClickEvent, window, cx| {
                                 if e.click_count() >= 2 {
                                     entity.update(cx, |this, cx| this.edit(&comment, window, cx));
@@ -1532,6 +1562,32 @@ impl ReviewView {
         hc.into_any_element()
     }
 
+    fn linked_body(
+        &self,
+        item: &CommentInfo,
+        id: ElementId,
+        fallback: SharedString,
+    ) -> impl IntoElement + use<> {
+        let draft = if item.body.text.trim().is_empty() {
+            dr_ui::linked::Draft::plain(fallback.to_string())
+        } else {
+            crate::linked::draft(&item.body)
+        };
+        let open = self.v3.as_ref().map(|s| s.open.clone());
+        dr_ui::linked::linked(id, draft).on_open(move |entry, window, cx| {
+            if let Some(open) = &open {
+                open(
+                    crate::v3::Target::Entry {
+                        id: entry.to_string(),
+                        module: None,
+                    },
+                    window,
+                    cx,
+                );
+            }
+        })
+    }
+
     fn task_row(
         &self,
         item: &CommentInfo,
@@ -1575,7 +1631,7 @@ impl ReviewView {
                     .type_px(s.secondary, s.line_body)
                     .text_color(if done { p.ink(3) } else { p.ink(1) }.solid())
                     .when(done, |d| d.line_through())
-                    .child(text),
+                    .child(self.linked_body(item, id("linked-body"), text)),
             );
         if can_jump {
             let (entity, comment) = (entity.clone(), comment.clone());
@@ -1804,6 +1860,7 @@ impl ReviewView {
                 entity.clone(),
                 card_comment.clone(),
                 is_task,
+                is_marker,
                 done,
                 has_conversation,
                 readonly,
@@ -2326,6 +2383,7 @@ fn source_card(
     view: Entity<ReviewView>,
     comment: String,
     is_task: bool,
+    is_marker: bool,
     done: bool,
     has_conversation: bool,
     readonly: bool,
@@ -2358,7 +2416,7 @@ fn source_card(
     let p = theme.palette;
     let s = theme.scale;
 
-    if !is_task {
+    if !is_task && !is_marker {
         let (v1, c1) = (view.clone(), comment.clone());
         body = body.section(vec![
             CardAction::new(rid("edit"), Icon::Edit, labels.edit.clone())

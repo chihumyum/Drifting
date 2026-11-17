@@ -8,6 +8,7 @@ publish.workspace = true
 description = "Drifting's relation graph legend and the right sidebar's relations"
 
 [dependencies]
+dr-doc.workspace = true
 dr-i18n.workspace = true
 dr-model.workspace = true
 dr-shell.workspace = true
@@ -21,5 +22,6 @@ log.workspace = true
 [dev-dependencies]
 dr-testkit.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
+loro.workspace = true
 serde_json.workspace = true
 tempfile.workspace = true

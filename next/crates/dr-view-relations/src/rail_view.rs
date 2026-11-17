@@ -6,7 +6,9 @@ use dr_model::v3::{RelationDirection, RelationSide};
 use dr_shell::strings::{t, tf, tp};
 use dr_ui::{
     Theme, anim,
-    components::{Button, Layer, Menu, MenuItem, PanelIconButton, Place, RowIcon, ScopeToggle, float},
+    components::{
+        Button, Layer, Menu, MenuItem, PanelIconButton, Place, RowIcon, ScopeToggle, float,
+    },
     fonts::{Role, weight},
     glass::{self, Kind, Mode, Spec, Tone},
     linked,
@@ -168,21 +170,17 @@ impl RelationsRail {
             .relation
             .as_ref()
             .map_or(RelationDirection::Directed, |r| r.direction);
-        let mut body = div().flex().flex_col().gap(px(4.0)).child(self.card_head(&card, hovered, window, cx));
+        let mut body = div()
+            .flex()
+            .flex_col()
+            .gap(px(4.0))
+            .child(self.card_head(&card, hovered, window, cx));
         if let Some(desc) = self.card_description(&card, hovered, window, cx) {
             body = body.child(desc);
         }
         for row in &card.rows {
             let key = RowKey::Stored(row.id.clone());
-            body = body.child(self.row(
-                &card,
-                key,
-                &row.left,
-                &row.right,
-                direction,
-                window,
-                cx,
-            ));
+            body = body.child(self.row(&card, key, &row.left, &row.right, direction, window, cx));
         }
         for d in &card.drafts {
             body = body.child(self.draft_row(&card, d, direction, window, cx));
@@ -292,7 +290,14 @@ impl RelationsRail {
         .justify_center()
         .font_role(Role::Index)
         .type_px(15.0, 26.0)
-        .text_color(if relation.is_some() { p.ink(2) } else { p.ink(3) }.solid())
+        .text_color(
+            if relation.is_some() {
+                p.ink(2)
+            } else {
+                p.ink(3)
+            }
+            .solid(),
+        )
         .role(gpui::Role::Button)
         .aria_label(t(cx, keys::v5_relations::DIRECTION))
         .when(relation.is_some(), |d| d.cursor_pointer())
@@ -344,7 +349,9 @@ impl RelationsRail {
             .flex()
             .flex_col()
             .child(head)
-            .when(failed, |d| d.child(self.save_failed(&key, "name", window, cx)))
+            .when(failed, |d| {
+                d.child(self.save_failed(&key, "name", window, cx))
+            })
             .into_any_element()
     }
 
@@ -440,7 +447,7 @@ impl RelationsRail {
                     .into_any_element(),
             );
         }
-        let open = self.open.clone();
+        let open = self.entry_opener(cx);
         Some(
             div()
                 .id(id("description"))
@@ -476,7 +483,11 @@ impl RelationsRail {
     ) -> AnyElement {
         let theme = Theme::of(window, cx);
         let p = theme.palette;
-        let rel = card.relation.as_ref().map(|r| r.id.clone()).unwrap_or_default();
+        let rel = card
+            .relation
+            .as_ref()
+            .map(|r| r.id.clone())
+            .unwrap_or_default();
         let slug = match &key {
             RowKey::Stored(id) => id.clone(),
             RowKey::Draft(k) => format!("draft-{k}"),
@@ -492,7 +503,10 @@ impl RelationsRail {
         if let Some(t) = flash {
             anim::keep_going(t < 1.0, window);
         }
-        let side = |members: &[String], side: RelationSide, window: &mut Window, cx: &mut Context<Self>| {
+        let side = |members: &[String],
+                    side: RelationSide,
+                    window: &mut Window,
+                    cx: &mut Context<Self>| {
             let mut el = div()
                 .flex_1()
                 .min_w_0()
@@ -595,15 +609,39 @@ impl RelationsRail {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        self.row(
-            card,
-            RowKey::Draft(d.key),
-            &d.left,
-            &d.right,
-            direction,
-            window,
-            cx,
-        )
+        let key = d.key;
+        div()
+            .flex()
+            .flex_col()
+            .child(self.row(
+                card,
+                RowKey::Draft(key),
+                &d.left,
+                &d.right,
+                direction,
+                window,
+                cx,
+            ))
+            .when(d.failed, |el| {
+                el.child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap_2()
+                        .text_color(Theme::of(window, cx).palette.danger.solid())
+                        .child(t(cx, keys::k4_pages::SAVE_FAILED))
+                        .child(
+                            Button::new(
+                                ElementId::Name(format!("relations-draft-{key}-retry").into()),
+                                t(cx, keys::markdown_share::RETRY),
+                            )
+                            .small()
+                            .text()
+                            .on_click(cx.listener(move |rail, _, _, cx| rail.retry_draft(key, cx))),
+                        ),
+                )
+            })
+            .into_any_element()
     }
 
     /// One name in a row: its entry's mark and title, opening it; × after
@@ -619,11 +657,12 @@ impl RelationsRail {
     ) -> AnyElement {
         let theme = Theme::of(window, cx);
         let p = theme.palette;
-        let id = |part: &str| ElementId::Name(format!("relations-row-{slug}-{entry}-{part}").into());
+        let id =
+            |part: &str| ElementId::Name(format!("relations-row-{slug}-{entry}-{part}").into());
         let Some(look) = self.entry_look(entry) else {
             return div().into_any_element();
         };
-        let open = self.open.clone();
+        let open = self.entry_opener(cx);
         let target = entry.to_owned();
         let remove_row = row.clone();
         let remove_entry = entry.to_owned();
@@ -696,7 +735,9 @@ impl RelationsRail {
         };
         let (row, relation) = (row.clone(), relation.to_owned());
         div()
-            .id(ElementId::Name(format!("relations-row-{slug}-add-{which}").into()))
+            .id(ElementId::Name(
+                format!("relations-row-{slug}-add-{which}").into(),
+            ))
             .size(px(20.0))
             .rounded_full()
             .flex()
@@ -763,7 +804,10 @@ impl RelationsRail {
                 None => row,
             });
         }
-        let menu = Menu::new("relations-pick").exactly(220.0).child(field).child(list);
+        let menu = Menu::new("relations-pick")
+            .exactly(220.0)
+            .child(field)
+            .child(list);
         Some(
             float(
                 Place::below(picker.anchor, 6.0),

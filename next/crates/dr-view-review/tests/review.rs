@@ -1235,3 +1235,113 @@ fn a_full_stop_never_opens_a_line_in_a_card(cx: &mut TestAppContext) {
         "a full stop took a row of its own after {grew:?} characters"
     );
 }
+
+#[gpui::test]
+fn review_at_links_exclude_the_owner_and_survive_editing_rename_and_trash(cx: &mut TestAppContext) {
+    cx.update(|cx| cx.bind_keys(dr_ui::input::bindings()));
+    let dir = tempfile::tempdir().unwrap();
+    let ws = Workspace::open_dir(dir.path(), "review-at").unwrap();
+    let seed = dr_testkit::seed::generate_v3(
+        dr_testkit::seed::Preset::Tiny,
+        dr_testkit::seed::DEFAULT_SEED,
+    )
+    .unwrap();
+    let book = seed.books[0].book_id().to_string();
+    let entries: Vec<_> = seed.books[0]
+        .book
+        .view()
+        .entries()
+        .into_iter()
+        .filter(|e| e.parent.is_some() && !e.title.is_empty())
+        .take(2)
+        .collect();
+    let (owner, target) = (&entries[0], &entries[1]);
+    seed.write_to(ws.library()).unwrap();
+    let e = Env {
+        _dir: dir,
+        ws,
+        book,
+    };
+    let id = out(
+        &e.ws,
+        "comment.create",
+        json!({"book":e.book,
+        "target":{"kind":"entry","id":owner.id},"body":""}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let (view, _, cx) = open_tab(cx, &e, None);
+    cx.update(|window, _| window.activate_window());
+    assert!(wait_for(cx, |cx| view.read_with(cx, |v, _| v.is_loaded())));
+    let mut revealed = view.update(cx, |v, cx| v.reveal_comment(&e.book, &id, cx));
+    assert!(wait_for(cx, |cx| {
+        redraw(cx);
+        revealed.try_recv().unwrap_or(None) == Some(true)
+    }));
+    cx.update(|window, cx| view.update(cx, |v, cx| v.edit(&id, window, cx)));
+    redraw(cx);
+    // Titles may contain a full-width space; search by its first word,
+    // then pick the complete label from the candidate list.
+    cx.simulate_input(&format!(
+        "@{}",
+        target.title.split_whitespace().next().unwrap()
+    ));
+    redraw(cx);
+    cx.simulate_keystrokes("enter");
+    redraw(cx);
+    cx.simulate_keystrokes("cmd-enter");
+    assert!(
+        wait_for(cx, |_| listed(&e)
+            .iter()
+            .any(|c| c["id"] == id && c["body"]["text"] == target.title)),
+        "target={:?}, stored={:?}, editor={:?}",
+        target.title,
+        listed(&e).into_iter().find(|c| c["id"] == id),
+        view.read_with(cx, |v, _| v.editing_id().map(str::to_owned))
+    );
+    let body = || listed(&e).into_iter().find(|c| c["id"] == id).unwrap()["body"].clone();
+    assert_eq!(
+        body()["links"],
+        json!([{"start":0,"end":target.title.chars().count(),"entry":target.id}])
+    );
+    // Renaming projects a current label, without losing identity.
+    out(
+        &e.ws,
+        "entry.update",
+        json!({"book":e.book,"id":target.id,"title":"RL 链接新名"}),
+    );
+    assert!(wait_for(cx, |cx| view.read_with(cx, |v, _| v
+        .v3_snapshot()
+        .unwrap()
+        .items
+        .iter()
+        .any(
+            |i| i.comment.id.as_str() == id && i.comment.body.text == "RL 链接新名"
+        ))));
+    cx.update(|window, cx| view.update(cx, |v, cx| v.edit(&id, window, cx)));
+    redraw(cx);
+    cx.simulate_keystrokes("cmd-left");
+    cx.simulate_input("前 ");
+    cx.simulate_keystrokes("cmd-enter");
+    assert!(wait_for(cx, |_| body()["text"] == "前 RL 链接新名"));
+    assert_eq!(body()["links"][0]["start"], 2);
+    out(&e.ws, "entry.trash", json!({"book":e.book,"id":target.id}));
+    assert!(body()["links"].as_array().unwrap().is_empty());
+    out(
+        &e.ws,
+        "entry.restore",
+        json!({"book":e.book,"id":target.id}),
+    );
+    assert_eq!(body()["links"][0]["entry"], json!(target.id));
+
+    // @ on the owner remains literal text; Enter does not pick the owner.
+    cx.update(|window, cx| view.update(cx, |v, cx| v.edit(&id, window, cx)));
+    redraw(cx);
+    cx.simulate_keystrokes("cmd-a");
+    cx.simulate_input(&format!("@{}", owner.title));
+    redraw(cx);
+    cx.simulate_keystrokes("cmd-enter");
+    assert!(wait_for(cx, |_| body()["text"] == format!("@{}", owner.title)));
+    assert!(body()["links"].as_array().unwrap().is_empty());
+}
