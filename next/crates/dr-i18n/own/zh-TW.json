@@ -129,6 +129,16 @@
   "positionLink": {
     "copied": "已複製位置連結"
   },
+  "projectAgent": {
+    "cardActionLabel": "{{title}}，{{action}}",
+    "errorConnection": "連不上模型",
+    "errorContextCapacity": "最近的變更太多，一次看不完",
+    "errorInvalidResponse": "無法讀取模型的回覆",
+    "errorCardUnavailable": "這張卡已經不在了",
+    "errorDisabled": "主動建議已關閉",
+    "errorBusy": "另一張卡正在啟動",
+    "errorOther": "發生錯誤"
+  },
   "projectHome": {
     "projectTemplate": {
       "book": "成書",

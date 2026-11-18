@@ -628,9 +628,17 @@
     "title": "Bienvenido a Drifting Alpha"
   },
   "projectAgent": {
+    "cardActionLabel": "{{title}}, {{action}}",
     "checkinFailed": "No se terminó de leer tus cambios recientes: {{error}}",
     "checkinRunning": "Agent está leyendo tus cambios recientes…",
     "dismiss": "Descartar",
+    "errorBusy": "Se está abriendo otra tarjeta",
+    "errorCardUnavailable": "Esta tarjeta ya no está disponible",
+    "errorConnection": "No se pudo conectar con el modelo",
+    "errorContextCapacity": "Hay demasiados cambios recientes para leerlos de una vez",
+    "errorDisabled": "Las sugerencias proactivas están desactivadas",
+    "errorInvalidResponse": "No se pudo leer la respuesta del modelo",
+    "errorOther": "Se produjo un error",
     "openConversation": "Abrir conversación",
     "start": "Encargar a Agent",
     "startFailed": "No se pudo iniciar: {{error}}"

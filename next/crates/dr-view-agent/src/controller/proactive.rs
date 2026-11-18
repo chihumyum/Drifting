@@ -4,22 +4,44 @@ use super::*;
 use dr_agent::{Cancellation, RunConfig, proactive::*};
 use dr_model::id::new_uuid_v7;
 
-/// What a check-in whose model request did not complete keeps as its error
-/// (Project Home words it with an existing key, HC).
-pub const CHECKIN_REQUEST_FAILED: &str = "suggestion request did not complete";
-
 #[derive(Clone, Debug)]
 pub struct Suggestions {
     pub state: ProactiveState,
     pub enabled: bool,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum SuggestionActivity {
+    Checking,
+    Starting,
+    Other,
+}
+
+#[derive(Clone, Debug, thiserror::Error)]
+pub enum SuggestionStartError {
+    #[error("suggestion is no longer available")]
+    CardUnavailable,
+    #[error("proactive suggestions are disabled")]
+    Disabled,
+    #[error("suggestion operation already running")]
+    Busy,
+    #[error("{0}")]
+    Other(String),
+}
+
+impl From<String> for SuggestionStartError {
+    fn from(message: String) -> Self {
+        Self::Other(message)
+    }
+}
+
 /// A running suggestion operation as the service holds it. `cancel` reaches
 /// the model request, which also cancels it on its own failures; `stopped`
 /// is set only when the author stops it (主动建议 off, or the service
 /// closing), so a stop is told apart from a failure (HC).
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub(super) struct SuggestionStop {
+    activity: SuggestionActivity,
     cancel: Cancellation,
     stopped: Cancellation,
 }
@@ -51,6 +73,17 @@ impl Job {
     fn stopped(&self) -> bool {
         self.stopped.is_cancelled()
     }
+
+    fn can_start(&self) -> Result<(), SuggestionStartError> {
+        let state = self.controller.inner.state.lock().expect("Agent service");
+        if state.resources.is_none() {
+            return Err(closed().into());
+        }
+        if self.stopped() || !state.proactive_enabled {
+            return Err(SuggestionStartError::Disabled);
+        }
+        Ok(())
+    }
 }
 impl Drop for Job {
     fn drop(&mut self) {
@@ -65,10 +98,10 @@ impl Drop for Job {
     }
 }
 
-fn background<T: Send + 'static>(
-    job: Result<Job, String>,
-    run: impl FnOnce(&Job) -> Result<T, String> + Send + 'static,
-) -> BoxFuture<'static, Result<T, String>> {
+fn background<T: Send + 'static, E: From<String> + Send + 'static>(
+    job: Result<Job, E>,
+    run: impl FnOnce(&Job) -> Result<T, E> + Send + 'static,
+) -> BoxFuture<'static, Result<T, E>> {
     let job = match job {
         Ok(job) => job,
         Err(error) => return async move { Err(error) }.boxed(),
@@ -156,15 +189,29 @@ impl AgentController {
         drop(state);
         self.inner.notify();
     }
-    fn suggestion_job(&self, book: BookId) -> Result<Job, String> {
+    fn suggestion_job(
+        &self,
+        book: BookId,
+        activity: SuggestionActivity,
+    ) -> Result<Job, SuggestionStartError> {
         let mut state = self.inner.state.lock().expect("Agent service");
         let resources = state.resources.as_ref().ok_or_else(closed)?.clone();
-        if state.suggestion_jobs.contains_key(&book) {
-            return Err("suggestion operation already running".into());
+        if let Some(running) = state.suggestion_jobs.get(&book) {
+            return Err(if running.activity == SuggestionActivity::Starting {
+                SuggestionStartError::Busy
+            } else {
+                "suggestion operation already running".to_owned().into()
+            });
         }
-        let stop = SuggestionStop::default();
+        let stop = SuggestionStop {
+            activity,
+            cancel: Cancellation::default(),
+            stopped: Cancellation::default(),
+        };
         state.suggestion_jobs.insert(book.clone(), stop.clone());
         resources.reads.enter();
+        drop(state);
+        self.inner.notify();
         Ok(Job {
             controller: self.clone(),
             lease: ReadLease {
@@ -175,6 +222,16 @@ impl AgentController {
             cancel: stop.cancel,
             stopped: stop.stopped,
         })
+    }
+
+    pub(crate) fn suggestion_activity(&self, book: &BookId) -> Option<SuggestionActivity> {
+        self.inner
+            .state
+            .lock()
+            .expect("Agent service")
+            .suggestion_jobs
+            .get(book)
+            .map(|job| job.activity)
     }
 
     /// Local read only. It never changes cooldown or dispatches a model.
@@ -200,7 +257,13 @@ impl AgentController {
         config: Option<RunConfig>,
         now_ms: i64,
     ) -> BoxFuture<'static, Result<(), String>> {
-        background(self.suggestion_job(book), move |job| {
+        let activity = if config.is_some() {
+            SuggestionActivity::Checking
+        } else {
+            SuggestionActivity::Other
+        };
+        let job = self.suggestion_job(book, activity).map_err(string);
+        background(job, move |job| {
             if !job.allowed() {
                 return Ok(());
             }
@@ -312,9 +375,6 @@ impl AgentController {
             else {
                 return Ok(());
             };
-            // Views re-read the state: a check-in is under way (Project
-            // Home's 「Agent 正在看你最近的改动……」, HC).
-            job.controller.inner.notify();
             let result = futures::executor::block_on(run_checkin_with_guidance(
                 job.lease.resources().driver.clone(),
                 CheckinInput {
@@ -343,9 +403,8 @@ impl AgentController {
                     ProactiveStore::cancel_checkin(lib, book, &ticket, state.last_attempt_ms)
                         .map_err(string)?;
                 }
-                Err(_) => {
-                    ProactiveStore::fail_checkin(lib, book, &ticket, CHECKIN_REQUEST_FAILED)
-                        .map_err(string)?;
+                Err(reason) => {
+                    ProactiveStore::fail_checkin(lib, book, &ticket, reason).map_err(string)?;
                 }
             }
             Ok(())
@@ -380,10 +439,15 @@ impl AgentController {
         book: BookId,
         card: String,
     ) -> BoxFuture<'static, Result<(), String>> {
-        background(self.suggestion_job(book), move |job| {
-            ProactiveStore::dismiss_card(job.ws().library(), &job.book, &card).map_err(string)?;
-            Ok(())
-        })
+        background(
+            self.suggestion_job(book, SuggestionActivity::Other)
+                .map_err(string),
+            move |job| {
+                ProactiveStore::dismiss_card(job.ws().library(), &job.book, &card)
+                    .map_err(string)?;
+                Ok(())
+            },
+        )
     }
 
     pub fn open_suggestion(
@@ -392,11 +456,10 @@ impl AgentController {
         card: String,
         config: RunConfig,
         _now_ms: i64,
-    ) -> BoxFuture<'static, Result<ConversationId, String>> {
-        background(self.suggestion_job(book), move |job| {
-            if !job.allowed() {
-                return Err("proactive suggestions are disabled".into());
-            }
+    ) -> BoxFuture<'static, Result<ConversationId, SuggestionStartError>> {
+        let job = self.suggestion_job(book, SuggestionActivity::Starting);
+        background(job, move |job| {
+            job.can_start()?;
             let ws = job.ws();
             let lib = ws.library();
             let book = &job.book;
@@ -405,22 +468,27 @@ impl AgentController {
             if let Some(stored) = state.cards.iter().find(|c| c.card.id == card)
                 && let CardStatus::Started { conversation } = &stored.status
             {
-                return ConversationId::parse(conversation).map_err(string);
+                return ConversationId::parse(conversation)
+                    .map_err(|error| SuggestionStartError::Other(error.to_string()));
             }
-            let claim = ProactiveStore::claim_card(lib, book, &card, &new_uuid_v7(), job.allowed())
-                .map_err(string)?
-                .ok_or("suggestion is no longer available")?;
-            let conversation = ConversationId::new_v7();
-            let started = if job.allowed() {
-                job.controller.start(Start {
-                    book: book.clone(),
-                    conversation: conversation.clone(),
-                    config,
-                    input: claim.card.instruction.clone(),
-                })
-            } else {
-                Err("suggestions disabled".into())
+            let Some(claim) =
+                ProactiveStore::claim_card(lib, book, &card, &new_uuid_v7(), job.allowed())
+                    .map_err(string)?
+            else {
+                job.can_start()?;
+                return Err(SuggestionStartError::CardUnavailable);
             };
+            let conversation = ConversationId::new_v7();
+            let started = job.can_start().and_then(|()| {
+                job.controller
+                    .start(Start {
+                        book: book.clone(),
+                        conversation: conversation.clone(),
+                        config,
+                        input: claim.card.instruction.clone(),
+                    })
+                    .map_err(Into::into)
+            });
             ProactiveStore::settle_card(
                 lib,
                 book,

@@ -136,6 +136,16 @@
   "positionLink": {
     "copied": "Positionslink kopiert"
   },
+  "projectAgent": {
+    "cardActionLabel": "{{title}}, {{action}}",
+    "errorConnection": "Verbindung zum Modell fehlgeschlagen",
+    "errorContextCapacity": "Zu viele Änderungen, um sie auf einmal zu lesen",
+    "errorInvalidResponse": "Die Antwort des Modells konnte nicht gelesen werden",
+    "errorCardUnavailable": "Diese Karte ist nicht mehr verfügbar",
+    "errorDisabled": "Proaktive Vorschläge sind deaktiviert",
+    "errorBusy": "Eine andere Karte wird gerade geöffnet",
+    "errorOther": "Ein Fehler ist aufgetreten"
+  },
   "projectHome": {
     "projectTemplate": {
       "book": "Manuskript",

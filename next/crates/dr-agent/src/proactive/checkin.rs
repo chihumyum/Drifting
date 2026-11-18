@@ -8,10 +8,10 @@ use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-use super::{CardTarget, ChangedDocument, CheckinMode};
+use super::{CardTarget, ChangedDocument, CheckinFailure, CheckinMode};
 use crate::{
-    Cancellation, Driver, DriverEvent, DriverRequest, Error, FinishReason, RequestPurpose, Result,
-    RunConfig, Usage,
+    Cancellation, Driver, DriverEvent, DriverRequest, Error, FinishReason, ModelErrorCategory,
+    RequestPurpose, Result, RunConfig, Usage,
 };
 
 pub const CHECKIN_MAX_CARDS: usize = 4;
@@ -194,7 +194,7 @@ pub async fn run_checkin(
     driver: Arc<dyn Driver>,
     input: CheckinInput,
     cancel: Cancellation,
-) -> Result<CheckinOutcome> {
+) -> std::result::Result<CheckinOutcome, CheckinFailure> {
     run_checkin_with_guidance(driver, input, cancel, None).await
 }
 
@@ -205,11 +205,12 @@ pub async fn run_checkin_with_guidance(
     input: CheckinInput,
     cancel: Cancellation,
     structure: Option<crate::context::Contribution>,
-) -> Result<CheckinOutcome> {
+) -> std::result::Result<CheckinOutcome, CheckinFailure> {
+    use CheckinFailure::{Connection, ContextCapacity, InvalidResponse, Other};
     if cancel.is_cancelled() {
-        return Err(Error::Closed);
+        return Err(Other);
     }
-    dr_model::id::check_id(&input.attempt_id).map_err(|e| Error::Protocol(e.to_string()))?;
+    dr_model::id::check_id(&input.attempt_id).map_err(|_| Other)?;
     let mut config = (*input.config).clone();
     config.system_prompt = format!(
         "{}\n\n{}\nResponse schema: {}",
@@ -229,7 +230,8 @@ pub async fn run_checkin_with_guidance(
             "open_comments":input.context.open_comments.iter().take(20).collect::<Vec<_>>(),
             "project_memory":input.context.project_memory.iter().map(|m|json!({"id":m.id,"body":m.body})).collect::<Vec<_>>(),
             "working_memory":input.context.working_memory,
-        }))?;
+        }))
+        .map_err(|_| Other)?;
         // Counted like a chat request (`context`): the same window, room
         // for the answer and estimate.
         let window = crate::context::context_window(&config);
@@ -238,9 +240,7 @@ pub async fn run_checkin_with_guidance(
             + crate::context::estimate_text_tokens(&config.system_prompt)
             + 1024;
         if required > window.saturating_sub(reserve).saturating_sub(window / 10) {
-            return Err(Error::Protocol(
-                "context_capacity: book guidance does not fit; no suggestion request sent".into(),
-            ));
+            return Err(ContextCapacity);
         }
         context
     } else {
@@ -272,29 +272,31 @@ pub async fn run_checkin_with_guidance(
             continue;
         }
         let result = match event {
-            Err(e) => Err(e),
-            Ok(_) if finished => Err(Error::Protocol("event after check-in terminal".into())),
+            Err(Error::Provider(error)) => Err(match error.category {
+                ModelErrorCategory::Network => Connection,
+                ModelErrorCategory::InvalidResponse => InvalidResponse,
+                _ => Other,
+            }),
+            Err(Error::Json(_) | Error::Protocol(_)) => Err(InvalidResponse),
+            Err(_) => Err(Other),
+            Ok(_) if finished => Err(InvalidResponse),
             Ok(DriverEvent::TextDelta { text, .. }) => {
                 if response.len().saturating_add(text.len()) > 64 * 1024 {
-                    Err(Error::Protocol("suggestion response is too large".into()))
+                    Err(InvalidResponse)
                 } else {
                     response.push_str(&text);
                     Ok(())
                 }
             }
-            Ok(DriverEvent::ToolCall(_)) => {
-                Err(Error::Protocol("suggestions cannot call tools".into()))
-            }
-            Ok(DriverEvent::ProviderTool { .. }) => {
-                Err(Error::Protocol("check-in attempted provider search".into()))
-            }
             Ok(DriverEvent::Finish(FinishReason::Complete)) => {
                 finished = true;
                 Ok(())
             }
-            Ok(DriverEvent::Finish(_)) => {
-                Err(Error::Protocol("check-in attempted a tool round".into()))
-            }
+            Ok(
+                DriverEvent::ToolCall(_)
+                | DriverEvent::ProviderTool { .. }
+                | DriverEvent::Finish(_),
+            ) => Err(InvalidResponse),
             Ok(DriverEvent::Usage(value)) => {
                 usage = value;
                 Ok(())
@@ -311,16 +313,17 @@ pub async fn run_checkin_with_guidance(
         return Err(error);
     }
     if cancel.is_cancelled() {
-        return Err(Error::Closed);
+        return Err(Other);
     }
     if !finished {
-        return Err(Error::Protocol("check-in ended without terminal".into()));
+        return Err(InvalidResponse);
     }
     Ok(CheckinOutcome {
         cards: parse_checkin_cards(
-            &serde_json::from_str::<Value>(&response)?,
+            &serde_json::from_str::<Value>(&response).map_err(|_| InvalidResponse)?,
             &input.context.documents,
-        )?,
+        )
+        .map_err(|_| InvalidResponse)?,
         documents: input.context.documents.len(),
         usage,
     })

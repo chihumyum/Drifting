@@ -24,23 +24,23 @@
 - 打开项目落在作品主页（或关掉最后一个标签、点项目主页、窗口回到前台而主页在前面）时，Agent 看一眼最近的改动；同一个项目在同一台电脑上 90 分钟最多一次，「主动建议」关着或没连模型时什么都不跑。看完的卡排在主页「继续写」下面、新建那一行上面，两列，一张卡一格，没有小标题、不能收起。开着、没开成书的项目一样；编辑模板的工作区里不出卡、不看。
 - 正在看时卡上面一行转圈的记号加「Agent 正在看你最近的改动……」，上一次的卡照旧摆着，看完再换；没看成时一行「没能看完最近的改动：…」，卡照旧。看完没卡、关着、没连模型时这一处什么都不画。
 - 主页只摆最近一次看完的那几张卡（最多四张，点过的也在、写「查看对话」）；以前那几次点过的卡，新的一次看完以后主页上就不摆了，存储里照旧留着（存储最多 12 张，没改）。原型没画，2026-11-17 审阅修补时按「这一次看完再换」「Started 的卡留着」最保守地定的，等作者看。
-- 正在看时卡和 × 都点不了，和正在开始的那张卡一样：看一眼占着这本书唯一的建议操作，点了只会报错、× 了又回来。主页自己让 Agent 看、还没看到「正在看」那一下，点卡、× 也一样不理，不出字。
-- 没看成那一行冒号后面：请求没成（controller 记的是 `suggestion request did not complete`）写现成的「请求失败（provider 不可用或网络问题）」（`settings.byokProvider.requestFailed`）；别的原样。原型画的是「请求超时」。
+- 正在看或有一张卡正在开始时，所有卡和 × 都点不了（HC2）。从接下查看请求开始，包括算 90 分钟和读取最近改动的时间，都会出「正在看」那一行。
+- 没看成时按原因写「连不上模型」「最近的改动太多，一次看不完」「模型的回复读不出来」，其余原因和旧英文原因写「出错了」（HC2）。
 - 一张卡从上到下：它指着的条目（灰色的条目记号加名字，没有就不画）、标题、细节、「交给 Agent」；右上角 ×（读屏叫「忽略」）。整张卡是一个按钮，素玻璃静止态，字都是字的颜色。
-- 点卡：开一段新对话，右栏打开、停在 Agent、选中这段对话，主页不动；卡留着，「交给 Agent」变「查看对话」，再点是打开同一段对话。那段对话已经没了时，右栏照样打开到 Agent，什么都不选，卡照旧（原型没画，最保守的做法）。开始期间卡点不了、× 也不掉（数据层也留着正在开始的卡）；开始失败时卡下面一行「没能开始：…」，冒号后面是 controller 的原话（没有现成的字：`proactive suggestions are disabled`、`suggestions disabled`、`suggestion is no longer available`、`suggestion operation already running`、Agent 库正在关的那句、模型连接给的原因），卡还能点。× 就没了，不问、不能撤回，重开主页、重开项目也不回来。
+- 点卡：开一段新对话，右栏打开、停在 Agent、选中这段对话，主页不动；卡留着，「交给 Agent」变「查看对话」，再点是打开同一段对话。那段对话已经没了时，右栏照样打开到 Agent，什么都不选，卡照旧（原型没画，最保守的做法）。开始失败时卡框外的下方显示「没能开始：…」，原因是「这张卡已经不在了」「主动建议关着」「另一张卡正在开始」或「出错了」。卡的读屏名用「标题，交给 Agent」或「标题，查看对话」（HC2）。× 就没了，不问、不能撤回，重开主页、重开项目也不回来。
 - 「主动建议」开关在设置 → 智能 → Agent 那一页最后一行（`agent.proactive_suggestions`，只管这台电脑，默认开，没有说明文字），主页和 Agent 栏里都没有。关掉：主页上什么都不画，正在看的停下；停下不算没看成，不出那一行，这一次也不算进 90 分钟（App 关掉时停下的一样）。打开：下次主页露出来时看。开发库里原来存在设备记忆的旧值不搬（没发布过）。
 - Agent 栏空对话里不再有卡和开关，打开面板、窗口激活都不再让 Agent 看；「项目记忆」「工作记忆」两颗按钮照旧。
 - 0.1 那张 App 自己算的「把上次写的整理进要素」卡、整理结果卡、主页对话框都不做；铃铛里「整理」那一类通知（`Source::Organize`、`notifications.organize.source`）删了。写书模板写给 Agent 的话没改，Agent 看完出的卡里照样可以提整理。
 
 **接法。**
 - 卡：`dr_view_agent::home_cards::HomeCards`（`new(workspace, cx)`、`drawn`、`shown`），应用初始化处交给 `dr_view_home::set_agent_cards`（`app/drifting/src/main.rs`，[M02](m02-home.md) 最上面一节）。主页在前面时调 `shown`；`HomeCards` 在 controller 和模型连接都就绪以后才调 `trigger_suggestions`（应用一打开就落在主页时，controller 还在初始化，看的请求先记着，就绪时补上）。
-- 读卡：`suggestions`；controller 的唤醒信号到了就后台重读，只留最近一次看完的卡（`created_ms == last_checkin_ms`）。controller 在一次看开始时（`begin_checkin` 之后）多发一次唤醒，主页才知道「正在看」。`HomeCards` 等着自己让看的那一次 `trigger_suggestions` 做完，那之前点卡、× 不理。
-- controller 的其他补丁（2026-11-17 审阅修补，不改生成）：「主动建议」关掉或 App 关掉时停下的那一次走 `ProactiveStore::cancel_checkin`（不记错，`last_attempt_ms` 放回开始前的值）；是不是作者停的看 controller 另记的标记（`SuggestionStop::stop` 只在这两处设），不看取消信号，因为请求自己失败时也会把取消信号设上。请求没成仍是 `fail_checkin`，原话是常量 `CHECKIN_REQUEST_FAILED`；`set_proactive_enabled` 值没变时什么都不做、不唤醒；`has_conversation(book, conversation)` 给「查看对话」先看那段对话还在不在。
+- 读卡：`suggestions`；controller 的唤醒信号到了就后台重读，只留最近一次看完的卡（`created_ms == last_checkin_ms`）。controller 接下查看或开卡的操作时唤醒订阅者。主页用当前项目的操作和已读到的状态更新提示，并用同一个忙态拦点卡和 ×。
+- controller 的其他补丁（2026-11-17 审阅修补，不改生成）：「主动建议」关掉或 App 关掉时停下的那一次走 `ProactiveStore::cancel_checkin`（不记错，`last_attempt_ms` 放回开始前的值）；是不是作者停的看 controller 另记的标记（`SuggestionStop::stop` 只在这两处设），不看取消信号，因为请求自己失败时也会把取消信号设上。请求没成由 `fail_checkin` 存查看失败的种类；`set_proactive_enabled` 值没变时什么都不做、不唤醒；`has_conversation(book, conversation)` 给「查看对话」先看那段对话还在不在。
 - 点卡：`Open` 的卡调 `open_suggestion`（系统提示词照面板的写法），成了以后把这段对话记成这本书的当前对话（工作区的书记忆 `agent.conversation`），调外壳新加的 `Workspace::reveal_companion` 把右栏打开到 Agent（铺满着时先退出铺满，照 `reveal_library`），已经在的 Agent 面板选中这段对话（`AgentPanel::show_card_conversation`）。`Started` 的卡先在后台问 `has_conversation`：还在就直接打开那段对话，不再请求；没了就只 `reveal_companion`，不记、不选。
-- ×：`dismiss_suggestion`，界面上先拿掉，存储随 controller 的写入。
+- ×：`dismiss_suggestion`，controller 写入后更新主页；正在看或开卡时点 × 不先移走卡。
 - 开关：设置登记表一条 `SettingDef`（`registry::AGENT_PROACTIVE`，`Kind::Switch`、`Scope::Device`）；`HomeCards` 绑定 controller、每次看之前把它交给 `set_proactive_enabled`，设置变化时只在这一项变了才交（别的设置写入，比如书的布局，不再让每个 Agent 面板和卡重读数据库）。场景里写在设置文件 `device` 下（`dr-cli/scenarios/k5-shared-preview.json`），不在 `device.modules`。
 
-**测试**（合成模型流 `ScriptedDriver`，回环地址，不调真实模型）：`dr-view-agent/tests/home_cards.rs`——主页露出来看一次（单次请求、无工具），三张卡两列按顺序排，第一张指着改过的那一章；90 分钟内主页再露出来只记一次打开、不再请求；点卡开对话、右栏停在 Agent 这段对话、主页不动、卡留着、请求带卡的指示；面板换到新对话后再点卡回到同一段、不再请求；× 以后界面和存储里都没了，主页再露出来也不回来；开始失败（controller 不让开）时卡下面那一行、卡还是 `Open`，再点成了；设置里那一项是开关、只管这台电脑、默认开、在 Agent 页最后一行、没有说明；开关关着打开项目不看、不记打开、主页上什么都没有，打开以后不立刻看、下次主页露出来才看，再关上主页上什么都没有、卡留在存储里；没连模型时不请求、主页上什么都没有（存储里有上次的卡也不画）；正在看时那一行在卡上面、上一次的卡还在，看完换成这一次的；看失败时失败那一行在、卡还在，冒号后面是现成的「请求失败…」；看完零张卡时主页上什么都没有；打开 Agent 面板、窗口激活而主页不在前面时不让 Agent 看，空对话里项目记忆那一行下面隔一格就是空对话的第一行（中间没有卡和开关）。2026-11-17 审阅修补加的：正在看时点卡不开始、× 不拿掉卡（主页和存储都在），看完以后新卡能点；看到一半关掉「主动建议」不记错、不算进 90 分钟，再打开没有失败那一行，下次主页露出来就看；只摆最近一次看完的卡（以前点过的看完以后不摆、存储里还在，这一次点过的写「查看对话」）；别的设置写入不唤醒 controller 的订阅者，开关变了唤醒一次；「查看对话」的对话没了时右栏打开到 Agent、什么都不选、卡照旧；× 以后换个项目再回来也不回来。「什么都没发生」的判断都等一个确定的信号（`HomeCards::settled`：自己让看的那一次做完、读卡做完、没有卡在开始；面板那边是 controller 的 `active_count`），不再等几帧；点卡以后数模型请求也先等 `active_count` 回到 0（卡变成「已开始」时运行才刚登记，请求是运行自己的线程随后发的）。`dr-agent/tests/proactive.rs` 的 `a_cancelled_checkin_keeps_no_error_and_does_not_count` 测数据层的停下。主页那一侧见 [M02](m02-home.md)。
+**测试**（合成模型流 `ScriptedDriver`，回环地址，不调真实模型）：`dr-view-agent/tests/home_cards.rs`——主页露出来看一次（单次请求、无工具），三张卡两列按顺序排，第一张指着改过的那一章；90 分钟内主页再露出来只记一次打开、不再请求；点卡开对话、右栏停在 Agent 这段对话、主页不动、卡留着、请求带卡的指示；面板换到新对话后再点卡回到同一段、不再请求；× 以后界面和存储里都没了，主页再露出来也不回来；开始失败（controller 不让开）时卡下面那一行、卡还是 `Open`，再点成了；设置里那一项是开关、只管这台电脑、默认开、在 Agent 页最后一行、没有说明；开关关着打开项目不看、不记打开、主页上什么都没有，打开以后不立刻看、下次主页露出来才看，再关上主页上什么都没有、卡留在存储里；没连模型时不请求、主页上什么都没有（存储里有上次的卡也不画）；正在看时那一行在卡上面、上一次的卡还在，看完换成这一次的；看失败时失败那一行在、卡还在，冒号后面按种类本地化（见 HC2）；看完零张卡时主页上什么都没有；打开 Agent 面板、窗口激活而主页不在前面时不让 Agent 看，空对话里项目记忆那一行下面隔一格就是空对话的第一行（中间没有卡和开关）。2026-11-17 审阅修补加的：正在看时点卡不开始、× 不拿掉卡（主页和存储都在），看完以后新卡能点；看到一半关掉「主动建议」不记错、不算进 90 分钟，再打开没有失败那一行，下次主页露出来就看；只摆最近一次看完的卡（以前点过的看完以后不摆、存储里还在，这一次点过的写「查看对话」）；别的设置写入不唤醒 controller 的订阅者，开关变了唤醒一次；「查看对话」的对话没了时右栏打开到 Agent、什么都不选、卡照旧；× 以后换个项目再回来也不回来。「什么都没发生」的判断都等一个确定的信号（`HomeCards::settled`：自己让看的那一次做完、读卡做完、没有卡在开始；面板那边是 controller 的 `active_count`），不再等几帧；点卡以后数模型请求也先等 `active_count` 回到 0（卡变成「已开始」时运行才刚登记，请求是运行自己的线程随后发的）。`dr-agent/tests/proactive.rs` 的 `a_cancelled_checkin_keeps_no_error_and_does_not_count` 测数据层的停下。主页那一侧见 [M02](m02-home.md)。
 
 **真窗口**（副屏，合成模型流）：`next/crates/dr-view-agent/scenarios/home-cards.json`，只跑例程 `home-cards-acceptance`（临时 showcase 库《慢钟》、进程内的候选 Key、回环地址，不连真实服务）：
 
@@ -109,6 +109,10 @@ cargo drifting workspace scenario crates/dr-view-agent/scenarios/home-cards.json
 
 内核 v5（T7，2026-11-15）补充：`dr-agent/src/evidence.rs` 的 `book_entities` 补齐 `templates`、`meta`、`project`、`tabs`、`assets`、`asset_folders`、`relation_types`、`facts`、`memory`，使 `book:<id>` 上所有格式 5 命令回执均产出精确的 `WriteProof` 目标，同时 `DocId::Layout(_)` 侧文档写入继续静默跳过（`LAYOUT-DOC-QUIET`）。`dr-agent/src/proactive/delta.rs` 定下格式 5 的 `DeltaMode` 规则：文本素材已并入普通条目正文（`DocId::Body`），产品代码不按内置模板 id 特判，所有未删除条目的正文在 `AllProse` 与 `LocalAuthorBodies` 下均参与，两种模式仅按修改来源区分（`AllProse` 含本机作者、Agent 与远端同步；`LocalAuthorBodies` 仅含本机作者）。主动建议 check-in 上下文（`CheckinContext::open_comments`）与系统提示词同步改为统一批注模型（收集全部未解决批注并附来源 `origin`，不再保留旧待办措辞，项目说明从 `project.agent` 读取）。
 
-## 内核 v5 · 建议卡出错的原因（2026-11-18 作者定的）
+## 内核 v5 HC2 · 建议卡的失败、忙态和读屏名（2026-11-18）
 
-kernel-v5 第 15 节第 52 条，作者「全照建议」，由 [v5-followups.md](../handoff/v5-followups.md) 的 HC2 做：查看出错时不再只存一句 `suggestion request did not complete`，存原因的种类（连不上模型、改动太多装不下、回复读不出来），主页照种类写中文；书库里存着的旧英文原因一律显示「出错了」。开始出错的原因也分种类（卡已经不在、主动建议关着、另一张正在开始、别的）。
+依据 [kernel-v5](../kernel-v5.md) 第 15 节第 51、52 条和「替作者定的」最后一组。
+
+- **失败的原因**。`dr-agent::proactive` 在收模型流和核对上下文时返回 `CheckinFailure`。`ProactiveStore::fail_checkin` 在原本的本机建议状态里写下种类，旧字符串仍可读取并显示「出错了」。开卡返回 `SuggestionStartError`，主页用界面语言写出原因。作者关开关或正常退出仍走取消路径。
+- **一组卡一起锁**。`dr-view-agent` 的 controller 接下查看请求时登记忙态，读改动和检查时间间隔时就能画「Agent 正在看你最近的改动……」。开一张卡期间，同组的卡和 × 一起点不动，× 用现有按钮的禁用墨色。卡上正常操作的读屏名包含标题和动作。
+- **验收**。`dr-view-agent/tests/home_cards.rs` 用合成资料覆盖失败提示、旧书库中的英文、落下查看票据前的忙态、开始一张卡时的连点和忽略。`tests/v3_guidance.rs` 核对装不下时写入的原因和没有向模型发请求。`dr-view-agent/scenarios/home-cards-hc2.json` 用上文例程验证超时、上下文装不下和真实连点，并核对「交给 Agent」「查看对话」两种读屏名。

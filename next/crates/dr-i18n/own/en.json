@@ -136,6 +136,16 @@
   "positionLink": {
     "copied": "Location link copied"
   },
+  "projectAgent": {
+    "cardActionLabel": "{{title}}, {{action}}",
+    "errorConnection": "Couldn’t connect to the model",
+    "errorContextCapacity": "Too many recent changes to read at once",
+    "errorInvalidResponse": "Couldn’t read the model’s response",
+    "errorCardUnavailable": "This card is no longer available",
+    "errorDisabled": "Proactive suggestions are off",
+    "errorBusy": "Another card is starting",
+    "errorOther": "Something went wrong"
+  },
   "projectHome": {
     "projectTemplate": {
       "book": "Manuscript",

@@ -617,9 +617,17 @@
     "title": "歡迎使用 Drifting Alpha"
   },
   "projectAgent": {
+    "cardActionLabel": "{{title}}，{{action}}",
     "checkinFailed": "沒能看完最近的變更：{{error}}",
     "checkinRunning": "Agent 正在閱讀你最近的變更…",
     "dismiss": "略過",
+    "errorBusy": "另一張卡正在啟動",
+    "errorCardUnavailable": "這張卡已經不在了",
+    "errorConnection": "連不上模型",
+    "errorContextCapacity": "最近的變更太多，一次看不完",
+    "errorDisabled": "主動建議已關閉",
+    "errorInvalidResponse": "無法讀取模型的回覆",
+    "errorOther": "發生錯誤",
     "openConversation": "開啟對話",
     "start": "交給 Agent",
     "startFailed": "無法啟動：{{error}}"

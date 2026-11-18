@@ -615,9 +615,17 @@
     "title": "欢迎使用 Drifting Alpha"
   },
   "projectAgent": {
+    "cardActionLabel": "{{title}}，{{action}}",
     "checkinFailed": "没能看完最近的改动：{{error}}",
     "checkinRunning": "Agent 正在看你最近的改动……",
     "dismiss": "忽略",
+    "errorBusy": "另一张卡正在开始",
+    "errorCardUnavailable": "这张卡已经不在了",
+    "errorConnection": "连不上模型",
+    "errorContextCapacity": "最近的改动太多，一次看不完",
+    "errorDisabled": "主动建议关着",
+    "errorInvalidResponse": "模型的回复读不出来",
+    "errorOther": "出错了",
     "openConversation": "查看对话",
     "start": "交给 Agent",
     "startFailed": "没能开始：{{error}}"
