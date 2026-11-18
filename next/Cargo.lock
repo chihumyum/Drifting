@@ -2371,6 +2371,7 @@ name = "dr-view-relations"
 version = "0.0.0"
 dependencies = [
  "dr-doc",
+ "dr-editor",
  "dr-i18n",
  "dr-model",
  "dr-shell",

@@ -32,7 +32,7 @@ pub mod geom;
 mod paint;
 
 use std::cell::{Cell, RefCell};
-use std::collections::{BTreeSet, HashMap};
+use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -53,13 +53,15 @@ use dr_workspace::commands::v3::relations::{CreatePair, Definition, PairIn};
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
     AnyElement, App, AppContext as _, Bounds, Context, Entity, Global, InteractiveElement,
-    IntoElement, ParentElement, Pixels, ScrollHandle, SharedString, StatefulInteractiveElement,
-    Styled, Subscription, Task, Window, canvas, deferred, div, point, px, size,
+    IntoElement, ParentElement, Pixels, Point, ScrollHandle, SharedString,
+    StatefulInteractiveElement, Styled, Subscription, Task, Window, canvas, deferred, div, point,
+    px, size,
 };
 
 pub use geom::{Curve, Label, Name};
 
 use super::{Assist, AssistEvent};
+use crate::entity_links::EntrySearch;
 
 /// How long a new relation's lines stay after 建立 (the prototype's 2.6 s).
 pub const LINGER: Duration = Duration::from_millis(2600);
@@ -157,6 +159,7 @@ pub struct Index {
     rows: HashMap<String, HashMap<(String, String), Vec<Label>>>,
     /// Live entries, in the book's order.
     pub entries: Vec<EntryInfo>,
+    search: EntrySearch,
 }
 
 impl Index {
@@ -165,8 +168,10 @@ impl Index {
             let templates = v.templates_map();
             let mut live: HashMap<String, EntryInfo> = HashMap::new();
             let mut entries = Vec::new();
+            let mut searchable = Vec::new();
+            let headers = v.entry_headers_with(&templates);
             for e in v.entries() {
-                if e.is_trashed() {
+                if !dr_model::v3::is_entry_live(&e.id, &headers) {
                     continue;
                 }
                 let t = e.effective_template(&templates);
@@ -176,6 +181,7 @@ impl Index {
                     kind: t.map(|t| t.name.clone()).unwrap_or_default(),
                     color: t.and_then(|t| t.color.as_deref()).and_then(hex),
                 };
+                searchable.push((info.id.clone(), info.title.clone(), e.aliases(&templates)));
                 live.insert(info.id.clone(), info.clone());
                 entries.push(info);
             }
@@ -194,6 +200,7 @@ impl Index {
             let mut index = Index {
                 kinds,
                 entries,
+                search: EntrySearch::new(searchable),
                 ..Index::default()
             };
             for t in &types {
@@ -334,6 +341,7 @@ pub(crate) struct Relate {
     pub(super) viewport: Rc<Cell<Option<Bounds<Pixels>>>>,
     /// The page a flow body scrolls in: what of the body shows.
     page: Option<ScrollHandle>,
+    page_draws_lines: bool,
     strokes: Rc<RefCell<paint::Strokes>>,
     drawn: Option<Drawn>,
     /// The card's side, fixed when it opened: (link, above).
@@ -353,6 +361,7 @@ impl Relate {
             linger_task: None,
             viewport: Rc::new(Cell::new(None)),
             page: None,
+            page_draws_lines: false,
             strokes: Rc::default(),
             drawn: None,
             card_side: None,
@@ -424,6 +433,12 @@ impl Assist {
         self.relate.page = page;
     }
 
+    /// Entry pages draw shared hover lines above their bodies. The composer
+    /// stays with the editor where it was opened.
+    pub fn set_page_relation_layer(&mut self) {
+        self.relate.page_draws_lines = true;
+    }
+
     /// Follows the right column's pointed row.
     pub(super) fn watch_relation_focus(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.relate._focus =
@@ -486,24 +501,39 @@ impl Assist {
             .collect()
     }
 
+    fn screen_rows(&self, view: &Bounds<Pixels>, cx: &App) -> Vec<Bounds<Pixels>> {
+        self.editor
+            .read(cx)
+            .painted_rows()
+            .into_iter()
+            .filter(|r| r.bottom() > view.top() && r.top() < view.bottom())
+            .collect()
+    }
+
+    fn card_focus(&self) -> Option<Focus> {
+        let card = self.card.as_ref()?;
+        (card.facts.target.kind == dr_model::kind::EntityKind::Entry).then(|| {
+            Focus::Entry(
+                card.facts.target.id.clone(),
+                Some((card.chapter, card.id.clone())),
+            )
+        })
+    }
+
+    fn linger_focus(&self) -> Option<Focus> {
+        let (entry, at) = self.relate.linger.as_ref()?;
+        Some(Focus::Entry(entry.clone(), at.clone()))
+    }
+
     /// What is drawn now: the composer's entry, the open card's, the one
     /// lingering after 建立, or a rail row.
     fn relation_focus(&self, cx: &App) -> Option<Focus> {
         if let Some(c) = &self.compose_ref() {
             return Some(Focus::Entry(c.src.clone(), c.src_at.clone()));
         }
-        if let Some(card) = &self.card
-            && card.facts.target.kind == dr_model::kind::EntityKind::Entry
-        {
-            return Some(Focus::Entry(
-                card.facts.target.id.clone(),
-                Some((card.chapter, card.id.clone())),
-            ));
-        }
-        if let Some((entry, at)) = &self.relate.linger {
-            return Some(Focus::Entry(entry.clone(), at.clone()));
-        }
-        RelationFocus::row(cx).map(Focus::Row)
+        self.card_focus()
+            .or_else(|| self.linger_focus())
+            .or_else(|| RelationFocus::row(cx).map(Focus::Row))
     }
 
     fn compose_ref(&self) -> Option<&Compose> {
@@ -516,63 +546,17 @@ impl Assist {
         let view = self.relation_view()?;
         let index = self.relate.index.clone()?;
         let names = self.screen_names(&view, &index, cx);
-        let rows = self.editor.read(cx).painted_rows();
-        let blanks = geom::blanks(
-            &rows
-                .into_iter()
-                .filter(|r| r.bottom() > view.top() && r.top() < view.bottom())
-                .collect::<Vec<_>>(),
-        );
-        let middle = {
-            let c = view.center();
-            (f32::from(c.x), f32::from(c.y))
-        };
-        let (focus_ix, pairs) = match &focus {
-            Focus::Entry(entry, at) => {
-                let ix = at
-                    .as_ref()
-                    .and_then(|(ch, id)| {
-                        names
-                            .iter()
-                            .position(|n| n.chapter == *ch && &n.id == id && &n.entry == entry)
-                    })
-                    .or_else(|| names.iter().position(|n| &n.entry == entry));
-                (ix, &index.pairs)
-            }
-            Focus::Row(row) => (None, index.rows.get(row)?),
-        };
-        let anchors = geom::anchors(&names, focus_ix, middle);
-        let edges = geom::edges(&names, &anchors, pairs);
-        let curves: Vec<Curve> = edges
-            .iter()
-            .map(|e| geom::curve(&names[e.a].rect, &names[e.b].rect))
-            .collect();
-        let widths: Vec<f32> = edges.iter().map(|e| geom::label_width(&e.labels)).collect();
-        let at = geom::place_labels(&curves, &widths, &blanks);
-        let mut joined: Vec<Name> = Vec::new();
-        let mut join = |n: &Name| {
-            if !joined.contains(n) {
-                joined.push(n.clone());
-            }
-        };
-        let mut lines = Vec::with_capacity(edges.len());
-        for ((e, c), p) in edges.iter().zip(curves).zip(at) {
-            join(&names[e.a]);
-            join(&names[e.b]);
-            lines.push(DrawnLine {
-                a: names[e.a].clone(),
-                b: names[e.b].clone(),
-                labels: e.labels.clone(),
-                curve: c,
-                label_at: p,
-            });
-        }
+        let blanks = geom::blanks(&self.screen_rows(&view, cx));
+        let focus_ix = find_occurrence(&names, &focus);
+        let mut drawn = draw_lines(&names, blanks, &index, &focus, focus_ix, view)?;
         let mut picks = Vec::new();
         let mut pending = None;
         if let Some(c) = &self.relate.compose {
             let src = focus_ix.map(|ix| names[ix].clone());
-            if let Some(src) = &src {
-                join(src);
+            if let Some(src) = &src
+                && !drawn.joined.contains(src)
+            {
+                drawn.joined.push(src.clone());
             }
             picks = names
                 .iter()
@@ -604,16 +588,9 @@ impl Assist {
                 pending = at.map(|d| (src.clone(), d.clone()));
             }
         }
-        Some((
-            Drawn {
-                lines,
-                joined,
-                picks,
-                pending,
-                blanks,
-            },
-            view,
-        ))
+        drawn.picks = picks;
+        drawn.pending = pending;
+        Some((drawn, view))
     }
 
     /// The card's side: above when more of its lines go down. Fixed when
@@ -628,42 +605,17 @@ impl Assist {
         {
             return *above;
         }
-        let Some(drawn) = &self.relate.drawn else {
+        if self.relate.page_draws_lines {
+            // The page has all the visible names and will settle this card.
             return false;
-        };
-        let names: Vec<Name> = drawn
-            .lines
-            .iter()
-            .flat_map(|l| [l.a.clone(), l.b.clone()])
-            .collect();
-        let Some(me) = names
-            .iter()
-            .position(|n| n.chapter == key.0 && n.id == key.1)
+        }
+        let Some(above) =
+            self.relate.drawn.as_ref().and_then(|drawn| {
+                card_above(drawn, |name| name.chapter == key.0 && name.id == key.1)
+            })
         else {
             return false;
         };
-        let mut uniq: Vec<Name> = Vec::new();
-        for n in names {
-            if !uniq.contains(&n) {
-                uniq.push(n);
-            }
-        }
-        let me = uniq
-            .iter()
-            .position(|n| n.chapter == key.0 && n.id == key.1)
-            .unwrap_or(me);
-        let edges: Vec<geom::Edge> = drawn
-            .lines
-            .iter()
-            .filter_map(|l| {
-                Some(geom::Edge {
-                    a: uniq.iter().position(|n| *n == l.a)?,
-                    b: uniq.iter().position(|n| *n == l.b)?,
-                    labels: l.labels.clone(),
-                })
-            })
-            .collect();
-        let above = geom::card_above(&uniq, &edges, me);
         self.relate.card_side = Some((key, above));
         above
     }
@@ -708,6 +660,14 @@ impl Assist {
                 window,
                 |a, _, e: &FieldEvent, window, cx| match e {
                     FieldEvent::Changed(text) => a.relation_query_changed(text.clone(), cx),
+                    FieldEvent::Submitted(_) => {
+                        if let Some(first) = a
+                            .compose_state()
+                            .and_then(|s| s.candidates.into_iter().next())
+                        {
+                            a.relation_pick(&first, None, cx);
+                        }
+                    }
                     FieldEvent::Cancelled => a.close_compose(window, cx),
                     _ => {}
                 },
@@ -717,6 +677,9 @@ impl Assist {
                 window,
                 |a, _, e: &FieldEvent, window, cx| match e {
                     FieldEvent::Changed(text) => a.relation_name_changed(text.clone(), cx),
+                    FieldEvent::Submitted(_) => {
+                        a.relation_commit(window, cx);
+                    }
                     FieldEvent::Cancelled => a.close_compose(window, cx),
                     _ => {}
                 },
@@ -959,114 +922,20 @@ impl Assist {
             }
             return self.compose_bar(root, window, cx);
         };
-        let theme = Theme::of(window, cx);
-        let p = theme.palette;
-        let origin = self.assist_origin.get();
-        let dark = if p.dark { 0.72 } else { 1.0 };
-        let ink = p.sand_on(p.ink(2), p.page).to_u8();
-        let mut scene = paint::Scene::default();
-        for line in &drawn.lines {
-            scene.paths.push((
-                paint::Path::Arc(line.curve),
-                paint::LINE_BREADTH,
-                0.7 * dark * p.pigment,
-            ));
+        if self.relate.page_draws_lines && !self.relate.composing() {
+            self.relate.drawn = Some(drawn);
+            return root;
         }
-        for n in &drawn.joined {
-            let y = f32::from(n.rect.bottom()) - 1.0;
-            scene.paths.push((
-                paint::Path::Straight(
-                    (f32::from(n.rect.left()) - 1.0, y),
-                    (f32::from(n.rect.right()) + 1.0, y),
-                ),
-                paint::NAME_BREADTH,
-                0.55 * dark * p.pigment,
-            ));
-        }
-        scene.dashed = drawn
-            .pending
-            .as_ref()
-            .map(|(a, b)| geom::curve(&a.rect, &b.rect));
-        let strokes = self.relate.strokes.clone();
-        let dash = p.accent.alpha(0.9);
-        let (vx, vy) = (view.left(), view.top());
-        let rel = |x: f32, y: f32| (px(x) - vx, px(y) - vy);
-        let mut layer = div()
-            .absolute()
-            .left(vx - origin.x)
-            .top(vy - origin.y)
-            .w(view.size.width)
-            .h(view.size.height)
-            .overflow_hidden()
-            .child(
-                canvas(
-                    |_, _, _| {},
-                    move |_, _, window, cx| {
-                        strokes.borrow_mut().paint(&scene, ink, dash, window, cx)
-                    },
-                )
-                .absolute()
-                .top_0()
-                .left_0()
-                .size_full(),
-            );
-        // The relations' names, on their lines.
-        let label_ink = p.ink(1).solid();
-        let arrow_ink = p.ink(2).solid();
-        let sep_ink = p.ink(4).solid();
-        let halo = p.page.alpha(0.88);
-        for (ix, line) in drawn.lines.iter().enumerate() {
-            let (x, y) = rel(line.label_at.0, line.label_at.1);
-            let mut label = div()
-                .flex()
-                .flex_row()
-                .items_center()
-                .h(px(14.))
-                .px(px(3.))
-                .rounded(px(7.))
-                .bg(halo)
-                .font_role(Role::Ui)
-                .type_px(11.5, 14.)
-                .weight(weight::MEDIUM)
-                .text_color(label_ink)
-                .whitespace_nowrap();
-            for (i, l) in line.labels.iter().enumerate() {
-                if i > 0 {
-                    label = label.child(div().mx(px(2.)).text_color(sep_ink).child("·"));
-                }
-                label = label.child(SharedString::from(l.name.clone()));
-                if let Some(to) = &l.to {
-                    let target = if &line.a.entry == to {
-                        &line.a
-                    } else {
-                        &line.b
-                    };
-                    let c = target.rect.center();
-                    let angle =
-                        (f32::from(c.y) - line.label_at.1).atan2(f32::from(c.x) - line.label_at.0);
-                    label = label.child(
-                        sand::icon(Icon::ArrowForward, 10., arrow_ink)
-                            .ml(px(2.))
-                            .with_transformation(gpui::Transformation::rotate(gpui::radians(
-                                angle,
-                            ))),
-                    );
-                }
-            }
-            layer = layer.child(
-                div()
-                    .id(("dr-editor-relation-label", ix))
-                    .debug_selector(move || format!("dr-editor-relation-label-{ix}"))
-                    .absolute()
-                    .left(x - px(200.))
-                    .top(y - px(7.))
-                    .w(px(400.))
-                    .h(px(14.))
-                    .flex()
-                    .justify_center()
-                    .child(label),
-            );
-        }
+        let mut layer = painted_layer(
+            &drawn,
+            view,
+            self.assist_origin.get(),
+            self.relate.strokes.clone(),
+            window,
+            cx,
+        );
+        let p = Theme::of(window, cx).palette;
+        let rel = |x: f32, y: f32| (px(x) - view.left(), px(y) - view.top());
         // While composing: every other name outlined, to be clicked.
         if self.relate.compose.is_some() {
             let index = self.relate.index.clone().unwrap_or_default();
@@ -1403,21 +1272,315 @@ impl Assist {
     }
 }
 
-/// The @ field's list: live entries other than `src` whose title holds
-/// `query` (case aside), at most six.
+fn card_above(drawn: &Drawn, anchor: impl Fn(&Name) -> bool) -> Option<bool> {
+    let mut names = Vec::<Name>::new();
+    let mut index = |name: &Name| {
+        if let Some(i) = names.iter().position(|n| *n == *name) {
+            return i;
+        }
+        names.push(name.clone());
+        names.len() - 1
+    };
+    let edges: Vec<_> = drawn
+        .lines
+        .iter()
+        .map(|line| geom::Edge {
+            a: index(&line.a),
+            b: index(&line.b),
+            labels: line.labels.clone(),
+        })
+        .collect();
+    let me = names.iter().position(anchor)?;
+    Some(geom::card_above(&names, &edges, me))
+}
+
+fn find_occurrence(names: &[Name], focus: &Focus) -> Option<usize> {
+    let Focus::Entry(entry, at) = focus else {
+        return None;
+    };
+    at.as_ref()
+        .and_then(|(chapter, id)| {
+            names
+                .iter()
+                .position(|n| n.chapter == *chapter && &n.id == id && &n.entry == entry)
+        })
+        .or_else(|| names.iter().position(|n| &n.entry == entry))
+}
+
+fn draw_lines(
+    names: &[Name],
+    blanks: Vec<f32>,
+    index: &Index,
+    focus: &Focus,
+    focus_ix: Option<usize>,
+    view: Bounds<Pixels>,
+) -> Option<Drawn> {
+    let pairs = match focus {
+        Focus::Entry(..) => &index.pairs,
+        Focus::Row(row) => index.rows.get(row)?,
+    };
+    let center = view.center();
+    let anchors = geom::anchors(names, focus_ix, (f32::from(center.x), f32::from(center.y)));
+    let edges = geom::edges(names, &anchors, pairs);
+    let curves: Vec<Curve> = edges
+        .iter()
+        .map(|e| geom::curve(&names[e.a].rect, &names[e.b].rect))
+        .collect();
+    let widths: Vec<f32> = edges.iter().map(|e| geom::label_width(&e.labels)).collect();
+    let at = geom::place_labels(&curves, &widths, &blanks);
+    let mut drawn = Drawn {
+        blanks,
+        ..Drawn::default()
+    };
+    for ((edge, curve), label_at) in edges.iter().zip(curves).zip(at) {
+        let (a, b) = (&names[edge.a], &names[edge.b]);
+        for name in [a, b] {
+            if !drawn.joined.contains(name) {
+                drawn.joined.push(name.clone());
+            }
+        }
+        drawn.lines.push(DrawnLine {
+            a: a.clone(),
+            b: b.clone(),
+            labels: edge.labels.clone(),
+            curve,
+            label_at,
+        });
+    }
+    Some(drawn)
+}
+
+fn painted_layer(
+    drawn: &Drawn,
+    view: Bounds<Pixels>,
+    origin: Point<Pixels>,
+    strokes: Rc<RefCell<paint::Strokes>>,
+    window: &mut Window,
+    cx: &App,
+) -> gpui::Div {
+    let theme = Theme::of(window, cx);
+    let p = theme.palette;
+    let dark = if p.dark { 0.72 } else { 1.0 };
+    let ink = p.sand_on(p.ink(2), p.page).to_u8();
+    let mut scene = paint::Scene::default();
+    for line in &drawn.lines {
+        scene.paths.push((
+            paint::Path::Arc(line.curve),
+            paint::LINE_BREADTH,
+            0.7 * dark * p.pigment,
+        ));
+    }
+    for n in &drawn.joined {
+        let y = f32::from(n.rect.bottom()) - 1.0;
+        scene.paths.push((
+            paint::Path::Straight(
+                (f32::from(n.rect.left()) - 1.0, y),
+                (f32::from(n.rect.right()) + 1.0, y),
+            ),
+            paint::NAME_BREADTH,
+            0.55 * dark * p.pigment,
+        ));
+    }
+    scene.dashed = drawn
+        .pending
+        .as_ref()
+        .map(|(a, b)| geom::curve(&a.rect, &b.rect));
+    let dash = p.accent.alpha(0.9);
+    let (vx, vy) = (view.left(), view.top());
+    let rel = |x: f32, y: f32| (px(x) - vx, px(y) - vy);
+    let mut layer = div()
+        .absolute()
+        .left(vx - origin.x)
+        .top(vy - origin.y)
+        .w(view.size.width)
+        .h(view.size.height)
+        .overflow_hidden()
+        .child(
+            canvas(
+                |_, _, _| {},
+                move |_, _, window, cx| strokes.borrow_mut().paint(&scene, ink, dash, window, cx),
+            )
+            .absolute()
+            .top_0()
+            .left_0()
+            .size_full(),
+        );
+    // The relations' names, on their lines.
+    let label_ink = p.ink(1).solid();
+    let arrow_ink = p.ink(2).solid();
+    let sep_ink = p.ink(4).solid();
+    let halo = p.page.alpha(0.88);
+    for (ix, line) in drawn.lines.iter().enumerate() {
+        let (x, y) = rel(line.label_at.0, line.label_at.1);
+        let mut label = div()
+            .flex()
+            .flex_row()
+            .items_center()
+            .h(px(14.))
+            .px(px(3.))
+            .rounded(px(7.))
+            .bg(halo)
+            .font_role(Role::Ui)
+            .type_px(11.5, 14.)
+            .weight(weight::MEDIUM)
+            .text_color(label_ink)
+            .whitespace_nowrap();
+        for (i, l) in line.labels.iter().enumerate() {
+            if i > 0 {
+                label = label.child(div().mx(px(2.)).text_color(sep_ink).child("·"));
+            }
+            label = label.child(SharedString::from(l.name.clone()));
+            if let Some(to) = &l.to {
+                let target = if &line.a.entry == to {
+                    &line.a
+                } else {
+                    &line.b
+                };
+                let c = target.rect.center();
+                let angle =
+                    (f32::from(c.y) - line.label_at.1).atan2(f32::from(c.x) - line.label_at.0);
+                label = label.child(
+                    sand::icon(Icon::ArrowForward, 10., arrow_ink)
+                        .ml(px(2.))
+                        .with_transformation(gpui::Transformation::rotate(gpui::radians(angle))),
+                );
+            }
+        }
+        layer = layer.child(
+            div()
+                .id(("dr-editor-relation-label", ix))
+                .debug_selector(move || format!("dr-editor-relation-label-{ix}"))
+                .absolute()
+                .left(x - px(200.))
+                .top(y - px(7.))
+                .w(px(400.))
+                .h(px(14.))
+                .flex()
+                .justify_center()
+                .child(label),
+        );
+    }
+    layer
+}
+
+/// Paints the same relation lines over the bodies of one entry page.
+#[derive(Default)]
+pub struct PageRelations {
+    strokes: Rc<RefCell<paint::Strokes>>,
+    drawn: Option<Drawn>,
+}
+
+impl PageRelations {
+    pub fn drawn(&self) -> Option<&Drawn> {
+        self.drawn.as_ref()
+    }
+
+    pub fn render(
+        &mut self,
+        assists: &[Entity<Assist>],
+        view: Bounds<Pixels>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Option<AnyElement> {
+        self.drawn = self.draw(assists, view, window, cx);
+        let Some(drawn) = &self.drawn else {
+            if !self.strokes.borrow().is_empty() {
+                self.strokes.borrow_mut().clear(window);
+            }
+            return None;
+        };
+        let layer = painted_layer(drawn, view, view.origin, self.strokes.clone(), window, cx);
+        Some(deferred(layer).with_priority(1).into_any_element())
+    }
+
+    fn draw(
+        &self,
+        assists: &[Entity<Assist>],
+        view: Bounds<Pixels>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Option<Drawn> {
+        let bodies: Vec<_> = assists.iter().map(|assist| assist.read(cx)).collect();
+        if bodies.iter().any(|body| body.relate.composing()) {
+            return None;
+        }
+        let local_focus = |read: fn(&Assist) -> Option<Focus>| {
+            bodies
+                .iter()
+                .enumerate()
+                .find_map(|(i, body)| read(body).map(|focus| (Some(i), focus)))
+        };
+        let (owner, focus) = local_focus(Assist::card_focus)
+            .or_else(|| local_focus(Assist::linger_focus))
+            .or_else(|| RelationFocus::row(cx).map(|row| (None, Focus::Row(row))))?;
+        let index = owner
+            .and_then(|i| bodies[i].relate.index.as_ref())
+            .or_else(|| bodies.iter().find_map(|body| body.relate.index.as_ref()))?;
+        let mut names = Vec::new();
+        let mut rows = Vec::new();
+        let mut at = None;
+        for (i, body) in bodies.into_iter().enumerate() {
+            let Some(body_view) = body.relation_view().and_then(|b| intersect(b, view)) else {
+                continue;
+            };
+            let body_names = body.screen_names(&body_view, index, cx);
+            if owner == Some(i) {
+                at = find_occurrence(&body_names, &focus).map(|ix| ix + names.len());
+            }
+            names.extend(body_names);
+            rows.extend(body.screen_rows(&body_view, cx));
+        }
+        let drawn = draw_lines(&names, geom::blanks(&rows), index, &focus, at, view)?;
+        if let Some((owner, at)) = owner.zip(at) {
+            let assist = &assists[owner];
+            let body = assist.read(cx);
+            let name = &names[at];
+            if body.relate.card_side.is_none()
+                && body
+                    .card
+                    .as_ref()
+                    .is_some_and(|card| card.chapter == name.chapter && card.id == name.id)
+                && let Some(above) = card_above(&drawn, |anchor| anchor == name)
+            {
+                let assist = assist.downgrade();
+                let key = (name.chapter, name.id.clone());
+                window.defer(cx, move |_, cx| {
+                    assist
+                        .update(cx, |body, cx| {
+                            if body
+                                .card
+                                .as_ref()
+                                .is_some_and(|card| card.chapter == key.0 && card.id == key.1)
+                                && body.relate.card_side.is_none()
+                            {
+                                body.relate.card_side = Some((key, above));
+                                cx.notify();
+                            }
+                        })
+                        .ok();
+                });
+            }
+        }
+        Some(drawn)
+    }
+}
+
+/// The @ field searches every other live entry once the author types.
 fn candidates(index: &Index, src: &str, query: &str) -> Vec<String> {
-    let q = query.trim().to_lowercase();
-    if q.is_empty() {
+    if query.trim().is_empty() {
         return Vec::new();
     }
-    let mut seen = BTreeSet::new();
-    index
+    let eligible = index
         .entries
         .iter()
-        .filter(|e| e.id != src && e.title.to_lowercase().contains(&q))
-        .filter(|e| seen.insert(e.id.clone()))
+        .filter(|e| e.id != src)
+        .map(|e| e.id.as_str());
+    index
+        .search
+        .search(query, eligible)
+        .into_iter()
         .take(MAX_CANDIDATES)
-        .map(|e| e.id.clone())
+        .map(str::to_owned)
         .collect()
 }
 
@@ -1439,6 +1602,11 @@ mod tests {
                 normalized: normalize_relation_type_name("Enemy"),
                 symmetric: true,
             }],
+            search: EntrySearch::new([
+                ("aq".into(), "阿Q".into(), vec![]),
+                ("xd".into(), "小D".into(), vec!["挑水人".into()]),
+                ("xn".into(), "小尼姑".into(), vec![]),
+            ]),
             entries: vec![
                 e("aq", "阿Q"),
                 e("xd", "小D"),
@@ -1452,9 +1620,12 @@ mod tests {
     #[test]
     fn the_at_field_finds_live_entries_but_not_this_one() {
         let i = index();
-        assert_eq!(candidates(&i, "aq", "小"), ["xd", "xn"]);
+        assert_eq!(candidates(&i, "aq", "小"), ["xn", "xd"]);
         assert!(candidates(&i, "aq", "").is_empty());
         assert!(candidates(&i, "xd", "小D").is_empty());
+        assert_eq!(candidates(&i, "aq", "xng"), ["xn"]);
+        assert_eq!(candidates(&i, "aq", "挑水人"), ["xd"]);
+        assert_eq!(candidates(&i, "aq", "tsr"), ["xd"]);
     }
 
     #[test]
@@ -1463,5 +1634,117 @@ mod tests {
         assert_eq!(i.kind_named(" enemy ").map(|k| k.id.as_str()), Some("k1"));
         assert!(i.kind_named("").is_none());
         assert!(i.kind_named("Friend").is_none());
+    }
+
+    #[gpui::test]
+    fn composer_return_waits_for_committed_input_and_complete_endpoints(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        use gpui::{EntityInputHandler, Focusable};
+        use serde_json::json;
+
+        cx.executor().allow_parking();
+        let dir = tempfile::tempdir().unwrap();
+        let ws = dr_workspace::Workspace::open_dir(dir.path(), "relations-keyboard").unwrap();
+        let call =
+            |command, input| ws.call(&Actor::User, command, input).unwrap()["output"].clone();
+        let book = call("project.create", json!({"name":"试写"}))["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        let person = |name| {
+            dr_testkit::seed::acceptance::novel_entry(&ws, &book, "tpl-character", name, None)["id"]
+                .as_str()
+                .unwrap()
+                .to_owned()
+        };
+        let source = person("林间客");
+        let _another = person("谭水");
+        let target = person("唐山");
+        call(
+            "module.set_field",
+            json!({"book":book,"entry":target,"module":"mod-fields",
+            "field":"aliases","value":["青梧客"]}),
+        );
+        let chapter =
+            dr_testkit::seed::acceptance::novel_entry(&ws, &book, "tpl-chapter", "试写", None);
+        let doc = format!("body:{}/mod-prose", chapter["id"].as_str().unwrap());
+        let (view, vcx) = cx.add_window_view(|window, cx| {
+            crate::ChapterEditor::open(ws.clone(), &book, &doc, Default::default(), window, cx)
+                .unwrap()
+        });
+        vcx.update(|_, cx| cx.bind_keys(dr_ui::input::bindings()));
+        let assist = view.read_with(vcx, |v, _| v.assist().clone());
+        let (at, name) = vcx.update(|window, cx| {
+            window.activate_window();
+            assist.update(cx, |a, cx| {
+                a.open_compose(source.clone(), None, window, cx);
+                let d = a.compose_ref().unwrap();
+                (d.at_field.clone(), d.name_field.clone())
+            })
+        });
+        let focus = |field: &Entity<TextField>, vcx: &mut gpui::VisualTestContext| {
+            vcx.update(|window, cx| window.focus(&field.focus_handle(cx), cx));
+            vcx.run_until_parked();
+            vcx.update(|window, cx| {
+                window.simulate_next_frame(cx);
+                window.draw(cx).clear(cx);
+            });
+        };
+        let mark = |field: &Entity<TextField>, vcx: &mut gpui::VisualTestContext| {
+            vcx.update(|window, cx| {
+                field.update(cx, |f, cx| {
+                    f.replace_and_mark_text_in_range(None, "lan", Some(3..3), window, cx);
+                    assert!(f.is_composing());
+                })
+            });
+            vcx.simulate_keystrokes("enter");
+            assert!(field.read_with(vcx, |f, _| f.is_composing()));
+            vcx.update(|window, cx| {
+                field.update(cx, |f, cx| f.replace_text_in_range(None, "", window, cx))
+            });
+        };
+        let state = |vcx: &mut gpui::VisualTestContext| {
+            assist.update(vcx, |a, _| a.compose_state().unwrap())
+        };
+        focus(&at, vcx);
+        assist.update(vcx, |a, cx| a.set_relation_query("no match", cx));
+        vcx.simulate_keystrokes("enter");
+        assert_eq!(state(vcx).dst, None);
+        assist.update(vcx, |a, cx| a.set_relation_query("qwk", cx));
+        assert_eq!(state(vcx).candidates.first(), Some(&target));
+        mark(&at, vcx);
+        assert_eq!(state(vcx).dst, None);
+        // An incomplete pair with a name is still not ready to write.
+        focus(&name, vcx);
+        assist.update(vcx, |a, cx| a.set_relation_name("同乡", cx));
+        vcx.simulate_keystrokes("enter");
+        assert!(!state(vcx).ready);
+        assert!(
+            call("relation_type.list", json!({"book":book}))
+                .as_array()
+                .unwrap()
+                .is_empty()
+        );
+        focus(&at, vcx);
+        assist.update(vcx, |a, cx| {
+            a.set_relation_name("", cx);
+            a.set_relation_query("ts", cx);
+        });
+        let candidates = state(vcx).candidates;
+        assert_eq!(candidates.len(), 2);
+        vcx.simulate_keystrokes("enter");
+        assert_eq!(state(vcx).dst, candidates.first().cloned());
+        focus(&name, vcx);
+        vcx.simulate_keystrokes("enter");
+        assert!(!state(vcx).ready);
+        assist.update(vcx, |a, cx| a.set_relation_name("同乡", cx));
+        mark(&name, vcx);
+        assert!(state(vcx).ready);
+        vcx.simulate_keystrokes("enter");
+        assert!(assist.update(vcx, |a, _| a.compose_state()).is_none());
+        let relations = call("relation_type.list", json!({"book":book}));
+        assert_eq!(relations[0]["rows"][0]["left"], json!([source]));
+        assert_eq!(relations[0]["rows"][0]["right"], json!([candidates[0]]));
     }
 }

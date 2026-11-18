@@ -1677,6 +1677,7 @@
     "deleteRow": "Supprimer cette ligne",
     "description": "Description",
     "direction": "À sens unique ou réciproque",
+    "duplicatePair": "« {{pair}} » figure déjà sur une autre ligne.",
     "kinds_one": "{{count}} relation",
     "kinds_other": "{{count}} relations",
     "newRelation": "Nouvelle relation",

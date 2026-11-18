@@ -1668,6 +1668,7 @@
     "deleteRow": "Diese Zeile löschen",
     "description": "Beschreibung",
     "direction": "Einseitig oder wechselseitig",
+    "duplicatePair": "„{{pair}}“ steht bereits in einer anderen Zeile.",
     "kinds_one": "{{count}} Beziehung",
     "kinds_other": "{{count}} Beziehungen",
     "newRelation": "Neue Beziehung",

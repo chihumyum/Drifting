@@ -20,6 +20,7 @@ pub struct BodyModule {
     /// The entry page's scroll, handed to the body's editor (it scrolls the
     /// page to follow the caret and keep the text in place).
     page_scroll: Option<dr_editor::PageScroll>,
+    page_draws_lines: bool,
     _links: Option<Subscription>,
 }
 
@@ -59,7 +60,12 @@ pub fn register(cx: &mut App) {
                     .ok();
             })
             .on_page_scroll(move |page, cx| {
-                scroll.update(cx, |v, cx| v.set_page_scroll(page, cx)).ok();
+                scroll
+                    .update(cx, |v, cx| {
+                        v.page_draws_lines = true;
+                        v.set_page_scroll(page, cx);
+                    })
+                    .ok();
             })
     });
 }
@@ -89,6 +95,7 @@ impl BodyModule {
             loading: None,
             error: None,
             page_scroll: None,
+            page_draws_lines: false,
             _links: None,
         };
         view.load(window, cx);
@@ -166,6 +173,9 @@ impl BodyModule {
                                 a.set_block_labels(labels);
                                 a.set_entry_label(entry_label);
                                 a.set_relation_labels(relation_labels);
+                                if view.page_draws_lines {
+                                    a.set_page_relation_layer();
+                                }
                             });
                             e.set_base_style(base, cx);
                             e.set_decor_looks(looks, cx);

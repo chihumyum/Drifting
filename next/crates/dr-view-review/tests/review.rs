@@ -1247,16 +1247,24 @@ fn review_at_links_exclude_the_owner_and_survive_editing_rename_and_trash(cx: &m
     )
     .unwrap();
     let book = seed.books[0].book_id().to_string();
-    let entries: Vec<_> = seed.books[0]
+    let owner = seed.books[0]
         .book
         .view()
         .entries()
         .into_iter()
-        .filter(|e| e.parent.is_some() && !e.title.is_empty())
-        .take(2)
-        .collect();
-    let (owner, target) = (&entries[0], &entries[1]);
+        .find(|e| e.parent.is_some() && !e.title.is_empty())
+        .unwrap();
     seed.write_to(ws.library()).unwrap();
+    let target =
+        dr_testkit::seed::acceptance::novel_entry(&ws, &book, "tpl-character", "林间客", None);
+    let target_id = target["id"].as_str().unwrap();
+    let target_title = target["title"].as_str().unwrap();
+    out(
+        &ws,
+        "module.set_field",
+        json!({"book":book,"entry":target_id,
+        "module":"mod-fields","field":"aliases","value":["归鹤"]}),
+    );
     let e = Env {
         _dir: dir,
         ws,
@@ -1281,35 +1289,32 @@ fn review_at_links_exclude_the_owner_and_survive_editing_rename_and_trash(cx: &m
     }));
     cx.update(|window, cx| view.update(cx, |v, cx| v.edit(&id, window, cx)));
     redraw(cx);
-    // Titles may contain a full-width space; search by its first word,
-    // then pick the complete label from the candidate list.
-    cx.simulate_input(&format!(
-        "@{}",
-        target.title.split_whitespace().next().unwrap()
-    ));
-    redraw(cx);
-    cx.simulate_keystrokes("enter");
-    redraw(cx);
-    cx.simulate_keystrokes("cmd-enter");
-    assert!(
-        wait_for(cx, |_| listed(&e)
-            .iter()
-            .any(|c| c["id"] == id && c["body"]["text"] == target.title)),
-        "target={:?}, stored={:?}, editor={:?}",
-        target.title,
-        listed(&e).into_iter().find(|c| c["id"] == id),
-        view.read_with(cx, |v, _| v.editing_id().map(str::to_owned))
-    );
     let body = || listed(&e).into_iter().find(|c| c["id"] == id).unwrap()["body"].clone();
-    assert_eq!(
-        body()["links"],
-        json!([{"start":0,"end":target.title.chars().count(),"entry":target.id}])
-    );
+    for (prefix, query) in [("见 ", "@归鹤"), ("", "@gh")] {
+        redraw(cx);
+        cx.simulate_keystrokes("cmd-a");
+        cx.simulate_input(&format!("{prefix}{query}"));
+        redraw(cx);
+        cx.simulate_keystrokes("enter");
+        redraw(cx);
+        cx.simulate_keystrokes("cmd-enter");
+        let start = prefix.chars().count();
+        assert!(
+            wait_for(cx, |_| body()["text"] == format!("{prefix}{target_title}")
+                && body()["links"]
+                    == json!([{"start":start,"end":start+target_title.chars().count(),"entry":target_id}])),
+            "{query} picked {body:?}",
+            body = body()
+        );
+        if !prefix.is_empty() {
+            cx.update(|window, cx| view.update(cx, |v, cx| v.edit(&id, window, cx)));
+        }
+    }
     // Renaming projects a current label, without losing identity.
     out(
         &e.ws,
         "entry.update",
-        json!({"book":e.book,"id":target.id,"title":"RL 链接新名"}),
+        json!({"book":e.book,"id":target_id,"title":"RL 链接新名"}),
     );
     assert!(wait_for(cx, |cx| view.read_with(cx, |v, _| v
         .v3_snapshot()
@@ -1326,14 +1331,14 @@ fn review_at_links_exclude_the_owner_and_survive_editing_rename_and_trash(cx: &m
     cx.simulate_keystrokes("cmd-enter");
     assert!(wait_for(cx, |_| body()["text"] == "前 RL 链接新名"));
     assert_eq!(body()["links"][0]["start"], 2);
-    out(&e.ws, "entry.trash", json!({"book":e.book,"id":target.id}));
+    out(&e.ws, "entry.trash", json!({"book":e.book,"id":target_id}));
     assert!(body()["links"].as_array().unwrap().is_empty());
     out(
         &e.ws,
         "entry.restore",
-        json!({"book":e.book,"id":target.id}),
+        json!({"book":e.book,"id":target_id}),
     );
-    assert_eq!(body()["links"][0]["entry"], json!(target.id));
+    assert_eq!(body()["links"][0]["entry"], json!(target_id));
 
     // @ on the owner remains literal text; Enter does not pick the owner.
     cx.update(|window, cx| view.update(cx, |v, cx| v.edit(&id, window, cx)));

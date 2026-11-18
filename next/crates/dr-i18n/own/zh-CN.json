@@ -512,6 +512,7 @@
     "change": "换一个"
   },
   "v5Relations": {
+    "duplicatePair": "「{{pair}}」已经在另一行里。",
     "addEntry": "加一个条目",
     "addRow": "加一行",
     "deleteRow": "删掉这一行",

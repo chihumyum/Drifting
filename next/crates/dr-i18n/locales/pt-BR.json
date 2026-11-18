@@ -1677,6 +1677,7 @@
     "deleteRow": "Excluir esta linha",
     "description": "Descrição",
     "direction": "Unidirecional ou bidirecional",
+    "duplicatePair": "“{{pair}}” já está em outra linha.",
     "kinds_one": "{{count}} relação",
     "kinds_other": "{{count}} relações",
     "newRelation": "Nova relação",

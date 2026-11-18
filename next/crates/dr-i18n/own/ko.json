@@ -514,6 +514,7 @@
     "change": "바꾸기"
   },
   "v5Relations": {
+    "duplicatePair": "‘{{pair}}’이(가) 이미 다른 행에 있습니다.",
     "addEntry": "항목 추가",
     "addRow": "행 추가",
     "deleteRow": "이 행 삭제",

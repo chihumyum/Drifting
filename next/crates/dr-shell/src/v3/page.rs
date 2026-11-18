@@ -107,6 +107,7 @@ pub struct EntryPage {
     pub focus: FocusHandle,
     scroll: ScrollHandle,
     parts: BTreeMap<String, (String, Rendered)>,
+    overlay: Option<gpui::AnyView>,
     pub sections: Vec<Section>,
     pub revealed: Option<Lines>,
     pub synced: bool,
@@ -154,6 +155,7 @@ impl EntryPage {
             focus: cx.focus_handle(),
             scroll: ScrollHandle::new(),
             parts: BTreeMap::new(),
+            overlay: None,
             sections: Vec::new(),
             revealed: None,
             synced: false,
@@ -317,6 +319,22 @@ impl EntryPage {
             .unwrap_or_else(|| self.focus.clone())
     }
     /// Only the module views currently retained by this particular page.
+    /// The prose views on this entry page, in section order.
+    pub fn prose_views(&self) -> impl Iterator<Item = gpui::AnyView> + '_ {
+        self.sections
+            .iter()
+            .filter(|section| section.kind == "prose")
+            .filter_map(|section| {
+                self.parts
+                    .get(&format!("module:{}", section.id))
+                    .map(|(_, part)| part.view.clone())
+            })
+    }
+
+    pub fn scroll_handle(&self) -> &ScrollHandle {
+        &self.scroll
+    }
+
     pub(crate) fn editor_views(&self) -> Vec<(String, EntityId)> {
         self.sections
             .iter()
@@ -1123,6 +1141,9 @@ impl Render for EntryPage {
         match self.target.clone() {
             Target::Entry { id, module } => {
                 if let Some(entry) = v3.entry(id.as_str()) {
+                    if self.overlay.is_none() {
+                        self.overlay = super::entry_overlay(self.entry_host(id.as_str(), cx), cx);
+                    }
                     let open_book = entry.level.then(|| {
                         let weak = self.host.workspace.clone();
                         let expected_book = self.host.book_id.clone();
@@ -1245,7 +1266,7 @@ impl Render for EntryPage {
             }
             _ => {}
         }
-        content
+        let page = content
             .id("v3-entry-page")
             .track_focus(&self.focus)
             .size_full()
@@ -1265,7 +1286,17 @@ impl Render for EntryPage {
             .pb_8()
             .font_role(FontRole::Structure)
             .text_color(theme.palette.ink(1).solid())
-            .into_any_element()
+            .into_any_element();
+        if let Some(overlay) = &self.overlay {
+            div()
+                .relative()
+                .size_full()
+                .child(page)
+                .child(overlay.clone())
+                .into_any_element()
+        } else {
+            page
+        }
     }
 }
 

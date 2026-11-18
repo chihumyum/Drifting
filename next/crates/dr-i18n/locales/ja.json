@@ -1652,6 +1652,7 @@
     "deleteRow": "この行を削除",
     "description": "説明",
     "direction": "一方向か双方向か",
+    "duplicatePair": "「{{pair}}」はすでに別の行にあります。",
     "kinds_other": "{{count}} 種類",
     "newRelation": "新しい関係",
     "pairs_other": "{{count}} 組",

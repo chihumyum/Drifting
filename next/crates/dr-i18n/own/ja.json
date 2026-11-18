@@ -514,6 +514,7 @@
     "change": "変更"
   },
   "v5Relations": {
+    "duplicatePair": "「{{pair}}」はすでに別の行にあります。",
     "addEntry": "項目を追加",
     "addRow": "行を追加",
     "deleteRow": "この行を削除",

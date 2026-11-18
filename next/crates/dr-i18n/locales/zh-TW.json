@@ -1652,6 +1652,7 @@
     "deleteRow": "刪掉這一行",
     "description": "描述",
     "direction": "單向或雙向",
+    "duplicatePair": "「{{pair}}」已經在另一列裡。",
     "kinds_other": "{{count}} 種",
     "newRelation": "新的關係",
     "pairs_other": "{{count}} 對",

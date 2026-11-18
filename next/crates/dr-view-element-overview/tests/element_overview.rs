@@ -829,9 +829,7 @@ fn shift_pair_reuses_the_named_row_and_duplicate_adds_no_undo_step(cx: &mut Test
 }
 
 #[gpui::test]
-fn shift_pair_button_direction_enter_does_not_submit_and_failed_write_keeps_draft(
-    cx: &mut TestAppContext,
-) {
+fn shift_pair_direction_enter_submits_and_failed_write_keeps_draft(cx: &mut TestAppContext) {
     use dr_view_element_overview::view::PairDirection;
     cx.executor().allow_parking();
     let (_dir, lib, books) = setup_seed_fixture(dr_testkit::seed::Preset::Tiny);
@@ -862,12 +860,13 @@ fn shift_pair_button_direction_enter_does_not_submit_and_failed_write_keeps_draf
         "Esc closes the draft before exiting fill"
     );
     begin(vcx);
-    vcx.update(|window, cx| {
+    vcx.simulate_keystrokes("enter");
+    assert!(
+        ov.read_with(vcx, |v, _| v.relation_draft().is_some()),
+        "Enter with an empty name keeps the composer open"
+    );
+    vcx.update(|_, cx| {
         ov.update(cx, |v, cx| {
-            assert!(
-                v.confirm_relation(window, cx).is_none(),
-                "a name is required"
-            );
             v.set_relation_name("Graph Reversed", cx);
             v.cycle_relation_direction(cx);
             assert_eq!(
@@ -876,11 +875,6 @@ fn shift_pair_button_direction_enter_does_not_submit_and_failed_write_keeps_draf
             );
         })
     });
-    vcx.simulate_keystrokes("enter");
-    assert!(
-        ov.read_with(vcx, |v, _| v.relation_draft().is_some()),
-        "Enter has no approved create action; the draft stays open"
-    );
     let list = || {
         lib.call(&Actor::User, "relation_type.list", json!({"book":book}))
             .unwrap()["output"]
@@ -888,17 +882,8 @@ fn shift_pair_button_direction_enter_does_not_submit_and_failed_write_keeps_draf
             .unwrap()
             .clone()
     };
-    assert!(
-        !list().iter().any(|r| r["name"] == "Graph Reversed"),
-        "Enter must not save a relation"
-    );
-    wait(vcx, |cx| {
-        shell.read_with(cx, |ws, _| ws.fill_progress(FillPlace::Left) >= 1.0)
-    });
-    wait(vcx, |cx| cx.debug_bounds("se-relation-create").is_some());
-    let at = vcx.debug_bounds("se-relation-create").unwrap().center();
-    vcx.simulate_mouse_move(at, None, gpui::Modifiers::default());
-    vcx.simulate_click(at, gpui::Modifiers::default());
+    assert!(!list().iter().any(|r| r["name"] == "Graph Reversed"));
+    vcx.simulate_keystrokes("enter");
     wait(vcx, |cx| {
         ov.read_with(cx, |v, _| v.relation_draft().is_none())
     });
@@ -913,15 +898,20 @@ fn shift_pair_button_direction_enter_does_not_submit_and_failed_write_keeps_draf
         .expect("one edit creates both name and pair");
     assert!(!list().iter().any(|r| r["name"] == "Graph Reversed"));
     begin(vcx);
-    vcx.update(|window, cx| {
+    vcx.update(|_, cx| {
         ov.update(cx, |v, cx| {
             v.set_relation_name("Graph Symmetric", cx);
             v.cycle_relation_direction(cx);
             v.cycle_relation_direction(cx);
             assert_eq!(v.relation_draft().unwrap().direction, PairDirection::Both);
-            v.confirm_relation(window, cx)
-                .expect("new symmetric relation");
         })
+    });
+    wait(vcx, |cx| cx.debug_bounds("se-relation-create").is_some());
+    let at = vcx.debug_bounds("se-relation-create").unwrap().center();
+    vcx.simulate_mouse_move(at, None, gpui::Modifiers::default());
+    vcx.simulate_click(at, gpui::Modifiers::default());
+    wait(vcx, |cx| {
+        ov.read_with(cx, |v, _| v.relation_draft().is_none())
     });
     assert_eq!(
         list()

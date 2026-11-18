@@ -34,6 +34,7 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use std::rc::Rc;
 use std::time::Instant;
 
+use dr_editor::entity_links::EntrySearch;
 use dr_i18n::keys;
 use dr_model::v3::{EntryTextLink, LinkedText, RelationDirection, RelationSide};
 use dr_shell::book::Book;
@@ -75,6 +76,14 @@ pub struct DraftRow {
     pub right: Vec<String>,
     pub pending: bool,
     pub failed: bool,
+    pub duplicate: Option<DuplicatePair>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DuplicatePair {
+    pub row: String,
+    pub left: String,
+    pub right: String,
 }
 
 /// A name being edited: `relation` is `None` for a new card.
@@ -130,6 +139,7 @@ pub struct RelationsRail {
     pub(crate) relations: Vec<RelationInfo>,
     shown: WritePreconditions,
     shown_rows: Vec<dr_model::v3::RelationRow>,
+    search: EntrySearch,
     pub(crate) loaded: bool,
     load_gen: u64,
     load_task: Option<Task<()>>,
@@ -277,6 +287,7 @@ impl RelationsRail {
             relations: Vec::new(),
             shown: WritePreconditions::default(),
             shown_rows: Vec::new(),
+            search: EntrySearch::default(),
             loaded: false,
             load_gen: 0,
             load_task: None,
@@ -368,6 +379,7 @@ impl RelationsRail {
             self.relations.clear();
             self.shown = WritePreconditions::default();
             self.shown_rows.clear();
+            self.search = EntrySearch::default();
             self.loaded = false;
             self.rename = None;
             self.describe = None;
@@ -461,7 +473,13 @@ impl RelationsRail {
                     return;
                 }
                 match out {
-                    Ok((mut relations, book, shown, rows)) => {
+                    Ok(guarded::Snapshot {
+                        mut relations,
+                        book,
+                        shown,
+                        rows,
+                        search,
+                    }) => {
                         if let Some(RowKey::Stored(row)) = &rail.hover
                             && !relations
                                 .iter()
@@ -485,9 +503,20 @@ impl RelationsRail {
                                 relations.push(old.clone());
                             }
                         }
+                        for draft in &mut rail.drafts {
+                            if draft.duplicate.is_some() {
+                                draft.duplicate = relations
+                                    .iter()
+                                    .find(|info| {
+                                        draft.relation.as_deref() == Some(info.id.as_str())
+                                    })
+                                    .and_then(|info| first_duplicate(info, draft));
+                            }
+                        }
                         rail.relations = relations;
                         rail.shown = shown;
                         rail.shown_rows = rows;
+                        rail.search = search;
                         rail.book = Rc::new(book);
                         rail.loaded = true;
                         rail.forget_gone(cx);
@@ -679,10 +708,10 @@ impl RelationsRail {
         })
     }
 
-    /// The book's live entries matching `query` (in the title), the ones in
+    /// The book's live entries matching `query`, the ones in
     /// `except` left out, as the `@` field lists them.
     pub fn find_entries(&self, query: &str, except: &[String]) -> Vec<AtItem> {
-        entry_candidates(&self.book, query, except)
+        entry_candidates(&self.book, &self.search, query, except)
     }
 
     /// The cards shown, newest first, each with the rows shown.
@@ -827,6 +856,7 @@ impl RelationsRail {
             right: Vec::new(),
             pending: false,
             failed: false,
+            duplicate: None,
         });
         self.start_rename(None, window, cx);
         self.scroll
@@ -1009,7 +1039,7 @@ impl RelationsRail {
         let rail = cx.weak_entity();
         let candidates: Candidates = Rc::new(move |query, cx| {
             rail.upgrade()
-                .map(|rail| entry_candidates(&rail.read(cx).book, query, &[]))
+                .map(|rail| rail.read(cx).find_entries(query, &[]))
                 .unwrap_or_default()
         });
         let id = SharedString::from(format!("relations-desc-{relation}"));
@@ -1110,6 +1140,7 @@ impl RelationsRail {
             right: Vec::new(),
             pending: false,
             failed: false,
+            duplicate: None,
         });
         cx.notify();
     }
@@ -1260,7 +1291,6 @@ impl RelationsRail {
                 if d.pending {
                     return;
                 }
-                d.failed = false;
                 let (mine, other) = match side {
                     RelationSide::Left => (&mut d.left, &d.right),
                     RelationSide::Right => (&mut d.right, &d.left),
@@ -1269,6 +1299,8 @@ impl RelationsRail {
                     return;
                 }
                 mine.push(entry.to_owned());
+                d.failed = false;
+                d.duplicate = None;
                 if !d.left.is_empty() && !d.right.is_empty() {
                     let d = d.clone();
                     self.write_draft(d, cx);
@@ -1289,11 +1321,22 @@ impl RelationsRail {
         if d.pending || d.left.is_empty() || d.right.is_empty() {
             return;
         }
+        let duplicate = first_duplicate(info, &d);
+        if let Some(pair) = duplicate {
+            if let Some(draft) = self.drafts.iter_mut().find(|draft| draft.key == d.key) {
+                draft.failed = false;
+                draft.duplicate = Some(pair.clone());
+            }
+            shell_rel::request_reveal(&self.book.id, &pair.row, cx);
+            cx.notify();
+            return;
+        }
         let direction = info.direction;
         let key = d.key;
         if let Some(draft) = self.drafts.iter_mut().find(|d| d.key == key) {
             draft.pending = true;
             draft.failed = false;
+            draft.duplicate = None;
         }
         self.write(
             cx,
@@ -1366,7 +1409,17 @@ impl RelationsRail {
                     let right = d.right.iter().any(|e| e == entry);
                     d.left.retain(|e| e != entry);
                     d.right.retain(|e| e != entry);
-                    if (left && d.left.is_empty()) || (right && d.right.is_empty()) {
+                    let replacing_duplicate = d.duplicate.is_some();
+                    if replacing_duplicate {
+                        d.duplicate = self
+                            .relations
+                            .iter()
+                            .find(|info| d.relation.as_deref() == Some(info.id.as_str()))
+                            .and_then(|info| first_duplicate(info, d));
+                    }
+                    if !replacing_duplicate
+                        && ((left && d.left.is_empty()) || (right && d.right.is_empty()))
+                    {
                         self.delete_row(row, cx);
                     }
                 }
@@ -1559,40 +1612,57 @@ pub struct Card {
     pub drafts: Vec<DraftRow>,
 }
 
-/// The `@` list over the book's live entries: titles containing `query`
-/// (any case; all of them for none), the ones in `except` left out, those
-/// starting with it first.
-pub fn entry_candidates(book: &Book, query: &str, except: &[String]) -> Vec<AtItem> {
+fn first_duplicate(relation: &RelationInfo, draft: &DraftRow) -> Option<DuplicatePair> {
+    let symmetric = relation.direction == RelationDirection::Symmetric;
+    for left in &draft.left {
+        for right in &draft.right {
+            if let Some(row) = relation.rows.iter().find(|row| {
+                (row.left.contains(left) && row.right.contains(right))
+                    || (symmetric && row.left.contains(right) && row.right.contains(left))
+            }) {
+                return Some(DuplicatePair {
+                    row: row.id.clone(),
+                    left: left.clone(),
+                    right: right.clone(),
+                });
+            }
+        }
+    }
+    None
+}
+
+/// The `@` list over the book's live entries.
+fn entry_candidates(
+    book: &Book,
+    search: &EntrySearch,
+    query: &str,
+    except: &[String],
+) -> Vec<AtItem> {
     let Some(v3) = book.v3() else {
         return Vec::new();
     };
-    let q = query.trim().to_lowercase();
-    let mut hits: Vec<(bool, AtItem)> = v3
+    let eligible = v3
         .entries
         .iter()
-        .filter(|e| !e.title.trim().is_empty() && !except.iter().any(|x| x == &e.id))
-        .filter_map(|e| {
-            let title = e.title.to_lowercase();
-            if !q.is_empty() && !title.contains(&q) {
-                return None;
-            }
+        .filter(|e| !e.title.trim().is_empty() && !except.contains(&e.id))
+        .map(|e| e.id.as_str());
+    search
+        .search(query, eligible)
+        .into_iter()
+        .filter_map(|id| {
+            let e = v3.entry(id)?;
             let target = Target::Entry {
-                id: e.id.parse().ok()?,
+                id: id.parse().ok()?,
                 module: None,
             };
-            Some((
-                !q.is_empty() && title.starts_with(&q),
-                AtItem {
-                    target: e.id.clone().into(),
-                    label: e.title.clone().into(),
-                    detail: v3.template_of(&e.id).map(|t| t.name.clone().into()),
-                    mark: book.mark(&target).0,
-                },
-            ))
+            Some(AtItem {
+                target: e.id.clone().into(),
+                label: e.title.clone().into(),
+                detail: v3.template_of(id).map(|t| t.name.clone().into()),
+                mark: book.mark(&target).0,
+            })
         })
-        .collect();
-    hits.sort_by_key(|(prefix, _)| !*prefix);
-    hits.into_iter().map(|(_, item)| item).collect()
+        .collect()
 }
 
 /// A stored text with its links as the editor takes it.

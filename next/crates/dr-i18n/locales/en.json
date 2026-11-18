@@ -1668,6 +1668,7 @@
     "deleteRow": "Delete this row",
     "description": "Description",
     "direction": "One-way or two-way",
+    "duplicatePair": "“{{pair}}” is already in another row.",
     "kinds_one": "{{count}} relation",
     "kinds_other": "{{count}} relations",
     "newRelation": "New relation",

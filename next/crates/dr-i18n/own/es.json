@@ -532,6 +532,7 @@
     "change": "Cambiar"
   },
   "v5Relations": {
+    "duplicatePair": "«{{pair}}» ya está en otra fila.",
     "addEntry": "Añadir una entrada",
     "addRow": "Añadir una fila",
     "deleteRow": "Eliminar esta fila",
