@@ -248,3 +248,5 @@ cargo clippy -p dr-view-relations --all-targets --features capture --locked -- -
 - 右栏草稿中有已存在的条目对时，提示「地保 → 阿Q」已经在另一行里，并滚到已有行、短暂亮起。双向用 ↔，一次只说第一对。草稿保留，可移出重复的人、换一个再保存。界面先用已读到的行判断，数据命令仍整体校验，处理判断后才发生的并发改动。
 
 共用搜索在 `dr-editor/src/entity_links.rs`，层的宿主在 `dr-view-page/src/relations.rs`，几何和砂笔沿用 `dr-editor/src/assist/relate.rs`。右栏的重复判断和回归分别在 `dr-view-relations/src/rail.rs` 与 `tests/rail.rs`。另有 `dr-view-page/tests/v5_rl_prose.rs` 的跨正文宿主回归、`dr-editor/src/assist/relate.rs` 的回车和组字回归，以及 `dr-view-review/tests/review.rs` 的批注 @ 回归。
+
+独立规格和代码审查已完成。合并树工作区测试 3,098 项通过，21 项为原有忽略。副屏用合成《阿Q正传》核过跨正文的线、用别名找条目和按回车建立、重复草稿指回旧行，以及图上选中项的名字。
