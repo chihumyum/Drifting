@@ -1530,6 +1530,11 @@ RL 接手审查发现，`CreatePair` 接着逐个 `AddEntry` 不能提交右栏�
 - 一次成功提交是一条命令、一份精确 pair 的撤销回执。Undo / Redo 只拿走或放回本次写的 pair，后写的名字、描述及其他 pair 保留；形状无法只撤本次内容时沿现有 Restore 报 Conflict，不覆盖整行。磁盘或 journal 故障仍遵循 F3 原有合同，不额外声称任意故障下一定有撤销。
 - **验收**：`dr-workspace/tests/relations_groups.rs` 的 10 项定向回归与 Agent 的逐成员读取覆盖回归通过；重叠 pair、过时方向、完整 N×M 一步撤销分别移除保护后转红，恢复后复绿。RL 右栏已消费这个接口，并有真实远端变更、失败留稿和一步撤销回归。合并树 `63eb6b918`：`cargo fmt --all --check`、全 workspace/all-targets Clippy（`-D warnings`）、workspace tests（3072 通过、0 失败、21 项原有忽略）、`cargo xtask check`、`pnpm public:check`、`pnpm ci:contract:check` 和语言文件一致性检查全部通过；审计为 0 漏洞、13 项依赖提示，原有过期测量提示保留；真窗口与设备边界见 [M17](modules/m17-relations.md)。
 
+### TS 交回：关掉没改过的新条目模板（2026-11-18）
+
+- 新增两个外壳内部使用的 `Workspace` 方法 `create_entry_template_draft(book, draft)` 和 `discard_entry_template_draft(draft)`。前者新建并返回带初始定义的 `EntryTemplateDraft`，后者与书目写入任务一起复查定义和引用。已有正文、条目、动作、默认模板或字段引用时保留。创建临时定义与清理均无撤销步骤或最近删除记录，F3 命令表不变。
+- 新开的药丸记录本次运行的草稿，关闭时等已经提交的保存。全页编辑仍使用原有手动保存。应用重启后恢复的药丸按普通模板处理。
+
 ### 最终的接口名字
 
 **`dr_model`（领域类型与不变量）**
