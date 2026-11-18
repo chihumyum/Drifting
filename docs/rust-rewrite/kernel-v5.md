@@ -1511,7 +1511,7 @@ T9 拖挂着的那一行（第 15 节第 33 条，任务书第 56、60 条）要
   - **规划函数**。`dr_workspace::autolink::plan_book_text(book, owner, names, stored, draft)`：`names` 是编好的名字表（工作区用书的缓存 `book_cache`，名字不变就不重建，写批注不算变；导入用 `book_text_matcher`，每个书目版本建一次），不再每调一次重建整本书的名字表；`stored` 是被替换的字，新建时为 `None`。`Workspace::plan_entry_text_links` 签名不变，当作新建时的预览。
   - **导入**。批注的自动链接听 `MappingChoices::auto_entity_links`：导入开始时作者的 `editor.auto_entity_links`，默认开，`dr-view-import` 从当前书库的工作区取；关着时记进映射键，接着导时沿用开始时的值，开着时映射键和以前一样。清单项和标记投出来的批注拷那一行的链接，不按名字链（`dr_samples::v3::ProjectedLines` 和 `dr_workspace::commands::comment::projected_body`，后者就是 `comment.project` 用的那个），所以导入后第一次投影什么都不写；样书照同一套。
   - **导入的计数**。没带过来的关系每条只算一次，按它第一个带不过来的头（先看起点）：图片、PDF、其他素材、批注、待办、补丁各一种；两头都是条目、属于 0.1 内置「关联」的单算一种（`relation-built-in-entries-dropped`，报告里写「内置的「关联」下两头都是条目的关系没有导入」）。`built-in-relation-type-dropped` 只数类型。报告和回执的 `notes` 里是这些数；每一条没带过来的关系连两头的种类和 id，记进回执的 `originals`（`relations` / `dropped`），以后要导回来还在。
-  - **还要作者定**：0.1 内置「关联」下两头都是条目的关系（章、构想、要素、素材笔记之间）要不要导进来。第 19 节「导入 0.1」写的是内置的「关联」类型不带，现在照这条连这些关系一起不带，只计数、原样记在回执里；作者说要，再给它们建一种关系、照「就地建关系」落行。**2026-11-18 作者定了：带过来**（第 15 节第 55 条），归 [v5-followups.md](handoff/v5-followups.md) 的 RI。
+  - **还要作者定**：0.1 内置「关联」下两头都是条目的关系（章、构想、要素、素材笔记之间）要不要导进来。第 19 节「导入 0.1」写的是内置的「关联」类型不带，现在照这条连这些关系一起不带，只计数、原样记在回执里；作者说要，再给它们建一种关系、照「就地建关系」落行。**2026-11-18 作者定了：带过来**（第 15 节第 55 条），由 RI 实现，见该节末的「RI 交回」。
   - **给 RL**：审阅栏撰写框照旧传纯文字，靠上面的规则保住链接；RL 的卡要么传纯文字，要么传读到的带链接的字（卡上自己去掉的才去掉）。`asset.list`、`module.remove_patch` 的说明和给 Agent 的结构说明不再提关系连文件、补丁；结构说明补了同一边的条目彼此没有关系。
 
 ### MF 交回：Markdown 文件夹的提交边界（2026-11-17）
@@ -1534,6 +1534,12 @@ RL 接手审查发现，`CreatePair` 接着逐个 `AddEntry` 不能提交右栏�
 
 - 新增两个外壳内部使用的 `Workspace` 方法 `create_entry_template_draft(book, draft)` 和 `discard_entry_template_draft(draft)`。前者新建并返回带初始定义的 `EntryTemplateDraft`，后者与书目写入任务一起复查定义和引用。已有正文、条目、动作、默认模板或字段引用时保留。创建临时定义与清理均无撤销步骤或最近删除记录，F3 命令表不变。
 - 新开的药丸记录本次运行的草稿，关闭时等已经提交的保存。全页编辑仍使用原有手动保存。应用重启后恢复的药丸按普通模板处理。
+
+### RI 交回：导入 0.1 的「关联」（2026-11-18）
+
+- `dr_samples::v3::sync_catalog_with_relation_times` 是导入重放的共用转换入口，接受源关系 ID 到毫秒创建时间的映射。`sync_catalog` 继续供样书调用。有效配对使用既有的 RD 落行函数，先按毫秒、同一毫秒按源关系 ID。没有规范化同名类型时生成普通单向「关联」，笔记在左。F3 命令和书格式保持原样。
+- 已转换的旧配对原样进 `import_original` 的 `relations / source-association`。悬空或自指配对的原记录进 `relations / dropped`。只数一次不能带过来的端点。RD 的 `relation-built-in-entries-dropped` 计数和报告行由本节替代。
+- 预检和正式重放用同一映射。RI 前的中断缓存没有这些配对，映射键变更后须保留原目标、另选目标导入。按 RI 映射中断的任务仍接着前沿续导。
 
 ### 最终的接口名字
 

@@ -992,3 +992,7 @@ cargo xtask check
 | `yjs_prose_command_receipt` | drop | Agent 幂等回执 |
 | `yjs_snapshots` | prose-evidence | Yjs 状态：说明文档存在、被压缩过 |
 | `yjs_updates` | prose-evidence | Yjs 更新：说明文档存在、改过几次 |
+
+### RI 合并验收（2026-11-18）
+
+合并树 `43ea6d9f1` 的全套检查通过，Rust 工作区 3120 项通过、0 失败、21 项原有忽略。搁下悬空、自指补修时对应回归失败，恢复补修即绿。macOS 副屏从已打开并保存的合成书发起导入，51 步通过，自动换到新库并在章的「关系 → 当前」看见两条同章笔记。空书架起步的自动换库保存错误在 RI 前的对照树也可复现，单独留待定位。
