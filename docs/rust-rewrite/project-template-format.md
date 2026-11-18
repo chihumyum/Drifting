@@ -1,6 +1,6 @@
 # 项目模板格式规格（`drifting.project-template` 版本 1）
 
-2026-11-15 由 PT1（[handoff/v5-tracks.md](handoff/v5-tracks.md)「PT1 项目模板的数据」）随书目格式 5（[kernel-v5.md](kernel-v5.md)）定稿。设计背景、产品边界与两期分工见 [project-templates.md](project-templates.md)；本页是模板值（`ProjectTemplateValue`）与唯一校验器（`dr_model::project_template`）逐字段的正式规格。
+2026-11-15 由 PT1（`handoff/v5-tracks.md`（2026-11-18 删了，最后一版 `git show 64563601b:docs/rust-rewrite/handoff/v5-tracks.md`；还要做的在 [handoff/v5-followups.md](handoff/v5-followups.md)）「PT1 项目模板的数据」）随书目格式 5（[kernel-v5.md](kernel-v5.md)）定稿。设计背景、产品边界与两期分工见 [project-templates.md](project-templates.md)；本页是模板值（`ProjectTemplateValue`）与唯一校验器（`dr_model::project_template`）逐字段的正式规格。
 
 - 类型与唯一校验器：`next/crates/dr-model/src/project_template/`（`ProjectTemplateValue`、`parse_project_template_json`、`validate_project_template_value`、`to_canonical_json`）。
 - 书库模板文档、从项目提取与展开建书：`next/crates/dr-doc/src/project_template.rs`。

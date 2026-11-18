@@ -8,7 +8,7 @@
 
 ## 内核 v5 · T5 正文里的图片与 PDF、斜杠挑文件与文件链接（2026-11-15）
 
-按 [kernel-v5.md 第 6 节](../kernel-v5.md#6-正文只有一种格式档) 与 [v5-tracks.md 的 T5](../handoff/v5-tracks.md#t5-文件t5-files)，在 `dr-editor` 与 `dr-view-page/src/links.rs` 接通所有正文的内置素材库文件嵌入、挑文件小窗、拖入/粘贴导入与指向文件的正文链接：
+按 [kernel-v5.md 第 6 节](../kernel-v5.md#6-正文只有一种格式档) 与 `v5-tracks.md` 的 T5（任务书 2026-11-18 删了，最后一版 `git show 64563601b:docs/rust-rewrite/handoff/v5-tracks.md`），在 `dr-editor` 与 `dr-view-page/src/links.rs` 接通所有正文的内置素材库文件嵌入、挑文件小窗、拖入/粘贴导入与指向文件的正文链接：
 
 - **所有正文统一开放「图片或 PDF…」**：不论层级 `format_shortcuts` 设为何档，斜杠菜单均包含「图片或 PDF…」。选中后打开 `340px` 挑文件小窗（仅在打开小窗时调一次 `asset.list` 与 `asset_folder.list`，搜索框与素材夹筛选片在内存过滤，不在每次重绘时重查），展示三列缩略图与底部「从电脑选…」。同一文件可在同一篇或不同正文中嵌入多处。
 - **正文里的图片与 PDF 卡片**：

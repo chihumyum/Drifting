@@ -242,3 +242,7 @@ xtask（审计 972 crate、0 漏洞、12 既有 notice）及 public（5536 文�
 ## 内核 v5 · 撰写框挡住它下面的东西（2026-11-16）
 
 撰写框（`composer.rs` 的 `CommentComposer`）是一张浮在被批注处上面的卡：框出的区域、选中的正文、字段那一行。它的根现在 `occlude()`，按在卡上（输入框、按钮）只归撰写框，不再同时落到下面的台面或编辑器上把键盘收回去。查出的地方是素材查看器的框选批注（[M19](m19-materials.md) 同日一节，回归测试 `dr-view-material/tests/material.rs` 的 `the_region_composer_takes_the_keyboard`）；为了让测试找到输入框，撰写框里放输入框的那一块加了 `debug_selector`「comment-composer-field」。
+
+## 内核 v5 · 审阅铺满的列宽（2026-11-18 作者定的）
+
+kernel-v5 第 15 节第 52 条，作者「全照建议」，由 [v5-followups.md](../handoff/v5-followups.md) 的 SF 做：审阅铺满每列照原型 310 宽，列数是铺满宽减 24 除以 310 取整，1 到 6 列；原来除以 275。

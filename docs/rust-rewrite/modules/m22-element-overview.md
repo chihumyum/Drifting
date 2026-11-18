@@ -71,3 +71,7 @@
 - 写坐标时不回收别的条目的坐标（监管会话 2026-11-15 改）：坐标和书是两篇文档、分开同步，别的设备新建的条目，坐标可能比条目先到，按「书里找不到」去删会误删。回收用的 `LayoutTxn::forget_entries`（条目自己在各块画布上的坐标、以它为范围的画布 `<条目>/<摆法>`；范围 `root` 不是条目）留给清除条目的那一步调用，现在没有命令清除单个条目。
 - `dr-store` 的 `KNOWN_DOC_KINDS` 加上 `layout`。
 - 测试：`dr-workspace/tests/layout_doc.rs` 三条（其中 `a_write_keeps_the_coordinates_of_an_entry_the_book_does_not_have`）、`dr-doc/src/side.rs` 的 `forgetting_entries_drops_their_coordinates_and_their_own_canvases`。
+
+## 内核 v5 · 关系摆法图上的名字（2026-11-18 作者定的）
+
+kernel-v5 第 15 节第 51、53 条，作者「全照建议」，由 [v5-followups.md](../handoff/v5-followups.md) 的 RL2 做：线上的关系名字放不下（压到已经画了的名字或卡上）的先不画，指到那条线上、或点了它连着的卡才出；先画点中那张卡连着的和指着的那条。原来缩放够大、线不多于 60 条时全画，叠着就叠着。Shift 点两头后的名字框里回车就是「建立」。照现在的：图上点线删不掉，删关系去右栏的关系卡。

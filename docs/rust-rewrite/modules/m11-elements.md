@@ -564,3 +564,7 @@ G3 待公共载荷进 main 后消费接收端；性能／heavy／截图目检和
 - `data.rs` 的 `Creation` 多了 `attach`：`creation` 在新建的上下文只收别处的条目、不是层级时为真（就是原来已经算出的 `is_host_only`），`creation_attached` 永远为真。`dialogs.rs` 的 `EntryPicker::create` 按它选 `host` 还是 `parent`，不再只看新建框是从哪里打开的。
 - 场景 `k4-g2-actions`、`k4-g2-review-drag`：悬停卡「新建」那一步的 `pending` 去掉，SC 为绕开它加的「打开故事线页、滚到第二块、按＋ 新建」五步去掉，回到从悬停卡新建；后面「新条目住在」改了以后提交被拦、重试的步骤不变。
 - 测试：`tests/v3_actions.rs` 的 `new_on_a_storylines_card_attaches_the_new_entry`（GPUI：从故事线卡的「新建」打字、回车，新条目住在书稿下面、主归属是故事线、挂名记录在）；`creation_uses_home_and_atomic_membership_without_inventing_a_default` 加了 `attach` 的两句（故事线为真、分组为假）。
+
+## 内核 v5 · 「新建」不先起名字（2026-11-18 作者定的）
+
+kernel-v5 第 15 节第 54 条，作者「全照建议」，由 [v5-followups.md](../handoff/v5-followups.md) 的 NE 做（等作者确认挑模板那一处）：左栏卡里的「新建」、条目页「下面的条目」「挂在这里的条目」块头上的新建，不再开起名字的小框，直接建「未命名」、打开、标题选中；用这一层默认建的模板，建好要换用「换模板」。小框只留给「换模板」「归属到」。

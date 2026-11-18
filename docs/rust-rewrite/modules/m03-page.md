@@ -117,9 +117,15 @@ cargo run -p dr-view-page --features capture --example page-capture -- ../docs/r
 
 ## 内核 v5 · T5 条目页媒体模块（2026-11-15）
 
-按 [kernel-v5.md 第 6 节](../kernel-v5.md#6-正文只有一种格式档) 与 [v5-tracks.md 的 T5](../handoff/v5-tracks.md#t5-文件t5-files)，在 `next/crates/dr-view-page/src/media.rs` 实现条目页媒体模块（`ModuleKind::Media`）：
+按 [kernel-v5.md 第 6 节](../kernel-v5.md#6-正文只有一种格式档) 与 `v5-tracks.md` 的 T5（任务书 2026-11-18 删了，最后一版 `git show 64563601b:docs/rust-rewrite/handoff/v5-tracks.md`），在 `next/crates/dr-view-page/src/media.rs` 实现条目页媒体模块（`ModuleKind::Media`）：
 
 - **三种摆法与单条目覆盖**：「大图」（`featured`：主舞台大图或 PDF 首页、下方行内说明、底部缩略图切换条与末尾 `+`）、「网格」（`grid`：三列卡片、下方行内说明）、「列表」（`list`：缩略图、文件名、行内说明、右侧种类与页数）。默认读模板摆法；指针移入模块时标题行右侧露出摆法切换与 `+`，切换摆法写 `module.set_arrangement` 仅覆盖当前条目（可一键「恢复模板默认」清回 `None`），不改模板本身。
 - **说明、悬停卡与拖放调序**：每项的 `caption` 支持行内编辑（走 `media.set` 落盘，空说明仅在指针悬停该项时露出「说明」占位）。每项挂 `248px` 悬停卡（打开、在素材库里找到、从这里拿走；批注行留给 T6）。左上角拖动手柄支持模块内拖动调序（`media.reorder`），接收从右栏素材库拖入的 `dr_ui::AssetDrag` 或系统外部文件拖入；`+` 打开 `340px` 挑文件小窗（搜索、素材夹筛选、三列缩略图、「从电脑选…」），已在当前媒体模块里的文件灰显禁选，确保同一文件在同一媒体模块只出现一次。
 - **缺失占位与「用在」砂框**：文件本身或其所在素材夹进入最近删除（或文件被永久清除）时，该项渲染为虚线占位（图标、删除线文件名、可恢复时的「恢复」按钮与「从这里拿走」；祖夹被删时点击「恢复」一并恢复祖夹与文件）。从素材库或查看器点「用在」跳到媒体项时，滚入视口并绘制 `SandFrame` 砂框动画。永久回归见 `dr-view-page/tests/v5_media.rs`。
 
+## 内核 v5 · 空着的「说明」和新条目的标题（2026-11-18 作者定的）
+
+kernel-v5 第 15 节第 53、54 条，作者「全照建议」。
+
+- **空着的「说明」只留一行高**（[v5-followups.md](../handoff/v5-followups.md) 的 SF）：按模块的「进成书」开关认，不进成书的正文空着时一行高、写了字往下长；进成书的照旧至少 160。原来一律 160。
+- **新建的条目打开时标题选中**（NE）：左栏卡里的「新建」不先起名字，直接建「未命名」、打开、标题选中，用 `focus_new_title` 那一套（⁂ 去掉以后它没有调用方）。

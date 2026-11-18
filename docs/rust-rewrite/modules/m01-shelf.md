@@ -241,3 +241,12 @@ M3 Pro，release，离屏（GPUI 的测试平台，真的 macOS 排字和 Metal 
 ## 书卡不再显示章数（2026-11-14）
 
 作者 2026-11-14 定：书架上不再出现「N 章」。书卡的那一行只剩字数、故事线数、要素数；放进最近删除的确认里也去掉了章数（own 文案 `projectPicker.trash.bodyWithoutChapters`，九种语言，从 0.1 那句删掉章数一段得来）。`book.shelf` 的 `chapters` 仍然给出（封面和场景在用），只是界面不显示。顺带从 `keys.txt` 去掉了四个没人用的键：`projectPicker.desk.chaptersUnit`、`projectPicker.trash.body`，以及一直没人用、只是被 `desk::CHAPTERS_UNIT` 这串字碰巧盖住的 `rightSidebar.stats.chapter`、`rightSidebar.kickers.stats.chapter`（`dr-shell/tests/strings.rs` 按子串判断用没用到，别名 `k` 加 `::CHAPTER` 正好出现在 `desk::CHAPTERS_UNIT` 里）。没有在真窗口里看过改后的书卡。
+
+## 内核 v5 · 「全部项目」页的两处和新建对话框（2026-11-18 作者定的）
+
+kernel-v5 第 15 节第 51 到 53 条，作者「全照建议」。由 [v5-followups.md](../handoff/v5-followups.md) 的 TS 做。
+
+- 左栏的导入项目、导入模板、导入（Drifting 0.1）三行一律两行：名字一行、后缀一行。原来放得下排一行，中文下高低不齐。
+- 「新建项目」卡去掉「从一张白纸开始」，只留「＋」和「新建项目」。
+- 新建项目失败写「没能新建项目，请重试。」，悬停卡「编辑」模板打不开写「没能打开这个模板。」，窗口底部的提示失败时不画对勾；忙的时候「我的模板」的展开收起也锁住。
+- 照现在的：新建对话框跟着书库变；按回车也新建；「导入模板」和「导入项目」一个样。
