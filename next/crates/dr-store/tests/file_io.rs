@@ -164,3 +164,33 @@ fn windows_write_through_moves_replace_only_when_asked() {
     windows_move_write_through(&d1, &dir.path().join(".d1.deleting"), false).unwrap();
     assert!(dir.path().join(".d1.deleting/inner").is_dir());
 }
+
+/// Paths past Windows' MAX_PATH (260): the asset store's ids may be 128
+/// characters each, so an asset's file can be that long. Every durable write
+/// and replacement reaches them, on Windows by the write-through move too.
+#[test]
+fn durable_writes_reach_paths_longer_than_max_path() {
+    let dir = tempfile::tempdir().unwrap();
+    let deep = dir
+        .path()
+        .join("b".repeat(128))
+        .join("a".repeat(128))
+        .join("c".repeat(40));
+    let target = deep.join("thumbnail.abcdefghijklmnop");
+    assert!(target.as_os_str().len() > 300);
+    atomic_write(&target, b"first").unwrap();
+    assert_eq!(fs::read(&target).unwrap(), b"first");
+    atomic_write(&target, b"second").unwrap();
+    assert_eq!(fs::read(&target).unwrap(), b"second");
+
+    let source = dir.path().join("source.bin");
+    fs::write(&source, b"copied").unwrap();
+    let copy = deep.join("source.abcdefghijklmnop");
+    assert_eq!(atomic_copy_capped(&source, &copy, 1024).unwrap(), 6);
+    assert_eq!(fs::read(&copy).unwrap(), b"copied");
+
+    durable_replace_file(&copy, &target).unwrap();
+    assert_eq!(fs::read(&target).unwrap(), b"copied");
+    assert!(!copy.exists());
+    assert_eq!(entries(&deep), ["thumbnail.abcdefghijklmnop"]);
+}

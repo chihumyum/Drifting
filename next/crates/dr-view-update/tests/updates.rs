@@ -40,6 +40,15 @@ use semver::Version;
 const DEV: &str = "cc.drifting.next.dev";
 const MANIFEST: &str = "/releases/latest/download/update.json";
 const ARTIFACT: &str = "/releases/download/v/Drifting.app.tar.gz";
+/// The platform whose release this file builds and installs: a macOS
+/// `.app.tar.gz`, signed under its Apple-silicon file name and swapped in as
+/// a bundle (`Install::Bundle`), whichever machine runs the test. Windows'
+/// own artifact name and installer launch are dr-platform's unit tests.
+const MAC: Target = Target {
+    os: "darwin",
+    arch: "aarch64",
+    bundle: "app",
+};
 
 fn v(text: &str) -> Version {
     Version::parse(text).unwrap()
@@ -110,7 +119,7 @@ impl Env {
     /// The manifest offers `version` with `build` as its artifact, served
     /// the way `serve` says.
     fn publish(&self, version: &str, build: &Build, serve: impl FnOnce(Vec<u8>) -> Serve) {
-        let target = Target::current().unwrap().key();
+        let target = MAC.key();
         let manifest = serde_json::json!({
             "version": version,
             "notes": "合成的测试版本",
@@ -127,7 +136,7 @@ impl Env {
             manifest_url,
             public_key: self.key.public_key(),
             current_version: v(current),
-            target: Target::current().unwrap(),
+            target: MAC,
             url_policy: UrlPolicy::AllowLocal,
             bundle_id: DEV.into(),
         };

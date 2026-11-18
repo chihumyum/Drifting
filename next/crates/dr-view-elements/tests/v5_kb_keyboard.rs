@@ -161,6 +161,8 @@ fn wait_until(
     }
 }
 
+/// Presses `strokes` one by one. `secondary-` is the platform's primary
+/// modifier, as the keymap binds it: ⌘ on macOS, Ctrl elsewhere.
 fn keys(cx: &mut VisualTestContext, strokes: &str) {
     for stroke in strokes.split(' ') {
         cx.simulate_keystrokes(stroke);
@@ -370,16 +372,16 @@ fn cmd_shift_l_goes_in_on_the_page_in_front_and_three_ways_back(cx: &mut TestApp
     let scrolled = page_scroll(&ws, cx);
     assert!(scrolled > 0.0, "the page scrolls");
 
-    keys(cx, "cmd-shift-l");
+    keys(cx, "secondary-shift-l");
     assert!(in_tree(&ws, cx, &ch1), "the tree, on the page in front");
     assert!(!editor_has_keys(&ws, cx, &ch1));
-    keys(cx, "cmd-shift-l");
+    keys(cx, "secondary-shift-l");
     assert!(editor_has_keys(&ws, cx, &ch1), "⌘⇧L again: the page");
     assert_eq!(selection(&ws, cx, &ch1), before);
     assert!(!kb(&ws, cx).1);
     assert_eq!(page_scroll(&ws, cx), scrolled, "the page did not scroll");
 
-    keys(cx, "cmd-shift-l");
+    keys(cx, "secondary-shift-l");
     assert!(in_tree(&ws, cx, &ch1));
     keys(cx, "escape");
     assert!(editor_has_keys(&ws, cx, &ch1), "Esc: the page");
@@ -390,7 +392,7 @@ fn cmd_shift_l_goes_in_on_the_page_in_front_and_three_ways_back(cx: &mut TestApp
     keys(cx, "shift-left");
     let selected = selection(&ws, cx, &ch1);
     assert_ne!(selected.0, selected.1);
-    keys(cx, "cmd-shift-l");
+    keys(cx, "secondary-shift-l");
     assert!(in_tree(&ws, cx, &ch1));
     // A press on the paper's margin, beside the text.
     let left = ws.read_with(cx, |w, _| w.left.width);
@@ -430,11 +432,11 @@ fn the_keyboard_lands_on_the_page_in_front_or_nearest_or_first(cx: &mut TestAppC
     let t = tree(&ws, cx);
     t.update(cx, |t, cx| t.toggle(&ids.act2, cx));
     pump(cx);
-    keys(cx, "cmd-shift-l");
+    keys(cx, "secondary-shift-l");
     assert!(in_tree(&ws, cx, &ids.act2), "folded away: the act it is in");
     keys(cx, "escape");
     tab(&ws, cx, Some(&ids.texts));
-    keys(cx, "cmd-shift-l");
+    keys(cx, "secondary-shift-l");
     assert!(
         in_tree(&ws, cx, &ids.texts),
         "not in this Tab: the first row"
@@ -442,7 +444,7 @@ fn the_keyboard_lands_on_the_page_in_front_or_nearest_or_first(cx: &mut TestAppC
     keys(cx, "escape");
     // A board's Tab (构想) shows its list tree here: the keyboard walks it.
     tab(&ws, cx, Some(&ids.ideas));
-    keys(cx, "cmd-shift-l");
+    keys(cx, "secondary-shift-l");
     let first_idea = tree(&ws, cx).read_with(cx, |t, _| t.stops()[0].id.clone());
     assert!(
         in_tree(&ws, cx, &first_idea),
@@ -452,7 +454,7 @@ fn the_keyboard_lands_on_the_page_in_front_or_nearest_or_first(cx: &mut TestAppC
     keys(cx, "escape");
     // Islands (故事线 here) walk no tree: the keyboard stops on the Tab row.
     tab(&ws, cx, Some(&ids.storylines));
-    keys(cx, "cmd-shift-l");
+    keys(cx, "secondary-shift-l");
     assert!(tabs_have_keys(&ws, cx), "islands: the Tab row");
     keys(cx, "escape");
     assert!(editor_has_keys(&ws, cx, &ch3));
@@ -461,7 +463,7 @@ fn the_keyboard_lands_on_the_page_in_front_or_nearest_or_first(cx: &mut TestAppC
         cx.notify();
     });
     tab(&ws, cx, Some(&ids.manuscript));
-    keys(cx, "cmd-shift-l");
+    keys(cx, "secondary-shift-l");
     assert!(
         in_tree(&ws, cx, &ids.manuscript),
         "nothing in front: the first row"
@@ -481,7 +483,7 @@ fn a_closed_column_opens_a_filled_one_ignores_and_the_key_rebinds(cx: &mut TestA
     open_page(&ws, cx, &ch1);
     ws.update_in(cx, |w, window, cx| w.toggle_left(window, cx));
     wait(&ws, cx, "the column closed", |w, _| !w.left.open);
-    keys(cx, "cmd-shift-l");
+    keys(cx, "secondary-shift-l");
     wait(&ws, cx, "the column open", |w, _| w.left.open);
     wait_until(cx, "the tree with the keyboard", |cx| {
         in_tree(&ws, cx, &ch1)
@@ -497,7 +499,7 @@ fn a_closed_column_opens_a_filled_one_ignores_and_the_key_rebinds(cx: &mut TestA
         w.is_filled(dr_shell::workspace::FillPlace::Left)
     });
     let focus_before = cx.update(|window, cx| window.focused(cx));
-    keys(cx, "cmd-shift-l");
+    keys(cx, "secondary-shift-l");
     assert_eq!(
         cx.update(|window, cx| window.focused(cx)),
         focus_before,
@@ -517,11 +519,11 @@ fn a_closed_column_opens_a_filled_one_ignores_and_the_key_rebinds(cx: &mut TestA
         let overrides = Settings::read(cx).key_bindings();
         dr_shell::keymap::apply(&overrides, cx);
     });
-    keys(cx, "cmd-shift-l");
+    keys(cx, "secondary-shift-l");
     assert!(editor_has_keys(&ws, cx, &ch1), "the old keys do nothing");
-    keys(cx, "cmd-alt-k");
+    keys(cx, "secondary-alt-k");
     assert!(in_tree(&ws, cx, &ch1), "the new keys go in");
-    keys(cx, "cmd-alt-k");
+    keys(cx, "secondary-alt-k");
     assert!(editor_has_keys(&ws, cx, &ch1), "and back");
 }
 
@@ -537,7 +539,7 @@ fn the_arrows_walk_fold_and_go_in_and_out(cx: &mut TestAppContext) {
     tab(&ws, cx, Some(&ids.manuscript));
     let ch = ids.ch.clone();
     open_page(&ws, cx, &ch[0]);
-    keys(cx, "cmd-shift-l");
+    keys(cx, "secondary-shift-l");
     assert!(in_tree(&ws, cx, &ch[0]));
     keys(cx, "down");
     assert!(in_tree(&ws, cx, &ch[1]));
@@ -612,7 +614,7 @@ fn an_attached_row_is_walked_like_a_living_one(cx: &mut TestAppContext) {
     let twice = keys_of(&ws, cx, &ch1);
     assert_eq!(twice.len(), 2, "{twice:?}");
     assert!(twice.iter().all(|k| k.contains('~')));
-    keys(cx, "cmd-shift-l");
+    keys(cx, "secondary-shift-l");
     assert_eq!(
         kb_key(&ws, cx).as_ref(),
         Some(&twice[0]),
@@ -653,7 +655,7 @@ fn walking_past_what_shows_scrolls_the_tree(cx: &mut TestAppContext) {
     tab(&ws, cx, Some(&ids.manuscript));
     open_page(&ws, cx, &ids.ch[0]);
     let page = page_scroll(&ws, cx);
-    keys(cx, "cmd-shift-l");
+    keys(cx, "secondary-shift-l");
     let t = tree(&ws, cx);
     let top = t.read_with(cx, |t, _| t.scroll_state().logical_scroll_top().item_ix);
     assert_eq!(top, 0);
@@ -681,7 +683,7 @@ fn enter_previews_then_keeps_and_goes_to_the_page(cx: &mut TestAppContext) {
     tab(&ws, cx, Some(&ids.manuscript));
     let ch = ids.ch.clone();
     open_page(&ws, cx, &ch[0]);
-    keys(cx, "cmd-shift-l");
+    keys(cx, "secondary-shift-l");
     keys(cx, "down enter");
     wait(&ws, cx, "a preview of 第2章", |w, _| {
         w.nav.current().is_some_and(|t| t.same_page(&entry(&ch[1])))
@@ -697,7 +699,7 @@ fn enter_previews_then_keeps_and_goes_to_the_page(cx: &mut TestAppContext) {
     });
     assert!(!ws.read_with(cx, |w, _| w.nav.active_tab().unwrap().focused().preview));
     let tabs = ws.read_with(cx, |w, _| w.nav.tabs().len());
-    keys(cx, "cmd-shift-l");
+    keys(cx, "secondary-shift-l");
     assert!(in_tree(&ws, cx, &ch[1]));
     keys(cx, "enter");
     wait_until(cx, "the editor again", |cx| {
@@ -705,7 +707,7 @@ fn enter_previews_then_keeps_and_goes_to_the_page(cx: &mut TestAppContext) {
     });
     assert_eq!(ws.read_with(cx, |w, _| w.nav.tabs().len()), tabs);
     // The Tab's own row opens its page, not an unfolding.
-    keys(cx, "cmd-shift-l up up up");
+    keys(cx, "secondary-shift-l up up up");
     assert!(in_tree(&ws, cx, &ids.manuscript));
     keys(cx, "enter");
     wait(&ws, cx, "书稿's page", |w, _| {
@@ -845,7 +847,7 @@ fn space_opens_the_card_and_the_arrows_walk_it(cx: &mut TestAppContext) {
     tab(&ws, cx, Some(&ids.manuscript));
     let ch = ids.ch.clone();
     open_page(&ws, cx, &ch[0]);
-    keys(cx, "cmd-shift-l down space");
+    keys(cx, "secondary-shift-l down space");
     let keys_in = card_keys(&ws, cx);
     assert!(keys_in.read_with(cx, |k, _| k.is_open()));
     let rows = card_rows(&ws, cx, &ch[1]);
@@ -930,7 +932,7 @@ fn space_opens_the_card_and_the_arrows_walk_it(cx: &mut TestAppContext) {
     assert!(!keys_in.read_with(cx, |k, _| k.is_open()));
     assert!(!ws.read_with(cx, |w, _| w.nav.active_tab().unwrap().focused().preview));
     // 「新建」: the new page opens directly, its title taking the keyboard.
-    keys(cx, "cmd-shift-l space");
+    keys(cx, "secondary-shift-l space");
     let new = card_rows(&ws, cx, &ch[1])
         .iter()
         .position(|r| r == "entry-new")
@@ -988,11 +990,11 @@ fn rename_and_undo(ws: &Entity<Shell>, cx: &mut VisualTestContext, id: &str) {
         let focus = ws.read(cx).focus_handle().clone();
         focus.focus(window, cx);
     });
-    keys(cx, "cmd-z");
+    keys(cx, "secondary-z");
     wait(ws, cx, "the rename undone in one step", |w, _| {
         w.book.v3().unwrap().entry(id).unwrap().title == "未命名"
     });
-    keys(cx, "cmd-z");
+    keys(cx, "secondary-z");
     wait(ws, cx, "the creation undone in one step", |w, _| {
         w.book.v3().unwrap().entry(id).is_none() && !w.nav.is_open(&entry(id))
     });
@@ -1094,11 +1096,11 @@ fn putting_a_row_away_leaves_the_keyboard_on_the_next(cx: &mut TestAppContext) {
         });
         pump(cx);
     };
-    keys(cx, "cmd-shift-l down");
+    keys(cx, "secondary-shift-l down");
     assert!(in_tree(&ws, cx, &ch[1]));
     trash(&ws, cx, &ch[1]);
     assert!(in_tree(&ws, cx, &ids.act2), "the row after");
-    keys(cx, "cmd-z");
+    keys(cx, "secondary-z");
     wait(&ws, cx, "第2章 back", |w, _| {
         w.book.v3().unwrap().entry(&ch[1]).is_some()
     });
@@ -1132,7 +1134,7 @@ fn the_tab_row_takes_left_right_and_down(cx: &mut TestAppContext) {
             .map(|t| t.id.clone())
             .collect()
     });
-    keys(cx, "cmd-shift-l up up up");
+    keys(cx, "secondary-shift-l up up up");
     assert!(tabs_have_keys(&ws, cx));
     assert!(painted(cx, "v3-level-tabs-keyboard".into()));
     assert!(!kb(&ws, cx).1);
@@ -1188,7 +1190,7 @@ fn the_tab_row_takes_left_right_and_down(cx: &mut TestAppContext) {
     );
     // From the tree: into the new Tab's tree, where it lands.
     tab(&ws, cx, Some(&ids.manuscript));
-    keys(cx, "cmd-shift-l");
+    keys(cx, "secondary-shift-l");
     assert!(in_tree(&ws, cx, &ch1));
     click(cx, first_tab, 1);
     assert_eq!(selected_tab(&ws, cx), json!(tab_ids[0]));
@@ -1212,7 +1214,7 @@ fn managing_takes_no_keys_and_gives_the_keyboard_back(cx: &mut TestAppContext) {
         let row = cx.debug_bounds("v3-tab-row").unwrap();
         click(cx, point(row.right() - px(18.0), row.center().y), 1);
     };
-    keys(cx, "cmd-shift-l");
+    keys(cx, "secondary-shift-l");
     assert!(in_tree(&ws, cx, &ch1));
     manage(cx);
     assert!(sb.read_with(cx, |s, _| s.is_managing()));
@@ -1313,7 +1315,7 @@ fn a_grid_is_walked_by_where_its_tiles_are(cx: &mut TestAppContext) {
             .collect::<Vec<_>>(),
         tiles
     );
-    keys(cx, "cmd-shift-l");
+    keys(cx, "secondary-shift-l");
     assert!(in_tree(&ws, cx, &people));
     keys(cx, "down");
     assert!(in_tree(&ws, cx, &tiles[0]), "into the grid: its first tile");
@@ -1403,7 +1405,7 @@ fn a_grid_is_walked_by_where_its_tiles_are(cx: &mut TestAppContext) {
             .filter(|b| b.origin.y == places[0].origin.y)
             .count();
         lines.push(first_line);
-        keys(cx, "cmd-shift-l down");
+        keys(cx, "secondary-shift-l down");
         assert!(in_tree(&ws, cx, &tiles[0]));
         keys(cx, "down");
         let destination = places
@@ -1450,14 +1452,14 @@ fn cmd_z_in_the_column_is_the_books_and_typing_does_nothing(cx: &mut TestAppCont
             w.book.v3().unwrap().entry(&id).is_some()
         });
     };
-    keys(cx, "cmd-shift-l down down down");
+    keys(cx, "secondary-shift-l down down down");
     assert!(in_tree(&ws, cx, &ch[2]));
     put_away(&ws, cx, &ch[2]);
     assert!(in_tree(&ws, cx, &ch[3]));
     keys(cx, "up up");
     assert!(in_tree(&ws, cx, &ch[1]));
     put_away(&ws, cx, &ch[1]);
-    keys(cx, "cmd-z");
+    keys(cx, "secondary-z");
     back(&ws, cx, &ch[1]);
     assert!(kb(&ws, cx).1, "in the tree: the book's ⌘Z");
     // With a card open.
@@ -1466,7 +1468,7 @@ fn cmd_z_in_the_column_is_the_books_and_typing_does_nothing(cx: &mut TestAppCont
     put_away(&ws, cx, &ch[1]);
     keys(cx, "space");
     assert!(card_keys(&ws, cx).read_with(cx, |k, _| k.is_open()));
-    keys(cx, "cmd-z");
+    keys(cx, "secondary-z");
     back(&ws, cx, &ch[1]);
     // On the Tab row.
     let t = tree(&ws, cx);
@@ -1476,7 +1478,7 @@ fn cmd_z_in_the_column_is_the_books_and_typing_does_nothing(cx: &mut TestAppCont
         keys(cx, "up");
     }
     assert!(tabs_have_keys(&ws, cx));
-    keys(cx, "cmd-z");
+    keys(cx, "secondary-z");
     back(&ws, cx, &ch[2]);
     // Typing in the column: nothing.
     keys(cx, "down");
@@ -1508,7 +1510,7 @@ fn sidebar_hover_card_opens_beside_the_row_and_replaces_the_keyboard_card(cx: &m
         panic!("the seed has at least three chapters");
     };
     open_page(&ws, cx, one);
-    keys(cx, "cmd-shift-l space");
+    keys(cx, "secondary-shift-l space");
 
     let row = |id: &str, cx: &mut VisualTestContext| keys_of(&ws, cx, id).remove(0);
     let popup = |id: &str, cx: &mut VisualTestContext| {
@@ -1587,7 +1589,7 @@ fn the_keyboards_row_has_the_ring_only_while_it_is_there(cx: &mut TestAppContext
         )
     };
     assert!(!ring(cx, &ws, &ch[0]));
-    keys(cx, "cmd-shift-l");
+    keys(cx, "secondary-shift-l");
     assert!(ring(cx, &ws, &ch[0]), "on the page in front's row");
     assert!(
         ws.read_with(cx, |w, _| w.nav.is_selected(&entry(&ch[0]))),
@@ -1613,7 +1615,7 @@ fn the_keyboards_row_has_the_ring_only_while_it_is_there(cx: &mut TestAppContext
         assert!(!ring(cx, &ws, id), "out of the column it goes");
     }
     assert!(!painted(cx, "v3-level-tabs-keyboard".into()));
-    keys(cx, "cmd-shift-l up up up");
+    keys(cx, "secondary-shift-l up up up");
     assert!(
         painted(cx, "v3-level-tabs-keyboard".into()),
         "the Tab row's"
@@ -1670,21 +1672,21 @@ fn a_click_on_the_page_in_front_leaves_no_stay_mark(cx: &mut TestAppContext) {
     assert!(in_tree(&ws, cx, &ch[1]));
     keys(cx, "escape");
     assert!(editor_has_keys(&ws, cx, &ch[1]));
-    keys(cx, "cmd-[");
+    keys(cx, "secondary-[");
     wait_until(cx, "第1章's editor with the keyboard", |cx| {
         editor_has_keys(&ws, cx, &ch[0])
     });
-    keys(cx, "cmd-]");
+    keys(cx, "secondary-]");
     wait_until(cx, "第2章's editor with the keyboard again", |cx| {
         editor_has_keys(&ws, cx, &ch[1])
     });
     // And by the tab keys.
     keys(cx, "ctrl-tab");
-    keys(cx, "cmd-alt-left");
+    keys(cx, "secondary-alt-left");
     wait_until(cx, "第1章 by the tab key", |cx| {
         editor_has_keys(&ws, cx, &ch[0])
     });
-    keys(cx, "cmd-alt-right");
+    keys(cx, "secondary-alt-right");
     wait_until(cx, "第2章 by the tab key", |cx| {
         editor_has_keys(&ws, cx, &ch[1])
     });
@@ -1700,7 +1702,7 @@ fn the_tab_row_rings_the_selected_tab(cx: &mut TestAppContext) {
     tab(&ws, cx, Some(&ids.manuscript));
     open_page(&ws, cx, &ids.ch[0]);
     assert!(cx.debug_bounds("v3-level-tabs-keyboard-ring").is_none());
-    keys(cx, "cmd-shift-l up up up");
+    keys(cx, "secondary-shift-l up up up");
     assert!(tabs_have_keys(&ws, cx));
     let sb = sidebar(&ws, cx);
     let (tabs, selected) = sb.read_with(cx, |s, cx| {
@@ -1744,7 +1746,7 @@ fn the_keyboards_card_floats_beside_its_row(cx: &mut TestAppContext) {
     tab(&ws, cx, Some(&ids.manuscript));
     let ch = ids.ch.clone();
     open_page(&ws, cx, &ch[0]);
-    keys(cx, "cmd-shift-l down space");
+    keys(cx, "secondary-shift-l down space");
     let key = kb_key(&ws, cx).unwrap();
     let row = list_row(&ws, cx, &key);
     let rows = card_rows(&ws, cx, &ch[1]);
@@ -1779,7 +1781,7 @@ fn closing_the_column_gives_the_page_the_keyboard(cx: &mut TestAppContext) {
     cx.simulate_input("甲");
     pump(cx);
     // The crescent.
-    keys(cx, "cmd-shift-l");
+    keys(cx, "secondary-shift-l");
     assert!(in_tree(&ws, cx, &ch1));
     ws.update_in(cx, |w, window, cx| {
         w.click_crescent(dr_shell::workspace::Side::Left, window, cx)
@@ -1787,14 +1789,14 @@ fn closing_the_column_gives_the_page_the_keyboard(cx: &mut TestAppContext) {
     wait(&ws, cx, "the column closed", |w, _| !w.left.open);
     assert!(editor_has_keys(&ws, cx, &ch1), "the crescent: the page");
     // The toggle action.
-    keys(cx, "cmd-shift-l");
+    keys(cx, "secondary-shift-l");
     wait_until(cx, "the tree", |cx| in_tree(&ws, cx, &ch1));
     cx.dispatch_action(dr_shell::actions::ToggleLeftSidebar);
     pump(cx);
     wait(&ws, cx, "the column closed", |w, _| !w.left.open);
     assert!(editor_has_keys(&ws, cx, &ch1), "the toggle: the page");
     // Filling it.
-    keys(cx, "cmd-shift-l");
+    keys(cx, "secondary-shift-l");
     wait_until(cx, "the tree", |cx| in_tree(&ws, cx, &ch1));
     ws.update_in(cx, |w, window, cx| {
         w.click_full_moon(dr_shell::workspace::Side::Left, window, cx)
@@ -1824,7 +1826,7 @@ fn the_card_is_back_after_the_level_switch_asks(cx: &mut TestAppContext) {
     let (ws, cx) = open(cx, &lib, &book);
     tab(&ws, cx, Some(&ids.manuscript));
     open_page(&ws, cx, &ids.ch[0]);
-    keys(cx, "cmd-shift-l up");
+    keys(cx, "secondary-shift-l up");
     assert!(in_tree(&ws, cx, &ids.act1));
     keys(cx, "space");
     let keys_in = card_keys(&ws, cx);
@@ -1892,7 +1894,7 @@ fn enter_in_the_card_runs_the_row_by_its_id(cx: &mut TestAppContext) {
             window.dispatch_action(Box::new(dr_ui::components::hover_card::Confirm), cx)
         });
     };
-    keys(cx, "cmd-shift-l down space");
+    keys(cx, "secondary-shift-l down space");
     let rows = card_rows(&ws, cx, &ch[1]);
     let level = rows.iter().position(|r| r == "entry-toggle-level").unwrap();
     card_to(&ws, cx, level);
@@ -1928,7 +1930,7 @@ fn enter_in_the_card_runs_the_row_by_its_id(cx: &mut TestAppContext) {
     // On 「整书视图」 of a level that stops being one before Enter: nothing.
     keys(cx, "escape escape");
     assert!(editor_has_keys(&ws, cx, &ch[0]));
-    keys(cx, "cmd-shift-l");
+    keys(cx, "secondary-shift-l");
     walk_to(&ws, cx, &ids.act2);
     keys(cx, "space");
     assert!(card_keys(&ws, cx).read_with(cx, |k, _| k.is_open()));
@@ -1967,7 +1969,7 @@ fn the_keyboard_follows_the_cards_rows(cx: &mut TestAppContext) {
     let ch = ids.ch.clone();
     open_page(&ws, cx, &ch[0]);
     let run = |ws: &Entity<Shell>, cx: &mut VisualTestContext, row: &str| {
-        keys(cx, "cmd-shift-l");
+        keys(cx, "secondary-shift-l");
         walk_to(ws, cx, &ch[1]);
         keys(cx, "space");
         let rows = card_rows(ws, cx, &ch[1]);

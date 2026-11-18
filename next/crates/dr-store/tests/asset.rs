@@ -182,6 +182,48 @@ fn removing_a_books_asset_leaves_another_books_bytes() {
     );
 }
 
+/// The longest ids the store takes (128 characters each) put an asset's
+/// files past Windows' MAX_PATH; importing, adding a variant and removing
+/// (whose tombstone rename is Windows' durability barrier) all reach them.
+#[test]
+fn the_longest_ids_import_take_variants_and_are_removed() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("long.png");
+    fs::write(&file, b"synthetic long bytes").unwrap();
+    let lib = open(&dir.path().join("lib"));
+    let assets = lib.paths().assets.clone();
+    let (book, asset) = ("b".repeat(128), "a".repeat(128));
+    let mut long = source(&book, &asset, &file, 1024);
+    long.ext = "abcdefghijklmnop";
+    let r = lib.import_asset(&long).unwrap();
+    assert_eq!(
+        r.path,
+        assets
+            .join(&book)
+            .join(&asset)
+            .join("source.abcdefghijklmnop")
+    );
+    assert!(r.path.as_os_str().len() > 300);
+    assert_eq!(fs::read(&r.path).unwrap(), b"synthetic long bytes");
+    let thumb = lib
+        .put_variant(
+            &asset,
+            Variant::Thumbnail,
+            &VariantBytes {
+                bytes: vec![1, 2, 3],
+                mime: "image/jpeg".into(),
+                ext: "abcdefghijklmnop".into(),
+                width: 1,
+                height: 1,
+            },
+        )
+        .unwrap();
+    assert_eq!(fs::read(&thumb.path).unwrap(), [1, 2, 3]);
+    assert!(lib.remove_asset(&asset).unwrap());
+    assert!(!assets.join(&book).join(&asset).exists());
+    assert!(lib.asset(&asset, Variant::Source).unwrap().is_none());
+}
+
 #[test]
 fn imports_follow_the_marker_protocol() {
     let dir = tempfile::tempdir().unwrap();

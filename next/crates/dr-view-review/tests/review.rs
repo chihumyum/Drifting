@@ -1292,12 +1292,12 @@ fn review_at_links_exclude_the_owner_and_survive_editing_rename_and_trash(cx: &m
     let body = || listed(&e).into_iter().find(|c| c["id"] == id).unwrap()["body"].clone();
     for (prefix, query) in [("见 ", "@归鹤"), ("", "@gh")] {
         redraw(cx);
-        cx.simulate_keystrokes("cmd-a");
+        cx.simulate_keystrokes("secondary-a");
         cx.simulate_input(&format!("{prefix}{query}"));
         redraw(cx);
         cx.simulate_keystrokes("enter");
         redraw(cx);
-        cx.simulate_keystrokes("cmd-enter");
+        cx.simulate_keystrokes("secondary-enter");
         let start = prefix.chars().count();
         assert!(
             wait_for(cx, |_| body()["text"] == format!("{prefix}{target_title}")
@@ -1326,9 +1326,15 @@ fn review_at_links_exclude_the_owner_and_survive_editing_rename_and_trash(cx: &m
         ))));
     cx.update(|window, cx| view.update(cx, |v, cx| v.edit(&id, window, cx)));
     redraw(cx);
-    cx.simulate_keystrokes("cmd-left");
+    // The line's start, as the text area binds it: ⌘← on macOS, Home
+    // elsewhere.
+    cx.simulate_keystrokes(if cfg!(target_os = "macos") {
+        "cmd-left"
+    } else {
+        "home"
+    });
     cx.simulate_input("前 ");
-    cx.simulate_keystrokes("cmd-enter");
+    cx.simulate_keystrokes("secondary-enter");
     assert!(wait_for(cx, |_| body()["text"] == "前 RL 链接新名"));
     assert_eq!(body()["links"][0]["start"], 2);
     out(&e.ws, "entry.trash", json!({"book":e.book,"id":target_id}));
@@ -1343,10 +1349,10 @@ fn review_at_links_exclude_the_owner_and_survive_editing_rename_and_trash(cx: &m
     // @ on the owner remains literal text; Enter does not pick the owner.
     cx.update(|window, cx| view.update(cx, |v, cx| v.edit(&id, window, cx)));
     redraw(cx);
-    cx.simulate_keystrokes("cmd-a");
+    cx.simulate_keystrokes("secondary-a");
     cx.simulate_input(&format!("@{}", owner.title));
     redraw(cx);
-    cx.simulate_keystrokes("cmd-enter");
+    cx.simulate_keystrokes("secondary-enter");
     assert!(wait_for(cx, |_| body()["text"] == format!("@{}", owner.title)));
     assert!(body()["links"].as_array().unwrap().is_empty());
 }

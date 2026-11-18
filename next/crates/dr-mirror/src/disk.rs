@@ -354,10 +354,10 @@ fn install(
             }
         }
         #[cfg(windows)]
-        if let Ok(meta) = fs::symlink_metadata(path) {
-            if meta.permissions().readonly() {
-                set_permissions(path, false)?;
-            }
+        if let Ok(meta) = fs::symlink_metadata(path)
+            && meta.permissions().readonly()
+        {
+            set_permissions(path, false)?;
         }
         dr_store::file_io::durable_replace_file(&temp, path)?;
         Ok(Installed {
@@ -812,6 +812,8 @@ pub(crate) mod seam {
         pub static BEFORE_EXCHANGE: RefCell<Option<Hook>> = const { RefCell::new(None) };
     }
 
+    /// Unix only, as the hard-link publication that calls it.
+    #[cfg(unix)]
     pub(super) fn link(from: &Path, to: &Path) -> io::Result<()> {
         match LINK_FAILS.get() {
             Some(code) => Err(io::Error::from_raw_os_error(code)),
@@ -827,6 +829,7 @@ pub(crate) mod seam {
         }
     }
 
+    #[cfg(unix)]
     pub(super) fn fell_back(path: &Path) {
         FELL_BACK.with_borrow_mut(|paths| paths.push(path.to_path_buf()));
     }

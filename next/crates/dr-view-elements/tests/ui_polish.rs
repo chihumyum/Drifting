@@ -352,7 +352,16 @@ fn the_compact_indexs_tiles_stand_in_columns(cx: &mut TestAppContext) {
         counts[0] >= 4,
         "a 600px column can fit at least four of these names: {counts:?}"
     );
-    assert_eq!(counts[1], 2, "the narrow column fits two: {counts:?}");
+    // 280 is under the column's least width (its tab row after the title
+    // bar's left cluster), so the narrow step draws the column at that
+    // least width. The cluster starts 16px further right on Windows, after
+    // the caption buttons (`chrome::LEADING_INSET`, 110 against 94): room
+    // for a third name there.
+    let narrowest_fits = if cfg!(target_os = "windows") { 3 } else { 2 };
+    assert_eq!(
+        counts[1], narrowest_fits,
+        "the narrowest column fits {narrowest_fits}: {counts:?}"
+    );
     assert_eq!(
         counts[2], counts[0],
         "growing again restores the columns: {counts:?}"

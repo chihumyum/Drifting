@@ -302,7 +302,7 @@ fn esc_in_the_panel_closes_only_it_and_never_drops_an_edit_silently(cx: &mut Tes
     });
     pump(cx);
     click(cx, "k5-input-Name");
-    cx.simulate_keystrokes("cmd-a");
+    cx.simulate_keystrokes("secondary-a");
     cx.simulate_input("Synthetic typed name");
     pump(cx);
     let editor = editor_in_panel(&structure, cx);
