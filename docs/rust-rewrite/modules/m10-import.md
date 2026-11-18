@@ -831,9 +831,9 @@ cargo xtask check
 
 从 0.1 导入的笔记和章、要素之间的关系，可以在对应条目的右栏「关系」中点「当前」查看。没有同名关系时建一种普通的单向「关联」，描述留空，笔记放在左边。已有规范化后同名的关系时，沿用其定义和方向。配对按 0.1 创建时间逐一进入共用的 `plan_relation_pair`，同秒内也按毫秒排序，时间相同按原始关系 ID 排序。两条笔记各自指向同一章时并成一行。规则见 [kernel-v5 第 19 节](../kernel-v5.md#19-关系重做)。
 
-`dr-import-v1/src/book.rs` 按内置 ID 或 `generic-association` 键认出旧类型，保留每条已导入配对原来的端点、类型 ID 和时间（`import_original` 的 `relations / source-association`）。旧类型本身及图片、PDF、其他素材、批注、待办、补丁端点的丢弃口径沿用 RD。共用落行路径在 `dr-samples/src/v3/catalog.rs`。新导入的续传沿用缓存的书目与历史版本。RI 之前中断的书目使用旧映射键，旧缓存需要保留并另选目标开始这次导入。
+`dr-import-v1/src/book.rs` 按内置 ID 或 `generic-association` 键认出旧类型，保留每条已导入配对原来的端点、类型 ID 和时间（`import_original` 的 `relations / source-association`）。旧类型本身及图片、PDF、其他素材、批注、待办、补丁端点的丢弃口径沿用 RD。内置关系指到不可用的条目或指向自身时，原记录留在 `relations / dropped`，其余条目照常导入。共用落行路径在 `dr-samples/src/v3/catalog.rs`。新导入的续传沿用缓存的书目与历史版本。RI 之前中断的书目使用旧映射键，旧缓存需要保留并另选目标开始这次导入。
 
-`dr-import-v1/tests/v3_import.rs` 核对合成旧库的内容哈希和修改时间、普通关系定义、左边的三条笔记、右边的章与要素、两行三对、同名合并、回执明细及续导和重复导入。`v3_import_rd.rs` 核对未带过来的关系按第一个不支持的端点计一次。
+`dr-import-v1/tests/v3_import.rs` 核对合成旧库的内容哈希和修改时间、普通关系定义、左边的三条笔记、右边的章与要素、两行三对、同名合并、残留关系的回执及续导和重复导入。`v3_import_rd.rs` 核对未带过来的关系按第一个不支持的端点计一次。
 
 ## 没做的，和下一个里程碑建议
 

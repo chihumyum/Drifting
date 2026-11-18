@@ -1485,6 +1485,96 @@ fn assert_imported_associations(same_name: bool) {
 }
 
 #[test]
+fn broken_built_in_associations_stay_in_the_receipt_without_blocking_import() {
+    use serde_json::json;
+
+    let old = fixture::build();
+    let generic = format!("system:generic-association:{BOOK}");
+    let broken = [
+        (
+            "rel-missing-note",
+            "library_item",
+            "old-note",
+            CHAPTER,
+            "relation-missing-entry-dropped",
+        ),
+        (
+            "rel-missing-chapter",
+            "library_item",
+            NOTE,
+            "old-chapter",
+            "relation-missing-entry-dropped",
+        ),
+        (
+            "rel-self",
+            "node",
+            CHAPTER,
+            CHAPTER,
+            "relation-self-end-dropped",
+        ),
+    ];
+    let conn = rusqlite::Connection::open(&old.db).unwrap();
+    for (relation, from_kind, from, to, _) in broken {
+        conn.execute(
+            "INSERT INTO entity_relation (id, project_id, from_kind, from_id, to_kind, to_id, relation_type_id, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, 'node', ?5, ?6, ?7, ?7)",
+            rusqlite::params![relation, BOOK, from_kind, from, to, generic, T0],
+        )
+        .unwrap();
+    }
+    drop(conn);
+    let before = source_tree_snapshot(&old.root);
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("library");
+    let (outcome, _) = run::import(&old.db, &root, &options(&old)).unwrap();
+    let Outcome::Imported(receipt) = outcome else {
+        panic!("expected imported")
+    };
+    let record = &receipt.books[0];
+    assert_eq!(record.status, "imported");
+    assert_eq!(
+        record.notes.0.get("relation-missing-entry-dropped"),
+        Some(&2)
+    );
+    assert_eq!(record.notes.0.get("relation-self-end-dropped"), Some(&1));
+    for (relation, from_kind, from, to, reason) in broken {
+        let (_, _, _, raw) = receipt
+            .originals
+            .iter()
+            .find(|(collection, id, field, _)| {
+                collection == "relations" && id == relation && field == "dropped"
+            })
+            .unwrap();
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(raw).unwrap(),
+            json!({
+                "reason":reason, "relationType":generic, "from":{"kind":from_kind,"id":from},
+                "to":{"kind":"node","id":to}, "createdAt":T0,
+            })
+        );
+    }
+    let lib = open(&root);
+    let bytes = lib
+        .load_copy(&format!("book:{BOOK}"))
+        .unwrap()
+        .export(loro::ExportMode::Snapshot)
+        .unwrap();
+    let book =
+        BookDocV3::load(BookId::parse(BOOK).unwrap(), random_device_peer(), &[bytes]).unwrap();
+    let view = book.view();
+    let rows = view.relations_raw();
+    assert_eq!(rows.len(), 2);
+    let row = rows
+        .iter()
+        .find(|row| view.relation_type_raw(&row.relation_type).unwrap().name == "关联")
+        .unwrap();
+    assert_eq!(row.left, BTreeSet::from([eid(NOTE)]));
+    assert_eq!(row.right, BTreeSet::from([eid(CHAPTER)]));
+    lib.close().unwrap();
+    assert_eq!(source_tree_snapshot(&old.root), before);
+}
+
+#[test]
 fn interrupted_v3_import_resumes_with_the_same_policy_and_rejects_another_path() {
     let old = fixture::build();
     let temp = tempfile::tempdir().unwrap();

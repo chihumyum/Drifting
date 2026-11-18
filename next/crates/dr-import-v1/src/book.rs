@@ -673,11 +673,36 @@ pub fn write(txn: &mut BookTxn<'_>, inp: &Inputs<'_>, notes: &mut Notes) -> Resu
         _ => None,
     };
     for rel in &r.relations {
-        // Count a dropped relation by its first unsupported end.
-        let dropped =
-            excluded(&rel.from_kind, &rel.from_id).or_else(|| excluded(&rel.to_kind, &rel.to_id));
         let built_in = rel.relation_type == generic.as_str()
             || built_in_types.contains(rel.relation_type.as_str());
+        let from = entity(&rel.from_kind, &rel.from_id, &new_comment_ids);
+        let to = entity(&rel.to_kind, &rel.to_id, &new_comment_ids);
+        let invalid_association = || {
+            if !built_in {
+                return None;
+            }
+            // Structural entries are already in the replay catalog. Text
+            // notes are written later, so check the source material rows.
+            let view = txn.view();
+            let exists = |side: &EntityRef| match side.kind {
+                EntityKind::Material => {
+                    materials.get(side.id.as_str()) == Some(&MaterialKind::Text)
+                }
+                _ => view.entity_exists(side),
+            };
+            if from == to {
+                Some("relation-self-end-dropped")
+            } else if !exists(&from) || !exists(&to) {
+                Some("relation-missing-entry-dropped")
+            } else {
+                None
+            }
+        };
+        // Keep the established counts for retired endpoints, then
+        // quarantine an invalid pair under the old built-in type.
+        let dropped = excluded(&rel.from_kind, &rel.from_id)
+            .or_else(|| excluded(&rel.to_kind, &rel.to_id))
+            .or_else(invalid_association);
         let end = |kind: &str, id: &str| serde_json::json!({ "kind": kind, "id": id });
         let raw_pair = || {
             serde_json::json!({
@@ -716,8 +741,6 @@ pub fn write(txn: &mut BookTxn<'_>, inp: &Inputs<'_>, notes: &mut Notes) -> Resu
         let Some(rid) = id(RelationId::parse, &rel.id) else {
             continue;
         };
-        let from = entity(&rel.from_kind, &rel.from_id, &new_comment_ids);
-        let to = entity(&rel.to_kind, &rel.to_id, &new_comment_ids);
         txn.relation(&rid)?
             .ends(&from, &to)?
             .relation_type(&tid)?
