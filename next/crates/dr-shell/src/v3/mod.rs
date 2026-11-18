@@ -174,6 +174,7 @@ type CardMaker = Rc<dyn Fn(&Target, &crate::pages::PageMenuHost, &App) -> crate:
 type CompactTemplateEditor = Rc<dyn Fn(CompactTemplate, &mut Window, &mut App) -> Option<Rendered>>;
 type TemplateCreator = Rc<dyn Fn(PageViewHost, &mut Window, &mut App)>;
 type HeadMaker = Rc<dyn Fn(EntryHost, &mut Window, &mut App) -> Rendered>;
+type EntryOverlayMaker = Rc<dyn Fn(EntryHost, &mut App) -> AnyView>;
 type HeadPartMaker = Rc<dyn Fn(EntryHost, &mut Window, &mut App) -> Option<Rendered>>;
 #[derive(Default)]
 struct Registry {
@@ -183,6 +184,7 @@ struct Registry {
     settings: Option<DisplayMaker>,
     head: Option<HeadMaker>,
     head_parts: Vec<HeadPartMaker>,
+    entry_overlay: Option<EntryOverlayMaker>,
     actions: BTreeMap<card::EntryAction, ActionMaker>,
     cards: Vec<CardMaker>,
     template_creator: Option<TemplateCreator>,
@@ -258,6 +260,16 @@ pub(crate) fn entry_head_parts(cx: &App) -> Vec<HeadPartMaker> {
     cx.try_global::<Registry>()
         .map(|r| r.head_parts.clone())
         .unwrap_or_default()
+}
+
+/// Registers a view drawn above an entry page's scrolling modules.
+pub fn add_entry_overlay(cx: &mut App, make: impl Fn(EntryHost, &mut App) -> AnyView + 'static) {
+    cx.default_global::<Registry>().entry_overlay = Some(Rc::new(make));
+}
+
+fn entry_overlay(host: EntryHost, cx: &mut App) -> Option<AnyView> {
+    let make = cx.try_global::<Registry>()?.entry_overlay.clone()?;
+    Some(make(host, cx))
 }
 
 pub fn level_settings(host: LevelHost, window: &mut Window, cx: &mut App) -> Option<Rendered> {

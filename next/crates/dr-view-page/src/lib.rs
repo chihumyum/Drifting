@@ -31,6 +31,7 @@ pub mod head;
 mod history;
 mod links;
 pub mod media;
+mod relations;
 pub mod settlement;
 pub mod v3;
 pub mod whole;
@@ -68,6 +69,7 @@ pub fn init(cx: &mut App) {
     history::init(cx);
     entry_head::register(cx);
     v3::register(cx);
+    relations::register(cx);
     dr_shell::v3::history::register(cx);
     dr_shell::v3::register_entry_comment_card(cx);
 }

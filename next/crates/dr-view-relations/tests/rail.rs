@@ -241,22 +241,48 @@ fn a_description_takes_an_entry_picked_with_at(cx: &mut TestAppContext) {
     let e = env();
     let [a, b] = [&e.entries[0].0, &e.entries[1].0];
     pair(&e, a, b, "RL 本家", "symmetric");
-    // An entry whose title the @ list finds by its first letters.
-    let (target, title) = e.entries[2].clone();
-    let first: String = title.chars().take(2).collect();
+    let entry =
+        dr_testkit::seed::acceptance::novel_entry(&e.ws, &e.book, "tpl-character", "试书人", None);
+    let target = entry["id"].as_str().unwrap();
+    let title = entry["title"].as_str().unwrap();
+    call(
+        &e.ws,
+        "module.set_field",
+        json!({"book":e.book,"entry":target,
+        "module":"mod-fields","field":"aliases","value":["青梧客"]}),
+    );
     let (rail, mut cx, opened) = open(cx, &e);
     let cx = &mut cx;
+    for query in ["青梧客", "qwk", "ssr"] {
+        assert!(rail.read_with(cx, |r, _| {
+            r.find_entries(query, &[])
+                .iter()
+                .any(|item| item.target.as_ref() == target)
+        }));
+    }
+    assert!(rail.read_with(cx, |r, _| {
+        r.find_entries("qwk", &[target.to_owned()]).is_empty()
+    }));
     let id = rail.read_with(cx, |r, _| rail_relation(r, "RL 本家").unwrap().id.clone());
-    cx.update(|window, cx| rail.update(cx, |r, cx| r.start_describe(&id, window, cx)));
+    let area = {
+        cx.update(|window, cx| rail.update(cx, |r, cx| r.start_describe(&id, window, cx)));
+        draw(cx);
+        rail.read_with(cx, |r, _| r.describe.as_ref().unwrap().area.clone())
+    };
+    cx.simulate_input("同宗，见 @青梧客");
     draw(cx);
-    cx.simulate_input("同宗，见 @");
-    cx.simulate_input(&first);
+    assert!(area.read_with(cx, |a, _| {
+        a.at_items()
+            .iter()
+            .any(|item| item.target.as_ref() == target)
+    }));
+    cx.simulate_keystrokes("cmd-a");
+    cx.simulate_input("同宗，见 @qwk");
     draw(cx);
-    let area = rail.read_with(cx, |r, _| r.describe.as_ref().unwrap().area.clone());
     let items = area.read_with(cx, |a, _| a.at_items());
     assert!(
         items.iter().any(|i| i.target.as_ref() == target),
-        "the @ list finds {title} by {first}: {items:?}"
+        "{items:?}"
     );
     // Picking it (a press here) puts the name there as a link.
     let item = items
@@ -278,7 +304,7 @@ fn a_description_takes_an_entry_picked_with_at(cx: &mut TestAppContext) {
             .as_array()
             .unwrap()
             .iter()
-            .any(|l| l["entry"] == target.as_str()
+            .any(|l| l["entry"] == target
                 && l["start"] == start
                 && l["end"] == start + title.chars().count()),
         "{stored}"
@@ -294,7 +320,7 @@ fn a_description_takes_an_entry_picked_with_at(cx: &mut TestAppContext) {
             dr_view_relations::rail::link_targets(&shown)
                 .into_iter()
                 .collect::<Vec<_>>(),
-            vec![target.clone()]
+            vec![target.to_owned()]
         );
     });
     let _ = opened;
@@ -710,45 +736,63 @@ fn sync_book(from: &Workspace, to: &Workspace, book: &str) {
 }
 
 #[gpui::test]
-fn a_rejected_group_keeps_every_member_and_retries_without_duplicate_submissions(
+fn a_duplicate_pair_explains_and_reveals_its_row_then_the_draft_can_be_corrected(
     cx: &mut TestAppContext,
 ) {
     let e = env();
-    let [a, b, c] = [&e.entries[0].0, &e.entries[1].0, &e.entries[2].0];
-    pair(&e, a, b, "RL 草稿", "directed");
+    let [(a, a_title), (b, b_title), (c, _)] = [&e.entries[0], &e.entries[1], &e.entries[2]];
+    let row = pair(&e, a, b, "RL 草稿", "symmetric")["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
     let (rail, mut cx, _) = open(cx, &e);
     let cx = &mut cx;
     let id = rail.read_with(cx, |r, _| rail_relation(r, "RL 草稿").unwrap().id.clone());
     rail.update(cx, |r, cx| r.add_row(&id, cx));
-    let key = rail.read_with(cx, |r, _| RowKey::Draft(r.drafts()[0].key));
+    let key = rail.read_with(cx, |r, _| r.drafts()[0].key);
+    // A symmetric duplicate is caught even in the opposite order.
     rail.update(cx, |r, cx| {
-        r.add_entry(&key, RelationSide::Left, a, cx);
-        r.add_entry(&key, RelationSide::Left, c, cx);
-        r.add_entry(&key, RelationSide::Right, b, cx);
-        // Neither repeated submit nor changing a submitted group can race it.
-        let RowKey::Draft(draft) = key else {
-            unreachable!()
-        };
-        r.retry_draft(draft, cx);
-        r.remove_entry(&key, a, cx);
-        r.delete_row(&key, cx);
-        assert!(r.drafts()[0].pending);
-        assert_eq!(r.drafts()[0].left, vec![a.clone(), c.clone()]);
+        let key = RowKey::Draft(key);
+        r.add_entry(&key, RelationSide::Left, b, cx);
+        r.add_entry(&key, RelationSide::Right, a, cx);
+        let d = &r.drafts()[0];
+        assert!(!d.pending && !d.failed);
+        assert_eq!(
+            (d.left.as_slice(), d.right.as_slice()),
+            ([b.clone()].as_slice(), [a.clone()].as_slice())
+        );
+        let overlap = d.duplicate.as_ref().unwrap();
+        assert_eq!((&overlap.left, &overlap.right, &overlap.row), (b, a, &row));
     });
-    wait_for(cx, "duplicate conflict", |cx| {
-        rail.read_with(cx, |r, _| r.drafts().first().is_some_and(|d| d.failed))
+    wait_for(cx, "the overlapping row flashes", |cx| {
+        rail.read_with(cx, |r, _| r.flashing() == Some(row.as_str()))
     });
     assert_eq!(relation(&e, "RL 草稿").unwrap()["pair_count"], 1);
-    assert_eq!(
-        rail.read_with(cx, |r, _| r.drafts()[0].right.clone()),
-        vec![b.clone()]
-    );
+    assert_eq!(key, 1);
+    assert!(cx.debug_bounds("relations-draft-1-duplicate").is_some());
+    let why = format!("「{b_title} ↔ {a_title}」已经在另一行里。");
+    cx.update(|_, cx| {
+        let got = dr_shell::strings::tf(
+            cx,
+            dr_i18n::keys::v5_relations::DUPLICATE_PAIR,
+            &[("pair", &format!("{b_title} ↔ {a_title}"))],
+        );
+        assert_eq!(got.as_ref(), why);
+    });
     rail.update(cx, |r, cx| {
-        r.remove_entry(&key, a, cx);
-        let RowKey::Draft(key) = key else {
-            unreachable!()
-        };
+        let draft = RowKey::Draft(key);
+        r.remove_entry(&draft, a, cx);
+        assert!(
+            r.drafts()[0].right.is_empty(),
+            "correcting a duplicate keeps the draft"
+        );
+        assert!(r.drafts()[0].duplicate.is_none());
+        r.add_entry(&draft, RelationSide::Right, c, cx);
         r.retry_draft(key, cx);
+        r.remove_entry(&draft, b, cx);
+        r.delete_row(&draft, cx);
+        assert!(r.drafts()[0].pending);
+        assert_eq!(r.drafts()[0].left, vec![b.clone()]);
     });
     settle(&rail, cx);
     assert!(rail.read_with(cx, |r, _| r.drafts().is_empty()));

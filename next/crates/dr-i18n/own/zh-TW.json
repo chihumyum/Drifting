@@ -516,6 +516,7 @@
     "change": "換一個"
   },
   "v5Relations": {
+    "duplicatePair": "「{{pair}}」已經在另一列裡。",
     "addEntry": "加一個條目",
     "addRow": "加一行",
     "deleteRow": "刪掉這一行",

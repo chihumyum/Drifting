@@ -1,20 +1,21 @@
 //! The relations and their guards must describe the same read. A draft keeps
 //! these records even when the visible list refreshes underneath it.
 
+use dr_editor::entity_links::EntrySearch;
 use dr_model::v3::{RelationDirection, RelationRow, RelationSide};
 use dr_shell::book::Book;
 use dr_workspace::commands::v3::relations::{List, ListIn, RelationInfo};
 use dr_workspace::{Actor, RecordKey, Workspace, WritePreconditions, WsError};
 
-pub(super) fn load(
-    lib: &Workspace,
-    book: &str,
-) -> dr_workspace::Result<(
-    Vec<RelationInfo>,
-    Book,
-    WritePreconditions,
-    Vec<RelationRow>,
-)> {
+pub(super) struct Snapshot {
+    pub relations: Vec<RelationInfo>,
+    pub book: Book,
+    pub shown: WritePreconditions,
+    pub rows: Vec<RelationRow>,
+    pub search: EntrySearch,
+}
+
+pub(super) fn load(lib: &Workspace, book: &str) -> dr_workspace::Result<Snapshot> {
     let book_id = book
         .parse::<dr_model::id::BookId>()
         .map_err(|e| WsError::Invalid(e.to_string()))?;
@@ -32,7 +33,7 @@ pub(super) fn load(
         let id = book
             .parse::<dr_model::id::BookId>()
             .map_err(|e| WsError::Invalid(e.to_string()))?;
-        let (records, rows) = lib.read_book_v3(book, move |doc, _| {
+        let (records, rows, search) = lib.read_book_v3(book, move |doc, _| {
             let borrowed = dr_doc::v3::BorrowedBookV3::new(doc, &id)
                 .map_err(|e| WsError::Invalid(e.to_string()))?;
             let view = borrowed.view();
@@ -49,14 +50,22 @@ pub(super) fn load(
                 )
                 .collect();
             let records = dr_workspace::observe_records_in(&format!("book:{id}"), doc, &id, &keys)?;
-            Ok((records, view.relations_raw()))
+            let templates = view.templates_map();
+            let headers = view.entry_headers_with(&templates);
+            let search = EntrySearch::new(
+                headers
+                    .values()
+                    .map(|e| (e.id.to_string(), e.title.clone(), e.aliases(&templates))),
+            );
+            Ok((records, view.relations_raw(), search))
         })?;
-        Ok((
+        Ok(Snapshot {
             relations,
-            snapshot,
-            WritePreconditions::default().with_shown(records.into_iter().map(Into::into)),
+            book: snapshot,
+            shown: WritePreconditions::default().with_shown(records.into_iter().map(Into::into)),
             rows,
-        ))
+            search,
+        })
     })
 }
 

@@ -532,6 +532,7 @@
     "change": "Change"
   },
   "v5Relations": {
+    "duplicatePair": "“{{pair}}” is already in another row.",
     "addEntry": "Add an entry",
     "addRow": "Add a row",
     "deleteRow": "Delete this row",

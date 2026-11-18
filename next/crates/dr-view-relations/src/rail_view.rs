@@ -622,6 +622,31 @@ impl RelationsRail {
                 window,
                 cx,
             ))
+            .when_some(d.duplicate.as_ref(), |el, pair| {
+                let title = |id: &str| {
+                    self.entry_look(id)
+                        .map(|entry| entry.title)
+                        .unwrap_or_default()
+                };
+                let left = title(&pair.left);
+                let right = title(&pair.right);
+                let arrow = if direction == RelationDirection::Symmetric {
+                    "↔"
+                } else {
+                    "→"
+                };
+                let pair = format!("{left} {arrow} {right}");
+                let message = tf(cx, keys::v5_relations::DUPLICATE_PAIR, &[("pair", &pair)]);
+                el.child(
+                    div()
+                        .id(("relations-duplicate-pair", key))
+                        .debug_selector(move || format!("relations-draft-{key}-duplicate"))
+                        .role(gpui::Role::Status)
+                        .aria_label(message.clone())
+                        .text_color(Theme::of(window, cx).palette.danger.solid())
+                        .child(message),
+                )
+            })
             .when(d.failed, |el| {
                 el.child(
                     div()

@@ -532,6 +532,7 @@
     "change": "Ändern"
   },
   "v5Relations": {
+    "duplicatePair": "„{{pair}}“ steht bereits in einer anderen Zeile.",
     "addEntry": "Eintrag hinzufügen",
     "addRow": "Zeile hinzufügen",
     "deleteRow": "Diese Zeile löschen",
