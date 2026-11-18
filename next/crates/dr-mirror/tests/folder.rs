@@ -738,6 +738,132 @@ fn other_editors_field_spellings_merge_and_values_that_do_not_fit_are_kept_aside
 }
 
 #[test]
+fn compatible_outside_properties_become_fields_and_remain_editable() {
+    let f = Fixture::new(Preset::Tiny);
+    let (id, _) = f.chapter("接收属性", "她把钟拨慢了。");
+    f.pass().run().unwrap();
+    let path = find(f.out.path(), "接收属性.md");
+    edit_file(
+        &path,
+        "\n---\n\n",
+        "\n字数目标: \"3000\"\naliases: 老王\ntags: ['outside']\n---\n\n",
+    );
+    assert!(f.pass().run().unwrap().issues.is_empty());
+    f.more_fields();
+    let report = f.pass().run().unwrap();
+    assert!(
+        report.issues.is_empty() && report.preserved.is_empty(),
+        "{report:?}"
+    );
+    assert_eq!(f.field(&id, "mf-more", "words"), json!(3000.0));
+    assert_eq!(f.field(&id, "mf-more", "names"), json!(["老王"]));
+    let written = fs::read_to_string(&path).unwrap();
+    for label in ["字数目标:", "aliases:", "tags:"] {
+        assert_eq!(written.matches(label).count(), 1, "{written}");
+    }
+    assert!(written.contains("字数目标: 3000\n"), "{written}");
+    assert!(written.contains("aliases: [\"老王\"]\n"), "{written}");
+    assert!(written.contains("tags: ['outside']\n"), "{written}");
+    f.set_field(&id, "mf-more", "words", json!(3100));
+    assert!(f.pass().run().unwrap().issues.is_empty());
+    edit_file(&path, "字数目标: 3100\n", "字数目标: 3200\n");
+    assert!(f.pass().run().unwrap().issues.is_empty());
+    assert_eq!(f.field(&id, "mf-more", "words"), json!(3200.0));
+}
+
+#[test]
+fn image_fields_use_project_relative_wikilinks_and_are_read_only() {
+    let f = Fixture::new(Preset::Lite);
+    let list = f.call("asset.list", json!({"book":f.book}));
+    let asset = list
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|asset| asset["kind"] == "image")
+        .unwrap()["id"]
+        .as_str()
+        .unwrap();
+    let folder = f.call("asset_folder.create", json!({"book":f.book,"name":"人物"}));
+    f.call(
+        "asset.move",
+        json!({"book":f.book,"id":asset,"folder":folder["id"]}),
+    );
+    f.call(
+        "asset.rename",
+        json!({"book":f.book,"id":asset,"name":"黛玉.png"}),
+    );
+    f.call(
+        "entry_template.put_module",
+        json!({"book":f.book,"template":"tpl-chapter","module":{
+            "id":"mf-picture","kind":"fields","name":"更多","config":{"defs":[
+                {"id":"portrait","name":"封面","field_type":"image"}
+            ]}
+        }}),
+    );
+    let (id, _) = f.chapter("文件字段", "她看着画像。");
+    f.set_field(&id, "mf-picture", "portrait", json!(asset));
+    let pass = f.pass();
+    assert!(pass.run().unwrap().issues.is_empty());
+    let project = pass.folder(&f.book).unwrap().unwrap();
+    assert!(project.join("素材库/人物/黛玉.png").is_file());
+    let path = find(&project, "文件字段.md");
+    assert_ne!(path.parent(), Some(project.as_path()));
+    let link = "封面: \"[[素材库/人物/黛玉.png]]\"\n";
+    // Force a read of the exported link, then change it to an outside value.
+    let original = fs::read_to_string(&path).unwrap();
+    assert!(original.contains(link), "{original}");
+    fs::write(&path, format!("{original}\n")).unwrap();
+    let roundtrip = pass.run().unwrap();
+    assert!(
+        roundtrip.issues.is_empty() && roundtrip.preserved.is_empty(),
+        "{roundtrip:?}"
+    );
+    assert_eq!(f.field(&id, "mf-picture", "portrait"), json!(asset));
+    let external = edit_file(&path, link, "封面: \"[[素材库/另一张.png]]\"\n");
+    let report = pass.run().unwrap();
+    assert_eq!(report.issues[0].problem, Problem::ReadOnly);
+    assert_eq!(report.preserved.len(), 1);
+    assert_eq!(fs::read_to_string(&report.preserved[0]).unwrap(), external);
+    assert_eq!(fs::read_to_string(&path).unwrap(), original);
+    assert_eq!(f.field(&id, "mf-picture", "portrait"), json!(asset));
+}
+
+#[test]
+fn acknowledging_one_preserved_copy_survives_restart_and_leaves_future_copies_active() {
+    let f = Fixture::new(Preset::Tiny);
+    let (id, _) = f.chapter("保全提醒", "她把钟拨慢了。");
+    f.set_field(&id, "mod-fields", "summary", json!("梗概"));
+    let mirror = Mirror::start(f.ws.clone(), f.options.clone()).unwrap();
+    assert!(mirror.sync_now().unwrap().issues.is_empty());
+    let path = find(f.out.path(), "保全提醒.md");
+    let first = edit_file(&path, "梗概: 梗概\n", "梗概: [第一次]\n");
+    let report = mirror.sync_now().unwrap();
+    assert_eq!(report.issues.len(), 1, "{report:?}");
+    let issue = &report.issues[0];
+    assert_eq!(issue.problem, Problem::FieldConflict);
+    assert!(mirror.can_acknowledge(issue));
+    let first_copy = issue.kept.clone().unwrap();
+    mirror.acknowledge(issue.clone());
+    assert!(mirror.sync_now().unwrap().issues.is_empty());
+    assert!(mirror.issues().is_empty());
+    assert_eq!(fs::read_to_string(&first_copy).unwrap(), first);
+    mirror.stop();
+
+    let mirror = Mirror::start(f.ws.clone(), f.options.clone()).unwrap();
+    assert!(mirror.sync_now().unwrap().issues.is_empty());
+    let second = edit_file(&path, "梗概: 梗概\n", "梗概: [第二次]\n");
+    let report = mirror.sync_now().unwrap();
+    assert_eq!(report.issues.len(), 1, "{report:?}");
+    assert_eq!(report.issues[0].problem, Problem::FieldConflict);
+    let second_copy = report.issues[0].kept.as_ref().unwrap();
+    assert_ne!(second_copy, &first_copy);
+    assert_eq!(fs::read_to_string(second_copy).unwrap(), second);
+    assert_eq!(fs::read_to_string(first_copy).unwrap(), first);
+    fs::remove_file(second_copy).unwrap();
+    assert!(mirror.sync_now().unwrap().issues.is_empty());
+}
+
+#[test]
 fn a_kept_property_named_like_a_new_field_holds_the_file_with_its_own_notice() {
     let f = Fixture::new(Preset::Tiny);
     let (_, doc) = f.chapter("撞名", "她把钟拨慢了。");

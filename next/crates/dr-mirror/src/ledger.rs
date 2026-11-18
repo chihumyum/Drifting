@@ -1,7 +1,10 @@
 //! Device-local format 5 projection state. This scope never reads the
 //! removed projection's ledger.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    path::Path,
+};
 
 use dr_model::id::{BlockId, BodyDocId, BookId, EntryTemplateId};
 use dr_store::Library;
@@ -89,8 +92,7 @@ pub(crate) struct CopyRow {
 }
 
 /// A file that could not be merged and was kept under `.drifting/preserved`
-/// before the App rewrote it. Reported on every pass until the kept copy is
-/// gone. A later body edit does not settle a saved field conflict.
+/// before the App rewrote it. Reported until acknowledged or moved away.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct Standing {
     pub doc: Option<String>,
@@ -99,6 +101,8 @@ pub(crate) struct Standing {
     pub problem: Problem,
     /// The kept copy, in the project folder.
     pub kept: String,
+    #[serde(default)]
+    pub acknowledged: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -146,6 +150,19 @@ impl<'a> Ledger<'a> {
 
     pub fn put_standing(&self, rows: &[Standing]) -> dr_store::Result<()> {
         self.put("standing", &rows)
+    }
+
+    pub fn acknowledge(&self, kept: &Path, problem: Problem) -> dr_store::Result<()> {
+        let mut rows = self.standing()?;
+        if let Some(row) = rows
+            .iter_mut()
+            .find(|row| Path::new(&row.kept) == kept && row.problem == problem)
+            && !row.acknowledged
+        {
+            row.acknowledged = true;
+            self.put_standing(&rows)?;
+        }
+        Ok(())
     }
 
     pub fn files(&self) -> dr_store::Result<BTreeMap<BodyDocId, Row>> {

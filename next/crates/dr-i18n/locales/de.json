@@ -520,6 +520,8 @@
     }
   },
   "mirrorV5": {
+    "acknowledgePreserved": "Verstanden",
+    "contents": "Inhaltsverzeichnis",
     "duplicate": "Zwei Dateien haben dieselbe drifting-id.",
     "fieldConflict": "Ein Feld konnte nicht übernommen werden: Es wurde auch in Drifting bearbeitet, oder sein Wert war nicht lesbar. Drifting hat seinen Wert behalten und eine Kopie der Datei gesichert.",
     "identity": "Die drifting-id passt nicht zu diesem Eintrag und Textmodul.",

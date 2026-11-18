@@ -72,6 +72,7 @@ impl BookLayout {
             memberships: BTreeMap::new(),
             entry_links: BTreeMap::new(),
         };
+        let mut without_prose = Vec::new();
         let mut tree = EntryLayout {
             structure,
             filled,
@@ -85,8 +86,18 @@ impl BookLayout {
             ]),
             directories: &mut layout.directories,
             files: &mut layout.prose,
+            without_prose: &mut without_prose,
         };
         tree.children(None, "");
+        // Reserve existing prose paths first. A host without a prose module
+        // has a link, but cannot displace any real file.
+        let missing_paths: BTreeMap<_, _> = std::mem::take(tree.without_prose)
+            .into_iter()
+            .map(|(entry, dir, title)| {
+                let path = tree.paths.claim(&dir, &title, ".md", entry.as_str());
+                (entry, path)
+            })
+            .collect();
         let mut asset_layout = AssetLayout::new(folders, assets, &mut layout, names);
         asset_layout.children(None, &assets_dir, true);
 
@@ -110,11 +121,12 @@ impl BookLayout {
                 .entry(name_key(basename(&f.path)))
                 .or_insert(0_usize) += 1;
         }
+        let mut host_links = BTreeMap::new();
         for entry in structure.entries().filter(|e| !e.is_trashed()) {
-            let link = if let Some(file) = first_files
+            let file = first_files
                 .get(&entry.id)
-                .or_else(|| first_slots.get(&entry.id))
-            {
+                .or_else(|| first_slots.get(&entry.id));
+            let link = if let Some(file) = file {
                 let name = basename(&file.path);
                 let target = if basename_count[&name_key(name)] > 1 {
                     &file.path
@@ -125,6 +137,13 @@ impl BookLayout {
             } else {
                 stem(&entry.title, &names.untitled)
             };
+            if let Some(path) = file
+                .map(|f| &f.path)
+                .or_else(|| missing_paths.get(&entry.id))
+            {
+                let target = path.strip_suffix(".md").unwrap_or(path);
+                host_links.insert(&entry.id, format!("[[{target}]]"));
+            }
             layout
                 .entry_links
                 .insert(entry.id.clone(), format!("[[{link}]]"));
@@ -143,7 +162,7 @@ impl BookLayout {
             let links = primary
                 .into_iter()
                 .chain(hosts.iter().filter(|h| Some(*h) != primary))
-                .filter_map(|h| layout.entry_links.get(h).cloned())
+                .filter_map(|h| host_links.get(h).cloned())
                 .collect();
             layout.memberships.insert(member.clone(), links);
         }
@@ -181,6 +200,7 @@ struct EntryLayout<'a> {
     paths: Paths,
     directories: &'a mut BTreeSet<String>,
     files: &'a mut Vec<ProseFile>,
+    without_prose: &'a mut Vec<(EntryId, String, String)>,
 }
 
 impl EntryLayout<'_> {
@@ -207,6 +227,10 @@ impl EntryLayout<'_> {
 
     fn prose(&mut self, entry: &Entry, dir: &str, title: &str) {
         let modules = prose_modules(self.structure, entry);
+        if modules.is_empty() && entry.accepts_members(self.structure.templates_map()) {
+            self.without_prose
+                .push((entry.id.clone(), dir.to_owned(), title.to_owned()));
+        }
         for module in &modules {
             let id = BodyDocId::new(entry.id.clone(), module.id.clone());
             let present = !entry.is_level() || self.filled.contains(&DocId::Body(id.clone()));

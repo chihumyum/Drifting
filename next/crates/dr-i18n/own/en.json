@@ -118,6 +118,8 @@
     "unset": "Not set"
   },
   "mirrorV5": {
+    "contents": "Contents",
+    "acknowledgePreserved": "Got it",
     "intro": "Each project has a Markdown folder. Edits to prose and fields in another editor merge into Drifting after you save.",
     "offWarning": "Drifting merges pending edits before turning the folder off. Existing files stay where they are. You can turn it back on in Local Data.",
     "identity": "The drifting-id does not match this entry and prose module.",

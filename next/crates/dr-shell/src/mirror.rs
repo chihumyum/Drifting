@@ -26,7 +26,7 @@ use gpui::{
 
 use crate::{
     Services, Settings, ShellInfo,
-    notifications::{Notifications, Source},
+    notifications::{NoticeAction, Notifications, Source},
     release, settings,
     strings::{Strings, t, tp},
 };
@@ -35,13 +35,18 @@ pub const FOLDER_KEY: &str = "markdown.folder";
 pub const OFF_KEY: &str = "markdown.disabled";
 
 type Drain = Shared<Task<Result<(), String>>>;
+type IssueKey = (PathBuf, Problem, Option<PathBuf>);
+
+fn issue_key(issue: &Issue) -> IssueKey {
+    (issue.path.clone(), issue.problem, issue.kept.clone())
+}
 
 #[derive(Default)]
 struct State {
     running: Option<Mirror>,
     pending: Option<Drain>,
     _pump: Option<Task<()>>,
-    told: HashMap<(PathBuf, Problem), u64>,
+    told: HashMap<IssueKey, u64>,
     composing: Arc<AtomicUsize>,
 }
 
@@ -213,6 +218,14 @@ fn report_drain_failure(error: String, cx: &mut App) {
     Notifications::post(Source::MarkdownFolder, error, cx);
 }
 
+fn projection_names(cx: &App) -> dr_mirror::layout::Names {
+    dr_mirror::layout::Names {
+        contents: t(cx, keys::mirror_v5::CONTENTS).to_string(),
+        assets: t(cx, keys::v5_files::LIBRARY_ROOT).to_string(),
+        untitled: t(cx, keys::common::UNTITLED).to_string(),
+    }
+}
+
 fn start(cx: &mut App) {
     if release::is_releasing(cx)
         || cx.default_global::<State>().pending.is_some()
@@ -242,9 +255,7 @@ fn start(cx: &mut App) {
         .try_global::<ShellInfo>()
         .map_or("cc.drifting.next.dev", |info| info.bundle_id);
     let mut options = Options::new(root, installation, app);
-    options.names.contents = t(cx, keys::manuscript_export::CONTENTS).to_string();
-    options.names.assets = t(cx, keys::v5_files::LIBRARY_ROOT).to_string();
-    options.names.untitled = t(cx, keys::common::UNTITLED).to_string();
+    options.names = projection_names(cx);
     options.author = t(cx, keys::notifications::markdown_folder::SOURCE).to_string();
     options.conflict = t(cx, keys::notifications::markdown_folder::OVERLAP).to_string();
     use keys::editor_top_bar::status;
@@ -305,10 +316,7 @@ fn tell(heard: Heard, cx: &mut App) {
         }
         Heard::Issues(issues) => {
             let mut before = std::mem::take(&mut cx.default_global::<State>().told);
-            let active: HashSet<_> = issues
-                .iter()
-                .map(|issue| (issue.path.clone(), issue.problem))
-                .collect();
+            let active: HashSet<_> = issues.iter().map(issue_key).collect();
             // Free resolved notices before adding new ones: the notification
             // center is bounded, including pinned notices.
             before.retain(|key, id| {
@@ -321,7 +329,7 @@ fn tell(heard: Heard, cx: &mut App) {
             });
             let mut next = HashMap::new();
             for issue in issues {
-                let key = (issue.path, issue.problem);
+                let key = issue_key(&issue);
                 if next.contains_key(&key) {
                     continue;
                 }
@@ -335,8 +343,21 @@ fn tell(heard: Heard, cx: &mut App) {
                     .unwrap_or_else(|| {
                         let text =
                             format!("{}\n{}", issue.title, t(cx, problem_key(issue.problem)));
-                        let opens = issue.doc.map(|doc| (issue.book, doc));
-                        Notifications::post_opening(Source::MarkdownFolder, text, opens, cx)
+                        let opens = issue.doc.clone().map(|doc| (issue.book.clone(), doc));
+                        let action = cx
+                            .default_global::<State>()
+                            .running
+                            .as_ref()
+                            .is_some_and(|mirror| mirror.can_acknowledge(&issue))
+                            .then(|| NoticeAction {
+                                label: t(cx, keys::mirror_v5::ACKNOWLEDGE_PRESERVED),
+                                run: Rc::new(move |_, _, cx| {
+                                    if let Some(mirror) = &cx.default_global::<State>().running {
+                                        mirror.acknowledge(issue.clone());
+                                    }
+                                }),
+                            });
+                        Notifications::post_opening(Source::MarkdownFolder, text, opens, action, cx)
                     });
                 Notifications::set_pinned(id, true, cx);
                 next.insert(key, id);

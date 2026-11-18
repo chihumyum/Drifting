@@ -511,6 +511,8 @@
     }
   },
   "mirrorV5": {
+    "acknowledgePreserved": "知道了",
+    "contents": "目录",
     "duplicate": "有两个文件带着同一个 drifting-id。",
     "fieldConflict": "有字段没能合入：它在 Drifting 里也改过，或者值的写法读不出来。保留了 Drifting 里的值，文件另存了一份。",
     "identity": "drifting-id 与条目或正文模块不符。",
