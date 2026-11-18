@@ -2,7 +2,7 @@
 //! `docs/rust-rewrite/handoff/v5-tracks.md` T2).
 
 use std::{
-    cell::RefCell,
+    cell::{Cell, RefCell},
     path::Path,
     rc::Rc,
     time::{Duration, Instant},
@@ -61,11 +61,11 @@ fn wait(cx: &mut VisualTestContext, stage: &str, done: impl Fn(&mut VisualTestCo
     }
 }
 
-fn open_workspace<'a>(
-    cx: &'a mut TestAppContext,
-    lib: &Library,
-    book: &str,
-) -> (Entity<Workspace>, Entity<Home>, &'a mut VisualTestContext) {
+/// The shell over `lib` with Project Home registered, opening `book`. With
+/// none named the app's 「全部项目」 is registered too and the window opens
+/// there with no project open, as the app does (without a bookshelf the
+/// window would open the library's first book).
+fn init_shell(cx: &mut TestAppContext, lib: &Library, book: Option<&str>) {
     let day = chrono::NaiveDate::from_ymd_opt(2026, 11, 15).unwrap();
     cx.executor().allow_parking();
     cx.update(|cx| {
@@ -87,7 +87,7 @@ fn open_workspace<'a>(
             },
             Services {
                 library: Some(lib.clone()),
-                book: Some(book.to_owned()),
+                book: book.map(str::to_owned),
                 ..Default::default()
             },
             settings,
@@ -101,10 +101,21 @@ fn open_workspace<'a>(
             )
             .unwrap();
         });
+        if book.is_none() {
+            dr_view_shelf::init(cx);
+        }
         clear_save_project_template(cx);
         dr_view_home::init(cx);
         dr_view_home::set_today(day, cx);
     });
+}
+
+fn open_workspace<'a>(
+    cx: &'a mut TestAppContext,
+    lib: &Library,
+    book: &str,
+) -> (Entity<Workspace>, Entity<Home>, &'a mut VisualTestContext) {
+    init_shell(cx, lib, Some(book));
     let (ws, vcx) = cx.add_window_view(Workspace::new);
     vcx.simulate_resize(size(px(1280.0), px(1400.0)));
     vcx.update(|window, _| window.activate_window());
@@ -914,6 +925,144 @@ fn a_title_being_typed_is_stored_before_the_library_is_let_go_of(cx: &mut TestAp
     assert_eq!(
         call(&lib, "book.get", json!({"book": book}))["name"],
         "换库前打的名字"
+    );
+    lib.close();
+}
+
+/// Swaps the library under the window (`dr_shell::library::replace`) for
+/// what `job` opens, and returns what `done` heard.
+fn replace(
+    vcx: &mut VisualTestContext,
+    job: impl FnOnce(&Path, dr_store::LibraryOptions) -> Result<dr_store::Library, String>
+    + Send
+    + 'static,
+) -> Result<(), String> {
+    let replaced = Rc::new(RefCell::new(None));
+    let replaced_done = replaced.clone();
+    vcx.update(|_, cx| {
+        dr_shell::library::replace(cx, job, move |result, _| {
+            *replaced_done.borrow_mut() = Some(result);
+        });
+    });
+    wait(vcx, "library swap finished", |_| {
+        replaced.borrow().is_some()
+    });
+    replaced.borrow_mut().take().unwrap()
+}
+
+/// Asks to quit (⌘Q) and returns how many times the quit hooks ran once the
+/// release gate either let the app go or opened again.
+fn quit(vcx: &mut VisualTestContext) -> usize {
+    let ran = Rc::new(Cell::new(0));
+    let hook = ran.clone();
+    vcx.update(|_, cx| {
+        dr_shell::quit::before_quit(cx, move |_| hook.set(hook.get() + 1));
+        dr_shell::quit::request(cx);
+        assert!(dr_shell::release::is_releasing(cx));
+    });
+    wait(vcx, "quit prepared or refused", |vcx| {
+        ran.get() > 0 || !vcx.update(|_, cx| dr_shell::release::is_releasing(cx))
+    });
+    ran.get()
+}
+
+fn root_of(lib: &Library) -> std::path::PathBuf {
+    std::fs::canonicalize(&lib.library().paths().root).unwrap()
+}
+
+/// With no project open (an empty 「全部项目」, before the 0.1 import's
+/// automatic switch) Project Home has nothing to store: the library is
+/// swapped for another and the app quits. Its target fields used to start
+/// empty under the default targets, which read as typed and unsaved, so
+/// both stopped with 「未能保存」.
+#[gpui::test]
+fn with_no_project_open_home_lets_the_library_be_swapped_and_the_app_quit(cx: &mut TestAppContext) {
+    let dir = tempfile::tempdir().unwrap();
+    let shelf = dir.path().join("shelf");
+    let imported = dir.path().join("imported");
+    let lib = Library::open_dir(&shelf, "test").unwrap();
+    assert_eq!(call(&lib, "book.list", json!({})), json!([]));
+    init_shell(cx, &lib, None);
+    let (ws, vcx) = cx.add_window_view(Workspace::new);
+    wait(vcx, "home with no project", |vcx| {
+        ws.read_with(vcx, |ws, _| {
+            ws.book_id.is_empty() && ws.book.v3().is_none() && ws.v3_home.is_some()
+        })
+    });
+    let shelf = root_of(&lib);
+    drop(lib);
+
+    let target = imported.clone();
+    let swapped = replace(vcx, move |root, options| {
+        assert_eq!(std::fs::canonicalize(root).unwrap(), shelf);
+        dr_store::Library::open(&target, options).map_err(|e| e.to_string())
+    });
+    assert_eq!(swapped, Ok(()));
+    let lib = library_of(vcx);
+    assert_eq!(root_of(&lib), std::fs::canonicalize(&imported).unwrap());
+    drop(lib);
+    wait(
+        vcx,
+        "the new library's home, still with no project",
+        |vcx| ws.read_with(vcx, |ws, _| ws.book_id.is_empty() && ws.v3_home.is_some()),
+    );
+
+    assert_eq!(quit(vcx), 1, "quitting with no project open goes ahead");
+    library_of(vcx).close();
+}
+
+/// Quitting from 「全部项目」 with projects in the library but none open
+/// goes ahead too: Project Home shows no project and has nothing to store.
+#[gpui::test]
+fn with_no_project_open_the_app_quits(cx: &mut TestAppContext) {
+    let (_dir, _root, lib, _book) = seed_library();
+    init_shell(cx, &lib, None);
+    let (ws, vcx) = cx.add_window_view(Workspace::new);
+    wait(vcx, "home with no project", |vcx| {
+        ws.read_with(vcx, |ws, _| {
+            ws.book_id.is_empty() && ws.book.v3().is_none() && ws.v3_home.is_some()
+        })
+    });
+    assert_eq!(quit(vcx), 1, "quitting with no project open goes ahead");
+    lib.close();
+}
+
+/// A Home write that was refused still holds the library back: neither the
+/// swap nor quitting goes ahead, the original library stays in use and the
+/// draft stays shown.
+#[gpui::test]
+fn a_refused_home_write_still_holds_the_library_back(cx: &mut TestAppContext) {
+    let (_dir, root, lib, book) = seed_library();
+    let (ws, home, vcx) = open_workspace(cx, &lib, &book);
+    let title_in = home.read_with(vcx, |h, _| h.title_input().clone());
+    vcx.update(|_, cx| title_in.update(cx, |f, cx| f.set_text("作者打的名字", cx)));
+    call(
+        &lib,
+        "book.update",
+        json!({"book": book, "name": "别处改的名字"}),
+    );
+    wait(vcx, "the shell read the other name", |vcx| {
+        ws.read_with(vcx, |ws, _| ws.book.name == "别处改的名字")
+    });
+    vcx.update(|_, cx| home.update(cx, |h, cx| h.store_title(cx)));
+    wait(vcx, "refused", |vcx| {
+        home.read_with(vcx, |h, _| !h.is_saving() && h.failed(Field::Title))
+    });
+    let failed =
+        vcx.update(|_, cx| dr_shell::t(cx, dr_i18n::keys::k4_pages::SAVE_FAILED).to_string());
+
+    let swapped = replace(vcx, |_, _| Err("the swap must not run".into()));
+    assert_eq!(swapped, Err(failed));
+    assert_eq!(
+        root_of(&library_of(vcx)),
+        std::fs::canonicalize(&root).unwrap()
+    );
+    assert_eq!(quit(vcx), 0, "quitting stops at the refused write");
+    assert!(home.read_with(vcx, |h, _| h.failed(Field::Title)));
+    assert_eq!(title_in.read_with(vcx, |f, _| f.text()), "作者打的名字");
+    assert_eq!(
+        call(&lib, "book.get", json!({"book": book}))["name"],
+        "别处改的名字"
     );
     lib.close();
 }

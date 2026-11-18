@@ -34,6 +34,7 @@
   - 写入守着框里显示的那个值（`call_guarded` 加值守卫：`meta/name`、`meta/summary`、`project/book/word_target`、`project/book/daily_word_target`、`project/agent/{name,description,instructions}`），别处同时改过就不覆盖；成书开关是「设成开/关」，不加值守卫。
   - **没存上时**：框里打的字留着，下面一行「未能保存」加「重试」（条目页标题的那两个字：`k4Pages.saveFailed`、`markdownShare.retry`）；「重试」照条目页，守着现在存着的值再写一次。别处改了这一处时，正在改、正在存或没存上的框不被盖掉。
   - 梗概跟着主页的数字一起在后台读（`dr_view_stats::v3::load_at` 的 `summary`），不再每次书目版本变化在界面线程上同步读库；数字读到之前梗概框是空的。
+  - **没打开项目时**（空的「全部项目」，或库里有书但一本没开）主页没有要存的：各框一开始就显示底里记着的值，全书目标、每日目标两框显示默认目标（120,000、1,500）。原来这两框是空的、底却是默认目标，主页被当成「有一处打了没存」，换库（导入 0.1 后自动换到新库）和退出都停在「未能保存」（2026-11-18 修，`InlineState::new`；回归 `dr-view-home/tests/v5_t2_project_home.rs` 的 `with_no_project_open_*`）。真没存上的那一处照旧拦住换库和退出（`a_refused_home_write_still_holds_the_library_back`）。
 - **页面底部「项目模板」块**（九语键 `projectHome.projectTemplate.{title,saveAs,source,fromTemplate,book}`）：
   - **来源**：`project.source.name` 非空时画「来自「模板名」」，`credit.author` 非空时带单个导出者署名（名章图标 + 名字），不画「改自」；没记模板名的不画这一行（作者 2026-11-16 一甲）。
   - **成书**（`#v3-home-has-book-toggle`，字是 T2 自己的 `projectHome.projectTemplate.book`）关着时，主页顶上的整书字数与今日两行、块里的「全书目标」「每日目标」两行都不出现。关掉不丢目标：两个目标留在书里，再打开就回来（数据层，见下）。
