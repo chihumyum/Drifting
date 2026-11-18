@@ -558,22 +558,26 @@ impl BookPass<'_> {
                     held.insert(id.clone());
                     continue;
                 }
-                if agree
-                    && apply::apply_fields(self.ws, &project.book, id, &template, &adoption.edits)?
-                        .is_empty()
-                {
-                    // Record what the file now means before replacing it. If
-                    // writeback waits, the same property isn't imported a
-                    // second time over an intervening edit in the App.
-                    row.current.fields = adoption.fields;
-                    row.current.extra = adoption.extra;
-                    row.current.projected = false;
-                    self.ledger.put_file(id, row)?;
-                    changed |= !adoption.edits.is_empty();
-                } else {
+                if !agree {
                     self.issue(project, Some(id), &row.current.path, Problem::KeyCollision);
                     held.insert(id.clone());
+                    continue;
                 }
+                let refused =
+                    apply::apply_fields(self.ws, &project.book, id, &template, &adoption.edits)?;
+                if !refused.is_empty() {
+                    // A guarded write can race an App edit. Settle the file
+                    // against its external values so the next pass can't
+                    // try the same write using that newer App value.
+                    self.keep_with_issue(project, id, &row.current.path, Problem::FieldConflict)?;
+                }
+                // Record the external values as the baseline before replacing
+                // the file. Any later change will go through the normal merge.
+                row.current.fields = adoption.fields;
+                row.current.extra = adoption.extra;
+                row.current.projected = false;
+                self.ledger.put_file(id, row)?;
+                changed |= !adoption.edits.is_empty();
             }
             Ok(changed)
         })
