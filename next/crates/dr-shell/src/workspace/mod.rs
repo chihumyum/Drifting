@@ -80,7 +80,9 @@ pub use dock::{DOCK_NEW, DOCK_ROW, DockDrag};
 pub use editors::PageEditor;
 pub use fill::FillPlace;
 pub use sea::{FIRST_RUN_DONE, SeaState};
-pub use sidebar::{LeftTab, RightTab, Side, page_hover_card, page_hover_card_keyed};
+pub use sidebar::{
+    LeftTab, RightTab, Side, page_hover_card, page_hover_card_keyed, sidebar_page_hover_card,
+};
 pub use stage::EditorLook;
 
 /// The 0.1 client's default and minimum window sizes.

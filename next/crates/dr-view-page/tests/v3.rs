@@ -67,7 +67,7 @@ fn wait(cx: &mut VisualTestContext, mut done: impl FnMut(&mut VisualTestContext)
         std::thread::sleep(Duration::from_millis(5));
     }
 }
-fn open(cx: &mut TestAppContext, e: &Env, module: &str) -> (Entity<BodyModule>, VisualTestContext) {
+fn init_shell(cx: &mut TestAppContext) {
     cx.executor().allow_parking();
     cx.update(|cx| {
         if cx.try_global::<dr_shell::strings::Strings>().is_none() {
@@ -85,6 +85,8 @@ fn open(cx: &mut TestAppContext, e: &Env, module: &str) -> (Entity<BodyModule>, 
             );
         }
     });
+}
+fn body_host(e: &Env, module: &str) -> ModuleHost {
     let book = Rc::new(Book::load(&e.ws, &e.book).unwrap());
     let module = book
         .v3()
@@ -96,7 +98,7 @@ fn open(cx: &mut TestAppContext, e: &Env, module: &str) -> (Entity<BodyModule>, 
         .find(|m| m.id == module)
         .unwrap()
         .clone();
-    let host = ModuleHost {
+    ModuleHost {
         page: PageViewHost {
             workspace: WeakEntity::new_invalid(),
             library: e.ws.clone(),
@@ -105,7 +107,11 @@ fn open(cx: &mut TestAppContext, e: &Env, module: &str) -> (Entity<BodyModule>, 
         },
         entry: e.entry.clone(),
         module,
-    };
+    }
+}
+fn open(cx: &mut TestAppContext, e: &Env, module: &str) -> (Entity<BodyModule>, VisualTestContext) {
+    init_shell(cx);
+    let host = body_host(e, module);
     let window = cx.add_window(|window, cx| BodyModule::new(host, window, cx));
     let view = window.root(cx).unwrap();
     let mut vcx = VisualTestContext::from_window(window.into(), cx);
@@ -486,6 +492,82 @@ fn body_module_expands_flat_beyond_720px_without_inner_clamp(cx: &mut TestAppCon
         bounds.size
     );
     e.ws.close();
+}
+
+#[gpui::test]
+fn an_empty_non_book_body_takes_one_editable_line_and_grows(cx: &mut TestAppContext) {
+    let mut e = env();
+    call(
+        &e.ws,
+        "entry_template.put",
+        json!({
+            "book": e.book,
+            "template": {
+                "id": "custom-body-size",
+                "name": "正文高度",
+                "modules": [
+                    {"id": "mod-description", "kind": "prose", "name": "任意名字", "pos": "a0", "config": {"in_book": false}},
+                    {"id": "mod-prose", "kind": "prose", "name": "说明", "pos": "a1", "config": {"in_book": true}}
+                ]
+            }
+        }),
+    );
+    e.entry = call(
+        &e.ws,
+        "entry.create",
+        json!({"book": e.book, "template": "custom-body-size", "title": "高度合成条目"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    use gpui::{AppContext as _, ParentElement as _, Styled as _};
+
+    struct EntryPage([Entity<BodyModule>; 2]);
+    impl gpui::Render for EntryPage {
+        fn render(
+            &mut self,
+            _: &mut gpui::Window,
+            _: &mut gpui::Context<Self>,
+        ) -> impl gpui::IntoElement {
+            gpui::div()
+                .size_full()
+                .flex()
+                .flex_col()
+                .children(self.0.clone())
+        }
+    }
+    init_shell(cx);
+    let (page, cx) = cx.add_window_view(|window, cx| {
+        EntryPage(["mod-description", "mod-prose"].map(|module| {
+            let host = body_host(&e, module);
+            cx.new(|cx| BodyModule::new(host, window, cx))
+        }))
+    });
+    cx.simulate_resize(size(px(1000.), px(900.)));
+    cx.update(|window, _| window.activate_window());
+    wait(cx, |cx| {
+        page.read_with(cx, |page, cx| {
+            page.0.iter().all(|body| body.read(cx).editor().is_some())
+        })
+    });
+    let bounds = |cx: &mut VisualTestContext, module| {
+        let selector = Box::leak(format!("v3-body-{}-{module}", e.entry).into_boxed_str());
+        cx.debug_bounds(selector).expect("body drawn")
+    };
+    let row = bounds(cx, "mod-description");
+    let before = row.size.height;
+    assert!(
+        before > px(0.) && before <= px(55.),
+        "one line with paragraph spacing: {before:?}"
+    );
+    assert_eq!(bounds(cx, "mod-prose").size.height, px(160.));
+    cx.simulate_click(row.center(), gpui::Modifiers::none());
+    cx.simulate_input("第一段\n第二段");
+    draw(cx);
+    assert!(
+        bounds(cx, "mod-description").size.height > before,
+        "click and type grows the module"
+    );
 }
 
 #[gpui::test]

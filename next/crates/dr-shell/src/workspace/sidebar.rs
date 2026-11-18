@@ -924,6 +924,10 @@ fn rows_view(
         .or_default()
         .clone();
     uniform_list(ElementId::Name(id), rows.len(), move |range, window, cx| {
+        let cards = window.use_keyed_state("legacy-sidebar-cards", cx, |_, _| {
+            dr_ui::components::hover_card::SidebarCards::default()
+        });
+        let cards = cards.read(cx).clone();
         let theme = Theme::of(window, cx);
         let wash = theme.palette.accent.alpha(0.08);
         range
@@ -954,7 +958,7 @@ fn rows_view(
                             cx,
                         );
                         if *card {
-                            hover_card(id, el, target, &entity, &host)
+                            hover_card(id, el, target, &entity, &host, cards.clone())
                         } else {
                             el
                         }
@@ -1084,24 +1088,18 @@ fn hover_card(
     target: &Target,
     ws: &gpui::Entity<Workspace>,
     host: &crate::pages::PageMenuHost,
+    cards: dr_ui::components::hover_card::SidebarCards,
 ) -> AnyElement {
-    card(id, el, target, ws, host, Rc::default())
+    build_card(id, el, target, ws, host, Rc::default(), None)
+        .in_sidebar(dr_ui::components::hover_card::SidebarCard {
+            cards,
+            on_pointer_open: None,
+        })
+        .into_any_element()
 }
 
-/// `el` with `target`'s hover card, `extra` rows before the dangerous ones.
-fn card(
-    id: SharedString,
-    el: AnyElement,
-    target: &Target,
-    ws: &gpui::Entity<Workspace>,
-    host: &crate::pages::PageMenuHost,
-    extra: Rc<crate::pages::CardRows>,
-) -> AnyElement {
-    keyed_card(id, el, target, ws, host, extra, None)
-}
-
-/// [`card`], walked by the keyboard when `keys` is given (KB).
-fn keyed_card(
+/// A hover card for a page, with extra rows before the dangerous ones.
+fn build_card(
     id: SharedString,
     el: AnyElement,
     target: &Target,
@@ -1109,11 +1107,11 @@ fn keyed_card(
     host: &crate::pages::PageMenuHost,
     extra: Rc<crate::pages::CardRows>,
     keys: Option<gpui::Entity<dr_ui::components::CardKeys>>,
-) -> AnyElement {
+) -> dr_ui::components::HoverCard {
     let (target, ws, host) = (target.clone(), ws.clone(), host.clone());
     let card_id = id.clone();
     let body_keys = keys.clone();
-    let card = dr_ui::components::HoverCard::new(
+    dr_ui::components::HoverCard::new(
         ElementId::Name(format!("{id}-card").into()),
         el,
         move |window, cx| {
@@ -1128,13 +1126,8 @@ fn keyed_card(
                 cx,
             )
         },
-    );
-    match keys {
-        // The keyboard's card floats beside its row, tops level (the
-        // prototype: right of the left column); the pointer's stays below.
-        Some(keys) => card.keys(keys).beside().into_any_element(),
-        None => card.into_any_element(),
-    }
+    )
+    .when_some(keys, |card, keys| card.keys(keys).beside())
 }
 
 /// A page's hover card around a module's own element (M14's slabs and lane
@@ -1172,7 +1165,7 @@ pub fn page_hover_card_keyed(
     cx: &App,
 ) -> AnyElement {
     let host = crate::pages::PageMenuHost::of(ws, cx);
-    keyed_card(
+    build_card(
         id.into(),
         el.into_any_element(),
         target,
@@ -1181,6 +1174,31 @@ pub fn page_hover_card_keyed(
         Rc::new(rows),
         keys,
     )
+    .into_any_element()
+}
+
+/// The left sidebar's page card shares its slot with the rest of the list.
+pub fn sidebar_page_hover_card(
+    id: impl Into<SharedString>,
+    el: impl IntoElement,
+    target: &Target,
+    ws: &gpui::Entity<Workspace>,
+    keys: Option<gpui::Entity<dr_ui::components::CardKeys>>,
+    sidebar: dr_ui::components::hover_card::SidebarCard,
+    cx: &App,
+) -> AnyElement {
+    let host = crate::pages::PageMenuHost::of(ws, cx);
+    build_card(
+        id.into(),
+        el.into_any_element(),
+        target,
+        ws,
+        &host,
+        Rc::default(),
+        keys,
+    )
+    .in_sidebar(sidebar)
+    .into_any_element()
 }
 
 /// A page's hover card (the 0.1 client's `EntityHoverCard`): a chapter's

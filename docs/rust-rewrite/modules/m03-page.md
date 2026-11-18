@@ -127,5 +127,5 @@ cargo run -p dr-view-page --features capture --example page-capture -- ../docs/r
 
 kernel-v5 第 15 节第 53、54 条，作者「全照建议」。
 
-- **空着的「说明」只留一行高**（[v5-followups.md](../handoff/v5-followups.md) 的 SF）：按模块的「进成书」开关认，不进成书的正文空着时一行高、写了字往下长；进成书的照旧至少 160。原来一律 160。
+- **空着的「说明」只留一行高**（[v5-followups.md](../handoff/v5-followups.md) 的 SF）：按模块的「进成书」开关认，不进成书的正文空着时一行高、写了字往下长；进成书的照旧至少 160。原来一律 160。`dr-view-page/src/v3.rs` 的 `BodyModule` 让不进成书的编辑器按内容排高，空时可以直接点这一行下笔。`dr-view-page/tests/v3.rs` 用自定义名称的两篇空正文验证开关判定、点击录入和展开。
 - **新建的条目打开时标题选中**（NE）：左栏卡里的「新建」不先起名字，直接建「未命名」、打开、标题选中，用 `focus_new_title` 那一套（⁂ 去掉以后它没有调用方）。

@@ -290,7 +290,7 @@ impl Render for BodyModule {
             .id(SharedString::from(body_id))
             .debug_selector(move || body_dbg.clone())
             .track_focus(&self.focus)
-            .min_h(px(160.))
+            .when(self.host.module.config.in_book, |el| el.min_h(px(160.)))
             .w_full()
             .min_w_0()
             .children(self.editor.clone())

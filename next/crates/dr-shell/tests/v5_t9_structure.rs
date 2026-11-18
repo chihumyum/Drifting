@@ -294,6 +294,97 @@ fn the_level_table_is_the_tree_and_a_row_dropped_on_a_level_moves_under_it_with_
 }
 
 #[gpui::test]
+fn table_insertion_reorders_siblings_and_can_move_a_row_to_the_root(cx: &mut TestAppContext) {
+    let (_dir, lib, book) = seed();
+    let (view, cx) = open(cx, &lib, &book, Rc::new(Cell::new(0)));
+    let structure = enter_structure(&view, cx);
+    structure.update(cx, |s, cx| s.show_levels(true, cx));
+    pump(cx);
+    let (parent, first, second, root_after, last_root) = view.read_with(cx, |ws, _| {
+        let v = ws.book.v3().unwrap();
+        let rows = level_rows(v);
+        let roots: Vec<_> = rows.iter().filter(|(_, depth)| *depth == 0).collect();
+        let (parent, pair) = roots
+            .iter()
+            .find_map(|(root, _)| {
+                let children = rows
+                    .iter()
+                    .filter(|(id, _)| v.entry(id).unwrap().parent.as_ref() == Some(root))
+                    .map(|(id, _)| id.clone())
+                    .take(2)
+                    .collect::<Vec<_>>();
+                (children.len() == 2).then(|| (root.clone(), children))
+            })
+            .expect("two nested level rows");
+        let root_after = roots
+            .iter()
+            .skip_while(|(id, _)| *id != parent)
+            .nth(1)
+            .expect("another root after them")
+            .0
+            .clone();
+        (
+            parent,
+            pair[0].clone(),
+            pair[1].clone(),
+            root_after,
+            roots.last().unwrap().0.clone(),
+        )
+    });
+    let ordered = |ws: &Shell, from: &str, to: &str, parent: Option<&str>| {
+        let v = ws.book.v3().unwrap();
+        let siblings = parent.map_or(&v.roots, |id| &v.levels[id].children);
+        let index = |id: &str| siblings.iter().position(|sibling| sibling == id);
+        matches!((index(from), index(to)), (Some(a), Some(b)) if a < b)
+    };
+    let drag = |cx: &mut VisualTestContext, moving: &str, slot: String| {
+        let from = bounds(cx, format!("v5-structure-level-{moving}"))
+            .unwrap()
+            .center();
+        let to = bounds(cx, slot).unwrap().center();
+        cx.simulate_mouse_down(from, MouseButton::Left, Modifiers::none());
+        cx.simulate_mouse_move(
+            from + point(px(0.), px(8.)),
+            MouseButton::Left,
+            Modifiers::none(),
+        );
+        pump(cx);
+        cx.simulate_mouse_move(to, MouseButton::Left, Modifiers::none());
+        pump(cx);
+        cx.simulate_mouse_up(to, MouseButton::Left, Modifiers::none());
+    };
+    drag(cx, &second, format!("v5-structure-before-{first}"));
+    wait(&view, cx, "reordered siblings", |ws, _| {
+        ordered(ws, &second, &first, Some(&parent))
+    });
+    cx.dispatch_action(Undo);
+    wait(&view, cx, "one undo restores the order", |ws, _| {
+        ordered(ws, &first, &second, Some(&parent))
+    });
+
+    drag(cx, &second, format!("v5-structure-before-{root_after}"));
+    wait(&view, cx, "inserted between roots", |ws, _| {
+        ordered(ws, &parent, &second, None) && ordered(ws, &second, &root_after, None)
+    });
+    cx.dispatch_action(Undo);
+    wait(
+        &view,
+        cx,
+        "one undo restores the parent and order",
+        |ws, _| ordered(ws, &first, &second, Some(&parent)),
+    );
+
+    drag(cx, &second, format!("v5-structure-before-{parent}"));
+    wait(&view, cx, "inserted at the top", |ws, _| {
+        ws.book.v3().unwrap().roots.first() == Some(&second)
+    });
+    drag(cx, &second, format!("v5-structure-after-{last_root}"));
+    wait(&view, cx, "inserted at the bottom", |ws, _| {
+        ws.book.v3().unwrap().roots.last() == Some(&second)
+    });
+}
+
+#[gpui::test]
 fn the_panel_names_its_groups_lives_in_and_hangs_on_and_esc_closes_only_it(
     cx: &mut TestAppContext,
 ) {
