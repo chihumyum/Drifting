@@ -237,17 +237,23 @@ impl std::fmt::Debug for TrayController {
 }
 
 impl TrayController {
-    /// Installs the notification area icon on the current (main) thread on
-    /// Windows; on other platforms returns an inert controller with the same
-    /// command channel and label validation.
-    pub fn install(identity: &Identity, labels: TrayLabels) -> Result<Arc<Self>, TrayError> {
-        let controller = Arc::new(Self {
+    /// The state, the command queue and the waker, without a native icon:
+    /// what [`Self::install`] builds before it adds the icon on Windows.
+    fn without_icon(identity: &Identity, labels: TrayLabels) -> Arc<Self> {
+        Arc::new(Self {
             state: Mutex::new(TrayState::new(identity, labels)),
             commands: Mutex::new(Vec::new()),
             waker: Mutex::new(None),
             #[cfg(windows)]
             native: Mutex::new(None),
-        });
+        })
+    }
+
+    /// Installs the notification area icon on the current (main) thread on
+    /// Windows; on other platforms returns an inert controller with the same
+    /// command channel and label validation.
+    pub fn install(identity: &Identity, labels: TrayLabels) -> Result<Arc<Self>, TrayError> {
+        let controller = Self::without_icon(identity, labels);
         #[cfg(windows)]
         {
             let native = windows_impl::NativeTray::create(identity.product_name, &controller)?;
@@ -589,6 +595,47 @@ mod windows_impl {
             _ => unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) },
         }
     }
+
+    /// Tests: whether this session has a notification area (the taskbar's
+    /// `Shell_TrayWnd`), and what the shell and the icon's menu send its
+    /// window, delivered to the window procedure as they would be.
+    #[cfg(test)]
+    pub(super) mod simulate {
+        use windows::Win32::Foundation::{LPARAM, WPARAM};
+        use windows::Win32::UI::WindowsAndMessaging::{
+            FindWindowW, SendMessageW, WM_COMMAND, WM_LBUTTONUP,
+        };
+        use windows::core::w;
+
+        use super::{HWND, ID_TRAY_OPEN, ID_TRAY_QUIT, TrayController, WM_TRAYICON};
+
+        pub(in crate::tray) fn notification_area_present() -> bool {
+            // SAFETY: looks a top-level window up by its class name.
+            unsafe { FindWindowW(w!("Shell_TrayWnd"), None) }.is_ok()
+        }
+
+        fn send(controller: &TrayController, msg: u32, wparam: usize, lparam: isize) {
+            let hwnd = {
+                let native = controller.native.lock().unwrap_or_else(|e| e.into_inner());
+                HWND(native.as_ref().expect("the icon is installed").hwnd as *mut core::ffi::c_void)
+            };
+            // SAFETY: the message window lives on this thread, so this
+            // calls its window procedure directly.
+            unsafe { SendMessageW(hwnd, msg, Some(WPARAM(wparam)), Some(LPARAM(lparam))) };
+        }
+
+        pub(in crate::tray) fn left_click(controller: &TrayController) {
+            send(controller, WM_TRAYICON, 0, WM_LBUTTONUP as isize);
+        }
+
+        pub(in crate::tray) fn menu_open(controller: &TrayController) {
+            send(controller, WM_COMMAND, ID_TRAY_OPEN, 0);
+        }
+
+        pub(in crate::tray) fn menu_quit(controller: &TrayController) {
+            send(controller, WM_COMMAND, ID_TRAY_QUIT, 0);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -675,10 +722,11 @@ mod tests {
         );
     }
 
+    /// The queue, the labels and the waker, on every platform: without the
+    /// native icon, which the next test covers.
     #[test]
     fn controller_queues_commands_updates_labels_and_wakes_listener() {
-        let controller = TrayController::install(&DEVELOPMENT, TrayLabels::default())
-            .expect("controller installs");
+        let controller = TrayController::without_icon(&DEVELOPMENT, TrayLabels::default());
         let woken = Arc::new(AtomicUsize::new(0));
         let woken_clone = woken.clone();
         controller.set_waker(move || {
@@ -707,6 +755,43 @@ mod tests {
                 TrayCommand::QuitApp,
             ]
         );
+        assert!(controller.drain_commands().is_empty());
+    }
+
+    /// On Windows the icon goes into the notification area, and a click on it
+    /// and its menu's two items reach the queue through its window procedure.
+    /// A session without a notification area (no taskbar, as in a session a
+    /// service runs in) has nowhere to show an icon, and `install` says so
+    /// with an error. Off Windows it is the inert controller.
+    #[test]
+    fn install_adds_the_icon_and_its_window_feeds_the_queue() {
+        let installed = TrayController::install(&DEVELOPMENT, TrayLabels::default());
+        #[cfg(windows)]
+        {
+            if !windows_impl::simulate::notification_area_present() {
+                assert!(
+                    matches!(installed, Err(TrayError::Platform(_))),
+                    "no notification area: {installed:?}"
+                );
+                return;
+            }
+        }
+        let controller = installed.expect("controller installs");
+        #[cfg(windows)]
+        {
+            windows_impl::simulate::left_click(&controller);
+            windows_impl::simulate::menu_open(&controller);
+            windows_impl::simulate::menu_quit(&controller);
+            assert_eq!(
+                controller.drain_commands(),
+                vec![
+                    TrayCommand::RestoreWindow,
+                    TrayCommand::RestoreWindow,
+                    TrayCommand::QuitApp,
+                ]
+            );
+            assert!(controller.is_quitting());
+        }
         assert!(controller.drain_commands().is_empty());
     }
 }
