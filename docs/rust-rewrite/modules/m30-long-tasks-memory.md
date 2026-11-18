@@ -116,3 +116,7 @@ cargo drifting workspace scenario crates/dr-view-agent/scenarios/home-cards.json
 - **失败的原因**。`dr-agent::proactive` 在收模型流和核对上下文时返回 `CheckinFailure`。`ProactiveStore::fail_checkin` 在原本的本机建议状态里写下种类，旧字符串仍可读取并显示「出错了」。开卡返回 `SuggestionStartError`，主页用界面语言写出原因。作者关开关或正常退出仍走取消路径。
 - **一组卡一起锁**。`dr-view-agent` 的 controller 接下查看请求时登记忙态，读改动和检查时间间隔时就能画「Agent 正在看你最近的改动……」。开一张卡期间，同组的卡和 × 一起点不动，× 用现有按钮的禁用墨色。卡上正常操作的读屏名包含标题和动作。
 - **验收**。`dr-view-agent/tests/home_cards.rs` 用合成资料覆盖失败提示、旧书库中的英文、落下查看票据前的忙态、开始一张卡时的连点和忽略。`tests/v3_guidance.rs` 核对装不下时写入的原因和没有向模型发请求。`dr-view-agent/scenarios/home-cards-hc2.json` 用上文例程验证超时、上下文装不下和真实连点，并核对「交给 Agent」「查看对话」两种读屏名。
+
+### HC2 合并验收
+
+合并树 `8631926ac` 的全套检查通过，Rust 工作区 3117 项通过、0 失败、21 项原有忽略。macOS 副屏的 HC2 场景 27 步、旧 HC 场景 57 步均通过，用合成模型核对网络超时、上下文超限、开卡时点别张卡与关闭按钮、读屏名及打开对话。后续合进的 NE 验收文档通过受影响的仓库检查，产品代码一致。
