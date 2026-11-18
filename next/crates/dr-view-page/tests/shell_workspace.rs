@@ -390,11 +390,17 @@ fn a_rebound_shortcut_takes_effect_at_once_and_is_stored(cx: &mut TestAppContext
     );
     let stored = cx.update(|_, cx| Settings::read(cx).key_bindings());
     assert_eq!(stored["goBack"], "alt-secondary-b");
-    // A module's own key survives the keymap being rebuilt.
+    // A module's own key survives the keymap being rebuilt. Modules bind
+    // their keys per platform (as the shelf's ⌘↵ / Ctrl+↵ does), and `keys`
+    // presses `cmd-` as Ctrl off macOS.
     cx.update(|_, cx| {
         dr_shell::keymap::add_bindings(cx, || {
             vec![gpui::KeyBinding::new(
-                "cmd-alt-y",
+                if cfg!(target_os = "macos") {
+                    "cmd-alt-y"
+                } else {
+                    "ctrl-alt-y"
+                },
                 dr_shell::actions::ShowProjectHome,
                 Some("Workspace"),
             )]

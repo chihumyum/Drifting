@@ -276,7 +276,7 @@ fn a_description_takes_an_entry_picked_with_at(cx: &mut TestAppContext) {
             .iter()
             .any(|item| item.target.as_ref() == target)
     }));
-    cx.simulate_keystrokes("cmd-a");
+    cx.simulate_keystrokes("secondary-a");
     cx.simulate_input("同宗，见 @qwk");
     draw(cx);
     let items = area.read_with(cx, |a, _| a.at_items());
