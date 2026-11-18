@@ -125,6 +125,17 @@ automatic security-fix PRs remain disabled. The predecessor remains private and
 archived. Private vulnerability reporting is unavailable while private and must
 be enabled immediately after publication.
 
+### Accepted npm advisory (2026-11-18)
+
+`GHSA-fc5q-39xc-vjpf` (picomatch ReDoS through single-branch repeated extglobs,
+high) is ignored in `pnpm-workspace.yaml`'s `auditConfig.ignoreGhsas`, accepted
+by the author on 2026-11-18. No fixed release exists: 4.0.7 is the latest
+picomatch and is still in the affected range. The locked tree reaches it only
+through build and lint tooling (`vite`, and `typescript-eslint` through
+`tinyglobby`), which match glob patterns written in this repository; no user or
+book input reaches it and nothing of it ships in the app. Remove the ignore as
+soon as a fixed picomatch is published and the lockfile takes it.
+
 ### Remaining Rust advisory
 
 The earlier accepted `GHSA-wrw7-89jp-8q8g` decision remains in force. The locked

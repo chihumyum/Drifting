@@ -21,3 +21,14 @@ overrides:
 patchedDependencies:
   '@tiptap/y-tiptap@3.0.8': patches/@tiptap__y-tiptap@3.0.8.patch
   prosemirror-view@1.42.4: patches/prosemirror-view@1.42.4.patch
+
+auditConfig:
+  ignoreGhsas:
+    # picomatch ReDoS through single-branch repeated extglobs. Accepted by the
+    # author on 2026-11-18: no fixed release exists (4.0.7 is the latest and
+    # still affected); it is reached only through build and lint tooling
+    # (vite, typescript-eslint's tinyglobby) matching patterns written in this
+    # repository, never input from a user or a book, and nothing of it ships
+    # in the app. Drop this line once a fixed picomatch is published and the
+    # lockfile takes it.
+    - GHSA-fc5q-39xc-vjpf
