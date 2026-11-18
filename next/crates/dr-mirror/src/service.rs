@@ -15,6 +15,7 @@ use notify::Watcher;
 use crate::{
     disk,
     layout::Names,
+    ledger::Ledger,
     sync::{self, Issue, Pass, Report, Seen},
 };
 
@@ -68,6 +69,7 @@ enum Msg {
     /// Paths the watcher reported; empty when it lost track (rescan all).
     Disk(Vec<PathBuf>),
     Sync(mpsc::Sender<Result<Report, String>>),
+    Acknowledge(Issue),
     Stop,
 }
 
@@ -84,6 +86,7 @@ struct State {
 /// Only this worker advances the ledger or edits files under the chosen
 /// root; synchronous drains join before the library can be replaced.
 pub struct Mirror {
+    root: PathBuf,
     tx: mpsc::Sender<Msg>,
     shared: Arc<Mutex<State>>,
     _watcher: notify::RecommendedWatcher,
@@ -135,10 +138,12 @@ impl Mirror {
             .map_err(std::io::Error::other)?;
         let shared = Arc::new(Mutex::new(State::default()));
         let state = shared.clone();
+        let root = options.root.clone();
         let worker = std::thread::Builder::new()
             .name("dr-mirror".into())
             .spawn(move || run(ws, options, rx, state))?;
         Ok(Self {
+            root,
             tx,
             shared,
             worker: Some(worker),
@@ -173,6 +178,16 @@ impl Mirror {
             shared.issues.values().flatten().cloned().collect()
         };
         f(&current);
+    }
+
+    pub fn can_acknowledge(&self, issue: &Issue) -> bool {
+        preserved_relative(&self.root, issue).is_some()
+    }
+
+    /// Queue a durable acknowledgement. Issue listeners see the removal
+    /// only after the worker has written it to the same ledger as the pass.
+    pub fn acknowledge(&self, issue: Issue) {
+        let _ = self.tx.send(Msg::Acknowledge(issue));
     }
 
     pub fn on_preserved(&self, f: impl Fn(&[PathBuf]) + Send + Sync + 'static) {
@@ -343,7 +358,12 @@ impl Index {
                     && !now.contains_key(path)
                     && self.checked.contains_key(path)
             });
-            if gone {
+            if gone
+                || seen.kept.iter().any(|path| {
+                    std::fs::symlink_metadata(path)
+                        .is_err_and(|err| err.kind() == std::io::ErrorKind::NotFound)
+                })
+            {
                 changed.insert(book.clone());
             }
         }
@@ -401,6 +421,11 @@ fn run(ws: Workspace, options: Options, rx: mpsc::Receiver<Msg>, state: Arc<Mute
                     schedule.retry(report, &options);
                 }
                 let _ = reply.send(result.map_err(|e| e.to_string()));
+            }
+            Ok(Msg::Acknowledge(issue)) => {
+                if let Err(err) = acknowledge(ws.library(), &options.root, &state, &issue) {
+                    log::warn!("Markdown folder acknowledgement: {err}");
+                }
             }
             Ok(Msg::Stop) => {
                 match pass.run() {
@@ -466,6 +491,53 @@ fn run(ws: Workspace, options: Options, rx: mpsc::Receiver<Msg>, state: Arc<Mute
             }
         }
     }
+}
+
+/// A project's folder name can change between reporting and clicking.
+fn preserved_relative<'a>(root: &Path, issue: &'a Issue) -> Option<&'a Path> {
+    let mut parts = issue.kept.as_deref()?.strip_prefix(root).ok()?.components();
+    parts.next()?;
+    let relative = parts.as_path();
+    relative
+        .starts_with(Path::new(disk::META_DIR).join("preserved"))
+        .then_some(relative)
+}
+
+fn acknowledge(
+    lib: &dr_store::Library,
+    root: &Path,
+    shared: &Mutex<State>,
+    issue: &Issue,
+) -> dr_store::Result<()> {
+    let (Ok(book), Some(kept)) = (BookId::parse(&issue.book), preserved_relative(root, issue))
+    else {
+        return Ok(());
+    };
+    Ledger::new(lib, &book, root).acknowledge(kept, issue.problem)?;
+    let (listeners, current) = {
+        let mut state = lock(shared);
+        let Some(issues) = state.issues.get_mut(&issue.book) else {
+            return Ok(());
+        };
+        let count = issues.len();
+        issues.retain(|active| {
+            active.problem != issue.problem || preserved_relative(root, active) != Some(kept)
+        });
+        if count == issues.len() {
+            return Ok(());
+        }
+        if issues.is_empty() {
+            state.issues.remove(&issue.book);
+        }
+        (
+            state.listeners.clone(),
+            state.issues.values().flatten().cloned().collect::<Vec<_>>(),
+        )
+    };
+    for listener in listeners {
+        listener(&current);
+    }
+    Ok(())
 }
 
 /// `books`: the projects the pass covered (all when `None`). An issue about
@@ -584,6 +656,7 @@ mod tests {
         let seen = Seen {
             dir: folder.path().to_path_buf(),
             files: BTreeMap::from([(path.clone(), disk::stat(&path).unwrap().unwrap())]),
+            ..Default::default()
         };
         let mut index = Index::default();
         index.books.insert(book.clone(), seen);
@@ -660,6 +733,7 @@ mod tests {
                         Seen {
                             dir: PathBuf::from("project"),
                             files: BTreeMap::new(),
+                            ..Default::default()
                         },
                     )]),
                     ..Default::default()
@@ -684,6 +758,7 @@ mod tests {
             Seen {
                 dir: dir.clone(),
                 files: BTreeMap::from([(path.clone(), disk::stat(&path).unwrap().unwrap())]),
+                ..Default::default()
             },
         );
         assert!(index.check().is_empty());
@@ -712,6 +787,7 @@ mod tests {
                 Seen {
                     dir: dir.path().to_path_buf(),
                     files: BTreeMap::from([(path.clone(), disk::stat(&path).unwrap().unwrap())]),
+                    ..Default::default()
                 },
             )]),
             ..Default::default()

@@ -160,7 +160,7 @@ fn example_tree_and_contents_follow_residence_and_book_order() {
     assert!(layout.directories.contains("素材库/参考图"));
     assert_eq!(
         layout.memberships[&entry("rain")],
-        ["[[主线]]", "[[回忆线]]"]
+        ["[[故事线/主线]]", "[[故事线/回忆线]]"]
     );
     assert_eq!(
         layout.contents,
@@ -190,6 +190,70 @@ fn example_tree_and_contents_follow_residence_and_book_order() {
             .contains("  - 地点\n    - [钟楼](要素/地点/钟楼.md)\n")
     );
     assert_eq!(whole.contents.matches("(书稿/第一卷/雨夜.md)").count(), 3);
+}
+
+#[test]
+fn membership_paths_follow_the_host_file_or_its_empty_slot() {
+    let mut seed = BuilderV3::new(BookId::parse("mirror-host-paths").unwrap()).unwrap();
+    seed.edit_book(|t| {
+        for spec in [
+            shape("writing", vec![prose("body", "正文", false)], true),
+            shape("without-prose", vec![], true),
+        ] {
+            t.template(&spec.id)?.set_full(&spec)?;
+        }
+        for (id, parent, title, kind, level) in [
+            ("left", None, "要素", "without-prose", true),
+            ("right", None, "构想", "without-prose", true),
+            ("open", Some("left"), "主角团", "writing", true),
+            ("empty", Some("right"), "主角团", "writing", true),
+            ("no-module", Some("left"), "人物", "without-prose", true),
+            ("member", None, "雨夜", "writing", false),
+        ] {
+            t.entries().create(
+                &entry(id),
+                parent.map(entry).as_ref(),
+                title,
+                Some(&template(kind)),
+                level,
+            )?;
+        }
+        for host in ["open", "empty", "no-module"] {
+            t.put_membership(&entry(host), &entry("member"), None, None)?;
+        }
+        t.entries()
+            .entry(&entry("member"))?
+            .primary(Some(&entry("open")))?;
+        Ok(())
+    })
+    .unwrap();
+    let layout = plan(&seed, &[("open", "body")]);
+    assert_eq!(
+        layout.memberships[&entry("member")],
+        [
+            "[[要素/主角团/主角团]]",
+            "[[构想/主角团/主角团]]",
+            "[[要素/人物/人物]]",
+        ]
+    );
+    assert!(
+        layout
+            .prose
+            .iter()
+            .any(|file| file.path == "要素/主角团/主角团.md" && file.present)
+    );
+    assert!(
+        layout
+            .prose
+            .iter()
+            .any(|file| file.path == "构想/主角团/主角团.md" && !file.present)
+    );
+    assert!(
+        !layout
+            .prose
+            .iter()
+            .any(|file| file.path == "要素/人物/人物.md")
+    );
 }
 
 #[test]

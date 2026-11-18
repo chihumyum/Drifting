@@ -513,6 +513,8 @@
     }
   },
   "mirrorV5": {
+    "acknowledgePreserved": "확인",
+    "contents": "목차",
     "duplicate": "drifting-id가 같은 파일이 두 개 있습니다.",
     "fieldConflict": "필드를 병합하지 못했습니다. Drifting에서도 편집되었거나 값을 읽을 수 없습니다. Drifting의 값을 유지하고 파일 사본을 저장했습니다.",
     "identity": "drifting-id가 이 항목 또는 본문 모듈과 일치하지 않습니다.",

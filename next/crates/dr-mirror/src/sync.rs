@@ -60,7 +60,7 @@ pub enum Problem {
     FieldConflict,
     Disk,
     /// A kept property has the key of a field added since: the file is held
-    /// until the author decides which wins (m40 section 15).
+    /// when the outside value cannot be taken into that field.
     KeyCollision,
 }
 
@@ -72,7 +72,7 @@ pub struct Issue {
     pub path: PathBuf,
     pub problem: Problem,
     /// Where the file was kept before the App rewrote it. Such an issue is
-    /// reported again on every pass until that copy is gone.
+    /// reported again until acknowledged or that copy is gone.
     pub kept: Option<PathBuf>,
 }
 
@@ -99,6 +99,7 @@ pub struct Report {
 pub(crate) struct Seen {
     pub dir: PathBuf,
     pub files: BTreeMap<PathBuf, disk::Stat>,
+    pub kept: BTreeSet<PathBuf>,
 }
 
 impl Report {
@@ -413,6 +414,12 @@ impl BookPass<'_> {
             let mut cache = self.cache.borrow_mut();
             layout = project.layout(self.ws.library(), &row.names, &mut cache.levels)?;
         }
+        if self.adopt_fields(&project, &layout, &mut files, &mut held)? {
+            let Some(latest) = Project::read(self.ws, &project.book)? else {
+                return Ok((project, files));
+            };
+            project = latest;
+        }
         let active: BTreeMap<_, _> = layout
             .prose
             .iter()
@@ -463,6 +470,119 @@ impl BookPass<'_> {
         Ok((project, files))
     }
 
+    fn adopt_fields(
+        &mut self,
+        project: &Project,
+        layout: &BookLayout,
+        files: &mut BTreeMap<BodyDocId, Row>,
+        held: &mut BTreeSet<BodyDocId>,
+    ) -> Result<bool> {
+        let mut candidates = Vec::new();
+        let mut proposed = BTreeMap::new();
+        for file in &layout.prose {
+            if !file.present || held.contains(&file.id) {
+                continue;
+            }
+            let Some(row) = files.get(&file.id).filter(|row| {
+                project.accepts(&file.id, &row.current) && !row.current.extra.is_empty()
+            }) else {
+                continue;
+            };
+            let id = &file.id;
+            let links = FileLinks::new(&file.path, &layout.assets);
+            let Some((template, header)) = project.headers(id, layout, &links, self.options) else {
+                continue;
+            };
+            let adoption = header
+                .adopt_extra(&row.current.fields, &row.current.extra)
+                .and_then(|adoption| {
+                    if let Some(adoption) = &adoption {
+                        // An unmanaged alias may need an anchor from the
+                        // property being adopted. Keep that file as it is.
+                        file::render(id, &header, &adoption.extra, "")?;
+                    }
+                    Ok(adoption)
+                });
+            match adoption {
+                Ok(None) => {}
+                Ok(Some(adoption)) => {
+                    for edit in &adoption.edits {
+                        let key = (
+                            id.entry().clone(),
+                            edit.slot.module.clone(),
+                            edit.slot.field.clone(),
+                        );
+                        let (first, agree) = proposed
+                            .entry(key)
+                            .or_insert_with(|| (edit.value.clone(), true));
+                        *agree &= *first == edit.value;
+                    }
+                    candidates.push((id, template, adoption));
+                }
+                Err(err) => {
+                    self.issue(project, Some(id), &row.current.path, err.problem());
+                    held.insert(id.clone());
+                }
+            }
+        }
+        if candidates.is_empty() {
+            return Ok(false);
+        }
+        let ws = self.ws;
+        ws.with_book_lease(&project.book, || -> Result<bool> {
+            let mut changed = false;
+            for (id, template, mut adoption) in candidates {
+                let row = files.get_mut(id).expect("candidate has a ledger row");
+                // Multiple prose files can carry the same field. Differing
+                // external values must stay in their own files.
+                let agree = adoption.edits.iter().all(|edit| {
+                    proposed[&(
+                        id.entry().clone(),
+                        edit.slot.module.clone(),
+                        edit.slot.field.clone(),
+                    )]
+                        .1
+                });
+                adoption
+                    .edits
+                    .retain(|edit| Some(&edit.expected) != edit.value.as_ref());
+                if !adoption.edits.is_empty() && (self.options.composing)() {
+                    self.wait_composing();
+                    held.insert(id.clone());
+                    continue;
+                }
+                if !adoption.edits.is_empty()
+                    && !project::check_active(ws.library(), &project.book, id, &row.current)?
+                {
+                    self.wait();
+                    held.insert(id.clone());
+                    continue;
+                }
+                if !agree {
+                    self.issue(project, Some(id), &row.current.path, Problem::KeyCollision);
+                    held.insert(id.clone());
+                    continue;
+                }
+                let refused =
+                    apply::apply_fields(self.ws, &project.book, id, &template, &adoption.edits)?;
+                if !refused.is_empty() {
+                    // A guarded write can race an App edit. Settle the file
+                    // against its external values so the next pass can't
+                    // try the same write using that newer App value.
+                    self.keep_with_issue(project, id, &row.current.path, Problem::FieldConflict)?;
+                }
+                // Record the external values as the baseline before replacing
+                // the file. Any later change will go through the normal merge.
+                row.current.fields = adoption.fields;
+                row.current.extra = adoption.extra;
+                row.current.projected = false;
+                self.ledger.put_file(id, row)?;
+                changed |= !adoption.edits.is_empty();
+            }
+            Ok(changed)
+        })
+    }
+
     /// Report what is still kept from earlier passes, and what the folder
     /// holds now.
     fn settle(
@@ -483,7 +603,7 @@ impl BookPass<'_> {
             })
             .cloned()
             .collect();
-        for old in &standing {
+        for old in standing.iter().filter(|old| !old.acknowledged) {
             let id = old.doc.as_deref().and_then(|doc| match DocId::parse(doc) {
                 Ok(DocId::Body(id)) => Some(id),
                 _ => None,
@@ -514,6 +634,11 @@ impl BookPass<'_> {
         let mut seen = Seen {
             dir: self.dir.clone(),
             files: BTreeMap::new(),
+            kept: standing
+                .iter()
+                .filter(|row| !row.acknowledged)
+                .map(|row| self.dir.join(&row.kept))
+                .collect(),
         };
         for file in files.values() {
             if let Some(disk) = &file.current.disk {
@@ -588,6 +713,7 @@ impl BookPass<'_> {
             doc: id.map(|id| DocId::Body(id.clone()).to_string()),
             rel: rel.into(),
             problem,
+            acknowledged: false,
             kept: kept
                 .strip_prefix(&self.dir)
                 .map_err(|e| SyncError::Invalid(e.to_string()))?
