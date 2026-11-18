@@ -232,3 +232,208 @@ fn a_pair_placed_in_a_body_reveals_its_row(cx: &mut TestAppContext) {
         "RevealRelationRow carries the row"
     );
 }
+
+#[gpui::test]
+fn an_entry_page_draws_across_body_modules_at_the_pointed_occurrence(cx: &mut TestAppContext) {
+    use dr_editor::assist::relate::geom;
+    use dr_shell::{nav::Target, v3::page::EntryPage};
+
+    let dir = tempfile::tempdir().unwrap();
+    let ws = Workspace::open_dir(dir.path(), "multi-body").unwrap();
+    let book = call(&ws, "project.create", json!({"name":"试书"}))["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let person = |title| {
+        dr_testkit::seed::acceptance::novel_entry(&ws, &book, "tpl-character", title, None)["id"]
+            .as_str()
+            .unwrap()
+            .to_owned()
+    };
+    let aq = person("阿Q");
+    let wh = person("王胡");
+    let row = call(
+        &ws,
+        "relation_row.create_pair",
+        json!({"book":book,"left":aq,"right":wh,
+        "new_type":{"name":"冤家","direction":"symmetric"}}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    call(
+        &ws,
+        "entry_template.remove_module",
+        json!({"book":book,"template":"tpl-chapter","module":"mod-plot-grid"}),
+    );
+    call(
+        &ws,
+        "entry_template.put_module",
+        json!({"book":book,"template":"tpl-chapter",
+        "module":{"id":"mod-prose-extra","kind":"prose","name":"另篇"}}),
+    );
+    let entry = dr_testkit::seed::acceptance::novel_entry(&ws, &book, "tpl-chapter", "试写", None)
+        ["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    for (module, paragraphs) in [
+        (
+            "mod-prose",
+            vec![json!({"text":"阿Q在门口。"}), json!({"text":"阿Q问好。"})],
+        ),
+        (
+            "mod-prose-extra",
+            vec![
+                json!({"text":"王胡来了。"}),
+                json!({"text":"过了两天。"}),
+                json!({"text":"王胡走了。"}),
+            ],
+        ),
+    ] {
+        call_as(
+            &Actor::Mirror,
+            &ws,
+            "module.set_prose",
+            json!({"book":book,"owner":entry,"module":module,"paragraphs":paragraphs}),
+        );
+    }
+    cx.executor().allow_parking();
+    cx.update(|cx| {
+        dr_shell::init(
+            ShellInfo {
+                app_name: "Drifting Next",
+                bundle_id: "cc.drifting.next.dev",
+                version: "test",
+                url_scheme: "drifting-next-dev",
+                forced_appearance: Some(dr_ui::Appearance::Light),
+            },
+            Services::default(),
+            SettingsFile::in_memory(),
+            cx,
+        );
+        dr_view_page::init(cx);
+    });
+    let host = PageViewHost {
+        workspace: WeakEntity::new_invalid(),
+        library: ws.clone(),
+        book_id: book.clone(),
+        book: Rc::new(Book::load(&ws, &book).unwrap()),
+    };
+    let window = cx.add_window(move |_, cx| {
+        EntryPage::new(
+            host,
+            Target::Entry {
+                id: entry.parse().unwrap(),
+                module: None,
+            },
+            cx,
+        )
+    });
+    let page = window.root(cx).unwrap();
+    let mut vcx = VisualTestContext::from_window(window.into(), cx);
+    vcx.update(|window, _| window.activate_window());
+    vcx.simulate_resize(size(px(1000.), px(1000.)));
+    let deadline = Instant::now() + Duration::from_secs(10);
+    let editors = loop {
+        // Decoration rebuilds are debounced on the GPUI test clock.
+        vcx.executor().advance_clock(Duration::from_millis(400));
+        draw(&mut vcx);
+        let editors: Vec<_> = page.read_with(&vcx, |page, cx| {
+            page.prose_views()
+                .filter_map(|view| view.downcast::<BodyModule>().ok())
+                .filter_map(|body| body.read(cx).editor())
+                .map(|e| e.read(cx).editor().clone())
+                .collect()
+        });
+        let counts: Vec<_> = editors
+            .iter()
+            .map(|e| e.read_with(&vcx, |p, _| p.painted_group("links").len()))
+            .collect();
+        if counts == [2, 2] {
+            break editors;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "both bodies settle and paint their links: {counts:?}"
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    };
+    let links = |editor: usize, vcx: &VisualTestContext| {
+        editors[editor].read_with(vcx, |p, _| p.painted_group("links"))
+    };
+    let second = links(0, &vcx)[1].clone();
+    editors[0].update(&mut vcx, |_, cx| {
+        cx.emit(DecorationEvent::Pointed {
+            ids: vec![(second.chapter, second.key.clone())],
+        });
+    });
+    draw(&mut vcx);
+    vcx.executor().advance_clock(Duration::from_millis(500));
+    draw(&mut vcx);
+    draw(&mut vcx);
+    let card = vcx
+        .debug_bounds("dr-editor-link-card")
+        .expect("the hover card is open");
+    assert!(
+        card.bottom() < second.boxes[0].top(),
+        "the card stays clear of the line down to the second body"
+    );
+    let selectors = ["dr-editor-relation-label-0", "dr-editor-relation-label-1"];
+    let label = vcx
+        .debug_bounds(selectors[0])
+        .expect("the page draws the cross-body relation");
+    assert!(
+        vcx.debug_bounds(selectors[1]).is_none(),
+        "one pair, even though both names repeat"
+    );
+    let view = page.read_with(&vcx, |page, _| page.scroll_handle().bounds());
+    let rows: Vec<_> = editors
+        .iter()
+        .flat_map(|e| e.read_with(&vcx, |p, _| p.painted_rows()))
+        .filter(|r| r.bottom() > view.top() && r.top() < view.bottom())
+        .collect();
+    let target = links(1, &vcx)[0].boxes[0];
+    let curve = geom::curve(&links(0, &vcx)[1].boxes[0], &target);
+    let labels = [geom::Label {
+        name: "冤家".into(),
+        to: None,
+    }];
+    let (x, y) = geom::place_labels(
+        &[curve],
+        &[geom::label_width(&labels)],
+        &geom::blanks(&rows),
+    )[0];
+    assert!(
+        (label.center().x - px(x)).abs() <= px(1.) && (label.center().y - px(y)).abs() <= px(1.),
+        "the label follows the exact hovered source and the nearest target: {label:?}, {x}, {y}"
+    );
+
+    editors[0].update(&mut vcx, |_, cx| {
+        cx.emit(DecorationEvent::Pointed { ids: Vec::new() })
+    });
+    draw(&mut vcx);
+    vcx.executor().advance_clock(Duration::from_millis(500));
+    draw(&mut vcx);
+    assert!(vcx.debug_bounds(selectors[0]).is_none());
+    vcx.update(|_, cx| {
+        dr_shell::relations::set_rail_hover(
+            Some(dr_shell::relations::RailRow {
+                book,
+                row,
+                name: "冤家".into(),
+                directed: false,
+                left: vec![aq],
+                right: vec![wh],
+            }),
+            cx,
+        )
+    });
+    draw(&mut vcx);
+    draw(&mut vcx);
+    assert!(
+        vcx.debug_bounds(selectors[0]).is_some(),
+        "the right rail also draws across the page"
+    );
+    assert!(vcx.debug_bounds(selectors[1]).is_none());
+}

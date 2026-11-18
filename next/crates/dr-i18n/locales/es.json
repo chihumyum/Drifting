@@ -1679,6 +1679,7 @@
     "deleteRow": "Eliminar esta fila",
     "description": "Descripción",
     "direction": "Unidireccional o bidireccional",
+    "duplicatePair": "«{{pair}}» ya está en otra fila.",
     "kinds_one": "{{count}} relación",
     "kinds_other": "{{count}} relaciones",
     "newRelation": "Nueva relación",

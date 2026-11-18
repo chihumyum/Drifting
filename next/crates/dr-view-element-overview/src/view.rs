@@ -39,7 +39,7 @@ use gpui::{
     AnyElement, AppContext as _, Bounds, Canvas, Context, DragMoveEvent, ElementId, Entity,
     InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, PathBuilder,
     Pixels, Point, Render, ScrollDelta, ScrollEvent, SharedString, StatefulInteractiveElement,
-    Styled, Subscription, Task, WeakEntity, Window, canvas, div, point, px,
+    Styled, Subscription, Task, WeakEntity, Window, canvas, div, point, px, size,
 };
 use serde_json::json;
 
@@ -50,8 +50,8 @@ use crate::isles::{
     isles_lod, major_element_ids, solve_super_element_layout,
 };
 use crate::relate::{
-    ElementLayoutMode, MEMORY_KEY, OverviewMemory, RELATE_DRAG_ALPHA, RELATE_LABEL_BUDGET,
-    RELATE_MOVE_MS, RelateNodeInput, RelatePoint, RelateSimulationInput, RelateSpring, SpringKind,
+    ElementLayoutMode, MEMORY_KEY, OverviewMemory, RELATE_DRAG_ALPHA, RELATE_MOVE_MS,
+    RelateNodeInput, RelatePoint, RelateSimulationInput, RelateSpring, SpringKind,
     create_relate_simulation, parse_overview_memory, relate_bounds, relate_ease, relate_positions,
     relate_spring_signature, serialize_overview_memory, settle_relate,
 };
@@ -291,6 +291,7 @@ pub struct ElementOverview {
     pub(crate) relation_types: Vec<RelationInfo>,
     pub(crate) hidden_relation_type_ids: HashSet<String>,
     pub(crate) selected_edge_id: Option<String>,
+    hovered_relation_edge: Option<String>,
     pub(crate) relation_source: Option<String>,
     pub(crate) relation_draft: Option<RelationDraft>,
     pub(crate) relation_name: Option<Entity<TextField>>,
@@ -362,6 +363,7 @@ impl ElementOverview {
             relation_types: Vec::new(),
             hidden_relation_type_ids: HashSet::new(),
             selected_edge_id: None,
+            hovered_relation_edge: None,
             relation_source: None,
             relation_draft: None,
             relation_name: None,
@@ -859,6 +861,7 @@ impl ElementOverview {
             return;
         }
         self.selected_edge_id = None;
+        self.hovered_relation_edge = None;
         let from_points = match self.layout_mode {
             ElementLayoutMode::Isles => self.isle_starts(),
             ElementLayoutMode::Relate => self.relate_live.clone(),
@@ -1853,10 +1856,11 @@ impl ElementOverview {
         hidden: &Option<HashSet<String>>,
         window: &mut Window,
         cx: &mut Context<Self>,
-    ) -> Vec<AnyElement> {
+    ) -> (Vec<AnyElement>, Vec<Bounds<Pixels>>) {
         let p = Theme::of(window, cx).palette;
         let fallback = &self.cached_isle_starts;
         let mut out = Vec::with_capacity(self.elements.len());
+        let mut bounds = Vec::with_capacity(self.elements.len());
 
         for element in &self.elements {
             if hidden.as_ref().is_some_and(|set| set.contains(&element.id)) {
@@ -1876,6 +1880,12 @@ impl ElementOverview {
             let sy = pos.y_f32() * self.zoom + self.pan.y;
             let cell_w = ((hw as f32) * 2.0 * self.zoom).max(24.0);
             let cell_h = ((hh as f32) * 2.0 * self.zoom).max(20.0);
+
+            let card = Bounds::new(
+                point(px(sx - cell_w * 0.5), px(sy - cell_h * 0.5)),
+                size(px(cell_w), px(cell_h)),
+            );
+            bounds.push(card);
 
             let cat_color = self.element_color(element).unwrap_or_else(|| p.ink(2));
             let is_focused = self.isle_focus.as_deref() == Some(element.id.as_str());
@@ -1918,10 +1928,10 @@ impl ElementOverview {
                 .role(gpui::Role::Button)
                 .aria_label(SharedString::from(el_name.clone()))
                 .absolute()
-                .left(px(sx - cell_w * 0.5))
-                .top(px(sy - cell_h * 0.5))
-                .w(px(cell_w))
-                .h(px(cell_h))
+                .left(card.origin.x)
+                .top(card.origin.y)
+                .w(card.size.width)
+                .h(card.size.height)
                 .px(px(6.0))
                 .rounded(px(radius::SM))
                 .border_1()
@@ -1969,13 +1979,13 @@ impl ElementOverview {
             out.push(cell);
         }
 
-        out
+        (out, bounds)
     }
 
     fn render_lines_canvas(
         &self,
         sand_pairs: Rc<[IslePair]>,
-        relate_edges: Vec<RelateEdgeView>,
+        relate_edges: Rc<[RelateEdgeView]>,
         neighbourhood: Option<HashSet<String>>,
         isolated: bool,
         window: &mut Window,
@@ -2000,6 +2010,7 @@ impl ElementOverview {
         };
         let active_id = self.isle_focus.clone();
         let selected_edge_id = self.selected_edge_id.clone();
+        let hovered_edge_id = self.hovered_relation_edge.clone();
         let painted_arrows = self.painted_relation_arrows.clone();
 
         canvas(
@@ -2092,8 +2103,9 @@ impl ElementOverview {
                 }
 
                 // 2. Canonical relation arcs
-                for edge in &relate_edges {
-                    let is_selected = selected_edge_id.as_deref() == Some(edge.id.as_str())
+                for edge in relate_edges.iter() {
+                    let is_selected = hovered_edge_id.as_deref() == Some(edge.id.as_str())
+                        || selected_edge_id.as_deref() == Some(edge.id.as_str())
                         || active_id
                             .as_deref()
                             .is_some_and(|aid| edge.from_id == aid || edge.to_id == aid);
@@ -2162,19 +2174,19 @@ impl Render for ElementOverview {
             });
 
         let sand_pairs = self.active_sand_pairs_rc();
-        let relate_edges = self.build_relate_edges(p.ink(2));
-        let crowded = relate_edges.len() > RELATE_LABEL_BUDGET;
-        let role_labels_all = lod != IslesLod::Far && !crowded;
-
-        let world_items = match self.layout_mode {
-            ElementLayoutMode::Isles => self.render_isles_canvas(
-                lod,
-                &self.cached_mark_weights,
-                &neighbourhood,
-                &dimmed,
-                &hidden,
-                window,
-                cx,
+        let relate_edges: Rc<[RelateEdgeView]> = self.build_relate_edges(p.ink(2)).into();
+        let (world_items, card_bounds) = match self.layout_mode {
+            ElementLayoutMode::Isles => (
+                self.render_isles_canvas(
+                    lod,
+                    &self.cached_mark_weights,
+                    &neighbourhood,
+                    &dimmed,
+                    &hidden,
+                    window,
+                    cx,
+                ),
+                Vec::new(),
             ),
             ElementLayoutMode::Relate => self.render_relate_cells(
                 &self.cached_mark_weights,
@@ -2186,10 +2198,11 @@ impl Render for ElementOverview {
             ),
         };
         let role_badges = if self.layout_mode == ElementLayoutMode::Relate {
-            self.render_relate_role_labels(&relate_edges, role_labels_all, window, cx)
+            self.render_relate_role_labels(&relate_edges, &card_bounds, window, cx)
         } else {
             Vec::new()
         };
+        let hit_edges = relate_edges.clone();
 
         let lines_canvas = self.render_lines_canvas(
             sand_pairs,
@@ -2250,7 +2263,7 @@ impl Render for ElementOverview {
                 }),
             )
             .on_mouse_move(
-                cx.listener(|this, event: &gpui::MouseMoveEvent, _window, cx| {
+                cx.listener(move |this, event: &gpui::MouseMoveEvent, _window, cx| {
                     if let Some((start_pos, start_pan)) = this.pan_drag {
                         if event.pressed_button == Some(MouseButton::Left) {
                             let dx = f32::from(event.position.x - start_pos.x);
@@ -2261,8 +2274,16 @@ impl Render for ElementOverview {
                             this.pan_drag = None;
                         }
                     }
+                    if this.layout_mode == ElementLayoutMode::Relate {
+                        this.point_relation_edge(event.position, &hit_edges, &card_bounds, cx);
+                    }
                 }),
             )
+            .on_hover(cx.listener(|this, over: &bool, _, cx| {
+                if !*over && this.hovered_relation_edge.take().is_some() {
+                    cx.notify();
+                }
+            }))
             .on_mouse_up(
                 MouseButton::Left,
                 cx.listener(|this, _, _window, _cx| {

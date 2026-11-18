@@ -2542,6 +2542,7 @@ impl Render for Assist {
                 };
                 let body = div()
                     .id("dr-editor-link-card")
+                    .debug_selector(|| "dr-editor-link-card".into())
                     .occlude()
                     .on_hover(move |on, _, cx| {
                         let on = *on;

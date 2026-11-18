@@ -16,9 +16,6 @@ pub const MEMORY_KEY: &str = "element-overview";
 /// Duration of structural transition between known layouts (`群岛` ↔ remembered `关系`).
 pub const RELATE_MOVE_MS: u64 = 520;
 
-/// Past this many visible relation lines, role names only render on edges of the active/focused element.
-pub const RELATE_LABEL_BUDGET: usize = 60;
-
 const CELL_PAD_X: f64 = 8.0;
 const CELL_MARK: f64 = 12.0;
 const CELL_GAP: f64 = 5.0;
@@ -725,7 +722,7 @@ fn reach(hw: f64, hh: f64, ux: f64, uy: f64) -> f64 {
     along.min(across)
 }
 
-fn on_quad(p0: RelatePoint, ctrl: RelatePoint, p2: RelatePoint, t: f64) -> RelatePoint {
+pub(crate) fn on_quad(p0: RelatePoint, ctrl: RelatePoint, p2: RelatePoint, t: f64) -> RelatePoint {
     let u = 1.0 - t;
     RelatePoint::new(
         u * u * p0.x + 2.0 * u * t * ctrl.x + t * t * p2.x,
@@ -807,15 +804,8 @@ pub fn relate_edge_geometry(input: RelateEdgeInput<'_>) -> RelateEdgeGeometry {
             - reach(input.from_half.0, input.from_half.1, ux, uy)
             - reach(input.to_half.0, input.to_half.1, ux, uy)
             - 2.0 * (GAP + el);
-        if spare <= 0.0 {
-            return RelateEdgeGeometry {
-                p0,
-                ctrl,
-                p2,
-                labels: Vec::new(),
-                label_alpha: 0.0,
-            };
-        }
+        // Place the candidate at the curve's midpoint. The graph compares
+        // its actual screen rectangle against the cards and other labels.
         let mid = on_quad(p0, ctrl, p2, 0.5);
         return RelateEdgeGeometry {
             p0,
@@ -826,7 +816,7 @@ pub fn relate_edge_geometry(input: RelateEdgeInput<'_>) -> RelateEdgeGeometry {
                 x: mid.x,
                 y: mid.y,
             }],
-            label_alpha: ((spare / 24.0).min(1.0)) as f32,
+            label_alpha: (spare / 24.0).clamp(0.0, 1.0) as f32,
         };
     }
 

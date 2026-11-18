@@ -534,6 +534,7 @@
     "change": "Trocar"
   },
   "v5Relations": {
+    "duplicatePair": "“{{pair}}” já está em outra linha.",
     "addEntry": "Adicionar uma entrada",
     "addRow": "Adicionar uma linha",
     "deleteRow": "Excluir esta linha",

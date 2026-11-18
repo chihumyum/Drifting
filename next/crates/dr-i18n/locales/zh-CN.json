@@ -1648,6 +1648,7 @@
     "deleteRow": "删掉这一行",
     "description": "描述",
     "direction": "单向或双向",
+    "duplicatePair": "「{{pair}}」已经在另一行里。",
     "kinds_other": "{{count}} 种",
     "newRelation": "新的关系",
     "pairs_other": "{{count}} 对",

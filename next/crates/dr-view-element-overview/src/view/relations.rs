@@ -15,13 +15,14 @@ use dr_ui::{
 use dr_view_relations::legend::{Legend, Row as LegendRow, render as render_shared_legend};
 use dr_workspace::commands::v3::relations::RelationInfo;
 use gpui::{
-    AnyElement, Context, ElementId, InteractiveElement, IntoElement, MouseButton, ParentElement,
-    Pixels, Point, SharedString, StatefulInteractiveElement, Styled, Window, div, point, px,
+    AnyElement, Bounds, Context, ElementId, InteractiveElement, IntoElement, MouseButton,
+    ParentElement, Pixels, Point, SharedString, StatefulInteractiveElement, Styled, Window, div,
+    point, px, size,
 };
 
 use super::ElementOverview;
 use crate::relate::{
-    ElementLayoutMode, RelateEdgeInput, RelatePoint, RelateRoleLabel, relate_bend,
+    ElementLayoutMode, RelateEdgeInput, RelatePoint, RelateRoleLabel, on_quad, relate_bend,
     relate_edge_geometry, relate_role_half,
 };
 
@@ -86,6 +87,76 @@ pub struct RelateEdgeView {
     pub directed: bool,
     pub target_half: (f32, f32),
     pub labels: Vec<RelateRoleLabel>,
+}
+
+fn badge_bounds(label: &RelateRoleLabel, zoom: f32, pan: Point<f32>) -> Bounds<Pixels> {
+    let (hw, hh) = relate_role_half(&label.text);
+    let x = (label.x as f32) * zoom + pan.x;
+    let y = (label.y as f32) * zoom + pan.y;
+    Bounds::new(
+        point(px(x - hw as f32), px(y - hh as f32)),
+        size(px(2.0 * hw as f32), px(2.0 * hh as f32)),
+    )
+}
+
+fn label_priority(
+    edge: &RelateEdgeView,
+    pointed: Option<&str>,
+    selected: Option<&str>,
+    focus: Option<&str>,
+) -> (bool, bool) {
+    let active = selected == Some(edge.id.as_str())
+        || focus.is_some_and(|id| edge.from_id == id || edge.to_id == id);
+    (pointed != Some(edge.id.as_str()), !active)
+}
+
+fn visible_labels<'a>(
+    edges: impl IntoIterator<Item = &'a RelateEdgeView>,
+    cards: &[Bounds<Pixels>],
+    viewport: Bounds<Pixels>,
+    zoom: f32,
+    pan: Point<f32>,
+) -> Vec<(&'a RelateEdgeView, usize, Bounds<Pixels>)> {
+    let mut placed: Vec<(&RelateEdgeView, usize, Bounds<Pixels>)> = Vec::new();
+    for edge in edges {
+        for (index, label) in edge.labels.iter().enumerate() {
+            let badge = badge_bounds(label, zoom, pan);
+            if viewport.intersects(&badge)
+                && !cards.iter().any(|card| card.intersects(&badge))
+                && !placed.iter().any(|(_, _, other)| other.intersects(&badge))
+            {
+                placed.push((edge, index, badge));
+            }
+        }
+    }
+    placed
+}
+
+/// Pick the nearest curve in window pixels. Straight segments between samples
+/// follow the painted quadratic without requiring a rectangular hit region.
+fn curve_distance(edge: &RelateEdgeView, at: RelatePoint, zoom: f32) -> f64 {
+    let margin = 5.0 / f64::from(zoom);
+    let bounds = |a: f64, b: f64, c: f64| (a.min(b).min(c) - margin)..=(a.max(b).max(c) + margin);
+    if !bounds(edge.p0.x, edge.ctrl.x, edge.p2.x).contains(&at.x)
+        || !bounds(edge.p0.y, edge.ctrl.y, edge.p2.y).contains(&at.y)
+    {
+        return f64::INFINITY;
+    }
+    let span = (edge.p2.x - edge.p0.x).hypot(edge.p2.y - edge.p0.y);
+    let steps = (span * f64::from(zoom) / 12.0).ceil().clamp(8.0, 128.0) as u32;
+    let mut last = edge.p0;
+    let mut best = f64::INFINITY;
+    for i in 1..=steps {
+        let next = on_quad(edge.p0, edge.ctrl, edge.p2, f64::from(i) / f64::from(steps));
+        let (dx, dy) = (next.x - last.x, next.y - last.y);
+        let squared = dx * dx + dy * dy;
+        if squared > 0.0 {
+            let t = (((at.x - last.x) * dx + (at.y - last.y) * dy) / squared).clamp(0.0, 1.0);
+            best = best.min((at.x - last.x - t * dx).hypot(at.y - last.y - t * dy));
+        }
+        last = next;
+    }
+    best * f64::from(zoom)
 }
 
 /// An arrow submitted by the most recent graph canvas paint, in window pixels.
@@ -385,68 +456,116 @@ impl ElementOverview {
         out
     }
 
+    fn touches_focus(&self, edge: &RelateEdgeView) -> bool {
+        self.isle_focus
+            .as_deref()
+            .is_some_and(|id| edge.from_id == id || edge.to_id == id)
+    }
+
+    fn role_edge_visible(&self, edge: &RelateEdgeView) -> bool {
+        !self.isolated || self.isle_focus.is_none() || self.touches_focus(edge)
+    }
+
+    pub(super) fn point_relation_edge(
+        &mut self,
+        position: Point<Pixels>,
+        edges: &[RelateEdgeView],
+        cards: &[Bounds<Pixels>],
+        cx: &mut Context<Self>,
+    ) {
+        let hovered = self.viewport_bounds.and_then(|view| {
+            let local = position - view.origin;
+            if self.pan_drag.is_some() || cards.iter().any(|card| card.contains(&local)) {
+                return None;
+            }
+            let world = RelatePoint::new(
+                f64::from((f32::from(local.x) - self.pan.x) / self.zoom),
+                f64::from((f32::from(local.y) - self.pan.y) / self.zoom),
+            );
+            edges
+                .iter()
+                .filter(|edge| self.role_edge_visible(edge))
+                .filter_map(|edge| {
+                    let distance = curve_distance(edge, world, self.zoom);
+                    (distance <= 5.0).then_some((distance, &edge.id))
+                })
+                .min_by(|a, b| a.0.total_cmp(&b.0))
+                .map(|(_, id)| id.clone())
+        });
+        if self.hovered_relation_edge != hovered {
+            self.hovered_relation_edge = hovered;
+            cx.notify();
+        }
+    }
+
     pub(crate) fn render_relate_role_labels(
         &self,
         edges: &[RelateEdgeView],
-        role_labels_all: bool,
+        cards: &[Bounds<Pixels>],
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Vec<AnyElement> {
         let p = Theme::of(window, cx).palette;
+        let mut order: Vec<_> = edges
+            .iter()
+            .filter(|edge| self.role_edge_visible(edge))
+            .collect();
+        order.sort_by_key(|edge| {
+            label_priority(
+                edge,
+                self.hovered_relation_edge.as_deref(),
+                self.selected_edge_id.as_deref(),
+                self.isle_focus.as_deref(),
+            )
+        });
+        let viewport = Bounds::new(
+            point(px(0.), px(0.)),
+            self.viewport_bounds
+                .map_or(window.viewport_size(), |b| b.size),
+        );
         let mut out = Vec::new();
-        for edge in edges {
-            let touches_focus = self
-                .isle_focus
-                .as_deref()
-                .is_some_and(|aid| edge.from_id == aid || edge.to_id == aid);
-            let is_selected = self.selected_edge_id.as_deref() == Some(edge.id.as_str());
-            if !role_labels_all && !touches_focus && !is_selected {
-                continue;
-            }
-            if self.isolated && self.isle_focus.is_some() && !touches_focus {
-                continue;
-            }
-            for (idx, lbl) in edge.labels.iter().enumerate() {
-                let (hw, hh) = relate_role_half(&lbl.text);
-                let sx = (lbl.x as f32) * self.zoom + self.pan.x;
-                let sy = (lbl.y as f32) * self.zoom + self.pan.y;
-                let bw = (hw as f32) * 2.0;
-                let bh = (hh as f32) * 2.0;
-                let edge_id = edge.id.clone();
-                let badge = div()
-                    .id(ElementId::Name(
-                        format!("se-role-badge-{}-{idx}", edge.id).into(),
-                    ))
-                    .absolute()
-                    .left(px(sx - bw * 0.5))
-                    .top(px(sy - bh * 0.5))
-                    .w(px(bw))
-                    .h(px(bh))
-                    .px(px(4.0))
-                    .rounded(px(radius::SM))
-                    .bg(p.paper.alpha(0.92))
-                    .border_1()
-                    .border_color(edge.color.alpha(0.45))
-                    .cursor_pointer()
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                    .on_click(cx.listener(move |this, _, _window, cx| {
-                        cx.stop_propagation();
-                        this.selected_edge_id = Some(edge_id.clone());
-                        cx.notify();
-                    }))
-                    .child(
-                        div()
-                            .text_size(px(10.0))
-                            .text_color(p.ink(2).solid())
-                            .truncate()
-                            .child(SharedString::from(lbl.text.clone())),
-                    )
-                    .into_any_element();
-                out.push(badge);
-            }
+        for (edge, idx, bounds) in visible_labels(order, cards, viewport, self.zoom, self.pan) {
+            let lbl = &edge.labels[idx];
+            let edge_id = edge.id.clone();
+            let badge = div()
+                .id(ElementId::Name(
+                    format!("se-role-badge-{}-{idx}", edge.id).into(),
+                ))
+                .debug_selector({
+                    let id = edge.id.clone();
+                    move || format!("se-role-badge-{id}-{idx}")
+                })
+                .absolute()
+                .left(bounds.origin.x)
+                .top(bounds.origin.y)
+                .w(bounds.size.width)
+                .h(bounds.size.height)
+                .px(px(4.0))
+                .rounded(px(radius::SM))
+                .bg(p.paper.alpha(0.92))
+                .border_1()
+                .border_color(edge.color.alpha(0.45))
+                .cursor_pointer()
+                .role(gpui::Role::Button)
+                .aria_label(SharedString::from(lbl.text.clone()))
+                .flex()
+                .items_center()
+                .justify_center()
+                .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                .on_click(cx.listener(move |this, _, _window, cx| {
+                    cx.stop_propagation();
+                    this.selected_edge_id = Some(edge_id.clone());
+                    cx.notify();
+                }))
+                .child(
+                    div()
+                        .text_size(px(10.0))
+                        .text_color(p.ink(2).solid())
+                        .truncate()
+                        .child(SharedString::from(lbl.text.clone())),
+                )
+                .into_any_element();
+            out.push(badge);
         }
         out
     }
@@ -537,5 +656,55 @@ impl ElementOverview {
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
             .child(shared)
             .into_any_element()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_pointed_curve_replaces_an_overlapping_label_and_leaves_cards_clear() {
+        let edge = |id: &str, y, from: &str, label_x| RelateEdgeView {
+            id: id.into(),
+            relation_type_id: id.into(),
+            from_id: from.into(),
+            to_id: "b".into(),
+            color: Rgb::hex(0x303030),
+            p0: RelatePoint::new(0., y),
+            ctrl: RelatePoint::new(90., y),
+            p2: RelatePoint::new(180., y),
+            directed: false,
+            target_half: (12., 10.),
+            labels: vec![RelateRoleLabel {
+                text: "相识".into(),
+                x: label_x,
+                y,
+            }],
+        };
+        let edges = [
+            edge("one", 24., "a", 90.),
+            edge("two", 35., "c", 90.),
+            edge("card", 52., "d", 90.),
+        ];
+        let cards = [Bounds::new(point(px(74.), px(44.)), size(px(32.), px(16.)))];
+        let viewport = Bounds::new(point(px(0.), px(0.)), size(px(200.), px(100.)));
+        let show = |pointed, focus| {
+            let mut order: Vec<_> = edges.iter().collect();
+            order.sort_by_key(|edge| label_priority(edge, pointed, None, focus));
+            visible_labels(order, &cards, viewport, 1., point(0., 0.))
+                .into_iter()
+                .map(|(edge, _, _)| edge.id.as_str())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(show(None, None), ["one"]);
+        assert_eq!(show(None, Some("c")), ["two"]);
+        let at = RelatePoint::new(100., 35.);
+        let closest = edges
+            .iter()
+            .min_by(|a, b| curve_distance(a, at, 1.).total_cmp(&curve_distance(b, at, 1.)))
+            .unwrap();
+        assert_eq!(closest.id, "two");
+        assert_eq!(show(Some(closest.id.as_str()), Some("a")), ["two"]);
     }
 }

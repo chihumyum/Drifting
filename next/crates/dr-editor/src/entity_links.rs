@@ -87,6 +87,70 @@ pub fn compare_names(a: &str, b: &str) -> std::cmp::Ordering {
     }
 }
 
+/// The prose picker puts literal matches ahead of phonetic ones, then
+/// orders the matching names by pinyin.
+fn picker_match(name: &str, initials: &crate::pinyin::Initials, query: &str) -> Option<bool> {
+    let literal = name.to_lowercase().contains(query);
+    (literal || initials.matches(query)).then_some(literal)
+}
+
+fn compare_picker_matches(a: (bool, &str), b: (bool, &str)) -> std::cmp::Ordering {
+    b.0.cmp(&a.0).then_with(|| compare_names(a.1, b.1))
+}
+
+/// Search names for entry pickers that show one row per entry. Their host
+/// controls which entries are eligible; the matching name only ranks the
+/// row, so selecting an alias still inserts the entry's title.
+#[derive(Debug, Default)]
+pub struct EntrySearch {
+    names: HashMap<String, Vec<(String, crate::pinyin::Initials)>>,
+}
+
+impl EntrySearch {
+    pub fn new(
+        entries: impl IntoIterator<Item = (String, String, impl IntoIterator<Item = String>)>,
+    ) -> Self {
+        Self {
+            names: entries
+                .into_iter()
+                .map(|(id, title, aliases)| {
+                    let names = std::iter::once(title)
+                        .chain(aliases)
+                        .map(|name| {
+                            let initials = crate::pinyin::Initials::of(&name);
+                            (name, initials)
+                        })
+                        .collect();
+                    (id, names)
+                })
+                .collect(),
+        }
+    }
+
+    pub fn search<'a>(&self, query: &str, ids: impl IntoIterator<Item = &'a str>) -> Vec<&'a str> {
+        let query = query.trim().to_lowercase();
+        let mut hits: Vec<_> = ids
+            .into_iter()
+            .filter_map(|id| {
+                let names = self.names.get(id)?;
+                let best = if query.is_empty() {
+                    (true, names.first()?.0.as_str())
+                } else {
+                    names
+                        .iter()
+                        .filter_map(|(name, initials)| {
+                            Some((picker_match(name, initials, &query)?, name.as_str()))
+                        })
+                        .min_by(|a, b| compare_picker_matches(*a, *b))?
+                };
+                Some((id, best))
+            })
+            .collect();
+        hits.sort_by(|a, b| compare_picker_matches(a.1, b.1));
+        hits.into_iter().map(|(id, _)| id).collect()
+    }
+}
+
 /// Every name a link can point at, compiled.
 #[derive(Clone)]
 pub struct NameIndex {
@@ -241,21 +305,17 @@ impl NameIndex {
             .iter()
             .zip(self.initials.iter())
             .filter_map(|(n, initials)| {
-                let contains = n.name.to_lowercase().contains(&q);
-                (contains || initials.matches(&q)).then(|| {
-                    (
-                        contains,
-                        n.name.clone(),
-                        n.target.clone(),
-                        self.group(&n.target),
-                    )
-                })
+                Some((
+                    picker_match(&n.name, initials, &q)?,
+                    n.name.clone(),
+                    n.target.clone(),
+                    self.group(&n.target),
+                ))
             })
             .collect();
         rows.sort_by(|a, b| {
             a.3.cmp(&b.3)
-                .then_with(|| b.0.cmp(&a.0))
-                .then_with(|| compare_names(&a.1, &b.1))
+                .then_with(|| compare_picker_matches((a.0, &a.1), (b.0, &b.1)))
         });
         rows.truncate(limit);
         rows.into_iter().map(|(_, n, t, g)| (n, t, g)).collect()
