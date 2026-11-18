@@ -14,6 +14,101 @@ pub const CATEGORY_OTHER: &str = "01900000-0000-7000-8000-0000000000a2";
 pub const ELEMENT_OTHER: &str = "01900000-0000-7000-8000-0000000000e2";
 pub const STORYLINE_OTHER: &str = "01900000-0000-7000-8000-0000000000b2";
 pub const PATCH_RELATION: &str = "import-fixture-patch-relation";
+pub const ASSOCIATION_NOTE_CHAPTER: &str = "01900000-0000-7000-8000-0000000000f3";
+pub const ASSOCIATION_NOTE_ELEMENT: &str = "01900000-0000-7000-8000-0000000000f4";
+pub const ASSOCIATION_AUTHOR_TYPE: &str = "01900000-0000-7000-8000-000000000074";
+pub const ASSOCIATION_FIRST: &str = "rel-material";
+pub const ASSOCIATION_SECOND: &str = "rel-association-chapter";
+pub const ASSOCIATION_THIRD: &str = "rel-association-element";
+pub const ASSOCIATION_SECOND_TIME: &str = "2026-10-01T08:00:00.250Z";
+
+/// The existing note association plus two more. The first and second
+/// chapter pairs' ids sort opposite to their creation order in 0.1.
+pub fn build_associations(same_name: bool) -> Old {
+    let old = build();
+    let c = Connection::open(&old.db).unwrap();
+    c.pragma_update(None, "foreign_keys", false).unwrap();
+    for (note, title, order) in [
+        (ASSOCIATION_NOTE_CHAPTER, "章的第二条笔记", 2),
+        (ASSOCIATION_NOTE_ELEMENT, "要素的笔记", 3),
+    ] {
+        exec(
+            &c,
+            "INSERT INTO library_item (id, project_id, title, kind, body_json, order_key, created_at, updated_at)
+             VALUES (?1, ?2, ?3, 'text', '{\"type\":\"doc\",\"content\":[]}', ?4, ?5, ?5)",
+            params![note, BOOK, title, order, T0],
+        );
+    }
+    let generic = format!("system:generic-association:{BOOK}");
+    // Cover both recognition paths independently. Each spelling is valid
+    // even when the other identifier is absent.
+    let alternate = if same_name {
+        exec(
+            &c,
+            "INSERT INTO entity_relation_type
+             (id, project_id, name, normalized_name, description, orientation, created_at, updated_at)
+             VALUES (?1, ?2, '  关联  ', '关联', '作者写的描述', 'symmetric', ?3, ?3)",
+            params![ASSOCIATION_AUTHOR_TYPE, BOOK, T0],
+        );
+        let alternate = "legacy-association-by-key";
+        exec(
+            &c,
+            "UPDATE entity_relation_type SET id = ?1 WHERE id = ?2",
+            params![alternate, generic],
+        );
+        exec(
+            &c,
+            "UPDATE entity_relation SET relation_type_id = ?1 WHERE relation_type_id = ?2",
+            params![alternate, generic],
+        );
+        alternate.to_owned()
+    } else {
+        exec(
+            &c,
+            "UPDATE entity_relation_type SET system_key = NULL, locked = 0 WHERE id = ?1",
+            [&generic],
+        );
+        generic
+    };
+    for (id, note, kind, target, ty, time) in [
+        (
+            ASSOCIATION_SECOND,
+            ASSOCIATION_NOTE_CHAPTER,
+            "node",
+            CHAPTER,
+            alternate.as_str(),
+            ASSOCIATION_SECOND_TIME,
+        ),
+        (
+            ASSOCIATION_THIRD,
+            ASSOCIATION_NOTE_ELEMENT,
+            "element",
+            ELEMENT_OTHER,
+            alternate.as_str(),
+            T1,
+        ),
+    ] {
+        exec(
+            &c,
+            "INSERT INTO entity_relation (id, project_id, from_kind, from_id, to_kind, to_id, relation_type_id, created_at, updated_at)
+             VALUES (?1, ?2, 'library_item', ?3, ?4, ?5, ?6, ?7, ?7)",
+            params![id, BOOK, note, kind, target, ty, time],
+        );
+    }
+    if same_name {
+        // The pair already authored under 「关联」 is the first pair in the
+        // chapter row. The built-in occurrence should add no pair of its own.
+        exec(
+            &c,
+            "INSERT INTO entity_relation (id, project_id, from_kind, from_id, to_kind, to_id, relation_type_id, created_at, updated_at)
+             SELECT 'rel-association-authored', project_id, from_kind, from_id, to_kind, to_id, ?2, created_at, updated_at
+             FROM entity_relation WHERE id = ?1",
+            params![ASSOCIATION_FIRST, ASSOCIATION_AUTHOR_TYPE],
+        );
+    }
+    drop(c);
+    old
+}
 
 pub fn build() -> Old {
     let old = super::build(true);

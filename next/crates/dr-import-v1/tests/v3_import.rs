@@ -334,11 +334,20 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
         Some(manuscript_root)
     );
     let type_records = &expected.source_rows["entity_relation_type"];
+    let association = view
+        .relation_types_raw()
+        .into_iter()
+        .find(|t| t.name == "关联")
+        .expect("ordinary type for the fixture's note association");
+    assert_eq!(association.direction, RelationDirection::Directed);
+    assert_eq!(association.description, LinkedText::default());
+    let generic = dr_doc::catalog::generic_relation_type_id(view.book_id());
+    assert_ne!(association.id, generic);
     let author_types: Vec<_> = type_records
         .iter()
         .filter(|row| row["system_key"] != "generic-association")
         .collect();
-    assert_eq!(view.relation_types_raw().len(), author_types.len());
+    assert_eq!(view.relation_types_raw().len(), author_types.len() + 1);
     for row in author_types {
         let id = RelationTypeId::parse(row["id"].as_str().unwrap()).unwrap();
         let actual = view.relation_type_raw(&id).unwrap();
@@ -700,16 +709,19 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
             else {
                 return None;
             };
-            if type_records.iter().any(|row| {
+            let built_in = type_records.iter().any(|row| {
                 row["id"] == relation.relation_type && row["system_key"] == "generic-association"
-            }) {
-                return None;
-            }
+            });
             let (mut left, mut right) = (entry_id(view, left), entry_id(view, right));
-            if relation.orientation == "symmetric" && right < left {
+            if !built_in && relation.orientation == "symmetric" && right < left {
                 std::mem::swap(&mut left, &mut right);
             }
-            Some((relation.relation_type.clone(), left, right))
+            let ty = if built_in {
+                association.id.to_string()
+            } else {
+                relation.relation_type.clone()
+            };
+            Some((ty, left, right))
         })
         .collect();
     let mut actual_pairs = BTreeSet::new();
@@ -1295,6 +1307,181 @@ fn catalog_already_stored_before_interruption_keeps_its_generated_roots_on_resum
     let chapter = adapter::body_id(CHAPTER, MOD_PROSE);
     assert_eq!(lib.history(&chapter.to_string()).unwrap().len(), 3);
     lib.close().unwrap();
+}
+
+#[test]
+fn imported_associations_keep_chronological_rows_and_survive_resume() {
+    assert_imported_associations(false);
+}
+
+#[test]
+fn imported_associations_reuse_the_authors_normalized_name_and_direction() {
+    assert_imported_associations(true);
+}
+
+fn assert_imported_associations(same_name: bool) {
+    use fixture::{
+        ASSOCIATION_AUTHOR_TYPE, ASSOCIATION_FIRST, ASSOCIATION_NOTE_CHAPTER,
+        ASSOCIATION_NOTE_ELEMENT, ASSOCIATION_SECOND, ASSOCIATION_SECOND_TIME, ASSOCIATION_THIRD,
+    };
+
+    let old = fixture::build_associations(same_name);
+    let before = source_tree_snapshot(&old.root);
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("library");
+    let opts = options(&old);
+    let load = |lib: &Library| {
+        let bytes = lib
+            .load_copy(&format!("book:{BOOK}"))
+            .unwrap()
+            .export(loro::ExportMode::Snapshot)
+            .unwrap();
+        BookDocV3::load(BookId::parse(BOOK).unwrap(), random_device_peer(), &[bytes]).unwrap()
+    };
+    let association = |book: &BookDocV3| {
+        let view = book.view();
+        let types = view.relation_types_raw();
+        let matches: Vec<_> = types
+            .iter()
+            .filter(|ty| ty.normalized_name == "关联")
+            .collect();
+        assert_eq!(matches.len(), 1);
+        let ty = matches[0];
+        let rows: Vec<_> = view
+            .relations_raw()
+            .into_iter()
+            .filter(|row| row.relation_type == ty.id)
+            .collect();
+        (ty.clone(), rows)
+    };
+
+    let cancel = opts.cancel.clone();
+    let (first, _) = run::import_with(&old.db, &root, &opts, &mut |p| {
+        if p.step == dr_import_v1::progress::Step::Assets && p.done == 0 {
+            cancel.now();
+        }
+    })
+    .unwrap();
+    assert!(matches!(first, Outcome::Imported(r) if r.books[0].status == "importing"));
+    let lib = open(&root);
+    let interrupted = association(&load(&lib));
+    lib.close().unwrap();
+    assert_eq!(source_tree_snapshot(&old.root), before);
+
+    let (outcome, _) = run::import(&old.db, &root, &options(&old)).unwrap();
+    let Outcome::Imported(receipt) = outcome else {
+        panic!("expected resumed import")
+    };
+    let record = receipt
+        .books
+        .iter()
+        .find(|rec| rec.book_id == BOOK)
+        .unwrap();
+    assert_eq!(record.status, "imported");
+    assert_eq!(
+        record.notes.0.get("built-in-relation-type-dropped"),
+        Some(&1)
+    );
+    assert_eq!(record.notes.0.get("relation-todo-end-dropped"), Some(&1));
+    assert_eq!(record.notes.0.get("relation-patch-end-dropped"), Some(&1));
+    assert!(
+        !record
+            .notes
+            .0
+            .contains_key("relation-built-in-entries-dropped")
+    );
+    let summary = std::fs::read_to_string(root.join("import-v1/summary.md")).unwrap();
+    assert!(!summary.contains("两头都是条目的关系没有导入"));
+
+    let lib = open(&root);
+    let book = load(&lib);
+    let (ty, rows) = association(&book);
+    assert_eq!((ty.clone(), rows.clone()), interrupted);
+    assert_eq!(ty.name, "关联");
+    let generic = format!("system:generic-association:{BOOK}");
+    let original_type = if same_name {
+        "legacy-association-by-key"
+    } else {
+        &generic
+    };
+    for id in [&generic[..], original_type] {
+        assert!(
+            book.view()
+                .relation_type_raw(&RelationTypeId::parse(id).unwrap())
+                .is_none()
+        );
+    }
+    let chapter_row = if same_name {
+        assert_eq!(ty.id.as_str(), ASSOCIATION_AUTHOR_TYPE);
+        assert_eq!(ty.direction, RelationDirection::Symmetric);
+        assert_eq!(ty.description, LinkedText::plain("作者写的描述"));
+        "rel-association-authored"
+    } else {
+        assert_eq!(ty.direction, RelationDirection::Directed);
+        assert_eq!(ty.description, LinkedText::default());
+        ASSOCIATION_FIRST
+    };
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows.iter().flat_map(|row| row.pairs()).count(), 3);
+    let row = |id: &str| rows.iter().find(|row| row.id.as_str() == id).unwrap();
+    assert_eq!(
+        row(chapter_row).left,
+        BTreeSet::from([eid(NOTE), eid(ASSOCIATION_NOTE_CHAPTER)])
+    );
+    assert_eq!(row(chapter_row).right, BTreeSet::from([eid(CHAPTER)]));
+    assert_eq!(
+        row(ASSOCIATION_THIRD).left,
+        BTreeSet::from([eid(ASSOCIATION_NOTE_ELEMENT)])
+    );
+    assert_eq!(
+        row(ASSOCIATION_THIRD).right,
+        BTreeSet::from([eid(fixture::ELEMENT_OTHER)])
+    );
+    let originals: BTreeMap<_, _> = lib
+        .local_read(|c| {
+            let mut query = c.prepare(
+                "SELECT id, json FROM import_original
+                 WHERE collection='relations' AND field='source-association'
+                   AND run_id = (SELECT max(run_id) FROM import_book WHERE book_id=?1 AND status='imported')",
+            )?;
+            Ok(query
+                .query_map([BOOK], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?
+                .collect::<rusqlite::Result<_>>()?)
+        })
+        .unwrap();
+    assert_eq!(originals.len(), 3);
+    for (id, from, kind, to, created_at) in [
+        (ASSOCIATION_FIRST, NOTE, "node", CHAPTER, T0),
+        (
+            ASSOCIATION_SECOND,
+            ASSOCIATION_NOTE_CHAPTER,
+            "node",
+            CHAPTER,
+            ASSOCIATION_SECOND_TIME,
+        ),
+        (
+            ASSOCIATION_THIRD,
+            ASSOCIATION_NOTE_ELEMENT,
+            "element",
+            fixture::ELEMENT_OTHER,
+            T1,
+        ),
+    ] {
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&originals[id]).unwrap(),
+            serde_json::json!({
+                "relationType":original_type, "from":{"kind":"library_item","id":from},
+                "to":{"kind":kind,"id":to}, "createdAt":created_at,
+            }),
+        );
+    }
+    lib.close().unwrap();
+    let (repeat, _) = run::import(&old.db, &root, &options(&old)).unwrap();
+    assert!(matches!(repeat, Outcome::Imported(r) if r.books[0].status == "already-imported"));
+    let lib = open(&root);
+    assert_eq!(load(&lib).version(), book.version());
+    lib.close().unwrap();
+    assert_eq!(source_tree_snapshot(&old.root), before);
 }
 
 #[test]
@@ -3799,8 +3986,6 @@ fn asset_import_keeps_comments_and_file_links_and_reports_retired_relation_ends(
         "relation-comment-end-dropped",
         "relation-patch-end-dropped",
         "built-in-relation-type-dropped",
-        // The fixture's note → chapter relation under the built-in type.
-        "relation-built-in-entries-dropped",
     ] {
         assert_eq!(book1_rec.notes.0.get(code), Some(&1), "{code}");
     }
@@ -3825,11 +4010,11 @@ fn asset_import_keeps_comments_and_file_links_and_reports_retired_relation_ends(
         "批注的关系",
         "待办的关系",
         "补丁的关系",
-        "两头都是条目的关系",
     ] {
         assert!(summary_md.contains(label), "{label}");
     }
     assert!(summary_md.contains("缺图"));
+    assert!(!summary_md.contains("两头都是条目的关系没有导入"));
     assert!(summary_md.contains("批注的优先级没有导入"));
 
     // 5. Project with zero text materials does NOT create a "文本素材" top-level entry.

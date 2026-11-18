@@ -673,42 +673,46 @@ pub fn write(txn: &mut BookTxn<'_>, inp: &Inputs<'_>, notes: &mut Notes) -> Resu
         _ => None,
     };
     for rel in &r.relations {
-        // A relation that does not come over is counted once, by the first
-        // of its ends that cannot (its source end first); with two entries
-        // for ends, by its built-in type (`kernel-v5.md` §19 「导入 0.1」).
-        // Whether the built-in type's entry–entry relations should come over
-        // is the author's to decide; until then they stay out like the rest.
-        let dropped = excluded(&rel.from_kind, &rel.from_id)
-            .or_else(|| excluded(&rel.to_kind, &rel.to_id))
-            .or_else(|| {
-                built_in_types
-                    .contains(rel.relation_type.as_str())
-                    .then_some("relation-built-in-entries-dropped")
-            });
+        // Count a dropped relation by its first unsupported end.
+        let dropped =
+            excluded(&rel.from_kind, &rel.from_id).or_else(|| excluded(&rel.to_kind, &rel.to_id));
+        let built_in = rel.relation_type == generic.as_str()
+            || built_in_types.contains(rel.relation_type.as_str());
+        let end = |kind: &str, id: &str| serde_json::json!({ "kind": kind, "id": id });
+        let raw_pair = || {
+            serde_json::json!({
+                "relationType": rel.relation_type,
+                "from": end(&rel.from_kind, &rel.from_id),
+                "to": end(&rel.to_kind, &rel.to_id),
+                "createdAt": rel.created_at,
+            })
+        };
         if let Some(code) = dropped {
             notes.add(code);
-            let end = |kind: &str, id: &str| serde_json::json!({ "kind": kind, "id": id });
+            let mut raw = raw_pair();
+            raw["reason"] = code.into();
+            originals.push(("relations", rel.id.clone(), "dropped", raw.to_string()));
+            continue;
+        }
+        let tid = if built_in {
             originals.push((
                 "relations",
                 rel.id.clone(),
-                "dropped",
-                serde_json::json!({
-                    "reason": code,
-                    "relationType": rel.relation_type,
-                    "from": end(&rel.from_kind, &rel.from_id),
-                    "to": end(&rel.to_kind, &rel.to_id),
-                    "createdAt": rel.created_at,
-                })
-                .to_string(),
+                "source-association",
+                raw_pair().to_string(),
             ));
-            continue;
-        }
-        let Some(tid) = id(RelationTypeId::parse, &rel.relation_type) else {
-            continue;
+            // The replay catalog's built-in id tags these pairs for the
+            // shared adapter, which places them under an ordinary type.
+            generic.clone()
+        } else {
+            let Some(tid) = id(RelationTypeId::parse, &rel.relation_type) else {
+                continue;
+            };
+            if !keep_types.contains(&tid) {
+                continue;
+            }
+            tid
         };
-        if !keep_types.contains(&tid) {
-            continue;
-        }
         let Some(rid) = id(RelationId::parse, &rel.id) else {
             continue;
         };

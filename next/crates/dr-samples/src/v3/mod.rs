@@ -7,7 +7,8 @@ mod catalog;
 mod samples;
 pub use catalog::{
     FileFolders, ProjectedLines, TEXT_MATERIALS_TAB, act_import_notes, file_folders,
-    note_material_folder_ids, side_documents, sync_catalog, validate,
+    note_material_folder_ids, side_documents, sync_catalog, sync_catalog_with_relation_times,
+    validate,
 };
 pub use samples::{SampleBookV3, a_q, convert, pride_and_prejudice, write_book};
 

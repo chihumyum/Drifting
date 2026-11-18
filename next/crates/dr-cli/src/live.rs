@@ -370,19 +370,21 @@ impl Backend for Session {
         }
 
         let stamped = match kind {
-            "sample" | "sample-v3" => true,
+            "sample" | "sample-v3" | "sample-v3-association" => true,
             "sample-stale" => false,
             other => {
                 return Err(StepError::new(
                     "bad_request",
-                    format!("legacy {other}: sample, sample-v3 or sample-stale"),
+                    format!(
+                        "legacy {other}: sample, sample-v3, sample-v3-association or sample-stale"
+                    ),
                 ));
             }
         };
-        let old = if kind == "sample-v3" {
-            legacy_fixture::build_v3(stamped)
-        } else {
-            legacy_fixture::build(stamped)
+        let old = match kind {
+            "sample-v3" => legacy_fixture::build_v3(stamped),
+            "sample-v3-association" => legacy_fixture::v3_fixture::build_associations(false),
+            _ => legacy_fixture::build(stamped),
         };
         let out = json!({
             "source_files": fixture_files(&old.root)?,

@@ -25,12 +25,24 @@ use crate::{ImportError, Result};
 pub use dr_samples::v3::{MappingChoices, Pending, category_template};
 
 pub(crate) fn mapping_key(options: &Options) -> Result<String> {
+    // A cached pre-RI catalog lacks the recovered association rows. Its
+    // history frontiers cannot be used with the new mapping.
+    let mut mapping = Sha256::new();
+    mapping.update(b"relation-association-v1\0");
+    mapping.update(serde_json::to_vec(&options.v3)?);
     Ok(format!(
         "{}-g{}:{:x}",
         dr_doc::schema::BOOK_SCHEMA_VERSION,
         dr_doc::schema::BOOK_GENESIS_VERSION,
-        Sha256::digest(serde_json::to_vec(&options.v3)?)
+        mapping.finalize()
     ))
+}
+
+pub(crate) fn relation_times(rows: &BookRows) -> BTreeMap<&str, i64> {
+    rows.relations
+        .iter()
+        .filter_map(|rel| Some((rel.id.as_str(), crate::time::parse_iso_ms(&rel.created_at)?)))
+        .collect()
 }
 
 pub(crate) fn doc_id(_options: &Options, book: &BookId, old: &DocId) -> DocId {
@@ -403,11 +415,12 @@ pub fn pending(legacy: &Legacy, choices: &MappingChoices) -> Result<Vec<Pending>
         if choices.pending(&catalog.view()).is_empty() {
             let mut target = dr_doc::v3::BookDocV3::create(id, import_peer("v3-preflight-target"))?;
             let (r, _) = target.edit(Origin::Import, |t| {
-                dr_samples::v3::sync_catalog(
+                dr_samples::v3::sync_catalog_with_relation_times(
                     t,
                     &catalog.view(),
                     choices,
                     &dr_samples::v3::ProjectedLines::default(),
+                    &relation_times(&rows),
                 )
             });
             if let Err(error) = r {
