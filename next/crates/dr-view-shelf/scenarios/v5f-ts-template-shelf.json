@@ -12,12 +12,13 @@
       "launch": {
         "env": { "DRIFTING_WINDOW_DISPLAY": "secondary", "DRIFTING_APPEARANCE": "light" },
         "settings": {
-          "account": { "language.ui_locale": "en", "appearance.interface_text_size": "standard" },
-          "device": { "modules": { "first_run.done": true, "guides.seen": ["workspace-tour"] } }
+          "account": { "language.ui_locale": "en" },
+          "device": { "appearance.interface_text_size": "standard", "modules": { "first_run.done": true, "guides.seen": ["workspace-tour"] } }
         }
       }
     },
     { "app": "app.info", "save": "enEnvironment", "expect": { "/windows/0/primaryDisplay": false } },
+    { "app": "settings.get", "params": { "keys": ["appearance.interface_text_size"] }, "expect": { "/values/appearance.interface_text_size": "standard" } },
     { "app": "window.focus" },
     { "app": "shelf.show" },
     { "app": "ui.wait", "params": { "until": "ready", "state": { "/shelf": true }, "timeout_ms": 30000 } },
@@ -77,12 +78,13 @@
       "launch": {
         "env": { "DRIFTING_WINDOW_DISPLAY": "secondary", "DRIFTING_APPEARANCE": "light" },
         "settings": {
-          "account": { "language.ui_locale": "zh-CN", "appearance.interface_text_size": "largest" },
-          "device": { "modules": { "first_run.done": true, "guides.seen": ["workspace-tour"] } }
+          "account": { "language.ui_locale": "zh-CN" },
+          "device": { "appearance.interface_text_size": "largest", "modules": { "first_run.done": true, "guides.seen": ["workspace-tour"] } }
         }
       }
     },
     { "app": "app.info", "save": "zhEnvironment", "expect": { "/windows/0/primaryDisplay": false } },
+    { "app": "settings.get", "params": { "keys": ["appearance.interface_text_size"] }, "expect": { "/values/appearance.interface_text_size": "largest" } },
     { "app": "window.focus" },
     { "app": "shelf.show" },
     { "app": "ui.wait", "params": { "until": "ready", "state": { "/shelf": true }, "timeout_ms": 30000 } },
