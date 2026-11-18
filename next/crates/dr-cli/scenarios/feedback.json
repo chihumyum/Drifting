@@ -2,7 +2,7 @@
   "about": "M39 反馈对话框，只截图、不发送：中文浅色写一条合成的反馈，展开诊断摘要的预览；英文深色再截一张；都按「取消」关掉。开发构建没有 Hosted 服务，发送键是「用邮件发送」，这里不点。",
   "steps": [
     { "seed": "tiny" },
-    { "launch": { "env": { "DRIFTING_APPEARANCE": "light" }, "settings": { "account": { "language.ui_locale": "zh-CN" } } } },
+    { "launch": { "env": { "DRIFTING_APPEARANCE": "light" }, "settings": { "device": { "modules": { "guides.seen": ["workspace-tour"] } }, "account": { "language.ui_locale": "zh-CN" } } }, "note": "The workspace tour comes up once on a device that has not seen it, 0.7 s after a book's workspace shows, its first bubble over the left column's Tab row and the rows under it (m24-sea.md 「导览」, kernel-v5 §15 item 50; on books of the current format since UP, 2026-11-17). This profile is fresh: the device is told it has seen the tour, as the other window scenarios do, so no bubble lies over what the steps below press." },
     { "app": "ui.wait", "params": { "until": "ready", "timeout_ms": 30000 } },
     { "app": "window.focus" },
     { "app": "action.dispatch", "params": { "name": "workspace::SendFeedback" }, "note": "书架上也能开（账户菜单、设置 → 关于）" },
@@ -17,7 +17,7 @@
     { "app": "ui.wait", "params": { "until": "ready", "state": { "/dialog": false } } },
     { "app": "app.quit", "expect": { "/quit": true } },
 
-    { "launch": { "env": { "DRIFTING_APPEARANCE": "dark" }, "settings": { "account": { "language.ui_locale": "en" } } } },
+    { "launch": { "env": { "DRIFTING_APPEARANCE": "dark" }, "settings": { "account": { "language.ui_locale": "en" } } }, "note": "Same profile as the first launch: launch merges into its settings.json, so guides.seen stays and the tour stays seen." },
     { "app": "ui.wait", "params": { "until": "ready", "timeout_ms": 30000 } },
     { "app": "window.focus" },
     { "app": "action.dispatch", "params": { "name": "workspace::SendFeedback" } },

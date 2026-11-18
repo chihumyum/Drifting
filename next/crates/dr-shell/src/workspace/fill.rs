@@ -340,9 +340,25 @@ impl Workspace {
     }
 
     /// Exits fill back to open (`left.open` / `right.open` remains `true`).
+    ///
+    /// A filled left column draws views of its own (the Tab's filled
+    /// layout, the template structure). The keyboard in one of them (a drag
+    /// on the filled board gives it the board) would stay on a view that is
+    /// no longer drawn, where no shortcut or menu command reaches the
+    /// workspace: it goes back to the page, as when Settings closes or the
+    /// column does ([`Self::refocus`], [`Self::keyboard_to_page`]).
     pub fn exit_fill(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
         let reduce = self.reduce_motion(window, cx);
-        self.exit_fill_with_motion(reduce, cx)
+        let stranded = self.is_filled(FillPlace::Left)
+            && self
+                .v3_sidebar
+                .as_ref()
+                .is_some_and(|sidebar| sidebar.read(cx).fill_has_keyboard(window, cx));
+        let exited = self.exit_fill_with_motion(reduce, cx);
+        if exited && stranded {
+            self.keyboard_to_page(window, cx);
+        }
+        exited
     }
 
     pub fn exit_fill_in_cx(&mut self, cx: &mut Context<Self>) -> bool {

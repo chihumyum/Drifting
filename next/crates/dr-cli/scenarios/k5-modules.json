@@ -455,11 +455,28 @@
       }
     },
     {
-      "app": "ui.press",
+      "app": "ui.find",
+      "params": {
+        "label": "Plot planner",
+        "role": "MenuItem"
+      },
+      "note": "The Add module menu is open: the module kinds it offers are listed."
+    },
+    {
+      "app": "ui.find",
       "params": {
         "label": "Relations",
-        "role": "MenuItem"
-      }
+        "role": "MenuItem",
+        "absent": true
+      },
+      "note": "kernel-v5 §19 「去掉的」: the entry page's 「关联」 module (kind relations) is gone, and the template editor can no longer add it (relations are made in the text and the right column's 「关系」, 2026-11-17)."
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "escape"
+      },
+      "note": "The menu closes with nothing added."
     },
     {
       "app": "input.scroll",
@@ -707,17 +724,19 @@
         "/[id=${created.[name=Acceptance modules].id}]/modules/3/kind": "kv",
         "/[id=${created.[name=Acceptance modules].id}]/modules/4/kind": "patches",
         "/[id=${created.[name=Acceptance modules].id}]/modules/5/kind": "plot_grid",
-        "/[id=${created.[name=Acceptance modules].id}]/modules/6/kind": "relations",
-        "/[id=${created.[name=Acceptance modules].id}]/modules/7/config/defs/0/field_type": "text",
-        "/[id=${created.[name=Acceptance modules].id}]/modules/8/config/defs/0/field_type": "long_text",
-        "/[id=${created.[name=Acceptance modules].id}]/modules/9/config/defs/0/field_type": "number",
-        "/[id=${created.[name=Acceptance modules].id}]/modules/10/config/defs/0/field_type": "date",
-        "/[id=${created.[name=Acceptance modules].id}]/modules/11/config/defs/0/field_type": "select",
-        "/[id=${created.[name=Acceptance modules].id}]/modules/12/config/defs/0/field_type": "multi_select",
-        "/[id=${created.[name=Acceptance modules].id}]/modules/13/config/defs/0/field_type": "image",
-        "/[id=${created.[name=Acceptance modules].id}]/modules/14/config/defs/0/field_type": "entity_ref",
-        "/[id=${created.[name=Acceptance modules].id}]/modules/15/config/defs/0/field_type": "aliases"
-      }
+        "/[id=${created.[name=Acceptance modules].id}]/modules/6/config/defs/0/field_type": "text",
+        "/[id=${created.[name=Acceptance modules].id}]/modules/7/config/defs/0/field_type": "long_text",
+        "/[id=${created.[name=Acceptance modules].id}]/modules/8/config/defs/0/field_type": "number",
+        "/[id=${created.[name=Acceptance modules].id}]/modules/9/config/defs/0/field_type": "date",
+        "/[id=${created.[name=Acceptance modules].id}]/modules/10/config/defs/0/field_type": "select",
+        "/[id=${created.[name=Acceptance modules].id}]/modules/11/config/defs/0/field_type": "multi_select",
+        "/[id=${created.[name=Acceptance modules].id}]/modules/12/config/defs/0/field_type": "image",
+        "/[id=${created.[name=Acceptance modules].id}]/modules/13/config/defs/0/field_type": "entity_ref",
+        "/[id=${created.[name=Acceptance modules].id}]/modules/14/config/defs/0/field_type": "aliases",
+        "/[id=${created.[name=Acceptance modules].id}]/modules/15": null,
+        "/[id=${created.[name=Acceptance modules].id}]/modules/[kind=relations]": null
+      },
+      "note": "One module fewer than before kernel-v5 §19: no 「关联」 module (kind relations) was added, so the field modules come one place earlier and there is no sixteenth module."
     },
     {
       "app": "input.scroll",
@@ -789,9 +808,10 @@
         "book": "${books.0.id}"
       },
       "expect": {
-        "/[id=${created.[name=Acceptance modules].id}]/modules/15/config/defs/0/field_type": "long_text",
-        "/[id=${created.[name=Acceptance modules].id}]/modules/15/config/aliases_field": null
-      }
+        "/[id=${created.[name=Acceptance modules].id}]/modules/14/config/defs/0/field_type": "long_text",
+        "/[id=${created.[name=Acceptance modules].id}]/modules/14/config/aliases_field": null
+      },
+      "note": "The aliases module is the fifteenth (index 14): no 「关联」 module before it (kernel-v5 §19)."
     },
     {
       "app": "ui.press",
@@ -903,7 +923,8 @@
             "language.ui_locale": "en"
           }
         }
-      }
+      },
+      "note": "Same profile as the first launch: launch merges into its settings.json, so guides.seen stays and the tour stays seen."
     },
     {
       "app": "ui.wait",

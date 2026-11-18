@@ -527,6 +527,75 @@ fn a_closed_column_opens_a_filled_one_ignores_and_the_key_rebinds(cx: &mut TestA
     assert!(editor_has_keys(&ws, cx, &ch1), "and back");
 }
 
+/// A drag on the filled column's board gives the board the keyboard. That
+/// board is drawn only while the column fills: leaving the fill by its full
+/// moon gives the page the keyboard back, as closing the column or Settings
+/// does (F6, `Workspace::refocus`), so the workspace's commands answer
+/// again. It stayed on the board no longer drawn, and ToggleRightSidebar
+/// (its shortcut, its menu item) did nothing (k4-g2-review-drag, real
+/// window, 2026-11-18).
+#[gpui::test]
+fn leaving_a_filled_column_gives_the_page_back_the_keyboard(cx: &mut TestAppContext) {
+    use dr_shell::workspace::{FillPlace, Side};
+    let (_dir, lib, book) = seed();
+    let ids = ids(&lib, &book);
+    let card =
+        Book::load(&lib, &book).unwrap().v3().unwrap().levels[&ids.ideas].children[0].clone();
+    let (ws, cx) = open(cx, &lib, &book);
+    let ch1 = ids.ch[0].clone();
+    open_page(&ws, cx, &ch1);
+    tab(&ws, cx, Some(&ids.ideas));
+    let sb = sidebar(&ws, cx);
+    ws.update_in(cx, |w, window, cx| {
+        w.click_full_moon(Side::Left, window, cx)
+    });
+    wait(&ws, cx, "the column filled", |w, _| {
+        w.is_filled(FillPlace::Left)
+    });
+    sb.update(cx, |s, cx| {
+        s.choose_fill_layout(dr_shell::v3::tab_fill::FillLayout::Board, cx)
+    });
+    let name: &'static str = Box::leak(format!("g2-tile-name-{card}").into_boxed_str());
+    wait_until(cx, "the filled board", |cx| painted(cx, name.to_owned()));
+
+    // A card dragged across the board, as the hand would.
+    let from = cx.debug_bounds(name).unwrap().center();
+    let to = from + point(px(40.0), px(24.0));
+    cx.simulate_mouse_move(from, None, Modifiers::none());
+    cx.simulate_mouse_down(from, MouseButton::Left, Modifiers::none());
+    cx.simulate_mouse_move(
+        from + point(px(8.0), px(0.0)),
+        MouseButton::Left,
+        Modifiers::none(),
+    );
+    pump(cx);
+    cx.simulate_mouse_move(to, MouseButton::Left, Modifiers::none());
+    pump(cx);
+    cx.simulate_mouse_up(to, MouseButton::Left, Modifiers::none());
+    pump(cx);
+    assert!(
+        cx.update(|window, cx| sb.read(cx).fill_has_keyboard(window, cx)),
+        "the drag gave the filled board the keyboard"
+    );
+    assert!(!editor_has_keys(&ws, cx, &ch1));
+
+    ws.update_in(cx, |w, window, cx| {
+        w.click_full_moon(Side::Left, window, cx)
+    });
+    wait(&ws, cx, "the column open, not filled", |w, _| {
+        w.left.open && !w.is_filled(FillPlace::Left)
+    });
+    assert!(
+        editor_has_keys(&ws, cx, &ch1),
+        "the page has the keyboard back, where it was"
+    );
+    assert!(cx.update(|window, cx| ws.read(cx).focus_handle().contains_focused(window, cx)));
+
+    assert!(!ws.read_with(cx, |w, _| w.right.open));
+    cx.dispatch_action(dr_shell::actions::ToggleRightSidebar);
+    wait(&ws, cx, "the right column open", |w, _| w.right.open);
+}
+
 /// ↑↓ go row by row and stop at either end; → unfolds, then goes to the
 /// first row inside; ← folds, then goes out to the row it is under; the
 /// pointer folding a row the keyboard is inside takes the keyboard to that

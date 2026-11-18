@@ -1067,6 +1067,68 @@ fn a_refused_home_write_still_holds_the_library_back(cx: &mut TestAppContext) {
     lib.close();
 }
 
+/// The workspace makes Project Home with its window, before any book opens
+/// (the shelf, the first run). Shown no book, Home holds nothing to store:
+/// letting the library go (a quit, a restore, a library swap) is not refused
+/// with 「未能保存」. It was, and ⌘Q on the shelf left the app open
+/// (`feedback.json`, `book-transfer.json`, real window, 2026-11-19).
+#[gpui::test]
+fn a_home_that_has_shown_no_book_lets_the_library_go(cx: &mut TestAppContext) {
+    let (_dir, root, lib, _book) = seed_library();
+    cx.executor().allow_parking();
+    cx.update(|cx| {
+        dr_shell::init(
+            ShellInfo {
+                app_name: "Drifting Next",
+                bundle_id: "cc.drifting.next.dev",
+                version: "test",
+                url_scheme: "drifting-next-dev",
+                forced_appearance: None,
+            },
+            Services {
+                library: Some(lib.clone()),
+                book: None,
+                ..Default::default()
+            },
+            SettingsFile::in_memory(),
+            cx,
+        );
+        clear_save_project_template(cx);
+        // 全部项目: with no book named or left open, the window opens there.
+        dr_view_shelf::init(cx);
+        dr_view_home::init(cx);
+    });
+    let (ws, vcx) = cx.add_window_view(Workspace::new);
+    vcx.simulate_resize(size(px(1280.0), px(900.0)));
+    wait(vcx, "Project Home made with the window", |vcx| {
+        ws.read_with(vcx, |ws, _| ws.v3_home.is_some())
+    });
+    assert!(
+        ws.read_with(vcx, |ws, _| ws.book_id.is_empty()),
+        "no book is open"
+    );
+    drop(lib);
+    let replaced = Rc::new(RefCell::new(None));
+    let replaced_done = replaced.clone();
+    vcx.update(|_, cx| {
+        dr_shell::library::replace(
+            cx,
+            move |opened_root, options| {
+                assert_eq!(opened_root, root);
+                dr_store::Library::open(opened_root, options).map_err(|e| e.to_string())
+            },
+            move |result, _cx| {
+                *replaced_done.borrow_mut() = Some(result);
+            },
+        );
+    });
+    wait(vcx, "the library let go of and reopened", |_| {
+        replaced.borrow().is_some()
+    });
+    assert_eq!(replaced.borrow_mut().take().unwrap(), Ok(()));
+    library_of(vcx).close();
+}
+
 /// A request to select the title of the book Home already shows is taken
 /// on the next frame, not left pending until the book changes.
 #[gpui::test]

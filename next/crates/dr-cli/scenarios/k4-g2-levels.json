@@ -70,14 +70,18 @@
         "settings": {
           "device": {
             "modules": {
-              "first_run.done": true
+              "first_run.done": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
             }
           },
           "account": {
             "language.ui_locale": "en"
           }
         }
-      }
+      },
+      "note": "The workspace tour comes up once on a device that has not seen it, 0.7 s after a book's workspace shows, its first bubble over the left column's Tab row and the rows under it (m24-sea.md 「导览」, kernel-v5 §15 item 50; on books of the current format since UP, 2026-11-17). This profile is fresh: the device is told it has seen the tour, as the other window scenarios do, so no bubble lies over what the steps below press."
     },
     {
       "app": "ui.wait",

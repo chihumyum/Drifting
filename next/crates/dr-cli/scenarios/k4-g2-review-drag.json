@@ -1,5 +1,5 @@
 {
-  "about": "K4 G2 第三批返修主流程：canonical lite，公共树载荷的真实移动／排序／归属、看板按下点位移及守卫选择器；审阅实际窗口跟随条目／模块／非正文／模板／素材／全书范围。实际 ReviewView 跳转及旧书／库回调隔离由永久 GPUI 测试核对。本场景无截图或性能验收，运行器须验证整个隔离窗口位于副屏。",
+  "about": "K4 G2 第三批返修主流程：canonical lite，公共树载荷的真实移动／排序／归属、拖到只收别处条目的条目上不接（T9）、铺满左栏里的看板按下点位移及守卫选择器；审阅实际窗口跟随条目／模块／非正文／模板／素材／全书范围。实际 ReviewView 跳转及旧书／库回调隔离由永久 GPUI 测试核对。本场景无截图或性能验收，运行器须验证整个隔离窗口位于副屏。",
   "steps": [
     {
       "seed": "lite"
@@ -291,14 +291,18 @@
         "settings": {
           "device": {
             "modules": {
-              "first_run.done": true
+              "first_run.done": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
             }
           },
           "account": {
             "language.ui_locale": "en"
           }
         }
-      }
+      },
+      "note": "The workspace tour comes up once on a device that has not seen it, 0.7 s after a book's workspace shows, its first bubble over the left column's Tab row and the rows under it (m24-sea.md 「导览」, kernel-v5 §15 item 50; on books of the current format since UP, 2026-11-17). This profile is fresh, so the device is told it has seen the tour, as the other window scenarios do; without it the tree drags below land on the bubble."
     },
     {
       "app": "ui.wait",
@@ -399,6 +403,14 @@
         "count": 1
       },
       "save": "residenceTo"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Skip tour",
+        "absent": true
+      },
+      "note": "No tour bubble lies over the tree (see the launch step): the drags below go to the rows."
     },
     {
       "app": "input.drag",
@@ -556,6 +568,138 @@
       }
     },
     {
+      "call": "entry.update",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${sibling.id}",
+        "overrides": {
+          "accept": true
+        }
+      },
+      "note": "T9 (kernel-v5 §16 「挂名」, §17 「底栏视图铺满」; the v5 task book's item 52, docs/rust-rewrite/handoff/v5-tracks.md at 64563601b): in the left column a drag only moves house, and an entry that only takes entries from elsewhere takes no drop. The sibling chapter is turned into such an entry for this check."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 4000
+      },
+      "note": "The wait the scenarios give a write to reach the window: ui.wait reads its state pointers as written, and a reference in an object key is not filled in (scenario.rs fills strings and expectation pointers), so this pointer, which names an entry by reference, is checked by state.get's expect below."
+    },
+    {
+      "app": "ui.wait"
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/v3/levels/${sibling.id}/settings/accept": true
+      }
+    },
+    {
+      "app": "input.move",
+      "params": {
+        "x": 800,
+        "y": 120
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 600
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Synthetic moved entry",
+        "role": "Group",
+        "count": 1
+      },
+      "save": "refuseFrom"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Synthetic sibling",
+        "role": "Group",
+        "count": 1
+      },
+      "save": "refuseTo"
+    },
+    {
+      "app": "input.drag",
+      "params": {
+        "from": "${refuseFrom.nodes.0.center}",
+        "to": "${refuseTo.nodes.0.center}",
+        "steps": 12
+      },
+      "note": "Let go over the middle of the accept-only row: refused (T9). Before T9 this drop attached the entry there (membership.add)."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 4000
+      },
+      "note": "The same wait the drops that write get, so a write this refused drop must not make would have landed by now."
+    },
+    {
+      "app": "ui.wait"
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/v3/levels/${b.id}/children": [
+          "${host.id}",
+          "${moved.id}",
+          "${sibling.id}"
+        ],
+        "/v3/levels/${sibling.id}/members": [],
+        "/v3/memberships/[member=${moved.id}]": null
+      },
+      "note": "Nothing moved house and nothing was attached anywhere (T9)."
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${moved.id}"
+      },
+      "expect": {
+        "/parent": "${b.id}"
+      }
+    },
+    {
+      "call": "entry.update",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${sibling.id}",
+        "overrides": {
+          "accept": false
+        }
+      },
+      "note": "The sibling is a plain chapter again for the steps below."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 4000
+      },
+      "note": "The wait the scenarios give a write to reach the window: ui.wait reads its state pointers as written, and a reference in an object key is not filled in (scenario.rs fills strings and expectation pointers), so this pointer, which names an entry by reference, is checked by state.get's expect below."
+    },
+    {
+      "app": "ui.wait"
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/v3/levels/${sibling.id}": null
+      },
+      "note": "Off again, it holds nothing and is no longer listed among the entries that can hold any."
+    },
+    {
       "app": "input.move",
       "params": {
         "x": 800,
@@ -577,7 +721,7 @@
         "count": 1
       },
       "save": "assignDropFrom",
-      "note": "An entry with both 「层级」 and 「收别处的条目」 on takes a plain drop as a resident (kernel-v5 §16 「挂名」, T1; ⌥ attaches, which the bridge's drag does not carry, and the left column will only move from T9 on)."
+      "note": "An entry with both 「层级」 and 「收别处的条目」 on takes a plain drop in the left column as a resident: since T9 a drag there only moves house, and only ⌥ held over such an entry attaches (kernel-v5 §16 「挂名」; the v5 task book's items 52 and 60, docs/rust-rewrite/handoff/v5-tracks.md at 64563601b). The bridge's drag carries no modifiers."
     },
     {
       "app": "ui.find",
@@ -688,9 +832,18 @@
     {
       "app": "ui.wait",
       "params": {
-        "state": {
-          "/v3/levels/${entries.[template=tpl-storyline].id}/settings/home": "${a.id}"
-        }
+        "until": "time",
+        "ms": 4000
+      },
+      "note": "The wait the scenarios give a write to reach the window: ui.wait reads its state pointers as written, and a reference in an object key is not filled in (scenario.rs fills strings and expectation pointers), so this pointer, which names an entry by reference, is checked by state.get's expect below."
+    },
+    {
+      "app": "ui.wait"
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/v3/levels/${entries.[template=tpl-storyline].id}/settings/home": "${a.id}"
       }
     },
     {
@@ -723,8 +876,12 @@
           "/pageTitle": "Untitled",
           "/dialog": false,
           "/v3Page/head": true
+        },
+        "page": {
+          "/head/focus": "title"
         }
-      }
+      },
+      "note": "The new entry's page is up with its title selected and holding the keyboard (page.text /head/focus), so the typing below replaces 「未命名」 (NE; m11-elements.md, kernel-v5 §15 item 54). The title takes the keyboard after the page first shows: a busy machine drew that frame after this wait had seen the title, and the typing went elsewhere."
     },
     {
       "app": "input.type",
@@ -1123,6 +1280,25 @@
       }
     },
     {
+      "app": "ui.press",
+      "params": {
+        "label": "Fill left sidebar",
+        "role": "Button"
+      },
+      "note": "Since UP (kernel-v5 §15 item 50, P10; f6-shell.md) a Tab in the unfilled left column is drawn only as the list tree or the compact index; its board, like its other four displays, is drawn when the column is filled (kernel-v5 §17 「左栏 Tab 铺满」), where a Tab whose display is board opens on its board. The board drag below is made there."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/fill": "left",
+          "/left/open": true,
+          "/v3Sidebar/fillLayout": "board"
+        },
+        "timeout_ms": 12000
+      }
+    },
+    {
       "app": "ui.wait",
       "params": {
         "until": "time",
@@ -1294,6 +1470,24 @@
         "count": 1
       },
       "save": "boardBNode"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Exit fill",
+        "role": "Button"
+      },
+      "note": "Filled, the full moon brings the column back to open (kernel-v5 §17 「栏开关」, W25Final)."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/fill": null,
+          "/left/open": true
+        },
+        "timeout_ms": 12000
+      }
     },
     {
       "app": "input.move",
