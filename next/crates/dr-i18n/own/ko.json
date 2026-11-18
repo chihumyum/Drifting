@@ -149,6 +149,10 @@
     }
   },
   "projectTemplates": {
+    "saveFailed": "템플릿으로 저장하지 못했습니다. 다시 시도해 주세요.",
+    "readProjectFailed": "이 프로젝트를 읽지 못했습니다.",
+    "createProjectFailed": "프로젝트를 만들지 못했습니다. 다시 시도해 주세요.",
+    "openFailed": "이 템플릿을 열지 못했습니다.",
     "bookDailyTarget": "일일 {{words}}자",
     "bookOff": "꺼짐",
     "bookOn": "켜짐",

@@ -218,7 +218,6 @@ projectPicker.rail.library
 projectPicker.status.writing
 projectPicker.status.draft
 projectPicker.status.paused
-projectPicker.desk.newCardSub
 projectPicker.desk.open
 projectPicker.desk.moveToTrash
 projectPicker.desk.untitled

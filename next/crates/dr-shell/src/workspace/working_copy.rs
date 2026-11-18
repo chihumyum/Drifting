@@ -144,7 +144,7 @@ impl Workspace {
                 log::warn!("leaving the template's working copy did not save it: {error}");
                 this.update(cx, |ws, cx| {
                     let text = crate::t(cx, keys::common::SAVE_FAILED);
-                    ws.toast(text, cx);
+                    ws.toast_error(text, cx);
                 })
                 .ok();
             }

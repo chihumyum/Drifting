@@ -219,7 +219,7 @@ pub(crate) fn toast_save_failed(host: &PageViewHost, cx: &mut App) {
                 .as_ref()
                 .is_some_and(|lib| lib.library() as *const _ as usize == ptr)
         {
-            ws.toast(text, cx);
+            ws.toast_error(text, cx);
         }
     });
 }

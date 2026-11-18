@@ -39,6 +39,7 @@ pub struct Toast {
     pub text: SharedString,
     /// False while it fades.
     pub shown: bool,
+    pub icon: Icon,
     /// The step its button undoes or redoes, if it has one.
     pub offer: Option<Offer>,
     serial: u64,
@@ -58,6 +59,11 @@ impl Workspace {
     /// Shows `text` at the bottom of the window for a moment.
     pub fn toast(&mut self, text: impl Into<SharedString>, cx: &mut Context<Self>) {
         self.notice(text.into(), None, cx);
+    }
+
+    /// Shows a failure at the bottom of the window.
+    pub fn toast_error(&mut self, text: impl Into<SharedString>, cx: &mut Context<Self>) {
+        self.show_toast(text.into(), Icon::StatusWarning, None, cx);
     }
 
     /// Shows `text` with 「撤销」 for the author's step that journal row
@@ -83,11 +89,22 @@ impl Workspace {
         offer: Option<Offer>,
         cx: &mut Context<Self>,
     ) {
+        self.show_toast(text, Icon::Check, offer, cx);
+    }
+
+    fn show_toast(
+        &mut self,
+        text: SharedString,
+        icon: Icon,
+        offer: Option<Offer>,
+        cx: &mut Context<Self>,
+    ) {
         let serial = self.toast.as_ref().map_or(0, |t| t.serial) + 1;
         let stays = if offer.is_some() { OFFERED } else { SHOWN };
         self.toast = Some(Toast {
             text,
             shown: true,
+            icon,
             offer,
             serial,
         });
@@ -167,8 +184,11 @@ impl Workspace {
             gpui::ElementId::Name(format!("workspace-toast-{}", toast.serial).into()),
             toast.text.clone(),
         )
-        .icon(Icon::Check)
+        .icon(toast.icon)
         .shown(toast.shown);
+        if toast.icon == Icon::StatusWarning {
+            pill = pill.danger();
+        }
         if let Some(offer) = self.live_offer() {
             let label = if offer.redo {
                 keys::mobile_workspace::editor_accessory::REDO

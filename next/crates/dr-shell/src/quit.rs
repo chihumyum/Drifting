@@ -71,7 +71,9 @@ pub fn request(cx: &mut App) {
                 Err(error) => {
                     crate::release::finish(cx);
                     log::error!("could not prepare to quit: {error}");
-                    crate::workspace::with_workspace(cx, move |ws, _, cx| ws.toast(error, cx));
+                    crate::workspace::with_workspace(cx, move |ws, _, cx| {
+                        ws.toast_error(error, cx)
+                    });
                 }
             });
         })

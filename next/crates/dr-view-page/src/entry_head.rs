@@ -357,7 +357,7 @@ impl EntryHead {
                     workspace
                         .update(cx, |ws, cx| {
                             if ws.book_id == book {
-                                ws.toast(text, cx);
+                                ws.toast_error(text, cx);
                             }
                         })
                         .ok();

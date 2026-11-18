@@ -158,6 +158,10 @@
     }
   },
   "projectTemplates": {
+    "saveFailed": "No se pudo guardar como plantilla. Inténtalo de nuevo.",
+    "readProjectFailed": "No se pudo leer este proyecto.",
+    "createProjectFailed": "No se pudo crear el proyecto. Inténtalo de nuevo.",
+    "openFailed": "No se pudo abrir esta plantilla.",
     "bookDailyTarget": "Diario {{words}} palabras",
     "bookOff": "Desactivado",
     "bookOn": "Activado",

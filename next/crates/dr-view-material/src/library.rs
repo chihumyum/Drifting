@@ -1159,7 +1159,7 @@ impl LibraryPanel {
             &[("error", &names.join("、"))],
         );
         if let Some(ws) = self.shell.upgrade() {
-            ws.update(cx, |ws, cx| ws.toast(text, cx));
+            ws.update(cx, |ws, cx| ws.toast_error(text, cx));
         }
     }
 

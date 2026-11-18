@@ -40,7 +40,8 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use dr_workspace::{Workspace as Library, WsEvent};
+use dr_model::id::EntryTemplateId;
+use dr_workspace::{Workspace as Library, WsEvent, commands::v3::template::EntryTemplateDraft};
 
 use dr_ui::{
     Theme,
@@ -499,10 +500,8 @@ pub struct Workspace {
     /// 「新建模板」 while the left column fills and its sidebar is not made
     /// yet: the structure opens a new template in its floating panel.
     want_new_template: bool,
-    /// 「新建模板」 from the left column's foot while it does not fill: the
-    /// stored template whose full editor opens in a new pill once the read
-    /// snapshot holds it ([`Self::template_created`]).
-    pending_created_template: Option<dr_model::id::EntryTemplateId>,
+    /// New full-editor pills in this library, until they close.
+    created_templates: BTreeMap<EntryTemplateId, CreatedTemplate>,
     hovered_moon: Option<fill::MoonHalf>,
     pub settings: Option<Entity<SettingsPanel>>,
     /// M06's search panel, while open.
@@ -554,6 +553,12 @@ pub struct Workspace {
 
 /// How long after a layout change it is written to the settings file.
 pub const LAYOUT_SAVE_DELAY: Duration = Duration::from_millis(500);
+
+struct CreatedTemplate {
+    initial: EntryTemplateDraft,
+    opened: bool,
+    pending_saves: usize,
+}
 
 impl Workspace {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
@@ -662,7 +667,7 @@ impl Workspace {
             tab_fill_layouts: BTreeMap::new(),
             want_template_structure: false,
             want_new_template: false,
-            pending_created_template: None,
+            created_templates: BTreeMap::new(),
             hovered_moon: None,
             settings: None,
             search: None,
@@ -736,7 +741,6 @@ impl Workspace {
         };
         self.fill.reset();
         self.want_new_template = false;
-        self.pending_created_template = None;
         self.hovered_moon = None;
         self.want_template_structure = false;
         self.tab_fill_layouts = saved
@@ -1327,7 +1331,7 @@ impl Workspace {
         self.relations_panel.borrow_mut().clear();
         self.fill.reset();
         self.want_new_template = false;
-        self.pending_created_template = None;
+        self.created_templates.clear();
         self.hovered_moon = None;
         self.tab_fill_layouts.clear();
         self.want_template_structure = false;
@@ -1415,6 +1419,7 @@ impl Workspace {
 
     /// Something in the layout changed: repaint, and store it soon.
     fn changed(&mut self, cx: &mut Context<Self>) {
+        self.discard_closed_template_drafts(cx);
         self.layout_dirty = true;
         cx.notify();
         let task = cx.spawn(async move |this, cx| {
@@ -1551,28 +1556,85 @@ impl Workspace {
         self.open_page(target, how, cx);
     }
 
-    /// K5 stored a new template from 「新建模板」 at the left column's foot
-    /// while the column does not fill (`kernel-v5.md` §9): its full editor
-    /// opens in a new pill once the committed template is in the read
-    /// snapshot the pages mount from.
-    pub fn template_created(&mut self, id: dr_model::id::EntryTemplateId, cx: &mut Context<Self>) {
-        self.pending_created_template = Some(id);
+    /// A draft from the foot of the left column opens once the read snapshot
+    /// holds it. Its initial definition remains available for the close check.
+    pub fn template_created(&mut self, initial: EntryTemplateDraft, cx: &mut Context<Self>) {
+        self.created_templates.insert(
+            initial.id().clone(),
+            CreatedTemplate {
+                initial,
+                opened: false,
+                pending_saves: 0,
+            },
+        );
         self.show_created_template(cx);
     }
 
     fn show_created_template(&mut self, cx: &mut Context<Self>) {
-        let Some(id) = &self.pending_created_template else {
+        let ready: Vec<_> = self
+            .created_templates
+            .iter()
+            .filter_map(|(id, draft)| {
+                let target = Target::Template(id.clone());
+                if draft.opened
+                    || draft.initial.book() != self.book_id
+                    || !self.book.exists(&target)
+                {
+                    return None;
+                }
+                Some(id.clone())
+            })
+            .collect();
+        for id in ready {
+            self.created_templates
+                .get_mut(&id)
+                .expect("known draft")
+                .opened = true;
+            if !self.shelf_open && !self.projects_open {
+                self.open(Target::Template(id), Open::KEEP, cx);
+            }
+        }
+        self.discard_closed_template_drafts(cx);
+    }
+
+    /// A save can finish after its editor goes away. Let it settle before
+    /// deciding that a just-closed draft is unchanged.
+    pub fn template_saving(&mut self, id: &EntryTemplateId, saving: bool, cx: &mut Context<Self>) {
+        if let Some(draft) = self.created_templates.get_mut(id) {
+            if saving {
+                draft.pending_saves += 1;
+            } else {
+                draft.pending_saves = draft.pending_saves.saturating_sub(1);
+                self.discard_closed_template_drafts(cx);
+            }
+        }
+    }
+
+    fn discard_closed_template_drafts(&mut self, cx: &mut Context<Self>) {
+        let Some(library) = self.library.clone() else {
             return;
         };
-        let target = Target::Template(id.clone());
-        if !self.book.exists(&target) {
-            return;
+        let closed: Vec<_> = self
+            .created_templates
+            .iter()
+            .filter(|(id, draft)| {
+                draft.initial.book() == self.book_id
+                    && draft.opened
+                    && draft.pending_saves == 0
+                    && !self.nav.is_open(&Target::Template((*id).clone()))
+            })
+            .map(|(id, _)| id.clone())
+            .collect();
+        for id in closed {
+            let draft = self.created_templates.remove(&id).expect("known draft");
+            let library = library.clone();
+            cx.background_spawn(async move {
+                if let Err(error) = library.discard_entry_template_draft(draft.initial) {
+                    log::warn!("could not discard an unused template draft: {error}");
+                }
+            })
+            .detach();
         }
-        self.pending_created_template = None;
-        if self.shelf_open || self.projects_open {
-            return;
-        }
-        self.open(target, Open::KEEP, cx);
     }
 
     fn open_page(&mut self, target: Target, how: Open, cx: &mut Context<Self>) {

@@ -156,6 +156,10 @@
     }
   },
   "projectTemplates": {
+    "saveFailed": "Couldn’t save as a template. Please try again.",
+    "readProjectFailed": "Couldn’t read this project.",
+    "createProjectFailed": "Couldn’t create the project. Please try again.",
+    "openFailed": "Couldn’t open this template.",
     "bookDailyTarget": "Daily {{words}} words",
     "bookOff": "Off",
     "bookOn": "On",

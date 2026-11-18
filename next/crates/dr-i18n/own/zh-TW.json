@@ -149,6 +149,10 @@
     }
   },
   "projectTemplates": {
+    "saveFailed": "沒能另存為範本，請重試。",
+    "readProjectFailed": "沒能讀取這個專案。",
+    "createProjectFailed": "沒能建立專案，請重試。",
+    "openFailed": "沒能開啟這個範本。",
     "bookDailyTarget": "每日 {{words}} 字",
     "bookOff": "關",
     "bookOn": "開",

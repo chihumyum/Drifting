@@ -13,12 +13,13 @@
 
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use dr_shell::{Services, Settings, SettingsFile, ShellInfo, Workspace};
 use dr_view_shelf::{ExportTemplate, ImportTemplate, Shelf, ShelfDialog, TemplatePick};
 use dr_workspace::{
-    Actor, Workspace as Library,
+    Actor, Faults, Workspace as Library, WorkspaceOptions,
     commands::v3::{
         project_template::{
             ProjectTemplateExport, ProjectTemplateExportIn, ProjectTemplateGet,
@@ -34,6 +35,10 @@ use gpui::{Entity, Focusable as _, Modifiers, TestAppContext, VisualTestContext,
 const VERSION: &str = "0.2.0-dev";
 
 fn library() -> (tempfile::TempDir, Library, String) {
+    library_with_faults(None)
+}
+
+fn library_with_faults(faults: Option<Arc<Faults>>) -> (tempfile::TempDir, Library, String) {
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path().join("library");
     let lib = dr_store::Library::open(&root, dr_workspace::library_options(VERSION)).unwrap();
@@ -42,8 +47,15 @@ fn library() -> (tempfile::TempDir, Library, String) {
     let book_id = v3.book_id().to_string();
     dr_testkit::seed::write_book_v3(&lib, &v3).unwrap();
     lib.rebuild_stale_indexes().unwrap();
-    lib.close().unwrap();
-    (dir, Library::open_dir(&root, VERSION).unwrap(), book_id)
+    let workspace = Library::open(
+        lib,
+        WorkspaceOptions {
+            faults,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    (dir, workspace, book_id)
 }
 
 fn setup(cx: &mut TestAppContext, library: Library) -> (Entity<Workspace>, &mut VisualTestContext) {
@@ -677,4 +689,125 @@ fn my_templates_rail_order_hover_card_import_export_delete_and_new_dialog_previe
     assert!(vcx.debug_bounds("shelf-my-templates-section").is_none());
 
     lib.close();
+}
+
+#[gpui::test]
+fn shelf_import_labels_are_two_lines_and_the_new_project_card_has_no_subtitle(
+    cx: &mut TestAppContext,
+) {
+    let (_dir, lib, _) = library();
+    let (_view, vcx) = setup(cx, lib);
+    for size in ["standard", "largest"] {
+        vcx.update(|_, cx| {
+            Settings::update(cx, |s| {
+                s.set(dr_shell::settings::registry::TEXT_SIZE, size.into(), None)
+                    .unwrap();
+            });
+        });
+        wait(vcx, "shelf imports and new card drawn", |vcx| {
+            vcx.debug_bounds("shelf-new-label").is_some()
+        });
+        let mut height = None;
+        for (label, suffix) in [
+            ("shelf-import-book-label", "shelf-import-book-suffix"),
+            (
+                "shelf-import-template-label",
+                "shelf-import-template-suffix",
+            ),
+            ("shelf-import-library-label", "shelf-import-library-suffix"),
+        ] {
+            let label = vcx.debug_bounds(label).unwrap();
+            let suffix = vcx.debug_bounds(suffix).unwrap();
+            assert_eq!(suffix.origin.x, label.origin.x);
+            assert_eq!(suffix.top() - label.bottom(), px(2.0));
+            let two_lines = suffix.bottom() - label.top();
+            assert_eq!(*height.get_or_insert(two_lines), two_lines);
+        }
+
+        let card = vcx.debug_bounds("shelf-new-card").unwrap();
+        let plus = vcx.debug_bounds("shelf-new-plus").unwrap();
+        let label = vcx.debug_bounds("shelf-new-label").unwrap();
+        assert_eq!(label.top() - plus.bottom(), px(10.0));
+        // The icon and name are the entire centered stack.
+        assert!((card.center().y - (plus.top() + label.bottom()) / 2.0).abs() <= px(1.0));
+    }
+}
+
+#[gpui::test]
+fn project_creation_locks_the_template_group_and_shelf_errors_use_the_warning_mark(
+    cx: &mut TestAppContext,
+) {
+    use dr_ui::sand::Icon;
+
+    let faults = Arc::new(Faults::default());
+    let (_dir, lib, book) = library_with_faults(Some(faults.clone()));
+    let summary = lib
+        .run::<ProjectTemplateSave>(
+            &Actor::User,
+            ProjectTemplateSaveIn {
+                book,
+                name: Some("Synthetic saved template".into()),
+                description: None,
+                locale: None,
+                credit: None,
+                agent: None,
+                exclude_skeleton: vec![],
+                sample_entries: vec![],
+                view_pins: vec![],
+                replace: None,
+            },
+        )
+        .unwrap()
+        .output;
+    let (view, vcx) = setup(cx, lib.clone());
+    let shelf = shelf_of(&view, vcx);
+    wait(vcx, "saved template on shelf", |vcx| {
+        shelf.read_with(vcx, |s, _| {
+            s.data
+                .as_ref()
+                .is_some_and(|data| data.templates.len() == 1)
+        })
+    });
+    vcx.update(|window, cx| shelf.update(cx, |s, cx| s.start_create(window, cx)));
+    wait(vcx, "saved template picker drawn", |vcx| {
+        vcx.debug_bounds("shelf-new-my-templates-toggle").is_some()
+    });
+    let modal = shelf.read_with(vcx, |s, _| s.new_project_dialog().unwrap());
+    faults.arm("after_prose");
+    vcx.update(|window, cx| {
+        modal.update(cx, |modal, cx| {
+            let was_open = modal.is_my_templates_open();
+            modal.submit(window, cx);
+            assert!(modal.is_busy());
+            modal.toggle_my_templates(cx);
+            assert_eq!(modal.is_my_templates_open(), was_open);
+        });
+    });
+    wait(vcx, "create project failure", |vcx| {
+        vcx.debug_bounds("projectTemplates.createProjectFailed")
+            .is_some()
+            && vcx.debug_bounds("shelf-new-error-warning").is_some()
+    });
+    assert_eq!(
+        vcx.update(|_, cx| dr_shell::t(
+            cx,
+            dr_i18n::keys::project_templates::CREATE_PROJECT_FAILED
+        )),
+        "没能新建项目，请重试。"
+    );
+
+    vcx.update(|window, cx| shelf.update(cx, |s, cx| s.close_dialog(window, cx)));
+    view.update(vcx, |ws, cx| ws.toast("Synthetic success", cx));
+    view.read_with(vcx, |ws, _| {
+        assert_eq!(ws.toast.as_ref().unwrap().icon, Icon::Check)
+    });
+    faults.arm("after_prose");
+    vcx.update(|window, cx| shelf.update(cx, |s, cx| s.edit_template(&summary.id, window, cx)));
+    wait(vcx, "open template failure toast", |vcx| {
+        view.read_with(vcx, |ws, _| {
+            ws.toast.as_ref().is_some_and(|toast| {
+                toast.icon == Icon::StatusWarning && toast.text.as_ref() == "没能打开这个模板。"
+            })
+        })
+    });
 }

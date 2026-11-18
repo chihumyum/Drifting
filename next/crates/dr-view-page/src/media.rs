@@ -666,7 +666,7 @@ impl MediaModule {
                         &[("error", &names.join("、"))],
                     );
                     if let Some(ws) = v.host.page.workspace.upgrade() {
-                        ws.update(cx, |ws, cx| ws.toast(text, cx));
+                        ws.update(cx, |ws, cx| ws.toast_error(text, cx));
                     }
                 }
                 let ids: Vec<String> = report.imported.into_iter().map(|i| i.material).collect();
