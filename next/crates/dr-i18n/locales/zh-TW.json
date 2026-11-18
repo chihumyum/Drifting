@@ -513,6 +513,8 @@
     }
   },
   "mirrorV5": {
+    "acknowledgePreserved": "知道了",
+    "contents": "目錄",
     "duplicate": "有兩個檔案帶著同一個 drifting-id。",
     "fieldConflict": "有欄位沒能合入：它在 Drifting 裡也改過，或者值的寫法讀不出來。保留了 Drifting 裡的值，檔案另存了一份。",
     "identity": "drifting-id 與條目或正文模組不符。",

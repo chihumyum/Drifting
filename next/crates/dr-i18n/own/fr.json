@@ -120,6 +120,8 @@
     "unset": "Non défini"
   },
   "mirrorV5": {
+    "contents": "Table des matières",
+    "acknowledgePreserved": "Compris",
     "intro": "Chaque projet dispose d’un dossier Markdown. Après enregistrement, les modifications du texte et des champs dans un autre éditeur sont intégrées à Drifting.",
     "offWarning": "Drifting intègre les modifications en attente avant la désactivation. Les fichiers existants restent en place. Vous pouvez réactiver le dossier dans Données locales.",
     "identity": "Le drifting-id ne correspond pas à cette entrée et à ce module de texte.",

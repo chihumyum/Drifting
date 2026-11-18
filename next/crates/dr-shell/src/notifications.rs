@@ -96,7 +96,7 @@ pub struct Notice {
     /// that could not be merged opens its chapter).
     pub opens: Option<(String, String)>,
     /// Active problems the author must act on stay pinned at the top and
-    /// cannot be dismissed or cleared until resolved (`sync-status.md`).
+    /// survive Clear. A notice can offer an action to resolve it.
     pub pinned: bool,
 }
 
@@ -150,11 +150,12 @@ impl Notifications {
         Notifications::insert(source, text.into(), at, crash_id, None, None, cx)
     }
 
-    /// Posts a notice that opens `doc` of `book` when clicked, newest first.
+    /// Posts a notice that can open `doc` of `book` and offer a separate action.
     pub fn post_opening(
         source: Source,
         text: impl Into<SharedString>,
         opens: Option<(String, String)>,
+        action: Option<NoticeAction>,
         cx: &mut App,
     ) -> u64 {
         Notifications::insert(
@@ -162,7 +163,7 @@ impl Notifications {
             text.into(),
             SystemTime::now(),
             None,
-            None,
+            action,
             opens,
             cx,
         )

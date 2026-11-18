@@ -374,3 +374,33 @@ fn an_unresolved_notice_returns_after_older_issues_free_capacity(cx: &mut TestAp
     });
     close(cx);
 }
+
+#[gpui::test]
+fn first_projection_uses_localized_contents_name_and_keeps_it(cx: &mut TestAppContext) {
+    let f = setup(cx);
+    cx.update(|cx| {
+        let book = BookId::parse(&f.book).unwrap();
+        let workspace = cx.global::<Services>().library.as_ref().unwrap().clone();
+        for (language, expected) in [
+            (dr_i18n::Locale::ZhCn, "目录.md"),
+            (dr_i18n::Locale::En, "Contents.md"),
+        ] {
+            let root = tempfile::tempdir().unwrap();
+            let mut options = Options::new(root.path(), "contents-test", "contents-test");
+            Strings::install(language, cx);
+            options.names = projection_names(cx);
+            let pass = dr_mirror::sync::Pass::new(&workspace, &options);
+            assert!(pass.book(&book).unwrap().issues.is_empty());
+            let dir = pass.folder(&book).unwrap().unwrap();
+            assert!(dir.join(expected).is_file());
+            assert!(!dir.join("内容.md").exists());
+            Strings::install(dr_i18n::Locale::Fr, cx);
+            options.names = projection_names(cx);
+            let pass = dr_mirror::sync::Pass::new(&workspace, &options);
+            assert!(pass.book(&book).unwrap().issues.is_empty());
+            assert!(dir.join(expected).is_file());
+            assert!(!dir.join("Table des matières.md").exists());
+        }
+    });
+    close(cx);
+}

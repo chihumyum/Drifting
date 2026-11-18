@@ -513,6 +513,8 @@
     }
   },
   "mirrorV5": {
+    "acknowledgePreserved": "了解",
+    "contents": "目次",
     "duplicate": "同じ drifting-id を持つファイルが 2 つあります。",
     "fieldConflict": "フィールドを取り込めませんでした。Drifting でも編集されたか、値を読み取れませんでした。Drifting の値を残し、ファイルのコピーを保存しました。",
     "identity": "drifting-id が項目または本文モジュールと一致しません。",

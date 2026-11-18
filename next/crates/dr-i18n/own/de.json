@@ -118,6 +118,8 @@
     "unset": "Nicht festgelegt"
   },
   "mirrorV5": {
+    "contents": "Inhaltsverzeichnis",
+    "acknowledgePreserved": "Verstanden",
     "intro": "Jedes Projekt hat einen Markdown-Ordner. Änderungen an Text und Feldern in einem anderen Editor werden nach dem Speichern in Drifting übernommen.",
     "offWarning": "Drifting übernimmt ausstehende Änderungen, bevor der Ordner deaktiviert wird. Vorhandene Dateien bleiben erhalten. Unter Lokale Daten lässt sich der Ordner wieder aktivieren.",
     "identity": "Die drifting-id passt nicht zu diesem Eintrag und Textmodul.",

@@ -120,6 +120,8 @@
     "unset": "Sin definir"
   },
   "mirrorV5": {
+    "contents": "Índice",
+    "acknowledgePreserved": "Entendido",
     "intro": "Cada proyecto tiene una carpeta de Markdown. Al guardar cambios en el texto o los campos en otro editor, Drifting los incorpora.",
     "offWarning": "Drifting incorpora los cambios pendientes antes de desactivar la carpeta. Los archivos existentes permanecen en su sitio. Puedes reactivarla en Datos locales.",
     "identity": "El drifting-id no corresponde a esta entrada y módulo de texto.",

@@ -111,6 +111,8 @@
     "unset": "未設定"
   },
   "mirrorV5": {
+    "contents": "目錄",
+    "acknowledgePreserved": "知道了",
     "intro": "每個專案都有一個 Markdown 資料夾。用其他編輯器修改裡面的正文和欄位，儲存後會合回 Drifting。",
     "offWarning": "關閉前會合入待處理的修改。已有檔案留在原處，可以在本機資料裡重新開啟。",
     "identity": "drifting-id 與條目或正文模組不符。",

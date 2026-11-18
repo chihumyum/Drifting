@@ -27,9 +27,9 @@ pub struct BrokenFrontmatter;
 /// Why the App cannot write a file's frontmatter. The file is held.
 #[derive(Debug, thiserror::Error)]
 pub enum Unwritable {
-    /// A property kept from the file has the key of a field added since. Which
-    /// one wins is the author's decision (m40 section 15), so neither is
-    /// written over the other.
+    /// A property kept from the file has the key of a field added since.
+    /// Keep the file until the property can be adopted or the collision
+    /// goes away.
     #[error("the kept property {0:?} has the key of a field")]
     KeyCollision(String),
     /// The header would not read back, e.g. a kept alias whose anchor was on
@@ -247,9 +247,67 @@ impl Header {
         matches!(key, ID_KEY | HOSTS_KEY) || self.fields.iter().any(|field| field.key == key)
     }
 
+    /// Adopt properties which were unmanaged when the current file was
+    /// read. A read-only reference may already match its projected value,
+    /// but the file cannot select a different referenced item.
+    pub(crate) fn adopt_extra(
+        &self,
+        base: &Header,
+        extra: &str,
+    ) -> Result<Option<Adoption>, Unwritable> {
+        if !extra
+            .lines()
+            .filter_map(property_key)
+            .any(|key| self.owns(&key))
+        {
+            return Ok(None);
+        }
+        let (values, properties) = read_properties(extra)?;
+        let mut edits = Vec::new();
+        let mut fields = base.clone();
+        for field in &self.fields {
+            let Some(external) = values.get(field.key.as_str()) else {
+                continue;
+            };
+            let matches_projection = external == &field.emitted();
+            let value = if matches_projection {
+                Some(field.value.clone())
+            } else if field.read_only() {
+                None
+            } else {
+                field.decode(external)
+            };
+            let value = value.ok_or_else(|| Unwritable::KeyCollision(field.key.clone()))?;
+            if !field.read_only() {
+                edits.push(FieldEdit {
+                    slot: field.slot.clone(),
+                    expected: field.value.clone(),
+                    value: Some(value.clone()),
+                });
+            }
+            fields
+                .fields
+                .retain(|old| old.slot != field.slot && old.key != field.key);
+            let mut adopted = field.clone();
+            adopted.value = value;
+            fields.fields.push(adopted);
+        }
+        Ok(Some(Adoption {
+            edits,
+            extra: unmanaged_properties(&properties, self),
+            fields,
+        }))
+    }
+
     fn hosts(&self) -> Option<Value> {
         (!self.hosts.is_empty()).then(|| Value::strings(self.hosts.iter().cloned()))
     }
+}
+
+pub(crate) struct Adoption {
+    pub edits: Vec<FieldEdit>,
+    pub extra: String,
+    pub fields: Header,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -304,23 +362,27 @@ impl Parsed {
     }
 
     pub fn extra(&self, header: &Header) -> String {
-        let mut out = String::new();
-        for property in &self.properties {
-            if property.key.as_deref().is_some_and(|key| header.owns(key)) {
-                for comment in property
-                    .raw
-                    .split_inclusive('\n')
-                    .skip(1)
-                    .filter(|line| line.starts_with('#'))
-                {
-                    out.push_str(comment);
-                }
-            } else {
-                out.push_str(&property.raw);
-            }
-        }
-        out
+        unmanaged_properties(&self.properties, header)
     }
+}
+
+fn unmanaged_properties(properties: &[Property], header: &Header) -> String {
+    let mut out = String::new();
+    for property in properties {
+        if property.key.as_deref().is_some_and(|key| header.owns(key)) {
+            for comment in property
+                .raw
+                .split_inclusive('\n')
+                .skip(1)
+                .filter(|line| line.starts_with('#'))
+            {
+                out.push_str(comment);
+            }
+        } else {
+            out.push_str(&property.raw);
+        }
+    }
+    out
 }
 
 /// Write managed keys first. Check the resulting header before handing it to

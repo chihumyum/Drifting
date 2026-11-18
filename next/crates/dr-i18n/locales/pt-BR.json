@@ -523,6 +523,8 @@
     }
   },
   "mirrorV5": {
+    "acknowledgePreserved": "Entendi",
+    "contents": "Sumário",
     "duplicate": "Dois arquivos têm o mesmo drifting-id.",
     "fieldConflict": "Não foi possível mesclar um campo: ele também foi editado no Drifting ou o valor não pôde ser lido. O Drifting manteve o valor e salvou uma cópia do arquivo.",
     "identity": "O drifting-id não corresponde a esta entrada e módulo de texto.",

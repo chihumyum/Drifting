@@ -120,6 +120,8 @@
     "unset": "Não definido"
   },
   "mirrorV5": {
+    "contents": "Sumário",
+    "acknowledgePreserved": "Entendi",
     "intro": "Cada projeto tem uma pasta Markdown. Ao salvar alterações no texto ou nos campos em outro editor, o Drifting incorpora as mudanças.",
     "offWarning": "O Drifting incorpora as alterações pendentes antes de desativar a pasta. Os arquivos existentes ficam onde estão. Você pode reativá-la em Dados locais.",
     "identity": "O drifting-id não corresponde a esta entrada e módulo de texto.",

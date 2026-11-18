@@ -109,6 +109,8 @@
     "unset": "未设置"
   },
   "mirrorV5": {
+    "contents": "目录",
+    "acknowledgePreserved": "知道了",
     "intro": "每个项目都有一个 Markdown 文件夹。用其他编辑器修改里面的正文和字段，保存后会合回 Drifting。",
     "offWarning": "关闭前会合入待处理的修改。已有文件留在原处，可以在本地数据里重新开启。",
     "identity": "drifting-id 与条目或正文模块不符。",

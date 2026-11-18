@@ -520,6 +520,8 @@
     }
   },
   "mirrorV5": {
+    "acknowledgePreserved": "Got it",
+    "contents": "Contents",
     "duplicate": "Two files have the same drifting-id.",
     "fieldConflict": "A field could not be merged: it was also edited in Drifting, or its value could not be read. Drifting kept its value and saved a copy of the file.",
     "identity": "The drifting-id does not match this entry and prose module.",
