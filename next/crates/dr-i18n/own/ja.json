@@ -131,6 +131,16 @@
   "positionLink": {
     "copied": "位置リンクをコピーしました"
   },
+  "projectAgent": {
+    "cardActionLabel": "{{title}}、{{action}}",
+    "errorConnection": "モデルに接続できません",
+    "errorContextCapacity": "最近の変更が多く、一度に読み切れません",
+    "errorInvalidResponse": "モデルの応答を読み取れません",
+    "errorCardUnavailable": "このカードはもうありません",
+    "errorDisabled": "プロアクティブな提案はオフです",
+    "errorBusy": "別のカードを開始しています",
+    "errorOther": "エラーが発生しました"
+  },
   "projectHome": {
     "projectTemplate": {
       "book": "原稿",

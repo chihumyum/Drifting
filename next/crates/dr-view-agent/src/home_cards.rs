@@ -13,12 +13,9 @@
 //! Home shows the cards of the latest look only (at most four, those
 //! started included); while the Agent looks they stay, and hold still.
 
-use std::{
-    collections::{HashMap, HashSet},
-    sync::Arc,
-};
+use std::{collections::HashMap, sync::Arc};
 
-use dr_agent::proactive::{CardStatus, StoredCard};
+use dr_agent::proactive::{CardStatus, CheckinError, CheckinFailure, StoredCard};
 use dr_i18n::keys::project_agent as k;
 use dr_model::id::{BookId, ConversationId};
 use dr_shell::{
@@ -48,7 +45,7 @@ use crate::{
     connection::Connections,
     controller::{
         AgentController, Subscription as RunSubscription,
-        proactive::{CHECKIN_REQUEST_FAILED, Suggestions},
+        proactive::{SuggestionActivity, SuggestionStartError, Suggestions},
     },
     hub::AgentHub,
 };
@@ -63,15 +60,27 @@ pub fn proactive_enabled(cx: &App) -> bool {
     }
 }
 
-/// What 「没能看完最近的改动：{{error}}」 says after the colon. A request that
-/// did not complete says so with the existing words; anything else keeps
-/// the controller's own.
-pub fn checkin_error(error: &str, cx: &App) -> SharedString {
-    if error == CHECKIN_REQUEST_FAILED {
-        t(cx, dr_i18n::keys::settings::byok_provider::REQUEST_FAILED)
-    } else {
-        SharedString::from(error.to_owned())
-    }
+pub fn checkin_error(error: &CheckinError, cx: &App) -> SharedString {
+    let key = match error {
+        CheckinError::Classified { reason } => match reason {
+            CheckinFailure::Connection => k::ERROR_CONNECTION,
+            CheckinFailure::ContextCapacity => k::ERROR_CONTEXT_CAPACITY,
+            CheckinFailure::InvalidResponse => k::ERROR_INVALID_RESPONSE,
+            CheckinFailure::Other => k::ERROR_OTHER,
+        },
+        CheckinError::Legacy(_) => k::ERROR_OTHER,
+    };
+    t(cx, key)
+}
+
+fn start_error(error: &SuggestionStartError, cx: &App) -> SharedString {
+    let key = match error {
+        SuggestionStartError::CardUnavailable => k::ERROR_CARD_UNAVAILABLE,
+        SuggestionStartError::Disabled => k::ERROR_DISABLED,
+        SuggestionStartError::Busy => k::ERROR_BUSY,
+        SuggestionStartError::Other(_) => k::ERROR_OTHER,
+    };
+    t(cx, key)
 }
 
 pub struct HomeCards {
@@ -81,10 +90,10 @@ pub struct HomeCards {
     controller: Option<AgentController>,
     book: Option<BookId>,
     suggestions: Option<Suggestions>,
-    /// Cards clicked whose conversation is being started here.
-    starting: HashSet<String>,
+    /// A card clicked here is starting its conversation.
+    starting: bool,
     /// 没能开始: why a card's conversation did not start.
-    failed: HashMap<String, String>,
+    failed: HashMap<String, SuggestionStartError>,
     /// 主动建议 as last handed to the controller.
     enabled: Option<bool>,
     /// A look asked of the controller here has not finished: it holds the
@@ -115,7 +124,7 @@ impl HomeCards {
             controller: None,
             book: None,
             suggestions: None,
-            starting: HashSet::new(),
+            starting: false,
             failed: HashMap::new(),
             enabled: None,
             looking: false,
@@ -155,12 +164,18 @@ impl HomeCards {
     /// Whether there is anything to draw: 主动建议 on, a model connected, and
     /// a check-in under way, the last one failed, or cards.
     pub fn drawn(&self, cx: &App) -> bool {
+        self.visible(self.checking(self.activity()), cx)
+    }
+
+    fn visible(&self, checking: bool, cx: &App) -> bool {
         proactive_enabled(cx)
             && self.connected(cx)
             && self.controller.is_some()
-            && self.suggestions.as_ref().is_some_and(|s| {
-                s.state.active.is_some() || s.state.error.is_some() || !s.state.cards.is_empty()
-            })
+            && (checking
+                || self
+                    .suggestions
+                    .as_ref()
+                    .is_some_and(|s| s.state.error.is_some() || !s.state.cards.is_empty()))
     }
 
     /// Home came to the front, or the window came back with Home in front:
@@ -176,6 +191,10 @@ impl HomeCards {
     /// model's connection is known.
     fn look(&mut self, cx: &mut Context<Self>) {
         if !self.wants_look {
+            return;
+        }
+        if self.looking {
+            self.wants_look = false;
             return;
         }
         let (Some(controller), Some(book)) = (&self.controller, &self.book) else {
@@ -215,6 +234,7 @@ impl HomeCards {
             });
         })
         .detach();
+        cx.notify();
     }
 
     /// Hands 主动建议 to the controller when it changed since last handed.
@@ -240,22 +260,39 @@ impl HomeCards {
 
     /// Whether a card clicked here is starting its conversation (tests).
     pub fn any_starting(&self) -> bool {
-        !self.starting.is_empty()
+        self.starting
     }
 
     /// Nothing asked here is under way: no look, no read of the cards, no
     /// card starting (tests).
     pub fn settled(&self) -> bool {
-        !self.looking && !self.loading && !self.again && self.starting.is_empty()
+        !self.looking && !self.loading && !self.again && !self.starting
     }
 
-    /// The Agent is looking (the line above the cards): the look holds the
-    /// book's one suggestion operation, so the cards and their × hold still
-    /// as a card whose conversation is starting does.
-    fn checking(&self) -> bool {
-        self.suggestions
-            .as_ref()
-            .is_some_and(|s| s.state.active.is_some())
+    fn activity(&self) -> Option<SuggestionActivity> {
+        self.controller
+            .as_ref()?
+            .suggestion_activity(self.book.as_ref()?)
+    }
+
+    fn checking(&self, activity: Option<SuggestionActivity>) -> bool {
+        activity == Some(SuggestionActivity::Checking)
+            || self
+                .suggestions
+                .as_ref()
+                .is_some_and(|s| s.state.active.is_some())
+    }
+
+    fn cards_locked(&self, activity: Option<SuggestionActivity>) -> bool {
+        self.checking(activity)
+            || self.starting
+            || activity == Some(SuggestionActivity::Starting)
+            || self.suggestions.as_ref().is_some_and(|s| {
+                s.state
+                    .cards
+                    .iter()
+                    .any(|c| matches!(c.status, CardStatus::Starting { .. }))
+            })
     }
 
     fn connected(&self, cx: &App) -> bool {
@@ -297,7 +334,13 @@ impl HomeCards {
             })));
             self._signal = Some(cx.spawn(async move |this, cx| {
                 while receive.next().await.is_some() {
-                    if this.update(cx, |cards, cx| cards.refresh(cx)).is_err() {
+                    if this
+                        .update(cx, |cards, cx| {
+                            cards.refresh(cx);
+                            cx.notify();
+                        })
+                        .is_err()
+                    {
                         break;
                     }
                 }
@@ -311,7 +354,7 @@ impl HomeCards {
     fn reset(&mut self) {
         self.generation += 1;
         self.suggestions = None;
-        self.starting.clear();
+        self.starting = false;
         self.failed.clear();
         self.looking = false;
         self.loading = false;
@@ -372,6 +415,9 @@ impl HomeCards {
     }
 
     fn open(&mut self, card: &StoredCard, window: &mut Window, cx: &mut Context<Self>) {
+        if self.cards_locked(self.activity()) {
+            return;
+        }
         match &card.status {
             CardStatus::Started { conversation } => {
                 self.view_conversation(ConversationId::parse(conversation).ok(), window, cx)
@@ -419,11 +465,6 @@ impl HomeCards {
     }
 
     fn start(&mut self, card: String, window: &mut Window, cx: &mut Context<Self>) {
-        // A look under way holds the book's suggestion operation: the click
-        // waits for nothing and says nothing.
-        if self.starting.contains(&card) || self.looking || self.checking() {
-            return;
-        }
         let (Some(controller), Some(book), Some(connections)) = (
             self.controller.clone(),
             self.book.clone(),
@@ -434,7 +475,7 @@ impl HomeCards {
         let mut config = match connections.read(cx).run_config() {
             Ok(config) => config,
             Err(error) => {
-                self.failed.insert(card, error.to_string());
+                self.failed.insert(card, error.to_string().into());
                 cx.notify();
                 return;
             }
@@ -446,7 +487,7 @@ impl HomeCards {
             .unwrap_or_default();
         config.system_prompt = crate::prompt::system_prompt(book.as_str(), &name);
         self.failed.remove(&card);
-        self.starting.insert(card.clone());
+        self.starting = true;
         let task = controller.open_suggestion(
             book,
             card.clone(),
@@ -460,7 +501,7 @@ impl HomeCards {
                 if cards.generation != generation {
                     return;
                 }
-                cards.starting.remove(&card);
+                cards.starting = false;
                 match result {
                     Ok(id) => cards.reveal(Some(id), window, cx),
                     Err(error) => {
@@ -503,33 +544,19 @@ impl HomeCards {
     }
 
     fn dismiss(&mut self, card: String, cx: &mut Context<Self>) {
+        if self.cards_locked(self.activity()) {
+            return;
+        }
         let (Some(controller), Some(book)) = (self.controller.clone(), self.book.clone()) else {
             return;
         };
-        // A card whose conversation is starting stays until the start
-        // settles (the store keeps it too); while the Agent looks, every
-        // card stays until the look is done.
-        let starting = self.starting.contains(&card)
-            || self.suggestions.as_ref().is_some_and(|s| {
-                s.state
-                    .cards
-                    .iter()
-                    .any(|c| c.card.id == card && matches!(c.status, CardStatus::Starting { .. }))
-            });
-        if starting || self.looking || self.checking() {
-            return;
-        }
-        self.failed.remove(&card);
-        // Gone at once; the stored card goes with the controller's write.
-        if let Some(s) = &mut self.suggestions {
-            s.state.cards.retain(|c| c.card.id != card);
-        }
+        // The controller's change signal refreshes the cards after the write.
+        // Removing a card before the write was accepted could bring it back.
         let task = controller.dismiss_suggestion(book, card);
-        cx.spawn(async move |this, cx| {
+        cx.spawn(async move |_, _| {
             if let Err(error) = task.await {
                 log::warn!("a suggestion card could not be dismissed: {error}");
             }
-            let _ = this.update(cx, |cards, cx| cards.refresh(cx));
         })
         .detach();
         cx.notify();
@@ -541,15 +568,11 @@ impl HomeCards {
         stored: &StoredCard,
         window: &mut Window,
         cx: &mut Context<Self>,
+        locked: bool,
     ) -> gpui::AnyElement {
         let theme = Theme::of(window, cx);
         let (p, s) = (theme.palette, theme.scale);
         let id = stored.card.id.clone();
-        // A card whose conversation is starting cannot be clicked; while the
-        // Agent looks, none can.
-        let starting = self.starting.contains(&id)
-            || matches!(stored.status, CardStatus::Starting { .. })
-            || self.checking();
         let started = matches!(stored.status, CardStatus::Started { .. });
         // Its entry: the entry's own mark, grey, and its name.
         let target = stored.card.target.as_ref().and_then(|target| {
@@ -585,12 +608,16 @@ impl HomeCards {
             (t(cx, k::START), format!("home-agent-card-start-{index}"))
         };
         let stored_card = stored.clone();
-        let label: SharedString = stored.card.title.clone().into();
+        let label = tf(
+            cx,
+            k::CARD_ACTION_LABEL,
+            &[("title", &stored.card.title), ("action", &go)],
+        );
         let body = glass::glass_box(
             SharedString::from(format!("home-agent-card-{index}")),
             glass::Kind::Rest,
             glass::Mode {
-                disabled: starting,
+                disabled: locked,
                 ..Default::default()
             },
             false,
@@ -604,7 +631,7 @@ impl HomeCards {
         .w_full()
         .h_full()
         .rounded(px(radius::SM))
-        .when(!starting, |el| el.cursor_pointer())
+        .when(!locked, |el| el.cursor_pointer())
         .pt(px(12.0))
         .pb(px(12.0))
         .pl(px(14.0))
@@ -641,7 +668,7 @@ impl HomeCards {
                 .text_color(p.ink(2).solid())
                 .child(go),
         )
-        .when(!starting, |el| {
+        .when(!locked, |el| {
             el.on_click(
                 cx.listener(move |cards, _, window, cx| cards.open(&stored_card, window, cx)),
             )
@@ -658,19 +685,23 @@ impl HomeCards {
                     Icon::Close,
                 )
                 .label(t(cx, k::DISMISS))
+                .disabled(locked)
                 .on_click(cx.listener(move |cards, _, _, cx| cards.dismiss(dismiss.clone(), cx))),
             );
         let failed = self.failed.get(&id).map(|error| {
+            let text = tf(cx, k::START_FAILED, &[("error", &start_error(error, cx))]);
             div()
                 .id(ElementId::Name(
                     format!("home-agent-card-failed-{index}").into(),
                 ))
                 .debug_selector(move || format!("home-agent-card-failed-{index}"))
+                .role(gpui::Role::Label)
+                .aria_label(text.clone())
                 .pt(px(6.0))
                 .font_role(Role::Ui)
                 .type_px(s.secondary, s.line_caption)
                 .text_color(p.ink(3).solid())
-                .child(tf(cx, k::START_FAILED, &[("error", error)]))
+                .child(text)
         });
         div()
             .min_w_0()
@@ -690,12 +721,15 @@ impl Render for HomeCards {
             .flex()
             .flex_col()
             .gap(px(12.0));
-        if !self.drawn(cx) {
+        let activity = self.activity();
+        let checking = self.checking(activity);
+        if !self.visible(checking, cx) {
             return column;
         }
-        let Some(suggestions) = self.suggestions.clone() else {
-            return column;
-        };
+        let state = self
+            .suggestions
+            .as_ref()
+            .map(|suggestions| &suggestions.state);
         let theme = Theme::of(window, cx);
         let (p, s) = (theme.palette, theme.scale);
         let line = |id: &'static str| {
@@ -709,27 +743,57 @@ impl Render for HomeCards {
                 .type_px(s.body, s.line_body)
                 .text_color(p.ink(3).solid())
         };
-        if suggestions.state.active.is_some() {
+        if checking {
+            let text = t(cx, k::CHECKIN_RUNNING);
             column = column.child(
                 line("home-agent-checking")
+                    .role(gpui::Role::Label)
+                    .aria_label(text.clone())
                     .child(spinner(13.0, p.ink(3).solid(), window))
-                    .child(t(cx, k::CHECKIN_RUNNING)),
+                    .child(text),
             );
-        } else if let Some(error) = &suggestions.state.error {
+        } else if let Some(error) = state.and_then(|s| s.error.as_ref()) {
             let error = checkin_error(error, cx);
-            column = column.child(line("home-agent-check-failed").child(tf(
-                cx,
-                k::CHECKIN_FAILED,
-                &[("error", &error)],
-            )));
+            let text = tf(cx, k::CHECKIN_FAILED, &[("error", &error)]);
+            column = column.child(
+                line("home-agent-check-failed")
+                    .role(gpui::Role::Label)
+                    .aria_label(text.clone())
+                    .child(text),
+            );
         }
-        if !suggestions.state.cards.is_empty() {
+        if let Some(state) = state.filter(|s| !s.cards.is_empty()) {
             let mut grid = div().w_full().grid().grid_cols(2).gap(px(10.0));
-            for (index, stored) in suggestions.state.cards.iter().enumerate() {
-                grid = grid.child(self.card(index, stored, window, cx));
+            let locked = self.cards_locked(activity);
+            for (index, stored) in state.cards.iter().enumerate() {
+                grid = grid.child(self.card(index, stored, window, cx, locked));
             }
             column = column.child(grid);
         }
         column
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[gpui::test]
+    fn a_failed_card_start_uses_the_localized_reason(cx: &mut gpui::TestAppContext) {
+        cx.update(|cx| {
+            dr_shell::strings::Strings::install(dr_i18n::Locale::ZhCn, cx);
+            for (error, text) in [
+                (SuggestionStartError::CardUnavailable, "这张卡已经不在了"),
+                (SuggestionStartError::Disabled, "主动建议关着"),
+                (SuggestionStartError::Busy, "另一张卡正在开始"),
+                (
+                    SuggestionStartError::Other("internal error".into()),
+                    "出错了",
+                ),
+            ] {
+                let error = start_error(&error, cx);
+                assert_eq!(error.as_ref(), text);
+            }
+        });
     }
 }

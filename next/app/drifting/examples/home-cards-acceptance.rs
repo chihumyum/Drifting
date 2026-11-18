@@ -5,13 +5,14 @@
 //! in-process candidate key; every provider and catalog address is
 //! loopback and nothing is sent anywhere. Never built as the release app.
 //!
-//! `DRIFTING_APPEARANCE=light|dark` picks the theme (the scenario's
-//! `launch.env`).
+//! DRIFTING_APPEARANCE picks the theme; HC2_FIXTURE picks a synthetic
+//! timeout or a project whose context exceeds the selected model's capacity.
 
-use std::sync::Arc;
+use std::sync::{Arc, mpsc};
 
 use dr_agent::{
-    DriverEvent as E, FinishReason, Provider,
+    Cancellation, Driver, DriverEvent as E, DriverRequest, FinishReason, ModelErrorCategory,
+    ModelFailure, Provider,
     driver::scripted::{ScriptedDriver, Step},
 };
 use dr_agent_providers::{
@@ -22,13 +23,62 @@ use dr_model::id::BookId;
 use dr_shell::{Services, SettingsFile, ShellInfo};
 use dr_testkit::seed::{self, Preset};
 use dr_workspace::{Actor, Workspace};
+use futures::{StreamExt as _, stream::BoxStream};
 use gpui::{App, AppContext as _, Global};
 use serde_json::{Value, json};
 
 struct Fixture {
     _directory: tempfile::TempDir,
+    writer_release: Option<mpsc::Sender<()>>,
 }
 impl Global for Fixture {}
+
+gpui::actions!(hc2_fixture, [HoldWriter, ReleaseWriter]);
+
+fn hold_writer(_: &HoldWriter, cx: &mut App) {
+    let lib = cx
+        .global::<Services>()
+        .library
+        .as_ref()
+        .unwrap()
+        .library()
+        .clone();
+    let (ready, acquired) = mpsc::sync_channel(0);
+    let (release, held) = mpsc::channel();
+    std::thread::spawn(move || {
+        lib.local_write(|_| {
+            if ready.send(()).is_ok() {
+                let _ = held.recv();
+            }
+            Ok(())
+        })
+        .expect("hold the fixture writer");
+    });
+    acquired.recv().unwrap();
+    cx.global_mut::<Fixture>().writer_release = Some(release);
+}
+
+fn release_writer(_: &ReleaseWriter, cx: &mut App) {
+    drop(cx.global_mut::<Fixture>().writer_release.take());
+}
+
+struct TimeoutDriver;
+
+impl Driver for TimeoutDriver {
+    fn stream(
+        &self,
+        request: DriverRequest,
+        _: Cancellation,
+    ) -> BoxStream<'static, dr_agent::Result<E>> {
+        assert!(request.purpose.is_single());
+        futures::stream::iter([Err(ModelFailure {
+            category: ModelErrorCategory::Network,
+            message: "synthetic model request timed out".into(),
+        }
+        .into())])
+        .boxed()
+    }
+}
 
 fn out(ws: &Workspace, name: &str, input: Value) -> Value {
     ws.call(&Actor::User, name, input).unwrap()["output"].clone()
@@ -42,6 +92,7 @@ fn text(text: String) -> Vec<Step> {
 }
 
 fn main() -> anyhow::Result<()> {
+    let case = std::env::var("HC2_FIXTURE").unwrap_or_default();
     let directory = tempfile::tempdir()?;
     let ws = Workspace::open_dir(directory.path(), "hc-window-fixture")?;
     ws.set_auto_links(false);
@@ -57,6 +108,23 @@ fn main() -> anyhow::Result<()> {
         .clone();
     // One chapter revised by the author: the changes the Agent looks at.
     let chapters = dr_testkit::seed::acceptance::entries_by_template(&ws, &book, "tpl-chapter");
+    if case == "context" {
+        let templates = out(&ws, "entry_template.list", json!({"book": book}));
+        let mut chapter_template = templates
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|template| template["id"] == "tpl-chapter")
+            .unwrap()
+            .clone();
+        chapter_template["agent"]["instructions"] =
+            json!("Synthetic fixed guidance ".repeat(120_000));
+        out(
+            &ws,
+            "entry_template.put",
+            json!({"book": book, "template": chapter_template}),
+        );
+    }
     let chapter = chapters[0]["id"].as_str().unwrap().to_owned();
     let doc = format!("body:{chapter}/mod-prose");
     let body = out(&ws, "prose.read", json!({"doc": doc, "limit": 1000}));
@@ -83,6 +151,13 @@ fn main() -> anyhow::Result<()> {
         text("好，我先把两处原文摆出来。".into()),
         text("好。".into()),
     ];
+    let driver: Arc<dyn Driver> = if case == "timeout" {
+        Arc::new(TimeoutDriver)
+    } else if case == "context" {
+        Arc::new(ScriptedDriver::new(vec![]))
+    } else {
+        Arc::new(ScriptedDriver::new(scripts))
+    };
     let local = "http://127.0.0.1:9";
     let provider = ProviderDriver::with_endpoints(
         HttpClient::new()?,
@@ -116,6 +191,11 @@ fn main() -> anyhow::Result<()> {
     gpui_platform::application()
         .with_assets(dr_ui::Assets::new())
         .run(move |cx: &mut App| {
+            if cx.displays().len() < 2 {
+                eprintln!("home-cards-acceptance needs a secondary display");
+                cx.quit();
+                return;
+            }
             dr_ui::init(cx).expect("pinned fonts");
             let mut file = SettingsFile::in_memory();
             file.set(
@@ -144,7 +224,7 @@ fn main() -> anyhow::Result<()> {
             dr_view_elements::init(cx);
             dr_view_agent::init_with_service(
                 connection,
-                Arc::new(ScriptedDriver::new(scripts)),
+                driver,
                 Arc::new(dr_view_agent::tools::CompanionTools::default()),
                 cx,
             );
@@ -161,7 +241,10 @@ fn main() -> anyhow::Result<()> {
             });
             cx.set_global(Fixture {
                 _directory: directory,
+                writer_release: None,
             });
+            cx.on_action(hold_writer);
+            cx.on_action(release_writer);
             dr_shell::open_workspace(cx, |window, _| window.activate_window()).unwrap();
             dr_debug_bridge::start(cx);
         });

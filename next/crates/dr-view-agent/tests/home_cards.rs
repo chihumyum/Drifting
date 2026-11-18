@@ -9,14 +9,19 @@ use std::{
     sync::{
         Arc,
         atomic::{AtomicUsize, Ordering},
+        mpsc,
     },
     time::{Duration, Instant},
 };
 
 use dr_agent::{
-    DriverEvent, FinishReason,
+    Cancellation, Driver, DriverEvent, DriverRequest, FinishReason, ModelCapabilities,
+    ModelErrorCategory, ModelFailure, Provider, RunConfig,
     driver::scripted::{ScriptedDriver, Step},
-    proactive::{CardStatus, CheckinCard, CheckinOutcome, ProactiveStore, SuggestionStart},
+    proactive::{
+        CHECKIN_COOLDOWN_MS, CardStatus, CheckinCard, CheckinError, CheckinFailure, CheckinOutcome,
+        ProactiveStore, SuggestionStart,
+    },
 };
 use dr_agent_providers::{
     Endpoints, HttpClient, ProviderDriver, RetryPolicy, credentials::Credentials,
@@ -33,14 +38,13 @@ use dr_shell::{
 use dr_testkit::seed::{self, Preset};
 use dr_view_agent::{
     connection::{Connections, PROVIDERS},
-    controller::proactive::CHECKIN_REQUEST_FAILED,
     home_cards::{HomeCards, checkin_error},
     hub::AgentHub,
     tools::CompanionTools,
 };
 use dr_view_home::{AgentCards, v3::Home};
 use dr_workspace::{Actor, Workspace as Library};
-use futures::{channel::oneshot, executor::block_on};
+use futures::{StreamExt as _, channel::oneshot, executor::block_on, stream::BoxStream};
 use gpui::{
     AppContext as _, Entity, Modifiers, TestAppContext, VisualTestContext, point, px, size,
 };
@@ -96,6 +100,25 @@ impl Fixture {
 
     fn stored(&self) -> dr_agent::proactive::ProactiveState {
         ProactiveStore::load(self.lib.library(), &self.book).unwrap()
+    }
+
+    /// Keep a suggestion job waiting for its first write until the sender
+    /// drops. Reads can still see the state before the transaction.
+    fn hold_writer(&self) -> mpsc::Sender<()> {
+        let lib = self.lib.library().clone();
+        let (ready, acquired) = mpsc::sync_channel(0);
+        let (release, held) = mpsc::channel();
+        std::thread::spawn(move || {
+            lib.local_write(|_| {
+                if ready.send(()).is_ok() {
+                    let _ = held.recv();
+                }
+                Ok(())
+            })
+            .unwrap();
+        });
+        acquired.recv_timeout(Duration::from_secs(5)).unwrap();
+        release
     }
 
     /// Cards an earlier look left (two hours ago: the 90 minutes are over).
@@ -232,6 +255,28 @@ fn reply(text: &str) -> Vec<Step> {
     ]
 }
 
+#[derive(Default)]
+struct TimedOut {
+    requests: AtomicUsize,
+}
+
+impl Driver for TimedOut {
+    fn stream(
+        &self,
+        request: DriverRequest,
+        _: Cancellation,
+    ) -> BoxStream<'static, dr_agent::Result<DriverEvent>> {
+        assert!(request.purpose.is_single());
+        self.requests.fetch_add(1, Ordering::SeqCst);
+        futures::stream::iter([Err(ModelFailure {
+            category: ModelErrorCategory::Network,
+            message: "synthetic model request timed out".into(),
+        }
+        .into())])
+        .boxed()
+    }
+}
+
 struct Opened {
     ws: Entity<Workspace>,
     hub: Entity<AgentHub>,
@@ -345,7 +390,7 @@ fn wait(
 fn open<'a>(
     cx: &'a mut TestAppContext,
     f: &Fixture,
-    driver: Arc<ScriptedDriver>,
+    driver: Arc<dyn Driver>,
     connected: bool,
     proactive: bool,
 ) -> (Opened, &'a mut VisualTestContext) {
@@ -439,6 +484,14 @@ fn click_card(cx: &mut VisualTestContext, selector: &'static str) {
     let b = cx.debug_bounds(selector).unwrap();
     cx.simulate_click(
         point(b.left() + px(20.0), b.top() + px(20.0)),
+        Modifiers::none(),
+    );
+}
+
+fn click_dismiss(cx: &mut VisualTestContext, selector: &'static str) {
+    let b = cx.debug_bounds(selector).unwrap();
+    cx.simulate_click(
+        point(b.right() - px(18.0), b.top() + px(18.0)),
         Modifiers::none(),
     );
 }
@@ -748,27 +801,105 @@ fn a_look_under_way_has_its_line_above_the_cards(cx: &mut TestAppContext) {
 fn a_failed_look_says_so_and_keeps_the_cards(cx: &mut TestAppContext) {
     let f = Fixture::new();
     f.earlier_cards(&["上一次的合成卡"]);
-    let driver = Arc::new(ScriptedDriver::new(vec![vec![Step::Fail(
-        "合成的请求失败".into(),
-    )]]));
+    let driver = Arc::new(TimedOut::default());
+    let (w, cx) = open(cx, &f, driver.clone(), true, true);
+    wait(cx, "the failed line", |cx| {
+        cx.debug_bounds("home-agent-check-failed").is_some()
+    });
+    assert_eq!(driver.requests.load(Ordering::SeqCst), 1);
+    assert_checkin_error(&f, cx, CheckinFailure::Connection, "连不上模型");
+    assert!(cx.debug_bounds("home-agent-card-0").is_some());
+    assert!(cx.debug_bounds("home-agent-checking").is_none());
+    close(&w, cx, &f);
+}
+
+fn assert_checkin_error(
+    f: &Fixture,
+    cx: &mut VisualTestContext,
+    reason: CheckinFailure,
+    message: &str,
+) {
+    let error = f.stored().error.unwrap();
+    assert_eq!(error, CheckinError::Classified { reason });
+    cx.update(|_, cx| assert_eq!(checkin_error(&error, cx).as_ref(), message));
+}
+
+#[gpui::test]
+fn an_invalid_model_reply_has_its_own_home_error(cx: &mut TestAppContext) {
+    let f = Fixture::new();
+    let driver = Arc::new(ScriptedDriver::new(vec![reply("invalid JSON")]));
     let (w, cx) = open(cx, &f, driver.clone(), true, true);
     wait(cx, "the failed line", |cx| {
         cx.debug_bounds("home-agent-check-failed").is_some()
     });
     assert_eq!(driver.requests().len(), 1);
-    // The line says it with the existing words, not the controller's.
-    assert_eq!(f.stored().error.as_deref(), Some(CHECKIN_REQUEST_FAILED));
-    cx.update(|_, cx| {
-        let words = checkin_error(CHECKIN_REQUEST_FAILED, cx);
-        assert_eq!(
-            words,
-            dr_shell::strings::t(cx, dr_i18n::keys::settings::byok_provider::REQUEST_FAILED)
-        );
-        assert_eq!(words.as_ref(), "请求失败（provider 不可用或网络问题）");
-        assert_eq!(checkin_error("另一种原因", cx).as_ref(), "另一种原因");
+    assert_checkin_error(
+        &f,
+        cx,
+        CheckinFailure::InvalidResponse,
+        "模型的回复读不出来",
+    );
+    close(&w, cx, &f);
+}
+
+#[gpui::test]
+fn a_context_that_cannot_fit_has_its_own_home_error(cx: &mut TestAppContext) {
+    let f = Fixture::new();
+    f.recent_cards(&["上一次的合成卡"]);
+    let driver = Arc::new(ScriptedDriver::new(vec![]));
+    let (w, cx) = open(cx, &f, driver.clone(), true, true);
+    wait(cx, "initial cooldown check finished", |cx| {
+        w.agent_idle(cx) && w.settled(cx) && w.card_count(cx) == 1
     });
-    assert!(cx.debug_bounds("home-agent-card-0").is_some());
-    assert!(cx.debug_bounds("home-agent-checking").is_none());
+    let mut config = RunConfig::new(Provider::Deepseek, "synthetic-model");
+    config.capabilities = Some(ModelCapabilities {
+        context_window: Some(4096),
+        ..Default::default()
+    });
+    let controller = w.hub.read_with(cx, |h, _| h.controller.clone().unwrap());
+    block_on(controller.trigger_suggestions(
+        f.book.clone(),
+        Some(config),
+        chrono::Utc::now().timestamp_millis() + CHECKIN_COOLDOWN_MS,
+    ))
+    .unwrap();
+    wait(cx, "the failed line", |cx| {
+        cx.debug_bounds("home-agent-check-failed").is_some()
+    });
+    assert!(driver.requests().is_empty());
+    assert_checkin_error(
+        &f,
+        cx,
+        CheckinFailure::ContextCapacity,
+        "最近的改动太多，一次看不完",
+    );
+    close(&w, cx, &f);
+}
+
+#[gpui::test]
+fn a_legacy_english_error_is_displayed_as_something_went_wrong(cx: &mut TestAppContext) {
+    let f = Fixture::new();
+    f.recent_cards(&["上一次的合成卡"]);
+    let mut legacy = serde_json::to_value(f.stored()).unwrap();
+    legacy["error"] = json!("suggestion request did not complete");
+    f.lib
+        .library()
+        .local_set(
+            "agent.proactive",
+            f.book.as_str(),
+            &legacy.to_string(),
+            Some(f.book.as_str()),
+        )
+        .unwrap();
+    let driver = Arc::new(ScriptedDriver::new(vec![]));
+    let (w, cx) = open(cx, &f, driver.clone(), true, true);
+    wait(cx, "the legacy failure line", |cx| {
+        cx.debug_bounds("home-agent-check-failed").is_some()
+    });
+    let error = f.stored().error.unwrap();
+    assert!(matches!(error, CheckinError::Legacy(_)));
+    cx.update(|_, cx| assert_eq!(checkin_error(&error, cx).as_ref(), "出错了"));
+    assert!(driver.requests().is_empty());
     close(&w, cx, &f);
 }
 
@@ -869,6 +1000,7 @@ fn while_the_agent_looks_the_cards_and_their_dismiss_hold_still(cx: &mut TestApp
     wait(cx, "the line while it looks, the earlier card", |cx| {
         cx.debug_bounds("home-agent-checking").is_some()
             && cx.debug_bounds("home-agent-card-0").is_some()
+            && driver.requests().len() == 1
     });
     let earlier = f.stored().cards[0].card.id.clone();
 
@@ -912,6 +1044,85 @@ fn while_the_agent_looks_the_cards_and_their_dismiss_hold_still(cx: &mut TestApp
     close(&w, cx, &f);
 }
 
+#[gpui::test]
+fn preparing_a_look_shows_the_line_and_locks_cards_before_the_ticket(cx: &mut TestAppContext) {
+    let f = Fixture::new();
+    f.recent_cards(&["上一次的合成卡"]);
+    let driver = Arc::new(ScriptedDriver::new(vec![look(json!([]))]));
+    let (w, cx) = open(cx, &f, driver.clone(), true, true);
+    wait(cx, "initial cooldown check finished", |cx| {
+        w.agent_idle(cx) && w.settled(cx) && cx.debug_bounds("home-agent-card-0").is_some()
+    });
+    let controller = w.hub.read_with(cx, |h, _| h.controller.clone().unwrap());
+    let config = w.connections.read_with(cx, |c, _| c.run_config().unwrap());
+    // The worker can't record_open or collect changes yet. The in-process
+    // reservation is already visible while the durable ticket is absent.
+    let writer = f.hold_writer();
+    let looking = controller.trigger_suggestions(
+        f.book.clone(),
+        Some(config),
+        chrono::Utc::now().timestamp_millis() + CHECKIN_COOLDOWN_MS,
+    );
+    wait(cx, "spinner before the ticket", |cx| {
+        cx.debug_bounds("home-agent-checking").is_some()
+    });
+    assert!(f.stored().active.is_none());
+    assert!(driver.requests().is_empty());
+    click_card(cx, "home-agent-card-0");
+    click_dismiss(cx, "home-agent-card-0");
+    assert!(!w.cards().read_with(cx, |c, _| c.any_starting()));
+    assert_eq!(w.card_count(cx), 1);
+    assert!(cx.debug_bounds("home-agent-card-failed-0").is_none());
+    drop(writer);
+    block_on(looking).unwrap();
+    wait(cx, "the check finished", |cx| {
+        w.settled(cx) && cx.debug_bounds("home-agent-checking").is_none()
+    });
+    assert_eq!(driver.requests().len(), 1);
+    close(&w, cx, &f);
+}
+
+#[gpui::test]
+fn a_card_start_locks_all_cards_and_their_dismiss_buttons(cx: &mut TestAppContext) {
+    let f = Fixture::new();
+    f.recent_cards(&["选中的卡", "旁边的卡", "先忽略的卡"]);
+    let driver = Arc::new(ScriptedDriver::new(vec![reply("好。")]));
+    let (w, cx) = open(cx, &f, driver.clone(), true, true);
+    wait(cx, "three cards and an idle controller", |cx| {
+        w.agent_idle(cx) && w.settled(cx) && cx.debug_bounds("home-agent-card-2").is_some()
+    });
+    click_dismiss(cx, "home-agent-card-2");
+    wait(cx, "the third card was dismissed", |cx| {
+        w.agent_idle(cx) && w.settled(cx) && w.titles(cx) == ["选中的卡", "旁边的卡"]
+    });
+
+    // Keep the chosen card at the beginning of its start. Both the old
+    // frame (immediate click) and a new frame must leave the other card be.
+    let writer = f.hold_writer();
+    click_card(cx, "home-agent-card-0");
+    assert!(w.cards().read_with(cx, |c, _| c.any_starting()));
+    click_card(cx, "home-agent-card-1");
+    cx.update(|window, cx| window.draw(cx).clear(cx));
+    click_dismiss(cx, "home-agent-card-1");
+    assert_eq!(w.titles(cx), ["选中的卡", "旁边的卡"]);
+    assert!(cx.debug_bounds("home-agent-card-failed-1").is_none());
+    drop(writer);
+
+    wait(cx, "the chosen card alone started", |cx| {
+        w.agent_idle(cx)
+            && w.settled(cx)
+            && matches!(
+                w.statuses(cx).as_slice(),
+                [CardStatus::Started { .. }, CardStatus::Open]
+            )
+    });
+    assert_eq!(driver.requests().len(), 1);
+    assert_eq!(w.titles(cx), ["选中的卡", "旁边的卡"]);
+    assert_eq!(f.stored().cards.len(), 2, "the dismissed card stays gone");
+    assert!(cx.debug_bounds("home-agent-card-failed-1").is_none());
+    close(&w, cx, &f);
+}
+
 /// Turning 主动建议 off while the Agent looks stops the look; that is no
 /// failure: on again, no failure line, and the stopped look does not count
 /// against the 90 minutes, so Home next coming to the front looks.
@@ -931,7 +1142,7 @@ fn turning_the_switch_off_while_it_looks_is_no_failure(cx: &mut TestAppContext) 
     ]));
     let (w, cx) = open(cx, &f, driver.clone(), true, true);
     wait(cx, "it looks", |cx| {
-        cx.debug_bounds("home-agent-checking").is_some()
+        cx.debug_bounds("home-agent-checking").is_some() && driver.requests().len() == 1
     });
     cx.update(|_, cx| {
         Settings::update(cx, |s| s.set(registry::AGENT_PROACTIVE, false.into(), None)).unwrap();

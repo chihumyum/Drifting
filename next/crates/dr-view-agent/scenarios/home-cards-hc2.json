@@ -1,0 +1,34 @@
+{
+  "about": "HC2 建议卡真窗口（副屏）。沿用 home-cards-acceptance 例程，合成超时、合成项目超出上下文；用例程里的 SQLite 写入闸门稳定验收开始期间的连点。",
+  "steps": [
+    { "launch": { "env": { "HC2_FIXTURE": "timeout", "DRIFTING_WINDOW_DISPLAY": "secondary" } } },
+    { "app": "app.info", "expect": { "/windows/0/primaryDisplay": false } },
+    { "app": "ui.find", "params": { "contains": "没能看完最近的改动：连不上模型", "timeout_ms": 20000 } },
+    { "app": "ui.screenshot", "png": "01-timeout.png" },
+    { "app": "app.quit", "expect": { "/quit": true } },
+
+    { "launch": { "env": { "HC2_FIXTURE": "context", "DRIFTING_WINDOW_DISPLAY": "secondary" } } },
+    { "app": "app.info", "expect": { "/windows/0/primaryDisplay": false } },
+    { "app": "ui.find", "params": { "contains": "没能看完最近的改动：最近的改动太多，一次看不完", "timeout_ms": 20000 } },
+    { "app": "ui.screenshot", "png": "02-context-capacity.png" },
+    { "app": "app.quit", "expect": { "/quit": true } },
+
+    { "launch": { "env": { "HC2_FIXTURE": "cards", "DRIFTING_WINDOW_DISPLAY": "secondary" } } },
+    { "app": "app.info", "expect": { "/windows/0/primaryDisplay": false } },
+    { "app": "ui.find", "params": { "role": "Button", "label": "这一章说钟慢了七分钟，前面写的是五分钟，要对一下吗？，交给 Agent", "timeout_ms": 20000 } },
+    { "app": "ui.find", "params": { "role": "Button", "label": "这一章停在钟楼的台阶上，要我先读一遍、留几条批注吗？，交给 Agent" } },
+    { "app": "action.dispatch", "params": { "name": "hc2_fixture::HoldWriter" }, "note": "把第一张卡的开始固定在写入之前" },
+    { "app": "ui.press", "params": { "label": "这一章说钟慢了七分钟，前面写的是五分钟，要对一下吗？，交给 Agent", "settle_ms": 0, "hover_ms": 0 } },
+    { "app": "ui.press", "params": { "label": "这一章停在钟楼的台阶上，要我先读一遍、留几条批注吗？，交给 Agent", "settle_ms": 0, "hover_ms": 0 } },
+    { "app": "ui.press", "params": { "label": "忽略", "within": { "label": "这一章停在钟楼的台阶上，要我先读一遍、留几条批注吗？，交给 Agent" }, "settle_ms": 0, "hover_ms": 0 } },
+    { "app": "ui.find", "params": { "contains": "没能开始：", "absent": true } },
+    { "app": "ui.find", "params": { "label": "忽略", "count": 3 } },
+    { "app": "ui.screenshot", "png": "03-cards-locked.png" },
+    { "app": "action.dispatch", "params": { "name": "hc2_fixture::ReleaseWriter" } },
+    { "app": "ui.find", "params": { "role": "Button", "label": "这一章说钟慢了七分钟，前面写的是五分钟，要对一下吗？，查看对话", "timeout_ms": 10000 } },
+    { "app": "ui.find", "params": { "role": "Button", "label": "这一章停在钟楼的台阶上，要我先读一遍、留几条批注吗？，交给 Agent" } },
+    { "app": "ui.wait", "params": { "until": "ready", "state": { "/right/open": true, "/activeTab": null }, "timeout_ms": 10000 } },
+    { "app": "ui.screenshot", "png": "04-first-card-open.png" },
+    { "app": "app.quit", "expect": { "/quit": true } }
+  ]
+}

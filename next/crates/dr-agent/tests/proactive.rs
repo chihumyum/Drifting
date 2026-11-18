@@ -264,9 +264,16 @@ fn checkin_cas_cooldown_applies_after_failure_and_restart() {
             .unwrap()
             .is_none()
     );
-    assert!(ProactiveStore::fail_checkin(&lib, &book, &ticket, "fixture failure").unwrap());
-    let _state = ProactiveStore::load(&lib, &book).unwrap();
+    assert!(
+        ProactiveStore::fail_checkin(&lib, &book, &ticket, CheckinFailure::Connection).unwrap()
+    );
     let state = ProactiveStore::load(&lib, &book).unwrap();
+    assert_eq!(
+        state.error,
+        Some(CheckinError::Classified {
+            reason: CheckinFailure::Connection
+        })
+    );
     assert!(
         ProactiveStore::begin_checkin(&lib, &book, &start(state.revision, "too-soon", 200))
             .unwrap()
@@ -312,7 +319,7 @@ fn a_cancelled_checkin_keeps_no_error_and_does_not_count() {
     let first = ProactiveStore::begin_checkin(&lib, &book, &start(0, "first", 100))
         .unwrap()
         .unwrap();
-    assert!(ProactiveStore::fail_checkin(&lib, &book, &first, "fixture failure").unwrap());
+    assert!(ProactiveStore::fail_checkin(&lib, &book, &first, CheckinFailure::Connection).unwrap());
     let state = ProactiveStore::load(&lib, &book).unwrap();
     assert_eq!(state.last_attempt_ms, Some(100));
     let later = 100 + CHECKIN_COOLDOWN_MS;

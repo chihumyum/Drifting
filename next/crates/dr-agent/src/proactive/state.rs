@@ -39,6 +39,24 @@ pub enum ActiveSuggestion {
     Checkin { ticket: SuggestionTicket },
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CheckinFailure {
+    Connection,
+    ContextCapacity,
+    InvalidResponse,
+    Other,
+}
+
+/// HC originally stored free-form English. A classified failure carries
+/// only its reason, and old strings remain readable in existing libraries.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum CheckinError {
+    Classified { reason: CheckinFailure },
+    Legacy(String),
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProactiveState {
     pub version: u32,
@@ -49,7 +67,7 @@ pub struct ProactiveState {
     pub checkin_cursor: DeltaCursor,
     pub cards: Vec<StoredCard>,
     pub active: Option<ActiveSuggestion>,
-    pub error: Option<String>,
+    pub error: Option<CheckinError>,
 }
 
 impl Default for ProactiveState {
@@ -302,7 +320,7 @@ impl ProactiveStore {
         lib: &Library,
         book: &BookId,
         ticket: &SuggestionTicket,
-        message: &str,
+        reason: CheckinFailure,
     ) -> Result<bool> {
         Self::update(lib, book, |state| {
             if !matches!(&state.active, Some(ActiveSuggestion::Checkin { ticket: current }) if current == ticket)
@@ -310,7 +328,7 @@ impl ProactiveStore {
                 return Ok((false, false));
             }
             state.active = None;
-            state.error = Some(super::delta::bounded(message, 500));
+            state.error = Some(CheckinError::Classified { reason });
             Ok((true, true))
         })
     }

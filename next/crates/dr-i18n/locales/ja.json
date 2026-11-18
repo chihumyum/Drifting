@@ -619,9 +619,17 @@
     "title": "Drifting Alphaへようこそ"
   },
   "projectAgent": {
+    "cardActionLabel": "{{title}}、{{action}}",
     "checkinFailed": "最近の変更を読み終えられませんでした：{{error}}",
     "checkinRunning": "Agent が最近の変更を読んでいます…",
     "dismiss": "閉じる",
+    "errorBusy": "別のカードを開始しています",
+    "errorCardUnavailable": "このカードはもうありません",
+    "errorConnection": "モデルに接続できません",
+    "errorContextCapacity": "最近の変更が多く、一度に読み切れません",
+    "errorDisabled": "プロアクティブな提案はオフです",
+    "errorInvalidResponse": "モデルの応答を読み取れません",
+    "errorOther": "エラーが発生しました",
     "openConversation": "会話を開く",
     "start": "Agent に任せる",
     "startFailed": "開始できませんでした：{{error}}"

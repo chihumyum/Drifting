@@ -626,9 +626,17 @@
     "title": "Welcome to Drifting Alpha"
   },
   "projectAgent": {
+    "cardActionLabel": "{{title}}, {{action}}",
     "checkinFailed": "Couldn’t finish reading your recent changes: {{error}}",
     "checkinRunning": "The Agent is reading your recent changes…",
     "dismiss": "Dismiss",
+    "errorBusy": "Another card is starting",
+    "errorCardUnavailable": "This card is no longer available",
+    "errorConnection": "Couldn’t connect to the model",
+    "errorContextCapacity": "Too many recent changes to read at once",
+    "errorDisabled": "Proactive suggestions are off",
+    "errorInvalidResponse": "Couldn’t read the model’s response",
+    "errorOther": "Something went wrong",
     "openConversation": "Open conversation",
     "start": "Hand to Agent",
     "startFailed": "Could not start: {{error}}"

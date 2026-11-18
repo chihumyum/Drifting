@@ -311,5 +311,11 @@ fn oversized_guidance_never_sends_a_truncated_suggestion_request() {
         .unwrap();
     assert!(state.state.cards.is_empty());
     assert!(state.state.checkin_cursor.documents.is_empty());
+    assert_eq!(
+        state.state.error,
+        Some(dr_agent::proactive::CheckinError::Classified {
+            reason: dr_agent::proactive::CheckinFailure::ContextCapacity,
+        }),
+    );
     block_on(controller.close()).unwrap();
 }

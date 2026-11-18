@@ -140,6 +140,16 @@
   "positionLink": {
     "copied": "Link de posição copiado"
   },
+  "projectAgent": {
+    "cardActionLabel": "{{title}}, {{action}}",
+    "errorConnection": "Não foi possível conectar ao modelo",
+    "errorContextCapacity": "Há alterações recentes demais para ler de uma só vez",
+    "errorInvalidResponse": "Não foi possível ler a resposta do modelo",
+    "errorCardUnavailable": "Este cartão não está mais disponível",
+    "errorDisabled": "As sugestões proativas estão desativadas",
+    "errorBusy": "Outro cartão está sendo aberto",
+    "errorOther": "Ocorreu um erro"
+  },
   "projectHome": {
     "projectTemplate": {
       "book": "Manuscrito",

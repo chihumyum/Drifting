@@ -401,6 +401,7 @@ pub struct PanelIconButton {
     icon: Icon,
     accent: bool,
     danger: bool,
+    disabled: bool,
     label: Option<SharedString>,
     on_click: Option<OnClick>,
 }
@@ -412,6 +413,7 @@ impl PanelIconButton {
             icon,
             accent: false,
             danger: false,
+            disabled: false,
             label: None,
             on_click: None,
         }
@@ -436,6 +438,11 @@ impl PanelIconButton {
         self
     }
 
+    pub fn disabled(mut self, disabled: bool) -> Self {
+        self.disabled = disabled;
+        self
+    }
+
     pub fn on_click(mut self, f: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static) -> Self {
         self.on_click = Some(Rc::new(f));
         self
@@ -446,7 +453,13 @@ impl RenderOnce for PanelIconButton {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = Theme::of(window, cx);
         let p = theme.palette;
-        let rest = if self.accent { p.accent } else { p.ink(3) };
+        let rest = if self.disabled {
+            p.ink(4)
+        } else if self.accent {
+            p.accent
+        } else {
+            p.ink(3)
+        };
         let (deep, wash) = if self.danger {
             (p.danger, p.danger.alpha(0.1))
         } else if self.accent {
@@ -465,9 +478,11 @@ impl RenderOnce for PanelIconButton {
             .items_center()
             .justify_center()
             .rounded(px(radius::SM))
-            .cursor_pointer()
-            .hover(move |st| st.bg(wash))
-            .group(group.clone())
+            .when(!self.disabled, |el| {
+                el.cursor_pointer()
+                    .hover(move |st| st.bg(wash))
+                    .group(group.clone())
+            })
             .child(
                 // The icon's colour is settled when it paints, so the
                 // pointer's deepening reaches it (an icon built in the
@@ -478,7 +493,7 @@ impl RenderOnce for PanelIconButton {
             .when_some(self.label, |el, label| {
                 el.role(gpui::Role::Button).aria_label(label)
             })
-            .when_some(self.on_click, |el, f| {
+            .when_some(self.on_click.filter(|_| !self.disabled), |el, f| {
                 el.on_click(move |e, w, cx| f(e, w, cx))
             })
     }
