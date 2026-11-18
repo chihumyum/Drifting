@@ -275,7 +275,6 @@
     "accept": "다른 곳의 항목 받기",
     "autoLink": "자동 링크",
     "collapse": "{{name}} 접기",
-    "create": "만들기",
     "defaultTemplate": "기본 템플릿",
     "display": "표시",
     "expand": "{{name}} 펼치기",
@@ -298,8 +297,7 @@
     "sourceDefault": "기본값",
     "sourceOverride": "재정의 · {{name}}",
     "sourceTemplate": "템플릿 · {{name}} · {{level}}",
-    "thisLevel": "이 계층",
-    "title": "제목"
+    "thisLevel": "이 계층"
   },
   "v3Review": {
     "backToReview": "검토로 돌아가기",

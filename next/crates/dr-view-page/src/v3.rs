@@ -12,7 +12,6 @@ use std::rc::Rc;
 pub struct BodyModule {
     host: ModuleHost,
     focus: FocusHandle,
-    title_first: bool,
     editor: Option<Entity<ChapterEditor>>,
     reveal: Option<Lines>,
     loading: Option<Task<()>>,
@@ -67,10 +66,8 @@ pub fn register(cx: &mut App) {
 impl BodyModule {
     pub fn new(host: ModuleHost, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let focus = cx.focus_handle();
-        let title_first =
-            crate::NewTitles::pending(&format!("body:{}/{}", host.entry, host.module.id), cx);
         cx.on_focus(&focus, window, |v, window, cx| {
-            if !v.title_first
+            if !crate::NewTitles::pending_entry(&v.host.entry, cx)
                 && let Some(editor) = &v.editor
             {
                 let prose = editor.read(cx).editor().clone();
@@ -83,7 +80,6 @@ impl BodyModule {
         let mut view = Self {
             host,
             focus,
-            title_first,
             editor: None,
             reveal: None,
             loading: None,
@@ -272,11 +268,8 @@ impl Render for BodyModule {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         // The shell may focus this wrapper before its asynchronous editor and
         // title exist. Do not queue prose focus over the new title's handoff.
-        if self.title_first && crate::entry_head::title_focused(&self.host.entry, window, cx) {
-            self.title_first = false;
-        }
-        if !self.title_first
-            && self.focus.is_focused(window)
+        if self.focus.is_focused(window)
+            && !crate::NewTitles::pending_entry(&self.host.entry, cx)
             && let Some(editor) = &self.editor
         {
             let prose = editor.read(cx).editor().clone();

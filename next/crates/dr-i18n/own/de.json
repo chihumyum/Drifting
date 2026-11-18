@@ -282,7 +282,6 @@
     "accept": "Einträge von anderswo aufnehmen",
     "autoLink": "Automatisch verknüpfen",
     "collapse": "{{name}} einklappen",
-    "create": "Erstellen",
     "defaultTemplate": "Standardvorlage",
     "display": "Darstellung",
     "expand": "{{name}} aufklappen",
@@ -305,8 +304,7 @@
     "sourceDefault": "Standardwert",
     "sourceOverride": "Überschreibung · {{name}}",
     "sourceTemplate": "Vorlage · {{name}} · {{level}}",
-    "thisLevel": "Diese Ebene",
-    "title": "Titel"
+    "thisLevel": "Diese Ebene"
   },
   "v3Review": {
     "backToReview": "Zurück zur Prüfung",

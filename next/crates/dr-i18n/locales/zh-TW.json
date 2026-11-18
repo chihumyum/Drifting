@@ -1416,7 +1416,6 @@
     "accept": "收別處的條目",
     "autoLink": "自動連結",
     "collapse": "摺疊{{name}}",
-    "create": "新增",
     "defaultTemplate": "預設範本",
     "display": "顯示",
     "expand": "展開{{name}}",
@@ -1439,8 +1438,7 @@
     "sourceDefault": "預設值",
     "sourceOverride": "覆寫 · {{name}}",
     "sourceTemplate": "範本 · {{name}} · {{level}}",
-    "thisLevel": "本層",
-    "title": "標題"
+    "thisLevel": "本層"
   },
   "v3Review": {
     "backToReview": "回審閱",

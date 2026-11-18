@@ -142,7 +142,7 @@ impl EntryHead {
             .0
             .insert(host.entry.clone(), me);
         settlement::register(&host.page.library, window.window_handle(), cx);
-        // A chapter just made: its title takes the caret, selected, once
+        // An entry just made: its title takes the caret, selected, once
         // the page is drawn (its body has seen it is pending by then).
         let entry = host.entry.clone();
         let field = title.clone();

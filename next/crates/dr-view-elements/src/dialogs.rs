@@ -335,25 +335,16 @@ pub mod v3 {
     }
     #[derive(Clone, Copy)]
     pub enum EntryMode {
-        New,
         Template,
         Membership,
     }
     pub struct EntryPicker {
         host: PageViewHost,
-        shown: std::rc::Rc<dr_shell::book::Book>,
         origin: String,
         mode: EntryMode,
-        /// A new entry is attached to `origin` (`host`) rather than living
-        /// under it (`parent`).
-        attach: bool,
         focus: FocusHandle,
-        name: Entity<dr_ui::input::TextField>,
-        template: Option<String>,
         busy: bool,
         error: bool,
-        pending_new: Option<String>,
-        _name: Subscription,
         _workspace: Option<Subscription>,
     }
     pub fn open_entry(
@@ -363,34 +354,14 @@ pub mod v3 {
         window: &mut Window,
         cx: &mut App,
     ) {
-        open_picker(host, origin, mode, false, window, cx);
-    }
-    /// 「新建」 in an entry page's 「挂在这里的条目」: the new entry is
-    /// attached to `origin`.
-    pub fn open_attached(host: PageViewHost, origin: String, window: &mut Window, cx: &mut App) {
-        open_picker(host, origin, EntryMode::New, true, window, cx);
-    }
-    fn open_picker(
-        host: PageViewHost,
-        origin: String,
-        mode: EntryMode,
-        attach: bool,
-        window: &mut Window,
-        cx: &mut App,
-    ) {
         let Some(host) = crate::data::v3::fresh(&host, cx) else {
             return;
         };
         if !host.book.v3().is_some_and(|v| v.entry(&origin).is_some()) {
             return;
         }
-        let view = cx.new(|cx| EntryPicker::new(host, origin, mode, attach, window, cx));
-        let focus = if matches!(mode, EntryMode::New) {
-            gpui::Focusable::focus_handle(view.read(cx).name.read(cx), cx)
-        } else {
-            view.read(cx).focus.clone()
-        };
-        window.focus(&focus, cx);
+        let view = cx.new(|cx| EntryPicker::new(host, origin, mode, cx));
+        window.focus(&view.read(cx).focus.clone(), cx);
         dr_shell::dialogs::show(cx, view.into());
     }
     impl EntryPicker {
@@ -398,47 +369,19 @@ pub mod v3 {
             host: PageViewHost,
             origin: String,
             mode: EntryMode,
-            attach: bool,
-            window: &mut Window,
             cx: &mut Context<Self>,
         ) -> Self {
-            let name = cx.new(|cx| {
-                dr_ui::input::TextField::new("g2-new-entry-title", window, cx)
-                    .placeholder(t(cx, keys::v3_levels::TITLE))
-            });
-            let sub = cx.subscribe_in(&name, window, |this, _, event, window, cx| match event {
-                dr_ui::input::FieldEvent::Submitted(_) => this.create(window, cx),
-                dr_ui::input::FieldEvent::Cancelled => {
-                    if !this.busy || this.pending_new.is_some() {
-                        this.close(cx)
-                    }
-                }
-                _ => cx.notify(),
-            });
-            let template = if attach {
-                crate::data::v3::creation_attached(&host.book, &origin)
-            } else {
-                crate::data::v3::creation(&host.book, &origin)
-            }
-            .and_then(|c| c.default);
             cx.spawn(async move |this, cx| {
                 let _ = this.update(cx, |this, cx| this.follow(cx));
             })
             .detach();
-            let shown = host.book.clone();
             Self {
                 host,
-                shown,
                 origin,
                 mode,
-                attach,
                 focus: cx.focus_handle(),
-                name,
-                template,
                 busy: false,
                 error: false,
-                pending_new: None,
-                _name: sub,
                 _workspace: None,
             }
         }
@@ -448,34 +391,9 @@ pub mod v3 {
                     let book = ws.read(cx).book.clone();
                     if book.id == this.host.book_id {
                         this.host.book = book;
-                        this.finish_created(cx);
                         cx.notify();
                     }
                 }));
-            }
-        }
-        fn finish_created(&mut self, cx: &mut Context<Self>) {
-            let Some(id) = self.pending_new.clone() else {
-                return;
-            };
-            let Some(current) = crate::data::v3::fresh(&self.host, cx) else {
-                self.pending_new = None;
-                self.busy = false;
-                self.close(cx);
-                return;
-            };
-            if !current.book.v3().is_some_and(|v| v.entry(&id).is_some()) {
-                return;
-            }
-            self.pending_new = None;
-            self.busy = false;
-            self.name
-                .update(cx, |field, cx| field.set_disabled(false, cx));
-            self.close(cx);
-            if let Some(target) = dr_shell::v3::entry_target(&id)
-                && let Some(ws) = current.workspace.upgrade()
-            {
-                ws.update(cx, |ws, cx| ws.open(target, dr_shell::nav::Open::KEEP, cx));
             }
         }
         fn close(&self, cx: &mut Context<Self>) {
@@ -489,46 +407,6 @@ pub mod v3 {
                 book,
                 ..self.host.clone()
             })
-        }
-        fn create(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-            if self.busy || !matches!(self.mode, EntryMode::New) {
-                return;
-            }
-            let Some(host) = self.host(self.shown.clone(), cx) else {
-                self.error = true;
-                cx.notify();
-                return;
-            };
-            let Some(context) = self.creation(&host.book) else {
-                return;
-            };
-            let title = self.name.read(cx).text().trim().to_owned();
-            let template = self.template.clone();
-            if !template
-                .as_ref()
-                .map_or(context.blank, |id| context.templates.contains(id))
-            {
-                return;
-            }
-            if title.is_empty() {
-                return;
-            }
-            // On an entry that only takes entries from elsewhere (a story
-            // line), 「新建」 attaches, from its card as from its page; it
-            // cannot live there.
-            let input = if context.attach {
-                json!({"book":host.book_id,"host":context.context,"template":template,"title":title})
-            } else {
-                json!({"book":host.book_id,"parent":context.context,"template":template,"title":title})
-            };
-            self.submit(host, "entry.create", input, true, true, window, cx);
-        }
-        fn creation(&self, book: &dr_shell::book::Book) -> Option<crate::data::v3::Creation> {
-            if self.attach {
-                crate::data::v3::creation_attached(book, &self.origin)
-            } else {
-                crate::data::v3::creation(book, &self.origin)
-            }
         }
         fn change_template(
             &mut self,
@@ -551,7 +429,7 @@ pub mod v3 {
                 return;
             }
             let input = json!({"book":host.book_id,"id":self.origin,"template":template});
-            self.submit(host, "entry.update", input, true, false, window, cx);
+            self.submit(host, "entry.update", input, true, window, cx);
         }
         fn membership(
             &mut self,
@@ -597,16 +475,14 @@ pub mod v3 {
             } else {
                 json!({"book":host.book_id,"member":self.origin,"host":host_id})
             };
-            self.submit(host, name, input, false, false, window, cx);
+            self.submit(host, name, input, false, window, cx);
         }
-        #[allow(clippy::too_many_arguments)]
         fn submit(
             &mut self,
             host: PageViewHost,
             name: &'static str,
             input: Value,
             close: bool,
-            open: bool,
             window: &mut Window,
             cx: &mut Context<Self>,
         ) {
@@ -620,8 +496,6 @@ pub mod v3 {
                 }
             };
             self.busy = true;
-            self.name
-                .update(cx, |field, cx| field.set_disabled(true, cx));
             self.error = false;
             cx.notify();
             // Changing the template offers 「撤销」 once it is done.
@@ -647,27 +521,12 @@ pub mod v3 {
                             host, label, &origin, answer, cx,
                         );
                     }
-                    let result = answer.map(|a| a["output"].clone());
                     this.busy = false;
-                    this.name
-                        .update(cx, |field, cx| field.set_disabled(false, cx));
-                    this.error = result.is_err();
-                    match result {
-                        Ok(value) => {
-                            if open {
-                                this.pending_new = value["id"].as_str().map(str::to_owned);
-                                this.busy = this.pending_new.is_some();
-                                this.name
-                                    .update(cx, |field, cx| field.set_disabled(this.busy, cx));
-                                this.finish_created(cx);
-                            } else if close {
-                                this.close(cx);
-                            }
-                        }
-                        Err(error) => {
-                            log::warn!("v3 entry selector: {error}");
-                            cx.notify();
-                        }
+                    this.error = answer.is_err();
+                    match answer {
+                        Ok(_) if close => this.close(cx),
+                        Ok(_) => {}
+                        Err(error) => log::warn!("v3 entry selector: {error}"),
                     }
                     cx.notify();
                 });
@@ -677,11 +536,7 @@ pub mod v3 {
     }
     impl Render for EntryPicker {
         fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-            let book = if matches!(self.mode, EntryMode::New) {
-                self.shown.clone()
-            } else {
-                self.host.book.clone()
-            };
+            let book = self.host.book.clone();
             let Some(v) = book.v3() else {
                 return div().into_any_element();
             };
@@ -692,7 +547,6 @@ pub mod v3 {
             let title = t(
                 cx,
                 match self.mode {
-                    EntryMode::New => keys::v3_shell::NEW_ENTRY,
                     EntryMode::Template => keys::v3_shell::CHANGE_TEMPLATE,
                     EntryMode::Membership => keys::v3_shell::BELONG_TO,
                 },
@@ -710,40 +564,6 @@ pub mod v3 {
                 .overflow_y_scroll()
                 .flex()
                 .flex_col();
-            let templates = match self.mode {
-                EntryMode::New => self
-                    .creation(&book)
-                    .map(|c| c.templates)
-                    .unwrap_or_default(),
-                EntryMode::Template => crate::data::v3::switch_templates(&book, &self.origin),
-                EntryMode::Membership => vec![],
-            };
-            if matches!(self.mode, EntryMode::New) {
-                body = body.child(self.name.clone());
-                if let Some(home) = self
-                    .creation(&book)
-                    .and_then(|c| c.home)
-                    .and_then(|id| v.entry(&id))
-                {
-                    body = body.child(
-                        div()
-                            .id("g2-new-home")
-                            .role(gpui::Role::Group)
-                            .aria_label(t(cx, keys::v3_levels::HOME))
-                            .flex()
-                            .flex_wrap()
-                            .gap_2()
-                            .child(t(cx, keys::v3_levels::HOME))
-                            .child(
-                                div()
-                                    .id("g2-new-home-value")
-                                    .role(gpui::Role::Note)
-                                    .aria_label(home.title.clone())
-                                    .child(home.title.clone()),
-                            ),
-                    );
-                }
-            }
             if matches!(self.mode, EntryMode::Membership) {
                 for id in crate::data::v3::membership_hosts(&book, &self.origin) {
                     let Some(host) = v.entry(&id) else { continue };
@@ -820,22 +640,17 @@ pub mod v3 {
                     list = list.child(row);
                 }
             } else {
-                for id in &templates {
-                    let Some(template) = v.template(id) else {
+                for id in crate::data::v3::switch_templates(&book, &self.origin) {
+                    let Some(template) = v.template(&id) else {
                         continue;
                     };
                     let Ok(template_id) = id.parse() else {
                         continue;
                     };
                     let (mark, color) = book.mark(&dr_shell::nav::Target::Template(template_id));
-                    let target = id.clone();
                     let change = weak.clone();
                     let selected_book = book.clone();
-                    let checked = if matches!(self.mode, EntryMode::New) {
-                        self.template.as_ref() == Some(id)
-                    } else {
-                        entry.template.as_ref() == Some(id)
-                    };
+                    let checked = entry.template.as_ref() == Some(&id);
                     list = list.child(
                         MenuItem::new(
                             SharedString::from(format!("g2-template-choice-{id}")),
@@ -843,43 +658,14 @@ pub mod v3 {
                             template.name.clone(),
                         )
                         .checked(checked)
-                        .disabled(self.busy || matches!(self.mode, EntryMode::Template) && checked)
+                        .disabled(self.busy || checked)
                         .on_click(move |_, window, cx| {
                             let _ = change.update(cx, |this, cx| {
-                                if matches!(this.mode, EntryMode::New) {
-                                    this.template = Some(target.clone());
-                                    cx.notify();
-                                } else {
-                                    this.change_template(
-                                        &target,
-                                        selected_book.clone(),
-                                        window,
-                                        cx,
-                                    );
-                                }
+                                this.change_template(&id, selected_book.clone(), window, cx);
                             });
                         }),
                     );
                 }
-            }
-            if matches!(self.mode, EntryMode::New) && self.creation(&book).is_some_and(|c| c.blank)
-            {
-                let weak = weak.clone();
-                list = list.child(
-                    MenuItem::new(
-                        "g2-blank-template",
-                        Icon::Check,
-                        t(cx, keys::v3_levels::NONE),
-                    )
-                    .checked(self.template.is_none())
-                    .disabled(self.busy)
-                    .on_click(move |_, _, cx| {
-                        let _ = weak.update(cx, |this, cx| {
-                            this.template = None;
-                            cx.notify();
-                        });
-                    }),
-                );
             }
             body = body.child(list);
             if self.error {
@@ -894,70 +680,30 @@ pub mod v3 {
             }
             let cancel = weak.clone();
             let close = weak.clone();
-            let retry = weak.clone();
-            let mut dialog = Dialog::new("g2-entry-dialog", title.clone())
+            let dialog = Dialog::new("g2-entry-dialog", title.clone())
                 .width(420.0)
                 .body(body)
                 .action(
                     Button::new("g2-entry-cancel", t(cx, keys::common::CLOSE))
                         .text()
-                        .disabled(self.busy && self.pending_new.is_none())
+                        .disabled(self.busy)
                         .on_click(move |_, _, cx| {
                             let _ = cancel.update(cx, |this, cx| this.close(cx));
                         }),
                 )
                 .on_close(move |_, cx| {
                     let _ = close.update(cx, |this, cx| {
-                        if !this.busy || this.pending_new.is_some() {
+                        if !this.busy {
                             this.close(cx);
                         }
                     });
                 });
-            if self.error && matches!(self.mode, EntryMode::New) {
-                dialog = dialog.action(
-                    Button::new("g2-entry-retry", t(cx, keys::markdown_share::RETRY))
-                        .text()
-                        .on_click(move |_, _, cx| {
-                            let _ = retry.update(cx, |this, cx| {
-                                if let Some(host) = crate::data::v3::fresh(&this.host, cx)
-                                    && host
-                                        .book
-                                        .v3()
-                                        .is_some_and(|v| v.entry(&this.origin).is_some())
-                                {
-                                    this.shown = host.book.clone();
-                                    this.host = host;
-                                    this.error = false;
-                                    cx.notify();
-                                }
-                            });
-                        }),
-                );
-            }
-            if matches!(self.mode, EntryMode::New) {
-                dialog = dialog.action(
-                    Button::new("g2-entry-create", t(cx, keys::v3_levels::CREATE))
-                        .primary()
-                        .busy(self.busy)
-                        .disabled(
-                            self.busy
-                                || self.name.read(cx).text().trim().is_empty()
-                                || !self.template.as_ref().map_or_else(
-                                    || self.creation(&book).is_some_and(|c| c.blank),
-                                    |id| templates.contains(id),
-                                ),
-                        )
-                        .on_click(move |_, window, cx| {
-                            let _ = weak.update(cx, |this, cx| this.create(window, cx));
-                        }),
-                );
-            }
             div()
                 .id("g2-entry-picker")
                 .track_focus(&self.focus)
                 .key_context("G2EntryPicker")
                 .on_action(cx.listener(|this, _: &Dismiss, _, cx| {
-                    if !this.busy || this.pending_new.is_some() {
+                    if !this.busy {
                         this.close(cx);
                     }
                 }))

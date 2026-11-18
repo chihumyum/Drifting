@@ -17,8 +17,8 @@ use dr_ui::components::CardKeys;
 use dr_view_elements::panel::v3::LevelDisplay;
 use dr_workspace::{Actor, Workspace};
 use gpui::{
-    App, Entity, Modifiers, MouseButton, MouseDownEvent, MouseUpEvent, Point, TestAppContext,
-    VisualTestContext, point, px, size,
+    App, Entity, Focusable, Modifiers, MouseButton, MouseDownEvent, MouseUpEvent, Point,
+    TestAppContext, VisualTestContext, point, px, size,
 };
 use serde_json::{Value, json};
 
@@ -836,7 +836,7 @@ fn list_row(ws: &Entity<Shell>, cx: &mut VisualTestContext, key: &str) -> usize 
 /// hairline and stop at either end; the pointer moving onto a row takes the
 /// keyboard there, one row lit at a time; Esc and Space close it, back on
 /// the row; Enter on 「层级」 turns it with the card still open; on 「打开」
-/// the page is kept and has the keyboard; on 「新建」 its dialog has it.
+/// the page is kept and has the keyboard; on 「新建」 the new title has it.
 #[gpui::test]
 fn space_opens_the_card_and_the_arrows_walk_it(cx: &mut TestAppContext) {
     let (_dir, lib, book) = seed();
@@ -929,43 +929,144 @@ fn space_opens_the_card_and_the_arrows_walk_it(cx: &mut TestAppContext) {
     });
     assert!(!keys_in.read_with(cx, |k, _| k.is_open()));
     assert!(!ws.read_with(cx, |w, _| w.nav.active_tab().unwrap().focused().preview));
-    // 「新建」: its dialog, with the keyboard.
+    // 「新建」: the new page opens directly, its title taking the keyboard.
     keys(cx, "cmd-shift-l space");
     let new = card_rows(&ws, cx, &ch[1])
         .iter()
         .position(|r| r == "entry-new")
         .unwrap();
     card_to(&ws, cx, new);
+    let count = ws.read_with(cx, |w, _| w.book.v3().unwrap().entries.len());
     keys(cx, "enter");
-    wait(&ws, cx, "the new-entry dialog", |w, _| w.dialog.is_some());
-    assert!(!kb(&ws, cx).1, "the dialog has the keyboard");
+    let made = new_entry_at_title(&ws, cx, count);
     assert!(!keys_in.read_with(cx, |k, _| k.is_open()));
-    // As with the pointer: named in the dialog and made, it opens, its page
-    // with the keyboard.
-    cx.simulate_input("合成新条目");
-    keys(cx, "enter");
-    let made = |w: &Shell| {
-        let v = w.book.v3()?;
-        let e = v.entries.iter().find(|e| e.title == "合成新条目")?;
-        w.nav
-            .current()
-            .is_some_and(|t| t.same_page(&entry(&e.id)))
-            .then(|| e.id.clone())
-    };
-    wait(&ws, cx, "the new entry in front", move |w, _| {
-        made(w).is_some()
+    rename_and_undo(&ws, cx, &made);
+    assert!(!kb(&ws, cx).1);
+}
+
+fn new_entry_at_title(ws: &Entity<Shell>, cx: &mut VisualTestContext, old_count: usize) -> String {
+    wait(ws, cx, "one new untitled entry, open and kept", |w, _| {
+        let v = w.book.v3().unwrap();
+        let Some(Target::Entry { id, module: None }) = w.nav.current() else {
+            return false;
+        };
+        w.dialog.is_none()
+            && v.entries.len() == old_count + 1
+            && v.entry(id.as_str()).is_some_and(|e| e.title == "未命名")
+            && !w.nav.active_tab().unwrap().focused().preview
     });
-    let made_id = ws.read_with(cx, |w, _| made(w).unwrap());
-    wait_until(cx, "its page with the keyboard", |cx| {
+    let id = ws.read_with(cx, |w, _| match w.nav.current().unwrap() {
+        Target::Entry { id, .. } => id.to_string(),
+        _ => unreachable!(),
+    });
+    wait_until(cx, "the full title selected", |cx| {
         cx.update(|window, cx| {
-            ws.read(cx)
-                .editors
-                .get(&entry(&made_id).key())
-                .and_then(|p| p.v3.as_ref())
-                .is_some_and(|page| page.read(cx).focus.contains_focused(window, cx))
+            let Some(head) = dr_view_page::entry_head::head_of(&id, cx) else {
+                return false;
+            };
+            let field = head.read(cx).title().read(cx);
+            field.focus_handle(cx).is_focused(window)
+                && field.text() == "未命名"
+                && field.composer().selection() == (0.."未命名".len())
         })
     });
-    assert!(!kb(&ws, cx).1);
+    id
+}
+
+fn rename_and_undo(ws: &Entity<Shell>, cx: &mut VisualTestContext, id: &str) {
+    cx.simulate_input("合成新条目");
+    cx.update(|_, cx| {
+        let head = dr_view_page::entry_head::head_of(id, cx).unwrap();
+        assert_eq!(head.read(cx).title().read(cx).text(), "合成新条目");
+    });
+    keys(cx, "enter");
+    wait(ws, cx, "the new title saved", |w, _| {
+        w.book.v3().unwrap().entry(id).unwrap().title == "合成新条目"
+    });
+    // Use the book's undo, as when the caret has left the page.
+    cx.update(|window, cx| {
+        let focus = ws.read(cx).focus_handle().clone();
+        focus.focus(window, cx);
+    });
+    keys(cx, "cmd-z");
+    wait(ws, cx, "the rename undone in one step", |w, _| {
+        w.book.v3().unwrap().entry(id).unwrap().title == "未命名"
+    });
+    keys(cx, "cmd-z");
+    wait(ws, cx, "the creation undone in one step", |w, _| {
+        w.book.v3().unwrap().entry(id).is_none() && !w.nav.is_open(&entry(id))
+    });
+}
+
+fn press_block_new(
+    ws: &Entity<Shell>,
+    cx: &mut VisualTestContext,
+    host: &str,
+    block: dr_shell::v3::page::Block,
+) -> String {
+    let target = entry(host);
+    ws.update(cx, |w, cx| w.open(target.clone(), Open::KEEP, cx));
+    let selector = match block {
+        dr_shell::v3::page::Block::Below => "v3-block-new-children",
+        dr_shell::v3::page::Block::Attached => "v3-block-new-members",
+    };
+    wait_until(cx, "the block's new button drawn", |cx| {
+        cx.debug_bounds(selector).is_some()
+    });
+    let count = ws.read_with(cx, |w, _| w.book.v3().unwrap().entries.len());
+    let at = cx.debug_bounds(selector).unwrap().center();
+    click(cx, at, 1);
+    new_entry_at_title(ws, cx, count)
+}
+
+#[gpui::test]
+fn below_block_creates_without_a_template_when_no_default_is_set(cx: &mut TestAppContext) {
+    let (_dir, lib, book) = seed();
+    let ids = ids(&lib, &book);
+    call(
+        &lib,
+        "entry.update",
+        json!({"book": book, "id": ids.act1, "overrides": {"default_template": null}}),
+    );
+    let (ws, cx) = open(cx, &lib, &book);
+    let made = press_block_new(&ws, cx, &ids.act1, dr_shell::v3::page::Block::Below);
+    ws.read_with(cx, |w, _| {
+        let e = w.book.v3().unwrap().entry(&made).unwrap();
+        assert_eq!(e.parent.as_deref(), Some(ids.act1.as_str()));
+        assert!(e.template.is_none() && e.primary.is_none());
+    });
+    rename_and_undo(&ws, cx, &made);
+}
+
+#[gpui::test]
+fn attached_block_uses_the_hosts_default_template_and_residence(cx: &mut TestAppContext) {
+    let (_dir, lib, book) = seed();
+    let ids = ids(&lib, &book);
+    call(
+        &lib,
+        "entry.update",
+        json!({
+            "book": book,
+            "id": ids.lighthouse,
+            "overrides": {"home": ids.act2, "default_template": "tpl-chapter"}
+        }),
+    );
+    let (ws, cx) = open(cx, &lib, &book);
+    let host = &ids.lighthouse;
+    let made = press_block_new(&ws, cx, host, dr_shell::v3::page::Block::Attached);
+    ws.read_with(cx, |w, _| {
+        let v = w.book.v3().unwrap();
+        let e = v.entry(&made).unwrap();
+        assert_eq!(e.parent.as_deref(), Some(ids.act2.as_str()));
+        assert_eq!(e.template.as_deref(), Some("tpl-chapter"));
+        assert_eq!(e.primary.as_deref(), Some(host.as_str()));
+        assert!(
+            v.memberships
+                .iter()
+                .any(|m| m.host == *host && m.member == made)
+        );
+    });
+    rename_and_undo(&ws, cx, &made);
 }
 
 /// 「放进最近删除」 in the card: the row goes, the keyboard on the row after

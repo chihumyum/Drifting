@@ -1,5 +1,5 @@
 {
-  "about": "K4 G2 最终批：lite 真窗口，树上移动／排序／非法循环／拖进接收层级，公共悬停卡新建／换模板／归属与主归属；保留待提交标题和显式重试；看板坐标写入；旧版隔离。；v3 切换后保留全部 canonical 验收步骤，旧产品回切尾段已退役。",
+  "about": "K4 G2 最终批：lite 真窗口，树上移动／排序／非法循环／拖进接收层级，公共悬停卡新建／换模板／归属与主归属；新条目固定打开、标题选中后替换；看板坐标写入；旧版隔离。；v3 切换后保留全部 canonical 验收步骤，旧产品回切尾段已退役。",
   "steps": [
     {
       "seed": "lite"
@@ -617,6 +617,24 @@
       }
     },
     {
+      "call": "entry.update",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${entries.[template=tpl-storyline].id}",
+        "overrides": {
+          "home": "${a.id}"
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/v3/levels/${entries.[template=tpl-storyline].id}/settings/home": "${a.id}"
+        }
+      }
+    },
+    {
       "app": "ui.hover",
       "params": {
         "label": "${entries.[template=tpl-storyline].title}",
@@ -640,90 +658,37 @@
       "note": "On a storyline (「层级」 off, 「收别处的条目」 on) the hover card's 「新建」 attaches the new entry, which lives where 「新条目住在」 says (kernel-v5 §16)."
     },
     {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/pageTitle": "Untitled",
+          "/dialog": false,
+          "/v3Page/head": true
+        }
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "02-selected-title.png"
+    },
+    {
       "app": "input.type",
       "params": {
         "text": "Synthetic card creation"
       }
     },
     {
-      "call": "entry.update",
-      "input": {
-        "book": "${books.0.id}",
-        "id": "${entries.[template=tpl-storyline].id}",
-        "overrides": {
-          "home": "${a.id}"
+      "app": "input.key",
+      "params": {
+        "keys": "enter"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/pageTitle": "Synthetic card creation"
         }
-      }
-    },
-    {
-      "app": "ui.wait",
-      "params": {
-        "until": "time",
-        "ms": 4000
-      }
-    },
-    {
-      "app": "ui.wait"
-    },
-    {
-      "app": "state.get",
-      "expect": {
-        "/v3/levels/${entries.[template=tpl-storyline].id}/settings/home": "${a.id}"
-      }
-    },
-    {
-      "app": "ui.press",
-      "params": {
-        "label": "Create",
-        "role": "Button"
-      }
-    },
-    {
-      "app": "ui.find",
-      "params": {
-        "label": "Your changes could not be saved. Please try again."
-      }
-    },
-    {
-      "call": "entry.list",
-      "input": {
-        "book": "${books.0.id}",
-        "all": true,
-        "query": "Synthetic card creation"
-      },
-      "expect": {
-        "": []
-      }
-    },
-    {
-      "app": "ui.screenshot",
-      "png": "02-pending-title.png"
-    },
-    {
-      "app": "ui.press",
-      "params": {
-        "label": "Retry",
-        "role": "Button"
-      }
-    },
-    {
-      "app": "ui.find",
-      "params": {
-        "label": "Synthetic tree A"
-      }
-    },
-    {
-      "app": "ui.press",
-      "params": {
-        "label": "Create",
-        "role": "Button"
-      }
-    },
-    {
-      "app": "ui.wait",
-      "params": {
-        "until": "time",
-        "ms": 600
       }
     },
     {

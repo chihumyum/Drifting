@@ -676,6 +676,24 @@
       }
     },
     {
+      "call": "entry.update",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${entries.[template=tpl-storyline].id}",
+        "overrides": {
+          "home": "${a.id}"
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/v3/levels/${entries.[template=tpl-storyline].id}/settings/home": "${a.id}"
+        }
+      }
+    },
+    {
       "app": "ui.hover",
       "params": {
         "label": "${entries.[template=tpl-storyline].title}",
@@ -699,86 +717,33 @@
       "note": "On a storyline (「层级」 off, 「收别处的条目」 on) the hover card's 「新建」 attaches the new entry, which lives where 「新条目住在」 says (kernel-v5 §16)."
     },
     {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/pageTitle": "Untitled",
+          "/dialog": false,
+          "/v3Page/head": true
+        }
+      }
+    },
+    {
       "app": "input.type",
       "params": {
         "text": "Synthetic card creation"
       }
     },
     {
-      "call": "entry.update",
-      "input": {
-        "book": "${books.0.id}",
-        "id": "${entries.[template=tpl-storyline].id}",
-        "overrides": {
-          "home": "${a.id}"
+      "app": "input.key",
+      "params": {
+        "keys": "enter"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/pageTitle": "Synthetic card creation"
         }
-      }
-    },
-    {
-      "app": "ui.wait",
-      "params": {
-        "until": "time",
-        "ms": 4000
-      }
-    },
-    {
-      "app": "ui.wait"
-    },
-    {
-      "app": "state.get",
-      "expect": {
-        "/v3/levels/${entries.[template=tpl-storyline].id}/settings/home": "${a.id}"
-      }
-    },
-    {
-      "app": "ui.press",
-      "params": {
-        "label": "Create",
-        "role": "Button"
-      }
-    },
-    {
-      "app": "ui.find",
-      "params": {
-        "label": "Your changes could not be saved. Please try again."
-      }
-    },
-    {
-      "call": "entry.list",
-      "input": {
-        "book": "${books.0.id}",
-        "all": true,
-        "query": "Synthetic card creation"
-      },
-      "expect": {
-        "": []
-      }
-    },
-    {
-      "app": "ui.press",
-      "params": {
-        "label": "Retry",
-        "role": "Button"
-      }
-    },
-    {
-      "app": "ui.find",
-      "params": {
-        "label": "Synthetic tree A"
-      }
-    },
-    {
-      "app": "ui.press",
-      "params": {
-        "label": "Create",
-        "role": "Button"
-      }
-    },
-    {
-      "app": "ui.wait",
-      "params": {
-        "until": "time",
-        "ms": 600
       }
     },
     {

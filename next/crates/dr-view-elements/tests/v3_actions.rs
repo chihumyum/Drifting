@@ -267,6 +267,7 @@ fn new_on_a_storylines_card_attaches_the_new_entry(cx: &mut gpui::TestAppContext
         settings::SettingsFile,
         v3::{card::EntryAction, entry_action},
     };
+    use gpui::Focusable as _;
     use std::time::{Duration, Instant};
     cx.executor().allow_parking();
     let (_dir, lib, book) = seed();
@@ -287,6 +288,8 @@ fn new_on_a_storylines_card_attaches_the_new_entry(cx: &mut gpui::TestAppContext
             SettingsFile::in_memory(),
             cx,
         );
+        dr_shell::strings::Strings::install(dr_i18n::Locale::ZhCn, cx);
+        dr_view_page::init(cx);
         dr_view_elements::init(cx);
     });
     let (shell, cx) = cx.add_window_view(Shell::new);
@@ -323,16 +326,9 @@ fn new_on_a_storylines_card_attaches_the_new_entry(cx: &mut gpui::TestAppContext
     });
     let run = run.expect("「新建」 is offered on a story line's card");
     cx.update(|window, cx| run(window, cx));
-    settle(cx);
-    cx.simulate_input("Synthetic card creation");
-    cx.simulate_keystrokes("enter");
     let titled = |b: &Book| {
-        b.v3().and_then(|v| {
-            v.entries
-                .iter()
-                .find(|e| e.title == "Synthetic card creation")
-                .cloned()
-        })
+        b.v3()
+            .and_then(|v| v.entries.iter().find(|e| e.title == "未命名").cloned())
     };
     wait(cx, "the new entry", &|b| titled(b).is_some());
     let book_now = shell.read_with(cx, |ws, _| ws.book.clone());
@@ -342,6 +338,7 @@ fn new_on_a_storylines_card_attaches_the_new_entry(cx: &mut gpui::TestAppContext
         Some(manuscript.as_str()),
         "lives where the story line says"
     );
+    assert_eq!(made.template.as_deref(), Some("tpl-chapter"));
     assert_eq!(made.primary.as_deref(), Some(lane.as_str()));
     assert!(
         book_now
@@ -352,6 +349,44 @@ fn new_on_a_storylines_card_attaches_the_new_entry(cx: &mut gpui::TestAppContext
             .any(|m| m.host == lane && m.member == made.id),
         "attached to the story line"
     );
+    // One step creates the entry and the membership. Leaving the selected
+    // title untouched keeps both; closing the page does not delete it.
+    let target = Target::from_key(&format!("entry:{}", made.id)).unwrap();
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        settle(cx);
+        assert!(shell.read_with(cx, |w, _| w.dialog.is_none()));
+        if cx.update(|window, cx| {
+            dr_view_page::entry_head::head_of(&made.id, cx).is_some_and(|head| {
+                let title = head.read(cx).title().read(cx);
+                title.focus_handle(cx).is_focused(window)
+                    && title.composer().selection() == (0.."未命名".len())
+            })
+        }) {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "the selected title did not take focus"
+        );
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    assert!(shell.read_with(cx, |w, _| {
+        w.nav.current() == Some(&target) && !w.nav.active_tab().unwrap().focused().preview
+    }));
+    cx.update(|window, cx| {
+        window.dispatch_action(Box::new(dr_shell::actions::CloseActiveTab), cx);
+    });
+    settle(cx);
+    assert!(shell.read_with(cx, |w, _| !w.nav.is_open(&target)));
+    let kept = call(&lib, "entry.get", json!({"book": book, "id": made.id}));
+    assert_eq!(kept["title"], "未命名");
+    assert_eq!(kept["primary"], lane);
+    lib.undo_in(&Actor::User, &book, None).unwrap().unwrap();
+    wait(cx, "the entry and membership undone together", &|b| {
+        let v = b.v3().unwrap();
+        v.entry(&made.id).is_none() && !v.memberships.iter().any(|m| m.member == made.id)
+    });
     drop(lib);
 }
 #[test]

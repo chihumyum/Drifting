@@ -247,11 +247,12 @@ pub(crate) fn focus_body(host: &PageHost, doc: &str, window: &mut Window, cx: &m
     }
 }
 
-/// Select the title the first time a newly created chapter or idea is drawn.
-/// Pair this with the shell's `Open::KEEP.at_title()` so its editor does not
-/// take the keyboard before the page head does (M02's create row).
-pub fn focus_new_title(doc: String, cx: &mut App) {
-    NewTitles::add(doc, cx);
+/// Select the title the first time a newly created page is drawn.
+/// Pair with `Open::KEEP.at_title()` so the shell leaves focus to the title.
+/// Use the entry's `Target::key()` (`entry:<id>`) for a v3 page, including
+/// entries without prose. Document chrome can still request it by doc key.
+pub fn focus_new_title(key: String, cx: &mut App) {
+    cx.default_global::<NewTitles>().0.push(key);
 }
 
 #[derive(Default)]
@@ -260,29 +261,28 @@ pub(crate) struct NewTitles(Vec<String>);
 impl Global for NewTitles {}
 
 impl NewTitles {
-    pub fn add(doc: String, cx: &mut App) {
-        cx.default_global::<NewTitles>().0.push(doc);
-    }
-
-    pub fn pending(doc: &str, cx: &App) -> bool {
+    pub fn pending_entry(entry: &str, cx: &App) -> bool {
         cx.try_global::<Self>()
-            .is_some_and(|list| list.0.iter().any(|d| d == doc))
+            .is_some_and(|list| list.0.iter().any(|key| Self::matches_entry(key, entry)))
     }
 
-    /// Whether a body of `entry` was just made (and forgets it): the entry
-    /// page's head takes the caret for it.
+    /// Take an entry's title request, including older requests by body key.
     pub fn take_entry(entry: &str, cx: &mut App) -> bool {
-        let prefix = format!("body:{entry}/");
-        let Some(list) = cx.try_global::<NewTitles>() else {
-            return false;
-        };
-        if !list.0.iter().any(|d| d.starts_with(&prefix)) {
+        if !Self::pending_entry(entry, cx) {
             return false;
         }
         cx.global_mut::<NewTitles>()
             .0
-            .retain(|d| !d.starts_with(&prefix));
+            .retain(|key| !Self::matches_entry(key, entry));
         true
+    }
+
+    fn matches_entry(key: &str, entry: &str) -> bool {
+        key.strip_prefix("entry:") == Some(entry)
+            || key
+                .strip_prefix("body:")
+                .and_then(|body| body.split_once('/'))
+                .is_some_and(|(id, _)| id == entry)
     }
 
     /// Whether `doc` was just made (and forgets it).

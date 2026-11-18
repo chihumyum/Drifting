@@ -284,7 +284,6 @@
     "accept": "Aceptar entradas de otros lugares",
     "autoLink": "Enlaces automáticos",
     "collapse": "Contraer {{name}}",
-    "create": "Crear",
     "defaultTemplate": "Plantilla predeterminada",
     "display": "Visualización",
     "expand": "Expandir {{name}}",
@@ -307,8 +306,7 @@
     "sourceDefault": "Valor predeterminado",
     "sourceOverride": "Anulación · {{name}}",
     "sourceTemplate": "Plantilla · {{name}} · {{level}}",
-    "thisLevel": "Este nivel",
-    "title": "Título"
+    "thisLevel": "Este nivel"
   },
   "v3Review": {
     "backToReview": "Volver a revisión",

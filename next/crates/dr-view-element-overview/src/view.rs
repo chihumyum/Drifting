@@ -18,9 +18,13 @@ use dr_model::id::EntryId;
 use dr_shell::Workspace;
 use dr_shell::book::{Book, color_of};
 use dr_shell::nav::{Open, Target};
-use dr_shell::pages::PageViewHost;
+use dr_shell::pages::{PageMenuHost, PageViewHost};
 use dr_shell::strings::{t, tf};
-use dr_shell::v3::tab_fill::{FillLayout, TabCanvasHost};
+use dr_shell::v3::{
+    card::EntryAction,
+    entry_action, entry_target,
+    tab_fill::{FillLayout, TabCanvasHost},
+};
 use dr_shell::workspace::FillPlace;
 use dr_ui::Theme;
 use dr_ui::components::Button;
@@ -28,7 +32,6 @@ use dr_ui::input::field::{FieldEvent, TextField};
 use dr_ui::sand::{Icon, KindMark};
 use dr_ui::tokens::{Rgb, radius};
 use dr_view_elements::data::v3 as g2_data;
-use dr_view_elements::dialogs::v3::{EntryMode, open_entry};
 use dr_workspace::commands::v3::relations::{
     List as RelationList, ListIn as RelationListIn, RelationInfo,
 };
@@ -1279,20 +1282,23 @@ impl ElementOverview {
         }
     }
 
-    /// Opens G2's canonical v3 New Entry dialog for `level_id`.
-    pub fn open_new_element_dialog(
-        &mut self,
-        level_id: &str,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
+    /// Runs the same New Entry action as the shared card for this level.
+    pub fn create_element(&mut self, level_id: &str, window: &mut Window, cx: &mut Context<Self>) {
         if crate::is_frozen(cx) {
             return;
         }
-        let Some(host) = self.make_page_host() else {
+        let (Some(host), Some(target)) = (self.make_page_host(), entry_target(level_id)) else {
             return;
         };
-        open_entry(host, level_id.to_owned(), EntryMode::New, window, cx);
+        let menu = PageMenuHost {
+            workspace: host.workspace,
+            library: Some(host.library),
+            book_id: host.book_id,
+            book: host.book,
+        };
+        if let Some(run) = entry_action(EntryAction::New, &target, &menu, cx) {
+            run(window, cx);
+        }
     }
 
     pub fn sync_workspace_book(&mut self, cx: &mut Context<Self>) {
@@ -1637,7 +1643,7 @@ impl ElementOverview {
                             .hover(|s| s.text_color(p.ink(1).solid()))
                             .on_click(cx.listener(move |this, _, window, cx| {
                                 cx.stop_propagation();
-                                this.open_new_element_dialog(&level_id, window, cx);
+                                this.create_element(&level_id, window, cx);
                             }))
                             .child("+"),
                     )
