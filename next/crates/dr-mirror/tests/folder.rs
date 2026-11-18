@@ -772,6 +772,57 @@ fn compatible_outside_properties_become_fields_and_remain_editable() {
 }
 
 #[test]
+fn an_app_field_edit_during_property_adoption_wins_and_keeps_the_outside_file() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    };
+
+    let mut f = Fixture::new(Preset::Tiny);
+    let (id, _) = f.chapter("收录竞态", "她把钟拨慢了。");
+    f.pass().run().unwrap();
+    let path = find(f.out.path(), "收录竞态.md");
+    let outside = edit_file(
+        &path,
+        "\n---\n\n",
+        "\n字数目标: 3000\naliases: 老王\n---\n\n",
+    );
+    assert!(f.pass().run().unwrap().issues.is_empty());
+    f.more_fields();
+    let changed = Arc::new(AtomicBool::new(false));
+    f.options.composing = Arc::new({
+        let (ws, book, id, changed) = (f.ws.clone(), f.book.clone(), id.clone(), changed.clone());
+        move || {
+            if !changed.swap(true, Ordering::Relaxed) {
+                // The app saves after the pass has copied the field's old value.
+                ws.call(
+                    &Actor::User,
+                    "module.set_field",
+                    json!({"book":book,"entry":id,"module":"mf-more","field":"words","value":3100}),
+                )
+                .unwrap();
+            }
+            false
+        }
+    });
+
+    let report = f.pass().run().unwrap();
+    assert!(changed.load(Ordering::Relaxed));
+    assert_eq!(report.preserved.len(), 1, "{report:?}");
+    assert_eq!(fs::read_to_string(&report.preserved[0]).unwrap(), outside);
+    assert_eq!(report.issues[0].problem, Problem::FieldConflict);
+    assert_eq!(f.field(&id, "mf-more", "words"), json!(3100.0));
+    assert_eq!(f.field(&id, "mf-more", "names"), json!(["老王"]));
+
+    let next = f.pass().run().unwrap();
+    assert!(next.preserved.is_empty(), "{next:?}");
+    assert_eq!(f.field(&id, "mf-more", "words"), json!(3100.0));
+    let written = fs::read_to_string(&path).unwrap();
+    assert!(written.contains("字数目标: 3100\n"), "{written}");
+    assert!(written.contains("aliases: [\"老王\"]\n"), "{written}");
+}
+
+#[test]
 fn image_fields_use_project_relative_wikilinks_and_are_read_only() {
     let f = Fixture::new(Preset::Lite);
     let list = f.call("asset.list", json!({"book":f.book}));
