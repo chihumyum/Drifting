@@ -151,6 +151,10 @@
     }
   },
   "projectTemplates": {
+    "saveFailed": "テンプレートとして保存できませんでした。もう一度お試しください。",
+    "readProjectFailed": "このプロジェクトを読み取れませんでした。",
+    "createProjectFailed": "プロジェクトを作成できませんでした。もう一度お試しください。",
+    "openFailed": "このテンプレートを開けませんでした。",
     "bookDailyTarget": "1日 {{words}} 字",
     "bookOff": "オフ",
     "bookOn": "オン",

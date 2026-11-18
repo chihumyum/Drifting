@@ -574,11 +574,18 @@ impl TemplateEditor {
             self.draft.clone(),
         );
         let submitted = draft.clone();
+        let workspace = self.host.workspace.clone();
+        let template_id = draft.id.parse::<dr_model::id::EntryTemplateId>().ok();
+        if let Some(id) = &template_id {
+            let _ = workspace.update(cx, |ws, cx| ws.template_saving(id, true, cx));
+        }
         let task =
             cx.background_spawn(async move { model::save(&lib, &book, base.as_ref(), &draft) });
-        let workspace = self.host.workspace.clone();
         cx.spawn(async move |this, cx| {
             let result = task.await;
+            if let Some(id) = &template_id {
+                let _ = workspace.update(cx, |ws, cx| ws.template_saving(id, false, cx));
+            }
             let failed = result.is_err();
             let gone = this
                 .update(cx, |this, cx| {
@@ -608,7 +615,8 @@ impl TemplateEditor {
             // Stored as the panel closed and the editor went with it: a
             // refusal still reaches the author.
             if gone && failed {
-                let _ = workspace.update(cx, |ws, cx| ws.toast(t(cx, common::SAVE_FAILED), cx));
+                let _ =
+                    workspace.update(cx, |ws, cx| ws.toast_error(t(cx, common::SAVE_FAILED), cx));
             }
         })
         .detach();
@@ -1193,6 +1201,147 @@ impl Render for TemplateEditor {
 mod tests {
     use super::*;
     use dr_shell::{Services, SettingsFile, ShellInfo};
+
+    #[gpui::test]
+    fn closing_a_new_full_template_pill_drops_its_blank_record_but_keeps_a_saved_edit(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        use std::time::{Duration, Instant};
+
+        use dr_shell::actions::CloseActiveTab;
+
+        cx.executor().allow_parking();
+        let dir = tempfile::tempdir().unwrap();
+        let store = dr_store::Library::open(dir.path(), dr_workspace::library_options("0.2.0-dev"))
+            .unwrap();
+        let seed = dr_testkit::seed::generate_v3(
+            dr_testkit::seed::Preset::Tiny,
+            dr_testkit::seed::DEFAULT_SEED,
+        )
+        .unwrap();
+        let book = seed.books[0].book_id().to_string();
+        seed.write_to(&store).unwrap();
+        let lib = dr_workspace::Workspace::open(store, Default::default()).unwrap();
+        cx.update(|cx| {
+            dr_shell::init(
+                ShellInfo {
+                    app_name: "Drifting Next",
+                    bundle_id: "cc.drifting.next.dev",
+                    version: "0.2.0-dev",
+                    url_scheme: "drifting-next-dev",
+                    forced_appearance: Some(dr_ui::Appearance::Light),
+                },
+                Services {
+                    library: Some(lib.clone()),
+                    book: Some(book.clone()),
+                    ..Services::default()
+                },
+                SettingsFile::in_memory(),
+                cx,
+            );
+            crate::init(cx);
+        });
+        let (shell, vcx) = cx.add_window_view(dr_shell::Workspace::new);
+        vcx.simulate_resize(gpui::size(px(1280.), px(900.)));
+        vcx.update(|window, _| window.activate_window());
+        let wait = |vcx: &mut gpui::VisualTestContext,
+                    stage: &str,
+                    done: &mut dyn FnMut(&mut gpui::VisualTestContext) -> bool| {
+            let deadline = Instant::now() + Duration::from_secs(15);
+            loop {
+                vcx.executor().advance_clock(Duration::from_millis(30));
+                draw(vcx);
+                if done(vcx) {
+                    break;
+                }
+                assert!(Instant::now() < deadline, "{stage}");
+                std::thread::sleep(Duration::from_millis(3));
+            }
+        };
+        wait(vcx, "book did not open", &mut |vcx| {
+            shell.read_with(vcx, |ws, _| ws.book.id == book && !ws.shelf_open)
+        });
+        let create = |vcx: &mut gpui::VisualTestContext| {
+            vcx.update(|window, cx| {
+                let host = PageViewHost {
+                    workspace: shell.downgrade(),
+                    library: lib.clone(),
+                    book_id: book.clone(),
+                    book: shell.read(cx).book.clone(),
+                };
+                dr_shell::v3::create_template(host, window, cx);
+            });
+            wait(vcx, "new template pill did not open", &mut |vcx| {
+                shell.read_with(vcx, |ws, _| {
+                    ws.nav
+                        .current()
+                        .is_some_and(|target| ws.module_page(target).is_some())
+                })
+            });
+            shell.read_with(vcx, |ws, _| ws.nav.current().unwrap().clone())
+        };
+        let close = |vcx: &mut gpui::VisualTestContext| {
+            vcx.update(|window, cx| window.dispatch_action(Box::new(CloseActiveTab), cx));
+        };
+        let stored = |id: &str| {
+            Book::load(&lib, &book)
+                .unwrap()
+                .v3()
+                .unwrap()
+                .template(id)
+                .cloned()
+        };
+        let journal = || lib.journal(Some("user"), 100).unwrap();
+
+        let before = journal().len();
+        let pristine = create(vcx);
+        let Target::Template(pristine_id) = &pristine else {
+            panic!("new pill must be an entry template");
+        };
+        assert!(stored(pristine_id.as_str()).is_some());
+        close(vcx);
+        wait(vcx, "pristine full template was not removed", &mut |vcx| {
+            !shell.read_with(vcx, |ws, _| ws.nav.is_open(&pristine))
+                && stored(pristine_id.as_str()).is_none()
+        });
+        assert_eq!(
+            journal().len(),
+            before,
+            "creating and removing a blank is not an undo step"
+        );
+        let raw = lib.observe(&format!("book:{book}")).unwrap().value;
+        assert!(
+            raw["templates"].get(pristine_id.as_str()).is_none(),
+            "no trash record"
+        );
+
+        let edited = create(vcx);
+        let Target::Template(edited_id) = &edited else {
+            panic!("new pill must be an entry template");
+        };
+        let editor = shell.read_with(vcx, |ws, _| {
+            ws.module_page(&edited)
+                .unwrap()
+                .clone()
+                .downcast::<TemplateEditor>()
+                .unwrap()
+        });
+        editor.update(vcx, |editor, cx| {
+            editor.draft.name = "Synthetic edited entry template".into();
+            editor.save(cx);
+        });
+        // Close while the Save click's asynchronous write is still settling.
+        close(vcx);
+        wait(vcx, "saved template edit did not settle", &mut |vcx| {
+            !shell.read_with(vcx, |ws, _| ws.nav.is_open(&edited))
+                && !editor.read_with(vcx, |editor, _| editor.is_saving())
+        });
+        assert_eq!(
+            stored(edited_id.as_str()).unwrap().name,
+            "Synthetic edited entry template"
+        );
+        assert_eq!(journal().len(), before + 1);
+    }
 
     #[gpui::test]
     fn snapshot_refresh_keeps_focused_input_and_refuses_a_concurrent_name(

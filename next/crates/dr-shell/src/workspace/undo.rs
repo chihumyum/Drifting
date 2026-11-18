@@ -173,7 +173,7 @@ impl Workspace {
                     Err(error) => {
                         log::warn!("undo in the book failed: {error}");
                         let text = crate::t(cx, keys::common::SAVE_FAILED);
-                        ws.toast(text, cx);
+                        ws.toast_error(text, cx);
                     }
                 }
                 if let Some(next) = ws.structure_undo.queued.pop_front() {

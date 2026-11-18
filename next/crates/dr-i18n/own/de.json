@@ -158,6 +158,10 @@
     }
   },
   "projectTemplates": {
+    "saveFailed": "Speichern als Vorlage fehlgeschlagen. Bitte erneut versuchen.",
+    "readProjectFailed": "Dieses Projekt konnte nicht gelesen werden.",
+    "createProjectFailed": "Das Projekt konnte nicht erstellt werden. Bitte erneut versuchen.",
+    "openFailed": "Diese Vorlage konnte nicht geöffnet werden.",
     "bookDailyTarget": "Täglich {{words}} Wörter",
     "bookOff": "Aus",
     "bookOn": "Ein",

@@ -333,7 +333,7 @@ pub mod v3 {
                                 .is_some_and(|lib| lib.library() as *const _ as usize == identity)
                         {
                             let text = t(cx, keys::common::SAVE_FAILED);
-                            ws.toast(text, cx);
+                            ws.toast_error(text, cx);
                         }
                     })
                     .ok();

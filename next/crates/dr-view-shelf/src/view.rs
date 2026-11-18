@@ -644,8 +644,8 @@ impl Shelf {
                         log::warn!("the project template could not be opened for editing: {error}");
                         // Said at the window's foot, as the shell says a step
                         // that did not go through (the hover card is gone).
-                        let text = t(cx, keys::common::SAVE_FAILED);
-                        shelf.ws.update(cx, |ws, cx| ws.toast(text, cx)).ok();
+                        let text = t(cx, keys::project_templates::OPEN_FAILED);
+                        shelf.ws.update(cx, |ws, cx| ws.toast_error(text, cx)).ok();
                     }
                 }
                 cx.notify();
@@ -1106,7 +1106,7 @@ fn rail(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) -> AnyE
             "shelf-import-book",
             Icon::ArrowIn,
             t(cx, keys::all_projects::IMPORT),
-            Some(".driftingproject".into()),
+            RailMeta::Subtitle(".driftingproject"),
             t(cx, keys::all_projects::IMPORT_FILE),
             |_, window, cx| window.dispatch_action(Box::new(ImportBook), cx),
             window,
@@ -1119,7 +1119,7 @@ fn rail(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) -> AnyE
                     "shelf-import-template",
                     Icon::ArrowIn,
                     t(cx, keys::all_projects::IMPORT_TEMPLATE),
-                    Some(".driftingtemplate".into()),
+                    RailMeta::Subtitle(".driftingtemplate"),
                     t(cx, keys::all_projects::IMPORT_TEMPLATE_FILE),
                     |_, window, cx| window.dispatch_action(Box::new(ImportTemplate), cx),
                     window,
@@ -1130,7 +1130,7 @@ fn rail(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) -> AnyE
             "shelf-import-library",
             Icon::GateIn,
             t(cx, keys::user_menu::IMPORT),
-            Some("Drifting 0.1".into()),
+            RailMeta::Subtitle("Drifting 0.1"),
             t(cx, keys::user_menu::IMPORT),
             |_, window, cx| window.dispatch_action(Box::new(ImportLegacyLibrary), cx),
             window,
@@ -1140,7 +1140,7 @@ fn rail(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) -> AnyE
             "shelf-deleted",
             Icon::Trash,
             t(cx, keys::project_picker::desk::TRASH_ENTRY),
-            (trashed > 0).then(|| grouped(trashed as u64, locale).into()),
+            RailMeta::Count((trashed > 0).then(|| grouped(trashed as u64, locale).into())),
             t(cx, keys::project_picker::desk::TRASH_ENTRY),
             deleted,
             window,
@@ -1150,13 +1150,18 @@ fn rail(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) -> AnyE
         .into_any_element()
 }
 
+enum RailMeta {
+    Subtitle(&'static str),
+    Count(Option<SharedString>),
+}
+
 /// One of the rail's cells: no wash; under the pointer a ring of glass.
 #[allow(clippy::too_many_arguments)]
 fn rail_cell(
     id: &'static str,
     icon: Icon,
     label: SharedString,
-    meta: Option<SharedString>,
+    meta: RailMeta,
     name: SharedString,
     on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
     window: &mut Window,
@@ -1191,37 +1196,41 @@ fn rail_cell(
     .group_hover(group, move |st| st.text_color(p.ink(1).solid()))
     .on_click(on_click)
     .child(dr_ui::sand::icon(icon, 16.0, p.muted().solid()))
-    .child(
-        div()
-            .flex_1()
-            .min_w_0()
-            .flex()
-            .flex_row()
-            .flex_wrap()
-            .items_baseline()
-            .gap_x(px(10.0))
-            .gap_y(px(2.0))
-            // The name keeps its words whole: what follows it (a file's
-            // kind, a count) moves to the next line when there is no room.
-            .child(
-                div()
-                    .flex_grow(1.0)
-                    .flex_shrink_0()
-                    .font_role(Role::Ui)
-                    .type_px(s.body, 20.0)
-                    .child(label),
-            )
-            .when_some(meta, |el, meta| {
-                el.child(
-                    div()
-                        .flex_none()
-                        .font_role(Role::Index)
-                        .type_px(s.caption, s.caption)
-                        .text_color(p.muted().solid())
-                        .child(meta),
+    .child({
+        let row = div().flex_1().min_w_0();
+        let label = div().font_role(Role::Ui).type_px(s.body, 20.0).child(label);
+        let detail = div()
+            .flex_none()
+            .font_role(Role::Index)
+            .type_px(s.caption, s.caption)
+            .text_color(p.muted().solid());
+        match meta {
+            RailMeta::Subtitle(suffix) => row
+                .flex()
+                .flex_col()
+                .gap(px(2.0))
+                .child(
+                    label
+                        .truncate()
+                        .debug_selector(move || format!("{id}-label")),
                 )
-            }),
-    )
+                .child(
+                    detail
+                        .truncate()
+                        .debug_selector(move || format!("{id}-suffix"))
+                        .child(suffix),
+                ),
+            RailMeta::Count(count) => row
+                .flex()
+                .flex_row()
+                .flex_wrap()
+                .items_baseline()
+                .gap_x(px(10.0))
+                .gap_y(px(2.0))
+                .child(label.flex_grow(1.0).flex_shrink_0())
+                .when_some(count, |el, count| el.child(detail.child(count))),
+        }
+    })
     .into_any_element()
 }
 
@@ -1995,6 +2004,7 @@ fn new_card(taken: Rc<Cell<bool>>, window: &mut Window, cx: &mut Context<Shelf>)
         )
     }
     .on_mouse_down(gpui::MouseButton::Left, move |_, _, _| taken.set(true))
+    .debug_selector(|| "shelf-new-card".into())
     .group("shelf-new")
     .min_h(px(CARD_MIN_H))
     .p(px(12.0))
@@ -2012,19 +2022,17 @@ fn new_card(taken: Rc<Cell<bool>>, window: &mut Window, cx: &mut Context<Shelf>)
         cx.stop_propagation();
         entity.update(cx, |shelf, cx| shelf.start_create(window, cx));
     })
-    .child(dr_ui::sand::icon(Icon::Plus, 22.0, p.ink(3).solid()))
     .child(
         div()
-            .font_role(Role::Ui)
-            .type_px(s.body, s.line_body)
-            .child(t(cx, keys::all_projects::NEW_PROJECT)),
+            .debug_selector(|| "shelf-new-plus".into())
+            .child(dr_ui::sand::icon(Icon::Plus, 22.0, p.ink(3).solid())),
     )
     .child(
         div()
-            .font_role(Role::Index)
-            .type_px(s.caption, s.caption)
-            .text_color(p.ink(4).solid())
-            .child(t(cx, keys::project_picker::desk::NEW_CARD_SUB)),
+            .debug_selector(|| "shelf-new-label".into())
+            .font_role(Role::Ui)
+            .type_px(s.body, s.line_body)
+            .child(t(cx, keys::all_projects::NEW_PROJECT)),
     );
     if sea_on {
         // Only what the water brings: no line at rest.

@@ -52,27 +52,43 @@ pub fn init(cx: &mut App) {
         let library = host.library.clone();
         let job = cx
             .background_executor()
-            .spawn(async move { model::save(&library, &book, None, &draft) });
+            .spawn(async move { library.create_entry_template_draft(&book, draft) });
         cx.spawn(async move |cx| {
-            let result = job.await;
-            let _ = host.workspace.update(cx, |ws, cx| {
-                // The project or the library changed while it was stored.
-                if ws.book_id != host.book_id
-                    || !ws.library.as_ref().is_some_and(|library| {
-                        std::ptr::eq(library.library(), host.library.library())
-                    })
-                {
-                    return;
-                }
-                match result {
-                    Ok(template) => {
-                        if let Ok(id) = template.id.parse() {
-                            ws.template_created(id, cx);
+            match job.await {
+                Ok(template) => {
+                    let initial = template.clone();
+                    let opened = host.workspace.update(cx, |ws, cx| {
+                        if ws.book_id != host.book_id
+                            || !ws.library.as_ref().is_some_and(|library| {
+                                std::ptr::eq(library.library(), host.library.library())
+                            })
+                        {
+                            return false;
+                        }
+                        ws.template_created(template, cx);
+                        true
+                    });
+                    // The window can leave the project before the draft write lands.
+                    if !matches!(opened, Ok(true)) {
+                        let result = cx
+                            .background_executor()
+                            .spawn(
+                                async move { host.library.discard_entry_template_draft(initial) },
+                            )
+                            .await;
+                        if result.is_err() {
+                            let _ = host.workspace.update(cx, |ws, cx| {
+                                ws.toast_error(t(cx, dr_i18n::keys::common::SAVE_FAILED), cx);
+                            });
                         }
                     }
-                    Err(_) => ws.toast(t(cx, dr_i18n::keys::common::SAVE_FAILED), cx),
                 }
-            });
+                Err(_) => {
+                    let _ = host.workspace.update(cx, |ws, cx| {
+                        ws.toast_error(t(cx, dr_i18n::keys::common::SAVE_FAILED), cx);
+                    });
+                }
+            }
         })
         .detach();
     });

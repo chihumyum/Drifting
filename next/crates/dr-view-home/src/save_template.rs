@@ -413,7 +413,7 @@ impl SaveTemplateDialog {
             return;
         }
         let Some(lib) = self.host.library.upgrade() else {
-            self.error = Some(keys::k4_pages::SAVE_FAILED);
+            self.error = Some(keys::project_templates::READ_PROJECT_FAILED);
             return;
         };
         let lease = self.jobs.enter(lib);
@@ -429,7 +429,7 @@ impl SaveTemplateDialog {
                     Ok(snap) => d.apply_snapshot(snap, cx),
                     Err(err) => {
                         log::warn!("save project template: failed to load book snapshot: {err}");
-                        d.error = Some(keys::k4_pages::SAVE_FAILED);
+                        d.error = Some(keys::project_templates::READ_PROJECT_FAILED);
                     }
                 }
                 cx.notify();
@@ -542,6 +542,16 @@ impl SaveTemplateDialog {
 
     pub fn is_loaded(&self) -> bool {
         self.snapshot.is_some()
+    }
+
+    fn set_busy(&mut self, busy: bool, cx: &mut Context<Self>) {
+        self.busy = busy;
+        for field in [&self.name, &self.agent_name, &self.agent_description] {
+            field.update(cx, |f, cx| f.set_disabled(busy, cx));
+        }
+        for area in [&self.description, &self.agent_instructions] {
+            area.update(cx, |a, cx| a.set_disabled(busy, cx));
+        }
     }
 
     pub fn is_busy(&self) -> bool {
@@ -712,7 +722,7 @@ impl SaveTemplateDialog {
             return;
         };
         let Some(lib) = self.host.library.upgrade() else {
-            self.error = Some(keys::k4_pages::SAVE_FAILED);
+            self.error = Some(keys::project_templates::SAVE_FAILED);
             cx.notify();
             return;
         };
@@ -770,7 +780,7 @@ impl SaveTemplateDialog {
             replace,
         };
 
-        self.busy = true;
+        self.set_busy(true, cx);
         self.overwrite_open = false;
         self.error = None;
         cx.notify();
@@ -783,7 +793,7 @@ impl SaveTemplateDialog {
                 .spawn(async move { lease.run::<ProjectTemplateSave>(&Actor::User, input) })
                 .await;
             let _ = this.update(cx, |d, cx| {
-                d.busy = false;
+                d.set_busy(false, cx);
                 d.task = None;
                 match res {
                     Ok(_) => {
@@ -791,7 +801,7 @@ impl SaveTemplateDialog {
                     }
                     Err(err) => {
                         log::warn!("project_template.save failed: {err}");
-                        d.error = Some(keys::k4_pages::SAVE_FAILED);
+                        d.error = Some(keys::project_templates::SAVE_FAILED);
                         cx.notify();
                     }
                 }
@@ -1347,8 +1357,16 @@ impl Render for SaveTemplateDialog {
                 .items_center()
                 .gap(px(6.0))
                 .text_color(p.danger.solid())
-                .child(sand::icon(Icon::StatusWarning, 13.0, p.danger.solid()))
-                .child(t(cx, key))
+                .child(
+                    div()
+                        .debug_selector(|| "v3-save-tpl-error-warning".into())
+                        .child(sand::icon(Icon::StatusWarning, 13.0, p.danger.solid())),
+                )
+                .child(
+                    div()
+                        .debug_selector(move || key.name().into())
+                        .child(t(cx, key)),
+                )
         });
 
         let close_entity = entity.clone();

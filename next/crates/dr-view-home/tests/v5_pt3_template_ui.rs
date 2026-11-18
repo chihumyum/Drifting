@@ -1035,3 +1035,123 @@ fn save_template_dialogs_tree_reaches_the_right_columns_foot(cx: &mut TestAppCon
         );
     }
 }
+
+#[gpui::test]
+fn saving_a_template_locks_the_form_and_distinguishes_load_and_write_failures(
+    cx: &mut TestAppContext,
+) {
+    use dr_view_home::SaveProjectTemplateHost;
+    use gpui::EntityInputHandler as _;
+
+    let (_dir, _root, lib, book) = seed_library();
+    let (ws, vcx) = setup_app(cx, &lib, Some(&book));
+    wait(vcx, "book ready", |vcx| {
+        ws.read_with(vcx, |ws, _| ws.book.id == book && !ws.shelf_open)
+    });
+
+    let open = |book_id: String, vcx: &mut VisualTestContext| {
+        vcx.update(|window, cx| {
+            dr_view_home::save_template::open(
+                SaveProjectTemplateHost {
+                    workspace: ws.downgrade(),
+                    library: lib.downgrade(),
+                    book_id,
+                },
+                window,
+                cx,
+            );
+        });
+        wait(vcx, "save dialog mounted", |vcx| {
+            ws.read_with(vcx, |ws, _| ws.dialog.is_some())
+        });
+        ws.read_with(vcx, |ws, _| {
+            ws.dialog
+                .clone()
+                .unwrap()
+                .downcast::<SaveTemplateDialog>()
+                .unwrap()
+        })
+    };
+
+    let missing = open("missing-synthetic-project".into(), vcx);
+    wait(vcx, "read project failure", |vcx| {
+        vcx.debug_bounds("projectTemplates.readProjectFailed")
+            .is_some()
+            && vcx.debug_bounds("v3-save-tpl-error-warning").is_some()
+    });
+    missing.update(vcx, |_, cx| {
+        let id = cx.entity_id();
+        dr_shell::dialogs::hide(cx, id);
+    });
+
+    let dialog = open(book, vcx);
+    wait(vcx, "save form ready", |vcx| {
+        dialog.read_with(vcx, |d, _| d.is_loaded())
+    });
+    let (fields, areas) = dialog.read_with(vcx, |d, _| {
+        let (agent_name, agent_desc, agent_instructions) = d.agent_inputs();
+        (
+            [
+                d.name_input().clone(),
+                agent_name.clone(),
+                agent_desc.clone(),
+            ],
+            [d.description_input().clone(), agent_instructions.clone()],
+        )
+    });
+    vcx.update(|window, cx| {
+        dialog.update(cx, |d, cx| {
+            d.submit_overwrite("missing-synthetic-template", window, cx);
+            assert!(d.is_busy());
+        });
+        // Try the same IME insertion the text controls receive from the OS,
+        // in this dispatch, while the background write still owns the form.
+        for field in &fields {
+            field.update(cx, |field, cx| {
+                field.focus_handle(cx).focus(window, cx);
+                let before = field.text();
+                field.replace_text_in_range(None, " x", window, cx);
+                assert_eq!(field.text(), before);
+            });
+        }
+        for area in &areas {
+            area.update(cx, |area, cx| {
+                area.focus_handle(cx).focus(window, cx);
+                let before = area.text();
+                area.replace_text_in_range(None, " x", window, cx);
+                assert_eq!(area.text(), before);
+            });
+        }
+    });
+    wait(vcx, "write failure", |vcx| {
+        vcx.debug_bounds("projectTemplates.saveFailed").is_some()
+            && vcx.debug_bounds("v3-save-tpl-error-warning").is_some()
+    });
+    assert!(!dialog.read_with(vcx, |d, _| d.is_busy()));
+    vcx.update(|window, cx| {
+        for field in &fields {
+            field.update(cx, |field, cx| {
+                field.focus_handle(cx).focus(window, cx);
+                let before = field.text();
+                field.replace_text_in_range(None, " x", window, cx);
+                assert_ne!(field.text(), before);
+            });
+        }
+        for area in &areas {
+            area.update(cx, |area, cx| {
+                area.focus_handle(cx).focus(window, cx);
+                let before = area.text();
+                area.replace_text_in_range(None, " x", window, cx);
+                assert_ne!(area.text(), before);
+            });
+        }
+    });
+    assert_eq!(
+        vcx.update(|_, cx| dr_shell::t(cx, dr_i18n::keys::project_templates::READ_PROJECT_FAILED)),
+        "没能读出这个项目。"
+    );
+    assert_eq!(
+        vcx.update(|_, cx| dr_shell::t(cx, dr_i18n::keys::project_templates::SAVE_FAILED)),
+        "没能另存为模板，请重试。"
+    );
+}

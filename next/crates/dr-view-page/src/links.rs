@@ -90,7 +90,7 @@ pub fn init(cx: &mut App) {
     dr_editor::links::set_clipboard_refusal(cx, |cx| {
         dr_shell::workspace::with_workspace(cx, |ws, _, cx| {
             let text = dr_shell::t(cx, dr_i18n::keys::k4_pages::SAVE_FAILED);
-            ws.toast(text, cx);
+            ws.toast_error(text, cx);
         });
     });
     dr_editor::links::set_v3_opener(cx, |library, book, link, cx| {

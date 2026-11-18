@@ -19,7 +19,13 @@ pub struct PutIn {
 }
 /// `module`: the one module definition a call replaces or removes; `None`
 /// when it replaces the template.
-fn put(cx: &Cx<'_>, book: &str, mut t: m::EntryTemplate, module: Option<&str>) -> Result<Done> {
+fn put(
+    cx: &Cx<'_>,
+    book: &str,
+    mut t: m::EntryTemplate,
+    module: Option<&str>,
+    draft: bool,
+) -> Result<Done> {
     let slot = cx.book_v3(book)?;
     let v = slot.reader_v3.view();
     let before = v.graph();
@@ -153,6 +159,9 @@ fn put(cx: &Cx<'_>, book: &str, mut t: m::EntryTemplate, module: Option<&str>) -
         }
     }
     let (placed, at) = cx.write_book_v3(&slot, Replaces::records([replaced]), move |tx| {
+        if draft && tx.view().template(&t.id).is_some() {
+            return Err(WsError::Conflict("template draft id already exists".into()));
+        }
         tx.template(&t.id)?.set_full(&t)?;
         let mut placed = BTreeSet::new();
         for lane in &lanes {
@@ -160,20 +169,22 @@ fn put(cx: &Cx<'_>, book: &str, mut t: m::EntryTemplate, module: Option<&str>) -
         }
         Ok(placed)
     })?;
-    let mut keys = vec![key("templates", &id)];
-    keys.extend(placed.iter().map(|vid| key("timeline_views", vid)));
-    undo(cx, &slot, &at, keys);
-    cx.effect(
-        EffectAction::Updated,
-        "entry_template",
-        id.as_str(),
-        Some(&title),
-    );
+    if !draft {
+        let mut keys = vec![key("templates", &id)];
+        keys.extend(placed.iter().map(|vid| key("timeline_views", vid)));
+        undo(cx, &slot, &at, keys);
+        cx.effect(
+            EffectAction::Updated,
+            "entry_template",
+            id.as_str(),
+            Some(&title),
+        );
+    }
     Ok(Done { id: id.to_string() })
 }
 op! {
     TemplatePut="entry_template.put",Write,Book,"Create or replace a template definition (any modules, the switch's default, linkable, settings, actions) while retaining existing entry content and switches.",fn(cx,input:PutIn)->Done {
-        put(cx, &input.book, convert(input.template)?, None)
+        put(cx, &input.book, convert(input.template)?, None, false)
     }
 }
 op! {
@@ -193,6 +204,103 @@ op! {
         Ok(Done { id: input.id })
     }
 }
+/// The initial definition created for a new full-editor pill. Only these
+/// drafts can use the unjournaled cleanup path.
+#[derive(Clone)]
+pub struct EntryTemplateDraft {
+    book: String,
+    initial: m::EntryTemplate,
+}
+
+impl EntryTemplateDraft {
+    pub fn book(&self) -> &str {
+        &self.book
+    }
+
+    pub fn id(&self) -> &EntryTemplateId {
+        &self.initial.id
+    }
+}
+
+impl crate::Workspace {
+    /// Materialize the full editor's initial draft without creating an undo step.
+    pub fn create_entry_template_draft(
+        &self,
+        book: &str,
+        draft: types::EntryTemplate,
+    ) -> Result<EntryTemplateDraft> {
+        let spec = crate::registry::registry()
+            .get("entry_template.put")
+            .expect("entry template put is registered");
+        let cx = Cx::new(self, &crate::Actor::User, spec);
+        let draft: m::EntryTemplate = convert(draft)?;
+        put(&cx, book, draft.clone(), None, true)?;
+        Ok(EntryTemplateDraft {
+            book: book.to_owned(),
+            initial: draft,
+        })
+    }
+
+    /// Closing a new editor can remove its unchanged, unused draft. Compare the
+    /// definition and its uses in the same holder job as the removal, including
+    /// changes from sync. No trash record or undo step is made.
+    pub fn discard_entry_template_draft(&self, draft: EntryTemplateDraft) -> Result<()> {
+        let EntryTemplateDraft { book, initial } = draft;
+        let spec = crate::registry::registry()
+            .get("entry_template.delete")
+            .expect("entry template delete is registered");
+        let cx = Cx::new(self, &crate::Actor::User, spec);
+        let slot = cx.book_v3(&book)?;
+        let id = initial.id.clone();
+        let doc_prefix = format!("template:{book}/{id}/");
+        if self
+            .library()
+            .docs(Some(&book), Some("template"))?
+            .iter()
+            .any(|doc| doc.doc_id.starts_with(&doc_prefix))
+        {
+            return Ok(());
+        }
+
+        cx.write_book_v3(
+            &slot,
+            Replaces::records([rec(CollectionV3::Templates, &id)]),
+            move |tx| {
+                let view = tx.view();
+                if view.template(&id).as_ref() != Some(&initial) {
+                    return Ok(());
+                }
+                let defaults_to = |settings: &m::LevelSettingsOverride| {
+                    settings.default_template.as_ref().and_then(Option::as_ref) == Some(&id)
+                };
+                let graph = view.graph();
+                if graph.entries.values().any(|entry| {
+                    entry.template.as_ref() == Some(&id)
+                        || entry.overrides.as_ref().is_some_and(defaults_to)
+                }) || graph.templates.values().any(|template| {
+                    defaults_to(&template.settings)
+                        || template
+                            .verbs
+                            .iter()
+                            .any(|verb| verb.target_template.as_ref() == Some(&id))
+                        || template.modules.iter().any(|module| {
+                            module
+                                .config
+                                .defs
+                                .iter()
+                                .any(|field| field.target_template.as_ref() == Some(&id))
+                        })
+                }) {
+                    return Ok(());
+                }
+                tx.purge(CollectionV3::Templates, id.as_str())?;
+                Ok(())
+            },
+        )?;
+        Ok(())
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct ModulePutIn {
     pub book: String,
@@ -207,7 +315,7 @@ op! {
         let id = module.id.clone();
         t.modules.retain(|m| m.id != module.id);
         t.modules.push(module);
-        put(cx, &input.book, t, Some(id.as_str()))
+        put(cx, &input.book, t, Some(id.as_str()), false)
     }
 }
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -221,6 +329,6 @@ op! {
         let s = cx.book_v3(&input.book)?;
         let mut t = template_of(&s.reader_v3.view(), &input.template)?;
         t.modules.retain(|m| m.id.as_str() != input.module);
-        put(cx, &input.book, t, Some(&input.module))
+        put(cx, &input.book, t, Some(&input.module), false)
     }
 }

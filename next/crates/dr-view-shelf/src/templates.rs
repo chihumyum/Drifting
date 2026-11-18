@@ -211,6 +211,9 @@ impl NewProjectModal {
     }
 
     pub fn toggle_my_templates(&mut self, cx: &mut Context<Self>) {
+        if self.busy {
+            return;
+        }
         self.my_open = !self.my_open;
         cx.notify();
     }
@@ -335,7 +338,7 @@ impl NewProjectModal {
                     }
                     Err(err) => {
                         log::warn!("project.create from template dialog failed: {err}");
-                        m.error = Some(keys::common::SAVE_FAILED);
+                        m.error = Some(keys::project_templates::CREATE_PROJECT_FAILED);
                         cx.notify();
                     }
                 }
@@ -430,11 +433,12 @@ impl NewProjectModal {
                 .flex_row()
                 .items_center()
                 .gap(px(5.0))
-                .cursor_pointer()
                 .role(gpui::Role::Button)
                 .aria_label(t(cx, keys::project_templates::MY_TEMPLATES))
-                .on_click(move |_, _, cx| {
-                    toggle_entity.update(cx, |m, cx| m.toggle_my_templates(cx));
+                .when(!self.busy, |el| {
+                    el.cursor_pointer().on_click(move |_, _, cx| {
+                        toggle_entity.update(cx, |m, cx| m.toggle_my_templates(cx));
+                    })
                 })
                 .child(
                     div()
@@ -776,8 +780,16 @@ impl Render for NewProjectModal {
                 .items_center()
                 .gap(px(6.0))
                 .text_color(p.danger.solid())
-                .child(sand::icon(Icon::StatusWarning, 13.0, p.danger.solid()))
-                .child(t(cx, key))
+                .child(
+                    div()
+                        .debug_selector(|| "shelf-new-error-warning".into())
+                        .child(sand::icon(Icon::StatusWarning, 13.0, p.danger.solid())),
+                )
+                .child(
+                    div()
+                        .debug_selector(move || key.name().into())
+                        .child(t(cx, key)),
+                )
         });
 
         let close_entity = entity.clone();

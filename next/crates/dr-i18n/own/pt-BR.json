@@ -160,6 +160,10 @@
     }
   },
   "projectTemplates": {
+    "saveFailed": "Não foi possível salvar como modelo. Tente novamente.",
+    "readProjectFailed": "Não foi possível ler este projeto.",
+    "createProjectFailed": "Não foi possível criar o projeto. Tente novamente.",
+    "openFailed": "Não foi possível abrir este modelo.",
     "bookDailyTarget": "Diário {{words}} palavras",
     "bookOff": "Desativado",
     "bookOn": "Ativado",

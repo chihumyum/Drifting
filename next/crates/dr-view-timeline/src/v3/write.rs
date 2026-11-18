@@ -246,7 +246,10 @@ impl Timeline {
                         timeline.pending.remove(&place.entry);
                     }
                     let text = t(cx, keys::common::SAVE_FAILED);
-                    timeline.ws.update(cx, |ws, cx| ws.toast(text, cx)).ok();
+                    timeline
+                        .ws
+                        .update(cx, |ws, cx| ws.toast_error(text, cx))
+                        .ok();
                 }
                 timeline.reconcile_pending();
                 cx.notify();

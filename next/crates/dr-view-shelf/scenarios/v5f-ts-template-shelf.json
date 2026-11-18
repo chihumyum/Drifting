@@ -1,0 +1,98 @@
+{
+  "about": "TS 隔离副屏窗口验收。检查没修改的条目模板关药丸就撤掉，保存过的模板关药丸后留着，并截取中英文的全部项目。",
+  "steps": [
+    { "seed": "lite" },
+    { "call": "book.list", "save": "books" },
+    {
+      "call": "project_template.save",
+      "input": { "book": "${books.0.id}", "name": "TS saved project template" },
+      "save": "savedProjectTemplate"
+    },
+    {
+      "launch": {
+        "env": { "DRIFTING_WINDOW_DISPLAY": "secondary", "DRIFTING_APPEARANCE": "light" },
+        "settings": {
+          "account": { "language.ui_locale": "en" },
+          "device": { "appearance.interface_text_size": "standard", "modules": { "first_run.done": true, "guides.seen": ["workspace-tour"] } }
+        }
+      }
+    },
+    { "app": "app.info", "save": "enEnvironment", "expect": { "/windows/0/primaryDisplay": false } },
+    { "app": "settings.get", "params": { "keys": ["appearance.interface_text_size"] }, "expect": { "/values/appearance.interface_text_size": "standard" } },
+    { "app": "window.focus" },
+    { "app": "shelf.show" },
+    { "app": "ui.wait", "params": { "until": "ready", "state": { "/shelf": true }, "timeout_ms": 30000 } },
+    { "app": "ui.find", "params": { "role": "Button", "label": "Import project (.driftingproject)" } },
+    { "app": "ui.find", "params": { "role": "Button", "label": "Import template (.driftingtemplate)" } },
+    { "app": "ui.find", "params": { "role": "Button", "label": "Import" } },
+    { "app": "ui.find", "params": { "role": "Button", "label": "New project" } },
+    { "app": "ui.screenshot", "png": "01-all-projects-en.png" },
+
+    { "app": "book.open", "params": { "book": "${books.0.id}" } },
+    { "app": "ui.wait", "params": { "until": "ready", "state": { "/book/version": 5, "/shelf": false } } },
+    { "app": "action.dispatch", "params": { "name": "workspace::ToggleBottomTimeline" } },
+    { "app": "ui.wait", "params": { "state": { "/bottom/pane": null } } },
+    { "app": "action.dispatch", "params": { "name": "workspace::ToggleLeftSidebar" } },
+    { "app": "ui.wait", "params": { "state": { "/left/open": true, "/fill": null } } },
+    { "app": "ui.press", "params": { "role": "Button", "label": "New template" } },
+    { "app": "ui.find", "params": { "label": "Template name", "timeout_ms": 15000 } },
+    {
+      "call": "entry_template.list",
+      "input": { "book": "${books.0.id}" },
+      "save": "pristine",
+      "expect": { "/[name=Untitled]/name": "Untitled", "/19": null }
+    },
+    {
+      "app": "state.get",
+      "expect": { "/page": "template:${pristine.[name=Untitled].id}" }
+    },
+    { "app": "action.dispatch", "params": { "name": "workspace::CloseActiveTab" } },
+    { "app": "ui.wait", "params": { "state": { "/page": "home", "/activeTab": null } } },
+    { "app": "ui.wait", "params": { "until": "time", "ms": 750 } },
+    {
+      "call": "entry_template.list",
+      "input": { "book": "${books.0.id}" },
+      "expect": { "/[id=${pristine.[name=Untitled].id}]/id": null, "/18": null }
+    },
+    { "app": "ui.press", "params": { "role": "Button", "label": "New template" } },
+    { "app": "ui.press", "params": { "label": "Template name", "timeout_ms": 15000 } },
+    { "app": "input.key", "params": { "keys": "secondary-a" } },
+    { "app": "input.type", "params": { "text": "TS edited entry template" } },
+    { "app": "ui.press", "params": { "role": "Button", "label": "Save" } },
+    { "app": "ui.find", "params": { "label": "Saved" } },
+    { "app": "action.dispatch", "params": { "name": "workspace::CloseActiveTab" } },
+    { "app": "ui.wait", "params": { "state": { "/page": "home", "/activeTab": null } } },
+    {
+      "call": "entry_template.list",
+      "input": { "book": "${books.0.id}" },
+      "expect": { "/[name=TS edited entry template]/name": "TS edited entry template", "/19": null }
+    },
+    { "app": "shelf.show" },
+    {
+      "call": "project_template.list",
+      "expect": { "/0/id": "${savedProjectTemplate.id}", "/1": null }
+    },
+    { "app": "app.quit", "expect": { "/quit": true } },
+
+    {
+      "launch": {
+        "env": { "DRIFTING_WINDOW_DISPLAY": "secondary", "DRIFTING_APPEARANCE": "light" },
+        "settings": {
+          "account": { "language.ui_locale": "zh-CN" },
+          "device": { "appearance.interface_text_size": "largest", "modules": { "first_run.done": true, "guides.seen": ["workspace-tour"] } }
+        }
+      }
+    },
+    { "app": "app.info", "save": "zhEnvironment", "expect": { "/windows/0/primaryDisplay": false } },
+    { "app": "settings.get", "params": { "keys": ["appearance.interface_text_size"] }, "expect": { "/values/appearance.interface_text_size": "largest" } },
+    { "app": "window.focus" },
+    { "app": "shelf.show" },
+    { "app": "ui.wait", "params": { "until": "ready", "state": { "/shelf": true }, "timeout_ms": 30000 } },
+    { "app": "ui.find", "params": { "role": "Button", "label": "导入项目（.driftingproject）" } },
+    { "app": "ui.find", "params": { "role": "Button", "label": "导入模板（.driftingtemplate）" } },
+    { "app": "ui.find", "params": { "role": "Button", "label": "导入" } },
+    { "app": "ui.find", "params": { "role": "Button", "label": "新建项目" } },
+    { "app": "ui.screenshot", "png": "02-all-projects-zh-cn.png" },
+    { "app": "app.quit", "expect": { "/quit": true } }
+  ]
+}
