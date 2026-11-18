@@ -36,7 +36,7 @@
       "src/renderer/lib/agent/runtime/recovered-transcript.ts": "0891a2e3e4b22a2a1edf7c4450ef00908595fa62df224f366814b97ade9e7120",
       "src/renderer/lib/agent/runtime/repository-transport-persistence.ts": "825e88b4dad3891e79bd64ee865adcd06355a5488471da7c2857ee1540f416f5",
       "src/renderer/lib/events.ts": "cc11b9cea027dd186fca3e54a288ec2a0fd523c97652b948238ee12db6d2048e",
-      "src/renderer/platform/contracts.ts": "b323be74635bcd6925558cfba9f32a60e7debb189214ae128894400d6dd629fc",
+      "src/renderer/platform/contracts.ts": "c8512dedab8c0bc7fcf0d033ec0167aa1ea5bf7eb41b1fe8201c60dae09c28a3",
       "src/renderer/platform/types.ts": "d7867dfbeea1b14de9f5a613226b0f67538a9cc60ff0efa1434437fa742730a4",
       "src/renderer/schema/drizzle.ts": "3704030b185fec75f292638b558a2da17711bf511eeebdc1c9df603a53b1549a",
       "src/renderer/shells/mobile/workspace/MobileAgentPanel.tsx": "aed2e0929eef1031c7a6bc029c5d9541003c436d49fca41633168f343b90aec0",
@@ -342,7 +342,7 @@
       "command": "cargo test --manifest-path crates/drifting-core/Cargo.toml --locked --lib"
     },
     "native": {
-      "passed": 204,
+      "passed": 206,
       "failed": 0,
       "ignored": 2,
       "command": "cargo test --manifest-path src-tauri/Cargo.toml --lib --no-default-features"
