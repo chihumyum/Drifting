@@ -436,6 +436,17 @@ impl Sidebar {
         self.focus.contains_focused(window, cx)
     }
 
+    /// Whether the keyboard is in what the column draws only while it
+    /// fills: the Tab's filled layout or the template structure. Not the
+    /// Tab row, nor the column itself (managing), which stay drawn.
+    pub fn fill_has_keyboard(&self, window: &Window, cx: &App) -> bool {
+        self.filled
+            && self.managing.is_none()
+            && self.has_keyboard(window, cx)
+            && !self.focus.is_focused(window)
+            && !self.tabs_have_keyboard(window)
+    }
+
     /// What the selected Tab shows in the column as it usually is (not
     /// filled), once made: a tree's view (tests, the debug bridge).
     pub fn shown_display(&self) -> Option<AnyView> {

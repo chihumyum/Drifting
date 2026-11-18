@@ -30,12 +30,14 @@
 - `dr-shell/src/v3/template_structure.rs` 画模板图与层级表。`v3::add_compact_template_editor` 由 K5 接上模板编辑控件，M02 的缩略图复用模板图的读取和连线。
 - `dr-view-review` 以栏宽决定每行展示几个批注分组。`dr-view-material` 使用同一个素材库和列表／瀑布流设置，铺满时显示文件用处。它的预览缓存在换库开始时丢掉、换库期间不再取书库、换完重新取，所以素材库铺满时也能换库。
 - 旧全窗舞台、切换器与 M23 拆除，旧的三个快捷键撤销注册。格式 5 的整书稿纸照常使用 M05。
+- 左栏铺满时画的是它自己的一份（铺满的摆法、模板结构），收回后不再画。键盘在这一份里时（例如在铺满的看板上拖过一张卡），退出铺满把键盘还给稿纸，和关上左栏、关上设置一样（`Workspace::exit_fill`、`Sidebar::fill_has_keyboard`）。原来键盘留在已经不画的那一份上，快捷键和菜单命令都到不了工作区（2026-11-19，`k4-g2-review-drag` 真窗口查出）。Tab 行和管理 Tab 时的左栏本身收回后还在，键盘在那里时不动。
 
 ## 验收
 
 - `dr-view-page/tests/shell_workspace.rs` 验证铺满状态、交换时两种恢复路径、层的退出顺序、幕后的稿纸键盘和按 Tab 安装画布。
 - `dr-view-page/tests/v5_t9_fill.rs` 在画出来的月亮上逐格点状态机（左右两栏、三种样子、指着前后两颗、统计时整月不动、铺满时切到统计退回开着），验证铺满时药丸行是小点、指上去才展开，沉浸时药丸行按整窗居中，底栏铺满没有调高度的边、拖两条边改的是左右栏宽，⌘[ 先退出铺满再后退，左栏没铺满时新建模板开完整编辑器的新药丸，素材库铺满时换库。
 - `dr-view-timeline/tests/v5_t9_bottom_fill.rs` 验证平时和铺满各自的缩放与泳道名宽，以及刻度捏到最密时画出来的卡片仍露出标题的第一个整字。
+- `dr-view-elements/tests/v5_kb_keyboard.rs` 的 `leaving_a_filled_column_gives_the_page_back_the_keyboard`：在铺满的看板上真拖一张卡，键盘到了看板；点整月退出铺满后键盘回到稿纸原来那一页，`ToggleRightSidebar` 能打开右栏。去掉修补即红。
 - `dr-view-elements/tests/v5_t1_lists.rs` 和 `dr-view-timeline/tests/v5_t4_views.rs` 验证住处、换挂、摘名、同组排序、刻度和窄卡片。DV/DV2 的数据层测试继续验证旧泳道清理和挂视图的 Tab 被拒。
 - `dr-shell/tests/v5_t9_structure.rs` 验证层级表的树序和缩进、整行拖到另一层下是一次 `entry.move` 且一步撤销、浮窗两组用「住在」「挂在」、Esc 先只收浮窗、图例点击隐去和露出一种线。`dr-view-templates/tests/v5_t9_panel.rs` 验证铺满时浮窗里的新建模板没改就不写、改了才写，未铺满时从左下新建当场写成、在新药丸里开完整编辑器、没有对话框，以及浮窗输入框里 Esc 回到存着的名字、收起浮窗、不退出铺满、开关改动在收起时存下。`dr-view-home/tests/v5_t9_thumbnail.rs` 验证缩略图 300 × 226、头部计数、位置和点击进入模板结构。
 - `crates/dr-cli/scenarios/v5-t9-fill.json` 用 lite 种子的独立进程驱动真实窗口，检查泳道行高、从左栏拖挂与摘名、层级表拖动撤销、浮窗保存、未铺满时新建模板开新药丸里的完整编辑器（模板数多一个）、药丸退出和重开后的摆法。截图库只随运行保存。
