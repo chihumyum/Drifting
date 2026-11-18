@@ -225,8 +225,7 @@ fn projected_comments_copy_their_line_and_the_first_projection_writes_nothing() 
 }
 
 /// Each relation that does not come over is counted once, under the first of
-/// its ends that cannot (the source end first); the built-in 「关联」's
-/// entry–entry relations are their own kind; each is kept in the receipt.
+/// its ends that cannot (the source end first); each is kept in the receipt.
 #[test]
 fn each_relation_not_brought_over_is_counted_once_by_kind_and_kept_in_the_receipt() {
     let old = fixture::build();
@@ -257,7 +256,7 @@ fn each_relation_not_brought_over_is_counted_once_by_kind_and_kept_in_the_receip
         "rel-patch only"
     );
     assert_eq!(count("relation-todo-end-dropped"), Some(1));
-    assert_eq!(count("relation-built-in-entries-dropped"), Some(2));
+    assert_eq!(count("relation-built-in-entries-dropped"), None);
     assert_eq!(count("built-in-relation-type-dropped"), Some(1));
     let dropped: std::collections::BTreeMap<&str, serde_json::Value> = receipt
         .originals
@@ -267,13 +266,7 @@ fn each_relation_not_brought_over_is_counted_once_by_kind_and_kept_in_the_receip
         .collect();
     assert_eq!(
         dropped.keys().copied().collect::<Vec<_>>(),
-        [
-            "rel-2",
-            "rel-builtin-entries",
-            "rel-image-patch",
-            "rel-material",
-            "rel-patch"
-        ]
+        ["rel-2", "rel-image-patch", "rel-patch"]
     );
     assert_eq!(
         dropped["rel-image-patch"],
@@ -283,16 +276,12 @@ fn each_relation_not_brought_over_is_counted_once_by_kind_and_kept_in_the_receip
             "createdAt":T0,
         })
     );
-    assert_eq!(
-        dropped["rel-material"]["reason"],
-        "relation-built-in-entries-dropped"
-    );
-    // The author's relation between two entries came over.
-    assert_eq!(book.view().relations().len(), 1);
+    // The author-defined pair and the grouped built-in pairs came over.
+    assert_eq!(book.view().relations().len(), 2);
     let summary =
         std::fs::read_to_string(temp.path().join("library/import-v1/summary.md")).unwrap();
     assert!(
-        summary.contains("内置的「关联」下两头都是条目的关系没有导入（2 处"),
+        !summary.contains("内置的「关联」下两头都是条目的关系没有导入"),
         "{summary}"
     );
     assert!(

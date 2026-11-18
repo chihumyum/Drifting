@@ -592,6 +592,18 @@ pub fn sync_catalog(
     choices: &MappingChoices,
     lines: &ProjectedLines,
 ) -> Result<()> {
+    sync_catalog_with_relation_times(txn, source, choices, lines, &BTreeMap::new())
+}
+
+/// Import replay can supply the source's millisecond timestamps so pairs
+/// created in the same second still reach the row planner in source order.
+pub fn sync_catalog_with_relation_times(
+    txn: &mut BookTxnV3<'_>,
+    source: &BookView<'_>,
+    choices: &MappingChoices,
+    lines: &ProjectedLines,
+    relation_times: &BTreeMap<&str, i64>,
+) -> Result<()> {
     let pending = choices.pending(source);
     if !pending.is_empty() {
         return Err(invalid(format!("unresolved mapping: {pending:?}")));
@@ -1160,7 +1172,7 @@ pub fn sync_catalog(
             }
         }
     }
-    copy_rest(txn, source, choices, lines)?;
+    copy_rest(txn, source, choices, lines, relation_times)?;
     Ok(())
 }
 
@@ -1179,6 +1191,7 @@ fn copy_rest(
     source: &BookView<'_>,
     choices: &MappingChoices,
     lines: &ProjectedLines,
+    relation_times: &BTreeMap<&str, i64>,
 ) -> Result<()> {
     let folders = source.material_folders();
     let materials = source.materials();
@@ -1273,9 +1286,13 @@ fn copy_rest(
         }
         Some(new)
     };
+    const ASSOCIATION_NAME: &str = "关联";
     let mut directions = BTreeMap::new();
+    let mut built_in_types = BTreeSet::new();
+    let mut association_type = None;
     for rt in source.relation_types() {
         if rt.system_key == Some(SystemRelationKey::GenericAssociation) {
+            built_in_types.insert(rt.id);
             continue;
         }
         let direction = match rt.orientation {
@@ -1283,42 +1300,77 @@ fn copy_rest(
             _ => RelationDirection::Directed,
         };
         directions.insert(rt.id.clone(), direction);
+        if rt.normalized_name == ASSOCIATION_NAME {
+            association_type = Some(rt.id.clone());
+        }
         txn.relation_type(&rt.id)?
             .name(&rt.name)?
             .description(&LinkedText::plain(rt.description))?
             .direction(direction)?;
     }
     let entry_ids: BTreeSet<_> = txn.view().entries_raw().into_iter().map(|e| e.id).collect();
-    let entry_end = |r: &EntityRef| {
-        let target = map(r)?;
-        if target.kind != EntityKind::Entry {
-            return None;
-        }
+    let entry_end = |target: &EntityRef| {
         EntryId::parse(&target.id)
             .ok()
             .filter(|id| entry_ids.contains(id))
     };
     let mut wanted: BTreeMap<RelationTypeId, Vec<RelationRow>> = BTreeMap::new();
     let mut source_pairs = source.relations_raw();
-    source_pairs.sort_by(|a, b| (a.created_at, &a.id).cmp(&(b.created_at, &b.id)));
+    source_pairs.sort_by_cached_key(|pair| {
+        let ms = relation_times
+            .get(pair.id.as_str())
+            .copied()
+            .or_else(|| pair.created_at.map(|ts| ts.0.saturating_mul(1000)));
+        (ms, pair.id.clone())
+    });
     for pair in source_pairs {
-        let Some(&direction) = directions.get(&pair.relation_type) else {
-            continue;
-        };
-        // Sample recipes still use the isolated source catalog; file/comment
-        // endpoints in it have no row in the project.
-        if !matches!(map(&pair.from), Some(r) if r.kind == EntityKind::Entry)
-            || !matches!(map(&pair.to), Some(r) if r.kind == EntityKind::Entry)
-        {
+        let built_in = built_in_types.contains(&pair.relation_type);
+        if !built_in && !directions.contains_key(&pair.relation_type) {
             continue;
         }
-        let (Some(left), Some(right)) = (entry_end(&pair.from), entry_end(&pair.to)) else {
+        // Sample recipes still use the isolated source catalog; file/comment
+        // endpoints in it have no row in the project.
+        let (Some(from), Some(to)) = (map(&pair.from), map(&pair.to)) else {
+            continue;
+        };
+        if from.kind != EntityKind::Entry || to.kind != EntityKind::Entry {
+            continue;
+        }
+        let (Some(mut left), Some(mut right)) = (entry_end(&from), entry_end(&to)) else {
             return Err(invalid("source relation references a missing entry"));
         };
         if left == right {
             return Err(invalid("source relation references the same entry twice"));
         }
-        let rows = wanted.entry(pair.relation_type.clone()).or_default();
+        let relation_type = if built_in {
+            if pair.to.kind == EntityKind::Material && pair.from.kind != EntityKind::Material {
+                std::mem::swap(&mut left, &mut right);
+            }
+            if association_type.is_none() {
+                // Reuse the ordinary type already written by an earlier
+                // historical version of this catalog.
+                let id = txn
+                    .view()
+                    .relation_types_raw()
+                    .into_iter()
+                    .find(|t| t.normalized_name == ASSOCIATION_NAME)
+                    .map_or_else(RelationTypeId::new_v7, |t| t.id);
+                let direction = RelationDirection::Directed;
+                txn.relation_type(&id)?
+                    .name(ASSOCIATION_NAME)?
+                    .description(&LinkedText::default())?
+                    .direction(direction)?;
+                directions.insert(id.clone(), direction);
+                association_type = Some(id);
+            }
+            association_type.clone().expect("association type")
+        } else {
+            pair.relation_type
+        };
+        let Some(&direction) = directions.get(&relation_type) else {
+            continue;
+        };
+        let rows = wanted.entry(relation_type.clone()).or_default();
         match plan_relation_pair(rows, direction, &left, &right) {
             PairPlacement::Existing(_) => {}
             PairPlacement::Add(id, side, entry) => {
@@ -1333,7 +1385,7 @@ fn copy_rest(
             }
             PairPlacement::NewRow => rows.push(RelationRow {
                 id: pair.id,
-                relation_type: pair.relation_type,
+                relation_type,
                 left: BTreeSet::from([left]),
                 right: BTreeSet::from([right]),
                 created_at: pair.created_at,

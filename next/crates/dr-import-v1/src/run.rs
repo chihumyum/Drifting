@@ -1570,6 +1570,7 @@ fn write_library(
         let t3 = Instant::now();
         let mut replay_frontiers = Vec::new();
         let mut expected: Vec<(Frontiers, Owner, Fields)> = Vec::new();
+        let relation_times = crate::v3::relation_times(&rows);
         let t5;
         {
             let mut push = |bdoc: &BookDoc, ts: i64| -> Result<Frontiers> {
@@ -1584,7 +1585,13 @@ fn write_library(
                     .map_err(|e| ImportError::Invalid(format!("catalog recovery frontier: {e}")))?
                 } else {
                     let (r, _) = v3doc.edit_at(Origin::Import, Some(ts), |t| {
-                        dr_samples::v3::sync_catalog(t, &bdoc.view(), &options.v3, &projected_lines)
+                        dr_samples::v3::sync_catalog_with_relation_times(
+                            t,
+                            &bdoc.view(),
+                            &options.v3,
+                            &projected_lines,
+                            &relation_times,
+                        )
                     });
                     r?;
                     dr_samples::v3::validate(&v3doc.view()).map_err(ImportError::Invalid)?;

@@ -526,7 +526,6 @@ fn explain(key: &str) -> Option<&'static str> {
         "relation-todo-end-dropped" => "一头是待办的关系没有导入",
         "relation-patch-end-dropped" => "一头是补丁的关系没有导入",
         "relation-other-end-dropped" => "一头是其他素材的关系没有导入",
-        "relation-built-in-entries-dropped" => "内置的「关联」下两头都是条目的关系没有导入",
         "act-binding-shared-idea-split" => {
             "同一个构想绑了多个幕：最早的一幕沿用该构想，其余各幕在「幕」下新建了同名条目"
         }
