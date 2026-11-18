@@ -1444,6 +1444,20 @@ fn sidebar_hover_card_opens_beside_the_row_and_replaces_the_keyboard_card(cx: &m
     );
     let tree = tree(&ws, cx);
     assert!(tree.read_with(cx, |tree, cx| tree.card_row(cx).is_none()));
+
+    let first_key = row(one, cx);
+    let first_at = row_at(cx, &first_key);
+    for (pointer, expected, previous) in [(first_at, one, two), (at, two, one)] {
+        cx.simulate_mouse_move(pointer, None, Modifiers::none());
+        pump(cx);
+        cx.executor()
+            .advance_clock(dr_ui::tokens::motion::dwell::HOVER_CARD_DELAY);
+        pump(cx);
+        assert!(popup(expected, cx).is_some(), "pointer opens its row again");
+        assert!(popup(previous, cx).is_none(), "the previous card closed");
+        assert!(in_tree(&ws, cx, one), "the keyboard stays on its row");
+    }
+
     keys(cx, "space");
     assert!(popup(one, cx).is_some(), "Space opens the keyboard's card");
     assert!(
