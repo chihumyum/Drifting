@@ -215,9 +215,27 @@ impl InlineState {
         let synopsis = cx.new(|cx| {
             TextArea::new("v3-home-synopsis", window, cx).placeholder(synopsis_placeholder)
         });
-        let word_target = cx.new(|cx| TextField::new("v3-home-word-target", window, cx).mono());
-        let daily_word_target =
-            cx.new(|cx| TextField::new("v3-home-daily-target", window, cx).mono());
+        // Until a book is shown (none open: an empty 「全部项目」) every field
+        // shows what its base says is stored, the targets their defaults, so
+        // nothing reads as typed and unsaved and letting the library go (a
+        // swap, quitting) has nothing to wait for (`Drafts::drain`).
+        let default_pb = dr_model::v3::ProjectBook::default();
+        let targets_base = [
+            default_pb.word_target().unwrap_or(0),
+            default_pb.daily_word_target().unwrap_or(0),
+        ];
+        let locale = Settings::locale(cx);
+        let [word_shown, daily_shown] = targets_base.map(|n| target_text(n, locale));
+        let word_target = cx.new(|cx| {
+            let mut field = TextField::new("v3-home-word-target", window, cx).mono();
+            field.set_text(word_shown, cx);
+            field
+        });
+        let daily_word_target = cx.new(|cx| {
+            let mut field = TextField::new("v3-home-daily-target", window, cx).mono();
+            field.set_text(daily_shown, cx);
+            field
+        });
         let agent_name = cx.new(|cx| TextField::new("v3-home-agent-name", window, cx));
         let agent_description =
             cx.new(|cx| TextField::new("v3-home-agent-description", window, cx));
@@ -250,7 +268,6 @@ impl InlineState {
             }),
         ];
 
-        let default_pb = dr_model::v3::ProjectBook::default();
         let state = Self {
             synced_book_id: String::new(),
             synced_revision: String::new(),
@@ -258,10 +275,7 @@ impl InlineState {
             title_base: String::new(),
             synopsis_base: String::new(),
             synopsis_known: false,
-            targets_base: [
-                default_pb.word_target().unwrap_or(0),
-                default_pb.daily_word_target().unwrap_or(0),
-            ],
+            targets_base,
             targets_raw: [None, None],
             agent_base: Default::default(),
             book_base: true,
