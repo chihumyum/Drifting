@@ -1205,7 +1205,16 @@ impl Home {
 impl Drafts for Home {
     /// Before the shell lets go of the library (the fields are blurred by
     /// then): what is typed is stored, and the shell waits for it.
+    ///
+    /// The workspace makes Home with its window, before any book opens (the
+    /// shelf, the first run). Until Home has shown a book its fields hold
+    /// nothing stored or typed (empty, against the default targets): there
+    /// is nothing to store, and reading them as unsaved refused every quit
+    /// and library swap made from the shelf with 「未能保存」.
     fn drain(&mut self, _: &mut Window, cx: &mut Context<Self>) -> Drain {
+        if self.inline.synced_book_id.is_empty() {
+            return Drain::Ready;
+        }
         for field in Field::ALL {
             self.save(field, false, cx);
         }

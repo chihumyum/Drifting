@@ -31,6 +31,7 @@
   - 标题框的读屏名字是项目名；名字是空的时候是框里显示的占位字「未命名」（条目页的标题也只显示占位字）。
 - **改了就存，照条目页标题的存法**（`dr-view-home/src/project_template.rs`，`dr_view_page::settlement`）：
   - 标题、梗概、全书目标、每日目标、写给 Agent 三栏（一起算一处）、成书开关，每一处改完各是一次 `project.update`、一步撤销，在后台跑，经外壳的释放闸门（`settlement::register` / `accepts` / `write`）：换库、退出前外壳先让输入框失焦，再等主页把正在改的那一处存完（`Drafts::drain`）。
+  - 主页跟着窗口一起建，那时可能还没开过书（全部项目、首次运行）。还没显示过书的主页没有要存的东西，`drain` 直接答好。原来它把空框和默认目标对不上读成「没存上」：还没开过书时按 ⌘Q 被「未能保存」拦下，App 退不出去（2026-11-19，`feedback.json`、`book-transfer.json` 真窗口查出）；还没开过书时换库也一样被拦。回归：`tests/v5_t2_project_home.rs` 的 `a_home_that_has_shown_no_book_lets_the_library_go`，去掉修补即红。
   - 写入守着框里显示的那个值（`call_guarded` 加值守卫：`meta/name`、`meta/summary`、`project/book/word_target`、`project/book/daily_word_target`、`project/agent/{name,description,instructions}`），别处同时改过就不覆盖；成书开关是「设成开/关」，不加值守卫。
   - **没存上时**：框里打的字留着，下面一行「未能保存」加「重试」（条目页标题的那两个字：`k4Pages.saveFailed`、`markdownShare.retry`）；「重试」照条目页，守着现在存着的值再写一次。别处改了这一处时，正在改、正在存或没存上的框不被盖掉。
   - 梗概跟着主页的数字一起在后台读（`dr_view_stats::v3::load_at` 的 `summary`），不再每次书目版本变化在界面线程上同步读库；数字读到之前梗概框是空的。
