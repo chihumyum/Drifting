@@ -233,8 +233,8 @@ pub fn moon_look(ws: &Workspace, side: Side) -> MoonLook {
     }
 }
 
-// The weight shown before the author chooses from the native captures.
-const LOW_DENSITY_MOON_OUTLINE: MoonOutline = MoonOutline::Half;
+// The author chose the original weight after reviewing the native 1× captures.
+const LOW_DENSITY_MOON_OUTLINE: MoonOutline = MoonOutline::Original;
 
 fn moon_outline(scale: f32) -> MoonOutline {
     let outline = LOW_DENSITY_MOON_OUTLINE;
@@ -689,10 +689,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn moon_outline_uses_the_stronger_mask_below_one_and_a_half_scale() {
-        assert_eq!(MoonOutline::Full.for_scale(1.0), MoonOutline::Full);
-        assert_eq!(MoonOutline::Full.for_scale(1.5), MoonOutline::Original);
-        assert_eq!(MoonOutline::Full.for_scale(2.0), MoonOutline::Original);
+    fn the_default_moon_outline_is_original_and_previews_only_apply_below_one_and_a_half() {
+        assert_eq!(
+            LOW_DENSITY_MOON_OUTLINE.for_scale(1.0),
+            MoonOutline::Original
+        );
+        for grade in [MoonOutline::Original, MoonOutline::Half, MoonOutline::Full] {
+            assert_eq!(grade.for_scale(1.0), grade);
+            assert_eq!(grade.for_scale(1.5), MoonOutline::Original);
+            assert_eq!(grade.for_scale(2.0), MoonOutline::Original);
+        }
     }
 
     #[cfg(target_os = "macos")]
