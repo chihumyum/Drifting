@@ -2,7 +2,7 @@
   "about": "设置：打开设置（⌘,）；主题选「深色」；编辑器字号加一档；搜索「width」只剩「页面宽度」；界面语言从 English 换成简体中文，按钮立刻变中文；关掉重开，这些都还在；Esc 关掉设置。值经桥读 dr-shell 的设置文件对。",
   "steps": [
     { "seed": "showcase" },
-    { "launch": { "settings": { "account": { "language.ui_locale": "en", "appearance.theme": "light" } } } },
+    { "launch": { "settings": { "device": { "modules": { "guides.seen": ["workspace-tour"] } }, "account": { "language.ui_locale": "en", "appearance.theme": "light" } } }, "note": "The workspace tour comes up once on a device that has not seen it, 0.7 s after a book's workspace shows, its first bubble over the left column's Tab row and the rows under it (m24-sea.md 「导览」, kernel-v5 §15 item 50; on books of the current format since UP, 2026-11-17). This profile is fresh: the device is told it has seen the tour, as the other window scenarios do, so no bubble lies over what the steps below press." },
     { "app": "ui.wait", "params": { "until": "ready", "timeout_ms": 30000 } },
     { "app": "window.focus" },
     { "app": "book.open", "params": { "name": "慢钟" } },
@@ -41,7 +41,7 @@
     { "app": "ui.screenshot", "png": "03-chinese-dark.png" },
     { "app": "app.quit", "expect": { "/quit": true } },
 
-    { "launch": {}, "note": "关掉重开" },
+    { "launch": {}, "note": "关掉重开。Same profile as the first launch: launch merges into its settings.json, so guides.seen stays and the tour stays seen." },
     { "app": "ui.wait", "params": { "until": "ready", "timeout_ms": 30000 } },
     { "app": "settings.get", "params": { "keys": ["appearance.theme", "editor.font_size", "language.ui_locale"] },
       "expect": { "/locale": "zh-CN", "/values/appearance.theme": "dark", "/values/editor.font_size": 18.0 } },

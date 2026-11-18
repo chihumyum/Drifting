@@ -1013,7 +1013,8 @@
             "language.ui_locale": "en"
           }
         }
-      }
+      },
+      "note": "Same profile as the first launch: launch merges into its settings.json, so guides.seen stays and the tour stays seen."
     },
     {
       "app": "ui.wait",

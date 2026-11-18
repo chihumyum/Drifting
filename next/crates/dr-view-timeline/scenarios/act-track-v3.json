@@ -238,11 +238,16 @@
         "role": "Slider",
         "within": {
           "label": "${source.title}",
-          "role": "Group"
+          "role": "Group",
+          "within": {
+            "label": "Lane Acts",
+            "role": "Group"
+          }
         },
         "count": 1
       },
-      "save": "resize_handle"
+      "save": "resize_handle",
+      "note": "The slider is on the entry's card in the Acts lane. The new act track's page is open on the paper, and its 「挂在这里的条目」 block (kernel-v5 §16 「条目页」) lists the entry just hung there, a Group of the same name that comes first in the tree (below the window's bottom edge): the card is looked for inside 「Lane Acts」."
     },
     {
       "app": "ui.find",
@@ -312,7 +317,7 @@
           }
         }
       },
-      "note": "5. 关掉重开：核对幕轨道、新建条目、外部归属条目及拉出的区间长度全部原样在盘。"
+      "note": "5. 关掉重开：核对幕轨道、新建条目、外部归属条目及拉出的区间长度全部原样在盘。Same profile as the first launch: launch merges into its settings.json, so guides.seen stays and the tour stays seen."
     },
     {
       "app": "ui.wait",

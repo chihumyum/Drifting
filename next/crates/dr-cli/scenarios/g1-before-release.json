@@ -147,10 +147,18 @@
         "settings": {
           "account": {
             "language.ui_locale": "en"
+          },
+          "device": {
+            "modules": {
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
           }
         }
       },
-      "save": "launched"
+      "save": "launched",
+      "note": "The workspace tour comes up once on a device that has not seen it, 0.7 s after a book's workspace shows, its first bubble over the left column's Tab row and the rows under it (m24-sea.md 「导览」, kernel-v5 §15 item 50; on books of the current format since UP, 2026-11-17). This profile is fresh: the device is told it has seen the tour, as the other window scenarios do, so no bubble lies over what the steps below press."
     },
     {
       "app": "ui.wait",
@@ -309,9 +317,10 @@
       "params": {
         "until": "ready",
         "state": {
-          "/page": "entry:${entries.[template=tpl-chapter].id}/g1-drain-patches"
+          "/page": "entry:${entries.[template=tpl-chapter].id}/g1-drain-kv"
         }
-      }
+      },
+      "note": "One page per entry (T1; f6-shell.md 「一个条目一个标签页」): the chapter's page is open already, so the target naming g1-drain-patches scrolls that page to the module instead of opening another one, and the page stays the one first opened. The steps below find that module's input on it."
     },
     {
       "app": "app.info",
@@ -401,9 +410,10 @@
       "params": {
         "until": "ready",
         "state": {
-          "/page": "entry:${entries.[template=tpl-chapter].id}/mod-plot-grid"
+          "/page": "entry:${entries.[template=tpl-chapter].id}/g1-drain-kv"
         }
-      }
+      },
+      "note": "One page per entry (T1; f6-shell.md 「一个条目一个标签页」): the chapter's page is open already, so the target naming mod-plot-grid scrolls that page to the module instead of opening another one, and the page stays the one first opened. The steps below find that module's input on it."
     },
     {
       "app": "app.info",
@@ -503,9 +513,10 @@
       "params": {
         "until": "ready",
         "state": {
-          "/page": "entry:${entries.[template=tpl-chapter].id}/g1-drain-fields"
+          "/page": "entry:${entries.[template=tpl-chapter].id}/g1-drain-kv"
         }
-      }
+      },
+      "note": "One page per entry (T1; f6-shell.md 「一个条目一个标签页」): the chapter's page is open already, so the target naming g1-drain-fields scrolls that page to the module instead of opening another one, and the page stays the one first opened. The steps below find that module's input on it."
     },
     {
       "app": "app.info",
@@ -668,7 +679,8 @@
           "DRIFTING_WINDOW_DISPLAY": "secondary"
         }
       },
-      "save": "reopened"
+      "save": "reopened",
+      "note": "Same profile as the first launch: launch merges into its settings.json, so guides.seen stays and the tour stays seen."
     },
     {
       "app": "ui.wait",
