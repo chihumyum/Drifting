@@ -290,7 +290,6 @@
     "accept": "Accepter les entrées d’ailleurs",
     "autoLink": "Liens automatiques",
     "collapse": "Replier {{name}}",
-    "create": "Créer",
     "defaultTemplate": "Modèle par défaut",
     "display": "Affichage",
     "expand": "Déplier {{name}}",
@@ -313,8 +312,7 @@
     "sourceDefault": "Valeur par défaut",
     "sourceOverride": "Remplacement · {{name}}",
     "sourceTemplate": "Modèle · {{name}} · {{level}}",
-    "thisLevel": "Ce niveau",
-    "title": "Titre"
+    "thisLevel": "Ce niveau"
   },
   "v3Review": {
     "backToReview": "Retour à la révision",

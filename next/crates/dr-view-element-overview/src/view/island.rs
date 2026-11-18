@@ -662,7 +662,7 @@ impl ElementOverview {
                                     .text()
                                     .small()
                                     .on_click(cx.listener(move |this, _, window, cx| {
-                                        this.open_new_element_dialog(&level_id, window, cx);
+                                        this.create_element(&level_id, window, cx);
                                     })),
                             )
                         })

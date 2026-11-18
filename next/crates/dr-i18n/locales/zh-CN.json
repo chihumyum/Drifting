@@ -1415,7 +1415,6 @@
     "accept": "收别处的条目",
     "autoLink": "自动链接",
     "collapse": "折叠{{name}}",
-    "create": "新建",
     "defaultTemplate": "默认模板",
     "display": "显示",
     "expand": "展开{{name}}",
@@ -1438,8 +1437,7 @@
     "sourceDefault": "默认值",
     "sourceOverride": "覆盖 · {{name}}",
     "sourceTemplate": "模板 · {{name}} · {{level}}",
-    "thisLevel": "本层",
-    "title": "标题"
+    "thisLevel": "本层"
   },
   "v3Review": {
     "backToReview": "回审阅",

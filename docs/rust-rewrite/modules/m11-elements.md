@@ -541,7 +541,7 @@ G3 待公共载荷进 main 后消费接收端；性能／heavy／截图目检和
 
 - **一棵树**（`panel.rs` 的 `rows_sorted`，参数从 `grouped` 换成 `DisplaySurface`）：`Page` 是条目页的「下面的条目」（只列住着的）；`Members` 是「挂在这里的条目」（只列挂着的，每行右边灰字「住在「构想」」）；`Sidebar` 是 Tab 里的树（第一行是这个层级自己，在视图里时上面一个带视图图标的小标，然后住着的、再挂着的）。树里挂着的条目在它挂的每一处都出现，也在它住的地方出现；只有「挂到自己下面」这种环会被截掉。`Row::Section` 和 `Section` 去掉了，`Row::Member` 带上 `depth`；`board_sections` 换成 `board_ids`。`ROOT_LEVEL`（空字符串）是最外层，给挂在根上的 Tab 用。
 - **拖到条目上是住还是挂**（`data.rs` 的 `drop_attaches`、`resolve_drop_with`、`drop_target_with`、`prepare_drop_with`）：只开着层级的搬进去住，按着 ⌥ 也是搬家；两样都开着的（写书模板里的「分类」）搬进去住，按住 ⌥ 拖是挂上去；只收别处条目、不开层级的（故事线）放不下，不接（2026-11-16 T9 改，任务书 T9 第 1 条：左栏里拖只有一个意思，搬家；挂在底栏的泳道上或条目页「挂在这里的条目」里做。原来这里是「挂上去」）。左栏、条目页、看板都照这一条。旧的 `resolve_drop`／`drop_target`／`prepare_drop` 留着，等于不按 ⌥。
-- **挂到这个条目上新建**（`data.rs` 的 `creation_attached`、`dialogs.rs` 的 `open_attached`、`menu.rs` 登记的 `EntryAction::NewAttached`）：条目页第二块的「＋ 新建」打开同一个新建框，建好的条目挂在这个条目上，住处照它的「新条目住在」。
+- **挂到这个条目上新建**（`data.rs` 的 `creation_attached`、`menu.rs` 登记的 `EntryAction::NewAttached`）：条目页第二块的「＋ 新建」直接建一个「未命名」并打开，建好的条目挂在这个条目上，住处照它的「新条目住在」。
 - **设置那一块**（`category.rs`）只剩「默认模板」「显示」「格式快捷输入」；「自动链接」「收别处的条目」「新条目住在」挪到条目页两块的块头和设置行。「泳道」的标签去掉了。
 - **看板的位置**：拖动写在这个层级的范围（`layout.put` 的 `scope` 是层级 id），读的时候以前用的是另一个字符串，拖完重开就回到默认位置；现在读写同一个范围。
 
@@ -561,10 +561,13 @@ G3 待公共载荷进 main 后消费接收端；性能／heavy／截图目检和
 
 **大白话。** 故事线（只开着「收别处的条目」、不开层级）悬停卡上的「新建」以前每次都失败，新建框一直显示「Your changes could not be saved」：它把新条目当成住在故事线下面，数据层拒绝（`V3-LEAF-NO-CHILDREN`）。现在和条目页「挂在这里的条目」那块的「＋ 新建」一样，新条目挂到故事线上，住在故事线的「新条目住在」说的地方（`kernel-v5.md` 第 16 节「挂到一个条目上新建时一定挂名」）。只开层级、或两样都开着的条目，悬停卡上的「新建」照旧住进去。SC 一路（`v5-sc-scenarios`）跑场景时查出，`v5-sc-fixes` 一路修。
 
-- `data.rs` 的 `Creation` 多了 `attach`：`creation` 在新建的上下文只收别处的条目、不是层级时为真（就是原来已经算出的 `is_host_only`），`creation_attached` 永远为真。`dialogs.rs` 的 `EntryPicker::create` 按它选 `host` 还是 `parent`，不再只看新建框是从哪里打开的。
-- 场景 `k4-g2-actions`、`k4-g2-review-drag`：悬停卡「新建」那一步的 `pending` 去掉，SC 为绕开它加的「打开故事线页、滚到第二块、按＋ 新建」五步去掉，回到从悬停卡新建；后面「新条目住在」改了以后提交被拦、重试的步骤不变。
-- 测试：`tests/v3_actions.rs` 的 `new_on_a_storylines_card_attaches_the_new_entry`（GPUI：从故事线卡的「新建」打字、回车，新条目住在书稿下面、主归属是故事线、挂名记录在）；`creation_uses_home_and_atomic_membership_without_inventing_a_default` 加了 `attach` 的两句（故事线为真、分组为假）。
+- `data.rs` 的 `Creation` 多了 `attach`：`creation` 在新建的上下文只收别处的条目、不是层级时为真（就是原来已经算出的 `is_host_only`），`creation_attached` 永远为真。`menu.rs` 的新建动作按 `attach` 选 `host` 或 `parent`。
+- 场景 `k4-g2-actions`、`k4-g2-review-drag`：悬停卡「新建」那一步的 `pending` 去掉，从悬停卡走挂名新建。原场景的住处改动、提交被拦和重试针对旧起名框，新入口改见下一节。
+- 测试：`tests/v3_actions.rs` 的 `new_on_a_storylines_card_attaches_the_new_entry`（GPUI：从故事线卡的「新建」建立，条目住在书稿下面、主归属是故事线、挂名记录在）；`creation_uses_home_and_atomic_membership_without_inventing_a_default` 加了 `attach` 的两句（故事线为真、分组为假）。
 
 ## 内核 v5 · 「新建」不先起名字（2026-11-18 作者定的）
 
-kernel-v5 第 15 节第 54 条，作者「全照建议」，由 [v5-followups.md](../handoff/v5-followups.md) 的 NE 做：左栏卡里的「新建」、条目页「下面的条目」「挂在这里的条目」块头上的新建，不再开起名字的小框，直接建「未命名」、打开、标题选中；用这一层默认建的模板（作者确认：「用默认模板」），建好要换用「换模板」。小框只留给「换模板」「归属到」。
+[kernel-v5 第 15 节第 54 条](../kernel-v5.md#15-作者的答复与还没定的)定下的新建方式适用于左栏卡和条目页的「下面的条目」「挂在这里的条目」。要素全景原来用同一个起名框的「新建要素」也走这条动作。点击或在左栏卡按回车，就建一个「未命名」并把它固定打开。标题里的「未命名」已经全选，直接打字即可改名。离开页面时仍叫「未命名」的条目也会保留。模板使用当前层的默认值，默认值为空就建不带模板的条目。需要调整模板或归属时，从卡里打开原来的「换模板」或「归属到」。
+
+- `menu.rs` 里的 `EntryAction::New` 按现有规则选择住进、同层或挂到宿主。第二块的 `EntryAction::NewAttached` 固定走宿主，住处由「新条目住在」决定。点击时重新核对项目和库，从当前读视图构造带守卫的 `entry.create`。住处和挂名在同一条命令内提交。等新条目出现在外壳的读视图后，调用 `focus_new_title` 和 `Open::KEEP.at_title()`。
+- `v5_kb_keyboard.rs` 验证左栏回车和两个页内按钮。断言固定打开、标题焦点和选区、替换后保存、一步撤销改名和一步撤销创建，以及无默认模板的住进和按宿主默认值挂名。`v3_actions.rs` 验故事线卡的默认住处和模板，关页仍保留「未命名」，撤销创建也撤掉挂名。真窗口的 `k4-g2-actions` 和 `k4-g2-review-drag` 从悬停卡创建，再在条目页输入标题。

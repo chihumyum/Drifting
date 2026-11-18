@@ -64,7 +64,7 @@ cargo run -p dr-view-page --features capture --example page-capture -- ../docs/r
 3. **`app/drifting`**：依赖加 `dr-view-page`，`main.rs` 在 `dr_view_home::init` 后面调 `dr_view_page::init(cx)`。
 4. **`dr-i18n/keys.txt`**：加了旧版的 13 个键（页眉、标题和梗概的占位、⁂ 的动作、空章提示），`locales/` 由 `script/sync-locales.py` 重新生成。
 5. **`next/Cargo.toml`**：成员和依赖各一行。
-6. **新建入口（M02 等）**：打开新章节或构想前，调 `dr_view_page::focus_new_title(doc, cx)`，然后用外壳的 `Open::KEEP.at_title()` 打开；章首第一次画出来时取走这个意图，把键盘交给标题框并全选。沿用 ⁂ 的同一套 `NewTitles`，不另造聚焦机制。
+6. 新建条目打开前，把它的 `Target::key()`（`entry:<id>`）交给 `dr_view_page::focus_new_title`，然后用 `Open::KEEP.at_title()` 固定打开。条目页头第一次画出来时取走意图，把键盘交给标题并全选。没有正文模块的条目也走同一个页头。
 
 没装 chrome 的地方（外壳自己的测试、截图）照旧画编辑器自己的标题行。
 
@@ -128,4 +128,4 @@ cargo run -p dr-view-page --features capture --example page-capture -- ../docs/r
 kernel-v5 第 15 节第 53、54 条，作者「全照建议」。
 
 - **空着的「说明」只留一行高**（[v5-followups.md](../handoff/v5-followups.md) 的 SF）：按模块的「进成书」开关认，不进成书的正文空着时一行高、写了字往下长；进成书的照旧至少 160。原来一律 160。`dr-view-page/src/v3.rs` 的 `BodyModule` 让不进成书的编辑器按内容排高，空时可以直接点这一行下笔。`dr-view-page/tests/v3.rs` 用自定义名称的两篇空正文验证开关判定、点击录入和展开。
-- **新建的条目打开时标题选中**（NE）：左栏卡里的「新建」不先起名字，直接建「未命名」、打开、标题选中，用 `focus_new_title` 那一套（⁂ 去掉以后它没有调用方）。
+- NE 让新建的条目打开时选中标题。左栏卡和条目页两块中的「新建」直接建立「未命名」。`NewTitles` 按条目识别标题聚焦意图，正文模块加载时让出首次焦点。回车保存改名，有正文时光标进第一篇正文。无正文条目、整段选区和替换标题见 `dr-view-elements/tests/v5_kb_keyboard.rs`。

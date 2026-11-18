@@ -1428,7 +1428,6 @@
     "accept": "Accept entries from elsewhere",
     "autoLink": "Automatic links",
     "collapse": "Collapse {{name}}",
-    "create": "Create",
     "defaultTemplate": "Default template",
     "display": "Display",
     "expand": "Expand {{name}}",
@@ -1451,8 +1450,7 @@
     "sourceDefault": "Default",
     "sourceOverride": "Override · {{name}}",
     "sourceTemplate": "Template · {{name}} · {{level}}",
-    "thisLevel": "This level",
-    "title": "Title"
+    "thisLevel": "This level"
   },
   "v3Review": {
     "backToReview": "Back to Review",

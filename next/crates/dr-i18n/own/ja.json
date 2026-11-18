@@ -281,7 +281,6 @@
     "accept": "ほかの場所の項目を受け入れる",
     "autoLink": "自動リンク",
     "collapse": "{{name}}を折りたたむ",
-    "create": "作成",
     "defaultTemplate": "既定のテンプレート",
     "display": "表示",
     "expand": "{{name}}を展開",
@@ -304,8 +303,7 @@
     "sourceDefault": "既定値",
     "sourceOverride": "上書き · {{name}}",
     "sourceTemplate": "テンプレート · {{name}} · {{level}}",
-    "thisLevel": "この階層",
-    "title": "タイトル"
+    "thisLevel": "この階層"
   },
   "v3Review": {
     "backToReview": "レビューに戻る",
