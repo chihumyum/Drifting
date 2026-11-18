@@ -9,6 +9,7 @@ use std::{
     sync::{
         Arc,
         atomic::{AtomicUsize, Ordering},
+        mpsc,
     },
     time::{Duration, Instant},
 };
@@ -99,6 +100,25 @@ impl Fixture {
 
     fn stored(&self) -> dr_agent::proactive::ProactiveState {
         ProactiveStore::load(self.lib.library(), &self.book).unwrap()
+    }
+
+    /// Keep a suggestion job waiting for its first write until the sender
+    /// drops. Reads can still see the state before the transaction.
+    fn hold_writer(&self) -> mpsc::Sender<()> {
+        let lib = self.lib.library().clone();
+        let (ready, acquired) = mpsc::sync_channel(0);
+        let (release, held) = mpsc::channel();
+        std::thread::spawn(move || {
+            lib.local_write(|_| {
+                if ready.send(()).is_ok() {
+                    let _ = held.recv();
+                }
+                Ok(())
+            })
+            .unwrap();
+        });
+        acquired.recv_timeout(Duration::from_secs(5)).unwrap();
+        release
     }
 
     /// Cards an earlier look left (two hours ago: the 90 minutes are over).
@@ -1037,7 +1057,7 @@ fn preparing_a_look_shows_the_line_and_locks_cards_before_the_ticket(cx: &mut Te
     let config = w.connections.read_with(cx, |c, _| c.run_config().unwrap());
     // The worker can't record_open or collect changes yet. The in-process
     // reservation is already visible while the durable ticket is absent.
-    let writer = f.lib.library().writer();
+    let writer = f.hold_writer();
     let looking = controller.trigger_suggestions(
         f.book.clone(),
         Some(config),
@@ -1078,7 +1098,7 @@ fn a_card_start_locks_all_cards_and_their_dismiss_buttons(cx: &mut TestAppContex
 
     // Keep the chosen card at the beginning of its start. Both the old
     // frame (immediate click) and a new frame must leave the other card be.
-    let writer = f.lib.library().writer();
+    let writer = f.hold_writer();
     click_card(cx, "home-agent-card-0");
     assert!(w.cards().read_with(cx, |c, _| c.any_starting()));
     click_card(cx, "home-agent-card-1");

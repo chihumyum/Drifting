@@ -46,10 +46,13 @@ fn hold_writer(_: &HoldWriter, cx: &mut App) {
     let (ready, acquired) = mpsc::sync_channel(0);
     let (release, held) = mpsc::channel();
     std::thread::spawn(move || {
-        let _writer = lib.writer();
-        if ready.send(()).is_ok() {
-            let _ = held.recv();
-        }
+        lib.local_write(|_| {
+            if ready.send(()).is_ok() {
+                let _ = held.recv();
+            }
+            Ok(())
+        })
+        .expect("hold the fixture writer");
     });
     acquired.recv().unwrap();
     cx.global_mut::<Fixture>().writer_release = Some(release);
