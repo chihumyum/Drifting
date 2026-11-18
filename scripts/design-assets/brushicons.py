@@ -96,7 +96,8 @@ thinking.png                风·林·火·山: 68 frames side by side (10 hold 
                             a tornado breaking into leaves and jungle, catching into a flame,
                             spreading into mountain ranges and rolling back into the tornado,
                             stepped at 8 fps while the Agent thinks and resting on 山 (frame 57)
-                            when finished. Replaces 星芒 (2026-11-15), kept in ALTERNATES
+                            when finished. Replaces 星芒 (2026-11-15) in next/; 星芒 is still written as
+                            thinking-star.png for 0.1 (its icons/thinking.png)
 
 The selection bar's text formats, drawn as letters and marks (fine grain):
 
@@ -1752,10 +1753,11 @@ OBJECTS = {
 # Drawn beside the shipped folding fan and incense and not written out: to
 # ship one instead, put it in OBJECTS under the shipped icon's name.
 ALTERNATES = {"folding-fan-line": (folding_fan_line, 3012), "lantern": (lantern, 3013),
-              "oil-lamp": (oil_lamp, 9111), "eyes-shut": (eyes_shut, 9121),
-              "thinking-star": (thinking_star, 6101)}
+              "oil-lamp": (oil_lamp, 9111), "eyes-shut": (eyes_shut, 9121)}
 # Frames drawn with one rng, each finished with fine grain, then laid side by side.
-STRIPS = {"thinking": (thinking, 9500)}
+# `thinking` is next/'s (dr-ui); 0.1 ships `thinking-star` as its
+# `src/assets/design/icons/thinking.png` (six frames, `steps(6)` in materials.css).
+STRIPS = {"thinking": (thinking, 9500), "thinking-star": (thinking_star, 6101)}
 masks = {}
 for name, (draw, seed) in ICONS.items():
     rng = np.random.default_rng(seed)
