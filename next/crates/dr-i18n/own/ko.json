@@ -111,6 +111,8 @@
     "unset": "설정 안 됨"
   },
   "mirrorV5": {
+    "contents": "목차",
+    "acknowledgePreserved": "확인",
     "intro": "프로젝트마다 Markdown 폴더가 있습니다. 다른 편집기에서 본문이나 필드를 편집하고 저장하면 변경 사항이 Drifting에 반영됩니다.",
     "offWarning": "폴더를 끄기 전에 보류 중인 편집을 병합합니다. 기존 파일은 그대로 남습니다. 로컬 데이터에서 다시 켤 수 있습니다.",
     "identity": "drifting-id가 이 항목 또는 본문 모듈과 일치하지 않습니다.",

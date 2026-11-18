@@ -144,13 +144,8 @@ impl Project {
         let header = Header::for_entry(entry, tpl, &options.labels, hosts, |kind, id| match kind {
             FieldType::EntityRef => layout.entry_links.get(&EntryId::parse(id).ok()?).cloned(),
             FieldType::Image => {
-                let id = AssetId::parse(id).ok()?;
-                links.destination(&id).map(|path| {
-                    format!(
-                        "[{}]({path})",
-                        links.asset(&id).map_or("", |f| f.name.as_str())
-                    )
-                })
+                let asset = links.asset(&AssetId::parse(id).ok()?)?;
+                Some(format!("[[{}]]", asset.path))
             }
             _ => None,
         });

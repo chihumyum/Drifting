@@ -111,6 +111,8 @@
     "unset": "未設定"
   },
   "mirrorV5": {
+    "contents": "目次",
+    "acknowledgePreserved": "了解",
     "intro": "プロジェクトごとに Markdown フォルダがあります。他のエディターで本文やフィールドを編集して保存すると、変更が Drifting に取り込まれます。",
     "offWarning": "無効にする前に保留中の変更を取り込みます。既存のファイルはそのまま残ります。ローカルデータから再び有効にできます。",
     "identity": "drifting-id が項目または本文モジュールと一致しません。",
