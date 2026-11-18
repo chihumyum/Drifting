@@ -876,8 +876,12 @@
           "/pageTitle": "Untitled",
           "/dialog": false,
           "/v3Page/head": true
+        },
+        "page": {
+          "/head/focus": "title"
         }
-      }
+      },
+      "note": "The new entry's page is up with its title selected and holding the keyboard (page.text /head/focus), so the typing below replaces 「未命名」 (NE; m11-elements.md, kernel-v5 §15 item 54). The title takes the keyboard after the page first shows: a busy machine drew that frame after this wait had seen the title, and the typing went elsewhere."
     },
     {
       "app": "input.type",
