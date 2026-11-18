@@ -27,7 +27,10 @@ use dr_ui::{
     style::DrStyled,
     tokens::radius,
 };
-use dr_workspace::commands::v3::types::{EntryTemplate, TabMount};
+use dr_workspace::{
+    Actor, RecordKey,
+    commands::v3::types::{EntryTemplate, TabMount},
+};
 use gpui::{prelude::*, *};
 use serde_json::{Value, json};
 use std::{
@@ -47,6 +50,23 @@ struct LevelDrag {
     owner: EntityId,
     id: String,
     name: String,
+}
+
+#[derive(Clone)]
+struct LevelInsertion {
+    anchor: String,
+    after: bool,
+}
+
+impl LevelInsertion {
+    fn can_drop(&self, book: &Book, drag: &LevelDrag, owner: EntityId) -> bool {
+        drag.owner == owner
+            && drag.id != self.anchor
+            && book.v3().is_some_and(|v| {
+                v.entry(&self.anchor)
+                    .is_some_and(|anchor| valid_parent(v, &drag.id, anchor.parent.as_deref()))
+            })
+    }
 }
 
 struct QuickEdit {
@@ -830,19 +850,37 @@ impl Structure {
         legend.into_any_element()
     }
 
-    fn move_row(&self, drag: &LevelDrag, parent: Option<&str>, cx: &mut Context<Self>) {
-        if drag.owner != cx.entity_id() || !valid_move(&self.host.book, &drag.id, parent) {
-            return;
-        }
-        let input = json!({ "book": self.host.book_id, "id": drag.id, "parent": parent });
+    fn move_row(
+        &self,
+        drag: &LevelDrag,
+        parent: Option<&str>,
+        insertion: Option<LevelInsertion>,
+        cx: &mut Context<Self>,
+    ) {
         let Some(book) = self.host.book.v3() else {
             return;
         };
-        let guard = book.guard_for(&input);
+        let mut input = json!({ "book": self.host.book_id, "id": drag.id, "parent": parent });
+        let mut guard = book.guard_for(&input);
+        if let Some(slot) = &insertion {
+            guard.records.extend(
+                [
+                    RecordKey::entry(&slot.anchor),
+                    RecordKey::children_of(parent),
+                ]
+                .iter()
+                .filter_map(|key| book.shown_precondition(key)),
+            );
+        }
         let host = self.host.clone();
         let library = host.library.clone();
+        let (book_id, moving) = (host.book_id.clone(), drag.id.clone());
         let job = cx.background_spawn(async move {
-            library.call_guarded(&dr_workspace::Actor::User, "entry.move", input, guard)
+            if let Some(slot) = insertion {
+                input =
+                    tabs::move_beside_input(&library, &book_id, &moving, &slot.anchor, slot.after)?;
+            }
+            library.call_guarded(&Actor::User, "entry.move", input, guard)
         });
         cx.spawn(async move |_, cx| {
             if let Err(error) = job.await {
@@ -851,6 +889,62 @@ impl Structure {
             }
         })
         .detach();
+    }
+
+    fn insertion_slot(
+        &self,
+        anchor: &str,
+        after: bool,
+        outer_gap: bool,
+        width: f32,
+        p: &dr_ui::tokens::Palette,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let slot = LevelInsertion {
+            anchor: anchor.to_owned(),
+            after,
+        };
+        let check_slot = slot.clone();
+        let book = self.host.book.clone();
+        let owner = cx.entity_id();
+        let selector = format!(
+            "v5-structure-{}-{anchor}",
+            if after { "after" } else { "before" }
+        );
+        div()
+            .id(SharedString::from(selector.clone()))
+            .debug_selector(move || selector.clone())
+            .w(px(width))
+            .h(px(if outer_gap { 10.0 } else { 6.0 }))
+            .flex_none()
+            .flex()
+            .items_center()
+            .child(
+                div()
+                    .w_full()
+                    .h(px(0.5))
+                    .when(outer_gap, |el| el.bg(p.local_hairline())),
+            )
+            .can_drop(move |value, _, _| {
+                value
+                    .downcast_ref::<LevelDrag>()
+                    .is_some_and(|drag| check_slot.can_drop(&book, drag, owner))
+            })
+            .drag_over::<LevelDrag>({
+                let ink = p.accent.solid();
+                move |style, _, _, _| style.border_b_1().border_color(ink)
+            })
+            .on_drop(cx.listener(move |this, drag: &LevelDrag, _, cx| {
+                if slot.can_drop(&this.host.book, drag, cx.entity_id()) {
+                    let parent = this
+                        .host
+                        .book
+                        .v3()
+                        .and_then(|v| v.entry(&slot.anchor))
+                        .and_then(|entry| entry.parent.as_deref());
+                    this.move_row(drag, parent, Some(slot.clone()), cx);
+                }
+            }))
     }
 
     fn levels(&self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
@@ -921,17 +1015,11 @@ impl Structure {
             let Some(level) = v.levels.get(id) else {
                 continue;
             };
-            // A new group of the outermost: a gap with a hairline in it.
-            if *depth == 0 && index > 0 {
-                table = table.child(
-                    div()
-                        .h(px(10.0))
-                        .w(px(total))
-                        .flex()
-                        .items_center()
-                        .child(div().w_full().h(px(0.5)).bg(p.local_hairline())),
-                );
-            }
+            // At a boundary the following row determines the destination
+            // level. A gap before a root goes to the root even if the
+            // preceding drawn row was a descendant of another root.
+            table =
+                table.child(self.insertion_slot(id, false, *depth == 0 && index > 0, total, p, cx));
             let target = entry_target(id);
             let selected = open.is_some() && open == target;
             let source = |key: &str| match level.sources.get(key) {
@@ -1103,7 +1191,11 @@ impl Structure {
                             .border_color(p.ink(3).solid())
                     })
                     .on_drop(cx.listener(move |this, drag: &LevelDrag, _, cx| {
-                        this.move_row(drag, Some(&to), cx)
+                        if drag.owner == cx.entity_id()
+                            && valid_move(&this.host.book, &drag.id, Some(&to))
+                        {
+                            this.move_row(drag, Some(&to), None, cx);
+                        }
                     }))
                     // 「搬到这里」 at the right of the row a drag would move into.
                     .child(
@@ -1134,6 +1226,9 @@ impl Structure {
                             .child(t(cx, v5_fill::MOVE_HERE)),
                     ),
             );
+        }
+        if let Some((id, _)) = rows.iter().rfind(|(_, depth)| *depth == 0) {
+            table = table.child(self.insertion_slot(id, true, false, total, p, cx));
         }
         div()
             .id("v5-structure-level-table")
@@ -1458,10 +1553,13 @@ fn valid_move(book: &Book, entry: &str, parent: Option<&str>) -> bool {
     let Some(v) = book.v3() else {
         return false;
     };
-    let Some(moving) = v.entry(entry) else {
-        return false;
-    };
-    if moving.parent.as_deref() == parent {
+    v.entry(entry)
+        .is_some_and(|moving| moving.parent.as_deref() != parent)
+        && valid_parent(v, entry, parent)
+}
+
+fn valid_parent(v: &BookV3, entry: &str, parent: Option<&str>) -> bool {
+    if v.entry(entry).is_none() {
         return false;
     }
     let Some(parent) = parent else {

@@ -529,6 +529,7 @@ pub mod v3 {
         /// keyboard on that row.
         switch_wait: Option<SwitchWait>,
         card_keys: Option<Entity<CardKeys>>,
+        sidebar_cards: hover_card::SidebarCards,
         /// The grid's tiles as last drawn, by stop.
         tile_bounds: RefCell<HashMap<String, Entity<Option<Bounds<Pixels>>>>>,
         me: WeakEntity<Self>,
@@ -733,6 +734,7 @@ pub mod v3 {
                 card_row: None,
                 switch_wait: None,
                 card_keys: None,
+                sidebar_cards: Default::default(),
                 tile_bounds: RefCell::default(),
                 me: WeakEntity::new_invalid(),
                 _observers: Vec::new(),
@@ -1851,18 +1853,37 @@ pub mod v3 {
                     )
                     .into_any_element()
             };
-            let cell = if let Some(ws) = card_ws {
-                dr_shell::workspace::page_hover_card_keyed(
-                    format!("g2-card-{}-{scope}-{id}", self.host.level),
+            let card_id = format!("g2-card-{}-{scope}-{id}", self.host.level);
+            let cell = match card_ws {
+                Some(ws) if self.host.surface.is_sidebar() => {
+                    let me = self.me.clone();
+                    let hovered_row = key.clone();
+                    let card = hover_card::SidebarCard {
+                        cards: self.sidebar_cards.clone(),
+                        on_pointer_open: Some(Rc::new(move |window, cx| {
+                            let _ = me.update(cx, |this, cx| {
+                                if let Some(open_row) = this.card_row(cx)
+                                    && Some(open_row) != hovered_row.as_deref()
+                                    && this.has_keyboard(window, cx)
+                                {
+                                    this.card_close(window, cx);
+                                }
+                            });
+                        })),
+                    };
+                    dr_shell::workspace::sidebar_page_hover_card(
+                        card_id, cell, &target, &ws, card_keys, card, cx,
+                    )
+                }
+                Some(ws) => dr_shell::workspace::page_hover_card(
+                    card_id,
                     cell,
                     &target,
                     &ws,
                     Default::default(),
-                    card_keys,
                     cx,
-                )
-            } else {
-                cell.into_any_element()
+                ),
+                None => cell,
             };
             let bounds = overlay::use_bounds(
                 SharedString::from(format!("g2-drop-bounds-{}-{scope}-{id}", self.host.level)),

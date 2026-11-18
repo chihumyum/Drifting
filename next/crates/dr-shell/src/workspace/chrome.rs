@@ -9,7 +9,7 @@ use dr_ui::{
     Theme,
     components::{IconButton, overlay},
     glass::{self, Kind, Mode, Spec, Tone},
-    sand::{self, Icon},
+    sand::{self, Icon, MoonOutline},
     tokens::glass as g,
 };
 use gpui::{
@@ -233,6 +233,27 @@ pub fn moon_look(ws: &Workspace, side: Side) -> MoonLook {
     }
 }
 
+// The author chose the original weight after reviewing the native 1× captures.
+const LOW_DENSITY_MOON_OUTLINE: MoonOutline = MoonOutline::Original;
+
+fn moon_outline(scale: f32) -> MoonOutline {
+    let outline = LOW_DENSITY_MOON_OUTLINE;
+    #[cfg(debug_assertions)]
+    let outline = {
+        static CAPTURE_OUTLINE: std::sync::OnceLock<Option<MoonOutline>> =
+            std::sync::OnceLock::new();
+        CAPTURE_OUTLINE
+            .get_or_init(|| match std::env::var("DRIFTING_MOON_OUTLINE").as_deref() {
+                Ok("original") => Some(MoonOutline::Original),
+                Ok("half") => Some(MoonOutline::Half),
+                Ok("full") => Some(MoonOutline::Full),
+                _ => None,
+            })
+            .unwrap_or(outline)
+    };
+    outline.for_scale(scale)
+}
+
 fn moon_pair(
     ws: &Workspace,
     side: Side,
@@ -249,6 +270,7 @@ fn moon_pair(
     let glyph_top = (g::ROUND - MOON_SIZE) / 2.0;
     let look = moon_look(ws, side);
     let can_fill = look.can_fill;
+    let outline = moon_outline(window.scale_factor());
 
     let (
         open,
@@ -330,14 +352,20 @@ fn moon_pair(
         .top(px(glyph_top))
         .size(px(MOON_SIZE))
         .opacity(back_opacity)
-        .child(sand::icon_cutout(back_icon, MOON_SIZE, ink, cut_on_right));
+        .child(sand::moon_icon(
+            back_icon,
+            MOON_SIZE,
+            ink,
+            outline,
+            Some(cut_on_right),
+        ));
 
     let front_glyph = div()
         .absolute()
         .left(px(front_cx - MOON_SIZE / 2.0))
         .top(px(glyph_top))
         .size(px(MOON_SIZE))
-        .child(sand::icon(front_icon, MOON_SIZE, ink));
+        .child(sand::moon_icon(front_icon, MOON_SIZE, ink, outline, None));
 
     let cresc_on_left = cresc_cx < full_cx;
     let cresc_hit = div()
@@ -410,6 +438,7 @@ fn moon_pair(
         .relative()
         .w(px(pair_w))
         .h(px(g::ROUND))
+        .occlude()
         .child(back_glyph)
         .child(front_glyph)
         .child(cresc_hit)
@@ -653,4 +682,100 @@ pub fn windows_caption(window: &mut Window, cx: &mut App) -> impl IntoElement {
         ),
     );
     row
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_default_moon_outline_is_original_and_previews_only_apply_below_one_and_a_half() {
+        assert_eq!(
+            LOW_DENSITY_MOON_OUTLINE.for_scale(1.0),
+            MoonOutline::Original
+        );
+        for grade in [MoonOutline::Original, MoonOutline::Half, MoonOutline::Full] {
+            assert_eq!(grade.for_scale(1.0), grade);
+            assert_eq!(grade.for_scale(1.5), MoonOutline::Original);
+            assert_eq!(grade.for_scale(2.0), MoonOutline::Original);
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    #[gpui::test]
+    fn a_moon_press_does_not_arm_the_caption_mid_fill(cx: &mut gpui::TestAppContext) {
+        use crate::{Services, SettingsFile, ShellInfo};
+        use gpui::{AppContext as _, Modifiers, Render, size};
+        use std::time::{Duration, Instant};
+
+        struct Chrome {
+            ws: Entity<Workspace>,
+        }
+        impl Render for Chrome {
+            fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+                self.ws.update(cx, |ws, cx| {
+                    div()
+                        .relative()
+                        .size_full()
+                        .child(drag_region(
+                            div().id("caption").w_full().h(px(TITLEBAR_HEIGHT)),
+                            cx,
+                        ))
+                        .child(sidebar_toggles(ws, window, cx))
+                })
+            }
+        }
+
+        cx.update(|cx| {
+            crate::init(
+                ShellInfo {
+                    app_name: "Drifting Next",
+                    bundle_id: "cc.drifting.next.dev",
+                    version: "test",
+                    url_scheme: "drifting-next-dev",
+                    forced_appearance: None,
+                },
+                Services::default(),
+                SettingsFile::in_memory(),
+                cx,
+            );
+        });
+        let (chrome, cx) = cx.add_window_view(|window, cx| Chrome {
+            ws: cx.new(|cx| Workspace::new(window, cx)),
+        });
+        let ws = chrome.read_with(cx, |chrome, _| chrome.ws.clone());
+        let start = Instant::now();
+        dr_ui::anim::freeze(Some(start));
+        ws.update(cx, |ws, cx| {
+            assert!(ws.enter_fill_with_motion(FillPlace::Right, false, cx));
+        });
+        dr_ui::anim::freeze(Some(start + Duration::from_millis(120)));
+        cx.simulate_resize(size(px(1280.), px(900.)));
+        cx.update(|window, cx| window.draw(cx).clear(cx));
+        let progress = ws.read_with(cx, |ws, _| ws.fill_progress(FillPlace::Right));
+        dr_ui::anim::freeze(None);
+        assert!(progress > 0.0 && progress < 1.0);
+
+        for selector in ["fill-right", "toggle-left"] {
+            let at = cx.debug_bounds(selector).expect("painted moon").center();
+            cx.simulate_mouse_down(at, MouseButton::Left, Modifiers::none());
+            assert!(!ws.read_with(cx, |ws, _| ws.drag_armed), "{selector}");
+            // Cancel the press outside the controls, then draw a fresh frame.
+            cx.simulate_mouse_up(
+                point(px(600.), px(100.)),
+                MouseButton::Left,
+                Modifiers::none(),
+            );
+            cx.update(|window, cx| window.draw(cx).clear(cx));
+        }
+        cx.simulate_mouse_down(
+            point(px(600.), px(20.)),
+            MouseButton::Left,
+            Modifiers::none(),
+        );
+        assert!(
+            ws.read_with(cx, |ws, _| ws.drag_armed),
+            "bare caption is interactive"
+        );
+    }
 }

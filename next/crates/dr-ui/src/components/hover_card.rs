@@ -27,6 +27,7 @@
 //! colour's words only.
 
 use std::{
+    cell::RefCell,
     rc::Rc,
     time::{Duration, Instant},
 };
@@ -34,7 +35,7 @@ use std::{
 use gpui::{
     AnyElement, App, AppContext as _, Bounds, ElementId, Entity, FocusHandle, InteractiveElement,
     IntoElement, KeyBinding, MouseButton, ParentElement, Pixels, RenderOnce, SharedString,
-    StatefulInteractiveElement, Styled, Task, Window, actions, canvas, div,
+    StatefulInteractiveElement, Styled, Task, WeakEntity, Window, actions, canvas, div,
     prelude::FluentBuilder as _, px,
 };
 
@@ -299,17 +300,71 @@ fn after(
     })
 }
 
-fn pointer_on_target(state: &Entity<HoverCardState>, cx: &mut App) {
+/// Cards in one left-sidebar list share the same open slot.
+#[derive(Clone, Default)]
+pub struct SidebarCards(Rc<RefCell<Option<WeakEntity<HoverCardState>>>>);
+
+impl SidebarCards {
+    fn show(&self, card: &Entity<HoverCardState>, cx: &mut App) {
+        let previous = self.0.replace(Some(card.downgrade()));
+        if let Some(previous) = previous.and_then(|card| card.upgrade())
+            && previous != *card
+        {
+            previous.update(cx, |state, cx| {
+                state.dismiss();
+                cx.notify();
+            });
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct SidebarCard {
+    pub cards: SidebarCards,
+    /// Returns keyboard focus to its sidebar row when a different card opens.
+    pub on_pointer_open: Option<super::Handler>,
+}
+
+fn pointer_on_target(
+    state: &Entity<HoverCardState>,
+    sidebar: Option<&SidebarCard>,
+    window: &Window,
+    cx: &mut App,
+) {
     state.update(cx, |s, cx| {
         s.over_target = true;
         match s.phase {
             Phase::Idle if s.settled(Instant::now()) => {
                 s.phase = Phase::Waiting;
-                s.task = Some(after(&cx.entity(), dwell::HOVER_CARD_DELAY, cx, |s| {
-                    if s.phase == Phase::Waiting {
-                        s.open_now();
-                    }
-                }));
+                s.task = Some(if let Some(sidebar) = sidebar.cloned() {
+                    let card = cx.weak_entity();
+                    window.spawn(cx, async move |cx| {
+                        cx.background_executor()
+                            .timer(dwell::HOVER_CARD_DELAY)
+                            .await;
+                        cx.update(|window, cx| {
+                            let Some(card) = card.upgrade() else { return };
+                            if card.read(cx).phase != Phase::Waiting {
+                                return;
+                            }
+                            if let Some(on_open) = &sidebar.on_pointer_open {
+                                on_open(window, cx);
+                            }
+                            sidebar.cards.show(&card, cx);
+                            card.update(cx, |s, cx| {
+                                s.open_now();
+                                cx.notify();
+                            });
+                        })
+                        .ok();
+                    })
+                } else {
+                    after(&cx.entity(), dwell::HOVER_CARD_DELAY, cx, |s| {
+                        if s.phase == Phase::Waiting {
+                            s.open_now();
+                        }
+                    })
+                });
             }
             Phase::Leaving => {
                 s.phase = Phase::Open;
@@ -353,6 +408,7 @@ pub struct HoverCard {
     open: Option<bool>,
     hold: bool,
     beside: bool,
+    sidebar: Option<SidebarCard>,
     press: Option<SharedString>,
     keys: Option<Entity<CardKeys>>,
 }
@@ -370,6 +426,7 @@ impl HoverCard {
             open: None,
             hold: false,
             beside: false,
+            sidebar: None,
             press: None,
             keys: None,
         }
@@ -413,6 +470,12 @@ impl HoverCard {
         self.beside = true;
         self
     }
+
+    /// Shares a beside-the-row card slot with the rest of this sidebar list.
+    pub fn in_sidebar(mut self, sidebar: SidebarCard) -> Self {
+        self.sidebar = Some(sidebar);
+        self.beside()
+    }
 }
 
 impl RenderOnce for HoverCard {
@@ -433,6 +496,12 @@ impl RenderOnce for HoverCard {
             }
             open && focused
         });
+        if keyed
+            && !state.read(cx).keyed
+            && let Some(sidebar) = &self.sidebar
+        {
+            sidebar.cards.show(&state, cx);
+        }
         state.update(cx, |s, _| {
             if keyed {
                 s.keyed = true;
@@ -498,6 +567,8 @@ impl RenderOnce for HoverCard {
             (state.clone(), state.clone(), state.clone(), state.clone());
         let pressable = self.press.is_some();
         let expanded = matches!(state.read(cx).phase, Phase::Open | Phase::Leaving);
+        let in_sidebar = self.sidebar.is_some();
+        let (hover_sidebar, move_sidebar) = (self.sidebar.clone(), self.sidebar);
         let target = div()
             .id(self.id.clone())
             .relative()
@@ -553,19 +624,19 @@ impl RenderOnce for HoverCard {
                         });
                     })
             })
-            .on_hover(move |on, _, cx| {
+            .on_hover(move |on, window, cx| {
                 if *on {
-                    pointer_on_target(&hover, cx);
+                    pointer_on_target(&hover, hover_sidebar.as_ref(), window, cx);
                 } else {
                     pointer_left(&hover, false, cx);
                 }
             })
-            .on_mouse_move(move |_, _, cx| {
+            .on_mouse_move(move |_, window, cx| {
                 let waiting = moved.read(cx).phase == Phase::Idle;
                 let settling = moved.read(cx).scrolled_at.is_some();
                 if waiting && settling {
                     moved.update(cx, |s, _| s.scrolled_at = None);
-                    pointer_on_target(&moved, cx);
+                    pointer_on_target(&moved, move_sidebar.as_ref(), window, cx);
                 }
             })
             .on_scroll(move |_, _, cx| {
@@ -607,6 +678,10 @@ impl RenderOnce for HoverCard {
                 Layer::Popover,
                 div()
                     .id(crate::style::child_id(&self.id.clone(), "card"))
+                    .when(in_sidebar, |el| {
+                        let id = self.id.clone();
+                        el.debug_selector(move || format!("{id}-popup"))
+                    })
                     .occlude()
                     .when_some(keys, |el, keys| {
                         let focus = keys.read(cx).focus.clone();

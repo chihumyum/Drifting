@@ -134,8 +134,7 @@ pub const GLASS_TILE_PATH: &str = "dr-ui/glass/thick.svg";
 /// Carves a circular hole (`hole = 18 * 0.345`, `0.6px` soft ramp in an `18px`
 /// glyph box) out of `png`'s alpha around a front glyph centered `8px` to the
 /// left (`cut_on_right == false`) or right (`cut_on_right == true`) (`W25Final`).
-fn cutout_png(png: &[u8], cut_on_right: bool) -> Option<Vec<u8>> {
-    let mut img = image::load_from_memory(png).ok()?.into_rgba8();
+fn cutout(img: &mut image::RgbaImage, cut_on_right: bool) {
     let (w, h) = img.dimensions();
     let scale_x = w as f32 / 18.0;
     let scale_y = h as f32 / 18.0;
@@ -148,10 +147,62 @@ fn cutout_png(png: &[u8], cut_on_right: bool) -> Option<Vec<u8>> {
         let keep = ((dist - hole) / soft).clamp(0.0, 1.0);
         px[3] = (px[3] as f32 * keep).round() as u8;
     }
+}
+
+fn encode_png(img: &image::RgbaImage) -> Option<Vec<u8>> {
     let mut out = Vec::new();
     img.write_to(&mut std::io::Cursor::new(&mut out), image::ImageFormat::Png)
         .ok()?;
     Some(out)
+}
+
+fn cutout_png(png: &[u8], cut_on_right: bool) -> Option<Vec<u8>> {
+    let mut img = image::load_from_memory(png).ok()?.into_rgba8();
+    cutout(&mut img, cut_on_right);
+    encode_png(&img)
+}
+
+/// Spread the existing grain by a fraction of a logical pixel, then deepen
+/// its alpha. Keep the source coverage at the edge of the spread antialiased.
+fn thicken_moon(img: &mut image::RgbaImage, outline: crate::sand::MoonOutline) {
+    let source = img.clone();
+    let (width, height) = img.dimensions();
+    let spread = outline.outset() * width as f32 / 18.0;
+    let radius = spread.ceil() as u32;
+    let depth = 1.0 + outline.outset() * 0.5;
+    for (x, y, pixel) in img.enumerate_pixels_mut() {
+        let mut alpha = f32::from(pixel[3]);
+        for sx in x.saturating_sub(radius)..=(x + radius).min(width - 1) {
+            for sy in y.saturating_sub(radius)..=(y + radius).min(height - 1) {
+                let distance = (sx.abs_diff(x) as f32).hypot(sy.abs_diff(y) as f32);
+                let coverage = (1.0 + spread - distance).clamp(0.0, 1.0);
+                alpha = alpha.max(f32::from(source[(sx, sy)][3]) * coverage);
+            }
+        }
+        // The input's transparent outskirts do not all contain white RGB.
+        *pixel = image::Rgba([255, 255, 255, (alpha * depth).round() as u8]);
+    }
+}
+
+fn moon_svg(file: &str) -> Option<Vec<u8>> {
+    use crate::sand::{Icon, MoonOutline};
+    let (weight, cut_and_name) = file.split_once('/')?;
+    let (cut, name) = cut_and_name.split_once('/')?;
+    let outline = match weight {
+        "half" => MoonOutline::Half,
+        "full" => MoonOutline::Full,
+        _ => return None,
+    };
+    let icon = Icon::from_name(name)?;
+    let mut img = image::load_from_memory(icon.png()).ok()?.into_rgba8();
+    thicken_moon(&mut img, outline);
+    match cut {
+        "left" => cutout(&mut img, false),
+        "right" => cutout(&mut img, true),
+        "none" => {}
+        _ => return None,
+    }
+    Some(embed_svg(&encode_png(&img)?, 96.0, 96.0))
 }
 
 /// dr-ui's asset source.
@@ -191,6 +242,7 @@ impl Assets {
                 let (w, h) = png_size(&cut);
                 Some(embed_svg(&cut, 96.0 * (w as f32 / h as f32), 96.0))
             }
+            "moon" => moon_svg(name),
             "sand" => {
                 let mask = crate::sand::SandMask::from_name(name)?;
                 let png = mask.png();
@@ -282,6 +334,27 @@ mod tests {
         assert_eq!(png_size(Icon::Close.png()), (96, 96));
         assert_eq!(png_size(Icon::Thinking.png()).0, 96 * 68);
         assert_eq!(png_size(GLASS_TILE_PNG), (320, 320));
+    }
+
+    #[test]
+    fn low_density_moon_grades_increase_the_hollow_rim_coverage() {
+        use crate::sand::MoonOutline::{Full, Half, Original};
+        for icon in [Icon::MoonLeftHollow, Icon::MoonHollowfullLeft] {
+            let source = image::load_from_memory(icon.png()).unwrap().into_rgba8();
+            let coverage = |outline| {
+                let mut painted = source.clone();
+                if outline != Original {
+                    thicken_moon(&mut painted, outline);
+                }
+                painted
+                    .pixels()
+                    .map(|pixel| u64::from(pixel[3]))
+                    .sum::<u64>()
+            };
+            assert!(coverage(Original) < coverage(Half));
+            assert!(coverage(Half) < coverage(Full));
+            assert!(coverage(Full.for_scale(1.0)) > coverage(Full.for_scale(2.0)));
+        }
     }
 
     #[test]

@@ -1397,6 +1397,61 @@ fn cmd_z_in_the_column_is_the_books_and_typing_does_nothing(cx: &mut TestAppCont
     assert_eq!(stored(&lib, &ch[0]), text, "typing reached no page");
 }
 
+#[gpui::test]
+fn sidebar_hover_card_opens_beside_the_row_and_replaces_the_keyboard_card(cx: &mut TestAppContext) {
+    let (_dir, lib, book) = seed();
+    let ids = ids(&lib, &book);
+    let (ws, cx) = open(cx, &lib, &book);
+    tab(&ws, cx, Some(&ids.manuscript));
+    let [one, two, three, ..] = ids.ch.as_slice() else {
+        panic!("the seed has at least three chapters");
+    };
+    open_page(&ws, cx, one);
+    keys(cx, "cmd-shift-l space");
+
+    let row = |id: &str, cx: &mut VisualTestContext| keys_of(&ws, cx, id).remove(0);
+    let popup = |id: &str, cx: &mut VisualTestContext| {
+        let key = row(id, cx);
+        let n = list_row(&ws, cx, &key);
+        cx.debug_bounds(Box::leak(
+            format!("g2-card-{}-row-{n}-{id}-card-popup", ids.manuscript).into_boxed_str(),
+        ))
+    };
+    assert!(popup(one, cx).is_some(), "the keyboard card opened");
+    let two_key = row(two, cx);
+    let at = row_at(cx, &two_key);
+    cx.simulate_mouse_move(at, None, Modifiers::none());
+    pump(cx);
+    assert!(popup(one, cx).is_some(), "still open during pointer dwell");
+    cx.executor()
+        .advance_clock(dr_ui::tokens::motion::dwell::HOVER_CARD_DELAY);
+    pump(cx);
+    assert!(popup(one, cx).is_none(), "the previous card closed");
+    let card = popup(two, cx).expect("the pointer's card is drawn");
+    let target = cx
+        .debug_bounds(Box::leak(format!("kb-row-{two_key}").into_boxed_str()))
+        .unwrap();
+    let below_key = row(three, cx);
+    let below = cx
+        .debug_bounds(Box::leak(format!("kb-row-{below_key}").into_boxed_str()))
+        .unwrap();
+    assert!(card.left() >= target.right(), "{card:?} beside {target:?}");
+    assert!((f32::from(card.top() - target.top())).abs() <= 1.0);
+    assert!(card.left() >= below.right(), "the next row is clear");
+    assert!(
+        in_tree(&ws, cx, one),
+        "the keyboard returned to its own row"
+    );
+    let tree = tree(&ws, cx);
+    assert!(tree.read_with(cx, |tree, cx| tree.card_row(cx).is_none()));
+    keys(cx, "space");
+    assert!(popup(one, cx).is_some(), "Space opens the keyboard's card");
+    assert!(
+        popup(two, cx).is_none(),
+        "only one slot in the other direction too"
+    );
+}
+
 /// The keyboard's row has the still ring, beside the brush frame of the
 /// page in front; the pointer over another row leaves it there; out of the
 /// column the ring goes; on the Tab row the ring is on the selected Tab.

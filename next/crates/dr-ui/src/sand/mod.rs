@@ -61,6 +61,72 @@ pub fn icon_cutout(icon: Icon, size_px: f32, color: Hsla, cut_on_right: bool) ->
         .text_color(color)
 }
 
+/// The stroke weights available for hollow titlebar moons at low density.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MoonOutline {
+    Original,
+    Half,
+    Full,
+}
+
+impl MoonOutline {
+    pub fn for_scale(self, scale: f32) -> Self {
+        if scale < 1.5 { self } else { Self::Original }
+    }
+
+    /// Outset in logical pixels; the same grade also deepens the mask.
+    pub(crate) fn outset(self) -> f32 {
+        match self {
+            Self::Original => 0.0,
+            Self::Half => 0.25,
+            Self::Full => 0.5,
+        }
+    }
+}
+
+/// A titlebar moon, using the original mask for solids and at normal weight.
+/// The overlap cut is applied after thickening the hollow mask.
+pub fn moon_icon(
+    icon: Icon,
+    size: f32,
+    ink: Hsla,
+    outline: MoonOutline,
+    cut_on_right: Option<bool>,
+) -> Svg {
+    let weight = match outline {
+        MoonOutline::Half => "half",
+        MoonOutline::Full => "full",
+        MoonOutline::Original => "",
+    };
+    if weight.is_empty()
+        || !matches!(
+            icon,
+            Icon::MoonLeftHollow
+                | Icon::MoonRightHollow
+                | Icon::MoonHollowfullLeft
+                | Icon::MoonHollowfullRight
+        )
+    {
+        return match cut_on_right {
+            Some(right) => icon_cutout(icon, size, ink, right),
+            None => self::icon(icon, size, ink),
+        };
+    }
+    let side = match cut_on_right {
+        Some(true) => "right",
+        Some(false) => "left",
+        None => "none",
+    };
+    svg()
+        .path(SharedString::from(format!(
+            "dr-ui/moon/{weight}/{side}/{}.svg",
+            icon.name()
+        )))
+        .size(px(size))
+        .flex_none()
+        .text_color(ink)
+}
+
 /// Total frames in the 风·林·火·山 thinking strip (`icons/thinking.png`).
 pub const THINKING_FRAMES: usize = 68;
 /// Zero-based index of the resting frame for 「已思考」: the 57th frame (山).

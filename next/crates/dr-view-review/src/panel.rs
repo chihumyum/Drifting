@@ -74,6 +74,12 @@ struct AgentSubFlyout {
     _sub: Subscription,
 }
 
+fn fill_columns(width: Option<f32>) -> usize {
+    width
+        .map_or(1, |width| ((width - 24.0) / 310.0).floor() as usize)
+        .clamp(1, 6)
+}
+
 /// The Review tab of one pane.
 pub struct ReviewView {
     id: SharedString,
@@ -225,9 +231,7 @@ impl ReviewView {
     }
 
     pub(crate) fn set_fill_width(&mut self, width: Option<f32>, cx: &mut Context<Self>) {
-        let columns = width
-            .map_or(1, |width| ((width - 24.0) / 275.0).floor() as usize)
-            .clamp(1, 6);
+        let columns = fill_columns(width);
         if self.columns != columns {
             self.columns = columns;
             cx.notify();
@@ -2732,6 +2736,24 @@ mod reveal_tests {
             }
             assert!(Instant::now() < deadline, "target card was not painted");
             std::thread::sleep(Duration::from_millis(2));
+        }
+    }
+
+    #[test]
+    fn review_fill_fits_310_pixels_per_column_after_the_margins() {
+        assert_eq!(super::fill_columns(None), 1);
+        for (width, expected) in [
+            (0.0, 1),
+            (643.0, 1),
+            (644.0, 2),
+            (953.0, 2),
+            (954.0, 3),
+            (1264.0, 4),
+            (1574.0, 5),
+            (1884.0, 6),
+            (2700.0, 6),
+        ] {
+            assert_eq!(super::fill_columns(Some(width)), expected, "width {width}");
         }
     }
 

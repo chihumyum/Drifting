@@ -14,7 +14,11 @@ use crate::{
 use dr_i18n::keys;
 use dr_ui::{
     Theme,
-    components::{DraggedPill, Pill, SandCell, overlay},
+    components::{
+        DraggedPill, Pill, SandCell,
+        hover_card::{SidebarCard, SidebarCards},
+        overlay,
+    },
     fonts::Role,
     style::DrStyled,
 };
@@ -99,6 +103,7 @@ fn entry_row(
     id: &str,
     depth: usize,
     lead: Option<SharedString>,
+    cards: SidebarCards,
     drop: impl Fn(&EntryDrag, bool, &mut Window, &mut App) + 'static,
     window: &mut Window,
     cx: &mut App,
@@ -154,12 +159,16 @@ fn entry_row(
         );
     }
     let cell = match workspace {
-        Some(ws) => crate::workspace::page_hover_card(
+        Some(ws) => crate::workspace::sidebar_page_hover_card(
             format!("v3-tab-{scope}-card-{id}"),
             cell,
             &target,
             &ws,
-            Default::default(),
+            None,
+            SidebarCard {
+                cards,
+                on_pointer_open: None,
+            },
             cx,
         ),
         None => cell.into_any_element(),
@@ -249,6 +258,18 @@ pub fn move_beside(
     onto: &str,
     after: bool,
 ) -> Result<(), WsError> {
+    let input = move_beside_input(lib, book, moving, onto, after)?;
+    lib.call(&Actor::User, "entry.move", input)?;
+    Ok(())
+}
+
+pub(super) fn move_beside_input(
+    lib: &dr_workspace::Workspace,
+    book: &str,
+    moving: &str,
+    onto: &str,
+    after: bool,
+) -> Result<Value, WsError> {
     let list: Vec<dr_workspace::commands::v3::types::Entry> = serde_json::from_value(
         lib.call(
             &Actor::User,
@@ -275,12 +296,7 @@ pub fn move_beside(
         .position(|id| id == onto)
         .ok_or_else(|| WsError::Invalid("the drop target is no longer a sibling".into()))?
         + usize::from(after);
-    lib.call(
-        &Actor::User,
-        "entry.move",
-        json!({ "book": book, "id": moving, "parent": parent, "index": index }),
-    )?;
-    Ok(())
+    Ok(json!({ "book": book, "id": moving, "parent": parent, "index": index }))
 }
 
 /// Drops `moving` before or after `onto` in a Tab mounted on the book: the
@@ -323,6 +339,8 @@ pub fn book_list(host: &PageViewHost, window: &mut Window, cx: &mut App) -> AnyE
         return div().into_any_element();
     };
     let order = v.book_entries();
+    let cards = window.use_keyed_state("book-sidebar-cards", cx, |_, _| SidebarCards::default());
+    let cards = cards.read(cx).clone();
     let mut list = scroll_list("v3-tab-book");
     for id in &order {
         let host_ = host.clone();
@@ -333,6 +351,7 @@ pub fn book_list(host: &PageViewHost, window: &mut Window, cx: &mut App) -> AnyE
             id,
             0,
             None,
+            cards.clone(),
             move |drag, after, _, cx| drop_in_book(&host_, &drag.entry, &onto, after, cx),
             window,
             cx,
