@@ -105,14 +105,50 @@ pub fn durable_replace_file(temporary: &Path, path: &Path) -> io::Result<()> {
     )
 }
 
+/// `path` as a NUL-terminated wide string a Win32 file call reads in full.
+/// Without the verbatim prefix (`\\?\C:\…`, `\\?\UNC\server\share\…`) those
+/// calls stop at MAX_PATH and answer "the system cannot find the path
+/// specified". std's own file calls add the prefix to a long path, so a file
+/// std created under one must be moved under the same form: absolute (which
+/// normalizes the path as Win32 would), then prefixed once it is as long as
+/// std's threshold (248, CreateDirectoryW's limit).
+#[cfg(windows)]
+fn win32_path(path: &Path) -> io::Result<Vec<u16>> {
+    use std::os::windows::ffi::OsStrExt;
+    use std::path::{Component, Prefix};
+
+    const LEGACY_MAX_PATH: usize = 248;
+    let absolute = std::path::absolute(path)?;
+    let wide: Vec<u16> = absolute.as_os_str().encode_wide().collect();
+    let mut out = Vec::with_capacity(wide.len() + 9);
+    match absolute.components().next() {
+        Some(Component::Prefix(prefix)) if wide.len() >= LEGACY_MAX_PATH => {
+            match prefix.kind() {
+                Prefix::Disk(_) => {
+                    out.extend(r"\\?\".encode_utf16());
+                    out.extend_from_slice(&wide);
+                }
+                // `\\server\share\…` → `\\?\UNC\server\share\…`.
+                Prefix::UNC(..) => {
+                    out.extend(r"\\?\UNC\".encode_utf16());
+                    out.extend_from_slice(&wide[2..]);
+                }
+                // Verbatim or a device path already: as it is.
+                _ => out.extend_from_slice(&wide),
+            }
+        }
+        _ => out.extend_from_slice(&wide),
+    }
+    out.push(0);
+    Ok(out)
+}
+
 #[cfg(windows)]
 pub fn windows_move_write_through(
     source: &Path,
     destination: &Path,
     replace_existing: bool,
 ) -> io::Result<()> {
-    use std::os::windows::ffi::OsStrExt;
-
     const MOVEFILE_REPLACE_EXISTING: u32 = 0x1;
     const MOVEFILE_WRITE_THROUGH: u32 = 0x8;
 
@@ -125,16 +161,10 @@ pub fn windows_move_write_through(
         ) -> i32;
     }
 
-    let source = source
-        .as_os_str()
-        .encode_wide()
-        .chain(std::iter::once(0))
-        .collect::<Vec<_>>();
-    let destination = destination
-        .as_os_str()
-        .encode_wide()
-        .chain(std::iter::once(0))
-        .collect::<Vec<_>>();
+    // Long paths too: the asset store's ids may be 128 characters each, so
+    // `<library>\assets\<book>\<asset>\<variant>.<ext>` passes MAX_PATH.
+    let source = win32_path(source)?;
+    let destination = win32_path(destination)?;
     let flags = MOVEFILE_WRITE_THROUGH
         | if replace_existing {
             MOVEFILE_REPLACE_EXISTING
@@ -240,4 +270,36 @@ where
 
 pub fn atomic_copy_capped(source: &Path, path: &Path, limit: u64) -> io::Result<u64> {
     atomic_copy_capped_with_commit(source, path, limit, durable_replace_file)
+}
+
+#[cfg(all(test, windows))]
+mod tests {
+    use super::win32_path;
+    use std::path::Path;
+
+    fn text(path: &str) -> String {
+        let wide = win32_path(Path::new(path)).unwrap();
+        assert_eq!(wide.last(), Some(&0), "NUL-terminated");
+        String::from_utf16(&wide[..wide.len() - 1]).unwrap()
+    }
+
+    #[test]
+    fn long_paths_are_verbatim_and_short_ones_stay_as_they_are() {
+        assert_eq!(text(r"C:\lib\assets\a.png"), r"C:\lib\assets\a.png");
+        let long = "a".repeat(300);
+        assert_eq!(
+            text(&format!(r"C:\lib/x\..\{long}")),
+            format!(r"\\?\C:\lib\{long}"),
+            "normalized as Win32 would, then prefixed"
+        );
+        assert_eq!(
+            text(&format!(r"\\server\share\{long}")),
+            format!(r"\\?\UNC\server\share\{long}")
+        );
+        assert_eq!(
+            text(&format!(r"\\?\C:\{long}")),
+            format!(r"\\?\C:\{long}"),
+            "verbatim already"
+        );
+    }
 }
