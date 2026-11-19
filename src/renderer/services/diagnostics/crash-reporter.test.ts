@@ -206,6 +206,21 @@ it('names what an aggregated or wrapped failure was made of', async () => {
   ]);
 });
 
+it('names the statement and the database’s reason for a failed query, never its values', async () => {
+  const query = 'insert into "element" ("id", "project_id", "category_id", "name") values (?, ?, ?, ?) on conflict ("element"."id") do update set "name" = ?';
+  const params = ['element-1', 'project-1', 'cat-1', 'Anna Karenina', 'Anna Karenina'];
+  const failed = (cause: unknown) => Object.assign(new Error(`Failed query: ${query}\nparams: ${params.join(',')}`), { query, params, cause });
+  reportIntegrityEvent('sync-blocked:unknown', failed(new Error('FOREIGN KEY constraint failed')));
+  // The native gateway rejects with a bare string.
+  reportIntegrityEvent('sync-blocked:native', failed('UNIQUE constraint failed: element.portrait_asset_id'));
+  await flushCrashReports();
+
+  expect(sentBodies().map((body) => body.message)).toEqual([
+    'Failed query: insert into "element" [Error: FOREIGN KEY constraint failed]',
+    'Failed query: insert into "element" [UNIQUE constraint failed: element.portrait_asset_id]',
+  ]);
+});
+
 it('sends nothing when the author turned reports off or there is no Hosted service', async () => {
   sentry.env.VITE_SENTRY_DSN = 'https://0123456789abcdef0123456789abcdef@errors.example.test/42';
   mocks.enabled = false;

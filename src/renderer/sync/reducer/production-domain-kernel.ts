@@ -937,11 +937,50 @@ function baseSeed(context: SyncDomainMaterializationContext, effect: LifecycleEf
   };
 }
 
+/**
+ * Nullable references whose foreign key is `ON DELETE SET NULL`. Purging the
+ * target clears the rows already present, but a lifecycle seed keeps the
+ * reference it was created with and a register may name a target purged here
+ * since. Both land as null, as the purge left the other rows: an element
+ * created in a category that was later purged is re-materialized from its
+ * seed on every remote edit, and would otherwise fail the foreign key and
+ * stop the project's sync.
+ */
+const SET_NULL_REFERENCES: Readonly<Record<string, Readonly<Record<string, 'element-category' | 'node'>>>> = {
+  element: { categoryId: 'element-category' },
+  'element-patch': { sourceNodeId: 'node' },
+  // An act's or timeline marker's drift binding is validated instead: a
+  // missing drift node holds it as a conflict before it reaches SQLite.
+};
+
+/** Lifecycle kinds a set-null reference may name, upserted before the rest. */
+const REFERENCED_LIFECYCLE_KINDS = new Set(['element-category', 'node']);
+
+async function landedReference(
+  context: SyncDomainMaterializationContext,
+  kind: string,
+  field: string,
+  value: unknown,
+): Promise<unknown> {
+  const target = SET_NULL_REFERENCES[kind]?.[field];
+  if (!target || typeof value !== 'string') return value;
+  const projectId = context.changeSet.projectId;
+  const rows = target === 'node'
+    ? await context.tx.select({ id: BookNodeTable.id }).from(BookNodeTable)
+      .where(and(eq(BookNodeTable.id, value), eq(BookNodeTable.projectId, projectId))).limit(1)
+    : await context.tx.select({ id: ElementCategoryTable.id }).from(ElementCategoryTable)
+      .where(and(eq(ElementCategoryTable.id, value), eq(ElementCategoryTable.projectId, projectId))).limit(1);
+  return rows.length === 1 ? value : null;
+}
+
 async function upsertLifecycleLive(
   context: SyncDomainMaterializationContext,
   effect: LifecycleEffect,
 ): Promise<void> {
   const seed = baseSeed(context, effect);
+  for (const field of Object.keys(SET_NULL_REFERENCES[effect.target.kind] ?? {})) {
+    seed[field] = await landedReference(context, effect.target.kind, field, seed[field]);
+  }
   switch (effect.target.kind) {
     case 'project':
       await context.tx.insert(ProjectTable).values({
@@ -1163,7 +1202,7 @@ async function replaceRelationTypeEndpoints(
 
 async function materializeField(context: SyncDomainMaterializationContext, effect: FieldEffect): Promise<void> {
   const updatedAt = winningIso(effect);
-  const value = effect.value as never;
+  const value = await landedReference(context, effect.target.kind, effect.field, effect.value) as never;
   switch (effect.target.kind) {
     case 'project': await context.tx.update(ProjectTable).set({ [effect.field]: value, updatedAt }).where(and(eq(ProjectTable.id, effect.target.id), eq(ProjectTable.id, context.changeSet.projectId))); return;
     case 'node': await context.tx.update(BookNodeTable).set({ [effect.field]: value, updatedAt }).where(and(eq(BookNodeTable.id, effect.target.id), eq(BookNodeTable.projectId, context.changeSet.projectId))); return;
@@ -2079,9 +2118,15 @@ export function createProductionSyncDomainMaterializationKernel(): SyncDomainMat
         context,
         scope ? context.effects.filter(scope.includes) : context.effects,
       );
-      const live = effects.filter(
+      const lifecycles = effects.filter(
         (effect): effect is LifecycleEffect => effect.type === 'entity.lifecycle' && effect.status === 'live',
       );
+      // Effect-id order puts an element before its category and a patch before
+      // its source node; a target must land first for the reference to stay.
+      const live = [
+        ...lifecycles.filter((effect) => REFERENCED_LIFECYCLE_KINDS.has(effect.target.kind)),
+        ...lifecycles.filter((effect) => !REFERENCED_LIFECYCLE_KINDS.has(effect.target.kind)),
+      ];
       for (const effect of live) {
         if (!effect.target.kind.startsWith('plot-grid-')) await upsertLifecycleLive(context, effect);
       }

@@ -24,6 +24,7 @@ import {
   BookNodeTable,
   CommentActionTable,
   CommentTable,
+  ElementPatchTable,
   EntityRelationTable,
   EntityRelationTypeEndpointKindTable,
   LibraryItemTable,
@@ -2141,5 +2142,63 @@ describe('plot grids across devices', () => {
     invalidateSqliteReducerStateCache();
     expect((await apply(b, unrelated, deviceB)).conflicts).toEqual([]);
     expect(await projection(a)).toBe(await projection(b));
+  });
+});
+
+describe('set-null references across devices', () => {
+  const empty = '{"type":"doc","content":[]}';
+  const prose = async (kind: string, id: string) => ({
+    action: 'yjs.update' as const, kind: 'prose-document', id: `${kind}:${id}`,
+    payload: { update: await createYjsProseSeedState(empty) },
+  });
+  const category = async (id: string) => [
+    { action: 'entity.create' as const, kind: 'element-category', id, payload: { seed: { name: 'People', elementTemplateJson: '{}', color: '#123456', layoutMode: 'auto', gridX: null, gridY: null } } },
+    await prose('category', id),
+  ];
+  const element = async (id: string, categoryId: string | null) => [
+    { action: 'entity.create' as const, kind: 'element', id, payload: { seed: { name: 'Anna', summary: '', categoryId, groupName: null } } },
+    await prose('element', id),
+  ];
+  const elementRow = (db: DbClient, id: string) =>
+    db.select({ name: BookElementTable.name, categoryId: BookElementTable.categoryId }).from(BookElementTable).where(eq(BookElementTable.id, id)).get();
+
+  it('lands another device’s edit to an element whose seed category was purged here', async () => {
+    const db = await createDatabase();
+    const steps: Parameters<typeof changeSet>[1][] = [
+      await category('cat-1'),
+      await element('element-1', 'cat-1'),
+      [{ action: 'entity.trash', kind: 'element-category', id: 'cat-1', payload: {} }],
+      [{ action: 'entity.purge', kind: 'element-category', id: 'cat-1', payload: {} }],
+      // Re-materializes the element from its seed, which still names cat-1.
+      [{ action: 'field.set', kind: 'element', id: 'element-1', payload: { field: 'name', value: 'Anna renamed' } }],
+      // A move into the purged category, concurrent with its purge.
+      [{ action: 'field.set', kind: 'element', id: 'element-1', payload: { field: 'categoryId', value: 'cat-1' } }],
+    ];
+    for (const [index, mutations] of steps.entries()) {
+      expect((await apply(db, await changeSet(index + 1, mutations))).conflicts).toEqual([]);
+    }
+    expect(await elementRow(db, 'element-1')).toEqual({ name: 'Anna renamed', categoryId: null });
+  });
+
+  it('keeps the category of an element created with it in one change-set', async () => {
+    const db = await createDatabase();
+    // Effect-id order alone would upsert the element before its category.
+    expect((await apply(db, await changeSet(1, [...await element('element-1', 'cat-1'), ...await category('cat-1')]))).conflicts).toEqual([]);
+    expect(await elementRow(db, 'element-1')).toEqual({ name: 'Anna', categoryId: 'cat-1' });
+  });
+
+  it('lands a patch whose source node is gone here without its source', async () => {
+    const db = await createDatabase();
+    const patch = (id: string, sourceNodeId: string) => ({
+      action: 'entity.create' as const, kind: 'element-patch', id,
+      payload: { seed: { elementId: 'element-1', sourceNodeId, sourceBlockId: null, sourceBlockText: null, textAnchorJson: null, invalidatedAt: null, title: 'Patch', contentJson: '{}' } },
+    });
+    const value = await changeSet(1, [...await element('element-1', null), patch('patch-kept', NODE_ID), patch('patch-orphan', 'node-purged-here')]);
+    expect((await apply(db, value)).conflicts).toEqual([]);
+    const rows = await db.select({ id: ElementPatchTable.id, sourceNodeId: ElementPatchTable.sourceNodeId }).from(ElementPatchTable).orderBy(ElementPatchTable.id);
+    expect(rows).toEqual([
+      { id: 'patch-kept', sourceNodeId: NODE_ID },
+      { id: 'patch-orphan', sourceNodeId: null },
+    ]);
   });
 });

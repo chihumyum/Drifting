@@ -144,8 +144,17 @@ composition and future test dependency injection.
 
 The kernel uses explicit kind/field/tuple/set/order codecs. It never chooses a
 column from untrusted wire text without first passing the frozen allowlist. It
-materializes lifecycle seeds, then OR-set membership rows, then the independent
-primary-storyline LWW register and other fields. Purges run after
+materializes lifecycle seeds (categories and nodes first, so a row that names
+one created in the same change-set keeps the reference), then OR-set
+membership rows, then the independent primary-storyline LWW register and other
+fields. An element's `categoryId` and an element patch's `sourceNodeId` are
+foreign keys declared `ON DELETE SET NULL`: a seed keeps the value it was
+created with, and a register may name a target purged here since, so either
+lands as null when that category or node no longer exists, as the purge left
+the rows already present. Until 2026-11-19 an element created in a category
+that was later purged failed the foreign key on the next remote edit to it and
+stopped that project's sync on the receiving device. Act and timeline-marker
+drift bindings are validated instead and held as conflicts. Purges run after
 scalar/set/order effects, then KV, aliases and Plot Grid JSON projections are
 rebuilt. A SyncGeneration purge is different: it suppresses every non-purge effect,
 deletes the project, and retires the current SyncGeneration and provider binding in the

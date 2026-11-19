@@ -326,7 +326,7 @@ function innerErrors(error: Error): readonly unknown[] {
 
 function causeSummary(error: unknown, depth: number): string {
   if (error instanceof Error) {
-    const own = sanitizeReportText(`${error.name}: ${error.message}`, 120);
+    const own = sanitizeReportText(`${error.name}: ${ownMessage(error)}`, 120);
     const inner = depth < MAX_CAUSE_DEPTH ? causesOf(error, depth + 1) : '';
     return inner ? `${own} ${inner}` : own;
   }
@@ -348,12 +348,25 @@ function causesOf(error: Error, depth: number): string {
   return `[${shown.join(' | ')}]`;
 }
 
+/**
+ * Drizzle wraps a failed statement as `Failed query: <sql>\nparams: <values>`,
+ * which fills the message before the database's own reason (its cause) and
+ * whose values are the author's data. Keep only the statement and its table.
+ */
+function ownMessage(error: Error): string {
+  const { query } = error as { query?: unknown };
+  if (typeof query !== 'string' || !error.message.startsWith('Failed query: ')) return error.message;
+  const statement = query.trim().split(/\s(?:\(|values\b|set\b|where\b)/i)[0] ?? '';
+  return `Failed query: ${statement.slice(0, 80)}`;
+}
+
 function describe(error: unknown): { name: string; message: string; stack?: string } {
   if (error instanceof Error) {
     const causes = causesOf(error, 1);
+    const message = ownMessage(error);
     return {
       name: error.name,
-      message: causes ? `${error.message} ${causes}` : error.message,
+      message: causes ? `${message} ${causes}` : message,
       stack: error.stack,
     };
   }
