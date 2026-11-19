@@ -8,8 +8,8 @@ mod common;
 use std::path::Path;
 
 use dr_samples::{
-    ATTEMPTS_EXHAUSTED, MARKER_KEY, MARKER_SCOPE, MAX_ATTEMPTS, NOT_A_NEW_LIBRARY, Outcome, RECIPE,
-    book_ids, ensure_built_in,
+    ATTEMPTS_EXHAUSTED, MARKER_KEY, MARKER_SCOPE, MAX_ATTEMPTS, NOT_A_NEW_LIBRARY, OWNER_SCOPE,
+    Outcome, RECIPE, UNKNOWN_MARKER, book_ids, ensure_built_in,
 };
 use dr_store::OpenDoc;
 use dr_workspace::{Actor, Workspace};
@@ -357,4 +357,186 @@ fn created_markers_never_resurrect_books_and_act_drift_imports_into_act_track_by
             .iter()
             .any(|m| { m.host == act_track.id && m.member.as_str() == drift_node.as_str() })
     );
+}
+
+#[test]
+fn same_id_user_book_is_never_deleted_after_failed_attempt_or_unflushed_creating_cleanup() {
+    let books = book_ids();
+    let aq_id = &books[1];
+
+    // 1. After a `failed` marker, importing/syncing a book that shares a sample
+    //    ID (whether modified or unmodified) skips sample seeding and preserves
+    //    the book untouched.
+    let dir = tempfile::tempdir().unwrap();
+    let ws = open(dir.path());
+    set_marker(
+        &ws,
+        json!({
+            "status": "failed",
+            "recipe": RECIPE,
+            "books": books,
+            "attempts": 1,
+            "reason": "transient disk error",
+        }),
+    );
+    dr_samples::v3::write_book(
+        ws.library(),
+        &dr_samples::v3::a_q(&dr_samples::v3::MappingChoices::default()).unwrap(),
+    )
+    .unwrap();
+    out(
+        &ws,
+        "book.update",
+        json!({ "book": aq_id, "name": "我的阿Q续写" }),
+    );
+    assert_eq!(
+        ensure_built_in(&ws),
+        Outcome::Skipped {
+            reason: NOT_A_NEW_LIBRARY.into(),
+        }
+    );
+    let on_shelf = shelf(&ws);
+    assert_eq!(on_shelf.len(), 1);
+    assert_eq!(on_shelf[0].0, *aq_id);
+    assert_eq!(on_shelf[0].1, "我的阿Q续写");
+    assert_eq!(stored(&ws, &books[0]), 0);
+
+    // 2. Cleanup succeeded (`discard` removed the partial sample and revoked
+    //    `OWNER_SCOPE`), then releasing the global `creating` marker failed:
+    //    even an unmodified or edited user book later imported under the same
+    //    sample ID must never be deleted or overwritten on the next launch.
+    let dir = tempfile::tempdir().unwrap();
+    let ws = open(dir.path());
+    let token = "attempt-token-interrupted-1";
+    set_marker(
+        &ws,
+        json!({
+            "status": "creating",
+            "recipe": RECIPE,
+            "books": books,
+            "token": token,
+            "attempts": 1,
+        }),
+    );
+    ws.library()
+        .local_set(OWNER_SCOPE, aq_id, token, Some(aq_id))
+        .unwrap();
+    dr_samples::v3::write_book(
+        ws.library(),
+        &dr_samples::v3::a_q(&dr_samples::v3::MappingChoices::default()).unwrap(),
+    )
+    .unwrap();
+
+    // Fault-inject global marker update so cleanup commits while releasing the
+    // `creating` marker fails.
+    ws.library()
+        .local_write(|tx| {
+            tx.execute_batch(
+                "CREATE TRIGGER fail_samples_marker_update
+                 BEFORE INSERT ON local_state
+                 WHEN NEW.scope = 'samples' AND NEW.key = 'built-in'
+                 BEGIN
+                     SELECT RAISE(ABORT, 'simulated disk full on marker release');
+                 END;
+                 CREATE TRIGGER fail_samples_marker_update_2
+                 BEFORE UPDATE ON local_state
+                 WHEN NEW.scope = 'samples' AND NEW.key = 'built-in'
+                 BEGIN
+                     SELECT RAISE(ABORT, 'simulated disk full on marker release');
+                 END;",
+            )
+            .map_err(dr_store::StoreError::from)
+        })
+        .unwrap();
+
+    let res = ensure_built_in(&ws);
+    assert!(
+        matches!(res, Outcome::Failed { attempts: 1, .. }),
+        "marker release fault returns Failed: {res:?}"
+    );
+    // Partial sample was cleaned up and its ownership token was revoked, while
+    // the global marker remained stuck at `creating`.
+    assert_eq!(stored(&ws, aq_id), 0);
+    assert_eq!(ws.library().local_get(OWNER_SCOPE, aq_id).unwrap(), None);
+    assert_eq!(marker(&ws)["status"], "creating");
+
+    // Clear the disk fault; the author now imports a book with the same sample
+    // ID (even completely unmodified!) before the next sample check.
+    ws.library()
+        .local_write(|tx| {
+            tx.execute_batch(
+                "DROP TRIGGER fail_samples_marker_update;
+                 DROP TRIGGER fail_samples_marker_update_2;",
+            )
+            .map_err(dr_store::StoreError::from)
+        })
+        .unwrap();
+    let expected_docs = dr_samples::v3::write_book(
+        ws.library(),
+        &dr_samples::v3::a_q(&dr_samples::v3::MappingChoices::default()).unwrap(),
+    )
+    .unwrap();
+
+    assert_eq!(
+        ensure_built_in(&ws),
+        Outcome::Skipped {
+            reason: NOT_A_NEW_LIBRARY.into(),
+        }
+    );
+    assert_eq!(stored(&ws, aq_id), expected_docs);
+    assert_eq!(stored(&ws, &books[0]), 0);
+    assert_eq!(shelf(&ws).len(), 1);
+    assert_eq!(shelf(&ws)[0].0, *aq_id);
+
+    // 3. Even under a legacy `creating` marker without `token`, an author-edited
+    //    book sharing a sample ID is preserved and never discarded.
+    let dir = tempfile::tempdir().unwrap();
+    let ws = open(dir.path());
+    set_marker(
+        &ws,
+        json!({ "status": "creating", "recipe": RECIPE, "books": books, "attempts": 1 }),
+    );
+    dr_samples::v3::write_book(
+        ws.library(),
+        &dr_samples::v3::a_q(&dr_samples::v3::MappingChoices::default()).unwrap(),
+    )
+    .unwrap();
+    out(
+        &ws,
+        "book.update",
+        json!({ "book": aq_id, "name": "作者改过的阿Q" }),
+    );
+    assert_eq!(
+        ensure_built_in(&ws),
+        Outcome::Skipped {
+            reason: NOT_A_NEW_LIBRARY.into(),
+        }
+    );
+    assert_eq!(shelf(&ws)[0].1, "作者改过的阿Q");
+
+    // 4. Unknown recipe or non-sample book ID in marker is refused as
+    //    `UNKNOWN_MARKER` without touching any stored book.
+    let dir = tempfile::tempdir().unwrap();
+    let ws = open(dir.path());
+    let user_book = out(&ws, "project.create", json!({ "name": "独立作品" }))["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    set_marker(
+        &ws,
+        json!({
+            "status": "creating",
+            "recipe": RECIPE,
+            "books": [user_book],
+            "attempts": 1,
+        }),
+    );
+    assert_eq!(
+        ensure_built_in(&ws),
+        Outcome::Skipped {
+            reason: UNKNOWN_MARKER.into(),
+        }
+    );
+    assert_eq!(shelf(&ws).len(), 1);
+    assert_eq!(shelf(&ws)[0].0, user_book);
 }

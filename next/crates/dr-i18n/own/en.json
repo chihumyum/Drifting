@@ -193,6 +193,9 @@
     "editor": {
       "justify": "Justify"
     },
+    "hosted": {
+      "library_switch_failed": "Couldn't switch libraries"
+    },
     "sync": {
       "backup": {
         "errors": {

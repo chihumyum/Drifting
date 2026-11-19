@@ -184,6 +184,9 @@
     "editor": {
       "justify": "两端对齐"
     },
+    "hosted": {
+      "library_switch_failed": "没能切换书库"
+    },
     "sync": {
       "backup": {
         "errors": {

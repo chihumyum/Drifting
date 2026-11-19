@@ -186,6 +186,9 @@
     "editor": {
       "justify": "兩端對齊"
     },
+    "hosted": {
+      "library_switch_failed": "沒能切換書庫"
+    },
     "sync": {
       "backup": {
         "errors": {

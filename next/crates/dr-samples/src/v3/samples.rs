@@ -331,3 +331,78 @@ pub fn write_book(
     )?;
     Ok(count)
 }
+
+/// Returns `true` when every stored document for `sample.book_id()` in `lib`
+/// belongs to `sample` and matches its unmodified deterministic CRDT state.
+/// Any extra document, trashed document, or post-import edit returns `false`.
+pub fn is_unmodified_subset(
+    lib: &dr_store::Library,
+    sample: &SampleBookV3,
+) -> std::result::Result<bool, String> {
+    let stored = lib
+        .docs(Some(sample.book_id().as_str()), None)
+        .map_err(|e| e.to_string())?;
+    if stored.is_empty() {
+        return Ok(true);
+    }
+    let all = dr_doc::loro_types::VersionVector::default();
+    for info in stored {
+        let expected_pair = if let Some(doc) = sample
+            .prose
+            .iter()
+            .find(|p| p.doc_id().to_string() == info.doc_id)
+        {
+            Some((
+                dr_doc::prose::genesis(doc.doc_id()),
+                doc.export_updates_since(&all).map_err(|e| e.to_string())?,
+            ))
+        } else if sample.stats.doc_id().to_string() == info.doc_id {
+            Some((
+                dr_doc::side::stats_genesis(sample.book_id()),
+                sample
+                    .stats
+                    .export_updates_since(&all)
+                    .map_err(|e| e.to_string())?,
+            ))
+        } else if sample.checkpoints.doc_id().to_string() == info.doc_id {
+            Some((
+                dr_doc::side::checkpoints_genesis(sample.book_id()),
+                sample
+                    .checkpoints
+                    .export_updates_since(&all)
+                    .map_err(|e| e.to_string())?,
+            ))
+        } else if sample.layout.doc_id().to_string() == info.doc_id {
+            Some((
+                dr_doc::side::layout_genesis(sample.book_id()),
+                sample
+                    .layout
+                    .export_updates_since(&all)
+                    .map_err(|e| e.to_string())?,
+            ))
+        } else if sample.book.doc_id().to_string() == info.doc_id {
+            Some((
+                book_genesis(sample.book_id()),
+                sample
+                    .book
+                    .export_updates_since(&all)
+                    .map_err(|e| e.to_string())?,
+            ))
+        } else {
+            None
+        };
+        let Some((genesis, updates)) = expected_pair else {
+            return Ok(false);
+        };
+        let expected = loro::LoroDoc::new();
+        expected.import(&genesis).map_err(|e| e.to_string())?;
+        expected.import(&updates).map_err(|e| e.to_string())?;
+        let actual = lib.load_copy(&info.doc_id).map_err(|e| e.to_string())?;
+        if actual.oplog_frontiers() != expected.oplog_frontiers()
+            || actual.state_vv() != expected.state_vv()
+        {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}

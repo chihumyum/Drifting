@@ -11,15 +11,16 @@
 - **菜单文案校验与多语言（`TrayLabels`、`valid_label`）**：
   - 沿用旧版 `src-tauri/src/windows_tray.rs` 的规则：单行、非空、不超过 80 个字符（`MAX_LABEL_CHARS = 80`）、不含任何控制字符。
   - `TrayLabels::for_locale` 内置全部九种界面语言的「打开 Drifting」与「退出 Drifting」默认文案（如简体中文 `打开 Drifting` / `退出 Drifting`、繁体中文 `打開 Drifting` / `結束 Drifting`、英文 `Open Drifting` / `Quit Drifting` 等），并支持在界面语言切换时通过 `TrayController::set_labels` 动态更新。
-- **关窗与唤醒状态机（`TrayState`、`WindowCloseContext`、`WindowCloseDecision`、`TrayCommand`）**：
-  - 书内点窗口关闭（`WindowCloseContext::BookOpen`）返回 `WindowCloseDecision::ReturnToShelf`，退回书架而不隐藏窗口；
-  - 书架上点窗口关闭（`WindowCloseContext::OnShelf`）在 Windows 下返回 `WindowCloseDecision::HideToTray`，刷盘后把主窗口藏进通知区，后台帮手任务、Hosted 同步和本地 MCP 桥接继续运行；
+- **关窗与唤醒状态机（`TrayState`、`WindowCloseDecision`、`TrayCommand`）**：
+  - 点窗口关闭，不管窗口里是一本书还是全部项目，在 Windows 下都返回 `WindowCloseDecision::HideToTray`：刷盘后把主窗口原样藏进通知区，叫回来还是藏起来时的样子，后台 Agent 任务、Hosted 同步和本地 MCP 桥接继续运行。作者 2026-11-20 定（「都按照你的推荐来」）：和 macOS 2026-11-14 起红灯直接关窗一个意思；原先「开着书时先回全部项目、再点一次才收进通知区」那一步去掉了，`WindowCloseContext` 和 `ReturnToShelf` 随之删除；
+  - 没有通知区图标时（见下一条）返回 `WindowCloseDecision::QuitProcess`，经刷新屏障落盘后退出；
   - 左键单击通知区图标（`on_left_click`）、点击右键菜单「打开 Drifting」（`on_menu_open`）、或第二次启动把参数经命名管道转交过来（`on_second_instance_launch` / `notify_second_instance`）走同一条 `TrayCommand::RestoreWindow` 路径把窗口叫回前台；
   - 点击右键菜单「退出 Drifting」（`on_menu_quit`）发出 `TrayCommand::QuitApp` 并把状态置为 `quitting`，经刷新屏障落盘后退出进程。
-- **Win32 原生通知区实现（`#[cfg(windows)] mod windows_impl`）**：
+- **Win32 原生通知区实现与无任务栏降级（`#[cfg(windows)] mod windows_impl`）**：
   - 直接使用工作区已锁定的 `windows 0.62`（`Win32_UI_Shell`、`Win32_UI_WindowsAndMessaging`、`Win32_System_LibraryLoader`），不向 `Cargo.lock` 引入额外第三方 crate；
-  - 在 GPUI 跑 Win32 消息循环的主线程上创建隐藏消息窗口（`HWND_MESSAGE`）并调用 `Shell_NotifyIconW(NIM_ADD)` 注册通知区图标；
-  - 窗口过程处理 `WM_LBUTTONUP`（左键唤醒）、`WM_RBUTTONUP` / `WM_CONTEXTMENU`（按当前语言弹出两项菜单）和 `WM_COMMAND`（打开 / 退出），将命令推入 `TrayController` 队列并触发主线程 `waker`；析构时调用 `Shell_NotifyIconW(NIM_DELETE)` 与 `DestroyWindow` 清理句柄。
+  - 在 GPUI 跑 Win32 消息循环的主线程上创建不显示的顶层隐藏窗口（既接收 `Shell_NotifyIconW` 回调，也接收 Explorer 广播的 `TaskbarCreated`），并调用 `Shell_NotifyIconW(NIM_ADD)` 注册通知区图标；
+  - 当会话不存在 Explorer 通知区（如无头 `windows-arm64` CI、Server Core 或 Explorer 尚未启动）导致 `NIM_ADD` 返回 `FALSE` 时，`TrayController::install` 仍保留隐藏消息窗口并将 `has_notification_icon()` 置为 `false`：此时关窗退化为 `WindowCloseDecision::QuitProcess`（经刷新屏障正常退出，绝不把窗口藏进无法唤回的不可见状态），待 Explorer 广播 `TaskbarCreated` 后自动补注册图标并恢复 `HideToTray`。收到 `TaskbarCreated` 时先 `NIM_DELETE` 再 `NIM_ADD`：这条广播也会发给图标还在的窗口，不先删的话重复注册会失败，被当成「没有通知区」，下一次在全部项目页关窗就变成退出；
+  - 窗口过程处理 `WM_LBUTTONUP`（左键唤醒）、`WM_RBUTTONUP` / `WM_CONTEXTMENU`（按当前语言弹出两项菜单）、`WM_COMMAND`（打开 / 退出）与 `TaskbarCreated`，将命令推入 `TrayController` 队列并触发主线程 `waker`；析构时仅在图标已注册时调用 `Shell_NotifyIconW(NIM_DELETE)`，随后 `DestroyWindow` 清理句柄。
 
 ### 2. arm64 安装包、内置字体打包与 CI（`next/script/`、`.github/workflows/next.yml`）
 
@@ -90,11 +91,10 @@
   - `pnpm public:check` 与 `pnpm ci:contract:check`：通过
 - **待协调**：见下节。
 
-## 待协调
+## 待协调（2026-11-19 合流收口）
 
-1. **外壳窗口关闭与托盘命令挂接（F6 `dr-shell`）**：
-   - 按当时 `handoff/overnight.md`（已删）的轨道 4 规则，本分支不直接修改 `dr-shell`。合流后在 `dr-shell` 启动时调用 `dr_platform::tray::TrayController::install(&identity, TrayLabels::for_locale(locale.code()))`，把 `single_instance` 回调接到 `tray.notify_second_instance()`，在窗口关闭请求处按 `tray.handle_window_close(context)` 区分 `ReturnToShelf`、`HideToTray` 与 `QuitProcess`，并在界面语言变更时调用 `tray.set_labels(open, quit)`。
-2. **`dr-ui` 角色字体挂载平台回退链（F5 `dr-ui`）**：
-   - 按当时的 `handoff/kernel-v3-split.md`（已删），`dr-ui` 归轨道 2，本分支不直接修改 `next/crates/dr-ui/src/fonts.rs`。合流后可在 `dr_ui::fonts::Role::font` 中加一行 `f.fallbacks = Some(gpui::FontFallbacks::from_fonts(dr_platform::fonts::fallbacks_for(role).iter().map(|s| (*s).to_owned()).collect()));` 将 `dr_platform::fonts` 的 Windows/macOS 回退顺序挂入 GPUI `Font`。
+1. ~~**外壳窗口关闭与托盘命令挂接（F6 `dr-shell`）**~~：**已接通（2026-11-19）**。新增 `dr_shell::tray`，在 `app/drifting/src/main.rs` 启动进入 `app.run` 后（确保先完成 GPUI 的 Win32 DPI 感知初始化）调用 `TrayController::install(platform, TrayLabels::for_locale(locale.code()))` 与 `dr_shell::tray::install`，将 `single_instance` 第二实例回调接到 `tray.notify_second_instance()`，在 `Workspace::should_close_window` 中按 `HideToTray`（Win32 `ShowWindow(SW_HIDE)`，保留后台 Agent、Hosted 同步与本地 MCP） / `QuitProcess` 处理关闭请求（macOS 关窗与 `--features debug-bridge` / `VisualTestContext` 行为保持不变），并在 `Settings` 语言切换时自动调用 `dr_shell::tray::sync_locale` 更新通知区菜单文案。永久回归见 `dr-platform` 的 `tray::tests` 与 `dr-shell/tests/tray.rs`。第二个实例在控制器装好之前到来时先记下、装好后补发；记下和装好在同一把锁里，不会丢在两步之间。
+   - **只在 CI 上编译过的部分**：`dr-shell/src/tray.rs` 里取窗口句柄的那一段（`#[cfg(windows)]`）和 `app/drifting` 的 Windows 分支，本机没法交叉编译（要先编 GPUI 的 Windows 依赖），要等推送后看 Windows 的 CI。
+2. ~~**`dr-ui` 角色字体挂载平台回退链（F5 `dr-ui`）**~~：**Windows 上已接通（2026-11-19）**。`dr_ui::fonts::Role::{fallbacks, font}` 与 `dr_ui::style::DrStyled::font_role` 在 Windows 上带上 `dr_platform::fonts::fallbacks_for` 的回退链（缓存的 `gpui::FontFallbacks`）；**macOS 不带**，Core Text 照旧自己选，画出来的字不变。macOS 那张回退表（`macos_fallbacks_for`）留着没用：要挂得先在真窗口里比过表情和生僻字，作者没要过。单元测试见 `dr-ui/src/fonts.rs` 的 `a_role_font_names_its_fallback_chain_on_windows_only`（Windows 那一半只在 Windows 的 CI 上跑）。
 3. **本机 `aarch64-pc-windows-msvc` rustup target 组件**：
-   - 本机已安装 `x86_64-pc-windows-msvc` 并通过 `--target x86_64-pc-windows-msvc` 交叉编译检查；`aarch64-pc-windows-msvc` 组件本机未预装，遵照 `m43-windows.md`「缺工具链组件、要装东西时先问作者，不要自己装」未在本机自动安装，如需本机跑 arm64 交叉检查可执行 `rustup target add aarch64-pc-windows-msvc`。
+   - 本机已安装 `x86_64-pc-windows-msvc`，`dr-platform` 通过 `cargo clippy -p dr-platform --no-default-features --all-targets --target x86_64-pc-windows-msvc`（含测试代码）交叉检查；`aarch64-pc-windows-msvc` 组件本机未预装，遵照「缺工具链组件、要装东西时先问作者，不要自己装」未在本机自动安装，如需本机跑 arm64 交叉检查可执行 `rustup target add aarch64-pc-windows-msvc`。

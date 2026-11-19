@@ -1093,6 +1093,7 @@
       "current_password": "Current password",
       "description": "Writing is saved on this device first. Connect an account to sync projects between your devices.",
       "display_name": "Display name",
+      "library_switch_failed": "Couldn't switch libraries",
       "new_password": "New password",
       "no_account": "Not signed in",
       "password_description": "8–128 characters.",

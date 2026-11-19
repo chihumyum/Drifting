@@ -1093,6 +1093,7 @@
       "current_password": "Aktuelles Passwort",
       "description": "Deine Texte werden zuerst auf diesem Gerät gespeichert. Verbinde ein Konto, um Projekte zwischen deinen Geräten zu synchronisieren.",
       "display_name": "Anzeigename",
+      "library_switch_failed": "Bibliothek konnte nicht gewechselt werden",
       "new_password": "Neues Passwort",
       "no_account": "Nicht angemeldet",
       "password_description": "8–128 Zeichen.",

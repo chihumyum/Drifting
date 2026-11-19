@@ -186,6 +186,9 @@
     "editor": {
       "justify": "양쪽 맞춤"
     },
+    "hosted": {
+      "library_switch_failed": "라이브러리를 전환하지 못했습니다"
+    },
     "sync": {
       "backup": {
         "errors": {

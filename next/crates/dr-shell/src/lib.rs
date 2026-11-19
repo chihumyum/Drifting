@@ -44,6 +44,7 @@ pub mod release;
 pub mod settings;
 pub mod strings;
 pub mod sync;
+pub mod tray;
 pub mod workspace;
 
 use std::sync::Arc;
@@ -156,7 +157,10 @@ pub fn open_workspace(
         .into_iter()
         .find_map(|window| window.downcast::<Workspace>())
     {
-        handle.update(cx, |_, window, _| window.activate_window())?;
+        handle.update(cx, |_, window, _| {
+            tray::restore_window(window);
+            window.activate_window();
+        })?;
         return Ok(handle);
     }
     let options = workspace::window_options(cx);

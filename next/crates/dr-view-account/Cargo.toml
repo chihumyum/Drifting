@@ -27,6 +27,8 @@ smallvec.workspace = true
 [dev-dependencies]
 dr-account = { workspace = true, features = ["test-support"] }
 dr-platform = { workspace = true, features = ["test-support"] }
+# A library to swap away from (the M35 failed-swap test).
+dr-workspace.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
 gpui_platform.workspace = true
 tempfile.workspace = true

@@ -193,6 +193,9 @@
     "editor": {
       "justify": "Blocksatz"
     },
+    "hosted": {
+      "library_switch_failed": "Bibliothek konnte nicht gewechselt werden"
+    },
     "sync": {
       "backup": {
         "errors": {

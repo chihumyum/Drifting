@@ -2033,6 +2033,7 @@ version = "0.0.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
+ "dr-platform",
  "gpui",
  "gpui-ime",
  "gpui_platform",
@@ -2060,6 +2061,7 @@ dependencies = [
  "dr-ui",
  "dr-view-feedback",
  "dr-view-sea",
+ "dr-workspace",
  "gpui",
  "gpui_platform",
  "image",

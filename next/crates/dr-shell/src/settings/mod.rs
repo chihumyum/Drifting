@@ -38,6 +38,19 @@ type PanelClosed = Rc<dyn Fn(gpui::WindowId, &mut App)>;
 struct PanelClosedHooks(Vec<PanelClosed>);
 impl Global for PanelClosedHooks {}
 
+type SettingsChanged = Rc<dyn Fn(&mut App)>;
+
+#[derive(Default)]
+struct SettingsChangedHooks(Vec<SettingsChanged>);
+impl Global for SettingsChangedHooks {}
+
+/// Runs `hook` after each [`Settings::update`] applies its changes.
+pub fn on_changed(cx: &mut App, hook: impl Fn(&mut App) + 'static) {
+    cx.default_global::<SettingsChangedHooks>()
+        .0
+        .push(Rc::new(hook));
+}
+
 /// Cancels work owned by a settings surface when it is dismissed. Module
 /// controls may remain cached, so dropping their view is not a close signal.
 pub fn on_panel_closed(cx: &mut App, hook: impl Fn(gpui::WindowId, &mut App) + 'static) {
@@ -194,6 +207,13 @@ impl Settings {
             schedule_save(cx);
         }
         apply(cx);
+        let hooks = cx
+            .try_global::<SettingsChangedHooks>()
+            .map(|hooks| hooks.0.clone())
+            .unwrap_or_default();
+        for hook in hooks {
+            hook(cx);
+        }
         result
     }
 
@@ -265,6 +285,7 @@ fn apply(cx: &mut App) {
         && let Some(locale) = now.locale
     {
         Strings::install(locale, cx);
+        crate::tray::sync_locale(locale, cx);
     }
     if now.crash_reports != before.crash_reports
         && before.crash_reports.is_some()

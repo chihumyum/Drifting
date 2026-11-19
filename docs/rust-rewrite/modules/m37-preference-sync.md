@@ -27,7 +27,8 @@
 - `dr-account`：
   - `tests::preference_sync_lww_future_clock_clamping_and_404_unsupported`：两台设备对同一账号同步偏好，验证逐键最后写入获胜（LWW）、未改动默认值不覆盖远端改动、客户端未来时间（`2099`）被服务端时钟夹住后被后续正常写入覆盖、以及服务端返回 `404` 时不报错。
 - `dr-view-account`：
-  - `tests::settings_file_preference_sync_never_uploads_device_or_byok_keys`：两台设备通过 `SettingsFile` 与 `FakeAuthServer` 同步，验证跟账号的项（含快捷键与帮手迭代上限）完整同步，且本机项从不上传或覆盖。
+  - `tests::settings_file_preference_sync_never_uploads_device_or_byok_keys`：两台设备通过 `SettingsFile` 与 `FakeAuthServer` 同步，验证跟账号的项（含快捷键与 Agent 迭代上限）完整同步，且本机项从不上传或覆盖。
+  - `tests::changing_account_scoped_setting_in_settings_schedules_preference_sync_without_device_noise`（2026-11-19）：验证在设置中修改跟账号同步的项（`appearance.theme`、`editor.font_size`、`keys.bindings`）会经 `dr_shell::settings::on_changed` 立即触发 1 秒防抖上传（`schedule_preference_sync`）并落到 `FakeAuthServer`，而修改本机项（`appearance.interface_text_size`、`appearance.reduce_motion`、`privacy.crash_reports`）、BYOK 模型键、`device_memory` 或远端同步写回不会误触发上传。
 
 ## 交回
 
@@ -41,4 +42,4 @@
   - `CARGO_BUILD_JOBS=3 cargo xtask check`：通过
   - `pnpm public:check`：通过
 - **待协调**：
-  - **F6（`dr-shell::settings`）实时编辑防抖接线**：`dr_view_account::schedule_preference_sync(cx)` 已就绪（登录连接时已自动同步一次）；若需用户在设置面板中每次切换跟账号走的开关后立刻触发 1 秒防抖上传，请 F6 在 `dr_shell::settings::Settings::set` / `reset` / `set_key_binding` 末尾加一个回调钩子调用 `dr_view_account::schedule_preference_sync(cx)`。
+  - ~~**F6（`dr-shell::settings`）实时编辑防抖接线**~~：**已接通（2026-11-19）**。`dr_shell::settings::on_changed` 在每次 `Settings::update` 完成后通知监听者；`dr_view_account::init` 对比显式跟账号偏好快照（`synced_preference_keys`），仅在跟账号项发生变化且非远端写回时调用 `schedule_preference_sync(cx)`。

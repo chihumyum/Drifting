@@ -1102,6 +1102,7 @@
       "current_password": "Senha atual",
       "description": "Seu texto é salvo primeiro neste dispositivo. Conecte uma conta para sincronizar projetos entre seus dispositivos.",
       "display_name": "Nome de exibição",
+      "library_switch_failed": "Não foi possível trocar de biblioteca",
       "new_password": "Nova senha",
       "no_account": "Não conectado",
       "password_description": "De 8 a 128 caracteres.",

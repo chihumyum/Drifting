@@ -1102,6 +1102,7 @@
       "current_password": "Mot de passe actuel",
       "description": "Vos textes sont d’abord enregistrés sur cet appareil. Connectez un compte pour synchroniser vos projets entre vos appareils.",
       "display_name": "Nom affiché",
+      "library_switch_failed": "Impossible de changer de bibliothèque",
       "new_password": "Nouveau mot de passe",
       "no_account": "Non connecté",
       "password_description": "8 à 128 caractères.",
