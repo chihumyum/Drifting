@@ -313,6 +313,19 @@ fn drift(frozen: &[ManifestEntry], current: &[ManifestEntry]) -> ManifestState {
 fn target_key(target: &Target) -> String {
     target.doc.clone().unwrap_or_else(|| target.key())
 }
+/// Whether a saved write edited the target's content: a module target's
+/// prose body; for an entry target, any of its modules (prose, fields,
+/// key-value rows, media, patches, plot grids). A comment or relation on the
+/// entry, its memberships, timeline lanes and placements, and its title only
+/// anchor to it. A proof stored before content was recorded is matched by
+/// the exact target key in its targets.
+fn edits_content(proof: &WriteProof, target: &Target) -> bool {
+    match &proof.content {
+        Some(content) if target.kind == "entry" => content.contains(&target.key()),
+        Some(content) => content.contains(&target_key(target)),
+        None => proof.targets.contains(&target_key(target)),
+    }
+}
 fn new_step(target: Target, ordinal: usize) -> Step {
     Step {
         id: new_uuid_v7(),
@@ -838,21 +851,18 @@ impl Store {
                                         ));
                                     }
                                     let proofs: Vec<WriteProof> = rows(tx, WRITES, &chain_id)?;
-                                    let expected_doc = target_key(&steps[index].target);
-                                    let expected_entity = steps[index].target.key();
                                     let proof = proofs
                                         .iter()
                                         .rev()
                                         .find(|proof| {
-                                            (proof.targets.contains(&expected_doc)
-                                                || proof.targets.contains(&expected_entity))
+                                            edits_content(proof, &steps[index].target)
                                                 && !steps
                                                     .iter()
                                                     .any(|row| row.evidence.as_ref() == Some(&proof.id))
                                         })
                                         .ok_or_else(|| {
                                             invalid(format!(
-                                                "no unclaimed saved change for {}; save a change to or anchored to this target, or append_steps for another target",
+                                                "no unclaimed saved change to the content of {}; edit its prose or another of its modules (a comment, relation, placement or title does not count), or append_steps for another target",
                                                 steps[index].target.name
                                             ))
                                         })?;

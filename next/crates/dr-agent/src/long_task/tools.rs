@@ -76,7 +76,7 @@ pub fn update_descriptor() -> ToolDescriptor {
     ToolDescriptor {
         name: UPDATE_TOOL.into(),
         revision: "m30-task-update-v1".into(),
-        description: "Create or update this conversation's durable long-task plan (operations: create, update, append_steps, reconcile_manifest, step, constraint). Whole-book scope enumerates the compiled book sequence automatically (omit targets). Non-create operations require expected_revision. Edit step completion requires an unclaimed saved write to the target; review step completion requires a complete current target read and cited quotes in reviewResult.".into(),
+        description: "Create or update this conversation's durable long-task plan (operations: create, update, append_steps, reconcile_manifest, step, constraint). Whole-book scope enumerates the compiled book sequence automatically (omit targets). Non-create operations require expected_revision. Edit step completion requires an unclaimed saved write to the target's content: a module target's prose, or for an entry target its prose or another of its modules (fields, key-value rows, media, patches, plot grids); a comment, relation, membership, timeline placement or title change does not count. Review step completion requires a complete current target read and cited quotes in reviewResult.".into(),
         input_schema: json!({
             "type": "object",
             "properties": {

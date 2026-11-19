@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use dr_model::id::BookId;
 use dr_store::{Library, StoreError, local_state::MAX_VALUE_BYTES};
-use rusqlite::params;
+use rusqlite::{OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -368,28 +368,35 @@ pub fn external_events(
             "external event page limit must be 1..={MAX_EVENT_PAGE}"
         )));
     }
-    let raw_header = lib
-        .local_get(SESSIONS, session)?
-        .ok_or_else(|| Error::Store(StoreError::NotFound(session.to_owned())))?;
+    let lower = format!("{session}/{after_seq:020}");
+    let upper = format!("{session}0");
+    // One read transaction: the header and the page come from one committed
+    // state, so an append to a live session cannot land between them.
+    let (raw_header, rows): (Option<String>, Vec<(String, String, i64)>) =
+        lib.local_read(|conn| {
+            let tx = conn.unchecked_transaction()?;
+            let header = tx
+                .prepare_cached("SELECT value FROM local_state WHERE scope = ?1 AND key = ?2")?
+                .query_row(params![SESSIONS, session], |r| r.get(0))
+                .optional()?;
+            let rows = tx
+                .prepare_cached(
+                    "SELECT key, value, changed_ms FROM local_state
+                     WHERE scope = ?1 AND key > ?2 AND key < ?3
+                     ORDER BY key ASC LIMIT ?4",
+                )?
+                .query_map(params![EVENTS, &lower, &upper, limit as i64], |r| {
+                    Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get(2)?))
+                })?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            Ok((header, rows))
+        })?;
+    let raw_header =
+        raw_header.ok_or_else(|| Error::Store(StoreError::NotFound(session.to_owned())))?;
     let journal = Journal::open(lib.clone(), &raw_header)?;
     if journal.header.session != session {
         return Err(Error::Protocol("external header key mismatch".into()));
     }
-    let lower = format!("{session}/{after_seq:020}");
-    let upper = format!("{session}0");
-    let rows: Vec<(String, String, i64)> = lib.local_read(|conn| {
-        let mut stmt = conn.prepare_cached(
-            "SELECT key, value, changed_ms FROM local_state
-             WHERE scope = ?1 AND key > ?2 AND key < ?3
-             ORDER BY key ASC LIMIT ?4",
-        )?;
-        let collected = stmt
-            .query_map(params![EVENTS, &lower, &upper, limit as i64], |r| {
-                Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get(2)?))
-            })?
-            .collect::<rusqlite::Result<Vec<_>>>()?;
-        Ok(collected)
-    })?;
     if after_seq < journal.header.seq && rows.is_empty() {
         return Err(invalid("missing or mismatched event sequence").into());
     }

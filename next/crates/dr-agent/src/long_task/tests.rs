@@ -418,6 +418,158 @@ fn durable_writes_complete_only_the_exact_target_once_and_survive_reopen() {
 }
 
 #[test]
+fn edit_steps_need_content_writes_not_comments_relations_or_titles() {
+    let f = Fixture::new();
+    let entries =
+        f.ws.call(
+            &Actor::User,
+            "entry.list",
+            json!({"book":f.book,"all":true}),
+        )
+        .unwrap();
+    let id_of = |template: &str, nth: usize| {
+        entries["output"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|e| e["template"] == template)
+            .nth(nth)
+            .unwrap()["id"]
+            .as_str()
+            .unwrap()
+            .to_owned()
+    };
+    let (character, chapter, legacy) = (
+        id_of("tpl-character", 0),
+        id_of("tpl-chapter", 0),
+        id_of("tpl-chapter", 1),
+    );
+    f.apply(
+        "create",
+        Command::Create {
+            objective: "fixture task".into(),
+            scope: Scope::Targets,
+            work_kind: WorkKind::Edit,
+            targets: [&character, &chapter, &legacy]
+                .into_iter()
+                .map(|id| TargetSpec {
+                    kind: "entry".into(),
+                    name: id.clone(),
+                })
+                .collect(),
+        },
+    )
+    .unwrap();
+    let step = |entry: &str| {
+        f.plan()
+            .steps
+            .into_iter()
+            .find(|step| step.target.id == entry)
+            .unwrap()
+    };
+    let write = |call: &str, command: &str, input: serde_json::Value| {
+        let actor = Actor::Agent {
+            session: f.session.clone(),
+            turn: 1,
+            call: call.into(),
+        };
+        f.ws.call(&actor, command, input).unwrap();
+        let proof = crate::evidence::write_proof(f.ws.library(), &f.session, 1, call)
+            .unwrap()
+            .unwrap();
+        f.ws.library()
+            .local_write(|tx| persist_writes(tx, &proof))
+            .unwrap();
+        proof
+    };
+
+    // Writes that only anchor to the entry name it and complete nothing.
+    let anchored = [
+        write(
+            "comment",
+            "comment.create",
+            json!({"book":f.book,"target":{"kind":"entry","id":character},"body":"fixture comment"}),
+        ),
+        write(
+            "relation",
+            "relation_row.create_pair",
+            json!({"book":f.book,"left":character,"right":chapter,"new_type":{"name":"fixture relation","direction":"symmetric"}}),
+        ),
+        write(
+            "title",
+            "entry.update",
+            json!({"book":f.book,"id":character,"title":"Updated character title"}),
+        ),
+    ];
+    let key = format!("entry:{character}");
+    for proof in &anchored {
+        assert!(proof.targets.contains(&key), "{:?}", proof.targets);
+        assert!(!proof.content.as_ref().unwrap().contains(&key));
+    }
+    assert!(
+        f.step(
+            "anchored-done",
+            &step(&character).id,
+            StepStatus::Completed,
+            None
+        )
+        .is_err()
+    );
+
+    // A patch is content of the entry's patches module.
+    let patch = write(
+        "patch",
+        "module.put_patch",
+        json!({"book":f.book,"entry":character,"module":"mod-patches","body":"fixture patch"}),
+    );
+    f.step(
+        "patch-done",
+        &step(&character).id,
+        StepStatus::Completed,
+        None,
+    )
+    .unwrap();
+    assert_eq!(step(&character).evidence, Some(patch.id));
+
+    // A prose write still completes its entry.
+    let doc = format!("body:{chapter}/mod-prose");
+    let text =
+        f.ws.call(&Actor::User, "prose.read", json!({"doc":doc}))
+            .unwrap();
+    let text = text["output"]["paragraphs"][1]["text"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let body = write(
+        "body",
+        "prose.replace",
+        json!({"doc":doc,"find":text,"replace":text.chars().rev().collect::<String>()}),
+    );
+    f.step("body-done", &step(&chapter).id, StepStatus::Completed, None)
+        .unwrap();
+    assert_eq!(step(&chapter).evidence, Some(body.id));
+
+    // A proof stored before content was recorded still reads, and is matched
+    // by the exact target key in its targets.
+    let mut old = write(
+        "legacy-title",
+        "entry.update",
+        json!({"book":f.book,"id":legacy,"title":"Updated chapter title"}),
+    );
+    assert!(
+        f.step("legacy-new", &step(&legacy).id, StepStatus::Completed, None)
+            .is_err()
+    );
+    old.content = None;
+    f.ws.library()
+        .local_write(|tx| persist_writes(tx, &old))
+        .unwrap();
+    f.step("legacy-old", &step(&legacy).id, StepStatus::Completed, None)
+        .unwrap();
+    assert_eq!(step(&legacy).evidence, Some(old.id));
+}
+
+#[test]
 fn bounded_context_keeps_pins_and_never_splits_call_result_groups() {
     use dr_model::conversation::{ConversationEntry, ConversationEntryKind as Kind};
     let f = Fixture::new();

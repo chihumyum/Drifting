@@ -100,12 +100,11 @@ fn whole_book_review_plan_and_working_memory_slice_and_keep_restart_manual() {
     // Round 2: update_task_plan(create whole_book review)
     // Round 3: prose.read chapter 0
     // Round 4: update_task_plan(step 0 completed with cited quote)
-    // -> hits model_round_limit checkpoint -> automatic slice 2!
-    // Slice 2:
-    // Round 1: read_task_plan (verifies pinned working memory + step 0 completed)
-    // Then we pause by completing text without finishing step 1 yet, reopen
-    // AgentController to verify restart does NOT auto-resume (2026-11-19 decision),
-    // and then manually resume to finish the remaining steps!
+    // -> hits model_round_limit checkpoint -> automatic slice 2.
+    // Slice 2's request stays open until the author stops the conversation,
+    // so the task is still active with steps left. Reopening the
+    // AgentController must not resume it (2026-11-19 decision); a manual
+    // resume reconciles the renamed chapter and finishes the remaining steps.
     type StepTargets = Vec<(String, String)>;
     type OneShot<T> = std::sync::Mutex<Option<std::sync::mpsc::Sender<T>>>;
 
@@ -144,6 +143,11 @@ fn whole_book_review_plan_and_working_memory_slice_and_keep_restart_manual() {
                     .unwrap_or(Value::Null)
             };
 
+            // Automatic slice 2 (slice 1 hit max_model_rounds = 4): held open
+            // until the author's stop ends it.
+            if current == 4 {
+                return futures::stream::pending().boxed();
+            }
             let events = match current {
                 0 => vec![
                     DriverEvent::ToolCall(ToolCall {
@@ -251,44 +255,10 @@ fn whole_book_review_plan_and_working_memory_slice_and_keep_restart_manual() {
                         DriverEvent::Finish(FinishReason::Tools),
                     ]
                 }
-                // Automatic slice 2 (round 4 hit max_model_rounds = 4 on slice 1!):
-                // Ask the author a clarifying question so the chain pauses for
-                // manual resume / restart verification!
-                4 => vec![
-                    DriverEvent::ToolCall(ToolCall {
-                        id: "plan-read".into(),
-                        name: "read_task_plan".into(),
-                        arguments: json!({"from": 0, "limit": 20}),
-                    }),
-                    DriverEvent::Finish(FinishReason::Tools),
-                ],
-                5 => {
-                    let read_plan = last_tool_output("plan-read");
-                    assert_eq!(read_plan["plan"]["completed"], 1);
-                    let rev = read_plan["plan"]["revision"].as_u64().unwrap();
-                    vec![
-                        DriverEvent::ToolCall(ToolCall {
-                            id: "plan-pause".into(),
-                            name: "update_task_plan".into(),
-                            arguments: json!({
-                                "operation": "update",
-                                "expected_revision": rev,
-                                "status": "paused"
-                            }),
-                        }),
-                        DriverEvent::Finish(FinishReason::Tools),
-                    ]
-                }
-                6 => vec![
-                    DriverEvent::TextDelta {
-                        index: 0,
-                        text: "Paused after chapter 1.".into(),
-                    },
-                    DriverEvent::Finish(FinishReason::Complete),
-                ],
-                // Manual resume after restart & structural rename:
-                // Reconciles manifest drift, reads & completes remaining chapter(s), and marks completed!
-                7 => vec![
+                // Manual resume after the restart and a structural rename:
+                // reconciles the manifest drift, reads and completes the
+                // remaining chapters, and completes the task.
+                5 => vec![
                     DriverEvent::ToolCall(ToolCall {
                         id: "resume-read".into(),
                         name: "read_task_plan".into(),
@@ -296,26 +266,12 @@ fn whole_book_review_plan_and_working_memory_slice_and_keep_restart_manual() {
                     }),
                     DriverEvent::Finish(FinishReason::Tools),
                 ],
-                8 => {
+                6 => {
                     let plan = last_tool_output("resume-read");
+                    assert_eq!(plan["plan"]["status"], "active");
+                    assert_eq!(plan["plan"]["completed"], 1);
                     assert_eq!(plan["manifest_state"]["drifted"], true);
                     let rev = plan["plan"]["revision"].as_u64().unwrap();
-                    vec![
-                        DriverEvent::ToolCall(ToolCall {
-                            id: "resume-activate".into(),
-                            name: "update_task_plan".into(),
-                            arguments: json!({
-                                "operation": "update",
-                                "expected_revision": rev,
-                                "status": "active"
-                            }),
-                        }),
-                        DriverEvent::Finish(FinishReason::Tools),
-                    ]
-                }
-                9 => {
-                    let act = last_tool_output("resume-activate");
-                    let rev = act["receipt"]["revision"].as_u64().unwrap();
                     vec![
                         DriverEvent::ToolCall(ToolCall {
                             id: "reconcile".into(),
@@ -328,7 +284,7 @@ fn whole_book_review_plan_and_working_memory_slice_and_keep_restart_manual() {
                         DriverEvent::Finish(FinishReason::Tools),
                     ]
                 }
-                10 => {
+                7 => {
                     let rec = last_tool_output("reconcile");
                     assert_eq!(rec["state"]["manifest_state"]["drifted"], false);
                     let mut calls = Vec::new();
@@ -345,7 +301,7 @@ fn whole_book_review_plan_and_working_memory_slice_and_keep_restart_manual() {
                     calls.push(DriverEvent::Finish(FinishReason::Tools));
                     calls
                 }
-                11 => vec![
+                8 => vec![
                     DriverEvent::ToolCall(ToolCall {
                         id: "plan-check-before-finish".into(),
                         name: "read_task_plan".into(),
@@ -353,7 +309,7 @@ fn whole_book_review_plan_and_working_memory_slice_and_keep_restart_manual() {
                     }),
                     DriverEvent::Finish(FinishReason::Tools),
                 ],
-                12 => {
+                9 => {
                     let state = last_tool_output("plan-check-before-finish");
                     let mut rev = state["plan"]["revision"].as_u64().unwrap();
                     let steps = state["plan"]["steps"].as_array().unwrap().clone();
@@ -442,6 +398,9 @@ fn whole_book_review_plan_and_working_memory_slice_and_keep_restart_manual() {
             input: "请审阅整本书各章".into(),
         })
         .unwrap();
+    // Slice 2 sends its request and is held there; the author stops it.
+    wait(|| driver.requests.lock().unwrap().len() == 5);
+    block_on(controller.stop_conversation(&conversation)).unwrap();
     wait(|| controller.active_count() == 0);
 
     let _step0 = step0_rx.recv_timeout(Duration::from_secs(5)).unwrap();
@@ -455,8 +414,8 @@ fn whole_book_review_plan_and_working_memory_slice_and_keep_restart_manual() {
     assert!(wm.content_md.contains("Reviewing compiled book sequence"));
     let reqs_before_reopen = driver.requests.lock().unwrap().len();
     assert_eq!(
-        reqs_before_reopen, 7,
-        "4 rounds in slice 1 + 3 rounds in slice 2"
+        reqs_before_reopen, 5,
+        "4 rounds in slice 1 + the held request of slice 2"
     );
     let slice2_pins = driver.requests.lock().unwrap()[4].conversation[0].payload["text"]
         .as_str()
@@ -466,18 +425,23 @@ fn whole_book_review_plan_and_working_memory_slice_and_keep_restart_manual() {
 
     let snap = controller.snapshot(&f.book, &conversation).unwrap();
     let latest_session = snap.runs.last().unwrap().session.clone();
-    let chain = controller
-        .task_view(&latest_session)
-        .unwrap()
-        .unwrap()
-        .snapshot
-        .chain;
+    let stopped = controller.task_view(&latest_session).unwrap().unwrap();
+    assert!(!stopped.authorized);
+    let plan = stopped.snapshot.plan.as_ref().unwrap();
+    assert_eq!(plan.status, dr_agent::long_task::TaskStatus::Active);
+    assert!(
+        plan.steps
+            .iter()
+            .any(|step| step.status != dr_agent::long_task::StepStatus::Completed),
+        "the task still has steps to do"
+    );
+    let chain = stopped.snapshot.chain;
 
     // Close and reopen controller: restart MUST NOT auto-resume!
     block_on(controller.close()).unwrap();
     drop(controller);
 
-    // Author renames chapter 1 while paused, causing manifest drift.
+    // Author renames chapter 1 while the task waits, causing manifest drift.
     f.ws.call(
         &Actor::User,
         "entry.update",
@@ -492,7 +456,12 @@ fn whole_book_review_plan_and_working_memory_slice_and_keep_restart_manual() {
     )
     .unwrap();
     let view = reopened.task_view(&latest_session).unwrap().unwrap();
+    assert_eq!(
+        view.snapshot.plan.as_ref().unwrap().status,
+        dr_agent::long_task::TaskStatus::Active
+    );
     assert!(!view.authorized, "restart must never auto-arm continuation");
+    assert_eq!(reopened.active_count(), 0, "reopening must not start a run");
     assert_eq!(
         driver.requests.lock().unwrap().len(),
         reqs_before_reopen,

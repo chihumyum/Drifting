@@ -47,6 +47,14 @@ pub(crate) struct WriteProof {
     pub call: String,
     pub targets: BTreeSet<String>,
     pub settlements: Vec<i64>,
+    /// What the call wrote as content: prose bodies (`body:<entry>/<module>`)
+    /// and each entry (`entry:<id>`) whose module content changed: prose,
+    /// fields, key-value rows, media, patches or plot grids. `targets` also
+    /// names what a write only anchors to (a comment or relation on an
+    /// entry, its placement, its title). `None` on proofs stored before
+    /// content was recorded.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub content: Option<BTreeSet<String>>,
 }
 
 pub(crate) fn hash(value: impl AsRef<[u8]>) -> String {
@@ -138,15 +146,19 @@ pub(crate) fn verify_read(
     })
 }
 
-fn book_entities(
-    lib: &Library,
-    settlement: &Settlement,
-    after: bool,
-) -> Result<BTreeMap<String, (Value, BTreeSet<String>)>> {
+/// Every entity of one book state with its value and the targets it names,
+/// beside the module content held by entries, patches and plot grids, keyed
+/// like the entity: the owning entry (`entry:<id>`) and that content.
+type BookEntities = (
+    BTreeMap<String, (Value, BTreeSet<String>)>,
+    BTreeMap<String, (String, Value)>,
+);
+
+fn book_entities(lib: &Library, settlement: &Settlement, after: bool) -> Result<BookEntities> {
     let DocId::Book(book) =
         DocId::parse(&settlement.doc_id).map_err(|e| Error::Protocol(e.to_string()))?
     else {
-        return Ok(BTreeMap::new());
+        return Ok(Default::default());
     };
     let doc = lib.load_copy_at(
         &settlement.doc_id,
@@ -161,6 +173,7 @@ fn book_entities(
     let view = borrowed.view();
     let templates = view.templates_map();
     let mut entities = BTreeMap::new();
+    let mut content = BTreeMap::new();
     for entry in view.entries_raw() {
         let key = format!("entry:{}", entry.id);
         let mut targets = BTreeSet::from([key.clone()]);
@@ -171,6 +184,14 @@ fn book_entities(
                 }
             }
         }
+        // The entry's own modules; its title, place and switches are not content.
+        content.insert(
+            key.clone(),
+            (
+                key.clone(),
+                serde_json::json!({"fields":entry.fields,"kv":entry.kv,"media":entry.media}),
+            ),
+        );
         entities.insert(key, (serde_json::to_value(&entry)?, targets));
     }
     for template in view.templates_map().into_values() {
@@ -277,12 +298,22 @@ fn book_entities(
         if let Some(src) = &patch.source_entry {
             targets.insert(format!("entry:{src}"));
         }
-        entities.insert(key, (serde_json::to_value(&patch)?, targets));
+        let value = serde_json::to_value(&patch)?;
+        content.insert(
+            key.clone(),
+            (format!("entry:{}", patch.entry), value.clone()),
+        );
+        entities.insert(key, (value, targets));
     }
     for grid in view.plot_grids() {
         let key = format!("plot_grid:{}/{}", grid.entry, grid.module);
         let targets = BTreeSet::from([key.clone(), format!("entry:{}", grid.entry)]);
-        entities.insert(key, (serde_json::to_value(&grid)?, targets));
+        let value = serde_json::to_value(&grid)?;
+        content.insert(
+            key.clone(),
+            (format!("entry:{}", grid.entry), value.clone()),
+        );
+        entities.insert(key, (value, targets));
     }
     for mut comment in view.comments() {
         let key = format!("comment:{}", comment.id);
@@ -308,7 +339,7 @@ fn book_entities(
         }
         entities.insert(key, (serde_json::to_value(&relation)?, targets));
     }
-    Ok(entities)
+    Ok((entities, content))
 }
 
 /// Claims are derived from persisted F3 before/after states, never the model's
@@ -326,7 +357,9 @@ pub(crate) fn write_proof(
         call: call.into(),
         targets: BTreeSet::new(),
         settlements: Vec::new(),
+        content: None,
     };
+    let mut content = BTreeSet::new();
     for receipt in lib
         .settlements(Some(session), None)?
         .into_iter()
@@ -338,14 +371,28 @@ pub(crate) fn write_proof(
         let doc = DocId::parse(&receipt.doc_id).map_err(|e| Error::Protocol(e.to_string()))?;
         match doc {
             DocId::Book(_) => {
-                let before = book_entities(lib, &receipt, false)?;
-                let after = book_entities(lib, &receipt, true)?;
+                let (before, before_content) = book_entities(lib, &receipt, false)?;
+                let (after, after_content) = book_entities(lib, &receipt, true)?;
                 let keys: BTreeSet<_> = before.keys().chain(after.keys()).collect();
                 for key in keys {
                     if before.get(key).map(|v| &v.0) != after.get(key).map(|v| &v.0) {
                         for state in [before.get(key), after.get(key)].into_iter().flatten() {
                             proof.targets.extend(state.1.iter().cloned());
                         }
+                    }
+                }
+                let keys: BTreeSet<_> = before_content.keys().chain(after_content.keys()).collect();
+                for key in keys {
+                    let (old, new) = (before_content.get(key), after_content.get(key));
+                    let changed = match (old, new) {
+                        (Some(old), Some(new)) => old.1 != new.1,
+                        // A patch or plot grid created or removed changes its
+                        // entry's module; creating or purging an entry edits
+                        // no existing entry's content.
+                        _ => !key.starts_with("entry:"),
+                    };
+                    if changed {
+                        content.extend([old, new].into_iter().flatten().map(|v| v.0.clone()));
                     }
                 }
             }
@@ -355,6 +402,8 @@ pub(crate) fn write_proof(
             DocId::Body(body) => {
                 proof.targets.insert(receipt.doc_id.clone());
                 proof.targets.insert(format!("entry:{}", body.entry()));
+                content.insert(receipt.doc_id.clone());
+                content.insert(format!("entry:{}", body.entry()));
             }
             _ => {
                 proof.targets.insert(receipt.doc_id.clone());
@@ -362,6 +411,7 @@ pub(crate) fn write_proof(
         }
         proof.settlements.push(receipt.id);
     }
+    proof.content = Some(content);
     Ok((!proof.targets.is_empty()).then_some(proof))
 }
 
