@@ -23,6 +23,12 @@ pub const RECIPE: &str = "pride-and-prejudice-v1+a-q-zhengzhuan-v1";
 pub const MARKER_SCOPE: &str = "samples";
 pub const MARKER_KEY: &str = "built-in";
 
+/// Per-book ownership token recorded while an attempt is `creating`. Tied to
+/// `book_id` in `local_state`, so purging a partial book's last document
+/// revokes ownership in the same SQLite transaction even if updating the
+/// global [`MARKER_SCOPE`] marker afterwards fails.
+pub const OWNER_SCOPE: &str = "samples-owner";
+
 /// [`Outcome::Skipped`]: the library had a book (live or in Recently
 /// Deleted), or had one deleted for good, before the samples came.
 pub const NOT_A_NEW_LIBRARY: &str = "not-a-new-library";
@@ -73,6 +79,10 @@ struct Marker {
     /// The sample books this attempt claimed, in shelf order.
     #[serde(default)]
     books: Vec<String>,
+    /// Attempt-unique ownership token matching `local_state[OWNER_SCOPE, book]`
+    /// while `status == Creating`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    token: Option<String>,
     #[serde(default)]
     attempts: u32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -101,7 +111,8 @@ pub fn ensure_built_in(ws: &Workspace) -> Outcome {
 pub fn ensure_built_in_with(ws: &Workspace, choices: &MappingChoices) -> Outcome {
     let _running = RUNNING.lock().unwrap_or_else(|e| e.into_inner());
     let lib = ws.library();
-    let marker = match read_marker(lib) {
+    let books = crate::book_ids();
+    let marker = match read_marker(lib, &books) {
         Ok(m) => m,
         Err(Unreadable::Unknown) => {
             return Outcome::Skipped {
@@ -167,11 +178,23 @@ pub fn ensure_built_in_with(ws: &Workspace, choices: &MappingChoices) -> Outcome
         return Outcome::Pending { items: pending };
     }
     if let Some(m) = &marker
-        && let Err(error) = discard(lib, &m.books)
+        && m.status == Status::Creating
     {
-        return Outcome::Failed { error, attempts };
+        if let Err(error) = cleanup_creating_marker(lib, m, &samples) {
+            return Outcome::Failed { error, attempts };
+        }
+        if let Err(error) = write_marker(
+            lib,
+            Status::Failed,
+            &[],
+            None,
+            attempts,
+            Some("interrupted attempt cleaned up".into()),
+            None,
+        ) {
+            return Outcome::Failed { error, attempts };
+        }
     }
-    let books = crate::book_ids();
     match has_content(lib) {
         Ok(false) => {}
         Ok(true) => return skip(lib, NOT_A_NEW_LIBRARY, attempts),
@@ -181,21 +204,33 @@ pub fn ensure_built_in_with(ws: &Workspace, choices: &MappingChoices) -> Outcome
         return skip(lib, ATTEMPTS_EXHAUSTED, attempts);
     }
     attempts += 1;
+    let token = dr_model::id::BookId::new_v7().to_string();
     let started = Instant::now();
-    // The claim names every book before any is written, so a later launch
-    // knows what to remove after a quit midway.
-    if let Err(error) = write_marker(lib, Status::Creating, &books, attempts, None, None) {
+    // The claim names every book and a unique attempt token before any
+    // document is written, so a later launch only removes partial documents
+    // stamped by this attempt.
+    if let Err(error) = write_marker(
+        lib,
+        Status::Creating,
+        &books,
+        Some(&token),
+        attempts,
+        None,
+        None,
+    ) {
         return Outcome::Failed {
             error,
             attempts: attempts - 1,
         };
     }
-    let result = write_all(lib, &books, &samples).and_then(|()| {
+    let result = write_all(lib, &books, &samples, &token).and_then(|()| {
         let ms = started.elapsed().as_millis() as u64;
-        write_marker(lib, Status::Created, &books, attempts, None, Some(ms)).map_err(Failure::Error)
+        write_marker(lib, Status::Created, &books, None, attempts, None, Some(ms))
+            .map_err(Failure::Error)
     });
     match result {
         Ok(()) => {
+            clear_owner_tokens(lib, &books);
             log::info!(
                 "built-in samples created in {} ms",
                 started.elapsed().as_millis()
@@ -204,8 +239,8 @@ pub fn ensure_built_in_with(ws: &Workspace, choices: &MappingChoices) -> Outcome
         }
         Err(failure) => {
             // Nothing of this attempt stays; if even that fails, the claim
-            // stays `creating` and the next launch removes it.
-            let cleaned = discard(lib, &books);
+            // stays `creating` and the next launch removes only owned docs.
+            let cleaned = cleanup_owned_attempt(lib, &books, &token, &samples);
             if let Err(e) = &cleaned {
                 log::warn!("the partial built-in samples could not be removed yet: {e}");
             }
@@ -223,7 +258,8 @@ pub fn ensure_built_in_with(ws: &Workspace, choices: &MappingChoices) -> Outcome
                         && let Err(e) = write_marker(
                             lib,
                             Status::Failed,
-                            &books,
+                            &[],
+                            None,
                             attempts,
                             Some(error.clone()),
                             None,
@@ -250,11 +286,16 @@ impl From<String> for Failure {
     }
 }
 
-/// Lay out both books, store every prose document, check that the library
-/// is still new, then store the book documents (the moment they show on
-/// the shelf) and bring their derived index up to date. 《阿Q正传》 is
-/// written first, so *Pride and Prejudice*, changed last, leads the shelf.
-fn write_all(lib: &Library, books: &[String], samples: &[SampleBookV3]) -> Result<(), Failure> {
+/// Lay out both books, stamp each book's attempt ownership token, store every
+/// prose document, check that the library is still new, then store the book
+/// documents (the moment they show on the shelf). 《阿Q正传》 is written
+/// first, so *Pride and Prejudice*, changed last, leads the shelf.
+fn write_all(
+    lib: &Library,
+    books: &[String],
+    samples: &[SampleBookV3],
+    token: &str,
+) -> Result<(), Failure> {
     debug_assert!(
         samples
             .iter()
@@ -265,6 +306,9 @@ fn write_all(lib: &Library, books: &[String], samples: &[SampleBookV3]) -> Resul
         return Err(Failure::NoLongerNew);
     }
     for sample in samples.iter().rev() {
+        let book = sample.book_id().as_str();
+        lib.local_set(OWNER_SCOPE, book, token, Some(book))
+            .map_err(|e| Failure::Error(e.to_string()))?;
         crate::v3::write_book(lib, sample).map_err(|e| Failure::Error(e.to_string()))?;
     }
     Ok(())
@@ -285,25 +329,79 @@ fn has_content(lib: &Library) -> Result<bool, String> {
     Ok(purged.iter().any(|d| d.kind == "book"))
 }
 
-/// Remove every stored document of `books` (prose first, the book document
-/// last, as F3's permanent delete does) and forget that they were purged,
-/// so a later attempt can write the same ids again. They were never
-/// complete, so nobody saw them.
-fn discard(lib: &Library, books: &[String]) -> Result<(), String> {
-    for book in books.iter().rev() {
-        let book_doc = format!("book:{book}");
-        let mut docs: Vec<String> = lib
-            .docs(Some(book), None)
-            .map_err(|e| e.to_string())?
-            .into_iter()
-            .map(|d| d.doc_id)
-            .collect();
-        docs.sort_by_key(|d| *d == book_doc);
-        for d in &docs {
-            lib.purge_doc(d).map_err(|e| format!("{d}: {e}"))?;
-        }
-        lib.forget_purged_book(book).map_err(|e| e.to_string())?;
+fn sample_for<'a>(samples: &'a [SampleBookV3], book: &str) -> Option<&'a SampleBookV3> {
+    samples.iter().find(|s| s.book_id().as_str() == book)
+}
+
+fn cleanup_creating_marker(
+    lib: &Library,
+    marker: &Marker,
+    samples: &[SampleBookV3],
+) -> Result<(), String> {
+    if let Some(token) = marker.token.as_deref() {
+        return cleanup_owned_attempt(lib, &marker.books, token, samples);
     }
+    // Legacy `Creating` marker without an attempt token: only discard a
+    // claimed sample book when its stored documents are unmodified sample
+    // content; any user/modified book is preserved so `has_content` skips.
+    for book in marker.books.iter().rev() {
+        let Some(sample) = sample_for(samples, book) else {
+            continue;
+        };
+        if crate::v3::is_unmodified_subset(lib, sample)? {
+            discard_book(lib, book)?;
+        }
+    }
+    Ok(())
+}
+
+fn cleanup_owned_attempt(
+    lib: &Library,
+    books: &[String],
+    token: &str,
+    samples: &[SampleBookV3],
+) -> Result<(), String> {
+    for book in books.iter().rev() {
+        let owner = lib
+            .local_get(OWNER_SCOPE, book)
+            .map_err(|e| e.to_string())?;
+        if owner.as_deref() != Some(token) {
+            continue;
+        }
+        if let Some(sample) = sample_for(samples, book)
+            && crate::v3::is_unmodified_subset(lib, sample)?
+        {
+            discard_book(lib, book)?;
+        }
+        let _ = lib
+            .local_remove(OWNER_SCOPE, book)
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+fn clear_owner_tokens(lib: &Library, books: &[String]) {
+    for book in books {
+        let _ = lib.local_remove(OWNER_SCOPE, book);
+    }
+}
+
+/// Remove every stored document of `book` (prose first, the book document
+/// last, as F3's permanent delete does) and forget that it was purged, so a
+/// later attempt can write the same id again.
+fn discard_book(lib: &Library, book: &str) -> Result<(), String> {
+    let book_doc = format!("book:{book}");
+    let mut docs: Vec<String> = lib
+        .docs(Some(book), None)
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .map(|d| d.doc_id)
+        .collect();
+    docs.sort_by_key(|d| *d == book_doc);
+    for d in &docs {
+        lib.purge_doc(d).map_err(|e| format!("{d}: {e}"))?;
+    }
+    lib.forget_purged_book(book).map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -312,6 +410,7 @@ fn skip(lib: &Library, reason: &str, attempts: u32) -> Outcome {
         lib,
         Status::Skipped,
         &[],
+        None,
         attempts,
         Some(reason.into()),
         None,
@@ -331,23 +430,33 @@ enum Unreadable {
     Store(String),
 }
 
-fn read_marker(lib: &Library) -> Result<Option<Marker>, Unreadable> {
+fn read_marker(lib: &Library, known_books: &[String]) -> Result<Option<Marker>, Unreadable> {
     let Some(value) = lib
         .local_get(MARKER_SCOPE, MARKER_KEY)
         .map_err(|e| Unreadable::Store(e.to_string()))?
     else {
         return Ok(None);
     };
-    serde_json::from_str(&value).map(Some).map_err(|e| {
+    let marker: Marker = serde_json::from_str(&value).map_err(|e| {
         log::warn!("the built-in samples' marker is not one this version wrote: {e}");
         Unreadable::Unknown
-    })
+    })?;
+    if marker.recipe != RECIPE || marker.books.iter().any(|b| !known_books.contains(b)) {
+        log::warn!(
+            "the built-in samples' marker names an unknown recipe or book ({:?}, {:?})",
+            marker.recipe,
+            marker.books
+        );
+        return Err(Unreadable::Unknown);
+    }
+    Ok(Some(marker))
 }
 
 fn write_marker(
     lib: &Library,
     status: Status,
     books: &[String],
+    token: Option<&str>,
     attempts: u32,
     reason: Option<String>,
     duration_ms: Option<u64>,
@@ -356,6 +465,7 @@ fn write_marker(
         status,
         recipe: RECIPE.into(),
         books: books.to_vec(),
+        token: token.map(str::to_owned),
         attempts,
         reason,
         duration_ms,

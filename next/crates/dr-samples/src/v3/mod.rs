@@ -10,7 +10,9 @@ pub use catalog::{
     note_material_folder_ids, side_documents, sync_catalog, sync_catalog_with_relation_times,
     validate,
 };
-pub use samples::{SampleBookV3, a_q, convert, pride_and_prejudice, write_book};
+pub use samples::{
+    SampleBookV3, a_q, convert, is_unmodified_subset, pride_and_prejudice, write_book,
+};
 
 use dr_doc::import_v1::BookView;
 use dr_doc::v3::novel::*;

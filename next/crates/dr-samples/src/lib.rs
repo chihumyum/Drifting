@@ -49,8 +49,8 @@ pub use dr_corpus::{para, rng};
 
 pub use build::SeededBook;
 pub use built_in::{
-    ATTEMPTS_EXHAUSTED, MARKER_KEY, MARKER_SCOPE, MAX_ATTEMPTS, NOT_A_NEW_LIBRARY, Outcome, RECIPE,
-    UNKNOWN_MARKER, ensure_built_in, ensure_built_in_with,
+    ATTEMPTS_EXHAUSTED, MARKER_KEY, MARKER_SCOPE, MAX_ATTEMPTS, NOT_A_NEW_LIBRARY, OWNER_SCOPE,
+    Outcome, RECIPE, UNKNOWN_MARKER, ensure_built_in, ensure_built_in_with,
 };
 pub use write_error::WriteError;
 
