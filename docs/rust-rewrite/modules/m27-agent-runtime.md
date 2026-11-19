@@ -207,7 +207,7 @@ M31 接入换库与退出后补充了资源释放边界：只读 future 可取�
      4. 导入验证回调 panic 时，这次导入被拒（`StoreError::Invalid { what: "import" }`），什么都不导入，持有者照常工作；回调万一往文档里写了东西，单独存成 `outside` 一行，不混进导入那一行。
    - **给 M27 的意见**（没改）：
      - `recover()` 每次开库都把所有会话（包括早就结束的）的日志从头读一遍，还打开每个会话的对话文档。一次请求一个会话，常用的作者一年会有上万个，开库会越来越慢。建议只重放没结束的会话；要判断「结束了、投影也齐了」，可以向 F2 要一条「每个会话的最后一条事件」的查询，一条 SQL 就够。（2026-11-13 已做，用的是现有 `local_state` 和按序号的查询，没有新迁移：见「对话追加与开库恢复」。）
-     - 日志只增不减。一段两千字的回答大约百来条增量、十几 KB。会话结束、`AssistantMessage` 封口以后，那些增量就重复了；可以结束时删掉，或者定个保留期。要做的话 F2 给一个「删某会话某段序号」的接口，序号不复用。（2026-11-13：增量已分批写，大约每 100 ms 一条；保留期仍是产品决定，没做。）
+     - 日志只增不减。一段两千字的回答大约百来条增量、十几 KB。会话结束、`AssistantMessage` 封口以后，那些增量就重复了；可以结束时删掉，或者定个保留期。要做的话 F2 给一个「删某会话某段序号」的接口，序号不复用。（2026-11-13：增量已分批写，大约每 100 ms 一条；2026-11-19 定量核查确认不设自动裁剪、永久留在本机：见文末「本机会话永久保留核查与外部审计分页」。）
      - 事件的键：插入是 `<会话>/<序号>`，清除时是整个 `<会话>`。监听方按表名分就行，别解析键。
      - 日志在库里，所以跟着整库备份走；在另一台电脑上恢复备份后，没结束的会话会被 `recover()` 标成中断，这是对的。
    - **给 F1、M36（第二十批按 F1 第七轮校正）**：旧的全快照比较已被替换。现在在文档 fork 上试导入并检查新增操作；删除记录、修改身份或缺少因果依赖都会拒绝。被拒的更新不存、不推进同步游标；缺依赖时先补齐再重送，非法操作要显示同步阻塞，不能静默跳过。仍可批量传输来减少 fork 和校验次数。F3 目前把这些错误都包装成 `what: "conversation import"`，M36 不能据此判定永久错误，需和 F1/F3 协调稳定分类。以 [对话结构说明](m27-conversation-schema.md) 的同步约定为准。
@@ -249,3 +249,24 @@ F2 每行上限仍是 1 MiB。超过 512 KiB 的结果正文在审计中保存�
 - `next/crates/dr-agent/src/runtime/external/tests.rs`：Local/Question/Stop、共享锁、冻结 revision、排队后撤权、真实收据恢复、CAS/缺页与超限结果及收据分页。
 - `next/crates/dr-view-agent/src/controller.rs`、`tests/external.rs`：开作用域 reservation、真实 M29 读写/撤销、切代次失去覆盖、受阻读写取消结算、关闭后 `try_shutdown`。
 - `next/crates/dr-mcp/src/{host,inbound,bridge}.rs`、`tests/inbound.rs`：应用选择与连接生命周期，真实 Unix/回环/stdio 桥的 M29 主链、断线和初始化中的关闭屏障。应用的 F6 挂接在 `dr-view-agent/src/mcp.rs`，外部授权和插件配置的独立边界见 M32 模块文档。
+
+## 本机会话永久保留核查与外部审计分页（2026-11-19）
+
+针对「本机会话和审计事件能否一直留在用户本机、不自动裁剪」做完整数据结构与体量核查，并补齐外部审计的有界分页读取：
+
+1. **表结构与聚簇索引**（`dr-store/migrations/0007_agent_runtime.sql`、`0001_local_baseline.sql`）：
+   - `agent_session` 为 `WITHOUT ROWID, STRICT`，主键 `(session)`，建有 `agent_session_by_book (book_id, created_ms, session)` 与 `agent_session_by_conversation (conversation, created_ms, session)`。
+   - `agent_event` 为 `WITHOUT ROWID, STRICT`，聚簇主键 `(session, seq)`（外键指向 `agent_session(session)`）：读写单个会话只触碰该会话相邻的 B-tree 叶子页，复杂度 `O(log N + M)`，与库内历史总会话数无关。
+   - `local_state` 为 `WITHOUT ROWID, STRICT`，聚簇主键 `(scope, key)`，建有部分索引 `local_state_by_book (book_id) WHERE book_id IS NOT NULL`。
+2. **启动恢复不随历史线性变慢**：
+   - 聊天会话结清后在 `local_state` 记录 `agent.settled/<session> = "1:1:<seq>"`。下次 `Runtime::recover()` 对已结清会话只做两次 `O(log N)` 主键点查（核对最后序号存在且其后无新行），不解码历史事件 JSON，也不打开 Loro `ConversationDoc`；即使积累 10,000 个已结清会话，启动跳过耗时也在约 8～15 ms 量级。
+   - `Runtime::recover_external()` 改为按 `local_state` 主键每页 256 条（`RECONCILE_PAGE`）流式扫描 `agent.external.sessions`：已处于 `Closed`／`Interrupted` 的外部会话直接跳过、不读事件表；仅对崩溃遗留的 `Open` 会话进入 `Journal::reconcile()`，后者同样按 `[ "{session}/", "{session}0" )` 范围每页 256 条校验连续序号并核对未结算回执，彻底消除整表装入内存的无界 `Vec`。
+3. **删除对话或清除书时完整回收，且永不进入同步**：
+   - 清除单段对话文档（`Library::purge_doc("conversation:<id>")`）在同一个 SQLite 写事务内调 `agent::forget` 删净对应的 `agent_event` 与 `agent_session` 行（`dr-store/src/purge.rs`）。
+   - 清除整本书（最后一篇文档被清除，`book_purged == true`）在同一事务内一并删除该书关联的全部 `local_state`（含 `agent.settled`、`agent.context`、`agent.task.*`、`agent-memory`、`agent.proactive`、`agent.external.sessions`、`agent.external.events`）、全部 `agent_session`／`agent_event` 以及该书各文档上的 `agent_settlement` 记录。所有本机表均不参与远端同步导出。
+4. **单轮与年度空间占用**：
+   - 流式增量按 100 ms／16 KiB 合并后，一次典型带 2～4 次工具调用的回合在 SQLite 中约占 **12～25 KB**（会话头＋链与结清标记＋`Configured`＋`UserMessage`＋15～30 条合并流式块＋工具调用与结果＋`AssistantMessage`；同步 `ConversationDoc` 另增约 4～10 KB）。
+   - 按高强度每天 20 轮 × 365 天 = **每年 7,300 轮**估算，本机 SQLite 每年仅增长约 **90～180 MB**（五年累计仍低于 1 GB）。因此**已结清的本机会话与外部审计事件无需自动定期删除，永久保留在用户本机既安全也不会拖慢启动或日常读写**。
+5. **外部审计非破坏性分页读取**：
+   - 新增公共只读接口 `dr_agent::external_sessions(library, book, cursor, limit)`（`limit` 为 `1..=200`，按 UUIDv7 会话号倒序即最新优先游标分页，可选按 `book` 过滤）与 `dr_agent::external_events(library, session, after_seq, limit)`（`limit` 为 `1..=500`，按 `after_seq` 顺序分页并校验连续 `seq`）；`AgentController` 在 `ReadLease` 下提供同名异步方法，供后续设置页或诊断按页读取而不把全部历史装入内存。
+   - 契约测试：`dr-agent/src/runtime/external/tests.rs` 的 `external_audit_pagination_and_paged_recovery_preserve_all_rows_until_book_purge`（覆盖跨 `RECONCILE_PAGE = 256` 的 320+ 条事件崩溃恢复、倒序会话游标分页、按书过滤、事件分页连续性校验及 `book.purge` 精确清理）。

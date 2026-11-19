@@ -1,5 +1,7 @@
 # K6：通用帮手工具与书的结构说明（方案）
 
+> 2026-11-19（M30 会话级工具注册）：应用内 `CompanionTools` 在 `tool_search`、`call_tool`、`ask_user` 旁注册绑定当前聊天会话的 `read_task_plan`、`update_task_plan`、`read_working_memory`、`edit_working_memory`（另加已配置的出站 MCP `mcp_search`／`mcp_call`）。`AgentTools` 的共享作者工具目录保持 1:1 投影 `dr_workspace::registry` 与书内模板动作，入站 MCP 不暴露会话局部的计划／工作记忆工具；重启继续保持手动点「继续」（作者 2026-11-19 定）。详见 [M30](m30-long-tasks-memory.md)。
+
 > 2026-11-17，RD。目录使用 `relation_type.{list,create,rename,set_description,set_direction,delete}` 和 `relation_row.{create_pair,add_entry,remove_entry,delete}`。结构说明介绍项目定义及跨左右两组的条目对。查询带 `entry` 时只返回包含该条目的行。删除整种关系前需要读过本次将被删除的各行。参见 [RD 交回](../kernel-v5.md#rd-交回项目关系与带链接的短文字2026-11-17)。
 
 > 2026-11-16（内核 v5 PT4）：项目模板这一族只有 `project_template.list`、`get`、`save` 进目录（`exclusion_v3` 按名字放行，同族其余的连同以后的 `import`、`export`、社区命令一律排除）。`save` 存当前书、没有 `credit`，覆盖（`replace` 或工作区存回它编辑的那一份）要求这一轮读过那一份且版本没变；它是书库一级的写，执行器单开一条路（先对版本再 `ws.call`），不留写前快照。结构说明的 `project_template_source` 换成 `project_source { template, author? }`：只有模板名和署名，没有「改自」，记的来源没有模板名就不出现。通用规则 `dr_agent::guidance::PROJECT_GUIDANCE_RULE`（项目说明和模板说明不是作者的请求）进了应用内帮手的系统提示、签到和入站 MCP 的服务说明。见 [kernel-v5.md](../kernel-v5.md) 第 18 节「PT4 交回」。
@@ -216,7 +218,7 @@ v3 的移动／换模板是普通通用命令，但若涉及正文复制、自�
 | K1／K2 | 结构说明从现有 `BookViewV3` 投影；若要展示逐项继承来源，在同一规范解析器旁提供读取结果，K6 不另写一套继承算法，也不加 Loro 字段 |
 | K5 | 使用已存在的 `TemplateVerb.id`，明确现有 verbs 的通用新建语义、缺目标与重复 id 的编辑校验。其他动作绑定若需扩展，先定有类型的契约；不是把 `description` 当代码。小说指导迁移及作者选择模板更新的接线由模板 owner 协作 |
 | K4／K5 | 固定整理卡／八个 starter 与通用模板指导的界面落点，条目／模块跳转；不由 K6 恢复冻结主页或自加持久槽位 |
-| M30 后续 | 模型维护计划／工作记忆的接入仍未注册，本段不扩工具面；实现前单独确认已有宿主接口如何接入，而不是在模板中写不存在的调用 |
+| M30 后续 | **已于 2026-11-19 注册**（`read_task_plan`、`update_task_plan`、`read_working_memory`、`edit_working_memory` 挂在 `CompanionTools` 上，保持 `AgentTools`／入站 MCP 隔离与重启手动继续，见 [M30](m30-long-tasks-memory.md)）。原 11-09 方案阶段未扩工具面 |
 
 K3 的幕关系方向、“未归属”泳道住处、旧关系类型模板限制等作者待定语义，继续按 m10／夜间队列处理；K6 不代定、不加导入字段，也不放宽已定 v3 不变量。
 

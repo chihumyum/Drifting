@@ -707,9 +707,13 @@ fn durable_plan_auto_slices_pause_after_two_stagnant_slices_and_reopen_never_arm
 #[test]
 fn stop_revokes_continuation_before_a_held_slice_returns() {
     use dr_agent::long_task::{Command, Scope, Store, WorkKind};
+    // 1. Streaming slice: Stop interrupts `Worker::model` directly (dropping
+    //    `stream` and its `Wait` receiver as soon as the worker polls the
+    //    synchronously enqueued `Action::Stop`), so `_hold` is kept alive
+    //    rather than racing `send` against stream drop.
     let f = Fixture::new();
     let conversation = ConversationId::new_v7();
-    let (send, held) = oneshot::channel();
+    let (_hold, held) = oneshot::channel();
     let driver = Arc::new(ScriptedDriver::new(vec![vec![
         Step::Wait(held),
         finish(FinishReason::Complete),
@@ -730,11 +734,73 @@ fn stop_revokes_continuation_before_a_held_slice_returns() {
         )
         .unwrap();
     wait(|| !driver.requests().is_empty());
-    let stop = controller.stop_conversation(&conversation);
-    send.send(()).unwrap();
-    block_on(stop).ok();
+    block_on(controller.stop_conversation(&conversation)).unwrap();
     wait(|| controller.active_count() == 0);
     assert_eq!(driver.requests().len(), 1);
-    assert!(!controller.task_view(&session).unwrap().unwrap().authorized);
+    let task = controller.task_view(&session).unwrap().unwrap();
+    assert!(!task.authorized);
+    assert_eq!(task.pause.as_deref(), Some("author_stopped"));
     block_on(controller.close()).unwrap();
+    drop(controller);
+    f.ws.shutdown().unwrap();
+
+    // 2. Tool-held slice: Stop revokes continuation immediately while waiting
+    //    for the entered tool to finish; releasing the tool settles the slice
+    //    without starting a continuation slice even if the stop waiter was dropped.
+    let f = Fixture::new();
+    let conversation = ConversationId::new_v7();
+    let (entered_tx, entered_rx) = mpsc::channel();
+    let (release_tx, release_rx) = oneshot::channel();
+    let release_rx = Mutex::new(Some(release_rx));
+    let tools = Arc::new(Tools {
+        descriptors: vec![descriptor("hold_read", ToolAccess::Read)],
+        execute: Arc::new(move |cx, _| {
+            entered_tx.send(()).unwrap();
+            let rx = release_rx.lock().unwrap().take().unwrap();
+            async move {
+                let _ = rx.await;
+                drop(cx);
+                Ok(ToolOutput::Value(json!({"ok": true})))
+            }
+            .boxed()
+        }),
+    });
+    let driver = Arc::new(ScriptedDriver::new(vec![
+        vec![
+            event(DriverEvent::ToolCall(ToolCall {
+                id: "hold-1".into(),
+                name: "hold_read".into(),
+                arguments: json!({}),
+            })),
+            finish(FinishReason::Tools),
+        ],
+        vec![finish(FinishReason::Complete)],
+    ]));
+    let controller = AgentController::new(f.ws.clone(), driver.clone(), tools).unwrap();
+    let session = controller.start(f.start(conversation.clone())).unwrap();
+    entered_rx.recv_timeout(Duration::from_secs(10)).unwrap();
+    Store::new(f.ws.library().clone())
+        .apply(
+            &session,
+            1,
+            "host-plan",
+            Command::Create {
+                objective: "fixture task".into(),
+                scope: Scope::WholeBook,
+                work_kind: WorkKind::Review,
+                targets: vec![],
+            },
+        )
+        .unwrap();
+    let stop = controller.stop_conversation(&conversation);
+    drop(stop);
+    assert_eq!(controller.active_count(), 1);
+    release_tx.send(()).unwrap();
+    wait(|| controller.active_count() == 0);
+    assert_eq!(driver.requests().len(), 1);
+    let task = controller.task_view(&session).unwrap().unwrap();
+    assert!(!task.authorized);
+    assert_eq!(task.pause.as_deref(), Some("author_stopped"));
+    block_on(controller.close()).unwrap();
+    f.ws.shutdown().unwrap();
 }

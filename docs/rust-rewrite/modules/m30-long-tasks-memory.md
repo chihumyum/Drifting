@@ -1,5 +1,7 @@
 # M30：长任务、记忆、上下文与主动建议
 
+> 2026-11-19（格式 5 计划与工作记忆模型工具注册）：应用内帮手在 `CompanionTools` 上注册四个绑定当前会话的模型工具——`read_task_plan`、`update_task_plan`、`read_working_memory`、`edit_working_memory`（实现位于 `dr-agent/src/long_task/tools.rs`、`dr-agent/src/memory/tools.rs` 与 `dr-view-agent/src/tools.rs`）。`AgentTools` 保持仅含 `tool_search` 与 `call_tool`，继续与入站 MCP 共用同一份作者工具目录；四个长任务／工作记忆工具既不在 MCP 目录暴露，也在执行入口校验当前聊天会话的 request chain，外部 `ExternalScope` 直接调用一律拒绝。主动建议继续走无工具单请求，不设 `submit_project_checkin` 伪工具。应用重启维持不自动续跑（作者 2026-11-19 确认）：恢复本机日志与计划后等待作者手动点「继续」。详见文末「计划与工作记忆模型工具接入（2026-11-19）」。
+
 交回状态：分支 `codex/m30-long-tasks-memory`；本节对应 M30 机制提交（`git log --oneline --grep="finish M30"` 可定位）。冻结的工具接入、主页插槽及真实供应商验收见下文。
 
 2026-11-09，轨道 3。接续 11-08 的未提交工作，按
@@ -52,10 +54,12 @@ cargo drifting workspace scenario crates/dr-view-agent/scenarios/home-cards.json
 
 打开项目落在主页、三张卡两列在「继续写」下面、主页和 Agent 栏都没有「主动建议」开关；点卡右栏停在 Agent 那段对话、主页不动、卡变「查看对话」；× 掉一张；设置里搜「主动建议」关掉，主页上什么都没有、下面的块上移；再打开卡回来；深色再开一次。2026-11-17 跑过 55 步、0 pending，截图（浅色、深色）在作者机器的验收日志目录里，不进仓库。
 
-## 本轮边界
+## 本轮边界（2026-11-09 初次交回；工具已于 2026-11-19 注册）
 
-**没有新增工具，也没有扩 M29 目录。** 原稿中的任务计划／工作记忆工具未注册、未保留；建议生成也不用伪工具提交结果。
-`long_task::Store::apply` 和 `memory::edit_once` 是宿主内部 API，不是模型可发现或调用的能力。现有 M29 `memory.*` 仍负责项目记忆。
+> 注：本节保留 2026-11-09 机制提交时的边界记录；格式 5 下的四个会话级模型工具（`read_task_plan`、`update_task_plan`、`read_working_memory`、`edit_working_memory`）已于 2026-11-19 在 `CompanionTools` 注册，见文末小节。
+
+**（2026-11-09 当时状态）没有新增工具，也没有扩 M29 目录。** 原稿中的任务计划／工作记忆工具当时未注册；建议生成不用伪工具提交结果。
+`long_task::Store::apply` 和 `memory::edit_once` 当时先作为宿主内部 API 落地，现有 M29 `memory.*` 仍负责项目记忆。
 
 因此本轮完成的是机制与宿主接口：模型自主建立／维护计划、自动整理工作记忆的工具接入，留给 v3 的通用工具方案。不能让提示词要求调用不存在的工具，也不能据此宣称旧版整套 M30 产品已迁完。当前单轮超限可由作者显式继续；宿主已建的计划可自动分片。
 
@@ -120,3 +124,11 @@ cargo drifting workspace scenario crates/dr-view-agent/scenarios/home-cards.json
 ### HC2 合并验收
 
 合并树 `8631926ac` 的全套检查通过，Rust 工作区 3117 项通过、0 失败、21 项原有忽略。macOS 副屏的 HC2 场景 27 步、旧 HC 场景 57 步均通过，用合成模型核对网络超时、上下文超限、开卡时点别张卡与关闭按钮、读屏名及打开对话。后续合进的 NE 验收文档通过受影响的仓库检查，产品代码一致。
+
+## 计划与工作记忆模型工具接入（2026-11-19）
+
+- **工具边界与入站 MCP 隔离**。`dr-view-agent/src/tools.rs` 的 `CompanionTools` 在 `tool_search`、`call_tool`、`ask_user` 旁注册四个绑定当前聊天会话的模型工具：`read_task_plan`、`update_task_plan`（`dr_agent::long_task::tools`）与 `read_working_memory`、`edit_working_memory`（`dr_agent::memory::tools`）。`dr-agent-tools::AgentTools` 保持不变（仅含 `tool_search` 与 `call_tool`，目录仍严格由 `dr_workspace::registry()` 加书内模板动作投影），因此入站 MCP 不会发现或列出会话局部的计划与工作记忆工具；同时四个工具在执行端均先校验 `long_task::Store::chain_for_session(session)` 并核对 `context.book`，不建 request chain 的外部 `ExternalScope` 直接调用也会被明确拒绝。主动建议保持无工具单请求，不注册 `submit_project_checkin`。
+- **格式 5 目标解析与编辑证明**。`long_task::Store` 支持按 `<条目 id 或标题>/<模块 id 或名称>` 混合解析正文模块目标；`whole_book` 计划完成提示统一按格式 5 成书序列（`book-sequence`）表述，结构变动（增删、改名、重排）后仍须先 `reconcile` 对齐才能 `complete`。`WorkKind::Edit` 步骤核对本机 `WriteProof` 时同时匹配规范化的模块目标与原始条目目标（`entry:<id>`），使带单篇正文的条目在执行补丁、字段、键值表等非正文模块写入（如 `module.put_patch`）后也能凭真实 F3 回执完成对应条目步骤。
+- **工作记忆投影、整理提示与冲突停止**。`CompanionTools::context_contributions` 注入非空 `WORKING_MEMORY.md` 时在 `source` 附带当前 `revision` 与估算 token 数；模型在首次创建或跨轮编辑时走 `read_working_memory` 分页读取，凭 `expected_revision` 调 `edit_working_memory` 做基于 `memory::edit_once` 的精确查找替换与追加（同 `call_id` 重放幂等）。同一回合内在 `WORKING_MEMORY.md` 上连续冲突两次返回 `ToolOutput::Stop`（`conflict_limit`）并停止本轮，避免盲目循环覆盖作者在面板中的编辑。工作记忆跨过 20k／40k／80k token 档位时，`PendingStart::run` 在作者新回合（`start_job`／`resume_job`）起点消费一次 `memory::take_notice` 并在本轮系统提示词追加整理说明，自动续跑分片不重复打扰，缩回阈值以下后重新武装。
+- **重启保持手动继续（作者 2026-11-19 定）**。重开书库或重启应用只恢复本机日志、会话状态与计划快照，绝不自动武装续跑或自动向模型发请求；未完成的长任务继续留在面板上由作者显式点「继续」（`AgentController::resume_job`）。
+- **端到端契约**。`dr-view-agent/tests/m30_tools.rs` 覆盖：格式 5 整书审阅建计划与读写工作记忆、轮数上限检查点自动分片续跑、分片中保留钉住的工作记忆与下一步、模拟重启后确认不自动发请求再手动继续跑完书目变更对齐与完成、指定条目目标的 `module.put_patch` 编辑证明、工作记忆超 20k 档位单次整理提示、同回合两次 CAS 冲突停止，以及同 `AgentController` 上 `ExternalScope` 调用四个工具全部拒绝。`dr-view-agent/tests/local_context.rs` 同时验证新增四个工具 Schema 后，《慢钟》在 32768 兜底上下文窗口下首轮消息仍正常发出。

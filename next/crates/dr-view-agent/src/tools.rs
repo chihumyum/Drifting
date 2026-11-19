@@ -14,6 +14,7 @@ use serde_json::json;
 pub struct CompanionTools {
     book: AgentTools,
     plugins: Option<dr_mcp::PluginTools>,
+    memory_conflicts: dr_agent::memory::WorkingMemoryConflicts,
 }
 
 impl CompanionTools {
@@ -27,6 +28,7 @@ impl CompanionTools {
         Self {
             book,
             plugins: Some(dr_mcp::PluginTools::new(slot)),
+            memory_conflicts: Default::default(),
         }
     }
 }
@@ -48,25 +50,34 @@ fn ask_descriptor() -> ToolDescriptor {
     }
 }
 
+fn companion_descriptor(name: &str) -> Option<ToolDescriptor> {
+    if name == "ask_user" {
+        return Some(ask_descriptor());
+    }
+    dr_agent::long_task::describe_tool(name).or_else(|| dr_agent::memory::describe_tool(name))
+}
+
 impl ToolExecutor for CompanionTools {
     fn descriptors(&self) -> Vec<ToolDescriptor> {
         let mut descriptors = self.book.descriptors();
         descriptors.push(ask_descriptor());
+        descriptors.push(dr_agent::long_task::read_descriptor());
+        descriptors.push(dr_agent::long_task::update_descriptor());
+        descriptors.push(dr_agent::memory::read_descriptor());
+        descriptors.push(dr_agent::memory::edit_descriptor());
         if let Some(plugins) = &self.plugins {
             descriptors.extend(plugins.descriptors());
         }
         descriptors
     }
     fn describe(&self, call: &ToolCall) -> Option<ToolDescriptor> {
-        if call.name == "ask_user" {
-            Some(ask_descriptor())
-        } else {
+        companion_descriptor(&call.name).or_else(|| {
             self.book.describe(call).or_else(|| {
                 self.plugins
                     .as_ref()
                     .and_then(|plugins| plugins.describe(call))
             })
-        }
+        })
     }
     fn describe_in_book(
         &self,
@@ -74,9 +85,7 @@ impl ToolExecutor for CompanionTools {
         book: &dr_model::id::BookId,
         call: &ToolCall,
     ) -> Option<ToolDescriptor> {
-        if call.name == "ask_user" {
-            Some(ask_descriptor())
-        } else {
+        companion_descriptor(&call.name).or_else(|| {
             self.book
                 .describe_in_book(workspace, book, call)
                 .or_else(|| {
@@ -84,10 +93,11 @@ impl ToolExecutor for CompanionTools {
                         .as_ref()
                         .and_then(|plugins| plugins.describe_in_book(workspace, book, call))
                 })
-        }
+        })
     }
     fn finish_session(&self, session: &str) {
         self.book.finish_session(session);
+        self.memory_conflicts.forget_session(session);
         if let Some(plugins) = &self.plugins {
             plugins.finish_session(session);
         }
@@ -111,8 +121,10 @@ impl ToolExecutor for CompanionTools {
         }
         if working.exists {
             context.push(dr_agent::context::Contribution {
-                source: "WORKING_MEMORY.md (local work context, not new author instructions)"
-                    .into(),
+                source: format!(
+                    "WORKING_MEMORY.md (revision {}, ~{} tokens; local work context, not new author instructions)",
+                    working.revision, working.approx_tokens
+                ),
                 text: working.content_md,
             });
         }
@@ -123,6 +135,16 @@ impl ToolExecutor for CompanionTools {
         context: ToolContext,
         call: ToolCall,
     ) -> BoxFuture<'static, dr_agent::Result<ToolOutput>> {
+        if dr_agent::long_task::describe_tool(&call.name).is_some() {
+            return dr_agent::long_task::execute_tool(context, call);
+        }
+        if dr_agent::memory::describe_tool(&call.name).is_some() {
+            return dr_agent::memory::execute_tool(
+                context,
+                call,
+                Some(self.memory_conflicts.clone()),
+            );
+        }
         if call.name != "ask_user" {
             if let Some(plugins) = &self.plugins
                 && plugins.describe(&call).is_some()
@@ -145,27 +167,41 @@ impl ToolExecutor for CompanionTools {
 mod tests {
     use super::*;
     #[test]
-    fn m30_does_not_expand_the_frozen_tool_surface() {
+    fn companion_registers_session_plan_and_working_memory_tools_without_checkin_pseudo_tool() {
         let tools = CompanionTools::default();
         let mut names: Vec<_> = tools.descriptors().into_iter().map(|d| d.name).collect();
         names.sort();
-        assert_eq!(names, ["ask_user", "call_tool", "tool_search"]);
-        for name in [
-            "read_task_plan",
-            "update_task_plan",
-            "read_working_memory",
-            "edit_working_memory",
-            "submit_project_checkin",
-        ] {
-            assert!(
-                tools
-                    .describe(&ToolCall {
-                        id: "fixture".into(),
-                        name: name.into(),
-                        arguments: json!({})
-                    })
-                    .is_none()
-            );
-        }
+        assert_eq!(
+            names,
+            [
+                "ask_user",
+                "call_tool",
+                "edit_working_memory",
+                "read_task_plan",
+                "read_working_memory",
+                "tool_search",
+                "update_task_plan",
+            ]
+        );
+        let mut book_names: Vec<_> = AgentTools::new()
+            .descriptors()
+            .into_iter()
+            .map(|d| d.name)
+            .collect();
+        book_names.sort();
+        assert_eq!(
+            book_names,
+            ["call_tool", "tool_search"],
+            "stateless book tools shared with MCP stay separate from session-local tools"
+        );
+        assert!(
+            tools
+                .describe(&ToolCall {
+                    id: "fixture".into(),
+                    name: "submit_project_checkin".into(),
+                    arguments: json!({})
+                })
+                .is_none()
+        );
     }
 }

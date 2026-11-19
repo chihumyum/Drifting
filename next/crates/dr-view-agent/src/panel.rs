@@ -59,6 +59,7 @@ struct Navigation {
     /// whether M18's globally cached view is ever rendered again.
     _cancel: oneshot::Sender<()>,
     review_pane: Option<dr_shell::panes::PaneId>,
+    project_memory: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -715,12 +716,14 @@ impl AgentPanel {
             Navigation {
                 _cancel: cancel,
                 review_pane: None,
+                project_memory: false,
             },
         );
         cx.spawn_in(window, async move |this, cx| {
             enum Opened {
                 Page,
                 Review(oneshot::Receiver<bool>, dr_shell::panes::PaneId),
+                ProjectMemory(oneshot::Receiver<bool>),
             }
             let (reader, owner) = (controller.clone(), book.clone());
             let resolved = cx
@@ -743,6 +746,20 @@ impl AgentPanel {
                     let (Ok(location), Some(ws)) = (resolved, panel.ws.upgrade()) else {
                         return None;
                     };
+                    if let data::ChangeLocation::ProjectMemory(id) = location {
+                        let same_book = {
+                            let ws = ws.read(cx);
+                            ws.book_id == book.as_str() && ws.book.id == book.as_str()
+                        };
+                        if !same_book {
+                            return None;
+                        }
+                        let revealed = panel.reveal_project_memory(id, window, cx)?;
+                        if let Some(request) = panel.navigation.get_mut(&navigation) {
+                            request.project_memory = true;
+                        }
+                        return Some(Opened::ProjectMemory(revealed));
+                    }
                     let opened = ws.update(cx, |ws, cx| {
                         if ws.book_id != book.as_str() || ws.book.id != book.as_str() {
                             return None;
@@ -762,6 +779,7 @@ impl AgentPanel {
                                 let revealed = ws.reveal_comment(&id, target, window, cx)?;
                                 Some(Opened::Review(revealed, ws.right.panes.focused))
                             }
+                            data::ChangeLocation::ProjectMemory(_) => unreachable!(),
                             data::ChangeLocation::History { doc, name, target } => {
                                 ws.book.entry(&target)?;
                                 ws.open_history(doc, &name, window, cx);
@@ -780,7 +798,7 @@ impl AgentPanel {
                 .flatten();
             let opened = match opened {
                 Some(Opened::Page) => true,
-                Some(Opened::Review(revealed, _)) => {
+                Some(Opened::Review(revealed, _) | Opened::ProjectMemory(revealed)) => {
                     matches!(
                         select(revealed, cancelled).await,
                         Either::Left((Ok(true), _))
@@ -796,6 +814,7 @@ impl AgentPanel {
                     && panel.generation == generation
                     && panel.book.as_ref() == Some(&book)
                     && !controller.is_closed()
+                    && (!request.project_memory || panel.continuity.shown == Some(false))
                     && panel.ws.upgrade().is_some_and(|ws| {
                         let ws = ws.read(cx);
                         ws.book_id == book.as_str()

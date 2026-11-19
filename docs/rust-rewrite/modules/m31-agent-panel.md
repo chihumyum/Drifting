@@ -1,5 +1,7 @@
 # M31 帮手面板与改动显现
 
+> 2026-11-19（格式 5「本轮改动」全量对齐、项目记忆定位与停止竞态测试修正）：`dr-view-agent/src/data.rs` 移除残留的旧格式种类分支，按格式 5 的 15 个 `CollectionV3` 根容器与正文收据补齐「本轮改动」定位：`DocId::Body` 保留具体 `module` 使多正文条目直达被改模块；修复归属键 `<host>|<member>` 的竖线解析、`timeline_view` 的 `book-view:<id>` 跳转以及历史恢复 `templates` 到 `Target::Template` 的映射；补齐 `patch`／`plot_grid`（打开所属条目并滚到对应模块）、`time_pin`（打开所在时间线视图）、`meta`（回作品主页）与 `memory`（打开项目记忆子页并经 `ProjectMemoryView::reveal` 等待目标条目实际绘入视口，切书／关栏／切换子页自动取消）；仍无独立定位入口的 `fact`、`asset_folder`、`relation_type` 与模板默认正文 `template:<tpl>/<mod>` 保持不出现假按钮、不回退整书。`CompanionTools` 同批挂入 M30 的四个会话级计划与工作记忆工具。另修复 `tests/controller.rs` 中 `stop_revokes_continuation_before_a_held_slice_returns` 在 Windows x64 下流式阶段收到停止后立即丢弃 `Step::Wait` 接收端导致的 `oneshot::send` 竞态断言，拆分为流式持锁停止与已进入工具屏障停止两段确定性验证。
+
 > 2026-11-17（HC 建议卡回作品主页）：空对话里不再有建议卡和「主动建议」开关（`panel/continuity.rs` 只剩项目记忆、工作记忆和继续保存的运行）；面板打开、跟着换书、窗口重新激活都不再让 Agent 看（原来 `panel.rs` 三处 `trigger_suggestions` 拿掉了）。卡在作品主页（`src/home_cards.rs`），点卡时面板选中那段新对话（`AgentPanel::show_card_conversation`；面板还没造出来时它从工作区的书记忆 `agent.conversation` 读到同一段）。开关在设置 → 智能 → Agent 最后一行。详见 [M30](m30-long-tasks-memory.md)「建议卡回作品主页」。
 
 > 2026-11-17（HC 审阅修补）：空对话里项目记忆那一行（`agent-continuity`）和空对话的第一行（`agent-empty`，「试试」或「开始」那一句）加了测试用的 debug selector，测试量它们之间正好隔一格，中间没有卡和开关。主页「查看对话」的那段对话已经没了时，右栏照样打开到 Agent，面板什么都不选（不写书记忆 `agent.conversation`，不调 `show_card_conversation`）。`Workspace::reveal_companion` 先退出铺满。
@@ -148,8 +150,8 @@ after_release(cx, |cx| { /* 从当前 Services 重建 */ });
 is_releasing(cx);
 ```
 
-`CompanionTools` 组合 M29 的 `AgentTools` 和 `ask_user`。后者返回 M27 的
-`ToolOutput::Question`，作者回答继续同一次工具调用；没有另建 CRUD 清单，也没有在
+`CompanionTools` 组合 M29 的 `AgentTools`、`ask_user` 以及 M30 绑定当前聊天会话的四个长任务计划／工作记忆工具（`read_task_plan`、`update_task_plan`、`read_working_memory`、`edit_working_memory`）。`ask_user` 返回 M27 的
+`ToolOutput::Question`，作者回答继续同一次工具调用；没有另建作者域 CRUD 清单，也没有在
 面板里绕过 M29 的读后写检查。
 
 ## 外壳里的挂接点
@@ -257,29 +259,14 @@ workspace 测试至退出码 0。上述最终统计包含该修复与“最后�
 **2026-11-09 转轨道 3：** 轨道 2 交付的公共播放入口见 [F4 公共播放接口](../foundations/f4-editor.md#轨道-2提交后的公共播放接口2026-11-09) 与 [F4e 接点](../foundations/f4e-editor.md#轨道-2公共播放接点2026-11-09)。`ChapterEditor`／`BookEditor` 的 `editor()` 可配置 `CommitPlaybackOptions::new("agent:")`；正文与回执先提交，播放只改变绘制。产品里何时启用及编辑器实体切换后的重新配置由帮手轨道消费；本批公共接口不等于 M31 产品已启用。按种类导航／定位扩展仍冻结。
 
 1. ~~**F4：提供受提交边界约束的逐字覆盖公共接口及真实 Runtime 回归。**~~
-   第三十一批由轨道 2 完成；原 F4d 三类墨色与指针淡出保留。产品消费转轨道 3，
-   接法见上；不能通过延迟实际持久写入来模拟动画。
+   第三十一批由轨道 2 完成；原 F4d 三类墨色与指针淡出保留。条目页与整书页编辑器已由并行外壳／页面轨道接入 `CommitPlaybackOptions::new("agent:")` 提交后播放（正文与回执仍先落盘，播放只改变绘制）。
 2. 真模型连接和真实 ChatGPT 登录留给作者手测；自动化仅使用本机假服务。M32 MCP、
    M30 长任务和 M33 生图不在本模块另开产品入口，继续组合共享 Runtime 的工具和控制。
-3. M29 审查修复 `4d55f081`／`44357606` 已随本分支合入：排除隐藏级联删除和两项
-   构想转换，拒绝指定关系 id，更新目录及 `chapter.create` 修订回归。第二十七批的
-   `note_tasks.project` 内部维护命令已预先排除；该命令和 M19 消费者尚未进当前 main，
-   来源传播和三个 Agent 元数据入口的投射回归仍须在 M19 集成时验证，见 M29 文档。
-4. **其他元数据对象的定位入口。** 当前 M29 真实开放的 effect 中，以下对象还没有
-   可复用的公开定位接口；暂不显示假导航或整书回退。需要对应模块提供准确的 owner／
-   目标查询、展开定位与显示确认，再接入“本轮改动”：
-   - M04／M14 的 `act`、`time_pin`：时间线按 id 定位；M16 的 `idea_group`：组路径展开。
-   - M19 的 `material_folder`：素材树定位；M17 的 `relation_type`：类型管理定位。
-   - M15／F6 的 `plot_grid`：打开其节点并显示实际规划表；M11 的 `patch`：查找确切
-     要素并定位补丁卡；M11／M13 的 `template_field`：确认模板 owner 并定位字段。
-   - 项目设定中的 `fact`：字段定位；M30 的 `memory`：记忆条目定位。
-   关系本身的改动现已提供真实端点入口；本项不另建关系详情页或第二套路由。
-5. **模板正文的精确定位。** `template:category:<id>` 与 `template:storyline:<id>`
-   都是独立正文，F3／M09 支持它们的历史；缺的是 F6／M11／M13 按模板 owner 和 doc
-   定位实际编辑器的公开接口。故事线页已有内嵌章节模板，但没有精确展开／滚动定位
-   接口，分类模板也没有现成导航目标。本轮暂不为模板收据生成当前必失败的改动或历史
-   按钮，不把模板冒充所属分类／故事线的正文。真实 F3 模板写入收据的回归同时确认
-   `history.points` 可读、无无效 UI 入口；待 owner 提供定位及显示确认后再开放。
+3. M29 审查修复 `4d55f081`／`44357606` 已随本分支合入：排除隐藏级联删除，拒绝指定关系 id，并随格式 5 更新目录快照与守护回归。
+4. **格式 5 元数据对象的定位覆盖与剩余缺口（2026-11-19 更新）。** 当前「本轮改动」按格式 5 的真实回执与同轮工具 `effects` 精确解析，已删除／已进最近删除的对象一律拒绝跳转、不伪造整书回退：
+   - **已接通的定位入口**：条目正文 `body:<entry>/<module>` 打开 `Target::Entry { id, module: Some(module) }` 并提供正文「版本历史」；条目元数据 `entry`／`entries` 打开对应条目页；归属 `membership`／`memberships`（键 `<host>|<member>`）优先打开存活成员条目、次选宿主条目；补丁 `patch`／`patches` 与情节规划表 `plot_grid`／`plot_grids` 打开所属条目并滚向对应模块；条目模板定义 `entry_template`／`entry_templates`／`templates` 打开模板编辑器 `Target::Template(id)`；时间线视图 `timeline_view`／`timeline_views` 与时间钉 `time_pin`（反查所在存活视图）打开 `Target::BookView(id)`；文件 `asset`／`assets` 打开引用它的条目媒体模块或素材库 `Target::Material(id)`；批注 `comment`／`comments` 走 `Workspace::reveal_comment`（等待卡片绘入视口后确认）；关系行 `relation_row`／`relation_rows` 走 `Workspace::reveal_relation_row`（或存活端点条目）；项目记忆 `memory` 打开面板项目记忆视图并等待 `ProjectMemoryView::reveal(id)` 绘入视口确认；书信息与项目定义 `meta`／`project`／`tab`／`tabs` 打开作品主页 `Workspace::open_home`。
+   - **仍缺独立定位入口的对象**（暂不出假按钮）：事实表项 `fact`／`facts`（无独立页面或单条定位接口）、素材夹 `asset_folder`／`asset_folders`（`Target::Material` 当前只收 `AssetId` 文件身份，无空文件夹定位口）、关系类型定义 `relation_type`／`relation_types`（无独立类型管理路由；具体关系行改动已由 `relation_row` 定位）。待外壳或对应视图提供精确目标定位与显示确认后再接入。
+5. **模板默认正文的精确定位（2026-11-19 更新）。** 格式 5 下条目模板自身的名称、模块定义与动作改动（`book:<id>` 上的 `entry_template`／`templates` 效果）已可打开 `Target::Template(id)`；而模板默认正文 `DocId::Template`（`template:<template>/<module>`，新建该模板条目时复制进去的初始正文）是独立 Loro 正文文档，目前外壳的 `Target::Template(TemplateId)` 与 `Workspace::open_history` 尚无按 `<template>/<module>` 直接定位默认正文编辑器或历史面板的公开参数。因此 `template:<template>/<module>` 收据暂不生成改动或正文历史按钮，也不冒充普通条目正文；`src/data.rs` 的回归同时确认 `history.points` 可读且不暴露无效 UI 入口。
 
 ## 代码位置
 

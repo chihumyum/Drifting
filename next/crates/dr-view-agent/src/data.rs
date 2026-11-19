@@ -9,8 +9,9 @@ use crate::onboarding::StarterSource;
 pub struct ChangeTarget {
     pub kind: String,
     pub id: String,
+    pub module: Option<String>,
     /// Only an actual prose settlement offers prose history. A metadata
-    /// change to an element does not imply that its prose changed too.
+    /// change to an entry does not imply that its prose changed too.
     pub history: Option<String>,
     book: Option<String>,
 }
@@ -30,6 +31,9 @@ pub fn change_targets(run: &crate::state::RunSnapshot, turn: u32) -> Vec<ChangeT
             if target.history.is_some() {
                 previous.history = target.history;
             }
+            if previous.module.is_none() && target.module.is_some() {
+                previous.module = target.module;
+            }
         } else {
             targets.push(target);
         }
@@ -39,10 +43,10 @@ pub fn change_targets(run: &crate::state::RunSnapshot, turn: u32) -> Vec<ChangeT
         let Ok(doc) = dr_model::DocId::parse(&receipt.document) else {
             continue;
         };
-        // Template prose has history in F3, but the shell has no template
-        // navigation target or exact embedded-editor reveal hook yet.
-        // Do not offer a change/history button that resolve_change cannot
-        // open, or silently substitute the owner's unrelated prose.
+        // Template default prose (`template:<template>/<module>`) has history in
+        // F3, while the template editor page does not embed a default-prose
+        // reveal hook yet. Do not offer a change/history button that cannot open
+        // that prose, or substitute an unrelated entry's prose.
         if matches!(doc, dr_model::DocId::Template(_)) {
             continue;
         }
@@ -50,20 +54,10 @@ pub fn change_targets(run: &crate::state::RunSnapshot, turn: u32) -> Vec<ChangeT
             add(ChangeTarget {
                 kind: "entry".into(),
                 id: body.entry().to_string(),
+                module: Some(body.module().to_string()),
                 history: Some(receipt.document.clone()),
                 book: None,
             });
-            continue;
-        }
-        if doc.profile().is_some() {
-            if let Some((kind, id)) = receipt.document.split_once(':') {
-                add(ChangeTarget {
-                    kind: kind.into(),
-                    id: id.into(),
-                    history: Some(receipt.document.clone()),
-                    book: None,
-                });
-            }
             continue;
         }
         let Some(book) = receipt.document.strip_prefix("book:") else {
@@ -84,52 +78,60 @@ pub fn change_targets(run: &crate::state::RunSnapshot, turn: u32) -> Vec<ChangeT
             continue;
         };
         for effect in effects {
-            // History commands report collection roots; ordinary commands
-            // report singular entity kinds. Both identify the same object.
-            // `meta` stays distinct: its id names a field, not the book.
+            // History commands report collection roots (`CollectionV3::root`);
+            // ordinary commands report singular entity kinds.
             use dr_doc::v3::CollectionV3 as Collection;
             let (kind, id) = match Collection::from_root(&effect.kind) {
-                Some(Collection::Comments) => ("comment", effect.id),
+                Some(Collection::Meta | Collection::Project) => ("book", book.to_owned()),
+                Some(Collection::Entries) => ("entry", effect.id),
+                Some(Collection::Templates) => ("entry_template", effect.id),
+                Some(Collection::Memberships) => {
+                    let Some((_, member)) = dr_model::v3::Membership::parse_key(&effect.id) else {
+                        continue;
+                    };
+                    ("entry", member.to_string())
+                }
+                Some(Collection::TimelineViews) => ("timeline_view", effect.id),
+                Some(Collection::Patches) => ("patch", effect.id),
+                Some(Collection::PlotGrids) => ("plot_grid", effect.id),
                 Some(Collection::Relations) => ("relation_row", effect.id),
-                _ => match effect.kind.as_str() {
-                    "entries" | "entry" => ("entry", effect.id),
+                Some(Collection::Comments) => ("comment", effect.id),
+                Some(Collection::Assets) => ("asset", effect.id),
+                Some(Collection::Memory) => ("memory", effect.id),
+                // Facts, AssetFolders, and RelationTypes have no dedicated shell
+                // page or single-record reveal hook yet; never fake whole-book
+                // navigation for them.
+                Some(Collection::Facts | Collection::AssetFolders | Collection::RelationTypes) => {
+                    continue;
+                }
+                None => match effect.kind.as_str() {
+                    "book" | "projects" | "tab" | "tabs" => ("book", book.to_owned()),
+                    "entry" => ("entry", effect.id),
                     "entry_templates" | "entry_template" => ("entry_template", effect.id),
-                    "timeline_views" | "timeline_view" => ("timeline_view", effect.id),
-                    "assets" | "asset" => ("asset", effect.id),
-                    "project" | "projects" | "tab" | "tabs" => ("book", book.to_owned()),
-                    "plot_grids" | "plot_grid" => (
-                        "entry",
-                        effect.id.split('/').next().unwrap_or(&effect.id).to_owned(),
-                    ),
-                    "memberships" | "membership" => (
-                        "entry",
-                        effect.id.split('/').nth(1).unwrap_or(&effect.id).to_owned(),
-                    ),
-                    other => (other, effect.id),
+                    "membership" => {
+                        let Some((_, member)) = dr_model::v3::Membership::parse_key(&effect.id)
+                        else {
+                            continue;
+                        };
+                        ("entry", member.to_string())
+                    }
+                    "timeline_view" => ("timeline_view", effect.id),
+                    "time_pin" => ("time_pin", effect.id),
+                    "patch" => ("patch", effect.id),
+                    "plot_grid" => ("plot_grid", effect.id),
+                    "relation_row" => ("relation_row", effect.id),
+                    "comment" => ("comment", effect.id),
+                    "asset" => ("asset", effect.id),
+                    _ => continue,
                 },
             };
-            if matches!(
-                kind,
-                "book"
-                    | "node"
-                    | "element"
-                    | "category"
-                    | "storyline"
-                    | "material"
-                    | "asset"
-                    | "comment"
-                    | "relation_row"
-                    | "entry"
-                    | "entry_template"
-                    | "timeline_view"
-            ) {
-                add(ChangeTarget {
-                    kind: kind.into(),
-                    id,
-                    history: None,
-                    book: Some(book.into()),
-                });
-            }
+            add(ChangeTarget {
+                kind: kind.into(),
+                id,
+                module: None,
+                history: None,
+                book: Some(book.into()),
+            });
         }
     }
     targets
@@ -142,6 +144,7 @@ pub enum ChangeLocation {
         id: String,
         target: Option<dr_shell::nav::Target>,
     },
+    ProjectMemory(dr_model::id::MemoryId),
     History {
         doc: String,
         name: String,
@@ -169,7 +172,7 @@ pub fn resolve_change(
                 .map(|m| format!("entry:{id}/{m}"))
                 .unwrap_or_else(|| format!("entry:{id}")),
             "entry_template" | "template" => format!("template:{id}"),
-            "material" => format!("material:{id}"),
+            "timeline_view" => format!("book-view:{id}"),
             "asset" => {
                 let direct = format!("material:{id}");
                 if Target::from_key(&direct).is_some_and(|t| snapshot.exists(&t)) {
@@ -210,7 +213,6 @@ pub fn resolve_change(
             dr_model::DocId::Body(b) => {
                 locate("entry", b.entry().as_str(), Some(b.module().as_str()))
             }
-            dr_model::DocId::Material(id) => locate("material", id.as_str(), None),
             _ => None,
         }
         .ok_or_else(missing)?;
@@ -221,8 +223,102 @@ pub fn resolve_change(
         });
     }
     if change.kind == "book" {
-        return (change.id == book)
+        return (change.id == book && !snapshot.is_empty())
             .then_some(ChangeLocation::Home)
+            .ok_or_else(missing);
+    }
+    if change.kind == "memory" {
+        let book_id: dr_model::id::BookId = book
+            .parse()
+            .map_err(|e: dr_model::id::IdError| e.to_string())?;
+        let id = dr_model::id::MemoryId::parse(&change.id).map_err(|_| missing())?;
+        let projected = dr_agent::memory::project(ws, &book_id).map_err(|e| e.to_string())?;
+        if !projected
+            .entries
+            .iter()
+            .any(|entry| entry.id == id && entry.active())
+        {
+            return Err(missing());
+        }
+        return Ok(ChangeLocation::ProjectMemory(id));
+    }
+    if change.kind == "patch" {
+        let book_id: dr_model::id::BookId = book
+            .parse()
+            .map_err(|e: dr_model::id::IdError| e.to_string())?;
+        let patch_id = change.id.clone();
+        let found = ws
+            .read_book_v3(book, move |doc, _| {
+                let borrowed = dr_doc::v3::BorrowedBookV3::new(doc, &book_id)
+                    .map_err(|e| dr_workspace::WsError::Invalid(e.to_string()))?;
+                Ok(borrowed
+                    .view()
+                    .patches()
+                    .into_iter()
+                    .find(|p| p.id.as_str() == patch_id))
+            })
+            .map_err(|e| e.to_string())?
+            .ok_or_else(missing)?;
+        return locate("entry", found.entry.as_str(), Some(found.module.as_str()))
+            .map(|(target, _)| ChangeLocation::Page(target))
+            .ok_or_else(missing);
+    }
+    if change.kind == "plot_grid" {
+        let (entry_id, module_id) = change.id.split_once('/').ok_or_else(missing)?;
+        let book_id: dr_model::id::BookId = book
+            .parse()
+            .map_err(|e: dr_model::id::IdError| e.to_string())?;
+        let (e_str, m_str) = (entry_id.to_owned(), module_id.to_owned());
+        let has_module = ws
+            .read_book_v3(book, move |doc, _| {
+                let borrowed = dr_doc::v3::BorrowedBookV3::new(doc, &book_id)
+                    .map_err(|e| dr_workspace::WsError::Invalid(e.to_string()))?;
+                let view = borrowed.view();
+                let templates = view.templates_map();
+                let defined = view
+                    .entries()
+                    .into_iter()
+                    .find(|e| e.id.as_str() == e_str && !e.is_trashed())
+                    .and_then(|e| e.effective_template(&templates).cloned())
+                    .is_some_and(|tpl| {
+                        tpl.modules.iter().any(|m| {
+                            m.id.as_str() == m_str && m.kind == dr_model::v3::ModuleKind::PlotGrid
+                        })
+                    });
+                let stored = view
+                    .plot_grids()
+                    .into_iter()
+                    .any(|g| g.entry.as_str() == e_str && g.module.as_str() == m_str);
+                Ok(defined || stored)
+            })
+            .map_err(|e| e.to_string())?;
+        if !has_module {
+            return Err(missing());
+        }
+        return locate("entry", entry_id, Some(module_id))
+            .map(|(target, _)| ChangeLocation::Page(target))
+            .ok_or_else(missing);
+    }
+    if change.kind == "time_pin" {
+        let book_id: dr_model::id::BookId = book
+            .parse()
+            .map_err(|e: dr_model::id::IdError| e.to_string())?;
+        let pin_id = change.id.clone();
+        let view_id = ws
+            .read_book_v3(book, move |doc, _| {
+                let borrowed = dr_doc::v3::BorrowedBookV3::new(doc, &book_id)
+                    .map_err(|e| dr_workspace::WsError::Invalid(e.to_string()))?;
+                Ok(borrowed
+                    .view()
+                    .timeline_views()
+                    .into_iter()
+                    .find(|tv| tv.pins.iter().any(|p| p.id.as_str() == pin_id))
+                    .map(|tv| tv.id.to_string()))
+            })
+            .map_err(|e| e.to_string())?
+            .ok_or_else(missing)?;
+        return locate("timeline_view", &view_id, None)
+            .map(|(target, _)| ChangeLocation::Page(target))
             .ok_or_else(missing);
     }
     if change.kind == "relation_row" {
@@ -275,7 +371,7 @@ pub fn resolve_change(
             target,
         });
     }
-    locate(&change.kind, &change.id, None)
+    locate(&change.kind, &change.id, change.module.as_deref())
         .map(|(t, _)| ChangeLocation::Page(t))
         .ok_or_else(missing)
 }
@@ -428,7 +524,7 @@ mod tests {
             },
         ];
         run.tools = vec![
-            make_tool("second", 2, "element", "second-effect"),
+            make_tool("second", 2, "entry", "second-effect"),
             make_tool("first", 1, "book", &book),
         ];
         let first = change_targets(&run, 1);
@@ -437,7 +533,7 @@ mod tests {
         assert_eq!(first[0].history, None);
         let second = change_targets(&run, 2);
         assert_eq!(second.len(), 1);
-        assert_eq!(second[0].key(), "element:second-effect");
+        assert_eq!(second[0].key(), "entry:second-effect");
         assert_eq!(second[0].history, None);
         assert!(change_targets(&run, 3).is_empty());
     }
@@ -629,6 +725,285 @@ mod tests {
             }
             _ => panic!("expected placed asset to resolve to its file's Material target"),
         }
+
+        workspace.shutdown().unwrap();
+    }
+
+    #[test]
+    fn v5_templates_memberships_timelines_pins_patches_grids_memory_and_untargetable_effects() {
+        use dr_doc::v3::novel::{TPL_CHAPTER, TPL_CHARACTER};
+        let directory = tempfile::tempdir().unwrap();
+        let workspace = Workspace::open_dir(directory.path(), "m31-v5-all-effects").unwrap();
+        let seeded = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+        let book = seeded.books[0].book_id().to_string();
+        seeded.write_to(workspace.library()).unwrap();
+
+        let chapter = dr_testkit::seed::acceptance::entries_by_template(
+            &workspace,
+            &book,
+            TPL_CHAPTER,
+        )[0]["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        let character =
+            dr_testkit::seed::acceptance::entries_by_template(&workspace, &book, TPL_CHARACTER)[0]
+                ["id"]
+                .as_str()
+                .unwrap()
+                .to_owned();
+
+        // Add a plot_grid module on chapter template and write a grid.
+        workspace
+            .call(
+                &Actor::User,
+                "entry_template.put_module",
+                json!({
+                    "book": book,
+                    "template": TPL_CHAPTER,
+                    "module": {"id": "mod-grid", "kind": "plot_grid", "name": "情节表"}
+                }),
+            )
+            .unwrap();
+        let mut grid = workspace
+            .call(
+                &Actor::User,
+                "module.read",
+                json!({
+                    "book": book,
+                    "entry": chapter,
+                    "module": "mod-grid",
+                }),
+            )
+            .unwrap()["output"]["grid"]
+            .clone();
+        grid["rows"][0]["label"] = json!("行");
+        workspace
+            .call(
+                &Actor::User,
+                "module.put_grid",
+                json!({
+                    "book": book,
+                    "entry": chapter,
+                    "module": "mod-grid",
+                    "grid": grid,
+                }),
+            )
+            .unwrap();
+
+        // Add a patch on character.
+        let patch_id = workspace
+            .call(
+                &Actor::User,
+                "module.put_patch",
+                json!({
+                    "book": book,
+                    "entry": character,
+                    "module": "mod-patches",
+                    "body": "人物补丁"
+                }),
+            )
+            .unwrap()["output"]["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+
+        // Find a timeline view and add a time pin.
+        let view_id = workspace
+            .call(&Actor::User, "timeline_view.list", json!({"book": book}))
+            .unwrap()["output"][0]["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        let pin_id = workspace
+            .call(
+                &Actor::User,
+                "timeline_view.put_pin",
+                json!({
+                    "book": book,
+                    "view": view_id,
+                    "pin": {"id": "01950000-0000-7000-8000-000000000901", "label": "节点", "at": 1.0}
+                }),
+            )
+            .unwrap()["output"]["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+
+        // Add a Project Memory entry.
+        let mem_id = workspace
+            .call(
+                &Actor::User,
+                "memory.add",
+                json!({"book": book, "body": "全书保持克制叙述"}),
+            )
+            .unwrap()["output"]["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+
+        let receipt = |id| SettlementRef {
+            id,
+            document: format!("book:{book}"),
+            seq: id,
+        };
+        let make_tool = |id: &str, settled, kind: &str, target: &str| ToolActivity {
+            id: id.into(),
+            call: None,
+            started: true,
+            result: Some(ToolResult {
+                call: id.into(),
+                status: ToolStatus::Success,
+                output: json!({"effects": [{"action": "updated", "kind": kind, "id": target}]}),
+                settlements: vec![receipt(settled)],
+            }),
+        };
+
+        let membership_key = format!("{chapter}|{character}");
+        let grid_key = format!("{chapter}/mod-grid");
+        let mut run = ChatState::new("m31-v5-full").snapshot();
+        let cases = [
+            (1, "templates", TPL_CHAPTER),
+            (2, "membership", membership_key.as_str()),
+            (3, "timeline_view", view_id.as_str()),
+            (4, "time_pin", pin_id.as_str()),
+            (5, "patch", patch_id.as_str()),
+            (6, "plot_grid", grid_key.as_str()),
+            (7, "memory", mem_id.as_str()),
+            (8, "meta", "name"),
+            (9, "fact", "fact-1"),
+            (10, "asset_folder", "folder-1"),
+            (11, "relation_type", "rt-1"),
+        ];
+        for (turn, kind, target) in cases {
+            run.changes.push(ChangedReceipt {
+                turn,
+                receipt: receipt(i64::from(turn)),
+            });
+            run.tools.push(make_tool(
+                &format!("call-{turn}"),
+                i64::from(turn),
+                kind,
+                target,
+            ));
+        }
+        // Turn 12: Body prose receipt preserves module target.
+        let body_doc = format!("body:{chapter}/mod-prose");
+        run.changes.push(ChangedReceipt {
+            turn: 12,
+            receipt: SettlementRef {
+                id: 12,
+                document: body_doc.clone(),
+                seq: 12,
+            },
+        });
+
+        // 1. Restored `templates` collection root -> `Target::Template`.
+        let t1 = change_targets(&run, 1);
+        assert_eq!(t1[0].key(), format!("entry_template:{TPL_CHAPTER}"));
+        match resolve_change(&workspace, &book, &t1[0], false).unwrap() {
+            ChangeLocation::Page(target) => {
+                assert_eq!(target.key(), format!("template:{TPL_CHAPTER}"))
+            }
+            _ => panic!("expected Template target"),
+        }
+
+        // 2. Pipe-delimited `membership` (`host|member`) -> member Entry.
+        let t2 = change_targets(&run, 2);
+        assert_eq!(t2[0].key(), format!("entry:{character}"));
+        match resolve_change(&workspace, &book, &t2[0], false).unwrap() {
+            ChangeLocation::Page(target) => assert_eq!(target.key(), format!("entry:{character}")),
+            _ => panic!("expected member Entry target"),
+        }
+
+        // 3 & 4. `timeline_view` and `time_pin` -> `Target::BookView`.
+        for turn in [3, 4] {
+            let targets = change_targets(&run, turn);
+            match resolve_change(&workspace, &book, &targets[0], false).unwrap() {
+                ChangeLocation::Page(target) => {
+                    assert_eq!(target.key(), format!("book-view:{view_id}"))
+                }
+                _ => panic!("expected BookView target for turn {turn}"),
+            }
+        }
+
+        // 5. `patch` -> `Target::Entry { id: character, module: Some("mod-patches") }`.
+        let t5 = change_targets(&run, 5);
+        match resolve_change(&workspace, &book, &t5[0], false).unwrap() {
+            ChangeLocation::Page(target) => {
+                assert_eq!(target.key(), format!("entry:{character}/mod-patches"))
+            }
+            _ => panic!("expected entry patches module target"),
+        }
+
+        // 6. `plot_grid` -> `Target::Entry { id: chapter, module: Some("mod-grid") }`.
+        let t6 = change_targets(&run, 6);
+        match resolve_change(&workspace, &book, &t6[0], false).unwrap() {
+            ChangeLocation::Page(target) => {
+                assert_eq!(target.key(), format!("entry:{chapter}/mod-grid"))
+            }
+            _ => panic!("expected entry plot_grid module target"),
+        }
+
+        // 7. `memory` -> `ChangeLocation::ProjectMemory`.
+        let t7 = change_targets(&run, 7);
+        match resolve_change(&workspace, &book, &t7[0], false).unwrap() {
+            ChangeLocation::ProjectMemory(id) => assert_eq!(id.as_str(), mem_id),
+            _ => panic!("expected ProjectMemory location"),
+        }
+
+        // 8. `meta` collection root -> `ChangeLocation::Home`.
+        let t8 = change_targets(&run, 8);
+        assert!(matches!(
+            resolve_change(&workspace, &book, &t8[0], false).unwrap(),
+            ChangeLocation::Home
+        ));
+
+        // 9–11. Untargetable metadata objects never fake whole-book navigation.
+        for turn in [9, 10, 11] {
+            assert!(
+                change_targets(&run, turn).is_empty(),
+                "turn {turn} has no targetable UI destination"
+            );
+        }
+
+        // 12. Body prose receipt scrolls to exact prose module and offers history.
+        let t12 = change_targets(&run, 12);
+        assert_eq!(t12[0].history.as_deref(), Some(body_doc.as_str()));
+        match resolve_change(&workspace, &book, &t12[0], false).unwrap() {
+            ChangeLocation::Page(target) => {
+                assert_eq!(target.key(), format!("entry:{chapter}/mod-prose"))
+            }
+            _ => panic!("expected prose module page target"),
+        }
+
+        // Deleting targets makes `resolve_change` fail rather than faking Home/book.
+        workspace
+            .call(
+                &Actor::User,
+                "module.remove_patch",
+                json!({"book": book, "entry": character, "module": "mod-patches", "id": patch_id}),
+            )
+            .unwrap();
+        assert!(resolve_change(&workspace, &book, &t5[0], false).is_err());
+
+        workspace
+            .call(
+                &Actor::User,
+                "timeline_view.remove_pin",
+                json!({"book": book, "view": view_id, "pin": pin_id}),
+            )
+            .unwrap();
+        assert!(resolve_change(&workspace, &book, &change_targets(&run, 4)[0], false).is_err());
+
+        workspace
+            .call(
+                &Actor::User,
+                "memory.remove",
+                json!({"book": book, "id": mem_id}),
+            )
+            .unwrap();
+        assert!(resolve_change(&workspace, &book, &t7[0], false).is_err());
 
         workspace.shutdown().unwrap();
     }

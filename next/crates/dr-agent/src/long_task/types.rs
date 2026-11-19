@@ -197,11 +197,13 @@ pub enum Command {
     Create {
         objective: String,
         scope: Scope,
+        #[serde(alias = "workKind")]
         work_kind: WorkKind,
         #[serde(default)]
         targets: Vec<TargetSpec>,
     },
     Update {
+        #[serde(alias = "expectedRevision")]
         expected_revision: u64,
         #[serde(default)]
         objective: Option<String>,
@@ -209,22 +211,26 @@ pub enum Command {
         status: Option<TaskStatus>,
     },
     AppendSteps {
+        #[serde(alias = "expectedRevision")]
         expected_revision: u64,
         targets: Vec<TargetSpec>,
     },
     ReconcileManifest {
+        #[serde(alias = "expectedRevision")]
         expected_revision: u64,
     },
     Step {
+        #[serde(alias = "expectedRevision")]
         expected_revision: u64,
         step: String,
         status: StepStatus,
         #[serde(default)]
         note: Option<String>,
-        #[serde(default, rename = "reviewResult")]
+        #[serde(default, rename = "reviewResult", alias = "review_result")]
         review: Option<ReviewResult>,
     },
     Constraint {
+        #[serde(alias = "expectedRevision")]
         expected_revision: u64,
         #[serde(default)]
         id: Option<String>,
