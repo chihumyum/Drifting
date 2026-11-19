@@ -28,8 +28,7 @@
       }
     },
     "models": {
-      "credentialsDesc": "As chaves ficam apenas no Gerenciador de Credenciais do Windows deste dispositivo; não são sincronizadas nem passam pelo Drifting. Escolha provedor e modelo no menu de configuração do campo do Agent.",
-      "speechDesc": "Credencial de transcrição da entrada de voz, separada dos provedores de chat. Inclui nomes de elementos e ambientação do projeto para corrigir nomes próprios. Solicitações vão diretamente ao Bailian e a chave fica só no Gerenciador de Credenciais do Windows."
+      "credentialsDesc": "As chaves ficam apenas no Gerenciador de Credenciais do Windows deste dispositivo; não são sincronizadas nem passam pelo Drifting. Escolha provedor e modelo no menu de configuração do campo do Agent."
     }
   },
   "agentPanel": {

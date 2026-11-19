@@ -24,9 +24,9 @@ const RETIRED_PROVIDER_RECORDS = new Set([
   'src/renderer/architecture/retired-client-integrations.acceptance.test.ts',
 ]);
 
-function trackedFilesMatching(pattern: string): string[] {
+function trackedFilesMatching(pattern: string, paths: string[] = ['.']): string[] {
   try {
-    return execFileSync('git', ['grep', '-l', '-I', '-i', '-E', pattern, '--', '.'], {
+    return execFileSync('git', ['grep', '-l', '-I', '-i', '-E', pattern, '--', ...paths], {
       cwd: process.cwd(),
       encoding: 'utf8',
     }).split('\n').filter(Boolean);
@@ -45,6 +45,35 @@ describe('retired client integrations', () => {
       // Dated acceptance evidence records the test names of its own run.
       .filter(file => !/^docs\/.+\/acceptance\/.+\.json$/u.test(file));
     expect(files).toEqual([]);
+  });
+
+  it('keeps in-app dictation out of the 0.1 product tree', () => {
+    // Retired in next/ on 2026-11-16 and in the 0.1 client on 2026-11-19
+    // (AGENTS.md, "Retired Agent Products"): no recorder, speech service,
+    // speech credential or microphone declaration.
+    const pattern = [
+      'dash' + 'scope',
+      'qwen3-' + 'asr',
+      'voice' + 'Agent',
+      'getUser' + 'Media',
+      'Media' + 'Recorder',
+      'mediaDevices' + 'Enabled',
+      'NSMicrophone' + 'UsageDescription',
+      'RECORD_' + 'AUDIO',
+      'pinyin-' + 'pro',
+    ].join('|');
+    const files = trackedFilesMatching(pattern, ['src', 'src-tauri', 'scripts', 'package.json', 'pnpm-lock.yaml'])
+      .filter(file => !file.startsWith('src-tauri/vendor/'));
+    expect(files).toEqual([]);
+    for (const path of [
+      'src/renderer/lib/speech',
+      'src/renderer/store/voice-capture-store.ts',
+      'src/renderer/features/agent/VoiceDictationButton.tsx',
+      'src-tauri/src/webview_media.rs',
+      'docs/voice-authored-capture.md',
+    ]) {
+      expect(existsSync(resolve(process.cwd(), path)), path).toBe(false);
+    }
   });
 
   it('keeps the standalone Apple-native front-end out of the source tree', () => {

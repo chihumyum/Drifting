@@ -1,6 +1,6 @@
 # M34：帮手输入框口述（不做）
 
-作者 2026-11-16 定：「移除语音输入的功能。自己做不如用户自己用第三方产品。」`next/` 里做好的口述已经删除，不再排期。0.1 客户端的口述这次没动。
+作者 2026-11-16 定：「移除语音输入的功能。自己做不如用户自己用第三方产品。」`next/` 里做好的口述已经删除，不再排期；2026-11-19 作者确认把 0.1 客户端的口述也一并删除。
 
 ## 现在怎么口述
 
@@ -17,7 +17,7 @@ macOS 的听写挂在「编辑」菜单上，`dr-shell/src/menus.rs` 按这条�
 - 文案键 `voiceAgent.*`、`settings.models.speechTitle`、`settings.models.speechDesc`、`speech.backlog`。
 - 音频采集依赖及它带进来的 12 个包。
 
-最后一版实现在提交 `cc339ce9c`。`cargo xtask check` 的 `retired` 门禁拦着采集库、转写服务的键名和麦克风用途描述回到 `next/`。旧版钥匙串里的语音 Key 新版不读，也不删。
+`next/` 最后一版实现在提交 `cc339ce9c`；两个客户端都还带着口述的提交打了标签 `dictation-retired-2026-11-16`，0.1 客户端的口述于 2026-11-19 删除。`cargo xtask check` 的 `retired` 门禁拦着采集库、转写服务的键名和麦克风用途描述回到 `next/`；0.1 客户端由 `retired-client-integrations.acceptance.test.ts` 守着。旧版钥匙串里的语音 Key 两个客户端都不读，也不删。
 
 ## 为什么
 

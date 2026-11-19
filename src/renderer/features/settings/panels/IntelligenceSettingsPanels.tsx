@@ -6,7 +6,6 @@ import {
   isCodexLoginActive,
   type CodexSubscriptionStatus,
 } from '../../../lib/codex-subscription';
-import { speechKeychain } from '../../../lib/speech/speech-credentials';
 import { testByokProviderConnection } from '../../../lib/ai/test-provider-connection';
 import { readEnvApiKey } from '../../../lib/ai/credentials/env';
 import { events } from '../../../lib/events';
@@ -383,106 +382,6 @@ function ChatGptSubscriptionRow({ credentialsActive }: { credentialsActive: bool
   );
 }
 
-/**
- * Voice-transcription credential (DashScope / 阿里云百炼). Deliberately not a
- * `ProviderRow`: it is not an LLM credential and must not join the BYOK
- * provider union. Same keychain-only storage contract as the rows above.
- */
-function SpeechCredentialRow({ credentialsActive }: { credentialsActive: boolean }) {
-  const { t } = useTranslation();
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState('');
-  const [connected, setConnected] = useState(false);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!credentialsActive) return;
-    let cancelled = false;
-    void speechKeychain
-      .has()
-      .then((value) => {
-        if (!cancelled) setConnected(value);
-      })
-      .catch(() => {
-        if (!cancelled) setConnected(false);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [credentialsActive]);
-
-  const save = async () => {
-    const value = draft.trim();
-    if (!value) {
-      await speechKeychain.clear();
-      setConnected(false);
-    } else {
-      await speechKeychain.set(value);
-      setConnected(true);
-    }
-    setDraft('');
-    setEditing(false);
-    events.emit('byok:keys-changed');
-  };
-
-  const disconnect = async () => {
-    await speechKeychain.clear();
-    setConnected(false);
-    events.emit('byok:keys-changed');
-  };
-
-  const startEditing = () => {
-    setDraft('');
-    setEditing(true);
-  };
-  const keyField = <KeyField name="阿里云百炼" value={draft} onChange={setDraft} />;
-
-  return (
-    <ProviderShell
-      name="阿里云百炼"
-      desc={t('settings.models.providers.dashscope')}
-      live={connected}
-      source={connected ? 'Keychain' : t('settings.byokProvider.notConnected')}
-      actions={
-        loading ? null : editing ? (
-          <>
-            {keyField}
-            <SettingsButton variant="primary" onClick={save}>
-              {t('settings.common.save')}
-            </SettingsButton>
-            <SettingsButton
-              variant="ghost"
-              onClick={() => {
-                setDraft('');
-                setEditing(false);
-              }}
-            >
-              {t('settings.common.cancel')}
-            </SettingsButton>
-          </>
-        ) : connected ? (
-          <>
-            <SettingsButton variant="ghost" size="sm" onClick={startEditing}>
-              {t('settings.byokProvider.editKey')}
-            </SettingsButton>
-            <span style={{ flex: 1 }} />
-            <SettingsButton variant="danger" size="sm" onClick={disconnect}>
-              {t('settings.common.disconnect')}
-            </SettingsButton>
-          </>
-        ) : (
-          <SettingsButton variant="primary" size="sm" onClick={startEditing}>
-            {t('settings.common.connect')}
-          </SettingsButton>
-        )
-      }
-    />
-  );
-}
-
 /** The only settings surface allowed to create, edit, test or delete AI keys. */
 export function ModelsPanel({
   credentialsActive,
@@ -521,11 +420,6 @@ export function ModelsPanel({
           desc={t('settings.models.providers.openai')}
         />
         <ChatGptSubscriptionRow credentialsActive={credentialsActive} />
-      </div>
-      <div className="set-sec">
-        <SettingsSectionHeader title={t('settings.models.speechTitle')} hint="BYOK · KEYCHAIN" />
-        <p className="set-row__desc">{t('settings.models.speechDesc')}</p>
-        <SpeechCredentialRow credentialsActive={credentialsActive} />
       </div>
     </section>
   );

@@ -564,11 +564,8 @@
         "deepseek": "Utilisé par Agent général.",
         "anthropic": "Utilisé par Agent général.",
         "openai": "Utilisé par Agent général.",
-        "openaiCodex": "Connectez-vous via le flux appareil Codex d’OpenAI pour utiliser Agent général avec votre abonnement ChatGPT et les modèles proposés à votre compte. Sert aussi aux illustrations d’éléments. OpenAI n’offre aucun contrat tiers pour cette voie : elle peut cesser sans préavis et l’usage est décompté de votre forfait ChatGPT.",
-        "dashscope": "Uniquement pour la transcription vocale (Qwen3-ASR). Créez une clé API dans la console Alibaba Cloud Bailian."
-      },
-      "speechTitle": "Transcription vocale",
-      "speechDesc": "Identifiant de transcription vocale, distinct des fournisseurs de chat. Les noms d’éléments et de contexte du projet sont transmis pour corriger les noms propres. Les requêtes vont directement à Bailian ; la clé reste dans le trousseau système."
+        "openaiCodex": "Connectez-vous via le flux appareil Codex d’OpenAI pour utiliser Agent général avec votre abonnement ChatGPT et les modèles proposés à votre compte. Sert aussi aux illustrations d’éléments. OpenAI n’offre aucun contrat tiers pour cette voie : elle peut cesser sans préavis et l’usage est décompté de votre forfait ChatGPT."
+      }
     },
     "byokProvider": {
       "ownKey": "Clé personnelle",
@@ -1553,32 +1550,6 @@
         "interview": "Pose-moi quelques questions pour façonner cette histoire",
         "castCharacters": "Crée trois personnages principaux"
       }
-    }
-  },
-  "voiceAgent": {
-    "entryAria": "Écriture vocale",
-    "title": "Écriture vocale",
-    "expand": "Développer l’écriture vocale",
-    "collapse": "Réduire en bouton flottant",
-    "endSession": "Terminer la session vocale",
-    "record": "Démarrer l’enregistrement",
-    "stopRecord": "Arrêter l’enregistrement",
-    "tapToStop": "toucher pour arrêter",
-    "recording": "Capture",
-    "transcribing": "Transcription…",
-    "corrected": "{{count}} noms propres corrigés à partir des éléments",
-    "retry": "Réessayer la transcription",
-    "empty": "Appuyez sur le micro et racontez l’histoire. La transcription apparaît ci-dessous ; envoyez-la et Agent utilisera le contexte du projet.",
-    "hint": "La transcription s’appuie sur les noms d’éléments et de contexte pour mieux reconnaître les noms propres.",
-    "composerPlaceholder": "Relisez la transcription puis envoyez-la à Agent",
-    "error": {
-      "noKey": "Clé de transcription absente (Alibaba Cloud Bailian)",
-      "unsupported": "API microphone indisponible (navigator.mediaDevices absent)",
-      "micDenied": "Microphone indisponible ; vérifiez les autorisations système",
-      "recordingFailed": "Enregistrement incomplet ; vérifiez les autorisations du microphone et réessayez",
-      "auth": "Clé de transcription invalide ou expirée",
-      "segmentRejected": "Le service de transcription a refusé ce segment",
-      "transcribeFailed": "Échec de transcription ; enregistrement conservé. Réessayez"
     }
   },
   "memoMaterial": {

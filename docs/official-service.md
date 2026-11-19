@@ -71,8 +71,7 @@ credentials, domains, signing identity, bundle identifier, and branding. A
 compatible service implementation is not currently supplied by this project.
 
 The public production CSP intentionally contains no Drifting hosted origin. It
-allows the direct BYOK provider origins and the DashScope voice-transcription
-origin; `img-src` also allows HTTPS images. Changing `VITE_API_BASE_URL` alone
+allows the direct BYOK provider origins; `img-src` also allows HTTPS images. Changing `VITE_API_BASE_URL` alone
 is therefore not sufficient for an operator build. The `--online` desktop
 launcher (`scripts/run-desktop-tauri.mjs`) adds the configured
 `DRIFTING_HOSTED_ORIGIN` to both CSPs and the native transport allowlist at build

@@ -44,7 +44,6 @@ import '../../../../styles/agent-panel.css';
 import { relTime } from '../AgentMessageViews';
 import { AgentComposerConfig } from '../../../features/agent/AgentComposerConfig';
 import { AgentWorkingMemoryView } from '../../../features/agent/AgentWorkingMemoryView';
-import { VoiceDictationButton } from '../../../features/agent/VoiceDictationButton';
 import { useSidebarPaneId } from '../../../lib/sidebar-pane-context';
 import { createAgentChatViewSource } from '../../../store/agent-chat-view-source';
 import { AgentChatViewContext, useAgentChatViewStore } from '../AgentChatViewContext';
@@ -446,18 +445,7 @@ function DesktopAgentPanelContent({ projectId }: { projectId: string }) {
                 like the manuscript's toolbar. */}
             <div className="agt-composer__tray glass glass--rest">
               <AgentComposerConfig glass />
-              <VoiceDictationButton
-                glass
-                part="button"
-                projectId={projectId}
-                onNeedsSetup={() => events.emit('settings:open', { railId: 'models' })}
-              />
             </div>
-            <VoiceDictationButton
-              part="status"
-              projectId={projectId}
-              onNeedsSetup={() => events.emit('settings:open', { railId: 'models' })}
-            />
             <div className="agt-composer__spacer" />
             {running || automaticContinuationActive ? (
               <>

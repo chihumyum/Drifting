@@ -28,8 +28,7 @@
       }
     },
     "models": {
-      "credentialsDesc": "金鑰只寫入此裝置的 Windows 認證管理員，不會同步到其他裝置或經過 Drifting。請在 Agent 輸入框的設定選單選擇服務商與模型。",
-      "speechDesc": "語音輸入的轉錄憑證，與上方聊天服務商分開。轉錄時會附上此作品的要素與設定名稱，以校正專有名詞；請求從本裝置直接送往百鍊，金鑰僅存在 Windows 認證管理員。"
+      "credentialsDesc": "金鑰只寫入此裝置的 Windows 認證管理員，不會同步到其他裝置或經過 Drifting。請在 Agent 輸入框的設定選單選擇服務商與模型。"
     }
   },
   "agentPanel": {

@@ -13,7 +13,6 @@ import type { WorkspaceTarget } from '../../../features/workspace/navigation/wor
 import { relTime } from '../../../features/agent/AgentMessageViews';
 import { AgentComposerConfig } from '../../../features/agent/AgentComposerConfig';
 import { AgentWorkingMemoryView } from '../../../features/agent/AgentWorkingMemoryView';
-import { VoiceDictationButton } from '../../../features/agent/VoiceDictationButton';
 import { AgentContextIndicator } from '../../../components/agent/AgentContextIndicator';
 import { useAutosizeTextArea } from '../../../hooks/useAutosizeTextArea';
 import { events } from '../../../lib/events';
@@ -208,12 +207,6 @@ export function MobileAgentPanel({
   }, [historyOpen]);
   const composerControls = (<>
                 <AgentComposerConfig preserveInputFocus={Boolean(paperBinding)} />
-                <VoiceDictationButton
-                  projectId={projectId}
-                  onNeedsSetup={() =>
-                    navigate('/settings', { state: { from: location.pathname } })
-                  }
-                />
                 <span className="agt-composer__spacer" />
                 {running && !prompt.trim() ? (
                   <button type="button" className="agt-send agt-send--stop" onClick={() => abort()}>

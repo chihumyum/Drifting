@@ -76,7 +76,7 @@ When a step of the Tauri `setup` hook in `src-tauri/src/lib.rs` fails, Tauri
 panics at its own `app.rs` with "Failed to setup app: error encountered during
 setup hook: " in front of the error; `setupStep` then names the step
 (`database-gateway`, `deep-link`, `webview-configure`, `window-fit`,
-`window-show`, `tray`, `media-devices`, `ios-window`; see
+`window-show`, `tray`, `ios-window`; see
 `crash_reports::enter_setup_step`). A panic inside a step on the thread running
 it carries the step too. What fails before the panic hook is installed (the
 windows created from the configuration, plugins, the data folders) leaves no

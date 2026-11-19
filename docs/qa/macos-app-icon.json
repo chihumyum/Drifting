@@ -3,7 +3,7 @@
   "sources": {
     "scripts/compile-macos-icon.mjs": "be35f55b51f188b2f253071071496ea3bb33147f71aae058ebf97143d5a3fd49",
     "scripts/check-macos-icon.mjs": "1af51a80f0ac9a79df029bea40595b26b29a17d58a6f3736476ada5cb8e036ef",
-    "src-tauri/tauri.conf.json": "ba10d28912c1269c7c90b9ff7d169b568d738ae2459e6dd45ddbc51d7155804a",
+    "src-tauri/tauri.conf.json": "e9abc105fcc16d2164d0a49d8223efab7b154eca6fcb91a542f4a5a7a110ef06",
     "src-tauri/tauri.macos.conf.json": "27bc8c6480840118d78e513aa52514c8820c0d424d3cc10772c48864196bce86",
     "src/assets/icon.icns": "932f5838a4c43762024852b6c5fdf1da02a065ca4d8d502e620b0fd4d508fe47",
     "src/assets/icon.icon/icon.json": "a47f93e0c7ac61fcf982a24a16d4473180327cbfbf5c8fc1477dc5767aaef71e",
@@ -16,7 +16,7 @@
     "iconName": "icon",
     "iconFile": "icon.icns",
     "fallbackSha256": "932f5838a4c43762024852b6c5fdf1da02a065ca4d8d502e620b0fd4d508fe47",
-    "catalogSha256": "8e29cdc3b8b92b43e169ac6c6a4dab5659fa9de3cd2a7612f99366b9f5a0b642",
+    "catalogSha256": "b0b0ae5de2ed65b775f06f7bc9a1e089d69b2cf7ce8ccfd5afae893343ca6b81",
     "compiler": "Xcode 27.2 (27B52) via AssetCatalogAgent-AssetRuntime",
     "platform": "macosx",
     "appearances": [

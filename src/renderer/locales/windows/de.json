@@ -28,8 +28,7 @@
       }
     },
     "models": {
-      "credentialsDesc": "Schlüssel liegen nur im Systemschlüsselbund dieses Geräts. Sie werden weder synchronisiert noch über Drifting geleitet. Anbieter und Modell wählst du im Konfigurationsmenü des Agent-Eingabefelds.",
-      "speechDesc": "Transkriptionszugang für Spracheingabe, getrennt von den Chat-Anbietern. Element- und Weltdetailsnamen werden zur Korrektur von Eigennamen mitgesendet. Anfragen gehen direkt an Bailian; der Schlüssel liegt nur im Systemschlüsselbund."
+      "credentialsDesc": "Schlüssel liegen nur im Systemschlüsselbund dieses Geräts. Sie werden weder synchronisiert noch über Drifting geleitet. Anbieter und Modell wählst du im Konfigurationsmenü des Agent-Eingabefelds."
     }
   },
   "agentPanel": {

@@ -562,11 +562,8 @@
         "deepseek": "Used by General Agent.",
         "anthropic": "Used by General Agent.",
         "openai": "Used by General Agent.",
-        "openaiCodex": "Sign in through OpenAI's Codex device flow to run General Agent on your own ChatGPT subscription, with whichever models your account offers; element art generation uses it too. OpenAI offers no third-party contract for this path, so it may stop working without notice; usage counts against your ChatGPT plan.",
-        "dashscope": "Used only for voice-input transcription (Qwen3-ASR). Create an API key in the Alibaba Cloud Bailian console."
-      },
-      "speechTitle": "Voice transcription",
-      "speechDesc": "The transcription credential for voice input, separate from the chat providers above. Transcription carries this project's element and setting names to correct proper nouns; requests go directly from this device to Bailian and the key lives only in the system keychain."
+        "openaiCodex": "Sign in through OpenAI's Codex device flow to run General Agent on your own ChatGPT subscription, with whichever models your account offers; element art generation uses it too. OpenAI offers no third-party contract for this path, so it may stop working without notice; usage counts against your ChatGPT plan."
+      }
     },
     "byokProvider": {
       "ownKey": "Own key",
@@ -1549,32 +1546,6 @@
         "interview": "Ask me a few questions to shape this story",
         "castCharacters": "Create three main characters"
       }
-    }
-  },
-  "voiceAgent": {
-    "entryAria": "Voice writing",
-    "title": "Voice writing",
-    "expand": "Expand voice writing",
-    "collapse": "Collapse to floating button",
-    "endSession": "End voice session",
-    "record": "Start recording",
-    "stopRecord": "Stop recording",
-    "tapToStop": "tap to stop",
-    "recording": "Recording",
-    "transcribing": "Transcribing…",
-    "corrected": "Corrected {{count}} proper nouns from the element list",
-    "retry": "Retry transcription",
-    "empty": "Press the mic and just say the story. The transcript lands in the composer below; send it and Agent works with your project context.",
-    "hint": "Transcription is biased with this project's element and setting names for accurate proper nouns.",
-    "composerPlaceholder": "Review the transcript here, then send it to Agent",
-    "error": {
-      "noKey": "No transcription key configured (Alibaba Cloud Bailian)",
-      "unsupported": "Microphone API unavailable in this view (navigator.mediaDevices missing)",
-      "micDenied": "Microphone unavailable — check system permissions",
-      "recordingFailed": "Recording did not finish correctly — check microphone permissions and retry",
-      "auth": "The transcription key is invalid or expired",
-      "segmentRejected": "The transcription service rejected this segment",
-      "transcribeFailed": "Transcription failed; the recording is kept — retry"
     }
   },
   "memoMaterial": {

@@ -1403,8 +1403,6 @@ describe('workspace surface language acceptance', () => {
     expect(panel).toContain('className="agt-composer agt-composer--glass glass glass--rest glass--field"');
     expect(panel).toContain('className="agt-composer__tray glass glass--rest"');
     expect(panel).toContain('<AgentComposerConfig glass />');
-    expect(panel).toContain('part="button"');
-    expect(panel).toContain('part="status"');
     expect(panel).toContain('className="agt-round glass glass--rest glass--round"');
     expect(panel).toContain('<BrushIcon name="stop" />');
     expect(panel).toContain("<BrushIcon name={pendingControl?.status === 'waiting_user' ? 'lift' : 'lift-bent'} />");

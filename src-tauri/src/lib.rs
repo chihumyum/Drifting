@@ -41,8 +41,6 @@ mod state;
 mod sync_asset_store;
 mod sync_object_store;
 mod system_fonts;
-#[cfg(target_os = "macos")]
-mod webview_media;
 mod window_fit;
 #[cfg(target_os = "windows")]
 mod windows_image_codec;
@@ -455,11 +453,6 @@ pub fn run() {
             }
 
             if let Some(window) = app.get_webview_window("main") {
-                #[cfg(target_os = "macos")]
-                {
-                    crash_reports::enter_setup_step("media-devices");
-                    webview_media::enable_media_devices(&window)?;
-                }
                 #[cfg(target_os = "windows")]
                 {
                     crash_reports::enter_setup_step("webview-configure");

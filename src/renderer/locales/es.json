@@ -564,11 +564,8 @@
         "deepseek": "Usado por Agent general.",
         "anthropic": "Usado por Agent general.",
         "openai": "Usado por Agent general.",
-        "openaiCodex": "Inicia sesión mediante el flujo de dispositivo Codex de OpenAI para usar Agent general con tu suscripción ChatGPT y los modelos de tu cuenta. También se usa para ilustraciones de elementos. OpenAI no ofrece un contrato para terceros en esta vía; puede dejar de funcionar sin aviso y consume tu plan ChatGPT.",
-        "dashscope": "Solo para transcripción de voz (Qwen3-ASR). Crea una clave API en la consola Alibaba Cloud Bailian."
-      },
-      "speechTitle": "Transcripción de voz",
-      "speechDesc": "Credencial de transcripción para entrada de voz, separada de los proveedores de chat. Incluye nombres de elementos y ambientación para corregir nombres propios. Las solicitudes van directamente a Bailian y la clave solo queda en el llavero del sistema."
+        "openaiCodex": "Inicia sesión mediante el flujo de dispositivo Codex de OpenAI para usar Agent general con tu suscripción ChatGPT y los modelos de tu cuenta. También se usa para ilustraciones de elementos. OpenAI no ofrece un contrato para terceros en esta vía; puede dejar de funcionar sin aviso y consume tu plan ChatGPT."
+      }
     },
     "byokProvider": {
       "ownKey": "Clave propia",
@@ -1553,32 +1550,6 @@
         "interview": "Hazme preguntas para dar forma a esta historia",
         "castCharacters": "Crea tres personajes principales"
       }
-    }
-  },
-  "voiceAgent": {
-    "entryAria": "Escritura por voz",
-    "title": "Escritura por voz",
-    "expand": "Expandir escritura por voz",
-    "collapse": "Contraer a botón flotante",
-    "endSession": "Finalizar sesión de voz",
-    "record": "Iniciar grabación",
-    "stopRecord": "Detener grabación",
-    "tapToStop": "toca para detener",
-    "recording": "Capturando",
-    "transcribing": "Transcribiendo…",
-    "corrected": "{{count}} nombres propios corregidos con la lista de elementos",
-    "retry": "Reintentar transcripción",
-    "empty": "Pulsa el micrófono y cuenta la historia. La transcripción aparece abajo; envíala y Agent trabajará con el contexto del proyecto.",
-    "hint": "La transcripción usa nombres de elementos y ambientación para reconocer mejor los nombres propios.",
-    "composerPlaceholder": "Revisa la transcripción y envíala a Agent",
-    "error": {
-      "noKey": "Sin clave de transcripción (Alibaba Cloud Bailian)",
-      "unsupported": "API de micrófono no disponible (falta navigator.mediaDevices)",
-      "micDenied": "Micrófono no disponible; revisa los permisos del sistema",
-      "recordingFailed": "La grabación no terminó correctamente; revisa los permisos y reintenta",
-      "auth": "La clave de transcripción no es válida o ha caducado",
-      "segmentRejected": "El servicio de transcripción rechazó este segmento",
-      "transcribeFailed": "Transcripción fallida; grabación conservada. Reintenta"
     }
   },
   "memoMaterial": {

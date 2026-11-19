@@ -562,11 +562,8 @@
         "deepseek": "범용 Agent에서 사용합니다.",
         "anthropic": "범용 Agent에서 사용합니다.",
         "openai": "범용 Agent에서 사용합니다.",
-        "openaiCodex": "OpenAI의 Codex 기기 로그인으로 본인의 ChatGPT 구독과 계정에서 제공하는 모델을 사용해 범용 Agent를 실행합니다. 요소 이미지 생성에도 사용됩니다. OpenAI는 이 경로에 대한 제3자 계약을 제공하지 않으므로 예고 없이 중단될 수 있습니다. 사용량은 ChatGPT 요금제에 반영됩니다.",
-        "dashscope": "음성 입력 전사(Qwen3-ASR)에만 사용됩니다. Alibaba Cloud Bailian 콘솔에서 API 키를 만드세요."
-      },
-      "speechTitle": "음성 전사",
-      "speechDesc": "위의 채팅 제공업체와 별개인 음성 입력 전사 인증 정보입니다. 고유명사 교정을 위해 작품의 요소·설정 이름을 함께 보냅니다. 요청은 기기에서 Bailian으로 직접 전송되며 키는 시스템 키체인에만 저장됩니다."
+        "openaiCodex": "OpenAI의 Codex 기기 로그인으로 본인의 ChatGPT 구독과 계정에서 제공하는 모델을 사용해 범용 Agent를 실행합니다. 요소 이미지 생성에도 사용됩니다. OpenAI는 이 경로에 대한 제3자 계약을 제공하지 않으므로 예고 없이 중단될 수 있습니다. 사용량은 ChatGPT 요금제에 반영됩니다."
+      }
     },
     "byokProvider": {
       "ownKey": "내 키 사용",
@@ -1549,32 +1546,6 @@
         "interview": "이야기를 구체화할 수 있도록 몇 가지 질문해 줘",
         "castCharacters": "주요 인물 세 명을 만들어 줘"
       }
-    }
-  },
-  "voiceAgent": {
-    "entryAria": "음성 집필",
-    "title": "음성 집필",
-    "expand": "음성 집필 펼치기",
-    "collapse": "플로팅 버튼으로 접기",
-    "endSession": "음성 세션 종료",
-    "record": "녹음 시작",
-    "stopRecord": "녹음 중지",
-    "tapToStop": "눌러서 중지",
-    "recording": "기록 중",
-    "transcribing": "전사 중…",
-    "corrected": "요소 목록을 바탕으로 고유명사 {{count}}개 교정",
-    "retry": "전사 다시 시도",
-    "empty": "마이크를 누르고 이야기를 말하세요. 전사문이 아래 입력창에 들어가며 보내면 Agent가 작품 맥락과 함께 처리합니다.",
-    "hint": "고유명사의 정확도를 높이기 위해 작품의 요소·설정 이름을 전사에 반영합니다.",
-    "composerPlaceholder": "여기서 전사문을 확인한 뒤 Agent에게 보내세요",
-    "error": {
-      "noKey": "전사 키가 설정되지 않음(Alibaba Cloud Bailian)",
-      "unsupported": "이 화면에서 마이크 API를 사용할 수 없음(navigator.mediaDevices 없음)",
-      "micDenied": "마이크를 사용할 수 없습니다. 시스템 권한을 확인하세요",
-      "recordingFailed": "녹음이 정상적으로 끝나지 않았습니다. 마이크 권한을 확인한 뒤 다시 시도하세요",
-      "auth": "전사 키가 유효하지 않거나 만료되었습니다",
-      "segmentRejected": "전사 서비스가 이 구간을 거부했습니다",
-      "transcribeFailed": "전사에 실패했습니다. 녹음은 보존되어 다시 시도할 수 있습니다"
     }
   },
   "memoMaterial": {

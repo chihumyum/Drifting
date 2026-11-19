@@ -125,4 +125,4 @@ It uses a disposable headless browser profile and synthetic documents.
 
 No automatic ad-hoc fallback is introduced: it changes app/credential identity
 and does not validate the existing secure-storage behavior. Signed distribution,
-native keyboard/microphone and real-account sync acceptance remain separate.
+native keyboard/IME and real-account sync acceptance remain separate.

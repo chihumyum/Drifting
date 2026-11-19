@@ -97,8 +97,7 @@ truth.
 - Mobile (paused):
   [mobile UI foundation](mobile-ui-foundation.md),
   [device acceptance runbook](mobile-device-acceptance.md),
-  [iOS Hosted integration](hosted-sync/ios.md),
-  [voice-authored writing](voice-authored-capture.md) (unaccepted)
+  [iOS Hosted integration](hosted-sync/ios.md)
 
 ## Design system
 

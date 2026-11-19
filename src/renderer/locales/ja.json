@@ -562,11 +562,8 @@
         "deepseek": "汎用Agentで使用します。",
         "anthropic": "汎用Agentで使用します。",
         "openai": "汎用Agentで使用します。",
-        "openaiCodex": "OpenAIのCodex端末認証でログインし、ご自身のChatGPT契約と利用可能なモデルで汎用Agentを動かします。要素の設定画生成にも使います。この経路にOpenAIの第三者向け契約はなく、予告なく使えなくなる場合があります。使用量はChatGPTプランに計上されます。",
-        "dashscope": "音声入力の文字起こし専用です（Qwen3-ASR）。Alibaba Cloud BailianのコンソールでAPIキーを作成してください。"
-      },
-      "speechTitle": "音声文字起こし",
-      "speechDesc": "上のチャット提供元とは別の、音声入力用認証情報です。固有名詞の補正のため作品の要素名や設定名を添えます。端末からBailianへ直接送信し、キーはシステムキーチェーンだけに保存します。"
+        "openaiCodex": "OpenAIのCodex端末認証でログインし、ご自身のChatGPT契約と利用可能なモデルで汎用Agentを動かします。要素の設定画生成にも使います。この経路にOpenAIの第三者向け契約はなく、予告なく使えなくなる場合があります。使用量はChatGPTプランに計上されます。"
+      }
     },
     "byokProvider": {
       "ownKey": "自分のキー",
@@ -1549,32 +1546,6 @@
         "interview": "いくつか質問して、この物語の形を整えて",
         "castCharacters": "主要人物を3人作って"
       }
-    }
-  },
-  "voiceAgent": {
-    "entryAria": "音声で執筆",
-    "title": "音声で執筆",
-    "expand": "音声執筆を展開",
-    "collapse": "フローティングボタンに縮小",
-    "endSession": "音声セッションを終了",
-    "record": "録音開始",
-    "stopRecord": "録音停止",
-    "tapToStop": "タップして停止",
-    "recording": "記録中",
-    "transcribing": "文字起こし中…",
-    "corrected": "要素一覧を基に固有名詞を{{count}}件補正",
-    "retry": "文字起こしを再試行",
-    "empty": "マイクを押して物語を話してください。文字起こしが下の入力欄に入り、送信するとAgentが作品の背景と合わせて扱います。",
-    "hint": "固有名詞の精度を高めるため、作品の要素名や設定名を文字起こしに反映します。",
-    "composerPlaceholder": "ここで文字起こしを確認し、Agentに送信",
-    "error": {
-      "noKey": "文字起こし用キー未設定（Alibaba Cloud Bailian）",
-      "unsupported": "この画面でマイクAPIを利用できません（navigator.mediaDevicesなし）",
-      "micDenied": "マイクを利用できません。システム権限を確認してください",
-      "recordingFailed": "録音を完了できませんでした。マイク権限を確認して再試行してください",
-      "auth": "文字起こし用キーが無効か期限切れです",
-      "segmentRejected": "文字起こしサービスがこの部分を拒否しました",
-      "transcribeFailed": "文字起こしに失敗しました。録音は保持しています。再試行できます"
     }
   },
   "memoMaterial": {

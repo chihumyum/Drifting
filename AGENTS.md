@@ -62,7 +62,7 @@ Guidance for coding agents working in this standalone Drifting client repository
   the system's dictation or a third-party voice input tool. Do not add
   microphone capture, a speech-recognition client or model, a speech
   credential or a microphone usage description back; gate `retired` keeps them
-  out. The 0.1 client's dictation was not touched. See
+  out. The 0.1 client retired it on 2026-11-19 ("Retired Agent Products"). See
   `docs/rust-rewrite/modules/m34-dictation.md`.
 - Development builds carry the bundle id `cc.drifting.next.dev`. Do not give a
   `next/` build the release client's identity before F7's hand-over.
@@ -160,6 +160,15 @@ Guidance for coding agents working in this standalone Drifting client repository
   BYOK route. Keep the `block_section` table, its sync domain and the stored
   `copilot` comment enum values; typed TODO markers still project into todos.
   The last commit with Copilot is tagged `copilot-retired-2026-10-30`.
+- In-app dictation (microphone capture, DashScope transcription, the speech
+  credential, pinyin name correction) was retired in `next/` on 2026-11-16 and
+  in the 0.1 client on 2026-11-19 (author decision): authors use the system's
+  dictation or a third-party voice input tool. Do not restore the recorder, a
+  speech-recognition client or model, the speech credential, the microphone
+  permission declarations or a speech service origin in the CSP. A speech key
+  an author stored stays in the system keychain; nothing reads it. The last
+  commit with dictation in both clients is tagged
+  `dictation-retired-2026-11-16`.
 - The frozen Ambient Editor (Shadow) design was retired unimplemented on
   2026-10-30. Proactive Agent work grows from the Project Home check-in
   (`docs/agent-runtime/project-checkin.md`) on the shared renderer-owned

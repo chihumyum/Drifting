@@ -130,8 +130,6 @@ until you connect one in **Settings → Models & API**.
   wait on the device and are deleted after 30 days unless you keep them. A kept
   image becomes a material, with the prompt recorded alongside it, and syncs
   like any other material. See [image generation](docs/image-generation.md).
-- **Voice dictation** is optional. With an Alibaba Cloud DashScope key, recorded
-  audio and a list of the project's names go directly to DashScope.
 - **Background Agent work.** With a provider connected, Project Home's daily
   check-in and auto-organize send recently changed prose to your selected
   provider without a separate request each time. Both can be turned off in

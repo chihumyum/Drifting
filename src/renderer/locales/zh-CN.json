@@ -561,11 +561,8 @@
         "deepseek": "供 General Agent 使用。",
         "anthropic": "供 General Agent 使用。",
         "openai": "供 General Agent 使用。",
-        "openaiCodex": "通过 OpenAI 的 Codex 设备登录，用你的 ChatGPT 订阅运行 General Agent，可用模型以你的账号为准；生成设定图也用它。OpenAI 没有向第三方应用开放这条路径，可能随时失效；用量计入你的 ChatGPT 套餐。",
-        "dashscope": "仅用于语音输入转写（Qwen3-ASR）。在阿里云百炼控制台创建 API Key 后填入。"
-      },
-      "speechTitle": "语音转写",
-      "speechDesc": "语音输入的转写凭据，独立于上方对话模型。转写会携带本项目的要素与设定名以纠正专有名词；请求从本机直连百炼，Key 仅存系统钥匙串。"
+        "openaiCodex": "通过 OpenAI 的 Codex 设备登录，用你的 ChatGPT 订阅运行 General Agent，可用模型以你的账号为准；生成设定图也用它。OpenAI 没有向第三方应用开放这条路径，可能随时失效；用量计入你的 ChatGPT 套餐。"
+      }
     },
     "byokProvider": {
       "ownKey": "自带密钥",
@@ -1547,32 +1544,6 @@
         "interview": "先问我几个问题，帮我理清这个故事",
         "castCharacters": "建三个主要人物"
       }
-    }
-  },
-  "voiceAgent": {
-    "entryAria": "语音创作",
-    "title": "语音创作",
-    "expand": "展开语音创作",
-    "collapse": "收起为悬浮按钮",
-    "endSession": "结束语音会话",
-    "record": "开始录音",
-    "stopRecord": "停止录音",
-    "tapToStop": "点击停止",
-    "recording": "录音中",
-    "transcribing": "转写中…",
-    "corrected": "已按要素表校正 {{count}} 处专名",
-    "retry": "重试转写",
-    "empty": "按下麦克风，直接把情节说出来。转写会进入下方输入框，发送后 Agent 会带着项目上下文处理。",
-    "hint": "转写会注入本项目的要素与设定名，专有名词更准。",
-    "composerPlaceholder": "说完后在这里核对转写，再发送给 Agent",
-    "error": {
-      "noKey": "尚未配置语音转写 Key（阿里云百炼）",
-      "unsupported": "这个界面没有开放麦克风 API（navigator.mediaDevices 不可用）",
-      "micDenied": "无法访问麦克风，请检查系统权限",
-      "recordingFailed": "录音未能正常结束，请检查麦克风权限后重试",
-      "auth": "转写 Key 无效或已过期",
-      "segmentRejected": "这段录音被转写服务拒绝",
-      "transcribeFailed": "转写失败，录音仍保留，可重试"
     }
   },
   "memoMaterial": {
