@@ -1113,6 +1113,7 @@ impl Workspace {
             use futures::StreamExt as _;
             while rx.next().await.is_some() {
                 let alive = this.update_in(cx, |ws, window, cx| {
+                    crate::tray::restore_window(window);
                     window.activate_window();
                     ws.open_queued_links(window, cx);
                 });
@@ -1388,35 +1389,90 @@ impl Workspace {
     /// the book's layout is stored first, so the next launch opens it as it
     /// was. In a project template's working copy (`project-templates.md` §12,
     /// PT3), it returns to 全部项目 instead of closing the window
-    /// ([`working_copy`]).
+    /// ([`working_copy`]). On Windows (`crate::tray::manages_window_close`),
+    /// closing while a book is open returns to 全部项目 first, and closing on
+    /// 全部项目 hides to the notification area when an icon is registered (or
+    /// runs a flushed quit when no notification area exists).
     fn listen_on_close(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let this = cx.weak_entity();
         window.on_window_should_close(cx, move |window, cx| {
-            let leaving = this
-                .update(cx, |ws, cx| {
-                    let leaving = ws.in_working_copy();
-                    if leaving {
-                        ws.close_over_working_copy(window, cx);
-                    }
-                    leaving
-                })
-                .unwrap_or(false);
-            if leaving {
-                // The field that had the keyboard hands over what is typed in
-                // it now, while the working copy is still the open book.
-                window.refresh();
-                window.draw(cx).clear(cx);
-            }
-            this.update(cx, |ws, cx| {
+            Self::should_close_window(&this, window, cx)
+        });
+    }
+
+    /// Evaluates a main-window close request for [`Self::listen_on_close`] and
+    /// tests.
+    pub fn should_close_window(
+        this: &gpui::WeakEntity<Self>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> bool {
+        let leaving = this
+            .update(cx, |ws, cx| {
+                let leaving = ws.in_working_copy();
+                if leaving {
+                    ws.close_over_working_copy(window, cx);
+                }
+                leaving
+            })
+            .unwrap_or(false);
+        if leaving {
+            // The field that had the keyboard hands over what is typed in
+            // it now, while the working copy is still the open book.
+            window.refresh();
+            window.draw(cx).clear(cx);
+        }
+        let decision = this
+            .update(cx, |ws, cx| {
                 if leaving && ws.show_shelf(window, cx) {
                     ws.save_left_working_copy(cx);
-                    return false;
+                    return Some(false);
                 }
                 ws.store_layout(cx);
-                true
+                let context = if !ws.shelf_open && !ws.book_id.is_empty() && pages::has_shelf(cx) {
+                    dr_platform::tray::WindowCloseContext::BookOpen
+                } else {
+                    dr_platform::tray::WindowCloseContext::OnShelf
+                };
+                match crate::tray::handle_window_close(context, cx) {
+                    None => Some(true),
+                    Some(dr_platform::tray::WindowCloseDecision::ReturnToShelf) => {
+                        if ws.show_shelf(window, cx) {
+                            Settings::flush(cx);
+                            Some(false)
+                        } else {
+                            match crate::tray::handle_window_close(
+                                dr_platform::tray::WindowCloseContext::OnShelf,
+                                cx,
+                            ) {
+                                Some(dr_platform::tray::WindowCloseDecision::HideToTray) => {
+                                    dr_view_stats::flush(cx);
+                                    Settings::flush(cx);
+                                    crate::tray::hide_window(window);
+                                    Some(false)
+                                }
+                                Some(dr_platform::tray::WindowCloseDecision::QuitProcess) => None,
+                                _ => Some(true),
+                            }
+                        }
+                    }
+                    Some(dr_platform::tray::WindowCloseDecision::HideToTray) => {
+                        dr_view_stats::flush(cx);
+                        Settings::flush(cx);
+                        crate::tray::hide_window(window);
+                        Some(false)
+                    }
+                    Some(dr_platform::tray::WindowCloseDecision::QuitProcess) => None,
+                }
             })
-            .unwrap_or(true)
-        });
+            .unwrap_or(Some(true));
+        match decision {
+            Some(should_close) => should_close,
+            None => {
+                crate::quit::request(cx);
+                false
+            }
+        }
     }
 
     /// Something in the layout changed: repaint, and store it soon.

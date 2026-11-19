@@ -26,9 +26,10 @@ use std::{
     borrow::Cow,
     fmt,
     path::{Path, PathBuf},
+    sync::OnceLock,
 };
 
-use gpui::{App, Font, FontFeatures, FontStyle, FontWeight, SharedString, font};
+use gpui::{App, Font, FontFallbacks, FontFeatures, FontStyle, FontWeight, SharedString, font};
 
 pub const SANS: &str = "Drifting Sans";
 pub const SERIF: &str = "Drifting Serif";
@@ -203,12 +204,51 @@ impl Role {
         SharedString::new_static(self.family())
     }
 
-    /// A GPUI font for this role at `weight`.
+    pub const fn platform_role(self) -> dr_platform::fonts::FontRole {
+        match self {
+            Role::Ui => dr_platform::fonts::FontRole::Ui,
+            Role::Structure => dr_platform::fonts::FontRole::Structure,
+            Role::Index => dr_platform::fonts::FontRole::Index,
+            Role::Prose => dr_platform::fonts::FontRole::Prose,
+        }
+    }
+
+    /// The fallback chain a font of this role names. On Windows it is the
+    /// one `dr_platform::fonts` lists (M43): what the system picks there for
+    /// a character the bundle lacks is not a face that sits with it. On
+    /// macOS it is none, so Core Text keeps choosing as it always has and
+    /// nothing drawn there changes.
+    pub fn fallbacks(self) -> Option<FontFallbacks> {
+        if !cfg!(windows) {
+            return None;
+        }
+        fn build(role: Role) -> FontFallbacks {
+            FontFallbacks::from_fonts(
+                dr_platform::fonts::fallbacks_for(role.platform_role())
+                    .iter()
+                    .map(|family| (*family).to_owned())
+                    .collect(),
+            )
+        }
+        static UI: OnceLock<FontFallbacks> = OnceLock::new();
+        static STRUCTURE: OnceLock<FontFallbacks> = OnceLock::new();
+        static INDEX: OnceLock<FontFallbacks> = OnceLock::new();
+        static PROSE: OnceLock<FontFallbacks> = OnceLock::new();
+        Some(match self {
+            Role::Ui => UI.get_or_init(|| build(Role::Ui)).clone(),
+            Role::Structure => STRUCTURE.get_or_init(|| build(Role::Structure)).clone(),
+            Role::Index => INDEX.get_or_init(|| build(Role::Index)).clone(),
+            Role::Prose => PROSE.get_or_init(|| build(Role::Prose)).clone(),
+        })
+    }
+
+    /// A GPUI font for this role at `weight`, with [`Self::fallbacks`].
     pub fn font(self, weight: FontWeight) -> Font {
         let mut f = font(self.family());
         f.weight = weight;
         f.style = FontStyle::Normal;
         f.features = FontFeatures::default();
+        f.fallbacks = self.fallbacks();
         f
     }
 }
@@ -259,5 +299,27 @@ mod tests {
         assert!(text.contains(BUILD_COMMAND));
         assert!(text.contains(DIR_ENV));
         assert!(text.contains("nowhere/fonts"));
+    }
+
+    /// On Windows a role's font names the chain `dr_platform::fonts` lists;
+    /// on macOS it names none, so what Core Text picks there is unchanged.
+    #[test]
+    fn a_role_font_names_its_fallback_chain_on_windows_only() {
+        for role in [Role::Ui, Role::Structure, Role::Index, Role::Prose] {
+            let font = role.font(weight::REGULAR);
+            assert_eq!(font.family.as_ref(), role.family());
+            if cfg!(windows) {
+                let expected: Vec<String> = dr_platform::fonts::fallbacks_for(role.platform_role())
+                    .iter()
+                    .map(|s| (*s).to_owned())
+                    .collect();
+                assert!(!expected.is_empty());
+                let fallbacks = font.fallbacks.as_ref().expect("the Windows chain");
+                assert_eq!(fallbacks.fallback_list(), expected.as_slice());
+            } else {
+                assert!(font.fallbacks.is_none());
+                assert!(role.fallbacks().is_none());
+            }
+        }
     }
 }

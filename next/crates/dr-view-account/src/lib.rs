@@ -60,6 +60,14 @@ pub struct Service {
     pub avatar_cache: Option<(String, Arc<RenderImage>)>,
     pub signing_out: bool,
     preference_sync_task: Option<gpui::Task<()>>,
+    /// How many times [`schedule_preference_sync`] queued a round.
+    preference_sync_scheduled_count: usize,
+    /// A sync round is writing what the server answered into the settings:
+    /// that is not the author changing a setting, and schedules nothing.
+    applying_remote_preferences: bool,
+    /// The account-scoped settings as they were when last looked at, to tell
+    /// a change to one of them from a change to a device-only setting.
+    last_observed_synced: BTreeMap<String, Option<serde_json::Value>>,
 }
 
 impl Global for Service {}
@@ -101,7 +109,17 @@ impl Service {
             avatar_cache,
             signing_out: false,
             preference_sync_task: None,
+            preference_sync_scheduled_count: 0,
+            applying_remote_preferences: false,
+            last_observed_synced: BTreeMap::new(),
         }
+    }
+
+    /// Number of times [`schedule_preference_sync`] has queued a debounced sync
+    /// round while connected.
+    #[must_use]
+    pub fn preference_sync_scheduled_count(&self) -> usize {
+        self.preference_sync_scheduled_count
     }
 }
 
@@ -124,8 +142,11 @@ fn build_avatar_render_image(data_url: &str) -> Option<Arc<RenderImage>> {
 /// - Registers the `Settings → Account` panel (`"account.hosted"`);
 /// - Registers the `auth/` deep-link OAuth callback handler;
 /// - Starts background session bootstrap (`GET /api/auth/get-session`).
-pub fn init(service: Service, cx: &mut App) {
+pub fn init(mut service: Service, cx: &mut App) {
     let inner = service.inner.clone();
+    if cx.has_global::<Settings>() {
+        service.last_observed_synced = explicit_synced_snapshot(Settings::read(cx));
+    }
     let initial_state = service.state.clone();
     cx.set_global(service);
 
@@ -137,6 +158,24 @@ pub fn init(service: Service, cx: &mut App) {
     {
         first_run::write_samples(lib, cx).detach();
     }
+
+    // M37: changing a setting that goes with the account schedules a
+    // debounced preference sync; device-only settings, BYOK, layout and what
+    // a sync round itself writes back do not.
+    dr_shell::settings::on_changed(cx, |cx| {
+        if !cx.has_global::<Service>() || !cx.has_global::<Settings>() {
+            return;
+        }
+        let next = explicit_synced_snapshot(Settings::read(cx));
+        let should_schedule = cx.update_global::<Service, _>(|svc, _| {
+            let changed = svc.last_observed_synced != next;
+            svc.last_observed_synced = next;
+            changed && !svc.applying_remote_preferences
+        });
+        if should_schedule {
+            schedule_preference_sync(cx);
+        }
+    });
 
     // First-run Welcome / Account step (before M40's FolderStep when `init` runs before `dr_view_sea::shell::init`).
     first_run::add_step(cx, |_, cx| {
@@ -378,7 +417,10 @@ pub fn schedule_preference_sync(cx: &mut App) {
             .await;
         cx.update(sync_preferences_now);
     });
-    cx.global_mut::<Service>().preference_sync_task = Some(task);
+    cx.update_global::<Service, _>(|svc, _| {
+        svc.preference_sync_scheduled_count += 1;
+        svc.preference_sync_task = Some(task);
+    });
 }
 
 /// Device-memory key storing the M37 preference sync ledger and last-synced baseline.
@@ -499,6 +541,15 @@ fn save_stored_preference_state(file: &mut dr_shell::SettingsFile, state: &Store
     }
 }
 
+fn explicit_synced_snapshot(
+    file: &dr_shell::SettingsFile,
+) -> BTreeMap<String, Option<serde_json::Value>> {
+    synced_preference_keys()
+        .into_iter()
+        .map(|k| (k.to_owned(), read_explicit_synced_preference(file, k)))
+        .collect()
+}
+
 /// Runs an M37 preference sync round immediately on the background executor when connected.
 pub fn sync_preferences_now(cx: &mut App) {
     let Some(svc) = cx.try_global::<Service>() else {
@@ -520,9 +571,21 @@ pub fn sync_preferences_now(cx: &mut App) {
                 && outcome.supported
                 && cx.has_global::<Settings>()
             {
+                if cx.has_global::<Service>() {
+                    cx.update_global::<Service, _>(|svc, _| {
+                        svc.applying_remote_preferences = true;
+                    });
+                }
                 Settings::update(cx, |file| {
                     apply_preference_sync_outcome(file, &outcome);
                 });
+                if cx.has_global::<Service>() {
+                    let observed = explicit_synced_snapshot(Settings::read(cx));
+                    cx.update_global::<Service, _>(|svc, _| {
+                        svc.applying_remote_preferences = false;
+                        svc.last_observed_synced = observed;
+                    });
+                }
                 let bindings = Settings::read(cx).key_bindings();
                 dr_shell::keymap::apply(&bindings, cx);
             }
@@ -1170,6 +1233,110 @@ mod tests {
             ] {
                 assert!(!sync_action_label(action, locale).is_empty());
             }
+        }
+    }
+
+    #[gpui::test]
+    fn changing_account_scoped_setting_in_settings_schedules_preference_sync_without_device_noise(
+        cx: &mut TestAppContext,
+    ) {
+        use dr_shell::settings::registry::{
+            AGENT_MODEL, AGENT_PROVIDER, CRASH_REPORTS, FONT_SIZE, REDUCE_MOTION, TEXT_SIZE, THEME,
+        };
+        use serde_json::Value;
+
+        cx.executor().allow_parking();
+        let server = FakeAuthServer::start();
+        server.set_require_signup_verification(false);
+        let tmp = TempDir::new().expect("tempdir");
+        let svc = Arc::new(
+            AccountService::new(
+                server.config(),
+                tmp.path(),
+                "cc.drifting.next.dev",
+                Arc::new(SecretStore::in_memory()),
+            )
+            .expect("hosted service"),
+        );
+        svc.sign_up_email("Author", "live-prefs@example.test", "prefs-password-123")
+            .expect("sign up");
+        let signed_in_state = svc.state();
+
+        cx.update(|cx| {
+            let _ = dr_ui::fonts::register(cx);
+            dr_shell::init(
+                shell_info(),
+                Services::default(),
+                SettingsFile::in_memory(),
+                cx,
+            );
+            init(Service::with_service(svc.clone()), cx);
+            apply_account_state(signed_in_state, cx);
+        });
+
+        // Wait for the initial sign-in preference sync round to settle.
+        cx.run_until_parked();
+        let baseline_scheduled =
+            cx.update(|cx| cx.global::<Service>().preference_sync_scheduled_count());
+
+        // Device-scoped, BYOK, layout, and device-memory mutations must NOT
+        // schedule account preference sync.
+        cx.update(|cx| {
+            Settings::update(cx, |f| f.set(TEXT_SIZE, Value::from("large"), None).ok());
+            Settings::update(cx, |f| f.set(REDUCE_MOTION, Value::from(true), None).ok());
+            Settings::update(cx, |f| f.set(CRASH_REPORTS, Value::from(false), None).ok());
+            Settings::update(cx, |f| {
+                f.set(AGENT_PROVIDER, Value::from("anthropic"), None).ok()
+            });
+            Settings::update(cx, |f| {
+                f.set(AGENT_MODEL, Value::from("claude-sonnet"), None).ok()
+            });
+            Settings::set_device_memory(cx, "shelf.cover_style", Some(Value::from("topo")));
+        });
+        assert_eq!(
+            cx.update(|cx| cx.global::<Service>().preference_sync_scheduled_count()),
+            baseline_scheduled,
+            "device-only and BYOK settings must not trigger schedule_preference_sync"
+        );
+
+        // Editing account-scoped settings schedules debounced preference sync
+        // immediately and uploads them after the 1s debounce window.
+        cx.update(|cx| {
+            Settings::update(cx, |f| f.set(THEME, Value::from("dark"), None).ok());
+            Settings::update(cx, |f| f.set(FONT_SIZE, Value::from(20.0), None).ok());
+            Settings::update(cx, |f| f.set_key_binding("goBack", Some("cmd-alt-b")));
+        });
+        assert_eq!(
+            cx.update(|cx| cx.global::<Service>().preference_sync_scheduled_count()),
+            baseline_scheduled + 3,
+            "each account-scoped setting change schedules debounced preference sync"
+        );
+
+        cx.executor()
+            .advance_clock(PREFERENCE_SYNC_DEBOUNCE + Duration::from_millis(200));
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        loop {
+            cx.run_until_parked();
+            let prefs = server.preferences_for("live-prefs@example.test");
+            if prefs.contains_key(THEME)
+                && prefs.contains_key(FONT_SIZE)
+                && prefs.contains_key(dr_shell::settings::store::KEY_BINDINGS)
+            {
+                assert_eq!(prefs[THEME].value, Value::from("dark"));
+                assert_eq!(prefs[FONT_SIZE].value, Value::from(20.0));
+                assert_eq!(
+                    prefs[dr_shell::settings::store::KEY_BINDINGS].value["goBack"],
+                    Value::from("cmd-alt-b")
+                );
+                assert!(!prefs.contains_key(TEXT_SIZE));
+                assert!(!prefs.contains_key(AGENT_PROVIDER));
+                break;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "timed out waiting for debounced preference sync upload"
+            );
+            std::thread::sleep(Duration::from_millis(10));
         }
     }
 }

@@ -7,8 +7,12 @@ use gpui::{ElementId, FontWeight, SharedString, Styled, px};
 use crate::fonts::Role;
 
 pub trait DrStyled: Styled + Sized {
-    /// The family of a text role.
-    fn font_role(self, role: Role) -> Self {
+    /// The family of a text role, and the fallback chain it names
+    /// ([`Role::fallbacks`]: on Windows only).
+    fn font_role(mut self, role: Role) -> Self {
+        if let Some(fallbacks) = role.fallbacks() {
+            self.text_style().font_fallbacks = Some(fallbacks);
+        }
         self.font_family(role.family())
     }
 

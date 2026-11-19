@@ -117,6 +117,7 @@ pub enum TrayCommand {
 /// Pure state machine for the Windows notification area lifecycle.
 #[derive(Debug, Clone)]
 pub struct TrayState {
+    manages_window_close: bool,
     keep_in_notification_area: bool,
     window_visible: bool,
     quitting: bool,
@@ -128,17 +129,29 @@ impl TrayState {
     /// Creates a state machine configured for the current platform (`true` on
     /// Windows, `false` elsewhere).
     pub fn new(identity: &Identity, labels: TrayLabels) -> Self {
-        Self::with_platform(identity, labels, cfg!(windows))
+        Self::with_platform_policy(identity, labels, cfg!(windows), cfg!(windows))
     }
 
-    /// Creates a state machine with an explicit platform policy (used in
-    /// cross-platform unit tests).
+    /// Creates a state machine with an explicit notification-area policy (used
+    /// in cross-platform unit tests).
     pub fn with_platform(
         identity: &Identity,
         labels: TrayLabels,
         keep_in_notification_area: bool,
     ) -> Self {
+        Self::with_platform_policy(identity, labels, true, keep_in_notification_area)
+    }
+
+    /// Creates a state machine with explicit close-interception and
+    /// notification-area policies.
+    pub fn with_platform_policy(
+        identity: &Identity,
+        labels: TrayLabels,
+        manages_window_close: bool,
+        keep_in_notification_area: bool,
+    ) -> Self {
         Self {
+            manages_window_close,
             keep_in_notification_area,
             window_visible: true,
             quitting: false,
@@ -147,12 +160,33 @@ impl TrayState {
         }
     }
 
+    pub fn manages_window_close(&self) -> bool {
+        self.manages_window_close
+    }
+
+    pub fn keep_in_notification_area(&self) -> bool {
+        self.keep_in_notification_area
+    }
+
+    /// Updates whether the session currently has a live notification area icon.
+    /// When `false` (for example on headless Windows CI, Windows Server Core,
+    /// or while Explorer is not running), closing on the shelf quits cleanly
+    /// instead of hiding the window into an unreachable invisible state.
+    pub fn set_notification_area_available(&mut self, available: bool) {
+        self.keep_in_notification_area = available;
+    }
+
     pub fn window_visible(&self) -> bool {
         self.window_visible
     }
 
     pub fn is_quitting(&self) -> bool {
         self.quitting
+    }
+
+    /// Clears `quitting` when a flushed shutdown barrier is aborted by an error.
+    pub fn cancel_quit(&mut self) {
+        self.quitting = false;
     }
 
     pub fn tooltip(&self) -> &str {
@@ -229,6 +263,11 @@ impl std::fmt::Debug for TrayController {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let state = self.state.lock().unwrap_or_else(|e| e.into_inner());
         f.debug_struct("TrayController")
+            .field("manages_window_close", &state.manages_window_close)
+            .field(
+                "keep_in_notification_area",
+                &state.keep_in_notification_area,
+            )
             .field("window_visible", &state.window_visible)
             .field("quitting", &state.quitting)
             .field("labels", &state.labels)
@@ -249,9 +288,36 @@ impl TrayController {
         })
     }
 
-    /// Installs the notification area icon on the current (main) thread on
-    /// Windows; on other platforms returns an inert controller with the same
-    /// command channel and label validation.
+    /// Creates an in-memory controller with an explicit notification-area
+    /// policy (for cross-platform shell tests).
+    pub fn with_platform(
+        identity: &Identity,
+        labels: TrayLabels,
+        keep_in_notification_area: bool,
+    ) -> Arc<Self> {
+        Arc::new(Self {
+            state: Mutex::new(TrayState::with_platform(
+                identity,
+                labels,
+                keep_in_notification_area,
+            )),
+            commands: Mutex::new(Vec::new()),
+            waker: Mutex::new(None),
+            #[cfg(windows)]
+            native: Mutex::new(None),
+        })
+    }
+
+    /// Installs the notification area controller and message window on the
+    /// current (main) thread on Windows; on other platforms returns an inert
+    /// controller with the same command channel and label validation.
+    ///
+    /// On Windows sessions without an Explorer notification area (such as
+    /// headless CI or Windows Server Core, or before Explorer finishes
+    /// starting), the hidden message window still installs cleanly while
+    /// [`Self::has_notification_icon`] stays `false` until `TaskbarCreated`
+    /// registers the icon, so closing on the shelf quits cleanly instead of
+    /// hiding the window with no way back.
     pub fn install(identity: &Identity, labels: TrayLabels) -> Result<Arc<Self>, TrayError> {
         let controller = Self::without_icon(identity, labels);
         #[cfg(windows)]
@@ -260,6 +326,66 @@ impl TrayController {
             *controller.native.lock().unwrap_or_else(|e| e.into_inner()) = Some(native);
         }
         Ok(controller)
+    }
+
+    /// Whether this controller intercepts main-window close requests (`true` on
+    /// Windows, or in cross-platform tests built with [`Self::with_platform`]).
+    pub fn manages_window_close(&self) -> bool {
+        self.state
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .manages_window_close()
+    }
+
+    /// Whether a live notification area icon is currently registered so the
+    /// window can safely hide to the tray.
+    pub fn has_notification_icon(&self) -> bool {
+        self.state
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .keep_in_notification_area()
+    }
+
+    /// Updates whether a notification area icon is currently available.
+    pub fn set_notification_area_available(&self, available: bool) {
+        self.state
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .set_notification_area_available(available);
+    }
+
+    /// Clears `quitting` when a shutdown barrier fails and leaves the app open.
+    pub fn cancel_quit(&self) {
+        self.state
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .cancel_quit();
+    }
+
+    pub fn tooltip(&self) -> String {
+        self.state
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .tooltip()
+            .to_owned()
+    }
+
+    /// Hides a native Win32 top-level `HWND` when hiding to the notification
+    /// area; no-op off Windows or when `hwnd` is zero/invalid.
+    pub fn hide_hwnd(hwnd: isize) {
+        #[cfg(windows)]
+        windows_impl::hide_hwnd(hwnd);
+        #[cfg(not(windows))]
+        let _ = hwnd;
+    }
+
+    /// Restores and foregrounds a hidden or minimized Win32 top-level `HWND`;
+    /// no-op off Windows or when `hwnd` is zero/invalid.
+    pub fn restore_hwnd(hwnd: isize) {
+        #[cfg(windows)]
+        windows_impl::restore_hwnd(hwnd);
+        #[cfg(not(windows))]
+        let _ = hwnd;
     }
 
     /// Updates the tray menu labels in the current interface language.
@@ -363,7 +489,10 @@ impl TrayController {
 
 #[cfg(windows)]
 mod windows_impl {
-    use std::sync::{Arc, OnceLock, Weak};
+    use std::sync::{
+        Arc, OnceLock, Weak,
+        atomic::{AtomicBool, Ordering},
+    };
 
     use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, WPARAM};
     use windows::Win32::System::LibraryLoader::GetModuleHandleW;
@@ -372,13 +501,13 @@ mod windows_impl {
     };
     use windows::Win32::UI::WindowsAndMessaging::{
         AppendMenuW, CreatePopupMenu, CreateWindowExW, DefWindowProcW, DestroyMenu, DestroyWindow,
-        GWLP_USERDATA, GetCursorPos, GetWindowLongPtrW, HWND_MESSAGE, IDI_APPLICATION, LoadIconW,
-        MF_STRING, PostMessageW, RegisterClassW, SetForegroundWindow, SetWindowLongPtrW,
-        TPM_BOTTOMALIGN, TPM_LEFTALIGN, TPM_RIGHTBUTTON, TrackPopupMenu, WINDOW_EX_STYLE,
-        WINDOW_STYLE, WM_COMMAND, WM_CONTEXTMENU, WM_LBUTTONUP, WM_NULL, WM_RBUTTONUP, WM_USER,
-        WNDCLASSW,
+        GWLP_USERDATA, GetCursorPos, GetWindowLongPtrW, IDI_APPLICATION, IsIconic, IsWindow,
+        LoadIconW, MF_STRING, PostMessageW, RegisterClassW, RegisterWindowMessageW, SW_HIDE,
+        SW_RESTORE, SW_SHOW, SetForegroundWindow, SetWindowLongPtrW, ShowWindow, TPM_BOTTOMALIGN,
+        TPM_LEFTALIGN, TPM_RIGHTBUTTON, TrackPopupMenu, WINDOW_EX_STYLE, WINDOW_STYLE, WM_COMMAND,
+        WM_CONTEXTMENU, WM_LBUTTONUP, WM_NULL, WM_RBUTTONUP, WM_USER, WNDCLASSW,
     };
-    use windows::core::PCWSTR;
+    use windows::core::{PCWSTR, w};
 
     use super::{TrayController, TrayError};
 
@@ -387,12 +516,27 @@ mod windows_impl {
     const ID_TRAY_OPEN: usize = 1001;
     const ID_TRAY_QUIT: usize = 1002;
 
+    struct WindowContext {
+        controller: Weak<TrayController>,
+        icon_registered: Arc<AtomicBool>,
+    }
+
     pub(super) struct NativeTray {
         hwnd: isize,
+        icon_registered: Arc<AtomicBool>,
     }
 
     fn wide(value: &str) -> Vec<u16> {
         value.encode_utf16().chain(Some(0)).collect()
+    }
+
+    fn taskbar_created_msg() -> u32 {
+        static MSG: OnceLock<u32> = OnceLock::new();
+        *MSG.get_or_init(|| {
+            // SAFETY: registers or retrieves the system-wide message broadcast
+            // by Explorer whenever the taskbar notification area is created.
+            unsafe { RegisterWindowMessageW(w!("TaskbarCreated")) }
+        })
     }
 
     fn register_class() -> &'static [u16] {
@@ -415,15 +559,89 @@ mod windows_impl {
         })
     }
 
+    fn build_notify_icon_data(hwnd: HWND, tooltip: &str) -> NOTIFYICONDATAW {
+        let mut nid = NOTIFYICONDATAW {
+            cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,
+            hWnd: hwnd,
+            uID: TRAY_ICON_ID,
+            uFlags: NIF_MESSAGE | NIF_ICON | NIF_TIP,
+            uCallbackMessage: WM_TRAYICON,
+            ..Default::default()
+        };
+        // SAFETY: loads the default application icon when no resource icon
+        // is embedded yet.
+        if let Ok(icon) = unsafe { LoadIconW(None, IDI_APPLICATION) } {
+            nid.hIcon = icon;
+        }
+        for (dst, src) in nid.szTip.iter_mut().take(127).zip(tooltip.encode_utf16()) {
+            *dst = src;
+        }
+        nid
+    }
+
+    fn try_add_icon(hwnd: HWND, tooltip: &str) -> bool {
+        let nid = build_notify_icon_data(hwnd, tooltip);
+        // SAFETY: `nid` is initialized with `cbSize` and valid handles.
+        unsafe { Shell_NotifyIconW(NIM_ADD, &nid) }.as_bool()
+    }
+
+    /// Removes this window's icon; one that is not registered is left alone.
+    fn remove_icon(hwnd: HWND) {
+        let nid = NOTIFYICONDATAW {
+            cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,
+            hWnd: hwnd,
+            uID: TRAY_ICON_ID,
+            ..Default::default()
+        };
+        // SAFETY: `nid` names the icon by this window and its id; deleting
+        // one that is not registered only returns false.
+        let _ = unsafe { Shell_NotifyIconW(NIM_DELETE, &nid) };
+    }
+
+    pub(super) fn hide_hwnd(raw: isize) {
+        if raw == 0 {
+            return;
+        }
+        let hwnd = HWND(raw as *mut core::ffi::c_void);
+        // SAFETY: `IsWindow` validates the handle before hiding it.
+        unsafe {
+            if IsWindow(Some(hwnd)).as_bool() {
+                let _ = ShowWindow(hwnd, SW_HIDE);
+            }
+        }
+    }
+
+    pub(super) fn restore_hwnd(raw: isize) {
+        if raw == 0 {
+            return;
+        }
+        let hwnd = HWND(raw as *mut core::ffi::c_void);
+        // SAFETY: `IsWindow` validates the handle before restoring and
+        // bringing it to the foreground.
+        unsafe {
+            if IsWindow(Some(hwnd)).as_bool() {
+                let cmd = if IsIconic(hwnd).as_bool() {
+                    SW_RESTORE
+                } else {
+                    SW_SHOW
+                };
+                let _ = ShowWindow(hwnd, cmd);
+                let _ = SetForegroundWindow(hwnd);
+            }
+        }
+    }
+
     impl NativeTray {
         pub(super) fn create(
             tooltip: &str,
             controller: &Arc<TrayController>,
         ) -> Result<Self, TrayError> {
             let class_name = register_class();
+            let _ = taskbar_created_msg();
             let title = wide(tooltip);
-            // SAFETY: creates a message-only window (`HWND_MESSAGE`) on the
-            // current thread to receive `Shell_NotifyIconW` callbacks.
+            // SAFETY: creates a hidden top-level window (never shown, so no
+            // taskbar button) on the current thread to receive both
+            // `Shell_NotifyIconW` callbacks and `TaskbarCreated` broadcasts.
             let hwnd = unsafe {
                 CreateWindowExW(
                     WINDOW_EX_STYLE(0),
@@ -434,7 +652,7 @@ mod windows_impl {
                     0,
                     0,
                     0,
-                    Some(HWND_MESSAGE),
+                    None,
                     None,
                     None,
                     None,
@@ -442,48 +660,29 @@ mod windows_impl {
             }
             .map_err(|e| TrayError::Platform(e.to_string()))?;
 
-            let weak = Box::new(Arc::downgrade(controller));
-            // SAFETY: stores the heap-allocated `Weak<TrayController>` in the
-            // message window's user data slot; freed in `Drop`.
+            let icon_registered = Arc::new(AtomicBool::new(false));
+            let ctx = Box::new(WindowContext {
+                controller: Arc::downgrade(controller),
+                icon_registered: icon_registered.clone(),
+            });
+            // SAFETY: stores the heap-allocated `WindowContext` in the
+            // hidden window's user data slot; freed in `Drop`.
             unsafe {
-                let _ = SetWindowLongPtrW(hwnd, GWLP_USERDATA, Box::into_raw(weak) as isize);
+                let _ = SetWindowLongPtrW(hwnd, GWLP_USERDATA, Box::into_raw(ctx) as isize);
             }
 
-            let mut nid = NOTIFYICONDATAW {
-                cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,
-                hWnd: hwnd,
-                uID: TRAY_ICON_ID,
-                uFlags: NIF_MESSAGE | NIF_ICON | NIF_TIP,
-                uCallbackMessage: WM_TRAYICON,
-                ..Default::default()
-            };
-            // SAFETY: loads the default application icon when no resource icon
-            // is embedded yet.
-            if let Ok(icon) = unsafe { LoadIconW(None, IDI_APPLICATION) } {
-                nid.hIcon = icon;
-            }
-            for (dst, src) in nid.szTip.iter_mut().take(127).zip(tooltip.encode_utf16()) {
-                *dst = src;
-            }
-
-            // SAFETY: `nid` is initialized with `cbSize` and valid handles.
-            let added = unsafe { Shell_NotifyIconW(NIM_ADD, &nid) };
-            if !added.as_bool() {
-                unsafe {
-                    let ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *mut Weak<TrayController>;
-                    let _ = SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
-                    if !ptr.is_null() {
-                        drop(Box::from_raw(ptr));
-                    }
-                    let _ = DestroyWindow(hwnd);
-                }
-                return Err(TrayError::Platform(
-                    "Shell_NotifyIconW(NIM_ADD) failed".into(),
-                ));
+            let added = try_add_icon(hwnd, tooltip);
+            icon_registered.store(added, Ordering::SeqCst);
+            controller.set_notification_area_available(added);
+            if !added {
+                tracing::debug!(
+                    "Windows notification area unavailable at startup; deferring tray icon until TaskbarCreated"
+                );
             }
 
             Ok(Self {
                 hwnd: hwnd.0 as isize,
+                icon_registered,
             })
         }
     }
@@ -491,17 +690,19 @@ mod windows_impl {
     impl Drop for NativeTray {
         fn drop(&mut self) {
             let hwnd = HWND(self.hwnd as *mut core::ffi::c_void);
-            let nid = NOTIFYICONDATAW {
-                cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,
-                hWnd: hwnd,
-                uID: TRAY_ICON_ID,
-                ..Default::default()
-            };
-            // SAFETY: removes the notification icon and frees the window's
-            // user data before destroying the message window.
+            // SAFETY: removes the notification icon (when registered) and
+            // frees the window's user data before destroying the window.
             unsafe {
-                let _ = Shell_NotifyIconW(NIM_DELETE, &nid);
-                let ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *mut Weak<TrayController>;
+                if self.icon_registered.swap(false, Ordering::SeqCst) {
+                    let nid = NOTIFYICONDATAW {
+                        cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,
+                        hWnd: hwnd,
+                        uID: TRAY_ICON_ID,
+                        ..Default::default()
+                    };
+                    let _ = Shell_NotifyIconW(NIM_DELETE, &nid);
+                }
+                let ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *mut WindowContext;
                 let _ = SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
                 if !ptr.is_null() {
                     drop(Box::from_raw(ptr));
@@ -511,13 +712,16 @@ mod windows_impl {
         }
     }
 
-    unsafe fn controller_from_hwnd(hwnd: HWND) -> Option<Arc<TrayController>> {
-        // SAFETY: reads the `Weak<TrayController>` pointer set in `create`.
-        let ptr = unsafe { GetWindowLongPtrW(hwnd, GWLP_USERDATA) } as *const Weak<TrayController>;
+    unsafe fn context_from_hwnd(hwnd: HWND) -> Option<(Arc<TrayController>, Arc<AtomicBool>)> {
+        // SAFETY: reads the `WindowContext` pointer set in `create`.
+        let ptr = unsafe { GetWindowLongPtrW(hwnd, GWLP_USERDATA) } as *const WindowContext;
         if ptr.is_null() {
             None
         } else {
-            unsafe { (*ptr).upgrade() }
+            let ctx = unsafe { &*ptr };
+            ctx.controller
+                .upgrade()
+                .map(|c| (c, ctx.icon_registered.clone()))
         }
     }
 
@@ -569,7 +773,7 @@ mod windows_impl {
         match msg {
             WM_TRAYICON => {
                 let event = (lparam.0 as u32) & 0xffff;
-                if let Some(controller) = unsafe { controller_from_hwnd(hwnd) } {
+                if let Some((controller, _)) = unsafe { context_from_hwnd(hwnd) } {
                     match event {
                         WM_LBUTTONUP => controller.notify_left_click(),
                         WM_RBUTTONUP | WM_CONTEXTMENU => unsafe {
@@ -582,7 +786,7 @@ mod windows_impl {
             }
             WM_COMMAND => {
                 let command_id = wparam.0 & 0xffff;
-                if let Some(controller) = unsafe { controller_from_hwnd(hwnd) } {
+                if let Some((controller, _)) = unsafe { context_from_hwnd(hwnd) } {
                     match command_id {
                         ID_TRAY_OPEN => controller.notify_menu_open(),
                         ID_TRAY_QUIT => controller.notify_menu_quit(),
@@ -591,36 +795,49 @@ mod windows_impl {
                 }
                 LRESULT(0)
             }
+            other if other != 0 && other == taskbar_created_msg() => {
+                if let Some((controller, icon_registered)) = unsafe { context_from_hwnd(hwnd) } {
+                    // Explorer announces a new taskbar after it restarts, when
+                    // the old icon is gone, but the same message also reaches a
+                    // window whose icon is still there. Adding an icon that is
+                    // still registered fails, which would read as "no
+                    // notification area" and turn the next close on the shelf
+                    // into a quit, so whatever this window has goes first.
+                    remove_icon(hwnd);
+                    let added = try_add_icon(hwnd, &controller.tooltip());
+                    icon_registered.store(added, Ordering::SeqCst);
+                    controller.set_notification_area_available(added);
+                }
+                LRESULT(0)
+            }
             // SAFETY: forwards unhandled messages to the default window proc.
             _ => unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) },
         }
     }
 
-    /// Tests: whether this session has a notification area (the taskbar's
-    /// `Shell_TrayWnd`), and what the shell and the icon's menu send its
-    /// window, delivered to the window procedure as they would be.
+    /// Tests: delivers tray icon, context-menu and `TaskbarCreated` messages to
+    /// the hidden window procedure on the current thread.
     #[cfg(test)]
     pub(super) mod simulate {
         use windows::Win32::Foundation::{LPARAM, WPARAM};
-        use windows::Win32::UI::WindowsAndMessaging::{
-            FindWindowW, SendMessageW, WM_COMMAND, WM_LBUTTONUP,
+        use windows::Win32::UI::WindowsAndMessaging::{SendMessageW, WM_COMMAND, WM_LBUTTONUP};
+
+        use super::{
+            HWND, ID_TRAY_OPEN, ID_TRAY_QUIT, TrayController, WM_TRAYICON, taskbar_created_msg,
         };
-        use windows::core::w;
-
-        use super::{HWND, ID_TRAY_OPEN, ID_TRAY_QUIT, TrayController, WM_TRAYICON};
-
-        pub(in crate::tray) fn notification_area_present() -> bool {
-            // SAFETY: looks a top-level window up by its class name.
-            unsafe { FindWindowW(w!("Shell_TrayWnd"), None) }.is_ok()
-        }
 
         fn send(controller: &TrayController, msg: u32, wparam: usize, lparam: isize) {
             let hwnd = {
                 let native = controller.native.lock().unwrap_or_else(|e| e.into_inner());
-                HWND(native.as_ref().expect("the icon is installed").hwnd as *mut core::ffi::c_void)
+                HWND(
+                    native
+                        .as_ref()
+                        .expect("the hidden window is installed")
+                        .hwnd as *mut core::ffi::c_void,
+                )
             };
-            // SAFETY: the message window lives on this thread, so this
-            // calls its window procedure directly.
+            // SAFETY: the hidden window lives on this thread, so this calls
+            // its window procedure directly.
             unsafe { SendMessageW(hwnd, msg, Some(WPARAM(wparam)), Some(LPARAM(lparam))) };
         }
 
@@ -634,6 +851,13 @@ mod windows_impl {
 
         pub(in crate::tray) fn menu_quit(controller: &TrayController) {
             send(controller, WM_COMMAND, ID_TRAY_QUIT, 0);
+        }
+
+        pub(in crate::tray) fn taskbar_created(controller: &TrayController) {
+            let msg = taskbar_created_msg();
+            if msg != 0 {
+                send(controller, msg, 0, 0);
+            }
         }
     }
 }
@@ -722,6 +946,41 @@ mod tests {
         );
     }
 
+    #[test]
+    fn missing_notification_icon_quits_on_shelf_close_until_taskbar_appears() {
+        let controller = TrayController::with_platform(&DEVELOPMENT, TrayLabels::default(), false);
+        assert!(controller.manages_window_close());
+        assert!(!controller.has_notification_icon());
+
+        // Book-open close still returns to the shelf first.
+        assert_eq!(
+            controller.handle_window_close(WindowCloseContext::BookOpen),
+            WindowCloseDecision::ReturnToShelf
+        );
+        assert!(controller.window_visible());
+
+        // Shelf close without a tray icon quits cleanly instead of hiding the
+        // window into an invisible unreachable state.
+        assert_eq!(
+            controller.handle_window_close(WindowCloseContext::OnShelf),
+            WindowCloseDecision::QuitProcess
+        );
+        assert!(controller.window_visible());
+        assert!(controller.is_quitting());
+
+        // If the shutdown barrier fails, cancelling quit restores normal state;
+        // once `TaskbarCreated` registers the icon, shelf close hides to tray.
+        controller.cancel_quit();
+        assert!(!controller.is_quitting());
+        controller.set_notification_area_available(true);
+        assert!(controller.has_notification_icon());
+        assert_eq!(
+            controller.handle_window_close(WindowCloseContext::OnShelf),
+            WindowCloseDecision::HideToTray
+        );
+        assert!(!controller.window_visible());
+    }
+
     /// The queue, the labels and the waker, on every platform: without the
     /// native icon, which the next test covers.
     #[test]
@@ -758,27 +1017,36 @@ mod tests {
         assert!(controller.drain_commands().is_empty());
     }
 
-    /// On Windows the icon goes into the notification area, and a click on it
-    /// and its menu's two items reach the queue through its window procedure.
-    /// A session without a notification area (no taskbar, as in a session a
-    /// service runs in) has nowhere to show an icon, and `install` says so
-    /// with an error. Off Windows it is the inert controller.
+    /// On Windows the hidden notification window always installs (even on
+    /// headless CI sessions without Explorer's taskbar notification area),
+    /// degrades shelf close to `QuitProcess` when `NIM_ADD` is unavailable,
+    /// handles `TaskbarCreated`, and routes left-click and menu commands
+    /// through its Win32 window procedure into the queue. Off Windows it is the
+    /// inert controller.
     #[test]
     fn install_adds_the_icon_and_its_window_feeds_the_queue() {
-        let installed = TrayController::install(&DEVELOPMENT, TrayLabels::default());
+        let controller = TrayController::install(&DEVELOPMENT, TrayLabels::default())
+            .expect("controller installs");
         #[cfg(windows)]
         {
-            if !windows_impl::simulate::notification_area_present() {
-                assert!(
-                    matches!(installed, Err(TrayError::Platform(_))),
-                    "no notification area: {installed:?}"
+            if !controller.has_notification_icon() {
+                assert_eq!(
+                    controller.handle_window_close(WindowCloseContext::OnShelf),
+                    WindowCloseDecision::QuitProcess
                 );
-                return;
+                controller.cancel_quit();
             }
-        }
-        let controller = installed.expect("controller installs");
-        #[cfg(windows)]
-        {
+            // The taskbar announcing itself to a window that already has its
+            // icon keeps the icon: closing on the shelf still hides.
+            let had_icon = controller.has_notification_icon();
+            windows_impl::simulate::taskbar_created(&controller);
+            if had_icon {
+                assert!(controller.has_notification_icon());
+                assert_eq!(
+                    controller.handle_window_close(WindowCloseContext::OnShelf),
+                    WindowCloseDecision::HideToTray
+                );
+            }
             windows_impl::simulate::left_click(&controller);
             windows_impl::simulate::menu_open(&controller);
             windows_impl::simulate::menu_quit(&controller);

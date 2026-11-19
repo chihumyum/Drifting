@@ -103,10 +103,25 @@ fn main() {
     });
     let deep_links = DeepLinks::new(platform.url_scheme);
     deep_links.push_args(&args);
+    let tray_slot: std::sync::Arc<
+        std::sync::Mutex<Option<std::sync::Arc<dr_platform::tray::TrayController>>>,
+    > = std::sync::Arc::new(std::sync::Mutex::new(None));
+    let second_instance_pending = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     instance.listen({
         let deep_links = deep_links.clone();
+        let tray_slot = tray_slot.clone();
+        let second_instance_pending = second_instance_pending.clone();
         move |args| {
             deep_links.push_args(args);
+            // The slot stays locked while the launch is noted, and the main
+            // thread fills it under the same lock, so a launch that arrives
+            // while the controller is being installed is not lost between
+            // the two.
+            let slot = tray_slot.lock().unwrap_or_else(|e| e.into_inner());
+            match slot.as_ref() {
+                Some(tray) => tray.notify_second_instance(),
+                None => second_instance_pending.store(true, std::sync::atomic::Ordering::SeqCst),
+            }
         }
     });
 
@@ -174,6 +189,25 @@ fn main() {
                 .filter(|b| !b.trim().is_empty()),
         };
         dr_shell::init(info, services, settings, cx);
+        let locale = dr_shell::Settings::locale(cx);
+        match dr_platform::tray::TrayController::install(
+            platform,
+            dr_platform::tray::TrayLabels::for_locale(locale.code()),
+        ) {
+            Ok(tray) => {
+                {
+                    let mut slot = tray_slot.lock().unwrap_or_else(|e| e.into_inner());
+                    if second_instance_pending.swap(false, std::sync::atomic::Ordering::SeqCst) {
+                        tray.notify_second_instance();
+                    }
+                    *slot = Some(tray.clone());
+                }
+                dr_shell::tray::install(tray, cx);
+            }
+            Err(error) => {
+                log::warn!("could not install notification area controller: {error}");
+            }
+        }
         dr_view_agent::mcp::init(platform, dirs.as_ref(), cx);
         dr_view_agent::init(platform, cx);
         // ⌘Q hides the app before the quit hooks run (F7).
@@ -287,7 +321,7 @@ fn main() {
         cx.on_action(about::open);
         if !cfg!(target_os = "macos") {
             cx.on_window_closed(|cx, _| {
-                if cx.windows().is_empty() {
+                if cx.windows().is_empty() && !dr_shell::tray::keeps_in_notification_area(cx) {
                     dr_shell::quit::request(cx);
                 }
             })

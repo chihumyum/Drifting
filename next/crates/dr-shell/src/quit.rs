@@ -69,6 +69,7 @@ pub fn request(cx: &mut App) {
             cx.update(|cx| match prepared {
                 Ok(()) => run(cx),
                 Err(error) => {
+                    crate::tray::cancel_quit(cx);
                     crate::release::finish(cx);
                     log::error!("could not prepare to quit: {error}");
                     crate::workspace::with_workspace(cx, move |ws, _, cx| {
