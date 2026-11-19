@@ -45,6 +45,14 @@ ID, the time, and a few context values (for example the flush reason or the
 Yjs document family, never an identifier or text). A signed-in Hosted session
 adds the account so the maintainer can follow up.
 
+Hosted reports include the OS version (`context.osVersion`) when the native
+shell has supplied it. A packaged renderer also records the source revision
+(`context.buildId`), taken from the Git checkout or a hexadecimal
+`DRIFTING_BUILD_REVISION` supplied by the build. A native panic uses the
+app version recorded at the crash, has no build revision, and records the OS
+version of the next launch when available. Reports already on disk keep their
+original fields.
+
 A `render-failure` also names its boundary (`scope`) and, as `component1` to
 `component8`, the innermost component frames of React's component stack that
 carry a source position (`componentStackContext`). An error React itself throws,

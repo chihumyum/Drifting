@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'node:path';
 import { readFileSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { sentryVitePlugin } from '@sentry/vite-plugin';
 // @ts-expect-error Build scripts are native ESM, outside the renderer type graph.
 import { sentryBuildConfiguration } from './scripts/sentry-environment.mjs';
@@ -22,9 +22,12 @@ export default defineConfig(({ command }) => {
     throw new Error('Packaged Sentry acceptance requires an explicit Hosted-capable sentry-acceptance build and DSN');
   }
   const version = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version;
-  const sentry = sentryBuildConfiguration(process.env, { command, version,
-    revision: process.env.DRIFTING_BUILD_REVISION || (process.env.VITE_LOCAL_ONLY_MODE === 'false' && process.env.VITE_SENTRY_DSN
-      ? execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim() : 'unconfigured') });
+  const hosted = process.env.VITE_LOCAL_ONLY_MODE === 'false';
+  const revision = process.env.DRIFTING_BUILD_REVISION || (hosted && (isBuild || process.env.VITE_SENTRY_DSN)
+    ? spawnSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8', cwd: __dirname }).stdout?.trim()
+    : undefined);
+  const buildId = hosted && isBuild && revision && /^[a-f0-9]{7,64}$/i.test(revision) ? revision.toLowerCase() : '';
+  const sentry = sentryBuildConfiguration(process.env, { command, version, revision: revision || 'unconfigured' });
   const tauriDevHost = process.env.TAURI_DEV_HOST;
   const configuredDevPort = Number(process.env.DRIFTING_VITE_PORT ?? '5173');
   const devPort = Number.isInteger(configuredDevPort) ? configuredDevPort : 5173;
@@ -70,6 +73,7 @@ export default defineConfig(({ command }) => {
         sourcemaps: { filesToDeleteAfterUpload: [path.join(outDir, '**/*.map')] },
       })] : [])],
     define: {
+      'import.meta.env.VITE_DRIFTING_BUILD_ID': JSON.stringify(buildId),
       'import.meta.env.VITE_DRIFTING_PERF_BUILD': JSON.stringify(perfBuild ? '1' : ''),
       ...(sentry ? {
         'import.meta.env.VITE_SENTRY_RELEASE': JSON.stringify(sentry.release),

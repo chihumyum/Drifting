@@ -277,9 +277,16 @@ export function reportCrash(input: CrashReportInput): void {
   recent.set(repeatKey, now);
   sentThisSession += 1;
   const runtime = getPlatformRuntime();
+  const buildId = runtimeViteEnv.VITE_DRIFTING_BUILD_ID;
+  const osVersion = runtime.appInfo?.osVersion;
+  const environment: CrashReportPayload['context'] = {};
+  // A panic belongs to the earlier process, which might have been a different build.
+  if (input.kind !== 'native-panic' && buildId && /^[a-f0-9]{7,64}$/.test(buildId)) environment.buildId = buildId;
+  if (osVersion && osVersion.length <= 32 && /^[0-9]+(?:\.[0-9]+){0,3}$/.test(osVersion)) environment.osVersion = osVersion;
   const context = Object.fromEntries(
     Object.entries(input.context ?? {})
-      .slice(0, 20)
+      .filter(([key]) => key !== 'buildId' && key !== 'osVersion')
+      .slice(0, 20 - Object.keys(environment).length)
       .map(([key, value]) => [
         reportToken(key),
         typeof value === 'string' ? sanitizeReportText(value, 200) : value,
@@ -298,7 +305,7 @@ export function reportCrash(input: CrashReportInput): void {
     platform: reportToken(runtime.appInfo?.platform ?? runtime.nativePlatform ?? 'unknown', 32),
     installationId: diagnosticsInstallationId(),
     occurredAt: new Date(now).toISOString(),
-    context,
+    context: { ...context, ...environment },
   };
   writeQueue([...readQueue(), report]);
   if (input.kind === 'render-failure' || input.kind === 'native-panic') {

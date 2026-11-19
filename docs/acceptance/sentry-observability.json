@@ -17,15 +17,15 @@
     },
     "sourceSha256": {
       ".env.example": "sha256:338a5a4db58995c66d2dced89cfa454e6fc6d04bb3c1e689cdf4f532be310f57",
-      "PRIVACY.md": "sha256:3ff732c9a5299f9030fd25864f30188e1cad1705f61af53880bd3cfa6d1f58d5",
+      "PRIVACY.md": "sha256:23741a6a13dba8c871c185802c8abba6aedf943e237b3dcf30f95a5127095329",
       "docs/acceptance/sentry-cloud.json": "sha256:06f5ed0d0186a8c69850583ac2ddc2f46b1638d3abd144e7ce07cee8306502c3",
       "docs/acceptance/sentry-packaged.json": "sha256:b53fe1a1bd6697290542a1b532fb522fea1c36e06cb92a3701e27251f0546f77",
-      "docs/crash-reports.md": "sha256:b3ae47f9d20ba3c19a483d747fbe3dcbedc1f4ea16903e2d604aa70f7a898679",
+      "docs/crash-reports.md": "sha256:54b636f44a6897a301e210c55b33f5668f4858871ea6f1389655ab79d6e79ce5",
       "docs/sentry-observability.md": "sha256:dd9590ffeba6e597bc67e28d49ce3ffc5688be66fef9bcb543703022e7897963",
-      "docs/worktree-development.md": "sha256:2724296cef86904e49537a67ac8efe3d12250a25d48836894d1f8ff91e557752",
-      "package.json": "sha256:11b1ecf5200d17031ae1cb1fee162e0d8437745dd07d4269d9dbbb76cbd5e650",
-      "pnpm-lock.yaml": "sha256:c332c645523276d2359048b524d8925258c5a92adf7f9054ceca5782858ddc3b",
-      "pnpm-workspace.yaml": "sha256:25c6867abe08ae8573ca4dc2e9bf19da3f6163952c868148808d8355b536599e",
+      "docs/worktree-development.md": "sha256:c3956b7f24fbcfe7c07231d61b2dbeb81333bdda40441cd60be207a356b68fae",
+      "package.json": "sha256:56dc9c74af8e796df08c560b9e25296b992b4a4505184ec251ec3b5f1b690e6b",
+      "pnpm-lock.yaml": "sha256:feb89f6f6ca1b74bb94049a049a05b7f0fc7e8e3ce3a832629327bb0d3c3ba79",
+      "pnpm-workspace.yaml": "sha256:7d6410a48fec22405f5e29f87f7035f87ce97229d19f62148fc4f1ff16985bd2",
       "scripts/check-frontend-debug-release.mjs": "sha256:4b23b372810e017c7131739dd2437e2742d537e22c3ebb7dff0d613d9df50fcf",
       "scripts/generate-sentry-observability.ts": "sha256:fb0005e37f79624446d03c41c77e8e9191d4f58fa6ebebadecced9ef0ec81914",
       "scripts/renderer-headless-browser.mjs": "sha256:4b16c348700d3ae57ccc13e679f557c116a84c6d688992e11a8dd6114290510f",
@@ -39,30 +39,30 @@
       "scripts/sentry-packaged-acceptance.ts": "sha256:710b59ceb7c86d6814ad718152f9c2c5f042cdf9d5a072fbcb9e31f1cd1ee722",
       "scripts/verify-sentry-cloud.mjs": "sha256:8a74bf919a4a6cc99a8317bdc8d303ab6b377697c009257d9f1fea7161e73367",
       "scripts/verify-sentry-packaged.mjs": "sha256:b583b3d71d0b9c1d93073caa1921bf5795de6e72f76b29077ca829ddf7fb963c",
-      "src/renderer/locales/en.json": "sha256:bfff726f8ce518c2fdd1527322c25d0f71bd607b2ddb316acb7b77c77cd3106e",
-      "src/renderer/locales/zh-CN.json": "sha256:47c5d0b7f1cf978ee41bb05504de2d9a16f1f980895fc3ff6541606dd6e6202a",
+      "src/renderer/locales/en.json": "sha256:70f0a4ba9a26d91f6ccd75deeb2f5757fb6cc1c90ca922bd3d7479ea09a66fc7",
+      "src/renderer/locales/zh-CN.json": "sha256:6c5e020aa219d3cbc3e9f2b1fe02597efc6f24cf0a0087311a6d53ddc42469f8",
       "src/renderer/platform/desktop-tauri-launcher.acceptance.test.ts": "sha256:36ecd46d7e7d453ab0b4815f81a6c32cbd8e3449bacd4d4acda9df60b58bc7c6",
       "src/renderer/platform/sentry-environment.acceptance.test.ts": "sha256:6455ae63404c4981649d2378bda5cdbfb2c9dcea25d29c9c8a225d7599ec2353",
       "src/renderer/platform/worktree-dev-launcher.acceptance.test.ts": "sha256:6399941c1e0db3691c847d325e4c823b4f2cd5ab1afbb181cbbc0b5885454ce3",
-      "src/renderer/services/diagnostics/crash-reporter.test.ts": "sha256:b85307299aad16fb746a13a5bfa4ce31d9a0155fe41798730833c006dd0e2b9b",
-      "src/renderer/services/diagnostics/crash-reporter.ts": "sha256:6a6c92b7cba350c9a9ce6b9be4630188692fba36eea30e3d9db28884a7a0e9d4",
-      "src/renderer/services/diagnostics/crash-sanitize.test.ts": "sha256:90341c3c212a627371ddb95344c9634d01c8ef267e5524af1110f478491f9789",
-      "src/renderer/services/diagnostics/crash-sanitize.ts": "sha256:e2cc6d6c0ed369a0ada8c979420ce9a7f76f381c1f9ab83b9f95595f5105d704",
+      "src/renderer/services/diagnostics/crash-reporter.test.ts": "sha256:d184e95d9a79b0da2c30dcde961ac2ca6c9d987296294fe4352ea6205c12a0aa",
+      "src/renderer/services/diagnostics/crash-reporter.ts": "sha256:56cb2fc319bf0329852e1ba55b41efa83774eb2a68d021868636d992176125e5",
+      "src/renderer/services/diagnostics/crash-sanitize.test.ts": "sha256:4b96e56a923ae7b5d148fc99675999e89478a1b2c7e4fcf6b287e0b82cd91b2a",
+      "src/renderer/services/diagnostics/crash-sanitize.ts": "sha256:e62d430c5732685584fa3d749e47d279d40da8b8ecb180e3c907e79c9d55f280",
       "src/renderer/services/diagnostics/sentry-policy.test.ts": "sha256:7535e7fd7b34909e5c6d9ca0c3b1cd86f70be433daef6f925f9cee666d616c2e",
       "src/renderer/services/diagnostics/sentry-policy.ts": "sha256:a4b16e18ea94733be5b934197ab0cfce92a33ae976bb4ccf660a0c7289531429",
       "src/renderer/services/diagnostics/sentry-reporter.test.ts": "sha256:9ade8e7041ac436a10a3d41bff55f4cd5c60dd5e99ecae0562f93693dc5d3fc3",
       "src/renderer/services/diagnostics/sentry-reporter.ts": "sha256:772ad6d19fade1352eec03d5e9fc6615609bac1bbe220e53897da98cfe13535e",
-      "src/renderer/services/update/update-service.test.ts": "sha256:2998d11ba2813e618301bc102d11b3522d7ab5ae7118d94953344877889d584e",
-      "src/renderer/services/update/update-service.ts": "sha256:4425c4533f0305c163bfa942ac21044dd3afaf5e770c57c5651e3d34beb087db",
+      "src/renderer/services/update/update-service.test.ts": "sha256:c441981f216dded5dc872de779f02c94f324ebdcd2a67ebcffd00c0d836a9f3a",
+      "src/renderer/services/update/update-service.ts": "sha256:82d8a7380b4563c46a9c50c6b7c20367310a6f73651b8a80c70c66e95b182313",
       "src/renderer/sync/production-runtime.ts": "sha256:387b687aa2f5406621732795c03bfb8cbb96b1a8f6793c1e6439fb676b3fff3e",
-      "src/renderer/vite-env.d.ts": "sha256:45c50b731418801e17d7db2c29ceaaec6c74d66d53216b705ac85cb38b0631ea",
-      "vite.renderer.config.ts": "sha256:5ea85df6f0cc54f7ad3d14cb71d8967f6dc8c2ce8e99efd9441dcdb08bce2408"
+      "src/renderer/vite-env.d.ts": "sha256:705b961416ffd1b5038e5de8d3fb6c188cdd8ee731943a6b464cf20dbb961525",
+      "vite.renderer.config.ts": "sha256:c218bac28de6c325f50c15a3a3a51bb91cf5858ee6bce12976f7db3c08d56afa"
     }
   },
   "automated": {
     "status": "passed",
     "command": "pnpm exec vitest run src/renderer/services/diagnostics src/renderer/services/update/update-service.test.ts src/renderer/platform/sentry-environment.acceptance.test.ts src/renderer/platform/desktop-tauri-launcher.acceptance.test.ts src/renderer/platform/worktree-dev-launcher.acceptance.test.ts",
-    "passed": 104,
+    "passed": 111,
     "failed": 0,
     "skipped": 0,
     "cases": [
@@ -100,6 +100,18 @@
       },
       {
         "name": "crash report sanitizing keeps only frames and drops the message line",
+        "status": "passed"
+      },
+      {
+        "name": "crash report sanitizing keeps the fixed wording of a failed native setup, and redacts what follows it on its own",
+        "status": "passed"
+      },
+      {
+        "name": "crash report sanitizing keeps the positioned component frames of a render failure, innermost first",
+        "status": "passed"
+      },
+      {
+        "name": "crash report sanitizing redacts a Windows home folder, spaces in the name included",
         "status": "passed"
       },
       {
@@ -200,6 +212,10 @@
       },
       {
         "name": "honors opt-out both before initialization and after the SDK is initialized",
+        "status": "passed"
+      },
+      {
+        "name": "includes the packaged source revision and OS version within the Hosted context limit",
         "status": "passed"
       },
       {
@@ -359,6 +375,10 @@
         "status": "passed"
       },
       {
+        "name": "leaves a library that failed to open to the failure screen, which reports it with its cause",
+        "status": "passed"
+      },
+      {
         "name": "leaves the running version alone when the download fails, and downloads again on retry",
         "status": "passed"
       },
@@ -447,6 +467,10 @@
         "status": "passed"
       },
       {
+        "name": "says which launch step a failed native setup stopped at, its error and when it crashed",
+        "status": "passed"
+      },
+      {
         "name": "sends a real SDK envelope with code frames, release and an anonymous installation, without app credentials",
         "status": "passed"
       },
@@ -468,6 +492,10 @@
       },
       {
         "name": "sends one content-free report per problem to the Hosted service",
+        "status": "passed"
+      },
+      {
+        "name": "still installs when the library never opened: a failed save cannot hold the way back shut",
         "status": "passed"
       },
       {

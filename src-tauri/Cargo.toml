@@ -27,6 +27,7 @@ http = "1"
 include_dir = "0.7.4"
 image = { version = "=0.25.4", default-features = false, features = ["bmp", "gif", "ico", "jpeg", "png", "tiff", "webp"] }
 futures-util = "0.3"
+os_info = { version = "3.15.0", default-features = false }
 regex = "1"
 percent-encoding = "2"
 reqwest = { version = "0.12", default-features = false, features = ["charset", "http2", "json", "rustls-tls", "stream"] }

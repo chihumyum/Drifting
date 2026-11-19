@@ -1,5 +1,5 @@
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State, WebviewWindow};
@@ -14,6 +14,7 @@ pub struct AppInfo {
     version: String,
     platform: &'static str,
     architecture: &'static str,
+    os_version: Option<&'static str>,
 }
 
 #[derive(Serialize)]
@@ -57,12 +58,19 @@ pub struct WindowControlPosition {
 
 #[tauri::command]
 pub fn app_get_info(app: AppHandle) -> AppInfo {
+    static OS_VERSION: OnceLock<Option<String>> = OnceLock::new();
     let package_info = app.package_info();
     AppInfo {
         name: package_info.name.clone(),
         version: package_info.version.to_string(),
         platform: std::env::consts::OS,
         architecture: std::env::consts::ARCH,
+        os_version: OS_VERSION
+            .get_or_init(|| match os_info::get().version() {
+                os_info::Version::Unknown => None,
+                version => Some(version.to_string()),
+            })
+            .as_deref(),
     }
 }
 
