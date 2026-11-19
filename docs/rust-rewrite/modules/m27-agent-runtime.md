@@ -268,5 +268,5 @@ F2 每行上限仍是 1 MiB。超过 512 KiB 的结果正文在审计中保存�
    - 流式增量按 100 ms／16 KiB 合并后，一次典型带 2～4 次工具调用的回合在 SQLite 中约占 **12～25 KB**（会话头＋链与结清标记＋`Configured`＋`UserMessage`＋15～30 条合并流式块＋工具调用与结果＋`AssistantMessage`；同步 `ConversationDoc` 另增约 4～10 KB）。
    - 按高强度每天 20 轮 × 365 天 = **每年 7,300 轮**估算，本机 SQLite 每年仅增长约 **90～180 MB**（五年累计仍低于 1 GB）。因此**已结清的本机会话与外部审计事件无需自动定期删除，永久保留在用户本机既安全也不会拖慢启动或日常读写**。
 5. **外部审计非破坏性分页读取**：
-   - 新增公共只读接口 `dr_agent::external_sessions(library, book, cursor, limit)`（`limit` 为 `1..=200`，按 UUIDv7 会话号倒序即最新优先游标分页，可选按 `book` 过滤）与 `dr_agent::external_events(library, session, after_seq, limit)`（`limit` 为 `1..=500`，按 `after_seq` 顺序分页并校验连续 `seq`）；`AgentController` 在 `ReadLease` 下提供同名异步方法，供后续设置页或诊断按页读取而不把全部历史装入内存。
+   - 新增公共只读接口 `dr_agent::external_sessions(library, book, cursor, limit)`（`limit` 为 `1..=200`，按 UUIDv7 会话号倒序即最新优先游标分页，可选按 `book` 过滤）与 `dr_agent::external_events(library, session, after_seq, limit)`（`limit` 为 `1..=500`，按 `after_seq` 顺序分页并校验连续 `seq`）；`AgentController` 在 `ReadLease` 下提供同名的同步方法（在调用它的线程上直接读库，返回 `Result`，不是 future），供后续设置页或诊断按页读取而不把全部历史装入内存。目前产品代码里还没有调用方；界面接入时要放到后台线程调用。
    - 契约测试：`dr-agent/src/runtime/external/tests.rs` 的 `external_audit_pagination_and_paged_recovery_preserve_all_rows_until_book_purge`（覆盖跨 `RECONCILE_PAGE = 256` 的 320+ 条事件崩溃恢复、倒序会话游标分页、按书过滤、事件分页连续性校验及 `book.purge` 精确清理）。

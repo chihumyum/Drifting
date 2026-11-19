@@ -17,8 +17,12 @@ pub struct ChangeTarget {
 }
 
 impl ChangeTarget {
+    /// One per changed object, and per prose module of a changed body.
     pub fn key(&self) -> String {
-        format!("{}:{}", self.kind, self.id)
+        match &self.module {
+            Some(module) => format!("{}:{}/{}", self.kind, self.id, module),
+            None => format!("{}:{}", self.kind, self.id),
+        }
     }
 }
 
@@ -26,13 +30,21 @@ impl ChangeTarget {
 /// receipt back to its own settled call before inspecting that call's effects.
 pub fn change_targets(run: &crate::state::RunSnapshot, turn: u32) -> Vec<ChangeTarget> {
     let mut targets: Vec<ChangeTarget> = Vec::new();
+    // A body receipt brings its module and that module's history together,
+    // so a page and its history always open the same prose. Another module
+    // of the same entry gets a target of its own; a metadata change (no
+    // module) joins the object's first target.
     let mut add = |target: ChangeTarget| {
-        if let Some(previous) = targets.iter_mut().find(|old| old.key() == target.key()) {
-            if target.history.is_some() {
-                previous.history = target.history;
-            }
+        if let Some(previous) = targets.iter_mut().find(|old| {
+            old.kind == target.kind
+                && old.id == target.id
+                && (old.module.is_none() || target.module.is_none() || old.module == target.module)
+        }) {
             if previous.module.is_none() && target.module.is_some() {
                 previous.module = target.module;
+                previous.history = target.history;
+            } else if previous.module == target.module && target.history.is_some() {
+                previous.history = target.history;
             }
         } else {
             targets.push(target);
@@ -536,6 +548,53 @@ mod tests {
         assert_eq!(second[0].key(), "entry:second-effect");
         assert_eq!(second[0].history, None);
         assert!(change_targets(&run, 3).is_empty());
+    }
+
+    #[test]
+    fn each_changed_body_module_opens_and_offers_history_for_that_module() {
+        let seeded = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+        let book = seeded.books[0].book_id().to_string();
+        let entry = dr_model::id::EntryId::new_v7().to_string();
+        let mut run = ChatState::new("synthetic-session").snapshot();
+        let receipt = |id, document: String| ChangedReceipt {
+            turn: 1,
+            receipt: SettlementRef {
+                id,
+                document,
+                seq: id,
+            },
+        };
+        // The entry's metadata, then two of its prose modules, in one turn.
+        run.changes = vec![
+            receipt(1, format!("book:{book}")),
+            receipt(2, format!("body:{entry}/mod-prose")),
+            receipt(3, format!("body:{entry}/mod-summary")),
+        ];
+        run.tools = vec![ToolActivity {
+            id: "rename".into(),
+            call: None,
+            started: true,
+            result: Some(ToolResult {
+                call: "rename".into(),
+                status: ToolStatus::Success,
+                output: json!({"effects":[{"action":"updated","kind":"entry","id":entry}]}),
+                settlements: vec![run.changes[0].receipt.clone()],
+            }),
+        }];
+        let targets = change_targets(&run, 1);
+        assert_eq!(
+            targets
+                .iter()
+                .map(|t| (t.key(), t.module.clone(), t.history.clone()))
+                .collect::<Vec<_>>(),
+            ["mod-prose", "mod-summary"]
+                .map(|module| (
+                    format!("entry:{entry}/{module}"),
+                    Some(module.to_owned()),
+                    Some(format!("body:{entry}/{module}")),
+                ))
+                .to_vec(),
+        );
     }
 
     #[test]
