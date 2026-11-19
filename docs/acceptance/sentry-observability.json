@@ -20,7 +20,7 @@
       "PRIVACY.md": "sha256:23741a6a13dba8c871c185802c8abba6aedf943e237b3dcf30f95a5127095329",
       "docs/acceptance/sentry-cloud.json": "sha256:06f5ed0d0186a8c69850583ac2ddc2f46b1638d3abd144e7ce07cee8306502c3",
       "docs/acceptance/sentry-packaged.json": "sha256:b53fe1a1bd6697290542a1b532fb522fea1c36e06cb92a3701e27251f0546f77",
-      "docs/crash-reports.md": "sha256:54b636f44a6897a301e210c55b33f5668f4858871ea6f1389655ab79d6e79ce5",
+      "docs/crash-reports.md": "sha256:10ed8ac652694387492c626f3cd0a250c3cef47497c0782fe286e4a1bd36971b",
       "docs/sentry-observability.md": "sha256:dd9590ffeba6e597bc67e28d49ce3ffc5688be66fef9bcb543703022e7897963",
       "docs/worktree-development.md": "sha256:c3956b7f24fbcfe7c07231d61b2dbeb81333bdda40441cd60be207a356b68fae",
       "package.json": "sha256:56dc9c74af8e796df08c560b9e25296b992b4a4505184ec251ec3b5f1b690e6b",
@@ -44,8 +44,8 @@
       "src/renderer/platform/desktop-tauri-launcher.acceptance.test.ts": "sha256:36ecd46d7e7d453ab0b4815f81a6c32cbd8e3449bacd4d4acda9df60b58bc7c6",
       "src/renderer/platform/sentry-environment.acceptance.test.ts": "sha256:6455ae63404c4981649d2378bda5cdbfb2c9dcea25d29c9c8a225d7599ec2353",
       "src/renderer/platform/worktree-dev-launcher.acceptance.test.ts": "sha256:6399941c1e0db3691c847d325e4c823b4f2cd5ab1afbb181cbbc0b5885454ce3",
-      "src/renderer/services/diagnostics/crash-reporter.test.ts": "sha256:d184e95d9a79b0da2c30dcde961ac2ca6c9d987296294fe4352ea6205c12a0aa",
-      "src/renderer/services/diagnostics/crash-reporter.ts": "sha256:56cb2fc319bf0329852e1ba55b41efa83774eb2a68d021868636d992176125e5",
+      "src/renderer/services/diagnostics/crash-reporter.test.ts": "sha256:4a5c674b392fc51f3530b735e4729ccadf43f05c8ed76321812ff9024300a302",
+      "src/renderer/services/diagnostics/crash-reporter.ts": "sha256:a12ba4b41dd407247b2c59ce25bb9d3e3bfff06533e633d030aef16f448370ab",
       "src/renderer/services/diagnostics/crash-sanitize.test.ts": "sha256:4b96e56a923ae7b5d148fc99675999e89478a1b2c7e4fcf6b287e0b82cd91b2a",
       "src/renderer/services/diagnostics/crash-sanitize.ts": "sha256:e62d430c5732685584fa3d749e47d279d40da8b8ecb180e3c907e79c9d55f280",
       "src/renderer/services/diagnostics/sentry-policy.test.ts": "sha256:7535e7fd7b34909e5c6d9ca0c3b1cd86f70be433daef6f925f9cee666d616c2e",
@@ -62,7 +62,7 @@
   "automated": {
     "status": "passed",
     "command": "pnpm exec vitest run src/renderer/services/diagnostics src/renderer/services/update/update-service.test.ts src/renderer/platform/sentry-environment.acceptance.test.ts src/renderer/platform/desktop-tauri-launcher.acceptance.test.ts src/renderer/platform/worktree-dev-launcher.acceptance.test.ts",
-    "passed": 111,
+    "passed": 112,
     "failed": 0,
     "skipped": 0,
     "cases": [
@@ -388,6 +388,10 @@
       },
       {
         "name": "names the crash a follow-up explains",
+        "status": "passed"
+      },
+      {
+        "name": "names the statement and the database’s reason for a failed query, never its values",
         "status": "passed"
       },
       {

@@ -1,5 +1,5 @@
 {
-  "sourceSha256": "sha256:07a94e109b437b0063ed942dfc5ec2788d76b247c1af455574706a6523ce73a1",
+  "sourceSha256": "sha256:6b9ae1504801752cdfcad0982a725adebd047fb182b63769b0c4360c88b078c6",
   "status": "passed",
   "browser": "Chromium",
   "build": "minified-production-fixture",
