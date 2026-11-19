@@ -5,6 +5,8 @@ interface ImportMetaEnv {
   readonly VITE_SENTRY_DSN?: string;
   readonly VITE_SENTRY_RELEASE?: string;
   readonly VITE_SENTRY_ENVIRONMENT?: string;
+  /** Public source revision embedded in Hosted-capable packaged builds. */
+  readonly VITE_DRIFTING_BUILD_ID?: string;
   readonly VITE_API_BASE_URL: string;
   readonly VITE_API_URL: string;
   readonly VITE_LOCAL_ONLY_MODE?: string;

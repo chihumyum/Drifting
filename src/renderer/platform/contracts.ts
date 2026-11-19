@@ -100,6 +100,7 @@ export interface AppInfo {
   version: string;
   platform: string;
   architecture: string;
+  osVersion?: string | null;
 }
 
 export interface SystemFontFamily {

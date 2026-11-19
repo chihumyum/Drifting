@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({ hosted: true, online: true, enabled: true, token: null as string | null }));
-const sentry = vi.hoisted(() => ({ send: vi.fn(), log: vi.fn(), env: { VITE_SENTRY_DSN: '' } }));
+const sentry = vi.hoisted(() => ({
+  send: vi.fn(), log: vi.fn(), env: { VITE_SENTRY_DSN: '', VITE_DRIFTING_BUILD_ID: '' },
+}));
 vi.mock('../../lib/vite-runtime-env', () => ({ runtimeViteEnv: sentry.env }));
 vi.mock('./sentry-reporter', () => ({ sendSentryReport: sentry.send, sendSentryLog: sentry.log }));
 vi.mock('../../lib/config', async (importOriginal) => ({
@@ -18,7 +20,9 @@ vi.mock('../../platform', () => ({
   platform: { diagnostics: { takeNativeCrashReports: nativeReports.take } },
 }));
 vi.mock('../../platform/runtime', () => ({
-  getPlatformRuntime: () => ({ appInfo: { version: '0.1.0-alpha.2', platform: 'macos' }, nativePlatform: 'macos' }),
+  getPlatformRuntime: () => ({
+    appInfo: { version: '0.1.0-alpha.2', platform: 'macos', osVersion: '26.1.0' }, nativePlatform: 'macos',
+  }),
 }));
 import { DatabaseOpenFailure } from '../../platform/database';
 import {
@@ -52,6 +56,7 @@ beforeEach(() => {
   mocks.enabled = true;
   mocks.token = null;
   sentry.env.VITE_SENTRY_DSN = '';
+  sentry.env.VITE_DRIFTING_BUILD_ID = '';
   sentry.send.mockReset().mockResolvedValue(true);
   sentry.log.mockReset();
   resetCrashReporterForTests();
@@ -222,6 +227,7 @@ it('sends nothing when the author turned reports off or there is no Hosted servi
 });
 
 it('sends native panics from the previous launch as fatal reports, and clears them when off', async () => {
+  sentry.env.VITE_DRIFTING_BUILD_ID = 'f0f0f0f';
   const panic = {
     message: 'index out of bounds', location: 'src/sync_object_store.rs:88', thread: 'tokio-runtime-worker',
     backtrace: '   0: drifting_lib::sync_object_store::read\n             at ./src/sync_object_store.rs:88:5',
@@ -233,8 +239,9 @@ it('sends native panics from the previous launch as fatal reports, and clears th
   expect(sentBodies()[0]).toMatchObject({
     kind: 'native-panic', severity: 'fatal', name: 'RustPanic',
     fingerprint: 'native-panic:src-sync_object_store.rs:88',
-    context: { thread: 'tokio-runtime-worker', crashedVersion: '0.1.0-alpha.1' },
+    context: { thread: 'tokio-runtime-worker', crashedVersion: '0.1.0-alpha.1', osVersion: '26.1.0' },
   });
+  expect(sentBodies()[0].context).not.toHaveProperty('buildId');
   expect(sentBodies()[0].stack).toContain('drifting_lib::sync_object_store::read');
 
   mocks.enabled = false;
@@ -242,6 +249,17 @@ it('sends native panics from the previous launch as fatal reports, and clears th
   await reportNativeCrashes();
   expect(nativeReports.take).toHaveBeenCalledTimes(2);
   expect(fetchMock).toHaveBeenCalledOnce();
+});
+
+it('includes the packaged source revision and OS version within the Hosted context limit', async () => {
+  sentry.env.VITE_DRIFTING_BUILD_ID = '8123456789abcdef';
+  reportCrash({
+    kind: 'renderer-error', severity: 'error', name: 'SyntheticError', message: 'Synthetic error',
+    context: Object.fromEntries(Array.from({ length: 20 }, (_, index) => [`field${index}`, index])),
+  });
+  await flushCrashReports();
+  expect(sentBodies()[0].context).toMatchObject({ buildId: '8123456789abcdef', osVersion: '26.1.0', field17: 17 });
+  expect(Object.keys(sentBodies()[0].context)).toHaveLength(20);
 });
 
 it('says which launch step a failed native setup stopped at, its error and when it crashed', async () => {

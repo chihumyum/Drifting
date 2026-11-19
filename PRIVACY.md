@@ -82,7 +82,9 @@ The official build sends a report when Drifting fails: an uncaught error, a
 crash, a failed database open, a Yjs load or local save failure, or a stopped
 sync. A report contains the error kind, a shortened and sanitized message,
 stack frames, the app version, platform, a random installation ID and a few
-non-identifying context values. Long runs of prose-like text and home-directory
+diagnostic context values. Reports sent to Drifting Hosted may include the
+device's operating system version and the app's source revision. Long runs of
+prose-like text and home-directory
 paths are removed. When you are signed in, the report includes your account so
 the maintainer can follow up.
 
