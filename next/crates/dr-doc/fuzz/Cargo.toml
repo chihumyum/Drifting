@@ -15,7 +15,7 @@ arbitrary = { version = "1.4", features = ["derive"] }
 dr-doc = { path = ".." }
 dr-model = { path = "../../dr-model" }
 libfuzzer-sys = "0.4"
-loro = "=1.17.1"
+loro = "=1.18.0"
 
 # Its own workspace, so the next/ workspace does not adopt it.
 [workspace]

@@ -570,16 +570,21 @@ fn undo_cases_in_our_usage() {
             c.actual
         );
     }
-    // What the editor relies on: author Undo never removes Agent text, and
-    // merge interval 0 with editor-side bursts restores the text.
+    // What the editor relies on, plus #1228 and #1245 (fixed in Loro 1.18.0):
+    // author Undo never removes Agent text, and text-edit undo restores the
+    // expected text under both merge-interval-0 bursts and Loro grouping.
     for c in &cases {
-        let relied_on = c.issue == "—" || c.name.starts_with("merge interval 0");
+        let relied_on = c.issue == "—"
+            || c.issue == "#1228"
+            || c.issue == "#1245"
+            || c.name.starts_with("merge interval 0");
         if relied_on {
             assert!(!c.wrong(), "{}", c.name);
         }
     }
-    // Known Loro 1.17.1 bugs, pinned so that a Loro upgrade that fixes them
-    // fails here and the schema / spike documents get updated.
+    // Known Loro 1.18.0 bugs (#1229; #1228 and #1245 were fixed in 1.18.0),
+    // pinned so that a Loro upgrade that fixes them fails here and the schema /
+    // spike documents get updated.
     let wrong: Vec<&str> = cases.iter().filter(|c| c.wrong()).map(|c| c.name).collect();
     assert_eq!(
         wrong,
@@ -587,10 +592,6 @@ fn undo_cases_in_our_usage() {
             "heading set by author, changed by another device, author undoes",
             "heading set by author, changed by an in-place Agent write, author undoes",
             "author sets a link, another device changes it, author undoes",
-            "manual undo group around two Backspaces, remote map change in between",
-            "manual group: type x, it syncs, retype as y, remote dependent change, undo",
-            "merge interval: type x, it syncs, retype as y, remote dependent change, undo",
-            "forked Agent write imported after the author retyped inside the merge interval",
         ]
     );
 }

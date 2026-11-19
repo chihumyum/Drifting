@@ -104,11 +104,11 @@ impl Core {
         // empty document) and check they are this document's, then the
         // genesis, a no-op when the stored bytes already contain it.
         if !blobs.is_empty() {
-            // `import_batch` decodes without checking Loro's checksum, and its
-            // decoder trusts lengths inside the bytes: one corrupted blob can
-            // make it allocate tens of gigabytes and abort the process (found
-            // by the `load_bytes` fuzz target). Check every checksum first, so
-            // corruption is an error, not a crash. (`import` checks on its own.)
+            // Loro 1.17.1's `import_batch` decoded without checking Loro's
+            // checksum, and its decoder trusted lengths inside the bytes
+            // (`loro-dev/loro#1262`, found by the `load_bytes` fuzz target;
+            // fixed upstream in 1.18.0). Keep checking every checksum first as
+            // defense-in-depth before batch import begins.
             for b in blobs {
                 LoroDoc::decode_import_blob_meta(b, true)?;
             }

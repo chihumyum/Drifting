@@ -5,7 +5,7 @@
 - 正式实现：`next/crates/dr-doc/`（类型化的书目文档、正文文档和对话文档）和 `next/crates/dr-model/`（领域类型、不变量清单），说明见 [foundations/f1-model-doc.md](foundations/f1-model-doc.md)。
 - 探针的实现和测试：`next/spikes/loro-model/`（包名 `loro-model-spike`），只读保留。
 - 测量和结论：[spikes/p0-c-loro.md](spikes/p0-c-loro.md)。
-- Loro 精确钉在 `=1.17.1`。
+- Loro 精确钉在 `=1.18.0`（`loro-common` 同步钉在 `=1.18.0`）。
 
 ## 一句话
 
@@ -494,22 +494,22 @@ sync_doc (doc_id, remote_vv, updated_ms)                   -- 服务器已有到
 - **压缩**：在**同一个事务**里写新快照（`upto_seq` = 当时最大的 `seq`）并删除 `seq <= upto_seq` 的更新。崩溃时要么是旧快照加全部更新，要么是新快照加更新的更新。上传从文档导出 `remote_vv` 之后的改动，和压缩无关。
 - **载入**：先配置样式和时间戳，再在一个读事务里取快照加 `seq > upto_seq` 的更新，一次 `import_batch`（重叠的部分 Loro 会去重），最后设本机对等方。
 - **换代**：库被拷到别的设备（`installation_id` 不同）、或被旧副本盖回（`write_seq` 低于设备在库外记的水位）时，打开时自动换代。
-- **载入前先校验每份字节的校验和**（`LoroDoc::decode_import_blob_meta(bytes, true)`）：Loro 1.17.1 的 `import_batch` 解码时不校验，而它的解码器照字节里的长度申请内存，一份坏字节能让进程申请几十 GB 后被杀（F1 的模糊测试找到的）。单份的 `import` 自己会校验。`dr-doc` 的载入已经这样做，存储层不要绕过它直接导入。
+- **载入前先校验每份字节的校验和**（`LoroDoc::decode_import_blob_meta(bytes, true)`）：Loro 1.17.1 的 `import_batch` 解码时不校验，而它的解码器照字节里的长度申请内存，一份坏字节能让进程申请几十 GB 后被杀（F1 的模糊测试找到的；`loro-dev/loro#1262` 在 1.18.0 已修）。单份的 `import` 自己会校验。`dr-doc` 的载入继续先验校验和做双保险，存储层不要绕过它直接导入。
 - 不做浅快照裁剪（理由见 F2）。来源、活动、历史标签、Agent 结算都依赖完整历史。
 
 ## Agent 写入
 
 - **就地写入**：Agent 的改动是打开的文档上的一次本机提交，origin 和提交信息都是 `agent:<会话>/<轮>`；编辑器的 `UndoManager` 用 `add_exclude_origin_prefix("agent:")` 排除它。作者撤销时不会撤掉 Agent 的字，Agent 的操作会像远端操作一样被合进撤销栈。
 - 所有写入都排进文档持有者的队列，一次提交只含一个来源，作者的按键和 Agent 的操作不会落进同一次提交。
-- 不用分叉副本写入：它慢约 100 倍，还会触发 Loro #1228（见下）。
+- 不用分叉副本写入：它慢约 100 倍（在 Loro 1.17.1 上还会触发 #1228）。
 - Agent 改动的撤销照旧走对象快照历史：书目只恢复选定对象，独立正文在自己的文档里恢复；不 `revert_to` 整本书目（见「快照恢复是按对象的」）。
 
 ## 撤销（给编辑器的约束）
 
 - 撤销管理器排除 `user` 以外的全部来源，包括作者的命令 `user:command`（v2.1），由 `ProseUndo` 自己配好。
 
-- `UndoManager` 的合并间隔设为 **0**，不用 `group_start` / `group_end`。「一次撤销撤掉一阵连打」由编辑器自己做：用 `set_on_push` 给每个撤销项记时间，按一次撤销就连续弹出同一阵的几项。这样能避开 Loro #1228 和 #1245。（两个 issue 上游在 2026-11-12 关了，修复在还没发版的 1.18.0 里；升级后撤销已经不慢，没有性能上的理由改这条规矩，见 [history-aging.md](spikes/history-aging.md)。）
-- Loro #1229 绕不开：作者设了某个键（标题级别、链接）之后，另一台设备或 Agent 又改了同一个键，作者再撤销，会把对方的值也抹掉。只影响格式，不丢字。等上游修。
+- `UndoManager` 的合并间隔设为 **0**，不用 `group_start` / `group_end`。「一次撤销撤掉一阵连打」由编辑器自己做：用 `set_on_push` 给每个撤销项记时间，按一次撤销就连续弹出同一阵的几项。当初这样定是为了避开 Loro 1.17.1 的 #1228 和 #1245；升到 1.18.0 后这两个问题已经修好（`undo_cases_in_our_usage` 实测全过），老化章节上的撤销也由 #1217 修好，没有性能或正确性上的理由改编辑器的并项规矩，保持不变（见 [history-aging.md](spikes/history-aging.md)）。
+- Loro #1229 在 1.18.0 仍未修，绕不开：作者设了某个键（标题级别、链接）之后，另一台设备或 Agent 又改了同一个键，作者再撤销，会把对方的值也抹掉。只影响格式，不丢字。等上游修。
 - 详细的复现见结论文档。
 
 ## 版本
