@@ -175,6 +175,10 @@ impl BodyModule {
                             });
                             e.set_base_style(base, cx);
                             e.set_decor_looks(looks, cx);
+                            e.set_commit_playback(
+                                Some(dr_editor::CommitPlaybackOptions::new("agent:")),
+                                cx,
+                            );
                             e.set_chrome(
                                 Some(Rc::new(
                                     crate::Chrome::with_book(page, host.page.book.clone())

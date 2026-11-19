@@ -97,6 +97,7 @@ pub struct ChapterEditor {
     immersive: bool,
     /// The page a body is part of ([`Self::set_page_scroll`]).
     page_scroll: Option<gpui_prose::render::PageScroll>,
+    commit_playback: Option<gpui_prose::playback::CommitPlaybackOptions>,
     _editor_events: Subscription,
     _ws_events: dr_workspace::events::Subscription,
 }
@@ -231,6 +232,7 @@ impl ChapterEditor {
             drop_gap: None,
             immersive: false,
             page_scroll: None,
+            commit_playback: None,
             _editor_events: editor_events,
             _ws_events: ws_events,
         };
@@ -601,7 +603,13 @@ impl ChapterEditor {
         self.embeds = embeds;
         self.doc_id = doc_id.to_owned();
         let page = self.page_scroll.clone();
-        self.editor.update(cx, |e, _| e.set_page_scroll(page));
+        let playback = self.commit_playback.clone();
+        self.editor.update(cx, |e, cx| {
+            e.set_page_scroll(page);
+            if let Some(options) = playback {
+                e.set_commit_playback(Some(options), cx);
+            }
+        });
         if self.pages.has_chrome() {
             self.pages.attach(&self.editor, cx);
             self.refresh_page(cx);
@@ -702,6 +710,19 @@ impl ChapterEditor {
         let handle = page.as_ref().map(|p| p.handle.clone());
         self.editor.update(cx, |e, _| e.set_page_scroll(page));
         self.assist.update(cx, |a, _| a.set_page(handle));
+    }
+
+    /// Enables or disables post-commit grapheme reveal playback for matching
+    /// external commits (for example `CommitPlaybackOptions::new("agent:")`),
+    /// preserving the setting across [`Self::switch_to`].
+    pub fn set_commit_playback(
+        &mut self,
+        options: Option<gpui_prose::playback::CommitPlaybackOptions>,
+        cx: &mut Context<Self>,
+    ) {
+        self.commit_playback = options.clone();
+        self.editor
+            .update(cx, |e, cx| e.set_commit_playback(options, cx));
     }
 
     pub fn todo_markers(&self) -> &[TodoMarker] {

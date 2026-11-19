@@ -129,3 +129,8 @@ kernel-v5 第 15 节第 53、54 条，作者「全照建议」。
 
 - **空着的「说明」只留一行高**（[v5-followups.md](../handoff/v5-followups.md) 的 SF）：按模块的「进成书」开关认，不进成书的正文空着时一行高、写了字往下长；进成书的照旧至少 160。原来一律 160。`dr-view-page/src/v3.rs` 的 `BodyModule` 让不进成书的编辑器按内容排高，空时可以直接点这一行下笔。`dr-view-page/tests/v3.rs` 用自定义名称的两篇空正文验证开关判定、点击录入和展开。
 - NE 让新建的条目打开时选中标题。左栏卡和条目页两块中的「新建」直接建立「未命名」。`NewTitles` 按条目识别标题聚焦意图，正文模块加载时让出首次焦点。回车保存改名，有正文时光标进第一篇正文。无正文条目、整段选区和替换标题见 `dr-view-elements/tests/v5_kb_keyboard.rs`。
+
+## Agent 提交后渐显播放（2026-11-19 作者定：条目页与整书视图都开）
+
+- 条目页正文编辑器（`dr-view-page/src/v3.rs` 的 `BodyModule::load` 以及外壳 `dr-shell/src/workspace/editors.rs` 的单篇 `ChapterEditor` 路径）默认开启 `CommitPlaybackOptions::new("agent:")`，并通过 `ChapterEditor::set_commit_playback` 在 `switch_to` 重建底层 `ProseEditor` 时保持配置不断开。
+- 播放仅作用于已落盘的 `agent:` 提交画层揭示，不改变底层文档与结算时序；开启「关闭动态效果」（`appearance.reduce_motion`）时立即收起正在进行的播放并跳过后续动画。回归见 `dr-view-page/tests/playback.rs`。

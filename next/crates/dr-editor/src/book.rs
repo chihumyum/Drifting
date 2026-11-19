@@ -327,6 +327,7 @@ pub struct BookEditor {
     pub(crate) decor: crate::decor::Decor,
     /// Immersive writing: typewriter scrolling forced on (M26).
     immersive: bool,
+    commit_playback: Option<gpui_prose::playback::CommitPlaybackOptions>,
     /// The paragraph gap a dragged file would land in (`files.rs`).
     drop_gap: Option<crate::prose_files::DropGap>,
     /// The window the view is in (a drop moves the caret after an import
@@ -531,6 +532,7 @@ impl BookEditor {
             base_style,
             settings,
             immersive: false,
+            commit_playback: None,
             drop_gap: None,
             window: window.window_handle(),
             extension,
@@ -880,6 +882,10 @@ impl BookEditor {
         self.editor = editor;
         self.embeds = embeds;
         self._editor_events = events;
+        if let Some(options) = self.commit_playback.clone() {
+            self.editor
+                .update(cx, |e, cx| e.set_commit_playback(Some(options), cx));
+        }
         let shortcut_docs: Vec<String> = self.chapters.iter().map(|c| c.doc.clone()).collect();
         self.drop_gap = None;
         self.todos.clear();
@@ -1331,6 +1337,19 @@ impl BookEditor {
     /// The pickers, automatic links and the selection bar.
     pub fn assist(&self) -> &Entity<crate::assist::Assist> {
         &self.assist
+    }
+
+    /// Enables or disables post-commit grapheme reveal playback for matching
+    /// external commits across all chapters in the flattened book view,
+    /// preserving the setting across [`Self::reload`] / section rebuilds.
+    pub fn set_commit_playback(
+        &mut self,
+        options: Option<gpui_prose::playback::CommitPlaybackOptions>,
+        cx: &mut Context<Self>,
+    ) {
+        self.commit_playback = options.clone();
+        self.editor
+            .update(cx, |e, cx| e.set_commit_playback(options, cx));
     }
 
     pub fn set_base_style(&mut self, style: ProseStyle, cx: &mut Context<Self>) {

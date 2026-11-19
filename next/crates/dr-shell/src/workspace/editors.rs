@@ -465,6 +465,10 @@ impl Workspace {
                 editor.update(cx, |e, cx| {
                     e.set_base_style(base, cx);
                     e.set_decor_looks(looks, cx);
+                    e.set_commit_playback(
+                        Some(dr_editor::CommitPlaybackOptions::new("agent:")),
+                        cx,
+                    );
                 });
                 let events = cx.subscribe(&editor, |ws, editor, event: &ChapterEditorEvent, cx| {
                     ws.on_editor_event(&editor, event, cx)
@@ -505,6 +509,10 @@ impl Workspace {
                 editor.update(cx, |e, cx| {
                     e.set_base_style(base, cx);
                     e.set_decor_looks(looks, cx);
+                    e.set_commit_playback(
+                        Some(dr_editor::CommitPlaybackOptions::new("agent:")),
+                        cx,
+                    );
                     if let Some(at) = &position {
                         e.restore(&at.into(), cx);
                     }

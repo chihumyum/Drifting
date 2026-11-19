@@ -190,3 +190,7 @@ cargo run --release -p dr-editor --example book-bench -- --write
 - 代码在外壳的 `workspace/outline.rs`（`book_rows`）；`BookEditor` 没改，模块名从章的文档 `body:<条目>/<模块>` 在模板里找。模块那一行是结构字体 10 px、在章（10.5 px）和 H1（9.5 px）之间；点它和点章一样走 `BookEditor::jump_to`，到那一篇正文的开头。
 - 外壳的做法、条目页的那一半和测试见 [f6-shell.md](../foundations/f6-shell.md) 末尾「内核 v5 · OL 大纲按模块列」；回归在 `dr-view-page/tests/v5_outline.rs` 的 `the_whole_book_lists_each_entrys_modules_then_their_headings`。
 
+## Agent 提交后渐显播放（2026-11-19 作者定：条目页与整书视图都开）
+
+- 整书视图（`dr-view-page/src/whole.rs` 的 `WholeBook::load` 以及外壳 `dr-shell/src/workspace/editors.rs` 的 `BookEditor` 路径）默认开启 `CommitPlaybackOptions::new("agent:")`，并通过 `BookEditor::set_commit_playback` 在章节增删或挪序触发 `install_sections` / `reload` 重建底层 `ProseEditor` 时保持配置不断开，同时跟随「关闭动态效果」（`appearance.reduce_motion`）。回归见 `dr-view-page/tests/playback.rs`。
+
