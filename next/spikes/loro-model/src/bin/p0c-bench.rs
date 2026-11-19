@@ -620,7 +620,7 @@ fn memory_probes(db: &Path, doc_id: Option<&str>) -> Result<Value> {
     doc.checkout(&back)?;
     let checkout_ms = ms(t);
     let after_checkout = since(h3);
-    doc.checkout_to_latest();
+    doc.try_checkout_to_latest()?;
     let after_latest = since(h3);
     let h4 = heap();
     doc.free_history_cache();

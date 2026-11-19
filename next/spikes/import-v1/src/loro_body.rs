@@ -168,7 +168,7 @@ pub fn replay(versions: &[Prose], peer: u64) -> Result<(LoroDoc, Vec<Frontiers>,
         doc.checkout(at)?;
         all_match &= read(&doc.get_text(BODY))? == *version;
     }
-    doc.checkout_to_latest();
+    doc.try_checkout_to_latest()?;
     Ok((doc, frontiers, all_match))
 }
 

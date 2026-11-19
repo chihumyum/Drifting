@@ -1,7 +1,8 @@
-//! The known rich-text undo issues of Loro 1.17.1 (#1229, #1228, #1245),
+//! The rich-text undo issues tracked since Loro 1.17.1 (#1229, #1228, #1245),
 //! replayed the way Drifting would use the `UndoManager`: one manager per
 //! open prose document, Agent writes excluded by origin, IME text committed
 //! once per confirmed word, and a merge interval instead of manual groups.
+//! Loro 1.18.0 fixed #1228 and #1245; #1229 remains open.
 
 use loro::{CommitOptions, ExportMode, LoroDoc, LoroValue, UndoManager};
 

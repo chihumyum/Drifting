@@ -588,7 +588,7 @@ fn structure_snapshot_is_explicit_and_fresh_after_pending_writes_import_and_chec
         view.structure_snapshot().entry(&eid("new")).unwrap().title,
         "After"
     );
-    view.doc.checkout_to_latest();
+    view.doc.try_checkout_to_latest().unwrap();
     assert_eq!(
         view.structure_snapshot().entry(&eid("new")).unwrap().title,
         "Imported"

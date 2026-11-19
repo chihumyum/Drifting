@@ -258,6 +258,43 @@ fn purging_a_document_removes_it_everywhere() {
 }
 
 #[test]
+fn purging_or_rotating_right_after_dropping_a_handle_waits_for_the_closing_holder() {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = open(dir.path());
+    let h = create(&lib, "node:closing");
+    let h2 = create(&lib, "node:epoch");
+    assert!(matches!(
+        lib.purge_doc("node:closing"),
+        Err(StoreError::AlreadyOpen(_))
+    ));
+    let _slow = h
+        .submit(Origin::User, |doc| {
+            std::thread::sleep(Duration::from_millis(120));
+            doc.get_text(synthetic::BODY).insert(0, "慢").unwrap();
+        })
+        .unwrap();
+    // Dropping the last handle returns while the holder thread is still
+    // running its queued write and close work; purging waits for that
+    // teardown instead of racing it as `AlreadyOpen`.
+    drop(h);
+    h2.close();
+    lib.purge_doc("node:closing").unwrap();
+    assert!(lib.doc_info("node:closing").unwrap().is_none());
+    assert!(lib.head("node:closing").unwrap().is_none());
+    assert!(lib.history("node:closing").unwrap().is_empty());
+
+    let h2 = lib.open_doc("node:epoch", OpenDoc::Existing).unwrap();
+    let _slow2 = h2
+        .submit(Origin::User, |doc| {
+            std::thread::sleep(Duration::from_millis(120));
+            doc.get_text(synthetic::BODY).insert(0, "代").unwrap();
+        })
+        .unwrap();
+    drop(h2);
+    lib.rotate_epoch().unwrap();
+}
+
+#[test]
 fn modules_write_their_local_tables_in_one_transaction() {
     let dir = tempfile::tempdir().unwrap();
     let lib = open(dir.path());

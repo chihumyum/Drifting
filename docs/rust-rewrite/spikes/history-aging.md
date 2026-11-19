@@ -668,3 +668,15 @@ cargo test -p dr-testkit --test aging
 - 正文文档的老化（本页「用旧了的章节」和撤销四条路）不受影响，结论照旧。
 - 这一节没有重新量正文和撤销；要重量照上面「怎么复现」跑。
 
+## 升到 Loro 1.18.0 之后（2026-11-19）
+
+产品工作区已将 `loro` 和 `loro-common` 精确钉到 `=1.18.0`（含 PR #1217）：
+
+- **老化章节撤销**：`bench chapter-aging --quick`（release，负载约 12）实测 `ops4k` / `devices12k` 单项 `docUndoItem` p50 约 `0.028`–`0.030 ms`、`docRedoItem` p50 约 `0.024 ms`、连撤 20 项 `docUndoBurst` 约 `0.90 ms`，与此前主干对照实验一致。
+- **`loro-undo-quadratic-spike`**：一次提交 N 处替换再撤一次仍为线性（50 处 `0.65 ms`，800 处 `7.88 ms`，编辑器「全部替换」走这条路）；把 N 处替换拆成 N 次独立提交再从 N 一路撤回 1 时，即使不重建完整追踪器，第 k 次撤销仍要在缓存追踪器上往返走过近期的 2k 个提交并变换栈中剩余项，总耗时仍随 N² 增长（50 项 `22.6 ms`，800 项 `4621.5 ms`）。老化章节日常连撤几十步（`k << M`）不再随整章历史长度 `M` 变慢。
+- **已知问题核对**：
+  - `#1228`、`#1245` 在 1.18.0 已修，`loro-model-spike` 的 `undo_cases_in_our_usage` 已更新为断言它们全部通过；`#1229`（同键标记被远端或 Agent 改写后作者撤销会抹掉对方格式）仍未修，继续钉住；编辑器合并间隔 `0` 的并项规矩保持不变。
+  - `loro-dev/loro#1262`（`import_batch` 校验和与头部长度预分配）在 1.18.0 已修，坏字节直接调 `import_batch` 也会报错而不预留巨量内存；`dr-doc` 的 `decode_import_blob_meta(..., true)` 预检继续保留做双保险。
+  - 被删掉再通过 `apply_diff` / 撤销恢复的**非 mergeable 子容器与嵌套 `LoroTree`** 按上游公开契约（#1187）仍会分配新的容器与树节点身份，因此 `dr-doc`（`restore_shared_records_at`）和 `dr-workspace`（`snapshots.rs`）在首次提交前整批原子拒绝的保护继续保留。
+  - 1.17.1 写出的快照和增量更新在 1.18.0 上可直接导入、检出和继续编辑。
+

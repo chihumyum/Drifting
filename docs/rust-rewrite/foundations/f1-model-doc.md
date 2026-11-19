@@ -290,7 +290,7 @@ cargo run --release -p dr-testkit --bin bench -- doc
 ## 待协调
 
 1. **F2（dr-store）**
-   - 载入一律经过 `ProseDoc::load` / `BookDoc::load`（它们先查校验和），**不要自己调 `import_batch`**：Loro 1.17.1 的批量导入不查校验和，坏字节会让进程申请几十 GB 内存后被杀。
+   - 载入一律经过 `ProseDoc::load` / `BookDoc::load`（它们先查校验和），**不要自己调 `import_batch`**：Loro 1.17.1 的批量导入不查校验和，坏字节会让进程申请几十 GB 内存后被杀（`loro-dev/loro#1262` 在 1.18.0 已修；`dr-doc` 保留预检做双保险）。
    - 打开文档后跑一次 `repair()`，返回的 `Committed`（来源 `repair`）照常追加。`loro_update.origin` 多了一个取值 `repair`。
    - 存储的键用 `DocId` 的字符串形式（`book:<id>`、`node:<id>`……）。
    - 设备对等方由 F2 随机分配，最高位必须是 0（`dr_doc::peer::is_device_peer`）；最高位是 1 的留给创世，载入时会拒绝。

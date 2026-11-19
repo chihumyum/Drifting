@@ -369,3 +369,7 @@ snapshots::checkpoint_history_fingerprint(&docs, &target)             // 现在�
 ## 内核 v4 收尾（2026-11-13）
 
 快照预览里每篇正文只按模块名显示一遍，不再另以 `body:<条目>/<模块>` 加原始 JSON 再显示一遍（`preview_sections`，测试 `v3_tests.rs` 的 `preview_shows_each_body_once_by_its_module_name`）。
+
+## 升到 Loro 1.18.0 核对（2026-11-19）
+
+升到 `loro = "=1.18.0"` 后核对：被删掉再通过 `apply_diff` 恢复的普通（非 mergeable）子容器与嵌套 `LoroTree`，按上游契约（#1187）仍会生成新的容器和节点身份，因此 `dr-doc`（`restore_shared_records_at`）与 `dr-workspace`（`snapshots.rs`）在首次提交前整批原子拒绝的保护原样保留；PR #1217 保留完整追踪器的优化同样惠及完整历史文档上的重复 `checkout`。
