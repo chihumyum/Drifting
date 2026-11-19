@@ -66,13 +66,14 @@ dr_view_account::apply_account_state(state, cx);
 - `the_welcome_draws_with_its_consent_line`：欢迎卡画得出同意那一行；按「相关条款」立刻出卡，卡在这一行下面。
 - `a_failed_library_swap_keeps_the_account_bar_on_the_open_library`：登录后换库被拒，账号栏和「设置 → 账号」仍是打开着的本地书库、弹出「没能切换书库」，里面的会话和 `libraries.json` 仍是新账号的；之后照同步监督的做法换库成功，账号栏跟上，且没有再启动偏好同步。
 - `a_second_state_during_a_held_swap_waits_for_it_to_succeed` / `…_to_fail`：登录的换库还卡在释放书库时，又来一次同一账号的状态；账号栏照旧等着、不弹提示。放行后账号栏跟上、全程没有失败提示；拒绝后账号栏留在本地书库，只有第一次换库的那一条「没能切换书库」。
+- `with_no_swap_pending_the_bar_shows_state_as_written`：没有在等换库时，直接写进 `Service.state` 的状态（不经 `apply_account_state`）账号栏照样显示，署名也跟着变。
 - `consent::tests::every_language_splits_round_the_terms`：九种语言的同意句都恰好含一个占位，拆开再拼回与原句一致。
 
 ## 待协调
 
 - 无阻塞项。M37 偏好同步与 M36 同步 v2 直接复用 `dr_account::AccountService` 的会话令牌与 `HostedClient`。
 - **轨道 4（整合协调）**：`apply_account_state` 先更新账号展示，随后异步换库；换库失败或已有释放过程时，目前只记日志，旧库仍保留。请在后续会话状态接线时核对账号展示与实际打开书库的一致性及失败提示；本次没有据此认定数据丢失，也不扩成一轮界面复审。
-  - **2026-11-20 修了最小的一版（作者定：照建议做最小的）。** 账号栏和「设置 → 账号」显示的是打开着的那个书库的账号（`dr_view_account::shown_account_state`）。`apply_account_state` 不用换库时立刻换过去；要换库时先不动，换成了才换；换库失败时账号栏留在原来的账号上，弹一条「没能切换书库」，日志照记。每次书库换完（包括同步监督 `app/drifting/src/sync.rs` 后来重试换成的那次），只要打开的书库正是账号要的那个，账号栏就跟上；跟上这一步不启动偏好同步。故意没做的：换库失败以后，账号模块里面的会话还是新账号的（令牌、资料缓存和 `libraries.json` 都不回滚），只是账号栏显示打开着的书库的账号；同步监督会一直重试换库，两者对不上时不启动同步。偏好同步照旧按里面的会话走。更大的那版改法（记一份「已生效」的账号状态、失败时回滚凭据、退出登录先换库）留在分支 `agy/shell-platform-playback-as-left`，没有采用。回归见 `dr-view-account` 的 `a_failed_library_swap_keeps_the_account_bar_on_the_open_library`。
+  - **2026-11-20 修了最小的一版（作者定：照建议做最小的）。** 账号栏和「设置 → 账号」显示的是打开着的那个书库的账号（`dr_view_account::shown_account_state`：平时就是账号状态本身，只有在等换库时才留住开始等那一刻显示的账号，不另存一份常驻的副本）。`apply_account_state` 不用换库时立刻换过去；要换库时先不动，换成了才换；换库失败时账号栏留在原来的账号上，弹一条「没能切换书库」，日志照记。每次书库换完（包括同步监督 `app/drifting/src/sync.rs` 后来重试换成的那次），只要打开的书库正是账号要的那个，账号栏就跟上；跟上这一步不启动偏好同步。故意没做的：换库失败以后，账号模块里面的会话还是新账号的（令牌、资料缓存和 `libraries.json` 都不回滚），只是账号栏显示打开着的书库的账号；同步监督会一直重试换库，两者对不上时不启动同步。偏好同步照旧按里面的会话走。更大的那版改法（记一份「已生效」的账号状态、失败时回滚凭据、退出登录先换库）留在分支 `agy/shell-platform-playback-as-left`，没有采用。回归见 `dr-view-account` 的 `a_failed_library_swap_keeps_the_account_bar_on_the_open_library`。
 - **轨道 4 / 作者**：本批证据来自合成账号、本机假服务与 GPUI 契约；真实 Hosted、浏览器 OAuth／深链及跨平台系统钥匙串仍留给后续授权验收。
 
 ## 交回
