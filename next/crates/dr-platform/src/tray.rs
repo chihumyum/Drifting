@@ -1,10 +1,11 @@
 //! Windows notification area (system tray) support (M43).
 //!
 //! Like the Dock on macOS, Windows keeps Drifting running in the notification
-//! area when its window closes on the bookshelf so background Agent tasks,
-//! Hosted sync and the local MCP bridge keep running. Closing a window while a
-//! book is open returns to the shelf first; closing on the shelf saves and
-//! hides the window to the notification area.
+//! area when its window closes, so background Agent tasks, Hosted sync and the
+//! local MCP bridge keep running. Closing the window saves and hides it there,
+//! whatever it was showing, as the red light closes it on macOS (the author,
+//! 2026-11-20); it comes back as it was left. With no notification area to
+//! come back from, closing quits.
 //!
 //! A left click on the tray icon, the tray menu's "Open Drifting" item, or a
 //! second instance forwarding its launch arguments (`single_instance`) brings
@@ -81,22 +82,9 @@ impl TrayLabels {
     }
 }
 
-/// Where the main window is when the user presses its close button.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum WindowCloseContext {
-    /// A book is open in the workspace: closing returns to the bookshelf.
-    BookOpen,
-    /// The window is on the bookshelf: closing hides to the notification area
-    /// on Windows.
-    OnShelf,
-}
-
 /// What the shell should do in response to a window close request.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WindowCloseDecision {
-    /// Close the current book and return to the bookshelf without hiding or
-    /// quitting the window.
-    ReturnToShelf,
     /// Flush pending writes and hide the window to the Windows notification
     /// area while keeping background Agent tasks, sync and MCP running.
     HideToTray,
@@ -170,7 +158,7 @@ impl TrayState {
 
     /// Updates whether the session currently has a live notification area icon.
     /// When `false` (for example on headless Windows CI, Windows Server Core,
-    /// or while Explorer is not running), closing on the shelf quits cleanly
+    /// or while Explorer is not running), closing quits cleanly
     /// instead of hiding the window into an unreachable invisible state.
     pub fn set_notification_area_available(&mut self, available: bool) {
         self.keep_in_notification_area = available;
@@ -203,21 +191,16 @@ impl TrayState {
     }
 
     /// Decides how to handle a window close button or Alt+F4 request.
-    pub fn on_window_close_request(&mut self, context: WindowCloseContext) -> WindowCloseDecision {
+    pub fn on_window_close_request(&mut self) -> WindowCloseDecision {
         if self.quitting {
             return WindowCloseDecision::QuitProcess;
         }
-        match context {
-            WindowCloseContext::BookOpen => WindowCloseDecision::ReturnToShelf,
-            WindowCloseContext::OnShelf => {
-                if self.keep_in_notification_area {
-                    self.window_visible = false;
-                    WindowCloseDecision::HideToTray
-                } else {
-                    self.quitting = true;
-                    WindowCloseDecision::QuitProcess
-                }
-            }
+        if self.keep_in_notification_area {
+            self.window_visible = false;
+            WindowCloseDecision::HideToTray
+        } else {
+            self.quitting = true;
+            WindowCloseDecision::QuitProcess
         }
     }
 
@@ -316,7 +299,7 @@ impl TrayController {
     /// headless CI or Windows Server Core, or before Explorer finishes
     /// starting), the hidden message window still installs cleanly while
     /// [`Self::has_notification_icon`] stays `false` until `TaskbarCreated`
-    /// registers the icon, so closing on the shelf quits cleanly instead of
+    /// registers the icon, so closing quits cleanly instead of
     /// hiding the window with no way back.
     pub fn install(identity: &Identity, labels: TrayLabels) -> Result<Arc<Self>, TrayError> {
         let controller = Self::without_icon(identity, labels);
@@ -417,9 +400,9 @@ impl TrayController {
     }
 
     /// Evaluates a window close request and updates the tray visibility state.
-    pub fn handle_window_close(&self, context: WindowCloseContext) -> WindowCloseDecision {
+    pub fn handle_window_close(&self) -> WindowCloseDecision {
         let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
-        state.on_window_close_request(context)
+        state.on_window_close_request()
     }
 
     /// Called when `single_instance` receives arguments from a second launch:
@@ -801,7 +784,7 @@ mod windows_impl {
                     // the old icon is gone, but the same message also reaches a
                     // window whose icon is still there. Adding an icon that is
                     // still registered fails, which would read as "no
-                    // notification area" and turn the next close on the shelf
+                    // notification area" and turn the next close of the window
                     // into a quit, so whatever this window has goes first.
                     remove_icon(hwnd);
                     let added = try_add_icon(hwnd, &controller.tooltip());
@@ -893,21 +876,14 @@ mod tests {
     }
 
     #[test]
-    fn windows_shelf_close_hides_to_tray_and_restore_paths_bring_window_back() {
+    fn windows_close_hides_to_tray_and_restore_paths_bring_window_back() {
         let mut state = TrayState::with_platform(&DEVELOPMENT, TrayLabels::default(), true);
         assert!(state.window_visible());
         assert!(!state.is_quitting());
 
-        // Closing while a book is open returns to the shelf first.
+        // Closing hides the window to the notification area at once.
         assert_eq!(
-            state.on_window_close_request(WindowCloseContext::BookOpen),
-            WindowCloseDecision::ReturnToShelf
-        );
-        assert!(state.window_visible());
-
-        // Closing on the shelf hides the window to the notification area.
-        assert_eq!(
-            state.on_window_close_request(WindowCloseContext::OnShelf),
+            state.on_window_close_request(),
             WindowCloseDecision::HideToTray
         );
         assert!(!state.window_visible());
@@ -919,7 +895,7 @@ mod tests {
 
         // Hide again, then restore via a second instance launch forwarding args.
         assert_eq!(
-            state.on_window_close_request(WindowCloseContext::OnShelf),
+            state.on_window_close_request(),
             WindowCloseDecision::HideToTray
         );
         assert!(!state.window_visible());
@@ -931,7 +907,7 @@ mod tests {
 
         // Hide again, then restore via the tray menu's Open item.
         assert_eq!(
-            state.on_window_close_request(WindowCloseContext::OnShelf),
+            state.on_window_close_request(),
             WindowCloseDecision::HideToTray
         );
         assert_eq!(state.on_menu_open(), TrayCommand::RestoreWindow);
@@ -941,41 +917,34 @@ mod tests {
         assert_eq!(state.on_menu_quit(), TrayCommand::QuitApp);
         assert!(state.is_quitting());
         assert_eq!(
-            state.on_window_close_request(WindowCloseContext::OnShelf),
+            state.on_window_close_request(),
             WindowCloseDecision::QuitProcess
         );
     }
 
     #[test]
-    fn missing_notification_icon_quits_on_shelf_close_until_taskbar_appears() {
+    fn missing_notification_icon_quits_on_close_until_taskbar_appears() {
         let controller = TrayController::with_platform(&DEVELOPMENT, TrayLabels::default(), false);
         assert!(controller.manages_window_close());
         assert!(!controller.has_notification_icon());
 
-        // Book-open close still returns to the shelf first.
-        assert_eq!(
-            controller.handle_window_close(WindowCloseContext::BookOpen),
-            WindowCloseDecision::ReturnToShelf
-        );
-        assert!(controller.window_visible());
-
-        // Shelf close without a tray icon quits cleanly instead of hiding the
+        // Closing without a tray icon quits cleanly instead of hiding the
         // window into an invisible unreachable state.
         assert_eq!(
-            controller.handle_window_close(WindowCloseContext::OnShelf),
+            controller.handle_window_close(),
             WindowCloseDecision::QuitProcess
         );
         assert!(controller.window_visible());
         assert!(controller.is_quitting());
 
         // If the shutdown barrier fails, cancelling quit restores normal state;
-        // once `TaskbarCreated` registers the icon, shelf close hides to tray.
+        // once `TaskbarCreated` registers the icon, closing hides to tray.
         controller.cancel_quit();
         assert!(!controller.is_quitting());
         controller.set_notification_area_available(true);
         assert!(controller.has_notification_icon());
         assert_eq!(
-            controller.handle_window_close(WindowCloseContext::OnShelf),
+            controller.handle_window_close(),
             WindowCloseDecision::HideToTray
         );
         assert!(!controller.window_visible());
@@ -1019,7 +988,7 @@ mod tests {
 
     /// On Windows the hidden notification window always installs (even on
     /// headless CI sessions without Explorer's taskbar notification area),
-    /// degrades shelf close to `QuitProcess` when `NIM_ADD` is unavailable,
+    /// degrades closing to `QuitProcess` when `NIM_ADD` is unavailable,
     /// handles `TaskbarCreated`, and routes left-click and menu commands
     /// through its Win32 window procedure into the queue. Off Windows it is the
     /// inert controller.
@@ -1031,19 +1000,19 @@ mod tests {
         {
             if !controller.has_notification_icon() {
                 assert_eq!(
-                    controller.handle_window_close(WindowCloseContext::OnShelf),
+                    controller.handle_window_close(),
                     WindowCloseDecision::QuitProcess
                 );
                 controller.cancel_quit();
             }
             // The taskbar announcing itself to a window that already has its
-            // icon keeps the icon: closing on the shelf still hides.
+            // icon keeps the icon: closing still hides.
             let had_icon = controller.has_notification_icon();
             windows_impl::simulate::taskbar_created(&controller);
             if had_icon {
                 assert!(controller.has_notification_icon());
                 assert_eq!(
-                    controller.handle_window_close(WindowCloseContext::OnShelf),
+                    controller.handle_window_close(),
                     WindowCloseDecision::HideToTray
                 );
             }

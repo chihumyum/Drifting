@@ -1,6 +1,5 @@
 //! M43 notification area shell integration: window close policy
-//! (`ReturnToShelf`, `HideToTray`, `QuitProcess`), single-instance and tray
-//! restore wakeups, headless degradation when no taskbar icon exists, and
+//! (`HideToTray`, `QuitProcess`), single-instance and tray restore wakeups, headless degradation when no taskbar icon exists, and
 //! interface language synchronization.
 
 use std::cell::Cell;
@@ -97,7 +96,7 @@ fn inert_controller_leaves_macos_window_close_unchanged(cx: &mut TestAppContext)
 }
 
 #[gpui::test]
-fn windows_tray_returns_to_shelf_hides_restores_and_tracks_locale(cx: &mut TestAppContext) {
+fn windows_tray_hides_an_open_book_restores_it_and_tracks_locale(cx: &mut TestAppContext) {
     let (_dir, book_id) = setup_shell(cx);
     let controller = TrayController::with_platform(&DEVELOPMENT, TrayLabels::default(), true);
     cx.update(|cx| {
@@ -122,17 +121,8 @@ fn windows_tray_returns_to_shelf_hides_restores_and_tracks_locale(cx: &mut TestA
     cx.run_until_parked();
     assert!(!handle.read_with(cx, |ws, _| ws.shelf_open).unwrap());
 
-    // First close while a book is open returns to the shelf without hiding.
-    let should_close = cx
-        .update_window(*handle, |_, window, cx| {
-            Workspace::should_close_window(&weak, window, cx)
-        })
-        .unwrap();
-    assert!(!should_close);
-    assert!(handle.read_with(cx, |ws, _| ws.shelf_open).unwrap());
-    assert!(controller.window_visible());
-
-    // Second close on the shelf hides to the notification area.
+    // Closing while a book is open hides to the notification area at once:
+    // the window is kept, and the book stays open in it.
     let should_close = cx
         .update_window(*handle, |_, window, cx| {
             Workspace::should_close_window(&weak, window, cx)
@@ -140,11 +130,16 @@ fn windows_tray_returns_to_shelf_hides_restores_and_tracks_locale(cx: &mut TestA
         .unwrap();
     assert!(!should_close);
     assert!(!controller.window_visible());
+    assert!(!handle.read_with(cx, |ws, _| ws.shelf_open).unwrap());
 
     // A second instance launch wakes the tray command loop and restores visibility.
     controller.notify_second_instance();
     cx.run_until_parked();
     assert!(controller.window_visible());
+    assert!(
+        !handle.read_with(cx, |ws, _| ws.shelf_open).unwrap(),
+        "the window comes back on the book it was hidden with"
+    );
 
     // Hide again, then restore via tray left click.
     let _ = cx

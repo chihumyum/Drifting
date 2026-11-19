@@ -1390,9 +1390,8 @@ impl Workspace {
     /// was. In a project template's working copy (`project-templates.md` §12,
     /// PT3), it returns to 全部项目 instead of closing the window
     /// ([`working_copy`]). On Windows (`crate::tray::manages_window_close`),
-    /// closing while a book is open returns to 全部项目 first, and closing on
-    /// 全部项目 hides to the notification area when an icon is registered (or
-    /// runs a flushed quit when no notification area exists).
+    /// closing hides the window to the notification area as it is, when an
+    /// icon is registered there, and runs a flushed quit when there is none.
     fn listen_on_close(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let this = cx.weak_entity();
         window.on_window_should_close(cx, move |window, cx| {
@@ -1429,33 +1428,8 @@ impl Workspace {
                     return Some(false);
                 }
                 ws.store_layout(cx);
-                let context = if !ws.shelf_open && !ws.book_id.is_empty() && pages::has_shelf(cx) {
-                    dr_platform::tray::WindowCloseContext::BookOpen
-                } else {
-                    dr_platform::tray::WindowCloseContext::OnShelf
-                };
-                match crate::tray::handle_window_close(context, cx) {
+                match crate::tray::handle_window_close(cx) {
                     None => Some(true),
-                    Some(dr_platform::tray::WindowCloseDecision::ReturnToShelf) => {
-                        if ws.show_shelf(window, cx) {
-                            Settings::flush(cx);
-                            Some(false)
-                        } else {
-                            match crate::tray::handle_window_close(
-                                dr_platform::tray::WindowCloseContext::OnShelf,
-                                cx,
-                            ) {
-                                Some(dr_platform::tray::WindowCloseDecision::HideToTray) => {
-                                    dr_view_stats::flush(cx);
-                                    Settings::flush(cx);
-                                    crate::tray::hide_window(window);
-                                    Some(false)
-                                }
-                                Some(dr_platform::tray::WindowCloseDecision::QuitProcess) => None,
-                                _ => Some(true),
-                            }
-                        }
-                    }
                     Some(dr_platform::tray::WindowCloseDecision::HideToTray) => {
                         dr_view_stats::flush(cx);
                         Settings::flush(cx);

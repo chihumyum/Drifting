@@ -8,9 +8,7 @@
 use std::sync::Arc;
 
 use dr_i18n::Locale;
-use dr_platform::tray::{
-    TrayCommand, TrayController, TrayLabels, WindowCloseContext, WindowCloseDecision,
-};
+use dr_platform::tray::{TrayCommand, TrayController, TrayLabels, WindowCloseDecision};
 use gpui::{App, Global, Task, Window};
 
 use crate::Settings;
@@ -89,13 +87,10 @@ fn apply_locale(controller: &TrayController, locale: Locale) {
     }
 }
 
-pub(crate) fn handle_window_close(
-    context: WindowCloseContext,
-    cx: &App,
-) -> Option<WindowCloseDecision> {
+pub(crate) fn handle_window_close(cx: &App) -> Option<WindowCloseDecision> {
     controller(cx)
         .filter(|c| c.manages_window_close())
-        .map(|c| c.handle_window_close(context))
+        .map(|c| c.handle_window_close())
 }
 
 pub(crate) fn cancel_quit(cx: &App) {
