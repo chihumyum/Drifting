@@ -9,6 +9,8 @@
 > 2026-11-16 内核 v5（DV）：工具描述跟着两条新规则改了：`tab.put` 只挂层级条目和成书序列，挂视图被拒（`TAB-MOUNT-VALID`）；`timeline_view.add_lane` 写明泳道是开着「收别处的条目」的条目、只开层级的被拒、泳道上只有挂着的；`entry.move` 的 `index` 一律是文件夹里的手动先后、搬家不上刻度；`timeline_view.remove_lane`／`delete` 离开最后一个视图时只把挂着的先后写回归属；`timeline_view.restore_fields` 去掉了 `child_order`。结构说明里 `project_tabs` 的挂视图的旧 Tab 读作 `mount_valid = false`，`lane` 只对开着「收别处的条目」、在视图里的条目为真；内置「写书」幕轨道写给帮手的说明改成「挂在它上面的条目」。目录快照（`dr-agent-tools` 的 `catalog__directory.snap`、`dr-workspace` 的两个 registry 快照）重新生成。见 [kernel-v5.md](../kernel-v5.md) 第 18 节「DV 交回」。
 >
 > 2026-11-16 T7b：帮手能写清单行。`module.set_prose` 的段落多三项可选的 `list`（`bullet`／`ordered`／`task`）、`list_level`、`checked`（只在 `task` 上），`prose.read`／`module.read_prose` 读出同样三项，读出来原样写回什么都不变；改了字的段落就地改，块 id 不变，所以清单项的批注 id 不变、批注的字跟着那一行。写了清单行以后照旧由执行器投给 `comment.project`（`tasks: []`，数据层从正文读清单），写 `checked` 就是解决、重开；写前快照照旧。MCP 走同一个执行器。工具数不变。见 [kernel-v5.md](../kernel-v5.md) 第 12、18 节。
+>
+> 2026-11-19（M30 计划与工作记忆工具边界）：`dr-agent-tools::AgentTools` 保持不变，仍只提供 `tool_search` 与 `call_tool` 两个入口（目录严格投影 F3 注册表与当前书模板动作，供应用内帮手和入站 MCP 共享，目录快照与工具数不变）。绑定当前聊天会话的 `read_task_plan`、`update_task_plan`、`read_working_memory`、`edit_working_memory` 与 `ask_user` 一同挂在 `dr-view-agent::tools::CompanionTools` 上，不进 `Catalog`、不对入站 MCP 暴露。见 [M30](m30-long-tasks-memory.md) 文末。
 
 交回状态：分支 `codex/m29-agent-tools`；最后实现提交 `4d55f081`（本行交回记录单独提交）；此次审查修正由第二十五批接收（交回记录 `44357606`）。结构化正文编辑、转换的完整守卫、隐藏记录级联删除和历史恢复点仍需要 F3 后续接口，当前能力与差异见下文。
 

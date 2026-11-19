@@ -548,3 +548,155 @@ fn audit_cas_missing_header_and_oversize_output_preserve_terminal_and_every_rece
     f.no_chat();
     f.ws.try_shutdown().unwrap();
 }
+
+#[test]
+fn external_audit_pagination_and_paged_recovery_preserve_all_rows_until_book_purge() {
+    let f = Fixture::new();
+    let other_seed = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED + 7).unwrap();
+    let other_book = other_seed.books[0].book_id().clone();
+    other_seed.write_to(f.ws.library()).unwrap();
+
+    // Create 4 closed sessions on `f.book` and 1 on `other_book`, plus 1 crashed
+    // open session on `f.book` with >300 events (crossing RECONCILE_PAGE = 256).
+    let mut created = Vec::new();
+    for epoch in 1..=4 {
+        let s = new_uuid_v7();
+        let mut j = Journal::create(
+            f.ws.library().clone(),
+            s.clone(),
+            ExternalStart {
+                client_id: format!("client-{epoch}"),
+                book: f.book.clone(),
+                connection_epoch: epoch,
+            },
+        )
+        .unwrap();
+        j.event(json!({"kind": "accepted", "call": "c1"})).unwrap();
+        j.finish(&ToolResult {
+            call: "c1".into(),
+            status: ToolStatus::Success,
+            output: json!({"ok": epoch}),
+            settlements: vec![],
+        })
+        .unwrap();
+        j.close(ExternalState::Closed).unwrap();
+        created.push(s);
+    }
+
+    let other_session = new_uuid_v7();
+    let mut other_journal = Journal::create(
+        f.ws.library().clone(),
+        other_session.clone(),
+        ExternalStart {
+            client_id: "other-client".into(),
+            book: other_book.clone(),
+            connection_epoch: 1,
+        },
+    )
+    .unwrap();
+    other_journal.close(ExternalState::Closed).unwrap();
+    drop(other_journal);
+
+    let crashed = new_uuid_v7();
+    let mut crashed_journal =
+        Journal::create(f.ws.library().clone(), crashed.clone(), f.start()).unwrap();
+    for i in 0..160 {
+        let cid = format!("done-{i}");
+        crashed_journal
+            .event(json!({"kind": "accepted", "call": cid}))
+            .unwrap();
+        crashed_journal
+            .finish(&ToolResult {
+                call: cid,
+                status: ToolStatus::Success,
+                output: json!(i),
+                settlements: vec![],
+            })
+            .unwrap();
+    }
+    // 320 events so far (> RECONCILE_PAGE = 256), plus one unfinished call!
+    crashed_journal
+        .event(json!({"kind": "accepted", "call": "unfinished-tail"}))
+        .unwrap();
+    drop(crashed_journal);
+    created.push(crashed.clone());
+
+    let runtime = f.runtime(empty_tools());
+    let recovered = runtime.recover_external().unwrap();
+    assert_eq!(recovered.len(), 1);
+    assert_eq!(recovered[0].session, crashed);
+    assert_eq!(recovered[0].state, ExternalState::Interrupted);
+
+    // Paginate sessions for `f.book` 2 at a time: newest UUIDv7 first, exact 5 sessions.
+    let mut seen_sessions = Vec::new();
+    let mut cursor = None;
+    loop {
+        let page = external_sessions(f.ws.library(), Some(&f.book), cursor.as_deref(), 2).unwrap();
+        assert!(page.sessions.len() <= 2);
+        seen_sessions.extend(page.sessions.iter().map(|s| s.session.clone()));
+        if page.next_cursor.is_none() {
+            break;
+        }
+        cursor = page.next_cursor;
+    }
+    created.reverse();
+    assert_eq!(seen_sessions, created);
+    assert!(
+        !seen_sessions.contains(&other_session),
+        "book filter excludes other books"
+    );
+
+    // Paginate the >320 events of `crashed` in pages of 100 without loading all at once.
+    let mut after = 0;
+    let mut collected_seqs = Vec::new();
+    let mut last_kind = String::new();
+    loop {
+        let page = external_events(f.ws.library(), &crashed, after, 100).unwrap();
+        assert_eq!(page.state, ExternalState::Interrupted);
+        assert!(page.events.len() <= 100);
+        for ev in &page.events {
+            collected_seqs.push(ev.seq);
+            last_kind = ev.event["kind"].as_str().unwrap_or_default().to_owned();
+        }
+        match page.next_after_seq {
+            Some(next) => after = next,
+            None => {
+                assert_eq!(collected_seqs.len() as u64, page.total_seq);
+                break;
+            }
+        }
+    }
+    assert_eq!(
+        collected_seqs,
+        (1..=collected_seqs.len() as u64).collect::<Vec<_>>()
+    );
+    assert_eq!(last_kind, "closed");
+
+    // Out-of-bounds limits and invalid cursors fail cleanly.
+    assert!(external_sessions(f.ws.library(), None, None, 0).is_err());
+    assert!(external_sessions(f.ws.library(), None, None, MAX_SESSION_PAGE + 1).is_err());
+    assert!(external_events(f.ws.library(), &crashed, 0, 0).is_err());
+    assert!(external_events(f.ws.library(), &crashed, 0, MAX_EVENT_PAGE + 1).is_err());
+
+    // Purging `other_book` removes its external audit rows while preserving `f.book`'s.
+    f.ws.call(&Actor::User, "book.trash", json!({"book": other_book}))
+        .unwrap();
+    f.ws.call(&Actor::User, "book.purge", json!({"book": other_book}))
+        .unwrap();
+    assert!(
+        external_sessions(f.ws.library(), Some(&other_book), None, 10)
+            .unwrap()
+            .sessions
+            .is_empty()
+    );
+    assert_eq!(
+        external_sessions(f.ws.library(), Some(&f.book), None, 10)
+            .unwrap()
+            .sessions
+            .len(),
+        5
+    );
+
+    drop(runtime);
+    f.ws.try_shutdown().unwrap();
+}

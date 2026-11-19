@@ -2,9 +2,14 @@
 //! Memory. Markdown is content, never a second copy of the book's entries.
 mod project;
 mod store;
+mod tools;
 
 pub use project::{ProjectEntry, ProjectSnapshot, project};
 pub use store::{clear, edit, edit_once, load, read_page, replace, take_notice};
+pub use tools::{
+    EDIT_TOOL, READ_TOOL, WorkingMemoryConflicts, describe_tool, edit_descriptor, execute_tool,
+    read_descriptor,
+};
 
 use dr_model::id::BookId;
 use serde::{Deserialize, Serialize};
@@ -86,7 +91,9 @@ pub struct Page {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct Edit {
+    #[serde(alias = "old_text")]
     pub old_text: String,
+    #[serde(alias = "new_text")]
     pub new_text: String,
 }
 

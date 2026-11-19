@@ -23,6 +23,18 @@ impl AgentPanel {
             view.update(cx, |v, cx| v.close(cx));
         }
         self.continuity.shown = None;
+        self.navigation.retain(|_, req| !req.project_memory);
+    }
+
+    pub(super) fn reveal_project_memory(
+        &mut self,
+        id: dr_model::id::MemoryId,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Option<futures::channel::oneshot::Receiver<bool>> {
+        self.memory(false, window, cx);
+        let view = self.continuity.project.as_ref()?.clone();
+        Some(view.update(cx, |v, cx| v.reveal(id, cx)))
     }
 
     fn memory(&mut self, working: bool, window: &mut Window, cx: &mut Context<Self>) {
@@ -30,15 +42,28 @@ impl AgentPanel {
             return;
         };
         if working {
+            self.navigation.retain(|_, req| !req.project_memory);
+            if let Some(project) = &self.continuity.project {
+                project.update(cx, |v, cx| v.set_visible(false, cx));
+            }
             if self.continuity.working.is_none() {
                 self.continuity.working = Some(cx.new(|cx| {
                     crate::working_memory::WorkingMemoryView::new(controller, book, window, cx)
                 }));
+            } else if let Some(view) = &self.continuity.working {
+                view.update(cx, |v, cx| v.set_visible(true, cx));
             }
-        } else if self.continuity.project.is_none() {
-            self.continuity.project = Some(cx.new(|cx| {
-                crate::project_memory::ProjectMemoryView::new(controller, book, window, cx)
-            }));
+        } else {
+            if let Some(working_view) = &self.continuity.working {
+                working_view.update(cx, |v, cx| v.set_visible(false, cx));
+            }
+            if self.continuity.project.is_none() {
+                self.continuity.project = Some(cx.new(|cx| {
+                    crate::project_memory::ProjectMemoryView::new(controller, book, window, cx)
+                }));
+            } else if let Some(view) = &self.continuity.project {
+                view.update(cx, |v, cx| v.set_visible(true, cx));
+            }
         }
         self.continuity.shown = Some(working);
         cx.notify();

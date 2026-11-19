@@ -1,5 +1,7 @@
 # M32 MCP
 
+> 2026-11-19（外部审计保留核查与非破坏性分页）：确认本机外部审计日志（`local_state` 的 `agent.external.sessions`／`agent.external.events`）永久保留在用户本机且随书彻底清除（`book.purge`）一并删除，不做自动裁剪。`Runtime::recover_external()` 与 `Journal::reconcile()` 改为按 256 行分页扫描，已结清（`Closed`／`Interrupted`）会话在恢复时直接跳过不读事件表，崩溃遗留的 `Open` 会话仍完整核对每一页回执与连续序号；同时新增 `dr_agent::{external_sessions, external_events}` 与 `AgentController::{external_sessions, external_events}` 只读分页接口（最新会话优先游标分页、按书过滤、事件按 `after_seq` 分页）。另确认 M30 新注册的四个会话级计划／工作记忆工具只挂在 `CompanionTools` 上，入站 MCP 目录不变且外部 `ExternalScope` 直接调用一律拒绝。见 [M27](m27-agent-runtime.md) 文末。
+
 **2026-11-17，RD。** 入站工具从共享目录读取 `relation_type.*` 和 `relation_row.*`。关系查询返回定义和左右两组条目的行，创建配对返回落到的行 id。批注与关系描述可附条目链接。入站合成测试覆盖建配对、扩行、记录读取及删行。
 
 > 2026-11-15 内核 v5（T7）：入站 MCP 继续直接复用 `AgentTools` 生成的同一份目录，不另建工具表。基础目录同步更新为格式 5 的 **94** 项开放工具（新增 `project.*`、`tab.*`、`book.sequence`、`module.put_media`／`remove_media`／`set_arrangement`、`asset.*`、`asset_folder.*`、`layout.*`；`comment.update` Schema 移除 `priority`；`prose.link` Schema 允许 `asset` 目标），继续排除已退役的 `material.*`／`todo.*` 以及 `asset.purge`、`asset_folder.purge`、`comment.delete`、`comment.project`。开着书时附加的模板动作随格式 5 按 `accept` 判住进（`home`）并用 `adds_membership` 区分「住进」与「挂到」。`dr-mcp/tests/inbound.rs` 已补齐格式 5 入站目录与 Schema 一致性回归。
@@ -114,7 +116,7 @@ Windows `x86_64-pc-windows-msvc` 的 `dr-mcp --all-targets` 已用 cargo-xwin、
 
 1. **K6／后续 v3 接回方：** M29 的结构正文、隐藏关联级联、转换及历史边界照其模块文档；不能因 MCP 已能列工具就解除排除。M17、M19 仍冻结，不启动旧分支复审；以后正式接回时再补实际 AgentTools 回归。
 2. 真实 Codex／Claude Code／Antigravity 的安装路径、版本差异和作者自建服务由作者手测。本模块测试不读取或改写作者真实客户端配置，不使用真实提供商密钥。
-3. **轨道 3：** 外部审计目前随库保留并在书清除时移除；日志保留与分页整理待统一设计，不为提速跳过未结算回执恢复。
+3. **轨道 3（2026-11-19 已完成）：** 外部审计随库永久保留在用户本机、不自动裁剪，并在书彻底清除（`book.purge`）时由 `local_state_by_book` 同事务移除。`Runtime::recover_external` 与 `Journal::reconcile` 已改为 256 条有界分页扫描（跳过已关闭会话的事件解码，保留对未结束 `Open` 会话的 100% 连续序号与真实回执核对），并新增 `dr_agent::{external_sessions, external_events}` 及 `AgentController` 同名非破坏性分页查询（测试见 `dr-agent/src/runtime/external/tests.rs::external_audit_pagination_and_paged_recovery_preserve_all_rows_until_book_purge`）。
 4. **轨道 4 的 M43／作者：** Windows 的原生启动、作业对象退出与安装目录手测；本模块提供回环测试及交叉编译证据。
 5. **轨道 2 的 F5：** `Button::disabled` 当前禁用点击并变灰，但原生 AX 仍报告 enabled；GPUI 没有现成的 disabled builder。本模块窗口验收检查实际表单／列表变化与截图，未把 AX enabled 当成就绪证据；通用无障碍禁用状态由 F5 统一补，不阻挡 M32 接收。
 

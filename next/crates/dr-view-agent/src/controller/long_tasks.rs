@@ -97,12 +97,24 @@ impl PendingStart {
         } else {
             return Err("request has no book".into());
         };
+        let is_author_turn = matches!(self.request, StartRequest::Author(_));
         let config = match &mut self.request {
             StartRequest::Author(start) => &mut start.config,
             StartRequest::Resume { start, .. } => &mut start.config,
             StartRequest::Automatic { start, .. } => &mut start.config,
         };
         crate::prompt::refresh_v3(&resources.workspace, &book, config)?;
+        if is_author_turn
+            && let Ok(working) = dr_agent::memory::load(resources.workspace.library(), &book)
+            && working.exists
+            && dr_agent::memory::take_notice(resources.workspace.library(), &book, working.revision)
+                .unwrap_or(false)
+        {
+            config.system_prompt.push_str(&format!(
+                "\nWorking Memory has grown to about {} tokens (revision {}). Consolidate it during this turn: move lasting author guidance into PROJECT_MEMORY.md via memory.* and prune stale or finished detail with edit_working_memory.",
+                working.approx_tokens, working.revision
+            ));
+        }
         {
             let state = self.controller.inner.state.lock().expect("Agent service");
             if state.resources.is_none()

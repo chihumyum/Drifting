@@ -335,20 +335,54 @@ fn resolve_target(canonical: &Canonical, spec: &TargetSpec) -> dr_store::Result<
     }) {
         return Ok(exact.clone());
     }
-    let mut matching = canonical
+    let matches: Vec<&Target> = canonical
         .targets
         .iter()
-        .filter(|target| target.kind == spec.kind && target.name == spec.name);
-    let first = matching
-        .next()
-        .cloned()
-        .ok_or_else(|| invalid(format!("target not found: {} {}", spec.kind, spec.name)))?;
-    if matching.next().is_some() {
+        .filter(|target| target.kind == spec.kind && target.name == spec.name)
+        .collect();
+    if let [single] = matches.as_slice() {
+        return Ok((*single).clone());
+    }
+    if matches.len() > 1 {
         return Err(invalid(
             "ambiguous target name; rename or narrow the target first",
         ));
     }
-    Ok(first)
+    if spec.kind == "module"
+        && let Some((entry_ref, module_ref)) = spec.name.rsplit_once('/')
+    {
+        let mixed: Vec<&Target> = canonical
+            .targets
+            .iter()
+            .filter(|target| {
+                if target.kind != "module" {
+                    return false;
+                }
+                let Some((id_entry, id_mod)) = target.id.split_once('/') else {
+                    return false;
+                };
+                let (name_entry, name_mod) = target
+                    .name
+                    .rsplit_once('/')
+                    .unwrap_or((target.name.as_str(), ""));
+                (id_entry == entry_ref || name_entry == entry_ref)
+                    && (id_mod == module_ref || name_mod == module_ref)
+            })
+            .collect();
+        match mixed.as_slice() {
+            [single] => return Ok((*single).clone()),
+            items if items.len() > 1 => {
+                return Err(invalid(
+                    "ambiguous target name; rename or narrow the target first",
+                ));
+            }
+            _ => {}
+        }
+    }
+    Err(invalid(format!(
+        "target not found: {} {}",
+        spec.kind, spec.name
+    )))
 }
 
 #[derive(Clone)]
@@ -804,8 +838,24 @@ impl Store {
                                         ));
                                     }
                                     let proofs: Vec<WriteProof> = rows(tx, WRITES, &chain_id)?;
-                                    let proof=proofs.iter().rev().find(|proof|proof.targets.contains(&target_key(&steps[index].target)) && !steps.iter().any(|row|row.evidence.as_ref()==Some(&proof.id)))
-                                                .ok_or_else(||invalid(format!("no unclaimed saved change for {}; save a change to or anchored to this target, or append_steps for another target",steps[index].target.name)))?;
+                                    let expected_doc = target_key(&steps[index].target);
+                                    let expected_entity = steps[index].target.key();
+                                    let proof = proofs
+                                        .iter()
+                                        .rev()
+                                        .find(|proof| {
+                                            (proof.targets.contains(&expected_doc)
+                                                || proof.targets.contains(&expected_entity))
+                                                && !steps
+                                                    .iter()
+                                                    .any(|row| row.evidence.as_ref() == Some(&proof.id))
+                                        })
+                                        .ok_or_else(|| {
+                                            invalid(format!(
+                                                "no unclaimed saved change for {}; save a change to or anchored to this target, or append_steps for another target",
+                                                steps[index].target.name
+                                            ))
+                                        })?;
                                     steps[index].evidence = Some(proof.id.clone());
                                 }
                                 WorkKind::Review => {
@@ -970,7 +1020,7 @@ fn validate_complete(plan: &Plan, steps: &[Step], canonical: &Canonical) -> dr_s
                     && step.evidence.is_some()
             }) {
                 return Err(invalid(
-                    "every current chapter needs its own accepted evidence",
+                    "every current book-sequence target needs its own accepted evidence",
                 ));
             }
         }

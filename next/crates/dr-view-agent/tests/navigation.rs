@@ -790,3 +790,66 @@ fn a_comment_receipt_reveals_its_actual_chapter_and_review_focus(cx: &mut TestAp
     );
     close(&fixture, cx);
 }
+
+#[gpui::test]
+fn project_memory_receipt_reveals_its_entry_and_removed_memory_never_completes_the_guide(
+    cx: &mut TestAppContext,
+) {
+    let fixture = Fixture::new();
+    let rounds = vec![
+        tool("list", "memory.list", json!({"book": fixture.book})),
+        tool(
+            "add",
+            "memory.add",
+            json!({"book": fixture.book, "body": fixture.words}),
+        ),
+    ];
+    let (_shell, panel, cx) = open(cx, &fixture, rounds);
+    let mem_id = panel.read_with(cx, |panel, _| {
+        panel.snapshot().unwrap().runs[0]
+            .tools
+            .iter()
+            .find_map(|tool| {
+                tool.result.as_ref()?.output["effects"]
+                    .as_array()?
+                    .iter()
+                    .find(|effect| effect["kind"] == "memory")?["id"]
+                    .as_str()
+                    .map(str::to_owned)
+            })
+            .unwrap()
+    });
+    let button_id = changed(&panel, &format!("memory:{mem_id}"), cx);
+
+    // If removed first, clicking must not complete the guide; then restore and reveal!
+    fixture
+        .ws
+        .call(
+            &Actor::User,
+            "memory.remove",
+            json!({"book": fixture.book, "id": mem_id}),
+        )
+        .unwrap();
+    click(&button_id, cx);
+    wait(cx, |cx| panel.read_with(cx, |panel, _| panel.is_settled()));
+    assert_eq!(
+        cx.update(|_, cx| onboarding::step(cx)),
+        onboarding::Step::Change
+    );
+
+    fixture
+        .ws
+        .call(
+            &Actor::User,
+            "memory.restore",
+            json!({"book": fixture.book, "id": mem_id}),
+        )
+        .unwrap();
+    click(&button_id, cx);
+    let selector: &'static str = Box::leak(format!("project-memory-{mem_id}").into_boxed_str());
+    wait(cx, |cx| {
+        cx.debug_bounds(selector).is_some()
+            && cx.update(|_, cx| onboarding::step(cx)) == onboarding::Step::Done
+    });
+    close(&fixture, cx);
+}

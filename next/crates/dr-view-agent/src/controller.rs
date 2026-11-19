@@ -296,6 +296,33 @@ impl AgentController {
         Ok(scope)
     }
 
+    pub fn external_sessions(
+        &self,
+        book: Option<&BookId>,
+        cursor: Option<&str>,
+        limit: usize,
+    ) -> Result<dr_agent::ExternalSessionPage, String> {
+        let lease = self.read_lease()?;
+        dr_agent::external_sessions(lease.resources().workspace.library(), book, cursor, limit)
+            .map_err(string)
+    }
+
+    pub fn external_events(
+        &self,
+        session: &str,
+        after_seq: u64,
+        limit: usize,
+    ) -> Result<dr_agent::ExternalEventPage, String> {
+        let lease = self.read_lease()?;
+        dr_agent::external_events(
+            lease.resources().workspace.library(),
+            session,
+            after_seq,
+            limit,
+        )
+        .map_err(string)
+    }
+
     pub fn is_closed(&self) -> bool {
         self.inner
             .state

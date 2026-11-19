@@ -24,8 +24,10 @@ pub use journal::{JournalEvent, conversation, events};
 pub use protocol::*;
 pub use runtime::{ContinuationStart, Options, RecoveredRun, ResumeStart, Runtime, Start};
 pub use runtime::{
-    ExternalCall, ExternalCallHandle, ExternalScope, ExternalStart, ExternalState,
-    RecoveredExternal,
+    DEFAULT_EVENT_PAGE, DEFAULT_SESSION_PAGE, ExternalCall, ExternalCallHandle, ExternalEventPage,
+    ExternalEventRecord, ExternalScope, ExternalSessionPage, ExternalSessionRecord, ExternalStart,
+    ExternalState, MAX_EVENT_PAGE, MAX_SESSION_PAGE, RecoveredExternal, external_events,
+    external_sessions,
 };
 pub use tools::{ToolContext, ToolExecutor};
 

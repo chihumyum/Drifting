@@ -21,8 +21,10 @@ use crate::*;
 
 mod external;
 pub use external::{
-    ExternalCall, ExternalCallHandle, ExternalScope, ExternalStart, ExternalState,
-    RecoveredExternal,
+    DEFAULT_EVENT_PAGE, DEFAULT_SESSION_PAGE, ExternalCall, ExternalCallHandle, ExternalEventPage,
+    ExternalEventRecord, ExternalScope, ExternalSessionPage, ExternalSessionRecord, ExternalStart,
+    ExternalState, MAX_EVENT_PAGE, MAX_SESSION_PAGE, RecoveredExternal, external_events,
+    external_sessions,
 };
 
 #[derive(Clone, Debug)]

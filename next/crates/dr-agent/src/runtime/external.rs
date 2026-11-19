@@ -24,6 +24,11 @@ mod journal;
 #[cfg(test)]
 mod tests;
 use journal::Journal;
+pub use journal::{
+    DEFAULT_EVENT_PAGE, DEFAULT_SESSION_PAGE, ExternalEventPage, ExternalEventRecord,
+    ExternalSessionPage, ExternalSessionRecord, MAX_EVENT_PAGE, MAX_SESSION_PAGE, external_events,
+    external_sessions,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExternalStart {
@@ -318,34 +323,59 @@ impl Runtime {
     /// conversation projection are replayed, and terminal headers stay put.
     pub fn recover_external(&self) -> Result<Vec<RecoveredExternal>> {
         let _lifecycle = self.inner.lifecycle.lock().expect("runtime lifecycle");
+        let lib = self.inner.ws.library();
         let mut recovered = Vec::new();
-        for row in self
-            .inner
-            .ws
-            .library()
-            .local_entries(journal::SESSIONS, None)?
-        {
-            let mut journal = Journal::open(self.inner.ws.library().clone(), &row.value)?;
-            if journal.header.session != row.key {
-                return Err(Error::Protocol("external header key mismatch".into()));
+        let mut cursor = String::new();
+        loop {
+            let page: Vec<(String, String)> = lib.local_read(|conn| {
+                let mut stmt = conn.prepare_cached(
+                    "SELECT key, value FROM local_state
+                     WHERE scope = ?1 AND key > ?2
+                     ORDER BY key ASC LIMIT ?3",
+                )?;
+                let rows = stmt
+                    .query_map(
+                        rusqlite::params![
+                            journal::SESSIONS,
+                            &cursor,
+                            journal::RECONCILE_PAGE as i64
+                        ],
+                        |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)),
+                    )?
+                    .collect::<rusqlite::Result<Vec<_>>>()?;
+                Ok(rows)
+            })?;
+            if page.is_empty() {
+                break;
             }
-            if journal.header.state != ExternalState::Open
-                || self
-                    .inner
-                    .external_active
-                    .lock()
-                    .expect("external sessions")
-                    .contains(&row.key)
-            {
-                continue;
+            let count = page.len();
+            cursor = page.last().expect("non-empty page").0.clone();
+            for (key, value) in page {
+                let mut journal = Journal::open(lib.clone(), &value)?;
+                if journal.header.session != key {
+                    return Err(Error::Protocol("external header key mismatch".into()));
+                }
+                if journal.header.state != ExternalState::Open
+                    || self
+                        .inner
+                        .external_active
+                        .lock()
+                        .expect("external sessions")
+                        .contains(&key)
+                {
+                    continue;
+                }
+                let settlements = journal.reconcile()?;
+                journal.close(ExternalState::Interrupted)?;
+                recovered.push(RecoveredExternal {
+                    session: key,
+                    state: ExternalState::Interrupted,
+                    settlements,
+                });
             }
-            let settlements = journal.reconcile()?;
-            journal.close(ExternalState::Interrupted)?;
-            recovered.push(RecoveredExternal {
-                session: row.key,
-                state: ExternalState::Interrupted,
-                settlements,
-            });
+            if count < journal::RECONCILE_PAGE {
+                break;
+            }
         }
         Ok(recovered)
     }

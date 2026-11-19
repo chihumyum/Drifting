@@ -2,17 +2,56 @@
 
 use std::collections::BTreeMap;
 
+use dr_model::id::BookId;
 use dr_store::{Library, StoreError, local_state::MAX_VALUE_BYTES};
+use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
 use super::{ExternalStart, ExternalState};
-use crate::{Result, SettlementRef, ToolResult, ToolStatus};
+use crate::{Error, Result, SettlementRef, ToolResult, ToolStatus};
 
 pub(super) const SESSIONS: &str = "agent.external.sessions";
 pub(super) const EVENTS: &str = "agent.external.events";
 pub(super) const MAX_REQUEST: usize = MAX_VALUE_BYTES / 2;
+pub(super) const RECONCILE_PAGE: usize = 256;
+
+pub const DEFAULT_SESSION_PAGE: usize = 50;
+pub const MAX_SESSION_PAGE: usize = 200;
+pub const DEFAULT_EVENT_PAGE: usize = 100;
+pub const MAX_EVENT_PAGE: usize = 500;
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ExternalSessionRecord {
+    pub session: String,
+    pub start: ExternalStart,
+    pub seq: u64,
+    pub state: ExternalState,
+    pub changed_ms: i64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ExternalSessionPage {
+    pub sessions: Vec<ExternalSessionRecord>,
+    pub next_cursor: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ExternalEventRecord {
+    pub seq: u64,
+    pub event: Value,
+    pub changed_ms: i64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ExternalEventPage {
+    pub session: String,
+    pub state: ExternalState,
+    pub total_seq: u64,
+    pub events: Vec<ExternalEventRecord>,
+    pub next_after_seq: Option<u64>,
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(super) struct Header {
@@ -159,32 +198,53 @@ impl Journal {
 
     pub fn reconcile(&mut self) -> Result<Vec<SettlementRef>> {
         let prefix = format!("{}/", self.header.session);
+        let upper = format!("{}0", self.header.session);
+        let mut cursor = prefix.clone();
         let mut pending = BTreeMap::new();
         let mut expected = 1_u64;
-        for row in self
-            .lib
-            .local_entries(EVENTS, Some(self.header.start.book.as_str()))?
-        {
-            if !row.key.starts_with(&prefix) {
-                continue;
+        loop {
+            let page: Vec<(String, String)> = self.lib.local_read(|conn| {
+                let mut stmt = conn.prepare_cached(
+                    "SELECT key, value FROM local_state
+                     WHERE scope = ?1 AND key > ?2 AND key < ?3
+                     ORDER BY key ASC LIMIT ?4",
+                )?;
+                let rows = stmt
+                    .query_map(
+                        params![EVENTS, &cursor, &upper, RECONCILE_PAGE as i64],
+                        |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)),
+                    )?
+                    .collect::<rusqlite::Result<Vec<_>>>()?;
+                Ok(rows)
+            })?;
+            if page.is_empty() {
+                break;
             }
-            let value: Value = serde_json::from_str(&row.value)?;
-            if value["seq"].as_u64() != Some(expected)
-                || row.key != format!("{prefix}{expected:020}")
-            {
-                return Err(invalid("missing or mismatched event sequence").into());
+            for (key, raw) in &page {
+                let value: Value = serde_json::from_str(raw)?;
+                if value["seq"].as_u64() != Some(expected)
+                    || *key != format!("{prefix}{expected:020}")
+                {
+                    return Err(invalid("missing or mismatched event sequence").into());
+                }
+                expected = expected
+                    .checked_add(1)
+                    .ok_or_else(|| invalid("sequence exhausted"))?;
+                let event = &value["event"];
+                let call = event["call"].as_str().unwrap_or_default();
+                match event["kind"].as_str() {
+                    Some("accepted") => {
+                        pending.insert(call.to_owned(), ());
+                    }
+                    Some("finished") => {
+                        pending.remove(call);
+                    }
+                    _ => {}
+                }
             }
-            expected += 1;
-            let event = &value["event"];
-            let call = event["call"].as_str().unwrap_or_default();
-            match event["kind"].as_str() {
-                Some("accepted") => {
-                    pending.insert(call.to_owned(), ());
-                }
-                Some("finished") => {
-                    pending.remove(call);
-                }
-                _ => {}
+            cursor = page.last().expect("non-empty page").0.clone();
+            if page.len() < RECONCILE_PAGE {
+                break;
             }
         }
         if expected - 1 != self.header.seq {
@@ -205,4 +265,159 @@ impl Journal {
         }
         super::super::settlement_refs(&self.lib, &self.header.session, 1, None)
     }
+}
+
+fn valid_session_key(session: &str) -> Result<()> {
+    if session.is_empty()
+        || session.len() > 256
+        || session.contains('/')
+        || session.chars().any(char::is_control)
+    {
+        return Err(Error::Protocol("invalid external session id".into()));
+    }
+    Ok(())
+}
+
+/// Paginate external MCP audit session headers, newest UUIDv7 first, without
+/// loading unbounded history into memory or modifying stored audit rows.
+pub fn external_sessions(
+    lib: &Library,
+    book: Option<&BookId>,
+    cursor: Option<&str>,
+    limit: usize,
+) -> Result<ExternalSessionPage> {
+    if !(1..=MAX_SESSION_PAGE).contains(&limit) {
+        return Err(Error::Protocol(format!(
+            "external session page limit must be 1..={MAX_SESSION_PAGE}"
+        )));
+    }
+    if let Some(cursor) = cursor {
+        valid_session_key(cursor)?;
+    }
+    let fetch = (limit + 1) as i64;
+    let rows: Vec<(String, String, i64)> = lib.local_read(|conn| {
+        let map_row =
+            |r: &rusqlite::Row<'_>| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get(2)?));
+        let collected = match (book, cursor) {
+            (None, None) => conn
+                .prepare_cached(
+                    "SELECT key, value, changed_ms FROM local_state
+                     WHERE scope = ?1 ORDER BY key DESC LIMIT ?2",
+                )?
+                .query_map(params![SESSIONS, fetch], map_row)?
+                .collect::<rusqlite::Result<Vec<_>>>()?,
+            (None, Some(cursor)) => conn
+                .prepare_cached(
+                    "SELECT key, value, changed_ms FROM local_state
+                     WHERE scope = ?1 AND key < ?2 ORDER BY key DESC LIMIT ?3",
+                )?
+                .query_map(params![SESSIONS, cursor, fetch], map_row)?
+                .collect::<rusqlite::Result<Vec<_>>>()?,
+            (Some(book), None) => conn
+                .prepare_cached(
+                    "SELECT key, value, changed_ms FROM local_state
+                     WHERE scope = ?1 AND book_id = ?2 ORDER BY key DESC LIMIT ?3",
+                )?
+                .query_map(params![SESSIONS, book.as_str(), fetch], map_row)?
+                .collect::<rusqlite::Result<Vec<_>>>()?,
+            (Some(book), Some(cursor)) => conn
+                .prepare_cached(
+                    "SELECT key, value, changed_ms FROM local_state
+                     WHERE scope = ?1 AND book_id = ?2 AND key < ?3 ORDER BY key DESC LIMIT ?4",
+                )?
+                .query_map(params![SESSIONS, book.as_str(), cursor, fetch], map_row)?
+                .collect::<rusqlite::Result<Vec<_>>>()?,
+        };
+        Ok(collected)
+    })?;
+    let has_more = rows.len() > limit;
+    let mut sessions = Vec::with_capacity(rows.len().min(limit));
+    for (key, value, changed_ms) in rows.into_iter().take(limit) {
+        let journal = Journal::open(lib.clone(), &value)?;
+        if journal.header.session != key {
+            return Err(Error::Protocol("external header key mismatch".into()));
+        }
+        sessions.push(ExternalSessionRecord {
+            session: journal.header.session,
+            start: journal.header.start,
+            seq: journal.header.seq,
+            state: journal.header.state,
+            changed_ms,
+        });
+    }
+    let next_cursor = has_more
+        .then(|| sessions.last().map(|row| row.session.clone()))
+        .flatten();
+    Ok(ExternalSessionPage {
+        sessions,
+        next_cursor,
+    })
+}
+
+/// Paginate a single external MCP session's durable audit events after
+/// `after_seq`, verifying contiguous sequence order within the returned page.
+pub fn external_events(
+    lib: &Library,
+    session: &str,
+    after_seq: u64,
+    limit: usize,
+) -> Result<ExternalEventPage> {
+    valid_session_key(session)?;
+    if !(1..=MAX_EVENT_PAGE).contains(&limit) {
+        return Err(Error::Protocol(format!(
+            "external event page limit must be 1..={MAX_EVENT_PAGE}"
+        )));
+    }
+    let raw_header = lib
+        .local_get(SESSIONS, session)?
+        .ok_or_else(|| Error::Store(StoreError::NotFound(session.to_owned())))?;
+    let journal = Journal::open(lib.clone(), &raw_header)?;
+    if journal.header.session != session {
+        return Err(Error::Protocol("external header key mismatch".into()));
+    }
+    let lower = format!("{session}/{after_seq:020}");
+    let upper = format!("{session}0");
+    let rows: Vec<(String, String, i64)> = lib.local_read(|conn| {
+        let mut stmt = conn.prepare_cached(
+            "SELECT key, value, changed_ms FROM local_state
+             WHERE scope = ?1 AND key > ?2 AND key < ?3
+             ORDER BY key ASC LIMIT ?4",
+        )?;
+        let collected = stmt
+            .query_map(params![EVENTS, &lower, &upper, limit as i64], |r| {
+                Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get(2)?))
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(collected)
+    })?;
+    if after_seq < journal.header.seq && rows.is_empty() {
+        return Err(invalid("missing or mismatched event sequence").into());
+    }
+    let mut expected = after_seq;
+    let mut events = Vec::with_capacity(rows.len());
+    for (key, raw, changed_ms) in rows {
+        expected = expected
+            .checked_add(1)
+            .ok_or_else(|| invalid("sequence exhausted"))?;
+        let value: Value = serde_json::from_str(&raw)?;
+        if value["seq"].as_u64() != Some(expected) || key != format!("{session}/{expected:020}") {
+            return Err(invalid("missing or mismatched event sequence").into());
+        }
+        events.push(ExternalEventRecord {
+            seq: expected,
+            event: value["event"].clone(),
+            changed_ms,
+        });
+    }
+    let next_after_seq = events
+        .last()
+        .filter(|last| last.seq < journal.header.seq)
+        .map(|last| last.seq);
+    Ok(ExternalEventPage {
+        session: journal.header.session,
+        state: journal.header.state,
+        total_seq: journal.header.seq,
+        events,
+        next_after_seq,
+    })
 }

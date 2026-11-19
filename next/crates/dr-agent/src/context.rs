@@ -72,7 +72,7 @@ pub fn pins(snapshot: &ChainSnapshot, contributions: &[Contribution]) -> Result<
         "original_author_request":snapshot.original_request,
         "author_steering":snapshot.steering.iter().map(|input|&input.text).collect::<Vec<_>>(),
         "task":plan_projection(snapshot,current,1),
-        "other_steps":"The host retains all other steps and accepted evidence. Do not infer completion from a summary or call unavailable plan tools.",
+        "other_steps":"The host retains all other steps and accepted evidence; inspect them with read_task_plan when available, and never infer completion from a summary.",
         "local_context":contributions
     }))?)
 }
