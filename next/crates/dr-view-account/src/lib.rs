@@ -59,6 +59,12 @@ pub struct Service {
     pub state: AccountState,
     pub avatar_cache: Option<(String, Arc<RenderImage>)>,
     pub signing_out: bool,
+    /// What the account bar and Settings › Account show
+    /// ([`shown_account_state`]): `state` once the library it names is the
+    /// one open. While a library swap is under way, or after one failed, it
+    /// stays the account whose library is open.
+    shown_state: AccountState,
+    shown_avatar: Option<Arc<RenderImage>>,
     preference_sync_task: Option<gpui::Task<()>>,
     /// How many times [`schedule_preference_sync`] queued a round.
     preference_sync_scheduled_count: usize,
@@ -105,6 +111,8 @@ impl Service {
             .and_then(|url| build_avatar_render_image(url).map(|img| (url.to_owned(), img)));
         Self {
             inner,
+            shown_state: state.clone(),
+            shown_avatar: avatar_cache.as_ref().map(|(_, img)| img.clone()),
             state,
             avatar_cache,
             signing_out: false,
@@ -121,6 +129,59 @@ impl Service {
     pub fn preference_sync_scheduled_count(&self) -> usize {
         self.preference_sync_scheduled_count
     }
+
+    /// The account bar shows `state` from now on.
+    fn show_state(&mut self) {
+        self.shown_state = self.state.clone();
+        self.shown_avatar = self.avatar_cache.as_ref().map(|(_, img)| img.clone());
+    }
+}
+
+/// The account the account bar and Settings › Account show, its avatar, and
+/// whether a sign-out is under way. It is [`Service::state`] once the library
+/// that state names is the one open; while the library is being switched, or
+/// when switching failed, it stays the account whose library is open.
+#[must_use]
+pub fn shown_account_state(cx: &App) -> (AccountState, Option<Arc<RenderImage>>, bool) {
+    match cx.try_global::<Service>() {
+        Some(svc) => (
+            svc.shown_state.clone(),
+            svc.shown_avatar.clone(),
+            svc.signing_out,
+        ),
+        None => (
+            AccountState {
+                hosted_configured: false,
+                origin: None,
+                status: SessionStatus::SignedOut,
+                user: None,
+                providers: dr_account::AuthProviders::default(),
+                active_library_dir: PathBuf::new(),
+                is_account_library: false,
+            },
+            None,
+            false,
+        ),
+    }
+}
+
+/// After a library release finished (a swap of ours, the sync supervisor's
+/// retry of one, a restore): once the open library is the one `state` names,
+/// the account bar shows `state`. Starts no preference sync.
+fn reconcile_shown_account(cx: &mut App) {
+    if !cx.has_global::<Service>() {
+        return;
+    }
+    let open_root = cx
+        .try_global::<Services>()
+        .and_then(|s| s.library.as_ref())
+        .map(|ws| ws.library().paths().root.clone());
+    let svc = cx.global::<Service>();
+    if open_root.as_ref() != Some(&svc.state.active_library_dir) || svc.shown_state == svc.state {
+        return;
+    }
+    cx.update_global::<Service, _>(|svc, _| svc.show_state());
+    cx.refresh_windows();
 }
 
 fn build_avatar_render_image(data_url: &str) -> Option<Arc<RenderImage>> {
@@ -159,6 +220,11 @@ pub fn init(mut service: Service, cx: &mut App) {
         first_run::write_samples(lib, cx).detach();
     }
 
+    // M35: a library swap that failed and was retried later (the sync
+    // supervisor's, `app/drifting/src/sync.rs`) brings the account bar to
+    // the account once its library is open.
+    dr_shell::release::after_release(cx, reconcile_shown_account);
+
     // M37: changing a setting that goes with the account schedules a
     // debounced preference sync; device-only settings, BYOK, layout and what
     // a sync round itself writes back do not.
@@ -193,10 +259,10 @@ pub fn init(mut service: Service, cx: &mut App) {
     dr_shell::account::set_hook(cx, |cx| {
         use keys::settings::hosted::session as sess;
         use keys::user_menu as um;
-        let Some(svc) = cx.try_global::<Service>() else {
+        if !cx.has_global::<Service>() {
             return AccountViewInfo::default();
-        };
-        let state = &svc.state;
+        }
+        let (state, avatar, busy) = shown_account_state(cx);
         let signed_in = state.status.has_account();
         let display_name = state
             .user
@@ -213,7 +279,6 @@ pub fn init(mut service: Service, cx: &mut App) {
             SessionStatus::Offline => t(cx, sess::OFFLINE),
             SessionStatus::NeedsReauth => t(cx, sess::NEEDS_REAUTH),
         });
-        let avatar = svc.avatar_cache.as_ref().map(|(_, img)| img.clone());
         let on_header_click: Option<dr_shell::account::AccountCallback> =
             state.hosted_configured.then(|| {
                 Rc::new(|window: &mut Window, cx: &mut App| {
@@ -224,7 +289,6 @@ pub fn init(mut service: Service, cx: &mut App) {
         let action = if !state.hosted_configured {
             None
         } else if signed_in && state.status != SessionStatus::NeedsReauth {
-            let busy = svc.signing_out;
             let label = if busy {
                 t(cx, um::SIGNING_OUT)
             } else {
@@ -396,7 +460,11 @@ pub fn apply_account_state(state: AccountState, cx: &mut App) {
         svc.state = state;
     });
 
-    switch_library_if_needed(target_dir, is_account_lib, cx);
+    // The account bar changes with the library: at once when no swap is
+    // needed, otherwise once the swap succeeded ([`reconcile_shown_account`]).
+    if !switch_library_if_needed(target_dir, is_account_lib, cx) {
+        cx.update_global::<Service, _>(|svc, _| svc.show_state());
+    }
     if is_connected {
         sync_preferences_now(cx);
     }
@@ -683,19 +751,32 @@ fn current_iso_timestamp() -> String {
     format!("{year:04}-{m:02}-{d:02}T{hour:02}:{min:02}:{sec:02}.{millis:03}Z")
 }
 
-fn switch_library_if_needed(target_dir: PathBuf, is_account_lib: bool, cx: &mut App) {
+/// Starts swapping the open library for `target_dir` when it is another
+/// one. True when the account bar is to wait (this swap, or a release
+/// already under way); false when no swap was needed. A failed swap leaves
+/// the account bar on the open library's account and says so in a toast.
+fn switch_library_if_needed(target_dir: PathBuf, is_account_lib: bool, cx: &mut App) -> bool {
     if target_dir.as_os_str().is_empty() {
-        return;
+        return false;
+    }
+    // Another release is under way (an earlier sign-in's swap, a restore):
+    // which library ends up open is not known yet, and `replace` would refuse
+    // at once. Leave the bar where it is; when that release ends,
+    // [`reconcile_shown_account`] shows `state` if its library is the one
+    // open, and the sync supervisor retries the swap if it is not.
+    if dr_shell::release::is_releasing(cx) {
+        log::info!("a library release is under way; the account bar waits for it");
+        return true;
     }
     let current_root = cx
         .try_global::<Services>()
         .and_then(|s| s.library.as_ref())
         .map(|ws| ws.library().paths().root.clone());
     let Some(current_root) = current_root else {
-        return;
+        return false;
     };
     if current_root == target_dir {
-        return;
+        return false;
     }
 
     dr_shell::library::replace(
@@ -706,8 +787,13 @@ fn switch_library_if_needed(target_dir: PathBuf, is_account_lib: bool, cx: &mut 
         move |res, cx| {
             if let Err(err) = res {
                 log::warn!("switching library failed: {err}");
+                dr_shell::workspace::with_workspace(cx, |ws, _, cx| {
+                    let text = t(cx, keys::settings::hosted::LIBRARY_SWITCH_FAILED);
+                    ws.toast_error(text, cx);
+                });
                 return;
             }
+            reconcile_shown_account(cx);
             if !is_account_lib
                 && let Some(lib) = cx.try_global::<Services>().and_then(|s| s.library.clone())
             {
@@ -716,6 +802,7 @@ fn switch_library_if_needed(target_dir: PathBuf, is_account_lib: bool, cx: &mut 
             cx.refresh_windows();
         },
     );
+    true
 }
 
 /// First-run welcome step (`PreAlphaFirstRunGate`): offers Email sign-in or
@@ -1338,5 +1425,373 @@ mod tests {
             );
             std::thread::sleep(Duration::from_millis(10));
         }
+    }
+
+    /// M35: a sign-in whose library swap fails leaves the account bar and
+    /// Settings › Account on the library that is open, with a toast; the
+    /// session inside stays the new account. A later swap to that account's
+    /// library (the sync supervisor's retry) brings the bar along without
+    /// starting another preference sync.
+    #[gpui::test]
+    fn a_failed_library_swap_keeps_the_account_bar_on_the_open_library(cx: &mut TestAppContext) {
+        use std::cell::Cell;
+
+        cx.executor().allow_parking();
+        let server = FakeAuthServer::start();
+        server.set_require_signup_verification(false);
+        let tmp = TempDir::new().expect("tempdir");
+        let svc = Arc::new(
+            AccountService::new(
+                server.config(),
+                tmp.path(),
+                "cc.drifting.next.dev",
+                Arc::new(SecretStore::in_memory()),
+            )
+            .expect("hosted service"),
+        );
+        svc.sign_up_email("Alice", "alice-swap@example.test", "correct-horse-alice")
+            .expect("sign up");
+        let local_dir = svc.sign_out().expect("back to local").active_library_dir;
+        let local = dr_workspace::Workspace::open_dir(&local_dir, "0.2.0-dev").unwrap();
+
+        // Every library release is refused until the test lets it through.
+        let refuse = Rc::new(Cell::new(true));
+        cx.update(|cx| {
+            let _ = dr_ui::init(cx);
+            dr_shell::init(
+                shell_info(),
+                Services {
+                    library: Some(local),
+                    ..Services::default()
+                },
+                SettingsFile::in_memory(),
+                cx,
+            );
+            let refuse = refuse.clone();
+            dr_shell::release::before_release(cx, move |_| {
+                let refused = refuse.get();
+                Box::pin(async move {
+                    if refused {
+                        Err("simulated release failure".to_owned())
+                    } else {
+                        Ok(())
+                    }
+                })
+            });
+            init(Service::with_service(svc.clone()), cx);
+        });
+        cx.run_until_parked();
+        let workspace = cx.add_window(dr_shell::Workspace::new);
+        let settings = cx.add_window(AccountSettingsView::new);
+        cx.run_until_parked();
+
+        let open_root = |cx: &mut TestAppContext| {
+            cx.update(|cx| {
+                cx.global::<Services>()
+                    .library
+                    .as_ref()
+                    .map(|ws| ws.library().paths().root.clone())
+            })
+        };
+        let wait_until = |cx: &mut TestAppContext, what: &str, done: &dyn Fn(&mut App) -> bool| {
+            let deadline = std::time::Instant::now() + Duration::from_secs(5);
+            loop {
+                cx.run_until_parked();
+                if cx.update(done) {
+                    return;
+                }
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "timed out waiting for {what}"
+                );
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        };
+
+        // Sign in: the session is Alice's and her library is wanted, but the
+        // swap is refused.
+        let alice = svc
+            .sign_in_email("alice-swap@example.test", "correct-horse-alice")
+            .expect("sign in");
+        let alice_dir = alice.active_library_dir.clone();
+        let alice_id = alice.user.as_ref().expect("user").id.clone();
+        let alice_token = svc.current_token().expect("token");
+        assert_ne!(alice_dir, local_dir);
+        cx.update(|cx| {
+            apply_account_state(alice, cx);
+            assert_eq!(
+                dr_shell::account::display_name(cx),
+                t(cx, keys::common::LOCAL),
+                "the bar waits for the swap"
+            );
+        });
+        let failed = cx.update(|cx| t(cx, keys::settings::hosted::LIBRARY_SWITCH_FAILED));
+        wait_until(cx, "the failed swap's toast", &|cx| {
+            workspace
+                .read_with(cx, |ws, _| ws.toast.as_ref().map(|t| t.text.clone()))
+                .ok()
+                .flatten()
+                .is_some()
+        });
+        assert_eq!(
+            workspace
+                .read_with(cx, |ws, _| ws.toast.as_ref().map(|t| t.text.clone()))
+                .unwrap(),
+            Some(failed)
+        );
+        assert_eq!(open_root(cx), Some(local_dir.clone()));
+        cx.update(|cx| {
+            assert_eq!(
+                dr_shell::account::display_name(cx),
+                t(cx, keys::common::LOCAL)
+            );
+            assert_eq!(
+                dr_shell::account::menu_aria_label(cx),
+                t(cx, keys::user_menu::LOCAL_MENU)
+            );
+            let (shown, avatar, _) = shown_account_state(cx);
+            assert_eq!(shown.status, SessionStatus::SignedOut);
+            assert!(shown.user.is_none() && avatar.is_none());
+            // The session inside is untouched: still Alice's.
+            let state = &cx.global::<Service>().state;
+            assert_eq!(state.status, SessionStatus::Connected);
+            assert_eq!(state.active_library_dir, alice_dir);
+        });
+        settings
+            .update(cx, |view, _, _| {
+                assert_eq!(view.last_synced_user_id(), None)
+            })
+            .unwrap();
+        assert_eq!(svc.current_token().as_deref(), Some(alice_token.as_str()));
+        assert_eq!(
+            dr_account::LibraryRegistry::load_or_init(tmp.path())
+                .unwrap()
+                .active_library_dir(tmp.path()),
+            alice_dir
+        );
+
+        // The supervisor's retry: a plain library replace to Alice's library,
+        // not through `apply_account_state`. Forget the sign-in's sync round
+        // first, so a new one would show.
+        cx.update(|cx| cx.global_mut::<Service>().preference_sync_task = None);
+        refuse.set(false);
+        let retry_dir = alice_dir.clone();
+        cx.update(|cx| {
+            dr_shell::library::replace(
+                cx,
+                move |_, options| {
+                    dr_store::Library::open(&retry_dir, options).map_err(|e| e.to_string())
+                },
+                |res, _| res.expect("the retried swap"),
+            );
+        });
+        wait_until(cx, "the retried swap", &|cx| {
+            dr_shell::account::display_name(cx).as_ref() == "Alice"
+        });
+        assert_eq!(open_root(cx), Some(alice_dir.clone()));
+        cx.update(|cx| {
+            assert_eq!(
+                dr_shell::account::menu_aria_label(cx),
+                t(cx, keys::user_menu::ACCOUNT_MENU)
+            );
+            let svc = cx.global::<Service>();
+            assert_eq!(svc.shown_state, svc.state);
+            assert!(
+                svc.preference_sync_task.is_none(),
+                "the bar catching up starts no preference sync"
+            );
+        });
+        settings
+            .update(cx, |view, _, _| {
+                assert_eq!(view.last_synced_user_id(), Some(alice_id.as_str()))
+            })
+            .unwrap();
+
+        cx.update(|cx| {
+            if let Some(lib) = cx.global::<Services>().library.as_ref() {
+                lib.close();
+            }
+        });
+    }
+
+    /// M35: a second account state arriving while a sign-in's swap is still
+    /// releasing the library leaves the bar waiting, raises no toast of its
+    /// own, and the bar follows whatever the held release ends in.
+    #[gpui::test]
+    fn a_second_state_during_a_held_swap_waits_for_it_to_succeed(cx: &mut TestAppContext) {
+        second_state_during_a_held_swap(cx, Ok(()));
+    }
+
+    #[gpui::test]
+    fn a_second_state_during_a_held_swap_waits_for_it_to_fail(cx: &mut TestAppContext) {
+        second_state_during_a_held_swap(cx, Err("simulated release failure".into()));
+    }
+
+    fn second_state_during_a_held_swap(cx: &mut TestAppContext, release: Result<(), String>) {
+        use std::cell::RefCell;
+        use std::task::{Poll, Waker};
+
+        type Gate = Rc<RefCell<(Option<Result<(), String>>, Option<Waker>)>>;
+
+        cx.executor().allow_parking();
+        let server = FakeAuthServer::start();
+        server.set_require_signup_verification(false);
+        let tmp = TempDir::new().expect("tempdir");
+        let svc = Arc::new(
+            AccountService::new(
+                server.config(),
+                tmp.path(),
+                "cc.drifting.next.dev",
+                Arc::new(SecretStore::in_memory()),
+            )
+            .expect("hosted service"),
+        );
+        svc.sign_up_email("Bea", "bea-held@example.test", "correct-horse-bea")
+            .expect("sign up");
+        let local_dir = svc.sign_out().expect("back to local").active_library_dir;
+        let local = dr_workspace::Workspace::open_dir(&local_dir, "0.2.0-dev").unwrap();
+
+        // Every library release waits until the test opens the gate with
+        // its result.
+        let gate: Gate = Rc::default();
+        cx.update(|cx| {
+            let _ = dr_ui::init(cx);
+            dr_shell::init(
+                shell_info(),
+                Services {
+                    library: Some(local),
+                    ..Services::default()
+                },
+                SettingsFile::in_memory(),
+                cx,
+            );
+            let gate = gate.clone();
+            dr_shell::release::before_release(cx, move |_| {
+                let gate = gate.clone();
+                Box::pin(std::future::poll_fn(move |task| {
+                    let mut gate = gate.borrow_mut();
+                    match gate.0.clone() {
+                        Some(result) => Poll::Ready(result),
+                        None => {
+                            gate.1 = Some(task.waker().clone());
+                            Poll::Pending
+                        }
+                    }
+                }))
+            });
+            init(Service::with_service(svc.clone()), cx);
+        });
+        cx.run_until_parked();
+        let workspace = cx.add_window(dr_shell::Workspace::new);
+        cx.run_until_parked();
+
+        // Every toast the workspace raises, in order.
+        let toasts: Rc<RefCell<Vec<SharedString>>> = Rc::default();
+        let entity = cx.update(|cx| workspace.entity(cx).unwrap());
+        cx.update(|cx| {
+            let toasts = toasts.clone();
+            let mut last = None;
+            cx.observe(&entity, move |ws, cx| {
+                let now = ws.read(cx).toast.clone();
+                if let Some(toast) = now.filter(|t| t.shown)
+                    && last.as_ref() != Some(&toast)
+                {
+                    toasts.borrow_mut().push(toast.text.clone());
+                    last = Some(toast);
+                }
+            })
+            .detach();
+        });
+        let wait_until = |cx: &mut TestAppContext, what: &str, done: &dyn Fn(&mut App) -> bool| {
+            let deadline = std::time::Instant::now() + Duration::from_secs(5);
+            loop {
+                cx.run_until_parked();
+                if cx.update(done) {
+                    return;
+                }
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "timed out waiting for {what}"
+                );
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        };
+        let open_root = |cx: &mut TestAppContext| {
+            cx.update(|cx| {
+                cx.global::<Services>()
+                    .library
+                    .as_ref()
+                    .map(|ws| ws.library().paths().root.clone())
+            })
+        };
+
+        // The sign-in's swap starts and its release is held; then a second
+        // state of the same account arrives (a session refresh).
+        let bea = svc
+            .sign_in_email("bea-held@example.test", "correct-horse-bea")
+            .expect("sign in");
+        let bea_dir = bea.active_library_dir.clone();
+        cx.update(|cx| apply_account_state(bea, cx));
+        cx.run_until_parked();
+        assert!(cx.update(|cx| dr_shell::release::is_releasing(cx)));
+        let again = svc.state();
+        cx.update(|cx| apply_account_state(again, cx));
+        cx.run_until_parked();
+        cx.update(|cx| {
+            assert_eq!(
+                dr_shell::account::display_name(cx),
+                t(cx, keys::common::LOCAL),
+                "the bar waits for the held release"
+            );
+        });
+        assert!(
+            toasts.borrow().is_empty(),
+            "no toast while the release is held: {:?}",
+            toasts.borrow()
+        );
+
+        let failed = cx.update(|cx| t(cx, keys::settings::hosted::LIBRARY_SWITCH_FAILED));
+        let succeeds = release.is_ok();
+        {
+            let mut gate = gate.borrow_mut();
+            gate.0 = Some(release);
+            if let Some(waker) = gate.1.take() {
+                waker.wake();
+            }
+        }
+        if succeeds {
+            wait_until(cx, "the held swap", &|cx| {
+                dr_shell::account::display_name(cx).as_ref() == "Bea"
+            });
+            assert_eq!(open_root(cx), Some(bea_dir));
+            assert!(
+                toasts.borrow().is_empty(),
+                "no failure toast at any point: {:?}",
+                toasts.borrow()
+            );
+        } else {
+            wait_until(cx, "the held swap to fail", &|cx| {
+                !dr_shell::release::is_releasing(cx)
+            });
+            cx.run_until_parked();
+            assert_eq!(open_root(cx), Some(local_dir));
+            cx.update(|cx| {
+                assert_eq!(
+                    dr_shell::account::display_name(cx),
+                    t(cx, keys::common::LOCAL)
+                );
+            });
+            assert_eq!(
+                *toasts.borrow(),
+                vec![failed],
+                "one failure toast, the first swap's"
+            );
+        }
+
+        cx.update(|cx| {
+            if let Some(lib) = cx.global::<Services>().library.as_ref() {
+                lib.close();
+            }
+        });
     }
 }

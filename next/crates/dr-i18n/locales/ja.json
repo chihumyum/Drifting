@@ -1086,6 +1086,7 @@
       "current_password": "現在のパスワード",
       "description": "原稿はまずこの端末に保存します。アカウントを接続すると、自分の端末間で作品を同期できます。",
       "display_name": "表示名",
+      "library_switch_failed": "ライブラリを切り替えられませんでした",
       "new_password": "新しいパスワード",
       "no_account": "未ログイン",
       "password_description": "8〜128文字。",

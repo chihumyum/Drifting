@@ -1086,6 +1086,7 @@
       "current_password": "현재 비밀번호",
       "description": "원고는 먼저 이 기기에 저장됩니다. 계정을 연결하면 기기 간에 작품을 동기화할 수 있습니다.",
       "display_name": "표시 이름",
+      "library_switch_failed": "라이브러리를 전환하지 못했습니다",
       "new_password": "새 비밀번호",
       "no_account": "로그인 안 됨",
       "password_description": "8~128자.",

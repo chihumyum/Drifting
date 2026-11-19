@@ -1080,6 +1080,7 @@
       "current_password": "当前密码",
       "description": "正文始终先保存在本机。连接账号后，在你的设备之间同步项目。",
       "display_name": "昵称",
+      "library_switch_failed": "没能切换书库",
       "new_password": "新密码",
       "no_account": "尚未登录",
       "password_description": "8–128 个字符。",

@@ -186,6 +186,9 @@
     "editor": {
       "justify": "両端揃え"
     },
+    "hosted": {
+      "library_switch_failed": "ライブラリを切り替えられませんでした"
+    },
     "sync": {
       "backup": {
         "errors": {

@@ -20,7 +20,7 @@ use gpui::{
     SharedString, Styled, Subscription, Task, Window, div, prelude::FluentBuilder as _, px,
 };
 
-use crate::{Service, apply_account_state, open_auth_dialog, sign_out};
+use crate::{Service, apply_account_state, open_auth_dialog, shown_account_state, sign_out};
 
 pub struct AccountSettingsView {
     display_name: Entity<TextField>,
@@ -41,13 +41,12 @@ pub struct AccountSettingsView {
 impl AccountSettingsView {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         use keys::settings::hosted as h;
-        let initial_name = cx
-            .try_global::<Service>()
-            .and_then(|s| s.state.user.as_ref().map(|u| u.name.clone()))
+        let shown_user = shown_account_state(cx).0.user;
+        let initial_name = shown_user
+            .as_ref()
+            .map(|u| u.name.clone())
             .unwrap_or_default();
-        let initial_user_id = cx
-            .try_global::<Service>()
-            .and_then(|s| s.state.user.as_ref().map(|u| u.id.clone()));
+        let initial_user_id = shown_user.as_ref().map(|u| u.id.clone());
 
         let name_ph = t(cx, h::DISPLAY_NAME);
         let cur_pw_ph = t(cx, h::CURRENT_PASSWORD);
@@ -89,9 +88,7 @@ impl AccountSettingsView {
         }
         if cx.has_global::<Service>() {
             subs.push(cx.observe_global::<Service>(|view, cx| {
-                let user_opt = cx
-                    .try_global::<Service>()
-                    .and_then(|s| s.state.user.clone());
+                let user_opt = shown_account_state(cx).0.user;
                 let next_id = user_opt.as_ref().map(|u| u.id.clone());
                 if next_id != view.last_synced_user_id {
                     view.last_synced_user_id = next_id;
@@ -353,23 +350,7 @@ impl Render for AccountSettingsView {
         let s = theme.scale;
         let entity = cx.entity();
 
-        let (state, signing_out) = cx
-            .try_global::<Service>()
-            .map(|svc| (svc.state.clone(), svc.signing_out))
-            .unwrap_or_else(|| {
-                (
-                    dr_account::AccountState {
-                        hosted_configured: false,
-                        origin: None,
-                        status: SessionStatus::SignedOut,
-                        user: None,
-                        providers: dr_account::AuthProviders::default(),
-                        active_library_dir: std::path::PathBuf::new(),
-                        is_account_library: false,
-                    },
-                    false,
-                )
-            });
+        let (state, _, signing_out) = shown_account_state(cx);
 
         let status_desc = match state.status {
             SessionStatus::SignedOut => t(cx, sess::SIGNED_OUT),

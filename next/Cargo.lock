@@ -2073,6 +2073,7 @@ dependencies = [
  "dr-ui",
  "dr-view-feedback",
  "dr-view-sea",
+ "dr-workspace",
  "gpui",
  "gpui_platform",
  "image",

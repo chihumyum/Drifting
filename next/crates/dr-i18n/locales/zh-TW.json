@@ -1086,6 +1086,7 @@
       "current_password": "目前密碼",
       "description": "書稿會先存於此裝置，連接帳號後可在你的裝置間同步作品。",
       "display_name": "顯示名稱",
+      "library_switch_failed": "沒能切換書庫",
       "new_password": "新密碼",
       "no_account": "尚未登入",
       "password_description": "8–128 個字元。",
