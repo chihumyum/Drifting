@@ -1337,18 +1337,23 @@ fn a_grid_is_walked_by_where_its_tiles_are(cx: &mut TestAppContext) {
         .unwrap()
         .id
         .clone();
-    // 苏竹 陆云水 / 韩水 and one more; then a folder after the grid.
+    // 苏竹 陆云水 韩水 and two more (five in all, so both a two-column macOS
+    // sidebar and a three-column Windows sidebar have two lines with a
+    // second column and a short last line); then a folder after the grid.
     let mut tiles: Vec<String> = v.levels[&people].children.clone();
-    tiles.push(
-        call(
-            &lib,
-            "entry.create",
-            json!({"book": book, "parent": people, "template": "tpl-character", "title": "合成人物"}),
-        )["id"]
-            .as_str()
-            .unwrap()
-            .to_owned(),
-    );
+    for title in ["合成人物", "合成同伴"] {
+        tiles.push(
+            call(
+                &lib,
+                "entry.create",
+                json!({"book": book, "parent": people, "template": "tpl-character", "title": title}),
+            )["id"]
+                .as_str()
+                .unwrap()
+                .to_owned(),
+        );
+    }
+    assert_eq!(tiles.len(), 5);
     let after = call(
         &lib,
         "entry.create",
@@ -1374,6 +1379,29 @@ fn a_grid_is_walked_by_where_its_tiles_are(cx: &mut TestAppContext) {
         sidebar(&ws, cx).read_with(cx, |s, cx| s.state(cx)["display"].clone()),
         json!("grid")
     );
+    let selectors: Vec<&'static str> = tiles
+        .iter()
+        .map(|id| &*Box::leak(format!("g2-tile-name-{id}").into_boxed_str()))
+        .collect();
+    wait_until(cx, "the grid tiles drawn", |cx| {
+        selectors.iter().all(|s| cx.debug_bounds(s).is_some())
+    });
+    for _ in 0..4 {
+        pump(cx);
+    }
+    let initial_places: Vec<_> = selectors
+        .iter()
+        .map(|s| cx.debug_bounds(s).expect("initial grid tile"))
+        .collect();
+    let cols = initial_places
+        .iter()
+        .filter(|b| b.origin.y == initial_places[0].origin.y)
+        .count();
+    let narrowest_fits = if cfg!(target_os = "windows") { 3 } else { 2 };
+    assert_eq!(
+        cols, narrowest_fits,
+        "initial grid columns: {initial_places:?}"
+    );
     let t = tree(&ws, cx);
     let stops = t.read_with(cx, |t, _| t.stops());
     assert_eq!(
@@ -1394,20 +1422,29 @@ fn a_grid_is_walked_by_where_its_tiles_are(cx: &mut TestAppContext) {
         painted(cx, format!("g2-entry-{people}-row-{row}-{id}-keyboard"))
     };
     assert!(tile_ring(cx, &ws, &tiles[0]), "the tile has the ring");
-    keys(cx, "right");
-    assert!(in_tree(&ws, cx, &tiles[1]));
+    for tile in &tiles[1..cols] {
+        keys(cx, "right");
+        assert!(in_tree(&ws, cx, tile));
+    }
     keys(cx, "right");
     assert!(
-        in_tree(&ws, cx, &tiles[2]),
+        in_tree(&ws, cx, &tiles[cols]),
         "→ at a line's end: the next line's first"
     );
     keys(cx, "left");
     assert!(
-        in_tree(&ws, cx, &tiles[1]),
+        in_tree(&ws, cx, &tiles[cols - 1]),
         "← at a line's start: the line above's last"
     );
+    for _ in 1..(cols - 1) {
+        keys(cx, "left");
+    }
+    assert!(in_tree(&ws, cx, &tiles[1]));
     keys(cx, "down");
-    assert!(in_tree(&ws, cx, &tiles[3]), "↓: the nearest tile across");
+    assert!(
+        in_tree(&ws, cx, &tiles[cols + 1]),
+        "↓ keeps the column when the next line has one"
+    );
     keys(cx, "up");
     assert!(in_tree(&ws, cx, &tiles[1]));
     keys(cx, "up");
@@ -1420,14 +1457,25 @@ fn a_grid_is_walked_by_where_its_tiles_are(cx: &mut TestAppContext) {
         in_tree(&ws, cx, &people),
         "← on the first tile: the row it is under"
     );
-    keys(cx, "down down down");
+    let last_full_end = (tiles.len() / cols) * cols - 1;
+    keys(cx, "down");
+    for _ in 0..last_full_end {
+        keys(cx, "right");
+    }
+    assert!(in_tree(&ws, cx, &tiles[last_full_end]));
+    keys(cx, "down");
+    assert!(
+        in_tree(&ws, cx, tiles.last().unwrap()),
+        "↓: the nearest tile across"
+    );
+    keys(cx, "down");
     assert!(
         in_tree(&ws, cx, &after),
         "↓ on the bottom line: out, the row after"
     );
     keys(cx, "up");
     assert!(
-        in_tree(&ws, cx, &tiles[3]),
+        in_tree(&ws, cx, tiles.last().unwrap()),
         "back into the grid: its last line"
     );
     // The common compact presentation frames this category, but a stored
@@ -1452,15 +1500,14 @@ fn a_grid_is_walked_by_where_its_tiles_are(cx: &mut TestAppContext) {
         "fold / unfold / enter the category"
     );
     keys(cx, "escape");
-    let selectors: Vec<&'static str> = tiles
-        .iter()
-        .map(|id| &*Box::leak(format!("g2-tile-name-{id}").into_boxed_str()))
-        .collect();
     let mut lines = Vec::new();
     for width in [600.0, 280.0, 600.0] {
         ws.update(cx, |ws, cx| {
             ws.left.width = width;
             cx.notify();
+        });
+        wait_until(cx, "the resized grid tiles drawn", |cx| {
+            selectors.iter().all(|s| cx.debug_bounds(s).is_some())
         });
         for _ in 0..5 {
             pump(cx);
@@ -1487,7 +1534,11 @@ fn a_grid_is_walked_by_where_its_tiles_are(cx: &mut TestAppContext) {
         );
         keys(cx, "escape");
     }
-    assert_eq!(lines, [4, 2, 4], "grid keys saw the actual reflowed rows");
+    assert_eq!(
+        lines,
+        [tiles.len(), narrowest_fits, tiles.len()],
+        "grid keys saw the actual reflowed rows"
+    );
 }
 
 /// ⌘Z with the keyboard in the column (the tree, a card, the Tab row) undoes

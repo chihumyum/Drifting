@@ -792,6 +792,7 @@ pub fn remove(path: &Path, stop: &Path) -> io::Result<()> {
 #[cfg(test)]
 pub(crate) mod seam {
     use std::cell::{Cell, RefCell};
+    #[cfg(unix)]
     use std::io;
     use std::path::{Path, PathBuf};
 

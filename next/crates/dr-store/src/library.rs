@@ -332,6 +332,18 @@ pub(crate) enum Slot {
     Open(Weak<Shared>),
 }
 
+impl Slot {
+    /// True while a caller holds a handle or a holder is still starting;
+    /// false once the last handle was dropped and the holder is only
+    /// finishing its close work on its own thread.
+    fn is_live(&self) -> bool {
+        match self {
+            Self::Opening => true,
+            Self::Open(weak) => weak.strong_count() > 0,
+        }
+    }
+}
+
 /// Who else writes: every writer but the background rebuild counts, from
 /// the moment it asks for the connection until it lets go.
 pub(crate) struct Foreground {
@@ -825,9 +837,20 @@ impl Library {
     /// ids another replica already has, and the replicas would silently
     /// diverge. Refused while documents are open.
     pub fn rotate_epoch(&self) -> Result<()> {
-        let docs = self.inner.docs.lock().unwrap_or_else(|e| e.into_inner());
-        if !docs.is_empty() {
-            return Err(StoreError::DocumentsOpen(docs.len()));
+        let mut docs = self.inner.docs.lock().unwrap_or_else(|e| e.into_inner());
+        loop {
+            let live = docs.values().filter(|slot| slot.is_live()).count();
+            if live > 0 {
+                return Err(StoreError::DocumentsOpen(live));
+            }
+            if docs.is_empty() {
+                break;
+            }
+            docs = self
+                .inner
+                .docs_changed
+                .wait(docs)
+                .unwrap_or_else(|e| e.into_inner());
         }
         let mut epoch = self.inner.epoch.lock().unwrap_or_else(|e| e.into_inner());
         let new = loop {
@@ -1089,13 +1112,7 @@ impl Library {
         {
             let mut docs = self.inner.docs.lock().unwrap_or_else(|e| e.into_inner());
             loop {
-                let live = docs
-                    .values()
-                    .filter(|slot| match slot {
-                        Slot::Opening => true,
-                        Slot::Open(weak) => weak.strong_count() > 0,
-                    })
-                    .count();
+                let live = docs.values().filter(|slot| slot.is_live()).count();
                 if live > 0 {
                     drop(docs);
                     return Err(CloseRefused {
@@ -1540,11 +1557,7 @@ impl Library {
     /// handle on it.
     fn is_open(&self, doc_id: &str) -> bool {
         let docs = self.inner.docs.lock().unwrap_or_else(|e| e.into_inner());
-        match docs.get(doc_id) {
-            Some(Slot::Opening) => true,
-            Some(Slot::Open(weak)) => weak.strong_count() > 0,
-            None => false,
-        }
+        docs.get(doc_id).is_some_and(Slot::is_live)
     }
 
     pub(crate) fn open_handle(&self, doc_id: &str) -> Option<DocHandle> {
@@ -1784,9 +1797,21 @@ impl Library {
     /// document that is not stored is left alone.
     pub fn purge_doc(&self, doc_id: &str) -> Result<()> {
         let changes = {
-            let docs = self.inner.docs.lock().unwrap_or_else(|e| e.into_inner());
-            if docs.contains_key(doc_id) {
-                return Err(StoreError::AlreadyOpen(doc_id.into()));
+            let mut docs = self.inner.docs.lock().unwrap_or_else(|e| e.into_inner());
+            loop {
+                match docs.get(doc_id) {
+                    None => break,
+                    Some(slot) if slot.is_live() => {
+                        return Err(StoreError::AlreadyOpen(doc_id.into()));
+                    }
+                    Some(_) => {
+                        docs = self
+                            .inner
+                            .docs_changed
+                            .wait(docs)
+                            .unwrap_or_else(|e| e.into_inner());
+                    }
+                }
             }
             let conn = self.inner.writer();
             let tx = conn.unchecked_transaction()?;
