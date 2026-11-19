@@ -81,6 +81,11 @@ three levels deep, each as `Name: message` (or the bare string a native command
 rejected with), sanitized like the message. The local durability barrier names
 the steps that failed in its message, for example
 `1 local persistence step(s) failed: session-token [AggregateError: … [secure storage write failed]]`.
+A failed database statement (Drizzle's `Failed query: <sql> params: <values>`)
+is reported as its statement and table followed by the database's reason, for
+example `Failed query: insert into "element" [Error: FOREIGN KEY constraint failed]`;
+its values are the author's data and are never sent. Before 2026-11-19 the
+whole statement filled the 300 characters and the reason was cut off.
 
 `crash-sanitize.ts` truncates messages to 300 characters, replaces runs of 12 or
 more CJK characters, quoted spans over 40 characters and runs of 13 or more
