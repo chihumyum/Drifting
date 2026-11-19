@@ -59,12 +59,11 @@ pub struct Service {
     pub state: AccountState,
     pub avatar_cache: Option<(String, Arc<RenderImage>)>,
     pub signing_out: bool,
-    /// What the account bar and Settings › Account show
-    /// ([`shown_account_state`]): `state` once the library it names is the
-    /// one open. While a library swap is under way, or after one failed, it
-    /// stays the account whose library is open.
-    shown_state: AccountState,
-    shown_avatar: Option<Arc<RenderImage>>,
+    /// What the account bar and Settings › Account showed when they began
+    /// waiting for a library swap (one started, one deferred behind a
+    /// release under way, or one that failed): `Some` only while they wait.
+    /// Otherwise they show `state` ([`shown_account_state`]).
+    held: Option<(AccountState, Option<Arc<RenderImage>>)>,
     preference_sync_task: Option<gpui::Task<()>>,
     /// How many times [`schedule_preference_sync`] queued a round.
     preference_sync_scheduled_count: usize,
@@ -111,8 +110,7 @@ impl Service {
             .and_then(|url| build_avatar_render_image(url).map(|img| (url.to_owned(), img)));
         Self {
             inner,
-            shown_state: state.clone(),
-            shown_avatar: avatar_cache.as_ref().map(|(_, img)| img.clone()),
+            held: None,
             state,
             avatar_cache,
             signing_out: false,
@@ -130,25 +128,29 @@ impl Service {
         self.preference_sync_scheduled_count
     }
 
-    /// The account bar shows `state` from now on.
-    fn show_state(&mut self) {
-        self.shown_state = self.state.clone();
-        self.shown_avatar = self.avatar_cache.as_ref().map(|(_, img)| img.clone());
+    /// What the account bar shows now: what it held while waiting for a
+    /// library swap, otherwise `state`.
+    fn shown(&self) -> (AccountState, Option<Arc<RenderImage>>) {
+        self.held.clone().unwrap_or_else(|| {
+            (
+                self.state.clone(),
+                self.avatar_cache.as_ref().map(|(_, img)| img.clone()),
+            )
+        })
     }
 }
 
 /// The account the account bar and Settings › Account show, its avatar, and
-/// whether a sign-out is under way. It is [`Service::state`] once the library
-/// that state names is the one open; while the library is being switched, or
-/// when switching failed, it stays the account whose library is open.
+/// whether a sign-out is under way. It is [`Service::state`], except while
+/// the library is being switched, or after switching failed: then it stays
+/// what it was when that began, the account whose library is open.
 #[must_use]
 pub fn shown_account_state(cx: &App) -> (AccountState, Option<Arc<RenderImage>>, bool) {
     match cx.try_global::<Service>() {
-        Some(svc) => (
-            svc.shown_state.clone(),
-            svc.shown_avatar.clone(),
-            svc.signing_out,
-        ),
+        Some(svc) => {
+            let (state, avatar) = svc.shown();
+            (state, avatar, svc.signing_out)
+        }
         None => (
             AccountState {
                 hosted_configured: false,
@@ -167,7 +169,8 @@ pub fn shown_account_state(cx: &App) -> (AccountState, Option<Arc<RenderImage>>,
 
 /// After a library release finished (a swap of ours, the sync supervisor's
 /// retry of one, a restore): once the open library is the one `state` names,
-/// the account bar shows `state`. Starts no preference sync.
+/// the account bar stops waiting and shows `state`. Starts no preference
+/// sync.
 fn reconcile_shown_account(cx: &mut App) {
     if !cx.has_global::<Service>() {
         return;
@@ -177,10 +180,10 @@ fn reconcile_shown_account(cx: &mut App) {
         .and_then(|s| s.library.as_ref())
         .map(|ws| ws.library().paths().root.clone());
     let svc = cx.global::<Service>();
-    if open_root.as_ref() != Some(&svc.state.active_library_dir) || svc.shown_state == svc.state {
+    if open_root.as_ref() != Some(&svc.state.active_library_dir) || svc.held.is_none() {
         return;
     }
-    cx.update_global::<Service, _>(|svc, _| svc.show_state());
+    cx.update_global::<Service, _>(|svc, _| svc.held = None);
     cx.refresh_windows();
 }
 
@@ -437,7 +440,8 @@ pub fn apply_account_state(state: AccountState, cx: &mut App) {
     let is_account_lib = state.is_account_library;
 
     let is_connected = state.status == SessionStatus::Connected;
-    cx.update_global::<Service, _>(|svc, _| {
+    let shown_before = cx.update_global::<Service, _>(|svc, _| {
+        let shown_before = svc.shown();
         let next_avatar_url = state
             .user
             .as_ref()
@@ -458,13 +462,21 @@ pub fn apply_account_state(state: AccountState, cx: &mut App) {
             }
         }
         svc.state = state;
+        shown_before
     });
 
     // The account bar changes with the library: at once when no swap is
-    // needed, otherwise once the swap succeeded ([`reconcile_shown_account`]).
-    if !switch_library_if_needed(target_dir, is_account_lib, cx) {
-        cx.update_global::<Service, _>(|svc, _| svc.show_state());
-    }
+    // needed, otherwise it holds what it showed until the swap succeeded
+    // ([`reconcile_shown_account`]). Already holding, it keeps what it holds:
+    // that is still the open library's account.
+    let waits = switch_library_if_needed(target_dir, is_account_lib, cx);
+    cx.update_global::<Service, _>(|svc, _| {
+        if !waits {
+            svc.held = None;
+        } else if svc.held.is_none() {
+            svc.held = Some(shown_before);
+        }
+    });
     if is_connected {
         sync_preferences_now(cx);
     }
@@ -1595,7 +1607,8 @@ mod tests {
                 t(cx, keys::user_menu::ACCOUNT_MENU)
             );
             let svc = cx.global::<Service>();
-            assert_eq!(svc.shown_state, svc.state);
+            assert!(svc.held.is_none(), "the bar no longer waits");
+            assert_eq!(shown_account_state(cx).0, svc.state);
             assert!(
                 svc.preference_sync_task.is_none(),
                 "the bar catching up starts no preference sync"
@@ -1611,6 +1624,54 @@ mod tests {
             if let Some(lib) = cx.global::<Services>().library.as_ref() {
                 lib.close();
             }
+        });
+    }
+
+    /// M35: with no library swap pending, the account bar shows `state` as
+    /// it is, even one written straight into the `Service` (as a test of
+    /// `dr-view-transfer` does) rather than through `apply_account_state`.
+    #[gpui::test]
+    fn with_no_swap_pending_the_bar_shows_state_as_written(cx: &mut TestAppContext) {
+        cx.executor().allow_parking();
+        let server = FakeAuthServer::start();
+        server.set_require_signup_verification(false);
+        let tmp = TempDir::new().expect("tempdir");
+        let svc = Arc::new(
+            AccountService::new(
+                server.config(),
+                tmp.path(),
+                "cc.drifting.next.dev",
+                Arc::new(SecretStore::in_memory()),
+            )
+            .expect("hosted service"),
+        );
+        svc.sign_up_email("Cleo", "cleo-direct@example.test", "correct-horse-cleo")
+            .expect("sign up");
+        cx.update(|cx| {
+            let _ = dr_ui::fonts::register(cx);
+            dr_shell::init(
+                shell_info(),
+                Services::default(),
+                SettingsFile::in_memory(),
+                cx,
+            );
+            init(Service::with_service(svc.clone()), cx);
+        });
+        cx.run_until_parked();
+        cx.update(|cx| {
+            assert!(cx.global::<Service>().held.is_none());
+            assert_eq!(dr_shell::account::display_name(cx).as_ref(), "Cleo");
+        });
+
+        let renamed = svc.update_profile(Some("Cleo Writes"), None).unwrap();
+        cx.update(|cx| {
+            cx.update_global::<Service, _>(|svc, _| svc.state = renamed.clone());
+            assert_eq!(shown_account_state(cx).0, renamed);
+            assert_eq!(dr_shell::account::display_name(cx).as_ref(), "Cleo Writes");
+            assert_eq!(
+                dr_shell::account::author_name(cx).as_deref(),
+                Some("Cleo Writes")
+            );
         });
     }
 
