@@ -213,6 +213,10 @@ pub struct BookRecord {
     /// What of the 0.1 materials did not come over, one line each.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub materials_dropped: Vec<MaterialDropped>,
+    /// What the import's defaults did for this book (`crate::defaults`),
+    /// one line per row.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub adjustments: Vec<crate::defaults::Adjustment>,
 }
 
 /// Everything one import did.
@@ -494,6 +498,61 @@ pub fn write_archive(
     Ok(path)
 }
 
+/// What a default of `crate::defaults` did, in plain words.
+fn adjusted(code: &str) -> Option<&'static str> {
+    Some(match code {
+        "element-missing-category" => {
+            "没有分类（或分类已删除）的要素放进「要素」下的「未分类」，和旧版一样"
+        }
+        "chapter-without-book-order" => "没有书序的章节按旧版的读法排在最前（书序 0）",
+        "idea-has-legacy-book-order" => "构想身上的书序旧版不用，没有带过来",
+        "unknown-node-kind" => "旧版不认识种类的章节按构想导入，和旧版一样",
+        "incompatible-source-node-status" => {
+            "和种类对不上的写作状态换成这一种的默认状态，和旧版显示的一样"
+        }
+        "chapter-in-group-dropped" => "章节身上的构想分组旧版不用，没有带过来",
+        "idea-group-missing" => "所在分组已不存在的构想放在构想的最外层，和旧版一样",
+        "membership-target-missing" => "指向已不存在的章节或故事线的归属没有地方挂，没有带过来",
+        "membership-target-trashed" => "已删除的故事线上的归属照留，故事线恢复时章节一起回来",
+        "multiple-primary-memberships" => "有几条主故事线时，按旧版留最后一条，其余仍是故事线",
+        "act-binding-not-an-idea" => "绑在章节上的幕按旧版当作没有绑构想",
+        "act-without-boundary" => "没有起点的幕按旧版当作全书第一幕",
+        "duplicate-act-boundary" => "起点相同的几幕按旧版照原样导入",
+        "pin-binding-missing-idea" => "时间钉绑的构想已不在或在最近删除里，时间钉留着、不再绑",
+        "source-tree-missing-parent" => "上级已不存在的分组、素材夹放到最外层，和旧版一样",
+        "source-tree-cycle" => "互为上级的分组、素材夹在 id 最小的那一个断开，放到最外层",
+        "unknown-category-layout"
+        | "incomplete-category-grid-position"
+        | "auto-category-has-grid-position" => "分类的摆放方式不完整时按旧版当作自动摆放",
+        "unreadable-source-kv-projection" => "读不出来的字段顺序记录按建立先后排",
+        "unreadable-source-aliases" => "读不出来的别名列表只留能读的",
+        "ambiguous-template-field" => "分类模板里同名的字段只留旧版列在前面的那一个",
+        "duplicate-value-for-template-field" => {
+            "同名字段的几个值，第一个进字段，其余作为条目自己的键值留下"
+        }
+        "duplicate-history-value-for-template-field" => {
+            "快照历史里同名字段的几个值，第一个进字段，其余作为键值留下"
+        }
+        "writing-day-invalid" => "日期或设备读不出来的写作日没有地方放，没有带过来",
+        "writing-day-duplicate" => "同一台设备同一天的几行写作日加在一起，和旧版热力图一样",
+        "history-preview-missing" => "没有预览的快照历史没法检出，跳过",
+        "history-preview-unreadable" => "预览读不出来的快照历史没法检出，跳过",
+        "orphan-history-source" => "所属对象已彻底删除的快照历史跳过",
+        "unreadable-history-metadata" => "快照历史里读不出来的标题等字段不回放，正文版本照留",
+        "incompatible-history-node-status" => "快照历史里和种类对不上的写作状态不回放",
+        "ambiguous-history-template-field" => "快照历史里同名的模板字段只留第一个",
+        "comment-target-missing" => "所属对象已彻底删除的批注照留，显示为找不到位置",
+        "plot-grid-position-key-regenerated" => "情节规划里坏掉的位置键按旧版的顺序重新生成",
+        "unreadable-source-template" => "读不出来的正文模板不写成模板，原文留在书目里",
+        "invalid-source-entity-link" | "unsupported-entity-link-target-kind" => {
+            "指不到条目的人物链接去掉链接，字留着"
+        }
+        "unsupported-table-cell-mark" => "表格格子里新版不认识的格式去掉，字留着",
+        "unsupported-table-cell-content" => "表格格子里的列表、标题等只留文字",
+        _ => return None,
+    })
+}
+
 /// What a lossy normalisation means, in plain words (`m10-import.md` has
 /// the full list). Keys not listed are lossless bookkeeping.
 fn explain(key: &str) -> Option<&'static str> {
@@ -684,6 +743,20 @@ pub fn summary_zh(r: &Receipt) -> String {
                 "有 {} 条批注或补丁锚住的段落已经不在，批注保留，卡片显示原文。\n\n",
                 b.anchors_without_cursors
             ));
+        }
+        if !b.adjustments.is_empty() {
+            let mut by_code: BTreeMap<&str, usize> = BTreeMap::new();
+            for a in &b.adjustments {
+                *by_code.entry(a.code.as_str()).or_default() += 1;
+            }
+            s.push_str(
+                "旧库里新版不能照原样收下的地方，导入替你这样处理了（原值都记在回执里）：\n\n",
+            );
+            for (code, count) in by_code {
+                let e = adjusted(code).unwrap_or("照原样导入，记在回执里");
+                s.push_str(&format!("- {e}（{count} 处，`{code}`）\n"));
+            }
+            s.push('\n');
         }
         let lossy: Vec<(&str, usize, &str)> = b
             .notes

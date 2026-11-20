@@ -66,11 +66,17 @@ pub(crate) fn mid(s: &str) -> ModuleId {
     ModuleId::parse(s).expect("checked module id")
 }
 
+/// The longest template id that keeps its source's id readable. A template's
+/// prose document is named `<book>/<template>/<module>`, so a longer one
+/// (a category or storyline id far longer than 0.1's uuids) is hashed and
+/// leaves the book id room. Nothing in 0.1 refers to these ids.
+const MAX_READABLE_TEMPLATE_ID: usize = 64;
+
 fn template_id(namespace: &str, source: &str) -> EntryTemplateId {
     let full = format!("import-{namespace}-{source}");
     EntryTemplateId::parse(&full)
         .ok()
-        .filter(|id| id.as_str().len() + 1 + MOD_PROSE.len() <= dr_model::id::MAX_ID_LEN)
+        .filter(|id| id.as_str().len() <= MAX_READABLE_TEMPLATE_ID)
         .unwrap_or_else(|| {
             tid(&format!(
                 "import-{namespace}-{:016x}",

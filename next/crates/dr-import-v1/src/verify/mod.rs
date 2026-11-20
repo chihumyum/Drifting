@@ -111,6 +111,7 @@ pub fn check_truth(root: &Path, truth: &Path) -> Result<Value> {
     let lib = open(root, false)?;
     let by_old = imported_docs(&lib)?;
     let mut material_assets: HashMap<String, dr_model::id::AssetId> = HashMap::new();
+    let mut skipped_history: std::collections::HashSet<String> = std::collections::HashSet::new();
     let mut non_text_materials: HashMap<String, String> = HashMap::new();
     // Every run's imported books (a book's record is in the run that
     // imported it), in run order.
@@ -137,6 +138,13 @@ pub fn check_truth(root: &Path, truth: &Path) -> Result<Value> {
                 }
             }
         }
+        // History rows the import's defaults skipped (no preview, no owner):
+        // recorded by id, not points.
+        for a in v["adjustments"].as_array().into_iter().flatten() {
+            if a["table"] == "entity_snapshot_history" && a["done"] == "skipped" {
+                skipped_history.insert(a["id"].as_str().unwrap_or("").to_string());
+            }
+        }
         if let Some(map) = v.get("nonTextMaterials").and_then(Value::as_object) {
             for (k, val) in map {
                 if let Some(title) = val.as_str() {
@@ -153,6 +161,7 @@ pub fn check_truth(root: &Path, truth: &Path) -> Result<Value> {
     let mut doubtful_equal = 0usize;
     let mut missing = 0usize;
     let mut history_rows = 0usize;
+    let mut history_skipped = 0usize;
     let mut history_equal = 0usize;
     let mut labels_by_doc: HashMap<String, usize> = HashMap::new();
     let mut links_compared = 0usize;
@@ -165,6 +174,13 @@ pub fn check_truth(root: &Path, truth: &Path) -> Result<Value> {
         let Some(old) = v.get("documentId").and_then(Value::as_str) else {
             continue;
         };
+        if v.get("historyId")
+            .and_then(Value::as_str)
+            .is_some_and(|h| skipped_history.contains(h))
+        {
+            history_skipped += 1;
+            continue;
+        }
         if v.get("historyId").is_some() {
             history_rows += 1;
             *labels_by_doc.entry(old.to_string()).or_default() += 1;
@@ -266,6 +282,7 @@ pub fn check_truth(root: &Path, truth: &Path) -> Result<Value> {
         "doubtfulButEqual": doubtful_equal,
         "notImported": missing,
         "historyRows": history_rows,
+        "historyRowsSkippedAndRecorded": history_skipped,
         "historyRowsWithPoints": history_equal,
         "historyDocsMatching": labels_ok,
         "historyDocs": labels_by_doc.len(),

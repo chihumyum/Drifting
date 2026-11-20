@@ -71,13 +71,13 @@ M3 Pro，release；机器同时在跑别的构建（最后一次跑时一分钟�
 - 批注正文的格式（加粗、列表）：批注正文是纯文字加链接（上文「待协调」4，kernel-v5 第 19 节），原 JSON 在 `import_original`，回执 `comment-body-formatting-kept-as-text`。
 - 表格的表头按普通格：上文「正文」的规整清单（`table-header-cell`）。格子里的格式现在保留。
 - 0.1 Copilot 的采纳／拒绝动作：上文「书目文档：逐表怎么落」。
-- 还有快照历史没有预览就整库拒绝：K3 定的第二道预检（上文「K3 后半段」：「无正文预览／没有所属正文的历史……同样前置报告」）。
+- ~~还有快照历史没有预览就整库拒绝~~：同日改成跳过并记下，见下一节「旧库里新版不能照原样收下的：默认处理」。
 
 ### 还剩的（要作者或别的会话定）
 
-- **删过分类、分类里还有要素的库导不进来**（探针验证过）：0.1 删分类时把里面要素的分类清空（`element-category-repo.ts` 的 `softDeleteCategory`），导入前的检查对没有分类的要素报 `element-missing-category`，整库拒绝。在 `sample-wide` 的拷贝上照这个函数的写法删掉「物件与说法」（7 个要素），`m10-import analyse` 报 7 条 `element-missing-category`（外加一条 `mapping-choice-invalid`）。这是上文「待协调」26 留着没定的「无分类的要素」。建议：照 0.1 的「未分类」，导进「要素」下面一个「未分类」层级。
-- **快照历史没预览的库，可能永远导不进来**（推断，来自代码）：交接每次只补 32 行，而且每次都从同一批没预览的行补起，渲染失败的不跳过；有 32 行以上永远渲染不出来时，后面的永远补不上，导入一直拒绝。这次只验了「补得上、要退出两次」那种。建议：导入把补不上预览的历史行跳过并记进回执（上文「快照历史」原来就是这么写的），而不是整库拒绝。
-- **删掉的章若删前改过，最后一版交接证明不了它**（推断）：交接写不了回收站里的章，这一篇不盖章，闸门会把它列进「无法证明」，要作者点「仍然导入」。这次的章删前没改过，所以没触发。
+- ~~**删过分类、分类里还有要素的库导不进来**~~（同日已改：放进「未分类」，见下一节）（探针验证过）：0.1 删分类时把里面要素的分类清空（`element-category-repo.ts` 的 `softDeleteCategory`），导入前的检查对没有分类的要素报 `element-missing-category`，整库拒绝。在 `sample-wide` 的拷贝上照这个函数的写法删掉「物件与说法」（7 个要素），`m10-import analyse` 报 7 条 `element-missing-category`（外加一条 `mapping-choice-invalid`）。这是上文「待协调」26 留着没定的「无分类的要素」。建议：照 0.1 的「未分类」，导进「要素」下面一个「未分类」层级。
+- ~~**快照历史没预览的库，可能永远导不进来**~~（同日已改：跳过并记下，见下一节）（推断，来自代码）：交接每次只补 32 行，而且每次都从同一批没预览的行补起，渲染失败的不跳过；有 32 行以上永远渲染不出来时，后面的永远补不上，导入一直拒绝。这次只验了「补得上、要退出两次」那种。建议：导入把补不上预览的历史行跳过并记进回执（上文「快照历史」原来就是这么写的），而不是整库拒绝。
+- **删掉的章若删前改过，最后一版交接证明不了它**（同日用 `sample-damaged` 验过：闸门只拦这一篇，「仍然导入」照缓存导入）：交接写不了回收站里的章，这一篇不盖章，闸门会把它列进「无法证明」，要作者点「仍然导入」。这次的章删前没改过，所以没触发。
 - 删掉的章在时间线上的位置不带（格式 5 只给不在回收站里的条目摆位置），恢复时排到刻度末尾（推断，来自代码）。
 - 丢失检查不管的：字段的值（只核对有没有、在不在回收站、主故事线、写作日字数）、正文内容（那是真值比较的事）、锚点；从正文生成的待办按「同一条目、同一种」的个数对，不按 id 对；帮手对话存档和本机表按整表行数对。
 - 五份库还是每次现生成，没有钉住字节（阶段 7 的事，见下文）。
@@ -85,6 +85,103 @@ M3 Pro，release；机器同时在跑别的构建（最后一次跑时一分钟�
 ### 检查
 
 在 `next/`：`cargo fmt --all --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings`、`cargo test -p dr-import-v1 -p dr-view-import -p dr-doc -p dr-samples --locked`（314 项通过、0 失败、1 项原有忽略）、`cargo xtask check --skip audit`（`m10-m4-import.json` 照旧报「过期」，这次不重写）。仓库根：`pnpm typecheck`、`pnpm lint`（0 错误，44 条原有警告，改的文件里没有）、`pnpm ci:contract:check`、`pnpm public:check`，`m10-fixtures.test.ts` 带 `DRIFTING_M10_FIXTURE_DIR` 跑通（7 项）。`m10-measure` 九份库：契约 0 条不成立。
+
+## 旧库里新版不能照原样收下的：默认处理（2026-11-21，替作者定的，等作者过目）
+
+**替作者定的，等作者过目。** 作者把这件事交给了协调会话，规则是：0.1 自己能打开、能显示的东西，导入一律不因为它拒绝整个库。每一种情况都有一个默认处理：作者写的字一个不丢，挪了位置的放在看得见、找得回的地方，做了什么都记下来（回执的 `adjustments`、`import_original` 的 `adjusted:<表>`、`summary.md`；丢失检查按 id 算「回执记了」）。0.1 有自己的做法的，照 0.1 的做法。只有真读不出来、或者会把新库写坏的，才仍然拒绝（见下面「还会拒绝导入的」）。原来这些情况整库拒绝（上文「待协调」26 的「先报告再协调」），升级以后作者既回不去 0.1 修，也进不了 0.2。
+
+### 怎么做的
+
+- 默认处理在导入自己的暂存副本上做（`dr-import-v1/src/defaults.rs`），在闸门、预检、写书目、回放历史之前，后面每一步读到的都是同一份处理过的库。原库照旧一个字节不碰。正文缓存和 Yjs 表不动（闸门的证明要对它们算哈希）；正文要做的（去掉指不到条目的链接、把表格格子摊平成字）在规划正文时做，按正文记下来。
+- 新版里要起名字的只有一处：没有分类的要素放进的层级，名字用 0.1 自己的「未分类」（`leftSidebar.uncategorized`），和「未归属」「文本素材」一样写在 `dr-samples/src/v3/catalog.rs` 里（`UNCATEGORIZED`）。没有新文案。
+- `MappingChoices` 照旧是作者的选择、照旧优先；但下面这些情况原来就没有可选的项（`MappingChoices` 只有 `profile` 和 `auto_entity_links`），所以没有「选择盖过默认」可测。
+- 0.1 的做法逐条从 0.1 源码查过（下表「0.1 怎么显示」一列，出处是 `src/renderer` 下的文件）。
+
+### 逐条
+
+| 代码 | 真实数据怎么来的 | 0.1 怎么显示 | 现在的默认 | 记下什么 | 测试 |
+| --- | --- | --- | --- | --- | --- |
+| `element-missing-category` | 0.1 删分类时把里面要素的分类清空（`element-category-repo.ts` 的 `softDeleteCategory`）；另一台设备删分类时这台的要素还挂着它的 id；外键使「分类不存在」只能是损坏 | 左栏最后一组「未分类」；挂着已删分类 id 的另成一组、组名是那个 id | 「要素」下最后一个层级「未分类」，基本要素模板；它们的键值照旧是键值 | 要素 id、原分类 id | `every_default_imports_records_and_keeps_every_body`（两例）、`an_element_whose_category_has_no_row_goes_under_uncategorized_and_is_recorded`、加宽库 `sample-damaged` |
+| `chapter-without-book-order` | 0.1 没有写入路径；旧数据或导入包照搬 | 读成书序 0，同序按 id | 书序 0 | 章 id | 同上 |
+| `idea-has-legacy-book-order` | 没有写入路径 | 不用（读成空） | 去掉 | 原书序 | 同上 |
+| `unknown-node-kind` | 没有写入路径；导入包照搬 | 不是章就当构想 | 构想 | 原种类 | 同上 |
+| `incompatible-source-node-status` | 恢复构想时期拍的快照到已转成章的节点；同步接受任何状态 | 这一种的状态列表、没有一个是选中的；内存里换成默认 | 这一种的默认状态（章「草稿」、构想「漂流」） | 原状态 | 同上 |
+| `chapter-in-group-dropped` | 没有写入路径 | 不用 | 去掉 | 原分组 | 同上 |
+| `idea-group-missing` | 删分组时回收站里的构想还挂着它（`useDriftGroup.ts:247`） | 构想最外层 | 构想最外层 | 原分组 | 同上 |
+| `membership-target-missing` | 外键使它只能是损坏 | — | 没有地方挂，去掉 | 原归属 | 同上 |
+| `membership-target-trashed`（原 `membership-target-missing-or-trashed`） | 两台设备一个删故事线、一个加归属 | 章不在任何故事线下 | 归属照留，读的时候不算，故事线恢复时回来；这一章在时间线上没有位置 | 归属 | 同上 |
+| `multiple-primary-memberships` | 部分唯一索引挡着，只能是损坏 | 按故事线顺序最后一条算 | 按故事线顺序最后一条是主故事线，其余仍是故事线 | 原来的几条 | 同上 |
+| `act-binding-not-an-idea` | 没有能用的写入路径；导入包照搬 | 当作没绑（提示退回「幕笔记」） | 不绑 | 原绑定 | 同上 |
+| `act-without-boundary` | 旧的「书首锚点」、同步种子 | 全书第一幕 | 照原样：全书第一幕 | 幕 id | 同上 |
+| `duplicate-act-boundary` | 0.1 的「打散」 | 同起点按 id，后一幕拿到章节 | 照原样 | 幕 id | 同上 |
+| `pin-binding-missing-idea` | 外键清掉不存在的；绑在章上没有写入路径；绑在回收站里的构想：同步竞争 | 照显示为已绑 | 时间钉留着，不再绑 | 原绑定 | 同上 |
+| `source-tree-missing-parent` | 构想分组、素材夹：两台设备同时移动或删除 | 放最外层 | 放最外层 | 原上级 | 同上 |
+| `source-tree-cycle` | 同上 | 素材夹在 id 最小的那个断开；构想分组会让 0.1 递归溢出 | 在 id 最小的那个断开，放最外层 | 原上级 | 同上 |
+| `unknown-category-layout`、`incomplete-category-grid-position`、`auto-category-has-grid-position` | 没有写入路径（三个字段一起写）；同步按字段合并可能拆开 | 只有「固定」且两个坐标都有才用位置，否则自动摆放 | 自动摆放，不带位置 | 原摆放和坐标 | 同上 |
+| `unreadable-source-kv-projection` | 损坏或旧开发数据 | `parseKv` 读成空 | 键值行按建立先后（uuidv7 的 id）排 | 原 JSON | 同上 |
+| `unreadable-source-aliases` | 损坏 | 只留字符串 | 只留字符串 | 原 JSON | 同上 |
+| `ambiguous-template-field`（同名） | 分类模板编辑器允许同名字段 | 两行都显示，新建要素时都抄过去 | 0.1 列在前面的那个成字段，其余的值进回执 | 被去掉的那行 | 同上 |
+| `ambiguous-template-field`（id 是 `aliases`／`summary`／`portrait`） | 0.1 不会生成，只能是别的写入方经同步 | — | 换成确定的新 id（`import-kv-<哈希>`）；0.1 里没有东西按 id 指它，值按字段名跟着走 | 原 id | 同上 |
+| `duplicate-value-for-template-field` | 作者在键值编辑器里打了同名；同名模板抄进新要素 | 几行都显示 | 第一个（0.1 的顺序）进字段，其余作为条目自己的键值留下 | 留作键值的那几行 | 同上 |
+| `duplicate-history-value-for-template-field` | 同上，拍快照时 | — | 每个历史点上同样的规则 | 历史行 | 同上 |
+| `ambiguous-history-template-field` | 模板同名时拍的快照 | — | 每个名字只留第一个 | 原元数据 | 同上 |
+| `history-preview-missing` | 拍的时候预览没渲染出来；交接每次只补 32 行 | 列出来、没有摘录、能恢复 | 跳过（没有历史点），其余照导 | 历史行 | 同上；加宽库 `sample-wide-one-pass`（42 行、一次交接、10 行跳过） |
+| `history-preview-unreadable`（新） | 损坏 | — | 跳过 | 历史行 | 同上 |
+| `orphan-history-source` | 0.1 彻底删除东西时留着它的历史行（`project-deletion-repo.ts:94-96`） | 只能从直接链接进去 | 跳过 | 历史行 | 同上 |
+| `unreadable-history-metadata` | 已删的 Apple 前端写的另一种格式；损坏 | 恢复时元数据那一半失败 | 正文版本照留，元数据不回放 | 原元数据 | 同上 |
+| `incompatible-history-node-status` | 构想时期拍的、之后转成章 | 恢复时照写 | 这一项不回放 | 原元数据 | 同上 |
+| `comment-target-missing`（原 `comment-target-missing-or-trashed`） | 彻底删除章、要素、分类、故事线时批注留着（`book-node-purge.ts` 等） | 审阅栏「已删除」一组 | 照留在原目标上，显示为找不到位置 | 批注 id | 同上；`sample-damaged` |
+| `invalid-or-duplicate-source-relation` | 自指：帮手的 `add_relation` 不查；一头没有：同步 | 指不到的边不画 | 自指或一头没有行：去掉；一头在回收站里：照带 | `import_original` 的 `relations / dropped`（`relation-self-end-dropped`／`relation-missing-entry-dropped`） | `relations_with_nothing_at_an_end_are_dropped_and_recorded`、`original_dangling_source_relation_is_dropped_and_recorded` |
+| `writing-day-invalid` | 同步只查格式不查日历（`2026-02-31` 能过） | — | 没有地方放，去掉 | 原行 | 同上；`sample-damaged` |
+| `writing-day-duplicate`（新） | `(书, 天, 设备)` 没有唯一索引 | 热力图加在一起 | 加在一起，放进 id 最小的那行 | 原字数 | 同上 |
+| `plot-grid-position-key-regenerated` | 同步插行时的占位键 `pending` | 按键、再按 id 排 | 按同样的顺序生成新键 | 原键 | 同上 |
+| `unreadable-source-template` | 损坏 | — | 不写成模板文档，原文留在书目上 | 原 JSON | 同上 |
+| `invalid-source-entity-link`、`unsupported-entity-link-target-kind` | 粘贴可以带进任何种类、空 id | 指不到的链接变暗 | 去掉链接，字留着 | 正文 | `links_the_book_cannot_keep_and_flattened_table_cells_keep_their_text` |
+| `unsupported-table-cell-mark`、`unsupported-table-cell-content` | 笔记的表格格子收 `block+`：列表、标题、代码块等，能用快捷输入或粘贴写进去 | 照显示 | 字留着，格子里的块格式和不认识的标记去掉 | 正文 | 同上 |
+
+每一例都核对：导入不带选择就完成；每篇正文的字和 0.1 的缓存一样；回执、`import_original`、`summary.md` 都记了；丢失检查没有没交代的。
+
+### 还会拒绝导入的
+
+这些在普通的导入对话框里仍然会出现，样子照旧（「导入前需要映射选择」加 `代码: 来源` 的列表），没有改文案，交给作者定说法。
+
+| 代码 | 什么时候出现 | 为什么不给默认 | 测试 |
+| --- | --- | --- | --- |
+| `entry-id-invalid-or-colliding`、`invalid-id` | 章、构想、分类、要素、故事线、笔记等的 id 带 `/` 或 `\|`、超过 246 字节、以 `root-`／`import-` 开头，或者两行同一个 id。0.1 自己只写 uuidv7；只有别的写入方经同步（同步收任何不含控制字符、255 字节以内的 id；已删的 Apple 前端接受调用方给的 id），或者本来就撞号的导入包 | 这些 id 写在正文缓存的链接里、快照预览里、Yjs 文档 id 里、交接清单里、Markdown 文件夹台账里；改 id 就得改缓存的字节，交接的哈希证明随之失效 | `what_cannot_be_read_or_named_still_refuses`（两例） |
+| `template-prose-id-not-representable` | 书的 id 带 `/` 或者太长（模板文档名是 `<书>/<模板>/<模块>`）。分类、故事线 id 太长的情况，这次改成模板 id 超过 64 字节就用哈希，能导了 | 书的 id 0.1 只写 uuidv7；同上 | 同上；`a_long_category_id_gets_a_hashed_template_and_imports` |
+| `invalid-book-id` | 书的 id 为空、带控制字符或超过 256 字节：0.1 的 id 规则（255 字节以内、无控制字符）下到不了，只能是损坏 | 同上 | 同上 |
+| `unreadable-source-prose` | 一篇正文的缓存不是 JSON：笔记有 `CHECK` 挡着，别的只能是损坏 | 这篇的字只在 Yjs 里，新版读不了 Yjs | 同上；`undecided_mapping_stops_before_target_or_device_writes`、开发命令行那一例 |
+| `prose-not-writable`（新）、`mapping-choice-invalid`、`v3-invariant` | 新版的正文或书目写入器、或格式 5 的检查不收；现在没有已知的 0.1 数据会走到这里 | 兜底：宁可拒绝，也不写出半本书或坏掉的书。预检先在内存里把每篇正文、模板写一遍试试 | 没有能合成出来的例子，没有测试 |
+
+### 两处顺带的
+
+- 交接每次只补 32 行预览：现在跳过没预览的行，不再整库拒绝，所以只退出一次也能导（`sample-wide-one-pass`：42 行里 32 行成历史点，10 行跳过并记下）。
+- 删前改过的章：最后一版交接写不了回收站里的章，这一篇证明不了，闸门照旧列出它（`sample-damaged`：闸门只拦这一篇），「仍然导入」照缓存导入它。
+
+### 数字
+
+`m10-measure` 不带 `--write`，十份库（原来九份加 `sample-damaged`；`sample-wide-one-pass` 原来是「必须被拒」，现在照导）。契约 0 条不成立。
+
+| | 书 / 正文 | 闸门 | 和真值一致 | 历史行 → 点（跳过并记下） | 丢失检查：行 / 带过来 / 记了不带 / 没交代 |
+| --- | ---: | --- | ---: | ---: | ---: |
+| 样书 | 2 / 156 | 通过 | 152 / 152 | 0 | 790 / 740 / 50 / **0** |
+| 用旧 | 2 / 156 | 拦住 7 篇 | 146 / 153 | 6 / 6 | 796 / 746 / 50 / **0** |
+| 交接过 | 2 / 156 | 通过 | 153 / 153 | 6 / 6 | 797 / 747 / 50 / **0** |
+| 加宽（一次交接） | 2 / 157 | 通过 | 153 / 153 | 32 / 32（10） | 889 / 824 / 65 / **0** |
+| 加宽（两次交接） | 2 / 157 | 通过 | 153 / 153 | 42 / 42 | 889 / 834 / 55 / **0** |
+| 损坏 | 2 / 155 | 拦住 1 篇（删前改过的章） | 150 / 151 | 0 | 798 / 746 / 52 / **0** |
+| 轻量 | 1 / 80 | 通过 | 68 / 68 | 0 | 915 / 903 / 12 / **0** |
+| 重型 | 1 / 679 | 通过 | 619 / 619 | 0 | 13 942 / 13 870 / 72 / **0** |
+| 数据目录·本机 | 1 / 80 | 通过 | 68 / 68 | 0 | 915 / 903 / 12 / **0** |
+| 数据目录·账号 | 2 / 157 | 通过 | 153 / 153 | 42 / 42 | 889 / 834 / 55 / **0** |
+
+「判为最新、其实不同」十份都是 0。「损坏」里和真值不同的 1 篇就是闸门拦下、作者点了「仍然导入」的那一章；还有 1 篇 Yjs 文档没有对应的正文，是彻底删掉的那一章留下的。重型库「记了不带」从 42 变成 72：丢失检查原来读素材的不带记录时用错了字段名（`materialId`，回执写的是 `material_id`），同一个文件的第二个素材（名字不保留）原来算成「带过来」，现在算「记了不带」；导入本身没变，加了单元测试钉住字段名。
+
+### 检查
+
+在 `next/`：`cargo fmt --all --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings`、`cargo xtask check --skip audit` 通过。`cargo test`：`dr-import-v1`、`dr-view-import`、`dr-workspace` 463 项通过；`dr-agent-tools` 107 项、`dr-doc` 172 项（1 项原有忽略）、`dr-samples` 13 项通过。仓库根：`pnpm typecheck`、`pnpm lint`（0 错误，44 条原有警告）、`pnpm ci:contract:check`、`pnpm public:check`，`m10-fixtures.test.ts` 带 `DRIFTING_M10_FIXTURE_DIR` 跑通（8 项）。
+
+改了的测试：原来断言「拒绝导入」的几例（`ambiguous_or_unsupported_sources_stop_before_v3_writes`、`malformed_source_is_reported_without_automatic_repairs`、`duplicate_historical_values_do_not_overwrite_one_structured_field`、`unsupported_prose_links_and_table_marks_remain_in_the_source_and_stop_import`、`a_long_legacy_id_is_reported_before_constructing_a_scoped_template_doc_id`、`original_dangling_source_relation_is_pending_before_any_target_or_identity_write`）照这次的规则改成断言照导、记下、字不丢、丢失检查通过，并入 `tests/defaults.rs`；要验「预检拦住时什么都不写」的几例（`undecided_mapping_stops_before_target_or_device_writes`、开发命令行一例、`dr-view-import` 的 `pending_is_prewrite_then_explicit_choices_import_into_a_new_preferred_v3_library`）换成仍会拒绝的情况（正文缓存不是 JSON、id 撞号）。
 
 ## 第一次打开时自己弹出（2026-11-20）
 
@@ -997,6 +1094,8 @@ cargo xtask check
 
    **作者已定 11-11（暂定默认行为，夜间队列第 6 项已落地）**：非内置关系类型的端点种类按 `node`、`element`、`category`、`storyline` → `entry`，`patch` → `patch`，`comment` → `comment`，`library_item` → `material` 映射并去重；`source_templates` 和 `target_templates` 留空，不展开成模板清单；旧的端点种类数组原样保存在导入回执 `import_original`（`collection = "relation_types"`，`field = "source_kinds" | "target_kinds"`）里以便日后还原；内置关系类型（`generic-association`）不动。这是作者重构关系类型前的暂定规则，已改为默认行为，不再需要 `MappingChoices`。
 26. **K3：旧数据无法直接落进 v3 的情况，先报告再协调。** 无分类／分类已缺失的要素（旧列允许 NULL）、找不到住处的分组／归属、分组环、无书序的章节、没有起点或起点重叠的幕、构想残留书序、同名字段模板／同名字段多值、坏的章节模板、悬空关系／批注／时间钉／幕绑定。清单保留原始数据，用 `pending` 报告对应来源；缺分类不新造分类，环不自动拆，重叠边界不替作者选幕，多值不覆盖，坏模板不当成空模板。完整夹具是正常映射数据，异常回归在临时库中修改它；真正导入时的提示／阻止／修复策略留给后半段协调，不改变定稿方案。
+
+   **2026-11-21 替作者定了，等作者过目**：这些情况现在都有默认处理、照导并记下，只剩读不出来或写不进去的仍然拒绝，逐条见上文「旧库里新版不能照原样收下的：默认处理」。
 
 27. **K3 / K1：旧层级自己的颜色如何落位。** 幕、构想分组、分类、故事线各行可以有不同颜色；定稿结构列了模板的 `color`，条目 meta 只明确列出层级设置覆盖，没有明确列出颜色覆盖。清单 `Level.color` 保留旧值，尚不宣称它就是 v3 字段。请 K1 确认已有的覆盖接口或其他既定落点；导入不擅自加条目字段，也不为了保色自创一批层级模板。当前只钉住叶子模板数量，不钉层级模板的生成策略。
 

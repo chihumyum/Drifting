@@ -19,6 +19,7 @@
 
 pub mod anchors;
 pub mod book;
+pub mod defaults;
 pub mod error;
 pub mod gate;
 pub mod handoff;

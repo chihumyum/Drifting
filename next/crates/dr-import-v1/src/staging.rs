@@ -43,6 +43,15 @@ impl Staged {
             OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
         )?)
     }
+
+    /// Open the staged copy to write: only the import's defaults
+    /// (`crate::defaults`) change it, never the original library.
+    pub fn open_writable(&self) -> Result<Connection> {
+        Ok(Connection::open_with_flags(
+            &self.path,
+            OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        )?)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

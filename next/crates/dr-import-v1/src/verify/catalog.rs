@@ -261,6 +261,27 @@ fn check_book(
         return Ok(());
     };
     let book_id = BookId::parse(book).map_err(|e| ImportError::Invalid(e.to_string()))?;
+    // What the import's defaults did, by (table, id): their drops are
+    // explained, the rest changed a value and still count as carried.
+    let adjusted: HashMap<(String, String), Vec<(String, String)>> = {
+        let mut m: HashMap<(String, String), Vec<(String, String)>> = HashMap::new();
+        for a in record["adjustments"].as_array().into_iter().flatten() {
+            let s = |k: &str| a[k].as_str().unwrap_or("").to_string();
+            m.entry((s("table"), s("id")))
+                .or_default()
+                .push((s("code"), s("done")));
+        }
+        m
+    };
+    let dropped_by_default = |table: &str, id: &str| {
+        adjusted
+            .get(&(table.to_string(), id.to_string()))
+            .is_some_and(|l| {
+                l.iter().any(|(_, done)| {
+                    done == "dropped" || done == "skipped" || done.starts_with("dropped ")
+                })
+            })
+    };
     if lib.doc_info(&format!("book:{book}"))?.is_none() {
         t.add("project", book, Missing("no book document".into()));
         return Ok(());
@@ -351,12 +372,20 @@ fn check_book(
         let pair = entry_id(&storyline).zip(entry_id(&node));
         let outcome = match pair {
             Some(pair) if memberships.contains(&pair) => {
-                if primary && entry(&node).and_then(|e| e.primary.clone()) != entry_id(&storyline) {
+                if primary
+                    && entry(&node).and_then(|e| e.primary.clone()) != entry_id(&storyline)
+                    // One of several primaries, the others kept as
+                    // storylines (recorded).
+                    && !adjusted
+                        .get(&("book_node".to_string(), node.clone()))
+                        .is_some_and(|l| l.iter().any(|(c, _)| c == "multiple-primary-memberships"))
+                {
                     Missing("the primary storyline was lost".into())
                 } else {
                     Carried
                 }
             }
+            _ if dropped_by_default("node_storyline_link", &key) => Dropped,
             _ => Missing("no membership of the chapter or idea in its storyline".into()),
         };
         t.add("node_storyline_link", key, outcome);
@@ -367,6 +396,8 @@ fn check_book(
         .as_array()
         .map(|a| a.iter().collect())
         .unwrap_or_default();
+    // `MaterialDropped` names its variants in camelCase and keeps its fields
+    // snake_case (`folder_id`, `material_id`).
     let recorded = |kind: &str, key: &str, id: &str| {
         dropped_materials
             .iter()
@@ -398,8 +429,8 @@ fn check_book(
     )? {
         let outcome = if entry(&id).is_some() || asset_folders.contains(&id) {
             Carried
-        } else if recorded("emptyFolder", "folderId", &id)
-            || recorded("unimportedFolder", "folderId", &id)
+        } else if recorded("emptyFolder", "folder_id", &id)
+            || recorded("unimportedFolder", "folder_id", &id)
         {
             Dropped
         } else {
@@ -421,7 +452,7 @@ fn check_book(
     )? {
         let outcome = if ["withoutFile", "unknownKind", "sameFile"]
             .iter()
-            .any(|k| recorded(k, "materialId", &id))
+            .any(|k| recorded(k, "material_id", &id))
         {
             Dropped
         } else if kind == "text" {
@@ -779,11 +810,16 @@ fn check_book(
         m
     };
     for (id, kind, owner, ns, key, value) in &all_kv {
+        if dropped_by_default("entity_kv_entry", id) {
+            t.add("entity_kv_entry", id.clone(), Dropped);
+            continue;
+        }
         let carried = match (kind.as_str(), ns.as_str()) {
             ("project", "facts") => facts.contains(id),
             ("project", "storyline-template") => storyline_template.contains(id),
             ("element-category", "element-template") => {
-                template_kv(&dr_samples::v3::category_template(owner), MOD_FIELDS).contains(id)
+                let defs = template_kv(&dr_samples::v3::category_template(owner), MOD_FIELDS);
+                defs.contains(id) || defs.contains(&crate::defaults::regenerated_kv_id(book, id))
             }
             ("storyline", "facts") => entry_kv(owner, id),
             ("element", "facts") => {
@@ -796,8 +832,14 @@ fn check_book(
                         .is_some_and(|fields| {
                             entry(owner).is_some_and(|e| {
                                 fields.iter().any(|f| {
-                                    e.fields.get(&fields_mod).and_then(|m| m.get(f))
-                                        == Some(&FieldValue::Text(value.clone()))
+                                    // The field's id, or the one the import
+                                    // gave it in place of a built-in id.
+                                    [f.clone(), crate::defaults::regenerated_kv_id(book, f)]
+                                        .iter()
+                                        .any(|f| {
+                                            e.fields.get(&fields_mod).and_then(|m| m.get(f))
+                                                == Some(&FieldValue::Text(value.clone()))
+                                        })
                                 })
                             })
                         })
@@ -950,8 +992,7 @@ fn check_book(
         }
         Err(_) => HashMap::new(),
     };
-    let mut invalid_days = note(record, "writing-day-invalid");
-    for (id, day, device, words) in rows(
+    let source_days = rows(
         src,
         "SELECT id, day, device_key, words FROM writing_day WHERE project_id = ?1",
         p,
@@ -963,14 +1004,21 @@ fn check_book(
                 r.get::<_, i64>(3)?,
             ))
         },
-    )? {
-        let outcome = match days.get(&(device.clone(), day.clone())) {
-            Some(w) if *w == words => Carried,
-            Some(w) => Missing(format!("{words} words in 0.1, {w} after the import")),
-            None if invalid_days > 0 => {
-                invalid_days -= 1;
-                Dropped
-            }
+    )?;
+    // Several rows of one device and day are added up (`crate::defaults`).
+    let mut totals: HashMap<(String, String), i64> = HashMap::new();
+    for (_, day, device, words) in &source_days {
+        *totals.entry((device.clone(), day.clone())).or_default() += words;
+    }
+    for (id, day, device, _) in source_days {
+        let key = (device.clone(), day.clone());
+        let outcome = match days.get(&key) {
+            Some(w) if *w == totals[&key] => Carried,
+            Some(w) => Missing(format!(
+                "{} words in 0.1, {w} after the import",
+                totals[&key]
+            )),
+            None if dropped_by_default("writing_day", &id) => Dropped,
             None => Missing("no writing day for this device and day".into()),
         };
         t.add("writing_day", id, outcome);
@@ -1072,6 +1120,10 @@ fn check_book(
             other => other,
         };
         let old = format!("{prefix}:{entity}");
+        if dropped_by_default("entity_snapshot_history", &id) {
+            t.add("entity_snapshot_history", id, Dropped);
+            continue;
+        }
         let Some(new) = receipt.docs.get(&old) else {
             t.add(
                 "entity_snapshot_history",
@@ -1151,4 +1203,30 @@ fn library_wide(src: &Connection, root: &Path, out: &mut CatalogCheck) -> Result
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::receipt::MaterialDropped;
+
+    /// The keys the detector reads the receipt's material drops by.
+    #[test]
+    fn material_drops_read_by_the_keys_the_receipt_writes() {
+        let folder = serde_json::to_value(MaterialDropped::EmptyFolder {
+            folder_id: "f".into(),
+            name: "n".into(),
+        })
+        .unwrap();
+        assert_eq!(folder["kind"], "emptyFolder");
+        assert_eq!(folder["folder_id"], "f");
+        let same = serde_json::to_value(MaterialDropped::SameFile {
+            material_id: "m".into(),
+            material_title: "t".into(),
+            kept_title: "k".into(),
+            asset_id: "a".into(),
+        })
+        .unwrap();
+        assert_eq!(same["kind"], "sameFile");
+        assert_eq!(same["material_id"], "m");
+    }
 }

@@ -14,12 +14,31 @@ use crate::handoff::{self, Stamp, sha256_hex};
 pub struct Legacy {
     pub conn: Connection,
     pub stamp: Option<Stamp>,
+    /// What the import's defaults changed on this staging copy, and the
+    /// cases it takes as they are (`crate::defaults`).
+    pub adjustments: Vec<crate::defaults::Adjustment>,
 }
 
 impl Legacy {
     pub fn new(conn: Connection) -> Result<Self> {
         let stamp = handoff::read(&conn)?;
-        Ok(Self { conn, stamp })
+        Ok(Self {
+            conn,
+            stamp,
+            adjustments: Vec::new(),
+        })
+    }
+
+    /// [`Legacy::new`] on a staging copy, after the import's defaults are
+    /// applied to it (`crate::defaults::apply`).
+    pub fn with_defaults(staged: &crate::staging::Staged) -> Result<Self> {
+        let adjustments = {
+            let writable = staged.open_writable()?;
+            crate::defaults::apply(&writable)?
+        };
+        let mut legacy = Self::new(staged.open()?)?;
+        legacy.adjustments = adjustments;
+        Ok(legacy)
     }
 
     fn rows<T>(

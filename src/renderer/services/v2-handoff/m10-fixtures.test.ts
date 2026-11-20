@@ -17,6 +17,14 @@
 //                    failed to render) after one handoff pass: 10 rows still
 //                    have no preview
 //   sample-wide/     the same after a second pass
+//   sample-damaged/  sample with what 0.1 and its sync leave behind that the
+//                    new book cannot take as it is (a category deleted with
+//                    its elements, a chapter edited and then deleted, one
+//                    deleted for good with a comment on it, acts on one
+//                    boundary, a pin on an idea in Recently Deleted, writing
+//                    days of a day that does not exist and twice for one
+//                    device, a material-folder cycle, sync's placeholder
+//                    plot-grid key), after one handoff pass
 //   accounts/        a 0.1 data folder: libraries.json, the local library
 //                    (`lite`) at its root and an account library
 //                    (`sample-wide`) under libraries/account-<hex>
@@ -102,6 +110,8 @@ async function load() {
     ...(await import('../../sqlite-repo/node-repo')),
     ...(await import('../../sqlite-repo/element-repo')),
     ...(await import('../sample-project/materials')),
+    ...(await import('../../sqlite-repo/element-category-repo')),
+    ...(await import('../../usecase/book-node-purge')),
     ...(await import('./handoff')),
     ...(await import('./runtime')),
   };
@@ -229,9 +239,10 @@ async function authoring(library: Library) {
  * One real handoff pass at quit, with the stores' WebView storage as it is.
  * `failed`: bodies it cannot re-project (0.1 refuses to write a chapter in
  * Recently Deleted, so such a chapter whose cache bytes differ from its Yjs
- * rendering stays unstamped).
+ * rendering stays unstamped). `orphaned`: Yjs documents of what was deleted
+ * for good (0.1 keeps them).
  */
-async function handoffPass(library: Library, failed = 0) {
+async function handoffPass(library: Library, failed = 0, orphaned = 0) {
   const m = await modules();
   const result = await m.runV2Handoff({ liveDocuments: 'include' }, {
     ...m.defaultV2HandoffDependencies(),
@@ -240,7 +251,7 @@ async function handoffPass(library: Library, failed = 0) {
     isLive: () => false,
     yieldToUi: async () => undefined,
   });
-  expect(result).toMatchObject({ failed, orphaned: 0, deferred: 0, skippedLive: 0 });
+  expect(result).toMatchObject({ failed, orphaned, deferred: 0, skippedLive: 0 });
   return result;
 }
 
@@ -316,6 +327,8 @@ interface ManifestEntry {
   notes?: Record<string, unknown>;
   /** The import must stop before writing, on exactly these preflight findings. */
   expectRefusal?: { code: string; sources: string[] };
+  /** History rows the import must skip and record (no preview), by id. */
+  historyRowsSkipped?: string[];
   /** Where the library sits in a 0.1 data folder laid out by the registry. */
   registry?: { base: string; id: string; owner: { kind: 'local' } | { kind: 'account'; subject: string } };
 }
@@ -782,7 +795,9 @@ describe.skipIf(!FIXTURE_DIR)('M10 import fixtures', () => {
     const onePass = await describeLibrary('sample-wide-one-pass', 'sample-wide after one handoff pass: history rows still without a preview', {
       ...added, handoff: first,
     });
-    onePass.expectRefusal = { code: 'history-preview-missing', sources: left };
+    // The import skips the 10 rows still without a preview and records
+    // them (`m10-import.md` 「替作者定的，等作者过目」); the rest import.
+    onePass.historyRowsSkipped = left;
     manifest.push(onePass);
 
     // And quits again: the rest are filled.
@@ -801,6 +816,98 @@ describe.skipIf(!FIXTURE_DIR)('M10 import fixtures', () => {
     // Only the deleted chapter is left unstamped; it never changed after its
     // creation seed, so the import still proves it fresh.
     expect(entry.documents).toMatchObject({ textStaleCaches: 0, notStamped: 1 });
+    manifest.push(entry);
+  }, 600_000);
+
+  it('sample-damaged: what 0.1 and its sync leave that the book cannot take as it is', async () => {
+    const m = await modules();
+    copyLibrary('sample', 'sample-damaged');
+    let library = await openLibrary('sample-damaged');
+    const damage: Record<string, unknown> = {};
+    try {
+      const a = await authoring(library);
+      const sql = library.gateway.database;
+      const aq = a.one<{ id: string }>('SELECT id FROM project WHERE name = ?', m.A_Q_PROJECT_NAME)!.id;
+      const pp = a.one<{ id: string }>('SELECT id FROM project WHERE name = ?', m.BUILT_IN_SAMPLES[0]!.name)!.id;
+      const runAtomic = m.createAtomicRunner(library.client);
+      const call = async (toolName: string, args: Record<string, unknown>) => {
+        const { result } = await m.executeOfflineWorkspaceTool({
+          database: library.client, projectId: aq, toolName, arguments: args, requestId: uuidv7(),
+        });
+        expect(result.ok, `${toolName}: ${JSON.stringify(result)}`).toBe(true);
+      };
+      // A category moved to Recently Deleted by 0.1's own trash path
+      // (useElementCategory: its relations go, its elements lose it).
+      const category = a.idOf('element_category', aq, 'name', '物件与说法');
+      await runAtomic(aq, async (tx, sync) => {
+        await m.deleteEntityRelationsInTransaction(tx, sync, aq, 'category', category);
+        await m.createElementCategoryRepository(aq, tx).softDelete(category);
+        await sync('elementCategory', 'softDelete', category, aq);
+      });
+      damage.deletedCategory = category;
+      // A chapter edited and then deleted before the edit reached its cache.
+      const edited = a.idOf('book_node', aq, 'title', '第三章 续优胜记略');
+      await a.typeWithoutProjection(aq, `node-content:${edited}`, '〔删前改的〕');
+      await runAtomic(aq, async (tx, sync) => {
+        await m.deleteEntityRelationsInTransaction(tx, sync, aq, 'node', edited);
+        await m.createBookNodeSqliteRepository(aq, tx).softDelete(edited);
+        await sync('node', 'softDelete', edited, aq);
+      });
+      damage.editedThenDeletedChapter = edited;
+      // A chapter with a comment, deleted and then deleted for good
+      // (book-node-purge.ts: its relations go, its comments stay).
+      const purged = a.idOf('book_node', aq, 'title', '第八章 不准革命');
+      await call('create_comment', { kind: 'note', body: '这一章要重写', targetType: 'chapter', targetName: '第八章 不准革命' });
+      await runAtomic(aq, async (tx, sync) => {
+        await m.deleteEntityRelationsInTransaction(tx, sync, aq, 'node', purged);
+        await m.createBookNodeSqliteRepository(aq, tx).softDelete(purged);
+        await sync('node', 'softDelete', purged, aq);
+      });
+      // Later, 「立刻删除」 in Recently Deleted.
+      await runAtomic(aq, (tx, sync, changes) =>
+        m.deleteNodeForGoodInTransaction(tx, sync, changes, { projectId: aq, nodeId: purged }));
+      damage.purgedChapter = purged;
+      // What sync from another device can leave, in 0.1's row shapes.
+      const now = new Date().toISOString();
+      // 0.1's 「打散」 moves boundaries between the same two chapters to one point.
+      sql.prepare('UPDATE book_act SET start_order = (SELECT min(start_order) FROM book_act WHERE project_id = ?1) WHERE project_id = ?1').run(aq);
+      // A pin on an idea another device moved to Recently Deleted.
+      const idea = a.one<{ id: string }>("SELECT id FROM book_node WHERE project_id = ? AND kind = 'drift' ORDER BY id LIMIT 1", aq)!.id;
+      const pin = a.one<{ id: string }>('SELECT id FROM timeline_marker WHERE project_id = ? ORDER BY id LIMIT 1', aq)!.id;
+      sql.prepare('UPDATE timeline_marker SET drift_node_id = ? WHERE id = ?').run(idea, pin);
+      sql.prepare('UPDATE book_node SET deleted_at = ?, updated_at = ? WHERE id = ?').run(now, now, idea);
+      // Writing days: sync checks the format, not the calendar; no unique
+      // index on (book, day, device).
+      const device = writingDeviceKey('m10-device-one');
+      for (const [day, words] of [['2026-02-31', 40], ['2026-11-01', 300], ['2026-11-01', 120]] as const) {
+        sql.prepare('INSERT INTO writing_day (id, project_id, day, device_key, words, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+          .run(uuidv7(), aq, day, device, words, now, now);
+      }
+      // Two material folders moved into each other on two devices.
+      const folder = a.one<{ id: string }>('SELECT id FROM material_folder WHERE project_id = ? ORDER BY id LIMIT 1', pp)!.id;
+      const other = uuidv7();
+      sql.prepare('INSERT INTO material_folder (id, project_id, name, parent_folder_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
+        .run(other, pp, 'Letters', folder, now, now);
+      sql.prepare('UPDATE material_folder SET parent_folder_id = ? WHERE id = ?').run(other, folder);
+      // Sync inserts a plot-grid row with a placeholder key.
+      const row = a.one<{ id: string }>('SELECT r.id FROM plot_grid_row r JOIN plot_grid_document d ON d.id = r.document_id JOIN book_node n ON n.id = d.node_id WHERE n.project_id = ? ORDER BY r.id LIMIT 1', aq)!.id;
+      sql.prepare("UPDATE plot_grid_row SET position_key = 'pending' WHERE id = ?").run(row);
+      damage.sync = { pin, idea, folders: [folder, other], plotRow: row };
+    } finally {
+      await closeLibrary(library);
+    }
+    // The last 0.1 release quits once. It cannot rewrite the deleted
+    // chapter's cache (0.1 refuses writes to Recently Deleted), so that
+    // chapter stays unproven: the gate stops on it, 「仍然导入」 carries it.
+    library = await openLibrary('sample-damaged');
+    let handoff: Awaited<ReturnType<typeof handoffPass>>;
+    try {
+      handoff = await handoffPass(library, 1, 1);
+    } finally {
+      await closeLibrary(library);
+    }
+    const entry = await describeLibrary('sample-damaged', 'sample + 0.1 trash and purge paths + sync leftovers + one handoff pass', { ...damage, handoff });
+    expect(entry.documents.textStaleDocuments).toEqual([`node-content:${damage.editedThenDeletedChapter}`]);
     manifest.push(entry);
   }, 600_000);
 

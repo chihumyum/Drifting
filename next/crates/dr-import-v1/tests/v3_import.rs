@@ -1057,13 +1057,14 @@ fn undecided_mapping_stops_before_target_or_device_writes() {
     let (outcome, _) = run::import(&clean.db, &clean_root, &default_opts).unwrap();
     assert!(matches!(outcome, Outcome::Imported(r) if r.books[0].status == "imported"));
 
-    // 2. A source preflight blocker (e.g. an act bound to a non-idea chapter node)
-    //    still stops before claiming device identity or creating library.sqlite.
+    // 2. What still stops the import (a body cache that is not JSON; the
+    //    other cases have defaults, `tests/defaults.rs`) stops before
+    //    claiming device identity or creating library.sqlite.
     let old = fixture::build();
     {
         let c = rusqlite::Connection::open(&old.db).unwrap();
         c.execute(
-            "UPDATE book_act SET drift_node_id = ?1 WHERE id = 'act-1'",
+            "UPDATE node_content SET content_json = '{broken' WHERE node_id = ?1",
             [CHAPTER],
         )
         .unwrap();
@@ -1073,12 +1074,14 @@ fn undecided_mapping_stops_before_target_or_device_writes() {
     let mut options = options(&old);
     options.v3 = MappingChoices::default();
     options.device_dir = Some(device.clone());
+    // The broken cache also breaks its handoff proof: past the gate.
+    options.accept = dr_import_v1::gate::Accept::EVERYTHING;
     let error = run::import(&old.db, &root, &options).unwrap_err();
     let dr_import_v1::ImportError::V3Pending(pending) = error else {
         panic!("{error}")
     };
     let codes: BTreeSet<_> = pending.iter().map(|p| p.code.as_str()).collect();
-    assert_eq!(codes, BTreeSet::from(["act-binding-not-an-idea"]));
+    assert_eq!(codes, BTreeSet::from(["unreadable-source-prose"]));
     assert!(!device.exists());
     assert!(!root.join("library.sqlite").exists());
 }
@@ -1215,7 +1218,7 @@ fn an_imported_book_is_marked_and_writes_nothing_when_it_opens() {
 }
 
 #[test]
-fn malformed_source_is_reported_without_automatic_repairs() {
+fn an_element_whose_category_has_no_row_goes_under_uncategorized_and_is_recorded() {
     let old = fixture::build();
     let c = rusqlite::Connection::open(&old.db).unwrap();
     c.pragma_update(None, "foreign_keys", false).unwrap();
@@ -1227,32 +1230,30 @@ fn malformed_source_is_reported_without_automatic_repairs() {
     drop(c);
     let temp = tempfile::tempdir().unwrap();
     let root = temp.path().join("library");
-    let error = run::import(&old.db, &root, &options(&old)).unwrap_err();
-    assert!(
-        matches!(error,dr_import_v1::ImportError::V3Pending(p) if p.iter().any(|p| p.code == "element-missing-category"))
-    );
-    assert!(!root.join("library.sqlite").exists());
-}
-
-#[test]
-fn a_long_legacy_id_is_reported_before_constructing_a_scoped_template_doc_id() {
-    let old = fixture::build();
-    let c = rusqlite::Connection::open(&old.db).unwrap();
-    c.pragma_update(None, "foreign_keys", false).unwrap();
-    let long = "c".repeat(220);
-    c.execute(
-        "UPDATE element_category SET id=?1 WHERE id=?2",
-        [&long, CATEGORY],
-    )
-    .unwrap();
-    drop(c);
-    let temp = tempfile::tempdir().unwrap();
-    let root = temp.path().join("library");
-    let error = run::import(&old.db, &root, &options(&old)).unwrap_err();
-    assert!(
-        matches!(error, dr_import_v1::ImportError::V3Pending(p) if p.iter().any(|p| p.code == "template-prose-id-not-representable"))
-    );
-    assert!(!root.join("library.sqlite").exists());
+    let (outcome, _) = run::import(&old.db, &root, &options(&old)).unwrap();
+    let Outcome::Imported(receipt) = outcome else {
+        panic!("not imported")
+    };
+    assert!(receipt.books[0].adjustments.iter().any(|a| {
+        a.code == "element-missing-category"
+            && a.id == ELEMENT
+            && a.original.as_deref() == Some("\"missing\"")
+    }));
+    let lib = open(&root);
+    let bytes = lib
+        .load_copy(&format!("book:{BOOK}"))
+        .unwrap()
+        .export(loro::ExportMode::Snapshot)
+        .unwrap();
+    let book =
+        BookDocV3::load(BookId::parse(BOOK).unwrap(), random_device_peer(), &[bytes]).unwrap();
+    let element = book.view().entry(&eid(ELEMENT)).unwrap();
+    let mut home = book.view().entry(element.parent.as_ref().unwrap()).unwrap();
+    if home.title != "未分类" {
+        home = book.view().entry(home.parent.as_ref().unwrap()).unwrap();
+    }
+    assert_eq!(home.title, "未分类");
+    lib.close().unwrap();
 }
 
 #[test]
@@ -1618,111 +1619,6 @@ fn interrupted_v3_import_resumes_with_the_same_policy_and_rejects_another_path()
 }
 
 #[test]
-fn ambiguous_or_unsupported_sources_stop_before_v3_writes() {
-    let cases = [
-        (
-            "UPDATE drift_group SET parent_group_id=id",
-            "source-tree-cycle",
-        ),
-        (
-            "UPDATE book_act SET start_order=0",
-            "duplicate-act-boundary",
-        ),
-        (
-            "UPDATE book_node SET book_order=NULL WHERE kind='chapter'",
-            "chapter-without-book-order",
-        ),
-        (
-            "UPDATE book_node SET book_order=4 WHERE kind='drift'",
-            "idea-has-legacy-book-order",
-        ),
-        (
-            "UPDATE element SET kv_json='{broken'",
-            "unreadable-source-kv-projection",
-        ),
-        (
-            "UPDATE storylines SET node_content_template_json='{broken'",
-            "unreadable-source-template",
-        ),
-        (
-            "UPDATE entity_relation SET from_id='missing' WHERE id='rel-1'",
-            "invalid-or-duplicate-source-relation",
-        ),
-        (
-            "UPDATE comment SET target_id='missing' WHERE kind='note' AND target_kind='node'",
-            "comment-target-missing",
-        ),
-        (
-            "UPDATE timeline_marker SET drift_node_id='missing'",
-            "pin-binding-missing-idea",
-        ),
-        (
-            "UPDATE entity_snapshot_history SET meta_json='{broken' WHERE id='h-1'",
-            "unreadable-history-metadata",
-        ),
-        (
-            "UPDATE entity_snapshot_history SET meta_json='{\"writingStatus\":\"drifting\"}' WHERE id='h-1'",
-            "incompatible-history-node-status",
-        ),
-        (
-            "UPDATE entity_snapshot_history SET content_json=NULL WHERE id='h-1'",
-            "history-preview-missing",
-        ),
-        (
-            "UPDATE entity_snapshot_history SET entity_id='missing' WHERE id='h-1'",
-            "orphan-history-source",
-        ),
-    ];
-    for (sql, code) in cases {
-        let old = fixture::build();
-        let c = rusqlite::Connection::open(&old.db).unwrap();
-        c.pragma_update(None, "foreign_keys", false).unwrap();
-        c.execute(sql, []).unwrap();
-        drop(c);
-        let temp = tempfile::tempdir().unwrap();
-        let root = temp.path().join("library");
-        let error = run::import(&old.db, &root, &options(&old)).unwrap_err();
-        assert!(
-            matches!(&error,dr_import_v1::ImportError::V3Pending(p) if p.iter().any(|p| p.code == code)),
-            "{sql}: {error}"
-        );
-        assert!(!root.join("library.sqlite").exists());
-    }
-}
-
-#[test]
-fn duplicate_historical_values_do_not_overwrite_one_structured_field() {
-    use serde_json::json;
-    for (entity_kind, entity_id, metadata, code) in [
-        (
-            "element",
-            ELEMENT,
-            json!({"kvJson":json!([{"key":"年龄","value":"1"},{"key":"年龄","value":"2"}]).to_string()}),
-            "duplicate-history-value-for-template-field",
-        ),
-        (
-            "category",
-            CATEGORY,
-            json!({"elementTemplateKvJson":json!([{"key":"年龄","value":""},{"key":"年龄","value":""}]).to_string()}),
-            "ambiguous-history-template-field",
-        ),
-    ] {
-        let old = fixture::build();
-        let c = rusqlite::Connection::open(&old.db).unwrap();
-        c.execute("UPDATE entity_snapshot_history SET entity_kind=?1,entity_id=?2,meta_json=?3 WHERE id='h-3'",rusqlite::params![entity_kind,entity_id,metadata.to_string()]).unwrap();
-        drop(c);
-        let temp = tempfile::tempdir().unwrap();
-        let root = temp.path().join("library");
-        let error = run::import(&old.db, &root, &options(&old)).unwrap_err();
-        assert!(
-            matches!(&error,dr_import_v1::ImportError::V3Pending(p) if p.iter().any(|p| p.code == code)),
-            "{error}"
-        );
-        assert!(!root.join("library.sqlite").exists());
-    }
-}
-
-#[test]
 fn historical_kv_and_custom_fields_can_share_the_builtin_summarys_display_name() {
     use serde_json::json;
     for storyline in [false, true] {
@@ -1782,7 +1678,7 @@ fn the_development_cli_exposes_v3_preflight_and_imports_default_acts() {
     let blocked = fixture::build();
     let c = rusqlite::Connection::open(&blocked.db).unwrap();
     c.execute(
-        "UPDATE book_act SET drift_node_id = ?1",
+        "UPDATE node_content SET content_json = '{broken' WHERE node_id = ?1",
         rusqlite::params![CHAPTER],
     )
     .unwrap();
@@ -1794,7 +1690,9 @@ fn the_development_cli_exposes_v3_preflight_and_imports_default_acts() {
         .arg(&blocked.db)
         .arg("--to")
         .arg(&blocked_root)
-        .args(["--v3", "--no-index"])
+        // The broken cache also breaks its handoff proof; the gate is not
+        // what this checks.
+        .args(["--v3", "--no-index", "--accept"])
         .output()
         .unwrap();
     assert!(
@@ -1809,7 +1707,7 @@ fn the_development_cli_exposes_v3_preflight_and_imports_default_acts() {
             .as_array()
             .unwrap()
             .iter()
-            .any(|p| p["code"] == "act-binding-not-an-idea")
+            .any(|p| p["code"] == "unreadable-source-prose")
     );
     assert!(!blocked_root.join("library.sqlite").exists());
 
@@ -1831,107 +1729,6 @@ fn the_development_cli_exposes_v3_preflight_and_imports_default_acts() {
     let value: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(value["outcome"], "imported");
     assert!(root.join("library.sqlite").exists());
-}
-
-#[test]
-fn unsupported_prose_links_and_table_marks_remain_in_the_source_and_stop_import() {
-    use serde_json::json;
-    for (body, code) in [
-        (
-            json!({
-                "type": "doc",
-                "content": [{
-                    "type": "paragraph",
-                    "attrs": {"id": "e-p1"},
-                    "content": [{
-                        "type": "text",
-                        "text": "批注链接",
-                        "marks": [{"type": "entityLink", "attrs": {"targetKind": "comment", "targetId": COMMENT}}]
-                    }]
-                }]
-            }),
-            "unsupported-entity-link-target-kind",
-        ),
-        (
-            json!({
-                "type": "doc",
-                "content": [{
-                    "type": "paragraph",
-                    "attrs": {"id": "e-p1"},
-                    "content": [{
-                        "type": "text",
-                        "text": "非法模块标识",
-                        "marks": [{"type": "entityLink", "attrs": {"targetKind": "library_item", "targetId": NOTE, "targetModule": "bad/module"}}]
-                    }]
-                }]
-            }),
-            "invalid-source-entity-link",
-        ),
-        (
-            json!({
-                "type": "doc",
-                "content": [{
-                    "type": "table",
-                    "content": [{
-                        "type": "tableRow",
-                        "content": [{
-                            "type": "tableCell",
-                            "content": [{
-                                "type": "paragraph",
-                                "content": [{
-                                    "type": "text",
-                                    "text": "正文表格禁未知标记",
-                                    "marks": [{"type": "subscript"}]
-                                }]
-                            }]
-                        }]
-                    }]
-                }]
-            }),
-            "unsupported-table-cell-mark",
-        ),
-        (
-            json!({
-                "type": "doc",
-                "content": [{
-                    "type": "table",
-                    "content": [{
-                        "type": "tableRow",
-                        "content": [{
-                            "type": "tableCell",
-                            "content": [{
-                                "type": "codeBlock",
-                                "attrs": {"language": "rust"},
-                                "content": [{"type": "text", "text": "fn main() {}"}]
-                            }]
-                        }]
-                    }]
-                }]
-            }),
-            "unsupported-table-cell-content",
-        ),
-    ] {
-        let old = fixture::build();
-        let c = rusqlite::Connection::open(&old.db).unwrap();
-        c.execute(
-            "UPDATE element SET content_json=?1 WHERE id=?2",
-            rusqlite::params![body.to_string(), ELEMENT],
-        )
-        .unwrap();
-        drop(c);
-        let before = source_tree_snapshot(&old.root);
-        let temp = tempfile::tempdir().unwrap();
-        let root = temp.path().join("library");
-        let mut options = options(&old);
-        options.accept = dr_import_v1::gate::Accept::EVERYTHING;
-        let error = run::import(&old.db, &root, &options).unwrap_err();
-        assert!(
-            matches!(&error, dr_import_v1::ImportError::V3Pending(p) if p.iter().any(|p| p.code == code)),
-            "{error}"
-        );
-        assert!(!root.join("library.sqlite").exists());
-        assert_eq!(before, source_tree_snapshot(&old.root));
-    }
 }
 
 fn source_tree_snapshot(

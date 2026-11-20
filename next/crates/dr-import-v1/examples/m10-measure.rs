@@ -356,6 +356,14 @@ fn measure(fixtures: &Path) -> Res<(Vec<Value>, Value, Vec<String>)> {
             if n(&truth_check, "historyRowsWithPoints") != n(&truth_check, "historyRows") {
                 fail("a history row has no point".into());
             }
+            // Rows without a preview are skipped and recorded, never more.
+            let skipped = lib["historyRowsSkipped"].as_array().map_or(0, Vec::len) as u64;
+            if n(&truth_check, "historyRowsSkippedAndRecorded") != skipped {
+                fail(format!(
+                    "{} history rows skipped and recorded, the generator left {skipped} without a preview",
+                    n(&truth_check, "historyRowsSkippedAndRecorded")
+                ));
+            }
             if truth_check["historyPointsKeptWithBookVersion"] != json!(true) {
                 fail("a history point is not kept or has no book version".into());
             }

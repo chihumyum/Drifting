@@ -205,7 +205,7 @@ fn analyse_reporting(
         reporter.copying(done, total)
     })?;
     reporter.checking();
-    let legacy = Legacy::new(staged.open()?)?;
+    let legacy = Legacy::with_defaults(&staged)?;
     let (owners, _) = legacy.prose_owners()?;
     let sync = legacy.sync_blockers()?;
     let mut gate = Gate::decide(
@@ -686,7 +686,9 @@ pub fn import_with(
             return Ok((stopped.outcome(), timing));
         }
     };
-    crate::v3::preflight(&analysed.legacy, options)?;
+    let mut analysed = analysed;
+    let found = crate::v3::preflight(&analysed.legacy, options)?;
+    analysed.legacy.adjustments.extend(found);
     let adopted = match &options.device_dir {
         Some(dir) => adopt_identity(options.old_root.as_deref(), dir),
         None => false,
@@ -752,7 +754,9 @@ pub fn import_into_library(
         Gated::Clear(a) => a,
         stopped => return Ok((stopped.outcome(), timing)),
     };
-    crate::v3::preflight(&analysed.legacy, options)?;
+    let mut analysed = analysed;
+    let found = crate::v3::preflight(&analysed.legacy, options)?;
+    analysed.legacy.adjustments.extend(found);
     let adopted = take_over_identity(options.old_root.as_deref(), lib);
     let written = write_library(lib, analysed, options, adopted, &mut reporter, &mut timing)?;
     let receipt = finish(&root, written, options, &mut timing)?;
@@ -1820,6 +1824,20 @@ fn write_library(
         .into_iter()
         .map(|(k, v)| (k.to_string(), v))
         .collect();
+        rec.adjustments = legacy
+            .adjustments
+            .iter()
+            .filter(|a| a.book == project.id)
+            .cloned()
+            .collect();
+        for a in &rec.adjustments {
+            originals.push((
+                format!("adjusted:{}", a.table),
+                a.id.clone(),
+                a.code.clone(),
+                a.original.clone().unwrap_or_else(|| a.done.clone()),
+            ));
+        }
         rec.notes = notes;
         rec.status = "imported".into();
         books.push(rec);
