@@ -421,6 +421,11 @@ jobs:
       - name: Check the executable
         shell: bash
         run: cargo xtask check-binary --release-identity target/${{ matrix.target }}/dist/drifting.exe
+      # A clean Windows has no Visual C++ redistributable; this runner has,
+      # so only the import table shows an executable that needs it.
+      - name: Check that the executable needs no Visual C++ redistributable
+        shell: pwsh
+        run: script/check-windows-standalone.ps1 -Exe target/${{ matrix.target }}/dist/drifting.exe
       # Not Authenticode-signed (decision D10): SmartScreen warns on first
       # launch, as it does for the 0.1 installers. The updater key signs it.
       - name: Sign the installer with the updater key
