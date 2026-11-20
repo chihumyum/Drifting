@@ -10,7 +10,7 @@ description = "Drifting's bottom timeline (M14): storyline lanes in reading or n
 [features]
 # Offscreen screenshots of the timeline (`examples/timeline-capture.rs`),
 # through GPUI's headless test platform.
-capture = ["dep:gpui_platform", "gpui_platform/test-support", "dep:color_quant", "dep:png"]
+capture = ["dep:gpui_platform", "gpui_platform/runtime_shaders", "gpui_platform/test-support", "dep:color_quant", "dep:png"]
 
 [dependencies]
 color_quant = { workspace = true, optional = true }
@@ -35,5 +35,5 @@ dr-testkit.workspace = true
 # The left column's real hung rows and drops beside the timeline (T9).
 dr-view-elements.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
-gpui_platform.workspace = true
+gpui_platform = { workspace = true, features = ["runtime_shaders"] }
 tempfile.workspace = true

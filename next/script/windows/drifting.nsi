@@ -12,7 +12,8 @@
 ;
 ; Build it with script/bundle-windows.ps1. The defaults below are the
 ; development identity (dr-platform's identity.rs checks they match); the
-; hand-over passes the release identity instead:
+; release build (`bundle-windows.ps1 -ReleaseIdentity`) passes the release
+; identity instead:
 ;   /DPRODUCT_NAME=Drifting /DBUNDLE_ID=cc.drifting.client /DURL_SCHEME=drifting
 ;
 ; Unsigned during the alpha (decision D10); see the F7 doc.

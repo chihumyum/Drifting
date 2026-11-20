@@ -12,7 +12,7 @@ description = "F8's debug bridge: a development build's local socket through whi
 # frame into a texture, so a covered window works and no screen-recording
 # permission is needed. That call is behind GPUI's test support, so this is
 # off unless the app's `debug-bridge` feature turns it on.
-screenshot = ["gpui/test-support", "dep:gpui_platform", "gpui_platform/test-support", "dep:png"]
+screenshot = ["gpui/test-support", "dep:gpui_platform", "gpui_platform/runtime_shaders", "gpui_platform/test-support", "dep:png"]
 
 [dependencies]
 base64.workspace = true

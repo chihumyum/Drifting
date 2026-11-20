@@ -10,7 +10,7 @@ description = "Moving books in and out (M41): .driftingproject export and import
 [features]
 # Offscreen screenshots of the dialogs (`examples/transfer-capture.rs`),
 # through GPUI's headless test platform.
-capture = ["dep:anyhow", "dep:gpui_platform", "gpui_platform/test-support", "dep:color_quant", "dep:png"]
+capture = ["dep:anyhow", "dep:gpui_platform", "gpui_platform/runtime_shaders", "gpui_platform/test-support", "dep:color_quant", "dep:png"]
 
 [dependencies]
 anyhow = { workspace = true, optional = true }

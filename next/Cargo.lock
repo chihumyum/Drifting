@@ -2625,6 +2625,7 @@ dependencies = [
  "dr-agent-providers",
  "dr-debug-bridge",
  "dr-editor",
+ "dr-import-v1",
  "dr-mcp",
  "dr-model",
  "dr-platform",
@@ -2658,7 +2659,9 @@ dependencies = [
  "gpui_platform",
  "libc",
  "log",
+ "rusqlite",
  "serde_json",
+ "sha2 0.10.9",
  "tempfile",
 ]
 

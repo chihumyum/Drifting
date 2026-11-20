@@ -9,7 +9,7 @@ description = "Materials (M19): the image and PDF viewer (zoom, pan, PDF pages r
 
 [features]
 # Offscreen screenshots of the page in the shell (`examples/m19-capture`).
-capture = ["dep:gpui_platform", "gpui_platform/test-support", "dep:color_quant", "dep:png", "dep:anyhow", "dep:tempfile", "dep:dr-testkit"]
+capture = ["dep:gpui_platform", "gpui_platform/runtime_shaders", "gpui_platform/test-support", "dep:color_quant", "dep:png", "dep:anyhow", "dep:tempfile", "dep:dr-testkit"]
 
 [dependencies]
 chrono.workspace = true

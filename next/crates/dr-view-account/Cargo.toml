@@ -30,5 +30,5 @@ dr-platform = { workspace = true, features = ["test-support"] }
 # A library to swap away from (the M35 failed-swap test).
 dr-workspace.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
-gpui_platform.workspace = true
+gpui_platform = { workspace = true, features = ["runtime_shaders"] }
 tempfile.workspace = true

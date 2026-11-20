@@ -2,12 +2,27 @@
 # Builds "Drifting Next.app", an unsigned macOS bundle for local testing,
 # and optionally the two files a release ships for it.
 #
-#   script/bundle-mac [--debug|--dist] [--open] [--dmg] [--archive] [--output <dir>]
+#   script/bundle-mac [--debug|--dist] [--precompiled-shaders]
+#                     [--release-identity] [--open] [--dmg] [--archive]
+#                     [--output <dir>]
 #
 #   --debug    bundle the dev profile instead of release
 #   --dist     bundle the shipped build: the `dist` profile (release with line
 #              tables), the executable stripped, its symbols in
 #              <name>.app.dSYM beside the bundle (for Sentry, never shipped)
+#   --precompiled-shaders
+#              build without the app's default `runtime-shaders` feature:
+#              GPUI compiles its Metal shaders at build time, which needs
+#              Xcode's Metal Toolchain (`xcodebuild -downloadComponent
+#              MetalToolchain`); then `cargo xtask check-binary
+#              --precompiled-shaders` on the bundled executable
+#   --release-identity
+#              the release client's identity: "Drifting.app",
+#              cc.drifting.client, `drifting:` links, the 0.1 client's
+#              keychain items and data folder (the app's `release-identity`
+#              feature). The release workflow's build only: needs --dist and
+#              a version without `-dev`. Never open such a bundle on a Mac
+#              whose Drifting data is not throwaway
 #   --open     open the bundle when it is built
 #   --dmg      also make <name>_<version>_macos_<arch>.dmg (first installs)
 #   --archive  also make <name>_<version>_<arch>.app.tar.gz (the updater's
@@ -15,29 +30,38 @@
 #              update-tool -- sign`)
 #   --output   where the files go (default: next/target/bundle)
 #
-# It carries the development identity below, never the release client's, so
-# it runs beside an installed Drifting without sharing its Launch Services
-# entry, `drifting:` links, keychain items, updater or data. The release
-# identity, Developer ID signing and notarization belong to the hand-over
-# (docs/rust-rewrite/foundations/f7-platform.md); this script does none of it.
+# Without --release-identity it carries the development identity below,
+# never the release client's, so it runs beside an installed Drifting
+# without sharing its Launch Services entry, `drifting:` links, keychain
+# items, updater or data. Developer ID signing and notarization are the
+# release workflow's (script/release-next.draft.yml); this script does
+# neither, and `cargo xtask check-binary [--release-identity]` checks which
+# identity a built executable carries.
 #
 # "Unsigned" means no Developer ID: the bundle is sealed with an ad-hoc
 # signature, which Apple silicon needs before a modified executable may run.
 # A copy downloaded from elsewhere is quarantined and Gatekeeper refuses it;
 # a bundle built on this Mac opens with a double click.
 #
-# Before a public release: precompile the Metal shaders. The workspace builds
-# GPUI with `runtime_shaders`, which compiles them at every window's first
-# frame, because Xcode no longer ships the Metal Toolchain by default
-# (`xcodebuild -downloadComponent MetalToolchain`; the author installs it).
-# A release bundle drops that feature; see the F7 doc's release checklist.
+# Shaders: by default GPUI compiles its Metal shaders at every window's first
+# frame (the app's default `runtime-shaders` feature), because Xcode no
+# longer ships the Metal Toolchain by default. A public release precompiles
+# them (--precompiled-shaders); see the F7 doc's release checklist.
 set -euo pipefail
 
+# The development identity (dr-platform's `DEVELOPMENT`; identity.rs checks
+# these lines).
 APP_NAME="Drifting Next"
 BUNDLE_ID="cc.drifting.next.dev"
 EXECUTABLE="drifting"
-# Never `drifting`: that scheme belongs to the installed release client.
+# Never `drifting` by default: that scheme belongs to the installed release
+# client.
 URL_SCHEME="drifting-next-dev"
+# The release identity (dr-platform's `RELEASE`, the 0.1 client's), for
+# --release-identity only.
+RELEASE_APP_NAME="Drifting"
+RELEASE_BUNDLE_ID="cc.drifting.client"
+RELEASE_URL_SCHEME="drifting"
 MINIMUM_SYSTEM_VERSION="13.0"
 
 die() {
@@ -50,6 +74,8 @@ repo_dir=$(cd "$next_dir/.." && pwd)
 
 profile=release
 open_after=0
+precompiled_shaders=0
+release_identity=0
 make_dmg=0
 make_archive=0
 output="$next_dir/target/bundle"
@@ -57,6 +83,8 @@ while (($#)); do
   case "$1" in
     --debug) profile=debug ;;
     --dist) profile=dist ;;
+    --precompiled-shaders) precompiled_shaders=1 ;;
+    --release-identity) release_identity=1 ;;
     --open) open_after=1 ;;
     --dmg) make_dmg=1 ;;
     --archive) make_archive=1 ;;
@@ -66,7 +94,7 @@ while (($#)); do
       shift
       ;;
     -h | --help)
-      sed -n '2,13p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+      sed -n '2,31p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
       exit 0
       ;;
     *) die "unknown option $1 (see --help)" ;;
@@ -76,10 +104,28 @@ done
 
 [[ $(uname -s) == Darwin ]] || die "macOS only"
 
+if ((release_identity)); then
+  [[ $profile == dist ]] || die "--release-identity builds the shipped build only: add --dist"
+  # It would open the 0.1 client's data folder and keychain items here.
+  ((open_after == 0)) || die "--release-identity: not opening a bundle with the release identity"
+  APP_NAME=$RELEASE_APP_NAME
+  BUNDLE_ID=$RELEASE_BUNDLE_ID
+  URL_SCHEME=$RELEASE_URL_SCHEME
+fi
+if ((precompiled_shaders)); then
+  # GPUI's build script runs `xcrun -sdk macosx metal`; say what is missing
+  # before cargo spends minutes getting there.
+  xcrun -sdk macosx metal --version >/dev/null 2>&1 ||
+    die "--precompiled-shaders needs Xcode's Metal Toolchain: xcodebuild -downloadComponent MetalToolchain"
+fi
+
 version=$(sed -n 's/^version = "\(.*\)"$/\1/p' "$next_dir/app/drifting/Cargo.toml" | head -n 1)
 [[ -n $version ]] || die "no version in app/drifting/Cargo.toml"
 # CFBundleShortVersionString takes digits and dots only: 0.2.0-dev -> 0.2.0.
 short_version=${version%%-*}
+if ((release_identity)) && [[ $version == *-dev* ]]; then
+  die "--release-identity: app/drifting/Cargo.toml says $version; a release has a release version"
+fi
 commit=$(git -C "$repo_dir" rev-parse --short=8 HEAD 2>/dev/null || echo unknown)
 if ! git -C "$repo_dir" diff --quiet HEAD -- "$next_dir" 2>/dev/null; then
   commit="$commit-dirty"
@@ -89,6 +135,9 @@ build_number=$(git -C "$repo_dir" rev-list --count HEAD 2>/dev/null || echo 1)
 cargo_args=(build --locked -p drifting)
 [[ $profile == release ]] && cargo_args+=(--release)
 [[ $profile == dist ]] && cargo_args+=(--profile dist)
+# The app's only default feature is `runtime-shaders`.
+((precompiled_shaders)) && cargo_args+=(--no-default-features)
+((release_identity)) && cargo_args+=(--features release-identity)
 echo "bundle-mac: cargo ${cargo_args[*]}"
 # The executable's minimum macOS matches LSMinimumSystemVersion (Rust's
 # default would be 11.0).
@@ -186,7 +235,9 @@ codesign --verify --strict "$app"
 size_kb=$(du -sk "$app" | cut -f 1)
 binary_kb=$(du -sk "$contents/MacOS/$EXECUTABLE" | cut -f 1)
 echo "bundle-mac: $app"
-echo "bundle-mac: $APP_NAME $version ($commit), $BUNDLE_ID, $profile"
+shaders=runtime
+((precompiled_shaders)) && shaders=precompiled
+echo "bundle-mac: $APP_NAME $version ($commit), $BUNDLE_ID, $profile, $shaders shaders"
 echo "bundle-mac: bundle ${size_kb} KiB, executable ${binary_kb} KiB"
 if [[ -n ${symbols:-} ]]; then
   echo "bundle-mac: symbols $symbols ($(du -sk "$symbols" | cut -f 1) KiB)"

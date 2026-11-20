@@ -17,6 +17,13 @@ network = ["dep:reqwest", "dep:rustls", "sentry/reqwest", "sentry/rustls-no-prov
 # Hosted service on 127.0.0.1; `update::fetch::fake_server`, one for GitHub
 # Releases; throwaway updater keys and synthetic bundles.
 test-support = ["dep:minisign"]
+# The release client's identity: `Identity::current()` is `RELEASE`
+# (cc.drifting.client, the 0.1 client's keychain service, data folder and
+# `drifting:` links) instead of `DEVELOPMENT`. Only the release workflow turns
+# it on, through the app's own `release-identity` feature; `cargo xtask check`
+# keeps it out of every default feature and `cargo xtask check-binary` tells
+# the two builds apart (`identity::BUILD_MARKER`).
+release-identity = []
 
 [dependencies]
 anyhow.workspace = true

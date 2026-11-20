@@ -31,7 +31,7 @@ anyhow.workspace = true
 dr-store.workspace = true
 dr-testkit.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
-gpui_platform.workspace = true
+gpui_platform = { workspace = true, features = ["runtime_shaders"] }
 tempfile.workspace = true
 
 [[example]]

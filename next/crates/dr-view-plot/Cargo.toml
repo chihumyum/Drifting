@@ -10,7 +10,7 @@ description = "Drifting's plot planner (M15): one grid per chapter, rows by colu
 [features]
 # Offscreen screenshots of the planner (`examples/plot-capture.rs`), through
 # GPUI's headless test platform.
-capture = ["dep:gpui_platform", "gpui_platform/test-support", "dep:color_quant", "dep:png"]
+capture = ["dep:gpui_platform", "gpui_platform/runtime_shaders", "gpui_platform/test-support", "dep:color_quant", "dep:png"]
 
 [dependencies]
 color_quant = { workspace = true, optional = true }
@@ -33,5 +33,5 @@ anyhow.workspace = true
 dr-store.workspace = true
 dr-testkit.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
-gpui_platform.workspace = true
+gpui_platform = { workspace = true, features = ["runtime_shaders"] }
 tempfile.workspace = true

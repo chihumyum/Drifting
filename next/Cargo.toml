@@ -92,11 +92,14 @@ url = "2.5"
 # schedule: bump both entries together, then rerun the spike benchmarks.
 gpui = { git = "https://github.com/zed-industries/zed", tag = "v1.27.0" }
 # `font-kit` rasterizes glyphs on macOS; without it GPUI lays text out but
-# draws none (Windows uses DirectWrite either way). `runtime_shaders` compiles
-# the Metal shaders when the app starts instead of at build time, so a build
-# needs no Metal Toolchain (a separate Xcode download). Release bundles should
-# precompile them; see docs/rust-rewrite/progress.md.
-gpui_platform = { git = "https://github.com/zed-industries/zed", tag = "v1.27.0", features = ["font-kit", "runtime_shaders"] }
+# draws none (Windows uses DirectWrite either way). `runtime_shaders` (compile
+# the Metal shaders when the app starts, so a build needs no Metal Toolchain)
+# is not turned on here: features only add up, and the release build must be
+# able to leave it out. Each crate that builds GPUI's platform into an
+# executable asks for it itself: the app through its default feature
+# `runtime-shaders` (the release build passes `--no-default-features`), every
+# test, example and capture dependency in its own line.
+gpui_platform = { git = "https://github.com/zed-industries/zed", tag = "v1.27.0", features = ["font-kit"] }
 
 # Loro is pinned exactly; its Rust API still has breaking changes.
 loro = "=1.18.0"

@@ -10,7 +10,7 @@ description = "Drifting's Project Home (M02): the book's name and progress, wher
 [features]
 # Offscreen screenshots and timings of the bookshelf and Project Home
 # (`examples/shelf-home-capture.rs`), through GPUI's headless test platform.
-capture = ["dep:gpui_platform", "gpui_platform/test-support", "dep:color_quant", "dep:png"]
+capture = ["dep:gpui_platform", "gpui_platform/runtime_shaders", "gpui_platform/test-support", "dep:color_quant", "dep:png"]
 
 [dependencies]
 anyhow.workspace = true
@@ -41,5 +41,5 @@ dr-view-sea.workspace = true
 dr-view-shelf-art.workspace = true
 dr-view-timeline.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
-gpui_platform.workspace = true
+gpui_platform = { workspace = true, features = ["runtime_shaders"] }
 tempfile.workspace = true

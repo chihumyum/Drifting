@@ -3,7 +3,8 @@
 //! ```text
 //! cargo xtask check [--only a,b] [--skip a,b] [--list]   every gate (CI runs all)
 //! cargo xtask evidence --check                            the evidence gate alone
-//! cargo xtask check-binary <file>…                        no debug bridge or hot reload built in
+//! cargo xtask check-binary [--release-identity] [--precompiled-shaders] <file>…
+//!                                                         no debug bridge or hot reload built in; which identity; which shaders
 //! cargo xtask dev [--instance N] [--debug-bridge] [--hot] [--print-config] [--release] [-- app args]
 //! ```
 //!
@@ -17,7 +18,7 @@ use std::process::ExitCode;
 
 const USAGE: &str = "usage: cargo xtask check [--only a,b] [--skip a,b] [--list]
        cargo xtask evidence --check
-       cargo xtask check-binary <file>…
+       cargo xtask check-binary [--release-identity] [--precompiled-shaders] <file>…
        cargo xtask dev [--instance NAME] [--debug-bridge] [--hot] [--print-config] [--release] [-- app args]";
 
 fn list_arg(args: &[String], name: &str) -> Vec<String> {
@@ -32,7 +33,7 @@ fn check(args: &[String]) -> ExitCode {
     let gates = gates::all();
     if args.iter().any(|a| a == "--list") {
         for g in &gates {
-            println!("{:12} {}", g.name, g.about);
+            println!("{:16} {}", g.name, g.about);
         }
         return ExitCode::SUCCESS;
     }
@@ -53,13 +54,13 @@ fn check(args: &[String]) -> ExitCode {
     {
         match (g.run)(&repo) {
             Ok(o) if o.failures.is_empty() => {
-                println!("ok   {:12} {}", g.name, o.summary);
+                println!("ok   {:16} {}", g.name, o.summary);
                 for n in &o.notes {
                     println!("       note: {n}");
                 }
             }
             Ok(o) => {
-                println!("FAIL {:12} {}", g.name, o.summary);
+                println!("FAIL {:16} {}", g.name, o.summary);
                 for f in &o.failures {
                     println!("       {f}");
                 }
@@ -69,7 +70,7 @@ fn check(args: &[String]) -> ExitCode {
                 failed.push(g.name);
             }
             Err(e) => {
-                println!("FAIL {:12} could not run: {e}", g.name);
+                println!("FAIL {:16} could not run: {e}", g.name);
                 failed.push(g.name);
             }
         }
@@ -90,16 +91,41 @@ fn main() -> ExitCode {
             check(&["--only".into(), "evidence".into()])
         }
         Some("check-binary") if args.len() > 1 => {
-            let found = gates::debug_bridge::check_binaries(&args[1..]).and_then(|mut f| {
-                f.extend(gates::hot_reload::check_binaries(&args[1..])?);
+            let flag = |name: &str| args[1..].iter().any(|a| a == name);
+            let expect = gates::release_identity::Expect {
+                release_identity: flag("--release-identity"),
+                precompiled_shaders: flag("--precompiled-shaders"),
+            };
+            let files: Vec<String> = args[1..]
+                .iter()
+                .filter(|a| !matches!(a.as_str(), "--release-identity" | "--precompiled-shaders"))
+                .cloned()
+                .collect();
+            if files.is_empty() {
+                eprintln!("{USAGE}");
+                return ExitCode::FAILURE;
+            }
+            let found = gates::debug_bridge::check_binaries(&files).and_then(|mut f| {
+                f.extend(gates::hot_reload::check_binaries(&files)?);
+                f.extend(gates::release_identity::check_binaries(&files, expect)?);
                 Ok(f)
             });
             match found {
                 Ok(f) if f.is_empty() => {
                     println!(
-                        "ok   {} file(s) without the debug bridge ({}) or GPUI's hot reload",
-                        args.len() - 1,
-                        dr_debug_protocol::PROTOCOL
+                        "ok   {} file(s) without the debug bridge ({}) or GPUI's hot reload; {} identity{}",
+                        files.len(),
+                        dr_debug_protocol::PROTOCOL,
+                        if expect.release_identity {
+                            "the release"
+                        } else {
+                            "not the release"
+                        },
+                        if expect.precompiled_shaders {
+                            "; precompiled Metal shaders"
+                        } else {
+                            ""
+                        }
                     );
                     ExitCode::SUCCESS
                 }

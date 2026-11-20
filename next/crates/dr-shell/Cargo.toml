@@ -47,5 +47,5 @@ raw-window-handle.workspace = true
 # A seeded library for the tests and the captures (the showcase's 《慢钟》).
 dr-testkit.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
-gpui_platform.workspace = true
+gpui_platform = { workspace = true, features = ["runtime_shaders"] }
 tempfile.workspace = true

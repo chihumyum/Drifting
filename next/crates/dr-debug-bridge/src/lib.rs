@@ -33,6 +33,13 @@
 //! built binary for [`dr_debug_protocol::PROTOCOL`].
 //! Docs: `docs/rust-rewrite/foundations/f8-testkit.md` 「调试桥」.
 
+// A build with the release identity never carries the bridge, however it
+// was asked for (dr-platform's `release-identity` feature).
+const _: () = assert!(
+    !dr_platform::identity::RELEASE_BUILD,
+    "the debug bridge never ships: not with the release identity"
+);
+
 mod a11y;
 mod methods;
 mod panel;

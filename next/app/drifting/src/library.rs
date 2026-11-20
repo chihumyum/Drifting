@@ -1,13 +1,19 @@
 //! Opening the library (F2) with F3's hooks and this device's identity.
 //!
-//! The device directory is the app's local data folder (`AppDirs::data`),
-//! beside the `library/` folder and outside it. F2's `Device` keeps there
-//! the 0.1 client's installation file `sync-installation-v2.json` (the file
-//! the release identity finds after the hand-over), which machine it belongs
-//! to (a salted digest of `IOPlatformUUID` / `MachineGuid`) and the library
-//! watermarks. With it the library notices a copy from another machine or an
-//! older backup put back (a new epoch), and M07's writing days are stored
-//! under this device's key (`Workspace::writing_device`).
+//! The device directory is this client's own data folder (`AppDirs::own`),
+//! beside the `library/` folder and outside it. F2's `Device` keeps there an
+//! installation file in the 0.1 client's format, `sync-installation-v2.json`,
+//! which machine it belongs to (a salted digest of `IOPlatformUUID` /
+//! `MachineGuid`) and the library watermarks. With it the library notices a
+//! copy from another machine or an older backup put back (a new epoch), and
+//! M07's writing days are stored under this device's key
+//! (`Workspace::writing_device`).
+//!
+//! Under the release identity `own` is beside the 0.1 client's data folder,
+//! never in it, so the new client never writes the 0.1 client's
+//! installation file, registry or libraries (`data_folder_tests`). Importing
+//! a 0.1 library takes its installation id over (M10, `take_over`), so the
+//! writing days continue under the 0.1 device key.
 //!
 //! A development build has a data folder of its own (`cc.drifting.next.dev`,
 //! never the release app's), and `DRIFTING_PROFILE` (each worktree's
@@ -23,9 +29,8 @@ use std::path::Path;
 
 use dr_workspace::{Workspace, WorkspaceOptions};
 
-/// The library's folder inside the app's data folder (F2's `library.sqlite`,
-/// `assets/`, …). The data folder itself is the 0.1 client's for the release
-/// identity, so the new library keeps to a folder of its own.
+/// The library's folder inside this client's own data folder (F2's
+/// `library.sqlite`, `assets/`, …; `AppDirs::own`).
 pub const LIBRARY_DIR: &str = "library";
 
 /// Opens (or creates) the library in `<data>/library` with this device.

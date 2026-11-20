@@ -173,6 +173,14 @@ pub fn init(config: &LogConfig) -> Logging {
             .with_max_level(level_to_log(max_level))
             .init();
     }
+    // Which identity this build runs under. `black_box` keeps the marker in
+    // every executable that starts logging, whatever the log levels:
+    // `cargo xtask check-binary` looks for it.
+    tracing::info!(
+        target: "dr_platform",
+        "{}",
+        std::hint::black_box(crate::identity::BUILD_MARKER)
+    );
     Logging { log_dir }
 }
 

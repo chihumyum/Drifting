@@ -13,6 +13,7 @@ mod licenses;
 pub mod metadata;
 mod migrations;
 mod privacy;
+pub mod release_identity;
 mod retired;
 mod terms;
 
@@ -96,6 +97,11 @@ pub fn all() -> Vec<Gate> {
             name: "hot-reload",
             about: "GPUI's hot reload is opt-in (no default feature or release script turns it on); no dependency cycle, dev-dependencies counted (dx patches in that order)",
             run: hot_reload::run,
+        },
+        Gate {
+            name: "release-identity",
+            about: "the release identity is the release workflow's: no default feature, dependency, CI workflow or dev launch turns it on, and it never comes with the debug bridge or hot reload",
+            run: release_identity::run,
         },
         Gate {
             name: "evidence",

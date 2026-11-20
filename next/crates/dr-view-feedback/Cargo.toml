@@ -22,5 +22,5 @@ log.workspace = true
 # A stand-in for the Hosted service on 127.0.0.1; nothing reaches a real one.
 dr-platform = { workspace = true, features = ["test-support"] }
 gpui = { workspace = true, features = ["test-support"] }
-gpui_platform.workspace = true
+gpui_platform = { workspace = true, features = ["runtime_shaders"] }
 serde_json.workspace = true

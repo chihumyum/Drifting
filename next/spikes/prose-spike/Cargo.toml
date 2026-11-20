@@ -24,7 +24,7 @@ required-features = ["shell"]
 
 [features]
 default = ["shell"]
-shell = ["dep:gpui_platform", "dep:libc", "dep:log", "dep:objc2", "dep:raw-window-handle", "dep:rusqlite"]
+shell = ["dep:gpui_platform", "gpui_platform/runtime_shaders", "dep:libc", "dep:log", "dep:objc2", "dep:raw-window-handle", "dep:rusqlite"]
 
 [dependencies]
 gpui.workspace = true

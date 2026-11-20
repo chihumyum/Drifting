@@ -19,7 +19,7 @@ base64.workspace = true
 gpui.workspace = true
 # Without `font-kit` GPUI has no macOS text system and draws no text at all
 # (Zed turns it on in its own app crate).
-gpui_platform = { workspace = true, features = ["font-kit"] }
+gpui_platform = { workspace = true, features = ["runtime_shaders", "font-kit"] }
 image.workspace = true
 smallvec.workspace = true
 tiny-skia.workspace = true

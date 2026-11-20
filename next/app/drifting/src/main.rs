@@ -10,6 +10,8 @@
 
 mod about;
 mod check;
+#[cfg(test)]
+mod data_folder_tests;
 mod identity;
 mod library;
 mod markdown_folder;
@@ -61,11 +63,15 @@ fn main() {
 
     probe::start();
     let platform = dr_platform::Identity::current();
+    // `dirs.own` holds this client's files. Under the release identity
+    // `dirs.data` is the 0.1 client's folder: only the MCP connection files
+    // (`dr_view_agent::mcp`) and the import's search for the 0.1 libraries
+    // use it (dr-platform's `paths`).
     let dirs = dr_platform::AppDirs::for_identity(platform).ok();
     // The settings file holds the crash-report consent, which `crash::init`
     // needs before anything else runs. Reading it is plain file I/O.
     let settings = match &dirs {
-        Some(dirs) => SettingsFile::open(&dirs.data),
+        Some(dirs) => SettingsFile::open(&dirs.own),
         None => SettingsFile::in_memory(),
     };
     let consent = settings.bool(dr_shell::settings::registry::CRASH_REPORTS);
@@ -92,7 +98,7 @@ fn main() {
     // takes it once the app is ready. Without one the window still opens,
     // with no book.
     let library = dirs.as_ref().map(|dirs| {
-        let data = dirs.data.clone();
+        let data = dirs.own.clone();
         std::thread::Builder::new()
             .name("library-open".into())
             .spawn(move || {
@@ -214,10 +220,7 @@ fn main() {
         dr_shell::quit::hide_first(cx);
         // M35: Hosted account sign-in, first-run welcome step, and account library isolation.
         dr_view_account::init(
-            sync::account_service_for_build(
-                platform,
-                dirs.as_ref().map(|dirs| dirs.data.as_path()),
-            ),
+            sync::account_service_for_build(platform, dirs.as_ref().map(|dirs| dirs.own.as_path())),
             cx,
         );
         // M36: automatic Hosted Sync v2 runtime, paper status mark, and release drain.
@@ -259,7 +262,7 @@ fn main() {
         dr_view_feedback::init(
             dr_view_feedback::Service::for_build(
                 platform,
-                dirs.as_ref().map(|dirs| dirs.data.as_path()),
+                dirs.as_ref().map(|dirs| dirs.own.as_path()),
                 env!("CARGO_PKG_VERSION"),
             ),
             cx,
@@ -309,7 +312,7 @@ fn main() {
         dr_view_update::init(
             dr_view_update::Service::for_build(
                 platform,
-                dirs.as_ref().map(|dirs| dirs.data.as_path()),
+                dirs.as_ref().map(|dirs| dirs.own.as_path()),
                 env!("CARGO_PKG_VERSION"),
             ),
             cx,

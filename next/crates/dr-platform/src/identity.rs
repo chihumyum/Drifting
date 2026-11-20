@@ -1,12 +1,17 @@
 //! Who a build says it is to the operating system: bundle id, product name,
 //! URL scheme, keychain service and Windows publisher.
 //!
-//! Until the hand-over (docs/rust-rewrite/foundations/f7-platform.md) every
-//! `next/` build is [`DEVELOPMENT`], so it runs beside an installed Drifting
-//! without sharing its Launch Services entry, `drifting:` links, keychain
-//! items, data folder or installer registry keys. [`RELEASE`] records the
-//! identity the 0.1 Tauri client already owns, which the hand-over adopts
-//! unchanged.
+//! Every `next/` build is [`DEVELOPMENT`], so it runs beside an installed
+//! Drifting without sharing its Launch Services entry, `drifting:` links,
+//! keychain items, data folder or installer registry keys. [`RELEASE`]
+//! records the identity the 0.1 Tauri client already owns, which the
+//! hand-over adopts unchanged (docs/rust-rewrite/foundations/f7-platform.md):
+//! only a build with this crate's `release-identity` feature runs under it,
+//! and only the release workflow turns that on (through the app's feature of
+//! the same name). `cargo xtask check` keeps it out of every default
+//! feature and of CI; `cargo xtask check-binary` tells the two builds apart
+//! by [`BUILD_MARKER`]; the debug bridge and hot reload refuse to compile
+//! into a build that has it ([`RELEASE_BUILD`]).
 
 /// Development builds and the release build behave differently in a few
 /// places: crash reports are off in development unless asked for, and only a
@@ -65,6 +70,26 @@ pub const RELEASE: Identity = Identity {
     publisher: "drifting",
 };
 
+/// Whether this build runs under [`RELEASE`]: the `release-identity`
+/// feature. A `const`, so other crates can refuse at compile time to build
+/// what must never ship with it (the debug bridge, hot reload).
+pub const RELEASE_BUILD: bool = cfg!(feature = "release-identity");
+
+/// What a development build carries in its executable, and a release build
+/// does not (`cargo xtask check-binary`).
+pub const DEVELOPMENT_MARKER: &str = "drifting-build-identity:development";
+/// What a release-identity build carries in its executable, and no other
+/// build does (`cargo xtask check-binary --release-identity`).
+pub const RELEASE_MARKER: &str = "drifting-build-identity:release";
+/// The one of the two this build runs under. Only it is compiled in (the
+/// other constant is never used outside tests); [`crate::logging::init`]
+/// logs it, so every executable that starts the app's logging has it.
+pub const BUILD_MARKER: &str = if RELEASE_BUILD {
+    RELEASE_MARKER
+} else {
+    DEVELOPMENT_MARKER
+};
+
 /// Development builds only: `DRIFTING_PROFILE=<name>` gives a run its own
 /// data and log folders, keychain service and single-instance lock, so builds
 /// from two worktrees never share a library or a lock (simplifications.md
@@ -82,14 +107,19 @@ fn parse_profile(value: Option<&str>) -> Option<String> {
 }
 
 impl Identity {
-    /// The identity this build runs under. Changing it to [`RELEASE`] is the
-    /// hand-over's job and nothing else's.
+    /// The identity this build runs under: [`RELEASE`] with the
+    /// `release-identity` feature (the release workflow's build), else
+    /// [`DEVELOPMENT`].
     pub const fn current() -> &'static Identity {
-        &DEVELOPMENT
+        if RELEASE_BUILD {
+            &RELEASE
+        } else {
+            &DEVELOPMENT
+        }
     }
 
-    pub fn is_release(&self) -> bool {
-        self.channel == Channel::Release
+    pub const fn is_release(&self) -> bool {
+        matches!(self.channel, Channel::Release)
     }
 
     /// This run's development profile; the release identity has none.
@@ -134,6 +164,7 @@ mod tests {
 
     const BUNDLE_SCRIPT: &str = include_str!("../../../script/bundle-mac");
     const INSTALLER_SCRIPT: &str = include_str!("../../../script/windows/drifting.nsi");
+    const WINDOWS_BUNDLE_SCRIPT: &str = include_str!("../../../script/bundle-windows.ps1");
 
     fn shell_value(name: &str) -> &'static str {
         let prefix = format!("{name}=");
@@ -153,10 +184,39 @@ mod tests {
             .trim_matches('"')
     }
 
+    fn powershell_value(name: &str) -> &'static str {
+        let prefix = format!("${name} = ");
+        WINDOWS_BUNDLE_SCRIPT
+            .lines()
+            .find_map(|line| line.trim().strip_prefix(prefix.as_str()))
+            .unwrap_or_else(|| panic!("bundle-windows.ps1 sets ${name}"))
+            .trim_matches('\'')
+    }
+
     #[test]
-    fn every_build_is_the_development_identity_until_the_hand_over() {
-        assert_eq!(Identity::current(), &DEVELOPMENT);
-        assert!(!Identity::current().is_release());
+    fn the_build_runs_under_the_identity_its_feature_names() {
+        if RELEASE_BUILD {
+            assert_eq!(Identity::current(), &RELEASE);
+            assert!(Identity::current().is_release());
+            assert_eq!(BUILD_MARKER, RELEASE_MARKER);
+        } else {
+            assert_eq!(Identity::current(), &DEVELOPMENT);
+            assert!(!Identity::current().is_release());
+            assert_eq!(BUILD_MARKER, DEVELOPMENT_MARKER);
+        }
+        assert_ne!(DEVELOPMENT_MARKER, RELEASE_MARKER);
+        // Neither marker contains the other, so finding one in an
+        // executable never finds the other by accident.
+        assert!(!DEVELOPMENT_MARKER.contains(RELEASE_MARKER));
+        assert!(!RELEASE_MARKER.contains(DEVELOPMENT_MARKER));
+    }
+
+    /// `cargo test` (CI, every worktree) is never the release build.
+    #[cfg(not(feature = "release-identity"))]
+    #[test]
+    fn tests_run_under_the_development_identity() {
+        const { assert!(!RELEASE_BUILD) };
+        assert_eq!(Identity::current().bundle_id, "cc.drifting.next.dev");
     }
 
     #[test]
@@ -206,7 +266,7 @@ mod tests {
     }
 
     #[test]
-    fn the_packaging_scripts_carry_the_development_identity() {
+    fn the_packaging_scripts_carry_the_development_identity_by_default() {
         assert_eq!(shell_value("BUNDLE_ID"), DEVELOPMENT.bundle_id);
         assert_eq!(shell_value("APP_NAME"), DEVELOPMENT.product_name);
         assert_eq!(shell_value("EXECUTABLE"), DEVELOPMENT.executable);
@@ -216,8 +276,32 @@ mod tests {
         assert_eq!(nsis_default("EXECUTABLE"), DEVELOPMENT.executable);
         assert_eq!(nsis_default("URL_SCHEME"), DEVELOPMENT.url_scheme);
         assert_eq!(nsis_default("PUBLISHER"), DEVELOPMENT.publisher);
-        for script in [BUNDLE_SCRIPT, INSTALLER_SCRIPT] {
-            assert!(!script.contains(&format!("\"{}\"", RELEASE.bundle_id)));
+        // The installer never names the release bundle id itself.
+        assert!(!INSTALLER_SCRIPT.contains(&format!("\"{}\"", RELEASE.bundle_id)));
+    }
+
+    /// The release identity is in the two bundle scripts' code once each,
+    /// behind their release switch (comments may name it).
+    #[test]
+    fn the_packaging_scripts_carry_the_release_identity_behind_their_switch() {
+        assert_eq!(shell_value("RELEASE_BUNDLE_ID"), RELEASE.bundle_id);
+        assert_eq!(shell_value("RELEASE_APP_NAME"), RELEASE.product_name);
+        assert_eq!(shell_value("RELEASE_URL_SCHEME"), RELEASE.url_scheme);
+        assert_eq!(RELEASE.executable, DEVELOPMENT.executable);
+        assert!(BUNDLE_SCRIPT.contains("--release-identity) release_identity=1 ;;"));
+        assert!(BUNDLE_SCRIPT.contains("BUNDLE_ID=$RELEASE_BUNDLE_ID"));
+        assert!(BUNDLE_SCRIPT.contains("cargo_args+=(--features release-identity)"));
+        assert_eq!(powershell_value("releaseBundleId"), RELEASE.bundle_id);
+        assert_eq!(powershell_value("releaseProductName"), RELEASE.product_name);
+        assert_eq!(powershell_value("releaseUrlScheme"), RELEASE.url_scheme);
+        assert!(WINDOWS_BUNDLE_SCRIPT.contains("[switch]$ReleaseIdentity"));
+        assert!(WINDOWS_BUNDLE_SCRIPT.contains("'--features', 'release-identity'"));
+        for (script, lines) in [(BUNDLE_SCRIPT, 1), (WINDOWS_BUNDLE_SCRIPT, 1)] {
+            let naming: Vec<&str> = script
+                .lines()
+                .filter(|l| !l.trim_start().starts_with('#') && l.contains(RELEASE.bundle_id))
+                .collect();
+            assert_eq!(naming.len(), lines, "{naming:?}");
         }
     }
 }
