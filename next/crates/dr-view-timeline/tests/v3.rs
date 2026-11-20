@@ -521,6 +521,63 @@ fn placement_is_one_undo_preserves_residence_and_removes_only_orphaned_view_posi
     assert_eq!(after["pos"], actual["pos"]);
 }
 
+/// Two pins close together on the scale: the first one's label is cut where
+/// the second starts instead of printing over it; the last label on the
+/// scale is not cut at all.
+#[gpui::test]
+fn a_pin_label_gives_way_to_the_next_pin(cx: &mut TestAppContext) {
+    use dr_workspace::commands::v3::types::TimelinePin;
+    let (_dir, lib, id) = seed();
+    let (host, cx) = visual(cx, &lib, &id);
+    let t = host.read_with(cx, |h, _| h.timeline.clone());
+    let label = "有一年的春天，他醉醺醺的在街上走";
+    let pins = [
+        ("pin-near-a", 30.0),
+        ("pin-near-b", 36.0),
+        ("pin-far", 400.0),
+    ];
+    for (pin, at) in pins {
+        t.update(cx, |t, cx| {
+            t.put_pin(
+                TimelinePin {
+                    id: pin.to_owned(),
+                    at,
+                    label: label.into(),
+                    color: None,
+                    entry: None,
+                },
+                cx,
+            );
+        });
+        wait(cx, |_| {
+            call(&lib, "timeline_view.list", json!({"book":id}))[0]["pins"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|p| p["id"] == pin)
+        });
+    }
+    refresh(&host, &lib, &id, cx);
+    wait(cx, |cx| cx.debug_bounds("v3-pin-pin-near-b").is_some());
+    let a = cx.debug_bounds("v3-pin-pin-near-a").unwrap();
+    let b = cx.debug_bounds("v3-pin-pin-near-b").unwrap();
+    assert!(a.left() < b.left());
+    assert!(
+        a.right() <= b.left(),
+        "the first label ends where the next pin starts: {a:?} {b:?}"
+    );
+    assert!(
+        a.size.width >= gpui::px(16.),
+        "there is still something to press: {a:?}"
+    );
+    // The same label where nothing follows it closely takes the room it
+    // needs: more than the 6 units between the two near pins give.
+    assert!(
+        b.size.width > a.size.width * 2.,
+        "the label with room is whole: {a:?} {b:?}"
+    );
+}
+
 #[gpui::test]
 fn time_pin_fields_merge_in_order_without_losing_label_colour_or_binding(cx: &mut TestAppContext) {
     use dr_view_timeline::v3::PinEdit;

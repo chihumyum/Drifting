@@ -841,11 +841,26 @@ impl Timeline {
                     .child(tick.to_string()),
             );
         }
+        // A label gives way to the next pin's: it is cut with an ellipsis
+        // where that one starts, so two pins close together on the scale do
+        // not print over each other. The whole label stays the button's
+        // accessible name.
+        let mut pin_starts: Vec<f64> = view
+            .pins
+            .iter()
+            .map(|p| p.at)
+            .filter(|at| at.is_finite())
+            .collect();
+        pin_starts.sort_by(f64::total_cmp);
         for pin in &view.pins {
             let x = (pin.at - min) as f32 * unit;
             if x < left - 200. || x > left + visible {
                 continue;
             }
+            let room = pin_starts
+                .iter()
+                .find(|at| **at > pin.at)
+                .map(|next| ((next - pin.at) as f32 * unit - PIN_LABEL_GAP).max(PIN_LABEL_MIN));
             let id = pin.id.clone();
             let drag = PinDrag {
                 book: self.book.id.clone(),
@@ -854,15 +869,18 @@ impl Timeline {
                 title: pin.label.clone().into(),
                 grab: Rc::default(),
             };
+            let pin_selector = format!("v3-pin-{id}");
             ruler = ruler.child(
                 div()
                     .id(SharedString::from(format!("v3-pin-{id}")))
+                    .debug_selector(move || pin_selector)
                     .absolute()
                     .left(px(x))
                     .top_0()
                     .h(px(20.))
                     .px_2()
-                    .whitespace_nowrap()
+                    .truncate()
+                    .when_some(room, |el, room| el.max_w(px(room)))
                     .text_xs()
                     .text_color(
                         pin.color
@@ -1241,6 +1259,11 @@ impl Timeline {
 
 /// Ruler labels stay at least this far apart.
 const MIN_LABEL_GAP: f32 = 24.0;
+/// Air between the end of a pin's label and the next pin.
+const PIN_LABEL_GAP: f32 = 2.0;
+/// A pin's label is never cut narrower than its own padding, so there is
+/// always something to press where the pin stands.
+const PIN_LABEL_MIN: f32 = 16.0;
 /// Under this a card is narrow: little padding, a smaller title.
 const NARROW_CARD: f32 = 44.0;
 /// A narrow card's padding on each side.
