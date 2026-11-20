@@ -551,15 +551,17 @@ impl RelationsRail {
                 }
             }))
             .child(left_el)
-            .child(
+            .child({
+                let arrow_selector = format!("relations-row-{slug}-arrow");
                 div()
+                    .debug_selector(move || arrow_selector)
                     .flex_none()
                     .px(px(2.0))
                     .font_role(Role::Index)
                     .type_px(14.0, 24.0)
                     .text_color(p.ink(3).solid())
-                    .child(glyph(direction)),
-            )
+                    .child(glyph(direction))
+            })
             .child(right_el);
         if show {
             row = row.child(
@@ -691,7 +693,14 @@ impl RelationsRail {
         let target = entry.to_owned();
         let remove_row = row.clone();
         let remove_entry = entry.to_owned();
+        // A name longer than its side of the row is cut with an ellipsis
+        // there (the whole name stays the button's accessible name): it never
+        // runs under the arrow or into the other side.
+        let chip_selector = format!("relations-row-{slug}-{entry}-chip");
         div()
+            .debug_selector(move || chip_selector)
+            .max_w_full()
+            .min_w_0()
             .flex()
             .flex_row()
             .items_center()
@@ -702,6 +711,7 @@ impl RelationsRail {
             .child(
                 div()
                     .id(id("open"))
+                    .min_w_0()
                     .flex()
                     .flex_row()
                     .items_center()
@@ -713,11 +723,13 @@ impl RelationsRail {
                     .role(gpui::Role::Button)
                     .aria_label(look.title.clone())
                     .child(
-                        KindMark::new(id("mark"), look.mark)
-                            .color(p.ink(3))
-                            .scale(10.0 / sand::MARK_SLOT),
+                        div().flex_none().child(
+                            KindMark::new(id("mark"), look.mark)
+                                .color(p.ink(3))
+                                .scale(10.0 / sand::MARK_SLOT),
+                        ),
                     )
-                    .child(look.title.clone())
+                    .child(div().min_w_0().truncate().child(look.title.clone()))
                     .on_click(move |_, window, cx| open(&target, window, cx)),
             )
             .when(hovered, |d| {

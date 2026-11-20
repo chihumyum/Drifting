@@ -441,6 +441,59 @@ fn a_new_row_is_written_once_both_sides_have_an_entry(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn a_long_name_stays_in_its_side_of_the_row(cx: &mut TestAppContext) {
+    let e = env();
+    let [(a, _), (b, _)] = [&e.entries[0], &e.entries[1]];
+    // Names far wider than half of a 360 pt rail, Latin and CJK.
+    let long_left = "Lady Catherine de Bourgh of Rosings Park in the County of Kent";
+    let long_right = "格雷斯丘奇街上加德纳先生和加德纳太太带着四个孩子住了许多年的那一幢房子";
+    for (entry, title) in [(a, long_left), (b, long_right)] {
+        call(
+            &e.ws,
+            "entry.update",
+            json!({"book": e.book, "id": entry, "title": title}),
+        );
+    }
+    let row = pair(&e, a, b, "RL 长名字", "directed")["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let (_rail, mut cx, _) = open(cx, &e);
+    let cx = &mut cx;
+    draw(cx);
+    let bounds = |cx: &mut VisualTestContext, what: &str| {
+        cx.debug_bounds(Box::leak(what.to_owned().into_boxed_str()))
+            .unwrap_or_else(|| panic!("no {what} on screen"))
+    };
+    let left = bounds(cx, &format!("relations-row-{row}-{a}-chip"));
+    let arrow = bounds(cx, &format!("relations-row-{row}-arrow"));
+    let right = bounds(cx, &format!("relations-row-{row}-{b}-chip"));
+    assert!(
+        left.size.width > px(40.0),
+        "the left name still shows: {left:?}"
+    );
+    assert!(
+        right.size.width > px(40.0),
+        "the right name still shows: {right:?}"
+    );
+    assert!(
+        left.right() <= arrow.left(),
+        "the left name ends before the arrow: {left:?} {arrow:?}"
+    );
+    assert!(
+        arrow.right() <= right.left(),
+        "the right name starts after the arrow: {arrow:?} {right:?}"
+    );
+    assert!(
+        right.right() <= px(360.0),
+        "the right name stays in the rail: {right:?}"
+    );
+    // One line each: the row did not grow to hold the names.
+    assert_eq!(left.size.height, px(24.0));
+    assert_eq!(right.size.height, px(24.0));
+}
+
+#[gpui::test]
 fn names_go_out_of_a_row_and_the_last_row_takes_the_card(cx: &mut TestAppContext) {
     let e = env();
     let [a, b, c] = [&e.entries[0].0, &e.entries[1].0, &e.entries[2].0];
