@@ -6,9 +6,14 @@ name: next
 # 0.1 client's resources next/ still builds from (until stage 7 moves them),
 # the public-boundary script and this workflow. ci.yml keeps covering the 0.1
 # client.
+# Besides main: a branch pushed as trial/<name> runs the same checks and
+# uploads the same installers, to try a risky change (a GPUI upgrade, say) on
+# the Windows runners and in the author's Windows machine before it is
+# merged. workflow_dispatch reruns any ref by hand.
 on:
+  workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, 'trial/**']
     paths:
       - 'next/**'
       - 'docs/rust-rewrite/**'
