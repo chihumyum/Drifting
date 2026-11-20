@@ -65,9 +65,12 @@
         "carry_on": "Resume import",
         "unfinished": "“{{name}}” didn't finish importing"
       },
+      "refused": {
+        "account_has_books": "This account already has books; just sync."
+      },
       "summary": {
-        "account_libraries_left_one": "{{count}} account library in the folder waits for accounts",
-        "account_libraries_left_other": "{{count}} account libraries in the folder wait for accounts",
+        "account_libraries_left_one": "{{count}} account library in the folder was not imported",
+        "account_libraries_left_other": "{{count}} account libraries in the folder were not imported",
         "already_imported": "Imported on this device before; skipped",
         "already_in_library": "Already in the library; left as it is",
         "carries_on": "Not finished; import this library again to carry on",

@@ -78,6 +78,33 @@ mod tests {
     }
 
     #[test]
+    fn an_account_feed_is_empty_until_anything_is_recorded_and_errors_are_never_empty() {
+        let token = "tok-feed-empty";
+        let server = FakeSyncServer::start(token);
+        let client = SyncHttpClient::new(server.base_url()).expect("client");
+        assert!(client.feed_is_empty(token).expect("asked"));
+        assert!(
+            client
+                .feed_is_empty("tok-someone-else")
+                .unwrap_err()
+                .is_unauthorized()
+        );
+        server.set_offline(true);
+        assert!(client.feed_is_empty(token).unwrap_err().is_offline());
+        server.set_offline(false);
+        server.set_forced_status_error(Some(503));
+        assert!(client.feed_is_empty(token).is_err());
+        server.set_forced_status_error(None);
+
+        let dir = TempDir::new().expect("dir");
+        let lib = Library::open(dir.path(), test_opts()).expect("open");
+        write_loro_text(&lib, "book:b1", "book", Some("b1"), "one");
+        let mut engine = SyncEngine::new(server.base_url(), &lib).expect("engine");
+        engine.sync_once(&lib, token).expect("upload");
+        assert!(!client.feed_is_empty(token).expect("asked"));
+    }
+
+    #[test]
     fn two_libraries_converge_across_opaque_docs_agent_chats_compaction_and_assets() {
         let server = FakeSyncServer::start("tok-sync-v2");
         let dir_a = TempDir::new().expect("dir a");

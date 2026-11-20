@@ -260,7 +260,11 @@ fn found(f: &Found, window: &mut Window, cx: &mut Context<LegacyImport>) -> AnyE
                 .child(
                     div()
                         .text_color(p.ink(1).solid())
-                        .child(t(cx, keys::common::LOCAL)),
+                        .child(if library.account {
+                            t(cx, keys::settings::rail::ACCOUNT)
+                        } else {
+                            t(cx, keys::common::LOCAL)
+                        }),
                 )
                 .child(div().flex_1().min_w_0().truncate().child(index(
                     library.folder.clone(),

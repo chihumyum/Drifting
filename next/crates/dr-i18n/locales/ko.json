@@ -350,8 +350,11 @@
         "carry_on": "이어서 가져오기",
         "unfinished": "“{{name}}” 가져오기가 끝나지 않았습니다"
       },
+      "refused": {
+        "account_has_books": "이 계정에는 이미 책이 있습니다. 동기화만 하면 됩니다."
+      },
       "summary": {
-        "account_libraries_left": "폴더의 계정 라이브러리 {{count}}개는 계정 기능이 생길 때까지 가져오지 않았습니다",
+        "account_libraries_left": "폴더의 계정 라이브러리 {{count}}개는 가져오지 않았습니다",
         "already_imported": "이 기기에서 이미 가져온 적이 있어 건너뛰었습니다",
         "already_in_library": "이미 라이브러리에 있어 그대로 두었습니다",
         "carries_on": "다 가져오지 못했습니다. 이 라이브러리를 다시 가져오면 이어서 가져옵니다",

@@ -21,7 +21,7 @@ pub use client::{
 pub use endpoint::{HostedConfig, HostedOrigin};
 pub use library_registry::{
     DEFAULT_LOCAL_ID, DEFAULT_LOCAL_REL_PATH, LIBRARIES_FILE, LibraryEntry, LibraryOwner,
-    LibraryRegistry, account_library_id, account_library_rel_path,
+    LibraryRegistry, account_library_id, account_library_rel_path, registry_lock,
 };
 pub use oauth::{
     NATIVE_OAUTH_STATE_FILE, OAUTH_STATE_TTL_MS, ParsedOAuthCallback, PendingNativeOAuth,
@@ -327,6 +327,80 @@ mod tests {
             assert_eq!(docs.len(), 1);
             assert_eq!(docs[0].book_id.as_deref(), Some(book_a));
         }
+    }
+
+    #[test]
+    fn an_account_library_moves_once_to_an_imported_directory_and_keeps_it() {
+        let server = FakeAuthServer::start();
+        server.set_require_signup_verification(false);
+        let tmp = TempDir::new().expect("tempdir");
+        let secrets = Arc::new(SecretStore::in_memory());
+        let svc = AccountService::new(server.config(), tmp.path(), "cc.drifting.next.dev", secrets)
+            .expect("new service");
+        let local_dir = svc.state().active_library_dir;
+        let SignUpOutcome::SignedIn(alice) = svc
+            .sign_up_email("Alice", "alice@example.test", "alice-password-123")
+            .expect("sign up alice")
+        else {
+            panic!("expected immediate sign in");
+        };
+        let subject = alice.user.as_ref().unwrap().id.clone();
+        let first = alice.active_library_dir.clone();
+        assert_eq!(first, tmp.path().join(account_library_rel_path(&subject)));
+        let imported = tmp.path().join("reimport-v5-synthetic");
+        std::fs::create_dir_all(&imported).unwrap();
+
+        // Only the active account, only from the library it has now, only to
+        // one existing directory of the data folder.
+        let mut reg = LibraryRegistry::load_or_init(tmp.path()).unwrap();
+        for (who, from, rel) in [
+            ("someone-else", first.as_path(), "reimport-v5-synthetic"),
+            (
+                subject.as_str(),
+                local_dir.as_path(),
+                "reimport-v5-synthetic",
+            ),
+            (
+                subject.as_str(),
+                first.as_path(),
+                "../reimport-v5-synthetic",
+            ),
+            (subject.as_str(), first.as_path(), "a/b"),
+            (subject.as_str(), first.as_path(), "library"),
+            (subject.as_str(), first.as_path(), "reimport-v5-missing"),
+        ] {
+            assert!(
+                reg.clone()
+                    .adopt_for_account(tmp.path(), who, from, rel)
+                    .is_err(),
+                "{who} {from:?} {rel}"
+            );
+        }
+        assert_eq!(LibraryRegistry::load_or_init(tmp.path()).unwrap(), reg);
+
+        let moved = reg
+            .adopt_for_account(tmp.path(), &subject, &first, "reimport-v5-synthetic")
+            .unwrap();
+        assert_eq!(moved, imported);
+        let reg = LibraryRegistry::load_or_init(tmp.path()).unwrap();
+        assert!(reg.is_active_account(&subject));
+        assert_eq!(reg.active_entry().id, account_library_id(&subject));
+        assert_eq!(reg.active_library_dir(tmp.path()), imported);
+        // The service's state follows; the old directory stays on disk.
+        assert_eq!(svc.state().active_library_dir, first);
+        assert_eq!(svc.reload_active_library().active_library_dir, imported);
+        assert!(first.is_dir());
+
+        // Signing out and in again opens the moved library; local stays local.
+        assert_eq!(svc.sign_out().unwrap().active_library_dir, local_dir);
+        assert_eq!(svc.reload_active_library().active_library_dir, local_dir);
+        let again = svc
+            .sign_in_email("alice@example.test", "alice-password-123")
+            .unwrap();
+        assert_eq!(again.active_library_dir, imported);
+        let (_, startup) =
+            LibraryRegistry::settle_for_startup(tmp.path(), true, Some(&subject)).unwrap();
+        assert_eq!(startup, imported);
     }
 
     #[test]

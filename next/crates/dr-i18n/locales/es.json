@@ -355,9 +355,12 @@
         "carry_on": "Reanudar la importación",
         "unfinished": "«{{name}}» no terminó de importarse"
       },
+      "refused": {
+        "account_has_books": "Esta cuenta ya tiene libros; basta con sincronizar."
+      },
       "summary": {
-        "account_libraries_left_one": "{{count}} biblioteca de cuenta de la carpeta espera a que haya cuentas",
-        "account_libraries_left_other": "{{count}} bibliotecas de cuenta de la carpeta esperan a que haya cuentas",
+        "account_libraries_left_one": "{{count}} biblioteca de cuenta de la carpeta no se importó",
+        "account_libraries_left_other": "{{count}} bibliotecas de cuenta de la carpeta no se importaron",
         "already_imported": "Ya se importó en este dispositivo; se omitió",
         "already_in_library": "Ya está en la biblioteca; se dejó como está",
         "carries_on": "Sin terminar; importe de nuevo esta biblioteca para continuar",

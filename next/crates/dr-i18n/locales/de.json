@@ -353,9 +353,12 @@
         "carry_on": "Import fortsetzen",
         "unfinished": "„{{name}}“ wurde nicht fertig importiert"
       },
+      "refused": {
+        "account_has_books": "Dieses Konto hat schon Bücher; Synchronisieren genügt."
+      },
       "summary": {
-        "account_libraries_left_one": "{{count}} Kontobibliothek im Ordner wartet auf Konten",
-        "account_libraries_left_other": "{{count}} Kontobibliotheken im Ordner warten auf Konten",
+        "account_libraries_left_one": "{{count}} Kontobibliothek im Ordner wurde nicht importiert",
+        "account_libraries_left_other": "{{count}} Kontobibliotheken im Ordner wurden nicht importiert",
         "already_imported": "Auf diesem Gerät schon importiert; übersprungen",
         "already_in_library": "Schon in der Bibliothek; unverändert gelassen",
         "carries_on": "Nicht fertig; importiere diese Bibliothek noch einmal, um weiterzumachen",

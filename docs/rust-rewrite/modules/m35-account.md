@@ -17,11 +17,23 @@
    - **忘记密码**：发 6 位验证码并用新密码重置；
    - **Google OAuth 登录**：当服务端 `GET /api/auth/providers` 声明支持 `google` 时显示按钮，生成 256 位随机 `state` 与 PKCE S256 `challenge` 落盘到 `<数据目录>/native-oauth-state.json`（有效期 10 分钟），用系统浏览器打开 `/api/auth/oauth-redirect/google`，通过 `drifting://auth/callback`（或开发 scheme `drifting-next-dev://auth/callback`）收一次性 `code`，在后台向 `/api/auth/native-exchange` 换取会话令牌。即使弹窗关掉或应用冷启动收到深链也能完成登录。
 4. **每个账号独立书库，本地书库永远保留**：
-   - `<数据目录>/libraries.json` 维护本地书库（`id: "local"`，路径 `library/`）和各账号书库（`id: "account-<SHA-256(user.id)前16字节hex>"`，路径 `libraries/account-<hex>/`）；
+   - `<数据目录>/libraries.json` 维护本地书库（`id: "local"`，路径 `library/`）和各账号书库（`id: "account-<SHA-256(user.id)前16字节hex>"`，路径 `libraries/account-<hex>/`；登录时导入过 0.1 的账号改指导入的目录，见下文「登录状态下导入 0.1 的库」）；
    - 登录账号 A 切到 A 的书库，退出登录切回本地书库，换登账号 B 切到 B 的书库，各书库文件互不覆盖；
    - 内置示例书（《慢钟》等）只在本地书库首次打开时写入，账号书库保持空白留给 M36 恢复云端项目；
    - 离线启动或会话令牌过期（401 `NeedsReauth`）时**不踢回本地书库**，继续打开上次的账号书库离线写作。
 5. **个人资料与改密**：在「设置 → 账号」里支持修改显示名（`1..=80` UTF-16 码元）、选择头像图片（JPG/PNG/WebP ≤ 5 MiB，自动居中裁成 256×256 并在 `#141210` 底色上合成为 ≤ 128 KiB 的 JPEG Data URL）或移除头像、修改密码（校验当前密码，新密码 ≥ 8 字节，成功后轮换本机令牌并使其他设备下线）。
+
+## 登录状态下导入 0.1 的库（2026-11-20）
+
+登录时在「导入 Drifting 0.1」里导进来的书，进的是这个账号自己的书库（流程和规则在 [m10「登录状态下导入」](m10-import.md#登录状态下导入2026-11-20)）。账号这边改了三处：
+
+1. **账号的书库可以换一次目录。** 导入先写进数据目录里一个新的 `reimport-v5-<uuid>/`，导完以后 `LibraryRegistry::adopt_for_account` 把 `libraries.json` 里这个账号那一行改指它：id 还是 `account-<SHA-256(user.id) 前 16 字节 hex>`，owner 还是 `Account { subject }`，只有 `path` 变。所以账号书库不一定在 `libraries/account-<hex>/` 了，以登记表为准；原来那个空目录留在磁盘上，不再登记。只能改当前打开着的那个账号、只能从它现在的目录改、只能改到数据目录里一个已经存在而且没登记过的子目录。改了以后退出再登录（`activate_account` 按 id 找到这一行）、冷启动（`settle_for_startup`）都打开新目录。
+2. **`libraries.json` 的读改写加了一把进程内的锁**（`registry_lock`）。登录、退出、启动时的换库和导入的改指都先拿锁再读、改、存，免得后台刷新会话时用旧的内容把导入刚写的改指盖掉。
+3. **`AccountService::reload_active_library`**：重读登记表，当前打开的是这个已登录用户的账号书库时，把状态里的 `active_library_dir` 换成登记表里的目录。界面这边是 `dr_view_account::follow_library_registry`：导入换库成功后调它，账号栏、「设置 → 账号」和同步监督就都认新目录；不启动偏好同步，也不再换一次库。
+
+「每个账号独立书库」「登录不带入本机书库的书」不变：没登录时导入的照旧是新的本机书库（`Local`），和账号无关。
+
+测试：`dr-account` 的 `an_account_library_moves_once_to_an_imported_directory_and_keeps_it`；整条路在 `dr-view-import/tests/account.rs`。
 
 ## 定下的事
 

@@ -187,6 +187,23 @@ fn reconcile_shown_account(cx: &mut App) {
     cx.refresh_windows();
 }
 
+/// After a 0.1 import pointed the signed-in account at its new library and
+/// that library is open (`dr-view-import`): the account state names it, so
+/// the sync supervisor, which syncs only the account's own library, connects
+/// to it. Starts no preference sync and no library swap.
+pub fn follow_library_registry(cx: &mut App) {
+    if !cx.has_global::<Service>() {
+        return;
+    }
+    let state = cx.global::<Service>().inner.reload_active_library();
+    cx.update_global::<Service, _>(|svc, _| {
+        svc.state.active_library_dir = state.active_library_dir;
+        svc.state.is_account_library = state.is_account_library;
+    });
+    reconcile_shown_account(cx);
+    cx.refresh_windows();
+}
+
 fn build_avatar_render_image(data_url: &str) -> Option<Arc<RenderImage>> {
     let (w, h, rgba) = decode_avatar_rgba(data_url).ok()?;
     let mut bgra = RgbaImage::new(w, h);

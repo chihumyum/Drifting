@@ -350,8 +350,11 @@
         "carry_on": "接著匯入",
         "unfinished": "《{{name}}》沒匯入完"
       },
+      "refused": {
+        "account_has_books": "這個帳號已經有書了，直接同步就行。"
+      },
       "summary": {
-        "account_libraries_left": "資料夾裡還有 {{count}} 個帳號資料庫沒匯入，等帳號功能做好",
+        "account_libraries_left": "資料夾裡還有 {{count}} 個帳號資料庫沒匯入",
         "already_imported": "這台裝置以前匯入過，這次沒再匯入",
         "already_in_library": "新資料庫裡已經有這本書，沒有動",
         "carries_on": "沒匯入完，再匯入一次這個資料庫會接著匯入",
