@@ -10,7 +10,7 @@ mod view;
 
 pub use flow::{
     Done, DoneBook, Failed, Found, FoundLibrary, LegacyImport, QUIT_WAIT_BOOK, Ready, Running,
-    State, V1_DATA_DIR_ENV, find_local_libraries, v1_data_dir,
+    State, V1_DATA_DIR_ENV, find_libraries, find_local_libraries, v1_data_dir,
 };
 
 use gpui::{App, AppContext as _, Entity, Global};

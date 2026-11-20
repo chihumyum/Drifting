@@ -6,6 +6,61 @@
 
 2026-11-07，第一、第二个里程碑；2026-11-08，第三个里程碑（导入界面）、第四个里程碑（认领身份、取消、自动找旧库、真窗口验收）和第五个里程碑（没导完的提醒、多窗口）；同日第六个里程碑（旧模版写成模版文档）。计划见 [modules.md 的 M10](../modules.md#阶段-2写作闭环)，依据是 [P0-E 的结论和规格草稿](../spikes/p0-e-import.md)。导入本身在 `next/crates/dr-import-v1/`（不依赖 GPUI，不依赖 yrs / Yjs），界面在 `next/crates/dr-view-import/`；旧版这一侧只改了交接（`src/renderer/services/v2-handoff/`，[docs/v2-handoff.md](../../v2-handoff.md)）。测量证据在 [acceptance/m10-m4-import.json](../acceptance/m10-m4-import.json)（F8 的新格式，第四个里程碑重测），截图在 [m10/](m10/)。
 
+## 登录状态下导入（2026-11-20）
+
+### 做了什么（大白话）
+
+1. **登录了 Hosted 账号时，「导入 Drifting 0.1」导进这个账号自己的书库。** 和没登录时一样，先写进数据目录里一个新的 `reimport-v5-<uuid>/`，全部导完、索引建好才换过去。换的时候 `libraries.json` 里这个账号那一行改指新目录：id 还是 `account-<哈希>`，owner 还是这个账号；原来那个空的账号书库目录留在磁盘上，不再登记（`dr_account::LibraryRegistry::adopt_for_account`）。换完，账号状态跟着改（`dr_view_account::follow_library_registry`），同步监督看到打开的正是账号书库，就照常连上，把整个库传上去。
+2. **只在这个账号在新格式这边什么都没有时才导。** 这就是「一个账号只由一台设备导入」（「待协调」第 8 条）。
+   - 本机：打开着的账号书库里一篇文档都没有。回收站里的书、只在这台设备上的书都算有。选了旧库就查，有就当场拒绝。
+   - 服务端：开始写之前问一次这个账号的 `loro-v2` 里有没有记录（`GET …/loro-v2/changes?cursor=0&limit=1&includeRemovals=1`，`dr_sync::SyncHttpClient::feed_is_empty`）。服务端一直留着删除记录，所以只要传过东西就不会再是空的。有记录就拒绝。问不到也拒绝，不猜：断网、服务端出错、登录过期，或者这台设备上没有这个账号的会话。
+   - 导完、换库之前再问一次服务端，再看一次本机书库。这时才发现有东西，就留着导好的目录不换、不登记，照样拒绝。
+   - 一开始就被拒时什么都不写：不建目录，不写清单和续导指针，不碰 `libraries.json`，不认领旧版的安装身份，也不往服务端传东西。
+   - 第一台导完、同步上去以后，别的设备登录同一个账号，靠同步拿到全部书。它们再导，本机或服务端已经有东西，被拒。
+3. **没登录时一切照旧。** 导进一个新的本机书库，登记成 `Local`。登录不会把本机书库的书带进账号书库；退出登录回到本机书库，账号书库还是导进来的那个。
+4. **导入期间同步碰不到半成品。** 导入写的是一个没登记的新目录，同步只跟着打开着的书库走。换库时同步先暂停、排空；新库打开以后，要等账号状态跟上才连，所以第一次上传的就是导完的整库。导入被打断（退出 App、取消、崩溃）或者失败时，账号书库原样不动。续导指针按书库分开：本机书库的还是 `reimport-v5-pending.json`，账号书库的是 `reimport-v5-pending-<登记 id>.json`，各自续导、各自在启动时提醒。
+5. **自动找旧库时，登录了就先列 0.1 里同一个账号的库，再列 0.1 的本机库。** 别的账号的库不列，导完的摘要里照旧算进「没导入的账号资料库」。0.1 认账号库，看的是它登记表里每个库记的 owner（`{"kind":"account","subject":<user.id>}`），这里也照这个认，所以 0.1 早期认领给账号的 `legacy` 库也找得到。两边算账号库目录名的办法核对过：都是 SHA-256(账号 id) 前 16 字节的十六进制；新版多一步去掉首尾空白，账号 id 没有空白时结果一样。列表不靠这个名字。「选择文件夹」照旧能选任何一个 0.1 库。
+
+### 界面上的字
+
+只复用现有的对话框：列表、进度、出错。新加一句，改了一句，九种语言（`dr-i18n/own/`）：
+
+| 用在哪 | 键 | 中文 |
+| --- | --- | --- |
+| 被拒（本机或服务端已有书），「无法导入」对话框的正文 | `import.v1.refused.account_has_books`（新） | 这个账号已经有书了，直接同步就行。 |
+| 导完的摘要 | `import.v1.summary.account_libraries_left`（改） | 文件夹里还有 {{count}} 个账号资料库没导入（去掉了「，等账号功能做好」） |
+
+复用的旧文案：列表里账号库那一行写 `settings.rail.account`「账号」（本机库照旧写「本地」）；问不到服务端写 `settings.hosted.account_errors.generic`「未能完成操作，请检查网络后重试。」，登录过期写 `settings.hosted.account_errors.UNAUTHORIZED`「登录已过期，请重新登录。」。
+
+### 已知边界
+
+- **两台设备几乎同时导同一个账号。** 第一台问过服务端、还没传上去时，第二台也问了，两边都会导。这时可能在同一批操作 ID 下写出不同内容（「待协调」第 8 条说的那种情况）。服务端没有「先占住」的接口，客户端只能把这个空档缩到「最后一次问服务端」到「第一次上传」之间。要彻底挡住，需要服务端加一个原子的「领取导入」，写在「待协调」第 33 条。
+- **第二台设备 0.1 库里多出来的字进不来。** 原来设想的「之后的设备只拉 v2，自己多出来的改动逐篇提示作者」没做，现在是直接拒绝第二台导入。
+- **导完换库前才被拒时，导好的目录留在数据目录里**，不登记、不删；续导指针还指着它，下次再导同一个旧库还是先问服务端，照样被拒。
+
+### 测试
+
+`dr-view-import/tests/account.rs`，全部对着本机回环的 `FakeSyncServer`、合成令牌，旧库用 `dr-import-v1/tests/common` 的合成 0.1 库：
+
+| 测试 | 证明 |
+| --- | --- |
+| `signed_in_the_import_becomes_the_accounts_library_and_a_second_device_syncs_it` | GPUI 测试平台上从对话框导入：导完打开的是新目录，`libraries.json` 里账号那一行 id 和 owner 不变、改指新目录，没有多出本机书库；账号状态跟着改；导入期间服务端没收到任何东西；同步一次以后第二台设备（另一个数据目录）登录同一账号，同步拿到的每篇文档和第一台一样；它再导被拒（`AccountHasBooks`），数据目录里没留任何导入的东西，`libraries.json` 逐字节不变，服务端没多记录；0.1 源库的每个文件字节、大小和修改时间都不变 |
+| `the_dialog_refuses_an_account_that_has_books_here_or_on_the_server` | 服务端已有别的设备传的书：点「开始」后对话框显示「这个账号已经有书了，直接同步就行。」，什么都没写，打开的还是原来的空账号书库；同步进来以后再选旧库，当场就拒 |
+| `the_dialog_refuses_when_the_server_cannot_be_asked` | 断网、令牌被拒、服务端 503：分别显示两句复用的旧文案，什么都没写 |
+| `without_the_accounts_session_nothing_is_asked_and_nothing_is_written` | 没给会话、会话是别的账号的、走不带检查的旧入口：都拒绝，一次请求都没发，什么都没写 |
+| `an_interrupted_account_import_keeps_the_accounts_library_and_carries_on` | 还没写就取消：什么都没留；写到一半立刻停：`libraries.json` 不变、账号书库还是空的、服务端没东西，续导指针只在账号那一份里；接着导完同一个目录，换上去以后账号指向它；退出登录后照旧导进新的本机书库，账号那一行不受影响 |
+| `signed_in_the_list_offers_the_accounts_own_01_library_first_then_the_local_ones` | 0.1 的目录名算法和新版一致；登录时列表先是这个账号的库，再是本机库，别的账号的库进「没导入」；认领给账号的 `legacy` 也认得出 |
+
+另有 `dr-account` 的 `an_account_library_moves_once_to_an_imported_directory_and_keeps_it`（只能改指当前账号、当前那个目录、数据目录里一个已存在的子目录；改指以后退出再登录、冷启动都打开新目录）和 `dr-sync` 的 `an_account_feed_is_empty_until_anything_is_recorded_and_errors_are_never_empty`。
+
+### 代码位置
+
+- `next/crates/dr-view-import/src/reimport.rs`：`locate`（找打开着的书库属于哪个数据目录，账号书库在 `libraries/` 下）、`entry_of`、`pending_pointer`、`commit_selection` 的两种登记、`AccountCheck`、`Refusal`、`library_is_empty`、`import_for`。
+- `next/crates/dr-view-import/src/flow.rs`：`find_libraries`、选库时的本机检查、开始时取会话、`Msg::Refused`、换库前的再检查、换完调 `follow_library_registry`。
+- `next/crates/dr-account/src/library_registry.rs`：`adopt_for_account`、`registry_lock`；`client.rs`：`reload_active_library`。
+- `next/crates/dr-sync/src/protocol.rs`：`feed_is_empty`。
+- `next/crates/dr-view-account/src/lib.rs`：`follow_library_registry`。
+
 ## 内核 v5：0.1 导入收尾、素材夹、素材说明／出处批注与清单投影（T8，2026-11-15）
 
 ### 做了什么（大白话）
@@ -279,8 +334,8 @@ cargo test -p dr-import-v1 --test v3_manifest --locked
 
 `run::import(旧库文件, 新库文件夹, Options)`；要进度时用 `run::import_with(…, &mut |p| …)`（见下文「进度」）；App 里用 `run::import_into_library(旧库文件, &已打开的库, Options, 回调)`，同一条路，写进 App 开着的库、导完不关（见下文「导入界面」）：
 
-1. **找库**（`locate`）：照旧版 `library_registry.rs` 和 `data_paths.rs` 的规则。旧版应用数据目录（正式版身份的 `AppDirs::data`，F7）里的 `libraries.json` 列出各个库：`legacy` 就是这个目录本身，其他的在 `libraries/<id>/`；每个库的数据库是 `databases/drifting-library.db`，资源、安装身份、Markdown 文件夹状态在库根下。没有登记表就只有 `legacy`；登记表坏了直接拒绝，不重置（和旧版一样）。本机库（`local`）和各账号库（`account-<哈希>`）都能列出来，各导进各自的新库（按账号分库是 M35 / M36 的事）。作者在界面上选的文件夹由 `locate::resolve` 认：
-   - 旧版的应用数据目录（有登记表、`libraries/` 或 `databases/drifting-library.db`）：取其中的本机库（没认领过的或认领为本机的 `legacy`，或 `local`；两个都在时取当前打开的那个）。账号库这一轮不导，记进摘要；只有账号库时拒绝。
+1. **找库**（`locate`）：照旧版 `library_registry.rs` 和 `data_paths.rs` 的规则。旧版应用数据目录（正式版身份的 `AppDirs::data`，F7）里的 `libraries.json` 列出各个库：`legacy` 就是这个目录本身，其他的在 `libraries/<id>/`；每个库的数据库是 `databases/drifting-library.db`，资源、安装身份、Markdown 文件夹状态在库根下。没有登记表就只有 `legacy`；登记表坏了直接拒绝，不重置（和旧版一样）。本机库（`local`）和各账号库（`account-<哈希>`）都能列出来。没登录时导进一个新的本机书库，登录时导进这个账号自己的书库（见「登录状态下导入」）。作者在界面上选的文件夹由 `locate::resolve` 认：
+   - 旧版的应用数据目录（有登记表、`libraries/` 或 `databases/drifting-library.db`）：取其中的本机库（没认领过的或认领为本机的 `legacy`，或 `local`；两个都在时取当前打开的那个）。账号库不在这里取，记进摘要；只有账号库时拒绝。要导某个账号库，选那个库的根目录，或登录后从列表里点它（见「登录状态下导入」）。
    - 一个库的根目录（里面有 `databases/drifting-library.db`），比如 `libraries/<id>`。
    - 那个库的 `databases` 文件夹：库根是它的上一级。
    - 别的文件夹：报「不是 0.1 的库」。
@@ -566,7 +621,7 @@ Agent 的结算记录、读取回执、检查点、事件流、长任务状态�
   - 否则，正式版身份用自己的数据文件夹（`AppDirs::for_identity(RELEASE).data`，和旧版是同一个文件夹）；
   - 开发版没有对应的旧版，不去看正式版的文件夹：找不到，就直接弹系统面板。
   
-  找到以后用 `locate::discover` 读登记表，只看文件在不在、改过的时间，不打开旧库的数据库（打开会在旁边留下 `-wal`、`-shm`）。列出的是本机库（没认领的或认领为本机的 `legacy`，以及 `local`），账号库这一轮不导（M35），记进摘要。
+  找到以后用 `locate::discover` 读登记表，只看文件在不在、改过的时间，不打开旧库的数据库（打开会在旁边留下 `-wal`、`-shm`）。列出的是本机库（没认领的或认领为本机的 `legacy`，以及 `local`）；登录时最前面再加 0.1 里同一个账号的库（见「登录状态下导入」）。不列的账号库记进摘要。
 - **退出 App**：`dr_view_import::init` 登记了一个退出钩子（`LegacyImport::stop_for_quit`），见「流程 → 进度」里的取消。
 
 ### 文案
@@ -758,7 +813,7 @@ cargo xtask check
 5. **F1：容器块 ID 没有地方放。** 引用块、列表项、任务项的块 ID 在 D3 里不是段落 ID。M10 把所有引用改指容器的第一段 / 最后一段，容器第一段没 ID 时拿容器的。P0-E 设想过「容器路径」，F1 没有采用；有了这条改指规则，目前不需要。
 6. **F1：新版不认识的行内对象存不下**（`insert_text` 拒绝 U+FFFC，也没有 P0-E 设想的 `inline` 标记）。M10 从正文里去掉它，JSON 原样进回执；五份库和旧编辑配置里都没有这种节点。
 7. **M24：删掉的内置样书不能回来。** 旧版的样书标记在 `receipt.sqlite` 的 `local_library_state` 里，M24 做首次体验时要读它。
-8. **M36：一个账号只能由一台设备导入。** 导入对等方是确定的：同一个旧库在两台设备各导一次，字节相同、合并后不重复（测试证明）。但如果两台设备上的旧库内容不同（第一台导入之后，第二台又在旧版里写过），两边会在**同一批操作 ID 下写出不同的内容**。Loro 合并时把后来的当作已有、悄悄跳过，两边从此不一致。所以 P0-E 的规则在 M36 里是必须的，不是可选的：第一台导入并把回执随 v2 上传；之后的设备只拉 v2，自己多出来的改动逐篇提示作者，作为普通编辑合进去。同一台设备上，M10 已经拒绝把同一本书导第二次。
+8. **M36：一个账号只能由一台设备导入。**（2026-11-20 落地成「账号在新格式这边已有东西就拒绝导入」，见「登录状态下导入」；下面说的「之后的设备自己多出来的改动逐篇提示作者」没做。） 导入对等方是确定的：同一个旧库在两台设备各导一次，字节相同、合并后不重复（测试证明）。但如果两台设备上的旧库内容不同（第一台导入之后，第二台又在旧版里写过），两边会在**同一批操作 ID 下写出不同的内容**。Loro 合并时把后来的当作已有、悄悄跳过，两边从此不一致。所以 P0-E 的规则在 M36 里是必须的，不是可选的：第一台导入并把回执随 v2 上传；之后的设备只拉 v2，自己多出来的改动逐篇提示作者，作为普通编辑合进去。同一台设备上，M10 已经拒绝把同一本书导第二次。
 9. **M09：恢复时的重名。** 导入的历史版本里，要素的名字或别名可能和现在别的要素重名。M09 的按对象恢复要照 0.1 的做法：重名时保留现在的名字和别名，只恢复别的字段。
 10. **F6：界面。** 第三个里程碑做了，见「导入界面」。界面这边还要别的会话配合的，是下面第 13–17 条。
 11. **F8：`f8-testkit.md` 的「待协调 → dr-import-v1」**：「证据换新格式」这一轮做完了，那一条可以删。
@@ -780,7 +835,7 @@ cargo xtask check
     | `import.v1.summary.already_imported` | 状态：这台设备以前导过，没有再导 | |
     | `import.v1.summary.already_in_library` | 状态：新库里已经有这本书（从别的设备同步来的，或在新版里建的），没有动 | |
     | `import.v1.summary.from_caches` | 有几篇照缓存导入，可能少了最后几秒的字 | 篇数 |
-    | `import.v1.summary.account_libraries_left` | 文件夹里还有几个账号库没导，等账号功能（M35） | 个数 |
+    | `import.v1.summary.account_libraries_left` | 文件夹里还有几个账号库没导（2026-11-20 起去掉了「等账号功能」那半句） | 个数 |
     | `import.v1.summary.carries_on` | 状态：这本书没导完（导入时退出了 App），再导一次这个库会接着导完 | |
 
     **已做**：新版自己的文案放在 `dr-i18n/own/`，`sync-locales.py` 把它并进 `locales/`；前 13 句是 F6 第五轮写的，第 14 句（`carries_on`）第十一批整合时补上，九种语言齐全，`copy.rs` 的占位删了。
@@ -827,6 +882,8 @@ cargo xtask check
 31. **K3 / K4：应用样书入口与 v3 索引接线。** 本段提供样书的 v3 生成／写库入口，原 App 仍按并存规则走 v2.2 的 `ensure_built_in`；旧索引不能用于 v3 书目。K4 接好新版工作区和索引后再切换默认入口／样书 once-only 接线并解除旧派生器门槛。本段没有跨入 dr-workspace、dr-index 或 dr-shell。
 32. **交回检查 / M40：Markdown 往返的链接前感叹号（已修复、阻塞解除）。** 同步 main `16f062d7` 后，全量测试在 `dr-mirror::body::tests::what_is_written_reads_back` 生成并稳定复现了失败：普通文本反斜杠和 `!` 后紧接带链接的「钟」，写出后被读成图片，只剩反斜杠。生成器的 `out.ends_with("\\!")` 把偶数个反斜杠也当作感叹号已转义。自动保存的 proptest 种子为 `37793c5b665db11cb1d76bdbe23dca949c368d4f15ef153ebb753c9c1a75c6d4`；直接运行同一测试二进制立即重现（0 通过／1 失败）。相关 dr-mirror／dr-export 源码与当时 main 一致。本项超出 K3 的两个 crate，作者明确授权后由 `897551ac` 一行修复并保留自动回归种子；定向 29 项和最终 workspace 2033 项均通过。
 
+33. **服务端 / M36：导入前「先占住」账号。** 登录状态下导入只能问服务端「这个账号的 `loro-v2` 是不是空的」，两台设备几乎同时问都会得到「空」（见「登录状态下导入 → 已知边界」）。要彻底做到一个账号只由一台设备导入，需要服务端给一个原子的领取：比如在 `loro-v2` 里写一条固定键的对象（同键已有就 `409`），客户端领到了才开始写。服务端在独立仓库，这一轮没动。
+
 ## 内核 v5 · 0.1 内置「关联」下的笔记关系（RI，2026-11-18）
 
 从 0.1 导入的笔记和章、要素之间的关系，可以在对应条目的右栏「关系」中点「当前」查看。没有同名关系时建一种普通的单向「关联」，描述留空，笔记放在左边。已有规范化后同名的关系时，沿用其定义和方向。配对按 0.1 创建时间逐一进入共用的 `plan_relation_pair`，同秒内也按毫秒排序，时间相同按原始关系 ID 排序。两条笔记各自指向同一章时并成一行。规则见 [kernel-v5 第 19 节](../kernel-v5.md#19-关系重做)。
@@ -845,7 +902,7 @@ cargo xtask check
   - 资源文件的 `display` / `thumbnail` 没搬。
   - Windows 上「旧版是否开着」的判断（独占打开）只在 CI 能验。
 - **下一个里程碑建议**：
-  1. 按账号库逐个导入的流程（和 M35 一起）：`locate::discover` 列出的每个库导进各自的新库，进度按库再分一层；
+  1. ~~按账号库逐个导入的流程~~：2026-11-20 改成登录哪个账号就导进哪个账号的书库（见「登录状态下导入」），不一次导多个库；
   2. 导入 `.drifting` 整库备份（解压到暂存目录后走同一条路）；
   3. F2 不再给导入的文档打 `close` 历史点之后，测试里去掉对它的豁免（待协调 1）；
   4. 阶段 7：用最后一个 0.1 标签重新生成五份测试库，作为 release 附件，测试里钉住 SHA-256，`m10-measure` 改读附件。

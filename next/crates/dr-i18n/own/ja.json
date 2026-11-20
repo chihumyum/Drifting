@@ -62,8 +62,11 @@
         "carry_on": "インポートを再開",
         "unfinished": "「{{name}}」のインポートが終わっていません"
       },
+      "refused": {
+        "account_has_books": "このアカウントにはもう本があります。同期するだけで大丈夫です。"
+      },
       "summary": {
-        "account_libraries_left": "フォルダー内のアカウントライブラリ {{count}} 件は、アカウント機能ができるまでインポートしません",
+        "account_libraries_left": "フォルダー内のアカウントライブラリ {{count}} 件はインポートしていません",
         "already_imported": "このデバイスで以前インポート済みのため、スキップしました",
         "already_in_library": "すでにライブラリにあるため、そのままにしました",
         "carries_on": "途中で止まりました。このライブラリをもう一度インポートすると続きから取り込みます",

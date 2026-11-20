@@ -9,7 +9,8 @@ use std::sync::{
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use crate::reimport::{self, Destination, ResultOfImport};
+use crate::reimport::{self, AccountCheck, Destination, Refusal, ResultOfImport};
+use dr_account::LibraryOwner;
 use dr_i18n::keys;
 use dr_import_v1::gate::{Accept, Gate, Reason};
 use dr_import_v1::locate::{self, Owner, Picked};
@@ -68,11 +69,13 @@ pub struct Found {
     pub libraries: Vec<FoundLibrary>,
 }
 
-/// A local 0.1 library on this device.
+/// A 0.1 library on this device: a local one, or the signed-in account's.
 #[derive(Clone, Debug)]
 pub struct FoundLibrary {
     /// What the dialogs call it: the last part of its folder.
     pub folder: String,
+    /// The signed-in account's 0.1 library (else a local one).
+    pub account: bool,
     pub picked: Picked,
     /// When its database last changed, ms since the epoch.
     pub modified_ms: Option<i64>,
@@ -146,6 +149,7 @@ enum Msg {
     Progress(Progress),
     Blocked(Gate),
     Cancelled,
+    Refused(Refusal),
     Done(Done, Box<Destination>),
     Pending(Vec<Pending>),
     Failed(String),
@@ -230,10 +234,15 @@ impl LegacyImport {
             return;
         }
         self.window = Some(window.window_handle());
+        // Signed in: the account's own 0.1 library is offered too, first.
+        let subject = open_owner(cx).and_then(|owner| match owner {
+            LibraryOwner::Account { subject } => Some(subject),
+            LibraryOwner::Local => None,
+        });
         let libraries = self
             .v1_dir
             .as_deref()
-            .map(find_local_libraries)
+            .map(|dir| find_libraries(dir, subject.as_deref()))
             .unwrap_or_default();
         if libraries.is_empty() {
             self.choose_folder(window, cx);
@@ -330,6 +339,16 @@ impl LegacyImport {
             .and_then(|old| Destination::prepare(&old, &picked))
         {
             Ok(mut job) => {
+                // An account that already has books here is synced, not
+                // imported into: refused before anything is written.
+                if let Some(ws) = library
+                    && matches!(job.owner(), Ok(LibraryOwner::Account { .. }))
+                    && !reimport::library_is_empty(ws).unwrap_or(false)
+                {
+                    let message = refusal_text(&Refusal::AccountHasBooks, cx);
+                    self.fail(Some(folder), message, window, cx);
+                    return;
+                }
                 let explicit_choices = serde_json::to_value(&job.choices).ok()
                     != serde_json::to_value(MappingChoices::default()).ok();
                 // An interrupted import refuses the change and carries on
@@ -615,6 +634,27 @@ impl LegacyImport {
             .try_global::<ShellInfo>()
             .map_or(env!("CARGO_PKG_VERSION"), |i| i.version)
             .to_owned();
+        // Into an account's library: the server is asked with its session.
+        let account = match job.owner() {
+            Ok(LibraryOwner::Account { subject }) => match account_check(&subject, cx) {
+                Some(check) => Some(check),
+                None => {
+                    let refusal = Refusal::Unasked {
+                        expired: false,
+                        why: "no session for the account this library belongs to".into(),
+                    };
+                    log::warn!("the 0.1 library import was refused: {refusal:?}");
+                    let message = refusal_text(&refusal, cx);
+                    self.fail(Some(folder), message, window, cx);
+                    return;
+                }
+            },
+            Ok(LibraryOwner::Local) => None,
+            Err(error) => {
+                self.fail(Some(folder), error, window, cx);
+                return;
+            }
+        };
         self.cancel = Cancel::default();
         let cancel = self.cancel.clone();
         let (tx, mut rx) = futures::channel::mpsc::unbounded::<Msg>();
@@ -627,12 +667,20 @@ impl LegacyImport {
                 .spawn(move || {
                     let _live = live;
                     let reports = tx.clone();
-                    let outcome = reimport::import(job, &version, accept, cancel, &mut |p| {
-                        let _ = reports.unbounded_send(Msg::Progress(p.clone()));
-                    });
+                    let outcome = reimport::import_for(
+                        job,
+                        &version,
+                        accept,
+                        cancel,
+                        account.as_ref(),
+                        &mut |p| {
+                            let _ = reports.unbounded_send(Msg::Progress(p.clone()));
+                        },
+                    );
                     let msg = match outcome {
                         Ok(ResultOfImport::Blocked(gate)) => Msg::Blocked(gate),
                         Ok(ResultOfImport::Cancelled) => Msg::Cancelled,
+                        Ok(ResultOfImport::Refused(refusal)) => Msg::Refused(refusal),
                         Ok(ResultOfImport::Imported {
                             job,
                             receipt,
@@ -749,6 +797,13 @@ impl LegacyImport {
                 log::info!("the 0.1 library import was cancelled before writing anything");
                 self.close_now(window, cx);
             }
+            Msg::Refused(refusal) => {
+                log::warn!("the 0.1 library import was refused: {refusal:?}");
+                self.state = State::Failed(Failed {
+                    folder: Some(folder.to_owned()),
+                    message: refusal_text(&refusal, cx),
+                });
+            }
             Msg::Done(done, job) => {
                 let job = *job;
                 self.destination = Some(job.clone());
@@ -775,6 +830,19 @@ impl LegacyImport {
                 );
                 if done.cancelled || !job.completed || self.draining {
                     self.state = State::Done(done);
+                } else if matches!(job.owner(), Ok(LibraryOwner::Account { .. }))
+                    && !open_library_is_empty(cx)
+                {
+                    // Books came into the account's library meanwhile (synced
+                    // from another device): the complete target is kept, not
+                    // taken up.
+                    log::warn!(
+                        "the account's library is no longer empty; the import is kept aside"
+                    );
+                    self.state = State::Failed(Failed {
+                        folder: Some(done.folder),
+                        message: refusal_text(&Refusal::AccountHasBooks, cx),
+                    });
                 } else {
                     self.activate(job, done, cx);
                 }
@@ -833,6 +901,11 @@ impl LegacyImport {
                     move |old, options| job.open_target(old, options),
                     move |ws| commit.commit_selection(ws),
                     move |result, cx| {
+                        // Signed in: the account now owns the imported library
+                        // and sync connects to it.
+                        if result.is_ok() {
+                            dr_view_account::follow_library_registry(cx);
+                        }
                         this.update(cx, |import, cx| {
                             import.state = match result {
                                 Ok(()) => State::Done(done),
@@ -936,10 +1009,17 @@ pub fn v1_data_dir() -> Option<PathBuf> {
 }
 
 /// The local 0.1 libraries in the 0.1 data folder `base` (the registry's
-/// `legacy` and `local` ones whose database exists; account libraries wait
-/// for M35), the active one first. Reads the registry and the files' times
-/// only.
+/// `legacy` and `local` ones whose database exists), the active one first.
+/// Reads the registry and the files' times only.
 pub fn find_local_libraries(base: &Path) -> Vec<FoundLibrary> {
+    find_libraries(base, None)
+}
+
+/// The 0.1 libraries in `base` an import can be offered for: signed in as
+/// `subject`, that account's own 0.1 library first (0.1 finds it the same way,
+/// by the owner its registry records), then the local ones; other accounts'
+/// libraries are left. Reads the registry and the files' times only.
+pub fn find_libraries(base: &Path, subject: Option<&str>) -> Vec<FoundLibrary> {
     let all = match locate::discover(base) {
         Ok(all) => all,
         Err(error) => {
@@ -948,24 +1028,76 @@ pub fn find_local_libraries(base: &Path) -> Vec<FoundLibrary> {
         }
     };
     let existing: Vec<_> = all.into_iter().filter(|l| l.exists).collect();
-    existing
+    let is_local = |l: &locate::LegacyLibrary| matches!(l.owner, None | Some(Owner::Local));
+    let is_mine = |l: &locate::LegacyLibrary| {
+        subject.is_some_and(|me| {
+            matches!(&l.owner, Some(Owner::Account { subject }) if subject.trim() == me.trim())
+        })
+    };
+    let offered = |l: &&locate::LegacyLibrary| is_mine(l) || is_local(l);
+    let mut out: Vec<FoundLibrary> = existing
         .iter()
-        .filter(|l| matches!(l.owner, None | Some(Owner::Local)))
+        .filter(offered)
         .map(|l| FoundLibrary {
             folder: folder_name(&l.root),
+            account: is_mine(l),
             picked: Picked {
                 database: l.database.clone(),
                 root: l.root.clone(),
                 id: Some(l.id.clone()),
                 left: existing
                     .iter()
-                    .filter(|o| o.id != l.id && !matches!(o.owner, None | Some(Owner::Local)))
+                    .filter(|o| o.id != l.id && !is_local(o))
                     .map(|o| o.id.clone())
                     .collect(),
             },
             modified_ms: modified_ms(&l.database),
         })
-        .collect()
+        .collect();
+    // Stable: the active one stays first among its kind.
+    out.sort_by_key(|l| !l.account);
+    out
+}
+
+/// Who owns the library open now ([`Destination::owner`]'s rule).
+fn open_owner(cx: &App) -> Option<LibraryOwner> {
+    let ws = cx.try_global::<Services>()?.library.as_ref()?;
+    reimport::library_owner(&ws.library().paths().root).ok()
+}
+
+fn open_library_is_empty(cx: &App) -> bool {
+    cx.try_global::<Services>()
+        .and_then(|s| s.library.as_ref())
+        .is_some_and(|ws| reimport::library_is_empty(ws).unwrap_or(false))
+}
+
+/// The server check for an import into `subject`'s library: the signed-in
+/// session, when it is that account's.
+fn account_check(subject: &str, cx: &App) -> Option<AccountCheck> {
+    let svc = cx.try_global::<dr_view_account::Service>()?;
+    let user = svc.state.user.as_ref()?;
+    if user.id.trim() != subject.trim() {
+        return None;
+    }
+    let base_url = svc.state.origin.as_ref()?.as_str().to_owned();
+    let access_token = svc.inner.current_token()?;
+    Some(AccountCheck {
+        subject: subject.to_owned(),
+        base_url,
+        access_token,
+    })
+}
+
+/// What the failure dialog says for `refusal`.
+fn refusal_text(refusal: &Refusal, cx: &App) -> String {
+    match refusal {
+        Refusal::AccountHasBooks => t(cx, keys::import::v1::refused::ACCOUNT_HAS_BOOKS),
+        Refusal::Unasked { expired: true, .. } => {
+            t(cx, keys::settings::hosted::account_errors::UNAUTHORIZED)
+        }
+        Refusal::Unasked { .. } => t(cx, keys::settings::hosted::account_errors::GENERIC),
+    }
+    .to_string()
 }
 
 fn modified_ms(path: &Path) -> Option<i64> {

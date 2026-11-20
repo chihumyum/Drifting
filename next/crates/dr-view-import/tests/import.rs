@@ -669,6 +669,7 @@ fn reimport_dialog_copy_is_localized_in_all_nine_languages_without_mapping_json_
             keys::import::v1::summary::ALREADY_IMPORTED,
             keys::import::v1::summary::ALREADY_IN_LIBRARY,
             keys::import::v1::summary::CARRIES_ON,
+            keys::import::v1::refused::ACCOUNT_HAS_BOOKS,
         ] {
             let text = i18n.t(key);
             assert!(!text.is_empty(), "{locale:?} {}", key.name());

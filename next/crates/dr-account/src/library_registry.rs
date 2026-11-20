@@ -9,9 +9,15 @@
 //! library directory without copying local books into the account library. Signing out
 //! activates the local library again while keeping the account library directory on disk
 //! so re-signing into the same account immediately restores its local state.
+//!
+//! An account's library can move once: importing a 0.1 library while signed in
+//! writes a separate directory and, when it is complete, the account's entry is
+//! pointed at it ([`LibraryRegistry::adopt_for_account`]). The entry keeps its id;
+//! the previous (empty) directory stays on disk.
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, MutexGuard};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
@@ -46,6 +52,16 @@ pub struct LibraryRegistry {
     pub version: u32,
     pub active_id: String,
     pub entries: Vec<LibraryEntry>,
+}
+
+static REGISTRY_LOCK: Mutex<()> = Mutex::new(());
+
+/// Held around one read-modify-write of `<data>/libraries.json` (load, change,
+/// save), so two writers in this process cannot lose each other's change: a
+/// session refresh activating an account while an import points that account
+/// at its new library, for one.
+pub fn registry_lock() -> MutexGuard<'static, ()> {
+    REGISTRY_LOCK.lock().unwrap_or_else(|e| e.into_inner())
 }
 
 /// Deterministic library id for an account `subject` (`account-<first 16 bytes of SHA-256 hex>`).
@@ -222,6 +238,55 @@ impl LibraryRegistry {
         Ok(dir)
     }
 
+    /// Points the active account library at `rel_path` (one directory name
+    /// under `data_dir`): the import of a 0.1 library while signed in, once the
+    /// new library is complete. Only while `subject`'s library is the active one
+    /// and is still `from`; the entry keeps its id and owner, and `from` stays on
+    /// disk. Persists `<data>/libraries.json` and returns the new directory.
+    pub fn adopt_for_account(
+        &mut self,
+        data_dir: &Path,
+        subject: &str,
+        from: &Path,
+        rel_path: &str,
+    ) -> Result<PathBuf, String> {
+        let subject = subject.trim();
+        if subject.is_empty() || !self.is_active_account(subject) {
+            return Err("the account's library is no longer the active one".into());
+        }
+        if self.active_library_dir(data_dir) != from {
+            return Err("the account's library changed".into());
+        }
+        if rel_path.is_empty()
+            || rel_path == "."
+            || rel_path == ".."
+            || rel_path.contains(['/', '\\'])
+            || rel_path.chars().any(char::is_control)
+        {
+            return Err("invalid library directory".into());
+        }
+        if self
+            .entries
+            .iter()
+            .any(|e| e.path == rel_path || e.id == rel_path)
+        {
+            return Err("library directory is already registered".into());
+        }
+        let dir = resolve_entry_dir(data_dir, rel_path);
+        if !dir.is_dir() {
+            return Err(format!("{} is not a library directory", dir.display()));
+        }
+        let active = self.active_id.clone();
+        let entry = self
+            .entries
+            .iter_mut()
+            .find(|e| e.id == active)
+            .ok_or("the account's library is not registered")?;
+        entry.path = rel_path.to_owned();
+        self.save(data_dir)?;
+        Ok(dir)
+    }
+
     /// Switch the active library back to the local library without deleting any
     /// account library directories on disk.
     pub fn activate_local(&mut self, data_dir: &Path) -> Result<PathBuf, String> {
@@ -251,6 +316,7 @@ impl LibraryRegistry {
         has_session_token: bool,
         known_subject: Option<&str>,
     ) -> Result<(Self, PathBuf), String> {
+        let _held = registry_lock();
         let mut reg = Self::load_or_init(data_dir)?;
         let dir = if !has_session_token {
             reg.activate_local(data_dir)?

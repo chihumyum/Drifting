@@ -348,8 +348,11 @@
         "carry_on": "接着导入",
         "unfinished": "《{{name}}》没导完"
       },
+      "refused": {
+        "account_has_books": "这个账号已经有书了，直接同步就行。"
+      },
       "summary": {
-        "account_libraries_left": "文件夹里还有 {{count}} 个账号资料库没导入，等账号功能做好",
+        "account_libraries_left": "文件夹里还有 {{count}} 个账号资料库没导入",
         "already_imported": "这台设备以前导入过，这次没再导入",
         "already_in_library": "新资料库里已经有这本书，没有动",
         "carries_on": "没导入完，再导入一次这个资料库会接着导入",

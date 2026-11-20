@@ -8,7 +8,7 @@ use dr_platform::SecretStore;
 use serde::{Deserialize, Serialize};
 
 use crate::endpoint::{HostedConfig, HostedOrigin};
-use crate::library_registry::LibraryRegistry;
+use crate::library_registry::{LibraryRegistry, registry_lock};
 use crate::oauth::{
     PendingNativeOAuth, build_oauth_redirect_url, clear_pending_oauth, consume_pending_oauth,
     parse_oauth_callback_url, save_pending_oauth,
@@ -913,6 +913,26 @@ impl AccountService {
         self.state.lock().expect("account state lock").clone()
     }
 
+    /// After `<data>/libraries.json` pointed the signed-in account at another
+    /// directory (a 0.1 import while signed in): the state names it as the
+    /// account's library. Changes nothing unless the active entry is the
+    /// signed-in user's account library.
+    pub fn reload_active_library(&self) -> AccountState {
+        let registry = {
+            let _held = registry_lock();
+            LibraryRegistry::load_or_init(&self.data_dir)
+        };
+        let mut guard = self.state.lock().expect("account state lock");
+        if let Ok(registry) = registry
+            && let Some(user) = guard.user.as_ref()
+            && registry.is_active_account(&user.id)
+        {
+            guard.active_library_dir = registry.active_library_dir(&self.data_dir);
+            guard.is_account_library = true;
+        }
+        guard.clone()
+    }
+
     /// Bootstrap session state against the Hosted origin (or settle immediately in local-only mode).
     pub fn bootstrap(&self) -> AccountState {
         let Some(origin) = self.config.origin() else {
@@ -924,11 +944,13 @@ impl AccountService {
         let token = self.token_store.read(origin).ok().flatten();
 
         let Some(token) = token else {
+            let held = registry_lock();
             let mut reg = LibraryRegistry::load_or_init(&self.data_dir)
                 .unwrap_or_else(|_| LibraryRegistry::default_local());
             let dir = reg
                 .activate_local(&self.data_dir)
                 .unwrap_or_else(|_| reg.local_library_dir(&self.data_dir));
+            drop(held);
             let mut guard = self.state.lock().expect("account state lock");
             guard.providers = providers;
             guard.status = SessionStatus::SignedOut;
@@ -1169,11 +1191,13 @@ impl AccountService {
             let _ = self.client.sign_out(origin, &tok);
         }
 
-        let mut reg = LibraryRegistry::load_or_init(&self.data_dir)
-            .map_err(|e| AccountError::new(AccountErrorCode::Unknown, e.to_string()))?;
-        let local_dir = reg
-            .activate_local(&self.data_dir)
-            .map_err(|e| AccountError::new(AccountErrorCode::Unknown, e.to_string()))?;
+        let local_dir = {
+            let _held = registry_lock();
+            let mut reg = LibraryRegistry::load_or_init(&self.data_dir)
+                .map_err(|e| AccountError::new(AccountErrorCode::Unknown, e.to_string()))?;
+            reg.activate_local(&self.data_dir)
+                .map_err(|e| AccountError::new(AccountErrorCode::Unknown, e.to_string()))?
+        };
 
         let mut guard = self.state.lock().expect("account state lock");
         guard.status = SessionStatus::SignedOut;
@@ -1221,11 +1245,13 @@ impl AccountService {
         user: HostedUser,
         providers_override: Option<AuthProviders>,
     ) -> Result<AccountState, AccountError> {
-        let mut reg = LibraryRegistry::load_or_init(&self.data_dir)
-            .map_err(|e| AccountError::new(AccountErrorCode::Unknown, e.to_string()))?;
-        let account_dir = reg
-            .activate_account(&self.data_dir, &user.id)
-            .map_err(|e| AccountError::new(AccountErrorCode::Unknown, e.to_string()))?;
+        let account_dir = {
+            let _held = registry_lock();
+            let mut reg = LibraryRegistry::load_or_init(&self.data_dir)
+                .map_err(|e| AccountError::new(AccountErrorCode::Unknown, e.to_string()))?;
+            reg.activate_account(&self.data_dir, &user.id)
+                .map_err(|e| AccountError::new(AccountErrorCode::Unknown, e.to_string()))?
+        };
 
         let mut guard = self.state.lock().expect("account state lock");
         if let Some(p) = providers_override {

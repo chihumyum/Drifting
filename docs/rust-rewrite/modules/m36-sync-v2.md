@@ -8,6 +8,17 @@
 
 **交回状态**：第四十批已接收 `handback/track4` → `8275c95f`；第三十七批路径问题修复、永久回归及全套整合检查通过。接收范围为传输层与状态接口，生产调度边界见本文末尾。
 
+## 登录状态下导入 0.1 以后的同步（2026-11-20）
+
+登录时可以把 0.1 的库导进账号的书库了（[m10「登录状态下导入」](m10-import.md#登录状态下导入2026-11-20)）。同步这边：
+
+1. **导入前问服务端一次**：`SyncHttpClient::feed_is_empty(token)` 发 `GET /api/sync/v1/loro-v2/changes?cursor=0&limit=1&includeRemovals=1`，`changes` 为空、`hasMore` 为假才算空。服务端一直留着 `docPurge` 墓碑，所以账号只要传过东西就不会再是空的。断网、`401`、`5xx` 一律是错误，导入当作「问不到」拒绝，不当成空。导完、换库之前再问一次。不用新接口，服务端不用改。
+2. **同步看不到半成品**：导入写的是没登记的新目录，`SyncRuntime` 只挂在打开着的书库上。换库时照常先 `pause_for_release` / `drain_and_detach`；新库打开时账号状态里的目录还是旧的，监督按「打开的不是账号书库」暂停在 `SignedOut`；导入随后调 `dr_view_account::follow_library_registry`，账号状态改成新目录，监督再连上。新库里没有 `sync-v2` 状态，游标从 0 开始：先拉（服务端是空的），再把整个库传上去。
+3. **第二台设备**登录同一账号，同步把全部书拉进它自己的账号书库；它再导，本机已有文档、服务端已有记录，被拒。测试对比了两台设备每篇文档的值。
+4. **还挡不住的**：两台设备几乎同时导入同一账号（都在对方上传前问过服务端）。M10「待协调」第 8 条说的「同一批操作 ID 下写出不同内容」在这个空档里仍可能发生；要彻底挡住需要服务端给一个原子的「领取导入」（M10「待协调」第 33 条）。
+
+测试：`dr-sync` 的 `an_account_feed_is_empty_until_anything_is_recorded_and_errors_are_never_empty`；导入到同步的整条路在 `dr-view-import/tests/account.rs`。
+
 ## 目标与范围
 
 对应当时的任务书（`handoff/m36-sync-v2.md`，已随过程文档清理删除，在 git 历史里）、`docs/hosted-sync/README.md` 与 `docs/hosted-sync/sync-status.md`，在 `next/` 工作区实现 Hosted 同步 v2（`dr-sync` 服务层 crate 与 `dr-view-account::sync_mark` 界面层记号视图）：

@@ -594,6 +594,16 @@ impl SyncHttpClient {
         })
     }
 
+    /// Whether this account has nothing at all in `loro-v2`: no update, asset
+    /// or removal was ever recorded (`GET …/changes?cursor=0&limit=1`, removals
+    /// included; the server keeps every removal, so a feed that ever held
+    /// something is never empty again). Asked once; an unreachable server or
+    /// an expired session is an error, never "empty".
+    pub fn feed_is_empty(&self, access_token: &str) -> Result<bool, SyncError> {
+        let page = self.list_changes(access_token, 0, 1)?;
+        Ok(page.changes.is_empty() && !page.has_more)
+    }
+
     /// Download raw bytes of an object from `GET /api/sync/v1/loro-v2/objects/<encoded_key>`
     /// and verify its SHA-256 and byte length before returning.
     pub fn get_object_bytes(
