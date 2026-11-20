@@ -776,6 +776,8 @@ cargo test -p dr-import-v1 --test v3_manifest --locked
 
 旧路径 `<旧库根>/assets/<书>/<资源>/source.*`（路径段用 dr-store 同一套 0.1 规则清理），读出来核对 `project_asset.source_sha256` 和大小，对上才经 `Library::import_asset`（导入标记、原子写入、落盘）复制。找不到、对不上的不导，计数进回执和摘要。`display`、`thumbnail` 不搬：等 dr-store 的图片管线做好由它重建（F2 已留接口）。
 
+2026-11-21：HEIC、HEIF、AVIF（iPhone 照片多半是 HEIC）照旧只搬原件，字节不动、`mime` 照旧版（`image/heic` 等）；导入本身没改。新版第一次要显示它时（素材库那一行的缩略图、打开素材、条目的媒体模块）由素材库用系统解码器补做显示副本和缩略图（JPEG）并存进库里，之后正文嵌入、导出、同步到别的设备都用这两份；Windows 上要装商店的 HEVC / AV1 扩展才解得开。细节和各平台现状见 [M19「HEIC 与 AVIF」](m19-materials.md#heic-与-avif2026-11-21)。旧版其实在同一个文件夹里留着 `display.jpg`、`thumbnail.jpg`，直接搬过来更省（不用再解码一次），要改 `run.rs` 的 `copy_assets`，留作后续（那份文件当晚另有会话在改）。
+
 ## 写作日和设备
 
 写作日的设备键原样搬。之后这台设备记的写作日要和旧版的记在同一个设备键下，所以导入时这台设备改用旧库的安装身份：

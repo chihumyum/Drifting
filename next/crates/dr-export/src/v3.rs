@@ -692,12 +692,18 @@ fn resolve_asset_block(
             let cover = match cached {
                 Some(found) => found,
                 None => {
-                    let loaded = lib
-                        .asset(asset_id.as_str(), Variant::Source)
-                        .ok()
-                        .flatten()
-                        .filter(|rec| rec.book_id == book_key)
-                        .and_then(|rec| crate::cover::inline_image_from_path(&rec.path).ok());
+                    // The source, else its display copy: a HEIC, HEIF or
+                    // AVIF source is decoded only by the system, and the
+                    // material library keeps a JPEG display copy of it
+                    // (dr-view-material's `import`).
+                    let inline = |variant: Variant| {
+                        lib.asset(asset_id.as_str(), variant)
+                            .ok()
+                            .flatten()
+                            .filter(|rec| rec.book_id == book_key)
+                            .and_then(|rec| crate::cover::inline_image_from_path(&rec.path).ok())
+                    };
+                    let loaded = inline(Variant::Source).or_else(|| inline(Variant::Display));
                     if let Ok(mut guard) = image_cache.lock() {
                         guard.insert(asset_id.clone(), loaded.clone());
                     }

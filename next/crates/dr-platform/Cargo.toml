@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
-description = "Drifting's platform services: logs, crash reports, keychain, deep links and single instance, updates, feedback"
+description = "Drifting's platform services: logs, crash reports, keychain, deep links and single instance, updates, feedback, the system's image codecs"
 
 [features]
 default = ["network"]
@@ -51,11 +51,15 @@ tracing-subscriber.workspace = true
 uuid.workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
-objc2-core-foundation.workspace = true
+# `CFCGTypes`: the rectangle `image_codec` draws a decoded picture into.
+objc2-core-foundation = { workspace = true, features = ["CFCGTypes"] }
+objc2-core-graphics.workspace = true
+objc2-image-io.workspace = true
 objc2-security.workspace = true
 
 [target.'cfg(windows)'.dependencies]
-windows.workspace = true
+# `image_codec`: HEIC, HEIF and AVIF through WIC.
+windows = { workspace = true, features = ["Win32_Graphics_Imaging", "Win32_System_Com"] }
 
 [dev-dependencies]
 keyring.workspace = true

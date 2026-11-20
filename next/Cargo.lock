@@ -1883,6 +1883,8 @@ dependencies = [
  "minisign",
  "minisign-verify",
  "objc2-core-foundation",
+ "objc2-core-graphics",
+ "objc2-image-io",
  "objc2-security",
  "regex",
  "reqwest",
@@ -2288,7 +2290,9 @@ dependencies = [
  "color_quant",
  "dr-doc",
  "dr-i18n",
+ "dr-import-v1",
  "dr-model",
+ "dr-platform",
  "dr-shell",
  "dr-store",
  "dr-testkit",
@@ -2302,7 +2306,9 @@ dependencies = [
  "image",
  "log",
  "png 0.18.1",
+ "rusqlite",
  "serde_json",
+ "sha2 0.10.9",
  "smallvec",
  "tempfile",
 ]
@@ -5946,6 +5952,16 @@ dependencies = [
  "libc",
  "objc2 0.6.5",
  "objc2-core-foundation",
+]
+
+[[package]]
+name = "objc2-image-io"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "32b0446e98cf4a784cc7a0177715ff317eeaa8463841c616cfc78aa4f953c4ea"
+dependencies = [
+ "objc2-core-foundation",
+ "objc2-core-graphics",
 ]
 
 [[package]]

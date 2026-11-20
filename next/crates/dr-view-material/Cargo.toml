@@ -16,6 +16,8 @@ chrono.workspace = true
 dr-doc.workspace = true
 dr-i18n.workspace = true
 dr-model.workspace = true
+# HEIC, HEIF and AVIF through the system's codec (`image_codec`).
+dr-platform.workspace = true
 dr-shell.workspace = true
 dr-store.workspace = true
 dr-ui.workspace = true
@@ -37,8 +39,13 @@ png = { workspace = true, optional = true }
 tempfile = { workspace = true, optional = true }
 
 [dev-dependencies]
+# A 0.1 library holding a HEIC, imported (`tests/system_images.rs`): the
+# importer and its synthetic 0.1 library (`dr-import-v1/tests/common`).
+dr-import-v1.workspace = true
 dr-testkit.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
+rusqlite.workspace = true
+sha2.workspace = true
 tempfile.workspace = true
 
 [[example]]

@@ -13,6 +13,22 @@ them; `dr_testkit::samples` lays them out through dr-samples.
 Editions, sources and what was taken are recorded in the repository's
 `ASSET_PROVENANCE.md` ("README screenshots").
 
+## media/
+
+Two synthetic pictures for HEIC and AVIF materials (`src/media.rs`,
+`media::HEIC` and `media::AVIF`). Writing these formats needs a system
+encoder, so unlike the rest of `media` they are not made by code at test
+time. Both are the pixels of `media::quadrants(600, 400)` (four solid
+quadrants, nothing else), saved as an 8-bit RGB PNG and encoded on
+2026-11-21 on macOS 27.0.1:
+
+| File | Command | Rights |
+| --- | --- | --- |
+| `media/quadrants.heic` (726 bytes) | `sips -s format heic quadrants.png --out quadrants.heic` | Made for Drifting, AGPL-3.0-or-later |
+| `media/quadrants.avif` (631 bytes) | `sips -s format avif quadrants.png --out quadrants.avif` | Made for Drifting, AGPL-3.0-or-later |
+
+dr-platform's `tests/image_codec.rs` reads them by path.
+
 ## Where they came from
 
 Exported on 2026-11-07, field for field, from the 0.1 client's

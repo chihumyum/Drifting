@@ -2394,6 +2394,13 @@ fn load_module_state(
     let mut meta = HashMap::new();
     for aid in needed {
         if let Some((a, trashed_folders, is_live)) = raw_map.get(&aid) {
+            if a.kind != AssetKind::Pdf
+                && let Err(e) = dr_view_material::import::make_missing_copies(store, &aid)
+            {
+                // A HEIC, HEIF or AVIF without copies that the system cannot
+                // decode here: shown as any image that cannot be decoded.
+                log::info!("media: {aid}: no display copy or thumbnail: {e}");
+            }
             let thumb = best_thumb_path(store, &aid);
             let display = if a.kind == AssetKind::Pdf {
                 thumb.clone()
