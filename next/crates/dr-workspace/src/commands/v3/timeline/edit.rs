@@ -229,7 +229,7 @@ op! {
             w.put_lane(&lane, Some(&pos))?
                 .set_lane_act_track(&lane, input.act_track.filter(|b| *b))?;
             for (i, member) in unplaced.iter().enumerate() {
-                w.put_placement(member, start_at + (i as f64), None)?;
+                w.put_placement(member, start_at + m::PLACEMENT_STEP * (i as f64), None)?;
             }
             Ok((fields, frontiers_hex(&tx.view().state_frontiers())))
         })?;

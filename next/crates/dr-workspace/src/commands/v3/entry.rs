@@ -690,7 +690,7 @@ fn trash(cx: &Cx<'_>, input: EntityIn, trashed: bool) -> Result<Done> {
                         ))
                     });
                     auto_placements.push((tv.id.clone(), rid.clone(), *at));
-                    *at += 1.0;
+                    *at += m::PLACEMENT_STEP;
                 }
             }
         }

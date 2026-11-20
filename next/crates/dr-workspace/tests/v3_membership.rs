@@ -759,7 +759,9 @@ fn joining_a_lane_or_adding_a_lane_to_a_view_places_members_at_scale_end_without
     );
 
     // 1. `membership.add` on `lane` (in `v1` and `v2`) ignores `pos` and places `joined`
-    //    at scale end in both views (`15.0` in `v1`, `1.0` in `v2`).
+    //    at scale end in both views, one unit after the last card as drawn
+    //    (`15.0` in `v1` after `seed`'s span of 4; `5.0` in `v2`, where `seed`
+    //    has no span and is drawn 4 wide).
     let added = e.call(
         "membership.add",
         json!({"book":b,"host":lane,"member":joined,"pos":"z9"}),
@@ -777,7 +779,7 @@ fn joining_a_lane_or_adding_a_lane_to_a_view_places_members_at_scale_end_without
     );
     assert_eq!(
         state["timeline_views"]["v2"]["placements"][&joined]["at"],
-        1.0
+        5.0
     );
 
     // Re-calling `membership.add` with `pos` on a lane in views is a no-op.
@@ -821,7 +823,7 @@ fn joining_a_lane_or_adding_a_lane_to_a_view_places_members_at_scale_end_without
     );
     assert_eq!(
         raw(&e, &b)["timeline_views"]["v2"]["placements"][&joined]["at"],
-        1.0
+        5.0
     );
 
     // 2. `entry.create` hosted on `lane` auto-places the new entry at scale end in `v1` and `v2`.
@@ -837,22 +839,23 @@ fn joining_a_lane_or_adding_a_lane_to_a_view_places_members_at_scale_end_without
     );
     assert_eq!(
         state["timeline_views"]["v1"]["placements"][&direct]["at"],
-        16.0
+        20.0
     );
     assert_eq!(
         state["timeline_views"]["v2"]["placements"][&direct]["at"],
-        2.0
+        10.0
     );
 
     // 3. `timeline_view.add_lane` places existing members (`m2`, `m1`) sequentially at scale end,
-    //    and field-scoped undo/redo removes and restores both the lane and those placements.
+    //    a card's width plus one apart, and field-scoped undo/redo removes
+    //    and restores both the lane and those placements.
     e.call(
         "timeline_view.add_lane",
         json!({"book":b,"view":"v1","lane":plain_lane}),
     );
     let state = raw(&e, &b);
-    assert_eq!(state["timeline_views"]["v1"]["placements"][&m2]["at"], 17.0);
-    assert_eq!(state["timeline_views"]["v1"]["placements"][&m1]["at"], 18.0);
+    assert_eq!(state["timeline_views"]["v1"]["placements"][&m2]["at"], 25.0);
+    assert_eq!(state["timeline_views"]["v1"]["placements"][&m1]["at"], 30.0);
     e.ws().undo(&Actor::User).unwrap().expect("undo add_lane");
     let undone = raw(&e, &b);
     assert!(
@@ -873,11 +876,11 @@ fn joining_a_lane_or_adding_a_lane_to_a_view_places_members_at_scale_end_without
     e.ws().redo(&Actor::User).unwrap().expect("redo add_lane");
     assert_eq!(
         raw(&e, &b)["timeline_views"]["v1"]["placements"][&m2]["at"],
-        17.0
+        25.0
     );
     assert_eq!(
         raw(&e, &b)["timeline_views"]["v1"]["placements"][&m1]["at"],
-        18.0
+        30.0
     );
 
     // 4. `entry.get` (`below.members`) follows `v1`, the first view the lane
@@ -900,6 +903,141 @@ fn joining_a_lane_or_adding_a_lane_to_a_view_places_members_at_scale_end_without
     );
     put_view_first(&e, &b, "v2");
     assert_eq!(below_ids(&lane), vec![direct, seed, joined]);
+}
+
+/// Where `view` puts each card, as `(entry, at, span)` sorted along the
+/// scale, asserting that no two cards overlap as the view draws them (a card
+/// without a span is `DEFAULT_PLACEMENT_SPAN` wide).
+fn cards_apart(e: &Env, b: &str, view: &str) -> Vec<(String, f64, Option<f64>)> {
+    let mut cards: Vec<(String, f64, Option<f64>)> =
+        raw(e, b)["timeline_views"][view]["placements"]
+            .as_object()
+            .unwrap()
+            .iter()
+            .map(|(id, p)| (id.clone(), p["at"].as_f64().unwrap(), p["span"].as_f64()))
+            .collect();
+    cards.sort_by(|a, b| a.1.total_cmp(&b.1));
+    for pair in cards.windows(2) {
+        let (prev, next) = (&pair[0], &pair[1]);
+        let drawn_end = prev.1 + prev.2.unwrap_or(dr_model::v3::DEFAULT_PLACEMENT_SPAN);
+        assert!(
+            next.1 >= drawn_end,
+            "{view}: {} at {} is drawn over {} at {} ({:?})",
+            next.0,
+            next.1,
+            prev.0,
+            prev.1,
+            prev.2
+        );
+    }
+    cards
+}
+
+#[test]
+fn entries_placed_at_the_end_in_one_go_never_pile_up_as_drawn() {
+    let e = env();
+    let b = item(e.out("project.create", json!({"name":"No pile-up"})));
+    let lane = create(&e, &b, "tpl-storyline", "Many hung here");
+    let other = create(&e, &b, "tpl-storyline", "Already in the view");
+    let first = create(&e, &b, "tpl-chapter", "Already placed");
+    // Six entries hung on `lane` before it is in any view, in manual order.
+    let hung: Vec<String> = (0..6)
+        .map(|i| {
+            let id = create(&e, &b, "tpl-chapter", &format!("Hung {i}"));
+            e.call(
+                "membership.add",
+                json!({"book":b,"host":lane,"member":id,"pos":format!("a{i}")}),
+            );
+            id
+        })
+        .collect();
+    let at_of = |cards: &[(String, f64, Option<f64>)], id: &str| {
+        let card = cards.iter().find(|c| c.0 == id).unwrap();
+        assert_eq!(card.2, None, "{id} is placed without a span");
+        card.1
+    };
+
+    // `timeline_view.add_lane`: the view already has one card without a span
+    // at 0 (drawn 0–4); the six follow from 5, five apart.
+    e.call(
+        "timeline_view.put",
+        json!({"book":b,"view":{"id":"v1","name":"V1","pos":"a0","lanes":[{"entry":other,"pos":"a0"}]}}),
+    );
+    e.call(
+        "timeline_view.place",
+        json!({"book":b,"view":"v1","entry":first,"lane":other,"at":0}),
+    );
+    e.call(
+        "timeline_view.add_lane",
+        json!({"book":b,"view":"v1","lane":lane}),
+    );
+    let cards = cards_apart(&e, &b, "v1");
+    assert_eq!(cards.len(), 7);
+    assert_eq!(
+        hung.iter().map(|id| at_of(&cards, id)).collect::<Vec<_>>(),
+        [5.0, 10.0, 15.0, 20.0, 25.0, 30.0]
+    );
+
+    // `timeline_view.put` of a new view with the lane: an empty scale
+    // starts at 0.
+    e.call(
+        "timeline_view.put",
+        json!({"book":b,"view":{"id":"v2","name":"V2","pos":"a1","lanes":[{"entry":lane,"pos":"a0"}]}}),
+    );
+    let cards = cards_apart(&e, &b, "v2");
+    assert_eq!(
+        hung.iter().map(|id| at_of(&cards, id)).collect::<Vec<_>>(),
+        [0.0, 5.0, 10.0, 15.0, 20.0, 25.0]
+    );
+
+    // `entry.restore` of several hung entries at once, onto a lane that
+    // entered a view while they were in Recently Deleted: they come back
+    // after the last card, five apart.
+    let ideas = root(&e, &b, "tpl-ideas");
+    let group = item(e.out(
+        "entry.create",
+        json!({"book":b,"parent":ideas,"template":"tpl-idea-group","title":"Trashed together"}),
+    ));
+    let inside: Vec<String> = (0..3)
+        .map(|i| {
+            let id = item(e.out(
+                "entry.create",
+                json!({"book":b,"parent":group,"template":"tpl-idea","title":format!("Inside {i}")}),
+            ));
+            e.call("membership.add", json!({"book":b,"host":lane,"member":id}));
+            id
+        })
+        .collect();
+    // `membership.add` one at a time also goes after the last card.
+    let cards = cards_apart(&e, &b, "v2");
+    assert_eq!(
+        inside
+            .iter()
+            .map(|id| at_of(&cards, id))
+            .collect::<Vec<_>>(),
+        [30.0, 35.0, 40.0]
+    );
+    e.call("entry.trash", json!({"book":b,"id":group}));
+    e.call(
+        "timeline_view.put",
+        json!({"book":b,"view":{"id":"v3","name":"V3","pos":"a2","lanes":[{"entry":lane,"pos":"a0"}]}}),
+    );
+    let stored = raw(&e, &b)["timeline_views"]["v3"]["placements"].clone();
+    for id in &inside {
+        assert!(stored.get(id).is_none(), "{id} is not placed while trashed");
+    }
+    e.call("entry.restore", json!({"book":b,"id":group}));
+    let cards = cards_apart(&e, &b, "v3");
+    assert_eq!(
+        hung.iter().map(|id| at_of(&cards, id)).collect::<Vec<_>>(),
+        [0.0, 5.0, 10.0, 15.0, 20.0, 25.0]
+    );
+    // They come back in tree order; which one is first is not the point.
+    let mut restored: Vec<f64> = inside.iter().map(|id| at_of(&cards, id)).collect();
+    restored.sort_by(f64::total_cmp);
+    assert_eq!(restored, [30.0, 35.0, 40.0]);
+    cards_apart(&e, &b, "v1");
+    cards_apart(&e, &b, "v2");
 }
 
 #[test]

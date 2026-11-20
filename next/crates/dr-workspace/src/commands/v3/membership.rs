@@ -104,7 +104,7 @@ pub(super) fn place_unplaced_lane_entries(
         for item in &items {
             if v.timeline_placement_snapshot(&tv.id, item)?.is_none() {
                 t.timeline_view(&tv.id)?.put_placement(item, at, None)?;
-                at += 1.0;
+                at += m::PLACEMENT_STEP;
                 wrote = true;
             }
         }

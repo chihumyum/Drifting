@@ -3326,9 +3326,10 @@ fn act_track_imports_all_eight_cases_preserves_color_and_leaves_source_untouched
     // second act creates synth_children[3] at (50.0, Some(4.0)).
     assert_eq!(placement_of(&eid(IDEA_SHARED)), Some((42.0, Some(4.0))));
     assert_eq!(placement_of(&synth_children[3].id), Some((50.0, Some(4.0))));
-    // Case 5 (`空幕`) & Case 6 (`章节没有位置`): auto-placed at scale end (`VIEW-LANE-MEMBERS-PLACED`).
-    assert_eq!(placement_of(&synth_children[4].id), Some((61.0, None)));
-    assert_eq!(placement_of(&synth_children[5].id), Some((62.0, None)));
+    // Case 5 (`空幕`) & Case 6 (`章节没有位置`): auto-placed at scale end (`VIEW-LANE-MEMBERS-PLACED`):
+    // after the last card as drawn (the chapter at 60.0, no span, 4 wide), five apart.
+    assert_eq!(placement_of(&synth_children[4].id), Some((65.0, None)));
+    assert_eq!(placement_of(&synth_children[5].id), Some((70.0, None)));
     // Case 7 (`构想原来就有位置`): keeps original (12.0, None) without overwriting with (60.0, Some(4.0))!
     assert_eq!(placement_of(&eid(IDEA)), Some((12.0, None)));
 
@@ -3394,6 +3395,96 @@ fn act_track_imports_all_eight_cases_preserves_color_and_leaves_source_untouched
         .find(|e| e.title == "彩幕")
         .expect("synthetic colored act leaf");
     assert_eq!(text(&cleaf, "act_color").as_deref(), Some("#336699"));
+}
+
+/// 0.1 chapters on a storyline with no narrative position
+/// (`book_node.narrative_order` NULL) go after the last card on the scale, a
+/// card's width plus one apart, so the timeline does not draw them on top of
+/// each other (`VIEW-LANE-MEMBERS-PLACED`, `kernel-v5.md` §4).
+#[test]
+fn chapters_without_a_narrative_position_are_placed_a_card_apart_after_the_last_card() {
+    let mut seeded = dr_samples::a_q().unwrap();
+    let chapters: Vec<_> = seeded.book.view().chapters();
+    assert_eq!(chapters.len(), 9);
+    // The first three keep their places (10, 20, 30, all in the first act);
+    // the other six never had one.
+    let unplaced: Vec<EntryId> = chapters[3..].iter().map(|c| eid(c.id.as_str())).collect();
+    let ids: Vec<_> = chapters[3..].iter().map(|c| c.id.clone()).collect();
+    seeded
+        .book
+        .edit(dr_model::Origin::Import, |t| {
+            for id in &ids {
+                t.node(id)?.narrative_order(None)?;
+            }
+            Ok(())
+        })
+        .0
+        .unwrap();
+    assert!(
+        seeded.book.view().chapters()[3..]
+            .iter()
+            .all(|c| c.narrative_order.is_none())
+    );
+    let mut doc = BookDocV3::create(seeded.book.book_id().clone(), random_device_peer()).unwrap();
+    doc.edit(dr_model::Origin::Import, |t| {
+        adapter::sync_catalog(
+            t,
+            &seeded.book.view(),
+            &MappingChoices::default(),
+            &adapter::ProjectedLines::default(),
+        )
+    })
+    .0
+    .unwrap();
+    let view = doc.view();
+    adapter::validate(&view).unwrap();
+    let timeline = &view.timeline_views_raw()[0];
+    let at = |id: &EntryId| {
+        let p = timeline
+            .placements
+            .iter()
+            .find(|p| &p.entry == id)
+            .unwrap_or_else(|| panic!("{id} is on the scale"));
+        (p.at, p.span)
+    };
+    for (chapter, expected) in chapters[..3].iter().zip([10.0, 20.0, 30.0]) {
+        assert_eq!(at(&eid(chapter.id.as_str())), (expected, None));
+    }
+    // The first act spans its placed chapters as drawn (10 to 34); the
+    // second has none, so it too goes to the end, before the chapters.
+    let track = view.root_entry_by_template(&tid(TPL_ACT_TRACK)).unwrap();
+    let act = |name: &str| {
+        view.children_of(Some(&track.id))
+            .into_iter()
+            .find(|e| e.title == name)
+            .unwrap_or_else(|| panic!("act {name}"))
+            .id
+    };
+    assert_eq!(at(&act("上 未庄")), (10.0, Some(24.0)));
+    assert_eq!(at(&act("下 革命")), (35.0, None));
+    let mut made_up: Vec<(f64, Option<f64>)> = unplaced.iter().map(at).collect();
+    made_up.sort_by(|a, b| a.0.total_cmp(&b.0));
+    assert_eq!(
+        made_up,
+        [40.0, 45.0, 50.0, 55.0, 60.0, 65.0].map(|a| (a, None))
+    );
+    // No two cards without a span are closer than the width they are drawn.
+    let mut spanless: Vec<f64> = timeline
+        .placements
+        .iter()
+        .filter(|p| p.span.is_none())
+        .map(|p| p.at)
+        .collect();
+    spanless.sort_by(f64::total_cmp);
+    assert_eq!(spanless.len(), 3 + 1 + 6);
+    for pair in spanless.windows(2) {
+        assert!(
+            pair[1] - pair[0] >= DEFAULT_PLACEMENT_SPAN,
+            "cards at {} and {} overlap",
+            pair[0],
+            pair[1]
+        );
+    }
 }
 
 #[test]
