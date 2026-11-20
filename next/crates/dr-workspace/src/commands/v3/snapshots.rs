@@ -321,8 +321,17 @@ fn save(doc: &LoroDoc, book: &BookId, p: &Point) -> Result<()> {
         entry: p.entry.clone(),
     };
     let automatic: Vec<_> = points_of(b.view().entry_checkpoints(), &target)
-        .filter(|p| matches!(p.reason.as_str(), "periodic" | "close"))
+        .filter(is_automatic)
         .collect();
+    thin(&b, p, &automatic)
+}
+/// The points thinning looks at: the automatic ones.
+fn is_automatic(p: &Point) -> bool {
+    matches!(p.reason.as_str(), "periodic" | "close")
+}
+/// Thin `automatic`, the automatic points of `p`'s entry (`p` among them),
+/// by F2's retention as of `p`'s time; `p` itself always stays.
+fn thin(b: &BorrowedCheckpoints<'_>, p: &Point, automatic: &[Point]) -> Result<()> {
     let rows: Vec<_> = automatic
         .iter()
         .enumerate()
@@ -409,9 +418,9 @@ fn prose_modules(
 /// The entries of `book` an automatic capture has something to do for, in
 /// tree order: all of them but those `entry_snapshot.capture` with reason
 /// `close` would only look at and leave. A sweep (the last one on quitting)
-/// calls the command for these alone. Each call copies the whole book
-/// document to work on, which a book of hundreds of entries cannot pay once
-/// per entry every time the app quits.
+/// captures these alone ([`CapturePlan::capture`], a batch per write). Each
+/// write copies the whole book document to work on, which a book of
+/// hundreds of entries cannot pay once per entry every time the app quits.
 ///
 /// An entry is left out only when the command would find nothing to write:
 /// every registered body has content and no default body is missing (so it
@@ -536,6 +545,389 @@ fn body_versions(lib: &dr_store::Library, docs: &[String]) -> Option<BTreeMap<St
         versions.insert(id.clone(), version.ok()?);
     }
     Some(versions)
+}
+
+/// The entries of `book` without a sound checkpoint yet, in tree order:
+/// every entry of a book just imported, seeded or synced in. Each of them is
+/// due ([`entries_due_for_capture`]); unlike that, this opens no body.
+pub fn entries_without_checkpoint(ws: &crate::Workspace, book: &str) -> Result<Vec<String>> {
+    let id: BookId = pid("book", book)?;
+    let slot = match ws.book_slot(&id) {
+        Ok(slot) => slot,
+        Err(e) => {
+            return match ws.library().load_copy(&book_doc(book)) {
+                Ok(d) if !dr_doc::v3::is_book_doc(&d) => Ok(Vec::new()),
+                _ => Err(e),
+            };
+        }
+    };
+    let mut with = BTreeSet::new();
+    for (point, value) in manifests(ws, &id)? {
+        let Ok(p) = serde_json::from_str::<Point>(&value) else {
+            continue;
+        };
+        let target = EntryIn {
+            book: book.to_owned(),
+            entry: p.entry,
+        };
+        if checked_point(&value, &target, &point).is_ok() {
+            with.insert(target.entry);
+        }
+    }
+    let id_ = id.clone();
+    let all = slot.handle.read(move |d| -> Result<Vec<String>> {
+        let b = BorrowedBookV3::new(d, &id_)?;
+        Ok(b.view()
+            .entries_raw()
+            .into_iter()
+            .map(|e| e.id.to_string())
+            .collect())
+    })??;
+    Ok(all.into_iter().filter(|e| !with.contains(e)).collect())
+}
+
+/// The most entries one write of the automatic sweeps holds: a bounded
+/// number of commits however big the book, and a bounded time each holder
+/// stays reserved.
+pub const CAPTURE_BATCH: usize = 64;
+
+/// What an automatic capture reads of a book, read once for many writes
+/// ([`CapturePlan::capture`]): its version, and at that version every
+/// entry (the templates decide its bodies, the title goes into the
+/// manifest) with its change state (`entry_change_state`, what the content
+/// hash covers), and the templates. `entry_snapshot.capture` reads the same
+/// for one entry, walking the whole book to find it, each time it is
+/// called; the plan reads the whole book once and stays good until the
+/// book's version moves.
+pub struct CapturePlan {
+    book: BookId,
+    version: String,
+    entries: BTreeMap<EntryId, (m::Entry, Value)>,
+    templates: BTreeMap<EntryTemplateId, m::EntryTemplate>,
+}
+
+impl CapturePlan {
+    /// One read job on the book's holder.
+    pub fn read(ws: &crate::Workspace, book: &str) -> Result<Self> {
+        let id: BookId = pid("book", book)?;
+        let slot = ws.book_slot(&id)?;
+        if !slot.is_v3() {
+            return Err(WsError::invalid(format!(
+                "book {book:?} is in an older format; reimport it into a new library"
+            )));
+        }
+        let book = id.clone();
+        slot.handle.read(move |d| -> Result<Self> {
+            let b = BorrowedBookV3::new(d, &id)?;
+            let v = b.view();
+            let mut states: BTreeMap<EntryId, Value> =
+                v.entry_change_states().into_iter().collect();
+            let entries = v
+                .entries_raw()
+                .into_iter()
+                .filter_map(|e| {
+                    let state = states.remove(&e.id)?;
+                    Some((e.id.clone(), (e, state)))
+                })
+                .collect();
+            Ok(Self {
+                book,
+                version: frontiers_hex(&d.oplog_frontiers()),
+                entries,
+                templates: v.templates_map(),
+            })
+        })?
+    }
+
+    /// `entry_snapshot.capture` for several entries of the book at once:
+    /// the same points, in one atomic write instead of one per entry. The
+    /// book, the checkpoints document and every body of every entry are
+    /// reserved together, the manifests are read once, and one SQLite
+    /// transaction stores every manifest (and every default body a capture
+    /// creates). It stores all of them or none: a failure, or a crash
+    /// halfway, leaves no point of the batch and its entries still due, so
+    /// the next sweep takes them.
+    ///
+    /// For each entry the outcome is what the command gives: the point it
+    /// saved, or the latest one when nothing changed (or, for `Periodic`,
+    /// when the latest is not 15 minutes old and no body is missing). An
+    /// entry that is not in the book is left out, as the sweeps skip the
+    /// command's not-found. The plan is read again first when the book has
+    /// moved on since; the write itself refuses (`Conflict`, nothing stored)
+    /// when the book changes between that and the reservation, as the
+    /// command does. A host call, not a registered command: no Agent tool,
+    /// no journal row (the command records no undo either). Keep a batch to
+    /// [`CAPTURE_BATCH`] entries.
+    pub fn capture(
+        &mut self,
+        ws: &crate::Workspace,
+        entries: &[String],
+        reason: CaptureReason,
+    ) -> Result<BTreeMap<String, Point>> {
+        use crate::registry::Op as _;
+        let spec = crate::registry::registry()
+            .get(Capture::NAME)
+            .expect("entry_snapshot.capture is registered");
+        let cx = Cx::new(ws, &Actor::User, spec);
+        let book = self.book.to_string();
+        let s = cx.book_v3(&book)?;
+        if s.handle.read(|d| frontiers_hex(&d.oplog_frontiers()))? != self.version {
+            *self = Self::read(ws, &book)?;
+        }
+        let mut found: Vec<&(m::Entry, Value)> = Vec::new();
+        for e in entries {
+            if let Some(entry) = self.entries.get(&pid::<EntryId>("entry", e)?) {
+                found.push(entry);
+            }
+        }
+        if found.is_empty() {
+            return Ok(BTreeMap::new());
+        }
+        // The raw document inventory, once (`handles` reads it per entry).
+        let mut registered: BTreeMap<String, Vec<dr_store::DocInfo>> = BTreeMap::new();
+        for info in ws.library().docs(Some(&book), None)? {
+            if let Ok(DocId::Body(b)) = DocId::parse(&info.doc_id) {
+                registered
+                    .entry(b.entry().to_string())
+                    .or_default()
+                    .push(info);
+            }
+        }
+        let mut hs = vec![s.handle.clone()];
+        let mut fresh: Vec<AtomicNewDocument> = Vec::new();
+        // Per entry: its bodies (reserved or new), and the default bodies the
+        // capture creates, each with the template body it copies.
+        let mut bodies: BTreeMap<&EntryId, Vec<String>> = BTreeMap::new();
+        let mut defaults: BTreeMap<&EntryId, Vec<(DocId, Option<DocId>)>> = BTreeMap::new();
+        let mut sources: BTreeMap<String, Option<DocHandle>> = BTreeMap::new();
+        for (e, _) in &found {
+            let own = bodies.entry(&e.id).or_default();
+            let mut missing = false;
+            for info in registered.remove(e.id.as_str()).unwrap_or_default() {
+                own.push(info.doc_id.clone());
+                match ws
+                    .library()
+                    .open_doc(&info.doc_id, dr_store::OpenDoc::Existing)
+                {
+                    Ok(h) => hs.push(h),
+                    Err(dr_store::StoreError::NotFound(_)) => {
+                        missing = true;
+                        let doc = DocId::parse(&info.doc_id)
+                            .map_err(|e| WsError::invalid(e.to_string()))?;
+                        fresh.push(AtomicNewDocument {
+                            id: info.doc_id,
+                            kind: info.kind,
+                            genesis: dr_doc::prose::genesis(&doc),
+                            pre_registered: true,
+                        })
+                    }
+                    Err(e) => return Err(e.into()),
+                }
+            }
+            let template = e.effective_template(&self.templates);
+            let mut made = Vec::new();
+            for mid in prose_modules(e, &self.templates) {
+                let doc = body_id(&e.id, &mid);
+                if own.contains(&doc.to_string()) {
+                    continue;
+                }
+                let source = match template
+                    .map(|t| template_doc(&s.book, &t.id, &mid))
+                    .transpose()?
+                {
+                    Some(d) => {
+                        let key = d.to_string();
+                        if !sources.contains_key(&key) {
+                            let handle = if ws.library().doc_info(&key)?.is_some() {
+                                owns(&cx, &s, &d)?;
+                                match ws.library().open_doc(&key, dr_store::OpenDoc::Existing) {
+                                    Ok(h) => Some(h),
+                                    Err(dr_store::StoreError::NotFound(_)) => None,
+                                    Err(e) => return Err(e.into()),
+                                }
+                            } else {
+                                None
+                            };
+                            sources.insert(key.clone(), handle);
+                        }
+                        sources[&key].as_ref().map(|_| d)
+                    }
+                    None => None,
+                };
+                own.push(doc.to_string());
+                made.push((doc.clone(), source));
+                fresh.push(AtomicNewDocument {
+                    id: doc.to_string(),
+                    kind: doc.kind().prefix().into(),
+                    genesis: dr_doc::prose::genesis(&doc),
+                    pre_registered: false,
+                });
+            }
+            if missing || !made.is_empty() {
+                defaults.insert(&e.id, made);
+            }
+        }
+        hs.extend(sources.into_values().flatten());
+        hs.push(
+            checkpoints_slot(ws, &s.book, true)?
+                .ok_or_else(|| WsError::Internal("checkpoints document was not created".into()))?
+                .handle
+                .clone(),
+        );
+        let prefixes: Vec<String> = found
+            .iter()
+            .map(|(e, _)| format!("body:{}/", e.id))
+            .collect();
+        let scopes: Vec<AtomicScope<'_>> = prefixes.iter().map(|p| scope(&book, p)).collect();
+        let faults = cx.faults();
+        let version = &self.version;
+        DocHandle::atomic_scoped_many(&hs, Origin::Command, &scopes, &fresh, |docs| {
+            // The plan is the book as reserved: the same version.
+            if frontiers_hex(&docs[&book_doc(&book)].oplog_frontiers()) != *version {
+                return Err(WsError::Conflict(
+                    "entry changed while preparing checkpoint".into(),
+                ));
+            }
+            let points = BorrowedCheckpoints::new(&docs[&checkpoints_doc(&book)], &s.book)?;
+            // Each entry's sound points, the manifests read once.
+            let asked: BTreeSet<String> = found.iter().map(|(e, _)| e.id.to_string()).collect();
+            let mut known: BTreeMap<String, Vec<Point>> = BTreeMap::new();
+            for (point, value) in points.view().entry_checkpoints() {
+                let Ok(p) = serde_json::from_str::<Point>(&value) else {
+                    continue;
+                };
+                if !asked.contains(&p.entry) {
+                    continue;
+                }
+                let target = EntryIn {
+                    book: book.clone(),
+                    entry: p.entry,
+                };
+                if let Ok(p) = checked_point(&value, &target, &point) {
+                    known.entry(target.entry).or_default().push(p);
+                }
+            }
+            let mut out = BTreeMap::new();
+            for (e, state) in &found {
+                let target = EntryIn {
+                    book: book.clone(),
+                    entry: e.id.to_string(),
+                };
+                let mut automatic = known.remove(&target.entry).unwrap_or_default();
+                let latest = automatic.iter().max_by(|a, b| newer(a, b)).cloned();
+                let made = defaults.get(&e.id);
+                if made.is_none()
+                    && matches!(reason, CaptureReason::Periodic)
+                    && latest.as_ref().is_some_and(|p| {
+                        !dr_store::history::periodic_due(Some(p.ts), dr_store::now_ms())
+                    })
+                {
+                    out.insert(target.entry, latest.expect("checked"));
+                    continue;
+                }
+                for (doc, source) in made.into_iter().flatten() {
+                    if let Some(source) = source {
+                        let source =
+                            ProseReader::from_loro(source.clone(), &docs[&source.to_string()])?;
+                        dr_doc::prose::BorrowedProse::new(&docs[&doc.to_string()], doc)?
+                            .txn()
+                            .insert_copy(0, &source.view())?;
+                    }
+                    docs[&doc.to_string()].commit();
+                    faults.check("snapshot_create_after_body")?;
+                }
+                let own: Vec<(&String, &LoroDoc)> =
+                    bodies[&e.id].iter().map(|id| (id, &docs[id])).collect();
+                let p = batch_point(
+                    &docs[&book_doc(&book)],
+                    &own,
+                    &target,
+                    e.title.clone(),
+                    state,
+                    reason,
+                )?;
+                if latest
+                    .as_ref()
+                    .is_some_and(|old| old.content_hash == p.content_hash)
+                {
+                    out.insert(target.entry, latest.expect("checked"));
+                    continue;
+                }
+                points.txn().put_entry_checkpoint(
+                    &p.id,
+                    &serde_json::to_string(&p).map_err(|e| WsError::Internal(e.to_string()))?,
+                )?;
+                automatic.retain(is_automatic);
+                automatic.push(p.clone());
+                thin(&points, &p, &automatic)?;
+                faults.check("snapshot_create_after_manifest")?;
+                out.insert(target.entry, p);
+            }
+            for doc in docs.values() {
+                doc.commit();
+            }
+            Ok(out)
+        })
+        .map_err(inventory_error)
+    }
+}
+
+/// [`CapturePlan::capture`] with a plan of its own, for one write.
+pub fn capture_entries(
+    ws: &crate::Workspace,
+    book: &str,
+    entries: &[String],
+    reason: CaptureReason,
+) -> Result<BTreeMap<String, Point>> {
+    CapturePlan::read(ws, book)?.capture(ws, entries, reason)
+}
+/// [`make_point`] for one entry of a batch: the same manifest, from the
+/// entry's state (`entry_change_state`) and title read once for the batch,
+/// and its own bodies among the batch's documents.
+fn batch_point(
+    book: &LoroDoc,
+    bodies: &[(&String, &LoroDoc)],
+    input: &EntryIn,
+    title: String,
+    state: &Value,
+    reason: CaptureReason,
+) -> Result<Point> {
+    for (id, d) in bodies {
+        if let Ok(doc @ DocId::Body(_)) = DocId::parse(id) {
+            ProseReader::from_loro(doc, d)?;
+        }
+    }
+    let at = |state: bool| -> BTreeMap<String, String> {
+        bodies
+            .iter()
+            .map(|(id, d)| {
+                let f = if state {
+                    d.state_frontiers()
+                } else {
+                    d.oplog_frontiers()
+                };
+                ((*id).clone(), frontiers_hex(&f))
+            })
+            .collect()
+    };
+    let mut p = Point {
+        id: EntryId::new_v7().to_string(),
+        format: 1,
+        book: input.book.clone(),
+        entry: input.entry.clone(),
+        ts: dr_store::now_ms(),
+        title,
+        reason: match reason {
+            CaptureReason::Periodic => "periodic".into(),
+            CaptureReason::Close => "close".into(),
+        },
+        book_version: frontiers_hex(&book.oplog_frontiers()),
+        bodies: at(false),
+        checksum: String::new(),
+        content_hash: fingerprint(state, &at(true))?,
+    };
+    p.checksum = checksum(&p)?;
+    Ok(p)
 }
 fn create(cx: &Cx<'_>, input: EntryIn, automatic: Option<CaptureReason>) -> Result<Point> {
     Ok(create_with_receipt(cx, input, automatic)?.point)
@@ -921,8 +1313,12 @@ mod tests {
         chapters: BTreeMap<&'static str, String>,
     }
     fn shelf() -> Shelf {
+        shelf_with(crate::WorkspaceOptions::default())
+    }
+    fn shelf_with(options: crate::WorkspaceOptions) -> Shelf {
         let dir = tempfile::tempdir().unwrap();
-        let ws = Workspace::open_dir(dir.path(), "test").unwrap();
+        let lib = dr_store::Library::open(dir.path(), crate::library_options("test")).unwrap();
+        let ws = Workspace::open(lib, options).unwrap();
         let out = |name: &str, input: Value| ws.call(&Actor::User, name, input).unwrap();
         let book = out("project.create", json!({"name":"Synthetic checkpoints"}))["output"]["id"]
             .as_str()
@@ -1238,5 +1634,279 @@ mod tests {
             );
         }
         assert_eq!(s.b(), kept);
+    }
+
+    impl Shelf {
+        /// Every entry of the book, trashed ones too.
+        fn all(&self) -> Vec<String> {
+            self.out(
+                "entry.list",
+                json!({"book":self.book,"all":true,"trashed":true}),
+            )
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|e| e["id"].as_str().unwrap().to_owned())
+            .collect()
+        }
+        /// The manifests stored, as SQLite has them.
+        fn manifests(&self) -> usize {
+            self.ws
+                .library()
+                .load_copy(&checkpoints_doc(&self.book))
+                .unwrap()
+                .get_map("entry_checkpoints")
+                .len()
+        }
+        /// The documents of the book, as the registry lists them.
+        fn docs(&self) -> BTreeSet<String> {
+            self.ws
+                .library()
+                .docs(Some(&self.book), None)
+                .unwrap()
+                .into_iter()
+                .map(|d| d.doc_id)
+                .collect()
+        }
+        /// A second prose module on the chapters: none of them has that
+        /// body yet, and a capture creates it.
+        fn second_module(&self) {
+            self.out(
+                "entry_template.put_module",
+                json!({"book":self.book,"template":"tpl-chapter","module":{"id":"second","kind":"prose","name":"second"}}),
+            );
+        }
+    }
+
+    #[test]
+    fn a_batch_saves_the_points_the_command_would_save_entry_by_entry() {
+        let s = shelf();
+        s.second_module();
+        s.out(
+            "module.set_prose",
+            json!({"book":s.book,"owner":s.id("b"),"module":"mod-prose","paragraphs":[{"text":"b as it was"}]}),
+        );
+        let all = s.all();
+        assert!(all.len() > 4, "{all:?}");
+        let docs = s.docs();
+        let mut plan = CapturePlan::read(&s.ws, &s.book).unwrap();
+        let batch = plan.capture(&s.ws, &all, CaptureReason::Close).unwrap();
+        assert_eq!(
+            batch.keys().collect::<BTreeSet<_>>(),
+            all.iter().collect::<BTreeSet<_>>()
+        );
+        assert_eq!(s.manifests(), all.len(), "one point each, one write");
+        // The chapters' second bodies came with them.
+        let made: BTreeSet<String> = s.docs().difference(&docs).cloned().collect();
+        let chapters: BTreeSet<String> = s
+            .chapters
+            .values()
+            .map(|id| format!("body:{id}/second"))
+            .collect();
+        assert!(made.is_superset(&chapters), "{made:?}");
+        for (entry, p) in &batch {
+            assert_eq!(p.reason, "close");
+            assert_eq!(p.checksum, checksum(p).unwrap());
+            // The command finds the batch's point to be the one it would
+            // have saved: nothing to do.
+            assert_eq!(s.close(entry), p.id, "{entry}");
+            // A point the command saves now is the same content.
+            let own: Point = serde_json::from_value(s.out(
+                "entry_snapshot.create",
+                json!({"book":s.book,"entry":entry}),
+            ))
+            .unwrap();
+            assert_eq!(
+                (
+                    own.format,
+                    &own.book,
+                    &own.entry,
+                    &own.title,
+                    &own.book_version,
+                    &own.bodies,
+                    &own.content_hash
+                ),
+                (
+                    p.format,
+                    &p.book,
+                    &p.entry,
+                    &p.title,
+                    &p.book_version,
+                    &p.bodies,
+                    &p.content_hash
+                ),
+                "{entry}"
+            );
+            let preview = |point: &str| {
+                let mut v = s.out(
+                    "entry_snapshot.preview",
+                    json!({"book":s.book,"entry":entry,"point":point}),
+                );
+                v.as_object_mut().unwrap().remove("point");
+                v
+            };
+            assert_eq!(preview(&p.id), preview(&own.id), "{entry}");
+        }
+        // And it restores.
+        let before = s.b();
+        s.change_b("later");
+        assert_ne!(s.b(), before);
+        s.restore("b", &batch[s.id("b")].id);
+        assert_eq!(s.b(), before);
+    }
+
+    #[test]
+    fn a_batch_follows_the_commands_rules_for_unchanged_entries_and_periodic_captures() {
+        let s = shelf();
+        let all = s.all();
+        let first = capture_entries(&s.ws, &s.book, &all, CaptureReason::Close).unwrap();
+        let n = s.manifests();
+        let ids = |points: &BTreeMap<String, Point>| -> BTreeMap<String, String> {
+            points
+                .iter()
+                .map(|(e, p)| (e.clone(), p.id.clone()))
+                .collect()
+        };
+        // Nothing changed: the same points, nothing written.
+        for reason in [CaptureReason::Close, CaptureReason::Periodic] {
+            let again = capture_entries(&s.ws, &s.book, &all, reason).unwrap();
+            assert_eq!(ids(&again), ids(&first));
+            assert_eq!(s.manifests(), n);
+        }
+        // An entry that changed: a periodic capture within 15 minutes of its
+        // last point keeps that one, as the command does; a close saves one.
+        let (a, b) = (s.id("a").to_owned(), s.id("b").to_owned());
+        s.out(
+            "entry.update",
+            json!({"book":s.book,"id":a,"title":"a renamed"}),
+        );
+        let periodic = capture_entries(
+            &s.ws,
+            &s.book,
+            std::slice::from_ref(&a),
+            CaptureReason::Periodic,
+        )
+        .unwrap();
+        assert_eq!(periodic[&a].id, first[&a].id);
+        let command = s.out(
+            "entry_snapshot.capture",
+            json!({"book":s.book,"entry":a,"reason":"periodic"}),
+        );
+        assert_eq!(command["id"], first[&a].id.as_str());
+        assert_eq!(s.manifests(), n);
+        // An entry the book does not have is left out, as the sweeps leave
+        // out the command's not-found.
+        let gone = EntryId::new_v7().to_string();
+        let closed = capture_entries(
+            &s.ws,
+            &s.book,
+            &[a.clone(), b.clone(), gone.clone()],
+            CaptureReason::Close,
+        )
+        .unwrap();
+        assert!(!closed.contains_key(&gone));
+        assert_ne!(closed[&a].id, first[&a].id);
+        assert_eq!(closed[&a].title, "a renamed");
+        assert_eq!(closed[&b].id, first[&b].id);
+        assert_eq!(s.manifests(), n + 1);
+        assert_eq!(s.close(&a), closed[&a].id);
+        // A plan read before a change of the book is read again.
+        let mut plan = CapturePlan::read(&s.ws, &s.book).unwrap();
+        s.out(
+            "entry.update",
+            json!({"book":s.book,"id":b,"title":"b renamed"}),
+        );
+        let later = plan
+            .capture(&s.ws, std::slice::from_ref(&b), CaptureReason::Close)
+            .unwrap();
+        assert_eq!(later[&b].title, "b renamed");
+        assert_eq!(s.close(&b), later[&b].id);
+    }
+
+    #[test]
+    fn a_batch_thins_the_automatic_points_as_the_command_does() {
+        let s = shelf();
+        let hour = dr_store::history::HOUR_MS;
+        // Two earlier automatic points of `b` and of `c`, in one hour
+        // between two and four hours ago: a new point keeps the later.
+        let base = (dr_store::now_ms() - 3 * hour).div_euclid(hour) * hour;
+        let mut planted = BTreeMap::new();
+        for name in ["b", "c"] {
+            let real = s.stored(name, &s.close(s.id(name)));
+            let mut olds = Vec::new();
+            for minutes in [10, 20] {
+                let mut p = real.clone();
+                p.id = EntryId::new_v7().to_string();
+                p.ts = base + minutes * 60_000;
+                olds.push(s.store(p).id);
+            }
+            planted.insert(name, olds);
+        }
+        for name in ["b", "c"] {
+            s.out(
+                "entry.update",
+                json!({"book":s.book,"id":s.id(name),"title":format!("{name} later")}),
+            );
+        }
+        // `b` by the command, `c` in a batch.
+        s.close(s.id("b"));
+        capture_entries(
+            &s.ws,
+            &s.book,
+            &[s.id("c").to_owned()],
+            CaptureReason::Close,
+        )
+        .unwrap();
+        for name in ["b", "c"] {
+            let left: Vec<String> = s
+                .out(
+                    "entry_snapshot.list",
+                    json!({"book":s.book,"entry":s.id(name)}),
+                )
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|p| p["id"].as_str().unwrap().to_owned())
+                .collect();
+            let [older, newer] = [&planted[name][0], &planted[name][1]];
+            assert!(!left.contains(older), "{name}: the older one is thinned");
+            assert!(left.contains(newer), "{name}: the later one stays");
+            assert_eq!(left.len(), 3, "{name}: the new, the real and the later");
+        }
+    }
+
+    #[test]
+    fn a_batch_that_fails_halfway_stores_no_point_and_no_body() {
+        let faults = Arc::new(crate::Faults::default());
+        let s = shelf_with(crate::WorkspaceOptions {
+            faults: Some(faults.clone()),
+            ..Default::default()
+        });
+        s.second_module();
+        let (all, docs) = (s.all(), s.docs());
+        for point in [
+            "snapshot_create_after_manifest",
+            "snapshot_create_after_body",
+        ] {
+            faults.arm(point);
+            let failed = capture_entries(&s.ws, &s.book, &all, CaptureReason::Close);
+            assert!(
+                matches!(failed, Err(WsError::Fault(p)) if p == point),
+                "{point}"
+            );
+            assert_eq!(s.manifests(), 0, "{point}");
+            assert_eq!(s.docs(), docs, "{point}: no default body registered");
+        }
+        // Nor in a store opened again; and the next capture takes them all.
+        let dir = s.ws.library().paths().root.clone();
+        let Shelf { _dir, ws, book, .. } = s;
+        ws.shutdown().unwrap();
+        let ws = Workspace::open_dir(&dir, "test").unwrap();
+        let points = ws.library().load_copy(&checkpoints_doc(&book)).unwrap();
+        assert_eq!(points.get_map("entry_checkpoints").len(), 0);
+        let done = capture_entries(&ws, &book, &all, CaptureReason::Close).unwrap();
+        assert_eq!(done.len(), all.len());
+        ws.shutdown().unwrap();
+        drop(_dir);
     }
 }

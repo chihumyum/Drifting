@@ -63,7 +63,7 @@ impl DocHandle {
     where
         E: From<StoreError>,
     {
-        Self::atomic_inner(handles, origin, None, &[], None, None, edit)
+        Self::atomic_inner(handles, origin, &[], &[], None, None, edit)
     }
 
     /// Like `atomic`, with a complete registry boundary and optional new
@@ -83,12 +83,34 @@ impl DocHandle {
         Self::atomic_inner(
             handles,
             origin,
-            Some(scope),
+            std::slice::from_ref(&scope),
             new_documents,
             None,
             None,
             edit,
         )
+    }
+
+    /// [`Self::atomic_scoped`] over several registry boundaries of one book
+    /// at once (one prefix per entry, say), in one SQLite transaction. Every
+    /// document under any of the prefixes must be reserved, every new
+    /// document must fall under one of them, and all of them must name the
+    /// same book; otherwise nothing is written. One scope is exactly
+    /// `atomic_scoped`.
+    pub fn atomic_scoped_many<R, E>(
+        handles: &[DocHandle],
+        origin: Origin,
+        scopes: &[AtomicScope<'_>],
+        new_documents: &[AtomicNewDocument],
+        edit: impl FnOnce(&BTreeMap<String, LoroDoc>) -> std::result::Result<R, E>,
+    ) -> std::result::Result<R, E>
+    where
+        E: From<StoreError>,
+    {
+        if scopes.is_empty() || scopes.iter().any(|s| s.book_id != scopes[0].book_id) {
+            return Err(StoreError::invalid("atomic edit", "scopes of one book").into());
+        }
+        Self::atomic_inner(handles, origin, scopes, new_documents, None, None, edit)
     }
 
     /// An opt-in atomic author edit of existing documents. The original
@@ -117,7 +139,7 @@ impl DocHandle {
         Self::atomic_inner(
             handles,
             Origin::User,
-            None,
+            &[],
             &[],
             Some(book_id),
             Some(Box::new(installed)),
@@ -125,10 +147,11 @@ impl DocHandle {
         )
     }
 
+    /// `scopes` are empty or all of one book (the public callers check).
     fn atomic_inner<R, E>(
         handles: &[DocHandle],
         origin: Origin,
-        scope: Option<AtomicScope<'_>>,
+        scopes: &[AtomicScope<'_>],
         new_documents: &[AtomicNewDocument],
         owner: Option<&str>,
         installed: Option<Box<dyn FnOnce() + '_>>,
@@ -188,7 +211,7 @@ impl DocHandle {
             if new.id.is_empty()
                 || new.id.len() > 256
                 || new.id.chars().any(char::is_control)
-                || !scope.as_ref().is_some_and(|s| new.id.starts_with(s.prefix))
+                || !scopes.iter().any(|s| new.id.starts_with(s.prefix))
                 || copies.contains_key(&new.id)
             {
                 return Err(StoreError::invalid("atomic new document", &new.id).into());
@@ -272,37 +295,45 @@ impl DocHandle {
                     }
                 }
             }
-            if let Some(scope) = &scope {
-                let actual: BTreeMap<String, Option<String>> = tx
-                    .prepare(
+            if let Some(book_id) = scopes.first().map(|s| s.book_id) {
+                // Each boundary on its own: the registry rows under its
+                // prefix are exactly the reserved and pre-registered
+                // documents under it.
+                let mut select = tx
+                    .prepare_cached(
                         "SELECT doc_id, book_id FROM loro_doc WHERE substr(doc_id, 1, ?1) = ?2",
                     )
-                    .map_err(StoreError::from)?
-                    .query_map(
-                        params![scope.prefix.chars().count() as i64, scope.prefix],
-                        |r| Ok((r.get(0)?, r.get(1)?)),
-                    )
-                    .map_err(StoreError::from)?
-                    .collect::<rusqlite::Result<_>>()
                     .map_err(StoreError::from)?;
-                let expected: BTreeMap<_, _> = handles
-                    .iter()
-                    .filter(|h| h.doc_id().starts_with(scope.prefix))
-                    .map(|h| (h.doc_id().to_owned(), Some(scope.book_id.to_owned())))
-                    .chain(
-                        new_documents
-                            .iter()
-                            .filter(|n| n.pre_registered)
-                            .map(|n| (n.id.clone(), Some(scope.book_id.to_owned()))),
-                    )
-                    .collect();
-                if actual != expected {
-                    return Err(StoreError::invalid(
-                        "atomic inventory",
-                        "document set or owner changed",
-                    )
-                    .into());
+                for scope in scopes {
+                    let actual: BTreeMap<String, Option<String>> = select
+                        .query_map(
+                            params![scope.prefix.chars().count() as i64, scope.prefix],
+                            |r| Ok((r.get(0)?, r.get(1)?)),
+                        )
+                        .map_err(StoreError::from)?
+                        .collect::<rusqlite::Result<_>>()
+                        .map_err(StoreError::from)?;
+                    let expected: BTreeMap<_, _> = handles
+                        .iter()
+                        .map(|h| h.doc_id())
+                        .chain(
+                            new_documents
+                                .iter()
+                                .filter(|n| n.pre_registered)
+                                .map(|n| n.id.as_str()),
+                        )
+                        .filter(|id| id.starts_with(scope.prefix))
+                        .map(|id| (id.to_owned(), Some(book_id.to_owned())))
+                        .collect();
+                    if actual != expected {
+                        return Err(StoreError::invalid(
+                            "atomic inventory",
+                            "document set or owner changed",
+                        )
+                        .into());
+                    }
                 }
+                drop(select);
                 for h in &handles {
                     let owner: Option<String> = tx
                         .query_row(
@@ -311,14 +342,14 @@ impl DocHandle {
                             |r| r.get(0),
                         )
                         .map_err(StoreError::from)?;
-                    if owner.as_deref() != Some(scope.book_id) {
+                    if owner.as_deref() != Some(book_id) {
                         return Err(
                             StoreError::invalid("atomic inventory", "foreign document").into()
                         );
                     }
                 }
                 for n in new_documents {
-                    crate::purge::check_creatable(&tx, &n.id, Some(scope.book_id))?;
+                    crate::purge::check_creatable(&tx, &n.id, Some(book_id))?;
                     if n.pre_registered {
                         let occupied:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM loro_update WHERE doc_id=?1) OR EXISTS(SELECT 1 FROM loro_snapshot WHERE doc_id=?1) OR EXISTS(SELECT 1 FROM loro_head WHERE doc_id=?1)",[&n.id],|r|r.get(0)).map_err(StoreError::from)?;
                         let kind: String = tx
@@ -334,7 +365,7 @@ impl DocHandle {
                             .into());
                         }
                     } else {
-                        tx.execute("INSERT INTO loro_doc (doc_id, kind, book_id, created_ms) VALUES (?1, ?2, ?3, ?4)", params![n.id, n.kind, scope.book_id, now_ms()]).map_err(StoreError::from)?;
+                        tx.execute("INSERT INTO loro_doc (doc_id, kind, book_id, created_ms) VALUES (?1, ?2, ?3, ?4)", params![n.id, n.kind, book_id, now_ms()]).map_err(StoreError::from)?;
                     }
                 }
             }
