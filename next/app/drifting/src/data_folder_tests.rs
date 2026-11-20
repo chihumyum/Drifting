@@ -4,7 +4,10 @@
 //! name their files the same way: `libraries.json`, `libraries/account-<first
 //! 16 bytes of SHA-256(subject), hex>/`. That folder is what 「导入 Drifting
 //! 0.1」 reads, so starting the new client must leave every byte of it as it
-//! was; the new client keeps its own files in `AppDirs::own`, beside it.
+//! was; the new client keeps its own files in `AppDirs::own`, beside it. The
+//! one exception is MCP state, which both clients share: the external
+//! Agents' connection files in `mcp/` and in each 0.1 library's
+//! `libraries/<id>/mcp/`, which the new client serves where they are.
 //!
 //! Everything here runs in a temporary folder laid out by dr-platform's
 //! release rules, macOS's and Windows's both on every system
@@ -16,6 +19,9 @@
 
 #[path = "../../../crates/dr-import-v1/tests/common/mod.rs"]
 mod v1;
+/// The MCP state 0.1 leaves for a library (dr-mcp's synthetic writer).
+#[path = "../../../crates/dr-mcp/tests/support/v1.rs"]
+mod v1_mcp;
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -279,6 +285,190 @@ fn the_release_layout_leaves_the_0_1_data_folder_untouched() {
         assert!(destination.target().starts_with(&dirs.own));
         assert_eq!(snapshot(&dirs.data), before, "{case}");
     }
+}
+
+/// Whether `change` (as [`changes`] names it) is MCP state: the 0.1
+/// pre-registry library's `mcp/` at the folder's root, or another 0.1
+/// library's `libraries/<id>/mcp/`, which the app serves as they are
+/// (`dr_mcp::v1`).
+fn is_mcp_state(change: &str) -> bool {
+    let path = change.split_once(' ').map_or(change, |(_, path)| path);
+    let mut parts = path.split('/');
+    match (parts.next(), parts.next(), parts.next()) {
+        (Some("mcp"), Some(_), _) => true,
+        (Some("libraries"), Some(id), Some("mcp")) => !id.is_empty() && parts.next().is_some(),
+        _ => false,
+    }
+}
+
+#[test]
+fn only_paths_under_an_mcp_folder_count_as_mcp_state() {
+    for yes in [
+        "changed mcp/connection-1.json",
+        "added mcp/grants.json",
+        "changed libraries/account-0a/mcp/connection-1.json",
+        "removed libraries/local/mcp/bridge.sock",
+    ] {
+        assert!(is_mcp_state(yes), "{yes}");
+    }
+    for no in [
+        "added mcp",
+        "changed libraries.json",
+        "added libraries/local/mcp",
+        "changed libraries/local/databases/drifting-library.db",
+        "changed libraries/local/sync-installation-v2.json",
+        "added library",
+        "changed databases/mcp/x",
+    ] {
+        assert!(!is_mcp_state(no), "{no}");
+    }
+}
+
+/// MCP under the release layout, as `dr_view_agent::mcp::init` serves it:
+/// the app's own folder (`<0.1>/mcp`, the 0.1 pre-registry library's) and
+/// the 0.1 account library's own (`libraries/<id>/mcp`), each with a client
+/// connected the way 0.1 connects one. Serving them, repairing them and
+/// closing them changes nothing in the 0.1 folder but MCP state: on macOS
+/// nothing at all (the same socket paths; the app removes its sockets when
+/// it stops), on Windows the connection files, which follow the new ports.
+/// The clients' entries stay as 0.1 wrote them (the executable's path is the
+/// same after the update).
+#[test]
+fn serving_the_0_1_connections_changes_only_mcp_state() {
+    for layout in LAYOUTS {
+        // Windows' rules where the layout or the system is Windows.
+        let windows = layout == Layout::Windows || !cfg!(unix);
+        // A Unix socket path must stay short.
+        #[cfg(unix)]
+        let root = tempfile::tempdir_in("/tmp").unwrap();
+        #[cfg(not(unix))]
+        let root = tempfile::tempdir().unwrap();
+        let dirs = release_dirs(layout, root.path());
+        let _old = v1_data_folder(layout, &dirs.data, true);
+        let home = root.path().join("home");
+        let short = root.path().join("cache");
+        let executable = v1_install_folder(root.path()).join("drifting.exe");
+        let account = dirs
+            .data
+            .join("libraries")
+            .join(v1_account_library(SUBJECT));
+        let mut made = Vec::new();
+        for (directory, client) in [
+            (dirs.data.join("mcp"), v1_mcp::Client::Codex),
+            (account.join("mcp"), v1_mcp::Client::ClaudeCode),
+        ] {
+            let endpoint = if windows {
+                v1_mcp::closed_port()
+            } else {
+                v1_endpoint(&directory, &short)
+            };
+            let seed = directory.display().to_string();
+            made.push(v1_mcp::connect(
+                &directory,
+                &endpoint,
+                &home,
+                &executable,
+                client,
+                &seed,
+            ));
+        }
+        let launches: Vec<_> = made.iter().map(|c| v1_mcp::launch(&home, c)).collect();
+        let before = snapshot(&dirs.data);
+        assert!(start_like_the_app(&dirs.own).is_empty());
+
+        let mut paths = dr_mcp::GrantPaths::new(
+            dirs.data.join("mcp"),
+            executable.clone(),
+            dr_mcp::ClientPaths::from_home(home.clone(), None, None),
+        )
+        .with_socket_root(short.clone());
+        if windows {
+            paths = paths.with_loopback();
+        }
+        let folders = dr_mcp::v1::folders(&dirs.data, &paths.directory);
+        assert_eq!(folders.len(), 1, "{layout:?}: {folders:?}");
+        assert_eq!(folders[0].directory, account.join("mcp"));
+        // The account's library here is the one its 0.1 folder reaches.
+        let open = dr_account::LibraryRegistry::load_or_init(&dirs.own)
+            .unwrap()
+            .active_library_dir(&dirs.own);
+        assert_eq!(crate::mcp_v1_owner(&open), Some(folders[0].owner.clone()));
+
+        let reactor = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .unwrap();
+        reactor.block_on(async {
+            let host = dr_mcp::host::Host::new(tokio::runtime::Handle::current());
+            let own = dr_mcp::inbound::serve(paths.clone(), host).await.unwrap();
+            assert!(own.warnings.is_empty(), "{layout:?}: {:?}", own.warnings);
+            let served = dr_mcp::v1::Connections::serve(
+                folders,
+                &paths,
+                &tokio::runtime::Handle::current(),
+                Box::pin(async {}),
+            );
+            for opened in served.opened().await {
+                assert!(opened.unwrap().warnings.is_empty(), "{layout:?}");
+            }
+            own.server.close().await.unwrap();
+            served.close().await;
+            own.grants.drain().await.unwrap();
+            served.drain().await.unwrap();
+        });
+        drop(reactor);
+
+        let changed = changes(&before, &snapshot(&dirs.data));
+        assert!(
+            changed.iter().all(|change| is_mcp_state(change)),
+            "{layout:?}: {changed:?}"
+        );
+        if windows {
+            for connection in &made {
+                let file = connection.file.strip_prefix(&dirs.data).unwrap();
+                let name = format!("changed {}", file.to_string_lossy().replace('\\', "/"));
+                assert!(changed.contains(&name), "{layout:?}: {changed:?}");
+            }
+        } else {
+            assert_eq!(changed, Vec::<String>::new(), "{layout:?}");
+        }
+        let after: Vec<_> = made.iter().map(|c| v1_mcp::launch(&home, c)).collect();
+        assert_eq!(after, launches, "{layout:?}");
+    }
+}
+
+#[cfg(unix)]
+fn v1_endpoint(directory: &Path, short: &Path) -> String {
+    v1_mcp::socket(directory, short).display().to_string()
+}
+#[cfg(not(unix))]
+fn v1_endpoint(_: &Path, _: &Path) -> String {
+    v1_mcp::closed_port()
+}
+
+/// The owner the app tells `dr_view_agent::mcp` for the open library
+/// (`mcp_v1_owner`), by its own `libraries.json`: the signed-in account's
+/// library is that account's, the local one is local once it is the active
+/// one, and a library the registry does not name as active has none.
+#[test]
+fn the_0_1_connections_follow_the_owner_of_the_open_library() {
+    let root = tempfile::tempdir().unwrap();
+    let dirs = release_dirs(Layout::current(), root.path());
+    let _old = v1_data_folder(Layout::current(), &dirs.data, true);
+    assert!(start_like_the_app(&dirs.own).is_empty());
+    let account = dirs.own.join("libraries").join(v1_account_library(SUBJECT));
+    let local = dirs.own.join("library");
+    assert_eq!(
+        crate::mcp_v1_owner(&account),
+        Some(dr_mcp::v1::Owner::Account(SUBJECT.into()))
+    );
+    assert_eq!(crate::mcp_v1_owner(&local), None);
+    LibraryRegistry::settle_for_startup(&dirs.own, false, None).unwrap();
+    assert_eq!(crate::mcp_v1_owner(&local), Some(dr_mcp::v1::Owner::Local));
+    assert_eq!(crate::mcp_v1_owner(&account), None);
+    // The 0.1 folder's own libraries are no library of this app.
+    assert_eq!(crate::mcp_v1_owner(&dirs.data), None);
 }
 
 /// The negative control: the layout before the fix (the new client's files

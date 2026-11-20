@@ -402,7 +402,7 @@ mod tests {
                 SettingsFile::in_memory(),
                 cx,
             );
-            crate::mcp::init_with(Ok(paths), Arc::new(SecretStore::in_memory()), cx);
+            crate::mcp::init_with(Ok(paths), None, Arc::new(SecretStore::in_memory()), cx);
             cx.global::<crate::mcp::McpGlobal>().service.clone()
         });
         let (view, cx) =

@@ -214,7 +214,14 @@ fn main() {
                 log::warn!("could not install notification area controller: {error}");
             }
         }
-        dr_view_agent::mcp::init(platform, dirs.as_ref(), cx);
+        // The 0.1 libraries' own MCP folders too (`libraries/<id>/mcp`), for
+        // the books of the library their owner has here (`mcp_v1_owner`).
+        // A development build finds no 0.1 folder unless one is named.
+        let v1 = dr_view_import::v1_data_dir().map(|data| dr_view_agent::mcp::V1 {
+            data,
+            owner_of: std::sync::Arc::new(mcp_v1_owner),
+        });
+        dr_view_agent::mcp::init(platform, dirs.as_ref(), v1, cx);
         dr_view_agent::init(platform, cx);
         // ⌘Q hides the app before the quit hooks run (F7).
         dr_shell::quit::hide_first(cx);
@@ -340,6 +347,17 @@ fn main() {
 /// `local::cli` in `src-tauri/src/mcp_server.rs`).
 fn run_mcp_bridge(connection: &Path) -> Result<(), String> {
     dr_mcp::bridge::run(connection)
+}
+
+/// Who owns the library at `root`, by this app's `libraries.json` (the
+/// import's rule, `reimport::library_owner`): the 0.1 libraries' MCP folders
+/// of that owner reach its books (`dr_mcp::v1`). A library the registry does
+/// not name as the active one has no owner here, and reaches none.
+fn mcp_v1_owner(root: &Path) -> Option<dr_mcp::v1::Owner> {
+    match dr_view_import::reimport::library_owner(root).ok()? {
+        dr_account::LibraryOwner::Local => Some(dr_mcp::v1::Owner::Local),
+        dr_account::LibraryOwner::Account { subject } => Some(dr_mcp::v1::Owner::Account(subject)),
+    }
 }
 
 fn open_workspace(cx: &mut App) {

@@ -102,6 +102,9 @@ pub enum Listener {
 
 impl Listener {
     pub async fn bind(paths: &GrantPaths) -> Result<Self> {
+        if paths.loopback() {
+            return Self::loopback().await;
+        }
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt as _;

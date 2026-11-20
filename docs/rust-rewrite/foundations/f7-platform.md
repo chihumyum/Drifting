@@ -54,7 +54,7 @@ dr_view_feedback::init(Service::for_build(platform, Some(&dirs.data), version), 
 | --- | --- | --- |
 | `cli` | app、M32 | `cli::parse(args) -> Launch::{App, Mcp(Result<PathBuf, _>)}`；`MCP_USAGE`、`MCP_ERROR_PREFIX`（旧版的报错写法） |
 | `identity` | 全部 | `Identity { channel, bundle_id, product_name, executable, url_scheme, keychain_service, publisher }`；`DEVELOPMENT`、`RELEASE`、`Identity::current()`；`RELEASE_BUILD`（`release-identity` 特性开没开，`const`）、`BUILD_MARKER`（程序里只编进当前身份的那个标记，`check-binary` 认它） |
-| `paths` | F2、F6 | `AppDirs { data, own, logs, crashes }`：`own` 放新版自己的东西，`data` 是系统按 bundle id 起名的文件夹（正式身份下就是 0.1 的，只放两版共用的 `mcp/`、导入从这里找旧书）；`AppDirs::for_identity`、`for_identity_at`（换掉系统文件夹的根，测试用）、`AppDirs::under(root)`（测试和隔离运行） |
+| `paths` | F2、F6 | `AppDirs { data, own, logs, crashes }`：`own` 放新版自己的东西，`data` 是系统按 bundle id 起名的文件夹（正式身份下就是 0.1 的，只写两版共用的 MCP 状态：根上的 `mcp/` 和各书库的 `libraries/<id>/mcp/`；导入从这里找旧书）；`AppDirs::for_identity`、`for_identity_at`（换掉系统文件夹的根，测试用）、`AppDirs::under(root)`（测试和隔离运行） |
 | `logging` | app | `LogConfig::for_build`、`logging::init`、`logging::installed()` |
 | `crash` | app、F6、F2 | `crash::init(CrashConfig) -> CrashReporting`；`.status()`、`.set_consent(bool)`、`.take_follow_up() -> Option<CrashFollowUp>`、`.report_integrity(code)`、`.flush(timeout)` |
 | `sanitize` | 任何要上报文字的地方 | `sanitize::message`、`report_text(text, max)`、`report_token`、`error_code`、`redact_home`（规则逐条照旧版 `crash-sanitize.ts`） |
@@ -204,7 +204,7 @@ dr_view_feedback::init(Service::for_build(platform, Some(&dirs.data), version), 
 - 可执行文件路径交接后不变：macOS `…/Drifting.app/Contents/MacOS/drifting`，Windows `<安装目录>\drifting.exe`（正式版身份和安装器保证）。
 - 参数规则照旧版 `run_stdio_cli`：第一个参数是 `--mcp` 才算；恰好是 `--mcp --connection <文件>` 时进桥接，其他写法报 `Usage: Drifting --mcp --connection <connection-file>`；所有错误都写成 `Drifting MCP: <原因>` 打到 stderr、以 1 退出。`dr_platform::cli` 实现了这套解析（有测试），`app/drifting` 的 `main` 在第一行分流，桥接本身 `run_mcp_bridge` 现在只返回「这个版本还没有 MCP 桥接」，由 M32 实现：读连接文件（`version: 1`）、连运行中的 Drifting、转发帧，和旧版 `local::cli` 一致。
 - 本机冒烟：开发构建 `drifting --mcp --connection <不存在的文件>` 和 `drifting --mcp` 都立刻在 stderr 报错、以 1 退出，没开窗口、没留进程。
-- 连接文件放在应用数据目录的 `mcp/` 下，正式版身份和旧版共用这个目录，M32 照旧版格式读即可；桥接要连的是一个开着的 Drifting，所以 Windows 上关窗后程序是否还在（见「Windows 托盘」）直接影响外部 Agent。
+- 连接文件放在**正在用的书库**的根下的 `mcp/`：旧版注册表以前的那个书库（`legacy`）的根就是应用数据目录，其他书库（`local`、`account-<hex>`）的根是 `libraries/<id>`，连接文件在 `libraries/<id>/mcp/`。正式版身份把前一个当自己的文件夹，后一种由 M32 照原样一并接上（2026-11-21，见 [m32 的「0.1 各书库的外部 Agent 连接」](../modules/m32-mcp.md#01-各书库的外部-agent-连接2026-11-21)）；桥接要连的是一个开着的 Drifting，所以 Windows 上关窗后程序是否还在（见「Windows 托盘」）直接影响外部 Agent。
 - Windows 正式包如果用 GUI 子系统（不弹控制台），被 Agent 以管道启动时标准输入输出照样能用，旧版就是这样；F6 加 `windows_subsystem` 时保持这一点。
 
 ## 退出时能做多少

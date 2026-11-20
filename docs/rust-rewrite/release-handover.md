@@ -32,9 +32,9 @@
 
 | | macOS | Windows |
 | --- | --- | --- |
-| 0.1 的文件夹：新版除了 `mcp/` 什么都不写，导入时从这里找旧书 | `~/Library/Application Support/cc.drifting.client` | `%LOCALAPPDATA%\cc.drifting.client` |
+| 0.1 的文件夹：新版除了 MCP 状态（根上的 `mcp/` 和各书库的 `libraries/<id>/mcp/`）什么都不写，导入时从这里找旧书 | `~/Library/Application Support/cc.drifting.client` | `%LOCALAPPDATA%\cc.drifting.client` |
 | 新版自己的东西：书库登记表、书库、设备身份、设置、下载的更新、崩溃记录 | `~/Library/Application Support/cc.drifting.client.v2` | `%LOCALAPPDATA%\cc.drifting.client.v2` |
-| 两版共用、留在原处的 | 0.1 文件夹里的 `mcp/`（外部 Agent 的连接文件，路径已经写在作者的 Codex、Claude Code 配置里） | 同左 |
+| 两版共用、留在原处的 | 外部 Agent 的连接文件，路径已经写在作者的 Codex、Claude Code 配置里。0.1 是按书库放的：注册表以前的那个书库在 0.1 文件夹根上的 `mcp/`（新版把它当自己的文件夹，开着哪个书库都能用），本机书库和账号书库在各自的 `libraries/<id>/mcp/`（2026-11-21 起新版照原样一并接上，只在新版打开的是它主人的书库时看得到书；之前这两种在新版里连不上）。见 [m32 的「0.1 各书库的外部 Agent 连接」](modules/m32-mcp.md#01-各书库的外部-agent-连接2026-11-21)，那里还有三条待作者定的 | 同左；Windows 上新版每次启动换端口，并把新端口写进这些连接文件 |
 | 日志 | `~/Library/Logs/cc.drifting.client` | `%LOCALAPPDATA%\cc.drifting.client.v2\logs` |
 
 为什么放在「旁边」而不是 0.1 文件夹「里面」的子文件夹：0.1 最常见的本地书库，它的根就是整个 0.1 文件夹；导入有一道保护，不许把导入结果放进来源书库的里面。放在里面的话，最常见的那种旧书库会被拒绝导入（也试过，报 `reimport requires a new destination`）。
@@ -114,7 +114,7 @@ cargo xtask check-binary --precompiled-shaders "target/bundle/Drifting Next.app/
 | --- | --- | --- |
 | 安装包 | NSIS，`next/script/bundle-windows.ps1 -BuildProfile dist -Target <x86_64 或 aarch64>-pc-windows-msvc -ReleaseIdentity`，出 `Drifting_<版本>_windows_x64-setup.exe` 和 `…_arm64-setup.exe`。不要管理员权限，装到当前用户下 | 工作流里每个架构一个任务；开发身份的安装包 CI 每次都打、装一遍、升级一遍、卸一遍（`check-windows-installer.ps1`） |
 | 从 0.1 原位升级 | 0.1 最后一版的更新器下载新安装包、验签，用 `/P /R /UPDATE /ARGS` 运行它，自己马上退出。新安装器装进**同一个**文件夹 `%LOCALAPPDATA%\Drifting`（之前装在别处的，按 `HKCU\Software\drifting\Drifting` 记下的位置），改写同一个卸载项（「已安装的应用」里还是一个 Drifting）、同一个 `drifting:` 协议键；最多等旧进程 10 秒，被动模式下再结束本用户残留的同名进程；`/UPDATE` 时不动开始菜单和任务栏上已有的固定；装完把新版打开 | 安装位置、卸载项、厂商键、协议、`/P /UPDATE` 都对着旧版 Tauri 安装器写的，CI 上验过开发身份那一套；**正式身份的安装包没在 Windows 上打过**，从 0.1 真升级一次是实机验收（m43 清单第一节最后一条） |
-| 数据 | 0.1 的 `%LOCALAPPDATA%\cc.drifting.client`（书库、登记表、WebView2 的 `EBWebView/`）新版除了 `mcp/` 不写；新版自己的东西在 `%LOCALAPPDATA%\cc.drifting.client.v2`，日志在它的 `logs\`；程序在 `%LOCALAPPDATA%\Drifting`，卸载只删程序自己的文件，书不在那里 | 测试按 Windows 的规则也跑一遍（不管在哪个系统上跑），含程序文件夹不被碰 |
+| 数据 | 0.1 的 `%LOCALAPPDATA%\cc.drifting.client`（书库、登记表、WebView2 的 `EBWebView/`）新版除了 MCP 状态（`mcp\` 和 `libraries\<id>\mcp\`）不写；新版自己的东西在 `%LOCALAPPDATA%\cc.drifting.client.v2`，日志在它的 `logs\`；程序在 `%LOCALAPPDATA%\Drifting`，卸载只删程序自己的文件，书不在那里 | 测试按 Windows 的规则也跑一遍（不管在哪个系统上跑），含程序文件夹不被碰 |
 | 更新签名 | Windows 的更新包就是安装包本身：`update-tool sign` 用同一把 minisign 私钥签出 `-setup.exe.sig`，签名里带文件名（含版本号），`update.json` 的 Windows 两个键指向安装包和它的签名 | 工作流里签完立刻用公钥验一次 |
 | 代码签名（Authenticode） | **作者 2026-11-20 定：不签，照 0.1**。不签时第一次运行 SmartScreen 会提示「Windows 已保护你的电脑」（点「更多信息」→「仍要运行」），发布说明里照 0.1 写一句；更新照样由 minisign 签名保证。要签得买代码签名证书，工作流里在「Sign the installer with the updater key」前面加一步 | 不签 |
 | 实机验收 | 作者只有一台 Windows 11 ARM 虚拟机：开发身份的安装包从 `next` 工作流每次运行的产物里下（`windows-installer` 任务打的 `drifting-next-windows-arm64-<提交号>`，x64 的叫 `…-windows-x64-…`；`dist` 档，留 7 天），照 [m43-windows.md](modules/m43-windows.md) 的清单走。2026-11-21 监管会话先用脚本走了一遍（装、启动、单实例、深链接、通知区收起和唤回、原地更新），查出两处启动不了的问题并修了，见 m43 的「第一次在干净的 Windows 上装和启动」；修好的包还没重验，通知区、微软拼音、观感等要作者点 | **挡发布**（progress「等作者的事」第 3 条） |

@@ -10,6 +10,7 @@ pub mod outbound;
 pub mod plugin_tools;
 mod private_files;
 pub mod transport;
+pub mod v1;
 
 pub use grants::*;
 pub use plugin_tools::{PluginSlot, PluginTools};
