@@ -33,7 +33,7 @@ cargo run -p gpui-prose --example editor
 
 Status: early. The API is described, with what is stable and what may change,
 in the Drifting repository at `docs/rust-rewrite/foundations/f4-editor.md`.
-GPUI is a git dependency (Zed `v1.27.0`), so the crate is not on crates.io yet.
+GPUI is a git dependency (Zed `v1.29.3`), so the crate is not on crates.io yet.
 
 ## Features
 

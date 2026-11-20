@@ -345,7 +345,7 @@ cargo xtask dev --hot --debug-bridge                 # 再带上调试桥
 cargo xtask dev --hot --print-config                 # 看会跑什么命令，不启动
 ```
 
-- **原理**：钉住的 GPUI v1.27.0 带 `hot-reload` 特性（Zed PR #65738，用 Dioxus 的 subsecond）。应用经 `dx serve --hot-patch` 启动时，dx 盯着源码，改了就只编改动的那几个函数，打成补丁发给正在跑的应用；GPUI 在两次更新之间换上补丁，再让所有窗口重画。应用这边只是打开 GPUI 的这个特性（`drifting` 的 `hot-reload` 特性，`--hot` 会带上）。
+- **原理**：钉住的 GPUI（v1.27.0 起，现为 v1.29.3）带 `hot-reload` 特性（Zed PR #65738，用 Dioxus 的 subsecond）。应用经 `dx serve --hot-patch` 启动时，dx 盯着源码，改了就只编改动的那几个函数，打成补丁发给正在跑的应用；GPUI 在两次更新之间换上补丁，再让所有窗口重画。应用这边只是打开 GPUI 的这个特性（`drifting` 的 `hot-reload` 特性，`--hot` 会带上）。
 - **能换的**：视图和组件的渲染函数（`Render::render`、`RenderOnce::render`），以及它们调用到的代码：布局、颜色、文字、哪些子元素、点击处理器里写的逻辑。
 - **换不了的**（要重启，dx 会说要整个重来）：
   - 自定义元素的 `request_layout` / `prepaint` / `paint`（GPUI 不经过补丁表调它们；编辑器的正文就是这种元素）；

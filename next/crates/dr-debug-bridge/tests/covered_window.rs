@@ -148,8 +148,8 @@ fn settle(cx: &mut VisualTestContext, done: impl Fn(&mut VisualTestContext) -> b
     }
 }
 
-/// One bridge method, run to its answer; the test's clock keeps pace with
-/// the wall clock the motions run on. Nothing here draws the window.
+/// One bridge method, run to its answer; the test's clock, which the motions
+/// run on, moves on while it waits. Nothing here draws the window.
 fn call(cx: &mut VisualTestContext, method: &'static str, params: Value) -> Value {
     let out: Rc<RefCell<Option<Result<Value, BridgeError>>>> = Rc::default();
     let put = out.clone();
@@ -201,7 +201,11 @@ fn covered_page(ws: &Entity<Workspace>, cx: &mut VisualTestContext, target: &Tar
 fn a_scroll_on_a_covered_window_lands_on_what_it_shows_now(cx: &mut TestAppContext) {
     let (ws, cx, target, _dir) = setup(cx);
     covered_page(&ws, cx, &target);
-    std::thread::sleep(SLIDE + Duration::from_millis(150));
+    // Time passes with nothing drawn. GPUI times motions with the executor's
+    // clock (zed#66317), the test's clock here: past the slide, short of the
+    // shell's own timers.
+    cx.executor()
+        .advance_clock(SLIDE + Duration::from_millis(50));
     let x = cx.update(|window, _| f32::from(window.viewport_size().width) / 2.0);
     call(
         cx,

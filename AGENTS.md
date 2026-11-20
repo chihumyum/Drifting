@@ -51,8 +51,8 @@ Guidance for coding agents working in this standalone Drifting client repository
   file and lockfile, and shares no code with the 0.1 client. Every other rule in
   this file keeps applying to the 0.1 client (`src/`, `src-tauri/`, `crates/`,
   `drizzle/`, …) until the switch-over.
-- GPUI is pinned to a Zed release tag plus the patches the author chose to
-  carry: the dependency names the fork's tag (`chihumyum/zed`,
+- GPUI is pinned to a Zed release tag. While the author carries patches,
+  the dependency names the fork's tag instead (`chihumyum/zed`,
   `v<Zed tag>-drifting.<n>`), which is that Zed tag with
   `next/patches/gpui` patches applied; the patch files stay the source of
   truth. Loro is pinned exactly; other dependencies go in
