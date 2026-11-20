@@ -1759,6 +1759,7 @@ dependencies = [
 name = "dr-import-v1"
 version = "0.0.0"
 dependencies = [
+ "dr-agent",
  "dr-agent-tools",
  "dr-doc",
  "dr-index",
@@ -2256,6 +2257,7 @@ dependencies = [
  "anyhow",
  "color_quant",
  "dr-account",
+ "dr-agent",
  "dr-doc",
  "dr-i18n",
  "dr-import-v1",

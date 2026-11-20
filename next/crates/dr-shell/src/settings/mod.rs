@@ -9,6 +9,8 @@ pub mod panel;
 pub(crate) use panel::row;
 pub mod registry;
 pub mod store;
+/// The 0.1 client's settings and shortcuts, as this client takes them over.
+pub mod v1;
 
 use std::collections::HashMap;
 use std::rc::Rc;

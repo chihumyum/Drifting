@@ -808,6 +808,16 @@ impl LegacyImport {
                                     .map_err(|e| e.to_string())
                                 }) {
                                 Ok(ws) => {
+                                    // Each book's 0.1 working memory, where the
+                                    // book has none here (never over one).
+                                    if let Err(error) = dr_import_v1::carry::carry_working_memory(
+                                        ws.library(),
+                                        &job.target(),
+                                    ) {
+                                        log::warn!(
+                                            "the 0.1 working memories did not come over: {error}"
+                                        );
+                                    }
                                     let done =
                                         summary(&ws, folder, &picked, &receipt, timing.total_ms);
                                     match ws.try_shutdown() {
@@ -1006,6 +1016,7 @@ impl LegacyImport {
                 // Release hooks only settle already finished work; the long
                 // cancellable import above ran with ordinary UI admission.
                 let commit = job.clone();
+                let root = job.target();
                 dr_shell::library::replace_with_commit(
                     cx,
                     move |old, options| job.open_target(old, options),
@@ -1015,6 +1026,9 @@ impl LegacyImport {
                         // and sync connects to it.
                         if result.is_ok() {
                             dr_view_account::follow_library_registry(cx);
+                            // The 0.1 settings and shortcuts of this device,
+                            // once per device.
+                            crate::carry::adopt_settings(&root, cx);
                         }
                         this.update(cx, |import, cx| {
                             import.state = match result {

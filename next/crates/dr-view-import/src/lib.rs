@@ -3,6 +3,7 @@
 //! libraries stay intact. The cancellable background worker closes its target
 //! before the shared release protocol performs a short controlled activation.
 
+pub mod carry;
 pub mod copy;
 mod flow;
 pub mod reimport;

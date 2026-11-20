@@ -619,11 +619,48 @@ pub fn apply_synced_preference(
         }
         return true;
     }
-    if value.is_null() {
+    // `null` is the default of a key that has no stored value (the interface
+    // language follows the system), unless the key takes it as a value (no
+    // cap on the Agent's rounds).
+    let takes_null = registry::find(key).is_some_and(|def| def.validate(value).is_some());
+    if value.is_null() && !takes_null {
         file.reset(key, None)
     } else {
         file.set(key, value.clone(), None).unwrap_or(false)
     }
+}
+
+/// Whether this device's preference sync holds a change for `key` (a ledger
+/// entry later than [`dr_account::UNCHANGED_AT`]): a value the account or
+/// this device chose, which the 0.1 import never replaces.
+pub fn has_synced_change(file: &dr_shell::SettingsFile, key: &str) -> bool {
+    load_stored_preference_state(file)
+        .ledger
+        .entries
+        .get(key)
+        .is_some_and(|e| {
+            dr_account::compare_iso_timestamps(&e.changed_at, dr_account::UNCHANGED_AT)
+                == std::cmp::Ordering::Greater
+        })
+}
+
+/// M37's [`dr_account::Adopt`]: for a key of this client that holds no
+/// change in the account's bag, the value the 0.1 client synced under its
+/// own name (`dr_shell::settings::v1`), with its change time. The 0.1
+/// entries themselves are never written: a 0.1 client may still run on
+/// another device.
+pub fn adopt_from_v1(
+    key: &str,
+    bag: &BTreeMap<String, dr_account::RemotePreference>,
+) -> Option<dr_account::RemotePreference> {
+    use dr_shell::settings::v1;
+    let old = v1::synced_source(key)?;
+    let stored = bag.get(old)?;
+    let value = v1::convert_synced(old, &stored.value, v1::this_os())?;
+    Some(dr_account::RemotePreference {
+        value,
+        changed_at: stored.changed_at.clone(),
+    })
 }
 
 /// Whether `file` has any account-synced preference awaiting upload.
@@ -667,7 +704,9 @@ pub fn sync_preferences_now(cx: &mut App) {
     let task = cx.spawn(async move |cx| {
         let res = cx
             .background_executor()
-            .spawn(async move { inner.sync_preferences(&keys, &local_values, &ledger) })
+            .spawn(async move {
+                inner.sync_preferences_adopting(&keys, &local_values, &ledger, &adopt_from_v1)
+            })
             .await;
         cx.update(|cx| {
             if let Ok(outcome) = res
@@ -704,7 +743,8 @@ pub fn sync_preferences_blocking(
     file: &mut dr_shell::SettingsFile,
 ) -> Result<dr_account::PreferenceSyncOutcome, dr_account::AccountError> {
     let (keys, local_values, ledger) = snapshot_synced_preferences(file);
-    let outcome = service.sync_preferences(&keys, &local_values, &ledger)?;
+    let outcome =
+        service.sync_preferences_adopting(&keys, &local_values, &ledger, &adopt_from_v1)?;
     if outcome.supported {
         apply_preference_sync_outcome(file, &outcome);
     }
@@ -1327,6 +1367,186 @@ mod tests {
         // Device B's device-only settings remain at their local defaults:
         assert_eq!(file_b.get(TEXT_SIZE), Value::from("standard"));
         assert_eq!(file_b.get(AGENT_PROVIDER), Value::from("deepseek"));
+    }
+
+    /// M37 over a bag a 0.1 client filled (its key names, `preference-fields.ts`):
+    /// this client takes the mapped values for keys that hold no change of
+    /// its own, newest change winning, and leaves every 0.1 entry as it was.
+    #[test]
+    fn the_01_clients_synced_preferences_are_adopted_and_left_in_the_bag() {
+        use dr_account::{PreferenceWrite, RemotePreference, UNCHANGED_AT};
+        use dr_shell::settings::registry::{
+            AGENT_MAX_MODEL_ROUNDS, AUTO_IMMERSIVE, FONT_SIZE, LINE_HEIGHT, PAGE_WIDTH,
+            PARAGRAPH_INDENT, PARAGRAPH_SPACING, THEME, TYPEWRITER, TYPEWRITER_POSITION, UI_LOCALE,
+        };
+        use dr_shell::settings::store::KEY_BINDINGS;
+        use serde_json::{Value, json};
+
+        let email = "old-prefs@example.test";
+        let server = FakeAuthServer::start();
+        server.set_require_signup_verification(false);
+        let tmp_old = TempDir::new().expect("tempdir 0.1");
+        let tmp_a = TempDir::new().expect("tempdir a");
+        let tmp_b = TempDir::new().expect("tempdir b");
+        let service = |dir: &TempDir| {
+            AccountService::new(
+                server.config(),
+                dir.path(),
+                "cc.drifting.next.dev",
+                Arc::new(SecretStore::in_memory()),
+            )
+            .expect("service")
+        };
+        let (svc_old, svc_a, svc_b) = (service(&tmp_old), service(&tmp_a), service(&tmp_b));
+        svc_old
+            .sign_up_email("Author", email, "old-prefs-password-123")
+            .expect("sign up");
+        svc_a
+            .sign_in_email(email, "old-prefs-password-123")
+            .expect("sign in a");
+        svc_b
+            .sign_in_email(email, "old-prefs-password-123")
+            .expect("sign in b");
+
+        // The bag as a 0.1 client leaves it: every synced field, the
+        // untouched ones seeded at `UNCHANGED_AT`, its full shortcut map.
+        let at = "2026-10-20T09:00:00.000Z";
+        let write = |key: &str, value: Value, changed_at: &str| PreferenceWrite {
+            key: key.into(),
+            value,
+            changed_at: changed_at.into(),
+        };
+        let bindings = json!({
+            "closeActiveTab": "Mod+W", "findInEditor": "Mod+F", "globalSearch": "Mod+Shift+F",
+            "saveCurrentEditor": "Mod+S", "goBack": "Mod+Alt+B", "goForward": "Mod+]",
+            "prevTab": "Mod+Alt+ArrowLeft", "nextTab": "Mod+Alt+ArrowRight",
+            "toggleBottomTimeline": "Mod+J", "toggleImmersiveWriting": "Mod+Shift+Enter",
+            "newEntity": "Mod+,", "closeProject": "Mod+Shift+W"
+        });
+        let old_bag = [
+            write("themeMode", json!("dark"), at),
+            write("accentColor", json!("#aa5500"), at),
+            write("agentEditRevealAnimation", json!(true), UNCHANGED_AT),
+            write("bodyFontSize", json!(19), at),
+            write("lineHeight", json!(1.7), at),
+            write("paragraphIndent", json!("two"), at),
+            write("editorIndentStep", json!(2), UNCHANGED_AT),
+            write("paragraphSpacing", json!(2.8), at),
+            write("maxLineWidth", json!(840), at),
+            write("autoImmersiveWriting", json!(false), UNCHANGED_AT),
+            write("typewriterMode", json!(true), at),
+            write("typewriterPosition", json!(60), UNCHANGED_AT),
+            write("caretColor", json!("#6b7fa6"), UNCHANGED_AT),
+            write("entityLinkColorMode", json!("contextual"), UNCHANGED_AT),
+            write("autoElementLinkEnabled", json!(true), UNCHANGED_AT),
+            write("uiLocale", json!("ja"), at),
+            write("agentTurnIterationLimit", Value::Null, at),
+            write("shortcutBindings", bindings, at),
+        ];
+        let origin = server.origin();
+        let token = svc_old.current_token().expect("0.1 token");
+        svc_old
+            .client()
+            .put_preferences(&origin, &token, &old_bag)
+            .expect("the 0.1 client's bag");
+        // Another device of this client already chose a line height.
+        svc_old
+            .client()
+            .put_preferences(
+                &origin,
+                &token,
+                &[write(LINE_HEIGHT, json!(1.3), "2026-11-01T09:00:00.000Z")],
+            )
+            .expect("a change of this client");
+        let old_entries = |bag: &BTreeMap<String, RemotePreference>| -> String {
+            let old: BTreeMap<&String, &RemotePreference> = bag
+                .iter()
+                .filter(|(k, _)| old_bag.iter().any(|w| &w.key == *k))
+                .collect();
+            assert_eq!(old.len(), old_bag.len(), "no 0.1 entry is removed");
+            serde_json::to_string(&old).unwrap()
+        };
+        let before = old_entries(&server.preferences_for(email));
+
+        // Device A: changed its font size here before signing in.
+        let mut file_a = SettingsFile::in_memory();
+        file_a.set(FONT_SIZE, json!(22), None).unwrap();
+        let out = sync_preferences_blocking(&svc_a, &mut file_a).expect("sync a");
+        assert!(out.supported);
+        assert_eq!(file_a.get(THEME), json!("dark"));
+        assert_eq!(file_a.number(FONT_SIZE), 22.0, "a newer change here wins");
+        assert_eq!(
+            file_a.number(LINE_HEIGHT),
+            1.3,
+            "a change of this client wins"
+        );
+        assert_eq!(file_a.get(PARAGRAPH_INDENT), json!("two"));
+        assert_eq!(
+            file_a.number(PARAGRAPH_SPACING),
+            2.5,
+            "clamped to this range"
+        );
+        assert_eq!(file_a.number(PAGE_WIDTH), 840.0);
+        assert!(file_a.bool(TYPEWRITER));
+        assert_eq!(
+            file_a.number(TYPEWRITER_POSITION),
+            50.0,
+            "an untouched 0.1 seed is no change"
+        );
+        assert!(!file_a.bool(AUTO_IMMERSIVE));
+        assert_eq!(file_a.get(UI_LOCALE), json!("ja"));
+        assert_eq!(
+            file_a.get(AGENT_MAX_MODEL_ROUNDS),
+            Value::Null,
+            "no cap stays no cap"
+        );
+        let keys = file_a.key_bindings();
+        assert_eq!(keys["goBack"], "alt-secondary-b");
+        assert!(
+            !keys.contains_key("newEntity"),
+            "⌘, opens the settings here: the default stays"
+        );
+        assert_eq!(keys.len(), 1);
+        assert!(!has_pending_synced_preferences(&file_a));
+
+        let bag = server.preferences_for(email);
+        assert_eq!(old_entries(&bag), before, "every 0.1 entry byte for byte");
+        assert_eq!(bag[THEME].value, json!("dark"));
+        assert_eq!(bag[THEME].changed_at, at);
+        assert_eq!(bag[FONT_SIZE].value, json!(22.0));
+        assert_eq!(bag[PARAGRAPH_SPACING].value, json!(2.5));
+        assert_eq!(bag[AGENT_MAX_MODEL_ROUNDS].value, Value::Null);
+        assert_eq!(
+            bag[KEY_BINDINGS].value,
+            json!({"goBack": "alt-secondary-b"})
+        );
+
+        // Device B finds them under this client's names.
+        let mut file_b = SettingsFile::in_memory();
+        sync_preferences_blocking(&svc_b, &mut file_b).expect("sync b");
+        assert_eq!(file_b.get(THEME), json!("dark"));
+        assert_eq!(file_b.number(FONT_SIZE), 22.0);
+        assert_eq!(file_b.get(AGENT_MAX_MODEL_ROUNDS), Value::Null);
+        assert_eq!(file_b.key_bindings()["goBack"], "alt-secondary-b");
+
+        // Taken once: the 0.1 client changing its theme later is not taken,
+        // and its entry is still not touched.
+        svc_old
+            .client()
+            .put_preferences(
+                &origin,
+                &token,
+                &[write(
+                    "themeMode",
+                    json!("light"),
+                    "2026-11-20T09:00:00.000Z",
+                )],
+            )
+            .expect("a later 0.1 change");
+        let later = old_entries(&server.preferences_for(email));
+        sync_preferences_blocking(&svc_a, &mut file_a).expect("sync a again");
+        assert_eq!(file_a.get(THEME), json!("dark"));
+        assert_eq!(old_entries(&server.preferences_for(email)), later);
     }
 
     #[test]

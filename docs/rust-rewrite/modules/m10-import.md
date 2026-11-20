@@ -182,6 +182,121 @@ M3 Pro，release；机器同时在跑别的构建（最后一次跑时一分钟�
 在 `next/`：`cargo fmt --all --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings`、`cargo xtask check --skip audit` 通过。`cargo test`：`dr-import-v1`、`dr-view-import`、`dr-workspace` 463 项通过；`dr-agent-tools` 107 项、`dr-doc` 172 项（1 项原有忽略）、`dr-samples` 13 项通过。仓库根：`pnpm typecheck`、`pnpm lint`（0 错误，44 条原有警告）、`pnpm ci:contract:check`、`pnpm public:check`，`m10-fixtures.test.ts` 带 `DRIFTING_M10_FIXTURE_DIR` 跑通（8 项）。
 
 改了的测试：原来断言「拒绝导入」的几例（`ambiguous_or_unsupported_sources_stop_before_v3_writes`、`malformed_source_is_reported_without_automatic_repairs`、`duplicate_historical_values_do_not_overwrite_one_structured_field`、`unsupported_prose_links_and_table_marks_remain_in_the_source_and_stop_import`、`a_long_legacy_id_is_reported_before_constructing_a_scoped_template_doc_id`、`original_dangling_source_relation_is_pending_before_any_target_or_identity_write`）照这次的规则改成断言照导、记下、字不丢、丢失检查通过，并入 `tests/defaults.rs`；要验「预检拦住时什么都不写」的几例（`undecided_mapping_stops_before_target_or_device_writes`、开发命令行一例、`dr-view-import` 的 `pending_is_prewrite_then_explicit_choices_import_into_a_new_preferred_v3_library`）换成仍会拒绝的情况（正文缓存不是 JSON、id 撞号）。
+## 0.1 的设置、快捷键和工作记忆（2026-11-21）
+
+审计发现三样东西导入时搬进了回执、却没人用，作者升级后拿到的是默认值：这台设备的设置和快捷键、账号里同步的 0.1 偏好、每本书的帮手工作记忆。这一轮把它们接上。没有新界面、没有新的界面文案；只有导入摘要 `summary.md` 末尾多一节。
+
+### 做了什么（大白话）
+
+1. **设置和快捷键跟过来（每台设备一次）。** 0.1 最后几版退出时，把这台设备的设置、快捷键和「主动建议」开关抄进交接清单（[docs/v2-handoff.md](../../v2-handoff.md)），导入时原样存进 `<新库>/import-v1/receipt.sqlite` 的 `local_setting`。现在导入完、新库成为打开的库的那一刻，新版把其中意思相同的设置写进自己的设置（下表），快捷键写进 `keys.bindings`，马上生效。
+   - **只写新版里还没设过的键。** 作者在新版里改过的，或者偏好同步给这个键记过真正改动的（账本里时间晚于 `1970-01-01`），都不动。
+   - **0.1 的默认值不带。** 0.1 把每个设置都存着，改没改过都存，所以和 0.1 默认值一样的值不算作者选的，不写，新版用自己的默认值（见下面「替作者定的」第 1 条）。
+   - **超出新版范围的数照注册表的办法收进范围**（段距 0.1 最多 3em，新版 2.5em），原值和写进去的值都记下。新版不认的值（比如不存在的主题名）不写，记下。
+   - **登录着时**，带过来的设置和作者刚在这台设备上改的一样：下一轮偏好同步把其中跟账号的传进账号（谁新谁赢照旧）。
+   - **一台设备只做一次。** 做过就记设备值 `import.v1_settings_adopted`（和「自己弹出」的 `import.v1_offered` 同一种做法）。导的旧库没抄到设置（没经过交接）不算做过，之后导别的库还会看。
+   - **快捷键。** 新版的快捷键表本来就用 0.1 的命令 id，同一个 id 才算同一个命令（10 个）。作者在新版里改过的不动；键位换成新版的写法（`Mod+Shift+F` → `shift-secondary-f`，`Mod` 是 ⌘ / Ctrl，Mac 以外 0.1 的 Ctrl 也是主键）；和新版别的命令撞了的（查法和「设置 → 快捷键」里改键时一样：列出的、固定的、整个 App 的，编辑器里的格式键不算），这个命令留默认，并记下撞了谁；两个命令在 0.1 里互换了键位的，照样互换。新版没有的命令（`saveCurrentEditor`、`closeProject`）、新版认不出的键位（比如要按 Shift 才打得出的符号，跟键盘布局有关）记下不带。和改键一样，带过来的键位替换这个命令的全部默认键位（`prevTab` / `nextTab` 默认各有两个）。
+2. **账号里的 0.1 偏好（登录时）。** 0.1 用自己的键名把一组偏好同步进账号（`preference-fields.ts`：`themeMode`、`bodyFontSize`、`shortcutBindings`…），新版用自己的键名同步进同一个袋子。现在新版同步时，某个新键在账号里还没有真正的改动（没有，或者只有某台设备补上的「没改过」默认值，时间是 `1970-01-01`），就看袋子里对应的 0.1 键：它有真正的改动时间，就把它（按同一张表换算、收进范围）当作这个新键的账号值，照 M37 的规则合并——谁新谁赢，本机更晚、还没传上去的改动照样赢；它赢了就写进新键，别的设备以后直接从新键拿。**0.1 的键一个字节都不改、不删**：另一台设备上的 0.1 可能还在用。只在本机的设置（界面字号、故障报告）两边都不同步，不参与。
+3. **工作记忆（导入时）。** 0.1 每本书的帮手工作记忆在 `receipt.sqlite` 的 `local_agent_working_memory`；新版的工作记忆是另一处（M30，`dr_agent::memory`，[m30-long-tasks-memory.md](m30-long-tasks-memory.md)）。现在导入一写完（还在导入的后台线程里、换库之前），每本书的旧工作记忆就写成这本书的工作记忆——前提是新版这本书的工作记忆是空的；不是空的就不动。0.1 里删掉的、只有空白的不算（和 0.1 自己判断「有没有」一样）。续导时以前带过来的不再带。没有界面。
+
+### 对照表
+
+范围写「账号」的是跟账号同步的设置（两边都同步），「本机」的两边都只在这台设备。
+
+| 0.1 键 | 新键 | 换算 |
+| --- | --- | --- |
+| `settings-storage.themeMode` | `appearance.theme`（账号） | `light` / `dark` / `system` 原样。0.1 默认浅色，新版默认跟随系统 |
+| `settings-storage.interfaceTextSize` | `appearance.interface_text_size`（本机） | 五档同名；0.1 存储版本低于 35 的先照 0.1 自己的改名换算（`small`→`smallest`、`standard`→`small`、`large`→`standard`） |
+| `settings-storage.uiLocale` | `language.ui_locale`（账号） | 九种语言同一个码；和这台电脑的系统语言一样的不算选择（新版默认就跟系统） |
+| `settings-storage.bodyFontSize` | `editor.font_size`（账号） | px，两边都是 12–28 |
+| `settings-storage.lineHeight` | `editor.line_height`（账号） | 两边都是 1.0–2.0 |
+| `settings-storage.paragraphSpacing` | `editor.paragraph_spacing`（账号） | em；0.1 是 0–3，新版 0–2.5，超出的收进 |
+| `settings-storage.maxLineWidth` | `editor.page_width`（账号） | px，两边都是 480–1280 |
+| `settings-storage.paragraphIndent` | `editor.paragraph_indent`（账号） | `none` / `one` / `two` 原样 |
+| `settings-storage.autoImmersiveWriting` | `editor.auto_immersive`（账号） | 开关 |
+| `settings-storage.typewriterMode` | `editor.typewriter_mode`（账号） | 开关 |
+| `settings-storage.typewriterPosition` | `editor.typewriter_position`（账号） | %，两边都是 25–75 |
+| `settings-storage.autoElementLinkEnabled` | `editor.auto_entity_links`（账号） | 开关（同一句「自动要素链接」） |
+| `settings-storage.agentTurnIterationLimit` | `agent.max_model_rounds`（账号） | 正整数；`null` 两边都是不限 |
+| `settings-storage.sendCrashLogs` | `privacy.crash_reports`（本机） | 开关 |
+| `project-checkin.enabled` | `agent.proactive_suggestions`（本机） | 开关（「主动建议」） |
+| `shortcuts-storage.bindings.<id>`，账号里是 `shortcutBindings` | `keys.bindings.<同一 id>`（账号） | `closeActiveTab`、`findInEditor`、`globalSearch`、`goBack`、`goForward`、`prevTab`、`nextTab`、`toggleBottomTimeline`、`toggleImmersiveWriting`、`newEntity`；只带和 0.1 默认不一样、也和新版默认不一样的 |
+
+没有对应、不带的（0.1 的值不是 0.1 默认时，回执和摘要里记下）：
+
+| 0.1 键 | 为什么 |
+| --- | --- |
+| `accentColor` | 新版没有强调色设置 |
+| `agentEditRevealAnimation` | 新版没有改动揭示动画的设置 |
+| `editorFontSource`、`editorSystemFontFamily` | 新版没有正文字体选择 |
+| `editorIndentStep` | 新版没有 Tab 缩进宽度 |
+| `editorTextWrap` | 新版没有换行方式选择 |
+| `caretColor` | 新版没有光标颜色 |
+| `outlineRailMode` | 新版没有大纲栏开关 |
+| `commentMarksVisible` | 新版没有批注标记开关 |
+| `entityLinkInteractive`、`entityLinkColorMode`、`entityLinkHighlightMode`、`entityLinkBandStyle`、`entityLinkKindColors` | 新版没有人物链接外观设置 |
+| `recentEntitiesLimit` | 新版没有最近列表长度 |
+| `editorUndoDepth` | 新版没有撤销步数设置 |
+| `autoSnapshot` | 新版历史一直记（M09），没有开关 |
+| `agentAuth` | 0.1 已退役的凭据记号 |
+| `agentProvider`、`agentModel` | 新版有意思一样的 `agent.provider`、`agent.model`，但不直接写：新版的模型路线由模型连接来定，先查服务商连没连上，再给模型配一个它支持的思考档；直接写进去，模型不支持现在的思考档时帮手发不出去（`ModelInfo::run_config` 会拒绝）。作者在「设置 → Agent」重选一次 |
+| `agentEffort`、`agentThinking` | 0.1 是「推理强度」和「思考开关」两个值，新版 `agent.thinking` 是一个档位，可选的档随模型变，没有一对一 |
+| `agentToolSearch` | 新版没有工具搜索开关 |
+| `lastAgentConvByProject` | 旧对话只读搬过来，没有能接着开的对话 |
+| `agentOnboardingStep`、`guidesSeen` | 这是这台设备看过哪些引导，不是设置（新版有自己的设备值 `agent.onboarding`、`guides.seen`），见「替作者定的」第 3 条 |
+| 快捷键 `saveCurrentEditor` | 新版不用手动保存 |
+| 快捷键 `closeProject` | 2026-11-14 去掉了 |
+
+新版独有、0.1 没有的：`editor.justify`、`appearance.reduce_motion`、`agent.thinking`（见上）、快捷键 `focusLeftSidebar`。交接里还有书架封面画风、导出对话框记的名字和选项、各书布局等，不是注册表里的设置，这一轮没带（见「没做的」）。
+
+表在代码里是 `next/crates/dr-shell/src/settings/v1.rs` 的 `FIELDS`、`NO_EQUIVALENT`、`SHORTCUTS`；测试 `every_field_of_the_01_state_is_mapped_or_has_a_reason` 钉住 0.1 `settings-store.ts` 的 40 个字段每个要么有对应、要么有原因。
+
+### 什么时候、在哪里做
+
+| 什么 | 什么时候 | 在哪里 |
+| --- | --- | --- |
+| 设置和快捷键 | 导入完、换库成功的那一刻（`replace_with_commit` 的回调里，`follow_library_registry` 之后），每台设备一次 | `dr-view-import/src/carry.rs` 的 `adopt_settings`：读 `dr_import_v1::carry::captured_settings`，按 `dr_shell::settings::v1::adopt` 写进设置文件，重绑快捷键 |
+| 工作记忆 | 导入写完、建摘要之前，导入的后台线程里 | `dr_import_v1::carry::carry_working_memory`，经 `dr_agent::memory::replace`（按版本号比较写入，不会盖掉别人刚写的） |
+| 账号里的 0.1 偏好 | 每一轮偏好同步；只对还没有真正改动的新键起作用 | `dr-account` 的 `sync_preferences_with_client_adopting`，`dr-view-account` 传 `adopt_from_v1` |
+
+**为什么放在偏好同步的合并里，而不是「第一次同步时做一次」。** M37 的合并本来就是一个键一个键地比时间、谁新谁赢；把 0.1 键当成这个新键的另一个候选值，「谁新谁赢」「不盖新版已有的改动」就是同一次比较，不用另立规则。它不靠这台设备记什么，所以晚登录的设备、上次同步半路断了的设备都对；每台设备看同一个袋子，算出同一个结果。新键一旦有了真正的改动（带过来以后马上写进新键），以后就不再看 0.1 键，所以它实际上只发生一次。做成「第一次同步做一次」要另记一个设备值，而且第一次同步失败、或者别的设备先补了默认值时都会出错。
+
+### 记在哪里
+
+- `receipt.sqlite` 新表 `carried`，每个 0.1 值一行：种类（`setting` / `shortcut` / `working-memory`）、0.1 键、新键、去向、原值、写进去的值、原因、书名。去向：`adopted`（带了）、`clamped`（收进范围后带了）、`kept-here`（新版已有，没动）、`default`（0.1 默认，没什么可带）、`no-equivalent`、`invalid`、`conflict`；工作记忆是 `adopted` / `kept-here` / `not-carried`。
+- `summary.md` 末尾一节「设置、快捷键和工作记忆」，按去向一行一类列出；0.1 默认值不列（没丢东西）。续导会重写摘要，下一次记录时这一节照表补回。
+- 偏好同步带进来的不进回执（那不是导入，也可能根本没导入过）；带过来以后它就在账号的新键里。
+
+### 顺手修的两处
+
+- **偏好同步把「不限」丢了。** M37 收到 `null` 一律当「回到默认」，`agent.max_model_rounds` 的 `null`（不限）到了另一台设备变成 50。现在只有不接受 `null` 的键（界面语言：`null` 是跟系统）才回到默认（`dr-view-account` 的 `apply_synced_preference`）。
+- **帮手的模型连接不跟设置。** 它启动时把迭代上限读进内存，之后偏好同步或导入改了设置它不知道，作者下次换模型时又把旧值写回去。现在设置一变它就跟上迭代上限（`dr-view-agent` 的 `Connections::follow_settings`）；模型路线仍由它自己检查后定。
+
+### 替作者定的
+
+1. **和 0.1 默认值一样的值不带**（推荐保持）。理由：0.1 存的是全部值，分不出哪些是作者选的；把默认值也写进新版，会让它们都变成「作者设过的」，以后跟不上新版默认，登录时还会当成这台设备的新改动传进账号、盖掉别的设备。后果：主题 0.1 默认浅色、新版默认跟随系统，所以 0.1 里没碰过主题的作者升级后跟随系统（系统是深色就变深色）；0.1 里明确选过「浅色」的作者和没选过的分不出来，也跟随系统。要改成「浅色也带」只改对照表一处。
+2. **模型服务商和模型、思考和推理强度不带**（推荐保持）。理由见对照表：直接写会绕过模型连接的检查，可能让帮手发不出去。作者在「设置 → Agent」重选一次。
+3. **看过哪些引导不带**（`agentOnboardingStep`、`guidesSeen`）。它们不是设置；新版的引导介绍的是新界面。
+4. **账号里的 0.1 偏好只在新键还没有真正改动时才看**，带过来一次以后不再跟着 0.1 走；之后另一台设备在 0.1 里改的，新版不再跟（反过来新版改的，0.1 也看不到，两边键名不同）。
+5. **快捷键撞了留默认，不替作者挑谁让**；被撞的是新版固定的键（比如 ⌘, 是设置）时只能这样。
+6. **回收站里的书的工作记忆带不过来**：M30 不许往回收站里的书写工作记忆，记为 `not-carried`（原因写在回执里）。
+7. **一台设备只做一次，没抄到设置的导入不算做过**。
+
+### 测试
+
+| 测试 | 证明 |
+| --- | --- |
+| `dr-shell` `settings::v1::tests`（8 条） | 0.1 的 40 个设置字段每个都在表里；每个有对应的设置照值写进；0.1 默认、新版已设、偏好同步记过改动的不写；超出范围收进并记原值；新版不认的值不写；存储版本 35 前后的界面字号；键位换算（Mac 与 Windows 的 Ctrl、`{`、功能键、单键不收）；快捷键互换、撞了新版的 ⌘,、新版已改、命令不存在、键位认不出；账号里的 0.1 值换算 |
+| `dr-import-v1` `tests/carry.rs`（4 条） | 合成 0.1 库（加了交接抄下的设置、快捷键、主动建议开关和一本书的工作记忆）导入后：读回抄下的设置；工作记忆带过来，在新版里改过以后再带一次不动、记录还是「带了」；新版已有的不覆盖；删掉的、空白的不算，别的库的书记为没带过来；摘要那一节只有一份 |
+| `dr-view-import` `tests/carry.rs`（2 条） | GPUI 测试平台上从对话框导入：每个有对应的设置都换上了，段距收进 2.5，新版已设的字号、偏好同步记过的行距没动，服务商没动；快捷键互换、新键位带了，撞 ⌘, 的没带；设备值记下；书的工作记忆在新库里；回执和摘要逐条记着，包括没带的；再做一次什么都不变。没抄到设置的旧库什么都不带、不记设备值 |
+| `dr-account` `another_clients_value_stands_in_for_a_key_without_a_change_and_is_left_alone` | 假服务上，别的客户端的值只顶替没有真正改动的键，本机更晚的改动赢，新版已有的改动不被替，它自己没改过的默认值不算，0.1 的条目逐字节不变；带过来一次以后它再改也不跟 |
+| `dr-view-account` `the_01_clients_synced_preferences_are_adopted_and_left_in_the_bag` | 假服务上一袋 0.1 客户端写的真实键名：主题、字号、行距、缩进、段距（收进 2.5）、页宽、打字机、语言、不限迭代、快捷键照规则带过来；本机更晚的字号、新版别的设备选过的行距赢；0.1 没改过的不算；⌘, 撞了不带；每个 0.1 条目逐字节不变、一个不少；第二台设备从新键拿到；0.1 之后再改不跟 |
+| `dr-view-agent` `a_round_limit_written_into_the_settings_is_followed` | 设置里改了迭代上限（80、不限），模型连接跟上；它自己再保存时写的是它跟上的值 |
+
+### 没做的
+
+- 交接里还有但不是注册表设置的：书架封面画风（`shelf:cover-style`，新版是设备值 `shelf.cover_style`）、导出对话框记的作者名和选项（`drifting.manuscriptExport.v1`）、各书的布局和视图模式（`ui-storage` 等）、看过的 Markdown 文件夹引导。没对过两边的值，这一轮不带。
+- 回收站里的书的工作记忆（见上第 6 条）。
+- 真窗口（调试桥）和真实 Hosted 上没验；正式身份的包从 0.1 升级的那一次也没验。
 
 ## 第一次打开时自己弹出（2026-11-20）
 
@@ -810,6 +925,7 @@ cargo test -p dr-import-v1 --test v3_manifest --locked
 | --- | --- |
 | `archive_agent_*` | 旧帮手对话的 7 张表，原样只读：对话、运行会话、轮次、消息、工具调用、工具结果（作者已定：能看能搜，不能接着聊） |
 | `local_*`、`local_setting` | 本机状态原样：MCP 扩展配置、工作记忆、`library_state`（内置样书标记、交接清单）、Markdown 文件夹台账；交接导出的 WebView 设置 |
+| `carried` | 2026-11-21 起：这台设备的 0.1 设置、快捷键和每本书的工作记忆各自的去向（见「0.1 的设置、快捷键和工作记忆」） |
 
 Agent 的结算记录、读取回执、检查点、事件流、长任务状态留在旧库（作者已定）。`summary.md` 是给作者看的中文摘要（书名、导入了多少、哪几篇无法证明、哪些地方和旧版不完全一样），以后由界面按作者的语言显示。
 
@@ -1037,9 +1153,9 @@ cargo xtask check
 3. **存档和本机表的去处**（原第 3 条剩下的）：
    - `archive_agent_*` 交给 M31；
    - `local_agent_mcp_server` 交给 M32；
-   - `local_agent_working_memory` 交给 M30；
+   - `local_agent_working_memory` 交给 M30（2026-11-21 已接：导入时写成每本书的工作记忆，见「0.1 的设置、快捷键和工作记忆」）；
    - `local_markdown_mirror_file` 交给 M40；
-   - `local_setting` 交给 F6 的设置注册表。
+   - `local_setting` 交给 F6 的设置注册表（2026-11-21 已接：换库时每台设备一次带进设置，见同一节）。
 
    它们接手时追加自己的迁移，从 `receipt.sqlite` 读一次就行。
 4. **F1：批注、补丁的正文和素材描述是纯文字**（F1 待协调 4）。有格式的计数并把原 JSON 存进回执；五份库里都没有。F1 加了富文本以后，可以从 `import_original` 补回来。
@@ -1161,6 +1277,7 @@ cargo xtask check
 | `src/progress.rs` | 进度：步骤、计数、整体估计 |
 | `src/meta.rs` | 快照历史的元数据：读法、对象的当前字段、回放、核对 |
 | `src/receipt.rs` | 库里的回执表、旁边的帮手对话存档和本机状态、给作者的摘要 |
+| `src/carry.rs` | 读回抄下的 0.1 设置、把工作记忆写成每本书的工作记忆、记下去向（`carried` 表和摘要末尾一节） |
 | `src/tables.rs` | 100 张表的去向，和已发布迁移建出的表比对 |
 | `src/verify/mod.rs` | 和 Yjs 真值核对、核对索引（测量和开发工具用，不属于导入） |
 | `src/verify/catalog.rs` | 丢失检查 `check_catalog`：0.1 的每一行要么在新库里，要么回执记了为什么不带（2026-11-21） |
@@ -1176,6 +1293,8 @@ cargo xtask check
 | `src/flow.rs` | 状态（本机旧库列表、选文件夹、导入中、被拦、导完、出错）、找本机旧库、导入线程、取消和退出时停下、摘要 |
 | `src/view.rs` | 五种对话框 |
 | `src/copy.rs` | 旧版没有的句子：占位键和作者定过的「仍然导入」 |
+| `src/carry.rs` | 换库后每台设备一次带进 0.1 的设置和快捷键（表在 `dr-shell/src/settings/v1.rs`） |
+| `tests/carry.rs` | 从对话框导入后的设置、快捷键、工作记忆和回执 |
 | `tests/import.rs` | GPUI 测试平台上的整条路（用 dr-import-v1 的合成旧库） |
 | `examples/import-capture.rs` | 截图（`--features capture`） |
 

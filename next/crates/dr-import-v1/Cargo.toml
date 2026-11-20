@@ -8,6 +8,8 @@ publish.workspace = true
 description = "Drifting 0.2: import a 0.1.x library (SQLite + contentJson caches, no Yjs) into the Loro book and prose documents of dr-doc, stored by dr-store (module M10)"
 
 [dependencies]
+# Each book's 0.1 working memory becomes its working memory (`carry`).
+dr-agent.workspace = true
 dr-doc.workspace = true
 # Search, outlines and word counts built right after the import.
 dr-index.workspace = true

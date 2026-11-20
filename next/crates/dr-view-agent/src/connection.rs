@@ -479,8 +479,36 @@ impl Connections {
             local_listed: HashMap::new(),
             local_generation: 0,
         };
+        // The round limit is also written behind this entity's back: by
+        // preference sync (M37) and by the 0.1 import's settings
+        // (`dr_shell::settings::v1`). Follow it, or the next `save` would
+        // write the old limit back.
+        let this = cx.weak_entity();
+        dr_shell::settings::on_changed(cx, move |cx| {
+            let this = this.clone();
+            cx.defer(move |cx| {
+                let _ = this.update(cx, |connections, cx| connections.follow_settings(cx));
+            });
+        });
         connections.refresh(cx);
         connections
+    }
+
+    /// Takes the round limit the settings hold now, when it is not this
+    /// entity's (the route stays this entity's: it checks it).
+    fn follow_settings(&mut self, cx: &mut Context<Self>) {
+        if !cx.has_global::<Settings>() {
+            return;
+        }
+        // `null`: no cap; the registry keeps any other value a positive one.
+        let rounds = Settings::read(cx)
+            .get(registry::AGENT_MAX_MODEL_ROUNDS)
+            .as_u64()
+            .and_then(|n| u32::try_from(n).ok());
+        if rounds != self.preferences.max_model_rounds {
+            self.preferences.max_model_rounds = rounds;
+            cx.notify();
+        }
     }
 
     pub fn driver(&self) -> ProviderDriver {
