@@ -191,6 +191,21 @@ fn outline_lengths_references_and_counts() {
         ]
     );
     assert_eq!(lib.references_from("node:2").unwrap().len(), 1);
+    // A reference's paragraph by its block id: where it is and its text.
+    assert_eq!(
+        lib.paragraphs_by_block("node:1", &["b4", "gone", "b2"])
+            .unwrap(),
+        [
+            Some((3, "Dear Anna, the 50% discount_code is \"spring\".".into())),
+            None,
+            Some((1, "安娜说：「我们走吧。」窗外下着雨。".into())),
+        ]
+    );
+    assert_eq!(
+        lib.paragraphs_by_block("node:2", &["b2"]).unwrap(),
+        [None],
+        "a block id is looked up in its own document only"
+    );
     let stats = lib.doc_stats("node:1").unwrap().unwrap();
     assert_eq!((stats.paragraphs, stats.chars), (4, 70));
     let book = lib.book_stats("book-a").unwrap();

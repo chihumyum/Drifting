@@ -1341,6 +1341,37 @@ impl Library {
         Ok(rows)
     }
 
+    /// The indexed paragraphs of `doc_id` with these block ids, in the order
+    /// asked: each one's index in the document and its plain text, `None`
+    /// for a block id the index has no paragraph for. A reference names its
+    /// paragraph by block id; this is how a reader shows the text around it
+    /// without opening the document.
+    pub fn paragraphs_by_block(
+        &self,
+        doc_id: &str,
+        block_ids: &[&str],
+    ) -> Result<Vec<Option<(u32, String)>>> {
+        let conn = self.reader();
+        let mut row = conn.prepare_cached(
+            "SELECT ord, text FROM block_index WHERE doc_id = ?1 AND block_id = ?2
+             ORDER BY ord LIMIT 1",
+        )?;
+        let mut keys = DocKeys::default();
+        let mut out = Vec::with_capacity(block_ids.len());
+        for block in block_ids {
+            let found = row
+                .query_row(params![doc_id, block], |r| {
+                    Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?))
+                })
+                .optional()?;
+            out.push(match found {
+                Some((key, text)) => Some((keys.position(&conn, doc_id, key)?, text)),
+                None => None,
+            });
+        }
+        Ok(out)
+    }
+
     fn references_where(&self, clause: &str, key: &str) -> Result<Vec<Reference>> {
         let conn = self.reader();
         let sql = format!(

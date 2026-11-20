@@ -580,8 +580,9 @@ fn every_registered_entry_is_exercised_here() {
     // shelf, recent pages and time pins, in points.rs for snapshot history,
     // in workshop.rs for plot grids, patches and templates, in levels.rs for
     // the switch, in project_definition.rs for the project and its tabs, in
-    // template_working_copy.rs for a template's working copy, and in
-    // relations_v5.rs and relations_groups.rs for relation definitions and rows).
+    // template_working_copy.rs for a template's working copy, in
+    // relations_v5.rs and relations_groups.rs for relation definitions and
+    // rows, and in search.rs for finding text and links).
     let srcs = [
         include_str!("commands.rs"),
         include_str!("project_shared.rs"),
@@ -605,6 +606,7 @@ fn every_registered_entry_is_exercised_here() {
         include_str!("relations_groups.rs"),
         include_str!("relations_undo.rs"),
         include_str!("relations_merge.rs"),
+        include_str!("search.rs"),
         include_str!("../../dr-agent-tools/tests/checkpoints_v3.rs"),
     ];
     let missing: Vec<&str> = registry()

@@ -26,8 +26,10 @@ comment.update [write] Change a comment: its text, status (resolve / reopen; a c
 entry.create [write] Create an entry either residing under `parent` (without membership) or attached to `host` (residing in `host`'s home, `host` itself when `level`, or the root).
 entry.get [read] Read an entry including retained module values; an entry whose switch is on also carries what lies below it (resolved settings and their sources, children, members).
 entry.list [read] Find entries, or list the entries living under one in manuscript order; with below, each listed entry whose switch is on carries its resolved settings, children and members.
+entry.mentions [read] List the paragraphs of the book's prose that link to an entry (its name or an alias linked automatically, or a link the author made), in manuscript order, each with the entry and module it is in, its document, paragraph number and block ID, how many links to the entry it holds and the text around the entry's name. `total` counts the paragraphs, `links` the links. At most `limit` paragraphs (default 20, at most 50) from `from`; `next` is the `from` of the next page. Paragraphs in entries in Recently Deleted only with `trashed: true`. Text that names the entry without a link is found with entry.search.
 entry.move [write] Move an entry's residence and its position in the folder's manual order (`index` among the folder's stored children). Moving where an entry lives never hangs it on a lane or moves it on a timeline scale.
 entry.restore [write] Restore an entry and what lives under it from trash; if its stored residence can no longer hold entries, relocate it to the nearest live level ancestor or the root.
+entry.search [read] Search the book's entries for a word or phrase, matched as written (case-insensitive, not split into words): titles, field values, key/value rows, patches, plot cells and prose, not templates or comments. Hits come in manuscript order, each with its entry, its module and the text around the match; a prose hit (one per paragraph) also gives its document, paragraph number and block ID. At most `limit` hits (default 20, at most 50) from `from`; `next` is the `from` of the next page. Entries in Recently Deleted only with `trashed: true`. A hit is not a read of the prose.
 entry.set_level [write] Turn an entry's level switch on or off. Turning it off moves all live descendants below it to the trash in place (leaving already-trashed entries, overrides, memberships and swimlanes untouched) in one commit that one undo reverts.
 entry.trash [write] Trash an entry with what lives under it, keeping entries that only belong to it.
 entry.update [write] Rename an entry, set its mark, switch its template or change the overrides of what lives below it, without deleting retained content or touching its switch.
@@ -129,8 +131,10 @@ comment.update book 547b1903442150c6ecea4089d448861679506687b4f61060d588e743a1c8
 entry.create book ba0d93c79545961901dafdc6cffc4cc7b69af45ab410b949abf5dacbe12b4c73
 entry.get shared d76f37f50638937beda9dc348b1df78a2c5780bd14b4e0c74995993758d644f5
 entry.list shared 58ad76d736849b8fa189668e32176b4e42dee19ba26ee927788d2d8011f2a52e
+entry.mentions shared b0eb0b099e26c62ee720f167a0c43f02f0c419519f35177861da830cfd5ca651
 entry.move book cc56f7c3f7ff844cf00b25f0ada60b2863e26567395b9cf4be0cde1b5d5b1dd5
 entry.restore book f1d264ca48c651e7b29eb82bd4937e30411cf35a2b9d10f5f1cd21dc63fa38e3
+entry.search shared 26ed98c6a05d0416a30eb2eef368f1034212d8ef20cab954dca2c190aab257c7
 entry.set_level book e642a1caeba7f5395ffa5c12f9f9366485c7e8380f9b65501909bcccaf07c706
 entry.trash book 6db569ddb41f851f424706d3a94d226c120a8335ea214b3d91497a68b3f978c5
 entry.update book fd719d8c8b0299db4068d986160e8ea6b24df78a56c4dddd113c03a3b91818ff

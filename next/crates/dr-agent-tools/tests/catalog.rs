@@ -406,6 +406,8 @@ fn v3_catalog_exposes_generic_commands_and_excludes_v2_2_fixed_domains() {
         "entry.trash",
         "entry.restore",
         "entry.set_level",
+        "entry.search",
+        "entry.mentions",
         "entry_template.list",
         "entry_template.put",
         "entry_template.delete",
