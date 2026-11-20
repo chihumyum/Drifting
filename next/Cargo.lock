@@ -1986,6 +1986,7 @@ dependencies = [
  "dr-account",
  "dr-doc",
  "dr-model",
+ "dr-platform",
  "dr-store",
  "dr-testkit",
  "dr-workspace",

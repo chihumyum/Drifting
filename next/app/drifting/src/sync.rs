@@ -7,8 +7,9 @@
 //! - `dr_shell::release` (best-effort upload drain and clean handle detach before
 //!   switching libraries or quitting the app);
 //! - `dr_shell::sync` (lower-left paper sync corner mark, 220ms hover card,
-//!   bell danger seal, pinned severe notices, holder-release wakeups, and
-//!   pre-sign-out drain).
+//!   bell danger seal, pinned severe notices, holder-release wakeups,
+//!   pre-sign-out drain, and the sync part of the diagnostic summary that
+//!   feedback attaches).
 
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -16,6 +17,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use dr_account::{AccountService, HostedConfig, LibraryRegistry, SessionStatus, SessionTokenStore};
+use dr_platform::diagnostics::SyncSnapshot;
 use dr_platform::{Channel, Identity, SecretStore};
 use dr_shell::notifications::{Notifications, Source};
 use dr_shell::settings::{self, registry::Section};
@@ -210,6 +212,9 @@ pub fn init(platform: &Identity, cx: &mut App) {
     // Paper corner mark & hover card evaluator.
     dr_shell::sync::set_mark_hook(cx, build_mark_spec);
 
+    // The sync part of the diagnostic summary feedback attaches (M39).
+    dr_shell::sync::set_diagnostics_hook(cx, diagnostics_snapshot);
+
     // Foreground receiver for `SyncRuntime` state transitions.
     cx.spawn(async move |cx| {
         use futures::StreamExt as _;
@@ -380,6 +385,30 @@ fn build_mark_spec(
         progress,
         actions,
     })
+}
+
+/// The runtime's latest state as the diagnostic summary's sync part
+/// (`dr_sync::diagnostics`). At startup, while a signed-in author's session
+/// is still being checked, the runtime waits signed out on the account
+/// library: the summary says `loading` then, not `local`.
+fn diagnostics_snapshot(cx: &App) -> SyncSnapshot {
+    let Some(sup) = cx.try_global::<Supervisor>() else {
+        return SyncSnapshot::local();
+    };
+    let open_root = cx
+        .try_global::<dr_shell::Services>()
+        .and_then(|s| s.library.as_ref())
+        .map(|w| w.library().paths().root.clone());
+    let session_checking = cx.try_global::<AccountUiService>().is_some_and(|svc| {
+        svc.state.status == SessionStatus::Checking
+            && svc.state.is_account_library
+            && open_root.as_ref() == Some(&svc.state.active_library_dir)
+    });
+    dr_sync::diagnostics_snapshot(
+        &sup.snapshot,
+        session_checking,
+        dr_shell::sync::current_time_ms(),
+    )
 }
 
 fn truncate_error(s: &str, max_chars: usize) -> String {
@@ -744,8 +773,129 @@ mod tests {
             assert_eq!(status["output"]["mode"], "local_only");
             assert!(dr_shell::sync::evaluate_mark(Some("b1"), false, None, 10_000, cx).is_none());
             assert!(!Notifications::has_pinned(cx));
+            // The feedback summary says what it said before sync existed.
+            assert_eq!(dr_shell::sync::diagnostics(cx), SyncSnapshot::local());
         });
         assert_eq!(server.sync_request_count(), 0);
+    }
+
+    #[gpui::test]
+    fn the_feedback_summary_follows_the_runtime_from_checking_to_ready_to_reauth(
+        cx: &mut TestAppContext,
+    ) {
+        cx.executor().allow_parking();
+        let token = "synthetic-diagnostics-token-005".to_owned();
+        let server = FakeSyncServer::start(&token);
+        let origin = HostedOrigin::parse(server.base_url()).unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+        let secrets = Arc::new(SecretStore::in_memory());
+        SessionTokenStore::new(Arc::clone(&secrets))
+            .write(&origin, &token)
+            .unwrap();
+        let platform = Identity::current();
+
+        // An earlier launch signed in and settled the account library.
+        let earlier = AccountService::new(
+            HostedConfig::with_origin(origin.clone()),
+            tmp.path(),
+            platform.url_scheme,
+            Arc::clone(&secrets),
+        )
+        .unwrap();
+        let settled = earlier.bootstrap();
+        assert_eq!(settled.status, SessionStatus::Connected);
+        drop(earlier);
+        let ws = Workspace::open_dir(&settled.active_library_dir, "0.2.0-test").unwrap();
+        seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED)
+            .unwrap()
+            .write_to(ws.library())
+            .unwrap();
+
+        // This launch: the session is checked in the background.
+        let acct = Arc::new(
+            AccountService::new(
+                HostedConfig::with_origin(origin),
+                tmp.path(),
+                platform.url_scheme,
+                secrets,
+            )
+            .unwrap(),
+        );
+        assert_eq!(acct.state().status, SessionStatus::Checking);
+        assert!(acct.state().is_account_library);
+
+        cx.update(|cx| {
+            install_shell(ws, cx);
+            dr_view_account::init(AccountUiService::with_service(Arc::clone(&acct)), cx);
+            init(platform, cx);
+            register_final_drain(cx);
+            assert_eq!(
+                dr_shell::sync::diagnostics(cx),
+                SyncSnapshot {
+                    authority_status: "loading".into(),
+                    provider_mode: "hosted".into(),
+                    ..SyncSnapshot::local()
+                },
+                "not local while the session is being checked"
+            );
+        });
+
+        let deadline = Instant::now() + Duration::from_secs(15);
+        loop {
+            cx.run_until_parked();
+            let synced = cx.update(|cx| {
+                let snap = &cx.global::<Supervisor>().snapshot;
+                snap.completed_cycles >= 1 && snap.pending_docs == 0 && snap.pending_assets == 0
+            });
+            if synced {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "timed out waiting for the first cycle"
+            );
+            std::thread::sleep(Duration::from_millis(25));
+        }
+        cx.update(|cx| {
+            let sync = dr_shell::sync::diagnostics(cx);
+            assert_eq!(sync.authority_status, "cloud-ready");
+            assert_eq!(sync.provider_mode, "hosted");
+            assert!(sync.runtime_mounted);
+            assert_eq!((sync.online, sync.suspended), (Some(true), Some(false)));
+            assert_eq!(sync.pending.failed, 0);
+            assert!(sync.error_codes.is_empty(), "{:?}", sync.error_codes);
+        });
+
+        // The server stops accepting the session: the next cycle is refused.
+        server.set_expected_token("synthetic-diagnostics-other-token");
+        cx.update(trigger_manual_retry);
+        let deadline = Instant::now() + Duration::from_secs(15);
+        loop {
+            cx.run_until_parked();
+            let (sync, mode) = cx.update(|cx| {
+                (
+                    dr_shell::sync::diagnostics(cx),
+                    cx.global::<Supervisor>().snapshot.mode.clone(),
+                )
+            });
+            if !sync.error_codes.is_empty() {
+                assert_eq!(sync.authority_status, "cloud-attention");
+                assert_eq!(sync.provider_mode, "hosted");
+                assert_eq!(sync.error_codes, ["sync.reauth-required"]);
+            }
+            // The account asks for a new sign-in and sync stops.
+            if mode == "needs_reauth" {
+                assert!(!sync.runtime_mounted);
+                assert_eq!((sync.online, sync.suspended), (None, None));
+                assert_eq!(sync.error_codes, ["sync.reauth-required"]);
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "timed out waiting for the refused session to show"
+            );
+            std::thread::sleep(Duration::from_millis(25));
+        }
     }
 
     #[gpui::test]
