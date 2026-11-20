@@ -9,6 +9,7 @@
 - [kernel-v3.md](kernel-v3.md)：通用内核 v3 的定稿方案（2026-11-09）：条目树、模板、模块、归属、时间线视图；没被 v4 取代的部分照旧有效
 - [kernel-v5.md](kernel-v5.md)：**设计稿，未审、未实现**（2026-11-13）：项目也是模板。项目定义、成书改成项目开关加起点、文件夹的手动先后和视图的刻度、左栏 Tab 自定义、素材并进条目、待办并进批注、结构视图
 - [project-templates.md](project-templates.md)：**设计稿，未审、未实现**（2026-11-13）：用户自己的项目模板。模板是一份不带历史的数据、另存和新建、存在书库里跟着同步、`.driftingtemplate` 文件、用公开仓库治理的社区模板、已定的和还要作者定的
+- [custom-modules.md](custom-modules.md)：**设计稿，未实现**（2026-11-20）：用户自己做的条目模块。模块是数据（积木、盒子树、写给 Agent），存在「我的模块」里跟着同步，项目里存抄本、跟着我的模块自动换，模块工作台，`.driftingmodule` 文件，和社区模板同一个仓库
 - [v3-cutover.md](v3-cutover.md)：2026-11-11 完成的 canonical v3 切换：范围、保留的源格式边界、验收记录
 - [loro-schema.md](loro-schema.md)：Loro 文档结构
 - [foundation.md](foundation.md)：阶段 0 的探针与基座 F1–F8 的原始计划；各自的结论在 `spikes/`、`foundations/`
