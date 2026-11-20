@@ -3,7 +3,7 @@
  * commits as new entities via the project usecases.
  *
  * Single-type per import is intentional. A file maps to one of:
- *   chapter      → new BookNode, mainStorylineId = selected storyline
+ *   chapter      → new BookNode, mainStorylineId = selected storyline or null (未归属)
  *   element      → new BookElement, categoryId = selected category
  *   inspiration  → new BookNode, mainStorylineId = null (drift node)
  *
@@ -31,6 +31,12 @@ import { GhostIconButton } from '../ui/GhostIconButton';
 import { GlassSelect } from '../ui/GlassSelect';
 import { GlassSlider } from '../ui/GlassSlider';
 import { KindMark } from '../ui/KindMark';
+import {
+  UNAFFILIATED_STORYLINE_OPTION,
+  canCommitImport,
+  resolveImportStorylineId,
+  type StorylineChoice,
+} from './import-dialog-model';
 
 interface ImportDialogProps {
   open: boolean;
@@ -68,10 +74,15 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
 
   const [target, setTarget] = useState<ImportTarget>('chapter');
   const [items, setItems] = useState<QueuedItem[]>([]);
-  const [storylineId, setStorylineId] = useState<string | null>(null);
+  const [storylineChoice, setStorylineChoice] = useState<StorylineChoice>(undefined);
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [summary, setSummary] = useState<{ ok: number; failed: number } | null>(null);
+
+  const resolvedStorylineId = useMemo(
+    () => resolveImportStorylineId(storylineChoice, storylines),
+    [storylineChoice, storylines],
+  );
 
   const requestClose = useCallback(() => {
     if (!running) onClose();
@@ -80,12 +91,7 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const folderInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Default-select first storyline / category when they load.
-  useEffect(() => {
-    if (storylineId === null && storylines.length > 0) {
-      setStorylineId(storylines[0].id);
-    }
-  }, [storylines, storylineId]);
+  // Default-select first category when categories load.
   useEffect(() => {
     if (categoryId === null && categories.length > 0) {
       setCategoryId(categories[0].id);
@@ -96,6 +102,7 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
   useEffect(() => {
     if (!open) {
       setItems([]);
+      setStorylineChoice(undefined);
       setRunning(false);
       setSummary(null);
     }
@@ -157,14 +164,10 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
 
   // ─── Commit ───────────────────────────────────────────────────────
 
-  const canCommit = useMemo(() => {
-    if (!projectId || !userId) return false;
-    if (items.length === 0) return false;
-    if (items.every((it) => it.status !== 'ready')) return false;
-    if (target === 'chapter' && !storylineId) return false;
-    if (target === 'element' && !categoryId) return false;
-    return true;
-  }, [items, target, storylineId, categoryId, projectId, userId]);
+  const canCommit = useMemo(
+    () => canCommitImport({ projectId, userId, target, categoryId, items }),
+    [items, target, categoryId, projectId, userId],
+  );
 
   const commit = async () => {
     setRunning(true);
@@ -191,11 +194,10 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
         const docJson = JSON.stringify(item.parsed?.doc ?? { type: 'doc', content: [] });
 
         if (target === 'chapter') {
-          if (!storylineId) throw new Error('Storyline required');
           await nodeUsecases.createNode({
             kind: 'chapter',
             title,
-            mainStorylineId: storylineId,
+            mainStorylineId: resolvedStorylineId,
             bookOrder: nextOrder,
             initialContentJson: docJson,
           });
@@ -281,18 +283,27 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
           <section className="dialog-section">
             <span className="dialog-section__label">{t('importDialog.storylineTitle')}</span>
             {storylines.length === 0 ? (
-              <div className="import-dialog__warning">{t('importDialog.noStorylines')}</div>
+              <div className="import-dialog__desc">{t('importDialog.noStorylines')}</div>
             ) : (
               <GlassSelect
                 ariaLabel={t('importDialog.storylineTitle')}
-                value={storylineId}
+                value={resolvedStorylineId ?? UNAFFILIATED_STORYLINE_OPTION}
                 disabled={running}
-                onChange={setStorylineId}
-                options={storylines.map((s) => ({
-                  value: s.id,
-                  label: s.name,
-                  mark: <KindMark kind="storyline" color={s.color || undefined} />,
-                }))}
+                onChange={(next) =>
+                  setStorylineChoice(next === UNAFFILIATED_STORYLINE_OPTION ? null : next)
+                }
+                options={[
+                  {
+                    value: UNAFFILIATED_STORYLINE_OPTION,
+                    label: t('importDialog.unaffiliatedStoryline'),
+                    mark: <KindMark kind="storyline" color="hsl(var(--ink-4))" />,
+                  },
+                  ...storylines.map((s) => ({
+                    value: s.id,
+                    label: s.name,
+                    mark: <KindMark kind="storyline" color={s.color || undefined} />,
+                  })),
+                ]}
               />
             )}
           </section>
