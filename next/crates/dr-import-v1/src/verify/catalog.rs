@@ -110,14 +110,25 @@ fn rows<T>(
     Ok(v)
 }
 
+/// A directory of this check's own. Two checks in one process can start in
+/// the same millisecond (tests in parallel did, and each read the other's
+/// staged 0.1 database), so the name also counts up and the directory must
+/// not exist yet.
 fn scratch_dir() -> Result<PathBuf> {
-    let dir = std::env::temp_dir().join(format!(
-        "dr-import-catalog-check-{}-{}",
-        std::process::id(),
-        dr_store::now_ms()
-    ));
-    std::fs::create_dir_all(&dir)?;
-    Ok(dir)
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    loop {
+        let dir = std::env::temp_dir().join(format!(
+            "dr-import-catalog-check-{}-{}-{}",
+            std::process::id(),
+            dr_store::now_ms(),
+            NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        ));
+        match std::fs::create_dir(&dir) {
+            Ok(()) => return Ok(dir),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => return Err(error.into()),
+        }
+    }
 }
 
 /// Check the library at `new_root` against the 0.1 database `old_db` it was
@@ -1253,5 +1264,19 @@ mod tests {
         .unwrap();
         assert_eq!(same["kind"], "sameFile");
         assert_eq!(same["material_id"], "m");
+    }
+
+    /// Checks that start in the same millisecond each get a directory of
+    /// their own (they used to share one and read each other's staged copy).
+    #[test]
+    fn every_check_stages_into_its_own_directory() {
+        let dirs: Vec<std::path::PathBuf> =
+            (0..64).map(|_| super::scratch_dir().unwrap()).collect();
+        let distinct: std::collections::BTreeSet<&std::path::PathBuf> = dirs.iter().collect();
+        for dir in &dirs {
+            assert!(dir.is_dir());
+            std::fs::remove_dir_all(dir).unwrap();
+        }
+        assert_eq!(distinct.len(), dirs.len());
     }
 }
