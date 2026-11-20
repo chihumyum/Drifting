@@ -25,7 +25,7 @@
 | 测量证据和过期检查 | `src/evidence.rs`、`cargo xtask evidence --check` | 1 | 做完；旧证据待各自迁移 |
 | 崩溃试验台 | `src/crash.rs`，F2 示范在 `tests/crash_store.rs` | 1 | 做完 |
 | 基准约定和 `bench` 程序 | `src/bench.rs`、`src/bin/bench.rs` | 1、2 | 两个套件：dr-store、dr-workspace（收编 F3 的测量） |
-| 门禁 | `next/xtask/` | 1、3、6 | 11 道（第三个里程碑加了「调试桥不进正式包」，第六个加了「热重载不进正式包、依赖不成环」）和 `check-binary`，接进了 `next.yml` |
+| 门禁 | `next/xtask/` | 1、3、6 | 门禁见下表（第三个里程碑加了「调试桥不进正式包」，第六个加了「热重载不进正式包、依赖不成环」，F7 交接准备加了「正式身份只给发布用」）和 `check-binary`，接进了 `next.yml` |
 | 开发实例隔离 | `cargo xtask dev` | 1、3、6 | 做完；`--debug-bridge` 带上调试桥，`--hot` 经 dx 热重载 |
 | 开发命令行 | `next/crates/dr-cli/` | 1、2、3 | 接上 F3 的注册表：`describe`、`call`、脚本化 `scenario`、`inspect`；`app` 子命令，场景能启动和驱动应用 |
 | 调试桥 | `next/crates/dr-debug-bridge/`、`dr-debug-protocol/` | 3、4 | 做完：打开书和页、打字、按键、动作、F3 命令、读外壳状态和页面文字、等待、截图；第四个里程碑加了按无障碍名字找元素和按它、悬停、拖选、滚动、点进输入框、读章首和要素页头、读设置；第五个里程碑加了答系统的打开、存储面板（`panel.*`）、按卡挑按钮（`within`）、等后台写的文件、读 M41 的对话框和恢复前副本（`library.info`）。组字没做 |
@@ -273,6 +273,7 @@ cargo xtask check --skip audit         # 离线时跳过漏洞审计（它要联
 | layers | 依赖方向：界面 → 应用服务 → 数据，平台和工具在旁边。数据、应用服务、平台和工具都不能编进 GPUI，直接间接都不行；产品 crate 不依赖工具和探针（dev-dependencies 用测试工具可以）；每个成员都要在 `layers.rs` 里归了类 | 4 |
 | debug-bridge | 调试桥只能主动打开：没有哪个成员非可选地依赖 `dr-debug-bridge`（dev-dependencies 可以），没有哪个成员的 `default` 特性顺着特性表展开后会打开它，`next/script/` 下的打包脚本和发布流程草稿里不出现 `debug-bridge`。另有 `cargo xtask check-binary <文件>…` 查打好的可执行文件，见「调试桥」 | 9 |
 | hot-reload | GPUI 的热重载只能主动打开：没有哪个成员在普通依赖里直接要 `gpui/hot-reload`，没有哪个成员的 `default` 特性展开后会打开它，`next/script/` 下不出现 `hot-reload`、`dx serve`；工作区依赖图（普通、构建、开发依赖都算）里没有环，dx 打补丁要按这个图排先后。`cargo xtask check-binary` 也查这个（程序里有「GPUI hot reload」就失败），见「热重载」 | 9 |
+| release-identity | 正式版身份只给发布工作流：`dr-platform` 有 `release-identity` 特性；没有哪个成员的 `default` 特性展开后会打开它；没有哪个成员在任何依赖里（dev-dependencies 也算，`cargo test --workspace` 会把它们的特性合进每个测试）向 `dr-platform` 要它；只有 App（`drifting`）有转发它的特性，而且这个特性不带调试桥、热重载，它们也不带它；名字不以 `release` 开头的工作流（`next.yml`、`ci.yml`…）和 `xtask/src/dev.rs` 里不出现它。另外编译期拦着：`dr-debug-bridge` 和 App 断言 `!RELEASE_BUILD`，正式身份加调试桥或热重载编不过。`cargo xtask check-binary` 查打好的程序：没加 `--release-identity` 时程序里出现正式身份的标记就失败；加了就要求有它、不许有开发身份的标记；`--precompiled-shaders` 要求是预编译的 Metal 着色器（macOS 程序），见 [f7-platform.md](f7-platform.md)「第五轮」 | 9 |
 | evidence | 见上面「证据」 | 第五节 |
 | audit | 对 `next/Cargo.lock` 跑 `cargo audit`：有漏洞就失败；「不再维护」「不健全」只列出来，现在有 12 条：4 个来自 Loro（`im`、`sized-chunks`、`bitmaps`、`atomic-polyfill`，其中 `im` 和 `sized-chunks` 标了「不健全」），其余来自 GPUI。取不到漏洞数据库也算失败 | 5 |
 
@@ -671,7 +672,7 @@ done
 ### dr-platform（F7）
 
 - **路径函数**：可以给 `AppDirs` 加一个按指定 profile 算路径的函数。现在 xtask 和 `cargo drifting app` 都用 `dr_debug_protocol::place` 按同样的算法算一遍，靠测试保证和 `AppDirs` 一致。
-- **发布流程**：`script/release-next.draft.yml` 正式启用时，在打包之后加 `cargo xtask check-binary <可执行文件>`，Windows 安装包里那一份也要查。门禁已经保证这些脚本里不出现 `debug-bridge`。
+- **发布流程**：`script/release-next.draft.yml` 打包之后对 macOS 包里的程序跑 `cargo xtask check-binary --release-identity --precompiled-shaders`，对 Windows 两个架构的 `drifting.exe` 跑 `--release-identity`（2026-11-20 补全，`script/check-release` 查工作流里有这几步）。门禁已经保证这些脚本里不出现 `debug-bridge`。
 - **Windows**：调试桥在 Windows 上走本机回环 TCP，由 CI 编译，还没在 Windows 上跑过。
 
 ### 监管会话

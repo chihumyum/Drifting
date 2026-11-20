@@ -14,7 +14,7 @@ cargo run -p drifting
 
 - 第一次编译 GPUI 要几分钟；每个 worktree 有自己的 `next/target`。
 - 开发构建只带行号级调试信息（`Cargo.toml` 的 `[profile.dev] debug = "line-tables-only"`）：崩溃栈和断点有文件名和行号，调试器看不到变量。要看变量就这一次带完整的：`CARGO_PROFILE_DEV_DEBUG=true cargo build -p drifting`。Cargo 不删旧产物，`next/target` 会越用越大，闲置的 worktree 由每三天一轮的清理任务清掉。
-- 开发构建用 GPUI 的 `runtime_shaders`：Metal 着色器在启动时编译，不需要另装 Xcode 的 Metal Toolchain。
+- 开发构建用 GPUI 的 `runtime_shaders`：Metal 着色器在启动时编译，不需要另装 Xcode 的 Metal Toolchain。它是 App 自己的默认特性 `runtime-shaders`，各 crate 的测试、示例和截图依赖各自要它；工作区那一行 `gpui_platform` 不开它，正式包才能用 `--no-default-features` 关掉。
 - 目标平台是 macOS 和 Windows；Linux 没有验证过。
 
 ### 开发开关
@@ -49,9 +49,11 @@ script/bundle-mac
 - 加 `--open` 打包完就打开；加 `--debug` 打 dev 构建，快很多。
 - 加 `--dmg` 再出一个不签名的 `.dmg`，加 `--archive` 再出更新包 `.app.tar.gz`。
 - 加 `--dist` 打发出去的那种构建：`dist` 档案（release 加行号表），包里的可执行文件剥掉符号，符号留在包旁边的 `Drifting Next.app.dSYM`（给 Sentry 还原崩溃位置，不随包发）。Windows 是 `-BuildProfile dist`，符号是可执行文件旁边的 `drifting.pdb`。`release` 档案不变，照旧给基准测试用。
-- bundle id 是开发用的 `cc.drifting.next.dev`，链接协议是 `drifting-next-dev:`，和装着的正式版互不干扰。接管正式版身份、签名、公证在 F7 的交接里，见 [f7-platform.md](../docs/rust-rewrite/foundations/f7-platform.md)。
+- bundle id 是开发用的 `cc.drifting.next.dev`，链接协议是 `drifting-next-dev:`，和装着的正式版互不干扰。
+- `--release-identity` 打正式版身份（`Drifting.app`、`cc.drifting.client`、`drifting:`，旧版的钥匙串和数据文件夹），只给发布工作流用：要和 `--dist` 一起，版本号不能带 `-dev`，也不许 `--open`。**别在自己的 Mac 上打开这种包**，它会去读写正式版的数据。
+- `--precompiled-shaders` 不带 App 的默认特性编（`--no-default-features`），着色器在编译时预编好；要先装 Xcode 的 Metal Toolchain（`xcodebuild -downloadComponent MetalToolchain`），编完用 `cargo xtask check-binary --precompiled-shaders <包里的 drifting>` 查。
+- 签名、公证在发布工作流里（`script/release-next.draft.yml`）；签完以后用 `script/package-mac --dmg --archive <包>` 从签好的包重新出 `.dmg` 和更新包。整个发布顺序见 [release-handover.md](../docs/rust-rewrite/release-handover.md)。
 - 不用开发者证书签名，只做 ad-hoc 签名（Apple 芯片要求改过的可执行文件至少有这个）。本机打的包双击就能开；从别处下载的副本会被 Gatekeeper 拦下。
-- 正式包要预编译着色器、去掉 `runtime_shaders`，脚本里记成了发版前的待办。
 
 Windows 安装包（NSIS，只能在 Windows 上打，要装 NSIS 3）：
 
@@ -182,11 +184,13 @@ next/
   crates/dr-platform/   F7：身份与目录、日志、崩溃上报、钥匙串、深链接与单实例、自动更新、反馈与诊断摘要
   crates/dr-testkit/    F8：种子、样书、测量证据、崩溃试验台、基准
   xtask/                F8：门禁（cargo xtask check）和开发启动器（cargo xtask dev）
-  script/bundle-mac     打 .app，可选 .dmg 和更新包
+  script/bundle-mac     打 .app，可选 .dmg 和更新包；--release-identity、--precompiled-shaders 给发布用
+  script/package-mac    从打好（或签好）的 .app 出 .dmg 和更新包
+  script/check-release  发布前查标签、版本号、发布说明和工作流
   script/bundle-windows.ps1, script/windows/drifting.nsi
                         Windows 安装包
   script/release-next.draft.yml
-                        新版发布工作流的草稿，不会被触发
+                        新版发布工作流（写全了；挪进 .github/workflows 才会被触发）
   script/measure-startup-mac
                         测冷启动到首帧
 ```

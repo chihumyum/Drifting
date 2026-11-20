@@ -14,12 +14,12 @@
 | 崩溃上报 | Rust 崩溃记下来、下次启动再送；原生崩溃由一个旁路进程抓 minidump 立刻送；正文和个人路径发送前抹掉；崩溃后的「你当时在做什么？」留好了接口。第三轮：发出去的包剥掉符号、符号单独留一份，本机假收件端上证明了剥过的程序报上来的崩溃能还原出函数名和行号 | 发版前配 DSN 和上传符号的密钥；F6 做同意开关和首次说明 |
 | 钥匙串 | 用的就是旧版的存法，旧版写的登录和 API Key 新版直接读得到，新版写的旧版也读得到；Windows 长令牌自动拆开存 | — |
 | 深链接与单实例 | 链接统一进一个队列，各取各的前缀；Windows 第二次启动把链接转给已开的那个再退出；开发版用 `drifting-next-dev:`，不抢正式版的链接 | F6 接上「来了链接就把窗口叫到前面」 |
-| 打包 | macOS 出 `.app`、`.dmg`、更新包 `.app.tar.gz`；Windows 有 NSIS 安装器，安装位置、卸载项、注册表和旧版 Tauri 安装器一样，CI 里装一遍、升级一遍、卸一遍 | 签名、公证、预编译着色器（发版前） |
-| 自动更新 | 读清单、比版本、下载、用现有公钥的格式验签、macOS 原地换包、Windows 交给安装器；本地用自造的密钥对和本地文件从头到尾走通了。第四轮（M42）：启动后和每 3 小时自动查、设置里手动查，查到就后台下好验好，通知中心「重启以更新」，退出时换；坏签名、旧包冒充新版本、半截下载、断网都拒绝并说清楚，全对着本机假服务测过 | 旧版最后一版改更新地址（设计已写，见 [m42-update.md](../modules/m42-update.md)）；签名正式包上的交接演练 |
+| 打包 | macOS 出 `.app`、`.dmg`、更新包 `.app.tar.gz`；Windows 有 NSIS 安装器，安装位置、卸载项、注册表和旧版 Tauri 安装器一样，CI 里装一遍、升级一遍、卸一遍。第五轮：`--release-identity`（Windows `-ReleaseIdentity`）打正式身份，`--precompiled-shaders` 预编译着色器 | 签名公证要作者的证书；预编译着色器要作者装 Metal Toolchain（见 [release-handover.md](../release-handover.md)） |
+| 自动更新 | 读清单、比版本、下载、用现有公钥的格式验签、macOS 原地换包、Windows 交给安装器；本地用自造的密钥对和本地文件从头到尾走通了。第四轮（M42）：启动后和每 3 小时自动查、设置里手动查，查到就后台下好验好，通知中心「重启以更新」，退出时换；坏签名、旧包冒充新版本、半截下载、断网都拒绝并说清楚，全对着本机假服务测过 | 签名正式包上的交接演练（旧版那头 alpha.11 起已经带两条更新地址） |
 | 外部 Agent 的命令行 | 新程序认旧版写进 Codex、Claude Code 配置里的 `drifting --mcp --connection <文件>`，在入口最先分流，不开窗口、不拿单实例锁 | M32 实现桥接（发 GPUI 版的前提） |
 | 设备身份（第二轮） | 应用打开库时带上这台设备的身份（和旧版同一个身份文件，换了机器算新设备），写作日真正存下来；开发 profile 各有一份 | — |
 | 反馈与崩溃跟进（第二轮，M39） | 反馈对话框，可附脱敏诊断摘要，走旧版的接口；崩溃后通知中心里点「上次出了故障」问一句；没有服务时交给邮件程序。脱敏规则补全成旧版的整套。第三轮：多行写话框，✕ 总能关、写了字点雾不关，和旧版一样。第四轮：摘要里的更新状态接上了 M42 | 登录会话、摘要里的同步状态（见 [m39-feedback.md](../modules/m39-feedback.md) 待协调） |
-| 发布流水线 | 草稿 `next/script/release-next.draft.yml`，不会被触发 | 交接时补全 |
+| 发布流水线 | 第五轮写全了：`next/script/release-next.draft.yml`，挪进 `.github/workflows` 就会跑 | 作者配密钥、定几件事、按 [release-handover.md](../release-handover.md) 的顺序发 |
 
 **最要紧的三个发现**：
 
@@ -35,13 +35,13 @@
 let args: Vec<String> = std::env::args().skip(1).collect();
 if let cli::Launch::Mcp(connection) = cli::parse(&args) { … return }   // 外部 Agent，最先分流
 probe::start();
-let platform = dr_platform::Identity::current();          // 现在永远是开发身份
+let platform = dr_platform::Identity::current();          // 开发身份；发布工作流的构建（release-identity）是正式身份
 let dirs = dr_platform::AppDirs::for_identity(platform).ok();
 let crash_reports = dr_platform::crash::init(CrashConfig::for_build(platform, dirs.as_ref(), version, commit, consent));
                                                            // 必须第一个：在崩溃上报子进程里它不返回
 dr_platform::logging::init(&LogConfig::for_build(dirs.as_ref().map(|d| d.logs.as_path())));
 let Some(instance) = dr_platform::single_instance::acquire(platform, &args).primary() else { return };
-let library = library::open(&dirs.data, version);          // 另一个线程：带设备身份打开库（app/drifting/src/library.rs）
+let library = library::open_active(&dirs.own, version);   // 另一个线程：带设备身份打开库（app/drifting/src/library.rs）；新版自己的东西都在 dirs.own
 let deep_links = DeepLinks::new(platform.url_scheme);
 deep_links.push_args(&args);                               // Windows：链接是命令行参数
 instance.listen(move |args| deep_links.push_args(args));   // Windows：后来的进程转过来的
@@ -53,8 +53,8 @@ dr_view_feedback::init(Service::for_build(platform, Some(&dirs.data), version), 
 | 模块 | 给谁用 | 主要接口 |
 | --- | --- | --- |
 | `cli` | app、M32 | `cli::parse(args) -> Launch::{App, Mcp(Result<PathBuf, _>)}`；`MCP_USAGE`、`MCP_ERROR_PREFIX`（旧版的报错写法） |
-| `identity` | 全部 | `Identity { channel, bundle_id, product_name, executable, url_scheme, keychain_service, publisher }`；`DEVELOPMENT`、`RELEASE`、`Identity::current()` |
-| `paths` | F2、F6 | `AppDirs { data, logs, crashes }`；`AppDirs::for_identity`、`AppDirs::under(root)`（测试和隔离运行） |
+| `identity` | 全部 | `Identity { channel, bundle_id, product_name, executable, url_scheme, keychain_service, publisher }`；`DEVELOPMENT`、`RELEASE`、`Identity::current()`；`RELEASE_BUILD`（`release-identity` 特性开没开，`const`）、`BUILD_MARKER`（程序里只编进当前身份的那个标记，`check-binary` 认它） |
+| `paths` | F2、F6 | `AppDirs { data, own, logs, crashes }`：`own` 放新版自己的东西，`data` 是系统按 bundle id 起名的文件夹（正式身份下就是 0.1 的，只放两版共用的 `mcp/`、导入从这里找旧书）；`AppDirs::for_identity`、`for_identity_at`（换掉系统文件夹的根，测试用）、`AppDirs::under(root)`（测试和隔离运行） |
 | `logging` | app | `LogConfig::for_build`、`logging::init`、`logging::installed()` |
 | `crash` | app、F6、F2 | `crash::init(CrashConfig) -> CrashReporting`；`.status()`、`.set_consent(bool)`、`.take_follow_up() -> Option<CrashFollowUp>`、`.report_integrity(code)`、`.flush(timeout)` |
 | `sanitize` | 任何要上报文字的地方 | `sanitize::message`、`report_text(text, max)`、`report_token`、`error_code`、`redact_home`（规则逐条照旧版 `crash-sanitize.ts`） |
@@ -73,7 +73,7 @@ dr_view_feedback::init(Service::for_build(platform, Some(&dirs.data), version), 
 
 ## 身份
 
-| | 开发版（现在所有 `next/` 构建） | 正式版（交接以后，和 0.1 一样） |
+| | 开发版（所有 `next/` 构建，发布工作流的除外） | 正式版（`release-identity`，和 0.1 一样） |
 | --- | --- | --- |
 | bundle id | `cc.drifting.next.dev` | `cc.drifting.client` |
 | 名字 | Drifting Next | Drifting |
@@ -82,15 +82,17 @@ dr_view_feedback::init(Service::for_build(platform, Some(&dirs.data), version), 
 | 钥匙串服务 | `Drifting.cc.drifting.next.dev` | `Drifting` |
 | Windows 厂商键 | `drifting` | `drifting` |
 
+**正式身份的开关**（第五轮，待协调 9）：`dr-platform` 的 `release-identity` 特性，App 的同名特性转发它；打开后 `Identity::current()` 是 `RELEASE`。只有 `script/bundle-mac --release-identity`（要 `--dist`、版本号不带 `-dev`、不许 `--open`）和 `bundle-windows.ps1 -ReleaseIdentity` 打开它，发布工作流用。守法：`cargo xtask check` 的 `release-identity` 门禁（默认特性、任何依赖、CI 工作流、`cargo xtask dev` 都不许打开它）；`dr-debug-bridge` 和 App 编译期断言 `!RELEASE_BUILD`，正式身份加调试桥或热重载编不过；`cargo xtask check-binary [--release-identity]` 按 `BUILD_MARKER` 认打好的程序是哪个身份。
+
 **开发版的 profile**（[simplifications.md](../simplifications.md) 第 17 条）：开发版设了 `DRIFTING_PROFILE=<名字>`（小写字母、数字、`-`，最多 32 个字符），数据和日志文件夹、钥匙串服务、Windows 单实例锁都会加上 `.<名字>`，两个 worktree 的开发版就不会抢同一把锁、打开同一个库。链接协议是包注册的，不跟着变。正式版忽略这个变量。F8 的启动器给每个 worktree 设一个。
 
-`identity.rs` 的测试拿 `src-tauri/tauri.conf.json` 和 `src-tauri/Cargo.toml` 对正式版身份，拿 `script/bundle-mac` 和 `script/windows/drifting.nsi` 对开发版身份，并保证脚本里没有正式版的 bundle id。旧代码删掉以后，前一半测试要跟着改。
+`identity.rs` 的测试拿 `src-tauri/tauri.conf.json` 和 `src-tauri/Cargo.toml` 对正式版身份，拿 `script/bundle-mac` 和 `script/windows/drifting.nsi` 对开发版身份，拿 `bundle-mac` 的 `RELEASE_*` 和 `bundle-windows.ps1` 的 `$release*` 对正式版身份，并保证正式版的 bundle id 在这两份脚本的代码里各只出现一次（在开关后面），安装器脚本里一次都没有。旧代码删掉以后，对 Tauri 配置的那一半测试要跟着改。
 
 ## 日志
 
 | | macOS | Windows |
 | --- | --- | --- |
-| 文件 | `~/Library/Logs/<bundle id>/drifting.YYYY-MM-DD.log` | `%LOCALAPPDATA%\<bundle id>\logs\drifting.YYYY-MM-DD.log` |
+| 文件 | `~/Library/Logs/<bundle id>/drifting.YYYY-MM-DD.log` | `<新版自己的文件夹>\logs\drifting.YYYY-MM-DD.log`（开发版 `%LOCALAPPDATA%\<bundle id>\logs`，正式版 `%LOCALAPPDATA%\cc.drifting.client.v2\logs`） |
 | 何时写文件 | 从 `.app` 里运行时 | 可执行文件旁边有 `uninstall.exe`（装过）时 |
 | 默认级别 | 文件：Drifting 自己的 crate `info`，其他 `warn`；终端（开发时）：`warn` | 同左 |
 
@@ -247,13 +249,15 @@ M10 问：导入旧库时按 ⌘Q，退出钩子先请导入写完这本书、�
 ### macOS
 
 ```bash
-script/bundle-mac [--debug] [--dmg] [--archive]
+script/bundle-mac [--debug|--dist] [--precompiled-shaders] [--release-identity] [--dmg] [--archive]
+script/package-mac [--dmg] [--archive] <dir>/<name>.app
 ```
 
 - `.app`：P0-A 的做法，加上 `CFBundleURLTypes`（`<bundle id> <协议>`，和旧版的 `cc.drifting.client drifting` 同一写法），可执行文件的最低系统版本用 `MACOSX_DEPLOYMENT_TARGET=13.0` 和 `Info.plist` 对齐。
 - `--dmg`：`<名字>_<版本>_macos_arm64.dmg`（和已发布的 DMG 同一种命名），里面是 App 和一个指向「应用程序」的链接；不签名、不公证；打完 `hdiutil verify`。
 - `--archive`：更新包 `<名字>_<版本>_<架构>.app.tar.gz`，顶层只有一个 `.app` 文件夹，不带 AppleDouble 和扩展属性。Tauri 的更新器和我们的都会去掉顶层文件夹名、把内容换进已装的包里。
-- 正式包还差：Developer ID 签名（加 hardened runtime）、公证并 staple、DMG 本身签名公证、正式版身份、预编译 Metal 着色器（见「发版前」）。
+- `--archive`、`--dmg` 由 `script/package-mac` 做（第五轮拆出来）：发布工作流签名、公证、staple 以后对同一个包再跑一次，DMG 和更新包里就都是 staple 过的包。
+- `--release-identity`、`--precompiled-shaders`：见「身份」和第五轮。Developer ID 签名（加 hardened runtime）、公证、staple、DMG 签名公证在发布工作流里做，脚本不签。
 
 ### Windows（NSIS）
 
@@ -357,16 +361,18 @@ CI（`next.yml` 的 Windows 任务，`script/check-windows-installer.ps1`）：�
 
 ## 发布流水线
 
-`release.yml` 是为 Tauri 写的，不动。新版的草稿是 `next/script/release-next.draft.yml`：放在 `.github/workflows` 外面，GitHub 不会跑它。里面有 verify、macOS（证书导入、着色器、打包、签名公证、minisign 签名、符号上传、写 `update.json`、带上 `latest.json`、建草稿 Release）、Windows 两个架构（打包、minisign 签名、PDB 上传、在构建机上装一遍），没做完的步骤都标了 TODO。它沿用 `release.yml` 的全部变量和密钥，只新加 `vars.DRIFTING_SENTRY_DSN` 和 Sentry 上传用的三项。
+`release.yml` 是为 Tauri 写的，不动。新版的工作流是 `next/script/release-next.draft.yml`，第五轮写全了，放在 `.github/workflows` 外面，GitHub 不会跑它；挪进去（`release-next.yml`）就会跑，挪的同时 `release.yml` 改成只认 `v0.1.*` 标签（[release-handover.md](../release-handover.md) 第 5 步）。推 `v<版本>` 标签以后：verify（`script/check-release` 查标签、版本号不小于 0.2.0、发布说明、动作都钉到提交；查 0.1 最后一版的 Release 已发布、不是预发布、不带 `update.json`；全套检查）→ macOS（装 Metal Toolchain、导入证书、`bundle-mac --dist --precompiled-shaders --release-identity`、`check-binary --release-identity --precompiled-shaders`、hardened runtime 签名、公证并 staple、`package-mac` 从 staple 过的包出 DMG 和更新包、DMG 签名公证、核验、minisign 签更新包、上传 `.dSYM`、写 `update.json`、带上 `DRIFTING_LAST_V1_TAG` 那个 Release 的 `latest.json` 并核对它的版本和地址、建草稿）→ Windows 两个架构（`bundle-windows.ps1 -ReleaseIdentity`、`check-binary --release-identity`、minisign 签名、上传 PDB、在构建机上装一遍开 20 秒）→ 把 Windows 两个键合进草稿的 `update.json`。它沿用 `release.yml` 的全部变量和密钥，新加 `vars.DRIFTING_LAST_V1_TAG`，Sentry 的四项可以不填（不填就不发崩溃、不传符号，工作流只警告）；整张表在文件开头。actionlint（带 shellcheck）通过。
 
 ## 发版前必须由作者做的事
 
-1. **装 Metal Toolchain**（`xcodebuild -downloadComponent MetalToolchain`），然后让正式包关掉 GPUI 的 `runtime_shaders`、预编译着色器。我没装，按要求留给作者。
+整个发布的顺序和每一步谁做，第五轮写成了 [release-handover.md](../release-handover.md)；下面是其中要作者动手的几件。
+
+1. **装 Metal Toolchain**（`xcodebuild -downloadComponent MetalToolchain`）。正式包关掉 `runtime_shaders` 的开关第五轮接好了（`bundle-mac --precompiled-shaders`），装完以后照 release-handover.md「验证预编译着色器」跑一遍。我没装，按要求留给作者。
 2. **在 Sentry 建好客户端项目**，把公开的 DSN 放进仓库变量 `DRIFTING_SENTRY_DSN`；上传符号用的 token 放进 `release` 环境的 secret。旧的 `drifting/drifting-client` 项目可以复用。
 3. **确认 Developer ID 证书和团队与旧版相同**（钥匙串和权限都认它）。
 4. **开上报前在签名的正式包上验一次 ⌘Q**：`crash-context` 0.6.3（sentry-minidump 依赖的版本）里有 Zed 遇到的同一个 bug（[minidump-writer#249](https://github.com/rust-minidump/minidump-writer/pull/249)：旁路进程释放端口的方式不对，⌘Q 时可能报「意外退出」）。本机未签名的探针正常退出时没有触发；如果正式包触发了，就给 `crash-context` 0.6 打补丁或等 sentry-minidump 升级。顺带验一下 hardened runtime 下旁路进程还能读崩溃进程的内存。
 5. **在 Windows 虚拟机上**：装开发版安装器、`drifting-next-dev:` 链接拉起和转发、第二次启动只出一个窗口、真钥匙串测试（上面那条命令）。
-6. **旧版最后一版**：改更新地址（见交接第 1 步）并发布，等一段时间再发 GPUI 版。
+6. ~~**旧版最后一版**：改更新地址并发布~~：0.1.0-alpha.11 起就带两条地址（`c788d72b2`），alpha.11、alpha.12 都已发布。新版的 Release 原样带着最后一个 0.1 的 `latest.json`，更老的 0.1 也会先升到它再交接，不用专门等。
 
 ## 待协调
 
@@ -376,13 +382,13 @@ CI（`next.yml` 的 Windows 任务，`script/check-windows-installer.ps1`）：�
    - `DeepLinks::set_waker` 接到主线程：来了链接就把主窗口叫到前面、按前缀分发；
    - ~~更新界面（M42）：定时检查、下载进度、装完的重开~~：**第四轮 M42 做了**（`dr-view-update`，外壳只加了设置一行的挂接点）。剩下 macOS 目录不可写时要不要跟旧版弹 AppleScript 要密码，挪到 [m42-update.md](../modules/m42-update.md) 待协调 1；
    - Windows 上调 GPUI 的 `set_app_identity(bundle id, 名字)`，让通知和任务栏归到同一个应用；新装的开始菜单快捷方式没带 AppUserModelID（NSIS 不带插件做不到），更新时保留旧快捷方式所以不受影响。
-3. **F2**：正式版和旧版共用数据文件夹 `~/Library/Application Support/cc.drifting.client`（Windows `%LOCALAPPDATA%\cc.drifting.client`），新库放进自己的子文件夹，旧文件一个都不写。`crashes/` 已被 F7 占用。完整性事件用 `report_integrity`。
-4. **工作区（监管会话定）**：`runtime_shaders` 现在写在 `[workspace.dependencies]` 的 `gpui_platform` 上，所有成员都开着。正式包要关掉它，得改成各可执行文件自己的默认特性（发布时 `--no-default-features`）。动的是共用的 GPUI 依赖行，我没改。
+3. ~~**F2**：正式版和旧版共用数据文件夹，新库放进自己的子文件夹~~：第五轮核实会撞（两版的 `libraries.json`、`libraries/account-<hex>/` 同名），改成新版自己的东西放在 0.1 文件夹**旁边**的 `cc.drifting.client.v2`（`AppDirs::own`），0.1 的文件夹只放两版共用的 `mcp/`、导入从这里找旧书；见第五轮。完整性事件用 `report_integrity`。
+4. ~~**工作区（监管会话定）**：`runtime_shaders` 改成各可执行文件自己的默认特性~~：第五轮做了，见第五轮。
 5. **M32**：入口的分支已留好（`dr_platform::cli` + `main` 的 `run_mcp_bridge`），M32 实现桥接；它是发第一个 GPUI 版的前提。
 6. **F6 的退出流程**：GPUI 的退出回调只有 200 ms，保存、交接、同步要在调 `cx.quit()` 之前跑完；退出回调里只调 `CrashReporting::flush(100 ms)`。Windows 托盘建议用 `tray-icon`（见「Windows 托盘」）。
 7. **F8**：启动器给每个 worktree 设 `DRIFTING_PROFILE`。
 8. **M10**：没交接的库被拦下时，提示里给旧版最后一版的下载链接（旧程序已经被替换了）。
-9. **正式版身份怎么切换**：建议交接时给 `dr-platform` 加一个 `release-identity` 特性，只有发布工作流开它，`Identity::current()` 据此返回 `RELEASE`；`bundle-mac` 和 `bundle-windows.ps1` 加对应开关。现在照 `AGENTS.md` 不做。
+9. ~~**正式版身份怎么切换**~~：第五轮加了 `release-identity` 特性和两个打包脚本的开关，只有发布工作流打开（见「身份」）。
 10. **`next/README.md`**：改了「开发开关」表的 `DRIFTING_LOG` 一行，加了 `DRIFTING_LOG_FILE`、`DRIFTING_PROFILE`、`DRIFTING_CRASH_REPORTS_IN_DEV`、两个开发更新变量，和打包一节的 `--dmg`、`--archive`、Windows 脚本，以及目录表。
 11. ~~**M10（第三轮）：导入中途退出的等待改成各 1 秒**~~：**M10 已改**（`dr-view-import/src/flow.rs` 的 `QUIT_WAIT_BOOK`、`QUIT_WAIT_NOW` 现在都是 1 秒）。理由见「退出时能做多少 → 导入中途退出等多久」。
 12. ~~**F6（第三轮，不急）**：退出流程先藏窗口（`cx.hide()`）再跑退出钩子~~：**F6 第八轮做了**（`dr_shell::quit`）。
@@ -451,8 +457,65 @@ M3 Pro，release 构建，机器负载 15–18（其他会话在编译）。
 
 换完 `codesign --verify --strict` 通过，包旁边没有留下临时文件夹。换包主要花在把 124 MiB 写到盘上，负载高时会到 3 秒；⌘Q 时 App 先藏起来，作者看不到这段，「重启以更新」的重开助手等进程退出后才打开新版。要更快可以把解压挪到下载验签之后（包旁边先解好、退出时只剩两次改名），代价是包旁边要留一个隐藏的临时文件夹、崩溃后要清理；这一轮没做，记在 m42-update.md 待协调 6。
 
+## 第五轮：发布交接的工程准备
+
+2026-11-20，监管会话交的事：新版第一次正式发布（`0.2.0`，接替 0.1）里不要作者的密钥、不要装系统组件就能做的工程准备，剩下必须作者动手的列成清单（[release-handover.md](../release-handover.md)）。没装 Metal Toolchain，没用任何真密钥、真证书，没连真服务，没发布，没改 `.github/workflows` 里的文件，没打开过正式身份的程序。
+
+### 正式身份的开关
+
+- `dr-platform` 的 `release-identity` 特性：`Identity::current()` 是 `RELEASE`。`RELEASE_BUILD` 是 `const`，别的 crate 能在编译期拒绝：`dr-debug-bridge` 和 App（`hot-reload`、`debug-bridge` 特性下）断言 `!RELEASE_BUILD`，正式身份加调试桥或热重载编不过（本机验过两种组合都报「never ships: not with the release identity」）。
+- App 的 `release-identity` 特性转发它；`app/drifting/src/identity.rs` 的名字和 bundle id 改从 `Identity::current()` 取。
+- `script/bundle-mac --release-identity`（要 `--dist`、版本号不带 `-dev`、不许 `--open`）、`bundle-windows.ps1 -ReleaseIdentity`（要 `-BuildProfile dist`，NSIS 传正式身份的三个 `/D`）。`identity.rs` 的测试对两份脚本里的开发身份和正式身份的值，并保证正式身份的 bundle id 在两份脚本的代码里各只出现一次（在开关后面）。
+- **程序里的身份标记**：`identity::BUILD_MARKER` 只编进当前身份的那一个（`drifting-build-identity:development` 或 `…:release`），`logging::init` 用 `black_box` 记一行，保证它在程序里。本机编了开发版和 `--features release-identity` 的调试版各一个（后者只扫文件、没运行，扫完立刻用开发版覆盖）：各自只有自己的标记，0 个对方的。
+- **门禁 `release-identity`**（`cargo xtask check`）：`dr-platform` 有这个特性；没有哪个成员的默认特性展开后打开它；没有哪个成员在任何依赖里（dev-dependencies 也算，`cargo test --workspace` 会把它们的特性合进所有测试）向 `dr-platform` 要它；只有 App 转发它，转发它的特性不带调试桥、热重载，反过来也不；名字不以 `release` 开头的工作流和 `xtask/src/dev.rs` 里不出现它。
+- **`cargo xtask check-binary [--release-identity] [--precompiled-shaders] <文件>…`**：原来查调试桥和热重载的照旧。不加 `--release-identity` 时程序里有正式身份的标记就失败（CI 打的开发包从此也查这一条）；加了就要求有正式身份的标记、不许有开发身份的。`--precompiled-shaders` 认 GPUI 的两句报错上下文：运行时编的有「building Metal library」，预编译的有「loading Metal library」。本机验过：开发版过默认、`--release-identity` 和 `--precompiled-shaders` 都失败；正式身份版默认失败、`--release-identity` 过（它还是运行时着色器，所以加 `--precompiled-shaders` 失败，这正是要的）。预编译那一面没法本机验（没有 Metal Toolchain），作者装完以后照 release-handover.md 跑一遍。
+
+### 预编译着色器
+
+- `runtime_shaders` 不再写在工作区那一行 `gpui_platform` 上（特性只能往上加，写在那里谁都关不掉）：App 的默认特性 `runtime-shaders` 打开它；各 crate 测试、示例、截图（`capture`、`screenshot`）用到 `gpui_platform` 的那一行各自要它；两个探针的依赖行也加上了（不然 `cargo build --workspace` 要 Metal Toolchain）。依赖开发依赖的特性只在编测试和示例时生效，所以 `cargo build -p drifting --no-default-features` 里没有它（`cargo tree -e no-dev,features -i gpui_apple` 核过：默认 5 处、`--no-default-features` 和加上 `--features release-identity` 都是 0 处），全工作区的测试和 CI 照旧有它。
+- `script/bundle-mac --precompiled-shaders` 就是 `--no-default-features`；开头先查 `xcrun -sdk macosx metal --version`，没装就直接说装什么。Windows 上这个特性不起作用，`-ReleaseIdentity` 也一并 `--no-default-features`，两边正式包的特性一样。
+- 没改 `dr-view-import`（另一路在改）：它的 `capture` 特性没加 `gpui_platform/runtime_shaders`，单独跑 `import-capture` 示例要 Metal Toolchain；全套检查不受影响。那一路改的时候顺手加上。
+
+### 数据文件夹：核实和修法
+
+正式身份的数据文件夹就是 0.1 的（Tauri 的 `app_local_data_dir`，同一个 identifier）。两版都在里面放 `libraries.json` 和 `libraries/account-<SHA-256(subject) 前 16 字节，十六进制>/`，同一个账号的文件夹名一模一样（测试 `both_clients_name_an_accounts_library_alike`）。
+
+核实：`app/drifting/src/data_folder_tests.rs` 在临时目录里按正式身份的规则（`AppDirs::for_identity_at(&RELEASE, …)`）摆一个 0.1 的数据文件夹（dr-import-v1 测试用的合成库放在根上当 legacy，再复制一份当账号书库，加一个 MCP 连接文件，有登记表、没登记表各一遍），照 `main` 的顺序走启动时打开书库那一段：设置文件（写一次）、`library::open_active`（登记表、设备身份）、账号服务启动（未登录）、登录后的账号书库、诊断 id；再比对 0.1 文件夹里每个文件的内容、长度和修改时间。
+
+- 改之前的布局（新版的东西就放在这个文件夹里，留作负对照 `the_layout_before_the_fix_writes_into_the_0_1_data_folder`）：有登记表时新版读不懂 0.1 的 `libraries.json`（缺 `activeId`），账号服务起不来（真实 App 里 `dr_view_account::Service::for_build` 会退到临时文件夹和内存钥匙串），登录记不进登记表；新版的 `library/`、`settings.json`、`device-machine-v1.json`、`library-watermarks.json`、`diagnostics-installation-v1` 落在 0.1 根上。没有登记表时新版写一份自己格式的 `libraries.json`，还在 0.1 的 `libraries/account-<hex>/` 里建 `library.sqlite`、`library.lock`；之后导入按 0.1 的规矩认为登记表坏了，一本旧书都找不到。
+- 修法（`dr-platform/src/paths.rs`）：`AppDirs` 加 `own`，新版自己的东西放这里。开发身份 `own` 就是 `data`（开发库不搬家）；正式身份是 0.1 文件夹**旁边**的 `<bundle id>.v2`（`RELEASE_OWN_SUFFIX`），崩溃记录、Windows 的日志跟着进 `own`。`data` 不变：`mcp/` 留在这里（外部 Agent 配置里写死的路径），「导入 Drifting 0.1」找旧书也在这里（`dr-view-import` 的 `v1_data_dir` 一行没改）。App 入口把设置、书库、账号、反馈、更新都改成传 `dirs.own`。
+- 为什么不放进 0.1 文件夹里面的子文件夹：0.1 最常见的本地书库（legacy）的根就是整个 0.1 文件夹，而 `dr-view-import/src/reimport.rs` 的 `Destination::validate` 拒绝「导入目标在来源里面」。探针核实过：`own` 放在里面时，导入 legacy 报 `reimport requires a new destination`。放在旁边就不用动另一路在改的 `dr-view-import`。
+- 修完（`the_release_layout_leaves_the_0_1_data_folder_untouched`）：两种 0.1 文件夹都一个字节没变、一个文件没多；新版的登记表、本地书库、账号书库、设置、诊断 id 都在 `own`；导入还找得到 legacy，`Destination::prepare` 接受 `own` 里的目标，接受以后 0.1 文件夹仍然没变。
+- 设备身份：正式身份下新版在 `own` 里起一个新的安装 id；导入 0.1 的书时 M10 照旧接过 0.1 的安装 id（`take_over`），写作日接着记在 0.1 的设备下。
+
+### 发布工作流
+
+见上面「发布流水线」。新加 `script/check-release`（标签等于版本号、版本号不带 `-dev` 且不小于 0.2.0、发布说明、动作钉到提交、工作流里有正式身份和预编译着色器的打包和检查；本机对合成的树正反都试过）和 `script/package-mac`（从 `bundle-mac` 拆出来的出 DMG 和更新包，工作流在 staple 以后对同一个包再跑一次）。
+
+### 本机演练
+
+2026-11-20，照第四轮的做法，在开发身份的包上走完「打 dist 包 → 签更新包 → 写清单 → 查到 → 下载验签 → 换包」。一次性密钥（`update-tool keygen`，放在会话的临时目录，用完即弃），本地 `file://` 清单，不碰正式发布地址、不用正式钥匙、不连网。脚本和日志在仓库外。
+
+1. `script/bundle-mac --dist --archive`（这一轮拆出来的 `package-mac` 出更新包）：机器负载 20–35（别的会话在编译），冷编 19 分 48 秒。包 177 MiB（181,332 KiB），包里剥过符号的可执行文件 100 MiB（104,861,680 B），包旁边的 `.dSYM` 555 MiB，更新包 87.4 MiB（91,689,165 B）。`cargo xtask check-binary` 对包里的程序：没有调试桥、没有热重载、不是正式身份。比第三轮（46.6 MiB / 80.9 MiB）大了一倍多，是这几周加进来的代码，这一轮没有细查。
+2. `update-tool sign`（219 ms），`verify` 打印签名里的文件名 `Drifting_Next_0.2.0-dev_aarch64.app.tar.gz`；拿另一对一次性密钥的公钥去验，拒绝。
+3. `update-tool manifest --local`：`version`、`notes`（发布说明去掉标题那一行）、`pub_date`（RFC 3339）、`platforms.darwin-aarch64`。
+4. `update-tool apply … --current 0.1.12`，装进一份复制出来、多放了一个文件的「已装」包，三次：查到 0.2.0-dev、下载（本地复制）加验签加核对签名里的版本 119 / 122 / 110 ms，换包 624 / 1591 / 1047 ms。换完多放的文件没了，`codesign --verify --strict` 通过，装上的可执行文件和新包的逐字节相同，包旁边没留东西。
+5. 该拒绝的都拒绝了，每次之后已装的包原样不动：同版本（「the current version」）、清单比当前旧（「older … not installed」）、签成 0.2.0-dev 的包配一份写 0.2.1 的清单（「signed as Drifting_Next_0.2.0-dev_aarch64.app.tar.gz」）、改过一个字节的包（「does not match its signature」）、别的钥匙的公钥（「signed with a different key」）。
+
+### 旧版那头
+
+不用改：`c788d72b2`（2026-11-11）已经把 `src-tauri/src/app_update.rs` 改成先 `update.json` 后 `latest.json`，单测断言两条地址和顺序，随 0.1.0-alpha.11 发布，alpha.12 也带着（`git show v0.1.0-alpha.12:src-tauri/src/app_update.rs` 核过）。0.1 的发布流程只写 `latest.json`。所以这一轮没有 0.1 的提交。
+
+读 `tauri-plugin-updater` 2.10.1 时发现一条约束，写进了 [m42-update.md](../modules/m42-update.md)「新版这边要守住的」和 release-handover.md「只发 macOS 时」：旧更新器拿到第一份能解析的清单就停，而且先找本平台的地址、后比版本号，`update.json` 缺 Windows 的键时 Windows 老用户每次检查都报失败。
+
+### 没验到的
+
+- 预编译着色器那一面（要 Metal Toolchain）、Developer ID 签名、公证、staple、`spctl`，工作流本身（没跑过，actionlint 和 shellcheck 过了）。
+- 正式身份的程序没运行过（会读写这台机器上正式版的数据）；Windows 的 `-ReleaseIdentity` 没在 Windows 上打过（本机没有 NSIS），`dr-platform` 加正式身份过了 Windows 交叉 Clippy。
+- 签名包上「0.1 最后一版 → 新版」的真交接，要作者在不是日常用的账户或虚拟机里做（release-handover.md 第 8 步）。
+
 ## 下一个里程碑建议
 
-1. **交接里程碑**：旧版最后一版改更新地址并发布（改法已写在 [m42-update.md](../modules/m42-update.md)「旧版那头的交接」）；`release-identity` 特性和打包脚本开关；把草稿工作流补全、挪进 `.github/workflows`；在签名公证的正式包上把 Tauri → GPUI 在 macOS 和 Windows 上各真走一遍（用测试密钥对和一个私有的测试仓库或本地清单，不碰正式发布）。
+1. **交接里程碑**：不要密钥的部分第五轮做完了（旧版那头 alpha.11 已发布；`release-identity`、预编译着色器、工作流写全、数据文件夹分开）。剩下的照 [release-handover.md](../release-handover.md)：作者配密钥、装 Metal Toolchain，在签名公证的正式包上把 Tauri → GPUI 在 macOS 和 Windows 上各真走一遍（不在日常账户上，用测试密钥对和私有测试仓库或本地清单），再挪工作流、发 0.2.0。
 2. **符号与上报验收（剩下要连 Sentry 的部分）**：本机部分第三轮做完了（见上）。剩下的要作者同意后做：接一个测试用的 Sentry 项目，`sentry-cli` 上传 `dist` 的 `.dSYM`，看一次 Rust 崩溃和一次 minidump 在 Sentry 里还原出函数名和行号；同时验「发版前」4 条（要签名的正式包）。
 3. **Windows 实机**：虚拟机里过一遍深链接、单实例、钥匙串、安装器。

@@ -1,6 +1,6 @@
 # M42 自动更新（客户端）
 
-2026-11-08，客户端部分，F7 这一路做（第四轮）。计划见 [modules.md 的 M42](../modules.md)。检查、下载、验签、安装的底层在 F7 的 `next/crates/dr-platform/src/update/`（第一轮做的，这一轮补了本机 HTTP、截断和停滞、签名绑定版本、更新文件夹），界面和调度是新 crate `next/crates/dr-view-update/`；外壳（dr-shell）只加了设置「关于」里一行的挂接点，应用入口注册一行。发布流水线、真签名、旧版最后一版都没动；旧版那头只写了设计（见文末）。
+2026-11-08，客户端部分，F7 这一路做（第四轮）。计划见 [modules.md 的 M42](../modules.md)。检查、下载、验签、安装的底层在 F7 的 `next/crates/dr-platform/src/update/`（第一轮做的，这一轮补了本机 HTTP、截断和停滞、签名绑定版本、更新文件夹），界面和调度是新 crate `next/crates/dr-view-update/`；外壳（dr-shell）只加了设置「关于」里一行的挂接点，应用入口注册一行。这一轮发布流水线、真签名、旧版最后一版都没动，旧版那头只写了设计（见文末）；旧版那头 2026-11-11 做了、随 alpha.11 发布，发布流水线 2026-11-20 写全（F7 第五轮，[release-handover.md](../release-handover.md)）。
 
 ## 做了什么（大白话）
 
@@ -59,7 +59,7 @@
 
 ### 更新文件夹
 
-`<应用数据>/updates/`：下好的包（只留最新的一个）、`installed.json`（退出时装了哪个版本和说明，新版读一次就删）、`install-failed.json`（哪个版本没装上、为什么，读一次就删；那个版本已经不比当前新就不说）。启动时清掉 `.partial` 和不比当前新的包。正式版和旧版共用 `cc.drifting.client` 数据文件夹（F7 待协调 3），旧版那里没有 `updates/`，不冲突。
+`<新版自己的文件夹>/updates/`（`AppDirs::own`，正式版是 0.1 文件夹旁边的 `cc.drifting.client.v2`）：下好的包（只留最新的一个）、`installed.json`（退出时装了哪个版本和说明，新版读一次就删）、`install-failed.json`（哪个版本没装上、为什么，读一次就删；那个版本已经不比当前新就不说）。启动时清掉 `.partial` 和不比当前新的包。正式版不往 0.1 的 `cc.drifting.client` 文件夹里写（F7 第五轮）。
 
 ## 接口
 
@@ -120,11 +120,15 @@ M39 的反馈对话框改了一行：摘要里的更新状态改用 `dr_view_upd
 
 ⌘Q 时 App 先藏起来，这一两秒作者看不到。细节在 [f7-platform.md](../foundations/f7-platform.md)「第四轮」。
 
-## 旧版那头的交接（只写设计，没动 0.1 客户端）
+2026-11-20（F7 第五轮）又在这一版的 dist 包上走了一遍（更新包 87.4 MiB、解开 177 MiB，负载 8–20）：下载加验签 110–122 ms，换包 0.6 / 1.6 / 1.0 秒；同版本、旧版本、旧包冒充新版本号、改过的包、别的钥匙签的包都拒绝。细节在 f7-platform.md「第五轮」。
+
+## 旧版那头的交接
 
 总设计在 [f7-platform.md 的「交接设计」](../foundations/f7-platform.md)（两份清单、顺序、保持不变的东西）。这里是 M42 定下的、旧版最后一版发布时要做的具体改动，和新版这边要守住的约定。
 
 ### 旧版最后一版（0.1.x）要改的
+
+**已经做了**：2026-11-11 的 `c788d72b2`，随 0.1.0-alpha.11 发布，alpha.12 也带着。下面留作记录。
 
 1. **`src-tauri/src/app_update.rs` 的更新地址从一个改成两个，顺序不能反**：
 
@@ -146,6 +150,7 @@ M39 的反馈对话框改了一行：摘要里的更新状态改用 `dr_view_upd
 - macOS 更新包只有一个顶层 `.app` 文件夹；Windows 安装器认 `/P /R /UPDATE /ARGS`，并且自己等旧进程退干净（第一轮已做）。
 - 版本号比旧版最后一版大（`0.2.0` > `0.1.x`），旧更新器只按 SemVer 比大小。
 - 签名文件名带版本（上面的约束），旧更新器不看这个，新版自己要。
+- **每个平台的键都要有**（2026-11-20 读 `tauri-plugin-updater` 2.10.1 核实）：旧更新器读到第一份能解析的清单就停，不再去读 `latest.json`；而且它先找本平台的下载地址、后比版本号。`update.json` 缺了 `windows-x86_64` 时，Windows 上的 alpha.11、alpha.12 每次检查都报「找不到平台」：不升级，但设置里一直显示检查失败。只发 macOS 怎么办见 [release-handover.md](../release-handover.md)「只发 macOS 时」。新版自己的更新器遇到没有本平台的清单也是报错（`ManifestError::NoPlatform`）。
 
 ### 回不去
 
@@ -160,7 +165,7 @@ M39 的反馈对话框改了一行：摘要里的更新状态改用 `dr_view_upd
 1. **macOS 上 App 所在的文件夹写不进去时**（标准用户、`/Applications` 属于管理员）：旧版会弹 AppleScript 要管理员密码；这里不弹，记下来，下次打开时在通知中心说没装上。要不要跟旧版一样弹（在退出时、App 已藏起来以后弹框比较突兀），作者定。F7 待协调 2 里同一个问题。
 2. **Windows**：本机没有 Windows，退出时启动安装器（不带 `/R`）、「重启以更新」带 `/R` 只有单元测试，没有在真机上跑过；安装器本身的升级路径在 CI 的 `check-windows-installer.ps1` 里测过（第一轮）。
 3. **M39（反馈）**：摘要里的更新状态已经接上（`dr_view_update::snapshot`）；同步那一半还等同步模块。设置 › 本地数据「复制摘要」用的是外壳自己的简短摘要，没有更新状态，和 M39 待协调 5 一起改。
-4. **发布（作者）**：正式构建要编进 `DRIFTING_UPDATER_PUBLIC_KEY`（发布工作流的 `vars`），不然正式版也不查更新；草稿工作流 `next/script/release-next.draft.yml` 已经这样写，没挪进 `.github/workflows`。
+4. **发布（作者）**：正式构建要编进 `DRIFTING_UPDATER_PUBLIC_KEY`（发布工作流的 `vars`），不然正式版也不查更新；工作流 `next/script/release-next.draft.yml` 第五轮写全了，缺这个变量时直接失败，还没挪进 `.github/workflows`（[release-handover.md](../release-handover.md)）。
 5. **界面截图**：设置「关于」里这一行和通知中心的「重启以更新」还没在真窗口里截图给作者看。
 6. **换包能不能更快**：现在退出时才解压（负载高时 3 秒）。可以挪到下载验签之后，先在包旁边解好（隐藏文件夹），退出时只剩两次改名（毫秒级）；代价是包旁边多一个临时文件夹、崩溃后要清理、App 被挪走时要作废。要不要做，看真机上 ⌘Q 后进程多留一两秒是否碍事。
 

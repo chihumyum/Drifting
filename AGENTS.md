@@ -65,7 +65,13 @@ Guidance for coding agents working in this standalone Drifting client repository
   out. The 0.1 client retired it on 2026-11-19 ("Retired Agent Products"). See
   `docs/rust-rewrite/modules/m34-dictation.md`.
 - Development builds carry the bundle id `cc.drifting.next.dev`. Do not give a
-  `next/` build the release client's identity before F7's hand-over.
+  `next/` build the release client's identity before F7's hand-over. Its
+  switch, the `release-identity` feature (`script/bundle-mac
+  --release-identity`), is the release workflow's alone (gate
+  `release-identity`, `cargo xtask check-binary`). Never open such a build on
+  a machine whose Drifting data is not throwaway: it reads and writes the 0.1
+  client's keychain items and data folder. See
+  `docs/rust-rewrite/release-handover.md`.
 - Zed's `editor`, `text`, `rope`, `ui` and `theme` crates are GPL-3.0; do not
   copy from them. `gpui`, its platform crates and `sum_tree` are Apache-2.0.
 - Checks, run in `next/` (CI: `.github/workflows/next.yml`, macOS and Windows,
