@@ -14,6 +14,7 @@ use std::time::Duration;
 use serde_json::{Value, json};
 
 use crate::endpoint::{HostedConfig, HostedOrigin};
+use crate::notices::{NOTICES_PATH, NOTICES_READ_PATH};
 use crate::oauth::pkce_s256_challenge;
 use crate::preferences::{
     RemotePreference, clamp_to_server_clock, compare_iso_timestamps, now_iso8601,
@@ -33,6 +34,18 @@ struct PendingOAuthCode {
     code_challenge: String,
 }
 
+/// A notice the fake operator published (account notices v1).
+#[derive(Debug, Clone)]
+struct FakeNotice {
+    id: String,
+    seq: u64,
+    /// The one account it is addressed to, or every account.
+    to: Option<String>,
+    content: Value,
+    link: Option<String>,
+    published_at: String,
+}
+
 #[derive(Default)]
 struct ServerState {
     accounts_by_email: HashMap<String, StoredAccount>,
@@ -45,6 +58,18 @@ struct ServerState {
     google_enabled: bool,
     preferences_supported: bool,
     server_clock_override: Option<String>,
+    notices: Vec<FakeNotice>,
+    /// The `seq` of the newest notice published.
+    notice_seq: u64,
+    notice_read_through_by_email: HashMap<String, u64>,
+    notices_supported: bool,
+    /// Every notices route answers this status (and no notices) while set.
+    notices_failure: Option<u16>,
+    /// `GET /api/account/v1/notices` answers these bytes as they are.
+    notices_body: Option<String>,
+    notices_refresh: Option<Value>,
+    /// `"<METHOD> <path>"` → how many requests reached it.
+    hits: HashMap<String, usize>,
 }
 
 /// Loopback fake server running on `127.0.0.1:0`.
@@ -72,6 +97,7 @@ impl FakeAuthServer {
             require_signup_verification: true,
             google_enabled: true,
             preferences_supported: true,
+            notices_supported: true,
             ..ServerState::default()
         }));
         let stop = Arc::new(AtomicBool::new(false));
@@ -179,6 +205,83 @@ impl FakeAuthServer {
             .get(&email.trim().to_ascii_lowercase())
             .cloned()
             .unwrap_or_default()
+    }
+
+    /// How many requests reached `method path` (`"GET", "/api/account/v1/notices"`).
+    #[must_use]
+    pub fn requests_to(&self, method: &str, path: &str) -> usize {
+        self.state
+            .lock()
+            .expect("fake state")
+            .hits
+            .get(&format!("{method} {path}"))
+            .copied()
+            .unwrap_or(0)
+    }
+
+    /// Publishes a notice to every account (`to: None`) or to the account of
+    /// `to` alone; `content` is the contract's `{ "zh": { "title", "body" },
+    /// "en": … }`. Returns its id.
+    pub fn publish_notice(&self, to: Option<&str>, content: Value, link: Option<&str>) -> String {
+        let mut guard = self.state.lock().expect("fake state");
+        guard.notice_seq += 1;
+        let seq = guard.notice_seq;
+        let id = format!("00000000-0000-4000-8000-{seq:012}");
+        let published_at = guard
+            .server_clock_override
+            .clone()
+            .unwrap_or_else(now_iso8601);
+        guard.notices.push(FakeNotice {
+            id: id.clone(),
+            seq,
+            to: to.map(|email| email.trim().to_ascii_lowercase()),
+            content,
+            link: link.map(ToOwned::to_owned),
+            published_at,
+        });
+        id
+    }
+
+    /// The operator withdraws a notice (or it expires): it is no longer offered.
+    pub fn withdraw_notice(&self, id: &str) {
+        self.state
+            .lock()
+            .expect("fake state")
+            .notices
+            .retain(|n| n.id != id);
+    }
+
+    /// The account's read mark for `email`.
+    #[must_use]
+    pub fn notice_read_through(&self, email: &str) -> u64 {
+        self.state
+            .lock()
+            .expect("fake state")
+            .notice_read_through_by_email
+            .get(&email.trim().to_ascii_lowercase())
+            .copied()
+            .unwrap_or(0)
+    }
+
+    /// Whether the notices routes exist (`false`: they answer 404).
+    pub fn set_notices_supported(&self, supported: bool) {
+        self.state.lock().expect("fake state").notices_supported = supported;
+    }
+
+    /// While `Some(status)`, every notices route fails with that status.
+    pub fn set_notices_failure(&self, status: Option<u16>) {
+        self.state.lock().expect("fake state").notices_failure = status;
+    }
+
+    /// While `Some`, `GET /api/account/v1/notices` answers a signed-in
+    /// request with `body` as it is (malformed or oversized responses).
+    pub fn set_notices_body(&self, body: Option<String>) {
+        self.state.lock().expect("fake state").notices_body = body;
+    }
+
+    /// The `refreshAfterSeconds` the notices route answers (`None`: 60).
+    pub fn set_notices_refresh(&self, seconds: Option<Value>) {
+        self.state.lock().expect("fake state").notices_refresh = seconds;
     }
 
     /// Simulate the browser leg of `/api/auth/native-start?...` and return the deep-link
@@ -293,10 +396,21 @@ fn handle_connection(
     let body_bytes = &buf[end..(end + content_length).min(buf.len())];
     let body_json: Value = serde_json::from_slice(body_bytes).unwrap_or_else(|_| json!({}));
 
-    let (status, extra_header, resp_body) =
-        route_request(state, method, path, bearer_token.as_deref(), &body_json);
-
-    let body_str = resp_body.to_string();
+    *state
+        .lock()
+        .expect("fake state")
+        .hits
+        .entry(format!("{method} {path}"))
+        .or_default() += 1;
+    let (status, extra_header, body_str) =
+        match raw_notices_body(state, method, path, bearer_token.as_deref()) {
+            Some(raw) => (200, None, raw),
+            None => {
+                let (status, extra_header, resp_body) =
+                    route_request(state, method, path, bearer_token.as_deref(), &body_json);
+                (status, extra_header, resp_body.to_string())
+            }
+        };
     let status_text = match status {
         200 => "OK",
         400 => "Bad Request",
@@ -304,6 +418,8 @@ fn handle_connection(
         403 => "Forbidden",
         404 => "Not Found",
         429 => "Too Many Requests",
+        500 => "Internal Server Error",
+        503 => "Service Unavailable",
         _ => "Error",
     };
 
@@ -320,6 +436,102 @@ fn handle_connection(
     stream.flush()
 }
 
+/// The bytes [`FakeAuthServer::set_notices_body`] set, for a signed-in
+/// `GET /api/account/v1/notices`.
+fn raw_notices_body(
+    state: &Arc<Mutex<ServerState>>,
+    method: &str,
+    path: &str,
+    bearer: Option<&str>,
+) -> Option<String> {
+    let guard = state.lock().expect("fake state");
+    if method != "GET"
+        || path != NOTICES_PATH
+        || !guard.notices_supported
+        || guard.notices_failure.is_some()
+    {
+        return None;
+    }
+    let body = guard.notices_body.clone()?;
+    guard
+        .sessions_by_token
+        .contains_key(bearer?)
+        .then_some(body)
+}
+
+/// Account notices v1, as the 0.1 client's contract describes the service
+/// (`docs/hosted-sync/notices.md`).
+fn route_notices(
+    guard: &mut ServerState,
+    method: &str,
+    path: &str,
+    bearer: Option<&str>,
+    body: &Value,
+) -> (u16, Value) {
+    if !guard.notices_supported {
+        return (
+            404,
+            json!({ "code": "NOT_FOUND", "message": "Route not found" }),
+        );
+    }
+    let Some(email) = bearer.and_then(|t| guard.sessions_by_token.get(t).cloned()) else {
+        return (401, json!({ "code": "UNAUTHORIZED" }));
+    };
+    if let Some(status) = guard.notices_failure {
+        return (
+            status,
+            json!({ "code": "INTERNAL", "message": "Notices unavailable" }),
+        );
+    }
+    let mark = guard
+        .notice_read_through_by_email
+        .get(&email)
+        .copied()
+        .unwrap_or(0);
+    match (method, path) {
+        ("GET", NOTICES_PATH) => {
+            let mut offered: Vec<&FakeNotice> = guard
+                .notices
+                .iter()
+                .filter(|n| n.to.as_ref().is_none_or(|to| to == &email))
+                .collect();
+            offered.sort_by_key(|n| n.seq);
+            let notices: Vec<Value> = offered
+                .into_iter()
+                .map(|n| {
+                    json!({
+                        "id": n.id,
+                        "seq": n.seq,
+                        "personal": n.to.is_some(),
+                        "content": n.content,
+                        "link": n.link,
+                        "publishedAt": n.published_at,
+                        "expiresAt": "2099-01-01T00:00:00.000Z",
+                    })
+                })
+                .collect();
+            let refresh = guard.notices_refresh.clone().unwrap_or_else(|| json!(60));
+            (
+                200,
+                json!({ "notices": notices, "readThrough": mark, "refreshAfterSeconds": refresh }),
+            )
+        }
+        ("POST", NOTICES_READ_PATH) => {
+            let Some(through) = body.get("through").and_then(Value::as_u64) else {
+                return (400, json!({ "code": "INVALID_REQUEST" }));
+            };
+            // Never back, never past the newest notice published.
+            let raised = mark.max(through.min(guard.notice_seq));
+            guard.notice_read_through_by_email.insert(email, raised);
+            (200, json!({ "readThrough": raised }))
+        }
+        _ => (
+            404,
+            json!({ "code": "NOT_FOUND", "message": "Route not found" }),
+        ),
+    }
+}
+
 fn route_request(
     state: &Arc<Mutex<ServerState>>,
     method: &str,
@@ -328,6 +540,11 @@ fn route_request(
     body: &Value,
 ) -> (u16, Option<(&'static str, String)>, Value) {
     let mut guard = state.lock().expect("fake state");
+
+    if path == NOTICES_PATH || path == NOTICES_READ_PATH {
+        let (status, reply) = route_notices(&mut guard, method, path, bearer, body);
+        return (status, None, reply);
+    }
 
     match (method, path) {
         ("GET", "/api/auth/providers") => (200, None, json!({ "google": guard.google_enabled })),

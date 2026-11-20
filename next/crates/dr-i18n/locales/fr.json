@@ -586,6 +586,7 @@
       "source": "Dossier Markdown"
     },
     "notice": {
+      "personal": "Message",
       "source": "Annonce"
     },
     "remove": "Retirer",

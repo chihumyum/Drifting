@@ -3,6 +3,7 @@
 
 pub mod consent;
 pub mod dialog;
+pub mod notices;
 pub mod settings_view;
 pub mod sync_mark;
 
@@ -222,7 +223,8 @@ fn build_avatar_render_image(data_url: &str) -> Option<Arc<RenderImage>> {
 /// - Hooks the sidebar & shelf account cell and menu (`dr_shell::account::set_hook`);
 /// - Registers the `Settings → Account` panel (`"account.hosted"`);
 /// - Registers the `auth/` deep-link OAuth callback handler;
-/// - Starts background session bootstrap (`GET /api/auth/get-session`).
+/// - Starts background session bootstrap (`GET /api/auth/get-session`);
+/// - Reads the operator's notices while signed in ([`notices`]).
 pub fn init(mut service: Service, cx: &mut App) {
     let inner = service.inner.clone();
     if cx.has_global::<Settings>() {
@@ -230,6 +232,9 @@ pub fn init(mut service: Service, cx: &mut App) {
     }
     let initial_state = service.state.clone();
     cx.set_global(service);
+    if initial_state.hosted_configured {
+        notices::install(cx);
+    }
 
     dr_view_feedback::Service::set_session(inner.current_token(), cx);
 
@@ -497,6 +502,7 @@ pub fn apply_account_state(state: AccountState, cx: &mut App) {
     if is_connected {
         sync_preferences_now(cx);
     }
+    notices::account_changed(cx);
     cx.refresh_windows();
 }
 
