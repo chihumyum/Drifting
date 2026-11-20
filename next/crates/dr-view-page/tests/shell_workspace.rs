@@ -2068,6 +2068,67 @@ impl Drop for Held {
 /// device remembers); the tour starts once for the book, and the closed
 /// sidebar's toggle is marked for it.
 #[gpui::test]
+fn what_waits_for_the_first_run_runs_once_none_lies_over_the_bookshelf(cx: &mut TestAppContext) {
+    use dr_shell::pages;
+    use std::cell::{Cell, RefCell};
+    use std::rc::Rc;
+    let (_dir, lib) = slow_clock();
+    cx.executor().allow_parking();
+    cx.update(|cx| {
+        dr_shell::init(
+            info(),
+            Services {
+                deep_links: None,
+                crash_reports: None,
+                library: Some(lib),
+                book: None,
+            },
+            SettingsFile::in_memory(),
+            cx,
+        );
+        dr_view_page::init(cx);
+    });
+    let over = Rc::new(Cell::new(0));
+    let finish: Rc<RefCell<Option<pages::FirstRunDone>>> = Rc::default();
+    cx.update(|cx| {
+        pages::set_shelf(cx, |_, _, cx| pages::ShelfPage {
+            view: cx.new(|_| Blank).into(),
+            bell: None,
+        });
+        let keep = finish.clone();
+        pages::set_first_run(cx, move |done, _, cx| {
+            *keep.borrow_mut() = Some(done);
+            pages::FirstRunPage {
+                view: cx.new(|_| Blank).into(),
+                shows_shelf: Rc::new(|_| false),
+            }
+        });
+        let count = over.clone();
+        pages::after_first_run(cx, move |_, _| count.set(count.get() + 1));
+    });
+
+    // The first run lies over the bookshelf: not yet.
+    let (view, cx) = cx.add_window_view(Workspace::new);
+    cx.run_until_parked();
+    assert!(view.read_with(cx, |ws, _| ws.sea.first_run_shows()));
+    assert_eq!(over.get(), 0);
+
+    // It ends: now.
+    let done = finish.borrow_mut().take().unwrap();
+    cx.update(|window, cx| done(window, cx));
+    cx.run_until_parked();
+    assert_eq!(over.get(), 1);
+
+    // A window on a device that saw the first run: as it opens, and no
+    // first run is made for it.
+    let (second, cx) = cx.add_window_view(Workspace::new);
+    cx.run_until_parked();
+    assert!(second.read_with(cx, |ws, _| !ws.sea.first_run_shows()));
+    assert!(finish.borrow().is_none());
+    assert_eq!(over.get(), 2);
+}
+
+#[gpui::test]
 fn the_sea_lies_under_the_shelf_and_the_opening_wait(cx: &mut TestAppContext) {
     use dr_shell::pages::{self, SeaHold};
     use std::cell::RefCell;

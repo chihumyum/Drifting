@@ -359,6 +359,7 @@ struct Pages {
     v3_bottom: Vec<(BottomPane, MakeBottom)>,
     backdrop: Option<Backdrop>,
     first_run: Option<MakeFirstRun>,
+    after_first_run: Vec<InWindow>,
     guide: Option<Guide>,
     companion: Option<MakeCompanion>,
     library: Option<MakeCompanion>,
@@ -690,6 +691,27 @@ pub(crate) fn make_first_run(
 ) -> Option<FirstRunPage> {
     let make = cx.try_global::<Pages>()?.first_run.clone()?;
     Some(make(done, window, cx))
+}
+
+/// Registers `run` for a window whose bookshelf shows first with the first
+/// run over: when its first run ends, or as the window opens on a device that
+/// saw the first run already (or without one registered). The workspace may
+/// be in the middle of an update then: reach it through
+/// [`crate::workspace::with_workspace_in`].
+pub fn after_first_run(cx: &mut App, run: impl Fn(&mut Window, &mut App) + 'static) {
+    cx.default_global::<Pages>()
+        .after_first_run
+        .push(Rc::new(run));
+}
+
+pub(crate) fn first_run_over(window: &mut Window, cx: &mut App) {
+    let hooks = cx
+        .try_global::<Pages>()
+        .map(|pages| pages.after_first_run.clone())
+        .unwrap_or_default();
+    for hook in hooks {
+        hook(window, cx);
+    }
 }
 
 /// Registers the workspace tour.

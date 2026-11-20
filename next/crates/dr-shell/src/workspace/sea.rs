@@ -15,7 +15,10 @@
 //!   Panel lie on it as bare glass.
 //! - **First run**: the first time the app opens on this device (device
 //!   value `first_run.done`), the first run lies over the bookshelf, which
-//!   is drawn under it once it says so.
+//!   is drawn under it once it says so. What waits for the bookshelf
+//!   without a first run over it ([`crate::pages::after_first_run`]: the
+//!   0.1 import offering itself, M10) runs when the first run ends, or as
+//!   the window opens on a device that saw it.
 //! - **Tour**: started when a book's workspace first shows; its layer is
 //!   the root's last child, covered by a panel fill or the wait.
 
@@ -157,18 +160,29 @@ impl Workspace {
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
         if seen {
+            Self::first_run_is_over(window, cx);
             return;
         }
         let this = cx.weak_entity();
-        let done: pages::FirstRunDone = std::rc::Rc::new(move |_, cx| {
+        let done: pages::FirstRunDone = std::rc::Rc::new(move |window, cx| {
             Settings::set_device_memory(cx, FIRST_RUN_DONE, Some(true.into()));
             this.update(cx, |ws, cx| {
                 ws.sea.first_run = None;
                 cx.notify();
             })
             .ok();
+            pages::first_run_over(window, cx);
         });
         self.sea.first_run = pages::make_first_run(done, window, cx);
+        if self.sea.first_run.is_none() {
+            Self::first_run_is_over(window, cx);
+        }
+    }
+
+    /// No first run lies over this window's bookshelf: what waits for that
+    /// ([`pages::after_first_run`]) runs once the window is built.
+    fn first_run_is_over(window: &mut Window, cx: &mut Context<Self>) {
+        cx.defer_in(window, |_, window, cx| pages::first_run_over(window, cx));
     }
 
     /// A book's workspace shows: the tour, once per book opened (the tour

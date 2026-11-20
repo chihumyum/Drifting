@@ -10,7 +10,7 @@ use std::thread::JoinHandle;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use crate::reimport::{self, AccountCheck, Destination, Refusal, ResultOfImport};
-use dr_account::LibraryOwner;
+use dr_account::{LibraryOwner, SessionStatus};
 use dr_i18n::keys;
 use dr_import_v1::gate::{Accept, Gate, Reason};
 use dr_import_v1::locate::{self, Owner, Picked};
@@ -23,7 +23,7 @@ use dr_import_v1::{
 };
 use dr_shell::notifications::{NoticeAction, Notifications, Source};
 use dr_shell::strings::tf;
-use dr_shell::{Services, ShellInfo, t};
+use dr_shell::{Services, Settings, ShellInfo, t};
 use futures::StreamExt as _;
 use gpui::{
     AnyWindowHandle, App, AppContext as _, Context, Entity, FocusHandle, PathPromptOptions, Task,
@@ -38,6 +38,16 @@ use gpui::{
 /// app's folder: without the variable it finds nothing and shows the folder
 /// panel.
 pub const V1_DATA_DIR_ENV: &str = "DRIFTING_APP_DATA_DIR";
+
+/// The device value: the import's dialog was shown on this device (by itself
+/// or from the bookshelf), so it does not show by itself again.
+pub const OFFERED: &str = "import.v1_offered";
+
+/// While the session is still being checked at launch, how often
+/// [`LegacyImport::offer`] looks again, and how many times before it leaves
+/// the offer to the next launch (20 s).
+const OFFER_SESSION_EVERY: Duration = Duration::from_millis(250);
+const OFFER_SESSION_TRIES: usize = 80;
 
 /// After asking the import to finish its book, how long quitting waits;
 /// then it asks it to stop at once and waits [`QUIT_WAIT_NOW`] more. One
@@ -175,6 +185,11 @@ pub struct LegacyImport {
     /// The reminders posted for books an import left unfinished: (notice,
     /// book id). Each goes once its book is imported.
     reminders: Vec<(u64, String)>,
+    /// [`Self::offer`] asking the server about the account.
+    offering: Option<Task<()>>,
+    /// The window an offer came from while the library was being swapped:
+    /// made again once the swap is over ([`Self::offer_again`]).
+    offer_waits: Option<AnyWindowHandle>,
 }
 
 impl LegacyImport {
@@ -192,6 +207,8 @@ impl LegacyImport {
             v1_dir: v1_data_dir(),
             window: None,
             reminders: Vec::new(),
+            offering: None,
+            offer_waits: None,
         }
     }
 
@@ -252,6 +269,99 @@ impl LegacyImport {
             self.take_focus(window, cx);
             cx.notify();
         }
+    }
+
+    /// The bookshelf showing without a first run over it, with 0.1 libraries
+    /// on this device: the list [`Self::choose`] opens, by itself, once per
+    /// device ([`OFFERED`]); never the folder panel. An account's library is
+    /// offered the import only while it would be let in: nothing in it here
+    /// and, asked first, nothing on the server. Unanswered, nothing shows and
+    /// the next launch asks again.
+    pub fn offer(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.offering.is_some() || self.is_open() || self.draining || was_offered(cx) {
+            return;
+        }
+        if dr_shell::release::is_releasing(cx) {
+            self.offer_waits = Some(window.window_handle());
+            return;
+        }
+        let Some(dir) = self.v1_dir.clone().filter(|dir| dir.is_dir()) else {
+            return;
+        };
+        let Some(owner) = open_owner(cx) else {
+            return;
+        };
+        let subject = match owner {
+            LibraryOwner::Account { subject } => Some(subject),
+            LibraryOwner::Local => None,
+        };
+        if find_libraries(&dir, subject.as_deref()).is_empty() {
+            return;
+        }
+        let Some(subject) = subject else {
+            log::info!("0.1 libraries on this device: the import offers itself, once");
+            self.choose(window, cx);
+            return;
+        };
+        if !open_library_is_empty(cx) {
+            return;
+        }
+        self.offering = Some(cx.spawn_in(window, async move |this, cx| {
+            let mut check = None;
+            for _ in 0..OFFER_SESSION_TRIES {
+                match this.update(cx, |_, cx| offer_session(&subject, cx)) {
+                    Ok(OfferSession::Checking) => {
+                        cx.background_executor().timer(OFFER_SESSION_EVERY).await;
+                    }
+                    Ok(OfferSession::Known(known)) => {
+                        check = known;
+                        break;
+                    }
+                    Err(_) => return,
+                }
+            }
+            let asked = match check {
+                Some(check) => Some(cx.background_spawn(async move { check.ask() }).await),
+                None => None,
+            };
+            cx.update(|window, cx| {
+                this.update(cx, |import, cx| {
+                    import.offering = None;
+                    match asked {
+                        Some(Ok(())) => import.offer_to(&subject, window, cx),
+                        Some(Err(Refusal::AccountHasBooks)) => {
+                            log::info!("the account has books already: the import is not offered")
+                        }
+                        Some(Err(Refusal::Unasked { why, .. })) => log::info!(
+                            "the server could not be asked about the account ({why}): the import is not offered now"
+                        ),
+                        None => log::info!(
+                            "no session for the account's library: the import is not offered now"
+                        ),
+                    }
+                })
+            })
+            .ok();
+        }));
+    }
+
+    /// The server says the account `subject` has nothing: the list shows,
+    /// when the account's library is still the open one and still empty.
+    fn offer_to(&mut self, subject: &str, window: &mut Window, cx: &mut Context<Self>) {
+        let still = matches!(
+            open_owner(cx),
+            Some(LibraryOwner::Account { subject: open }) if open.trim() == subject.trim()
+        );
+        if !still || !open_library_is_empty(cx) || was_offered(cx) {
+            return;
+        }
+        log::info!("the account's 0.1 library on this device: the import offers itself, once");
+        self.choose(window, cx);
+    }
+
+    /// A library swap is over: the offer it kept waiting, made again.
+    pub(crate) fn offer_again(&mut self) -> Option<AnyWindowHandle> {
+        self.offer_waits.take()
     }
 
     /// The system's folder panel (from the list too: 「选择文件夹」).
@@ -1069,6 +1179,32 @@ fn open_library_is_empty(cx: &App) -> bool {
     cx.try_global::<Services>()
         .and_then(|s| s.library.as_ref())
         .is_some_and(|ws| reimport::library_is_empty(ws).unwrap_or(false))
+}
+
+/// Whether the import's dialog was shown on this device ([`OFFERED`]).
+fn was_offered(cx: &App) -> bool {
+    Settings::device_memory(cx, OFFERED)
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+}
+
+/// The account's session, for [`LegacyImport::offer`].
+enum OfferSession {
+    /// Still being checked at launch.
+    Checking,
+    /// What there is to ask the server with, if anything.
+    Known(Option<AccountCheck>),
+}
+
+fn offer_session(subject: &str, cx: &App) -> OfferSession {
+    let checking = cx
+        .try_global::<dr_view_account::Service>()
+        .is_some_and(|svc| svc.state.status == SessionStatus::Checking);
+    if checking {
+        OfferSession::Checking
+    } else {
+        OfferSession::Known(account_check(subject, cx))
+    }
 }
 
 /// The server check for an import into `subject`'s library: the signed-in

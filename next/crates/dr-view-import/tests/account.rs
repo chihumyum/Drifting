@@ -25,7 +25,7 @@ use dr_sync::{FakeSyncServer, SyncEngine};
 use dr_view_import::reimport::{AccountCheck, Destination, Refusal, ResultOfImport};
 use dr_view_import::{LegacyImport, State};
 use dr_workspace::Workspace as Library;
-use gpui::{Entity, TestAppContext, VisualTestContext};
+use gpui::{BorrowAppContext as _, Entity, TestAppContext, VisualTestContext};
 
 const VERSION: &str = "0.2.0-dev";
 const TOKEN: &str = "synthetic-account-import-token";
@@ -440,6 +440,140 @@ fn the_dialog_refuses_when_the_server_cannot_be_asked(cx: &mut TestAppContext) {
     }
     assert_eq!(server.stored_object_count(), 0);
     assert!(active(cx).library().docs(None, None).unwrap().is_empty());
+}
+
+// The import offering itself (the first bookshelf on a device).
+
+/// A 0.1 data folder holding the account's own 0.1 library (the list reads
+/// the registry and the files' times only).
+fn v1_folder_of_the_account() -> tempfile::TempDir {
+    let base = tempfile::tempdir().unwrap();
+    let mine = account_library_id(SUBJECT);
+    std::fs::write(
+        base.path().join("libraries.json"),
+        format!(
+            r#"{{"version":1,"active":"{mine}","libraries":{{
+                "{mine}":{{"owner":{{"kind":"account","subject":"{SUBJECT}"}}}}}}}}"#
+        ),
+    )
+    .unwrap();
+    let databases = base.path().join("libraries").join(&mine).join("databases");
+    std::fs::create_dir_all(&databases).unwrap();
+    std::fs::write(databases.join("drifting-library.db"), b"").unwrap();
+    base
+}
+
+fn look_in(cx: &mut TestAppContext, dir: &Path) {
+    let dir = dir.to_path_buf();
+    cx.update(|cx| {
+        let i = dr_view_import::importer(cx).unwrap();
+        i.update(cx, |i, _| i.look_in(Some(dir)));
+    });
+}
+
+fn offered(cx: &mut VisualTestContext) -> bool {
+    cx.update(|_, cx| dr_shell::Settings::device_memory(cx, dr_view_import::OFFERED))
+        == Some(true.into())
+}
+
+fn set_session(cx: &mut VisualTestContext, status: SessionStatus) {
+    cx.update(|_, cx| {
+        cx.update_global::<dr_view_account::Service, _>(|svc, _| svc.state.status = status);
+    });
+}
+
+#[gpui::test]
+fn signed_in_the_import_offers_itself_once_the_server_says_the_account_has_nothing(
+    cx: &mut TestAppContext,
+) {
+    let server = FakeSyncServer::start(TOKEN);
+    let device = Device::signed_in(&server);
+    let data = device.data.path().to_path_buf();
+    let registry_before = registry_bytes(&data);
+    let base = v1_folder_of_the_account();
+    let Device {
+        data: _data,
+        account,
+        ws,
+    } = device;
+    install(cx, ws, account);
+    look_in(cx, base.path());
+
+    // The server cannot be asked: nothing shows, and the next bookshelf asks
+    // again.
+    server.set_offline(true);
+    let (_view, cx) = cx.add_window_view(Workspace::new);
+    cx.run_until_parked();
+    assert!(matches!(state(cx), State::Idle));
+    assert!(!offered(cx));
+    server.set_offline(false);
+
+    // The session is still being checked as the window opens: the offer
+    // waits for it, then asks.
+    set_session(cx, SessionStatus::Checking);
+    let (_second, cx) = cx.add_window_view(Workspace::new);
+    cx.run_until_parked();
+    assert!(matches!(state(cx), State::Idle));
+    set_session(cx, SessionStatus::Connected);
+    cx.executor().advance_clock(Duration::from_secs(1));
+    cx.run_until_parked();
+    let State::Found(found) = state(cx) else {
+        panic!("{:?}", state(cx))
+    };
+    assert!(found.libraries[0].account, "the account's own 0.1 library");
+    assert!(!cx.did_prompt_for_paths());
+    assert!(offered(cx));
+
+    // Offering wrote nothing anywhere.
+    assert!(import_traces(&data).is_empty());
+    assert_eq!(registry_bytes(&data), registry_before);
+    assert_eq!(server.stored_object_count(), 0);
+    assert!(active(cx).library().docs(None, None).unwrap().is_empty());
+}
+
+#[gpui::test]
+fn signed_in_the_import_does_not_offer_itself_to_an_account_that_has_books(
+    cx: &mut TestAppContext,
+) {
+    let server = FakeSyncServer::start(TOKEN);
+    // Another device already put a book into the account.
+    let elsewhere = Device::signed_in(&server);
+    dr_testkit::seed::generate_v3(
+        dr_testkit::seed::Preset::Tiny,
+        dr_testkit::seed::DEFAULT_SEED,
+    )
+    .unwrap()
+    .write_to(elsewhere.ws.library())
+    .unwrap();
+    sync(&elsewhere.ws, &server);
+    let records = server.stored_object_count();
+    assert!(records > 0);
+
+    let device = Device::signed_in(&server);
+    let base = v1_folder_of_the_account();
+    let Device {
+        data: _data,
+        account,
+        ws,
+    } = device;
+    install(cx, ws, account);
+    look_in(cx, base.path());
+
+    // On the server only (this device has not synced yet).
+    let (_view, cx) = cx.add_window_view(Workspace::new);
+    cx.run_until_parked();
+    assert!(matches!(state(cx), State::Idle));
+    assert!(!offered(cx));
+
+    // Here too, once synced: not even asked.
+    sync(&active(cx), &server);
+    assert!(!active(cx).library().docs(None, None).unwrap().is_empty());
+    server.set_offline(true);
+    let (_second, cx) = cx.add_window_view(Workspace::new);
+    cx.run_until_parked();
+    assert!(matches!(state(cx), State::Idle));
+    assert!(!offered(cx));
+    assert_eq!(server.stored_object_count(), records);
 }
 
 #[test]

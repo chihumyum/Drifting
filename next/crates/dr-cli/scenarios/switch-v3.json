@@ -24,6 +24,7 @@
           "device": {
             "modules": {
               "first_run.done": true,
+              "import.v1_offered": true,
               "guides.seen": [
                 "workspace-tour"
               ]
@@ -193,6 +194,7 @@
           "device": {
             "modules": {
               "first_run.done": true,
+              "import.v1_offered": true,
               "guides.seen": [
                 "workspace-tour"
               ]

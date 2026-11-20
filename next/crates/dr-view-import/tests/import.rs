@@ -340,6 +340,96 @@ fn folder_selection_and_mapping_file_drive_the_same_gui_configuration(cx: &mut T
     assert!(matches!(settled(cx), State::Done(_)));
 }
 
+/// A 0.1 data folder with one local library (the list reads the registry
+/// and the files' times only).
+fn v1_folder() -> tempfile::TempDir {
+    let base = tempfile::tempdir().unwrap();
+    std::fs::write(
+        base.path().join("libraries.json"),
+        r#"{"version":1,"active":"local","libraries":{"local":{"owner":{"kind":"local"}}}}"#,
+    )
+    .unwrap();
+    let databases = base.path().join("libraries/local/databases");
+    std::fs::create_dir_all(&databases).unwrap();
+    std::fs::write(databases.join("drifting-library.db"), b"").unwrap();
+    base
+}
+
+fn look_in(cx: &mut TestAppContext, dir: &Path) {
+    let dir = dir.to_path_buf();
+    cx.update(|cx| {
+        let i = dr_view_import::importer(cx).unwrap();
+        i.update(cx, |i, _| i.look_in(Some(dir)));
+    });
+}
+
+fn offered(cx: &mut VisualTestContext) -> bool {
+    cx.update(|_, cx| dr_shell::Settings::device_memory(cx, dr_view_import::OFFERED))
+        == Some(true.into())
+}
+
+#[gpui::test]
+fn the_first_bookshelf_offers_the_import_by_itself_once_on_a_device(cx: &mut TestAppContext) {
+    let (_dir, lib) = library();
+    init(cx, lib);
+    let base = v1_folder();
+    look_in(cx, base.path());
+    let (_view, cx) = cx.add_window_view(Workspace::new);
+    cx.run_until_parked();
+    let State::Found(found) = state(cx) else {
+        panic!("{:?}", state(cx))
+    };
+    assert_eq!(found.libraries.len(), 1);
+    assert!(
+        !cx.did_prompt_for_paths(),
+        "never the folder panel by itself"
+    );
+    assert!(offered(cx));
+
+    // Put away: it does not come back, in this window or in a new one.
+    let i = importer(cx);
+    cx.update(|w, cx| i.update(cx, |i, cx| i.close(w, cx)));
+    cx.run_until_parked();
+    assert!(matches!(state(cx), State::Idle));
+    let (_second, cx) = cx.add_window_view(Workspace::new);
+    cx.run_until_parked();
+    assert!(matches!(state(cx), State::Idle));
+    assert!(active(cx).library().docs(None, None).unwrap().is_empty());
+}
+
+#[gpui::test]
+fn without_0_1_libraries_nothing_offers_itself(cx: &mut TestAppContext) {
+    let (dir, lib) = library();
+    init(cx, lib);
+    // A 0.1 folder that is not there, then one with no library in it.
+    look_in(cx, &dir.path().join("no-such-0.1-folder"));
+    let (_view, cx) = cx.add_window_view(Workspace::new);
+    cx.run_until_parked();
+    assert!(matches!(state(cx), State::Idle));
+    let empty = tempfile::tempdir().unwrap();
+    look_in(cx, empty.path());
+    let (_second, cx) = cx.add_window_view(Workspace::new);
+    cx.run_until_parked();
+    assert!(matches!(state(cx), State::Idle));
+    assert!(!cx.did_prompt_for_paths());
+    assert!(!offered(cx));
+
+    // Opened from the bookshelf, the dialog counts as seen on this device:
+    // a later bookshelf does not show it by itself.
+    let base = v1_folder();
+    look_in(cx, base.path());
+    cx.dispatch_action(ImportLegacyLibrary);
+    cx.run_until_parked();
+    assert!(matches!(state(cx), State::Found(_)));
+    assert!(offered(cx));
+    let i = importer(cx);
+    cx.update(|w, cx| i.update(cx, |i, cx| i.close(w, cx)));
+    cx.run_until_parked();
+    let (_third, cx) = cx.add_window_view(Workspace::new);
+    cx.run_until_parked();
+    assert!(matches!(state(cx), State::Idle));
+}
+
 #[gpui::test]
 fn missing_source_fails_and_cancelling_the_picker_writes_nothing(cx: &mut TestAppContext) {
     let (dir, lib) = library();

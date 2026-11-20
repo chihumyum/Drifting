@@ -9,8 +9,8 @@ pub mod reimport;
 mod view;
 
 pub use flow::{
-    Done, DoneBook, Failed, Found, FoundLibrary, LegacyImport, QUIT_WAIT_BOOK, Ready, Running,
-    State, V1_DATA_DIR_ENV, find_libraries, find_local_libraries, v1_data_dir,
+    Done, DoneBook, Failed, Found, FoundLibrary, LegacyImport, OFFERED, QUIT_WAIT_BOOK, Ready,
+    Running, State, V1_DATA_DIR_ENV, find_libraries, find_local_libraries, v1_data_dir,
 };
 
 use gpui::{App, AppContext as _, Entity, Global};
@@ -30,8 +30,10 @@ pub fn importer(cx: &App) -> Option<Entity<LegacyImport>> {
 }
 
 /// Takes the bookshelf's 「导入 · Drifting 0.1」 and shows the dialog as the
-/// shell's modal dialog while an import is open. Once, after
-/// `dr_shell::init` and `dr_view_shelf::init`.
+/// shell's modal dialog while an import is open; the first time the
+/// bookshelf shows on a device with 0.1 libraries, the dialog shows by
+/// itself ([`LegacyImport::offer`]). Once, after `dr_shell::init` and
+/// `dr_view_shelf::init`.
 pub fn init(cx: &mut App) {
     let entity = cx.new(LegacyImport::new);
     // The dialog shows while an import is open (not while only the system's
@@ -42,6 +44,8 @@ pub fn init(cx: &mut App) {
         if open != shown {
             cx.set_global(Shown(open));
             if open {
+                // Seen on this device: it does not offer itself again.
+                dr_shell::Settings::set_device_memory(cx, OFFERED, Some(true.into()));
                 // In the window the author started it in.
                 match import.read(cx).window() {
                     Some(window) => dr_shell::dialogs::show_in(window, cx, import.into()),
@@ -71,11 +75,19 @@ pub fn init(cx: &mut App) {
     });
     dr_shell::release::after_release(cx, |cx| {
         if let Some(entity) = importer(cx) {
-            entity.update(cx, |import, cx| {
+            let waits = entity.update(cx, |import, cx| {
                 import.end_drain();
                 cx.notify();
+                import.offer_again()
             });
+            if let Some(window) = waits {
+                offer_in(window, cx);
+            }
         }
+    });
+    // The bookshelf with no first run over it: the import offers itself.
+    dr_shell::pages::after_first_run(cx, |window, cx| {
+        offer_in(window.window_handle(), cx);
     });
     cx.on_action(|_: &dr_view_shelf::ImportLegacyLibrary, cx| {
         // GPUI has the window checked out while it dispatches; reach it once
@@ -87,6 +99,19 @@ pub fn init(cx: &mut App) {
             dr_shell::workspace::with_workspace(cx, move |_, window, cx| {
                 entity.update(cx, |import, cx| import.choose(window, cx));
             });
+        });
+    });
+}
+
+/// [`LegacyImport::offer`] in `window`, once what is under way there is over
+/// (the window being built, a first run's last click, a library swap).
+fn offer_in(window: gpui::AnyWindowHandle, cx: &mut App) {
+    cx.defer(move |cx| {
+        let Some(entity) = importer(cx) else {
+            return;
+        };
+        dr_shell::workspace::with_workspace_in(window, cx, move |_, window, cx| {
+            entity.update(cx, |import, cx| import.offer(window, cx));
         });
     });
 }

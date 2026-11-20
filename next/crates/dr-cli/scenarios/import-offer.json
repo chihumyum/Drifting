@@ -1,0 +1,101 @@
+{
+  "about": "M10: the first bookshelf on a device that has a 0.1 library shows the import's list by itself, once (device value import.v1_offered). A synthetic 0.1 library, the scenario's own local library; nothing is imported.",
+  "steps": [
+    {
+      "legacy": "sample-v3",
+      "save": "source"
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "light",
+          "DRIFTING_WINDOW_DISPLAY": "secondary",
+          "DRIFTING_APP_DATA_DIR": "${source.root}"
+        },
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          },
+          "account": {
+            "language.ui_locale": "zh-CN"
+          }
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/shelf": true,
+          "/import/phase": "found"
+        },
+        "timeout_ms": 30000
+      },
+      "note": "Nothing was pressed: the list of 0.1 libraries on this device shows by itself."
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "import-offer.png"
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "escape"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/import/phase": "idle"
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "app.quit"
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "light",
+          "DRIFTING_WINDOW_DISPLAY": "secondary",
+          "DRIFTING_APP_DATA_DIR": "${source.root}"
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/shelf": true
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 1500
+      },
+      "note": "Time for an offer to show, if one were made."
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/shelf": true,
+        "/import/phase": "idle"
+      },
+      "note": "Seen once on this device: the second launch's bookshelf shows no dialog."
+    },
+    {
+      "app": "app.quit"
+    }
+  ]
+}
