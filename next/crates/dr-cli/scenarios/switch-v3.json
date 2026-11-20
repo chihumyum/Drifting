@@ -1,5 +1,5 @@
 {
-  "about": "Task 7: real ordinary shelf creation defaults to canonical v3; type/save/reopen; retired book direct/link refuse; real GUI prewrite pending then explicit fixture choices to a new target. Source file manifest is returned by the shared synthetic fixture. Post-import typing verifies canonical editing in the activated target. A separate native App A/B/A scene supplies closed-library FakeSyncServer/SyncEngine evidence. No input.type step claims platform IME.",
+  "about": "Task 7: real ordinary shelf creation defaults to canonical v3; type/save/reopen; retired book direct/link refuse; a 0.1 library that needs a default imports in the real GUI without stopping, then a second import to a new target. Source file manifest is returned by the shared synthetic fixture. Post-import typing verifies canonical editing in the activated target. A separate native App A/B/A scene supplies closed-library FakeSyncServer/SyncEngine evidence. No input.type step claims platform IME.",
   "steps": [
     {
       "legacy": "retired-book",
@@ -266,17 +266,38 @@
       "app": "ui.wait",
       "params": {
         "state": {
-          "/import/phase": "ready"
+          "/import/phase": "done",
+          "/library": true
         },
-        "timeout_ms": 90000
-      }
+        "timeout_ms": 120000
+      },
+      "note": "A 0.1 library with a relation the new format cannot hold used to stop here as pending, with no way on in the ordinary dialog. Since 2026-11-21 the import takes a default (the relation is left out and recorded) and finishes."
     },
     {
       "app": "state.get",
-      "save": "pending",
+      "save": "defaulted",
       "expect": {
-        "/import/explicitChoices": false,
-        "/import/pending/[code=invalid-or-duplicate-source-relation]/code": "invalid-or-duplicate-source-relation"
+        "/import/books/0/id": "${bad_source.book}"
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "button",
+        "label": "Done",
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/import/phase": "idle"
+        },
+        "timeout_ms": 15000
       }
     },
     {
