@@ -18,11 +18,10 @@
   -Installer, for CI runners (it installs into the current user's profile
   and changes HKCU; do not run it on a machine you use): installs silently,
   checks the installed executable's imports, starts it and looks at it after
-  -StartSeconds, then uninstalls. A start that ends with a loader failure
-  fails the check. Any other early exit is reported with the app's log as a
-  warning for now: whether a hosted runner can show a GPUI window at all was
-  not known when this was written (2026-11-21); once a run shows it can,
-  make that a failure too.
+  -StartSeconds, then uninstalls. The app must still be running then: a
+  hosted runner can show a GPUI window (the first run of this check, on
+  windows-11-arm on 2026-11-21, found the window up after 30 s), so an exit
+  before that is a failure, printed with its exit code and the app's log.
 
   Build the installer in a profile without debug assertions (`dist`): GPUI's
   Windows backend compiles its shaders from the build tree's source files
@@ -115,9 +114,6 @@ Assert (Test-Path $installed) "the installer put drifting.exe in $dir"
 try {
   Assert-Standalone $installed
 
-  # Loader failures: a missing DLL, a wrong-architecture image, a missing
-  # entry point, a DLL whose initialization failed.
-  $loaderFailures = @(-1073741515, -1073741701, -1073741511, -1073741502)
   $app = Start-Process -FilePath $installed -WorkingDirectory $dir -PassThru
   $null = $app.Handle
   $exited = $app.WaitForExit($StartSeconds * 1000)
@@ -133,10 +129,9 @@ try {
     $code = $app.ExitCode
     Write-Output ('the app exited after its start with {0} (0x{0:X8})' -f $code)
     if ($log) { Get-Content $log.FullName -Tail 40 | ForEach-Object { Write-Output "  log: $_" } }
-    if ($loaderFailures -contains $code) {
-      throw ('check failed: the installed executable does not load (0x{0:X8})' -f $code)
-    }
-    Write-Output ('::warning::the installed app exited {0} s or less after its start with 0x{1:X8}; see the log lines above' -f $StartSeconds, $code)
+    # 0xC0000135 is a missing DLL, 0xC000007B an image of the wrong
+    # architecture; a panic at start leaves its line in the log above.
+    throw ('check failed: the installed app exited {0} s or less after its start with 0x{1:X8}' -f $StartSeconds, $code)
   }
 } finally {
   $uninstall = Join-Path $dir 'uninstall.exe'
