@@ -783,14 +783,6 @@ struct LinePrepaint {
     caret: Option<PaintQuad>,
 }
 
-impl IntoElement for LineElement {
-    type Element = Self;
-
-    fn into_element(self) -> Self::Element {
-        self
-    }
-}
-
 impl gpui::Element for LineElement {
     type RequestLayoutState = ();
     type PrepaintState = LinePrepaint;

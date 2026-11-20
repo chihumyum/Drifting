@@ -174,7 +174,7 @@ fn build_json() -> J {
                 "release"
             }),
         ),
-        ("gpui", J::str("zed v1.27.0 (git tag), runtime_shaders")),
+        ("gpui", J::str("zed v1.29.3 (git tag), runtime_shaders")),
         ("loro", J::str("=1.17.1")),
     ])
 }

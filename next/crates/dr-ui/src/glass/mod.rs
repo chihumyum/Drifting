@@ -152,14 +152,6 @@ pub struct GroundScope {
     child: Option<AnyElement>,
 }
 
-impl IntoElement for GroundScope {
-    type Element = Self;
-
-    fn into_element(self) -> Self::Element {
-        self
-    }
-}
-
 impl gpui::Element for GroundScope {
     type RequestLayoutState = AnyElement;
     type PrepaintState = ();

@@ -1148,14 +1148,6 @@ struct AreaPrepaint {
     links: Vec<Bounds<Pixels>>,
 }
 
-impl IntoElement for AreaElement {
-    type Element = Self;
-
-    fn into_element(self) -> Self::Element {
-        self
-    }
-}
-
 /// The font size and the row height of the text style in force.
 fn metrics(window: &Window) -> (Pixels, Pixels) {
     let style = window.text_style();

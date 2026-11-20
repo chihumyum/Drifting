@@ -17,9 +17,9 @@
 use std::ops::Range;
 
 use gpui::{
-    App, AvailableSpace, Bounds, ElementId, GlobalElementId, InspectorElementId, IntoElement,
-    LayoutId, Pixels, ShapedLine, SharedString, Style, TextAlign, TextOverflow, TextRun,
-    WhiteSpace, Window, point, px, relative, size,
+    App, AvailableSpace, Bounds, ElementId, GlobalElementId, InspectorElementId, LayoutId, Pixels,
+    ShapedLine, SharedString, Style, TextAlign, TextOverflow, TextRun, WhiteSpace, Window, point,
+    px, relative, size,
 };
 use prose_linebreak as linebreak;
 
@@ -179,14 +179,6 @@ struct Painted {
     piece: ShapedLine,
     ellipsis: Option<ShapedLine>,
     y: Pixels,
-}
-
-impl IntoElement for Wrapped {
-    type Element = Self;
-
-    fn into_element(self) -> Self::Element {
-        self
-    }
 }
 
 /// How many rows the paragraphs take, clamped.

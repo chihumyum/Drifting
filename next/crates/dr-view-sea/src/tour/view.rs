@@ -605,14 +605,6 @@ impl TourLayer {
     }
 }
 
-impl IntoElement for TourLayer {
-    type Element = Self;
-
-    fn into_element(self) -> Self::Element {
-        self
-    }
-}
-
 struct LayerFrame {
     ring: Option<(Bounds<Pixels>, f32)>,
     card: bool,

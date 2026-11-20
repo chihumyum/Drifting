@@ -299,14 +299,6 @@ impl LinkedText {
     }
 }
 
-impl IntoElement for LinkedText {
-    type Element = Self;
-
-    fn into_element(self) -> Self::Element {
-        self
-    }
-}
-
 /// A link's stretch on one row, in window coordinates.
 struct Segment {
     link: usize,

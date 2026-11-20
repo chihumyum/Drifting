@@ -217,14 +217,6 @@ struct Overlay {
     child: Option<AnyElement>,
 }
 
-impl IntoElement for Overlay {
-    type Element = Self;
-
-    fn into_element(self) -> Self::Element {
-        self
-    }
-}
-
 impl gpui::Element for Overlay {
     type RequestLayoutState = (AnyElement, SmallVec<[LayoutId; 1]>);
     type PrepaintState = ();

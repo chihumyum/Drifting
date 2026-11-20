@@ -39,7 +39,7 @@ pub struct Options {
     pub app_args: Vec<String>,
 }
 
-/// The dx that GPUI's hot reload speaks to: GPUI v1.27.0 pins
+/// The dx that GPUI's hot reload speaks to: GPUI v1.29.3 pins
 /// `subsecond = "=0.7.10"`, and dx's patches must match it.
 pub const DX_VERSION: &str = "0.7.10";
 

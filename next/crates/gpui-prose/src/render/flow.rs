@@ -27,8 +27,7 @@ use std::{
 
 use gpui::{
     AnyElement, App, AvailableSpace, Bounds, ContentMask, Element, ElementId, GlobalElementId,
-    InspectorElementId, IntoElement, LayoutId, Pixels, ScrollHandle, Style, Window, point, px,
-    relative, size,
+    InspectorElementId, LayoutId, Pixels, ScrollHandle, Style, Window, point, px, relative, size,
 };
 
 use crate::layout::HeightIndex;
@@ -190,14 +189,6 @@ impl FlowItems {
             state,
             render_item: Box::new(render_item),
         }
-    }
-}
-
-impl IntoElement for FlowItems {
-    type Element = Self;
-
-    fn into_element(self) -> Self {
-        self
     }
 }
 

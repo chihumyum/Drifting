@@ -86,14 +86,6 @@ pub struct OnSea {
     child: AnyElement,
 }
 
-impl IntoElement for OnSea {
-    type Element = Self;
-
-    fn into_element(self) -> Self {
-        self
-    }
-}
-
 impl Element for OnSea {
     type RequestLayoutState = ();
     type PrepaintState = ();

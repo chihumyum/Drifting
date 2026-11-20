@@ -15,8 +15,8 @@ use std::{cell::RefCell, ops::Range, rc::Rc, sync::Arc};
 
 use gpui::{
     App, AvailableSpace, Bounds, Element, ElementId, GlobalElementId, Hsla, InspectorElementId,
-    IntoElement, LayoutId, LineLayout, Pixels, Point, SharedString, Size, Style, TextRun,
-    UnderlineStyle, Window, fill, point, px, relative, size,
+    LayoutId, LineLayout, Pixels, Point, SharedString, Size, Style, TextRun, UnderlineStyle,
+    Window, fill, point, px, relative, size,
 };
 
 use crate::heights::HeightIndex;
@@ -380,14 +380,6 @@ pub struct ParagraphLayout(Rc<RefCell<Option<Shaped>>>);
 
 pub struct ParagraphPrepaint {
     cursor: Option<Bounds<Pixels>>,
-}
-
-impl IntoElement for ParagraphElement {
-    type Element = Self;
-
-    fn into_element(self) -> Self {
-        self
-    }
 }
 
 impl Element for ParagraphElement {

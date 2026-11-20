@@ -14,9 +14,9 @@ use std::{cell::RefCell, ops::Range, rc::Rc};
 
 use gpui::{
     App, AvailableSpace, Bounds, DispatchPhase, Element, ElementId, GlobalElementId, Hsla,
-    InspectorElementId, IntoElement, LayoutId, MouseButton, MouseDownEvent, MouseMoveEvent,
-    PathBuilder, Pixels, Point, SharedString, Size, Style, TextRun, WeakEntity, Window, fill,
-    point, px, quad, relative, size,
+    InspectorElementId, LayoutId, MouseButton, MouseDownEvent, MouseMoveEvent, PathBuilder, Pixels,
+    Point, SharedString, Size, Style, TextRun, WeakEntity, Window, fill, point, px, quad, relative,
+    size,
 };
 
 use super::{
@@ -94,14 +94,6 @@ pub struct ParagraphLayout(Rc<RefCell<Option<Shaped>>>);
 
 pub struct ParagraphPrepaint {
     cursor: Option<Bounds<Pixels>>,
-}
-
-impl IntoElement for ParagraphElement {
-    type Element = Self;
-
-    fn into_element(self) -> Self {
-        self
-    }
 }
 
 /// The extent of `bytes` in each of `rows` it touches, relative to the text

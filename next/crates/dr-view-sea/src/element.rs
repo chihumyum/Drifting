@@ -26,8 +26,8 @@ use dr_ui::{
 };
 use gpui::{
     App, Bounds, Corners, Element, ElementId, GlobalElementId, Hitbox, InspectorElementId,
-    IntoElement, LayoutId, MouseMoveEvent, Pixels, Point, SharedString, Style, TextRun, Window,
-    font, point, px, size,
+    LayoutId, MouseMoveEvent, Pixels, Point, SharedString, Style, TextRun, Window, font, point, px,
+    size,
 };
 
 use crate::model::{WATER_CELL, Water, bilinear};
@@ -89,14 +89,6 @@ pub struct CharSea {
 /// The sea under the window, as an element.
 pub fn char_sea(sea: &Sea) -> CharSea {
     CharSea { sea: sea.clone() }
-}
-
-impl IntoElement for CharSea {
-    type Element = Self;
-
-    fn into_element(self) -> Self {
-        self
-    }
 }
 
 impl Element for CharSea {

@@ -117,14 +117,6 @@ pub struct Anchor {
     child: Option<AnyElement>,
 }
 
-impl IntoElement for Anchor {
-    type Element = Self;
-
-    fn into_element(self) -> Self::Element {
-        self
-    }
-}
-
 impl gpui::Element for Anchor {
     type RequestLayoutState = AnyElement;
     type PrepaintState = ();
