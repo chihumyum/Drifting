@@ -679,7 +679,7 @@ fn signed_in_the_list_offers_the_accounts_own_01_library_first_then_the_local_on
             ("legacy".to_owned(), false)
         ]
     );
-    assert_eq!(signed_in[0].picked.left, [theirs.clone()]);
+    assert_eq!(signed_in[0].picked.left, [theirs.as_str()]);
     let mut accounts = vec![mine.clone(), theirs.clone()];
     accounts.sort();
     assert_eq!(

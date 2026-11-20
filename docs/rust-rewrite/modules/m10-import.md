@@ -53,6 +53,17 @@
 
 另有 `dr-account` 的 `an_account_library_moves_once_to_an_imported_directory_and_keeps_it`（只能改指当前账号、当前那个目录、数据目录里一个已存在的子目录；改指以后退出再登录、冷启动都打开新目录）和 `dr-sync` 的 `an_account_feed_is_empty_until_anything_is_recorded_and_errors_are_never_empty`。
 
+### 真窗口验收（调试桥）
+
+2026-11-20，macOS 副屏，开发版带调试桥，两个一次性 profile（跑完删掉），对着本机回环的 `fake_sync_server` 和合成令牌（`DRIFTING_DEV_API_BASE_URL`、`DRIFTING_DEV_EPHEMERAL_SECRETS=1`、`DRIFTING_DEV_SYNTHETIC_TOKEN`），旧库是场景的 `legacy: sample-v3`（合成的 0.1 库）。没碰作者的库、没连真实服务。场景和日志在仓库外 `~/Drifting-autopilot-logs/m10-account-import-1120/`（`a.json`、`b.json`）。
+
+1. 第一个 profile：启动后用合成会话登录，打开的是 `libraries/account-…`、同步已连上、书架是空的；导入合成 0.1 库，摘要「1 本 · 40字」「已导入」；之后打开的是 `reimport-v5-…`，同步仍是连上的、没有待传的文档和文件。假服务上有 25 条记录（正文和书目的 Loro 更新、图片）。17 步全过。
+2. 第二个 profile：启动后同一个账号，打开自己的 `libraries/account-…`，同步把《阿Q正传》拉了下来，书架上有它；再导同一份合成 0.1 库，对话框「无法导入 · 这个账号已经有书了，直接同步就行。」，假服务上还是 25 条。12 步全过。
+
+### 检查
+
+合并 `main`（`c3997b8e6`）后在 `next/` 跑：`cargo fmt --all --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings`、`RUST_TEST_THREADS=1 DR_UI_REQUIRE_FONTS=1 cargo test --workspace --locked --no-fail-fast`（3158 通过、0 失败、21 项原有忽略）、`cargo xtask check`（全部门禁通过；测量证据 22 份过期、15 份旧格式照旧只是提示）；仓库根 `pnpm public:check`、`pnpm ci:contract:check` 通过。把「开始前问服务端」那一处去掉再跑，`tests/account.rs` 有三条失败（导入留下了东西），放回去全过。日志在仓库外 `~/Drifting-autopilot-logs/m10-account-import-1120/checks/`。
+
 ### 代码位置
 
 - `next/crates/dr-view-import/src/reimport.rs`：`locate`（找打开着的书库属于哪个数据目录，账号书库在 `libraries/` 下）、`entry_of`、`pending_pointer`、`commit_selection` 的两种登记、`AccountCheck`、`Refusal`、`library_is_empty`、`import_for`。
