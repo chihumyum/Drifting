@@ -243,9 +243,19 @@ fn found(f: &Found, window: &mut Window, cx: &mut Context<LegacyImport>) -> AnyE
             .modified_ms
             .map(|at| dr_view_shelf::format::ago(at, now, cx));
         let entity = entity.clone();
+        let kind = if library.account {
+            t(cx, keys::settings::rail::ACCOUNT)
+        } else {
+            t(cx, keys::common::LOCAL)
+        };
+        // The row is a button to assistive technology, named by what it
+        // shows: which kind of library and its folder.
+        let name = format!("{kind} {}", library.folder);
         rows = rows.child(
             div()
                 .id(("legacy-import-library", i))
+                .role(gpui::Role::Button)
+                .aria_label(name)
                 .flex()
                 .flex_row()
                 .items_baseline()
@@ -257,15 +267,7 @@ fn found(f: &Found, window: &mut Window, cx: &mut Context<LegacyImport>) -> AnyE
                 .on_click(move |_, window, cx| {
                     entity.update(cx, |import, cx| import.pick(i, window, cx))
                 })
-                .child(
-                    div()
-                        .text_color(p.ink(1).solid())
-                        .child(if library.account {
-                            t(cx, keys::settings::rail::ACCOUNT)
-                        } else {
-                            t(cx, keys::common::LOCAL)
-                        }),
-                )
+                .child(div().text_color(p.ink(1).solid()).child(kind))
                 .child(div().flex_1().min_w_0().truncate().child(index(
                     library.folder.clone(),
                     window,
