@@ -142,7 +142,7 @@
 
 - 一个视图有一条刻度，它的所有泳道共用。条目在刻度上的位置记在视图上，不记在泳道上。这已经是现在的数据（`placements`，每个条目在一个视图里只有一个位置）。
 - **泳道自己没有顺序**，它的顺序就是视图的刻度。
-- 条目进到一条泳道里时（挂上来；原来还有「住进一个在视图里的文件夹」，2026-11-16 起没有了），在包含这条泳道的每个视图里自动落在刻度末尾；不留「进来了但没有位置」的状态。
+- 条目进到一条泳道里时（挂上来；原来还有「住进一个在视图里的文件夹」，2026-11-16 起没有了），在包含这条泳道的每个视图里自动落在刻度末尾；不留「进来了但没有位置」的状态。末尾是最后一张卡画出来的那么宽之后再空 1：没记长度的卡画 4 宽，就照 4 算。一次落好几个的，前后隔一张卡的宽再加 1，也就是 5，卡不叠在一起（0.1 新建的章也是隔 5）。2026-11-21 改：原来末尾只看起点再加 1、一次落的前后只隔 1，没记长度的卡又画 4 宽，导入的 0.1 书里没有叙事位置的章全叠成一摞。
 - 一条泳道可以放进几个视图，它在每个视图里各有一套位置。这是视图的本意：每个视图是一种排法。
 - 泳道自己的页面里，「下面的条目」和「挂在这里的条目」（第 16 节）都按视图的刻度排，用它所在的第一个视图（原来先看成书起点那个视图，起点 2026-11-15 夜里去掉了）。
 - **已被第 15 节第 15 条推翻**（2026-11-16）：泳道只能是开着「收别处的条目」的条目，泳道上只有挂着的；只开着层级的条目不能当泳道，层级进出视图时存回手动先后这一条跟着没了（第 17 节「底栏视图铺满」）。原文：**文件夹也能拖进视图当泳道**（作者 2026-11-14 重申，原话在「输入」第 17 条；他 11-13 说的「文件夹不进底栏时」就是这个意思。这页之前写成只有挂着的条目上刻度、住着的不进视图，是监管会话写错了）。拖进去的那一刻，直接住在它下面的条目按原来的手动先后依次落在刻度末尾。在视图里期间，这一层的先后由刻度接管：左栏的列表、条目页的「下面的条目」、成书序列、导出读的都是刻度上的先后，在这些地方拖着调先后改的也是刻度。它离开最后一个视图时，刻度上的先后存回手动先后。
@@ -337,7 +337,7 @@
 | 带归属的摊平每个条目只出现一次、成书序列不带归属（`FLATTEN-MEMBERS-ONCE`） | **改**：成书序列也带归属，和整书视图是同一个读法 |
 | 成书的起点是根，或一个活着的、开着层级或「收别处的条目」的条目，或一个没删的视图，或这个视图里的一条有效泳道（`BOOK-ROOT-VALID`） | 原来是**加**。2026-11-15 夜里**删**：成书没有起点了（第 15 节第 27 条，任务书 DW） |
 | 成书里只有最外层的成书正文编号（`MANUSCRIPT-NUMBER-OUTERMOST-PROSE`） | **删**（2026-11-15 夜里，第 15 节第 28 条：App 不给任何条目编号，任务书 DW） |
-| 视图里每条泳道里的每个条目（住着的和挂着的）都有刻度位置 | **加**。命令层：进到泳道里时落在末尾；读取时没有位置的排在最后。2026-11-16 起泳道里只有挂着的（第 15 节第 15 条）：DV 做了，`entry.create` 带 `parent`、`entry.move` 都不再写位置（`VIEW-LANE-MEMBERS-PLACED`） |
+| 视图里每条泳道里的每个条目（住着的和挂着的）都有刻度位置 | **加**。命令层：进到泳道里时落在末尾，末尾在最后一张卡画出来的宽之后再空 1，一次落好几个的前后隔一张卡的宽再加 1（5，2026-11-21 改，第 4 节「视图：刻度」）；读取时没有位置的排在最后。2026-11-16 起泳道里只有挂着的（第 15 节第 15 条）：DV 做了，`entry.create` 带 `parent`、`entry.move` 都不再写位置（`VIEW-LANE-MEMBERS-PLACED`） |
 | 泳道进出视图不打乱它里面的条目的先后 | **加**。命令层：放进第一个视图时按手动先后落位；离开最后一个视图时把刻度上的先后写回（挂着的写回归属的 `pos`，住着的写回文件夹里的先后），和拿出泳道是同一次提交、一步撤销。「住着的」那一半 2026-11-16 起没有了（DV 去掉了写回文件夹先后的那一支和撤销回执里的 `child_order`，`VIEW-LANE-EXIT-RESTORES-ORDER`） |
 | 文件夹在视图里时，它下面的先后读刻度 | **加**（2026-11-14）。读取：以它所在的第一个视图为准（2026-11-15 夜里去掉了「先看成书起点那个视图」）；手动先后留着不读。2026-11-16 **删**：文件夹不能再当泳道（第 15 节第 15 条，任务书 T9）。DV 删了契约 `VIEW-FOLDER-ORDER-FROM-SCALE`：文件夹（连同两个开关都开着、在视图里的那种，比如幕）下面一律按手动先后 |
 | 素材库里的文件不因为没人引用而被清掉 | **加**（2026-11-14）。只有从素材库删掉、又从最近删除清掉的文件才删字节 |
@@ -1552,7 +1552,7 @@ RL 接手审查发现，`CreatePair` 接着逐个 `AddEntry` 不能提交右栏�
   - `LevelSettings` 与 `LevelSettingsOverride` 含 `accept`、`home`、`default_template`、`display`、`auto_link`、`format_shortcuts` 共 6 项（`LEVEL_SETTING_KEYS` = 6，去掉 `is_manuscript` 和 `lane`）；
   - `Entry::is_level()` 管能不能住子条目；`Entry::accepts_members(templates)` 与 `Entry::own_home(templates)` 只读条目自己的覆盖和自身模板，不沿树继承、不看 `level`；`Entry::has_below(templates)` 为 `level || accepts_members`；`resolve_level_settings` 对开着 `level` 或 `accept` 的条目均解析其余继承项；
   - `ModuleKind::Media`（`"media"`）、`ModuleKind::Members`（`"members"`，纯展示模块，不另存容器）；字段定义 `FieldDef.id` 使用强类型 `FieldId`（序列化透明）。
-- 视图刻度与泳道顺序（`dr_model::v3`）：`check_timeline_lane` 只要求条目活着且 `has_below`；`effective_timeline_placements(view, memberships, entries, templates)` 收集泳道上的直接子条目（`level` 开时）与有效挂名成员（`accept` 开时，每条目去重）；`lane_page_order(lane_id, views, memberships, entries, templates, preferred_view)` 统一给出泳道／在视图内文件夹的读取顺序；`timeline_scale_end` 计算末尾自动落位刻度；`entry_color(entry, entries, templates, memberships, views)` 在条目无自身颜色时仅从已在活视图中作泳道的主归属取色。
+- 视图刻度与泳道顺序（`dr_model::v3`）：`check_timeline_lane` 只要求条目活着且 `has_below`；`effective_timeline_placements(view, memberships, entries, templates)` 收集泳道上的直接子条目（`level` 开时）与有效挂名成员（`accept` 开时，每条目去重）；`lane_page_order(lane_id, views, memberships, entries, templates, preferred_view)` 统一给出泳道／在视图内文件夹的读取顺序；`timeline_scale_end` 计算末尾自动落位刻度（没记长度的卡按 `DEFAULT_PLACEMENT_SPAN` 算宽，之后空 `PLACEMENT_GAP`；一次落好几个的前后隔 `PLACEMENT_STEP`，时间线的 `DEFAULT_SPAN` 就是 `DEFAULT_PLACEMENT_SPAN`）；`entry_color(entry, entries, templates, memberships, views)` 在条目无自身颜色时仅从已在活视图中作泳道的主归属取色。
 - 自动链接（`dr_model::v3`）：`is_autolinked(entry, entries, templates)` 与 `AutolinkNames::of(entries, templates)` 只看住处父链是否解析出 `auto_link = true`，不再读 `memberships`。已核对内置「写书」项目模板、0.1 导入、样书与 `dr_testkit::seed` 四档种子：所有开 `auto_link` 的层级均为「要素」及下面各分类／子分组，要素一律直接住在分类或分类子分组下，故事线 `auto_link = false`，**没有任何条目只靠挂名才被自动链接**。
 - 统一批注与内置素材库（`dr_model::v3`、`dr_model::shared`）：
   - `CommentV3` 无 `kind`、无优先级（第八步去掉 `priority` 和 `CommentPriority` 的写入与读取）；`origin: CommentOrigin`（`Manual | Marker | Task | Agent | Reader | Other`）；`target: Option<EntityRef>`（`EntityKind::Entry` 或 `EntityKind::Asset`），`target_module: Option<ModuleId>`（任意模块），`part: Option<CommentPart>`（`Field { field: FieldId }`、`KvRow`、`PlotCell`、`Patch`、`Media { asset: AssetId, region }`（第八步起按文件指，原来的 `item` 去掉）、`Embed`、`Region { region }`），`target_missing: bool`；

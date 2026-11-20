@@ -911,8 +911,8 @@ pub fn with_level_only_lane(b: &mut SeededBookV3) -> Result<LevelOnlyLane> {
             .put_lane(&o.lane, Some(&old_pos))?
             .put_lane(&o.trashed_lane, Some(&trashed_pos))?
             .put_placement(&o.resident, end, None)?
-            .put_placement(&o.hung, end + 1.0, None)?
-            .put_placement(&o.trashed_child, end + 2.0, None)?;
+            .put_placement(&o.hung, end + PLACEMENT_STEP, None)?
+            .put_placement(&o.trashed_child, end + 2.0 * PLACEMENT_STEP, None)?;
         t.timeline_view(&o.other_view)?
             .name("另一种排法")?
             .pos(Some(&after(first_view.pos.clone())))?

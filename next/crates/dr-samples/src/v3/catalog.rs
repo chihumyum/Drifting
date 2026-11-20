@@ -1170,7 +1170,7 @@ pub fn sync_catalog_with_relation_times(
             for act_entry in &resolved_act_entries {
                 if placed.insert(act_entry.entry_id.clone()) {
                     w.put_placement(&act_entry.entry_id, next_at, None)?;
-                    next_at += 1.0;
+                    next_at += dr_model::v3::PLACEMENT_STEP;
                 }
             }
         }
@@ -1186,7 +1186,7 @@ pub fn sync_catalog_with_relation_times(
                 || (n.storylines.is_empty() && n.narrative_order.is_some() && needs_unaffiliated);
             if in_live_lane && placed.insert(id.clone()) {
                 w.put_placement(&id, next_at, None)?;
-                next_at += 1.0;
+                next_at += dr_model::v3::PLACEMENT_STEP;
             }
         }
     }
