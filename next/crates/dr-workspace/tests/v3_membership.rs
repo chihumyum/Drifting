@@ -1539,6 +1539,52 @@ fn an_order_beside_a_tie_on_the_scale_lands_between_the_tied_entries() {
     assert_eq!(raw(&e, b), before);
 }
 
+/// An order past either end of the lane's cards stands clear of the card it
+/// goes beside as the view draws it (a card without a span is 4 wide), with
+/// one unit of air, as an entry placed at the end of the scale does.
+#[test]
+fn an_order_past_the_first_or_last_card_stands_clear_of_it_as_drawn() {
+    let e = env();
+    let h = hung(&e);
+    let (b, a, m, n) = (&h.b, &h.a, &h.m, &h.n);
+    let at = |id: &str| placement(&e, b, "t9", id)["at"].as_f64().unwrap();
+    // Along the scale: `m` at 10, `n` at 20, neither with a span.
+    assert_eq!((at(m), at(n)), (10.0, 20.0));
+    assert_eq!(members_in_order(&e, b, a), vec![m.clone(), n.clone()]);
+    let before = raw(&e, b);
+
+    // After the last card: its start, its drawn width, one unit of air.
+    e.call(
+        "membership.add",
+        json!({"book":b,"host":a,"member":m,"order":{"anchor":n,"after":true}}),
+    );
+    assert_eq!(members_in_order(&e, b, a), vec![n.clone(), m.clone()]);
+    assert_eq!((at(n), at(m)), (20.0, 25.0));
+    e.ws().undo(&Actor::User).unwrap().expect("one undo step");
+    assert_eq!(raw(&e, b), before);
+
+    // Before the first card: the moved card's own drawn width and the air.
+    e.call(
+        "membership.add",
+        json!({"book":b,"host":a,"member":n,"order":{"anchor":m,"after":false}}),
+    );
+    assert_eq!(members_in_order(&e, b, a), vec![n.clone(), m.clone()]);
+    assert_eq!((at(n), at(m)), (5.0, 10.0));
+    e.ws().undo(&Actor::User).unwrap().expect("one undo step");
+    assert_eq!(raw(&e, b), before);
+
+    // A stored span counts as it is: after a card 7 wide, 8 further on.
+    e.call(
+        "timeline_view.place",
+        json!({"book":b,"view":"t9","entry":n,"lane":a,"at":20,"span":7}),
+    );
+    e.call(
+        "membership.add",
+        json!({"book":b,"host":a,"member":m,"order":{"anchor":n,"after":true}}),
+    );
+    assert_eq!((at(n), at(m)), (20.0, 28.0));
+}
+
 /// The manual-order branch (a host in no view): tied or missing `pos` keys
 /// leave no gap, so the host's list gets explicit positions in one commit
 /// and one undo step takes them all back.

@@ -424,7 +424,9 @@ type ScalePosition = (EntryId, f64, Option<f64>);
 
 /// What an order beside `anchor` writes on `view`'s scale: `member`'s new
 /// position and anything it moves, each with its span; `None` when `member`
-/// is there already. Between the two neighbours it goes to their midpoint.
+/// is there already. Between the two neighbours it goes to their midpoint;
+/// after the last one (or before the first) it goes a card's drawn width and
+/// [`m::PLACEMENT_GAP`] clear of it, so the two do not overlap as drawn.
 /// When they are tied (or no number lies between them) it goes just after
 /// the left one and what is tied after it moves up by the smallest steps
 /// there are, in its order, so nothing shifts visibly (T9 review).
@@ -458,14 +460,21 @@ fn scale_order(
     if old == Some(slot) {
         return Ok(None);
     }
-    let left = slot.checked_sub(1).map(|i| positions[i].1);
+    // How wide the view draws a card: its span, or the default one.
+    let drawn = |span: Option<f64>| {
+        span.filter(|s| s.is_finite() && *s >= 0.0)
+            .unwrap_or(m::DEFAULT_PLACEMENT_SPAN)
+    };
+    let left = slot
+        .checked_sub(1)
+        .map(|i| (positions[i].1, positions[i].2));
     let right = positions.get(slot).map(|p| p.1);
     let mut writes = Vec::new();
     match (left, right) {
-        (Some(a), Some(b)) if a < b && a.midpoint(b) > a && a.midpoint(b) < b => {
+        (Some((a, _)), Some(b)) if a < b && a.midpoint(b) > a && a.midpoint(b) < b => {
             writes.push((member.clone(), a.midpoint(b), span));
         }
-        (Some(a), Some(_)) => {
+        (Some((a, _)), Some(_)) => {
             let mut last = a.next_up();
             writes.push((member.clone(), last, span));
             for (entry, at, span) in &positions[slot..] {
@@ -476,8 +485,16 @@ fn scale_order(
                 writes.push((entry.clone(), last, *span));
             }
         }
-        (Some(a), None) => writes.push((member.clone(), (a + 1.0).max(a.next_up()), span)),
-        (None, Some(b)) => writes.push((member.clone(), (b - 1.0).min(b.next_down()), span)),
+        // Past either end the card stands clear of its neighbour as drawn,
+        // with the same air as an entry placed at the end of the scale.
+        (Some((a, a_span)), None) => {
+            let at = a + drawn(a_span) + m::PLACEMENT_GAP;
+            writes.push((member.clone(), at.max(a.next_up()), span));
+        }
+        (None, Some(b)) => {
+            let at = b - drawn(span) - m::PLACEMENT_GAP;
+            writes.push((member.clone(), at.min(b.next_down()), span));
+        }
         (None, None) => unreachable!("there is an anchor"),
     }
     if writes.iter().any(|(_, at, _)| !at.is_finite()) {
