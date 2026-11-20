@@ -513,6 +513,9 @@ pub struct Workspace {
     /// M09's snapshot history of a page, while open (`corner::open_history`).
     pub history: Option<Entity<dr_view_history::HistoryDialog>>,
     pub notifications_open: bool,
+    /// `notifications_open` as it was when the workspace last changed: on
+    /// either side of a change the center's rows are read.
+    notifications_were_open: bool,
     /// The account menu, dropped from its button right of the traffic
     /// lights, is open.
     pub account_open: bool,
@@ -604,6 +607,15 @@ impl Workspace {
                 cx.notify()
             }),
             cx.observe_global::<Notifications>(|_, cx| cx.notify()),
+            // Opening the notification center reads what it lists; closing
+            // it reads what arrived while it was open (0.1's
+            // `setCenterOpen`). Every way it opens or closes notifies.
+            cx.observe_self(|ws, cx| {
+                if ws.notifications_open != ws.notifications_were_open {
+                    ws.notifications_were_open = ws.notifications_open;
+                    Notifications::mark_read(cx);
+                }
+            }),
         ];
         let editor_settings = editors::editor_settings(cx);
         let editor_base = editors::base_style(&Theme::of(window, cx));
@@ -676,6 +688,7 @@ impl Workspace {
             composer: None,
             history: None,
             notifications_open: false,
+            notifications_were_open: false,
             account_open: false,
             dialog: None,
             shelf: None,

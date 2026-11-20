@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::endpoint::{HostedConfig, HostedOrigin};
 use crate::library_registry::{LibraryRegistry, registry_lock};
+use crate::notices::{AccountNotices, NoticesEndpoint};
 use crate::oauth::{
     PendingNativeOAuth, build_oauth_redirect_url, clear_pending_oauth, consume_pending_oauth,
     parse_oauth_callback_url, save_pending_oauth,
@@ -749,6 +750,112 @@ impl HostedClient {
             Ok(PreferenceEndpointStatus::Supported(payload.preferences))
         }
     }
+
+    /// Reads the account's notices (`GET /api/account/v1/notices`, account
+    /// notices v1, [`crate::notices`]). A 404 is a service without them.
+    pub fn get_notices(
+        &self,
+        origin: &HostedOrigin,
+        token: &str,
+    ) -> Result<NoticesEndpoint<AccountNotices>, AccountError> {
+        #[cfg(not(feature = "network"))]
+        {
+            let _ = (origin, token);
+            return Err(AccountError::new(
+                AccountErrorCode::HostedNotConfigured,
+                "network feature disabled",
+            ));
+        }
+        #[cfg(feature = "network")]
+        {
+            let resp = self
+                .http
+                .get(origin.endpoint(crate::notices::NOTICES_PATH))
+                .bearer_auth(token)
+                .send()
+                .map_err(map_network_err)?;
+            let Some(body) = notices_body(resp)? else {
+                return Ok(NoticesEndpoint::Unsupported);
+            };
+            crate::notices::parse_account_notices(&body).map(NoticesEndpoint::Supported)
+        }
+    }
+
+    /// Raises the account's read mark (`POST /api/account/v1/notices/read`
+    /// with `{ "through": <seq> }`); answers the mark the service keeps.
+    pub fn mark_notices_read(
+        &self,
+        origin: &HostedOrigin,
+        token: &str,
+        through: u64,
+    ) -> Result<NoticesEndpoint<u64>, AccountError> {
+        #[cfg(not(feature = "network"))]
+        {
+            let _ = (origin, token, through);
+            return Err(AccountError::new(
+                AccountErrorCode::HostedNotConfigured,
+                "network feature disabled",
+            ));
+        }
+        #[cfg(feature = "network")]
+        {
+            let resp = self
+                .http
+                .post(origin.endpoint(crate::notices::NOTICES_READ_PATH))
+                .bearer_auth(token)
+                .json(&serde_json::json!({ "through": through }))
+                .send()
+                .map_err(map_network_err)?;
+            let Some(body) = notices_body(resp)? else {
+                return Ok(NoticesEndpoint::Unsupported);
+            };
+            crate::notices::parse_read_mark(&body).map(NoticesEndpoint::Supported)
+        }
+    }
+}
+
+/// A notices route's body, at most [`crate::notices::MAX_RESPONSE_BYTES`]; `None`
+/// for a 404. A failure says the status only: the service's words (which
+/// may be a notice) are not kept in the error.
+#[cfg(feature = "network")]
+fn notices_body(resp: reqwest::blocking::Response) -> Result<Option<Vec<u8>>, AccountError> {
+    use std::io::Read as _;
+
+    let status = resp.status().as_u16();
+    if status == 404 {
+        return Ok(None);
+    }
+    if !resp.status().is_success() {
+        let code = match status {
+            401 | 403 => AccountErrorCode::Unauthorized,
+            429 => AccountErrorCode::RateLimited,
+            _ => AccountErrorCode::Unknown,
+        };
+        return Err(AccountError::with_status(
+            code,
+            status,
+            "account notices request failed",
+        ));
+    }
+    let too_large = || {
+        AccountError::with_status(
+            AccountErrorCode::Unknown,
+            status,
+            "account notices response is too large",
+        )
+    };
+    let limit = crate::notices::MAX_RESPONSE_BYTES;
+    if resp.content_length().is_some_and(|len| len > limit) {
+        return Err(too_large());
+    }
+    let mut body = Vec::new();
+    resp.take(limit + 1).read_to_end(&mut body).map_err(|_| {
+        AccountError::new(AccountErrorCode::Network, "account notices read broke off")
+    })?;
+    if body.len() as u64 > limit {
+        return Err(too_large());
+    }
+    Ok(Some(body))
 }
 
 #[cfg(feature = "network")]

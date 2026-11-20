@@ -38,6 +38,7 @@ notifications.appUpdate.available
 notifications.appUpdate.installed
 notifications.crashFollowUp.source
 notifications.notice.source
+notifications.notice.personal
 notifications.markdownFolder.preserved
 feedback.title
 feedback.placeholder

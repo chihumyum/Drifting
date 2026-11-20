@@ -586,6 +586,7 @@
       "source": "Carpeta Markdown"
     },
     "notice": {
+      "personal": "Mensaje",
       "source": "Aviso"
     },
     "remove": "Quitar",
