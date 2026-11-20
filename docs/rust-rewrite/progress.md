@@ -21,7 +21,8 @@
 
 | 在哪跑 | 结果 |
 | --- | --- |
-| 本机 macOS，Antigravity 四路加监管会话三处修改合在一棵树上（`agy/integrate` 的 `46e4fd3b1`，2026-11-20 凌晨） | `cargo fmt --all --check`、全 workspace/all-targets Clippy（`-D warnings`）、workspace tests（3150 通过、0 失败、21 项原有忽略，`RUST_TEST_THREADS=1 DR_UI_REQUIRE_FONTS=1`）、`cargo xtask check`（12 道门禁，含漏洞审计：955 个锁定依赖、0 漏洞）全过；`dr-platform` 另过 `x86_64-pc-windows-msvc` 的交叉 Clippy（含测试代码）。0.1 这边：`pnpm public:check`、`pnpm ci:contract:check`、`pnpm locales:check`、`pnpm agent:capabilities:check` 在这棵树上过；`pnpm agent:conversation-sync:check`、`pnpm lint`、`pnpm typecheck`、`pnpm test`、`pnpm core:test` 在删口述的那条分支上过（0.1 的源码两边逐字节相同；`pnpm test` 第一遍有 3 条计时类测试在机器同时跑两个编译时超时，单独重跑通过）。真窗口：`dr-view-page/scenarios/body.json` 50 步、`whole-book.json` 36 步全过。**Agent 的三个场景（`v3-tools`、`companion`、`home-cards`）没跑成**：当时两块屏都睡着了，窗口成不了活动窗口，停在进到 Agent 的内容之前；逐字显现和 Agent 工具这一轮只有 GPUI 测试的证据，屏幕醒着时要补跑。Windows 的修复和外壳里 Windows 专有的代码没在 Windows 上跑过，等推送后看 CI |
+| GitHub Actions，`main` 的 `063355576`（2026-11-20 推送）和 `5ab12dd09` | **`next` 三个任务第一次全绿**：`macos`、`windows-x64`、`windows-arm64` 的格式、Clippy、全部测试都过（Windows 两个任务各跑了约一小时五十分到两小时）。外壳里 Windows 专有的通知区代码是第一次在 Windows 上编译。0.1 的 `CI` 在 `063355576` 上红了一处、重跑通过：渲染层资源释放检查量完以后删浏览器的临时目录报 ENOTEMPTY（和 11-13 那次同一处）；`5ab12dd09` 把删法改成整棵目录反复清、清不掉只警告，这个提交上 0.1 的 `CI` 六个任务全绿 |
+| 本机 macOS，Antigravity 四路加监管会话三处修改合在一棵树上（`agy/integrate` 的 `46e4fd3b1`，2026-11-20 凌晨） | `cargo fmt --all --check`、全 workspace/all-targets Clippy（`-D warnings`）、workspace tests（3150 通过、0 失败、21 项原有忽略，`RUST_TEST_THREADS=1 DR_UI_REQUIRE_FONTS=1`）、`cargo xtask check`（12 道门禁，含漏洞审计：955 个锁定依赖、0 漏洞）全过；`dr-platform` 另过 `x86_64-pc-windows-msvc` 的交叉 Clippy（含测试代码）。0.1 这边：`pnpm public:check`、`pnpm ci:contract:check`、`pnpm locales:check`、`pnpm agent:capabilities:check` 在这棵树上过；`pnpm agent:conversation-sync:check`、`pnpm lint`、`pnpm typecheck`、`pnpm test`、`pnpm core:test` 在删口述的那条分支上过（0.1 的源码两边逐字节相同；`pnpm test` 第一遍有 3 条计时类测试在机器同时跑两个编译时超时，单独重跑通过）。真窗口：`dr-view-page/scenarios/body.json` 50 步、`whole-book.json` 36 步全过。**Agent 的三个场景（`v3-tools`、`companion`、`home-cards`）没跑成**：当时两块屏都睡着了，窗口成不了活动窗口，停在进到 Agent 的内容之前；逐字显现和 Agent 工具这一轮只有 GPUI 测试的证据，屏幕醒着时要补跑。Windows 的修复和外壳里 Windows 专有的代码本机没法跑，推送后的结果见上一行 |
 | 本机 macOS，UP 第三版合并树 `3a6571f206004b5f8a03650408907ad85ad4d01c`（2026-11-17；P1–P11/C1–C3 与六步导览合在一棵树后） | **全套与原生窗口已通过**：`cargo fmt --all --check`、全 workspace/all-targets Clippy（`-D warnings`）、workspace tests（3089 通过、0 失败、21 项原有忽略）、`cargo xtask check`、`pnpm public:check`、`pnpm ci:contract:check` 与语言文件一致性检查全部通过；审计为 963 个锁定依赖、0 漏洞、13 项依赖提示，原有过期测量提示保留。原生窗口与逐张目检：同树 `bf1e5344` 构建（比受检提交只多导览定位脚本，Rust 产品相同）的副屏真窗口七轮全部通过：showcase/lite 各浅深色、简中说法、六步导览浅深色；103 张原生 PNG 逐张复核，无新增合前阻断。窗口为 1440×900 逻辑像素、2 倍副屏；字段由真实 UI 输入、离页后只读查询精确核落盘，五种铺满选择往返保留，临时 profile 和应用进程已清理。本批定向回归、负控和边界见 [F6](foundations/f6-shell.md#内核-v5up-第三版视觉打磨2026-11-17)；不把旧原型底图、分路测试或 pilot 当作最终合树通过 |
 | 本机 macOS，RL 合并树 `63eb6b918`（2026-11-17；正文、右栏/短文本、关系图和监管补口合在一棵树后） | `cargo fmt --all --check`、全 workspace/all-targets Clippy（`-D warnings`）、workspace tests（3072 通过、0 失败、21 项原有忽略）、`cargo xtask check`、`pnpm public:check`、`pnpm ci:contract:check` 和语言文件一致性检查全部通过；审计为 0 漏洞、13 项依赖提示，原有过期测量提示保留。副屏真窗口：完整串联通过，1440×900 逻辑像素、2 倍副屏；保存的关系与批注链接经只读查询核对，11 张原生截图逐张复核，临时 profile 已清理；新行亮起证据：`rl-window-accepted/04-revealed-row.png` 可见新建的「阿Q → 赵太爷」一行整行亮起；图中实际箭头：`rl-window-accepted/06c-created-edge.png` 可见完整的「阿Q」「赵太爷」、中间的「验收关系」以及指向赵太爷的箭头。运行产物存仓外，不把前序 pilot 或分路测试当作合树验收 |
 | 本机 macOS，`main` 的 `9ae09a41`（2026-11-12 凌晨，流水里最后一次全套记录） | `cargo fmt`、Clippy、`cargo xtask check`（13 道门禁加漏洞审计）、根目录三条 `pnpm` 检查全过；测试 2252 通过、0 失败、22 忽略 |
@@ -41,7 +42,7 @@
 | GitHub Actions，`main` 的 `a35c2222a`（2026-11-13 夜推送） | **`next / macos` 失败一条**：`dr-view-page` 的 `the_library_is_swapped_under_the_running_app`（关库时「other clones of the workspace are alive」），原因是搜索浮层被取消的后台任务还攥着书库，11-14 已修，见「坏着的」。**两个 Windows 任务被取消**：头一回编过并通过 Clippy，测试跑了 72 个程序、0 失败，撞到 90 分钟上限。**0.1 的 `CI` 失败两处**：`pnpm security:rust` 报 `src-tauri/Cargo.lock` 的 `quinn-udp 0.5.15`（RUSTSEC-2026-0538，新收的告警）；渲染层资源检查在量完之后清理临时目录时报 ENOTEMPTY |
 | GitHub Actions，`main` 的 `d0e516e9`（2026-11-12 推送） | `next / macos` 通过。**两个 Windows 任务失败**：Clippy 在 `dr-debug-bridge/src/panel.rs` 报三处没用到的代码；测试在 x64 上红 `dr-cli` 的 `writes_need_yes_a_closed_app_and_leave_a_backup`，在 arm64 上红 `dr-import-v1` 的 `the_original_is_only_read_and_the_copy_catches_up`（两处都是「库还开着」）；arm64 的安装包检查脚本 `check-windows-installer.ps1` 第 72 行报错。**0.1 客户端的 `CI` 也失败**，红在 `pnpm locales:check`。原因和修法见「技术上还开着的事」的第一条 |
 
-2026-11-19 发 `0.1.0-alpha.12` 时本地 `main` 全部推到了 `origin/main`（`7f1cbf52a`）。之后 11-19 到 11-20 这一轮合进来的（见上面「现在跑的是什么」）在本地，没推。
+2026-11-19 发 `0.1.0-alpha.12` 时本地 `main` 全部推到了 `origin/main`（`7f1cbf52a`）。11-19 到 11-20 这一轮（见上面「现在跑的是什么」）2026-11-20 也推了（`063355576`，随后 `5ab12dd09`）；这一页之后的改动在本地。
 
 ## 状态怎么读
 
@@ -126,7 +127,7 @@
 | M40 Markdown 文件夹 | 已合进本地 main | 2026-11-17 MF（`handback/v5-md-folder`）审过并修补后合入：按条目住处投影正文、目录和素材副本，外面只改字与字段；坏字段、并发文件和表格冲突保全，文件夹不可达不阻断退出或换库，保全通知持续到对应副本被移走。合并树全套检查和副屏真窗口通过；heavy 前后测量及 Windows / 外部文件系统设备验收边界见 M40 第 17 节。2026-11-18 MF2（`handback/v5f-mf2-md-folder`）合进：挂名和图片字段用项目内路径，目录首写用「目录」，可读的同名属性接入新字段，「知道了」确认单份保全提醒。审查补修收录时的 App 抢写，保留 App 新值和外部副本。合并树 3,095 项测试通过，两轮副屏通过 | [m40-v5](modules/m40-markdown-folder-v5.md) |
 | M41 导出与搬运 | 已验收 | EPUB / DOCX / PDF、`.driftingbook`、整库备份与恢复。Markdown 分享入口已随切换删除。PDF 的字体家族选择等编辑器的字体设置 | [m41](modules/m41-export.md) |
 | M42 自动更新 | 只在合成环境验过 | 对着本机假的发布源。旧版把更新交给新版的交接只写了设计，发布时由作者定 | [m42](modules/m42-update.md) |
-| M43 Windows | 只在合成环境验过 | 平台接口和打包脚本已有，**没在 Windows 实机上跑过**，CI 上两个 Windows 任务在 alpha.12 那次推送还红着，剩下的五处这一轮在本地修了，等推送后看。通知区和字体回退链 2026-11-19 接进外壳；点关闭一次就原样收进通知区，叫回来还是那本书，没有通知区时退出（作者 2026-11-20 定）。外壳里 Windows 专有的那一小段只能在 CI 上编译 | [m43](modules/m43-windows.md) |
+| M43 Windows | 只在合成环境验过 | 平台接口和打包脚本已有，**没在 Windows 实机上跑过**，CI 上两个 Windows 任务 2026-11-20 第一次全绿（剩下的五处这一轮修掉了）。通知区和字体回退链 2026-11-19 接进外壳；点关闭一次就原样收进通知区，叫回来还是那本书，没有通知区时退出（作者 2026-11-20 定）。外壳里 Windows 专有的那一小段只能在 CI 上编译，已编过 | [m43](modules/m43-windows.md) |
 
 ## 没在真实条件下验过的
 
@@ -144,7 +145,7 @@
 
 1. ~~**推送和部署同步服务端。**~~ `loro-v2` 那个提交（`29074bc6`）已经在服务端仓库的 `origin/main` 上；按 2026-11-13 部署公告接口时的记录它一并上线了，2026-11-20 这一轮没有上服务器复核。上线步骤留在 `~/Drifting-autopilot-logs/loro-v2-server.md`。
 2. **确认切换期的配额口径。** 现在默认 `SYNC_QUOTA_METERING_MODE=separate`：新旧两个命名空间各自 500 MiB 软上限、1 GiB 硬上限，免得导入后第一次同步被 0.1 的历史占用顶满；另有 `combined` 开关把两边合成一个池。
-3. **Windows 实机手测**（安装、托盘、钥匙串、微软拼音、MCP）。要等 CI 上两个 Windows 任务先修绿，那是技术上的事，见下一节。
+3. **Windows 实机手测**（安装、托盘、钥匙串、微软拼音、MCP）。CI 上两个 Windows 任务 2026-11-20 已经绿了，可以开始手测；这一轮新接的通知区（点关闭收进通知区、从通知区叫回来）和字体回退也要在实机上看一眼。
 4. **真实条件下的验收**：上一节列的各项，尤其是真实模型和订阅登录、真实 Hosted、输入法矩阵、导入自己的 0.1 库。
 5. **手测。** 第一轮（11-12）报的六处已修并各补了回归测试。还没做的清单：P0-A（双击 `.app` 后的焦点、图标和名字，系统切深浅色，标题栏操作，见 [p0-a-skeleton.md 的「待作者」](spikes/p0-a-skeleton.md#待作者)）；输入子线的读屏、跨章选区、列表按键（[f4c-input.md](foundations/f4c-input.md)）；沉浸写作的整体观感。
 6. **键盘和组字的几处交互，方向 2026-11-16 定了**（kernel-v5 第 15 节第 34 到 37 条）。左栏的树用方向键走、空格打开悬停卡：作者 11-17 在整窗原型上选完二十处、说了迁（第 48 条），2026-11-17 做完合进 `main`（任务书 KB），原型没画的几处攒在给作者的清单里，2026-11-18 作者定了（kernel-v5 第 15 节第 51 到 54 条），要改的归 [v5-followups.md](handoff/v5-followups.md) 的 SF、NE。章末 ⁂ 连记号一起去掉，2026-11-17 做完（任务书 EM）。组字时在同一篇正文里点别处：丢掉组字，2026-11-17 做完（任务书 IC），**还要作者用真输入法手测**（macOS 系统拼音、微软拼音；步骤在 [f4c-input.md](foundations/f4c-input.md)「要作者手测的」），macOS 那一半是照推断做的；点在拼音自己身上现在什么都不做，这一处作者没看过。
@@ -153,7 +154,7 @@
 9. ~~**新建条目时挑模板那一处**~~：2026-11-18 作者确认「用默认模板」（kernel-v5 第 15 节第 54 条），NE 可以开工。SF 发了 1 倍屏真窗口的三档截图，作者同一天选了原样，默认档在合并树的 1 倍窗口核过。
 10. **留着的旧东西能不能清**：停掉的会话留下的 15 个 `refs/wip/*`、18 个 `handback/*` 分支、一批冻结的 `codex/legacy-*` 分支。现在的规矩是不删、不 rebase，见 [handoff/README.md](handoff/README.md#仓库里看不见的三样东西)。 作者 2026-11-19 对 Antigravity 说过「都删吧」，它没来得及做，现在还没清。
 11. ~~**关系重构的方向。**~~ 2026-11-17 定了、说了迁：一种关系只有名字、描述、方向，只连条目；在正文里悬停着看、就地建，右栏多一个「关系」；条目页的「关联」模块去掉；关系的描述和批注的字里能放条目链接。规则在 [kernel-v5.md 第 19 节](kernel-v5.md#19-关系重做)；RD 数据与 RL 界面已在 2026-11-17 合进本地 `main`，原型未画的细节见 M17 的「没画、要作者定的」。
-12. **推送 2026-11-19 到 11-20 这一轮。** 都在本地 `main`。Windows 的几处修复和外壳里 Windows 专有的代码，只有推送后看 CI 才能确认。
+12. ~~**推送 2026-11-19 到 11-20 这一轮。**~~ 2026-11-20 作者说了推，已推（`063355576`、`5ab12dd09`），CI 结果见检查表第一行。
 13. **Agent 的日志和 MCP 的审计记录留多久。** 作者 2026-11-19 问「是不是一直留着也行」，没定；现在不裁。
 
 作者已经定了「暂缓」、等新的层级结构落地再说的，不用现在回答：
@@ -177,9 +178,9 @@
 
 坏着的：
 
-- **2026-11-19 发 alpha.12 那次推送的 CI（`7f1cbf52a`）**：`next / macos` 绿。两个 Windows 任务已经能编过、跑完，还红五处：Clippy 一处（`dr-mirror` 测试里没用到的 `use std::io`）；两台都红两条（两本书共一库、清掉一本时文档还在关；左栏网格的方向键，Windows 上最窄一栏排三格，测试只按两格写）；x64 一条（Agent 停止那条测试自己的竞争，产品行为是对的）；arm64 一条（没有任务栏的机器上托盘图标装不上）。0.1 的 `CI` 红两处，都是发版改了版本号以后证据过期。这些 2026-11-19 到 11-20 都在本地修了，等推送后看 Windows 的结果。
-- **2026-11-13 夜那次推送之后的 CI**（`a35c2222a`）：Windows 那处编译修复生效了，两个 Windows 任务第一次编过、Clippy 通过；测试程序光编译用了 45 分钟，0.1 导入那一组单个程序跑了 18 分钟，90 分钟上限不够，工作流已把 Windows 改成 240 分钟（在本地 `main`，没推）。macOS 红的那条换库测试是搜索浮层的两个后台任务各攥着一份书库的强引用：浮层丢掉后任务被取消，但要等执行器下一次轮到它们才松手，而测试平台上关库的等待占着同一个线程。已改成弱引用并补了不靠时序的回归测试（`dr-view-search/tests/v3_release.rs`）；真实 App 里关库在后台线程上等，几乎碰不到。0.1 的两处：清理临时目录已改成重试；**`quinn-udp` 的告警没修**，在 `src-tauri` 的锁文件里只升这一个包会连带把十来个包依赖的 `windows-sys` 降下去，要由维护 0.1 的人专门升一次并验证 Windows，或者先记一条豁免，等作者定。
-- **Windows 的 CI 还没绿过。** `next` 工作流从 11-07 起 12 次运行全红：前 11 次 Windows 连 `cargo build` 都没过，`d0e516e9` 是头一回编过、真正跑到测试的。那次的五处失败 11-12 已查清并修掉，Windows 上的结果要等下一次推送：
+- **2026-11-19 发 alpha.12 那次推送的 CI（`7f1cbf52a`）**：`next / macos` 绿。两个 Windows 任务已经能编过、跑完，还红五处：Clippy 一处（`dr-mirror` 测试里没用到的 `use std::io`）；两台都红两条（两本书共一库、清掉一本时文档还在关；左栏网格的方向键，Windows 上最窄一栏排三格，测试只按两格写）；x64 一条（Agent 停止那条测试自己的竞争，产品行为是对的）；arm64 一条（没有任务栏的机器上托盘图标装不上）。0.1 的 `CI` 红两处，都是发版改了版本号以后证据过期。这些 2026-11-19 到 11-20 都修了，2026-11-20 推送后 `next` 三个任务全绿、0.1 的 `CI` 全绿（见检查表第一行）。这一节往下几条是之前各次的记录，留着备查，都已经不是现状。
+- **2026-11-13 夜那次推送之后的 CI**（`a35c2222a`）：Windows 那处编译修复生效了，两个 Windows 任务第一次编过、Clippy 通过；测试程序光编译用了 45 分钟，0.1 导入那一组单个程序跑了 18 分钟，90 分钟上限不够，工作流已把 Windows 改成 240 分钟（在本地 `main`，没推）。macOS 红的那条换库测试是搜索浮层的两个后台任务各攥着一份书库的强引用：浮层丢掉后任务被取消，但要等执行器下一次轮到它们才松手，而测试平台上关库的等待占着同一个线程。已改成弱引用并补了不靠时序的回归测试（`dr-view-search/tests/v3_release.rs`）；真实 App 里关库在后台线程上等，几乎碰不到。0.1 的两处：清理临时目录已改成重试；`quinn-udp` 的告警当时没修；现在 `src-tauri` 的锁文件里它是 0.5.16，`pnpm security:rust` 2026-11-20 通过。清理临时目录的重试后来证明不够（只重试删目录本身，不清新冒出来的文件），2026-11-20 改成整棵目录反复清（`5ab12dd09`）。
+- **Windows 的 CI 到 2026-11-20 才第一次全绿。** 下面是 11-12 那次的记录。 `next` 工作流从 11-07 起 12 次运行全红：前 11 次 Windows 连 `cargo build` 都没过，`d0e516e9` 是头一回编过、真正跑到测试的。那次的五处失败 11-12 已查清并修掉，Windows 上的结果要等下一次推送：
   - `pnpm locales:check`：`ade4437af` 改了 `BasicPreferencePanels.tsx`（指纹的来源之一）没重新生成证据。已重新生成，只有指纹变。
   - Clippy 的三处：`panel.rs` 里只有 macOS 用到的两个 `to_json` 和 `Request` 没加条件编译。已加。
   - `dr-import-v1` 的那条测试：夹具故意漏掉一个数据库连接来留住 WAL；Windows 上判断「别处开着」的办法分不清是谁的句柄，把测试进程自己的也算上了。夹具改成不做检查点地关闭连接，WAL 照样留下。
