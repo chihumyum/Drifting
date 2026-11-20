@@ -1,12 +1,12 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir, platform } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build, preview } from 'vite';
 import react from '@vitejs/plugin-react';
 import CDP from 'chrome-remote-interface';
-import { launchHeadlessBrowser, closeHeadlessSession, withDeadline } from './renderer-headless-browser.mjs';
+import { launchHeadlessBrowser, closeHeadlessSession, removeTemporaryDirectory, withDeadline } from './renderer-headless-browser.mjs';
 import { rendererFingerprintVersion, rendererSourceFingerprint } from './renderer-performance-source.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -100,8 +100,5 @@ try {
   throw error;
 } finally {
   try { await closeHeadlessSession({ client, browser, server }); }
-  // The browser can still be writing its profile for a moment after it is
-  // closed: retry the removal instead of failing a finished measurement
-  // with ENOTEMPTY.
-  finally { rmSync(temporary, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }); }
+  finally { await removeTemporaryDirectory(temporary); }
 }

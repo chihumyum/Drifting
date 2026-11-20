@@ -1,9 +1,9 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { cpus, platform, release, tmpdir, totalmem } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { resolveHeadlessBrowser, launchHeadlessBrowser, closeHeadlessSession, withDeadline } from './renderer-headless-browser.mjs';
+import { resolveHeadlessBrowser, launchHeadlessBrowser, closeHeadlessSession, removeTemporaryDirectory, withDeadline } from './renderer-headless-browser.mjs';
 import CDP from 'chrome-remote-interface';
 import { build, preview } from 'vite';
 import react from '@vitejs/plugin-react';
@@ -324,5 +324,5 @@ try {
   throw error;
 } finally {
   try { await closeHeadlessSession({ client, browser, server }); }
-  finally { rmSync(temporary, { recursive: true, force: true }); }
+  finally { await removeTemporaryDirectory(temporary); }
 }

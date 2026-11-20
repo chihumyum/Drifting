@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
@@ -63,6 +63,23 @@ export async function launchHeadlessBrowser({ executable = resolveHeadlessBrowse
     await close().catch(cleanupError => { stderr += `\n${cleanupError.message}`; });
     throw new Error(`${error.message}; ${JSON.stringify(diagnostics())}`);
   }
+}
+// Chromium's helper processes can outlive the browser for a moment and keep
+// writing into its profile, so a directory whose children were just removed
+// is not empty again when it is removed itself. Sweep the whole tree until it
+// is gone. A profile that still cannot be removed is left to the system's
+// temporary-file cleanup: it says nothing about what the run measured.
+const BUSY = new Set(['ENOTEMPTY', 'EBUSY', 'EPERM', 'EMFILE', 'ENFILE']);
+export async function removeTemporaryDirectory(directory, { attempts = 20, delayMs = 250, remove = rmSync, warn = console.warn } = {}) {
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try { remove(directory, { recursive: true, force: true }); return true; }
+    catch (error) {
+      if (!BUSY.has(error?.code)) throw error;
+      if (attempt === attempts) { warn(`A temporary directory was left behind (${error.code}): ${path.basename(directory)}`); return false; }
+      await delay(delayMs);
+    }
+  }
+  return false;
 }
 export async function closeHeadlessSession({ client, browser, server }) {
   const failures = [];

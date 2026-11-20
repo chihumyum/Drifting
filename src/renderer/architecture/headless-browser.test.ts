@@ -8,7 +8,7 @@ function run(code: string) {
     import { mkdtempSync, rmSync } from 'node:fs';
     import { tmpdir } from 'node:os';
     import path from 'node:path';
-    import { resolveHeadlessBrowser, launchHeadlessBrowser, stopBrowserProcess, withDeadline, closeHeadlessSession } from './scripts/renderer-headless-browser.mjs';
+    import { resolveHeadlessBrowser, launchHeadlessBrowser, stopBrowserProcess, withDeadline, closeHeadlessSession, removeTemporaryDirectory } from './scripts/renderer-headless-browser.mjs';
     ${code}
   `], { encoding: 'utf8', timeout: 12000 });
 }
@@ -59,5 +59,29 @@ it('closes all resources even if one close operation fails', () => {
   expect(() => run(`
     const calls=[]; await assert.rejects(closeHeadlessSession({ client:{close:async()=>{throw Error('client failed')}}, browser:{close:async()=>calls.push('browser')}, server:{httpServer:{close:callback=>{calls.push('server');callback()},closeAllConnections:()=>calls.push('connections')}} }), /client failed/);
     assert.deepEqual(calls, ['browser','server','connections']);
+  `)).not.toThrow();
+});
+it('sweeps a profile that is still being written until it is gone, and leaves one it cannot remove without failing', () => {
+  expect(() => run(`
+    const busy = code => Object.assign(Error(code), { code });
+    // A helper process writes two more files after the browser exited.
+    let calls = 0;
+    assert.equal(await removeTemporaryDirectory('/tmp/profile', { delayMs: 1,
+      remove: (directory, options) => { calls += 1; assert.deepEqual(options, { recursive: true, force: true }); if (calls < 3) throw busy('ENOTEMPTY'); } }), true);
+    assert.equal(calls, 3);
+    // Never removable: a warning that names the directory, not a failure.
+    const warnings = []; let tries = 0;
+    assert.equal(await removeTemporaryDirectory('/tmp/drifting-x/profile', { attempts: 4, delayMs: 1,
+      remove: () => { tries += 1; throw busy('EBUSY'); }, warn: text => warnings.push(text) }), false);
+    assert.equal(tries, 4);
+    assert.deepEqual(warnings, ['A temporary directory was left behind (EBUSY): profile']);
+    // Anything else is a real error and surfaces at once.
+    let other = 0;
+    await assert.rejects(removeTemporaryDirectory('/tmp/profile', { delayMs: 1, remove: () => { other += 1; throw busy('EACCES'); } }), /EACCES/);
+    assert.equal(other, 1);
+    // The real removal, on a real tree.
+    const tree = mkdtempSync(path.join(tmpdir(), 'drifting-remove-'));
+    assert.equal(await removeTemporaryDirectory(tree), true);
+    assert.throws(() => rmSync(tree));
   `)).not.toThrow();
 });
