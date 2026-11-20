@@ -12,6 +12,9 @@ dirs.workspace = true
 bytes.workspace = true
 dr-agent.workspace = true
 dr-agent-tools.workspace = true
+# The 0.1 client's library registry, read-only (`v1`: its other libraries'
+# MCP folders).
+dr-import-v1.workspace = true
 dr-model.workspace = true
 dr-platform.workspace = true
 dr-store.workspace = true

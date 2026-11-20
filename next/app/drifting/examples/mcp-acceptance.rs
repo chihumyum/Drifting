@@ -89,7 +89,7 @@ fn main() -> anyhow::Result<()> {
             );
             dr_view_page::init(cx);
             dr_view_elements::init(cx);
-            mcp::init_with(Ok(paths), secrets, cx);
+            mcp::init_with(Ok(paths), None, secrets, cx);
             let tools = Arc::new(CompanionTools::with_plugins(
                 cx.global::<McpGlobal>().slot.clone(),
             ));

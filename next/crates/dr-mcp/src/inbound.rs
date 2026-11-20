@@ -45,7 +45,7 @@ use tokio::{
 use tokio_util::sync::CancellationToken;
 
 use crate::{
-    Credential, GrantLease, GrantStore, Result,
+    Credential, GrantLease, GrantPaths, GrantStore, Result,
     host::{Host, Selection},
     transport::{self, Listener},
 };
@@ -53,6 +53,42 @@ use crate::{
 const CONNECTIONS: usize = 32;
 const CALLS: usize = 8;
 const REQUEST_IDS: usize = 4096;
+
+/// One folder of grants being served: its store, its server, and what the
+/// start-up repair of client configurations could not do.
+#[derive(Clone)]
+pub struct Network {
+    pub grants: GrantStore,
+    pub server: Arc<Server>,
+    pub warnings: Vec<String>,
+}
+
+/// Serve the grants in `paths.directory` to `host`'s book: bind the folder's
+/// endpoint (its socket, or a new loopback port), open the grants, bring
+/// their connection files to that endpoint and the client entries this
+/// installation still owns to the current executable, then accept. Runs on
+/// the reactor that will run the server.
+pub async fn serve(paths: GrantPaths, host: Host) -> Result<Network> {
+    let listener = Listener::bind(&paths).await?;
+    let endpoint = listener.endpoint()?;
+    let grants = tokio::task::spawn_blocking(move || GrantStore::open(paths, endpoint))
+        .await
+        .map_err(|_| "MCP authorization initialization ended".to_owned())??;
+    // Refresh only entries still owned by this installation. Missing client
+    // entries stay missing; no home is rewritten merely because somebody
+    // removed their configuration.
+    let report = grants.repair_owned(true).await?;
+    let server = Server::start(listener, grants.clone(), host, &Handle::current());
+    Ok(Network {
+        grants,
+        server: Arc::new(server),
+        warnings: report
+            .warnings
+            .into_iter()
+            .map(|warning| warning.message)
+            .collect(),
+    })
+}
 
 pub struct Server {
     stop: CancellationToken,

@@ -722,7 +722,7 @@ mod tests {
                 settings,
                 cx,
             );
-            crate::mcp::init_with(Ok(paths), secrets.clone(), cx);
+            crate::mcp::init_with(Ok(paths), None, secrets.clone(), cx);
             cx.global::<crate::mcp::McpGlobal>().service.clone()
         });
         // Native initializers may flush deferred effects between modules.
@@ -864,6 +864,7 @@ mod tests {
             );
             crate::mcp::init_with(
                 Err("Synthetic unavailable listener".into()),
+                None,
                 Arc::new(SecretStore::in_memory()),
                 cx,
             );

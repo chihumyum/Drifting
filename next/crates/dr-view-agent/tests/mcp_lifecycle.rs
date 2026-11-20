@@ -1,15 +1,19 @@
 //! Real shell selection and F6 replacement, without ever opening the Agent
 //! panel. MCP must not depend on whether a companion view was mounted.
+
+#[path = "../../dr-mcp/tests/support/v1.rs"]
+mod v1_state;
+
 use std::{
     cell::RefCell,
     rc::Rc,
-    sync::Arc,
+    sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
 
 use dr_agent::driver::scripted::ScriptedDriver;
 use dr_agent_providers::{HttpClient, ProviderDriver, credentials::Credentials};
-use dr_mcp::{ClientPaths, GrantPaths, host::Host};
+use dr_mcp::{ClientPaths, GrantPaths, host::Host, v1::Owner};
 use dr_platform::secrets::SecretStore;
 use dr_shell::{Services, SettingsFile, ShellInfo, Workspace as ShellWorkspace};
 use dr_testkit::seed::{self, Preset};
@@ -45,6 +49,10 @@ fn wait(cx: &mut VisualTestContext, mut done: impl FnMut(&mut VisualTestContext)
 }
 
 fn setup(cx: &mut TestAppContext) -> (tempfile::TempDir, Vec<String>) {
+    setup_with(cx, None)
+}
+
+fn setup_with(cx: &mut TestAppContext, v1: Option<mcp::V1>) -> (tempfile::TempDir, Vec<String>) {
     cx.executor().allow_parking();
     let dir = tempfile::tempdir().unwrap();
     let ws = Workspace::open_dir(dir.path().join("library"), "m32-shell").unwrap();
@@ -80,7 +88,7 @@ fn setup(cx: &mut TestAppContext) -> (tempfile::TempDir, Vec<String>) {
             settings,
             cx,
         );
-        mcp::init_with(Ok(paths), secrets.clone(), cx);
+        mcp::init_with(Ok(paths), v1, secrets.clone(), cx);
     });
     // Native module initializers can flush deferred effects independently.
     // Publishing AgentViews must attach MCP even after its own init returned.
@@ -231,5 +239,86 @@ fn library_replacement_settles_old_manager_and_rebuilds_under_the_same_endpoint(
     assert_lists_the_companion_catalog(cx, &host);
     // Retaining an old UI handle must not retain a Library and block F6.
     drop(old);
+    close(cx, shell);
+}
+
+/// The book a 0.1 library's own MCP folder sees now.
+fn v1_book(cx: &mut VisualTestContext) -> Option<String> {
+    cx.read(|cx| {
+        let service = cx.global::<McpGlobal>().service.read(cx);
+        let (_, host) = service.v1().hosts().next().unwrap();
+        host.selection().book.map(|id| id.to_string())
+    })
+}
+
+/// The 0.1 libraries' own folders through the real shell: the folder of the
+/// open library's owner sees the open book and follows it to another one;
+/// after F6 replaces the library with one of another owner it sees none,
+/// while the app's own folder sees the book as before.
+#[gpui::test]
+fn a_0_1_librarys_folder_sees_the_book_while_its_owner_library_is_open(cx: &mut TestAppContext) {
+    const SUBJECT: &str = "synthetic-subject";
+    let old = tempfile::tempdir().unwrap();
+    let base = old.path().join("cc.drifting.client");
+    let account = v1_state::account_library(SUBJECT);
+    v1_state::registry(
+        &base,
+        &account,
+        &[
+            ("legacy", Some(None)),
+            (account.as_str(), Some(Some(SUBJECT))),
+        ],
+    );
+    v1_state::connect(
+        &base.join("libraries").join(&account).join("mcp"),
+        &v1_state::closed_port(),
+        &old.path().join("home"),
+        &old.path().join("Drifting"),
+        v1_state::Client::ClaudeCode,
+        "lifecycle",
+    );
+    let owner = Arc::new(Mutex::new(Some(Owner::Account(SUBJECT.into()))));
+    let told = owner.clone();
+    let v1 = mcp::V1 {
+        data: base,
+        owner_of: Arc::new(move |_| told.lock().unwrap().clone()),
+    };
+    let (_dir, books) = setup_with(cx, Some(v1));
+    let (shell, cx) = cx.add_window_view(ShellWorkspace::new);
+    wait(cx, |cx| {
+        ready(cx, &books[0]) && v1_book(cx).as_deref() == Some(books[0].as_str())
+    });
+    shell.update_in(cx, |shell, window, cx| {
+        shell.open_book(&books[1], window, cx)
+    });
+    wait(cx, |cx| {
+        ready(cx, &books[1]) && v1_book(cx).as_deref() == Some(books[1].as_str())
+    });
+
+    // The library the shell opens next is another owner's.
+    *owner.lock().unwrap() = Some(Owner::Local);
+    let finished = Rc::new(RefCell::new(None));
+    let result = finished.clone();
+    cx.update(|_, cx| {
+        dr_shell::library::replace(
+            cx,
+            |path, options| {
+                dr_store::Library::open(path, options).map_err(|error| error.to_string())
+            },
+            move |done, _| {
+                *result.borrow_mut() = Some(done);
+            },
+        )
+    });
+    assert_eq!(v1_book(cx), None);
+    wait(cx, |_| finished.borrow().is_some());
+    finished.borrow_mut().take().unwrap().unwrap();
+    wait(cx, |cx| {
+        cx.read(|cx| {
+            let service = cx.global::<McpGlobal>().service.read(cx);
+            service.manager().is_some() && service.host().unwrap().selection().book.is_some()
+        })
+    });
+    assert_eq!(v1_book(cx), None);
     close(cx, shell);
 }

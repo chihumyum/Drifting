@@ -123,6 +123,7 @@ pub struct GrantPaths {
     pub executable: PathBuf,
     pub clients: ClientPaths,
     short_socket_root: Option<PathBuf>,
+    loopback: bool,
 }
 impl GrantPaths {
     /// Production discovery is application-identity scoped. This only builds
@@ -149,11 +150,30 @@ impl GrantPaths {
             executable,
             clients,
             short_socket_root: None,
+            loopback: false,
         }
     }
     pub fn with_socket_root(mut self, root: PathBuf) -> Self {
         self.short_socket_root = Some(root);
         self
+    }
+    /// Listen on a loopback port, as Windows does, on every system: tests of
+    /// the Windows transport and its connection-file rules on macOS.
+    pub fn with_loopback(mut self) -> Self {
+        self.loopback = true;
+        self
+    }
+    pub(crate) fn loopback(&self) -> bool {
+        self.loopback
+    }
+    /// The same executable, clients and transport for the grants kept in
+    /// another folder: one of the 0.1 client's per-library MCP folders
+    /// ([`crate::v1`]).
+    pub fn for_directory(&self, directory: PathBuf) -> Self {
+        Self {
+            directory,
+            ..self.clone()
+        }
     }
     #[cfg(unix)]
     pub fn socket_path(&self) -> Result<PathBuf> {
