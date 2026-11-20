@@ -100,8 +100,8 @@
       },
       "expect": {
         "/summary": "K6 synthetic window update",
-        "/word_target": null,
-        "/daily_word_target": 240
+        "/word_target": 3000,
+        "/daily_word_target": 1500
       }
     },
     {
@@ -111,18 +111,19 @@
       },
       "save": "comments",
       "expect": {
-        "/[body=K6 synthetic module comment]/module": "mod-prose",
-        "/[body=K6 synthetic module comment]/target/kind": "entry",
-        "/[body=K6 synthetic module comment]/author_kind": "ai",
-        "/[body=K6 synthetic module comment]/source": "api",
-        "/[body=K6 synthetic module comment]/anchored": true
+        "/[origin=agent]/body/text": "K6 synthetic module comment",
+        "/[origin=agent]/module": "mod-prose",
+        "/[origin=agent]/target/kind": "entry",
+        "/[origin=agent]/author_kind": "ai",
+        "/[origin=agent]/source": "api",
+        "/[origin=agent]/anchored": true
       }
     },
     {
       "call": "entry.get",
       "input": {
         "book": "${state.book.id}",
-        "id": "${comments.[body=K6 synthetic module comment].target.id}"
+        "id": "${comments.[origin=agent].target.id}"
       },
       "expect": {
         "/title": "K6 checkpointed entry"
@@ -132,18 +133,18 @@
       "call": "entry_snapshot.list",
       "input": {
         "book": "${state.book.id}",
-        "entry": "${comments.[body=K6 synthetic module comment].target.id}"
+        "entry": "${comments.[origin=agent].target.id}"
       },
       "save": "checkpoints",
       "expect": {
-        "/0/entry": "${comments.[body=K6 synthetic module comment].target.id}"
+        "/0/entry": "${comments.[origin=agent].target.id}"
       }
     },
     {
       "call": "entry_snapshot.preview",
       "input": {
         "book": "${state.book.id}",
-        "entry": "${comments.[body=K6 synthetic module comment].target.id}",
+        "entry": "${comments.[origin=agent].target.id}",
         "point": "${checkpoints.0.id}"
       },
       "save": "checkpoint_preview",
@@ -155,7 +156,7 @@
       "call": "entry_snapshot.restore",
       "input": {
         "book": "${state.book.id}",
-        "entry": "${comments.[body=K6 synthetic module comment].target.id}",
+        "entry": "${comments.[origin=agent].target.id}",
         "point": "${checkpoints.0.id}",
         "expected": "${checkpoint_preview.expected}"
       }
@@ -164,7 +165,7 @@
       "call": "entry.get",
       "input": {
         "book": "${state.book.id}",
-        "id": "${comments.[body=K6 synthetic module comment].target.id}"
+        "id": "${comments.[origin=agent].target.id}"
       },
       "expect": {
         "/title": "${checkpoints.0.title}"
@@ -175,13 +176,39 @@
       "input": {
         "book": "${state.book.id}",
         "query": "V4 smoke",
-        "all": true
+        "all": true,
+        "trashed": true
       },
       "save": "smoke_entries",
       "expect": {
         "/[title=V4 smoke parent]/level": false,
-        "/[title=V4 smoke child]/parent": null
-      }
+        "/[title=V4 smoke parent]/deleted_at": null
+      },
+      "note": "Turning 层级 off puts what lives under the entry into Recently Deleted, in place (kernel-v5 §16): the child keeps its parent and is listed only with `trashed`."
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${state.book.id}",
+        "query": "V4 smoke",
+        "all": true
+      },
+      "expect": {
+        "/0/title": "V4 smoke parent",
+        "/1": null
+      },
+      "note": "Without `trashed` the child is not listed."
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${state.book.id}",
+        "id": "${smoke_entries.[title=V4 smoke child].id}"
+      },
+      "expect": {
+        "/parent": "${smoke_entries.[title=V4 smoke parent].id}"
+      },
+      "note": "It stays where it was."
     },
     {
       "call": "entry_snapshot.list",
@@ -211,6 +238,17 @@
         "point": "${parent_checkpoints.0.id}",
         "expected": "${parent_preview.expected}"
       }
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${state.book.id}",
+        "id": "${smoke_entries.[title=V4 smoke parent].id}"
+      },
+      "expect": {
+        "/level": true
+      },
+      "note": "The parent's checkpoint turns 层级 back on."
     },
     {
       "call": "entry_snapshot.list",
@@ -248,8 +286,10 @@
         "id": "${smoke_entries.[title=V4 smoke child].id}"
       },
       "expect": {
-        "/parent": "${smoke_entries.[title=V4 smoke parent].id}"
-      }
+        "/parent": "${smoke_entries.[title=V4 smoke parent].id}",
+        "/deleted_at": null
+      },
+      "note": "The child's checkpoint brings it back from Recently Deleted, under its parent."
     },
     {
       "app": "app.quit",
