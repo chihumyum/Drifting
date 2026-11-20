@@ -15,7 +15,7 @@
 | 预编译着色器的开关 | `script/bundle-mac --precompiled-shaders`：不带 App 的默认特性编，Metal 着色器在编译时预编好，窗口第一次画的时候不用再现编。这台机器 2026-11-20 装了 Metal Toolchain，照第 2 步验过 |
 | 发布工作流 | `next/script/release-next.draft.yml` 写全了：检查、macOS 打包签名公证、更新包签名、符号上传、带上 0.1 最后一版的 `latest.json`、Windows 两个架构、建草稿 Release，三个平台都打好以后才写进三个键齐全的 `update.json`。放在 `next/script` 里，GitHub 不会跑它，挪进 `.github/workflows` 就会跑（第 5 步） |
 | 旧版那头 | 已经做了，而且已经发出去了：0.1.0-alpha.11 和 alpha.12 都带着交接和「先读 `update.json`、读不到再读 `latest.json`」（提交 `c788d72b2`）。0.1 的发布流程本来就只出 `latest.json`，不会出 `update.json` |
-| 开发身份的安装包 | `next` 工作流每次运行都在跑测试之前打好 macOS 的 `.dmg` 和 Windows 两个架构的安装包，作为运行产物传上去（名字带平台和提交号，留 7 天），作者在虚拟机里实机验收用（见「Windows 这一半」） |
+| 开发身份的安装包 | `next` 工作流每次运行都把 macOS 的 `.dmg`（跑测试之前，debug 构建）和 Windows 两个架构的安装包（单独的 `windows-installer` 任务，`dist` 档：和正式发布同一档的优化构建，装上、启动一遍才上传）作为运行产物传上去（名字带平台和提交号，留 7 天），作者在虚拟机里实机验收用（见「Windows 这一半」） |
 | 第一次打开时带去导入 | 这台设备第一次显示「全部项目」时，找到 0.1 的书库就自己弹出导入对话框，只弹一次；登录着的账号只在这次导入会被放行时才弹（账号在本机和服务端都是空的）。见 [m10 的「第一次打开时自己弹出」](modules/m10-import.md#第一次打开时自己弹出2026-11-20) |
 | 本机演练 | 开发身份的包上，用一次性密钥和本地清单走完「打包 → 签更新包 → 写清单 → 查到 → 下载验签 → 换包」，见文末「本机演练」 |
 
@@ -117,7 +117,7 @@ cargo xtask check-binary --precompiled-shaders "target/bundle/Drifting Next.app/
 | 数据 | 0.1 的 `%LOCALAPPDATA%\cc.drifting.client`（书库、登记表、WebView2 的 `EBWebView/`）新版除了 `mcp/` 不写；新版自己的东西在 `%LOCALAPPDATA%\cc.drifting.client.v2`，日志在它的 `logs\`；程序在 `%LOCALAPPDATA%\Drifting`，卸载只删程序自己的文件，书不在那里 | 测试按 Windows 的规则也跑一遍（不管在哪个系统上跑），含程序文件夹不被碰 |
 | 更新签名 | Windows 的更新包就是安装包本身：`update-tool sign` 用同一把 minisign 私钥签出 `-setup.exe.sig`，签名里带文件名（含版本号），`update.json` 的 Windows 两个键指向安装包和它的签名 | 工作流里签完立刻用公钥验一次 |
 | 代码签名（Authenticode） | **作者 2026-11-20 定：不签，照 0.1**。不签时第一次运行 SmartScreen 会提示「Windows 已保护你的电脑」（点「更多信息」→「仍要运行」），发布说明里照 0.1 写一句；更新照样由 minisign 签名保证。要签得买代码签名证书，工作流里在「Sign the installer with the updater key」前面加一步 | 不签 |
-| 实机验收 | 作者只有一台 Windows 11 ARM 虚拟机：开发身份的安装包从 `next` 工作流每次运行的产物里下（`drifting-next-windows-arm64-<提交号>`，x64 的叫 `…-windows-x64-…`；在跑测试之前就传上去，留 7 天），照 [m43-windows.md](modules/m43-windows.md) 的清单走 | **挡发布**（progress「等作者的事」第 3 条） |
+| 实机验收 | 作者只有一台 Windows 11 ARM 虚拟机：开发身份的安装包从 `next` 工作流每次运行的产物里下（`windows-installer` 任务打的 `drifting-next-windows-arm64-<提交号>`，x64 的叫 `…-windows-x64-…`；`dist` 档，留 7 天），照 [m43-windows.md](modules/m43-windows.md) 的清单走。2026-11-21 监管会话先用脚本走了一遍（装、启动、单实例、深链接、通知区收起和唤回、原地更新），查出两处启动不了的问题并修了，见 m43 的「第一次在干净的 Windows 上装和启动」；修好的包还没重验，通知区、微软拼音、观感等要作者点 | **挡发布**（progress「等作者的事」第 3 条） |
 
 ## 作者定了的事（2026-11-20，「全部按照推荐做」）
 

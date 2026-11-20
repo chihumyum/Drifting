@@ -93,13 +93,12 @@ jobs:
         run: |
           python -m pip install fonttools==4.60.1
           python crates/dr-ui/script/build-fonts.py
-      # The development builds the author tries on a real machine, before the
-      # long checks (the Windows tests take about two hours): the disk image
-      # on macOS, the NSIS installer on each Windows runner (x64 and arm64),
-      # each a run artifact named after its platform and commit, available
-      # as soon as it is uploaded. Built in the debug profile the tests reuse,
-      # with the development identity ("Drifting Next", cc.drifting.next.dev),
-      # so it installs beside an installed Drifting.
+      # The development build the author tries on a Mac, before the long
+      # checks: the disk image, a run artifact named after its platform and
+      # commit, available as soon as it is uploaded. Built in the debug
+      # profile the tests reuse, with the development identity ("Drifting
+      # Next", cc.drifting.next.dev), so it installs beside an installed
+      # Drifting. The Windows installers are the `windows-installer` job's.
       - name: Name the development build
         id: build-name
         shell: bash
@@ -113,22 +112,6 @@ jobs:
         with:
           name: ${{ steps.build-name.outputs.artifact }}
           path: next/target/bundle/*.dmg
-          if-no-files-found: error
-          retention-days: 7
-      - if: ${{ startsWith(matrix.platform, 'windows') }}
-        name: Build the development installer (${{ matrix.platform }})
-        shell: pwsh
-        run: |
-          if (-not (Get-Command makensis -ErrorAction SilentlyContinue) -and
-              -not (Test-Path "${env:ProgramFiles(x86)}\NSIS\makensis.exe")) {
-            choco install nsis --no-progress -y | Out-Null
-          }
-          script/bundle-windows.ps1 -BuildProfile debug
-      - if: ${{ startsWith(matrix.platform, 'windows') }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: ${{ steps.build-name.outputs.artifact }}
-          path: next/target/bundle/*-setup.exe
           if-no-files-found: error
           retention-days: 7
       - run: cargo fmt --all --check
@@ -197,3 +180,88 @@ jobs:
         name: Check the Windows installer (${{ matrix.platform }})
         shell: pwsh
         run: script/check-windows-installer.ps1
+      # A clean Windows has no Visual C++ redistributable; this runner has,
+      # so only the import table shows an executable that needs it.
+      - if: ${{ !cancelled() && startsWith(matrix.platform, 'windows') }}
+        name: Check that the executable needs no Visual C++ redistributable
+        shell: pwsh
+        run: script/check-windows-standalone.ps1 -Exe target/debug/drifting.exe
+
+  # The Windows builds the author tries on a real machine (he has a Windows
+  # 11 ARM virtual machine and no way to build there): the NSIS installer of
+  # each architecture, a run artifact named after its platform and commit.
+  # Its own job, so it is there without waiting for the two-hour tests. The
+  # `dist` profile, built as a release builds it: a debug build does not
+  # start on another machine (GPUI's Windows backend then compiles its
+  # shaders from the build tree's source files), and what is tried should be
+  # what ships. The development identity ("Drifting Next",
+  # cc.drifting.next.dev), so it installs beside an installed Drifting.
+  windows-installer:
+    name: next / ${{ matrix.platform }} installer
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-x64
+            runner: windows-latest
+            target: x86_64-pc-windows-msvc
+          - platform: windows-arm64
+            runner: windows-11-arm
+            target: aarch64-pc-windows-msvc
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 180
+    defaults:
+      run:
+        working-directory: next
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      # Keep in step with next/rust-toolchain.toml.
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master, toolchain input
+        with:
+          toolchain: 1.98.1
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: next
+          key: installer-${{ matrix.platform }}
+      # The installer carries dr-ui's fonts (the `rust` job's cache).
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: fonts
+        with:
+          path: next/.cache/fonts
+          key: dr-ui-fonts-${{ matrix.platform }}-${{ hashFiles('next/crates/dr-ui/assets/fonts/provenance.json', 'next/crates/dr-ui/script/build-fonts.py') }}
+      - if: steps.fonts.outputs.cache-hit != 'true'
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+      - if: steps.fonts.outputs.cache-hit != 'true'
+        run: |
+          python -m pip install fonttools==4.60.1
+          python crates/dr-ui/script/build-fonts.py
+      - name: Name the development build
+        id: build-name
+        shell: bash
+        env:
+          COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: echo "artifact=drifting-next-${{ matrix.platform }}-${COMMIT::8}" >> "$GITHUB_OUTPUT"
+      - name: Build the development installer (${{ matrix.platform }})
+        shell: pwsh
+        run: |
+          if (-not (Get-Command makensis -ErrorAction SilentlyContinue) -and
+              -not (Test-Path "${env:ProgramFiles(x86)}\NSIS\makensis.exe")) {
+            choco install nsis --no-progress -y | Out-Null
+          }
+          script/bundle-windows.ps1 -BuildProfile dist -Target ${{ matrix.target }}
+      # Installs it for the runner's user, looks at what the installed
+      # executable imports, starts it and uninstalls.
+      - name: Check that the installed app starts on its own
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem target\bundle -Filter '*-setup.exe' | Select-Object -First 1
+          script/check-windows-standalone.ps1 -Installer $installer.FullName
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ steps.build-name.outputs.artifact }}
+          path: next/target/bundle/*-setup.exe
+          if-no-files-found: error
+          retention-days: 7

@@ -3,3 +3,12 @@
 [alias]
 xtask = "run -q --locked -p xtask --"
 drifting = "run -q --locked -p dr-cli --"
+
+# Windows links the C runtime into the executable, as Zed and Tauri do. A
+# clean Windows has no Visual C++ redistributable, and an executable that
+# imports VCRUNTIME140.dll does not start there (0xC0000135: found on a clean
+# Windows 11 ARM machine on 2026-11-21, while CI's runners, which have the
+# redistributable, were green). script/check-windows-standalone.ps1 checks the
+# built executable's imports, because a runner cannot show the failure.
+[target.'cfg(all(target_os = "windows", target_env = "msvc"))']
+rustflags = ["-C", "target-feature=+crt-static"]

@@ -39,9 +39,41 @@
   - **界面无衬线（`Ui`）**：`Drifting Sans` → `Noto Sans SC` → `Microsoft YaHei UI` → `Microsoft YaHei` → `Segoe UI` → `SimHei`，系统无衬线显式指向微软雅黑，且绝不回退到 `SimSun`。
   - **索引等宽（`Index`）**：`Sarasa Mono SC` → `Cascadia Mono` → `Consolas` → `Microsoft YaHei UI` → `Microsoft YaHei`。
 
+## 第一次在干净的 Windows 上装和启动（2026-11-21）
+
+监管会话在作者的 Windows 11 ARM 虚拟机（Parallels，系统版本 10.0.26300，没装过 Visual C++ 运行库，旁边装着 0.1.0-alpha.12）里做的，用的是 `next` 工作流第一次上传的 ARM64 安装包（提交 `bd87aed4`，debug 构建）。命令从 Mac 上用 `prlctl exec --current-user` 发进去，窗口靠虚拟机截屏看。这是新版第一次在真的 Windows 上启动。
+
+### 查到的问题
+
+| # | 现象 | 原因 | 怎么处理 |
+| --- | --- | --- | --- |
+| 1 | **程序起不来**，没有窗口、没有日志，退出码 `0xC0000135` | `drifting.exe` 动态链接 `VCRUNTIME140.dll`，干净的 Windows 没有这个库。CI 的机器自带，所以一直是绿的。0.1 没这个问题（Tauri 静态链接） | `next/.cargo/config.toml` 让 Windows 静态链接 C 运行库（Zed、Tauri 都这么做）；新脚本 `script/check-windows-standalone.ps1` 读程序的导入表，有 VC++ 运行库就失败，`next.yml` 和发布工作流草稿都跑它 |
+| 2 | 补上运行库以后启动就 panic：`failed to initialize DirectX … (os error 3)` | 只有 debug 构建会这样：GPUI 的 Windows 后端开着调试断言时，启动时从**构建机上的源码路径**读着色器源码现编，换一台机器路径不存在。优化构建把着色器预编进程序里，不受影响 | 给验收用的 Windows 安装包改成 `dist` 档（和正式发布同一档），单独一个任务 `windows-installer` 打，装上、启动一遍再上传；debug 的那份不再上传 |
+| 3 | 从通知区唤回、第二次启动、深链接唤起时，日志里每次几条 `RefCell already borrowed`（GPUI 的 `window.rs`） | `dr-platform` 的托盘代码在 GPUI 的一次更新里同步调 `ShowWindow`、`SetForegroundWindow`，系统当场把激活、显示这些消息送回窗口过程，GPUI 这时拿不到自己的状态，只能把这一刻的回调丢掉 | 改成 `ShowWindowAsync`（GPUI 自己的 `activate` 也是这么做的），前置交给调用处本来就有的 `Window::activate_window`。交叉 Clippy 过了，**没在 Windows 上重验** |
+| 4 | 下面清单第五节第 1 条要找的日志行 `dr-ui fonts from …` 不存在 | 日志文件里没有这一行，macOS 的日志文件里也没有 | 那一条改成看窗口里的字 |
+
+为了当天接着往下验，在虚拟机里临时做了两件事（都不是修复）：把 Edge 自带的 ARM64 `vcruntime140.dll` 拷到安装目录里；把 GPUI 的三个着色器源文件放到程序要找的那个路径上。装修好的包之前要先清掉。
+
+### 验过的（在上面两处临时处理之后）
+
+| 项 | 结果 |
+| --- | --- |
+| 静默安装（`/S`），没提权的普通用户 | 过，退出码 0。第一次用了 199 秒，之后原地更新 35 秒 |
+| 安装目录里的 `drifting.exe`、`uninstall.exe`、6 个字体和 `OFL-1.1.txt`，开始菜单快捷方式，「已安装的应用」里的条目，厂商键，`drifting-next-dev` 协议键 | 全对（清单第一节第 2、3 条） |
+| 旁边的 0.1 | 没动：「已安装的应用」里还是 `Drifting 0.1.0-alpha.12`，`cc.drifting.client` 里最新的文件还是两天前的 |
+| 启动 | 窗口出来了：字海、首次引导的卡片、左上角的窗口按钮药丸、语言下拉都画出来；数据在 `%LOCALAPPDATA%\cc.drifting.next.dev`，样书写进去了 |
+| 单实例（第二节第 1 条） | 过：第二个进程自己退出（退出码 0），还是一个进程，窗口到最前 |
+| 深链接（第二节第 3 条） | 过：送到了运行着的那个进程，日志只记「收到 1 条」，不记参数 |
+| 关窗收进通知区、再启动唤回（第二节第 2 条、第四节第 1 条的一半） | 过：关窗后进程还在、窗口不可见；再启动一次窗口回来并在最前。通知区图标本身没法用脚本看 |
+| 程序开着时原地更新（`/P /UPDATE`，第一节第 4 条） | 过：35 秒，旧进程被结束，开始菜单和桌面快捷方式都在 |
+
+### 还要作者在虚拟机里点的
+
+等修好的包（`windows-installer` 任务的产物）出来以后：双击安装时不弹 UAC、安装界面的语言；通知区图标、左键和菜单、菜单语言、「退出」；微软拼音打字；凭据管理器；字体和整体观感。卸载、从 0.1 原位升级（第一节第 5、6 条）也还没做。
+
 ## Windows 实机／虚拟机验收清单
 
-供作者在 Windows 11（含 Apple Silicon 上的 Windows 11 ARM 虚拟机或 x64 实机）上按步骤点验。**`0.2.0` macOS 和 Windows 一起发（作者 2026-11-20 定），这份清单挡发布。** 开发身份的安装包从 GitHub 上 `next` 工作流那次运行的产物里下（`drifting-next-windows-arm64-<提交号>`，解压出 `Drifting_Next_<version>_windows_arm64-setup.exe`）；第一节最后一条要正式身份的安装包，见那一条。
+供作者在 Windows 11（含 Apple Silicon 上的 Windows 11 ARM 虚拟机或 x64 实机）上按步骤点验。**`0.2.0` macOS 和 Windows 一起发（作者 2026-11-20 定），这份清单挡发布。** 开发身份的安装包从 GitHub 上 `next` 工作流那次运行的产物里下（`windows-installer` 任务打的 `drifting-next-windows-arm64-<提交号>`，解压出 `Drifting_Next_<version>_windows_arm64-setup.exe`；`dist` 档，和正式发布同一档）；第一节最后一条要正式身份的安装包，见那一条。
 
 ### 一、安装器与升级（x64 与 arm64）
 1. **首次普通用户安装**：双击 `Drifting_Next_<version>_windows_arm64-setup.exe`（ARM 虚拟机）或 `x64-setup.exe`（x64 机器），确认无需管理员权限（不弹 UAC），界面语言随系统显示简体中文或英文。
@@ -77,7 +109,7 @@
 4. **菜单「退出」真正结束进程**：右键通知区图标点「退出 Drifting」，确认本地修改保存完毕后进程完全退出，通知区图标消失，任务管理器中不再有 `drifting.exe`。
 
 ### 五、字体与排版回退
-1. **内置字体加载**：启动应用后检查日志有一行 `dr-ui fonts from ...`，界面无衬线（`Drifting Sans`）、正文衬线（`Drifting Serif`）和统计数字等宽字体（`Sarasa Mono SC`）与 macOS 视觉一致。
+1. **内置字体加载**：（日志文件里没有 `dr-ui fonts from ...` 这一行，两个平台都没有，别找它；字体缺了程序会直接退出。）看窗口里的字：界面无衬线（`Drifting Sans`）、正文衬线（`Drifting Serif`）和统计数字等宽字体（`Sarasa Mono SC`）与 macOS 视觉一致。
 2. **中文正文与罕见字回退**：在正文中输入常规简体中文、拉丁斜体与粗体，以及罕见扩展汉字，确认常规中文与标点使用 `Drifting Serif` / `Noto Serif SC` 渲染（不退化为点阵宋体 `SimSun`），界面控件回退使用 `Microsoft YaHei` 而不混入宋体。
 
 ## 测试与检查

@@ -354,7 +354,8 @@ impl TrayController {
     }
 
     /// Hides a native Win32 top-level `HWND` when hiding to the notification
-    /// area; no-op off Windows or when `hwnd` is zero/invalid.
+    /// area (posted to the window, so it is hidden a moment later); no-op off
+    /// Windows or when `hwnd` is zero/invalid.
     pub fn hide_hwnd(hwnd: isize) {
         #[cfg(windows)]
         windows_impl::hide_hwnd(hwnd);
@@ -362,8 +363,10 @@ impl TrayController {
         let _ = hwnd;
     }
 
-    /// Restores and foregrounds a hidden or minimized Win32 top-level `HWND`;
-    /// no-op off Windows or when `hwnd` is zero/invalid.
+    /// Shows a hidden Win32 top-level `HWND` again, or restores a minimized
+    /// one; the caller brings it to the foreground with GPUI's
+    /// `Window::activate_window`. No-op off Windows or when `hwnd` is
+    /// zero/invalid.
     pub fn restore_hwnd(hwnd: isize) {
         #[cfg(windows)]
         windows_impl::restore_hwnd(hwnd);
@@ -486,9 +489,10 @@ mod windows_impl {
         AppendMenuW, CreatePopupMenu, CreateWindowExW, DefWindowProcW, DestroyMenu, DestroyWindow,
         GWLP_USERDATA, GetCursorPos, GetWindowLongPtrW, IDI_APPLICATION, IsIconic, IsWindow,
         LoadIconW, MF_STRING, PostMessageW, RegisterClassW, RegisterWindowMessageW, SW_HIDE,
-        SW_RESTORE, SW_SHOW, SetForegroundWindow, SetWindowLongPtrW, ShowWindow, TPM_BOTTOMALIGN,
-        TPM_LEFTALIGN, TPM_RIGHTBUTTON, TrackPopupMenu, WINDOW_EX_STYLE, WINDOW_STYLE, WM_COMMAND,
-        WM_CONTEXTMENU, WM_LBUTTONUP, WM_NULL, WM_RBUTTONUP, WM_USER, WNDCLASSW,
+        SW_RESTORE, SW_SHOW, SetForegroundWindow, SetWindowLongPtrW, ShowWindowAsync,
+        TPM_BOTTOMALIGN, TPM_LEFTALIGN, TPM_RIGHTBUTTON, TrackPopupMenu, WINDOW_EX_STYLE,
+        WINDOW_STYLE, WM_COMMAND, WM_CONTEXTMENU, WM_LBUTTONUP, WM_NULL, WM_RBUTTONUP, WM_USER,
+        WNDCLASSW,
     };
     use windows::core::{PCWSTR, w};
 
@@ -586,10 +590,16 @@ mod windows_impl {
             return;
         }
         let hwnd = HWND(raw as *mut core::ffi::c_void);
+        // Posted, not sent (`ShowWindowAsync`, as GPUI's own `activate`
+        // does): the callers hold GPUI's app state, and a show or hide sent
+        // at once runs the window procedure inside that borrow, where GPUI
+        // drops what it cannot deliver ("RefCell already borrowed", seen on
+        // Windows 11 ARM on 2026-11-21: the activation, visibility and
+        // input callbacks of that moment).
         // SAFETY: `IsWindow` validates the handle before hiding it.
         unsafe {
             if IsWindow(Some(hwnd)).as_bool() {
-                let _ = ShowWindow(hwnd, SW_HIDE);
+                let _ = ShowWindowAsync(hwnd, SW_HIDE);
             }
         }
     }
@@ -599,8 +609,11 @@ mod windows_impl {
             return;
         }
         let hwnd = HWND(raw as *mut core::ffi::c_void);
-        // SAFETY: `IsWindow` validates the handle before restoring and
-        // bringing it to the foreground.
+        // Posted, like the hide above. Bringing it to the foreground is the
+        // caller's `Window::activate_window`, which GPUI runs outside its
+        // app state; `SetForegroundWindow` here would send the activation
+        // messages inside the caller's borrow.
+        // SAFETY: `IsWindow` validates the handle before restoring it.
         unsafe {
             if IsWindow(Some(hwnd)).as_bool() {
                 let cmd = if IsIconic(hwnd).as_bool() {
@@ -608,8 +621,7 @@ mod windows_impl {
                 } else {
                     SW_SHOW
                 };
-                let _ = ShowWindow(hwnd, cmd);
-                let _ = SetForegroundWindow(hwnd);
+                let _ = ShowWindowAsync(hwnd, cmd);
             }
         }
     }
