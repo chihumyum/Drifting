@@ -43,3 +43,11 @@
   - `pnpm public:check`：通过
 - **待协调**：
   - ~~**F6（`dr-shell::settings`）实时编辑防抖接线**~~：**已接通（2026-11-19）**。`dr_shell::settings::on_changed` 在每次 `Settings::update` 完成后通知监听者；`dr_view_account::init` 对比显式跟账号偏好快照（`synced_preference_keys`），仅在跟账号项发生变化且非远端写回时调用 `schedule_preference_sync(cx)`。
+
+## 0.1 客户端的偏好（2026-11-21）
+
+账号袋子里还有 0.1 客户端用自己的键名同步的偏好（`themeMode`、`bodyFontSize`、`shortcutBindings`…）。新键在账号里还没有真正的改动（没有，或只有 `UNCHANGED_AT` 的默认值）时，合并把对应的 0.1 值（按同一张对照表换算、收进范围）当作这个新键的账号值，谁新谁赢，赢了写进新键；0.1 的条目从不改、不删。对照表、为什么放在合并里、测试，见 [m10-import.md](m10-import.md) 的「0.1 的设置、快捷键和工作记忆（2026-11-21）」。
+
+- 代码：`dr-account` 的 `Adopt`、`AccountService::sync_preferences_adopting`、`sync_preferences_with_client_adopting`；`dr-view-account` 的 `adopt_from_v1`（表在 `dr_shell::settings::v1`）。
+- 同时修了：收到 `null` 时只有不接受 `null` 的键才回到默认，`agent.max_model_rounds` 的「不限」（`null`）不再变成 50；`dr-view-agent` 的模型连接跟上设置里改了的迭代上限。
+- 测试：`dr-account` `another_clients_value_stands_in_for_a_key_without_a_change_and_is_left_alone`、`dr-view-account` `the_01_clients_synced_preferences_are_adopted_and_left_in_the_bag`。

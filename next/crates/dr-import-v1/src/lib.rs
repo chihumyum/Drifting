@@ -13,12 +13,15 @@
 //! - [`time`]: 0.1 timestamps;
 //! - [`run`]: one import, start to finish, reporting [`progress`];
 //! - [`meta`]: the snapshot history's metadata replayed into the book
-//!   document; [`receipt`]: what the import did.
+//!   document; [`receipt`]: what the import did;
+//! - [`carry`]: what the 0.1 library kept for this device (settings,
+//!   shortcuts, the Agent's working memory) that the new client takes over.
 //!
 //! The original library is never written: everything reads the staging copy.
 
 pub mod anchors;
 pub mod book;
+pub mod carry;
 pub mod error;
 pub mod gate;
 pub mod handoff;

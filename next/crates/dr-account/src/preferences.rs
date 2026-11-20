@@ -105,6 +105,23 @@ pub fn clamp_to_server_clock(client_changed_at: &str, server_now: &str) -> Strin
     }
 }
 
+/// For a key of this client, the value and change time another client of
+/// the account left in the same bag under its own name (the 0.1 client's,
+/// `m10-import.md` 「0.1 的设置、快捷键和工作记忆」), already in this
+/// client's form; `None` when it left none.
+pub type Adopt<'a> =
+    &'a (dyn Fn(&str, &BTreeMap<String, RemotePreference>) -> Option<RemotePreference> + Sync);
+
+/// Adopts nothing.
+fn adopt_nothing(_: &str, _: &BTreeMap<String, RemotePreference>) -> Option<RemotePreference> {
+    None
+}
+
+/// Whether `changed_at` is a change, not the seed of an untouched default.
+fn is_change(changed_at: &str) -> bool {
+    compare_iso_timestamps(changed_at, UNCHANGED_AT) == Ordering::Greater
+}
+
 impl AccountService {
     /// Run one full preference sync round for the currently signed-in account.
     ///
@@ -116,6 +133,19 @@ impl AccountService {
         keys: &[&str],
         local_values: &BTreeMap<String, Value>,
         ledger: &PreferenceLedger,
+    ) -> Result<PreferenceSyncOutcome, AccountError> {
+        self.sync_preferences_adopting(keys, local_values, ledger, &adopt_nothing)
+    }
+
+    /// [`Self::sync_preferences`], also taking for a key that holds no change
+    /// in the bag the value another client left under its own name
+    /// ([`Adopt`]), by the same rule as any other change: the newest wins.
+    pub fn sync_preferences_adopting(
+        &self,
+        keys: &[&str],
+        local_values: &BTreeMap<String, Value>,
+        ledger: &PreferenceLedger,
+        adopt: Adopt<'_>,
     ) -> Result<PreferenceSyncOutcome, AccountError> {
         let Some(origin) = self.config().origin() else {
             return Ok(PreferenceSyncOutcome {
@@ -143,7 +173,7 @@ impl AccountService {
             });
         };
 
-        sync_preferences_with_client(
+        sync_preferences_with_client_adopting(
             self.client(),
             origin,
             &token,
@@ -151,6 +181,7 @@ impl AccountService {
             keys,
             local_values,
             ledger,
+            adopt,
         )
     }
 }
@@ -164,6 +195,35 @@ pub fn sync_preferences_with_client(
     keys: &[&str],
     local_values: &BTreeMap<String, Value>,
     ledger: &PreferenceLedger,
+) -> Result<PreferenceSyncOutcome, AccountError> {
+    sync_preferences_with_client_adopting(
+        client,
+        origin,
+        token,
+        account_id,
+        keys,
+        local_values,
+        ledger,
+        &adopt_nothing,
+    )
+}
+
+/// [`sync_preferences_with_client`] with [`Adopt`]. For a key whose own
+/// entry in the bag is missing or only an untouched default's seed, an
+/// adopted value with a real change time stands in for it: it is merged
+/// like the account's value (a newer pending change here still wins) and,
+/// when it wins, written under the key, so the next round and every other
+/// device find it there. The other client's own entry is never written.
+#[allow(clippy::too_many_arguments)]
+pub fn sync_preferences_with_client_adopting(
+    client: &HostedClient,
+    origin: &HostedOrigin,
+    token: &str,
+    account_id: &str,
+    keys: &[&str],
+    local_values: &BTreeMap<String, Value>,
+    ledger: &PreferenceLedger,
+    adopt: Adopt<'_>,
 ) -> Result<PreferenceSyncOutcome, AccountError> {
     // Switching from one signed-in account to another clears pending flags from
     // the previous account so Account A's unpushed edits do not overwrite Account B.
@@ -211,8 +271,14 @@ pub fn sync_preferences_with_client(
         };
         let entry = next_ledger.entries.get(key);
         let local_at = entry.map(|e| e.changed_at.as_str()).unwrap_or(UNCHANGED_AT);
+        let own = remote.get(key);
+        let adopted = if own.is_none_or(|e| !is_change(&e.changed_at)) {
+            adopt(key, &remote).filter(|a| is_change(&a.changed_at))
+        } else {
+            None
+        };
 
-        if let Some(remote_entry) = remote.get(key) {
+        if let Some(remote_entry) = adopted.as_ref().or(own) {
             if entry.is_some_and(|e| e.pending)
                 && compare_iso_timestamps(local_at, &remote_entry.changed_at) == Ordering::Greater
             {
@@ -222,6 +288,13 @@ pub fn sync_preferences_with_client(
                     changed_at: local_at.to_owned(),
                 });
             } else {
+                if adopted.is_some() {
+                    to_put.push(PreferenceWrite {
+                        key: key.to_owned(),
+                        value: remote_entry.value.clone(),
+                        changed_at: remote_entry.changed_at.clone(),
+                    });
+                }
                 applied.insert(key.to_owned(), remote_entry.value.clone());
                 next_ledger.entries.insert(
                     key.to_owned(),

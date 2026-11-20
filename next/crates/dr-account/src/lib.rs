@@ -29,9 +29,10 @@ pub use oauth::{
     pkce_s256_challenge, read_pending_oauth, save_pending_oauth,
 };
 pub use preferences::{
-    PreferenceEndpointStatus, PreferenceLedger, PreferenceLedgerEntry, PreferenceSyncOutcome,
-    PreferenceWrite, RemotePreference, UNCHANGED_AT, clamp_to_server_clock, compare_iso_timestamps,
-    now_iso8601, sync_preferences_with_client,
+    Adopt, PreferenceEndpointStatus, PreferenceLedger, PreferenceLedgerEntry,
+    PreferenceSyncOutcome, PreferenceWrite, RemotePreference, UNCHANGED_AT, clamp_to_server_clock,
+    compare_iso_timestamps, now_iso8601, sync_preferences_with_client,
+    sync_preferences_with_client_adopting,
 };
 pub use profile::{
     AVATAR_CANVAS_SIZE, AccountErrorCode, HostedUser, MAX_AVATAR_DATA_URL_BYTES,
@@ -630,5 +631,126 @@ mod tests {
             .expect("404 must not error");
         assert!(!out_unsupported.supported);
         assert!(out_unsupported.applied.is_empty());
+    }
+
+    /// M37 with another client's names in the bag (the 0.1 client's,
+    /// `m10-import.md` 「0.1 的设置、快捷键和工作记忆」): its value stands in
+    /// only for a key that holds no change, the newest change still wins,
+    /// and its own entries are never written.
+    #[test]
+    fn another_clients_value_stands_in_for_a_key_without_a_change_and_is_left_alone() {
+        use serde_json::json;
+        use std::collections::BTreeMap;
+
+        let server = FakeAuthServer::start();
+        server.set_require_signup_verification(false);
+        server.set_server_clock(Some("2026-11-21T12:00:00.000Z"));
+        let tmp = TempDir::new().expect("tempdir");
+        let svc = AccountService::new(
+            server.config(),
+            tmp.path(),
+            "cc.drifting.next.dev",
+            Arc::new(SecretStore::in_memory()),
+        )
+        .expect("svc");
+        svc.sign_up_email("Writer", "adopt@example.test", "adopt-password-123")
+            .expect("sign up");
+        let origin = server.origin();
+        let token = svc.current_token().expect("token");
+        let write = |key: &str, value: serde_json::Value, at: &str| PreferenceWrite {
+            key: key.into(),
+            value,
+            changed_at: at.into(),
+        };
+        let october = "2026-10-01T08:00:00.000Z";
+        // What the other client wrote under its own names, and a seed and a
+        // real change of this client's.
+        svc.client()
+            .put_preferences(
+                &origin,
+                &token,
+                &[
+                    write("old.theme", json!("dark"), october),
+                    write("old.size", json!(19), october),
+                    write("old.width", json!(840), UNCHANGED_AT),
+                    write("old.spacing", json!(2.0), october),
+                    write("theme", json!("system"), UNCHANGED_AT),
+                    write("spacing", json!(1.2), "2026-11-01T08:00:00.000Z"),
+                ],
+            )
+            .expect("seed the bag");
+        let theirs = |bag: &BTreeMap<String, RemotePreference>| -> String {
+            serde_json::to_string(
+                &bag.iter()
+                    .filter(|(k, _)| k.starts_with("old."))
+                    .collect::<BTreeMap<_, _>>(),
+            )
+            .unwrap()
+        };
+        let before = theirs(&server.preferences_for("adopt@example.test"));
+        let adopt = |key: &str, bag: &BTreeMap<String, RemotePreference>| {
+            bag.get(&format!("old.{key}")).cloned()
+        };
+        let keys = ["theme", "size", "width", "spacing"];
+        let local = BTreeMap::from([
+            ("theme".to_string(), json!("system")),
+            ("size".to_string(), json!(22)),
+            ("width".to_string(), json!(720)),
+            ("spacing".to_string(), json!(1.0)),
+        ]);
+        let mut ledger = PreferenceLedger::default();
+        ledger.entries.insert(
+            "size".into(),
+            PreferenceLedgerEntry {
+                changed_at: "2026-11-20T08:00:00.000Z".into(),
+                pending: true,
+            },
+        );
+        let out = svc
+            .sync_preferences_adopting(&keys, &local, &ledger, &adopt)
+            .expect("sync");
+        assert!(out.supported);
+        // A seed loses to the other client's change; a newer change here
+        // wins; an untouched seed of theirs is no change; a change of ours
+        // is never replaced.
+        assert_eq!(out.applied.get("theme"), Some(&json!("dark")));
+        assert_eq!(out.ledger.entries["theme"].changed_at, october);
+        assert!(!out.applied.contains_key("size"));
+        assert!(!out.applied.contains_key("width"));
+        assert_eq!(out.applied.get("spacing"), Some(&json!(1.2)));
+        let bag = server.preferences_for("adopt@example.test");
+        assert_eq!(bag["theme"].value, json!("dark"));
+        assert_eq!(bag["theme"].changed_at, october);
+        assert_eq!(bag["size"].value, json!(22));
+        assert_eq!(bag["width"].value, json!(720));
+        assert_eq!(
+            theirs(&bag),
+            before,
+            "the other client's entries as they were"
+        );
+
+        // Taken once: a later change of theirs is no longer adopted, the key
+        // holds a change now.
+        svc.client()
+            .put_preferences(
+                &origin,
+                &token,
+                &[write(
+                    "old.theme",
+                    json!("light"),
+                    "2026-11-10T08:00:00.000Z",
+                )],
+            )
+            .expect("a later change of theirs");
+        let mut local = local;
+        local.insert("theme".into(), json!("dark"));
+        let again = svc
+            .sync_preferences_adopting(&keys, &local, &out.ledger, &adopt)
+            .expect("sync again");
+        assert_eq!(again.applied.get("theme"), Some(&json!("dark")));
+        assert_eq!(
+            server.preferences_for("adopt@example.test")["theme"].value,
+            json!("dark")
+        );
     }
 }
