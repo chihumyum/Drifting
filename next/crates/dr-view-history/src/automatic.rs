@@ -1,11 +1,19 @@
 //! Entry-wide periodic/close checkpoints, following F2's existing cadence.
-//! Holder callbacks only enqueue; a worker calls the complete atomic command.
+//! Holder callbacks only enqueue; a worker takes the checkpoints, many
+//! entries of a book in one atomic write (`snapshots::CapturePlan`).
+//!
+//! Entries without any checkpoint (a library just imported or seeded, a
+//! book synced in) get their first one from the worker in the background,
+//! a while after it starts and while the author is not typing, a small
+//! batch at a time; so the first quit does not have to take a point for
+//! every entry of the library. Whatever the pass has not reached when the
+//! app quits, the last sweep takes, batched as well.
 use dr_doc::v3::BorrowedBookV3;
 use dr_model::{DocId, id::BookId};
-use dr_store::{LibrarySubscription, StoreEvent};
-use dr_workspace::{Actor, Workspace, commands::v3::snapshots as api};
+use dr_store::{LibrarySubscription, Origin, StoreEvent};
+use dr_workspace::{Workspace, commands::v3::snapshots as api};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, VecDeque},
     sync::mpsc,
     thread,
     time::{Duration, Instant},
@@ -14,11 +22,142 @@ use std::{
 pub const PERIODIC_INTERVAL: Duration =
     Duration::from_millis(dr_store::history::PERIODIC_INTERVAL_MS as u64);
 
+/// How long after the worker starts it begins giving entries without a
+/// checkpoint their first one: opening the library and its first book come
+/// first. A quit before then takes them in the last sweep.
+pub const FIRST_POINTS_DELAY: Duration = Duration::from_secs(30);
+/// Entries per background write (the first points and the periodic
+/// captures). Each write reserves the book and those entries' bodies for a
+/// few milliseconds; a keystroke in one of them waits for it.
+pub const BACKGROUND_BATCH: usize = 8;
+/// Between two first-points writes, for whatever queued behind one.
+pub const FIRST_POINTS_GAP: Duration = Duration::from_millis(50);
+/// After the author typed, how long the first-points pass waits before its
+/// next write.
+pub const FIRST_POINTS_QUIET: Duration = Duration::from_secs(2);
+/// A first-points write that failed (another write to the book got in
+/// between, say) is tried again this much later, three times in all.
+const FIRST_POINTS_RETRY: Duration = Duration::from_secs(5);
+const FIRST_POINTS_TRIES: u32 = 3;
+
+/// When the worker takes checkpoints.
+#[derive(Clone, Copy, Debug)]
+pub struct Cadence {
+    /// From the first change of an entry to its periodic checkpoint.
+    pub interval: Duration,
+    /// From the start to the first-points pass; `None`: no pass (the last
+    /// sweep gives the entries their first points).
+    pub first_points: Option<Duration>,
+    /// Between two writes of the pass.
+    pub gap: Duration,
+    /// How long the pass waits after the author typed.
+    pub quiet: Duration,
+}
+impl Default for Cadence {
+    fn default() -> Self {
+        Self {
+            interval: PERIODIC_INTERVAL,
+            first_points: Some(FIRST_POINTS_DELAY),
+            gap: FIRST_POINTS_GAP,
+            quiet: FIRST_POINTS_QUIET,
+        }
+    }
+}
+
 enum Message {
-    Changed(String),
+    /// A persisted change of `doc`; `typed`: the author's own typing.
+    Changed {
+        doc: String,
+        typed: bool,
+    },
     Stop(mpsc::Sender<Result<(), String>>),
     #[cfg(test)]
     DirtySnapshot(mpsc::Sender<BTreeSet<(String, String)>>),
+    /// One write of the first-points pass now, whatever its timer says:
+    /// how many entries it held, or the error.
+    #[cfg(test)]
+    FirstPointsStep(mpsc::Sender<Result<usize, String>>),
+    /// When the pass writes next.
+    #[cfg(test)]
+    FirstPointsAt(mpsc::Sender<Option<Instant>>),
+    /// Stop without the last sweep, as a crash or a forced quit would.
+    #[cfg(test)]
+    Abandon,
+}
+
+/// The first-points pass: which entries are left, in batches.
+#[derive(Default)]
+struct FirstPoints {
+    listed: bool,
+    queue: VecDeque<(String, Vec<String>)>,
+    tries: u32,
+    /// The book of the batches being written, read once for all of them.
+    plan: Option<(String, api::CapturePlan)>,
+}
+impl FirstPoints {
+    /// Every entry of every book that has no checkpoint yet, in batches.
+    fn list(ws: &Workspace) -> VecDeque<(String, Vec<String>)> {
+        let mut queue = VecDeque::new();
+        let Ok(books) = ws.library().docs(None, Some("book")) else {
+            return queue;
+        };
+        for info in books {
+            let Ok(DocId::Book(book)) = DocId::parse(&info.doc_id) else {
+                continue;
+            };
+            match api::entries_without_checkpoint(ws, book.as_str()) {
+                Ok(entries) => {
+                    for batch in entries.chunks(BACKGROUND_BATCH) {
+                        queue.push_back((book.to_string(), batch.to_vec()));
+                    }
+                }
+                Err(e) => log::warn!("entries without a checkpoint could not be listed: {e}"),
+            }
+        }
+        queue
+    }
+    /// One write: the entries it held (0 when nothing is left).
+    fn step(&mut self, ws: &Workspace) -> Result<usize, String> {
+        if !self.listed {
+            self.queue = Self::list(ws);
+            self.listed = true;
+        }
+        let Some((book, batch)) = self.queue.pop_front() else {
+            self.plan = None;
+            return Ok(0);
+        };
+        let plan = match self.plan.take() {
+            Some((of, plan)) if of == book => Ok(plan),
+            _ => api::CapturePlan::read(ws, &book),
+        };
+        let written = plan.and_then(|mut plan| {
+            let r = plan.capture(ws, &batch, api::CaptureReason::Periodic);
+            self.plan = Some((book.clone(), plan));
+            r
+        });
+        if self.queue.is_empty() {
+            self.plan = None;
+        }
+        match written {
+            Ok(_) => {
+                self.tries = 0;
+                Ok(batch.len())
+            }
+            Err(e) => {
+                self.tries += 1;
+                if self.tries < FIRST_POINTS_TRIES {
+                    self.queue.push_front((book, batch));
+                } else {
+                    // Left to the periodic captures and the last sweep.
+                    self.tries = 0;
+                }
+                Err(e.to_string())
+            }
+        }
+    }
+    fn done(&self) -> bool {
+        self.listed && self.queue.is_empty()
+    }
 }
 pub struct AutomaticHistory {
     send: mpsc::Sender<Message>,
@@ -77,23 +216,33 @@ fn book_owners_at(
         .map_err(|e| e.to_string())?;
     owners_from_doc(&d, book)
 }
-fn capture(
+/// The periodic captures of the entries in `pending`, a book at a time and
+/// [`BACKGROUND_BATCH`] entries per write. Those whose write failed stay in
+/// `dirty` for the next round.
+fn capture_periodic(
     ws: &Workspace,
-    key: &(String, String),
-    reason: api::CaptureReason,
-) -> Result<(), String> {
-    match ws.run::<api::Capture>(
-        &Actor::User,
-        api::CaptureIn {
-            target: api::EntryIn {
-                book: key.0.clone(),
-                entry: key.1.clone(),
-            },
-            reason,
-        },
-    ) {
-        Ok(_) | Err(dr_workspace::WsError::NotFound { what: "entry", .. }) => Ok(()),
-        Err(e) => Err(e.to_string()),
+    pending: BTreeSet<(String, String)>,
+    dirty: &mut BTreeSet<(String, String)>,
+) {
+    let mut by_book: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for (book, entry) in pending {
+        by_book.entry(book).or_default().push(entry);
+    }
+    for (book, entries) in by_book {
+        let mut plan = match api::CapturePlan::read(ws, &book) {
+            Ok(plan) => plan,
+            Err(e) => {
+                log::warn!("periodic entry checkpoint failed: {e}");
+                dirty.extend(entries.into_iter().map(|entry| (book.clone(), entry)));
+                continue;
+            }
+        };
+        for batch in entries.chunks(BACKGROUND_BATCH) {
+            if let Err(e) = plan.capture(ws, batch, api::CaptureReason::Periodic) {
+                log::warn!("periodic entry checkpoint failed: {e}");
+                dirty.extend(batch.iter().map(|entry| (book.clone(), entry.clone())));
+            }
+        }
     }
 }
 /// Whether a persisted change can have changed what some entry owns: an
@@ -129,10 +278,21 @@ fn concerns_entries(e: &dr_store::DocEvent) -> bool {
 
 impl AutomaticHistory {
     pub fn start(ws: Workspace) -> Self {
-        Self::start_with_interval(ws, PERIODIC_INTERVAL)
+        Self::start_with(ws, Cadence::default())
     }
 
     pub fn start_with_interval(ws: Workspace, interval: Duration) -> Self {
+        Self::start_with(
+            ws,
+            Cadence {
+                interval,
+                ..Cadence::default()
+            },
+        )
+    }
+
+    pub fn start_with(ws: Workspace, cadence: Cadence) -> Self {
+        let interval = cadence.interval;
         // Capture pre-subscription book heads synchronously (`loro_head` point
         // reads only) so an immediate foreground edit cannot race the worker's
         // baseline read and cause every entry in the book to be marked dirty.
@@ -143,29 +303,43 @@ impl AutomaticHistory {
             if let StoreEvent::Doc(e) = event
                 && concerns_entries(e)
             {
-                let _ = events.send(Message::Changed(e.doc_id.to_string()));
+                let _ = events.send(Message::Changed {
+                    doc: e.doc_id.to_string(),
+                    typed: e.origin == Origin::User,
+                });
             }
         });
         let worker = thread::spawn(move || {
             let mut known: BTreeMap<BookId, BookOwners> = BTreeMap::new();
             let mut dirty: BTreeSet<(String, String)> = BTreeSet::new();
             let mut deadline: Option<Instant> = None;
+            let mut first = FirstPoints::default();
+            let mut first_at: Option<Instant> = cadence.first_points.map(|d| Instant::now() + d);
             loop {
-                let message = match deadline {
+                let wake = deadline.into_iter().chain(first_at).min();
+                let message = match wake {
                     Some(at) => match rx.recv_timeout(at.saturating_duration_since(Instant::now()))
                     {
                         Ok(message) => message,
                         Err(mpsc::RecvTimeoutError::Timeout) => {
-                            deadline = None;
-                            let pending = std::mem::take(&mut dirty);
-                            for key in pending {
-                                if let Err(e) = capture(&ws, &key, api::CaptureReason::Periodic) {
-                                    log::warn!("periodic entry checkpoint failed: {e}");
-                                    dirty.insert(key);
+                            let now = Instant::now();
+                            if deadline.is_some_and(|at| at <= now) {
+                                deadline = None;
+                                let pending = std::mem::take(&mut dirty);
+                                capture_periodic(&ws, pending, &mut dirty);
+                                if !dirty.is_empty() {
+                                    deadline = Some(Instant::now() + interval);
                                 }
                             }
-                            if !dirty.is_empty() {
-                                deadline = Some(Instant::now() + interval);
+                            if first_at.is_some_and(|at| at <= now) {
+                                first_at = match first.step(&ws) {
+                                    Ok(_) if first.done() => None,
+                                    Ok(_) => Some(Instant::now() + cadence.gap),
+                                    Err(e) => {
+                                        log::warn!("first entry checkpoints failed: {e}");
+                                        (!first.done()).then(|| Instant::now() + FIRST_POINTS_RETRY)
+                                    }
+                                };
                             }
                             continue;
                         }
@@ -177,7 +351,11 @@ impl AutomaticHistory {
                     },
                 };
                 match message {
-                    Message::Changed(doc) => {
+                    Message::Changed { doc, typed } => {
+                        // The pass makes way for the author's typing.
+                        if typed && let Some(at) = first_at.as_mut() {
+                            *at = (*at).max(Instant::now() + cadence.quiet);
+                        }
                         match DocId::parse(&doc) {
                             Ok(DocId::Body(body)) => {
                                 if let Ok(Some(info)) = ws.library().doc_info(&doc)
@@ -235,6 +413,8 @@ impl AutomaticHistory {
                         }
                     }
                     Message::Stop(done) => {
+                        // What the first-points pass has not reached yet is
+                        // due, so this sweep takes it.
                         let result = capture_on_close(&ws);
                         let _ = done.send(result);
                         break;
@@ -243,6 +423,16 @@ impl AutomaticHistory {
                     Message::DirtySnapshot(reply) => {
                         let _ = reply.send(dirty.clone());
                     }
+                    #[cfg(test)]
+                    Message::FirstPointsStep(reply) => {
+                        let _ = reply.send(first.step(&ws));
+                    }
+                    #[cfg(test)]
+                    Message::FirstPointsAt(reply) => {
+                        let _ = reply.send(first_at);
+                    }
+                    #[cfg(test)]
+                    Message::Abandon => break,
                 }
             }
         });
@@ -258,6 +448,28 @@ impl AutomaticHistory {
         let (tx, rx) = mpsc::channel();
         self.send.send(Message::DirtySnapshot(tx)).unwrap();
         rx.recv().unwrap()
+    }
+
+    #[cfg(test)]
+    fn first_points_step(&self) -> Result<usize, String> {
+        let (tx, rx) = mpsc::channel();
+        self.send.send(Message::FirstPointsStep(tx)).unwrap();
+        rx.recv().unwrap()
+    }
+
+    #[cfg(test)]
+    fn first_points_at(&self) -> Option<Instant> {
+        let (tx, rx) = mpsc::channel();
+        self.send.send(Message::FirstPointsAt(tx)).unwrap();
+        rx.recv().unwrap()
+    }
+
+    /// The worker stops as the process would in a crash: no last sweep.
+    #[cfg(test)]
+    fn abandon(mut self) {
+        self.subscription.take();
+        self.send.send(Message::Abandon).unwrap();
+        self.worker.take().unwrap().join().unwrap();
     }
 
     /// Stop admission, drain previously queued writes and save dirty entries.
@@ -292,10 +504,15 @@ impl Drop for AutomaticHistory {
 /// compares entry-owned content, so checkpoint metadata and other books do not
 /// manufacture new versions. Also usable by a host's explicit close flow.
 ///
-/// The command is called only for the entries it has something to do for
-/// (`entries_due_for_capture`: the same comparison, made once for the whole
-/// book), so a quit costs what changed and not one copy of the book document
-/// per entry. Which entries earn a checkpoint is the same either way.
+/// Only the entries a capture has something to do for are captured
+/// (`entries_due_for_capture`: the command's comparison, made once for the
+/// whole book), so a quit costs what changed and not one copy of the book
+/// document per entry. They are captured [`api::CAPTURE_BATCH`] at a time,
+/// one atomic write each (`capture_entries`): the same points the command
+/// takes entry by entry, so a first quit with hundreds of entries without a
+/// checkpoint is a handful of writes. A write that fails stops the sweep
+/// (and the quit) with its error; the writes before it are kept, and its
+/// entries are still due.
 pub fn capture_on_close(ws: &Workspace) -> Result<(), String> {
     for info in ws
         .library()
@@ -306,9 +523,13 @@ pub fn capture_on_close(ws: &Workspace) -> Result<(), String> {
             continue;
         };
         let due = api::entries_due_for_capture(ws, book.as_str()).map_err(|e| e.to_string())?;
-        for entry in due {
-            let key = (book.to_string(), entry);
-            capture(ws, &key, api::CaptureReason::Close)?;
+        if due.is_empty() {
+            continue;
+        }
+        let mut plan = api::CapturePlan::read(ws, book.as_str()).map_err(|e| e.to_string())?;
+        for batch in due.chunks(api::CAPTURE_BATCH) {
+            plan.capture(ws, batch, api::CaptureReason::Close)
+                .map_err(|e| e.to_string())?;
         }
     }
     Ok(())
@@ -318,6 +539,7 @@ pub fn capture_on_close(ws: &Workspace) -> Result<(), String> {
 mod tests {
     use super::*;
     use crate::v3::tests::{call, setup};
+    use dr_workspace::Actor;
     use serde_json::json;
     #[test]
     fn worker_drains_periodic_and_close_points_and_releases_library_handles() {
@@ -985,6 +1207,343 @@ mod tests {
                 .any(|b| b.text.contains("Typed while the disk refused"))
         );
         drop(session);
+        ws.shutdown().unwrap();
+    }
+
+    /// The worker without its first-points pass on a timer (the tests step
+    /// it).
+    fn no_pass() -> Cadence {
+        Cadence {
+            first_points: None,
+            ..Cadence::default()
+        }
+    }
+    /// Commits per document kind while `f` runs, as the store announces them.
+    fn commits(ws: &Workspace, f: impl FnOnce()) -> BTreeMap<String, usize> {
+        let seen: std::sync::Arc<std::sync::Mutex<BTreeMap<String, usize>>> = Default::default();
+        let sink = seen.clone();
+        let subscription = ws.library().subscribe(move |event| {
+            if let StoreEvent::Doc(e) = event {
+                let kind = e.doc_id.split(':').next().unwrap_or_default().to_owned();
+                *sink.lock().unwrap().entry(kind).or_default() += 1;
+            }
+        });
+        f();
+        drop(subscription);
+        std::mem::take(&mut *seen.lock().unwrap())
+    }
+    /// The documents of the book, as the registry lists them.
+    fn documents(ws: &Workspace, book: &str) -> BTreeSet<String> {
+        ws.library()
+            .docs(Some(book), None)
+            .unwrap()
+            .into_iter()
+            .map(|d| d.doc_id)
+            .collect()
+    }
+
+    #[test]
+    fn the_first_close_takes_every_entry_in_a_bounded_number_of_writes() {
+        let (_dir, ws, t) = setup();
+        let all = api::entries_without_checkpoint(&ws, &t.book).unwrap();
+        assert_eq!(
+            all.iter().cloned().collect::<BTreeSet<_>>(),
+            ids(&entries(&ws, &t.book)),
+            "no entry has a checkpoint yet"
+        );
+        assert!(all.len() > 10, "a seed with many entries: {}", all.len());
+        let made = commits(&ws, || capture_on_close(&ws).unwrap());
+        // One write per CAPTURE_BATCH entries, not one per entry.
+        assert_eq!(
+            made.get("checkpoints").copied(),
+            Some(all.len().div_ceil(api::CAPTURE_BATCH)),
+            "{made:?}"
+        );
+        assert!(
+            made.keys()
+                .all(|kind| ["checkpoints", "body"].contains(&kind.as_str()))
+        );
+        let points = checkpoints(&ws, &t.book);
+        assert!(points.values().all(|p| p.len() == 1 && p[0].1 == "close"));
+        assert_eq!(points.len(), all.len());
+        // The quit after it has nothing left to write.
+        assert_eq!(
+            commits(&ws, || capture_on_close(&ws).unwrap()),
+            BTreeMap::new()
+        );
+        ws.shutdown().unwrap();
+    }
+
+    /// Two libraries holding the same seeded book (the same ids).
+    fn twins() -> [(tempfile::TempDir, Workspace, String); 2] {
+        let seed = dr_testkit::seed::generate_v3(
+            dr_testkit::seed::Preset::Tiny,
+            dr_testkit::seed::DEFAULT_SEED,
+        )
+        .unwrap();
+        let book = seed.books[0].book_id().to_string();
+        [(), ()].map(|_| {
+            let dir = tempfile::tempdir().unwrap();
+            let store =
+                dr_store::Library::open(dir.path(), dr_workspace::library_options("test")).unwrap();
+            seed.write_to(&store).unwrap();
+            store.close().unwrap();
+            let ws = Workspace::open_dir(dir.path(), "test").unwrap();
+            (dir, ws, book.clone())
+        })
+    }
+    /// What a point holds, without the versions (each library has its own
+    /// device, so its own operation ids).
+    fn content(ws: &Workspace, book: &str, entry: &str, point: &str) -> serde_json::Value {
+        let p = ws
+            .run::<api::Preview>(
+                &Actor::User,
+                api::PointIn {
+                    target: api::EntryIn {
+                        book: book.to_owned(),
+                        entry: entry.to_owned(),
+                    },
+                    point: point.to_owned(),
+                },
+            )
+            .unwrap()
+            .output;
+        json!({
+            "title": p.point.title,
+            "reason": p.point.reason,
+            "bodies": p.point.bodies.keys().collect::<Vec<_>>(),
+            "metadata": p.metadata,
+            "raw_state": p.raw_state,
+            "records": p.records,
+            "template": p.template,
+            "template_metadata": p.template_metadata,
+            "texts": p.bodies.iter().map(|b| json!([b.doc, b.text, b.raw_state])).collect::<Vec<_>>(),
+        })
+    }
+
+    #[test]
+    fn batched_first_points_hold_what_the_command_took_entry_by_entry() {
+        let [(_a, batched, book), (_b, one_by_one, _)] = twins();
+        capture_on_close(&batched).unwrap();
+        // The sweep as it was: the command for each entry due.
+        for entry in api::entries_due_for_capture(&one_by_one, &book).unwrap() {
+            one_by_one
+                .run::<api::Capture>(
+                    &Actor::User,
+                    api::CaptureIn {
+                        target: api::EntryIn {
+                            book: book.clone(),
+                            entry,
+                        },
+                        reason: api::CaptureReason::Close,
+                    },
+                )
+                .unwrap();
+        }
+        // The same documents (the default bodies a capture creates) and,
+        // entry by entry, one point holding the same.
+        assert_eq!(documents(&batched, &book), documents(&one_by_one, &book));
+        let (a, b) = (
+            checkpoints(&batched, &book),
+            checkpoints(&one_by_one, &book),
+        );
+        assert_eq!(a.keys().collect::<Vec<_>>(), b.keys().collect::<Vec<_>>());
+        for (entry, points) in &a {
+            assert_eq!((points.len(), b[entry].len()), (1, 1), "{entry}");
+            assert_eq!(
+                content(&batched, &book, entry, &points[0].0),
+                content(&one_by_one, &book, entry, &b[entry][0].0),
+                "{entry}"
+            );
+        }
+        for ws in [batched, one_by_one] {
+            ws.shutdown().unwrap();
+        }
+    }
+
+    #[test]
+    fn the_first_points_pass_takes_every_entry_a_batch_at_a_time_and_leaves_the_quit_nothing() {
+        let (_dir, ws, t) = setup();
+        let all = api::entries_without_checkpoint(&ws, &t.book).unwrap();
+        let service = AutomaticHistory::start_with(ws.clone(), no_pass());
+        let mut steps = 0;
+        let made = commits(&ws, || {
+            while service.first_points_step().unwrap() > 0 {
+                steps += 1;
+            }
+        });
+        assert_eq!(steps, all.len().div_ceil(BACKGROUND_BATCH));
+        assert_eq!(made.get("checkpoints").copied(), Some(steps), "{made:?}");
+        let points = checkpoints(&ws, &t.book);
+        assert_eq!(points.len(), all.len());
+        assert!(
+            points
+                .values()
+                .all(|p| p.len() == 1 && p[0].1 == "periodic")
+        );
+        assert!(
+            api::entries_without_checkpoint(&ws, &t.book)
+                .unwrap()
+                .is_empty()
+        );
+        // Each is the entry as it is: what a close would have saved.
+        for entry in &all {
+            let saved = ws
+                .run::<api::Capture>(
+                    &Actor::User,
+                    api::CaptureIn {
+                        target: api::EntryIn {
+                            book: t.book.clone(),
+                            entry: entry.clone(),
+                        },
+                        reason: api::CaptureReason::Close,
+                    },
+                )
+                .unwrap()
+                .output;
+            assert_eq!(saved.id, points[entry][0].0, "{entry}");
+        }
+        assert_eq!(commits(&ws, || service.finish().unwrap()), BTreeMap::new());
+        ws.shutdown().unwrap();
+    }
+
+    #[test]
+    fn a_pass_stopped_halfway_keeps_whole_points_and_the_rest_is_taken_later() {
+        let (dir, ws, t) = setup();
+        let all = api::entries_without_checkpoint(&ws, &t.book).unwrap();
+        assert!(all.len() > 2 * BACKGROUND_BATCH, "{}", all.len());
+        let service = AutomaticHistory::start_with(ws.clone(), no_pass());
+        assert_eq!(service.first_points_step(), Ok(BACKGROUND_BATCH));
+        let taken: BTreeSet<String> = all[..BACKGROUND_BATCH].iter().cloned().collect();
+        let after_one = documents(&ws, &t.book);
+        // The next write fails at its SQL append, as a crash inside it
+        // would leave it: nothing of it is stored.
+        ws.library().local_transaction(|tx| {tx.execute_batch("CREATE TRIGGER reject_checkpoint BEFORE INSERT ON loro_update WHEN NEW.doc_id LIKE 'checkpoints:%' BEGIN SELECT RAISE(ABORT,'checkpoint fault'); END;")?;Ok(())}).unwrap();
+        assert!(service.first_points_step().is_err());
+        ws.library()
+            .local_transaction(|tx| {
+                tx.execute_batch("DROP TRIGGER reject_checkpoint")?;
+                Ok(())
+            })
+            .unwrap();
+        // The process goes: no last sweep.
+        service.abandon();
+        ws.shutdown().unwrap();
+        let ws = Workspace::open_dir(dir.path(), "test").unwrap();
+        assert_eq!(
+            documents(&ws, &t.book),
+            after_one,
+            "no body of the failed write"
+        );
+        let points = checkpoints(&ws, &t.book);
+        let with: BTreeSet<String> = points
+            .iter()
+            .filter(|(_, p)| !p.is_empty())
+            .map(|(e, _)| e.clone())
+            .collect();
+        assert_eq!(with, taken);
+        for entry in &taken {
+            assert_eq!(points[entry].len(), 1);
+            ws.run::<api::Preview>(
+                &Actor::User,
+                api::PointIn {
+                    target: api::EntryIn {
+                        book: t.book.clone(),
+                        entry: entry.clone(),
+                    },
+                    point: points[entry][0].0.clone(),
+                },
+            )
+            .unwrap();
+        }
+        assert_eq!(
+            api::entries_without_checkpoint(&ws, &t.book).unwrap(),
+            all[BACKGROUND_BATCH..].to_vec()
+        );
+        // The next session's pass takes the rest; the first ones stay.
+        let service = AutomaticHistory::start_with(ws.clone(), no_pass());
+        while service.first_points_step().unwrap() > 0 {}
+        service.finish().unwrap();
+        let now = checkpoints(&ws, &t.book);
+        assert!(now.values().all(|p| p.len() == 1), "{now:?}");
+        for entry in &taken {
+            assert_eq!(now[entry], points[entry]);
+        }
+        // And restores: the first point of the chapter, after a rename.
+        let first = now[&t.entry][0].0.clone();
+        call(
+            &ws,
+            "entry.update",
+            json!({"book": t.book, "id": t.entry, "title": "Renamed after the pass"}),
+        );
+        let preview = call(
+            &ws,
+            "entry_snapshot.preview",
+            json!({"book": t.book, "entry": t.entry, "point": first}),
+        );
+        call(
+            &ws,
+            "entry_snapshot.restore",
+            json!({"book": t.book, "entry": t.entry, "point": first, "expected": preview["expected"]}),
+        );
+        assert_eq!(
+            call(&ws, "entry.get", json!({"book": t.book, "id": t.entry}))["title"],
+            preview["point"]["title"]
+        );
+        ws.shutdown().unwrap();
+    }
+
+    #[test]
+    fn the_pass_runs_on_its_timer_and_makes_way_for_the_authors_typing() {
+        // Typing puts the next write off; a command's write does not.
+        let (_dir, ws, t) = setup();
+        let hour = Duration::from_secs(3600);
+        let service = AutomaticHistory::start_with(
+            ws.clone(),
+            Cadence {
+                first_points: Some(hour),
+                quiet: 2 * hour,
+                ..Cadence::default()
+            },
+        );
+        let planned = service.first_points_at().expect("planned");
+        call(
+            &ws,
+            "module.set_prose",
+            json!({"book":t.book,"owner":t.entry,"module":"mod-prose","paragraphs":[{"text":"By a command"}]}),
+        );
+        assert_eq!(service.first_points_at(), Some(planned));
+        let session = ws
+            .prose_session(&format!("body:{}/mod-prose", t.entry))
+            .unwrap();
+        let typed = Instant::now();
+        session.edit(|t| t.insert_text(0, "Typed")).unwrap();
+        let later = service.first_points_at().expect("still planned");
+        assert!(later >= typed + 2 * hour, "put off by the quiet time");
+        drop(session);
+        service.finish().unwrap();
+        ws.shutdown().unwrap();
+
+        // On its timer: every entry gets its first point by itself.
+        let (_dir, ws, t) = setup();
+        let service = AutomaticHistory::start_with(
+            ws.clone(),
+            Cadence {
+                first_points: Some(Duration::ZERO),
+                gap: Duration::ZERO,
+                ..Cadence::default()
+            },
+        );
+        let deadline = Instant::now() + Duration::from_secs(20);
+        while !api::entries_without_checkpoint(&ws, &t.book)
+            .unwrap()
+            .is_empty()
+        {
+            assert!(Instant::now() < deadline, "the pass did not finish");
+            thread::sleep(Duration::from_millis(5));
+        }
+        assert_eq!(service.first_points_at(), None, "and stops");
+        service.finish().unwrap();
         ws.shutdown().unwrap();
     }
 }

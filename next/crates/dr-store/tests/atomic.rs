@@ -421,3 +421,86 @@ fn pre_registered_empty_document_is_guarded_against_a_racing_first_writer() {
     assert_eq!(text(a.doc()), "\n");
     assert_eq!(text(&lib.load_copy("node:b").unwrap()), "first author\n");
 }
+
+#[test]
+fn several_scopes_of_one_book_commit_together_and_each_guards_its_own_prefix() {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = open(dir.path());
+    let a = create(&lib, "node:a/1");
+    let b = create(&lib, "node:b/1");
+    let scopes = [
+        AtomicScope {
+            book_id: "book-1",
+            prefix: "node:a/",
+        },
+        AtomicScope {
+            book_id: "book-1",
+            prefix: "node:b/",
+        },
+    ];
+    let run = |new: &[AtomicNewDocument]| {
+        DocHandle::atomic_scoped_many(
+            &[a.clone(), b.clone()],
+            Origin::Command,
+            &scopes,
+            new,
+            |docs| -> Result<(), StoreError> {
+                for d in docs.values() {
+                    d.body().insert(0, "many")?;
+                }
+                Ok(())
+            },
+        )
+    };
+    // A document under the second prefix that is not reserved refuses the
+    // whole write, the first prefix's document included.
+    lib.register("node:b/2", "node", Some("book-1")).unwrap();
+    let before = lib.write_seq().unwrap();
+    assert!(matches!(
+        run(&[]),
+        Err(StoreError::Invalid {
+            what: "atomic inventory",
+            ..
+        })
+    ));
+    assert_eq!((text(a.doc()), text(b.doc())), ("\n".into(), "\n".into()));
+    assert_eq!(lib.write_seq().unwrap(), before);
+    // A new document outside every prefix is refused before anything.
+    assert!(run(&[new_doc("node:c/1")]).is_err());
+    assert!(lib.doc_info("node:c/1").unwrap().is_none());
+    // With it among the new documents, one commit stores all four.
+    let mut registered = new_doc("node:b/2");
+    registered.pre_registered = true;
+    run(&[registered, new_doc("node:a/2")]).unwrap();
+    for id in ["node:a/1", "node:a/2", "node:b/1", "node:b/2"] {
+        assert_eq!(text(&lib.load_copy(id).unwrap()), "many\n", "{id}");
+        assert_eq!(
+            lib.doc_info(id).unwrap().unwrap().book_id.as_deref(),
+            Some("book-1")
+        );
+    }
+    // Scopes of two books, or none, are refused.
+    let two = [
+        AtomicScope {
+            book_id: "book-1",
+            prefix: "node:a/",
+        },
+        AtomicScope {
+            book_id: "book-2",
+            prefix: "node:b/",
+        },
+    ];
+    for scopes in [&two[..], &[]] {
+        assert!(
+            DocHandle::atomic_scoped_many(
+                std::slice::from_ref(&a),
+                Origin::Command,
+                scopes,
+                &[],
+                |_| -> Result<(), StoreError> { panic!("must not run") }
+            )
+            .is_err()
+        );
+    }
+    assert_eq!(text(a.doc()), "many\n");
+}

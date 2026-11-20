@@ -31,13 +31,19 @@
 //!   over a library holding the whole seeded book, the first time (every
 //!   entry earns its first checkpoint), again with nothing changed (what
 //!   every later quit pays), and after one entry was renamed and one
-//!   created.
+//!   created;
+//! - **the first quit after an import** (`quit`): the worker the app runs
+//!   (`AutomaticHistory::finish`, then the after-drain sweep) on a library
+//!   just written with the seeded book, the batched writes by themselves,
+//!   and the background first-points pass with keystrokes and `Book::load`
+//!   beside it.
 //!
 //! Sections can be picked by name: `editor`, `shell`, `fingerprint`,
-//! `probe`, `close` (none named: all of them).
+//! `probe`, `close`, `quit` (none named: all of them).
 //!
 //! Prints milliseconds; nothing is written. See
-//! `docs/rust-rewrite/spikes/history-aging.md`.
+//! `docs/rust-rewrite/spikes/history-aging.md` and, for `quit`,
+//! `docs/rust-rewrite/modules/m09-history.md`.
 
 use std::path::Path;
 use std::time::Instant;
@@ -386,6 +392,222 @@ fn close_sweep(dir: &Path, seeded: &seed::SeededV3) -> Result<(), String> {
     ws.shutdown().map_err(err)
 }
 
+/// A library holding the seeded book with all its bodies and no checkpoint
+/// (the state right after an import), and the doc ids of its chapters'
+/// bodies, longest first.
+fn imported(
+    dir: &Path,
+    seeded: &seed::SeededV3,
+) -> Result<(Workspace, String, Vec<String>), String> {
+    let ws = Workspace::open_dir(dir, "0.2.0-bench").map_err(err)?;
+    seeded.write_to(ws.library()).map_err(err)?;
+    let book = seeded.books[0].book_id().to_string();
+    let entries = ws
+        .call(
+            &dr_workspace::Actor::User,
+            "entry.list",
+            serde_json::json!({ "book": book, "all": true }),
+        )
+        .map_err(err)?["output"]
+        .clone();
+    let mut bodies: Vec<(usize, String)> = Vec::new();
+    for e in entries.as_array().ok_or("entry.list returned no list")? {
+        if e["template"] == "tpl-chapter" {
+            let doc = format!("body:{}/mod-prose", e["id"].as_str().unwrap_or_default());
+            let len = open(&ws, &doc)?.len_chars();
+            bodies.push((len, doc));
+        }
+    }
+    bodies.sort_by_key(|a| std::cmp::Reverse(a.0));
+    Ok((ws, book, bodies.into_iter().map(|(_, d)| d).collect()))
+}
+
+/// Commits per kind of document, as the store announces them.
+fn commit_counter(
+    ws: &Workspace,
+) -> (
+    dr_store::LibrarySubscription,
+    std::sync::Arc<std::sync::Mutex<std::collections::BTreeMap<String, usize>>>,
+) {
+    let seen: std::sync::Arc<std::sync::Mutex<std::collections::BTreeMap<String, usize>>> =
+        Default::default();
+    let sink = seen.clone();
+    let sub = ws.library().subscribe(move |event| {
+        if let dr_store::StoreEvent::Doc(e) = event {
+            let kind = e.doc_id.split(':').next().unwrap_or_default().to_owned();
+            *sink.lock().unwrap().entry(kind).or_default() += 1;
+        }
+    });
+    (sub, seen)
+}
+
+/// The manifests stored in the book's `checkpoints:` document.
+fn points(ws: &Workspace, book: &str) -> Result<usize, String> {
+    let doc = ws
+        .library()
+        .load_copy(&format!("checkpoints:{book}"))
+        .map_err(err)?;
+    Ok(doc.get_map("entry_checkpoints").len())
+}
+
+/// The first quit after an import, through the worker the app runs
+/// (`AutomaticHistory`: its `finish` on release, then the after-drain
+/// `capture_on_close`); the batched writes by themselves; and the
+/// background first-points pass with keystrokes and `Book::load` beside it.
+fn first_quit(dir: &Path, seeded: &seed::SeededV3) -> Result<(), String> {
+    use dr_view_history::automatic::{AutomaticHistory, Cadence, capture_on_close};
+    use dr_workspace::commands::v3::snapshots as api;
+    let no_pass = Cadence {
+        first_points: None,
+        ..Cadence::default()
+    };
+
+    // The quit the app does, before the pass has reached anything.
+    let (ws, book, _) = imported(&dir.join("quit"), seeded)?;
+    let entries = api::entries_without_checkpoint(&ws, &book)
+        .map_err(err)?
+        .len();
+    println!("\nfirst quit after an import: {entries} entries without a checkpoint");
+    for session in ["first quit", "second quit"] {
+        let (sub, commits) = commit_counter(&ws);
+        let before = points(&ws, &book)?;
+        let history = AutomaticHistory::start_with(ws.clone(), no_pass);
+        let t = Instant::now();
+        history.finish()?;
+        let finish = ms(t);
+        let t = Instant::now();
+        capture_on_close(&ws)?;
+        let drain = ms(t);
+        drop(sub);
+        println!(
+            "  {session:12} finish {finish:>9.1} ms + after-drain sweep {drain:>7.1} ms = {:>9.1} ms; {} more point(s); commits {:?}",
+            finish + drain,
+            points(&ws, &book)? - before,
+            commits.lock().unwrap()
+        );
+    }
+    ws.shutdown().map_err(err)?;
+
+    // The writes by themselves: every entry, in batches of either size.
+    for size in [
+        dr_view_history::automatic::BACKGROUND_BATCH,
+        api::CAPTURE_BATCH,
+    ] {
+        let (ws, book, _) = imported(&dir.join(format!("batch-{size}")), seeded)?;
+        let all = api::entries_without_checkpoint(&ws, &book).map_err(err)?;
+        let mut writes = Vec::new();
+        let t = Instant::now();
+        let mut plan = api::CapturePlan::read(&ws, &book).map_err(err)?;
+        let read = ms(t);
+        for batch in all.chunks(size) {
+            let w = Instant::now();
+            plan.capture(&ws, batch, api::CaptureReason::Close)
+                .map_err(err)?;
+            writes.push(ms(w));
+        }
+        let total = ms(t);
+        println!("  {:36} {read:>9.1} ms", "the plan (one read of the book)");
+        row(&format!("one write of {size} entries"), &writes);
+        println!(
+            "  {:36} {total:>9.1} ms for {} entries, {} points",
+            format!("all of them, {size} at a time"),
+            all.len(),
+            points(&ws, &book)?
+        );
+        ws.shutdown().map_err(err)?;
+    }
+
+    // Keystrokes and Book::load with and without the pass running beside
+    // them. The pass makes way for typing (`Cadence::quiet`); with no quiet
+    // it writes while the author types, the worst case.
+    for (label, cadence) in [
+        ("no pass", None),
+        (
+            "pass, no quiet",
+            Some(Cadence {
+                first_points: Some(std::time::Duration::ZERO),
+                quiet: std::time::Duration::ZERO,
+                ..Cadence::default()
+            }),
+        ),
+    ] {
+        let (ws, book, chapters) = imported(&dir.join(format!("typing-{}", label.len())), seeded)?;
+        let total = api::entries_without_checkpoint(&ws, &book)
+            .map_err(err)?
+            .len();
+        let mut doc = open(&ws, &chapters[0])?;
+        Book::load(&ws, &book).map_err(err)?;
+        let history = AutomaticHistory::start_with(ws.clone(), cadence.unwrap_or(no_pass));
+        let started = Instant::now();
+        let (mut keys, mut loads) = (Vec::new(), Vec::new());
+        let middle = doc.len_chars() / 2;
+        let mut k = 0;
+        // About 40 keystrokes a second, a Book::load every 10 of them, for
+        // as long as the pass runs (four seconds when there is none). The
+        // pass's progress is read from SQLite, not from the book's holder.
+        loop {
+            let t = Instant::now();
+            doc.replace(middle + k..middle + k, "字", ORIGIN_USER);
+            keys.push(ms(t));
+            k += 1;
+            if k % 10 == 0 {
+                let t = Instant::now();
+                Book::load(&ws, &book).map_err(err)?;
+                loads.push(ms(t));
+            }
+            std::thread::sleep(std::time::Duration::from_millis(25));
+            if cadence.is_some() && points(&ws, &book)? >= total
+                || cadence.is_none() && started.elapsed().as_secs() >= 4
+            {
+                break;
+            }
+        }
+        let took = ms(started);
+        row(&format!("{label}: keystroke"), &keys);
+        row(&format!("{label}: Book::load"), &loads);
+        let t = Instant::now();
+        history.finish()?;
+        capture_on_close(&ws)?;
+        println!(
+            "  {label}: {took:.0} ms of typing; then the quit took {:.1} ms; {} points",
+            ms(t),
+            points(&ws, &book)?
+        );
+        drop(doc);
+        ws.shutdown().map_err(err)?;
+    }
+
+    // The pass on its own, as it runs when the author is not typing.
+    let (ws, book, _) = imported(&dir.join("idle-pass"), seeded)?;
+    let total = api::entries_without_checkpoint(&ws, &book)
+        .map_err(err)?
+        .len();
+    let (sub, commits) = commit_counter(&ws);
+    let history = AutomaticHistory::start_with(
+        ws.clone(),
+        Cadence {
+            first_points: Some(std::time::Duration::ZERO),
+            ..Cadence::default()
+        },
+    );
+    let t = Instant::now();
+    while points(&ws, &book)? < total {
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    let pass = ms(t);
+    let t = Instant::now();
+    history.finish()?;
+    capture_on_close(&ws)?;
+    drop(sub);
+    println!(
+        "  idle pass: every entry had its first point after {pass:.0} ms; the quit then took {:.1} ms; {} points; commits {:?}",
+        ms(t),
+        points(&ws, &book)?,
+        commits.lock().unwrap()
+    );
+    ws.shutdown().map_err(err)
+}
+
 fn main() -> Result<(), String> {
     let mode = if std::env::args().any(|a| a == "--quick") {
         Mode::Quick
@@ -396,12 +618,11 @@ fn main() -> Result<(), String> {
         .skip(1)
         .filter(|a| !a.starts_with("--"))
         .collect();
-    if let Some(unknown) = named
-        .iter()
-        .find(|a| !["editor", "shell", "fingerprint", "probe", "close"].contains(&a.as_str()))
-    {
+    if let Some(unknown) = named.iter().find(|a| {
+        !["editor", "shell", "fingerprint", "probe", "close", "quit"].contains(&a.as_str())
+    }) {
         return Err(format!(
-            "unknown section {unknown}: editor, shell, fingerprint, probe or close"
+            "unknown section {unknown}: editor, shell, fingerprint, probe, close or quit"
         ));
     }
     let wanted = |section: &str| named.is_empty() || named.iter().any(|a| a == section);
@@ -485,6 +706,9 @@ fn main() -> Result<(), String> {
     }
     if wanted("close") {
         close_sweep(&scratch.path().join("close-sweep"), &seeded)?;
+    }
+    if wanted("quit") {
+        first_quit(&scratch.path().join("first-quit"), &seeded)?;
     }
     println!(
         "\nload average {} at the end",
