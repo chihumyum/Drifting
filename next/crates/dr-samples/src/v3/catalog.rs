@@ -849,6 +849,7 @@ pub fn sync_catalog_with_relation_times(
         let w = entries.put(&eid(n.id.as_str()), Some(&parent), &n.title, &tid(TPL_IDEA))?;
         node_fields(&w, n)?;
     }
+    let all_elements = source.elements();
     for category in &categories {
         let id = eid(category.id.as_str());
         let template = category_template(category.id.as_str());
@@ -861,61 +862,64 @@ pub fn sync_catalog_with_relation_times(
         text(&w, "color", &category.color)?;
         w.deleted_at(category.deleted_at)?
             .overrides(Some(&LevelSettingsOverride {
-                default_template: Some(Some(template)),
+                default_template: Some(Some(template.clone())),
                 ..Default::default()
             }))?;
-        let members: Vec<_> = source
-            .elements()
-            .into_iter()
+        let members: Vec<_> = all_elements
+            .iter()
             .filter(|e| e.category.as_ref() == Some(&category.id))
             .collect();
-        let groups: BTreeSet<_> = members
-            .iter()
-            .filter_map(|e| e.group_name.clone())
-            .collect();
-        let mut group_ids = BTreeMap::new();
-        for name in groups {
-            let group = existing
-                .iter()
-                .find(|e| {
-                    e.parent.as_ref() == Some(&id)
-                        && e.template.as_ref() == Some(&tid(TPL_GROUP))
-                        && e.title == name
-                })
-                .map_or_else(EntryId::new_v7, |e| e.id.clone());
-            entries.put(&group, Some(&id), &name, &tid(TPL_GROUP))?;
-            group_ids.insert(name, group);
-        }
+        let group_ids = element_groups(&mut entries, &existing, &id, &members)?;
         for element in members {
             let parent = element
                 .group_name
                 .as_ref()
                 .map(|g| group_ids[g].clone())
                 .unwrap_or_else(|| id.clone());
-            let w = entries.put(
-                &eid(element.id.as_str()),
-                Some(&parent),
-                &element.name,
-                &category_template(category.id.as_str()),
+            put_element(
+                &mut entries,
+                element,
+                &parent,
+                &template,
+                &category.template_fields,
             )?;
-            w.created_at(element.created_at)?
-                .deleted_at(element.deleted_at)?;
-            text(&w, "summary", &element.summary)?;
-            w.set_field(
-                &mid(MOD_FIELDS),
-                "aliases",
-                Some(&FieldValue::List(element.aliases.iter().cloned().collect())),
-            )?;
-            if let Some(portrait) = &element.portrait {
-                text(&w, "portrait", portrait.as_str())?;
-            }
-            for kv in &element.facts {
-                if let Some(field) = category.template_fields.iter().find(|f| f.key == kv.key) {
-                    text(&w, field.id.as_str(), &kv.value)?;
-                } else {
-                    w.put_kv(&mid(MOD_KV), kv)?;
-                }
-            }
+        }
+    }
+    // Elements without a live category (none, or one in Recently Deleted):
+    // 0.1 lists them under 「未分类」 (`leftSidebar.uncategorized`), after
+    // the categories; the import adjustment `element-missing-category`.
+    let uncategorized: Vec<_> = all_elements
+        .iter()
+        .filter(|e| e.category.is_none())
+        .collect();
+    if !uncategorized.is_empty() {
+        let id = existing
+            .iter()
+            .find(|e| {
+                e.parent.as_ref() == Some(&roots.elements)
+                    && e.template.as_ref() == Some(&tid(TPL_CATEGORY))
+                    && e.title == UNCATEGORIZED
+                    && !categories.iter().any(|c| c.id.as_str() == e.id.as_str())
+            })
+            .map_or_else(EntryId::new_v7, |e| e.id.clone());
+        let w = entries.put(
+            &id,
+            Some(&roots.elements),
+            UNCATEGORIZED,
+            &tid(TPL_CATEGORY),
+        )?;
+        w.overrides(Some(&LevelSettingsOverride {
+            default_template: Some(Some(tid(TPL_ELEMENT))),
+            ..Default::default()
+        }))?;
+        let group_ids = element_groups(&mut entries, &existing, &id, &uncategorized)?;
+        for element in uncategorized {
+            let parent = element
+                .group_name
+                .as_ref()
+                .map(|g| group_ids[g].clone())
+                .unwrap_or_else(|| id.clone());
+            put_element(&mut entries, element, &parent, &tid(TPL_ELEMENT), &[])?;
         }
     }
     for storyline in &storylines {
@@ -1060,14 +1064,28 @@ pub fn sync_catalog_with_relation_times(
     }
     for n in &nodes {
         let id = eid(n.id.as_str());
+        // A chapter or idea in Recently Deleted keeps its storylines, as in
+        // 0.1 and as format 5's own trash keeps them: readers leave the
+        // membership out until the entry comes back (`V3-MEMBERSHIP-RULES`).
+        for host in &n.storylines {
+            txn.put_membership(&eid(host.as_str()), &id, None, None)?;
+        }
         if !n.is_trashed() {
-            for host in &n.storylines {
-                txn.put_membership(&eid(host.as_str()), &id, None, None)?;
-            }
             if n.storylines.is_empty() && n.narrative_order.is_some() {
                 txn.put_membership(unaffiliated.as_ref().unwrap(), &id, None, None)?;
             }
-            if let Some(at) = n.narrative_order {
+            // A position only on a live lane: a chapter whose storylines are
+            // all in Recently Deleted is on none (0.1 showed it under no
+            // storyline); it gets one when a storyline comes back.
+            let on_live_lane = n.storylines.is_empty()
+                || n.storylines.iter().any(|h| {
+                    storylines
+                        .iter()
+                        .any(|s| &s.id == h && s.deleted_at.is_none())
+                });
+            if let Some(at) = n.narrative_order
+                && on_live_lane
+            {
                 view.put_placement(&id, at, None)?;
             }
         }
@@ -1173,6 +1191,79 @@ pub fn sync_catalog_with_relation_times(
         }
     }
     copy_rest(txn, source, choices, lines, relation_times)?;
+    Ok(())
+}
+
+/// The level 0.1 shows elements without a category under: its own wording
+/// (`leftSidebar.uncategorized`), as 「未归属」 and 「文本素材」 are.
+pub const UNCATEGORIZED: &str = "未分类";
+
+/// The element groups (0.1's `group_name`) under one category level.
+fn element_groups(
+    entries: &mut Entries<'_, '_>,
+    existing: &[dr_model::v3::Entry],
+    home: &EntryId,
+    members: &[&dr_model::import_v1::Element],
+) -> Result<BTreeMap<String, EntryId>> {
+    let groups: BTreeSet<_> = members
+        .iter()
+        .filter_map(|e| e.group_name.clone())
+        .collect();
+    let mut group_ids = BTreeMap::new();
+    for name in groups {
+        let group = existing
+            .iter()
+            .find(|e| {
+                e.parent.as_ref() == Some(home)
+                    && e.template.as_ref() == Some(&tid(TPL_GROUP))
+                    && e.title == name
+            })
+            .map_or_else(EntryId::new_v7, |e| e.id.clone());
+        entries.put(&group, Some(home), &name, &tid(TPL_GROUP))?;
+        group_ids.insert(name, group);
+    }
+    Ok(group_ids)
+}
+
+/// One element. A field takes one value: the first of the element's values
+/// under its name (in 0.1's order) fills it, any others stay the element's
+/// own key/value rows (the import adjustment
+/// `duplicate-value-for-template-field`).
+fn put_element(
+    entries: &mut Entries<'_, '_>,
+    element: &dr_model::import_v1::Element,
+    parent: &EntryId,
+    template: &EntryTemplateId,
+    fields: &[dr_model::import_v1::KvEntry],
+) -> Result<()> {
+    let w = entries.put(
+        &eid(element.id.as_str()),
+        Some(parent),
+        &element.name,
+        template,
+    )?;
+    w.created_at(element.created_at)?
+        .deleted_at(element.deleted_at)?;
+    text(&w, "summary", &element.summary)?;
+    w.set_field(
+        &mid(MOD_FIELDS),
+        "aliases",
+        Some(&FieldValue::List(element.aliases.iter().cloned().collect())),
+    )?;
+    if let Some(portrait) = &element.portrait {
+        text(&w, "portrait", portrait.as_str())?;
+    }
+    let mut filled = BTreeSet::new();
+    for kv in &element.facts {
+        match fields.iter().find(|f| f.key == kv.key) {
+            Some(field) if filled.insert(field.id.clone()) => {
+                text(&w, field.id.as_str(), &kv.value)?;
+            }
+            _ => {
+                w.put_kv(&mid(MOD_KV), kv)?;
+            }
+        }
+    }
     Ok(())
 }
 
@@ -1712,6 +1803,14 @@ pub fn validate(view: &BookViewV3<'_>) -> std::result::Result<(), String> {
         },
     ))?;
     for membership in &memberships {
+        // Kept for an entry in Recently Deleted (either end), read as
+        // absent until it comes back: the state format 5's own trash leaves.
+        if [&membership.member, &membership.host]
+            .iter()
+            .any(|id| entries.get(*id).is_some_and(|e| e.is_trashed()))
+        {
+            continue;
+        }
         check(check_membership(
             &membership.host,
             &membership.member,

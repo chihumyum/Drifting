@@ -143,8 +143,19 @@ fn pending_is_prewrite_then_explicit_choices_import_into_a_new_preferred_v3_libr
         .unwrap()
         .get_deep_value();
     let (_view, cx) = setup(cx, lib);
-    // 1. Prewrite V3Pending stops before creating target or libraries.json.
+    // 1. Prewrite V3Pending stops before creating target or libraries.json:
+    //    an idea group sharing a chapter's id (one of the cases that still
+    //    refuse; the others have recorded defaults, dr-import-v1
+    //    `tests/defaults.rs`).
     let bad = common::build(true);
+    {
+        let c = rusqlite::Connection::open(&bad.db).unwrap();
+        c.execute(
+            "INSERT INTO drift_group (id, project_id, name, parent_group_id, color, sort_order, created_at, updated_at) VALUES (?1, ?2, '撞号', NULL, NULL, 3, ?3, ?3)",
+            [common::CHAPTER, common::BOOK, common::T0],
+        )
+        .unwrap();
+    }
     let bad_before = source_files(&bad.root);
     configure(cx, &bad.root);
     let bad_target = importer(cx).read_with(cx, |i, _| i.destination().unwrap().target());
@@ -157,7 +168,7 @@ fn pending_is_prewrite_then_explicit_choices_import_into_a_new_preferred_v3_libr
         ready
             .pending
             .iter()
-            .any(|p| p.code == "invalid-or-duplicate-source-relation")
+            .any(|p| p.code == "entry-id-invalid-or-colliding")
     );
     assert!(!bad_target.exists());
     assert!(!dir.path().join(dr_account::LIBRARIES_FILE).exists());

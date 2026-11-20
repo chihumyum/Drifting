@@ -58,12 +58,18 @@ fn main() -> Res<()> {
         Some("analyse") => {
             let dir = tempfile_dir()?;
             let (_, legacy, _, gate) = run::analyse(Path::new(&args[1]), &dir)?;
-            let pending = dr_import_v1::v3::pending(&legacy, &v3_choices(&args)?)?;
+            let (pending, mut adjusted) = dr_import_v1::v3::findings(&legacy, &v3_choices(&args)?)?;
+            // What the defaults did on the staging copy, then what the
+            // preflight takes as it is.
+            let mut all = legacy.adjustments.clone();
+            all.append(&mut adjusted);
             drop(legacy);
             let _ = std::fs::remove_dir_all(&dir);
             println!(
                 "{}",
-                serde_json::to_string_pretty(&json!({"gate":gate,"v3Pending":pending}))?
+                serde_json::to_string_pretty(
+                    &json!({"gate":gate,"v3Pending":pending,"adjustments":all})
+                )?
             );
         }
         Some("import") => {

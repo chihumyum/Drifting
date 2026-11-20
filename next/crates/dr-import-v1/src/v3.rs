@@ -50,13 +50,46 @@ pub(crate) fn doc_id(_options: &Options, book: &BookId, old: &DocId) -> DocId {
 }
 
 /// Read-only preflight. It allocates no target ids on disk, adopts no device
-/// identity, writes no receipt and never repairs the old library.
+/// identity, writes no receipt and never repairs the old library. Returns
+/// only what still stops the import ([`findings`]).
 pub fn pending(legacy: &Legacy, choices: &MappingChoices) -> Result<Vec<Pending>> {
+    Ok(findings(legacy, choices)?.0)
+}
+
+/// What the preflight finds on the staging copy, after the import's
+/// defaults (`crate::defaults`, `m10-import.md` 「替作者定的，等作者过目」):
+///
+/// - what still stops the import: ids the book's documents cannot be named
+///   by, a body whose cache is not JSON, a body or catalog the book's writers
+///   refuse (each named, with its source);
+/// - what the book takes with a recorded default (links it cannot keep,
+///   table cells it flattens, history metadata left out), as adjustments.
+pub fn findings(
+    legacy: &Legacy,
+    choices: &MappingChoices,
+) -> Result<(Vec<Pending>, Vec<crate::defaults::Adjustment>)> {
     let mut pending = Vec::new();
-    let mut node_kinds = BTreeMap::new();
+    let mut adjusted: Vec<crate::defaults::Adjustment> = Vec::new();
     let mut element_categories = BTreeMap::new();
     let mut category_fields: BTreeMap<_, BTreeSet<String>> = BTreeMap::new();
-    let mut non_text_materials_by_book: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    let mut non_text_materials_by_book: BTreeMap<String, BTreeMap<String, String>> =
+        BTreeMap::new();
+    let mut bad_books: BTreeSet<String> = BTreeSet::new();
+    let record = |adjusted: &mut Vec<crate::defaults::Adjustment>,
+                  code: &str,
+                  book: &str,
+                  table: &str,
+                  id: &str,
+                  done: &str| {
+        adjusted.push(crate::defaults::Adjustment {
+            code: code.into(),
+            book: book.into(),
+            table: table.into(),
+            id: id.into(),
+            done: done.into(),
+            original: None,
+        });
+    };
     for project in legacy.projects()? {
         let rows = legacy.book(&project.id)?;
         non_text_materials_by_book.insert(
@@ -64,15 +97,9 @@ pub fn pending(legacy: &Legacy, choices: &MappingChoices) -> Result<Vec<Pending>
             rows.materials
                 .iter()
                 .filter(|m| m.kind != "text")
-                .map(|m| m.id.clone())
+                .map(|m| (m.id.clone(), m.title.clone()))
                 .collect(),
         );
-        for node in &rows.nodes {
-            node_kinds.insert(
-                (project.id.clone(), node.id.clone()),
-                dr_model::import_v1::NodeKind::parse(&node.kind),
-            );
-        }
         for element in &rows.elements {
             if let Some(category) = &element.category {
                 element_categories
@@ -89,36 +116,14 @@ pub fn pending(legacy: &Legacy, choices: &MappingChoices) -> Result<Vec<Pending>
                 .or_default()
                 .insert(field.key.clone());
         }
+        let mut refused_here = false;
         let mut add = |code: &str, source: &str| {
+            refused_here = true;
             pending.push(Pending {
                 code: code.into(),
                 source: source.into(),
             })
         };
-        for (owner, json) in [
-            (project.id.as_str(), rows.project_kv_json.as_str()),
-            (project.id.as_str(), rows.project_template_kv_json.as_str()),
-        ]
-        .into_iter()
-        .chain(
-            rows.categories
-                .iter()
-                .map(|r| (r.id.as_str(), r.template_kv_json.as_str())),
-        )
-        .chain(
-            rows.elements
-                .iter()
-                .map(|r| (r.id.as_str(), r.kv_json.as_str())),
-        )
-        .chain(
-            rows.storyline_kv_json
-                .iter()
-                .map(|(id, json)| (id.as_str(), json.as_str())),
-        ) {
-            if !valid_kv_json(json) {
-                add("unreadable-source-kv-projection", owner);
-            }
-        }
         let folders_by_id: BTreeMap<&str, &crate::legacy::TreeRow> =
             rows.folders.iter().map(|f| (f.id.as_str(), f)).collect();
         let mut note_folder_ids: BTreeSet<&str> = BTreeSet::new();
@@ -136,6 +141,10 @@ pub fn pending(legacy: &Legacy, choices: &MappingChoices) -> Result<Vec<Pending>
                 cur = f.parent.as_deref();
             }
         }
+        // Entry ids name the documents (`body:<entry>/<module>`), the links,
+        // anchors and the Markdown folder: one that cannot be an entry id,
+        // or that two rows share, stops the import (0.1 itself only writes
+        // uuidv7; `m10-import.md` 「还会拒绝导入的」).
         let mut ids = BTreeSet::new();
         for id in rows
             .nodes
@@ -168,149 +177,9 @@ pub fn pending(legacy: &Legacy, choices: &MappingChoices) -> Result<Vec<Pending>
                 add("entry-id-invalid-or-colliding", id);
             }
         }
-        let mut boundaries = BTreeSet::new();
-        for act in &rows.acts {
-            if act.start_order.is_none() {
-                add("act-without-boundary", &act.id);
-            }
-            let key = act
-                .start_order
-                .map(|n| if n == 0. { 0 } else { n.to_bits() });
-            if !boundaries.insert(key) {
-                add("duplicate-act-boundary", &act.id);
-            }
-            if act
-                .drift
-                .as_ref()
-                .is_some_and(|id| rows.nodes.iter().any(|n| &n.id == id && n.kind != "drift"))
-            {
-                add("act-binding-not-an-idea", &act.id);
-            }
-        }
-        for tree in [&rows.groups, &rows.folders] {
-            for node in tree {
-                let mut seen = BTreeSet::new();
-                let mut at = Some(node.id.as_str());
-                while let Some(id) = at {
-                    if !seen.insert(id) {
-                        add("source-tree-cycle", &node.id);
-                        break;
-                    }
-                    let Some(n) = tree.iter().find(|n| n.id == id) else {
-                        add("source-tree-missing-parent", &node.id);
-                        break;
-                    };
-                    at = n.parent.as_deref();
-                }
-            }
-        }
-        for element in &rows.elements {
-            if serde_json::from_str::<Vec<String>>(&element.aliases_json).is_err() {
-                add("unreadable-source-aliases", &element.id);
-            }
-            let Some(category) = element.category.as_ref().and_then(|c| {
-                rows.categories
-                    .iter()
-                    .find(|r| &r.id == c && r.deleted_at.is_none())
-            }) else {
-                add("element-missing-category", &element.id);
-                continue;
-            };
-            let mut values = BTreeSet::new();
-            for value in rows
-                .kv
-                .iter()
-                .filter(|kv| kv.owner_id == element.id && kv.owner_kind == "element")
-            {
-                if !values.insert(&value.key)
-                    && rows.kv.iter().any(|f| {
-                        f.owner_id == category.id
-                            && f.namespace == "element-template"
-                            && f.key == value.key
-                    })
-                {
-                    add("duplicate-value-for-template-field", &element.id);
-                }
-            }
-        }
-        for category in &rows.categories {
-            if !["auto", "pinned"].contains(&category.layout.as_str()) {
-                add("unknown-category-layout", &category.id);
-            }
-            if category.grid_x.is_some() != category.grid_y.is_some()
-                || (category.layout == "pinned" && category.grid_x.is_none())
-            {
-                add("incomplete-category-grid-position", &category.id);
-            }
-            if category.layout == "auto" && category.grid_x.is_some() {
-                add("auto-category-has-grid-position", &category.id);
-            }
-            let mut names = BTreeSet::new();
-            for field in rows
-                .kv
-                .iter()
-                .filter(|kv| kv.owner_id == category.id && kv.namespace == "element-template")
-            {
-                if !names.insert(&field.key)
-                    || ["aliases", "summary", "portrait"].contains(&field.id.as_str())
-                {
-                    add("ambiguous-template-field", &category.id);
-                }
-            }
-        }
-        for link in &rows.links {
-            if !rows.nodes.iter().any(|n| n.id == link.node)
-                || !rows
-                    .storylines
-                    .iter()
-                    .any(|s| s.id == link.storyline && s.deleted_at.is_none())
-            {
-                add("membership-target-missing-or-trashed", &link.node);
-            }
-        }
-        for node in &rows.nodes {
-            if node.kind != "chapter" && node.kind != "drift" {
-                add("unknown-node-kind", &node.id);
-            }
-            if node.kind == "chapter" && node.book_order.is_none() {
-                add("chapter-without-book-order", &node.id);
-            }
-            if node.kind == "drift" && node.book_order.is_some() {
-                add("idea-has-legacy-book-order", &node.id);
-            }
-            if !dr_model::import_v1::NodeStatus::parse(&node.status)
-                .fits(&dr_model::import_v1::NodeKind::parse(&node.kind))
-            {
-                add("incompatible-source-node-status", &node.id);
-            }
-            if rows
-                .links
-                .iter()
-                .filter(|l| l.node == node.id && l.primary)
-                .count()
-                > 1
-            {
-                add("multiple-primary-memberships", &node.id);
-            }
-            if node
-                .group
-                .as_ref()
-                .is_some_and(|g| !rows.groups.iter().any(|r| &r.id == g))
-            {
-                add("idea-group-missing", &node.id);
-            }
-        }
-        for pin in &rows.time_pins {
-            if pin
-                .drift
-                .as_ref()
-                .is_some_and(|id| !rows.nodes.iter().any(|n| &n.id == id && n.kind == "drift"))
-            {
-                add("pin-binding-missing-idea", &pin.id);
-            }
-        }
         let Ok(id) = BookId::parse(&project.id) else {
             add("invalid-book-id", &project.id);
+            bad_books.insert(project.id.clone());
             continue;
         };
         for (owner, template) in rows
@@ -337,6 +206,12 @@ pub fn pending(legacy: &Legacy, choices: &MappingChoices) -> Result<Vec<Pending>
                 add("template-prose-id-not-representable", owner);
             }
         }
+        // A book whose ids cannot name its documents is not converted any
+        // further: the import stops on them.
+        if refused_here {
+            bad_books.insert(project.id.clone());
+            continue;
+        }
         let mut catalog = BookDoc::create(id.clone(), import_peer(&format!("preflight:{id}")))?;
         let mut notes = Notes::default();
         let empty = crate::handoff::BookSettings::default();
@@ -359,55 +234,66 @@ pub fn pending(legacy: &Legacy, choices: &MappingChoices) -> Result<Vec<Pending>
         };
         let (r, _) = catalog.edit(Origin::Import, |t| book::write(t, &inputs, &mut notes));
         r?;
-        for code in notes.0.keys().filter(|c| {
-            c.contains("cycle")
-                || c.contains("missing-parent")
-                || c.as_str() == "invalid-id"
-                || c.as_str() == "plot-grid-position-key-regenerated"
-                || c.as_str() == "writing-day-invalid"
-                || c.as_str() == "chapter-in-group-dropped"
-        }) {
-            add(code, &project.id);
-        }
-        for comment in catalog.view().comments() {
-            if comment.target_missing {
-                add("comment-target-missing-or-trashed", comment.id.as_str());
-            }
-        }
-        // These are the source pairs that can reach the project. Retired
-        // endpoints have already been reported and dropped in book::write.
-        let source = catalog.view();
-        if source.relations_raw().iter().any(|row| {
-            row.from == row.to || !source.entity_exists(&row.from) || !source.entity_exists(&row.to)
-        }) {
-            add("invalid-or-duplicate-source-relation", &project.id);
+        if notes.0.contains_key("invalid-id") {
+            pending.push(Pending {
+                code: "invalid-id".into(),
+                source: project.id.clone(),
+            });
         }
         pending.extend(choices.pending(&catalog.view()));
         let non_text = non_text_materials_by_book
             .get(&project.id)
             .cloned()
             .unwrap_or_default();
-        for (source, json) in rows
+        let prose_module = ModuleId::parse(dr_doc::v3::novel::MOD_PROSE).expect("module id");
+        for (table, source, json, template) in rows
             .categories
             .iter()
-            .filter_map(|c| c.template_json.as_deref().map(|j| (c.id.as_str(), j)))
-            .chain(
-                rows.storylines
-                    .iter()
-                    .map(|s| (s.id.as_str(), s.template.as_str())),
-            )
+            .filter_map(|c| {
+                c.template_json.as_deref().map(|j| {
+                    (
+                        "element_category",
+                        c.id.as_str(),
+                        j,
+                        dr_samples::v3::category_template(&c.id),
+                    )
+                })
+            })
+            .chain(rows.storylines.iter().map(|s| {
+                (
+                    "storylines",
+                    s.id.as_str(),
+                    s.template.as_str(),
+                    dr_samples::v3::storyline_template(&s.id),
+                )
+            }))
         {
+            let mut found = Vec::new();
             inspect_json(
                 source,
                 json,
                 dr_model::ProseProfile::Prose,
                 &non_text,
-                &mut pending,
+                &mut found,
             );
-            if !json.trim().is_empty() && crate::prose::pm::parse(json).is_err() {
+            for f in found.iter().filter(|f| f.code != "unreadable-source-prose") {
+                record(
+                    &mut adjusted,
+                    &f.code,
+                    &project.id,
+                    table,
+                    source,
+                    "kept as text",
+                );
+            }
+            // (An unrepresentable template document id is reported above.)
+            if let Ok(lines) = crate::prose::pm::parse(json)
+                && let Ok(doc) = TemplateId::parse(&format!("{id}/{template}/{prose_module}"))
+                && let Some(why) = unwritable(&DocId::Template(doc), &lines, &non_text)
+            {
                 pending.push(Pending {
-                    code: "unreadable-source-template".into(),
-                    source: source.into(),
+                    code: "prose-not-writable".into(),
+                    source: format!("{source}: {why}"),
                 });
             }
         }
@@ -438,83 +324,31 @@ pub fn pending(legacy: &Legacy, choices: &MappingChoices) -> Result<Vec<Pending>
     }
     let (owners, _) = legacy.prose_owners()?;
     let history = legacy.history()?;
-    let sources: BTreeSet<_> = owners
-        .iter()
-        .map(|owner| (owner.project_id.clone(), owner.old_doc_id()))
-        .collect();
-    for row in &history {
-        let mut add = |code: &str| {
-            pending.push(Pending {
-                code: code.into(),
-                source: row.id.clone(),
-            })
-        };
-        if !sources.contains(&(row.project_id.clone(), row.old_doc_id())) {
-            add("orphan-history-source");
-        }
-        if row.preview.is_none() {
-            add("history-preview-missing");
-        }
-        let Some(json) = row.meta.as_deref() else {
-            continue;
-        };
-        let Some(meta) = crate::meta::parse(json) else {
-            add("unreadable-history-metadata");
-            continue;
-        };
-        let value: Value = serde_json::from_str(json)?;
-        for key in ["kvJson", "elementTemplateKvJson"] {
-            if let Some(encoded) = value.get(key)
-                && encoded.as_str().is_none_or(|text| !valid_kv_json(text))
-            {
-                add("unreadable-history-metadata");
-            }
-        }
-        for key in ["title", "summary", "name", "writingStatus"] {
-            if value.get(key).is_some_and(|v| !v.is_string()) {
-                add("unreadable-history-metadata");
-            }
-        }
-        if value.get("aliases").is_some_and(|v| {
-            v.as_array()
-                .is_none_or(|aliases| aliases.iter().any(|a| !a.is_string()))
-        }) {
-            add("unreadable-history-metadata");
-        }
-        if value
-            .get("groupName")
-            .is_some_and(|v| !v.is_null() && !v.is_string())
-        {
-            add("unreadable-history-metadata");
-        }
-        if let Some(status) = meta.writing_status
-            && let Some(kind) = node_kinds.get(&(row.project_id.clone(), row.entity_id.clone()))
-            && !dr_model::import_v1::NodeStatus::parse(&status).fits(kind)
-        {
-            add("incompatible-history-node-status");
-        }
-        if let Some(fields) = meta.template_kv {
-            let mut names = BTreeSet::new();
-            for (key, _value) in fields {
-                if !names.insert(key.clone()) {
-                    add("ambiguous-history-template-field");
-                }
-                category_fields
-                    .entry((row.project_id.clone(), row.entity_id.clone()))
-                    .or_default()
-                    .insert(key);
-            }
-        }
-    }
+    // History rows of an element with two values under one field name: the
+    // first fills the field at that point, the others stay facts, as for the
+    // current values (`crate::defaults`).
     for row in &history {
         let Some(category) =
             element_categories.get(&(row.project_id.clone(), row.entity_id.clone()))
         else {
             continue;
         };
-        let Some(fields) = category_fields.get(&(row.project_id.clone(), category.clone())) else {
-            continue;
-        };
+        let mut fields = category_fields
+            .get(&(row.project_id.clone(), category.clone()))
+            .cloned()
+            .unwrap_or_default();
+        for r in &history {
+            if r.entity_kind == "category"
+                && &r.entity_id == category
+                && let Some(t) = r
+                    .meta
+                    .as_deref()
+                    .and_then(crate::meta::parse)
+                    .and_then(|m| m.template_kv)
+            {
+                fields.extend(t.into_iter().map(|(k, _)| k));
+            }
+        }
         let Some(facts) = row
             .meta
             .as_deref()
@@ -528,59 +362,138 @@ pub fn pending(legacy: &Legacy, choices: &MappingChoices) -> Result<Vec<Pending>
             .iter()
             .any(|(key, _)| fields.contains(key) && !keys.insert(key))
         {
+            record(
+                &mut adjusted,
+                "duplicate-history-value-for-template-field",
+                &row.project_id,
+                "entity_snapshot_history",
+                &row.id,
+                "first value in the field, the others as facts",
+            );
+        }
+    }
+    let empty_non_text = BTreeMap::new();
+    let books: BTreeMap<String, BookId> = legacy
+        .projects()?
+        .into_iter()
+        .filter_map(|p| Some((p.id.clone(), BookId::parse(&p.id).ok()?)))
+        .collect();
+    for o in owners.iter().filter(|o| !bad_books.contains(&o.project_id)) {
+        let Some(json) = o.cache.as_deref() else {
+            continue;
+        };
+        let non_text = non_text_materials_by_book
+            .get(&o.project_id)
+            .unwrap_or(&empty_non_text);
+        let mut found = Vec::new();
+        inspect_json(
+            &o.old_doc_id(),
+            json,
+            dr_model::ProseProfile::Prose,
+            non_text,
+            &mut found,
+        );
+        for f in found {
+            if f.code == "unreadable-source-prose" {
+                // The text is in this cache and nowhere the import can read.
+                pending.push(f);
+            } else {
+                record(
+                    &mut adjusted,
+                    &f.code,
+                    &o.project_id,
+                    "prose",
+                    &o.old_doc_id(),
+                    "kept as text",
+                );
+            }
+        }
+        if let (Some(book), Ok(lines), Ok(old)) = (
+            books.get(&o.project_id),
+            crate::prose::pm::parse(json),
+            DocId::parse(&o.new_doc_id()),
+        ) && let Some(why) = unwritable(&dr_samples::v3::prose_id(book, &old), &lines, non_text)
+        {
             pending.push(Pending {
-                code: "duplicate-history-value-for-template-field".into(),
-                source: row.id.clone(),
+                code: "prose-not-writable".into(),
+                source: format!("{}: {why}", o.old_doc_id()),
             });
         }
     }
-    let empty_non_text = BTreeSet::new();
-    for (project_id, source, json, profile) in owners
-        .iter()
-        .filter_map(|o| {
-            o.cache.as_deref().map(|j| {
-                (
-                    o.project_id.as_str(),
-                    o.old_doc_id(),
-                    j,
-                    dr_model::ProseProfile::Prose,
-                )
-            })
-        })
-        .chain(history.iter().filter_map(|h| {
-            h.preview.as_deref().map(|j| {
-                (
-                    h.project_id.as_str(),
-                    h.id.clone(),
-                    j,
-                    dr_model::ProseProfile::Prose,
-                )
-            })
-        }))
-    {
+    for h in &history {
+        let Some(json) = h.preview.as_deref() else {
+            continue;
+        };
         let non_text = non_text_materials_by_book
-            .get(project_id)
+            .get(&h.project_id)
             .unwrap_or(&empty_non_text);
-        inspect_json(&source, json, profile, non_text, &mut pending);
+        let mut found = Vec::new();
+        inspect_json(
+            &h.id,
+            json,
+            dr_model::ProseProfile::Prose,
+            non_text,
+            &mut found,
+        );
+        for f in found {
+            let (code, done) = if f.code == "unreadable-source-prose" {
+                ("history-preview-unreadable", "skipped")
+            } else {
+                (f.code.as_str(), "kept as text")
+            };
+            record(
+                &mut adjusted,
+                code,
+                &h.project_id,
+                "entity_snapshot_history",
+                &h.id,
+                done,
+            );
+        }
     }
     pending.sort_by(|a, b| (&a.code, &a.source).cmp(&(&b.code, &b.source)));
     pending.dedup();
-    Ok(pending)
+    adjusted.sort_by(|a, b| (&a.book, &a.code, &a.id).cmp(&(&b.book, &b.code, &b.id)));
+    adjusted.dedup();
+    Ok((pending, adjusted))
 }
 
-fn valid_kv_json(json: &str) -> bool {
-    serde_json::from_str::<Vec<Value>>(json).is_ok_and(|rows| {
-        rows.iter().all(|row| {
-            row.get("key").and_then(Value::as_str).is_some()
-                && row.get("value").and_then(Value::as_str).is_some()
-        })
-    })
+/// Why the book's prose writer would refuse this body, planned the way the
+/// import plans it (without the cross-document maps, which only move
+/// blocks): `None` when it takes it.
+fn unwritable(
+    doc_id: &DocId,
+    lines: &crate::prose::pm::Prose,
+    non_text: &BTreeMap<String, String>,
+) -> Option<String> {
+    let profile = doc_id.profile().unwrap_or(dr_model::ProseProfile::Prose);
+    let blocks = crate::prose::doc_blocks(lines);
+    let planned = crate::prose::plan_v3(
+        lines,
+        &blocks,
+        &crate::prose::Context {
+            profile,
+            span: &|_| None,
+            todo: &|_| None,
+            asset: &|_| None,
+            non_text_material: &|id| non_text.get(id).cloned(),
+        },
+    );
+    let id_s = doc_id.to_string();
+    let mut doc = match dr_doc::prose::ProseDoc::create(doc_id.clone(), import_peer(&id_s)) {
+        Ok(d) => d,
+        Err(e) => return Some(e.to_string()),
+    };
+    let (r, _) = doc.edit_at(Origin::Import, None, |t| {
+        crate::prose::write::sync_v3(t, &planned.paras)
+    });
+    r.err().map(|e| e.to_string())
 }
 
 fn inspect_entity_link(
     attrs: Option<&Value>,
     source: &str,
-    non_text_materials: &BTreeSet<String>,
+    non_text_materials: &BTreeMap<String, String>,
     pending: &mut Vec<Pending>,
 ) {
     let Some(attrs) = attrs.and_then(Value::as_object) else {
@@ -606,7 +519,7 @@ fn inspect_entity_link(
         .and_then(Value::as_str)
         .unwrap_or("element");
     let old_kind = dr_model::import_v1::legacy::entity_kind(raw_kind);
-    if old_kind == dr_model::kind::EntityKind::Material && non_text_materials.contains(target) {
+    if old_kind == dr_model::kind::EntityKind::Material && non_text_materials.contains_key(target) {
         return;
     }
     let mapped_kind = dr_samples::v3::map_kind(&old_kind);
@@ -669,7 +582,7 @@ fn inspect_json(
     source: &str,
     json: &str,
     _profile: dr_model::ProseProfile,
-    non_text_materials: &BTreeSet<String>,
+    non_text_materials: &BTreeMap<String, String>,
     pending: &mut Vec<Pending>,
 ) {
     if json.trim().is_empty() {
@@ -680,7 +593,7 @@ fn inspect_json(
         source: &str,
         in_table: bool,
         is_mark: bool,
-        non_text_materials: &BTreeSet<String>,
+        non_text_materials: &BTreeMap<String, String>,
         pending: &mut Vec<Pending>,
     ) {
         if let Some(object) = v.as_object() {
@@ -761,12 +674,17 @@ fn inspect_json(
     }
 }
 
-pub(crate) fn preflight(legacy: &Legacy, options: &Options) -> Result<()> {
-    let pending = pending(legacy, &options.v3)?;
+/// Stop the import on what [`findings`] cannot take; otherwise return what
+/// it takes with a recorded default.
+pub(crate) fn preflight(
+    legacy: &Legacy,
+    options: &Options,
+) -> Result<Vec<crate::defaults::Adjustment>> {
+    let (pending, adjusted) = findings(legacy, &options.v3)?;
     if !pending.is_empty() {
         return Err(ImportError::V3Pending(pending));
     }
-    Ok(())
+    Ok(adjusted)
 }
 
 type Projections = HashMap<String, (CommentId, ProjectionKind, DocId, BlockId)>;
@@ -876,36 +794,37 @@ pub(crate) fn holds(view: &BookViewV3<'_>, owner: &Owner, want: &Fields) -> bool
             .then(|| entry.template.as_ref().and_then(|id| view.template(id)))
             .flatten();
         let custom = |id: &str| !["aliases", "summary", "portrait"].contains(&id);
+        // A field takes the first value under its name; the others are the
+        // entry's own rows (`dr_samples::v3` `put_element`).
+        let mut filled = BTreeSet::new();
+        let mut in_fields = 0usize;
         for fact in facts {
-            if let Some(def) = template.as_ref().and_then(|t| {
+            let def = template.as_ref().and_then(|t| {
                 t.modules
                     .iter()
                     .flat_map(|m| &m.config.defs)
                     .find(|d| custom(&d.id) && d.name == fact.key)
-            }) {
-                if field(&entry, &def.id).as_str() != Some(fact.value.as_str()) {
-                    return false;
+            });
+            match def {
+                Some(def) if filled.insert(def.id.clone()) => {
+                    in_fields += 1;
+                    if field(&entry, &def.id).as_str() != Some(fact.value.as_str()) {
+                        return false;
+                    }
                 }
-            } else if !kv.iter().any(|k| {
-                k.id == fact.id && k.key == fact.key && k.value == fact.value && k.pos == fact.pos
-            }) {
-                return false;
+                _ => {
+                    if !kv.iter().any(|k| {
+                        k.id == fact.id
+                            && k.key == fact.key
+                            && k.value == fact.value
+                            && k.pos == fact.pos
+                    }) {
+                        return false;
+                    }
+                }
             }
         }
-        if kv.len()
-            + facts
-                .iter()
-                .filter(|f| {
-                    template.as_ref().is_some_and(|t| {
-                        t.modules
-                            .iter()
-                            .flat_map(|m| &m.config.defs)
-                            .any(|d| custom(&d.id) && d.name == f.key)
-                    })
-                })
-                .count()
-            != facts.len()
-        {
+        if kv.len() + in_fields != facts.len() {
             return false;
         }
     }

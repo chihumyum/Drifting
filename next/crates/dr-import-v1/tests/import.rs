@@ -1502,18 +1502,29 @@ fn stopping_now_leaves_the_book_to_carry_on() {
     assert_eq!(catalog_state(&new), catalog_state(&clean));
 }
 
+/// The original fixture's relation from an element with no row: dropped,
+/// its pair kept in the receipt, the rest imported (`tests/defaults.rs`).
 #[test]
-fn original_dangling_source_relation_is_pending_before_any_target_or_identity_write() {
+fn original_dangling_source_relation_is_dropped_and_recorded() {
     let old = build(true);
     let new = new_library();
     let before = sha_of(&old.db);
-    let error = run::import(&old.db, &new.root, &options(&old, &new, Accept::NOTHING)).unwrap_err();
-    assert!(
-        matches!(error,dr_import_v1::ImportError::V3Pending(items) if items.iter().any(|p|p.code=="invalid-or-duplicate-source-relation"))
+    let receipt = imported(
+        run::import(&old.db, &new.root, &options(&old, &new, Accept::NOTHING))
+            .unwrap()
+            .0,
     );
+    let (_, _, _, json) = receipt
+        .originals
+        .iter()
+        .find(|(c, i, f, _)| c == "relations" && i == "rel-1" && f == "dropped")
+        .expect("the dangling relation is recorded");
+    assert!(json.contains("relation-missing-entry-dropped"), "{json}");
     assert_eq!(sha_of(&old.db), before);
-    assert!(!dr_store::LibraryPaths::new(&new.root).db.exists());
-    assert!(!new.device.exists());
+    let lib = open_library(&new.root, LibraryOptions::new("0.2.0-test"));
+    let catalog = dr_import_v1::verify::check_catalog_in(&old.db, &lib).unwrap();
+    assert!(catalog.is_clean(), "{:#?}", catalog.unexplained);
+    lib.close().unwrap();
 }
 
 #[test]
