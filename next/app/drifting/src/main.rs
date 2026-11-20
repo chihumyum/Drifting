@@ -169,14 +169,14 @@ fn main() {
                     Some(lib)
                 }
                 Ok((Err(error), _)) => {
-                    log::error!(
-                        "the library could not be opened: {error} ({})",
-                        error.code()
-                    );
+                    let code = library::open_failure_code(&error);
+                    log::error!("the library could not be opened: {error} ({code})");
+                    crash_reports.report_integrity(&format!("library-open-failed:{code}"));
                     None
                 }
                 Err(_) => {
                     log::error!("opening the library panicked");
+                    crash_reports.report_integrity("library-open-panicked");
                     None
                 }
             },

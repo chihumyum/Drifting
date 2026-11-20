@@ -51,6 +51,18 @@ pub fn open_active(data: &Path, app_version: &str) -> dr_workspace::Result<Works
     }
 }
 
+/// The stable code of a library that could not be opened, for the log and
+/// the integrity report (`library-open-failed:<this>`): the storage layer's
+/// own code when it is the store that refused (`schema-newer`,
+/// `sqlite:database-corrupt`, `migration:validate`, `io:permission-denied`),
+/// otherwise the workspace's. Never text from the library.
+pub fn open_failure_code(error: &dr_workspace::WsError) -> String {
+    match error {
+        dr_workspace::WsError::Store(store) => store.code(),
+        other => other.code(),
+    }
+}
+
 fn open_at(data: &Path, library_dir: &Path, app_version: &str) -> dr_workspace::Result<Workspace> {
     let mut options = dr_workspace::library_options(app_version);
     match dr_store::Device::open(data) {
@@ -103,6 +115,44 @@ mod tests {
         let ws = open(data.path(), VERSION).unwrap();
         assert_eq!(ws.writing_device().as_deref(), Some(key.as_str()));
         close(ws);
+    }
+
+    #[test]
+    fn a_library_that_cannot_be_opened_has_a_stable_code_and_is_left_alone() {
+        // Written by a newer build: one migration more than this build knows.
+        let data = tempfile::tempdir().unwrap();
+        close(open(data.path(), VERSION).unwrap());
+        let file = data.path().join(LIBRARY_DIR).join("library.sqlite");
+        {
+            let db = rusqlite::Connection::open(&file).unwrap();
+            db.execute(
+                "INSERT INTO schema_migration (version, name, sha256, applied_ms) \
+                 SELECT max(version) + 1, 'from_a_newer_build', 'x', 0 FROM schema_migration",
+                [],
+            )
+            .unwrap();
+        }
+        let before = std::fs::read(&file).unwrap();
+        let error = open(data.path(), VERSION).err().expect("refused");
+        assert_eq!(open_failure_code(&error), "schema-newer");
+        assert_eq!(std::fs::read(&file).unwrap(), before, "nothing was changed");
+
+        // Not a database at all.
+        let data = tempfile::tempdir().unwrap();
+        let dir = data.path().join(LIBRARY_DIR);
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("library.sqlite");
+        std::fs::write(
+            &file,
+            b"this is not a database, it only sits where one would be",
+        )
+        .unwrap();
+        let error = open(data.path(), VERSION).err().expect("refused");
+        assert_eq!(open_failure_code(&error), "sqlite:not-a-database");
+        assert_eq!(
+            std::fs::read(&file).unwrap(),
+            b"this is not a database, it only sits where one would be"
+        );
     }
 
     #[test]
