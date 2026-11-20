@@ -1156,6 +1156,11 @@ fn write_library(
             rec.material_provenances_to_comments,
             rec.materials_dropped,
         ) = material_report(&rows, &material_assets);
+        rec.merged_assets = rows
+            .asset_aliases
+            .iter()
+            .map(|(merged, kept)| (merged.clone(), kept.clone()))
+            .collect();
         rec.material_assets = material_assets
             .iter()
             .map(|(k, v)| ((*k).to_string(), v.to_string()))
@@ -2007,6 +2012,7 @@ fn copy_assets(
         });
         let Some(source) = source else {
             rec.assets_missing += 1;
+            rec.asset_files_missing.push(a.id.clone());
             continue;
         };
         if lib
@@ -2024,6 +2030,7 @@ fn copy_assets(
             .collect();
         if sha != a.sha256 || bytes.len() as i64 != a.size {
             rec.assets_mismatched += 1;
+            rec.asset_files_mismatched.push(a.id.clone());
             continue;
         }
         let ext = source

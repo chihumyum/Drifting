@@ -1650,7 +1650,7 @@ fn ambiguous_or_unsupported_sources_stop_before_v3_writes() {
         ),
         (
             "UPDATE comment SET target_id='missing' WHERE kind='note' AND target_kind='node'",
-            "comment-target-missing-or-trashed",
+            "comment-target-missing",
         ),
         (
             "UPDATE timeline_marker SET drift_node_id='missing'",

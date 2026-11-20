@@ -369,9 +369,24 @@ pub fn pending(legacy: &Legacy, choices: &MappingChoices) -> Result<Vec<Pending>
         }) {
             add(code, &project.id);
         }
+        // A comment on something in Recently Deleted is not dangling: 0.1
+        // keeps the comments of a chapter or element it moves to Recently
+        // Deleted, and format 5 keeps a trashed entry's comments the same way
+        // (they come back with it). Only a target with no row at all stops
+        // the import.
+        let in_source = |t: &dr_model::import_v1::EntityRef| {
+            use dr_model::kind::EntityKind as K;
+            match t.kind {
+                K::Node => rows.nodes.iter().any(|r| r.id == t.id),
+                K::Element => rows.elements.iter().any(|r| r.id == t.id),
+                K::Category => rows.categories.iter().any(|r| r.id == t.id),
+                K::Storyline => rows.storylines.iter().any(|r| r.id == t.id),
+                _ => false,
+            }
+        };
         for comment in catalog.view().comments() {
-            if comment.target_missing {
-                add("comment-target-missing-or-trashed", comment.id.as_str());
+            if comment.target_missing && !comment.target.as_ref().is_some_and(in_source) {
+                add("comment-target-missing", comment.id.as_str());
             }
         }
         // These are the source pairs that can reach the project. Retired

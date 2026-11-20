@@ -16,6 +16,9 @@ use crate::prose::{self, Context, Para, pm, read};
 use crate::receipt::Receipt;
 use crate::run::Timing;
 
+mod catalog;
+pub use catalog::{CatalogCheck, Tally, Unexplained, check_catalog, check_catalog_in};
+
 /// The import's own numbers, for the measurement.
 pub fn summary(receipt: &Receipt, timing: &Timing) -> Value {
     let kebab = |v: Value| v.as_str().unwrap_or("").to_string();
@@ -152,6 +155,8 @@ pub fn check_truth(root: &Path, truth: &Path) -> Result<Value> {
     let mut history_rows = 0usize;
     let mut history_equal = 0usize;
     let mut labels_by_doc: HashMap<String, usize> = HashMap::new();
+    let mut links_compared = 0usize;
+    let mut cells_compared = 0usize;
     for line in std::fs::read_to_string(truth)?
         .lines()
         .filter(|l| !l.trim().is_empty())
@@ -192,15 +197,28 @@ pub fn check_truth(root: &Path, truth: &Path) -> Result<Value> {
         let snap = stored.export(loro::ExportMode::Snapshot)?;
         let doc = ProseDoc::load(doc_id, dr_doc::peer::random_device_peer(), &[snap])?;
         let have = read::read_paras_v3(&doc.view());
-        // Compare what the author sees: text, attributes and marks; block ids
-        // except the ones the repair rewrote and the entity links' remapped
-        // blocks (both noted in the receipt).
+        links_compared += want.iter().map(|p| p.v3_links.len()).sum::<usize>();
+        cells_compared += want.iter().map(|p| p.table_cells.len()).sum::<usize>();
+        // Compare what the author sees: text, attributes and marks, the
+        // format-5 entity links, embeds (a table's cells with their own
+        // marks and links); block ids except the ones the repair rewrote and
+        // the entity links' remapped blocks (both noted in the receipt).
         let same = have.len() == want.len()
             && have.iter().zip(&want).all(|(a, b)| {
                 a.attrs == b.attrs
-                    && a.embed.is_some() == b.embed.is_some()
+                    && a.embed == b.embed
                     && a.text() == b.text()
                     && marks_shape(a) == marks_shape(b)
+                    && links_shape(&a.v3_links) == links_shape(&b.v3_links)
+                    && a.table_cells.len() == b.table_cells.len()
+                    && a.table_cells
+                        .iter()
+                        .zip(&b.table_cells)
+                        .all(|((ka, ca), (kb, cb))| {
+                            ka == kb
+                                && runs_shape(&ca.runs) == runs_shape(&cb.runs)
+                                && links_shape(&ca.v3_links) == links_shape(&cb.v3_links)
+                        })
             });
         let proven = matches!(
             freshness.as_str(),
@@ -239,6 +257,8 @@ pub fn check_truth(root: &Path, truth: &Path) -> Result<Value> {
     lib.close()?;
     Ok(json!({
         "bodiesWithYjs": docs,
+        "entityLinksCompared": links_compared,
+        "tableCellsCompared": cells_compared,
         "equalToYjs": equal,
         "provenFreshEqual": fresh_equal,
         "provenFreshButDifferent": fresh_differ,
@@ -255,9 +275,28 @@ pub fn check_truth(root: &Path, truth: &Path) -> Result<Value> {
 
 /// Marks as (char range, marks without entity block ids).
 fn marks_shape(p: &Para) -> Vec<(usize, usize, String)> {
+    runs_shape(&p.runs)
+}
+
+/// Format-5 entity links without their (remapped) blocks.
+fn links_shape(
+    links: &[(std::ops::Range<usize>, dr_model::v3::EntityLinkV3)],
+) -> Vec<(std::ops::Range<usize>, dr_model::v3::EntityLinkV3)> {
+    links
+        .iter()
+        .map(|(r, l)| {
+            let mut l = l.clone();
+            l.block = None;
+            l.end_block = None;
+            (r.clone(), l)
+        })
+        .collect()
+}
+
+fn runs_shape(runs: &[dr_doc::prose::Run]) -> Vec<(usize, usize, String)> {
     let mut out = Vec::new();
     let mut at = 0;
-    for r in &p.runs {
+    for r in runs {
         let n = r.text.chars().count();
         let mut m = r.marks.clone();
         for l in &mut m.entities {
@@ -283,11 +322,15 @@ pub fn check_index(root: &Path) -> Result<Value> {
     let mut differ: Vec<String> = Vec::new();
     let mut outline = 0usize;
     let mut probes: BTreeMap<String, (String, String)> = BTreeMap::new();
-    let mut ids: Vec<&String> = by_old.values().map(|(d, _)| d).collect();
+    // By the 0.1 kind of body (in format 5 every body is a `body:` document,
+    // so the new id no longer tells a chapter from a note).
+    let mut ids: Vec<(&String, String)> = by_old
+        .iter()
+        .map(|(old, (d, _))| (d, old.split(':').next().unwrap_or("").to_string()))
+        .collect();
     ids.sort();
-    for id in ids {
+    for (id, kind) in ids {
         let doc_id = DocId::parse(id).map_err(|e| crate::ImportError::Invalid(e.to_string()))?;
-        let kind = id.split(':').next().unwrap_or("").to_string();
         let snap = lib.load_copy(id)?.export(loro::ExportMode::Snapshot)?;
         let p = ProseDoc::load(doc_id, dr_doc::peer::random_device_peer(), &[snap])?;
         let want = dr_index::derive_view(&p.view());

@@ -1060,10 +1060,13 @@ pub fn sync_catalog_with_relation_times(
     }
     for n in &nodes {
         let id = eid(n.id.as_str());
+        // A chapter or idea in Recently Deleted keeps its storylines, as in
+        // 0.1 and as format 5's own trash keeps them: readers leave the
+        // membership out until the entry comes back (`V3-MEMBERSHIP-RULES`).
+        for host in &n.storylines {
+            txn.put_membership(&eid(host.as_str()), &id, None, None)?;
+        }
         if !n.is_trashed() {
-            for host in &n.storylines {
-                txn.put_membership(&eid(host.as_str()), &id, None, None)?;
-            }
             if n.storylines.is_empty() && n.narrative_order.is_some() {
                 txn.put_membership(unaffiliated.as_ref().unwrap(), &id, None, None)?;
             }
@@ -1712,6 +1715,14 @@ pub fn validate(view: &BookViewV3<'_>) -> std::result::Result<(), String> {
         },
     ))?;
     for membership in &memberships {
+        // Kept for an entry in Recently Deleted, read as absent until it
+        // comes back: the state format 5's own trash leaves.
+        if entries
+            .get(&membership.member)
+            .is_some_and(|e| e.is_trashed())
+        {
+            continue;
+        }
         check(check_membership(
             &membership.host,
             &membership.member,

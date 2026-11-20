@@ -179,6 +179,17 @@ pub struct BookRecord {
     pub assets_copied: usize,
     pub assets_missing: usize,
     pub assets_mismatched: usize,
+    /// The 0.1 assets of [`Self::assets_missing`] and
+    /// [`Self::assets_mismatched`], by id: their records came over, their
+    /// bytes did not.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub asset_files_missing: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub asset_files_mismatched: Vec<String>,
+    /// A second 0.1 asset with the bytes of an earlier one is that earlier
+    /// file (`kernel-v5.md` §11): merged asset id → the id kept.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub merged_assets: BTreeMap<String, String>,
     pub projected_todos: usize,
     pub anchors_with_cursors: usize,
     pub anchors_without_cursors: usize,
