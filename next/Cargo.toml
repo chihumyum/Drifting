@@ -88,9 +88,12 @@ dr-agent-tools = { path = "crates/dr-agent-tools" }
 dr-mcp = { path = "crates/dr-mcp" }
 dr-view-agent = { path = "crates/dr-view-agent" }
 url = "2.5"
-# GPUI is pinned to a Zed stable release tag (decision D1). Upgrade on a
-# schedule: bump both entries together, then rerun the spike benchmarks.
-gpui = { git = "https://github.com/zed-industries/zed", tag = "v1.27.0" }
+# GPUI is pinned to a Zed stable release tag (decision D1) plus the patches
+# the author chose to carry (2026-11-20: `patches/gpui/0001`, the idle
+# display link): the fork's tag `v<Zed tag>-drifting.<n>` is that Zed tag
+# with them applied (patches/gpui/README.md). Upgrade on a schedule: bump the
+# three entries together, then rerun the spike benchmarks.
+gpui = { git = "https://github.com/chihumyum/zed", tag = "v1.27.0-drifting.1" }
 # `font-kit` rasterizes glyphs on macOS; without it GPUI lays text out but
 # draws none (Windows uses DirectWrite either way). `runtime_shaders` (compile
 # the Metal shaders when the app starts, so a build needs no Metal Toolchain)
@@ -99,7 +102,7 @@ gpui = { git = "https://github.com/zed-industries/zed", tag = "v1.27.0" }
 # executable asks for it itself: the app through its default feature
 # `runtime-shaders` (the release build passes `--no-default-features`), every
 # test, example and capture dependency in its own line.
-gpui_platform = { git = "https://github.com/zed-industries/zed", tag = "v1.27.0", features = ["font-kit"] }
+gpui_platform = { git = "https://github.com/chihumyum/zed", tag = "v1.27.0-drifting.1", features = ["font-kit"] }
 
 # Loro is pinned exactly; its Rust API still has breaking changes.
 loro = "=1.18.0"
@@ -112,7 +115,7 @@ gpui-prose = { path = "crates/gpui-prose" }
 gpui-ime = { path = "crates/gpui-ime" }
 prose-linebreak = { path = "crates/prose-linebreak", default-features = false }
 # GPUI's own B-tree (Apache-2.0), for gpui-prose's paragraph index.
-sum_tree = { git = "https://github.com/zed-industries/zed", tag = "v1.27.0" }
+sum_tree = { git = "https://github.com/chihumyum/zed", tag = "v1.27.0-drifting.1" }
 # gpui-prose (F4): word and grapheme-cluster boundaries, Chinese words from the
 # dictionary. Same 2.4 line as the icu_* crates GPUI already pulls in; no LSTM.
 icu_segmenter = { version = "2.4", default-features = false, features = ["compiled_data"] }

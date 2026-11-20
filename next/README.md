@@ -154,8 +154,8 @@ cargo drifting workspace scenario crates/dr-cli/scenarios/writing-loop.json --ap
 
 - **成员**：`Cargo.toml` 的 `members` 一行一个、按字母排，几路分支同时加 crate 也不冲突。
 - **依赖**：新依赖加进 `[workspace.dependencies]`，至少钉到 minor（`"1.2"`，0.x 钉到 `"0.6"` 这一级）；成员里写 `xxx.workspace = true`。`Cargo.lock` 入库，检查和 CI 都带 `--locked`。
-- **Loro** 精确钉 `=1.17.1`，升级单独做、单独验。
-- **GPUI** 钉在 Zed 的发布标签（现为 `v1.27.0`，决定 D1），`gpui` 和 `gpui_platform` 两项一起改。
+- **Loro** 精确钉 `=1.18.0`，升级单独做、单独验。
+- **GPUI** 钉在 Zed 的发布标签（现为 `v1.27.0`，决定 D1）加上作者决定挂的补丁（2026-11-20 起：`patches/gpui/0001`，空闲时停掉显示链接）。依赖指向的是 fork [chihumyum/zed](https://github.com/chihumyum/zed) 的标签 `v1.27.0-drifting.1`：Zed 的 `v1.27.0` 上打了这些补丁的那个提交。`gpui`、`gpui_platform`、`sum_tree` 三项一起改。fork 只放这一个分支和标签，补丁文件仍以 `patches/gpui/` 里的为准（[patches/gpui/README.md](patches/gpui/README.md)）。
 - **`[patch.crates-io]`** 照抄 Zed 同一标签根目录 `Cargo.toml` 里 GPUI 用得到的补丁。git 依赖不继承上游的 `[patch]`，删了会编不过或行为不同。
 - **许可**：Zed 的 `editor`、`text`、`rope`、`ui`、`theme` 等是 GPL-3.0，不要抄；`gpui` 及其平台 crate、`sum_tree` 是 Apache-2.0，可以参考和依赖。
 
@@ -164,9 +164,9 @@ cargo drifting workspace scenario crates/dr-cli/scenarios/writing-loop.json --ap
 每月一次，单独一个分支：
 
 1. 选 Zed 新的稳定标签，读两个标签之间 `crates/gpui*` 的改动。
-2. 把 `gpui`、`gpui_platform` 的 `tag` 一起改掉；对照新标签的根 `Cargo.toml` 更新 `[patch.crates-io]`。
+2. 在 fork 里从 Zed 的新标签开一个分支 `drifting/<新标签>`，把 `patches/gpui/` 里挂着的补丁打上去（打不上就先改补丁文件），打一个标签 `<新标签>-drifting.1` 推上去；把 `gpui`、`gpui_platform`、`sum_tree` 的 `tag` 一起改成它；对照 Zed 新标签的根 `Cargo.toml` 更新 `[patch.crates-io]`。
 3. 工具链对齐新标签的 `rust-toolchain.toml`，同时改 `next.yml` 里的 `toolchain`。
-4. `cargo update -p gpui -p gpui_platform`，然后跑全部检查、`script/bundle-mac --open` 看一眼窗口、标题栏、菜单和深浅色。
+4. 让 Cargo 重新解析（`cargo metadata`，锁文件里来自 fork 的 20 个包一起换），然后跑全部检查、`script/bundle-mac --open` 看一眼窗口、标题栏、菜单和深浅色。
 5. 重跑探针档基准（[benchmarks.md](../docs/rust-rewrite/benchmarks.md)），和升级前对比；输入法矩阵抽测。
 6. 结论和踩到的坑记进提交说明。
 
