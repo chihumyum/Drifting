@@ -4,7 +4,7 @@
 
 ## 一句话
 
-已经装着 0.1 的人什么都不用做：0.1 最后一版查到新版，先把书誊好（交接），再把自己换成新版；新版第一次打开时，从 0.1 的数据里导入书，登录和 API Key 直接读得到。为了这件事，新版要用 0.1 的「身份」（同一个 bundle id、同一把更新钥匙、同一个安装位置），而这个身份平时绝不能出现在开发构建里。
+已经装着 0.1 的人什么都不用做：0.1 最后一版查到新版，先把书誊好（交接），再把自己换成新版；新版第一次打开时自己弹出导入对话框，从 0.1 的数据里导入书（只弹这一次，入口一直在「全部项目」左栏）；登录和 API Key 直接读得到。为了这件事，新版要用 0.1 的「身份」（同一个 bundle id、同一把更新钥匙、同一个安装位置），而这个身份平时绝不能出现在开发构建里。
 
 ## 已经准备好的（不用作者动手）
 
@@ -12,10 +12,11 @@
 | --- | --- |
 | 正式身份的开关 | `dr-platform` 有 `release-identity` 特性，打开后程序就是「Drifting」（`cc.drifting.client`、`drifting:` 链接、旧版的钥匙串）。只有打包脚本的 `--release-identity`（Windows 是 `-ReleaseIdentity`）会打开它，发布工作流用。平时所有构建、测试、CI 都还是开发身份「Drifting Next」。`cargo xtask check` 拦着别处打开它；它和调试桥、热重载放在一起编不过；`cargo xtask check-binary` 能从打好的程序里认出是哪个身份 |
 | 新旧两版的数据文件夹 | 见下面「新版第一次打开时」。核实过会撞，已经修好：新版自己的东西放在 0.1 文件夹的**旁边**，0.1 的书库和登记表一个字节都不动 |
-| 预编译着色器的开关 | `script/bundle-mac --precompiled-shaders`：不带 App 的默认特性编，Metal 着色器在编译时预编好，窗口第一次画的时候不用再现编。要先装 Metal Toolchain（作者的事，见第 2 步） |
+| 预编译着色器的开关 | `script/bundle-mac --precompiled-shaders`：不带 App 的默认特性编，Metal 着色器在编译时预编好，窗口第一次画的时候不用再现编。这台机器 2026-11-20 装了 Metal Toolchain，照第 2 步验过 |
 | 发布工作流 | `next/script/release-next.draft.yml` 写全了：检查、macOS 打包签名公证、更新包签名、符号上传、带上 0.1 最后一版的 `latest.json`、Windows 两个架构、建草稿 Release，三个平台都打好以后才写进三个键齐全的 `update.json`。放在 `next/script` 里，GitHub 不会跑它，挪进 `.github/workflows` 就会跑（第 5 步） |
 | 旧版那头 | 已经做了，而且已经发出去了：0.1.0-alpha.11 和 alpha.12 都带着交接和「先读 `update.json`、读不到再读 `latest.json`」（提交 `c788d72b2`）。0.1 的发布流程本来就只出 `latest.json`，不会出 `update.json` |
 | 开发身份的安装包 | `next` 工作流每次运行都在跑测试之前打好 macOS 的 `.dmg` 和 Windows 两个架构的安装包，作为运行产物传上去（名字带平台和提交号，留 7 天），作者在虚拟机里实机验收用（见「Windows 这一半」） |
+| 第一次打开时带去导入 | 这台设备第一次显示「全部项目」时，找到 0.1 的书库就自己弹出导入对话框，只弹一次；登录着的账号只在这次导入会被放行时才弹（账号在本机和服务端都是空的）。见 [m10 的「第一次打开时自己弹出」](modules/m10-import.md#第一次打开时自己弹出2026-11-20) |
 | 本机演练 | 开发身份的包上，用一次性密钥和本地清单走完「打包 → 签更新包 → 写清单 → 查到 → 下载验签 → 换包」，见文末「本机演练」 |
 
 ## 新版第一次打开时（数据文件夹）
@@ -40,15 +41,15 @@
 
 顺带的好处：新版不碰 0.1 的书库和登记表，作者万一要手动装回 0.1，0.1 打开的还是它离开时的样子（只是看不到在新版里新写的东西）。
 
-文件夹名 `cc.drifting.client.v2` 是替作者定的；**发了 0.2.0 以后就不能再改**（老用户的书在那里）。
+文件夹名 `cc.drifting.client.v2` 作者 2026-11-20 确认就用它；**发了 0.2.0 以后就不能再改**（老用户的书在那里）。
 
 ## 发布顺序
 
 | 步 | 谁 | 做什么 | 要什么 |
 | --- | --- | --- | --- |
-| 0 | 作者 | 先定下面「要作者定的事」那几条 | — |
+| 0 | ~~作者~~ | ~~先定「要作者定的事」那几条~~ 2026-11-20 都定了，见下面「作者定了的事」 | — |
 | 1 | 作者 | 在仓库 Settings › Secrets and variables › Actions 里加新变量（已有的证书、公证、更新钥匙、Hosted 地址都不用动，0.1 的发布已经在用；证书必须就是 0.1 在用的那张 Developer ID，同一个团队，钥匙串里的登录和 API Key 才读得到、不弹框） | `DRIFTING_LAST_V1_TAG`：最后一个 0.1 Release 的标签，现在是 `v0.1.0-alpha.12`。要开崩溃上报再加 `DRIFTING_SENTRY_DSN`、`SENTRY_ORG`、`SENTRY_PROJECT`（变量）和 `SENTRY_AUTH_TOKEN`（`release` 环境的密钥）；整张表在工作流文件开头 |
-| 2 | 作者 | 本机装 Metal Toolchain，打一个预编译着色器的开发包看一眼 | Xcode 26；见下面「验证预编译着色器」 |
+| 2 | ~~作者~~ 监管会话 | ~~本机装 Metal Toolchain，打一个预编译着色器的开发包看一眼~~ 作者 2026-11-20 同意装，当天装了、验过，见下面「验证预编译着色器」 | — |
 | 3 | 作者 + 监管会话 | 真实条件下的验收（[progress.md](progress.md)「等作者的事」第 3、4 条），尤其导入自己的 0.1 库；Windows 实机手测挡发布，在 ARM 虚拟机里用 CI 产物里的开发身份安装包照 [m43 的清单](modules/m43-windows.md)走（见「Windows 这一半」） | CI 产物、Windows 11 ARM 虚拟机 |
 | 4 | 监管会话 | 改版本号 `next/app/drifting/Cargo.toml` → `0.2.0`；写发布说明 `docs/releases/0.2.0.md`（第一行 `# Drifting 0.2.0`，先中文后英文，纯文本） | — |
 | 5 | 监管会话（作者同意推送） | 把工作流挪进来：`git mv next/script/release-next.draft.yml .github/workflows/release-next.yml`；**同一个提交里**把 `release.yml` 的触发改成 `tags: ['v0.1.*']`（现在两个都认所有 `v*` 标签），并把 `scripts/check-ci-contract.mjs` 里「release.yml 必须认 `v*`」那条改成新的规矩；跑 `pnpm ci:contract:check`、`cargo xtask check`；本地 `next/script/check-release v0.2.0` | — |
@@ -64,7 +65,7 @@
 
 ### 验证预编译着色器（第 2 步）
 
-装 Metal Toolchain（Xcode 的一个单独下载，约 700 MB，要作者在自己的机器上点）：
+装 Metal Toolchain（Xcode 的一个单独下载，约 840 MB；换一台机器打包时要再装一次）：
 
 ```bash
 xcodebuild -downloadComponent MetalToolchain
@@ -83,6 +84,8 @@ cargo xtask check-binary --precompiled-shaders "target/bundle/Drifting Next.app/
 ```
 
 打开的窗口里字、按钮、阴影、玻璃都正常画出来，就说明预编译的着色器能用。这个包是开发身份「Drifting Next」，不碰正式版的数据，可以放心开。
+
+2026-11-20 在这台机器上做过一遍（Xcode 27.2，Metal Toolchain 27B47）：包打出来了（release 档案，209 MB，程序 131 MB），`check-binary` 报「precompiled Metal shaders」「not the release identity」；用一个一次性的 profile 打开，首次引导那一屏的字海、卡片、字和按钮都画出来了（截了窗口的图看的）。阴影和玻璃在这一屏上不多，作者打开日常界面时再扫一眼就行。CI 的发布任务用的是 GitHub 的 macOS 机器，草稿工作流里有一步每次先装 Metal Toolchain；那一步要等工作流第一次真跑才算验过。
 
 ## 回不去的那一点
 
@@ -113,20 +116,36 @@ cargo xtask check-binary --precompiled-shaders "target/bundle/Drifting Next.app/
 | 从 0.1 原位升级 | 0.1 最后一版的更新器下载新安装包、验签，用 `/P /R /UPDATE /ARGS` 运行它，自己马上退出。新安装器装进**同一个**文件夹 `%LOCALAPPDATA%\Drifting`（之前装在别处的，按 `HKCU\Software\drifting\Drifting` 记下的位置），改写同一个卸载项（「已安装的应用」里还是一个 Drifting）、同一个 `drifting:` 协议键；最多等旧进程 10 秒，被动模式下再结束本用户残留的同名进程；`/UPDATE` 时不动开始菜单和任务栏上已有的固定；装完把新版打开 | 安装位置、卸载项、厂商键、协议、`/P /UPDATE` 都对着旧版 Tauri 安装器写的，CI 上验过开发身份那一套；**正式身份的安装包没在 Windows 上打过**，从 0.1 真升级一次是实机验收（m43 清单第一节最后一条） |
 | 数据 | 0.1 的 `%LOCALAPPDATA%\cc.drifting.client`（书库、登记表、WebView2 的 `EBWebView/`）新版除了 `mcp/` 不写；新版自己的东西在 `%LOCALAPPDATA%\cc.drifting.client.v2`，日志在它的 `logs\`；程序在 `%LOCALAPPDATA%\Drifting`，卸载只删程序自己的文件，书不在那里 | 测试按 Windows 的规则也跑一遍（不管在哪个系统上跑），含程序文件夹不被碰 |
 | 更新签名 | Windows 的更新包就是安装包本身：`update-tool sign` 用同一把 minisign 私钥签出 `-setup.exe.sig`，签名里带文件名（含版本号），`update.json` 的 Windows 两个键指向安装包和它的签名 | 工作流里签完立刻用公钥验一次 |
-| 代码签名（Authenticode） | **要作者定，默认照 0.1：不签**。不签时第一次运行 SmartScreen 会提示「Windows 已保护你的电脑」（点「更多信息」→「仍要运行」），发布说明里照 0.1 写一句；更新照样由 minisign 签名保证。要签得买代码签名证书，工作流里在「Sign the installer with the updater key」前面加一步 | 不签 |
+| 代码签名（Authenticode） | **作者 2026-11-20 定：不签，照 0.1**。不签时第一次运行 SmartScreen 会提示「Windows 已保护你的电脑」（点「更多信息」→「仍要运行」），发布说明里照 0.1 写一句；更新照样由 minisign 签名保证。要签得买代码签名证书，工作流里在「Sign the installer with the updater key」前面加一步 | 不签 |
 | 实机验收 | 作者只有一台 Windows 11 ARM 虚拟机：开发身份的安装包从 `next` 工作流每次运行的产物里下（`drifting-next-windows-arm64-<提交号>`，x64 的叫 `…-windows-x64-…`；在跑测试之前就传上去，留 7 天），照 [m43-windows.md](modules/m43-windows.md) 的清单走 | **挡发布**（progress「等作者的事」第 3 条） |
 
-## 要作者定的事（带推荐）
+## 作者定了的事（2026-11-20，「全部按照推荐做」）
 
-1. **Windows 签不签名（D10）。** 默认照 0.1：不签（上一节「代码签名」）。
-2. **GPUI 的补丁挂不挂。** 补丁在 `next/patches/gpui`：停掉空闲时的显示链接（不挂的话窗口空闲时也有约 1% 的 CPU）、读屏的两处修正、组字取消的接口。推荐挂 0001（省电，对所有人都有用），读屏和组字那几个等真实输入法验收再定。挂补丁要作者指定一个能推送的 fork 仓库，`next/Cargo.toml` 改指向它。
-3. **崩溃上报开不开。** 推荐开：在 Sentry 建好（或复用旧的 `drifting/drifting-client`）项目，填第 1 步那四项；同意开关在设置里，首次说明在欢迎卡上（m35-account.md）。不填也能发，只是这一版收不到崩溃。开之前在签名的正式包上验一次 ⌘Q（[f7 发版前第 4 条](foundations/f7-platform.md#发版前必须由作者做的事)）。
-4. **新版自己的文件夹名。** 替作者定成 `cc.drifting.client.v2`（放在 0.1 文件夹旁边，macOS、Windows 一样）。没意见就不用回；要改必须在发 0.2.0 之前。
+| 事 | 定的 | 还差什么 |
+| --- | --- | --- |
+| Windows 签不签名（D10） | 不签，照 0.1。第一次运行 SmartScreen 会提示，发布说明里照 0.1 写一句；更新照样由 minisign 签名保证 | 写发布说明时带上那一句（第 4 步） |
+| GPUI 的补丁 | 挂 `0001`（空闲时停掉显示链接，不挂的话窗口空闲时也有约 1% 的 CPU）。读屏和组字那几个不挂，等真实输入法验收再定 | 一个能推送的公开 fork：作者的 GitHub 账号下没有 Zed 的 fork，建公开仓库要作者点头。有了以后：在 `v1.27.0` 上打 `0001`、推一个分支，`next/Cargo.toml` 的 `gpui`、`gpui_platform`、`sum_tree` 改指它的提交，重跑全套和空闲 CPU 的测量 |
+| 崩溃上报 | 开 | 本机没有 Sentry 的令牌，要作者先在浏览器里登录 sentry.io。之后监管会话建客户端项目，把 `DRIFTING_SENTRY_DSN`、`SENTRY_ORG`、`SENTRY_PROJECT` 填进仓库变量；`SENTRY_AUTH_TOKEN`（上传符号用）是密钥，要作者自己放进仓库的 `release` 环境，不放也能发，只是崩溃栈没有函数名。开之前在签名的正式包上验一次 ⌘Q（[f7 发版前第 4 条](foundations/f7-platform.md#发版前必须由作者做的事)） |
+| 新版自己的文件夹名 | `cc.drifting.client.v2`，就用它。**发了 0.2.0 以后不能再改** | — |
+| 老用户升级后第一次打开 | 找到旧书库就自己弹出现有的导入对话框，不加新界面和新文案 | 做了（[m10](modules/m10-import.md#第一次打开时自己弹出2026-11-20)）；正式身份的包上要在第 8 步看一眼 |
+| 登录状态下导入的两句文案 | 照现在：「这个账号已经有书了，直接同步就行。」「文件夹里还有 N 个账号资料库没导入」 | — |
+| 装 Xcode 的 Metal Toolchain | 装 | 装了、验过（「验证预编译着色器」） |
+| 服务端「清空某个账号的新版同步数据」 | 发布前做，部署前再问作者 | 脚本做了，在服务端仓库的本地 `main`（`dcd1570`，没推送、没部署），见下面「导坏了怎么重来」。部署要作者点头 |
 
-已经定了的：两个平台一起发（2026-11-20）。
+更早定的：两个平台一起发（2026-11-20）。
+
+### 导坏了怎么重来（服务端的清空脚本）
+
+登录着的账号只能导一次：账号在新格式里有过东西（删掉的也算）就不再让导。第一次导坏了、而且已经传上去时，要先把这个账号在服务端的新版同步数据清空，才能重新导。
+
+- **服务端**：`scripts/reset-loro-v2-account.ts`（服务端仓库，`docs/loro-sync-v2.md` 的「Operator reset」、`docs/production.md` 的「Resetting an account's loro-v2 sync」）。在 API 容器里跑，按邮箱或用户 id 选一个账号；默认只报告会删什么，加 `--yes` 才删。只动这个账号的新版同步数据（连删除记录一起），旧版（0.1）的同步数据、别的账号、账号本身都不动。运营台仍然只读，没有网页入口。
+- **每台设备都要先丢掉这个账号在本机的新版书库，然后才能清服务端。** 协议里没有「这条同步流被重置过」的记号，服务端自己挡不住还留着旧书库的设备：那台设备要么悄悄漏掉新传上去的开头，要么把新导入的内容并进旧的书里；它要是再删掉那些旧书，删除记录会把重新导入的书一起删掉（重新导入用的是同样的书 id）。退出登录不够，账号的书库还留在磁盘上。
+- **客户端没有做这件事的界面。** 开发版最简单：换一个 `--instance` 名字，就是一套全新的数据文件夹。正式版只能手动处理新版的数据文件夹，这条路没演练过；要对别人的账号用之前，先在开发版上完整走一遍。
+- 以后要让它对任何账号都安全，得给同步协议加一个重置代号，让留着旧书库的设备被明确拒绝。服务端已有的能力协商（缺能力的客户端收到「需要升级」）可以在发版以后再加这一项，不必赶在 0.2.0 之前。做法记在服务端 `docs/loro-sync-v2.md` 的「Operator reset」末尾。
+- 第一个用到它的多半是作者自己试账号迁移的时候。
 
 ## 本机演练（2026-11-20）
 
 在开发身份的 dist 包上，用一次性密钥和本地清单，把「打包 → 签更新包 → 写清单 → 查到 → 下载验签 → 换包」走了一遍：查到新版本、下载加验签约 0.1 秒，退出时换包 0.6 到 1.6 秒（机器很忙）；换完签名校验通过，旧包里多出来的东西清掉了。同版本、更旧的版本、旧包冒充新版本号、被改过一个字节的包、别的钥匙签的包，五种都拒绝，已装的包一点没动。数字和步骤见 [f7-platform.md 的「第五轮」](foundations/f7-platform.md#第五轮发布交接的工程准备)。
 
-没在本机做、也做不了的：预编译着色器那一面（要 Metal Toolchain）、Developer ID 签名和公证、工作流真跑一遍、正式身份的程序真打开（会读写这台机器上正式版的数据）、Windows 的正式身份安装包和更新包演练（本机没有 Windows，只能在 CI 上打）。
+预编译着色器那一面 2026-11-20 装了 Metal Toolchain 以后补做了（见「验证预编译着色器」）。没在本机做、也做不了的：Developer ID 签名和公证、工作流真跑一遍、正式身份的程序真打开（会读写这台机器上正式版的数据）、Windows 的正式身份安装包和更新包演练（本机没有 Windows，只能在 CI 上打）。

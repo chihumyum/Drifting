@@ -367,7 +367,7 @@ CI（`next.yml` 的 Windows 任务，`script/check-windows-installer.ps1`）：�
 
 整个发布的顺序和每一步谁做，第五轮写成了 [release-handover.md](../release-handover.md)；下面是其中要作者动手的几件。
 
-1. **装 Metal Toolchain**（`xcodebuild -downloadComponent MetalToolchain`）。正式包关掉 `runtime_shaders` 的开关第五轮接好了（`bundle-mac --precompiled-shaders`），装完以后照 release-handover.md「验证预编译着色器」跑一遍。我没装，按要求留给作者。
+1. ~~**装 Metal Toolchain**（`xcodebuild -downloadComponent MetalToolchain`）。~~ 作者 2026-11-20 同意装，监管会话当天装了，照 release-handover.md「验证预编译着色器」跑过一遍：包打出来、`check-binary --precompiled-shaders` 通过、窗口正常画。
 2. **在 Sentry 建好客户端项目**，把公开的 DSN 放进仓库变量 `DRIFTING_SENTRY_DSN`；上传符号用的 token 放进 `release` 环境的 secret。旧的 `drifting/drifting-client` 项目可以复用。
 3. **确认 Developer ID 证书和团队与旧版相同**（钥匙串和权限都认它）。
 4. **开上报前在签名的正式包上验一次 ⌘Q**：`crash-context` 0.6.3（sentry-minidump 依赖的版本）里有 Zed 遇到的同一个 bug（[minidump-writer#249](https://github.com/rust-minidump/minidump-writer/pull/249)：旁路进程释放端口的方式不对，⌘Q 时可能报「意外退出」）。本机未签名的探针正常退出时没有触发；如果正式包触发了，就给 `crash-context` 0.6 打补丁或等 sentry-minidump 升级。顺带验一下 hardened runtime 下旁路进程还能读崩溃进程的内存。
@@ -514,7 +514,7 @@ M3 Pro，release 构建，机器负载 15–18（其他会话在编译）。
 
 ### 没验到的
 
-- 预编译着色器那一面（要 Metal Toolchain）、Developer ID 签名、公证、staple、`spctl`，工作流本身（没跑过，actionlint 和 shellcheck 过了）。
+- Developer ID 签名、公证、staple、`spctl`，工作流本身（没跑过，actionlint 和 shellcheck 过了）。预编译着色器那一面 2026-11-20 装了 Metal Toolchain 以后在本机补验了（release-handover.md「验证预编译着色器」）。
 - 正式身份的程序没运行过（会读写这台机器上正式版的数据）；Windows 的 `-ReleaseIdentity` 没在 Windows 上打过（本机没有 NSIS），`dr-platform` 加正式身份过了 Windows 交叉 Clippy；`next.yml` 的改动（测试之前传开发安装包）只过了 actionlint，要等下一次推送才在 CI 上真跑。
 - 签名包上「0.1 最后一版 → 新版」的真交接，要作者在不是日常用的账户或虚拟机里做（release-handover.md 第 8 步）。
 
