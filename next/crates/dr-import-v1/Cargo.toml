@@ -16,6 +16,9 @@ dr-index.workspace = true
 dr-model.workspace = true
 dr-samples.workspace = true
 dr-store.workspace = true
+# The size of 0.1's JPEG display and thumbnail copies, read from their
+# headers (`copies`).
+image.workspace = true
 log.workspace = true
 loro.workspace = true
 rusqlite.workspace = true

@@ -2039,6 +2039,7 @@ fn copy_assets(
         {
             // Already copied (an interrupted import carrying on).
             rec.assets_copied += 1;
+            carry_copies(lib, &dir, a, rec)?;
             continue;
         }
         let bytes = std::fs::read(&source)?;
@@ -2070,9 +2071,54 @@ fn copy_assets(
             limit: 512 * 1024 * 1024,
         })?;
         rec.assets_copied += 1;
+        carry_copies(lib, &dir, a, rec)?;
     }
     if total > 0 {
         progress(total, total);
     }
     Ok(true)
+}
+
+/// 0.1's display and thumbnail copies of `a`, whose source is in `lib`,
+/// carried from its 0.1 folder `dir` when the new client cannot decode the
+/// source itself (`crate::copies`): each copy the library lacks is checked
+/// and stored as that variant, or the receipt says why not. The 0.1 folder
+/// is only read.
+fn carry_copies(
+    lib: &Library,
+    dir: &Path,
+    a: &crate::legacy::AssetRow,
+    rec: &mut BookRecord,
+) -> Result<()> {
+    if !crate::copies::wanted(&a.kind, &a.mime) {
+        return Ok(());
+    }
+    for variant in crate::copies::VARIANTS {
+        let held = lib.asset(&a.id, variant)?.is_some();
+        let carried = if held {
+            Ok(())
+        } else {
+            match crate::copies::read(dir, variant) {
+                Ok(copy) => {
+                    lib.put_variant(&a.id, variant, &copy)?;
+                    Ok(())
+                }
+                Err(why) => Err(why),
+            }
+        };
+        match carried {
+            Ok(()) => rec
+                .asset_copies_carried
+                .entry(a.id.clone())
+                .or_default()
+                .push(variant.as_str().to_owned()),
+            Err(why) => {
+                rec.asset_copies_missing
+                    .entry(a.id.clone())
+                    .or_default()
+                    .insert(variant.as_str().to_owned(), why.to_owned());
+            }
+        }
+    }
+    Ok(())
 }

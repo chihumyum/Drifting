@@ -889,9 +889,17 @@ cargo test -p dr-import-v1 --test v3_manifest --locked
 
 ## 资源文件
 
-旧路径 `<旧库根>/assets/<书>/<资源>/source.*`（路径段用 dr-store 同一套 0.1 规则清理），读出来核对 `project_asset.source_sha256` 和大小，对上才经 `Library::import_asset`（导入标记、原子写入、落盘）复制。找不到、对不上的不导，计数进回执和摘要。`display`、`thumbnail` 不搬：等 dr-store 的图片管线做好由它重建（F2 已留接口）。
+旧路径 `<旧库根>/assets/<书>/<资源>/source.*`（路径段用 dr-store 同一套 0.1 规则清理），读出来核对 `project_asset.source_sha256` 和大小，对上才经 `Library::import_asset`（导入标记、原子写入、落盘）复制。找不到、对不上的不导，计数进回执和摘要。`display`、`thumbnail`：新版自己读得了的图片和 PDF 不搬，由新版做；新版自己解不开的图片（HEIC 等）连旧版的两份副本一起搬，见下一段。
 
-2026-11-21：HEIC、HEIF、AVIF（iPhone 照片多半是 HEIC）照旧只搬原件，字节不动、`mime` 照旧版（`image/heic` 等）；导入本身没改。新版第一次要显示它时（素材库那一行的缩略图、打开素材、条目的媒体模块）由素材库用系统解码器补做显示副本和缩略图（JPEG）并存进库里，之后正文嵌入、导出、同步到别的设备都用这两份；Windows 上要装商店的 HEVC / AV1 扩展才解得开。细节和各平台现状见 [M19「HEIC 与 AVIF」](m19-materials.md#heic-与-avif2026-11-21)。旧版其实在同一个文件夹里留着 `display.jpg`、`thumbnail.jpg`，直接搬过来更省（不用再解码一次），要改 `run.rs` 的 `copy_assets`，留作后续（那份文件当晚另有会话在改）。
+2026-11-21（同日两步）：新版自己解不开的图片（HEIC、HEIF、AVIF，iPhone 照片多半是 HEIC；还有旧版收过的图标等）连同旧版留在旁边的两份副本一起搬，都不解码：
+
+- **旧版留着什么。** 每个资源一个文件夹 `assets/<书>/<资源>/`：原件 `source.<按 MIME 定的扩展名>`，派生副本一律 JPEG、一律叫 `<变体>.jpg`。图片有 `display.jpg`（最长边 1600、质量 82）和 `thumbnail.jpg`（512、质量 72），HEIC / HEIF / AVIF 的由 ImageIO 或 WIC 做、别的由 `image` 做；PDF 只有 `thumbnail.jpg`（第一页，512）。从同步或书文件收到、旧版还没显示过的资源只有原件（`asset-store.service.ts`、`local-project-asset.service.ts`、`image_pipeline.rs`）。
+- **搬哪些。** 只有 0.1 记录的 `kind` 是 `image`、`source_mime` 不是新版自己读得了的（PNG、JPEG、GIF、WebP、BMP、TIFF）时，才在原件复制之后把 `display.jpg`、`thumbnail.jpg` 存成这个资源的 `display`、`thumbnail` 变体（`dr-import-v1` 的 `copies` 模块、`run.rs` 的 `carry_copies`）；原件照旧是存着的那份，字节、`mime` 不变。新版自己读得了的图片和 PDF 不搬副本，新版自己做。接着导时，原件已在而副本没在的照样补搬。
+- **怎么查。** 旧版的库里没有副本的哈希，所以每份副本查：是普通文件（不是文件夹、链接）、不超过 dr-store 给这个变体的上限（8 MiB、1 MiB）、以 JPEG 头开头且头里读得出尺寸、结尾有 JPEG 结束标记（截断的不要）；只读文件头和结尾，不解码。存进库里时 dr-store 记下它的 SHA-256 和尺寸。旧版文件夹只读不写（测试前后逐文件比哈希）。
+- **回执。** `import_book.record_json` 每本书多两项：`assetCopiesCarried`（资源 id → 搬到的变体）和 `assetCopiesMissing`（资源 id → 变体 → 为什么没搬：`missing`、`not-a-file`、`too-large`、`not-jpeg`、`truncated`、`unreadable`）。给作者看的摘要不变。没搬到的由新版在第一次显示时用系统解码补做（素材库、查看器、条目的媒体模块；见 [M19「HEIC 与 AVIF」](m19-materials.md#heic-与-avif2026-11-21)）。
+- **漏查。** `verify::check_catalog` 对原件已搬、该带副本的资源多记两行 `project_asset (display)`、`project_asset (thumbnail)`：库里有就是搬了，回执的 `assetCopiesMissing` 写了原因就是有记录地没搬，都不是就列为说不清的丢失。
+
+测试：`tests/asset_copies.rs`（带两份副本的 HEIC 原样搬到、旧版文件夹不变、漏查干净；缺一份、截断一份的照记回执、漏查算有记录，回执里删掉原因后漏查点出这两行；PNG 旁边的副本不搬）；`src/copies.rs` 的单元测试（哪些图片要副本；缺、不是文件、太大、不是 JPEG、头里截断、数据里截断）。
 
 ## 写作日和设备
 
@@ -1250,7 +1258,7 @@ cargo xtask check
   - 系统的选文件夹面板是原生窗口，调试桥点不到，真窗口验收里没走它（GPUI 测试平台上模拟过）。
   - 整库备份 `.drifting`（ZIP：SQLite 加资源文件，读的部分来自 `library_backup.rs`）。
   - 旧的 `.driftingbook` v1：只有 Yjs 状态，新版读不了，要先导入旧版再交接。
-  - 资源文件的 `display` / `thumbnail` 没搬。
+  - 资源文件的 `display` / `thumbnail` 只给新版自己解不开的图片搬（2026-11-21，见「资源文件」）；PNG、JPEG 等和 PDF 的不搬，新版显示时自己做（不写回库里）。
   - Windows 上「旧版是否开着」的判断（独占打开）只在 CI 能验。
 - **下一个里程碑建议**：
   1. ~~按账号库逐个导入的流程~~：2026-11-20 改成登录哪个账号就导进哪个账号的书库（见「登录状态下导入」），不一次导多个库；

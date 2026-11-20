@@ -186,6 +186,16 @@ pub struct BookRecord {
     pub asset_files_missing: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub asset_files_mismatched: Vec<String>,
+    /// 0.1's display and thumbnail copies carried with a source the new
+    /// client cannot decode itself (`crate::copies`): asset id → the
+    /// variants now in the library (`display`, `thumbnail`).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub asset_copies_carried: BTreeMap<String, Vec<String>>,
+    /// Those copies wanted and not carried: asset id → variant → why
+    /// (`crate::copies::why`). The new client makes them itself when it
+    /// can (the material library, the first time the image is shown).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub asset_copies_missing: BTreeMap<String, BTreeMap<String, String>>,
     /// A second 0.1 asset with the bytes of an earlier one is that earlier
     /// file (`kernel-v5.md` §11): merged asset id → the id kept.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]

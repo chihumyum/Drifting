@@ -40,8 +40,12 @@ tempfile = { workspace = true, optional = true }
 
 [dev-dependencies]
 # A 0.1 library holding a HEIC, imported (`tests/system_images.rs`): the
-# importer and its synthetic 0.1 library (`dr-import-v1/tests/common`).
+# importer and its synthetic 0.1 library (`dr-import-v1/tests/common`), and
+# where else the picture shows: a prose embed, a link card, the export.
+dr-editor.workspace = true
+dr-export.workspace = true
 dr-import-v1.workspace = true
+dr-text.workspace = true
 dr-testkit.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
 rusqlite.workspace = true

@@ -5,11 +5,17 @@
 //! - added to the material library, the file is kept byte for byte and gets
 //!   a JPEG display copy and thumbnail through the system's codec; the
 //!   library's thumbnail and the viewer show it;
-//! - imported from a 0.1 library (whose import copies the source alone), the
-//!   picture shows in the library and the viewer and its copies are made and
-//!   kept the first time it is shown, so every other view has them too;
-//! - a damaged HEIC and a damaged PNG are kept and show as an image that
-//!   cannot be decoded, as a damaged PNG always did.
+//! - imported from a 0.1 library that kept its `display.jpg` and
+//!   `thumbnail.jpg`, those come with it: a prose embed, a link card and the
+//!   manuscript export show it at once, with the material library never
+//!   opened and nothing decoded;
+//! - imported from a 0.1 library without those copies (the import then
+//!   carries the source alone), the picture shows in the library and the
+//!   viewer and its copies are made and kept the first time it is shown, so
+//!   every other view has them too;
+//! - a damaged HEIC and a damaged PNG are left out, as a damaged PNG always
+//!   was; an imported HEIC the system cannot decode shows as an image that
+//!   cannot be decoded.
 //!
 //! The pictures are decoded by ImageIO, so these run on macOS (on Windows the
 //! codec needs the Store's extensions, which CI does not install).
@@ -257,7 +263,9 @@ fn heic_and_avif_added_to_the_library_keep_their_bytes_and_show(cx: &mut TestApp
 
 /// The 0.1 test library with its image turned into a HEIC of `bytes`: the
 /// rows 0.1 writes for one (`image/heic`, 600 × 400, its size and hash) and
-/// the bytes at `assets/<book>/<asset>/source.heic`.
+/// the bytes at `assets/<book>/<asset>/source.heic`, without the
+/// `display.jpg` and `thumbnail.jpg` 0.1 usually keeps beside it (a library
+/// that received the file by sync, before 0.1 showed it).
 fn legacy_library_with_a_heic(bytes: &[u8]) -> common::Old {
     let old = common::build_v3(true);
     let dir = old
@@ -275,6 +283,137 @@ fn legacy_library_with_a_heic(bytes: &[u8]) -> common::Old {
         )
         .unwrap();
     old
+}
+
+/// A JPEG of the quadrants at `width × height`, as 0.1's display and
+/// thumbnail copies are.
+fn quadrants_jpeg(width: u32, height: u32) -> Vec<u8> {
+    let picture = image::load_from_memory(&dr_testkit::media::quadrants(600, 400))
+        .unwrap()
+        .resize_exact(width, height, image::imageops::FilterType::Triangle)
+        .to_rgb8();
+    let mut out = Vec::new();
+    image::DynamicImage::ImageRgb8(picture)
+        .write_to(
+            &mut std::io::Cursor::new(&mut out),
+            image::ImageFormat::Jpeg,
+        )
+        .unwrap();
+    out
+}
+
+/// Imported with 0.1's copies, a HEIC embedded in prose shows at once: the
+/// note that embeds it (the fixture's note embeds its image) draws the
+/// display copy, a link to the file shows it on its card, and the
+/// manuscript export takes it, with the material library and the viewer
+/// never opened and nothing decoded (the copies are 0.1's bytes).
+#[gpui::test]
+fn a_heic_imported_with_its_0_1_copies_shows_in_prose_cards_and_export_at_once(
+    cx: &mut TestAppContext,
+) {
+    let old = legacy_library_with_a_heic(dr_testkit::media::HEIC);
+    let dir = old
+        .root
+        .join("assets")
+        .join(common::BOOK)
+        .join(common::ASSET);
+    let (display, thumbnail) = (quadrants_jpeg(600, 400), quadrants_jpeg(512, 341));
+    std::fs::write(dir.join("display.jpg"), &display).unwrap();
+    std::fs::write(dir.join("thumbnail.jpg"), &thumbnail).unwrap();
+    let (_target, ws) = import(&old);
+    let store = ws.library();
+    let held = |variant: Variant| {
+        let record = store.asset(common::ASSET, variant).unwrap().unwrap();
+        (record.path.clone(), std::fs::read(&record.path).unwrap())
+    };
+    let (display_path, display_bytes) = held(Variant::Display);
+    let (thumbnail_path, thumbnail_bytes) = held(Variant::Thumbnail);
+    assert_eq!(display_bytes, display, "0.1's copy, not one made here");
+    assert_eq!(thumbnail_bytes, thumbnail);
+    assert_eq!(held(Variant::Source).1, dr_testkit::media::HEIC);
+
+    // The note's prose: its embed draws the display copy, a JPEG the
+    // `image` crate (GPUI's `img`) reads.
+    cx.executor().allow_parking();
+    let (book, note) = (common::BOOK.to_owned(), common::NOTE.to_owned());
+    let doc = format!("body:{note}/mod-prose");
+    let editor_ws = ws.clone();
+    let (view, vcx) = cx.add_window_view(move |window, cx| {
+        dr_editor::ChapterEditor::open(
+            editor_ws,
+            &book,
+            &doc,
+            dr_editor::EditorSettings::default(),
+            window,
+            cx,
+        )
+        .unwrap()
+    });
+    vcx.simulate_resize(size(px(900.), px(800.)));
+    draw(vcx);
+    let block = view.read_with(vcx, |v, cx| {
+        let editor = v.editor().read(cx);
+        let id = (0..64)
+            .find_map(|line| editor.embed_at(0, line))
+            .expect("the note embeds its image")
+            .0;
+        v.note_embeds().unwrap().material_block(&id).expect("drawn")
+    });
+    let facts = block.update(vcx, |b, _| b.facts().cloned()).unwrap();
+    assert_eq!(facts.kind, "image");
+    assert_eq!(facts.picture.as_deref(), Some(display_path.as_path()));
+    assert_eq!(facts.thumb.as_deref(), Some(thumbnail_path.as_path()));
+    let shown = image::open(facts.picture.unwrap()).unwrap();
+    assert_eq!((shown.width(), shown.height()), (600, 400));
+
+    // A link to the file: its card shows the same copy.
+    let card = dr_editor::link_card::card_facts(
+        &ws,
+        common::BOOK,
+        &dr_text::autolink::LinkTarget::new(dr_model::kind::EntityKind::Asset, common::ASSET),
+    )
+    .expect("a card");
+    assert_eq!(
+        card.asset.and_then(|a| a.picture).as_deref(),
+        Some(display_path.as_path())
+    );
+
+    // The manuscript: the note exported takes the picture.
+    let manuscript = dr_export::read_manuscript(
+        &ws,
+        common::BOOK,
+        &dr_export::Options {
+            chapters: Some(vec![common::NOTE.to_owned()]),
+            ..Default::default()
+        },
+        &dr_export::Labels {
+            untitled_chapter: "未命名".into(),
+            untitled_act: "未命名".into(),
+            options: Default::default(),
+        },
+        "zh-CN",
+        None,
+        std::time::SystemTime::now(),
+    )
+    .unwrap();
+    let images: Vec<(String, u32, u32)> = manuscript
+        .sections
+        .iter()
+        .flat_map(|s| match s {
+            dr_export::Section::Chapter { blocks, .. } => blocks.clone(),
+            _ => Vec::new(),
+        })
+        .filter_map(|b| match b {
+            dr_export::Block::Image {
+                media_type,
+                width,
+                height,
+                ..
+            } => Some((media_type, width, height)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(images, vec![("image/jpeg".to_owned(), 600, 400)]);
 }
 
 /// `old` imported into a new library, opened as the app opens it.
@@ -308,7 +447,7 @@ fn a_heic_imported_from_0_1_shows_and_keeps_its_copies(cx: &mut TestAppContext) 
     let old = legacy_library_with_a_heic(dr_testkit::media::HEIC);
     let (_target, ws) = import(&old);
     let store = ws.library();
-    // The import carries the source alone, as it was.
+    // 0.1 had no copies: the import carries the source alone, as it was.
     let source = store
         .asset(common::ASSET, Variant::Source)
         .unwrap()

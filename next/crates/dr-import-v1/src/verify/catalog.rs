@@ -478,11 +478,19 @@ fn check_book(
         .flat_map(|k| record[*k].as_array().into_iter().flatten())
         .filter_map(Value::as_str)
         .collect();
-    for (id,) in rows(
+    let copies_missing =
+        |id: &str, variant: &str| record["assetCopiesMissing"][id][variant].as_str().is_some();
+    for (id, kind, mime) in rows(
         src,
-        "SELECT id FROM project_asset WHERE project_id = ?1",
+        "SELECT id, kind, source_mime FROM project_asset WHERE project_id = ?1",
         p,
-        |r| Ok((r.get::<_, String>(0)?,)),
+        |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, String>(2)?,
+            ))
+        },
     )? {
         if merged.contains_key(&id) {
             t.add("project_asset", id, Dropped);
@@ -505,6 +513,23 @@ fn check_book(
                 Missing("the asset store has no bytes for it".into())
             },
         );
+        // An image the new client cannot decode itself: 0.1's display and
+        // thumbnail copies came with its bytes, or the receipt says why not.
+        if bytes && crate::copies::wanted(&kind, &mime) {
+            for variant in crate::copies::VARIANTS {
+                let name = variant.as_str();
+                let outcome = if lib.asset(&id, variant)?.is_some() {
+                    Carried
+                } else if copies_missing(&id, name) {
+                    Dropped
+                } else {
+                    Missing(format!(
+                        "no {name} copy of an image the new client cannot decode itself"
+                    ))
+                };
+                t.add(&format!("project_asset ({name})"), id.clone(), outcome);
+            }
+        }
     }
 
     // Comments and their actions.
