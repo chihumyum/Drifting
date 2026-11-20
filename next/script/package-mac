@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+# Makes the files a macOS release ships from a built bundle:
+#
+#   script/package-mac [--dmg] [--archive] <dir>/<name>.app
+#
+#   --dmg      <dir>/<name>_<version>_macos_<arch>.dmg (first installs): the
+#              app and a link to /Applications. Not signed here: the release
+#              workflow signs, notarizes and staples it
+#   --archive  <dir>/<name>_<version>_<arch>.app.tar.gz (the updater's
+#              artifact; sign it with `cargo run -p dr-platform --example
+#              update-tool -- sign`, which puts its name, with the version,
+#              in the signature)
+#
+# Spaces in <name> become `_`; <version> is app/drifting/Cargo.toml's and
+# must be the bundle's CFBundleShortVersionString up to its `-` suffix.
+# script/bundle-mac runs this after it builds a bundle; the release workflow
+# runs it again on the bundle it signed, notarized and stapled, so both files
+# carry the stapled app.
+set -euo pipefail
+
+die() {
+  echo "package-mac: $*" >&2
+  exit 1
+}
+
+next_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+
+make_dmg=0
+make_archive=0
+app=""
+while (($#)); do
+  case "$1" in
+    --dmg) make_dmg=1 ;;
+    --archive) make_archive=1 ;;
+    -h | --help)
+      sed -n '2,18p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+      exit 0
+      ;;
+    -*) die "unknown option $1 (see --help)" ;;
+    *)
+      [[ -z $app ]] || die "one bundle at a time"
+      app=$1
+      ;;
+  esac
+  shift
+done
+[[ $(uname -s) == Darwin ]] || die "macOS only"
+[[ -n $app ]] || die "which bundle? (see --help)"
+app=${app%/}
+[[ $app == *.app && -d $app ]] || die "$app is not a bundle"
+((make_dmg || make_archive)) || die "nothing to make: --dmg, --archive or both"
+
+output=$(cd "$(dirname "$app")" && pwd)
+name=$(basename "$app" .app)
+app="$output/$name.app"
+version=$(sed -n 's/^version = "\(.*\)"$/\1/p' "$next_dir/app/drifting/Cargo.toml" | head -n 1)
+[[ -n $version ]] || die "no version in app/drifting/Cargo.toml"
+short_version=$(plutil -extract CFBundleShortVersionString raw "$app/Contents/Info.plist")
+[[ $short_version == "${version%%-*}" ]] ||
+  die "$app is $short_version, app/drifting/Cargo.toml says $version"
+
+# The disk image follows the released files' naming (`macos_arm64`); the
+# update archive uses the updater's target name (`aarch64`).
+arch=$(uname -m)
+[[ $arch == arm64 ]] && arch_name=aarch64 || arch_name=$arch
+
+if ((make_archive)); then
+  # The updater's artifact: one top-level .app folder, no AppleDouble or
+  # extended attributes (Tauri's updater and ours both drop the folder name
+  # and unpack its contents over the installed bundle).
+  archive="$output/${name// /_}_${version}_${arch_name}.app.tar.gz"
+  rm -f "$archive"
+  COPYFILE_DISABLE=1 tar --no-mac-metadata --no-xattrs --no-acls \
+    -C "$output" -czf "$archive" "$name.app"
+  echo "package-mac: updater archive $archive ($(du -k "$archive" | cut -f 1) KiB)"
+fi
+
+if ((make_dmg)); then
+  # A plain disk image: the app and a link to /Applications.
+  dmg="$output/${name// /_}_${version}_macos_${arch}.dmg"
+  staging=$(mktemp -d)
+  trap 'rm -rf "$staging"' EXIT
+  ditto "$app" "$staging/$name.app"
+  ln -s /Applications "$staging/Applications"
+  rm -f "$dmg"
+  hdiutil create -quiet -volname "$name" -srcfolder "$staging" \
+    -fs HFS+ -format UDZO -imagekey zlib-level=9 -ov "$dmg"
+  hdiutil verify -quiet "$dmg"
+  echo "package-mac: disk image $dmg ($(du -k "$dmg" | cut -f 1) KiB)"
+fi

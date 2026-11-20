@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+# Checks a tag before the release workflow builds it (the 0.1 client's
+# scripts/check-release.mjs does the same for its releases):
+#
+#   script/check-release v<version> [<workflow>]
+#
+# - the tag is `v` + app/drifting/Cargo.toml's version, a SemVer version
+#   without a `-dev` suffix and at least 0.2.0 (the 0.1 client's updater only
+#   compares versions, so every release of this client must be newer than
+#   every 0.1 release);
+# - docs/releases/<version>.md exists and starts with `# Drifting <version>`
+#   (its body becomes the update notes in update.json);
+# - the release workflow (default: .github/workflows/release-next.yml, else
+#   the draft next/script/release-next.draft.yml) pins every action to a full
+#   commit SHA, builds the release identity with precompiled shaders on both
+#   platforms, and checks the built executables for both.
+set -euo pipefail
+
+die() {
+  echo "check-release: $*" >&2
+  exit 1
+}
+
+next_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+repo_dir=$(cd "$next_dir/.." && pwd)
+
+tag=${1:-}
+[[ -n $tag ]] || die "which tag? script/check-release v<version>"
+workflow=${2:-}
+if [[ -z $workflow ]]; then
+  workflow="$repo_dir/.github/workflows/release-next.yml"
+  [[ -f $workflow ]] || workflow="$next_dir/script/release-next.draft.yml"
+fi
+[[ -f $workflow ]] || die "no workflow at $workflow"
+
+failures=()
+fail() { failures+=("$*"); }
+
+version=$(sed -n 's/^version = "\(.*\)"$/\1/p' "$next_dir/app/drifting/Cargo.toml" | head -n 1)
+[[ $tag == "v$version" ]] || fail "the tag $tag is not v$version (app/drifting/Cargo.toml)"
+semver='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$'
+if [[ $version =~ $semver ]]; then
+  major=${BASH_REMATCH[1]}
+  minor=${BASH_REMATCH[2]}
+  ((major > 0 || minor >= 2)) || fail "$version is not newer than every 0.1 release"
+else
+  fail "$version is not a SemVer version"
+fi
+[[ $version != *-dev* ]] || fail "$version is a development version"
+
+notes="$repo_dir/docs/releases/$version.md"
+if [[ -f $notes ]]; then
+  [[ $(head -n 1 "$notes") == "# Drifting $version" ]] ||
+    fail "docs/releases/$version.md does not start with \"# Drifting $version\""
+  [[ -n $(tail -n +2 "$notes" | tr -d '[:space:]') ]] || fail "docs/releases/$version.md has no notes"
+else
+  fail "no docs/releases/$version.md"
+fi
+
+while IFS= read -r line; do
+  ref=${line##*@}
+  ref=${ref%%[[:space:]]*}
+  [[ $ref =~ ^[0-9a-f]{40}$ ]] || fail "$(basename "$workflow"): ${line#*uses:} is not pinned to a commit SHA"
+done < <(grep -E '^[[:space:]]*(-[[:space:]]*)?uses:' "$workflow" || true)
+
+for needle in \
+  "script/bundle-mac --dist --precompiled-shaders --release-identity" \
+  "cargo xtask check-binary --release-identity --precompiled-shaders" \
+  "-ReleaseIdentity" \
+  "cargo xtask check-binary --release-identity target/"; do
+  grep -qF -- "$needle" "$workflow" || fail "$(basename "$workflow") never runs \`$needle\`"
+done
+
+if ((${#failures[@]})); then
+  for f in "${failures[@]}"; do
+    echo "check-release: $f" >&2
+  done
+  exit 1
+fi
+echo "check-release: $tag ($version), $(basename "$workflow")"

@@ -24,7 +24,8 @@
 #              a version without `-dev`. Never open such a bundle on a Mac
 #              whose Drifting data is not throwaway
 #   --open     open the bundle when it is built
-#   --dmg      also make <name>_<version>_macos_<arch>.dmg (first installs)
+#   --dmg      also make <name>_<version>_macos_<arch>.dmg (first installs;
+#              script/package-mac)
 #   --archive  also make <name>_<version>_<arch>.app.tar.gz (the updater's
 #              artifact; sign it with `cargo run -p dr-platform --example
 #              update-tool -- sign`)
@@ -243,34 +244,13 @@ if [[ -n ${symbols:-} ]]; then
   echo "bundle-mac: symbols $symbols ($(du -sk "$symbols" | cut -f 1) KiB)"
 fi
 
-# The disk image follows the released files' naming (`macos_arm64`); the
-# update archive uses the updater's target name (`aarch64`).
-arch=$(uname -m)
-[[ $arch == arm64 ]] && arch_name=aarch64 || arch_name=$arch
-
-if ((make_archive)); then
-  # The updater's artifact: one top-level .app folder, no AppleDouble or
-  # extended attributes (Tauri's updater and ours both drop the folder name
-  # and unpack its contents over the installed bundle).
-  archive="$output/${APP_NAME// /_}_${version}_${arch_name}.app.tar.gz"
-  rm -f "$archive"
-  COPYFILE_DISABLE=1 tar --no-mac-metadata --no-xattrs --no-acls \
-    -C "$output" -czf "$archive" "$APP_NAME.app"
-  echo "bundle-mac: updater archive $archive ($(du -k "$archive" | cut -f 1) KiB)"
-fi
-
-if ((make_dmg)); then
-  # A plain, unsigned disk image: the app and a link to /Applications.
-  dmg="$output/${APP_NAME// /_}_${version}_macos_${arch}.dmg"
-  staging=$(mktemp -d)
-  trap 'rm -rf "${icon_build:-}" "$staging"' EXIT
-  ditto "$app" "$staging/$APP_NAME.app"
-  ln -s /Applications "$staging/Applications"
-  rm -f "$dmg"
-  hdiutil create -quiet -volname "$APP_NAME" -srcfolder "$staging" \
-    -fs HFS+ -format UDZO -imagekey zlib-level=9 -ov "$dmg"
-  hdiutil verify -quiet "$dmg"
-  echo "bundle-mac: disk image $dmg ($(du -k "$dmg" | cut -f 1) KiB)"
+# The disk image and the update archive (script/package-mac, which the
+# release workflow runs again on the bundle it signed and stapled).
+package_args=()
+((make_archive)) && package_args+=(--archive)
+((make_dmg)) && package_args+=(--dmg)
+if ((${#package_args[@]})); then
+  "$next_dir/script/package-mac" "${package_args[@]}" "$app"
 fi
 
 if ((open_after)); then

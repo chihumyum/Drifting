@@ -1,52 +1,122 @@
-# DRAFT — the GPUI client's release workflow. Not wired to anything: it lives
-# outside .github/workflows, so GitHub never runs it, and release.yml keeps
-# releasing the 0.1 Tauri client. It is the plan for F7's hand-over milestone
-# (docs/rust-rewrite/foundations/f7-platform.md, "发布流水线"); every step marked
-# TODO needs work or a decision before it moves to .github/workflows.
+# The Rust client's release workflow (0.2.0 and later). Pushing tag
+# v<version> builds a signed, notarized macOS release and two Windows
+# installers with the release identity and precompiled shaders, and makes a
+# draft GitHub Release with update.json (this client's manifest, which the
+# last 0.1 releases read first) and the frozen latest.json of the last 0.1
+# release. Publishing the draft is what offers it to installed apps.
 #
-# Inputs it expects, all already configured for release.yml except the two
-# marked new:
-#   vars.DRIFTING_UPDATER_PUBLIC_KEY        the same minisign public key
-#   secrets.TAURI_SIGNING_PRIVATE_KEY(+_PASSWORD)  the same minisign secret key
-#   secrets.APPLE_CERTIFICATE(+_PASSWORD), KEYCHAIN_PASSWORD   Developer ID
-#   secrets.APPLE_API_ISSUER / APPLE_API_KEY / APPLE_API_PRIVATE_KEY  notarytool
-#   vars.DRIFTING_SENTRY_DSN                (new) the client project's public DSN
-#   secrets.SENTRY_AUTH_TOKEN, vars.SENTRY_ORG, vars.SENTRY_PROJECT
-#                                           (new) debug-file upload only
-name: release-next (draft)
+# DRAFT: it lives in next/script, so GitHub never runs it, and release.yml
+# keeps releasing the 0.1 Tauri client. It is complete: moving it to
+# .github/workflows/release-next.yml turns it on. Do that in the same commit
+# that limits release.yml to the 0.1 line (its trigger becomes
+# `tags: ['v0.1.*']`; both trigger on every `v*` tag today), and only when
+# docs/rust-rewrite/release-handover.md says so: the order, what the author
+# does first, and the point of no return are there. `script/check-release`
+# (run below) reads the moved file, and `cargo xtask check` (gate
+# release-identity) lets workflows named release* build the release
+# identity, no other.
+#
+# What it reads (Settings › Secrets and variables › Actions; the jobs that
+# sign run in the `release` environment):
+#
+# | name                                 | kind   | what                                                      | release.yml has it |
+# | ------------------------------------ | ------ | --------------------------------------------------------- | ------------------ |
+# | APPLE_CERTIFICATE                    | secret | the Developer ID Application .p12, base64                 | yes                |
+# | APPLE_CERTIFICATE_PASSWORD           | secret | the .p12's password                                       | yes                |
+# | KEYCHAIN_PASSWORD                    | secret | any random string, the runner's temporary keychain        | yes                |
+# | APPLE_API_ISSUER                     | secret | App Store Connect API issuer id (notarytool)              | yes                |
+# | APPLE_API_KEY                        | secret | its key id                                                | yes                |
+# | APPLE_API_PRIVATE_KEY                | secret | its AuthKey_<id>.p8                                       | yes                |
+# | TAURI_SIGNING_PRIVATE_KEY            | secret | the updater's minisign secret key (the same key as 0.1's) | yes                |
+# | TAURI_SIGNING_PRIVATE_KEY_PASSWORD   | secret | its password                                              | yes                |
+# | DRIFTING_UPDATER_PUBLIC_KEY          | var    | its public key, built into the app                        | yes                |
+# | DRIFTING_HOSTED_ORIGIN               | var    | the Hosted service (built in as DRIFTING_API_BASE_URL)    | yes                |
+# | DRIFTING_LAST_V1_TAG                 | var    | the last 0.1 release's tag, whose latest.json is carried  | new                |
+# | DRIFTING_SENTRY_DSN                  | var    | the client project's public DSN; empty: no crash reports  | new (optional)     |
+# | SENTRY_AUTH_TOKEN                    | secret | debug-file upload; empty: symbols are not uploaded        | new (optional)     |
+# | SENTRY_ORG, SENTRY_PROJECT           | var    | where the symbols go                                      | new (optional)     |
+#
+# Every action is pinned to the commit release.yml and next.yml pin.
+name: release-next
 
 on:
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: v0.2.x tag to build
-        required: true
+  push:
+    # 0.1 tags stay release.yml's.
+    tags: ['v*', '!v0.1.*']
 
 permissions:
   contents: read
 
+concurrency:
+  group: release-next-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   verify:
     runs-on: macos-26
+    timeout-minutes: 120
     defaults:
       run:
         working-directory: next
+    env:
+      DR_UI_REQUIRE_FONTS: '1'
+      GH_TOKEN: ${{ github.token }}
+      DRIFTING_LAST_V1_TAG: ${{ vars.DRIFTING_LAST_V1_TAG }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - run: script/check-release "$GITHUB_REF_NAME"
+      # The 0.1 release whose latest.json every release of this client
+      # carries: published, not a prerelease, and without an update.json of
+      # its own (which would hand its users to itself).
+      - name: Check the last 0.1 release
+        run: |
+          test -n "$DRIFTING_LAST_V1_TAG" || { echo "::error::DRIFTING_LAST_V1_TAG is not configured"; exit 1; }
+          case "$DRIFTING_LAST_V1_TAG" in v0.1.*) ;; *) echo "::error::$DRIFTING_LAST_V1_TAG is not a 0.1 tag"; exit 1 ;; esac
+          release=$(gh release view "$DRIFTING_LAST_V1_TAG" --json isDraft,isPrerelease,assets)
+          test "$(jq -r .isDraft <<<"$release")" = false
+          test "$(jq -r .isPrerelease <<<"$release")" = false
+          jq -e '[.assets[].name] | index("latest.json")' <<<"$release" >/dev/null
+          if jq -e '[.assets[].name] | index("update.json")' <<<"$release" >/dev/null; then
+            echo "::error::$DRIFTING_LAST_V1_TAG carries update.json; a 0.1 release never may"
+            exit 1
+          fi
+      # Keep in step with next/rust-toolchain.toml.
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master, toolchain input
         with:
           toolchain: 1.98.1
-          components: rustfmt, clippy
+          components: rustfmt, clippy, rust-src
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: next
+          key: release-verify
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: fonts
+        with:
+          path: next/.cache/fonts
+          key: dr-ui-fonts-macos-${{ hashFiles('next/crates/dr-ui/assets/fonts/provenance.json', 'next/crates/dr-ui/script/build-fonts.py') }}
+      - if: steps.fonts.outputs.cache-hit != 'true'
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+      - if: steps.fonts.outputs.cache-hit != 'true'
+        run: |
+          python -m pip install fonttools==4.60.1
+          python crates/dr-ui/script/build-fonts.py
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
-      - run: cargo test --workspace --locked
-      # TODO: a `release:check` for next/: the tag equals app/drifting's version,
-      # docs/releases/<version>.md exists, the identity is RELEASE (hand-over
-      # flips `Identity::current`), and every action is pinned to a SHA.
+      - run: cargo test --workspace --locked --no-fail-fast
+      - run: cargo install cargo-audit --version 0.22.2 --locked
+      - run: cargo xtask check
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22.23.1
+      - working-directory: ${{ github.workspace }}
+        run: node scripts/check-public-boundaries.mjs
 
   build-macos:
     needs: verify
     runs-on: macos-26
+    timeout-minutes: 120
     environment: release
     permissions:
       contents: write
@@ -54,10 +124,17 @@ jobs:
       run:
         working-directory: next
     env:
+      # The macOS 26 SDK, as release.yml builds the 0.1 client.
       DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+      # Built into the app (option_env!).
       DRIFTING_UPDATER_PUBLIC_KEY: ${{ vars.DRIFTING_UPDATER_PUBLIC_KEY }}
+      DRIFTING_API_BASE_URL: ${{ vars.DRIFTING_HOSTED_ORIGIN }}
       DRIFTING_SENTRY_DSN: ${{ vars.DRIFTING_SENTRY_DSN }}
-      MACOSX_DEPLOYMENT_TARGET: '13.0'
+      DRIFTING_TERMS_URL: https://drifting.cc/terms
+      DRIFTING_PRIVACY_URL: https://drifting.cc/privacy
+      DRIFTING_LAST_V1_TAG: ${{ vars.DRIFTING_LAST_V1_TAG }}
+      APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+      APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -65,37 +142,130 @@ jobs:
         with:
           toolchain: 1.98.1
           targets: aarch64-apple-darwin
-      # TODO: precompiled Metal shaders. The workspace turns on GPUI's
-      # `runtime_shaders` for every build; a release must build without it,
-      # which needs the Metal Toolchain (`xcodebuild -downloadComponent
-      # MetalToolchain` on the runner) and moving the feature to an app-level
-      # default the release build switches off.
-      - run: xcodebuild -downloadComponent MetalToolchain
-      # Same certificate import and notarization key as release.yml.
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: next
+          key: release-macos
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: fonts
+        with:
+          path: next/.cache/fonts
+          key: dr-ui-fonts-macos-${{ hashFiles('next/crates/dr-ui/assets/fonts/provenance.json', 'next/crates/dr-ui/script/build-fonts.py') }}
+      - if: steps.fonts.outputs.cache-hit != 'true'
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+      - if: steps.fonts.outputs.cache-hit != 'true'
+        run: |
+          python -m pip install fonttools==4.60.1
+          python crates/dr-ui/script/build-fonts.py
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22.23.1
+      - name: Require release inputs
+        env:
+          APPLE_API_PRIVATE_KEY: ${{ secrets.APPLE_API_PRIVATE_KEY }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        run: |
+          missing=0
+          for name in DRIFTING_UPDATER_PUBLIC_KEY DRIFTING_API_BASE_URL DRIFTING_LAST_V1_TAG \
+            TAURI_SIGNING_PRIVATE_KEY APPLE_API_ISSUER APPLE_API_KEY APPLE_API_PRIVATE_KEY \
+            APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD KEYCHAIN_PASSWORD; do
+            if [ -z "${!name:-}" ]; then echo "::error::$name is not configured"; missing=1; fi
+          done
+          [ -n "$DRIFTING_SENTRY_DSN" ] || echo "::warning::DRIFTING_SENTRY_DSN is empty: this release sends no crash reports"
+          [ -n "$SENTRY_AUTH_TOKEN" ] || echo "::warning::SENTRY_AUTH_TOKEN is empty: the debug symbols are not uploaded"
+          exit "$missing"
+      # GPUI compiles its Metal shaders at build time in a release
+      # (--precompiled-shaders); Xcode 26 ships the compiler separately.
+      - name: Install the Metal Toolchain
+        run: |
+          xcodebuild -downloadComponent MetalToolchain
+          xcrun -sdk macosx metal --version
       - name: Import Developer ID Application certificate
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
-          echo "TODO: copy release.yml's import step"
-      # TODO: `bundle-mac --release-identity`: "Drifting.app",
-      # cc.drifting.client, the `drifting` scheme. Until the hand-over the
-      # script builds the development identity only.
-      # `--dist`: line tables in a .dSYM beside the bundle, the bundled
-      # executable stripped (the build UUID ties the two together).
-      - run: script/bundle-mac --dist --dmg --archive
+          CERTIFICATE_PATH="$RUNNER_TEMP/drifting-developer-id.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/drifting-signing.keychain-db"
+          printf '%s' "$APPLE_CERTIFICATE" | base64 --decode > "$CERTIFICATE_PATH"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 7200 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          APPLE_SIGNING_IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | awk -F'"' '/Developer ID Application/ { print $2; exit }')
+          test -n "$APPLE_SIGNING_IDENTITY"
+          echo "APPLE_SIGNING_IDENTITY=$APPLE_SIGNING_IDENTITY" >> "$GITHUB_ENV"
+      - name: Install App Store Connect notarization key
+        env:
+          APPLE_API_PRIVATE_KEY: ${{ secrets.APPLE_API_PRIVATE_KEY }}
+        run: |
+          APPLE_API_KEY_PATH="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY}.p8"
+          printf '%s' "$APPLE_API_PRIVATE_KEY" > "$APPLE_API_KEY_PATH"
+          chmod 600 "$APPLE_API_KEY_PATH"
+          echo "APPLE_API_KEY_PATH=$APPLE_API_KEY_PATH" >> "$GITHUB_ENV"
+      # "Drifting.app", cc.drifting.client, the `drifting:` scheme; the dist
+      # profile, its symbols in Drifting.app.dSYM beside the bundle.
+      - name: Bundle the release identity with precompiled shaders
+        run: script/bundle-mac --dist --precompiled-shaders --release-identity
+      - name: Check the executable
+        run: cargo xtask check-binary --release-identity --precompiled-shaders target/bundle/Drifting.app/Contents/MacOS/drifting
       - name: Sign with the hardened runtime, notarize and staple
         run: |
-          echo "TODO: codesign --options runtime --timestamp --entitlements <file> -s \"$APPLE_SIGNING_IDENTITY\" the app;"
-          echo "      xcrun notarytool submit --wait; xcrun stapler staple; then rebuild the .dmg and .app.tar.gz from the stapled app;"
-          echo "      sign, notarize and staple the .dmg as release.yml does."
-      - name: Sign the update archive with the minisign key
+          APP=target/bundle/Drifting.app
+          test "$(plutil -extract CFBundleIdentifier raw "$APP/Contents/Info.plist")" = cc.drifting.client
+          codesign --force --options runtime --timestamp --sign "$APPLE_SIGNING_IDENTITY" "$APP"
+          codesign --verify --strict --verbose=2 "$APP"
+          ditto -c -k --keepParent "$APP" "$RUNNER_TEMP/Drifting-notarize.zip"
+          RESULT=$(xcrun notarytool submit "$RUNNER_TEMP/Drifting-notarize.zip" --key "$APPLE_API_KEY_PATH" --key-id "$APPLE_API_KEY" --issuer "$APPLE_API_ISSUER" --wait --output-format json)
+          echo "$RESULT"
+          test "$(printf '%s' "$RESULT" | jq -r .status)" = Accepted
+          xcrun stapler staple "$APP"
+      # From the stapled app, so both carry its ticket.
+      - name: Make the disk image and the update archive
+        run: script/package-mac --dmg --archive target/bundle/Drifting.app
+      - name: Sign, notarize and staple the disk image
+        run: |
+          DMG=$(find target/bundle -maxdepth 1 -name 'Drifting_*_macos_arm64.dmg' -print -quit)
+          test -f "$DMG"
+          codesign --force --timestamp --sign "$APPLE_SIGNING_IDENTITY" "$DMG"
+          RESULT=$(xcrun notarytool submit "$DMG" --key "$APPLE_API_KEY_PATH" --key-id "$APPLE_API_KEY" --issuer "$APPLE_API_ISSUER" --wait --output-format json)
+          echo "$RESULT"
+          test "$(printf '%s' "$RESULT" | jq -r .status)" = Accepted
+          xcrun stapler staple "$DMG"
+      - name: Verify signed artifacts
+        run: |
+          APP=target/bundle/Drifting.app
+          DMG=$(find target/bundle -maxdepth 1 -name 'Drifting_*_macos_arm64.dmg' -print -quit)
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          spctl --assess --type execute --verbose=2 "$APP"
+          xcrun stapler validate "$APP"
+          xcrun stapler validate "$DMG"
+          mkdir -p "$RUNNER_TEMP/drifting-dmg"
+          hdiutil attach "$DMG" -nobrowse -readonly -mountpoint "$RUNNER_TEMP/drifting-dmg"
+          MOUNTED="$RUNNER_TEMP/drifting-dmg/Drifting.app"
+          test -L "$RUNNER_TEMP/drifting-dmg/Applications"
+          codesign --verify --deep --strict --verbose=2 "$MOUNTED"
+          spctl --assess --type execute --verbose=2 "$MOUNTED"
+          test "$(plutil -extract CFBundleIdentifier raw "$MOUNTED/Contents/Info.plist")" = cc.drifting.client
+          hdiutil detach "$RUNNER_TEMP/drifting-dmg"
+      # The trusted comment of the signature names the file, with its
+      # version, which the new client checks against the manifest (M42).
+      - name: Sign the update archive with the updater key
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
-          archive=$(find target/bundle -maxdepth 1 -name '*.app.tar.gz' -print -quit)
+          archive=$(find target/bundle -maxdepth 1 -name 'Drifting_*_aarch64.app.tar.gz' -print -quit)
+          test -f "$archive"
           cargo run --locked -q -p dr-platform --example update-tool -- sign "$archive"
           cargo run --locked -q -p dr-platform --example update-tool -- verify "$archive" "$DRIFTING_UPDATER_PUBLIC_KEY"
       - name: Upload debug symbols to Sentry
@@ -104,83 +274,229 @@ jobs:
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
         run: |
-          # The `dist` profile's symbols, which bundle-mac --dist put beside
-          # the bundle; Sentry matches them to crashes by the build UUID
-          # (proven locally by dr-platform's tests/crash_report.rs).
-          dsym="target/bundle/Drifting Next.app.dSYM"
+          # bundle-mac --dist left the symbols beside the bundle; Sentry
+          # matches them to crashes by the build UUID (dr-platform's
+          # tests/crash_report.rs proves the stripped build symbolicates).
+          dsym=target/bundle/Drifting.app.dSYM
           test -d "$dsym"
-          echo "TODO: sentry-cli debug-files upload --include-sources \"$dsym\""
-      - name: Write update.json
+          if [ -z "$SENTRY_AUTH_TOKEN" ]; then
+            echo "::warning::SENTRY_AUTH_TOKEN is empty: $dsym is not uploaded"
+            exit 0
+          fi
+          npx --yes @sentry/cli@2.39.1 debug-files upload --org "$SENTRY_ORG" --project "$SENTRY_PROJECT" "$dsym"
+      - name: Assemble release files
         run: |
-          version=$(sed -n 's/^version = "\(.*\)"$/\1/p' app/drifting/Cargo.toml | head -n 1)
-          archive=$(find target/bundle -maxdepth 1 -name '*.app.tar.gz' -print -quit)
-          name="Drifting_${version}_aarch64.app.tar.gz"
-          cp "$archive" "target/bundle/$name"
-          cp "$archive.sig" "target/bundle/$name.sig"
+          VERSION=$(sed -n 's/^version = "\(.*\)"$/\1/p' app/drifting/Cargo.toml | head -n 1)
+          RELEASE_DIR="$RUNNER_TEMP/drifting-release"
+          mkdir -p "$RELEASE_DIR"
+          DMG="Drifting_${VERSION}_macos_arm64.dmg"
+          ARCHIVE="Drifting_${VERSION}_aarch64.app.tar.gz"
+          cp "target/bundle/$DMG" "target/bundle/$ARCHIVE" "target/bundle/$ARCHIVE.sig" "$RELEASE_DIR/"
+          # update.json: this client's manifest, in Tauri's format, which
+          # the last 0.1 releases read before latest.json. release-windows
+          # adds windows-x86_64 and windows-aarch64 to it.
+          BASE="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}"
           cargo run --locked -q -p dr-platform --example update-tool -- manifest \
-            --version "$version" --platform darwin-aarch64 \
-            --url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${{ inputs.tag }}/$name" \
-            --signature-file "target/bundle/$name.sig" \
-            --notes-file "../docs/releases/${version}.md" \
-            --output target/bundle/update.json
-      - name: Carry the frozen latest.json forward
-        # Every 0.1 client before the last one polls releases/latest/download/
-        # latest.json. Once the last Tauri release is out, that file always
-        # offers it, so no library skips the hand-over; a new GPUI release
-        # becomes "latest", so it must carry the same file again.
-        run: |
-          echo "TODO: gh release download <last Tauri tag> -p latest.json -D target/bundle"
+            --version "$VERSION" --platform darwin-aarch64 \
+            --url "$BASE/$ARCHIVE" \
+            --signature-file "$RELEASE_DIR/$ARCHIVE.sig" \
+            --notes-file "../docs/releases/${VERSION}.md" \
+            --output "$RELEASE_DIR/update.json"
+          # latest.json: every 0.1 build before the two-manifest ones polls
+          # only it, so it keeps offering the last 0.1 release (which runs
+          # the hand-over, then reads update.json). This release becomes
+          # "latest", so it carries that file unchanged.
+          gh release download "$DRIFTING_LAST_V1_TAG" -p latest.json -D "$RELEASE_DIR"
+          test "$(jq -r .version "$RELEASE_DIR/latest.json")" = "${DRIFTING_LAST_V1_TAG#v}"
+          jq -r '.platforms[].url' "$RELEASE_DIR/latest.json" | while read -r url; do
+            case "$url" in */releases/download/"$DRIFTING_LAST_V1_TAG"/*) ;; *) echo "::error::latest.json points at $url"; exit 1 ;; esac
+          done
+          (cd "$RELEASE_DIR" && shasum -a 256 ./* > SHA256SUMS.txt)
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "RELEASE_DIR=$RELEASE_DIR" >> "$GITHUB_ENV"
       - name: Create the draft release
         run: |
-          echo "TODO: gh release create ${{ inputs.tag }} --draft with the .dmg, .app.tar.gz(.sig), update.json, latest.json, SHA256SUMS.txt"
+          NOTES_FILE="../docs/releases/${VERSION}.md"
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            test "$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft)" = "true"
+            gh release upload "$GITHUB_REF_NAME" "$RELEASE_DIR"/* --clobber
+            gh release edit "$GITHUB_REF_NAME" --notes-file "$NOTES_FILE" --title "Drifting ${VERSION}" --draft
+          else
+            gh release create "$GITHUB_REF_NAME" "$RELEASE_DIR"/* --verify-tag --draft --title "Drifting ${VERSION}" --notes-file "$NOTES_FILE"
+          fi
 
+  # The Windows installers join the draft only after the macOS build made
+  # it. If one fails, update.json has no Windows platforms: do not publish
+  # such a draft before reading release-handover.md ("只发 macOS").
   build-windows:
+    name: build (windows ${{ matrix.arch }})
     needs: verify
     strategy:
       fail-fast: false
       matrix:
         include:
-          - runner: windows-latest
+          - arch: x64
+            runner: windows-latest
             target: x86_64-pc-windows-msvc
-            platform: windows-x86_64
-          - runner: windows-11-arm
+          - arch: arm64
+            runner: windows-11-arm
             target: aarch64-pc-windows-msvc
-            platform: windows-aarch64
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 240
     environment: release
     defaults:
       run:
         working-directory: next
     env:
       DRIFTING_UPDATER_PUBLIC_KEY: ${{ vars.DRIFTING_UPDATER_PUBLIC_KEY }}
+      DRIFTING_API_BASE_URL: ${{ vars.DRIFTING_HOSTED_ORIGIN }}
       DRIFTING_SENTRY_DSN: ${{ vars.DRIFTING_SENTRY_DSN }}
+      DRIFTING_TERMS_URL: https://drifting.cc/terms
+      DRIFTING_PRIVACY_URL: https://drifting.cc/privacy
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master, toolchain input
         with:
           toolchain: 1.98.1
           targets: ${{ matrix.target }}
-      - shell: pwsh
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: next
+          key: release-${{ matrix.target }}
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: fonts
+        with:
+          path: next/.cache/fonts
+          key: dr-ui-fonts-windows-${{ hashFiles('next/crates/dr-ui/assets/fonts/provenance.json', 'next/crates/dr-ui/script/build-fonts.py') }}
+      - if: steps.fonts.outputs.cache-hit != 'true'
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+      - if: steps.fonts.outputs.cache-hit != 'true'
         run: |
-          # TODO: the release identity (/DPRODUCT_NAME=Drifting /DBUNDLE_ID=cc.drifting.client
-          # /DURL_SCHEME=drifting) once bundle-windows.ps1 takes it at the hand-over.
-          script/bundle-windows.ps1 -BuildProfile dist -Target ${{ matrix.target }}
-      # Unsigned during the alpha (D10); Authenticode goes here when decided.
-      - name: Sign the installer with the minisign key
+          python -m pip install fonttools==4.60.1
+          python crates/dr-ui/script/build-fonts.py
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22.23.1
+      - name: Require release inputs
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          missing=0
+          for name in DRIFTING_UPDATER_PUBLIC_KEY DRIFTING_API_BASE_URL TAURI_SIGNING_PRIVATE_KEY; do
+            if [ -z "${!name:-}" ]; then echo "::error::$name is not configured"; missing=1; fi
+          done
+          echo "DRIFTING_BUILD_COMMIT=$(git rev-parse --short=8 HEAD)" >> "$GITHUB_ENV"
+          exit "$missing"
+      - name: Install NSIS
+        shell: pwsh
+        run: |
+          if (-not (Get-Command makensis -ErrorAction SilentlyContinue) -and
+              -not (Test-Path "${env:ProgramFiles(x86)}\NSIS\makensis.exe")) {
+            choco install nsis --no-progress -y | Out-Null
+          }
+      # "Drifting", cc.drifting.client, the `drifting:` scheme: the 0.1
+      # Tauri installer's folder, Add/Remove Programs entry and vendor key.
+      - name: Build the installer with the release identity
+        shell: pwsh
+        run: script/bundle-windows.ps1 -BuildProfile dist -Target ${{ matrix.target }} -ReleaseIdentity
+      - name: Check the executable
+        shell: bash
+        run: cargo xtask check-binary --release-identity target/${{ matrix.target }}/dist/drifting.exe
+      # Not Authenticode-signed (decision D10): SmartScreen warns on first
+      # launch, as it does for the 0.1 installers. The updater key signs it.
+      - name: Sign the installer with the updater key
         shell: bash
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
-          installer=$(find target/bundle -maxdepth 1 -name '*-setup.exe' -print -quit)
+          VERSION=$(sed -n 's/^version = "\(.*\)"$/\1/p' app/drifting/Cargo.toml | head -n 1)
+          installer="target/bundle/Drifting_${VERSION}_windows_${{ matrix.arch }}-setup.exe"
+          test -f "$installer"
           cargo run --locked -q -p dr-platform --example update-tool -- sign "$installer"
-      - name: Upload PDBs to Sentry
+          cargo run --locked -q -p dr-platform --example update-tool -- verify "$installer" "$DRIFTING_UPDATER_PUBLIC_KEY"
+          mkdir -p ../out/windows-release
+          cp "$installer" "$installer.sig" ../out/windows-release/
+      - name: Upload PDB to Sentry
         shell: bash
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
         run: |
-          echo "TODO: sentry-cli debug-files upload target/${{ matrix.target }}/dist/drifting.pdb"
-      - name: Install and launch on the runner
+          pdb=target/${{ matrix.target }}/dist/drifting.pdb
+          test -f "$pdb"
+          if [ -z "$SENTRY_AUTH_TOKEN" ]; then
+            echo "::warning::SENTRY_AUTH_TOKEN is empty: $pdb is not uploaded"
+            exit 0
+          fi
+          npx --yes @sentry/cli@2.39.1 debug-files upload --org "$SENTRY_ORG" --project "$SENTRY_PROJECT" "$pdb"
+      # As release.yml's build-windows: an installer whose app exits at
+      # start never reaches the draft. A fresh runner, so the release
+      # identity's folders are empty.
+      - name: Install and open the app
         shell: pwsh
         run: |
-          echo "TODO: as release.yml's build-windows, install silently, start it, still running after 20 s"
-      # TODO: merge into update.json with `update-tool manifest --merge` and
-      # upload to the draft, as release.yml's release-windows job does.
+          $installer = Get-ChildItem ../out/windows-release/*-setup.exe | Select-Object -First 1
+          Start-Process -FilePath $installer.FullName -ArgumentList '/S' -Wait
+          $app = Join-Path $env:LOCALAPPDATA 'Drifting\drifting.exe'
+          if (-not (Test-Path $app)) { throw "the installer did not install $app" }
+          $stderr = Join-Path $env:RUNNER_TEMP 'drifting-stderr.txt'
+          $process = Start-Process -FilePath $app -RedirectStandardError $stderr -PassThru
+          Start-Sleep -Seconds 20
+          $exited = $process.HasExited
+          Get-Content $stderr -ErrorAction SilentlyContinue
+          if ($exited) { throw "Drifting exited at start with code $($process.ExitCode)" }
+          Stop-Process -Id $process.Id -Force
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: windows-release-${{ matrix.arch }}
+          path: out/windows-release/*
+          if-no-files-found: error
+          retention-days: 7
+
+  release-windows:
+    name: add Windows to the draft release
+    needs: [build-macos, build-windows]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: release
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22.23.1
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: windows-release-*
+          path: windows-release
+          merge-multiple: true
+      # The Tauri manifest format both clients read; the merge script is the
+      # one release.yml uses for latest.json.
+      - name: Add the installers and windows-x86_64 / windows-aarch64 to update.json
+        run: |
+          VERSION=$(sed -n 's/^version = "\(.*\)"$/\1/p' next/app/drifting/Cargo.toml | head -n 1)
+          test "$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft)" = "true"
+          gh release download "$GITHUB_REF_NAME" -p update.json -p SHA256SUMS.txt -D release-manifest
+          BASE="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}"
+          for pair in x64:windows-x86_64 arm64:windows-aarch64; do
+            ARCH=${pair%%:*}
+            PLATFORM=${pair##*:}
+            NAME="Drifting_${VERSION}_windows_${ARCH}-setup.exe"
+            test -f "windows-release/$NAME" && test -f "windows-release/$NAME.sig"
+            node scripts/merge-update-manifest.mjs --manifest release-manifest/update.json \
+              --platform "$PLATFORM" --url "$BASE/$NAME" \
+              --signature-file "windows-release/$NAME.sig" --version "$VERSION"
+          done
+          grep -v ' \./update\.json$' release-manifest/SHA256SUMS.txt > release-manifest/SHA256SUMS.next
+          (cd release-manifest && sha256sum ./update.json) >> release-manifest/SHA256SUMS.next
+          (cd windows-release && sha256sum ./*) >> release-manifest/SHA256SUMS.next
+          mv release-manifest/SHA256SUMS.next release-manifest/SHA256SUMS.txt
+          gh release upload "$GITHUB_REF_NAME" windows-release/* release-manifest/update.json release-manifest/SHA256SUMS.txt --clobber
