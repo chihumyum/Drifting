@@ -30,6 +30,7 @@
 - **`next/script/check-windows-installer.ps1` 与 `.github/workflows/next.yml`**：
   - `check-windows-installer.ps1` 新增可选 `-Target` 参数，校验生成的安装包架构后缀与内置字体文件安装／卸载；
   - `.github/workflows/next.yml` 矩阵拆分为 `macos`（`macos-26`）、`windows-x64`（`windows-latest`，`x86_64-pc-windows-msvc`）和 `windows-arm64`（`windows-11-arm`，`aarch64-pc-windows-msvc`），在两台 Windows 构建机上分别构建对应架构的 NSIS 安装包并完整跑一遍静默安装、`/P /UPDATE` 原地升级、自定义目录安装与卸载检查。
+  - 2026-11-20（F7 第五轮）：`next.yml` 在格式检查、Clippy、测试之前就打开发身份的安装包（`bundle-windows.ps1 -BuildProfile debug`，构建机自己的架构）并作为运行产物上传，名字是 `drifting-next-windows-arm64-<提交号前 8 位>`、`drifting-next-windows-x64-<…>`（macOS 的 `.dmg` 是 `drifting-next-macos-<…>`），留 7 天，传完就能下，不用等两个小时的测试。下面的清单用的就是它。
 
 ### 3. Windows 字体回退顺序（`next/crates/dr-platform/src/fonts.rs`）
 
@@ -40,7 +41,7 @@
 
 ## Windows 实机／虚拟机验收清单
 
-供作者在 Windows 11（含 Apple Silicon 上的 Windows 11 ARM 虚拟机或 x64 实机）上按步骤点验：
+供作者在 Windows 11（含 Apple Silicon 上的 Windows 11 ARM 虚拟机或 x64 实机）上按步骤点验。**`0.2.0` macOS 和 Windows 一起发（作者 2026-11-20 定），这份清单挡发布。** 开发身份的安装包从 GitHub 上 `next` 工作流那次运行的产物里下（`drifting-next-windows-arm64-<提交号>`，解压出 `Drifting_Next_<version>_windows_arm64-setup.exe`）；第一节最后一条要正式身份的安装包，见那一条。
 
 ### 一、安装器与升级（x64 与 arm64）
 1. **首次普通用户安装**：双击 `Drifting_Next_<version>_windows_arm64-setup.exe`（ARM 虚拟机）或 `x64-setup.exe`（x64 机器），确认无需管理员权限（不弹 UAC），界面语言随系统显示简体中文或英文。
@@ -48,10 +49,16 @@
 3. **注册表与卸载项**：在「设置 › 应用 › 已安装的应用」能看到 `Drifting Next`；注册表 `HKCU\Software\drifting\Drifting Next` 记录了安装目录，`HKCU\Software\Classes\drifting-next-dev\shell\open\command` 指向 `"%LOCALAPPDATA%\Drifting Next\drifting.exe" "%1"`。
 4. **原地更新保留快捷方式**：在 PowerShell 运行 `.\Drifting_Next_<version>_windows_<arch>-setup.exe /P /UPDATE`，确认只显示进度条、自动覆盖可执行文件，且不重置已有快捷方式。
 5. **卸载保留作者数据**：运行 `%LOCALAPPDATA%\Drifting Next\uninstall.exe`，确认程序目录、开始菜单快捷方式和注册表协议键被清理，但 `%LOCALAPPDATA%\cc.drifting.next.dev\` 下的书库与日志完好保留。
+6. **从 0.1 最后一版原位升级到 `0.2.0`，书库和登录都还在**（要正式身份的安装包 `Drifting_0.2.0_windows_arm64-setup.exe`：发布工作流草稿里的，或私有测试仓库跑出来的；会读写这台虚拟机上正式版 Drifting 的数据，先拍快照，别在日常用的 Windows 上做）：
+   - 先装 0.1 最后一版（现在是 `0.1.0-alpha.12` 的 `Drifting_0.1.0-alpha.12_windows_arm64-setup.exe`），新建一本书写几段字、登录 Hosted 账号、在设置里存一个测试 API Key，把开始菜单里的 Drifting 固定到「开始」，然后关掉；
+   - 运行 `0.2.0` 的安装包升级（和 0.1 更新器一样的参数：`.\Drifting_0.2.0_windows_arm64-setup.exe /P /R /UPDATE`；草稿 Publish 之后也可以在 0.1 的「设置 › 更新」里点「安装并重启」，走真正的自动更新）；
+   - 确认：装进的还是 `%LOCALAPPDATA%\Drifting\`，「已安装的应用」里只有一个 Drifting、版本 `0.2.0`；开始菜单的固定还在；升级完新版自己打开；
+   - 新版里：「导入 · Drifting 0.1」找得到那本书，导入后字一个不少；不用重新登录；API Key 还在（设置里显示已保存）；在浏览器里打开一个 `drifting://` 链接会跳进新版；
+   - 数据文件夹：`%LOCALAPPDATA%\cc.drifting.client\` 里 0.1 的 `libraries.json`、`databases\`、`libraries\` 修改时间没变；新版的书库和设置在 `%LOCALAPPDATA%\cc.drifting.client.v2\`。
 
 ### 二、单实例与深链接（`single_instance` + `deep_link`）
 1. **单实例唤醒**：先启动 `Drifting Next`，再在终端运行一次 `%LOCALAPPDATA%\Drifting Next\drifting.exe`，确认第二个进程立即退出，不会开出第二个窗口，且已运行的窗口被切到前台。
-2. **书架关窗隐藏后再次启动唤醒**：在书架页点左上角关闭按钮让窗口藏进通知区，再从开始菜单或终端启动一次 `Drifting Next`，确认隐藏的主窗口立即恢复显示并获得焦点。
+2. **关窗收进通知区后再次启动唤醒**：点左上角关闭按钮让窗口收进通知区（在书里、在全部项目里都一样），再从开始菜单或终端启动一次 `Drifting Next`，确认收起的主窗口立即恢复显示并获得焦点，还是收起前那一页。
 3. **协议深链接唤醒与投递**：在 `Win + R` 或浏览器地址栏输入 `drifting-next-dev://auth/callback?nativeState=test-state&handoff=test-code`，确认运行中的（或隐藏在通知区的）`Drifting Next` 被唤起并收到该深链接，日志中不打印完整敏感参数。
 
 ### 三、Windows 凭据管理器钥匙串（`secrets`）
@@ -59,12 +66,13 @@
 2. **超长令牌自动分片读写（> 1200 字符）**：登录 Hosted 账号或使用超过 1200 字符的会话令牌后，在「凭据管理器」中确认生成了带分片头（含代数、分片数与 SHA-256）和多条分片凭据；完全退出并重开应用，确认登录态自动恢复且不会回退写明文文件。
 
 ### 四、通知区（系统托盘）
-1. **书内关窗 vs 书架关窗**：
-   - 打开任意一本书进入章节页，点窗口左上角关闭按钮：确认先退回书架，窗口保持打开；
-   - 在书架页再次点左上角关闭按钮：确认窗口隐藏，任务栏通知区（Windows 11 首次可能在 `^` 溢出面板中）留有 `Drifting Next` 图标，后台同步与本地 MCP 桥接继续工作。
+1. **点关闭一次就收进通知区**（作者 2026-11-20 定）：
+   - 打开任意一本书进入条目页，点窗口左上角关闭按钮：确认窗口直接原样收起（不先退回全部项目），任务栏通知区（Windows 11 首次可能在 `^` 溢出面板中）留有 `Drifting Next` 图标，后台同步与本地 MCP 桥接继续工作；叫回来还是那本书的那一页；
+   - 在全部项目页点关闭：同样收进通知区；
+   - 没有通知区图标的会话（比如没有任务栏的环境）里点关闭：保存后退出，不会藏成叫不回来的窗口。
 2. **左键单击与菜单「打开」恢复**：
    - 左键单击通知区图标：主窗口恢复显示并聚焦；
-   - 再次在书架页关窗隐藏，右键通知区图标点「打开 Drifting」：主窗口同样恢复显示。
+   - 再点一次关闭收进通知区，右键通知区图标点「打开 Drifting」：主窗口同样恢复显示。
 3. **菜单语言跟随界面语言**：在「设置 › 语言」把界面语言在简体中文、英文、日文之间切换，右键通知区图标，确认两项菜单文案随之变为对应语言的「打开 Drifting / 退出 Drifting」。
 4. **菜单「退出」真正结束进程**：右键通知区图标点「退出 Drifting」，确认本地修改保存完毕后进程完全退出，通知区图标消失，任务管理器中不再有 `drifting.exe`。
 

@@ -5,6 +5,13 @@
 # last 0.1 releases read first) and the frozen latest.json of the last 0.1
 # release. Publishing the draft is what offers it to installed apps.
 #
+# macOS and Windows ship together (the author, 2026-11-20). update.json
+# joins the draft last, once all three platforms are built, and only with
+# exactly darwin-aarch64, windows-x86_64 and windows-aarch64: the 0.1
+# updater stops at the first manifest it can read and looks up its platform
+# before comparing versions, so a manifest missing a platform would fail
+# every update check on it. A draft without update.json upgrades nobody.
+#
 # DRAFT: it lives in next/script, so GitHub never runs it, and release.yml
 # keeps releasing the 0.1 Tauri client. It is complete: moving it to
 # .github/workflows/release-next.yml turns it on. Do that in the same commit
@@ -293,15 +300,17 @@ jobs:
           ARCHIVE="Drifting_${VERSION}_aarch64.app.tar.gz"
           cp "target/bundle/$DMG" "target/bundle/$ARCHIVE" "target/bundle/$ARCHIVE.sig" "$RELEASE_DIR/"
           # update.json: this client's manifest, in Tauri's format, which
-          # the last 0.1 releases read before latest.json. release-windows
-          # adds windows-x86_64 and windows-aarch64 to it.
+          # the last 0.1 releases read before latest.json. Only its macOS
+          # part here, kept back as an artifact: the draft gets update.json
+          # from `complete`, with the Windows platforms in it.
           BASE="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}"
+          mkdir -p "$RUNNER_TEMP/update-manifest"
           cargo run --locked -q -p dr-platform --example update-tool -- manifest \
             --version "$VERSION" --platform darwin-aarch64 \
             --url "$BASE/$ARCHIVE" \
             --signature-file "$RELEASE_DIR/$ARCHIVE.sig" \
             --notes-file "../docs/releases/${VERSION}.md" \
-            --output "$RELEASE_DIR/update.json"
+            --output "$RUNNER_TEMP/update-manifest/update.json"
           # latest.json: every 0.1 build before the two-manifest ones polls
           # only it, so it keeps offering the last 0.1 release (which runs
           # the hand-over, then reads update.json). This release becomes
@@ -314,6 +323,12 @@ jobs:
           (cd "$RELEASE_DIR" && shasum -a 256 ./* > SHA256SUMS.txt)
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "RELEASE_DIR=$RELEASE_DIR" >> "$GITHUB_ENV"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: update-manifest-darwin
+          path: ${{ runner.temp }}/update-manifest/update.json
+          if-no-files-found: error
+          retention-days: 7
       - name: Create the draft release
         run: |
           NOTES_FILE="../docs/releases/${VERSION}.md"
@@ -326,8 +341,9 @@ jobs:
           fi
 
   # The Windows installers join the draft only after the macOS build made
-  # it. If one fails, update.json has no Windows platforms: do not publish
-  # such a draft before reading release-handover.md ("只发 macOS").
+  # it, together with update.json (`complete`). If either Windows build
+  # fails, the draft has no update.json: rerun the failed job; never publish
+  # it so (docs/rust-rewrite/release-handover.md).
   build-windows:
     name: build (windows ${{ matrix.arch }})
     needs: verify
@@ -458,8 +474,8 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  release-windows:
-    name: add Windows to the draft release
+  complete:
+    name: add Windows and update.json to the draft release
     needs: [build-macos, build-windows]
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -478,13 +494,16 @@ jobs:
           pattern: windows-release-*
           path: windows-release
           merge-multiple: true
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: update-manifest-darwin
+          path: release-manifest
       # The Tauri manifest format both clients read; the merge script is the
       # one release.yml uses for latest.json.
-      - name: Add the installers and windows-x86_64 / windows-aarch64 to update.json
+      - name: Add windows-x86_64 and windows-aarch64 to update.json
         run: |
           VERSION=$(sed -n 's/^version = "\(.*\)"$/\1/p' next/app/drifting/Cargo.toml | head -n 1)
           test "$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft)" = "true"
-          gh release download "$GITHUB_REF_NAME" -p update.json -p SHA256SUMS.txt -D release-manifest
           BASE="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}"
           for pair in x64:windows-x86_64 arm64:windows-aarch64; do
             ARCH=${pair%%:*}
@@ -495,8 +514,19 @@ jobs:
               --platform "$PLATFORM" --url "$BASE/$NAME" \
               --signature-file "windows-release/$NAME.sig" --version "$VERSION"
           done
-          grep -v ' \./update\.json$' release-manifest/SHA256SUMS.txt > release-manifest/SHA256SUMS.next
-          (cd release-manifest && sha256sum ./update.json) >> release-manifest/SHA256SUMS.next
-          (cd windows-release && sha256sum ./*) >> release-manifest/SHA256SUMS.next
-          mv release-manifest/SHA256SUMS.next release-manifest/SHA256SUMS.txt
-          gh release upload "$GITHUB_REF_NAME" windows-release/* release-manifest/update.json release-manifest/SHA256SUMS.txt --clobber
+          # Exactly the three platforms both releases ship, each with its
+          # own signature and a file of this release.
+          jq -e --arg version "$VERSION" --arg base "$BASE/" '
+            .version == $version
+            and (.platforms | keys) == ["darwin-aarch64","windows-aarch64","windows-x86_64"]
+            and all(.platforms[]; (.signature | length) > 0 and (.url | startswith($base)))
+          ' release-manifest/update.json
+      - name: Upload the installers and update.json
+        run: |
+          gh release download "$GITHUB_REF_NAME" -p SHA256SUMS.txt -D release-manifest
+          (cd release-manifest && sha256sum ./update.json) >> release-manifest/SHA256SUMS.txt
+          (cd windows-release && sha256sum ./*) >> release-manifest/SHA256SUMS.txt
+          # The installers first: update.json must never name a file the
+          # draft does not have yet.
+          gh release upload "$GITHUB_REF_NAME" windows-release/* --clobber
+          gh release upload "$GITHUB_REF_NAME" release-manifest/update.json release-manifest/SHA256SUMS.txt --clobber

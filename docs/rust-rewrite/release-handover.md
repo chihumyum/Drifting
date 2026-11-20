@@ -13,8 +13,9 @@
 | 正式身份的开关 | `dr-platform` 有 `release-identity` 特性，打开后程序就是「Drifting」（`cc.drifting.client`、`drifting:` 链接、旧版的钥匙串）。只有打包脚本的 `--release-identity`（Windows 是 `-ReleaseIdentity`）会打开它，发布工作流用。平时所有构建、测试、CI 都还是开发身份「Drifting Next」。`cargo xtask check` 拦着别处打开它；它和调试桥、热重载放在一起编不过；`cargo xtask check-binary` 能从打好的程序里认出是哪个身份 |
 | 新旧两版的数据文件夹 | 见下面「新版第一次打开时」。核实过会撞，已经修好：新版自己的东西放在 0.1 文件夹的**旁边**，0.1 的书库和登记表一个字节都不动 |
 | 预编译着色器的开关 | `script/bundle-mac --precompiled-shaders`：不带 App 的默认特性编，Metal 着色器在编译时预编好，窗口第一次画的时候不用再现编。要先装 Metal Toolchain（作者的事，见第 2 步） |
-| 发布工作流 | `next/script/release-next.draft.yml` 写全了：检查、macOS 打包签名公证、更新包签名、符号上传、写 `update.json`、带上 0.1 最后一版的 `latest.json`、Windows 两个架构、建草稿 Release。放在 `next/script` 里，GitHub 不会跑它，挪进 `.github/workflows` 就会跑（第 5 步） |
+| 发布工作流 | `next/script/release-next.draft.yml` 写全了：检查、macOS 打包签名公证、更新包签名、符号上传、带上 0.1 最后一版的 `latest.json`、Windows 两个架构、建草稿 Release，三个平台都打好以后才写进三个键齐全的 `update.json`。放在 `next/script` 里，GitHub 不会跑它，挪进 `.github/workflows` 就会跑（第 5 步） |
 | 旧版那头 | 已经做了，而且已经发出去了：0.1.0-alpha.11 和 alpha.12 都带着交接和「先读 `update.json`、读不到再读 `latest.json`」（提交 `c788d72b2`）。0.1 的发布流程本来就只出 `latest.json`，不会出 `update.json` |
+| 开发身份的安装包 | `next` 工作流每次运行都在跑测试之前打好 macOS 的 `.dmg` 和 Windows 两个架构的安装包，作为运行产物传上去（名字带平台和提交号，留 7 天），作者在虚拟机里实机验收用（见「Windows 这一半」） |
 | 本机演练 | 开发身份的包上，用一次性密钥和本地清单走完「打包 → 签更新包 → 写清单 → 查到 → 下载验签 → 换包」，见文末「本机演练」 |
 
 ## 新版第一次打开时（数据文件夹）
@@ -48,12 +49,12 @@
 | 0 | 作者 | 先定下面「要作者定的事」那几条 | — |
 | 1 | 作者 | 在仓库 Settings › Secrets and variables › Actions 里加新变量（已有的证书、公证、更新钥匙、Hosted 地址都不用动，0.1 的发布已经在用；证书必须就是 0.1 在用的那张 Developer ID，同一个团队，钥匙串里的登录和 API Key 才读得到、不弹框） | `DRIFTING_LAST_V1_TAG`：最后一个 0.1 Release 的标签，现在是 `v0.1.0-alpha.12`。要开崩溃上报再加 `DRIFTING_SENTRY_DSN`、`SENTRY_ORG`、`SENTRY_PROJECT`（变量）和 `SENTRY_AUTH_TOKEN`（`release` 环境的密钥）；整张表在工作流文件开头 |
 | 2 | 作者 | 本机装 Metal Toolchain，打一个预编译着色器的开发包看一眼 | Xcode 26；见下面「验证预编译着色器」 |
-| 3 | 作者 + 监管会话 | 真实条件下的验收（[progress.md](progress.md)「等作者的事」第 4、8 条），尤其导入自己的 0.1 库、Windows 实机 | — |
+| 3 | 作者 + 监管会话 | 真实条件下的验收（[progress.md](progress.md)「等作者的事」第 3、4 条），尤其导入自己的 0.1 库；Windows 实机手测挡发布，在 ARM 虚拟机里用 CI 产物里的开发身份安装包照 [m43 的清单](modules/m43-windows.md)走（见「Windows 这一半」） | CI 产物、Windows 11 ARM 虚拟机 |
 | 4 | 监管会话 | 改版本号 `next/app/drifting/Cargo.toml` → `0.2.0`；写发布说明 `docs/releases/0.2.0.md`（第一行 `# Drifting 0.2.0`，先中文后英文，纯文本） | — |
 | 5 | 监管会话（作者同意推送） | 把工作流挪进来：`git mv next/script/release-next.draft.yml .github/workflows/release-next.yml`；**同一个提交里**把 `release.yml` 的触发改成 `tags: ['v0.1.*']`（现在两个都认所有 `v*` 标签），并把 `scripts/check-ci-contract.mjs` 里「release.yml 必须认 `v*`」那条改成新的规矩；跑 `pnpm ci:contract:check`、`cargo xtask check`；本地 `next/script/check-release v0.2.0` | — |
 | 6 | 作者同意后推 | `git tag v0.2.0 && git push origin main v0.2.0`，等工作流跑完，出草稿 Release。草稿谁也看不到，装着的 App 也不会收到 | — |
-| 7 | 作者 | 检查草稿：文件齐（`Drifting_0.2.0_macos_arm64.dmg`、`Drifting_0.2.0_aarch64.app.tar.gz` 和 `.sig`、两个 Windows 安装包和 `.sig`、`update.json` 里有 `darwin-aarch64`、`windows-x86_64`、`windows-aarch64` 三个键、`latest.json` 的版本是 alpha.12、`SHA256SUMS.txt`） | — |
-| 8 | 作者 | 用草稿里的包，在**不是日常用的** macOS 用户（或虚拟机）和 Windows 虚拟机里把「0.1 → 新版」走一遍：先装 alpha.12、写几个字、登录、存一个 API Key，关掉；再把草稿里的 DMG（Windows 是安装包）装上去，打开看：书能导入、登录还在、API Key 还在、`drifting:` 链接能跳进来。正式身份的包会读写那台机器上正式版的数据，所以**不要在日常账户上做**。要连 0.1 更新器自动换包那一下也验，就在私有测试仓库用测试密钥跑一遍工作流（[f7「下一个里程碑建议」](foundations/f7-platform.md#下一个里程碑建议)第 1 条） | 一台干净的 Mac 账户或虚拟机、Windows 虚拟机 |
+| 7 | 作者 | 检查草稿：文件齐（`Drifting_0.2.0_macos_arm64.dmg`、`Drifting_0.2.0_aarch64.app.tar.gz` 和 `.sig`、`Drifting_0.2.0_windows_x64-setup.exe`、`…_arm64-setup.exe` 和各自的 `.sig`、`update.json` 里正好 `darwin-aarch64`、`windows-x86_64`、`windows-aarch64` 三个键、`latest.json` 的版本是 alpha.12、`SHA256SUMS.txt`）。没有 `update.json` 就是有个 Windows 任务失败了，重跑它，别发 | — |
+| 8 | 作者 | 用草稿里的包，在**不是日常用的** macOS 用户（或虚拟机）和 Windows 虚拟机里把「0.1 → 新版」走一遍：先装 alpha.12、写几个字、登录、存一个 API Key，关掉；再把草稿里的 DMG 装上去（Windows：直接运行草稿里的 `…_arm64-setup.exe`，它会装进 alpha.12 的同一个文件夹，等于 0.1 更新器做的那一步，见 m43 清单第一节最后一条），打开看：书能导入、登录还在、API Key 还在、`drifting:` 链接能跳进来，「已安装的应用」里只有一个 Drifting。正式身份的包会读写那台机器上正式版的数据，所以**不要在日常账户上做**。要连 0.1 更新器自动换包那一下也验，就在私有测试仓库用测试密钥跑一遍工作流（[f7「下一个里程碑建议」](foundations/f7-platform.md#下一个里程碑建议)第 1 条） | 一台干净的 Mac 账户或虚拟机、Windows 虚拟机 |
 | 9 | 作者 | **点 Publish**。这一下就是把新版推给所有人，也是回不去的那一点（下一节） | — |
 | 10 | 监管会话 | Publish 后重建官网：下载按钮按文件名直链最新 Release，文件名的格式没变（`Drifting_<版本>_macos_arm64.dmg`、`Drifting_<版本>_windows_x64-setup.exe`），但生成脚本（`scripts/design-assets/landing/build.mjs`）现在从 0.1 的 `package.json` 取版本号，要改成读 `next/app/drifting/Cargo.toml` | — |
 
@@ -91,32 +92,41 @@ cargo xtask check-binary --precompiled-shaders "target/bundle/Drifting Next.app/
 - Publish 之前都能反悔：草稿删掉，修好以后用新版本号重新打标签（移动已推的标签要作者每次同意强推）。
 - 真要退，只能让人手动装 0.1 的 DMG。因为新版不碰 0.1 的书库和登记表，装回去的 0.1 打开的是它离开时的书；在新版里写的东西 0.1 看不到。
 
-## 只发 macOS 时 `update.json` 怎么写
+## 两个平台一起发（作者 2026-11-20 定）
 
-先说结论：**推荐两个平台一起发**。只发 macOS 时，`update.json` 里只写 `darwin-aarch64` 一个键，Windows 上的老用户不会被升级，但他们每次检查更新都会在「设置 › 更新」里看到「检查失败」，直到 Windows 的键补上。
+`0.2.0` macOS 和 Windows 一起发。`update.json` 从第一版起就是三个键：`darwin-aarch64`（Mac 的更新包 `.app.tar.gz`）、`windows-x86_64` 和 `windows-aarch64`（两个 Windows 安装包本身）。
 
-原因（读的是 0.1 用的 `tauri-plugin-updater` 2.10.1）：0.1 的更新器依次读两份清单，**拿到第一份能读懂的就停**，不会再去读 `latest.json`；然后它**先找本平台的下载地址、再比版本号**。所以 `update.json` 里没有 `windows-x86_64` 这个键时，Windows 上的 alpha.11、alpha.12 每次检查都报「找不到这个平台」：不升级（这是想要的），但会报错（自动检查只在设置那一行显示，不进通知中心，另外发一条诊断日志）。
+为什么一个都不能少（读的是 0.1 用的 `tauri-plugin-updater` 2.10.1）：0.1 的更新器依次读两份清单，**拿到第一份能读懂的就停**，不会再去读 `latest.json`；然后它**先找本平台的下载地址、再比版本号**。`update.json` 里少了哪个平台，那个平台上的 alpha.11、alpha.12 每次检查都报「找不到这个平台」：不升级，设置里一直显示检查失败。
 
-| 做法 | Mac 老用户 | Windows 老用户 |
+所以工作流是这样排的：
+
+- Mac 那一步建草稿时只放 DMG、更新包、`latest.json`，**不放 `update.json`**；它算好的 Mac 那一段先存在工作流里。
+- 两个 Windows 安装包都打好、签好以后，最后一步（「add Windows and update.json to the draft release」）把三段合成一份 `update.json`，核对正好是这三个键、每个都有签名、地址都指向这一次的文件，先传安装包、再传 `update.json`。
+- 哪个 Windows 任务失败，草稿里就没有 `update.json`：这样的草稿就算误点了 Publish 也不会把任何人升级（只是要手动下载）。处理办法是重跑失败的任务，**不要发这样的草稿，也不要自己手写一份缺平台的 `update.json`**。
+- **绝对不要**：给 Windows 的键填 0.1 的安装包（版本号是全清单共用的，Windows 会每 3 小时把 0.1 重装一遍）；也不要用不分平台的清单写法（顶层直接写 `url`、`signature`），那样 Windows 会去下 macOS 的包。
+
+## Windows 这一半
+
+| 件 | 怎么做 | 现在的状态 |
 | --- | --- | --- |
-| 甲（推荐）：两边一起发，`update.json` 三个键都有 | 升级 | 升级 |
-| 乙：只发 macOS，`update.json` 只有 `darwin-aarch64` | 升级 | 不升级；设置里一直显示检查失败，等下一个两边都有的版本 |
-| 丙：先发 Release 但不挂 `update.json` | 不自动升级，只能手动下 DMG | 不升级，也不报错 |
-
-**绝对不要**：给 Windows 的键填 0.1 的安装包（版本号是全清单共用的，Windows 会每 3 小时把 0.1 重装一遍）；也不要用不分平台的清单写法（顶层直接写 `url`、`signature`），那样 Windows 会去下 macOS 的包。
-
-工作流里的情形：Windows 任务失败时，草稿里的 `update.json` 就只有 macOS 一个键，正好是乙。这时先别 Publish，重跑失败的 Windows 任务（「add Windows to the draft release」只往草稿里加，Publish 以后它不再改）。
+| 安装包 | NSIS，`next/script/bundle-windows.ps1 -BuildProfile dist -Target <x86_64 或 aarch64>-pc-windows-msvc -ReleaseIdentity`，出 `Drifting_<版本>_windows_x64-setup.exe` 和 `…_arm64-setup.exe`。不要管理员权限，装到当前用户下 | 工作流里每个架构一个任务；开发身份的安装包 CI 每次都打、装一遍、升级一遍、卸一遍（`check-windows-installer.ps1`） |
+| 从 0.1 原位升级 | 0.1 最后一版的更新器下载新安装包、验签，用 `/P /R /UPDATE /ARGS` 运行它，自己马上退出。新安装器装进**同一个**文件夹 `%LOCALAPPDATA%\Drifting`（之前装在别处的，按 `HKCU\Software\drifting\Drifting` 记下的位置），改写同一个卸载项（「已安装的应用」里还是一个 Drifting）、同一个 `drifting:` 协议键；最多等旧进程 10 秒，被动模式下再结束本用户残留的同名进程；`/UPDATE` 时不动开始菜单和任务栏上已有的固定；装完把新版打开 | 安装位置、卸载项、厂商键、协议、`/P /UPDATE` 都对着旧版 Tauri 安装器写的，CI 上验过开发身份那一套；**正式身份的安装包没在 Windows 上打过**，从 0.1 真升级一次是实机验收（m43 清单第一节最后一条） |
+| 数据 | 0.1 的 `%LOCALAPPDATA%\cc.drifting.client`（书库、登记表、WebView2 的 `EBWebView/`）新版除了 `mcp/` 不写；新版自己的东西在 `%LOCALAPPDATA%\cc.drifting.client.v2`，日志在它的 `logs\`；程序在 `%LOCALAPPDATA%\Drifting`，卸载只删程序自己的文件，书不在那里 | 测试按 Windows 的规则也跑一遍（不管在哪个系统上跑），含程序文件夹不被碰 |
+| 更新签名 | Windows 的更新包就是安装包本身：`update-tool sign` 用同一把 minisign 私钥签出 `-setup.exe.sig`，签名里带文件名（含版本号），`update.json` 的 Windows 两个键指向安装包和它的签名 | 工作流里签完立刻用公钥验一次 |
+| 代码签名（Authenticode） | **要作者定，默认照 0.1：不签**。不签时第一次运行 SmartScreen 会提示「Windows 已保护你的电脑」（点「更多信息」→「仍要运行」），发布说明里照 0.1 写一句；更新照样由 minisign 签名保证。要签得买代码签名证书，工作流里在「Sign the installer with the updater key」前面加一步 | 不签 |
+| 实机验收 | 作者只有一台 Windows 11 ARM 虚拟机：开发身份的安装包从 `next` 工作流每次运行的产物里下（`drifting-next-windows-arm64-<提交号>`，x64 的叫 `…-windows-x64-…`；在跑测试之前就传上去，留 7 天），照 [m43-windows.md](modules/m43-windows.md) 的清单走 | **挡发布**（progress「等作者的事」第 3 条） |
 
 ## 要作者定的事（带推荐）
 
-1. **Windows 签不签名（D10）。** 推荐：这一版先不签，和 0.1 一样；第一次运行 SmartScreen 会提示「Windows 已保护你的电脑」，发布说明里照 0.1 写一句。要签就要买代码签名证书，工作流里在「Sign the installer with the updater key」前面加一步。
+1. **Windows 签不签名（D10）。** 默认照 0.1：不签（上一节「代码签名」）。
 2. **GPUI 的补丁挂不挂。** 补丁在 `next/patches/gpui`：停掉空闲时的显示链接（不挂的话窗口空闲时也有约 1% 的 CPU）、读屏的两处修正、组字取消的接口。推荐挂 0001（省电，对所有人都有用），读屏和组字那几个等真实输入法验收再定。挂补丁要作者指定一个能推送的 fork 仓库，`next/Cargo.toml` 改指向它。
-3. **只发 macOS 还是两边一起。** 推荐一起（上一节）。Windows 实机手测（progress「等作者的事」第 3 条）没做完就等它。
-4. **崩溃上报开不开。** 推荐开：在 Sentry 建好（或复用旧的 `drifting/drifting-client`）项目，填第 1 步那四项；同意开关在设置里，首次说明在欢迎卡上（m35-account.md）。不填也能发，只是这一版收不到崩溃。开之前在签名的正式包上验一次 ⌘Q（[f7 发版前第 4 条](foundations/f7-platform.md#发版前必须由作者做的事)）。
-5. **新版自己的文件夹名。** 替作者定成 `cc.drifting.client.v2`（放在 0.1 文件夹旁边）。没意见就不用回；要改必须在发 0.2.0 之前。
+3. **崩溃上报开不开。** 推荐开：在 Sentry 建好（或复用旧的 `drifting/drifting-client`）项目，填第 1 步那四项；同意开关在设置里，首次说明在欢迎卡上（m35-account.md）。不填也能发，只是这一版收不到崩溃。开之前在签名的正式包上验一次 ⌘Q（[f7 发版前第 4 条](foundations/f7-platform.md#发版前必须由作者做的事)）。
+4. **新版自己的文件夹名。** 替作者定成 `cc.drifting.client.v2`（放在 0.1 文件夹旁边，macOS、Windows 一样）。没意见就不用回；要改必须在发 0.2.0 之前。
+
+已经定了的：两个平台一起发（2026-11-20）。
 
 ## 本机演练（2026-11-20）
 
 在开发身份的 dist 包上，用一次性密钥和本地清单，把「打包 → 签更新包 → 写清单 → 查到 → 下载验签 → 换包」走了一遍：查到新版本、下载加验签约 0.1 秒，退出时换包 0.6 到 1.6 秒（机器很忙）；换完签名校验通过，旧包里多出来的东西清掉了。同版本、更旧的版本、旧包冒充新版本号、被改过一个字节的包、别的钥匙签的包，五种都拒绝，已装的包一点没动。数字和步骤见 [f7-platform.md 的「第五轮」](foundations/f7-platform.md#第五轮发布交接的工程准备)。
 
-没在本机做、也做不了的：预编译着色器那一面（要 Metal Toolchain）、Developer ID 签名和公证、工作流真跑一遍、正式身份的程序真打开（会读写这台机器上正式版的数据）、Windows 的正式身份安装包（本机没有 Windows）。
+没在本机做、也做不了的：预编译着色器那一面（要 Metal Toolchain）、Developer ID 签名和公证、工作流真跑一遍、正式身份的程序真打开（会读写这台机器上正式版的数据）、Windows 的正式身份安装包和更新包演练（本机没有 Windows，只能在 CI 上打）。

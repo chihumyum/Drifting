@@ -13,7 +13,8 @@
 # - the release workflow (default: .github/workflows/release-next.yml, else
 #   the draft next/script/release-next.draft.yml) pins every action to a full
 #   commit SHA, builds the release identity with precompiled shaders on both
-#   platforms, and checks the built executables for both.
+#   platforms, checks the built executables for both, and publishes
+#   update.json only with exactly the three platforms both ship.
 set -euo pipefail
 
 die() {
@@ -67,7 +68,8 @@ for needle in \
   "script/bundle-mac --dist --precompiled-shaders --release-identity" \
   "cargo xtask check-binary --release-identity --precompiled-shaders" \
   "-ReleaseIdentity" \
-  "cargo xtask check-binary --release-identity target/"; do
+  "cargo xtask check-binary --release-identity target/" \
+  '(.platforms | keys) == ["darwin-aarch64","windows-aarch64","windows-x86_64"]'; do
   grep -qF -- "$needle" "$workflow" || fail "$(basename "$workflow") never runs \`$needle\`"
 done
 

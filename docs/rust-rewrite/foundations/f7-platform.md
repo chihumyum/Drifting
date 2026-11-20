@@ -361,7 +361,7 @@ CI（`next.yml` 的 Windows 任务，`script/check-windows-installer.ps1`）：�
 
 ## 发布流水线
 
-`release.yml` 是为 Tauri 写的，不动。新版的工作流是 `next/script/release-next.draft.yml`，第五轮写全了，放在 `.github/workflows` 外面，GitHub 不会跑它；挪进去（`release-next.yml`）就会跑，挪的同时 `release.yml` 改成只认 `v0.1.*` 标签（[release-handover.md](../release-handover.md) 第 5 步）。推 `v<版本>` 标签以后：verify（`script/check-release` 查标签、版本号不小于 0.2.0、发布说明、动作都钉到提交；查 0.1 最后一版的 Release 已发布、不是预发布、不带 `update.json`；全套检查）→ macOS（装 Metal Toolchain、导入证书、`bundle-mac --dist --precompiled-shaders --release-identity`、`check-binary --release-identity --precompiled-shaders`、hardened runtime 签名、公证并 staple、`package-mac` 从 staple 过的包出 DMG 和更新包、DMG 签名公证、核验、minisign 签更新包、上传 `.dSYM`、写 `update.json`、带上 `DRIFTING_LAST_V1_TAG` 那个 Release 的 `latest.json` 并核对它的版本和地址、建草稿）→ Windows 两个架构（`bundle-windows.ps1 -ReleaseIdentity`、`check-binary --release-identity`、minisign 签名、上传 PDB、在构建机上装一遍开 20 秒）→ 把 Windows 两个键合进草稿的 `update.json`。它沿用 `release.yml` 的全部变量和密钥，新加 `vars.DRIFTING_LAST_V1_TAG`，Sentry 的四项可以不填（不填就不发崩溃、不传符号，工作流只警告）；整张表在文件开头。actionlint（带 shellcheck）通过。
+`release.yml` 是为 Tauri 写的，不动。新版的工作流是 `next/script/release-next.draft.yml`，第五轮写全了，放在 `.github/workflows` 外面，GitHub 不会跑它；挪进去（`release-next.yml`）就会跑，挪的同时 `release.yml` 改成只认 `v0.1.*` 标签（[release-handover.md](../release-handover.md) 第 5 步）。推 `v<版本>` 标签以后：verify（`script/check-release` 查标签、版本号不小于 0.2.0、发布说明、动作都钉到提交；查 0.1 最后一版的 Release 已发布、不是预发布、不带 `update.json`；全套检查）→ macOS（装 Metal Toolchain、导入证书、`bundle-mac --dist --precompiled-shaders --release-identity`、`check-binary --release-identity --precompiled-shaders`、hardened runtime 签名、公证并 staple、`package-mac` 从 staple 过的包出 DMG 和更新包、DMG 签名公证、核验、minisign 签更新包、上传 `.dSYM`、算好 `update.json` 的 Mac 那一段（先存为工作流产物，不进草稿）、带上 `DRIFTING_LAST_V1_TAG` 那个 Release 的 `latest.json` 并核对它的版本和地址、建草稿）→ Windows 两个架构（`bundle-windows.ps1 -ReleaseIdentity`、`check-binary --release-identity`、minisign 签名、上传 PDB、在构建机上装一遍开 20 秒）→ 三个平台都好了，合成 `update.json`、核对正好 `darwin-aarch64`、`windows-x86_64`、`windows-aarch64` 三个键，先传安装包、再传 `update.json`。它沿用 `release.yml` 的全部变量和密钥，新加 `vars.DRIFTING_LAST_V1_TAG`，Sentry 的四项可以不填（不填就不发崩溃、不传符号，工作流只警告）；整张表在文件开头。actionlint（带 shellcheck）通过。
 
 ## 发版前必须由作者做的事
 
@@ -480,17 +480,21 @@ M3 Pro，release 构建，机器负载 15–18（其他会话在编译）。
 
 正式身份的数据文件夹就是 0.1 的（Tauri 的 `app_local_data_dir`，同一个 identifier）。两版都在里面放 `libraries.json` 和 `libraries/account-<SHA-256(subject) 前 16 字节，十六进制>/`，同一个账号的文件夹名一模一样（测试 `both_clients_name_an_accounts_library_alike`）。
 
-核实：`app/drifting/src/data_folder_tests.rs` 在临时目录里按正式身份的规则（`AppDirs::for_identity_at(&RELEASE, …)`）摆一个 0.1 的数据文件夹（dr-import-v1 测试用的合成库放在根上当 legacy，再复制一份当账号书库，加一个 MCP 连接文件，有登记表、没登记表各一遍），照 `main` 的顺序走启动时打开书库那一段：设置文件（写一次）、`library::open_active`（登记表、设备身份）、账号服务启动（未登录）、登录后的账号书库、诊断 id；再比对 0.1 文件夹里每个文件的内容、长度和修改时间。
+核实：`app/drifting/src/data_folder_tests.rs` 在临时目录里按正式身份的规则摆一个 0.1 的数据文件夹，macOS 和 Windows 两套规则各一遍，在哪个系统上跑都两套都跑（`AppDirs::for_layout_at(Layout::…, &RELEASE, …)`；Windows 那一套另放 WebView2 的 `EBWebView/` 和 0.1 的程序文件夹 `%LOCALAPPDATA%\Drifting`，程序文件夹也要求不被碰）（dr-import-v1 测试用的合成库放在根上当 legacy，再复制一份当账号书库，加一个 MCP 连接文件，有登记表、没登记表各一遍），照 `main` 的顺序走启动时打开书库那一段：设置文件（写一次）、`library::open_active`（登记表、设备身份）、账号服务启动（未登录）、登录后的账号书库、诊断 id；再比对 0.1 文件夹里每个文件的内容、长度和修改时间。
 
 - 改之前的布局（新版的东西就放在这个文件夹里，留作负对照 `the_layout_before_the_fix_writes_into_the_0_1_data_folder`）：有登记表时新版读不懂 0.1 的 `libraries.json`（缺 `activeId`），账号服务起不来（真实 App 里 `dr_view_account::Service::for_build` 会退到临时文件夹和内存钥匙串），登录记不进登记表；新版的 `library/`、`settings.json`、`device-machine-v1.json`、`library-watermarks.json`、`diagnostics-installation-v1` 落在 0.1 根上。没有登记表时新版写一份自己格式的 `libraries.json`，还在 0.1 的 `libraries/account-<hex>/` 里建 `library.sqlite`、`library.lock`；之后导入按 0.1 的规矩认为登记表坏了，一本旧书都找不到。
 - 修法（`dr-platform/src/paths.rs`）：`AppDirs` 加 `own`，新版自己的东西放这里。开发身份 `own` 就是 `data`（开发库不搬家）；正式身份是 0.1 文件夹**旁边**的 `<bundle id>.v2`（`RELEASE_OWN_SUFFIX`），崩溃记录、Windows 的日志跟着进 `own`。`data` 不变：`mcp/` 留在这里（外部 Agent 配置里写死的路径），「导入 Drifting 0.1」找旧书也在这里（`dr-view-import` 的 `v1_data_dir` 一行没改）。App 入口把设置、书库、账号、反馈、更新都改成传 `dirs.own`。
 - 为什么不放进 0.1 文件夹里面的子文件夹：0.1 最常见的本地书库（legacy）的根就是整个 0.1 文件夹，而 `dr-view-import/src/reimport.rs` 的 `Destination::validate` 拒绝「导入目标在来源里面」。探针核实过：`own` 放在里面时，导入 legacy 报 `reimport requires a new destination`。放在旁边就不用动另一路在改的 `dr-view-import`。
-- 修完（`the_release_layout_leaves_the_0_1_data_folder_untouched`）：两种 0.1 文件夹都一个字节没变、一个文件没多；新版的登记表、本地书库、账号书库、设置、诊断 id 都在 `own`；导入还找得到 legacy，`Destination::prepare` 接受 `own` 里的目标，接受以后 0.1 文件夹仍然没变。
+- 修完（`the_release_layout_leaves_the_0_1_data_folder_untouched`）：两套规则、有没有登记表四种情形，0.1 文件夹都一个字节没变、一个文件没多，Windows 的程序文件夹也没变；新版的登记表、本地书库、账号书库、设置、诊断 id 都在 `own`；导入还找得到 legacy，`Destination::prepare` 接受 `own` 里的目标，接受以后 0.1 文件夹仍然没变。
 - 设备身份：正式身份下新版在 `own` 里起一个新的安装 id；导入 0.1 的书时 M10 照旧接过 0.1 的安装 id（`take_over`），写作日接着记在 0.1 的设备下。
 
 ### 发布工作流
 
 见上面「发布流水线」。新加 `script/check-release`（标签等于版本号、版本号不带 `-dev` 且不小于 0.2.0、发布说明、动作钉到提交、工作流里有正式身份和预编译着色器的打包和检查；本机对合成的树正反都试过）和 `script/package-mac`（从 `bundle-mac` 拆出来的出 DMG 和更新包，工作流在 staple 以后对同一个包再跑一次）。
+
+### 开发安装包作为 CI 产物（`next.yml`）
+
+作者只有一台 Windows 11 ARM 虚拟机，Windows 包只能在 CI 上打。2026-11-20 起 `.github/workflows/next.yml` 在格式检查、Clippy、测试**之前**打开发身份的包并作为运行产物上传：macOS 是 `bundle-mac --debug --dmg --archive` 出的 `.dmg`，Windows 两个任务各是 `bundle-windows.ps1 -BuildProfile debug` 出的安装包（不带 `-Target`，用的就是构建机自己的架构和测试复用的那份 debug 构建，几乎不多花时间）。产物名 `drifting-next-<平台>-<提交号前 8 位>`（`macos`、`windows-x64`、`windows-arm64`；拉取请求用它头上的提交），留 7 天，传完就能下，不用等两个小时的测试。macOS 原来在测试之后打包的那一步挪到了前面，后面的 `check-binary` 和 DMG、更新包检查照旧查同一个包；Windows 后面的 `check-windows-installer.ps1` 照旧用同一个 debug 程序再打一遍、装一遍、卸一遍。这个工作流里别的没动。
 
 ### 本机演练
 
@@ -506,12 +510,12 @@ M3 Pro，release 构建，机器负载 15–18（其他会话在编译）。
 
 不用改：`c788d72b2`（2026-11-11）已经把 `src-tauri/src/app_update.rs` 改成先 `update.json` 后 `latest.json`，单测断言两条地址和顺序，随 0.1.0-alpha.11 发布，alpha.12 也带着（`git show v0.1.0-alpha.12:src-tauri/src/app_update.rs` 核过）。0.1 的发布流程只写 `latest.json`。所以这一轮没有 0.1 的提交。
 
-读 `tauri-plugin-updater` 2.10.1 时发现一条约束，写进了 [m42-update.md](../modules/m42-update.md)「新版这边要守住的」和 release-handover.md「只发 macOS 时」：旧更新器拿到第一份能解析的清单就停，而且先找本平台的地址、后比版本号，`update.json` 缺 Windows 的键时 Windows 老用户每次检查都报失败。
+读 `tauri-plugin-updater` 2.10.1 时发现一条约束，写进了 [m42-update.md](../modules/m42-update.md)「新版这边要守住的」和 release-handover.md「两个平台一起发」：旧更新器拿到第一份能解析的清单就停，而且先找本平台的地址、后比版本号，`update.json` 缺哪个平台的键，那个平台的老用户每次检查都报失败。作者 2026-11-20 定两个平台一起发，工作流因此改成三个平台都打好、核对正好三个键以后才把 `update.json` 放进草稿；有一个 Windows 任务失败，草稿里就没有 `update.json`，误发也不会把谁升级。
 
 ### 没验到的
 
 - 预编译着色器那一面（要 Metal Toolchain）、Developer ID 签名、公证、staple、`spctl`，工作流本身（没跑过，actionlint 和 shellcheck 过了）。
-- 正式身份的程序没运行过（会读写这台机器上正式版的数据）；Windows 的 `-ReleaseIdentity` 没在 Windows 上打过（本机没有 NSIS），`dr-platform` 加正式身份过了 Windows 交叉 Clippy。
+- 正式身份的程序没运行过（会读写这台机器上正式版的数据）；Windows 的 `-ReleaseIdentity` 没在 Windows 上打过（本机没有 NSIS），`dr-platform` 加正式身份过了 Windows 交叉 Clippy；`next.yml` 的改动（测试之前传开发安装包）只过了 actionlint，要等下一次推送才在 CI 上真跑。
 - 签名包上「0.1 最后一版 → 新版」的真交接，要作者在不是日常用的账户或虚拟机里做（release-handover.md 第 8 步）。
 
 ## 下一个里程碑建议

@@ -7,9 +7,12 @@
 //! was; the new client keeps its own files in `AppDirs::own`, beside it.
 //!
 //! Everything here runs in a temporary folder laid out by dr-platform's
-//! release rules (`AppDirs::for_identity_at(&RELEASE, …)`), with the
-//! synthetic 0.1 library of dr-import-v1's tests: never the real folders,
-//! never the author's library.
+//! release rules, macOS's and Windows's both on every system
+//! (`AppDirs::for_layout_at(…, &RELEASE, …)`: macOS
+//! `~/Library/Application Support/cc.drifting.client`, Windows
+//! `%LOCALAPPDATA%\cc.drifting.client` with the program installed in
+//! `%LOCALAPPDATA%\Drifting`), with the synthetic 0.1 library of
+//! dr-import-v1's tests: never the real folders, never the author's library.
 
 #[path = "../../../crates/dr-import-v1/tests/common/mod.rs"]
 mod v1;
@@ -21,6 +24,7 @@ use std::sync::Arc;
 use dr_account::{AccountService, HostedConfig, LibraryRegistry};
 use dr_platform::AppDirs;
 use dr_platform::identity::RELEASE;
+use dr_platform::paths::Layout;
 use dr_platform::secrets::SecretStore;
 use sha2::Digest as _;
 
@@ -55,10 +59,15 @@ fn copy_tree(from: &Path, to: &Path) {
 /// database, an image's bytes, the installation identity), one account
 /// library under `libraries/`, an external Agent's connection file, and,
 /// with `registry`, the `libraries.json` that names both (every 0.1 build
-/// since the registry has one).
-fn v1_data_folder(base: &Path, registry: bool) -> v1::Old {
+/// since the registry has one). On Windows also WebView2's profile, which
+/// Tauri keeps in the same folder (`EBWebView/`).
+fn v1_data_folder(layout: Layout, base: &Path, registry: bool) -> v1::Old {
     let old = v1::build(true);
     copy_tree(&old.root, base);
+    if layout == Layout::Windows {
+        std::fs::create_dir_all(base.join("EBWebView/Default")).unwrap();
+        std::fs::write(base.join("EBWebView/Default/Preferences"), b"{}").unwrap();
+    }
     let account = base.join("libraries").join(v1_account_library(SUBJECT));
     copy_tree(&old.root.join("databases"), &account.join("databases"));
     std::fs::copy(
@@ -117,18 +126,20 @@ fn snapshot(root: &Path) -> Snapshot {
     out
 }
 
-/// What changed between two snapshots: added, removed and changed paths.
+/// What changed between two snapshots: added, removed and changed paths,
+/// `/`-separated on every system.
 fn changes(before: &Snapshot, after: &Snapshot) -> Vec<String> {
+    let name = |path: &Path| path.to_string_lossy().replace('\\', "/");
     let mut out = Vec::new();
     for (path, was) in before {
         match after.get(path) {
-            None => out.push(format!("removed {}", path.display())),
-            Some(now) if now != was => out.push(format!("changed {}", path.display())),
+            None => out.push(format!("removed {}", name(path))),
+            Some(now) if now != was => out.push(format!("changed {}", name(path))),
             Some(_) => {}
         }
     }
     for path in after.keys().filter(|p| !before.contains_key(*p)) {
-        out.push(format!("added {}", path.display()));
+        out.push(format!("added {}", name(path)));
     }
     out
 }
@@ -177,8 +188,21 @@ fn start_like_the_app(own: &Path) -> Vec<String> {
     errors
 }
 
-fn release_dirs(root: &Path) -> AppDirs {
-    AppDirs::for_identity_at(&RELEASE, &root.join("local"), &root.join("Logs"))
+const LAYOUTS: [Layout; 2] = [Layout::MacOs, Layout::Windows];
+
+fn release_dirs(layout: Layout, root: &Path) -> AppDirs {
+    AppDirs::for_layout_at(layout, &RELEASE, &root.join("local"), &root.join("Logs"))
+}
+
+/// Windows: the 0.1 Tauri installer's program folder,
+/// `%LOCALAPPDATA%\<product name>`, which the new installer updates in
+/// place; the app itself never writes there.
+fn v1_install_folder(root: &Path) -> PathBuf {
+    let install = root.join("local").join(RELEASE.product_name);
+    std::fs::create_dir_all(&install).unwrap();
+    std::fs::write(install.join("drifting.exe"), b"MZ synthetic 0.1 executable").unwrap();
+    std::fs::write(install.join("uninstall.exe"), b"MZ synthetic uninstaller").unwrap();
+    install
 }
 
 #[test]
@@ -194,32 +218,39 @@ fn both_clients_name_an_accounts_library_alike() {
 
 /// The release layout: starting the new client leaves the 0.1 data folder
 /// byte for byte as it was (its `libraries.json`, `databases/`, every
-/// `libraries/*/`, and everything else in it), the new client's files are
-/// all in `own`, and 「导入 Drifting 0.1」 still finds the 0.1 library and
-/// accepts a destination in `own`.
+/// `libraries/*/`, and everything else in it), and on Windows the program
+/// folder too; the new client's files are all in `own`, and 「导入 Drifting
+/// 0.1」 still finds the 0.1 library and accepts a destination in `own`.
 #[test]
 fn the_release_layout_leaves_the_0_1_data_folder_untouched() {
-    for registry in [true, false] {
+    for (layout, registry) in LAYOUTS.into_iter().flat_map(|l| [(l, true), (l, false)]) {
+        let case = format!("{layout:?}, registry {registry}");
         let root = tempfile::tempdir().unwrap();
-        let dirs = release_dirs(root.path());
-        let _old = v1_data_folder(&dirs.data, registry);
+        let dirs = release_dirs(layout, root.path());
+        let _old = v1_data_folder(layout, &dirs.data, registry);
+        let install = v1_install_folder(root.path());
         let before = snapshot(&dirs.data);
+        let installed = snapshot(&install);
         assert!(before.contains_key(Path::new("databases/drifting-library.db")));
         let found = dr_view_import::find_local_libraries(&dirs.data);
-        assert_eq!(found.len(), 1, "registry {registry}");
+        assert_eq!(found.len(), 1, "{case}");
         assert_eq!(found[0].picked.root, dirs.data);
 
         let errors = start_like_the_app(&dirs.own);
-        assert!(errors.is_empty(), "registry {registry}: {errors:?}");
+        assert!(errors.is_empty(), "{case}: {errors:?}");
 
         let after = snapshot(&dirs.data);
+        assert_eq!(changes(&before, &after), Vec::<String>::new(), "{case}");
         assert_eq!(
-            changes(&before, &after),
+            changes(&installed, &snapshot(&install)),
             Vec::<String>::new(),
-            "registry {registry}"
+            "{case}"
         );
-        // The new client's own files, beside the 0.1 folder.
-        assert!(!dirs.own.starts_with(&dirs.data));
+        // The new client's own files, beside the 0.1 folder and the program.
+        for folder in [&dirs.own, &dirs.logs, &dirs.crashes] {
+            assert!(!folder.starts_with(&dirs.data), "{case}: {folder:?}");
+            assert!(!folder.starts_with(&install), "{case}: {folder:?}");
+        }
         let own = LibraryRegistry::load_or_init(&dirs.own).unwrap();
         assert!(own.is_active_account(SUBJECT));
         assert!(dirs.own.join("library").is_dir());
@@ -240,13 +271,13 @@ fn the_release_layout_leaves_the_0_1_data_folder_untouched() {
         // destination next to the local library in `own` (it refuses one
         // inside the library it reads, whose root is the 0.1 folder).
         let found = dr_view_import::find_local_libraries(&dirs.data);
-        assert_eq!(found.len(), 1, "registry {registry}");
+        assert_eq!(found.len(), 1, "{case}");
         LibraryRegistry::settle_for_startup(&dirs.own, false, None).unwrap();
         let local = dirs.own.join("library");
         let destination = dr_view_import::reimport::Destination::prepare(&local, &found[0].picked)
-            .unwrap_or_else(|e| panic!("registry {registry}: {e}"));
+            .unwrap_or_else(|e| panic!("{case}: {e}"));
         assert!(destination.target().starts_with(&dirs.own));
-        assert_eq!(snapshot(&dirs.data), before, "registry {registry}");
+        assert_eq!(snapshot(&dirs.data), before, "{case}");
     }
 }
 
@@ -257,19 +288,19 @@ fn the_release_layout_leaves_the_0_1_data_folder_untouched() {
 /// 0.1」 no longer finds the 0.1 library.
 #[test]
 fn the_layout_before_the_fix_writes_into_the_0_1_data_folder() {
-    for registry in [true, false] {
+    for (layout, registry) in LAYOUTS.into_iter().flat_map(|l| [(l, true), (l, false)]) {
+        let case = format!("{layout:?}, registry {registry}");
         let root = tempfile::tempdir().unwrap();
-        let dirs = release_dirs(root.path());
-        let _old = v1_data_folder(&dirs.data, registry);
+        let dirs = release_dirs(layout, root.path());
+        let _old = v1_data_folder(layout, &dirs.data, registry);
         let before = snapshot(&dirs.data);
 
         let errors = start_like_the_app(&dirs.data);
 
         let changed = changes(&before, &snapshot(&dirs.data));
-        assert!(!changed.is_empty(), "registry {registry}");
         assert!(
             changed.contains(&"added library".to_owned()),
-            "registry {registry}: {changed:?}"
+            "{case}: {changed:?}"
         );
         let found = dr_view_import::find_local_libraries(&dirs.data);
         if registry {
@@ -278,18 +309,25 @@ fn the_layout_before_the_fix_writes_into_the_0_1_data_folder() {
             // folder), signing in cannot record the account library.
             assert!(
                 errors.iter().any(|e| e.starts_with("account:")),
-                "{errors:?}"
+                "{case}: {errors:?}"
             );
-            assert_eq!(found.len(), 1);
+            assert_eq!(found.len(), 1, "{case}");
         } else {
-            assert!(changed.contains(&"added libraries.json".to_owned()));
+            assert!(
+                changed.contains(&"added libraries.json".to_owned()),
+                "{case}"
+            );
             assert!(
                 changed
                     .iter()
                     .any(|c| c.starts_with("added libraries/account-")),
-                "{changed:?}"
+                "{case}: {changed:?}"
             );
-            assert_eq!(found.len(), 0, "the 0.1 library is lost to the import");
+            assert_eq!(
+                found.len(),
+                0,
+                "{case}: the 0.1 library is lost to the import"
+            );
         }
     }
 }

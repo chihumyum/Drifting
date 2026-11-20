@@ -150,7 +150,7 @@ M39 的反馈对话框改了一行：摘要里的更新状态改用 `dr_view_upd
 - macOS 更新包只有一个顶层 `.app` 文件夹；Windows 安装器认 `/P /R /UPDATE /ARGS`，并且自己等旧进程退干净（第一轮已做）。
 - 版本号比旧版最后一版大（`0.2.0` > `0.1.x`），旧更新器只按 SemVer 比大小。
 - 签名文件名带版本（上面的约束），旧更新器不看这个，新版自己要。
-- **每个平台的键都要有**（2026-11-20 读 `tauri-plugin-updater` 2.10.1 核实）：旧更新器读到第一份能解析的清单就停，不再去读 `latest.json`；而且它先找本平台的下载地址、后比版本号。`update.json` 缺了 `windows-x86_64` 时，Windows 上的 alpha.11、alpha.12 每次检查都报「找不到平台」：不升级，但设置里一直显示检查失败。只发 macOS 怎么办见 [release-handover.md](../release-handover.md)「只发 macOS 时」。新版自己的更新器遇到没有本平台的清单也是报错（`ManifestError::NoPlatform`）。
+- **每个平台的键都要有**（2026-11-20 读 `tauri-plugin-updater` 2.10.1 核实）：旧更新器读到第一份能解析的清单就停，不再去读 `latest.json`；而且它先找本平台的下载地址、后比版本号。`update.json` 缺了 `windows-x86_64` 时，Windows 上的 alpha.11、alpha.12 每次检查都报「找不到平台」：不升级，但设置里一直显示检查失败。作者 2026-11-20 定两个平台一起发；发布工作流等三个平台都打好、核对正好三个键才把 `update.json` 放进草稿（[release-handover.md](../release-handover.md)「两个平台一起发」）。新版自己的更新器遇到没有本平台的清单也是报错（`ManifestError::NoPlatform`）。
 
 ### 回不去
 
