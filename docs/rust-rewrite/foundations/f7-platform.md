@@ -65,6 +65,7 @@ dr_view_feedback::init(Service::for_build(platform, Some(&dirs.data), version), 
 | `single_instance` | app | `acquire(identity, args) -> Instance::{Primary, Forwarded, ForwardFailed}`；`Primary::listen(f)` |
 | `update` | M42（`dr-view-update`） | `UpdaterConfig::for_build(identity, version)`；`Updater::new(config, UpdateFetch::new(policy, ua, stall))`；`.check() -> Offer::{Newer, Current, Older}`、`.download(&available, dir, progress) -> Downloaded`（验签并核对签名里的版本；已下好的验过就复用）；`Downloaded::replace_bundle(bundle)`（macOS，还核对 App 自己的版本）、`.installer_launch(args)[.without_relaunch()].spawn()`（Windows）；`UpdateError::problem()`；`Downloads`（更新文件夹和两张便条）；`update::running_bundle()`；`HttpFetch`、`LocalFetch`；`fetch::fake_server`、`signature::test_keys`、`install::test_bundles`（`test-support`） |
 | `relaunch` | M42 | `relaunch::after_exit(bundle)`（macOS：等本进程退出再 `open -n`，照旧版 `macos_relaunch.rs`）；`open_arguments` |
+| `image_codec` | M19 素材库（2026-11-21） | HEIC / HEIF / AVIF 交给系统解码，照旧版 `apple_image_codec.rs`、`windows_image_codec.rs`：`SystemFormat::{sniff, from_extension, from_mime}`；`dimensions(bytes)`、`decode(bytes, 最长边) -> Decoded { width, height, rgba }`（直通 RGBA）；`CodecError::{NotSystemFormat, Unavailable, Invalid}`。macOS 是 ImageIO（转正、解码时缩小），Windows 是 WIC（要商店扩展，不转正），别处一律不可用。会阻塞，放后台线程。见 [M19「HEIC 与 AVIF」](../modules/m19-materials.md#heic-与-avif2026-11-21) |
 
 两个只给发布和自测用的小程序（`examples/`，不进正式包）：
 

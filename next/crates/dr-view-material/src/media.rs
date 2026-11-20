@@ -3,7 +3,9 @@
 //!
 //! - An image is read from its display variant when the library has one
 //!   (bounded by the image pipeline), otherwise from its source, and held
-//!   under 4096 px a side.
+//!   under 4096 px a side. HEIC, HEIF and AVIF are decoded by the system
+//!   (dr-platform's `image_codec`); where it cannot, they are an image that
+//!   cannot be decoded, as a damaged file is.
 //! - A PDF is read from its source and opened once; each page is rendered
 //!   at the size it is shown at (see [`crate::viewport::render_scale`]) on
 //!   white, as paper.
@@ -18,6 +20,7 @@
 use std::path::PathBuf;
 use std::sync::{Arc, OnceLock};
 
+use dr_platform::image_codec::{self, SystemFormat};
 use dr_store::asset::Variant;
 use gpui::RenderImage;
 use hayro::hayro_interpret::InterpreterSettings;
@@ -105,9 +108,27 @@ pub fn read_pdf(lib: &dr_store::Library, asset: &str) -> Result<Vec<u8>, Trouble
     })
 }
 
-/// An image file decoded (PNG, JPEG, GIF, WebP, BMP, TIFF), held under
-/// [`MAX_SIDE`].
+/// HEIC, HEIF or AVIF bytes decoded by the system at most `side` a side;
+/// `None` for any other bytes.
+fn system_picture(bytes: &[u8], side: u32) -> Option<Result<Picture, Trouble>> {
+    SystemFormat::sniff(bytes)?;
+    Some(
+        image_codec::decode(bytes, side)
+            .map_err(|e| Trouble::Image(e.to_string()))
+            .and_then(|d| {
+                RgbaImage::from_raw(d.width, d.height, d.rgba)
+                    .ok_or_else(|| Trouble::Image("decoded image is incomplete".into()))
+            })
+            .map(bgra),
+    )
+}
+
+/// An image file decoded (PNG, JPEG, GIF, WebP, BMP, TIFF; HEIC, HEIF and
+/// AVIF by the system, where it can), held under [`MAX_SIDE`].
 pub fn decode_image(bytes: &[u8]) -> Result<Picture, Trouble> {
+    if let Some(picture) = system_picture(bytes, MAX_SIDE) {
+        return picture;
+    }
     let decoded = image::load_from_memory(bytes).map_err(|e| Trouble::Image(e.to_string()))?;
     let mut rgba = decoded.to_rgba8();
     let (w, h) = rgba.dimensions();
@@ -125,6 +146,9 @@ pub fn decode_image(bytes: &[u8]) -> Result<Picture, Trouble> {
 /// An image file decoded small, its longest side at most `side` (a
 /// thumbnail of the library or a card).
 pub fn decode_thumbnail(bytes: &[u8], side: u32) -> Result<Picture, Trouble> {
+    if let Some(picture) = system_picture(bytes, side) {
+        return picture;
+    }
     let decoded = image::load_from_memory(bytes).map_err(|e| Trouble::Image(e.to_string()))?;
     let small = if decoded.width().max(decoded.height()) > side {
         decoded.thumbnail(side, side)

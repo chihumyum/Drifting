@@ -2066,3 +2066,118 @@ fn embedded_images_captions_and_pdfs_export_across_epub_docx_and_pdf_while_trash
         Block::Paragraph { runs, .. } if runs.iter().any(|r| r.text == "封存海图.pdf")
     )));
 }
+
+/// A HEIC (an iPhone photo) in prose: only the system decodes its source, so
+/// the manuscript takes the JPEG display copy the material library keeps
+/// beside it; without one the picture is left out, as an image that cannot
+/// be read always was. The source stays the HEIC.
+#[test]
+fn a_heic_in_prose_exports_through_its_display_copy() {
+    use dr_store::asset::{MAX_COPY_BYTES, SourceImport, Variant, VariantBytes};
+    use sha2::{Digest, Sha256};
+
+    let e = env();
+    let book_id = id(&out(&e.ws, "project.create", json!({"name": "相册"})));
+    let staging = tempfile::tempdir().unwrap();
+    let heic = dr_testkit::media::HEIC;
+    let path = staging.path().join("IMG_0001.HEIC");
+    std::fs::write(&path, heic).unwrap();
+    let asset = AssetId::new_v7();
+    let asset_id = asset.to_string();
+    e.ws.library()
+        .import_asset(&SourceImport {
+            book_id: &book_id,
+            asset_id: &asset_id,
+            source: &path,
+            mime: "image/heic",
+            ext: "heic",
+            dimensions: Some((600, 400)),
+            limit: MAX_COPY_BYTES,
+        })
+        .unwrap();
+    out(
+        &e.ws,
+        "asset.put",
+        json!({
+            "book": book_id, "id": asset_id, "name": "IMG_0001", "kind": "image",
+            "mime": "image/heic", "size": heic.len() as i64,
+            "sha256": format!("{:x}", Sha256::digest(heic)), "width": 600, "height": 400,
+        }),
+    );
+    let ch = id(&dr_testkit::seed::acceptance::novel_entry(
+        &e.ws,
+        &book_id,
+        "tpl-chapter",
+        "第一章",
+        Some("海边。\n结尾。"),
+    ));
+    let session = e.ws.prose_session(&format!("body:{ch}/mod-prose")).unwrap();
+    session
+        .edit(move |t| {
+            let pos = t
+                .view()
+                .paragraphs()
+                .find(|p| p.text().starts_with("结尾"))
+                .unwrap()
+                .range
+                .start;
+            t.insert_embed(pos, &EmbedId::new_v7(), &EmbedKind::Asset(asset))?;
+            Ok(())
+        })
+        .unwrap();
+    let images = |e: &Env| {
+        let manuscript = read_manuscript(
+            &e.ws,
+            &book_id,
+            &Options::default(),
+            &labels(),
+            "zh-CN",
+            None,
+            now(),
+        )
+        .unwrap();
+        let [Section::Chapter { blocks, .. }] = manuscript.sections.as_slice() else {
+            panic!("expected one chapter");
+        };
+        blocks
+            .iter()
+            .filter_map(|b| match b {
+                Block::Image {
+                    media_type,
+                    width,
+                    height,
+                    ..
+                } => Some((media_type.clone(), *width, *height)),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(images(&e), vec![], "no copy yet: left out, as before");
+    // The display copy the material library makes (a JPEG of the picture).
+    let mut jpeg = Vec::new();
+    image::load_from_memory(&dr_testkit::media::quadrants(600, 400))
+        .unwrap()
+        .to_rgb8()
+        .write_to(&mut Cursor::new(&mut jpeg), image::ImageFormat::Jpeg)
+        .unwrap();
+    e.ws.library()
+        .put_variant(
+            &asset_id,
+            Variant::Display,
+            &VariantBytes {
+                bytes: jpeg,
+                mime: "image/jpeg".into(),
+                ext: "jpg".into(),
+                width: 600,
+                height: 400,
+            },
+        )
+        .unwrap();
+    assert_eq!(images(&e), vec![("image/jpeg".to_owned(), 600, 400)]);
+    let source =
+        e.ws.library()
+            .asset(&asset_id, Variant::Source)
+            .unwrap()
+            .unwrap();
+    assert_eq!(std::fs::read(source.path).unwrap(), heic);
+}

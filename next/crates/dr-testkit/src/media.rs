@@ -1,13 +1,48 @@
 //! Synthetic media for image and PDF materials (M19): made here, from
-//! code, so no picture or document is committed and nothing comes from
-//! anyone's library.
+//! code, so nothing comes from anyone's library.
 //!
 //! - [`png`]: a drawn map (paper, a lake, blocks, a river), any size;
 //! - [`pdf`]: a PDF of pages written as content streams, with Helvetica
 //!   (a standard font, never embedded) and a Chinese font that is not
 //!   embedded either (`STSong-Light`, Adobe-GB1), so a renderer has to find
 //!   both itself;
-//! - [`sample_pdf`]: three A5 pages of a field notebook.
+//! - [`sample_pdf`]: three A5 pages of a field notebook;
+//! - [`HEIC`], [`AVIF`]: the one exception to "from code", since writing
+//!   them needs a system encoder: [`quadrants`] (600 × 400) encoded once on
+//!   macOS with `sips`, committed under `fixtures/media/`
+//!   (`fixtures/README.md`), under a kilobyte each.
+
+/// The colours of [`quadrants`]: top left, top right, bottom left, bottom
+/// right.
+pub const QUADRANTS: [[u8; 3]; 4] = [[200, 40, 40], [40, 160, 60], [40, 70, 190], [240, 240, 240]];
+
+/// [`quadrants`]`(600, 400)` as HEIC (`sips -s format heic`).
+pub const HEIC: &[u8] = include_bytes!("../fixtures/media/quadrants.heic");
+/// [`quadrants`]`(600, 400)` as AVIF (`sips -s format avif`).
+pub const AVIF: &[u8] = include_bytes!("../fixtures/media/quadrants.avif");
+
+/// A PNG of `width` × `height` in four solid quadrants ([`QUADRANTS`]):
+/// which corner is which shows whether a decoder turned or flipped it, and
+/// solid colours survive lossy coding.
+pub fn quadrants(width: u32, height: u32) -> Vec<u8> {
+    let (w, h) = (width.max(2), height.max(2));
+    let mut rgb = Vec::with_capacity((w * h * 3) as usize);
+    for y in 0..h {
+        for x in 0..w {
+            rgb.extend_from_slice(&QUADRANTS[(x * 2 / w + 2 * (y * 2 / h)) as usize]);
+        }
+    }
+    let mut out = Vec::new();
+    let mut encoder = ::png::Encoder::new(&mut out, w, h);
+    encoder.set_color(::png::ColorType::Rgb);
+    encoder.set_depth(::png::BitDepth::Eight);
+    let mut writer = encoder.write_header().expect("an in-memory PNG header");
+    writer
+        .write_image_data(&rgb)
+        .expect("an in-memory PNG body");
+    writer.finish().expect("an in-memory PNG end");
+    out
+}
 
 /// A PNG of `width` × `height`: warm paper, a lake, a few blocks and a
 /// river, the same every time.
@@ -200,6 +235,17 @@ mod tests {
         assert_eq!(u32::from_be_bytes(bytes[16..20].try_into().unwrap()), 64);
         assert_eq!(u32::from_be_bytes(bytes[20..24].try_into().unwrap()), 40);
         assert_eq!(bytes, png(64, 40), "the same every time");
+    }
+
+    #[test]
+    fn the_quadrants_and_their_encodings() {
+        let bytes = quadrants(600, 400);
+        assert_eq!(u32::from_be_bytes(bytes[16..20].try_into().unwrap()), 600);
+        assert_eq!(u32::from_be_bytes(bytes[20..24].try_into().unwrap()), 400);
+        // ISO-BMFF files with the brands their formats are known by.
+        assert_eq!(&HEIC[4..12], b"ftypheic");
+        assert_eq!(&AVIF[4..12], b"ftypavif");
+        assert!(HEIC.len() < 1024 && AVIF.len() < 1024);
     }
 
     #[test]

@@ -1,28 +1,41 @@
 //! Files into the asset library: what is dropped on the library or pasted
 //! into it, and what the 「从文件导入图片或 PDF…」 picker brings.
 //!
-//! - An image (PNG, JPEG, GIF, WebP, BMP, TIFF) or a PDF is copied into the
-//!   library as the asset's source (dr-store: an atomic write, its SHA-256),
-//!   then its record goes into the book's asset library (`asset.put`), named
-//!   with the file's name without its extension. Nothing else is made: no
-//!   template, no entry (`kernel-v5.md` §6 素材库).
+//! - An image (PNG, JPEG, GIF, WebP, BMP, TIFF; HEIC, HEIF and AVIF) or a
+//!   PDF is copied into the library as the asset's source (dr-store: an
+//!   atomic write, its SHA-256), byte for byte, then its record goes into
+//!   the book's asset library (`asset.put`), named with the file's name
+//!   without its extension. Nothing else is made: no template, no entry
+//!   (`kernel-v5.md` §6 素材库).
 //! - Kept beside the source: for an image a display copy (at most 2048 px a
 //!   side) and a thumbnail (at most 256 px); for a PDF a thumbnail of its
 //!   first page. Failing to make them does not fail the import (the viewer
 //!   falls back to the source).
-//! - Anything else (a folder, a Word file, HEIC, which needs the system's
-//!   decoder) is skipped and reported.
+//! - HEIC, HEIF and AVIF are decoded by the system (dr-platform's
+//!   `image_codec`: ImageIO on macOS, WIC on Windows with the Store's
+//!   extensions); their display copy and thumbnail are JPEG (PNG when
+//!   transparent), so every view and every device can show them. Where the
+//!   system cannot decode them, adding one is refused and reported as a
+//!   damaged image is (the library takes no image without its size).
+//!   [`make_missing_copies`] makes the copies later for such a file that
+//!   came without them (a 0.1 import, a sync from a device that could not
+//!   make them); where the system cannot decode it, it shows as any image
+//!   that cannot be decoded.
+//! - Anything else (a folder, a Word file) and an image whose size cannot be
+//!   read are skipped and reported.
 //!
 //! Run these off the main thread.
 
+use std::io::Read as _;
 use std::path::{Path, PathBuf};
 
+use dr_platform::image_codec::{self, SystemFormat};
 use dr_store::asset::{
     Derived, ImageDeriver, MAX_COPY_BYTES, MAX_WRITE_BYTES, SourceImport, Variant, VariantBytes,
 };
 use dr_workspace::commands::asset::{AssetPut, AssetPutIn};
 use dr_workspace::{Actor, Workspace as Library};
-use image::{DynamicImage, GenericImageView as _, ImageFormat};
+use image::{DynamicImage, GenericImageView as _, ImageFormat, RgbaImage};
 
 use crate::media::PdfDoc;
 
@@ -65,14 +78,21 @@ pub fn kind_of_path(path: &Path) -> Option<FileKind> {
         "webp" => image_kind("image/webp", "webp"),
         "bmp" => image_kind("image/bmp", "bmp"),
         "tif" | "tiff" => image_kind("image/tiff", "tiff"),
-        _ => return None,
+        other => return SystemFormat::from_extension(other).map(system_kind),
     })
+}
+
+fn system_kind(format: SystemFormat) -> FileKind {
+    image_kind(format.mime(), format.ext())
 }
 
 /// Bytes' kind by how they begin.
 pub fn kind_of_bytes(bytes: &[u8]) -> Option<FileKind> {
     if bytes.starts_with(b"%PDF-") {
         return Some(PDF);
+    }
+    if let Some(format) = SystemFormat::sniff(bytes) {
+        return Some(system_kind(format));
     }
     Some(match image::guess_format(bytes).ok()? {
         ImageFormat::Png => image_kind("image/png", "png"),
@@ -165,12 +185,82 @@ fn encode(image: &DynamicImage) -> Result<VariantBytes, String> {
 
 impl ImageDeriver for Deriver {
     fn derive(&self, source: &Path, _mime: &str) -> Result<Derived, String> {
-        let image = image::open(source).map_err(|e| e.to_string())?;
+        let image = if system_format_of(source).is_some() {
+            // Decoded by the system already bounded to the display size.
+            let bytes = std::fs::read(source).map_err(|e| e.to_string())?;
+            system_image(&bytes, DISPLAY_SIDE)?
+        } else {
+            image::open(source).map_err(|e| e.to_string())?
+        };
         Ok(Derived {
             display: encode(&bounded(&image, DISPLAY_SIDE))?,
             thumbnail: encode(&bounded(&image, THUMB_SIDE))?,
         })
     }
+}
+
+/// The system format a file is in, by its first bytes.
+fn system_format_of(path: &Path) -> Option<SystemFormat> {
+    let mut head = [0u8; 512];
+    let n = std::fs::File::open(path)
+        .and_then(|mut f| f.read(&mut head))
+        .ok()?;
+    SystemFormat::sniff(&head[..n])
+}
+
+/// A HEIC, HEIF or AVIF decoded by the system, at most `side` a side.
+fn system_image(bytes: &[u8], side: u32) -> Result<DynamicImage, String> {
+    let decoded = image_codec::decode(bytes, side).map_err(|e| e.to_string())?;
+    RgbaImage::from_raw(decoded.width, decoded.height, decoded.rgba)
+        .map(DynamicImage::ImageRgba8)
+        .ok_or_else(|| "decoded image is incomplete".into())
+}
+
+/// An image's pixel size without decoding it, by the `image` crate or, for
+/// HEIC, HEIF and AVIF, by the system.
+fn image_dimensions(path: &Path) -> Option<(u32, u32)> {
+    if system_format_of(path).is_some() {
+        let bytes = std::fs::read(path).ok()?;
+        return image_codec::dimensions(&bytes).ok();
+    }
+    image::image_dimensions(path).ok()
+}
+
+/// The display copy and thumbnail of an image only the system can decode
+/// (HEIC, HEIF, AVIF) that has neither or only one: one imported from 0.1
+/// (whose import carries the source alone) or synced from a device that
+/// could not make them. They are kept in the library like those made when a
+/// file is added, so every view (prose embeds, entry media, link cards),
+/// the export and every device then has a JPEG or PNG to show; the source
+/// is left as it is. Other images are left alone (the `image` crate reads
+/// their source wherever it is shown). `Ok(true)` when something was made.
+/// Blocks: run it off the main thread, when the asset is about to be shown.
+pub fn make_missing_copies(store: &dr_store::Library, asset: &str) -> Result<bool, String> {
+    let held = |variant: Variant| -> Result<Option<dr_store::asset::AssetRecord>, String> {
+        Ok(store
+            .asset(asset, variant)
+            .map_err(|e| e.to_string())?
+            .filter(|r| r.path.is_file()))
+    };
+    let Some(source) = held(Variant::Source)? else {
+        return Ok(false);
+    };
+    let (display, thumbnail) = (held(Variant::Display)?, held(Variant::Thumbnail)?);
+    if (display.is_some() && thumbnail.is_some()) || system_format_of(&source.path).is_none() {
+        return Ok(false);
+    }
+    let made = Deriver.derive(&source.path, &source.mime)?;
+    if display.is_none() {
+        store
+            .put_variant(asset, Variant::Display, &made.display)
+            .map_err(|e| e.to_string())?;
+    }
+    if thumbnail.is_none() {
+        store
+            .put_variant(asset, Variant::Thumbnail, &made.thumbnail)
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(true)
 }
 
 /// A PDF's first page as a thumbnail.
@@ -278,8 +368,14 @@ pub fn import_path(
 ) -> Result<Imported, String> {
     let kind = kind_of_path(path).ok_or("not an image or a PDF")?;
     let dimensions = (kind.kind == "image")
-        .then(|| image::image_dimensions(path).ok())
+        .then(|| image_dimensions(path))
         .flatten();
+    if kind.kind == "image" && dimensions.is_none() {
+        // The asset library takes no image without its size (`asset.put`):
+        // a damaged file, or a HEIC or AVIF this system cannot decode, is
+        // skipped before its bytes are copied in, not after.
+        return Err("the image's size cannot be read".into());
+    }
     let asset = dr_model::id::new_uuid_v7();
     lib.library()
         .import_asset(&SourceImport {
@@ -309,7 +405,9 @@ pub fn import_bytes(
     if bytes.len() > MAX_WRITE_BYTES {
         return Err("too large".into());
     }
-    let (width, height) = if kind.kind == "image" {
+    let (width, height) = if SystemFormat::sniff(&bytes).is_some() {
+        image_codec::dimensions(&bytes).map_err(|e| e.to_string())?
+    } else if kind.kind == "image" {
         image::load_from_memory(&bytes)
             .map(|i| i.dimensions())
             .map_err(|e| e.to_string())?
@@ -370,7 +468,28 @@ mod tests {
         assert_eq!(kind_of_path(Path::new("x.jpeg")).unwrap().ext, "jpg");
         assert_eq!(kind_of_path(Path::new("notes.pdf")).unwrap().kind, "pdf");
         assert_eq!(kind_of_path(Path::new("draft.docx")), None);
-        assert_eq!(kind_of_path(Path::new("photo.heic")), None);
+        // HEIC, HEIF and AVIF are images, decoded by the system.
+        let heic = kind_of_path(Path::new("IMG_0001.HEIC")).unwrap();
+        assert_eq!(
+            (heic.kind, heic.mime, heic.ext),
+            ("image", "image/heic", "heic")
+        );
+        assert_eq!(
+            kind_of_path(Path::new("photo.heif")).unwrap().mime,
+            "image/heif"
+        );
+        assert_eq!(
+            kind_of_path(Path::new("photo.avif")).unwrap().mime,
+            "image/avif"
+        );
+        assert_eq!(
+            kind_of_bytes(dr_testkit::media::HEIC).unwrap().mime,
+            "image/heic"
+        );
+        assert_eq!(
+            kind_of_bytes(dr_testkit::media::AVIF).unwrap().mime,
+            "image/avif"
+        );
         assert_eq!(
             kind_of_bytes(&dr_testkit::media::png(4, 4)).unwrap().kind,
             "image"
@@ -402,5 +521,31 @@ mod tests {
         let thumb = pdf_thumbnail(dr_testkit::media::sample_pdf()).unwrap();
         assert!((THUMB_SIDE - 1..=THUMB_SIDE).contains(&thumb.height));
         assert!(thumb.width < THUMB_SIDE);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn heic_and_avif_get_jpeg_copies_through_the_system() {
+        let dir = tempfile::tempdir().unwrap();
+        for (name, bytes) in [
+            ("photo.heic", dr_testkit::media::HEIC),
+            ("photo.avif", dr_testkit::media::AVIF),
+        ] {
+            let path = dir.path().join(name);
+            std::fs::write(&path, bytes).unwrap();
+            assert_eq!(image_dimensions(&path), Some((600, 400)), "{name}");
+            let derived = Deriver.derive(&path, "image/heic").unwrap();
+            assert_eq!((derived.display.width, derived.display.height), (600, 400));
+            assert_eq!(derived.display.mime, "image/jpeg");
+            assert!(derived.display.bytes.starts_with(b"\xff\xd8\xff"));
+            assert_eq!(derived.thumbnail.width, THUMB_SIDE);
+            assert!((170..=171).contains(&derived.thumbnail.height));
+            // The copy shows the picture: the top left quadrant is red.
+            let shown = image::load_from_memory(&derived.thumbnail.bytes)
+                .unwrap()
+                .to_rgb8();
+            let [r, g, b] = shown.get_pixel(40, 40).0;
+            assert!(r > 150 && g < 90 && b < 90, "{name}: {r} {g} {b}");
+        }
     }
 }
