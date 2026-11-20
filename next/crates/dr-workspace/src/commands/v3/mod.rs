@@ -51,6 +51,7 @@ pub mod project;
 pub mod project_template;
 pub mod recent;
 pub mod relations;
+pub mod search;
 pub mod snapshots;
 pub mod template;
 pub mod timeline;
@@ -64,6 +65,7 @@ pub(crate) fn register(r: &mut Registry) {
     snapshots::register(r);
     content::register(r);
     entry::register(r);
+    search::register(r);
     template::register(r);
     module::register(r);
     membership::register(r);

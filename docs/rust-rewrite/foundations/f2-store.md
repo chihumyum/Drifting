@@ -122,6 +122,7 @@ lib.patch_index(&DocPatch { doc_id, book_id, seq, frontiers, patch: &DerivedPatc
 lib.search(Some(book), "安娜", 50)?;                // 3 字以上 FTS5 trigram，1–2 字 LIKE
 lib.search_in_order(Some(book), "安娜", 50, &doc_ids_in_book_order)?; // 先按书序排，再截 limit
 lib.outline(doc_id)?; lib.block_lengths(doc_id)?; lib.references_to(target)?; lib.references_in_book(book)?;
+lib.paragraphs_by_block(doc_id, &block_ids)?;   // 引用所在段落的段号和文字（2026-11-21，K6 的 entry.mentions）
 lib.doc_stats(doc_id)?; lib.book_stats(book)?; lib.stale_index_docs()?; lib.rebuild_stale_indexes()?;
 
 // 资源文件

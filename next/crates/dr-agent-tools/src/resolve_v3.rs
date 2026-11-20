@@ -488,6 +488,21 @@ pub(crate) fn resolve_v3(
                         *parent = pid.to_string().into();
                     }
                 }
+                "entry.mentions" => {
+                    // The entry linked to; one in the trash only when the
+                    // places in the trash are asked for too.
+                    let include_trashed = obj.get("trashed") == Some(&Value::Bool(true));
+                    if let Some(entry_val) = obj.get_mut("entry") {
+                        let eid = resolve_entry_id(
+                            &cx,
+                            entry_val,
+                            None,
+                            include_trashed,
+                            EntryRole::Any,
+                        )?;
+                        *entry_val = eid.to_string().into();
+                    }
+                }
                 "entry.get" | "entry.trash" | "entry.restore" | "entry.set_level"
                 | "module.list" => {
                     let include_trashed =
@@ -1540,6 +1555,9 @@ pub(crate) fn coverage_v3(name: &str, args: &Value, output: &Value) -> Option<Ve
             }
         }
         "book.sequence" => return Some(Vec::new()),
+        // Snippets from the derived index are not a read of any entry,
+        // module or prose (k6-agent-tools.md: search grants no coverage).
+        "entry.search" | "entry.mentions" => return Some(Vec::new()),
         "layout.get" => {
             if let (Some(scope), Some(mode)) = (args["scope"].as_str(), args["mode"].as_str()) {
                 read.insert(format!("layout:{scope}/{mode}"));
