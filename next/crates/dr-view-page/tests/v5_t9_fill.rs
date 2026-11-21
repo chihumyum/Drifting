@@ -66,6 +66,7 @@ fn setup(
                 deep_links: None,
                 crash_reports: None,
                 library,
+                library_failure: None,
                 book: None,
             },
             SettingsFile::in_memory(),

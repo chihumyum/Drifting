@@ -2,6 +2,39 @@
 
 内核 v5 的栏开合与铺满见[栏的铺满](../modules/k4-panel-fill.md)。左栏、底栏和右栏直接占用中间列。下文原有的全窗舞台接口与 ⌘⌥3/4/5 属于历史交回。
 
+### 资料库打不开时（2026-11-21，作者定）
+
+作者对原型「退役 0.1 前的几处空白」第四页的五处答「按推荐做」。以前启动时资料库打不开，壳拿到 `library: None` 照常开「全部项目」，写着「0 个项目」，「新建项目」点了没反应，看起来像书全没了。现在整个窗口换成一页安静的说明。
+
+**什么时候出。** 应用启动时打开资料库失败（`app/drifting/src/library.rs` 的 `open_active`），`main.rs` 照旧记日志、照旧在作者允许时上报 `library-open-failed:<代号>`，再把 `LibraryFailure`（原因、代号、要打开的文件夹）放进 `Services::library_failure`，和 `library: None` 一起交给壳。窗口（`Workspace::library_failure`）只要没有资料库、又有这份失败，就只画这一页：没有书架、没有「0 个项目」、没有首次引导、没有导入的自动弹窗、没有切项目那一行，也不开设置；首次引导做没做过都一样。之后有资料库被接上（换库成功，`library::take_up`），失败就清掉、照常开书架；换账号时换库这条路不在这次范围里，换库失败的「没能切换书库」照旧。
+
+**原因怎么认。** 一处，`library::open_failure_cause`，按错误本身的类型认，不解析字符串；拿不准的都算「认不出」：
+
+| 错误 | 原因 | 代号举例 |
+| --- | --- | --- |
+| `SchemaNewer` | 更新版本写的 | `schema-newer` |
+| SQLite `DatabaseCorrupt`、`NotADatabase`；`Invalid { integrity check }` | 文件坏了 | `sqlite:database-corrupt`、`sqlite:not-a-database` |
+| `Migration`，阶段在换上去之前（`source_unchanged()`：snapshot、copy、migrate、validate、replace） | 升级没做完（原库没动） | `migration:validate` |
+| `Migration`，阶段是 reopen | 升级后打不开 | `migration:reopen` |
+| SQLite `PermissionDenied`、`ReadOnly`；系统 `PermissionDenied`、`ReadOnlyFilesystem` | 没有权限 | `io:permission-denied` |
+| SQLite `DiskFull`；系统 `StorageFull`、`QuotaExceeded` | 磁盘满了 | `sqlite:disk-full` |
+| 其余：`SchemaMismatch`、`Recovery`（0.2.0 还没有恢复界面）、另一个 Drifting 占着库（`invalid:library`）、别的 SQLite 和系统错误、工作区自己的错误、打开时崩了（`panicked`）、线程没起来（`not-started`）、根本没有数据文件夹（`no-data-folder`） | 认不出 | `schema-mismatch`、`recovery:…` |
+
+**三行字**（`libraryOpenFailed.*`，九种语言）：第一行总是「没能打开资料库」；第二行「资料库没有改动。」，「升级后打不开」换成「升级前的资料库另外存了一份。」，「认不出」没有第二行；第三行按原因：「它被更新版本的 Drifting 打开过，请先更新 Drifting。」「资料库文件已损坏，请提交反馈，先别删这个文件夹。」「这一版没能把它升级，请先用上一版 Drifting，并提交反馈。」「升级后的资料库打不开，请提交反馈。」「Drifting 不能读写这个文件夹，请检查它的权限。」「磁盘已满，请腾出一些空间后重新打开 Drifting。」「请提交反馈。」代号从不出现在页面上。
+
+**按钮**，从左到右，都是 dr-ui 的 `Button`（读屏看到的是叫这几个字的按钮），字都是现成的：
+
+- 「检查更新」：只有「更新版本写的」才有，排第一。和设置「关于」里那一行是同一套（M42 用 `library_failure::set_update_button` 登记）：平时是「检查更新」，查的时候、下载的时候按钮上是那一行的字、转圈、点不了，下好了变「重启以更新」，点了照常退出、装上、重新打开。不能更新的构建（开发构建没有测试清单和密钥时）设置里那一行没有按钮，这里也没有。
+- 「在访达中打开」（Windows「在文件资源管理器中打开」，Markdown 文件夹那颗的字）：用系统打开当前资料库的文件夹（`library/`，里面是 `library.sqlite` 和安全快照）；那个文件夹不在就打开应用的数据文件夹；连数据文件夹都没有时不出这颗。
+- 「提交反馈」：打开现成的反馈对话框（M39），正文里先写好第一行和代号，例如「没能打开资料库（schema-newer）」（中日文全角括号，其他语言半角），别的都照旧；菜单里的「提交反馈」在这一页上也是这样。不需要资料库。
+- 「退出 Drifting」：托盘菜单的字（`TrayLabels`），文字按钮，走平常的退出流程。
+
+没有「重试」（退出再打开就是），也没有从快照或备份恢复。
+
+**还欠的。** 「升级后打不开」那种的「从升级前的快照恢复」（存储层已有 `Library::recovery_receipts`、`restore_from_receipt`）要在第一个带迁移的版本发布之前加上，见 [release-handover.md](../release-handover.md)。0.2.0 的迁移 0000–0008 都是起点，新库直接建好，升级不会发生。
+
+**测试和验收。** 原因表每一行：`app/drifting/src/library.rs` 的 `each_open_failure_is_one_of_the_pages_causes`；标成更新版本写的库、不是数据库的文件，各自以对的原因和代号到壳里、窗口不出书架：同一文件的 `a_refused_library_reaches_the_shell_as_its_cause_and_code`。页面：`dr-shell/tests/library_failure.rs`（七种原因的三行字和按钮、没有书架和首次引导和导入弹窗、首次引导做没做过都一样、「提交反馈」带着那一行、「退出」走退出流程、有资料库时不出这一页）；真的反馈对话框没有资料库也能开、预填、能发：`dr-view-feedback/tests/dialog.rs`；「检查更新」一直走到「重启以更新」并装上：`dr-view-update/tests/updates.rs`。真窗口（带调试桥的开发构建、一次性 profile）里两种原因、深浅色、中英文各截了图，按钮在读屏树里都找得到。仓库里的场景格式没有改坏库文件的步骤，这次没加场景。
+
 ### 内核 v5：UP 第三版视觉打磨（2026-11-17）
 
 作者已对第三版说「迁」（kernel-v5 第 15 节第 50 条），本批把 P1–P11、C1–C3 和六步导览接到 MF/RL 已合入的树上；2026-11-17 审查、补修和最终验收后合进本地 `main`（`handback/v5-ui-polish-3`），未推送。旧第一、二批的交回和下面 F6 各轮流水仍保留原来的时间与范围，不把旧截图改称本批证据。

@@ -434,6 +434,21 @@
       "open": "左サイドバーを開く"
     }
   },
+  "libraryOpenFailed": {
+    "cause": {
+      "damaged": "ライブラリのファイルが破損しています。フィードバックを送ってください。このフォルダーはまだ削除しないでください。",
+      "diskFull": "ディスクがいっぱいです。空き容量を確保してから Drifting を開き直してください。",
+      "newer": "新しいバージョンの Drifting で開かれたライブラリです。先に Drifting を更新してください。",
+      "noPermission": "Drifting はこのフォルダーを読み書きできません。アクセス権を確認してください。",
+      "unknown": "フィードバックを送ってください。",
+      "upgradeUnfinished": "このバージョンではアップグレードできませんでした。前のバージョンの Drifting を使い、フィードバックを送ってください。",
+      "upgradedUnopenable": "アップグレード後のライブラリを開けません。フィードバックを送ってください。"
+    },
+    "feedbackMessage": "{{title}}（{{code}}）",
+    "keptBeforeUpgrade": "アップグレード前のライブラリは別に保存してあります。",
+    "title": "ライブラリを開けませんでした",
+    "unchanged": "ライブラリは変更されていません。"
+  },
   "manuscriptExport": {
     "author": "著者",
     "bookInfo": "作品情報",

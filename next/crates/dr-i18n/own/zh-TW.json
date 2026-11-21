@@ -575,5 +575,20 @@
     "timeline": {
       "body": "從稿紙下面滑上來，按視圖把掛著的條目排開。"
     }
+  },
+  "libraryOpenFailed": {
+    "title": "沒能開啟資料庫",
+    "unchanged": "資料庫沒有變更。",
+    "keptBeforeUpgrade": "升級前的資料庫另外存了一份。",
+    "cause": {
+      "newer": "它曾被較新版本的 Drifting 開啟，請先更新 Drifting。",
+      "damaged": "資料庫檔案已損壞，請傳送意見回饋，先別刪除這個資料夾。",
+      "upgradeUnfinished": "這一版沒能將它升級，請先使用上一版 Drifting，並傳送意見回饋。",
+      "upgradedUnopenable": "升級後的資料庫無法開啟，請傳送意見回饋。",
+      "noPermission": "Drifting 無法讀寫這個資料夾，請檢查它的權限。",
+      "diskFull": "磁碟已滿，請騰出一些空間後重新開啟 Drifting。",
+      "unknown": "請傳送意見回饋。"
+    },
+    "feedbackMessage": "{{title}}（{{code}}）"
   }
 }

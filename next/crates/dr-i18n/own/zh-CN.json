@@ -573,5 +573,20 @@
     "timeline": {
       "body": "从稿纸下面滑上来，按视图把挂着的条目排开。"
     }
+  },
+  "libraryOpenFailed": {
+    "title": "没能打开资料库",
+    "unchanged": "资料库没有改动。",
+    "keptBeforeUpgrade": "升级前的资料库另外存了一份。",
+    "cause": {
+      "newer": "它被更新版本的 Drifting 打开过，请先更新 Drifting。",
+      "damaged": "资料库文件已损坏，请提交反馈，先别删这个文件夹。",
+      "upgradeUnfinished": "这一版没能把它升级，请先用上一版 Drifting，并提交反馈。",
+      "upgradedUnopenable": "升级后的资料库打不开，请提交反馈。",
+      "noPermission": "Drifting 不能读写这个文件夹，请检查它的权限。",
+      "diskFull": "磁盘已满，请腾出一些空间后重新打开 Drifting。",
+      "unknown": "请提交反馈。"
+    },
+    "feedbackMessage": "{{title}}（{{code}}）"
   }
 }

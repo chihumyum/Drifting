@@ -444,6 +444,21 @@
       "open": "Ouvrir la barre gauche"
     }
   },
+  "libraryOpenFailed": {
+    "cause": {
+      "damaged": "Le fichier de la bibliothèque est endommagé. Envoyez un retour et ne supprimez pas encore ce dossier.",
+      "diskFull": "Le disque est plein. Libérez de l’espace, puis rouvrez Drifting.",
+      "newer": "Une version plus récente de Drifting l’a ouverte. Mettez d’abord Drifting à jour.",
+      "noPermission": "Drifting ne peut ni lire ni écrire dans ce dossier. Vérifiez ses autorisations.",
+      "unknown": "Envoyez un retour.",
+      "upgradeUnfinished": "Cette version n’a pas pu la mettre à niveau. Utilisez la version précédente de Drifting pour l’instant et envoyez un retour.",
+      "upgradedUnopenable": "La bibliothèque mise à niveau ne s’ouvre pas. Envoyez un retour."
+    },
+    "feedbackMessage": "{{title}} ({{code}})",
+    "keptBeforeUpgrade": "Une copie de la bibliothèque d’avant la mise à niveau a été conservée.",
+    "title": "Impossible d’ouvrir la bibliothèque",
+    "unchanged": "La bibliothèque n’a pas été modifiée."
+  },
   "manuscriptExport": {
     "author": "Auteur",
     "bookInfo": "Informations sur le livre",

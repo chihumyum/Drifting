@@ -130,6 +130,16 @@ impl FeedbackDialog {
         }
     }
 
+    /// The message already written as it opens (the page shown when the
+    /// library cannot be opened: its first line and code), the caret after
+    /// it.
+    pub fn with_message(self, message: impl Into<String>, cx: &mut Context<Self>) -> Self {
+        let message = message.into();
+        self.message
+            .update(cx, |field, cx| field.set_text(message, cx));
+        self
+    }
+
     pub fn message_field(&self) -> &Entity<TextArea> {
         &self.message
     }

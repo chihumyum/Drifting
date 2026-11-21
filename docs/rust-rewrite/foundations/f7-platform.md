@@ -119,7 +119,7 @@ dr_view_feedback::init(Service::for_build(platform, Some(&dirs.data), version), 
 
 - **Rust 崩溃（panic）**：我们自己的 panic hook 总会把它记到 `crashes/pending/<id>.json`，不管开没开上报：消息先过 `sanitize`，带调用栈和当时加载的镜像列表（服务端拿符号文件还原函数名要用）。GPUI 的回调不能展开，panic 通常直接中止进程，当场发不出去，所以和旧版一样**下次启动再发**；没开上报就直接删掉。最多攒 20 条。
 - **原生崩溃**（段错误、`abort`、访问冲突）：Sentry 官方的 `minidump` 特性。开了上报才有：启动时把同一个可执行文件以 `DRIFTING_CRASH_REPORTER` 再起一个「Drifting Crash Reporter」旁路进程，主进程崩溃时它写 minidump 并当场上传。minidump 里有崩溃线程的栈内存，可能夹着当时正在处理的一小段文字；这一点要写进同意说明。
-- **完整性事件**：`report_integrity(code)`，固定代号，不带书库里的文字。2026-11-21 起有了第一个调用方：应用启动时书库打不开，报 `library-open-failed:<代号>`（代号来自存储层的 `StoreError::code()`：`schema-newer`、`schema-mismatch`、`sqlite:database-corrupt`、`sqlite:not-a-database`、`migration:<阶段>`、`recovery:<原因>`、`io:permission-denied` 这类；不是存储层拒绝的用工作区的代号），打开书库的线程崩了报 `library-open-panicked`。`crash_report` 测试对着本机假 Sentry 验了这一条（消息、指纹、不带用户）。打不开时作者看到什么还没做，见 [progress.md](../progress.md) 的「等作者的事」第 15 条。
+- **完整性事件**：`report_integrity(code)`，固定代号，不带书库里的文字。2026-11-21 起有了第一个调用方：应用启动时书库打不开，报 `library-open-failed:<代号>`（代号来自存储层的 `StoreError::code()`：`schema-newer`、`schema-mismatch`、`sqlite:database-corrupt`、`sqlite:not-a-database`、`migration:<阶段>`、`recovery:<原因>`、`io:permission-denied` 这类；不是存储层拒绝的用工作区的代号），打开书库的线程崩了报 `library-open-panicked`。`crash_report` 测试对着本机假 Sentry 验了这一条（消息、指纹、不带用户）。打不开时窗口整页换成一页说明（2026-11-21，作者「按推荐做」）：同一个代号按错误类型归成七种原因之一，页面说原因和该怎么办，代号只进反馈的第一行、日志和上报，见 [F6 的「资料库打不开时」](f6-shell.md#资料库打不开时2026-11-21作者定)。
 
 ### 发出去的是什么
 

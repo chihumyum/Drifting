@@ -10,6 +10,8 @@
 //! - one declarative settings registry and its file ([`settings`]);
 //! - the notification center ([`notifications`]);
 //! - dialogs other crates draw, such as feedback ([`dialogs`]);
+//! - the page the window shows instead when the library could not be
+//!   opened at start-up ([`library_failure`]);
 //! - the quit flow ([`quit`]): saving and handing over happen before
 //!   `cx.quit()`, the quit callback only flushes crash reports.
 //!
@@ -32,6 +34,7 @@ pub mod dialogs;
 mod export_memory;
 pub mod keymap;
 pub mod library;
+pub mod library_failure;
 pub mod menus;
 pub mod mirror;
 pub mod nav;
@@ -86,6 +89,10 @@ pub struct Services {
     pub deep_links: Option<Arc<DeepLinks>>,
     pub crash_reports: Option<CrashReporting>,
     pub library: Option<dr_workspace::Workspace>,
+    /// Why there is no `library`: the app tried to open it at start-up and
+    /// could not. The window shows [`library_failure`]'s page instead of
+    /// the bookshelf until a library is taken up.
+    pub library_failure: Option<library_failure::LibraryFailure>,
     /// The book to open instead of the one opened last (`DRIFTING_BOOK`, a
     /// development override: an id or a name).
     pub book: Option<String>,

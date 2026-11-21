@@ -972,6 +972,9 @@ fn state_of(owner: gpui::EntityId, ws: &Workspace, window: &Window, cx: &App) ->
         });
     json!({
         "library": ws.library.is_some(),
+        // The library could not be opened at start-up: the page that says
+        // so shows instead of the bookshelf.
+        "libraryFailure": ws.library_failure(cx).map(|f| json!({"cause": f.cause.slug(), "code": f.code})),
         "import": dr_view_import::importer(cx).map(|i|import_state(i.read(cx))),
         "book": {
             "id": ws.book_id, "name": book.name,

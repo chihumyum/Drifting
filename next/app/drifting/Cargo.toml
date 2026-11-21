@@ -72,6 +72,8 @@ futures.workspace = true
 gpui.workspace = true
 gpui_platform.workspace = true
 log.workspace = true
+# The library's open failure by SQLite's class of error (`library::open_failure_cause`).
+rusqlite.workspace = true
 # DRIFTING_CHECK (development builds): F3's queries the self-check reads.
 serde_json.workspace = true
 

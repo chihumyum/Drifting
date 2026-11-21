@@ -593,5 +593,20 @@
     "timeline": {
       "body": "Gleitet unter der Seite hervor und ordnet die angehängten Einträge nach Ansicht."
     }
+  },
+  "libraryOpenFailed": {
+    "title": "Bibliothek konnte nicht geöffnet werden",
+    "unchanged": "Die Bibliothek wurde nicht verändert.",
+    "keptBeforeUpgrade": "Eine Kopie der Bibliothek von vor dem Upgrade wurde aufbewahrt.",
+    "cause": {
+      "newer": "Eine neuere Version von Drifting hat sie geöffnet. Aktualisiere zuerst Drifting.",
+      "damaged": "Die Bibliotheksdatei ist beschädigt. Sende Feedback und lösche diesen Ordner noch nicht.",
+      "upgradeUnfinished": "Diese Version konnte sie nicht aktualisieren. Nutze vorerst die vorherige Version von Drifting und sende Feedback.",
+      "upgradedUnopenable": "Die aktualisierte Bibliothek lässt sich nicht öffnen. Sende Feedback.",
+      "noPermission": "Drifting kann diesen Ordner nicht lesen oder schreiben. Prüfe seine Berechtigungen.",
+      "diskFull": "Der Datenträger ist voll. Schaffe etwas Platz und öffne Drifting dann erneut.",
+      "unknown": "Sende Feedback."
+    },
+    "feedbackMessage": "{{title}} ({{code}})"
   }
 }
