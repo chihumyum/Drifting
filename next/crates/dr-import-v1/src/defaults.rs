@@ -24,6 +24,54 @@ use serde_json::Value;
 
 use crate::error::Result;
 
+/// Every code an [`Adjustment`] can carry: the defaults here and the ones
+/// `crate::v3::findings` records while it plans the bodies and the history.
+/// Each has its own sentence in summary.md and the done dialog
+/// (`crate::receipt::default_sentence`, in all nine languages); a test
+/// fails for a code recorded in the source and missing here, or listed
+/// here without a sentence.
+pub const CODES: &[&str] = &[
+    "act-binding-not-an-idea",
+    "act-without-boundary",
+    "ambiguous-history-template-field",
+    "ambiguous-template-field",
+    "auto-category-has-grid-position",
+    "chapter-in-group-dropped",
+    "chapter-without-book-order",
+    "comment-target-missing",
+    "duplicate-act-boundary",
+    "duplicate-history-value-for-template-field",
+    "duplicate-value-for-template-field",
+    "element-missing-category",
+    "history-preview-missing",
+    "history-preview-unreadable",
+    "idea-group-missing",
+    "idea-has-legacy-book-order",
+    "incompatible-history-node-status",
+    "incompatible-source-node-status",
+    "incomplete-category-grid-position",
+    "invalid-source-entity-link",
+    "membership-target-missing",
+    "membership-target-trashed",
+    "multiple-primary-memberships",
+    "orphan-history-source",
+    "pin-binding-missing-idea",
+    "plot-grid-position-key-regenerated",
+    "source-tree-cycle",
+    "source-tree-missing-parent",
+    "unknown-category-layout",
+    "unknown-node-kind",
+    "unreadable-history-metadata",
+    "unreadable-source-aliases",
+    "unreadable-source-kv-projection",
+    "unreadable-source-template",
+    "unsupported-entity-link-target-kind",
+    "unsupported-table-cell-content",
+    "unsupported-table-cell-mark",
+    "writing-day-duplicate",
+    "writing-day-invalid",
+];
+
 /// One thing the import changed on its copy of the 0.1 library so the book
 /// could take it, with what it was.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

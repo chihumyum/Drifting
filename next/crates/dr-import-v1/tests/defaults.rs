@@ -666,6 +666,26 @@ fn import_and_check(
             "{name}: {code} not in summary.md"
         );
     }
+    // Each says a sentence of its own in summary.md and the done dialog
+    // (`receipt::differences`), not the fallback.
+    for a in &receipt.books[0].adjustments {
+        assert!(
+            dr_import_v1::receipt::default_sentence(&a.code).is_some(),
+            "{name}: {} has no sentence",
+            a.code
+        );
+    }
+    let parsed = parse_summary(&summary);
+    let defaults: usize = parsed[&receipt.books[0].name]
+        .iter()
+        .filter(|l| l.block == "defaults")
+        .map(|l| l.count)
+        .sum();
+    assert_eq!(
+        defaults,
+        receipt.books[0].adjustments.len(),
+        "{name}: summary.md counts every adjustment"
+    );
     let lib = open(&root);
     bodies_intact(old, &lib, &receipt);
     let doc = book(&lib);
