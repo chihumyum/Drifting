@@ -128,6 +128,33 @@ impl SyncError {
     pub fn is_offline(&self) -> bool {
         matches!(self, Self::Offline(_))
     }
+
+    /// The kind of failure as a stable identifier (`sync.http-503`,
+    /// `sync.offline`, …) for the diagnostic summary: never the error's
+    /// text, a path, a document id or anything else from the library.
+    pub fn code(&self) -> String {
+        let code = match self {
+            Self::InvalidOrigin(_) => "sync.invalid-origin",
+            Self::InvalidPath(_) => "sync.invalid-path",
+            Self::IntegrityMismatch { .. } => "sync.integrity-mismatch",
+            Self::ObjectTooLarge { .. } => "sync.object-too-large",
+            Self::Cancelled => "sync.cancelled",
+            Self::Unauthorized => "sync.reauth-required",
+            Self::QuotaExceeded { .. } => "sync.quota-exceeded",
+            Self::Offline(_) => "sync.offline",
+            Self::Server { status, .. } => return format!("sync.http-{status}"),
+            Self::MissingDependencies { .. } => "sync.missing-dependencies",
+            Self::Store(dr_store::StoreError::AlreadyOpen(_)) => "sync.store-already-open",
+            Self::Store(dr_store::StoreError::Sqlite(_)) => "sync.store-sqlite",
+            Self::Store(dr_store::StoreError::Io(_)) => "sync.store-io",
+            Self::Store(_) => "sync.store",
+            Self::Loro(_) => "sync.loro",
+            Self::LoroEncode(_) => "sync.loro-encode",
+            Self::Io(_) => "sync.io",
+            Self::Json(_) => "sync.json",
+        };
+        code.to_owned()
+    }
 }
 
 /// Hosted account storage usage returned by `GET /api/sync/v1/usage`.

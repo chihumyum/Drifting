@@ -86,7 +86,9 @@ impl FeedbackDialog {
             .try_global::<ShellInfo>()
             .map_or(env!("CARGO_PKG_VERSION"), |info| info.version);
         let mut input = SummaryInput::current(version);
-        // M42's state, as 0.1 reported its updater's.
+        // The sync runtime's state, from whoever owns it (the app), and
+        // M42's, as 0.1 reported its sync engine's and its updater's.
+        input.sync = dr_shell::sync::diagnostics(cx);
         input.update = dr_view_update::snapshot(cx);
         let summary = diagnostics::summary(&input);
         let placeholder = t(

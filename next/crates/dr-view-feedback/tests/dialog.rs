@@ -12,10 +12,13 @@
 //!   still retires its notice); a click on the mist closes only while
 //!   nothing is written;
 //! - nothing is sent while the message is empty or the address is not one;
-//! - without the service, the message goes to the mail client at once.
+//! - without the service, the message goes to the mail client at once;
+//! - the summary's sync part is what the sync runtime's owner registered
+//!   with the shell, and a library that does not sync without it.
 
 use std::time::{Duration, UNIX_EPOCH};
 
+use dr_platform::diagnostics::{self, Pending, SummaryInput, SyncSnapshot};
 use dr_platform::feedback::fake_service::FakeService;
 use dr_platform::feedback::{Delivery, Endpoint};
 use dr_shell::actions::SendFeedback;
@@ -386,6 +389,83 @@ fn nothing_goes_until_the_draft_can_be_answered(cx: &mut TestAppContext) {
     assert!(body.contains("导出的封面颜色不对"));
     assert!(body.contains("\"format\": \"drifting.sanitized-diagnostics\""));
     assert!(dialog(&ws, cx).is_none());
+}
+
+#[gpui::test]
+fn the_summary_carries_the_sync_state_the_runtime_registered(cx: &mut TestAppContext) {
+    let (ws, cx) = setup(cx, service(Delivery::Email));
+    let summary_of = |ws: &Entity<Workspace>, cx: &mut VisualTestContext| {
+        cx.dispatch_action(SendFeedback);
+        cx.run_until_parked();
+        let d = dialog(ws, cx).expect("SendFeedback opens the dialog");
+        let text = cx.read(|cx| d.read(cx).summary().to_owned());
+        (d, serde_json::from_str::<serde_json::Value>(&text).unwrap())
+    };
+
+    // Nothing registered: a library that does not sync, as before.
+    let (d, value) = summary_of(&ws, cx);
+    let local: serde_json::Value =
+        serde_json::from_str(&diagnostics::summary(&SummaryInput::current("0.2.0-dev"))).unwrap();
+    assert_eq!(value["sync"], local["sync"]);
+    assert_eq!(value["sync"]["authorityStatus"], "local");
+    d.update_in(cx, |d, window, cx| d.dismiss(window, cx));
+    cx.run_until_parked();
+
+    // The sync runtime's owner registers its state (signed in, the session
+    // expired, a failed cycle, two changes and an image waiting).
+    cx.update(|_, cx| {
+        dr_shell::sync::set_diagnostics_hook(cx, |_| SyncSnapshot {
+            authority_status: "cloud-attention".into(),
+            provider_mode: "hosted".into(),
+            runtime_mounted: true,
+            online: Some(true),
+            suspended: Some(false),
+            pending: Pending {
+                change_sets: 2,
+                transfers: 1,
+                failed: 1,
+                ..Pending::default()
+            },
+            error_codes: vec![
+                "sync.reauth-required".into(),
+                "他推开门的时候，雨已经停了".into(),
+            ],
+            ..SyncSnapshot::local()
+        })
+    });
+    let (d, value) = summary_of(&ws, cx);
+    assert_eq!(
+        value["sync"],
+        serde_json::json!({
+            "authorityStatus": "cloud-attention",
+            "providerMode": "hosted",
+            "activeProjects": 0,
+            "readyProjects": 0,
+            "provisioningProjects": 0,
+            "pausedProjects": 0,
+            "attentionProjects": 0,
+            "runtimeMounted": true,
+            "online": true,
+            "suspended": false,
+            "pending": {
+                "changeSets": 2, "segments": 0, "transfers": 1, "gaps": 0,
+                "conflicts": 0, "quarantined": 0, "failed": 1,
+            },
+            // Still sanitized: only plain identifiers.
+            "errorCodes": ["redacted-error", "sync.reauth-required"],
+        })
+    );
+    // What it would send is that summary.
+    write(&d, "同步好像停了", "", cx);
+    cx.simulate_keystrokes(SEND_KEYS);
+    cx.run_until_parked();
+    let body = decode(&cx.opened_url().expect("mail"));
+    assert!(
+        body.contains("\"authorityStatus\": \"cloud-attention\""),
+        "{body}"
+    );
+    assert!(body.contains("\"providerMode\": \"hosted\""), "{body}");
+    assert!(!body.contains("雨已经停了"));
 }
 
 #[gpui::test]
