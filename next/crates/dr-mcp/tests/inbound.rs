@@ -320,7 +320,11 @@ async fn main_chain(unix: bool, through_bridge: bool) {
                 || name.starts_with("todo.")
                 || matches!(
                     name,
-                    "asset.purge" | "asset_folder.purge" | "comment.delete" | "comment.project"
+                    "asset.purge"
+                        | "asset_folder.purge"
+                        | "entry.purge"
+                        | "comment.delete"
+                        | "comment.project"
                 )
         }),
         "retired material/todo and destructive purge/delete operations must stay excluded from MCP"

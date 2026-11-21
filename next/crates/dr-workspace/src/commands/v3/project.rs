@@ -501,6 +501,7 @@ op! {
             id: id.clone(),
             pos,
             mount,
+            gone_title: None,
         };
         let (_, at) = cx.write_book_v3(&slot, Replaces::nothing(), move |txn| {
             txn.project().put_tab(&tab)?;
@@ -533,7 +534,7 @@ op! {
             .filter(|t| t.id == old.id || t.mount == old.mount)
             .map(|t| t.id)
             .collect();
-        let name = mount_name(&v, &old.mount);
+        let name = mount_name(&v, &old.mount).or_else(|| old.gone_title.clone());
         let replaced = Replaces::records(
             ids.iter()
                 .map(|id| rec(CollectionV3::Project, "tabs").at([id.as_str()])),
@@ -582,7 +583,7 @@ op! {
             .collect();
         tab.pos = Some(pos_for(&others, &input.place)?);
         let id = tab.id.clone();
-        let name = mount_name(&v, &tab.mount);
+        let name = mount_name(&v, &tab.mount).or_else(|| tab.gone_title.clone());
         // The whole record is written: 「全部」 read in but not stored is
         // stored now, under its fixed id, so two devices that each move it
         // write one record.

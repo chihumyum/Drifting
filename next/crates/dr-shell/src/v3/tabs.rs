@@ -22,9 +22,13 @@ use dr_ui::{
     fonts::Role,
     style::DrStyled,
 };
-use dr_workspace::{Actor, WsError, commands::v3::types::TabMount};
+use dr_workspace::{
+    Actor, WsError,
+    commands::v3::types::{ProjectTab, TabMount},
+};
 use gpui::{prelude::*, *};
 use serde_json::{Value, json};
+use std::rc::Rc;
 
 /// Whether what `mount` is mounted on is not there now: the entry is in
 /// Recently Deleted, has both its switches off or is not in the book; the
@@ -60,6 +64,20 @@ pub fn mount_name(v: &BookV3, mount: &TabMount, cx: &App) -> SharedString {
             .map(|tv| SharedString::from(tv.name.clone()))
             .unwrap_or_else(|| t(cx, keys::v3_tabs::VIEWS)),
         TabMount::Book => t(cx, keys::v3_tabs::BOOK),
+    }
+}
+
+/// What `tab` is called: [`mount_name`], or, once the entry it is mounted
+/// on was deleted for good, the title the Tab kept (`entry.purge`,
+/// `kernel-v5.md` §5: it keeps being called by it).
+pub fn tab_name(v: &BookV3, tab: &ProjectTab, cx: &App) -> SharedString {
+    match (&tab.mount, &tab.gone_title) {
+        (TabMount::Entry { entry }, Some(title))
+            if v.entry(entry).is_none() && !v.trashed_titles.contains_key(entry) =>
+        {
+            SharedString::from(title.clone())
+        }
+        _ => mount_name(v, &tab.mount, cx),
     }
 }
 
@@ -119,9 +137,11 @@ fn entry_row(
     };
     let (mark, color) = host.book.mark(&target);
     let workspace = host.workspace.upgrade();
+    // A row just back from Recently Deleted flashes once (`trash`).
     let selected = workspace
         .as_ref()
-        .is_some_and(|ws| ws.read(cx).nav.is_selected(&target));
+        .is_some_and(|ws| ws.read(cx).nav.is_selected(&target))
+        || super::trash::flashing(id, window, cx);
     let open = target.clone();
     let weak = host.workspace.clone();
     let mut cell = SandCell::new(
@@ -332,8 +352,16 @@ fn scroll_list(id: &str) -> Stateful<Div> {
         .gap(px(2.0))
 }
 
+/// The fold of the book Tab's 「最近删除」: whether it is open, and which of
+/// its rows are opened to what went in with them.
+struct BookTrash {
+    open: bool,
+    unfolded: std::collections::BTreeSet<String>,
+}
+
 /// A Tab mounted on the book: the book sequence, one entry a row (the App
-/// numbers nothing). Dragging is a drop in 「全部」 ([`drop_in_book`]).
+/// numbers nothing). Dragging is a drop in 「全部」 ([`drop_in_book`]). Its
+/// last section is 「最近删除」 with what had prose in the book.
 pub fn book_list(host: &PageViewHost, window: &mut Window, cx: &mut App) -> AnyElement {
     let Some(v) = host.book.v3() else {
         return div().into_any_element();
@@ -356,6 +384,56 @@ pub fn book_list(host: &PageViewHost, window: &mut Window, cx: &mut App) -> AnyE
             window,
             cx,
         ));
+    }
+    let fold = window.use_keyed_state("book-sidebar-trash", cx, |_, _| BookTrash {
+        open: true,
+        unfolded: Default::default(),
+    });
+    let (open, unfolded) = {
+        let f = fold.read(cx);
+        (f.open, f.unfolded.clone())
+    };
+    if let Some((count, rows)) = super::trash::section(v, &TabMount::Book, &unfolded) {
+        let toggle = fold.clone();
+        list = list.child(super::trash::head(
+            "book",
+            count,
+            open,
+            move |_, cx| {
+                toggle.update(cx, |f, cx| {
+                    f.open = !f.open;
+                    cx.notify();
+                })
+            },
+            window,
+            cx,
+        ));
+        if open {
+            let folder = fold.clone();
+            let hooks = super::trash::RowHooks {
+                fold: Rc::new(move |id: &str, cx: &mut App| {
+                    folder.update(cx, |f, cx| {
+                        if !f.unfolded.remove(id) {
+                            f.unfolded.insert(id.to_owned());
+                        }
+                        cx.notify();
+                    })
+                }),
+                restored: Rc::new(|_: &str, _: &mut App| {}),
+            };
+            for row in &rows {
+                list = list.child(super::trash::row(
+                    host,
+                    "book",
+                    row,
+                    unfolded.contains(&row.id),
+                    cards.clone(),
+                    hooks.clone(),
+                    window,
+                    cx,
+                ));
+            }
+        }
     }
     list.into_any_element()
 }

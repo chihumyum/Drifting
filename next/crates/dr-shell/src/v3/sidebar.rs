@@ -309,7 +309,7 @@ impl Sidebar {
     /// What a Tab is called: the name of what it is mounted on.
     fn name(&self, tab: &ProjectTab, cx: &App) -> SharedString {
         match self.host.book.v3() {
-            Some(v) => tabs::mount_name(v, &tab.mount, cx),
+            Some(v) => tabs::tab_name(v, tab, cx),
             None => SharedString::default(),
         }
     }
@@ -382,11 +382,26 @@ impl Sidebar {
                 .map(|l| l.settings.display.clone()),
             _ => None,
         };
+        // The selected Tab's 「最近删除」: how many entries, and its rows of
+        // their own (`trash`).
+        let trash = selected
+            .as_ref()
+            .zip(v)
+            .filter(|(tab, v)| !tabs::is_gone(v, &tab.mount))
+            .and_then(|(tab, v)| {
+                super::trash::section(v, &tab.mount, &Default::default()).map(|(count, rows)| {
+                    json!({
+                        "count": count,
+                        "rows": rows.iter().map(|r| r.id.clone()).collect::<Vec<_>>(),
+                    })
+                })
+            });
         json!({
             "tabs": tabs,
             "selected": self.selected,
             "entry": entry,
             "display": display,
+            "trash": trash,
             "managing": self.managing.is_some(),
             "filled": self.filled,
             "templateStructure": self.in_structure,

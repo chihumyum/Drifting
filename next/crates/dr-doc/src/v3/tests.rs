@@ -236,6 +236,7 @@ fn applying_a_template_without_a_root_tab_stores_all_first() {
                 id: TabId::parse("t-book").unwrap(),
                 pos: Some(PosKey::first()),
                 mount: TabMount::Book,
+                gone_title: None,
             }],
             ..Default::default()
         },

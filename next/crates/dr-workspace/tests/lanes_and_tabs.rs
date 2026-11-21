@@ -407,6 +407,7 @@ fn a_tab_cannot_mount_a_view_and_an_old_one_reads_gone() {
                 id: TabId::parse("tab-old-view").unwrap(),
                 pos: None,
                 mount: TabMount::View { view: vid },
+                gone_title: None,
             })
             .unwrap();
     });
@@ -450,6 +451,7 @@ fn saving_a_project_with_a_tab_on_a_view_leaves_that_tab_out() {
                 id: TabId::parse("tab-old-view").unwrap(),
                 pos: None,
                 mount: TabMount::View { view: vid },
+                gone_title: None,
             })
             .unwrap();
     });

@@ -2094,6 +2094,7 @@ pub fn materialize_project_template(
             },
             pos: Some(tab_pos.clone()),
             mount,
+            gone_title: None,
         });
     }
 

@@ -191,7 +191,7 @@ F1 的工厂不能反向依赖 `dr-agent` 或 UI 本地化层。小说文本／�
 | `book.get/search/update/word_counts/writing_days`、`mention.list` | 原名可保留；结构／搜索／链接改认通用条目和模块，成书与字数来自最外层成书根。搜索片段、索引和统计不授予全文读取覆盖 |
 | `history.agent_changes/points/preview/restore_entities/undo_agent`、`recent.list` | 名称保留，目标适配通用引用；来源撤回仍需先读该来源结算清单，并对当前版本做 CAS，不因此授权普通正文替换 |
 
-原有排除仍是底线：全书库生命周期、无当前书范围的操作、书的回收／恢复、`asset.put`、`recent.touch`、`writing_day.record`、`todo.project`／`note_tasks.project`、`patch.check_sources`、内部 `*_template.document`、永久 purge 和隐藏关联级联删除不自动开放。`comment.delete`、`material.delete`、`patch.delete`、`relation_type.delete` 仍等完整受影响集合；`history.restore_point` 仍等原子受控接口；旧 `idea.to_chapter/to_element` 不复活。
+原有排除仍是底线：全书库生命周期、无当前书范围的操作、书的回收／恢复、`asset.put`、`recent.touch`、`writing_day.record`、`todo.project`／`note_tasks.project`、`patch.check_sources`、内部 `*_template.document`、永久 purge 和隐藏关联级联删除不自动开放。2026-11-21 加的 `entry.purge`（从最近删除里彻底清除条目）照这一条排除，和 `asset.purge`、`asset_folder.purge` 同一个理由（「permanent deletion needs complete cascade coverage」，目录快照多一行排除）；同一天 `project.get` 的 Tab 多了 `gone_title`（挂的条目被清除后 Tab 叫什么），它在目录里的修订号跟着变，帮手的结构说明里这种 Tab 用这个名字。`comment.delete`、`material.delete`、`patch.delete`、`relation_type.delete` 仍等完整受影响集合；`history.restore_point` 仍等原子受控接口；旧 `idea.to_chapter/to_element` 不复活。
 
 v3 的移动／换模板是普通通用命令，但若涉及正文复制、自动补链或其他跨文档影响，也必须满足同样的源版本、读取覆盖、影响查询与结算条件，不能借新名称绕过 M29 的转换排除。此前缺失的整篇结构编辑、原子关系更新、完整成员集合替换，仍由 K2 登记真实能力后再开放。
 

@@ -553,6 +553,7 @@ fn init_text_materials_root(txn: &mut BookTxnV3<'_>, id: &EntryId) -> Result<()>
             id: tab,
             pos: Some(last.map_or_else(PosKey::first, |p| p.after())),
             mount: TabMount::Entry { entry: id.clone() },
+            gone_title: None,
         })?;
     }
     Ok(())

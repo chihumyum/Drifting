@@ -1581,6 +1581,12 @@ pub struct ProjectTab {
     #[serde(default)]
     pub pos: Option<PosKey>,
     pub mount: TabMount,
+    /// The title of the entry it mounts, written in the step that deletes
+    /// that entry for good (`entry.purge`, `TAB-KEEPS-GONE-NAME`): the Tab
+    /// keeps being called by it (`kernel-v5.md` §5). Read only while the
+    /// entry is not in the book.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gone_title: Option<String>,
 }
 
 /// The fixed id of 「全部」, the tab mounted at the root (`TAB-ROOT-ALWAYS`,
@@ -1628,6 +1634,7 @@ pub fn shown_project_tabs(mut tabs: Vec<ProjectTab>) -> Vec<ProjectTab> {
                 id: all,
                 pos: Some(pos),
                 mount: TabMount::Root,
+                gone_title: None,
             },
         );
     }
@@ -1848,6 +1855,56 @@ pub fn effective_ancestors(entries: &BTreeMap<EntryId, Entry>, start: &EntryId) 
         .into_iter()
         .filter(|id| entries.get(id).is_some_and(Entry::is_level))
         .collect()
+}
+
+/// What goes with `id` when it is restored from Recently Deleted or deleted
+/// for good (`kernel-v5.md` §16, `ENTRY-TRASH-TOGETHER`): `id` itself and
+/// every entry living below it that went in with it, which carries the same
+/// `deleted_at`. An entry below it that went in on its own (another time)
+/// stays out, and so does everything below that one. A live `id` takes only
+/// its live subtree, as `entry.trash` does.
+pub fn trashed_with(entries: &BTreeMap<EntryId, Entry>, id: &EntryId) -> BTreeSet<EntryId> {
+    let Some(stamp) = entries.get(id).map(|e| e.deleted_at) else {
+        return BTreeSet::new();
+    };
+    let mut children: BTreeMap<&EntryId, Vec<&Entry>> = BTreeMap::new();
+    for e in entries.values() {
+        if let Some(parent) = &e.parent {
+            children.entry(parent).or_default().push(e);
+        }
+    }
+    let mut out = BTreeSet::from([id.clone()]);
+    let mut todo = vec![id];
+    while let Some(cur) = todo.pop() {
+        for child in children.get(cur).into_iter().flatten() {
+            if child.deleted_at == stamp && out.insert(child.id.clone()) {
+                todo.push(&child.id);
+            }
+        }
+    }
+    out
+}
+
+/// Where `id` lives once it is restored on its own from Recently Deleted
+/// (`kernel-v5.md` §16): where it lived, while that entry is still there,
+/// out of Recently Deleted and with its `层级` switch on; otherwise the
+/// nearest entry above it that is all three, or the outermost (`None`). An
+/// entry above it that is no longer stored ends the walk at the outermost.
+pub fn restored_residence(entries: &BTreeMap<EntryId, Entry>, id: &EntryId) -> Option<EntryId> {
+    let takes = |e: &Entry| !e.is_trashed() && e.is_level();
+    let mut cur = entries.get(id)?.parent.clone();
+    let mut seen = BTreeSet::from([id.clone()]);
+    while let Some(anc) = cur {
+        if !seen.insert(anc.clone()) {
+            return None;
+        }
+        let e = entries.get(&anc)?;
+        if takes(e) {
+            return Some(anc);
+        }
+        cur = e.parent.clone();
+    }
+    None
 }
 
 /// Provenance of one resolved setting, using the same precedence as its value.
@@ -4494,6 +4551,7 @@ mod tests {
             id: TabId::parse(id).unwrap(),
             pos: pos.map(|p| PosKey::parse(p).unwrap()),
             mount,
+            gone_title: None,
         }
     }
 

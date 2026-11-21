@@ -1022,6 +1022,7 @@ pub fn sync_catalog_with_relation_times(
                 mount: TabMount::Entry {
                     entry: text_root.clone(),
                 },
+                gone_title: None,
             })?;
         }
     }

@@ -21,6 +21,7 @@ pub mod sidebar;
 pub mod tab_fill;
 pub mod tabs;
 pub mod template_structure;
+pub mod trash;
 
 pub use crate::workspace::review::register_entry_comment_card;
 pub use drag::{EntryDrag, TimelineClipDrag};

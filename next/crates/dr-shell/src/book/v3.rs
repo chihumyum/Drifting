@@ -106,6 +106,34 @@ pub struct OpenCommentSpot {
     pub spot: OpenSpotKind,
 }
 
+/// An entry in Recently Deleted, as the left column lists it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct Trashed {
+    pub id: String,
+    pub title: String,
+    /// Its mark: its own, or its template's.
+    pub mark: Option<String>,
+    /// When it went in (Unix seconds).
+    pub deleted_at: i64,
+    /// The entry it lived under and went in with (`ENTRY-TRASH-TOGETHER`):
+    /// it is folded under that one's row. `None`: a row of its own.
+    pub with: Option<String>,
+    /// What went in with it and lived directly under it, in tree order.
+    pub folded: Vec<String>,
+    /// Where it lives once restored on its own (`restored_residence`):
+    /// an entry, or the outermost (`None`)…
+    pub lands: Option<String>,
+    /// … and that entry's title.
+    pub lands_title: Option<String>,
+    /// For a row of its own: every entry whose Tab tree showed it or what
+    /// went in with it (where they lived, all the way up, and where they
+    /// were hung, all the way up from there).
+    pub places: BTreeSet<String>,
+    /// For a row of its own: it, or something that went in with it, has
+    /// prose that is part of the book (a Tab on the book showed it).
+    pub in_book: bool,
+}
+
 #[derive(Clone, Default, Serialize)]
 pub struct BookV3 {
     pub revision: String,
@@ -122,6 +150,13 @@ pub struct BookV3 {
     /// The titles of the entries in Recently Deleted: what a Tab mounted on
     /// one of them says (`kernel-v5.md` §5).
     pub trashed_titles: BTreeMap<String, String>,
+    /// Every entry in Recently Deleted as the left column's 「最近删除」
+    /// lists it (`kernel-v5.md` §16, author 2026-11-21 一甲): what each went
+    /// in with, where it goes back to, which Tabs it was in.
+    pub trash: BTreeMap<String, Trashed>,
+    /// The rows of its own (what went in on its own, not with the entry it
+    /// lived under), the most recently deleted first.
+    pub trash_roots: Vec<String>,
     /// The Tab the project was left on as stored (`layout:<书>`), even when
     /// that Tab is gone: opening on a gone Tab goes to the first Tab, never
     /// having chosen one goes to 「全部」 (Tab prototype, 2026-11-15).
@@ -508,6 +543,94 @@ pub fn is_glyph_mark(mark: &str) -> bool {
     !is_sand_mark(mark) && dr_model::v3::is_valid_mark(mark) && (!name || mark.len() == 1)
 }
 
+/// Every entry in Recently Deleted (`kernel-v5.md` §16), and the rows of
+/// their own, the most recently deleted first (ties in tree order). What
+/// went in with an entry is what `entry.restore` brings back with it and
+/// `entry.purge` deletes with it (`dr_model::v3::trashed_with`); where each
+/// lands is where `entry.restore` puts it (`restored_residence`).
+fn recently_deleted(
+    structure: &dr_doc::v3::BookStructureV3,
+    memberships: &[dr_model::v3::Membership],
+) -> (BTreeMap<String, Trashed>, Vec<String>) {
+    use dr_model::v3 as m;
+    let entries = structure.entries_map();
+    let templates = structure.templates_map();
+    let gone: Vec<&m::Entry> = structure.entries().filter(|e| e.is_trashed()).collect();
+    if gone.is_empty() {
+        return (BTreeMap::new(), Vec::new());
+    }
+    let went_in_with = |e: &m::Entry| {
+        e.parent
+            .as_ref()
+            .and_then(|p| entries.get(p))
+            .filter(|p| p.deleted_at == e.deleted_at)
+            .map(|p| p.id.to_string())
+    };
+    let up = |id: &m::EntryId| {
+        m::ancestors_without_cycle(entries, id)
+            .into_iter()
+            .map(|a| a.to_string())
+    };
+    let mut out: BTreeMap<String, Trashed> = gone
+        .iter()
+        .map(|e| {
+            let lands = m::restored_residence(entries, &e.id);
+            let trashed = Trashed {
+                id: e.id.to_string(),
+                title: e.title.clone(),
+                mark: e.effective_mark(templates).map(str::to_owned),
+                deleted_at: e.deleted_at.map_or(0, |t| t.0),
+                with: went_in_with(e),
+                folded: Vec::new(),
+                lands_title: lands
+                    .as_ref()
+                    .and_then(|l| entries.get(l))
+                    .map(|l| l.title.clone()),
+                lands: lands.map(|l| l.to_string()),
+                places: BTreeSet::new(),
+                in_book: false,
+            };
+            (trashed.id.clone(), trashed)
+        })
+        .collect();
+    // In tree order: a row's folded rows in the order the book had them.
+    for e in &gone {
+        if let Some(with) = went_in_with(e)
+            && let Some(parent) = out.get_mut(&with)
+        {
+            parent.folded.push(e.id.to_string());
+        }
+    }
+    let mut roots: Vec<(i64, usize, String)> = Vec::new();
+    for (order, e) in gone.iter().enumerate() {
+        if went_in_with(e).is_some() {
+            continue;
+        }
+        let batch = m::trashed_with(entries, &e.id);
+        let mut places = BTreeSet::new();
+        let mut in_book = false;
+        for id in &batch {
+            places.extend(up(id));
+            for ms in memberships.iter().filter(|ms| &ms.member == id) {
+                places.insert(ms.host.to_string());
+                places.extend(up(&ms.host));
+            }
+            in_book |= entries
+                .get(id)
+                .and_then(|x| x.effective_template(templates))
+                .is_some_and(|t| t.book_prose_modules().next().is_some());
+        }
+        let id = e.id.to_string();
+        if let Some(row) = out.get_mut(&id) {
+            row.places = places;
+            row.in_book = in_book;
+        }
+        roots.push((e.deleted_at.map_or(0, |t| t.0), order, id));
+    }
+    roots.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.cmp(&b.1)));
+    (out, roots.into_iter().map(|(_, _, id)| id).collect())
+}
+
 pub(crate) fn parse_layout_positions(raw: dr_workspace::LayoutPositions) -> BookLayouts {
     let mut out = BookLayouts::new();
     for (scope_mode, entries) in raw {
@@ -547,6 +670,7 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
             .filter(|e| e.is_trashed())
             .map(|e| (e.id.to_string(), e.title.clone()))
             .collect();
+        let (trash, trash_roots) = recently_deleted(&structure, &view.memberships_raw());
         let templates: Vec<types::EntryTemplate> = templates_map.values().map(Into::into).collect();
         let roots: Vec<String> = structure
             .children_of(None)
@@ -809,6 +933,8 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
                 colors,
                 timeline_views,
                 trashed_titles,
+                trash,
+                trash_roots,
                 materials,
                 material_folders,
                 media_items,

@@ -1,0 +1,241 @@
+{
+  "about": "The left column's 「最近删除」 (kernel-v5 §16, author 2026-11-21: 一甲, 二乙) in the real window: a chapter and an act with two chapters deleted from the 书稿 Tab's tree through their hover cards land in the section with the count of every entry; the act's row opens to the chapters that went in with it; a row's hover card restores the chapter (its row back in the tree) and deletes the act for good without a question; the book is checked through entry.list. A light pass and a dark one, Chinese interface, secondary display, isolated synthetic profile. Screenshots are records for the author's look, not visual acceptance.",
+  "steps": [
+    { "seed": "tiny" },
+    { "call": "book.list", "save": "books" },
+    {
+      "call": "entry.list",
+      "input": { "book": "${books.0.id}", "all": true },
+      "save": "entries"
+    },
+    {
+      "call": "entry.create",
+      "input": {
+        "book": "${books.0.id}",
+        "parent": "${entries.[template=tpl-manuscript].id}",
+        "template": "tpl-group",
+        "title": "第三幕"
+      },
+      "save": "act"
+    },
+    {
+      "call": "entry.create",
+      "input": {
+        "book": "${books.0.id}",
+        "parent": "${act.id}",
+        "template": "tpl-chapter",
+        "title": "第九章 茶馆",
+        "bodies": { "mod-prose": "茶馆里的钟慢了七分钟。" }
+      },
+      "save": "c9"
+    },
+    {
+      "call": "entry.create",
+      "input": {
+        "book": "${books.0.id}",
+        "parent": "${act.id}",
+        "template": "tpl-chapter",
+        "title": "第十章 档案馆",
+        "bodies": { "mod-prose": "档案馆的抽屉一格一格拉开。" }
+      },
+      "save": "c10"
+    },
+    {
+      "call": "entry.create",
+      "input": {
+        "book": "${books.0.id}",
+        "parent": "${entries.[template=tpl-manuscript].id}",
+        "template": "tpl-chapter",
+        "title": "第七章 梅雨",
+        "bodies": { "mod-prose": "梅雨下了一整个星期。" }
+      },
+      "save": "c7"
+    },
+    {
+      "launch": {
+        "env": { "DRIFTING_APPEARANCE": "light", "DRIFTING_WINDOW_DISPLAY": "secondary" },
+        "settings": {
+          "device": { "modules": { "first_run.done": true, "guides.seen": ["workspace-tour"] } },
+          "account": { "language.ui_locale": "zh-CN" }
+        }
+      },
+      "note": "The workspace tour and the first run are marked seen, as the other window scenarios do, so nothing lies over the left column."
+    },
+    { "app": "ui.wait", "params": { "timeout_ms": 30000 } },
+    { "app": "window.focus", "params": {} },
+    { "app": "book.open", "params": { "book": "${books.0.id}" } },
+    {
+      "app": "ui.wait",
+      "params": { "state": { "/book/version": 5, "/book/loaded": true }, "timeout_ms": 30000 }
+    },
+    { "app": "action.dispatch", "params": { "name": "workspace::ToggleLeftSidebar" } },
+    { "app": "ui.wait", "params": { "state": { "/left/open": true }, "timeout_ms": 10000 } },
+    {
+      "app": "ui.press",
+      "params": { "role": "RadioButton", "label": "${entries.[template=tpl-manuscript].title}" },
+      "note": "The 书稿 Tab: its tree lists the act, its chapters and 第七章."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": { "/v3Sidebar/entry": "${entries.[template=tpl-manuscript].id}", "/v3Sidebar/trash": null },
+        "timeout_ms": 10000
+      },
+      "note": "Nothing deleted yet: no 「最近删除」."
+    },
+    { "app": "ui.hover", "params": { "role": "Group", "label": "第七章 梅雨" } },
+    { "app": "ui.find", "params": { "role": "MenuItem", "label": "放进最近删除", "timeout_ms": 6000 } },
+    { "app": "ui.press", "params": { "role": "MenuItem", "label": "放进最近删除" } },
+    {
+      "app": "ui.wait",
+      "params": { "state": { "/v3Sidebar/trash/count": 1, "/v3Sidebar/trash/rows/0": "${c7.id}" }, "timeout_ms": 10000 }
+    },
+    { "app": "input.move", "params": { "x": 640, "y": 20 }, "note": "Off the rows, so the next hover opens a fresh card." },
+    { "app": "ui.hover", "params": { "role": "Group", "label": "第三幕" } },
+    { "app": "ui.find", "params": { "role": "MenuItem", "label": "放进最近删除", "timeout_ms": 6000 } },
+    { "app": "ui.press", "params": { "role": "MenuItem", "label": "放进最近删除" } },
+    {
+      "app": "ui.wait",
+      "params": { "state": { "/v3Sidebar/trash/count": 4 }, "timeout_ms": 10000 },
+      "note": "The act went in with its two chapters: four entries, two rows of their own."
+    },
+    {
+      "app": "state.get",
+      "expect": { "/v3Sidebar/trash/rows/1": "${c7.id}", "/dialog": false },
+      "save": "after_delete"
+    },
+    { "call": "entry.get", "input": { "book": "${books.0.id}", "id": "${c9.id}" }, "save": "c9_deleted" },
+    { "app": "input.move", "params": { "x": 640, "y": 20 } },
+    { "app": "ui.find", "params": { "role": "Group", "label": "第三幕" } },
+    { "app": "ui.screenshot", "png": "01-section-light.png" },
+    {
+      "app": "ui.press",
+      "params": { "role": "Button", "label": "展开第三幕" },
+      "note": "The act's triangle opens it to the chapters that went in with it."
+    },
+    { "app": "ui.find", "params": { "role": "Group", "label": "第九章 茶馆", "timeout_ms": 6000 } },
+    { "app": "ui.find", "params": { "role": "Group", "label": "第十章 档案馆" } },
+    { "app": "input.move", "params": { "x": 640, "y": 20 } },
+    { "app": "ui.screenshot", "png": "02-folded-open-light.png" },
+    { "app": "ui.hover", "params": { "role": "Group", "label": "第七章 梅雨" } },
+    { "app": "ui.find", "params": { "role": "MenuItem", "label": "恢复", "timeout_ms": 6000 } },
+    { "app": "ui.find", "params": { "role": "MenuItem", "label": "永久删除" } },
+    { "app": "ui.screenshot", "png": "03-hover-card-light.png", "params": { "settle_ms": 300 } },
+    { "app": "ui.press", "params": { "role": "MenuItem", "label": "恢复" } },
+    {
+      "app": "ui.wait",
+      "params": { "state": { "/v3Sidebar/trash/count": 3 }, "timeout_ms": 10000 },
+      "note": "Nothing is said; the row flashes once where it now is."
+    },
+    { "app": "ui.screenshot", "png": "04-after-restore-light.png", "params": { "settle_ms": 250 } },
+    {
+      "call": "entry.get",
+      "input": { "book": "${books.0.id}", "id": "${c7.id}" },
+      "expect": { "/deleted_at": null, "/parent": "${entries.[template=tpl-manuscript].id}", "/title": "第七章 梅雨" }
+    },
+    { "app": "input.move", "params": { "x": 640, "y": 20 } },
+    { "app": "ui.hover", "params": { "role": "Group", "label": "第三幕" } },
+    { "app": "ui.find", "params": { "role": "MenuItem", "label": "永久删除", "timeout_ms": 6000 } },
+    { "app": "ui.press", "params": { "role": "MenuItem", "label": "永久删除" } },
+    {
+      "app": "ui.wait",
+      "params": { "state": { "/v3Sidebar/trash": null }, "timeout_ms": 10000 },
+      "note": "No question: the act and the chapters that went in with it are gone, and with nothing left the section goes."
+    },
+    { "app": "state.get", "expect": { "/dialog": false } },
+    {
+      "call": "entry.list",
+      "input": { "book": "${books.0.id}", "all": true, "trashed": true },
+      "expect": {
+        "/[id=${act.id}]": null,
+        "/[id=${c9.id}]": null,
+        "/[id=${c10.id}]": null,
+        "/[id=${c7.id}]/title": "第七章 梅雨",
+        "/[id=${c7.id}]/deleted_at": null
+      }
+    },
+    { "app": "input.move", "params": { "x": 640, "y": 20 } },
+    { "app": "ui.screenshot", "png": "05-after-purge-light.png" },
+    { "app": "app.quit" },
+    {
+      "launch": {
+        "env": { "DRIFTING_APPEARANCE": "dark", "DRIFTING_WINDOW_DISPLAY": "secondary" },
+        "settings": { "account": { "language.ui_locale": "zh-CN" } }
+      },
+      "note": "The same profile in the dark: the library keeps what the light pass did."
+    },
+    { "app": "ui.wait", "params": { "timeout_ms": 30000 } },
+    { "app": "window.focus", "params": {} },
+    { "app": "book.open", "params": { "book": "${books.0.id}" } },
+    {
+      "app": "ui.wait",
+      "params": { "state": { "/book/version": 5, "/book/loaded": true }, "timeout_ms": 30000 }
+    },
+    {
+      "call": "entry.create",
+      "input": {
+        "book": "${books.0.id}",
+        "parent": "${entries.[template=tpl-manuscript].id}",
+        "template": "tpl-group",
+        "title": "第四幕"
+      },
+      "save": "act4"
+    },
+    {
+      "call": "entry.create",
+      "input": {
+        "book": "${books.0.id}",
+        "parent": "${act4.id}",
+        "template": "tpl-chapter",
+        "title": "第十一章 晚秋"
+      },
+      "save": "c11"
+    },
+    { "call": "entry.trash", "input": { "book": "${books.0.id}", "id": "${act4.id}" } },
+    {
+      "app": "ui.wait",
+      "params": { "state": { "/left/open": true }, "timeout_ms": 10000 },
+      "note": "The left column comes back open, as the light pass left it."
+    },
+    {
+      "app": "ui.press",
+      "params": { "role": "RadioButton", "label": "${entries.[template=tpl-manuscript].title}" }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": { "/v3Sidebar/entry": "${entries.[template=tpl-manuscript].id}", "/v3Sidebar/trash/count": 2 },
+        "timeout_ms": 10000
+      }
+    },
+    { "app": "ui.hover", "params": { "role": "Group", "label": "第七章 梅雨" } },
+    { "app": "ui.find", "params": { "role": "MenuItem", "label": "放进最近删除", "timeout_ms": 6000 } },
+    { "app": "ui.press", "params": { "role": "MenuItem", "label": "放进最近删除" } },
+    { "app": "ui.wait", "params": { "state": { "/v3Sidebar/trash/count": 3 }, "timeout_ms": 10000 } },
+    { "app": "ui.press", "params": { "role": "Button", "label": "展开第四幕" } },
+    { "app": "ui.find", "params": { "role": "Group", "label": "第十一章 晚秋", "timeout_ms": 6000 } },
+    { "app": "input.move", "params": { "x": 640, "y": 20 } },
+    { "app": "ui.screenshot", "png": "06-section-dark.png" },
+    { "app": "ui.hover", "params": { "role": "Group", "label": "第七章 梅雨" } },
+    { "app": "ui.find", "params": { "role": "MenuItem", "label": "恢复", "timeout_ms": 6000 } },
+    { "app": "ui.screenshot", "png": "07-hover-card-dark.png", "params": { "settle_ms": 300 } },
+    { "app": "ui.press", "params": { "role": "MenuItem", "label": "恢复" } },
+    { "app": "ui.wait", "params": { "state": { "/v3Sidebar/trash/count": 2 }, "timeout_ms": 10000 } },
+    { "app": "ui.screenshot", "png": "08-after-restore-dark.png", "params": { "settle_ms": 250 } },
+    { "app": "input.move", "params": { "x": 640, "y": 20 } },
+    { "app": "ui.hover", "params": { "role": "Group", "label": "第四幕" } },
+    { "app": "ui.find", "params": { "role": "MenuItem", "label": "永久删除", "timeout_ms": 6000 } },
+    { "app": "ui.press", "params": { "role": "MenuItem", "label": "永久删除" } },
+    { "app": "ui.wait", "params": { "state": { "/v3Sidebar/trash": null }, "timeout_ms": 10000 } },
+    {
+      "call": "entry.list",
+      "input": { "book": "${books.0.id}", "all": true, "trashed": true },
+      "expect": {
+        "/[id=${act4.id}]": null,
+        "/[id=${c11.id}]": null,
+        "/[id=${c7.id}]/deleted_at": null
+      }
+    },
+    { "app": "app.quit" }
+  ]
+}
