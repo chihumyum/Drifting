@@ -526,7 +526,8 @@ pub fn write_archive(
 // `import.v1.differences` in all nine languages; summary.md reads them in
 // Simplified Chinese, so the dialog and the file say the same.
 
-use dr_i18n::{I18n, Key, Locale, Platform, keys::import::v1::differences as k};
+use dr_i18n::keys::import::v1::differences as k;
+use dr_i18n::{I18n, Key, Locale, Platform};
 
 /// Which part of summary.md a difference is in.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize)]
@@ -579,46 +580,49 @@ impl Difference {
 /// code this version has no sentence for (summary.md and the dialog then
 /// say [`DEFAULT_FALLBACK`]).
 pub fn default_sentence(code: &str) -> Option<Key> {
-    use k::defaults::*;
     Some(match code {
-        "element-missing-category" => ELEMENT_MISSING_CATEGORY,
-        "chapter-without-book-order" => CHAPTER_WITHOUT_BOOK_ORDER,
-        "idea-has-legacy-book-order" => IDEA_HAS_LEGACY_BOOK_ORDER,
-        "unknown-node-kind" => UNKNOWN_NODE_KIND,
-        "incompatible-source-node-status" => INCOMPATIBLE_SOURCE_NODE_STATUS,
-        "chapter-in-group-dropped" => CHAPTER_IN_GROUP_DROPPED,
-        "idea-group-missing" => IDEA_GROUP_MISSING,
-        "membership-target-missing" => MEMBERSHIP_TARGET_MISSING,
-        "membership-target-trashed" => MEMBERSHIP_TARGET_TRASHED,
-        "multiple-primary-memberships" => MULTIPLE_PRIMARY_MEMBERSHIPS,
-        "act-binding-not-an-idea" => ACT_BINDING_NOT_AN_IDEA,
-        "act-without-boundary" => ACT_WITHOUT_BOUNDARY,
-        "duplicate-act-boundary" => DUPLICATE_ACT_BOUNDARY,
-        "pin-binding-missing-idea" => PIN_BINDING_MISSING_IDEA,
-        "source-tree-missing-parent" => SOURCE_TREE_MISSING_PARENT,
-        "source-tree-cycle" => SOURCE_TREE_CYCLE,
+        "element-missing-category" => k::defaults::ELEMENT_MISSING_CATEGORY,
+        "chapter-without-book-order" => k::defaults::CHAPTER_WITHOUT_BOOK_ORDER,
+        "idea-has-legacy-book-order" => k::defaults::IDEA_HAS_LEGACY_BOOK_ORDER,
+        "unknown-node-kind" => k::defaults::UNKNOWN_NODE_KIND,
+        "incompatible-source-node-status" => k::defaults::INCOMPATIBLE_SOURCE_NODE_STATUS,
+        "chapter-in-group-dropped" => k::defaults::CHAPTER_IN_GROUP_DROPPED,
+        "idea-group-missing" => k::defaults::IDEA_GROUP_MISSING,
+        "membership-target-missing" => k::defaults::MEMBERSHIP_TARGET_MISSING,
+        "membership-target-trashed" => k::defaults::MEMBERSHIP_TARGET_TRASHED,
+        "multiple-primary-memberships" => k::defaults::MULTIPLE_PRIMARY_MEMBERSHIPS,
+        "act-binding-not-an-idea" => k::defaults::ACT_BINDING_NOT_AN_IDEA,
+        "act-without-boundary" => k::defaults::ACT_WITHOUT_BOUNDARY,
+        "duplicate-act-boundary" => k::defaults::DUPLICATE_ACT_BOUNDARY,
+        "pin-binding-missing-idea" => k::defaults::PIN_BINDING_MISSING_IDEA,
+        "source-tree-missing-parent" => k::defaults::SOURCE_TREE_MISSING_PARENT,
+        "source-tree-cycle" => k::defaults::SOURCE_TREE_CYCLE,
         "unknown-category-layout"
         | "incomplete-category-grid-position"
-        | "auto-category-has-grid-position" => CATEGORY_LAYOUT_INCOMPLETE,
-        "unreadable-source-kv-projection" => UNREADABLE_SOURCE_KV_PROJECTION,
-        "unreadable-source-aliases" => UNREADABLE_SOURCE_ALIASES,
-        "ambiguous-template-field" => AMBIGUOUS_TEMPLATE_FIELD,
-        "duplicate-value-for-template-field" => DUPLICATE_VALUE_FOR_TEMPLATE_FIELD,
-        "duplicate-history-value-for-template-field" => DUPLICATE_HISTORY_VALUE_FOR_TEMPLATE_FIELD,
-        "writing-day-invalid" => WRITING_DAY_INVALID,
-        "writing-day-duplicate" => WRITING_DAY_DUPLICATE,
-        "history-preview-missing" => HISTORY_PREVIEW_MISSING,
-        "history-preview-unreadable" => HISTORY_PREVIEW_UNREADABLE,
-        "orphan-history-source" => ORPHAN_HISTORY_SOURCE,
-        "unreadable-history-metadata" => UNREADABLE_HISTORY_METADATA,
-        "incompatible-history-node-status" => INCOMPATIBLE_HISTORY_NODE_STATUS,
-        "ambiguous-history-template-field" => AMBIGUOUS_HISTORY_TEMPLATE_FIELD,
-        "comment-target-missing" => COMMENT_TARGET_MISSING,
-        "plot-grid-position-key-regenerated" => PLOT_GRID_POSITION_KEY_REGENERATED,
-        "unreadable-source-template" => UNREADABLE_SOURCE_TEMPLATE,
-        "invalid-source-entity-link" | "unsupported-entity-link-target-kind" => ENTITY_LINK_DROPPED,
-        "unsupported-table-cell-mark" => UNSUPPORTED_TABLE_CELL_MARK,
-        "unsupported-table-cell-content" => UNSUPPORTED_TABLE_CELL_CONTENT,
+        | "auto-category-has-grid-position" => k::defaults::CATEGORY_LAYOUT_INCOMPLETE,
+        "unreadable-source-kv-projection" => k::defaults::UNREADABLE_SOURCE_KV_PROJECTION,
+        "unreadable-source-aliases" => k::defaults::UNREADABLE_SOURCE_ALIASES,
+        "ambiguous-template-field" => k::defaults::AMBIGUOUS_TEMPLATE_FIELD,
+        "duplicate-value-for-template-field" => k::defaults::DUPLICATE_VALUE_FOR_TEMPLATE_FIELD,
+        "duplicate-history-value-for-template-field" => {
+            k::defaults::DUPLICATE_HISTORY_VALUE_FOR_TEMPLATE_FIELD
+        }
+        "writing-day-invalid" => k::defaults::WRITING_DAY_INVALID,
+        "writing-day-duplicate" => k::defaults::WRITING_DAY_DUPLICATE,
+        "history-preview-missing" => k::defaults::HISTORY_PREVIEW_MISSING,
+        "history-preview-unreadable" => k::defaults::HISTORY_PREVIEW_UNREADABLE,
+        "orphan-history-source" => k::defaults::ORPHAN_HISTORY_SOURCE,
+        "unreadable-history-metadata" => k::defaults::UNREADABLE_HISTORY_METADATA,
+        "incompatible-history-node-status" => k::defaults::INCOMPATIBLE_HISTORY_NODE_STATUS,
+        "ambiguous-history-template-field" => k::defaults::AMBIGUOUS_HISTORY_TEMPLATE_FIELD,
+        "comment-target-missing" => k::defaults::COMMENT_TARGET_MISSING,
+        "plot-grid-position-key-regenerated" => k::defaults::PLOT_GRID_POSITION_KEY_REGENERATED,
+        "unreadable-source-template" => k::defaults::UNREADABLE_SOURCE_TEMPLATE,
+        "invalid-source-entity-link" | "unsupported-entity-link-target-kind" => {
+            k::defaults::ENTITY_LINK_DROPPED
+        }
+        "unsupported-table-cell-mark" => k::defaults::UNSUPPORTED_TABLE_CELL_MARK,
+        "unsupported-table-cell-content" => k::defaults::UNSUPPORTED_TABLE_CELL_CONTENT,
         _ => return None,
     })
 }
@@ -647,42 +651,43 @@ fn lossy_args(key: &str) -> Vec<(&'static str, String)> {
 /// `m10-import.md` has the full list). Keys without one are lossless
 /// bookkeeping, in neither summary.md nor the dialog.
 pub fn lossy_sentence(key: &str) -> Option<Key> {
-    use k::lossy::*;
     Some(match key {
-        k if k.starts_with("unknown-inline:") => UNKNOWN_INLINE,
-        k if k.starts_with("unknown-mark:") => UNKNOWN_MARK,
-        k if k.starts_with("unknown-block:") || k.starts_with("unknown-atom:") => UNKNOWN_BLOCK,
-        k if k.starts_with("comment-action-dropped:") => COMMENT_ACTION_DROPPED,
-        "list-item-extra-paragraph" => LIST_ITEM_EXTRA_PARAGRAPH,
-        "table-header-cell" => TABLE_HEADER_CELL,
-        "table-cell-marks" => TABLE_CELL_MARKS,
-        "table-cell-span" => TABLE_CELL_SPAN,
-        "table-cell-paragraphs-joined" => TABLE_CELL_PARAGRAPHS_JOINED,
-        "ordered-list-start" => ORDERED_LIST_START,
-        "align-unsupported" => ALIGN_UNSUPPORTED,
+        n if n.starts_with("unknown-inline:") => k::lossy::UNKNOWN_INLINE,
+        n if n.starts_with("unknown-mark:") => k::lossy::UNKNOWN_MARK,
+        n if n.starts_with("unknown-block:") || n.starts_with("unknown-atom:") => {
+            k::lossy::UNKNOWN_BLOCK
+        }
+        n if n.starts_with("comment-action-dropped:") => k::lossy::COMMENT_ACTION_DROPPED,
+        "list-item-extra-paragraph" => k::lossy::LIST_ITEM_EXTRA_PARAGRAPH,
+        "table-header-cell" => k::lossy::TABLE_HEADER_CELL,
+        "table-cell-marks" => k::lossy::TABLE_CELL_MARKS,
+        "table-cell-span" => k::lossy::TABLE_CELL_SPAN,
+        "table-cell-paragraphs-joined" => k::lossy::TABLE_CELL_PARAGRAPHS_JOINED,
+        "ordered-list-start" => k::lossy::ORDERED_LIST_START,
+        "align-unsupported" => k::lossy::ALIGN_UNSUPPORTED,
         "comment-body-formatting-kept-as-text"
         | "patch-body-formatting-kept-as-text"
-        | "material-description-formatting-kept-as-text" => FORMATTING_KEPT_AS_TEXT,
-        "entity-link-same-target-overlap" => ENTITY_LINK_SAME_TARGET_OVERLAP,
-        "template-unreadable" => TEMPLATE_UNREADABLE,
-        "material-embed-dropped" => MATERIAL_EMBED_DROPPED,
-        "comment-priority-dropped" => COMMENT_PRIORITY_DROPPED,
-        "heading-level-clamped" | "indent-clamped" => HEADING_OR_INDENT_CLAMPED,
-        "built-in-relation-type-dropped" => BUILT_IN_RELATION_TYPE_DROPPED,
+        | "material-description-formatting-kept-as-text" => k::lossy::FORMATTING_KEPT_AS_TEXT,
+        "entity-link-same-target-overlap" => k::lossy::ENTITY_LINK_SAME_TARGET_OVERLAP,
+        "template-unreadable" => k::lossy::TEMPLATE_UNREADABLE,
+        "material-embed-dropped" => k::lossy::MATERIAL_EMBED_DROPPED,
+        "comment-priority-dropped" => k::lossy::COMMENT_PRIORITY_DROPPED,
+        "heading-level-clamped" | "indent-clamped" => k::lossy::HEADING_OR_INDENT_CLAMPED,
+        "built-in-relation-type-dropped" => k::lossy::BUILT_IN_RELATION_TYPE_DROPPED,
         // Each relation not brought over is counted once, under the first
         // of its ends that cannot come (the source end first); each is in
         // the receipt's originals (`relations`, `dropped`).
-        "relation-image-end-dropped" => RELATION_IMAGE_END_DROPPED,
-        "relation-pdf-end-dropped" => RELATION_PDF_END_DROPPED,
-        "relation-comment-end-dropped" => RELATION_COMMENT_END_DROPPED,
-        "relation-todo-end-dropped" => RELATION_TODO_END_DROPPED,
-        "relation-patch-end-dropped" => RELATION_PATCH_END_DROPPED,
-        "relation-other-end-dropped" => RELATION_OTHER_END_DROPPED,
-        "act-binding-shared-idea-split" => ACT_BINDING_SHARED_IDEA_SPLIT,
-        "act-binding-kept-existing-placement" => ACT_BINDING_KEPT_EXISTING_PLACEMENT,
-        "entity-link-to-asset-kept-as-text" => ENTITY_LINK_TO_ASSET_KEPT_AS_TEXT,
-        "task-todo-link-replaced-by-projection" => TASK_TODO_LINK_REPLACED_BY_PROJECTION,
-        "task-status-follows-tick" => TASK_STATUS_FOLLOWS_TICK,
+        "relation-image-end-dropped" => k::lossy::RELATION_IMAGE_END_DROPPED,
+        "relation-pdf-end-dropped" => k::lossy::RELATION_PDF_END_DROPPED,
+        "relation-comment-end-dropped" => k::lossy::RELATION_COMMENT_END_DROPPED,
+        "relation-todo-end-dropped" => k::lossy::RELATION_TODO_END_DROPPED,
+        "relation-patch-end-dropped" => k::lossy::RELATION_PATCH_END_DROPPED,
+        "relation-other-end-dropped" => k::lossy::RELATION_OTHER_END_DROPPED,
+        "act-binding-shared-idea-split" => k::lossy::ACT_BINDING_SHARED_IDEA_SPLIT,
+        "act-binding-kept-existing-placement" => k::lossy::ACT_BINDING_KEPT_EXISTING_PLACEMENT,
+        "entity-link-to-asset-kept-as-text" => k::lossy::ENTITY_LINK_TO_ASSET_KEPT_AS_TEXT,
+        "task-todo-link-replaced-by-projection" => k::lossy::TASK_TODO_LINK_REPLACED_BY_PROJECTION,
+        "task-status-follows-tick" => k::lossy::TASK_STATUS_FOLLOWS_TICK,
         _ => return None,
     })
 }
@@ -692,23 +697,24 @@ pub fn lossy_sentence(key: &str) -> Option<Key> {
 /// and its id. `None` for a second material on the same file, which came
 /// over (summary.md lists those apart, not as missing).
 fn material_line(d: &MaterialDropped) -> Option<(Key, &str, Option<&str>, &str)> {
-    use k::material::*;
     Some(match d {
-        MaterialDropped::EmptyFolder { folder_id, name } => (EMPTY_FOLDER, name, None, folder_id),
+        MaterialDropped::EmptyFolder { folder_id, name } => {
+            (k::material::EMPTY_FOLDER, name, None, folder_id)
+        }
         MaterialDropped::UnimportedFolder { folder_id, name } => {
-            (UNIMPORTED_FOLDER, name, None, folder_id)
+            (k::material::UNIMPORTED_FOLDER, name, None, folder_id)
         }
         MaterialDropped::WithoutFile {
             material_id,
             material_title,
             ..
-        } => (WITHOUT_FILE, material_title, None, material_id),
+        } => (k::material::WITHOUT_FILE, material_title, None, material_id),
         MaterialDropped::UnknownKind {
             material_id,
             material_title,
             material_kind,
         } => (
-            UNKNOWN_KIND,
+            k::material::UNKNOWN_KIND,
             material_title,
             Some(material_kind),
             material_id,
