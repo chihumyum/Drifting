@@ -403,9 +403,11 @@
           "ordered_list_start": "編號清單的起始編號沒有保留",
           "relation_comment_end_dropped": "一端是註解的關係沒有匯入",
           "relation_image_end_dropped": "一端是圖片的關係沒有匯入",
+          "relation_missing_entry_dropped": "一端已不存在的關係沒有匯入",
           "relation_other_end_dropped": "一端是其他素材的關係沒有匯入",
           "relation_patch_end_dropped": "一端是補丁的關係沒有匯入",
           "relation_pdf_end_dropped": "一端是 PDF 的關係沒有匯入",
+          "relation_self_end_dropped": "兩端是同一個對象的關係沒有匯入",
           "relation_todo_end_dropped": "一端是待辦的關係沒有匯入",
           "table_cell_marks": "表格儲存格裡的文字格式沒有保留（新版儲存格只存文字）",
           "table_cell_paragraphs_joined": "表格儲存格裡的幾段合成一段，中間用段內換行",
@@ -418,12 +420,17 @@
           "unknown_inline": "正文裡有新版不認識的行內物件，已從正文裡移除，原樣記在回執裡",
           "unknown_mark": "有新版不認識的文字格式，文字保留，格式移除"
         },
+        "lossy_dialog": {
+          "entity_link_to_asset_kept_as_text": "正文中指向圖片或 PDF 素材的連結，素材沒有檔案、無處可連，已轉為一般文字",
+          "task_status_follows_tick": "清單項目關聯的待辦狀態與勾選不一致，已以清單項目的勾選為準"
+        },
         "material": {
           "empty_folder": "空的素材夾「{{name}}」",
           "unimported_folder": "裡面的素材都沒有帶過來的素材夾「{{name}}」",
           "unknown_kind": "不認識種類（{{kind}}）的素材「{{name}}」",
           "without_file": "沒有檔案的素材「{{name}}」"
-        }
+        },
+        "materials_heading": "舊版素材裡沒有帶過來的"
       },
       "notice": {
         "carry_on": "接著匯入",

@@ -406,9 +406,11 @@
           "ordered_list_start": "Die Startnummer nummerierter Listen wurde nicht übernommen",
           "relation_comment_end_dropped": "Beziehungen mit einem Kommentar an einem Ende wurden nicht importiert",
           "relation_image_end_dropped": "Beziehungen mit einem Bild an einem Ende wurden nicht importiert",
+          "relation_missing_entry_dropped": "Beziehungen, deren eines Ende nicht mehr existiert, wurden nicht importiert",
           "relation_other_end_dropped": "Beziehungen mit anderem Material an einem Ende wurden nicht importiert",
           "relation_patch_end_dropped": "Beziehungen mit einem Patch an einem Ende wurden nicht importiert",
           "relation_pdf_end_dropped": "Beziehungen mit einem PDF an einem Ende wurden nicht importiert",
+          "relation_self_end_dropped": "Beziehungen, deren beide Enden dasselbe sind, wurden nicht importiert",
           "relation_todo_end_dropped": "Beziehungen mit einer Aufgabe an einem Ende wurden nicht importiert",
           "table_cell_marks": "Textformatierung in Tabellenzellen wurde nicht übernommen (Zellen der neuen Version speichern nur Text)",
           "table_cell_paragraphs_joined": "Mehrere Absätze in einer Tabellenzelle wurden zu einem zusammengefasst, getrennt durch Zeilenumbrüche",
@@ -421,12 +423,17 @@
           "unknown_inline": "Inline-Objekte, die die neue Version nicht kennt, wurden aus dem Text entfernt und unverändert im Importprotokoll festgehalten",
           "unknown_mark": "Textformatierung, die die neue Version nicht kennt: Der Text blieb, die Formatierung wurde entfernt"
         },
+        "lossy_dialog": {
+          "entity_link_to_asset_kept_as_text": "Links im Text auf Bild- oder PDF-Materialien ohne Datei hatten kein Ziel und wurden zu normalem Text",
+          "task_status_follows_tick": "Wo der Aufgabenstatus eines Checklistenpunkts nicht zu seinem Häkchen passte, gilt das Häkchen"
+        },
         "material": {
           "empty_folder": "Leerer Materialordner „{{name}}“",
           "unimported_folder": "Materialordner „{{name}}“, aus dem kein Material übernommen wurde",
           "unknown_kind": "Material unbekannter Art ({{kind}}) „{{name}}“",
           "without_file": "Material ohne Datei „{{name}}“"
-        }
+        },
+        "materials_heading": "Materialien aus Version 0.1, die nicht übernommen wurden"
       },
       "notice": {
         "carry_on": "Import fortsetzen",

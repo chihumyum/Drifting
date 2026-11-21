@@ -406,9 +406,11 @@
           "ordered_list_start": "The starting number of numbered lists was not kept",
           "relation_comment_end_dropped": "Relations with a comment at one end were not imported",
           "relation_image_end_dropped": "Relations with an image at one end were not imported",
+          "relation_missing_entry_dropped": "Relations with an end that no longer exists were not imported",
           "relation_other_end_dropped": "Relations with another kind of material at one end were not imported",
           "relation_patch_end_dropped": "Relations with a patch at one end were not imported",
           "relation_pdf_end_dropped": "Relations with a PDF at one end were not imported",
+          "relation_self_end_dropped": "Relations whose two ends are the same thing were not imported",
           "relation_todo_end_dropped": "Relations with a to-do at one end were not imported",
           "table_cell_marks": "Text formatting in table cells was not kept (cells in the new version hold plain text)",
           "table_cell_paragraphs_joined": "Several paragraphs in a table cell were joined into one, with line breaks between them",
@@ -421,12 +423,17 @@
           "unknown_inline": "Inline objects the new version doesn't know were removed from the text and recorded as they were in the import record",
           "unknown_mark": "Text formatting the new version doesn't know: the text was kept, the formatting removed"
         },
+        "lossy_dialog": {
+          "entity_link_to_asset_kept_as_text": "Links in the text to image or PDF materials that have no file had nothing to point to and became plain text",
+          "task_status_follows_tick": "Where a checklist item's to-do status disagreed with its tick, the tick was followed"
+        },
         "material": {
           "empty_folder": "Empty material folder “{{name}}”",
           "unimported_folder": "Material folder “{{name}}”, none of whose materials came over",
           "unknown_kind": "Material of an unknown kind ({{kind}}) “{{name}}”",
           "without_file": "Material without a file “{{name}}”"
-        }
+        },
+        "materials_heading": "Materials from 0.1 that did not come over"
       },
       "notice": {
         "carry_on": "Resume import",

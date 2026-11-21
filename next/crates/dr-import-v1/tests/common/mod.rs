@@ -482,9 +482,13 @@ pub const SECOND_BOOK_NAME: &str = "第二本：一个名字很长、用来看�
 /// with a header row and a merged cell (in the note, whose cache is its
 /// body), an asset whose file is gone, three of the import's defaults (a
 /// chapter without a book order, an idea with one, two writing-day rows of
-/// one device and day), an empty material folder and a web-link material;
-/// and a second book with an empty folder, a web-link material and a
-/// missing asset file of its own.
+/// one device and day), an empty material folder and a web-link material,
+/// an image material without a file that the note links to (the link stays
+/// as words), the note's checklist item whose TODO says resolved while the
+/// tick is off, and two of the author's relations the book cannot hold (the
+/// same element at both ends, an element that is gone at one); and a second
+/// book with an empty folder, a web-link material and a missing asset file
+/// of its own.
 pub fn build_differences() -> Old {
     let old = build_v3(true);
     let c = Connection::open(&old.db).unwrap();
@@ -497,6 +501,34 @@ pub fn build_differences() -> Old {
         )
         .unwrap();
     let mut body: serde_json::Value = serde_json::from_str(&note).unwrap();
+    // An image material whose file record is gone, and a link to it.
+    const IMAGE_WITHOUT_FILE: &str = "01900000-0000-7000-8000-000000010005";
+    exec(
+        &c,
+        "INSERT INTO library_item (id, project_id, title, kind, asset_id, external_url, body_json, notes_json, preview_image_url, order_key, created_at, updated_at, provenance_json, folder_id, task_todos) VALUES (?1, ?2, '没文件的图', 'image', '01900000-0000-7000-8000-000000010006', NULL, NULL, NULL, NULL, 10, ?3, ?3, NULL, NULL, 0)",
+        params![IMAGE_WITHOUT_FILE, BOOK, T0],
+    );
+    body["content"].as_array_mut().unwrap().push(serde_json::json!({
+        "type": "paragraph",
+        "attrs": {"id": "np-link"},
+        "content": [
+            {"type": "text", "text": "见"},
+            {"type": "text", "text": "那张图", "marks": [{"type": "entityLink", "attrs": {"targetKind": "library_item", "targetId": IMAGE_WITHOUT_FILE}}]},
+        ]
+    }));
+    // The checklist item is not ticked; its TODO says resolved.
+    exec(
+        &c,
+        "UPDATE comment SET status = 'resolved', resolved_at = ?2 WHERE id = ?1",
+        params![NOTE_TODO, T1],
+    );
+    // The author's relations with the same thing at both ends, and with
+    // nothing at one.
+    exec(
+        &c,
+        "INSERT INTO entity_relation (id, project_id, from_kind, from_id, to_kind, to_id, relation_type_id, created_at, updated_at) VALUES ('rel-self', ?1, 'element', ?2, 'element', ?2, ?3, ?4, ?4), ('rel-gone', ?1, 'element', ?2, 'element', 'gone-element', ?3, ?4, ?4)",
+        params![BOOK, ELEMENT, REL_TYPE, T0],
+    );
     let cell = |kind: &str, text: &str, colspan: i64| serde_json::json!({"type": kind, "attrs": {"colspan": colspan, "rowspan": 1}, "content": [{"type": "paragraph", "content": [{"type": "text", "text": text}]}]});
     body["content"].as_array_mut().unwrap().push(serde_json::json!({
         "type": "table",

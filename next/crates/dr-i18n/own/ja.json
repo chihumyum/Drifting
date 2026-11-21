@@ -115,9 +115,11 @@
           "ordered_list_start": "番号付きリストの開始番号は残していません",
           "relation_comment_end_dropped": "片方がコメントの関係はインポートしていません",
           "relation_image_end_dropped": "片方が画像の関係はインポートしていません",
+          "relation_missing_entry_dropped": "片方がもう存在しない関係はインポートしていません",
           "relation_other_end_dropped": "片方がそのほかの資料の関係はインポートしていません",
           "relation_patch_end_dropped": "片方がパッチの関係はインポートしていません",
           "relation_pdf_end_dropped": "片方が PDF の関係はインポートしていません",
+          "relation_self_end_dropped": "両端が同じ対象の関係はインポートしていません",
           "relation_todo_end_dropped": "片方が ToDo の関係はインポートしていません",
           "table_cell_marks": "表のセル内の文字書式は残していません（新版のセルは文字だけを保存します）",
           "table_cell_paragraphs_joined": "表のセル内の複数の段落は、段落内改行でつないで一つにしました",
@@ -130,12 +132,17 @@
           "unknown_inline": "新版が認識できないインライン要素を本文から取り除き、元のままインポート記録に残しました",
           "unknown_mark": "新版が認識できない文字書式がありました。文字は残し、書式を外しました"
         },
+        "lossy_dialog": {
+          "entity_link_to_asset_kept_as_text": "本文中の画像や PDF 資料へのリンクは、資料にファイルがなくリンク先がないため普通の文字にしました",
+          "task_status_follows_tick": "チェックリスト項目の ToDo の状態がチェックと食い違っていたため、項目のチェックに合わせました"
+        },
         "material": {
           "empty_folder": "空の資料フォルダー「{{name}}」",
           "unimported_folder": "中の資料が一つも持ってこられなかった資料フォルダー「{{name}}」",
           "unknown_kind": "種類（{{kind}}）を認識できない資料「{{name}}」",
           "without_file": "ファイルのない資料「{{name}}」"
-        }
+        },
+        "materials_heading": "旧版の資料で持ってこなかったもの"
       },
       "notice": {
         "carry_on": "インポートを再開",

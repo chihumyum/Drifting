@@ -568,16 +568,45 @@ pub struct Difference {
 }
 
 impl Difference {
-    /// The sentence in `strings`' language.
+    /// The sentence in `strings`' language, as summary.md says it.
     pub fn text(&self, strings: &I18n) -> String {
+        self.say(self.sentence, strings)
+    }
+
+    /// The sentence as the done dialog says it: summary.md's, but for the
+    /// two that end in 「逐条列在下方」, which the dialog says without that
+    /// clause, having no list below them ([`dialog_sentence`]).
+    pub fn dialog_text(&self, strings: &I18n) -> String {
+        self.say(dialog_sentence(self.sentence), strings)
+    }
+
+    fn say(&self, sentence: Key, strings: &I18n) -> String {
         let args: Vec<dr_i18n::Arg<'_>> = self
             .args
             .iter()
             .map(|(name, value)| (*name, value as &dyn std::fmt::Display))
             .collect();
-        strings.fmt(self.sentence, &args)
+        strings.fmt(sentence, &args)
     }
 }
+
+/// The dialog's form of `sentence`: the two lossy sentences that point at
+/// summary.md's lists below them (「逐条列在下方」) without that clause
+/// (2026-11-21, the author's decision); any other sentence as it is.
+pub fn dialog_sentence(sentence: Key) -> Key {
+    if sentence == k::lossy::ENTITY_LINK_TO_ASSET_KEPT_AS_TEXT {
+        k::lossy_dialog::ENTITY_LINK_TO_ASSET_KEPT_AS_TEXT
+    } else if sentence == k::lossy::TASK_STATUS_FOLLOWS_TICK {
+        k::lossy_dialog::TASK_STATUS_FOLLOWS_TICK
+    } else {
+        sentence
+    }
+}
+
+/// summary.md's heading of the materials block (「旧版素材里没有带过来的」,
+/// there followed by a colon); the done dialog says it above each book's
+/// material lines.
+pub const MATERIALS_HEADING: Key = k::MATERIALS_HEADING;
 
 /// The sentence of a default of `crate::defaults` (its code); `None` for a
 /// code this version has no sentence for (summary.md and the dialog then
@@ -686,6 +715,11 @@ pub fn lossy_sentence(key: &str) -> Option<Key> {
         "relation-todo-end-dropped" => k::lossy::RELATION_TODO_END_DROPPED,
         "relation-patch-end-dropped" => k::lossy::RELATION_PATCH_END_DROPPED,
         "relation-other-end-dropped" => k::lossy::RELATION_OTHER_END_DROPPED,
+        // An author's relation with the same thing at both ends, or with
+        // nothing at one (the defaults round; its pair is in the receipt's
+        // originals, `relations`, `dropped`).
+        "relation-self-end-dropped" => k::lossy::RELATION_SELF_END_DROPPED,
+        "relation-missing-entry-dropped" => k::lossy::RELATION_MISSING_ENTRY_DROPPED,
         "act-binding-shared-idea-split" => k::lossy::ACT_BINDING_SHARED_IDEA_SPLIT,
         "act-binding-kept-existing-placement" => k::lossy::ACT_BINDING_KEPT_EXISTING_PLACEMENT,
         "entity-link-to-asset-kept-as-text" => k::lossy::ENTITY_LINK_TO_ASSET_KEPT_AS_TEXT,
@@ -1046,7 +1080,7 @@ pub fn summary_zh(r: &Receipt) -> String {
             .filter(|d| !matches!(d, MaterialDropped::SameFile { .. }))
             .collect();
         if !not_imported.is_empty() {
-            s.push_str("旧版素材里没有带过来的：\n\n");
+            s.push_str(&format!("{}：\n\n", zh.t(MATERIALS_HEADING)));
             for d in not_imported {
                 let Some((sentence, name, kind, id)) = material_line(d) else {
                     continue;
@@ -1188,8 +1222,19 @@ mod tests {
         codes
     }
 
+    /// Why the catalog drops a relation, read from its source: every
+    /// `relation-…-dropped` literal of `book.rs` (a note of the book and
+    /// the reason in the receipt's originals, `relations`, `dropped`).
+    fn relation_drop_codes() -> BTreeSet<String> {
+        include_str!("book.rs")
+            .lines()
+            .flat_map(kebab_literals)
+            .filter(|l| l.starts_with("relation-") && l.ends_with("-dropped"))
+            .collect()
+    }
+
     #[test]
-    fn every_code_a_default_records_has_a_sentence_of_its_own() {
+    fn every_code_a_default_or_the_catalog_records_has_a_sentence_of_its_own() {
         let recorded = recorded_codes();
         assert!(recorded.len() > 30, "{recorded:?}");
         for code in &recorded {
@@ -1205,6 +1250,21 @@ mod tests {
             );
         }
         assert!(default_sentence("a-code-nobody-knows").is_none());
+        // No exception: the two the defaults round added are among them.
+        let relations = relation_drop_codes();
+        for code in [
+            "relation-self-end-dropped",
+            "relation-missing-entry-dropped",
+        ] {
+            assert!(relations.contains(code), "{relations:?}");
+        }
+        assert!(relations.len() >= 8, "{relations:?}");
+        for code in &relations {
+            assert!(
+                lossy_sentence(code).is_some(),
+                "{code} is recorded but has no sentence: summary.md and the dialog would leave it out"
+            );
+        }
     }
 
     /// Every form of note key `lossy_sentence` knows.
@@ -1237,6 +1297,8 @@ mod tests {
         "relation-todo-end-dropped",
         "relation-patch-end-dropped",
         "relation-other-end-dropped",
+        "relation-self-end-dropped",
+        "relation-missing-entry-dropped",
         "act-binding-shared-idea-split",
         "act-binding-kept-existing-placement",
         "entity-link-to-asset-kept-as-text",
@@ -1256,9 +1318,12 @@ mod tests {
         }
         reached.insert(DEFAULT_FALLBACK.name());
         for key in LOSSY_KEYS {
-            reached.insert(lossy_sentence(key).expect(key).name());
+            let sentence = lossy_sentence(key).expect(key);
+            reached.insert(sentence.name());
+            reached.insert(dialog_sentence(sentence).name());
         }
         reached.insert(k::ASSETS.name());
+        reached.insert(MATERIALS_HEADING.name());
         for d in [
             MaterialDropped::EmptyFolder {
                 folder_id: "f".into(),
@@ -1377,6 +1442,126 @@ mod tests {
             ),
             "不认识种类（`url`）的素材「怪东西」"
         );
+    }
+
+    /// The author's decisions of 2026-11-21: the two relation codes' words,
+    /// the materials' heading, and the dialog's two sentences without
+    /// 「逐条列在下方」, which are the full sentences minus that last clause
+    /// in every language while summary.md keeps the full ones.
+    #[test]
+    fn the_relation_sentences_the_heading_and_the_dialog_variants() {
+        let zh = I18n::new(Locale::ZhCn, Platform::Mac);
+        let en = I18n::new(Locale::En, Platform::Mac);
+        let self_end = lossy_sentence("relation-self-end-dropped").unwrap();
+        let missing = lossy_sentence("relation-missing-entry-dropped").unwrap();
+        assert_eq!(zh.t(self_end), "两头是同一个对象的关系没有导入");
+        assert_eq!(zh.t(missing), "一头已不存在的关系没有导入");
+        assert_eq!(
+            en.t(self_end),
+            "Relations whose two ends are the same thing were not imported"
+        );
+        assert_eq!(
+            en.t(missing),
+            "Relations with an end that no longer exists were not imported"
+        );
+        assert_eq!(zh.t(MATERIALS_HEADING), "旧版素材里没有带过来的");
+        assert_eq!(
+            en.t(MATERIALS_HEADING),
+            "Materials from 0.1 that did not come over"
+        );
+        let links = lossy_sentence("entity-link-to-asset-kept-as-text").unwrap();
+        let ticks = lossy_sentence("task-status-follows-tick").unwrap();
+        for (full, zh_dialog, en_dialog) in [
+            (
+                links,
+                "正文中指向图片或 PDF 素材的链接，素材没有文件、无处可链，已转为普通文字",
+                "Links in the text to image or PDF materials that have no file had nothing to point to and became plain text",
+            ),
+            (
+                ticks,
+                "清单项关联的待办状态与勾选不一致，已按清单项的勾选为准",
+                "Where a checklist item's to-do status disagreed with its tick, the tick was followed",
+            ),
+        ] {
+            let dialog = dialog_sentence(full);
+            assert_ne!(dialog, full);
+            assert_eq!(zh.t(dialog), zh_dialog);
+            assert_eq!(en.t(dialog), en_dialog);
+            assert_eq!(zh.t(full), format!("{zh_dialog}，逐条列在下方"));
+            for locale in Locale::ALL {
+                let s = I18n::new(locale, Platform::Mac);
+                let (whole, short) = (s.t(full), s.t(dialog));
+                assert!(
+                    whole.starts_with(short) && whole.len() > short.len(),
+                    "{locale:?}: {short:?} is not {whole:?} minus its last clause"
+                );
+            }
+        }
+        // Any other sentence, the dialog says as summary.md does.
+        for key in LOSSY_KEYS.iter().filter(|k| {
+            !matches!(
+                **k,
+                "entity-link-to-asset-kept-as-text" | "task-status-follows-tick"
+            )
+        }) {
+            let sentence = lossy_sentence(key).unwrap();
+            assert_eq!(dialog_sentence(sentence), sentence, "{key}");
+        }
+        // summary.md: the full sentences, the new relation lines, and the
+        // heading with its colon; the dialog: the short ones.
+        let mut b = BookRecord {
+            name: "书".into(),
+            status: "imported".into(),
+            ..Default::default()
+        };
+        for key in [
+            "entity-link-to-asset-kept-as-text",
+            "task-status-follows-tick",
+            "relation-self-end-dropped",
+            "relation-missing-entry-dropped",
+        ] {
+            b.notes.0.insert(key.into(), 1);
+        }
+        b.materials_dropped.push(MaterialDropped::EmptyFolder {
+            folder_id: "f".into(),
+            name: "空夹".into(),
+        });
+        let lines = differences(&b);
+        let shown: Vec<String> = lines.iter().map(|d| d.dialog_text(&zh)).collect();
+        assert!(
+            shown.contains(&"清单项关联的待办状态与勾选不一致，已按清单项的勾选为准".to_owned())
+        );
+        assert!(shown.contains(&"两头是同一个对象的关系没有导入".to_owned()));
+        assert!(!shown.iter().any(|t| t.contains("逐条列在下方")));
+        let summary = summary_zh(&Receipt {
+            importer: "t",
+            started_ms: 0,
+            finished_ms: 0,
+            source_sha256: String::new(),
+            source_bytes: 0,
+            schema_level_before: 0,
+            gate: Gate::decide(false, None, &[], Default::default()),
+            accepted: Default::default(),
+            books: vec![b],
+            docs: Vec::new(),
+            anchors: Vec::new(),
+            originals: Vec::new(),
+            orphan_yjs_docs: 0,
+            archived_rows: BTreeMap::new(),
+            local_rows: BTreeMap::new(),
+            installation_id_adopted: false,
+            history_retention: "kept",
+            cancelled: false,
+        });
+        for line in [
+            "- 正文中指向图片或 PDF 素材的链接，素材没有文件、无处可链，已转为普通文字，逐条列在下方（1 处，`entity-link-to-asset-kept-as-text`）",
+            "- 清单项关联的待办状态与勾选不一致，已按清单项的勾选为准，逐条列在下方（1 处，`task-status-follows-tick`）",
+            "- 两头是同一个对象的关系没有导入（1 处，`relation-self-end-dropped`）",
+            "- 一头已不存在的关系没有导入（1 处，`relation-missing-entry-dropped`）",
+            "旧版素材里没有带过来的：\n\n- 空的素材夹「空夹」（`f`）",
+        ] {
+            assert!(summary.contains(line), "{line} in {summary}");
+        }
     }
 
     fn adjustment(code: &str) -> crate::defaults::Adjustment {

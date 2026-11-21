@@ -271,6 +271,10 @@ fn a_library_with_differences_says_the_same_in_summary_md_and_the_receipt() {
         (Block::Defaults, "writing-day-duplicate"),
         (Block::Lossy, "table-cell-span"),
         (Block::Lossy, "table-header-cell"),
+        (Block::Lossy, "relation-self-end-dropped"),
+        (Block::Lossy, "relation-missing-entry-dropped"),
+        (Block::Lossy, "entity-link-to-asset-kept-as-text"),
+        (Block::Lossy, "task-status-follows-tick"),
         (Block::Materials, ""),
     ] {
         assert!(has(&first, block, code), "{block:?} {code}: {first:#?}");
@@ -278,6 +282,43 @@ fn a_library_with_differences_says_the_same_in_summary_md_and_the_receipt() {
     assert!(has(&second, Block::Assets, "") && has(&second, Block::Materials, ""));
     let assets = first.iter().find(|d| d.block == Block::Assets).unwrap();
     assert_eq!(assets.count, 1);
+    // summary.md says the two that point at its lists in full, and the
+    // relations the book could not hold; the dialog says the two short.
+    let zh = I18n::new(Locale::ZhCn, Platform::Mac);
+    let en = I18n::new(Locale::En, Platform::Mac);
+    for line in [
+        "- 两头是同一个对象的关系没有导入（1 处，`relation-self-end-dropped`）",
+        "- 一头已不存在的关系没有导入（1 处，`relation-missing-entry-dropped`）",
+        "- 正文中指向图片或 PDF 素材的链接，素材没有文件、无处可链，已转为普通文字，逐条列在下方（1 处，`entity-link-to-asset-kept-as-text`）",
+        "- 清单项关联的待办状态与勾选不一致，已按清单项的勾选为准，逐条列在下方（1 处，`task-status-follows-tick`）",
+        "旧版素材里没有带过来的：",
+        "- 没有文件的素材「没文件的图」",
+    ] {
+        assert!(summary.contains(line), "{line} in {summary}");
+    }
+    let said = |code: &str, strings: &I18n| {
+        first
+            .iter()
+            .find(|d| d.codes.iter().any(|c| c == code))
+            .unwrap()
+            .dialog_text(strings)
+    };
+    assert_eq!(
+        said("entity-link-to-asset-kept-as-text", &zh),
+        "正文中指向图片或 PDF 素材的链接，素材没有文件、无处可链，已转为普通文字"
+    );
+    assert_eq!(
+        said("task-status-follows-tick", &zh),
+        "清单项关联的待办状态与勾选不一致，已按清单项的勾选为准"
+    );
+    assert_eq!(
+        said("task-status-follows-tick", &en),
+        "Where a checklist item's to-do status disagreed with its tick, the tick was followed"
+    );
+    assert_eq!(
+        said("relation-missing-entry-dropped", &en),
+        "Relations with an end that no longer exists were not imported"
+    );
     // Every default this import took has a sentence of its own.
     for b in &r.books {
         for a in &b.adjustments {

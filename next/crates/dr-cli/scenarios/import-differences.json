@@ -1,5 +1,5 @@
 {
-  "about": "M10 import UI (decisions 六 甲 / 七 甲): a synthetic 0.1 library with something of each kind that is not quite the same as in 0.1 (two books) is imported through the bookshelf's ordinary dialog, four times into new targets: Chinese and English, light and dark. The done dialog's line under the count lines says the total the state has, is a named button, opens the list by book (which scrolls inside the dialog) and closes it. Secondary display, the scenario's own synthetic profile; screenshots are looked at by hand.",
+  "about": "M10 import UI (decisions 六 甲 / 七 甲): a synthetic 0.1 library with something of each kind that is not quite the same as in 0.1 (two books) is imported through the bookshelf's ordinary dialog, four times into new targets: Chinese and English, light and dark. The done dialog's line under the count lines says the total the state has, is a named button, opens the list by book (which scrolls inside the dialog) and closes it. The list (the author's decisions of 2026-11-21) says the relations the book could not hold, puts summary.md's materials heading above each book's material lines, and says the two sentences that end in 「逐条列在下方」 in summary.md without that clause. Secondary display, the scenario's own synthetic profile; screenshots are looked at by hand.",
   "steps": [
     {
       "legacy": "sample-v3-differences",
@@ -100,19 +100,19 @@
     {
       "app": "state.get",
       "expect": {
-        "/import/differences/total": 19,
+        "/import/differences/total": 24,
         "/import/differences/open": false,
-        "/import/books/0/differing": 16,
+        "/import/books/0/differing": 21,
         "/import/books/1/differing": 3
       },
       "save": "done_0",
-      "note": "《阿Q正传》 16 (1 asset file, 4 by the defaults, 9 lossy, 2 materials), the second book 3: what each book's summary.md lists."
+      "note": "《阿Q正传》 21 (1 asset file, 4 by the defaults, 13 lossy, 3 materials), the second book 3: what each book's summary.md lists."
     },
     {
       "app": "ui.find",
       "params": {
         "role": "Button",
-        "label": "有 19 处和旧版不完全一样",
+        "label": "有 24 处和旧版不完全一样",
         "timeout_ms": 10000
       },
       "expect": {
@@ -135,7 +135,7 @@
       "app": "ui.press",
       "params": {
         "role": "Button",
-        "label": "有 19 处和旧版不完全一样"
+        "label": "有 24 处和旧版不完全一样"
       }
     },
     {
@@ -151,7 +151,7 @@
       "app": "ui.find",
       "params": {
         "role": "Button",
-        "label": "有 19 处和旧版不完全一样"
+        "label": "有 24 处和旧版不完全一样"
       },
       "expect": {
         "/count": 1
@@ -180,6 +180,70 @@
       "note": "A sentence of the list with its count, as a screen reader reads it."
     },
     {
+      "app": "ui.find",
+      "params": {
+        "role": "StaticText",
+        "label": "旧版素材里没有带过来的"
+      },
+      "expect": {
+        "/count": 2
+      },
+      "note": "summary.md's heading of the materials block, above each book's material lines (both books have some)."
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "StaticText",
+        "label": "清单项关联的待办状态与勾选不一致，已按清单项的勾选为准 1 处"
+      },
+      "expect": {
+        "/count": 1
+      },
+      "note": "The two sentences that end in 「逐条列在下方」 in summary.md are said without it here."
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "StaticText",
+        "label": "正文中指向图片或 PDF 素材的链接，素材没有文件、无处可链，已转为普通文字 1 处"
+      },
+      "expect": {
+        "/count": 1
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "StaticText",
+        "contains": "逐条列在下方",
+        "absent": true
+      },
+      "expect": {
+        "/count": 0
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "StaticText",
+        "label": "两头是同一个对象的关系没有导入 1 处"
+      },
+      "expect": {
+        "/count": 1
+      },
+      "note": "The relations the book could not hold, with their sentences and counts."
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "StaticText",
+        "label": "一头已不存在的关系没有导入 1 处"
+      },
+      "expect": {
+        "/count": 1
+      }
+    },
+    {
       "app": "ui.wait",
       "params": {
         "until": "time",
@@ -189,6 +253,26 @@
     {
       "app": "ui.screenshot",
       "png": "02-zh-light-open.png"
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": "${first_0.nodes.0.center.0}",
+        "y": "${first_0.nodes.0.center.1}",
+        "dy": 270
+      },
+      "note": "Part way down: the lossy sentences, the two said short among them."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 500
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "03-zh-light-open-middle.png"
     },
     {
       "app": "input.scroll",
@@ -208,13 +292,13 @@
     },
     {
       "app": "ui.screenshot",
-      "png": "03-zh-light-open-end.png"
+      "png": "04-zh-light-open-end.png"
     },
     {
       "app": "ui.press",
       "params": {
         "role": "Button",
-        "label": "有 19 处和旧版不完全一样"
+        "label": "有 24 处和旧版不完全一样"
       }
     },
     {
@@ -339,9 +423,9 @@
     {
       "app": "state.get",
       "expect": {
-        "/import/differences/total": 19,
+        "/import/differences/total": 24,
         "/import/differences/open": false,
-        "/import/books/0/differing": 16,
+        "/import/books/0/differing": 21,
         "/import/books/1/differing": 3
       },
       "save": "done_1"
@@ -350,7 +434,7 @@
       "app": "ui.find",
       "params": {
         "role": "Button",
-        "label": "有 19 处和旧版不完全一样",
+        "label": "有 24 处和旧版不完全一样",
         "timeout_ms": 10000
       },
       "expect": {
@@ -366,13 +450,13 @@
     },
     {
       "app": "ui.screenshot",
-      "png": "04-zh-dark-closed.png"
+      "png": "05-zh-dark-closed.png"
     },
     {
       "app": "ui.press",
       "params": {
         "role": "Button",
-        "label": "有 19 处和旧版不完全一样"
+        "label": "有 24 处和旧版不完全一样"
       }
     },
     {
@@ -388,7 +472,7 @@
       "app": "ui.find",
       "params": {
         "role": "Button",
-        "label": "有 19 处和旧版不完全一样"
+        "label": "有 24 处和旧版不完全一样"
       },
       "expect": {
         "/count": 1
@@ -414,6 +498,67 @@
       }
     },
     {
+      "app": "ui.find",
+      "params": {
+        "role": "StaticText",
+        "label": "旧版素材里没有带过来的"
+      },
+      "expect": {
+        "/count": 2
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "StaticText",
+        "label": "清单项关联的待办状态与勾选不一致，已按清单项的勾选为准 1 处"
+      },
+      "expect": {
+        "/count": 1
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "StaticText",
+        "label": "正文中指向图片或 PDF 素材的链接，素材没有文件、无处可链，已转为普通文字 1 处"
+      },
+      "expect": {
+        "/count": 1
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "StaticText",
+        "contains": "逐条列在下方",
+        "absent": true
+      },
+      "expect": {
+        "/count": 0
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "StaticText",
+        "label": "两头是同一个对象的关系没有导入 1 处"
+      },
+      "expect": {
+        "/count": 1
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "StaticText",
+        "label": "一头已不存在的关系没有导入 1 处"
+      },
+      "expect": {
+        "/count": 1
+      }
+    },
+    {
       "app": "ui.wait",
       "params": {
         "until": "time",
@@ -422,7 +567,26 @@
     },
     {
       "app": "ui.screenshot",
-      "png": "05-zh-dark-open.png"
+      "png": "06-zh-dark-open.png"
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": "${first_1.nodes.0.center.0}",
+        "y": "${first_1.nodes.0.center.1}",
+        "dy": 270
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 500
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "07-zh-dark-open-middle.png"
     },
     {
       "app": "input.scroll",
@@ -441,13 +605,13 @@
     },
     {
       "app": "ui.screenshot",
-      "png": "06-zh-dark-open-end.png"
+      "png": "08-zh-dark-open-end.png"
     },
     {
       "app": "ui.press",
       "params": {
         "role": "Button",
-        "label": "有 19 处和旧版不完全一样"
+        "label": "有 24 处和旧版不完全一样"
       }
     },
     {
@@ -572,9 +736,9 @@
     {
       "app": "state.get",
       "expect": {
-        "/import/differences/total": 19,
+        "/import/differences/total": 24,
         "/import/differences/open": false,
-        "/import/books/0/differing": 16,
+        "/import/books/0/differing": 21,
         "/import/books/1/differing": 3
       },
       "save": "done_2"
@@ -583,7 +747,7 @@
       "app": "ui.find",
       "params": {
         "role": "Button",
-        "label": "19 places aren't quite the same as in 0.1",
+        "label": "24 places aren't quite the same as in 0.1",
         "timeout_ms": 10000
       },
       "expect": {
@@ -599,13 +763,13 @@
     },
     {
       "app": "ui.screenshot",
-      "png": "07-en-light-closed.png"
+      "png": "09-en-light-closed.png"
     },
     {
       "app": "ui.press",
       "params": {
         "role": "Button",
-        "label": "19 places aren't quite the same as in 0.1"
+        "label": "24 places aren't quite the same as in 0.1"
       }
     },
     {
@@ -621,7 +785,7 @@
       "app": "ui.find",
       "params": {
         "role": "Button",
-        "label": "19 places aren't quite the same as in 0.1"
+        "label": "24 places aren't quite the same as in 0.1"
       },
       "expect": {
         "/count": 1
@@ -647,6 +811,67 @@
       }
     },
     {
+      "app": "ui.find",
+      "params": {
+        "role": "StaticText",
+        "label": "Materials from 0.1 that did not come over"
+      },
+      "expect": {
+        "/count": 2
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "StaticText",
+        "label": "Where a checklist item's to-do status disagreed with its tick, the tick was followed 1 place"
+      },
+      "expect": {
+        "/count": 1
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "StaticText",
+        "label": "Links in the text to image or PDF materials that have no file had nothing to point to and became plain text 1 place"
+      },
+      "expect": {
+        "/count": 1
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "StaticText",
+        "contains": "listed below",
+        "absent": true
+      },
+      "expect": {
+        "/count": 0
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "StaticText",
+        "label": "Relations whose two ends are the same thing were not imported 1 place"
+      },
+      "expect": {
+        "/count": 1
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "StaticText",
+        "label": "Relations with an end that no longer exists were not imported 1 place"
+      },
+      "expect": {
+        "/count": 1
+      }
+    },
+    {
       "app": "ui.wait",
       "params": {
         "until": "time",
@@ -655,7 +880,26 @@
     },
     {
       "app": "ui.screenshot",
-      "png": "08-en-light-open.png"
+      "png": "10-en-light-open.png"
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": "${first_2.nodes.0.center.0}",
+        "y": "${first_2.nodes.0.center.1}",
+        "dy": 270
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 500
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "11-en-light-open-middle.png"
     },
     {
       "app": "input.scroll",
@@ -674,13 +918,13 @@
     },
     {
       "app": "ui.screenshot",
-      "png": "09-en-light-open-end.png"
+      "png": "12-en-light-open-end.png"
     },
     {
       "app": "ui.press",
       "params": {
         "role": "Button",
-        "label": "19 places aren't quite the same as in 0.1"
+        "label": "24 places aren't quite the same as in 0.1"
       }
     },
     {
@@ -805,9 +1049,9 @@
     {
       "app": "state.get",
       "expect": {
-        "/import/differences/total": 19,
+        "/import/differences/total": 24,
         "/import/differences/open": false,
-        "/import/books/0/differing": 16,
+        "/import/books/0/differing": 21,
         "/import/books/1/differing": 3
       },
       "save": "done_3"
@@ -816,7 +1060,7 @@
       "app": "ui.find",
       "params": {
         "role": "Button",
-        "label": "19 places aren't quite the same as in 0.1",
+        "label": "24 places aren't quite the same as in 0.1",
         "timeout_ms": 10000
       },
       "expect": {
@@ -832,13 +1076,13 @@
     },
     {
       "app": "ui.screenshot",
-      "png": "10-en-dark-closed.png"
+      "png": "13-en-dark-closed.png"
     },
     {
       "app": "ui.press",
       "params": {
         "role": "Button",
-        "label": "19 places aren't quite the same as in 0.1"
+        "label": "24 places aren't quite the same as in 0.1"
       }
     },
     {
@@ -854,7 +1098,7 @@
       "app": "ui.find",
       "params": {
         "role": "Button",
-        "label": "19 places aren't quite the same as in 0.1"
+        "label": "24 places aren't quite the same as in 0.1"
       },
       "expect": {
         "/count": 1
@@ -880,6 +1124,67 @@
       }
     },
     {
+      "app": "ui.find",
+      "params": {
+        "role": "StaticText",
+        "label": "Materials from 0.1 that did not come over"
+      },
+      "expect": {
+        "/count": 2
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "StaticText",
+        "label": "Where a checklist item's to-do status disagreed with its tick, the tick was followed 1 place"
+      },
+      "expect": {
+        "/count": 1
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "StaticText",
+        "label": "Links in the text to image or PDF materials that have no file had nothing to point to and became plain text 1 place"
+      },
+      "expect": {
+        "/count": 1
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "StaticText",
+        "contains": "listed below",
+        "absent": true
+      },
+      "expect": {
+        "/count": 0
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "StaticText",
+        "label": "Relations whose two ends are the same thing were not imported 1 place"
+      },
+      "expect": {
+        "/count": 1
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "StaticText",
+        "label": "Relations with an end that no longer exists were not imported 1 place"
+      },
+      "expect": {
+        "/count": 1
+      }
+    },
+    {
       "app": "ui.wait",
       "params": {
         "until": "time",
@@ -888,7 +1193,26 @@
     },
     {
       "app": "ui.screenshot",
-      "png": "11-en-dark-open.png"
+      "png": "14-en-dark-open.png"
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": "${first_3.nodes.0.center.0}",
+        "y": "${first_3.nodes.0.center.1}",
+        "dy": 270
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 500
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "15-en-dark-open-middle.png"
     },
     {
       "app": "input.scroll",
@@ -907,13 +1231,13 @@
     },
     {
       "app": "ui.screenshot",
-      "png": "12-en-dark-open-end.png"
+      "png": "16-en-dark-open-end.png"
     },
     {
       "app": "ui.press",
       "params": {
         "role": "Button",
-        "label": "19 places aren't quite the same as in 0.1"
+        "label": "24 places aren't quite the same as in 0.1"
       }
     },
     {

@@ -1063,13 +1063,13 @@ fn the_done_dialog_says_how_much_differs_from_0_1_and_lists_it_by_book(cx: &mut 
         total += differing;
     }
     assert_eq!(done.differences(), total);
-    assert_eq!(total, 19, "{:#?}", done.books);
+    assert_eq!(total, 24, "{:#?}", done.books);
 
     for (lang, line) in [
-        (dr_i18n::Locale::ZhCn, "有 19 处和旧版不完全一样"),
+        (dr_i18n::Locale::ZhCn, "有 24 处和旧版不完全一样"),
         (
             dr_i18n::Locale::En,
-            "19 places aren't quite the same as in 0.1",
+            "24 places aren't quite the same as in 0.1",
         ),
     ] {
         locale(cx, lang);
@@ -1107,6 +1107,67 @@ fn the_done_dialog_says_how_much_differs_from_0_1_and_lists_it_by_book(cx: &mut 
             match lang {
                 dr_i18n::Locale::ZhCn => "表格的合并单元格和列宽没有保留",
                 _ => "Merged table cells and column widths were not kept",
+            }
+        );
+        // The two that end in 「逐条列在下方」 in summary.md are said without
+        // it here; the relations the book could not hold have their words.
+        let said = |code: &str| {
+            first
+                .iter()
+                .find(|d| d.codes.iter().any(|c| c == code))
+                .unwrap()
+                .dialog_text(&s)
+        };
+        let (ticks, links, self_end) = match lang {
+            dr_i18n::Locale::ZhCn => (
+                "清单项关联的待办状态与勾选不一致，已按清单项的勾选为准",
+                "正文中指向图片或 PDF 素材的链接，素材没有文件、无处可链，已转为普通文字",
+                "两头是同一个对象的关系没有导入",
+            ),
+            _ => (
+                "Where a checklist item's to-do status disagreed with its tick, the tick was followed",
+                "Links in the text to image or PDF materials that have no file had nothing to point to and became plain text",
+                "Relations whose two ends are the same thing were not imported",
+            ),
+        };
+        assert_eq!(said("task-status-follows-tick"), ticks);
+        assert_eq!(said("entity-link-to-asset-kept-as-text"), links);
+        assert_eq!(said("relation-self-end-dropped"), self_end);
+        // Each book has material lines: summary.md's heading of that block
+        // sits right above the first of them, below the line before.
+        for (i, book) in done.books.iter().enumerate() {
+            let j = book
+                .differences
+                .iter()
+                .position(|d| d.block == dr_import_v1::receipt::Block::Materials)
+                .unwrap();
+            let heading = cx
+                .debug_bounds(Box::leak(
+                    format!("legacy-import-differences-materials-{i}").into_boxed_str(),
+                ))
+                .unwrap_or_else(|| panic!("book {i} has no heading"));
+            let below = cx
+                .debug_bounds(Box::leak(
+                    format!("legacy-import-difference-{i}-{j}").into_boxed_str(),
+                ))
+                .unwrap();
+            assert!(heading.bottom() <= below.top(), "{heading:?} {below:?}");
+            if j > 0 {
+                let above = cx
+                    .debug_bounds(Box::leak(
+                        format!("legacy-import-difference-{i}-{}", j - 1).into_boxed_str(),
+                    ))
+                    .unwrap();
+                assert!(above.bottom() <= heading.top(), "{above:?} {heading:?}");
+            }
+        }
+        let heading =
+            cx.update(|_, cx| dr_shell::strings::t(cx, dr_import_v1::receipt::MATERIALS_HEADING));
+        assert_eq!(
+            heading,
+            match lang {
+                dr_i18n::Locale::ZhCn => "旧版素材里没有带过来的",
+                _ => "Materials from 0.1 that did not come over",
             }
         );
         // Opening scrolls inside the dialog: the list keeps to its height.
@@ -1220,4 +1281,17 @@ fn the_line_comes_after_the_count_lines_and_is_a_named_button(cx: &mut TestAppCo
     ] {
         assert!(body.contains(needed), "{needed}");
     }
+    // Open, no material lines: no heading.
+    click(cx, "legacy-import-differences-line");
+    assert!(open(cx));
+    assert!(cx.debug_bounds("legacy-import-difference-0-0").is_some());
+    assert!(
+        cx.debug_bounds("legacy-import-differences-materials-0")
+            .is_none()
+    );
+    // The list says each line as the dialog does (`dialog_text`), never
+    // summary.md's own form.
+    let at = src.find("fn differences(").unwrap();
+    let body = &src[at..at + src[at..].find("\n}\n").unwrap()];
+    assert!(body.contains(".dialog_text(strings)") && !body.contains(".text(strings)"));
 }
