@@ -65,8 +65,8 @@ pub const TABLES: &[TableFate] = &[
     ),
     t(
         "agent_chat_branch",
-        Drop,
-        "帮手对话扩展的投递状态，留在旧库",
+        AgentArchive,
+        "对话的分支（接着别的设备的对话聊时分出一支），只读搬过去，旧对话按它只列现在那一支",
     ),
     t(
         "agent_chat_cursor",
@@ -387,5 +387,18 @@ mod tests {
             .unwrap();
         let listed: BTreeSet<String> = TABLES.iter().map(|t| t.table.to_string()).collect();
         assert_eq!(tables, listed);
+    }
+
+    /// What the archive copies (`receipt::write_archive`) is what this list
+    /// says goes into it.
+    #[test]
+    fn the_archive_copies_the_agent_archive_tables() {
+        let archived: BTreeSet<&str> = TABLES
+            .iter()
+            .filter(|t| t.fate == Fate::AgentArchive)
+            .map(|t| t.table)
+            .collect();
+        let copied: BTreeSet<&str> = crate::receipt::AGENT_ARCHIVE.iter().copied().collect();
+        assert_eq!(archived, copied);
     }
 }

@@ -15,6 +15,9 @@ dr-agent-providers.workspace = true
 dr-agent-tools.workspace = true
 dr-doc.workspace = true
 dr-i18n.workspace = true
+# The 0.1 conversations an import archived beside the library, read only
+# (`panel/old.rs`, 「0.1 的旧对话」).
+dr-import-v1.workspace = true
 dr-mcp.workspace = true
 dr-model.workspace = true
 dr-platform.workspace = true
@@ -42,5 +45,7 @@ gpui-prose.workspace = true
 gpui_platform = { workspace = true, features = ["runtime_shaders"] }
 # dr-mcp's synthetic 0.1 MCP state (`tests/mcp_lifecycle.rs`).
 sha2.workspace = true
+# dr-import-v1's synthetic 0.1 library with conversations (`tests/old_conversations.rs`).
+rusqlite.workspace = true
 tempfile.workspace = true
 toml_edit.workspace = true

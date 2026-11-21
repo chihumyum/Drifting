@@ -1,0 +1,136 @@
+{
+  "about": "M31 「0.1 的旧对话」 (2026-11-21, 三甲 四甲 五甲) in a real window. Run only with the debug-bridge old-conversations-acceptance example: a synthetic 0.1 library with Agent conversations (legacy sample-v3-conversations) imported through the bookshelf's ordinary import, an in-memory key, a loopback connection test and the scripted M27 driver for the one new conversation; no real model, key or library. 「历史」 shows the 「Drifting 0.1」 section; an old conversation opens read only (no input block); back; the search box finds a word that is in the new conversation and in an old one. Light, then dark after a second launch on the imported library. Secondary display. Screenshots are records, not visual acceptance.",
+  "steps": [
+    { "legacy": "sample-v3-conversations", "save": "source" },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "light",
+          "DRIFTING_WINDOW_DISPLAY": "secondary",
+          "DRIFTING_APP_DATA_DIR": "${source.root}"
+        }
+      }
+    },
+    { "app": "ui.wait", "params": { "until": "ready", "timeout_ms": 30000 } },
+    { "app": "window.focus" },
+    { "app": "shelf.show" },
+    { "app": "ui.wait", "params": { "state": { "/shelf": true }, "timeout_ms": 30000 } },
+    {
+      "app": "import.v3.configure",
+      "params": { "source": "${source.root}" },
+      "expect": { "/phase": "ready" },
+      "note": "The bookshelf's 「导入 Drifting 0.1」 dialog, on the synthetic folder."
+    },
+    { "app": "import.v3.start" },
+    {
+      "app": "ui.wait",
+      "params": { "state": { "/import/phase": "done", "/library": true }, "timeout_ms": 120000 }
+    },
+    { "app": "window.focus" },
+    { "app": "ui.press", "params": { "role": "Button", "label": "完成", "timeout_ms": 15000 } },
+    { "app": "ui.wait", "params": { "state": { "/import/phase": "idle" }, "timeout_ms": 15000 } },
+    { "app": "book.open", "params": { "book": "${source.book}" } },
+    {
+      "app": "ui.wait",
+      "params": { "state": { "/book/id": "${source.book}", "/book/loaded": true, "/shelf": false }, "timeout_ms": 30000 }
+    },
+    { "app": "ui.press", "params": { "label": "展开右侧栏" } },
+    { "app": "ui.wait", "params": { "until": "ready", "state": { "/right/open": true } } },
+    { "app": "ui.press", "params": { "label": "Agent", "role": "RadioButton", "nth": 0 }, "note": "The right sidebar's Agent tab (the review's filter of the same name is below it)." },
+    { "app": "ui.wait", "params": { "until": "ready", "state": { "/right/panes/panes/0/tab": "companion" } } },
+    { "app": "ui.press", "params": { "label": "DeepSeek" }, "note": "A synthetic key; the connection test goes to the example's loopback." },
+    { "app": "input.type", "params": { "text": "synthetic-m31-old-key" } },
+    { "app": "ui.press", "params": { "label": "连接", "role": "Button" } },
+    { "app": "ui.find", "params": { "label": "发送", "role": "Button", "timeout_ms": 15000 } },
+    { "app": "ui.press", "params": { "label": "发送", "role": "Button", "dy": -60 }, "note": "Into the composer above the send button." },
+    {
+      "app": "input.type",
+      "params": { "text": "精神胜利法还要再写一次吗？" },
+      "note": "The new conversation: 「精神胜利法」 is in it and in an old conversation's title."
+    },
+    { "app": "input.key", "params": { "keys": "enter" } },
+    { "app": "ui.wait", "params": { "until": "time", "ms": 1500 } },
+    { "app": "ui.press", "params": { "label": "历史", "role": "Button" } },
+    {
+      "app": "ui.find",
+      "params": { "label": "Drifting 0.1", "role": "Button", "count": 1, "timeout_ms": 10000 },
+      "note": "The section under the new conversations, its head the import dialog's eyebrow."
+    },
+    { "app": "ui.find", "params": { "label": "精神胜利法还要再写一次吗？", "role": "Button", "count": 1 }, "note": "The new conversation." },
+    { "app": "ui.find", "params": { "label": "精神胜利法怎么写得不重复", "role": "Button", "count": 1 } },
+    { "app": "ui.find", "params": { "label": "未命名", "role": "Button", "count": 1 }, "note": "Untitled in 0.1." },
+    { "app": "ui.find", "params": { "label": "第二章逐段过一遍", "role": "Button", "count": 1 } },
+    { "app": "ui.find", "params": { "label": "第一章节奏太慢", "role": "Button", "count": 1 } },
+    { "app": "ui.find", "params": { "label": "称呼核对", "role": "Button", "count": 1 } },
+    { "app": "ui.find", "params": { "label": "赵太爷的年纪", "role": "Button", "count": 1 }, "note": "Continued on this device from another device's: only the branch 0.1 showed." },
+    { "app": "ui.find", "params": { "label": "删掉的对话", "absent": true }, "note": "Deleted in 0.1." },
+    { "app": "ui.find", "params": { "label": "外部会话", "absent": true }, "note": "An external MCP client's session." },
+    { "app": "ui.find", "params": { "label": "精神胜利法在别的书里", "absent": true }, "note": "Another book's, not in this library." },
+    { "app": "ui.screenshot", "png": "light-01-history.png" },
+    { "app": "ui.press", "params": { "label": "第一章节奏太慢", "role": "Button" } },
+    { "app": "ui.find", "params": { "label": "返回", "role": "Button", "timeout_ms": 10000 }, "note": "The head: the back arrow and the title." },
+    { "app": "ui.find", "params": { "label": "发送", "role": "Button", "absent": true }, "note": "No input block at all." },
+    { "app": "ui.find", "params": { "label": "历史", "role": "Button", "absent": true } },
+    { "app": "ui.find", "params": { "label": "新对话", "role": "Button", "absent": true } },
+    { "app": "ui.find", "params": { "label": "思考过程", "role": "Button", "count": 1 }, "note": "Its reasoning folds as a new conversation's; the tool lines are no buttons." },
+    { "app": "ui.find", "params": { "label": "read_chapter", "role": "Button", "absent": true } },
+    { "app": "ui.screenshot", "png": "light-02-old-conversation.png" },
+    { "app": "ui.press", "params": { "label": "返回", "role": "Button" } },
+    { "app": "ui.find", "params": { "label": "Drifting 0.1", "role": "Button", "count": 1 } },
+    { "app": "ui.find", "params": { "label": "发送", "role": "Button" } },
+    {
+      "app": "ui.press",
+      "params": { "label": "工作记忆", "role": "Button", "dy": 42 },
+      "note": "The search box is right under the memory row; text fields are not in the accessibility tree (ui.focus does not reach this one)."
+    },
+    { "app": "input.type", "params": { "text": "精神胜利法" } },
+    { "app": "ui.wait", "params": { "until": "time", "ms": 800 } },
+    { "app": "ui.find", "params": { "label": "精神胜利法还要再写一次吗？", "role": "Button", "count": 1 }, "note": "New and old together." },
+    { "app": "ui.find", "params": { "label": "精神胜利法怎么写得不重复", "role": "Button", "count": 1 } },
+    { "app": "ui.find", "params": { "label": "Drifting 0.1", "role": "Heading", "count": 1 }, "note": "The groups stay apart; a search's section head does not fold." },
+    { "app": "ui.find", "params": { "label": "第一章节奏太慢", "absent": true } },
+    { "app": "ui.screenshot", "png": "light-03-search.png" },
+    { "app": "ui.press", "params": { "label": "精神胜利法怎么写得不重复", "role": "Button" } },
+    { "app": "ui.find", "params": { "label": "返回", "role": "Button", "timeout_ms": 10000 } },
+    { "app": "ui.find", "params": { "label": "发送", "role": "Button", "absent": true } },
+    { "app": "ui.press", "params": { "label": "返回", "role": "Button" } },
+    { "app": "ui.find", "params": { "label": "精神胜利法怎么写得不重复", "role": "Button", "count": 1 }, "note": "Back to the search as it was." },
+    { "app": "app.quit" },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "dark",
+          "DRIFTING_WINDOW_DISPLAY": "secondary",
+          "DRIFTING_APP_DATA_DIR": "${source.root}"
+        }
+      },
+      "note": "The imported library again (the data folder's active one), dark."
+    },
+    { "app": "ui.wait", "params": { "until": "ready", "timeout_ms": 30000 } },
+    { "app": "window.focus" },
+    { "app": "book.open", "params": { "book": "${source.book}" } },
+    {
+      "app": "ui.wait",
+      "params": { "state": { "/book/id": "${source.book}", "/book/loaded": true, "/shelf": false }, "timeout_ms": 30000 }
+    },
+    { "app": "ui.press", "params": { "label": "展开右侧栏" } },
+    { "app": "ui.wait", "params": { "until": "ready", "state": { "/right/open": true } } },
+    { "app": "ui.press", "params": { "label": "Agent", "role": "RadioButton", "nth": 0 } },
+    { "app": "ui.wait", "params": { "until": "ready", "state": { "/right/panes/panes/0/tab": "companion" } } },
+    { "app": "ui.press", "params": { "label": "历史", "role": "Button", "timeout_ms": 10000 } },
+    { "app": "ui.find", "params": { "label": "Drifting 0.1", "role": "Button", "count": 1, "timeout_ms": 10000 } },
+    { "app": "ui.screenshot", "png": "dark-01-history.png" },
+    { "app": "ui.press", "params": { "label": "第一章节奏太慢", "role": "Button" } },
+    { "app": "ui.find", "params": { "label": "返回", "role": "Button", "timeout_ms": 10000 } },
+    { "app": "ui.find", "params": { "label": "发送", "role": "Button", "absent": true } },
+    { "app": "ui.screenshot", "png": "dark-02-old-conversation.png" },
+    { "app": "ui.press", "params": { "label": "返回", "role": "Button" } },
+    { "app": "ui.press", "params": { "label": "工作记忆", "role": "Button", "dy": 42 } },
+    { "app": "input.type", "params": { "text": "精神胜利法" } },
+    { "app": "ui.wait", "params": { "until": "time", "ms": 800 } },
+    { "app": "ui.find", "params": { "label": "精神胜利法还要再写一次吗？", "role": "Button", "count": 1 } },
+    { "app": "ui.find", "params": { "label": "精神胜利法怎么写得不重复", "role": "Button", "count": 1 } },
+    { "app": "ui.screenshot", "png": "dark-03-search.png" },
+    { "app": "app.quit" }
+  ]
+}

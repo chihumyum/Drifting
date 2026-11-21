@@ -989,7 +989,7 @@ cargo test -p dr-import-v1 --test v3_manifest --locked
 
 | 表 | 内容 |
 | --- | --- |
-| `archive_agent_*` | 旧帮手对话的 7 张表，原样只读：对话、运行会话、轮次、消息、工具调用、工具结果（作者已定：能看能搜，不能接着聊） |
+| `archive_agent_*` | 旧帮手对话的 8 张表，原样只读：对话、对话分支（2026-11-21 加的）、运行会话、轮次、消息、工具调用、工具结果（作者已定：能看能搜，不能接着聊；2026-11-21 起在 Agent 栏「历史」里，见 [m31「0.1 的旧对话」](m31-agent-panel.md#01-的旧对话2026-11-21)） |
 | `local_*`、`local_setting` | 本机状态原样：MCP 扩展配置、工作记忆、`library_state`（内置样书标记、交接清单）、Markdown 文件夹台账；交接导出的 WebView 设置 |
 | `carried` | 2026-11-21 起：这台设备的 0.1 设置、快捷键和每本书的工作记忆各自的去向（见「0.1 的设置、快捷键和工作记忆」） |
 
@@ -1218,7 +1218,7 @@ cargo xtask check
    建议来源只有 `import`、`genesis`、`repair` 时不打 `close`，和 `records_periodic` 的口径一致。M10 这边不绕过它。
 2. **F2（可选）：`NewLabel` 加一个可选的书目文档版本。** 现在 `label_at` 记的是书目文档当前落盘的版本，所以 M10 把书目文档分段存（每行历史一次追加、一次打点）。允许调用方给出书目文档版本的话，就可以一次存完再一次打完。现在的做法是对的，只是事务多一些。
 3. **存档和本机表的去处**（原第 3 条剩下的）：
-   - `archive_agent_*` 交给 M31；
+   - `archive_agent_*` 交给 M31（2026-11-21 已接：Agent 栏「历史」里一节「Drifting 0.1」，能看能搜、不能接着聊；读存档的是 `dr_import_v1::agent_archive`，只读，不迁移、不另存一份；导入同时多搬一张 `agent_chat_branch`，好照 0.1 只列现在那一支。见 [m31「0.1 的旧对话」](m31-agent-panel.md#01-的旧对话2026-11-21)）；
    - `local_agent_mcp_server` 交给 M32；
    - `local_agent_working_memory` 交给 M30（2026-11-21 已接：导入时写成每本书的工作记忆，见「0.1 的设置、快捷键和工作记忆」）；
    - `local_markdown_mirror_file` 交给 M40；
@@ -1372,7 +1372,7 @@ cargo xtask check
 | 旧表 | 去向 | 落到哪里 / 为什么 |
 | --- | --- | --- |
 | `agent_chat_binding` | drop | 帮手对话扩展的投递状态，留在旧库 |
-| `agent_chat_branch` | drop | 帮手对话扩展的投递状态，留在旧库 |
+| `agent_chat_branch` | agent-archive | 对话的分支（接着别的设备的对话聊时分出一支），只读搬过去，旧对话按它只列现在那一支 |
 | `agent_chat_cursor` | drop | 帮手对话扩展的投递状态，留在旧库 |
 | `agent_chat_delivery` | drop | 帮手对话扩展的投递状态，留在旧库 |
 | `agent_chat_object` | drop | 帮手对话扩展的投递状态，留在旧库 |

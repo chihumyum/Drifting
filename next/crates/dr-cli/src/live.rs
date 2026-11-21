@@ -370,13 +370,13 @@ impl Backend for Session {
         }
 
         let stamped = match kind {
-            "sample" | "sample-v3" | "sample-v3-association" => true,
+            "sample" | "sample-v3" | "sample-v3-association" | "sample-v3-conversations" => true,
             "sample-stale" => false,
             other => {
                 return Err(StepError::new(
                     "bad_request",
                     format!(
-                        "legacy {other}: sample, sample-v3, sample-v3-association or sample-stale"
+                        "legacy {other}: sample, sample-v3, sample-v3-association, sample-v3-conversations or sample-stale"
                     ),
                 ));
             }
@@ -384,11 +384,14 @@ impl Backend for Session {
         let old = match kind {
             "sample-v3" => legacy_fixture::build_v3(stamped),
             "sample-v3-association" => legacy_fixture::v3_fixture::build_associations(false),
+            // M31 「0.1 的旧对话」: sample-v3 with 0.1 Agent conversations.
+            "sample-v3-conversations" => legacy_fixture::conversations::build_v3(stamped),
             _ => legacy_fixture::build(stamped),
         };
+        let v3 = matches!(kind, "sample-v3" | "sample-v3-conversations");
         let out = json!({
             "source_files": fixture_files(&old.root)?,
-            "choices": if kind == "sample-v3" { serde_json::to_value(legacy_fixture::v3_choices()).map_err(io)? } else { Value::Null },
+            "choices": if v3 { serde_json::to_value(legacy_fixture::v3_choices()).map_err(io)? } else { Value::Null },
             "root": old.root.display().to_string(),
             "db": old.db.display().to_string(),
             "book": legacy_fixture::BOOK,

@@ -8,6 +8,7 @@
 
 #![allow(dead_code)]
 
+pub mod conversations;
 pub mod device_state;
 pub mod v3_fixture;
 
