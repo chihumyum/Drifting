@@ -30,7 +30,7 @@ impl Client {
     /// Where 0.1 writes the client's configuration under `home`.
     pub fn config(self, home: &Path) -> PathBuf {
         match self {
-            Client::Codex => home.join(".codex/config.toml"),
+            Client::Codex => home.join(".codex").join("config.toml"),
             Client::ClaudeCode => home.join(".claude.json"),
         }
     }

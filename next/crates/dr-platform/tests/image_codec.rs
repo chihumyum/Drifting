@@ -4,14 +4,23 @@
 //! macOS with `sips` (`dr-testkit/fixtures/README.md`). The files are read
 //! by path so this crate does not build the test kit.
 
-use dr_platform::image_codec::{self, CodecError, Decoded, SystemFormat};
+// Decoding is checked where this suite can count on the codec: macOS
+// always has ImageIO's, a Windows machine only has WIC's HEIF and AV1
+// codecs when their extensions are installed (CI's runners do not).
+#[cfg(target_os = "macos")]
+use dr_platform::image_codec::Decoded;
+use dr_platform::image_codec::SystemFormat;
+#[cfg(not(windows))]
+use dr_platform::image_codec::{self, CodecError};
 
 const HEIC: &[u8] = include_bytes!("../../dr-testkit/fixtures/media/quadrants.heic");
 const AVIF: &[u8] = include_bytes!("../../dr-testkit/fixtures/media/quadrants.avif");
 
 /// The quadrants' colours: top left, top right, bottom left, bottom right.
+#[cfg(target_os = "macos")]
 const QUADRANTS: [[u8; 3]; 4] = [[200, 40, 40], [40, 160, 60], [40, 70, 190], [240, 240, 240]];
 
+#[cfg(target_os = "macos")]
 fn at(d: &Decoded, x: u32, y: u32) -> [u8; 4] {
     let i = ((y * d.width + x) * 4) as usize;
     [d.rgba[i], d.rgba[i + 1], d.rgba[i + 2], d.rgba[i + 3]]
@@ -19,6 +28,7 @@ fn at(d: &Decoded, x: u32, y: u32) -> [u8; 4] {
 
 /// Each quadrant's middle is its colour, within what lossy coding and a
 /// colour conversion move it, and opaque.
+#[cfg(target_os = "macos")]
 fn assert_quadrants(d: &Decoded) {
     let (w, h) = (d.width, d.height);
     let middles = [

@@ -129,8 +129,13 @@ impl Fixture {
         let dir = tempfile::tempdir().unwrap();
         let home = dir.path().join("home");
         let short = dir.path().join("cache");
-        let base = dir.path().join("local/cc.drifting.client");
-        let executable = dir.path().join("Drifting.app/Contents/MacOS/drifting");
+        let base = dir.path().join("local").join("cc.drifting.client");
+        let executable = dir
+            .path()
+            .join("Drifting.app")
+            .join("Contents")
+            .join("MacOS")
+            .join("drifting");
         let account = v1_state::account_library(B);
         v1_state::registry(
             &base,
@@ -146,7 +151,7 @@ impl Fixture {
             (Kind::Legacy, base.clone(), Client::Codex),
             (
                 Kind::Local,
-                base.join("libraries/local"),
+                base.join("libraries").join("local"),
                 Client::ClaudeCode,
             ),
             (
@@ -212,7 +217,7 @@ impl Fixture {
                 Folder {
                     library: "local".into(),
                     owner: Owner::Local,
-                    directory: base.join("libraries/local/mcp"),
+                    directory: base.join("libraries").join("local").join("mcp"),
                 },
             ]
         );
@@ -413,7 +418,7 @@ async fn each_library_kind_reaches_its_owners_books_and_no_other(loopback: bool)
                 .endpoint()
                 .clone()
         };
-        let short = f._dir.path().join("cache/drifting-mcp");
+        let short = f._dir.path().join("cache").join("drifting-mcp");
         for kind in [Kind::Legacy, Kind::Local] {
             assert!(
                 matches!(socket(kind), Endpoint::Unix(path) if path.ends_with("mcp/bridge.sock")),
