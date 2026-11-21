@@ -408,9 +408,11 @@
           "ordered_list_start": "No se conservó el número inicial de las listas numeradas",
           "relation_comment_end_dropped": "No se importaron las relaciones con un comentario en un extremo",
           "relation_image_end_dropped": "No se importaron las relaciones con una imagen en un extremo",
+          "relation_missing_entry_dropped": "No se importaron las relaciones con un extremo que ya no existe",
           "relation_other_end_dropped": "No se importaron las relaciones con otro tipo de material en un extremo",
           "relation_patch_end_dropped": "No se importaron las relaciones con un parche en un extremo",
           "relation_pdf_end_dropped": "No se importaron las relaciones con un PDF en un extremo",
+          "relation_self_end_dropped": "No se importaron las relaciones cuyos dos extremos son lo mismo",
           "relation_todo_end_dropped": "No se importaron las relaciones con una tarea pendiente en un extremo",
           "table_cell_marks": "No se conservó el formato del texto en las celdas de tabla (en la nueva versión las celdas solo guardan texto)",
           "table_cell_paragraphs_joined": "Los párrafos de una celda se unieron en uno, separados por saltos de línea",
@@ -423,12 +425,17 @@
           "unknown_inline": "Se quitaron del texto objetos en línea que la nueva versión no reconoce; quedaron tal cual en el registro de importación",
           "unknown_mark": "Formato de texto que la nueva versión no reconoce: se conservó el texto y se quitó el formato"
         },
+        "lossy_dialog": {
+          "entity_link_to_asset_kept_as_text": "Los enlaces del texto a materiales de imagen o PDF sin archivo no tenían adónde apuntar y pasaron a texto normal",
+          "task_status_follows_tick": "Cuando el estado de la tarea pendiente de un elemento de lista no coincidía con su marca, se siguió la marca"
+        },
         "material": {
           "empty_folder": "Carpeta de materiales vacía «{{name}}»",
           "unimported_folder": "Carpeta de materiales «{{name}}», de la que no se trajo ningún material",
           "unknown_kind": "Material de un tipo desconocido ({{kind}}) «{{name}}»",
           "without_file": "Material sin archivo «{{name}}»"
-        }
+        },
+        "materials_heading": "Materiales de la versión 0.1 que no se trajeron"
       },
       "notice": {
         "carry_on": "Reanudar la importación",

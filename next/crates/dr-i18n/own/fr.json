@@ -120,9 +120,11 @@
           "ordered_list_start": "Le numéro de départ des listes numérotées n’a pas été conservé",
           "relation_comment_end_dropped": "Les relations dont une extrémité est un commentaire n’ont pas été importées",
           "relation_image_end_dropped": "Les relations dont une extrémité est une image n’ont pas été importées",
+          "relation_missing_entry_dropped": "Les relations dont une extrémité n’existe plus n’ont pas été importées",
           "relation_other_end_dropped": "Les relations dont une extrémité est une autre ressource n’ont pas été importées",
           "relation_patch_end_dropped": "Les relations dont une extrémité est un correctif n’ont pas été importées",
           "relation_pdf_end_dropped": "Les relations dont une extrémité est un PDF n’ont pas été importées",
+          "relation_self_end_dropped": "Les relations dont les deux extrémités sont la même chose n’ont pas été importées",
           "relation_todo_end_dropped": "Les relations dont une extrémité est une tâche n’ont pas été importées",
           "table_cell_marks": "La mise en forme du texte dans les cellules n’a pas été conservée (les cellules de la nouvelle version ne gardent que le texte)",
           "table_cell_paragraphs_joined": "Les paragraphes d’une cellule ont été réunis en un seul, séparés par des retours à la ligne",
@@ -135,12 +137,17 @@
           "unknown_inline": "Des objets en ligne inconnus de la nouvelle version ont été retirés du texte et notés tels quels dans le journal d’importation",
           "unknown_mark": "Mise en forme inconnue de la nouvelle version : le texte est conservé, la mise en forme retirée"
         },
+        "lossy_dialog": {
+          "entity_link_to_asset_kept_as_text": "Les liens du texte vers des ressources image ou PDF sans fichier n’avaient pas de cible et sont devenus du texte simple",
+          "task_status_follows_tick": "Quand l’état de la tâche d’un élément de liste ne correspondait pas à sa coche, la coche l’a emporté"
+        },
         "material": {
           "empty_folder": "Dossier de ressources vide « {{name}} »",
           "unimported_folder": "Dossier de ressources « {{name}} », dont aucune ressource n’a été reprise",
           "unknown_kind": "Ressource de type inconnu ({{kind}}) « {{name}} »",
           "without_file": "Ressource sans fichier « {{name}} »"
-        }
+        },
+        "materials_heading": "Ressources de la version 0.1 qui n’ont pas été reprises"
       },
       "notice": {
         "carry_on": "Reprendre l’importation",

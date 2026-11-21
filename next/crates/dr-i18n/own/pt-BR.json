@@ -120,9 +120,11 @@
           "ordered_list_start": "O número inicial das listas numeradas não foi mantido",
           "relation_comment_end_dropped": "As relações com um comentário em uma ponta não foram importadas",
           "relation_image_end_dropped": "As relações com uma imagem em uma ponta não foram importadas",
+          "relation_missing_entry_dropped": "As relações com uma ponta que não existe mais não foram importadas",
           "relation_other_end_dropped": "As relações com outro tipo de material em uma ponta não foram importadas",
           "relation_patch_end_dropped": "As relações com um patch em uma ponta não foram importadas",
           "relation_pdf_end_dropped": "As relações com um PDF em uma ponta não foram importadas",
+          "relation_self_end_dropped": "As relações cujas duas pontas são a mesma coisa não foram importadas",
           "relation_todo_end_dropped": "As relações com uma tarefa em uma ponta não foram importadas",
           "table_cell_marks": "A formatação do texto nas células de tabela não foi mantida (na nova versão as células guardam só texto)",
           "table_cell_paragraphs_joined": "Os parágrafos de uma célula foram unidos em um só, separados por quebras de linha",
@@ -135,12 +137,17 @@
           "unknown_inline": "Objetos em linha que a nova versão não reconhece foram tirados do texto e registrados como estavam no registro da importação",
           "unknown_mark": "Formatação de texto que a nova versão não reconhece: o texto foi mantido e a formatação, removida"
         },
+        "lossy_dialog": {
+          "entity_link_to_asset_kept_as_text": "Os links do texto para materiais de imagem ou PDF sem arquivo não tinham para onde apontar e viraram texto comum",
+          "task_status_follows_tick": "Quando o status da tarefa de um item de lista não batia com a marcação, valeu a marcação"
+        },
         "material": {
           "empty_folder": "Pasta de materiais vazia “{{name}}”",
           "unimported_folder": "Pasta de materiais “{{name}}”, da qual nenhum material foi trazido",
           "unknown_kind": "Material de tipo desconhecido ({{kind}}) “{{name}}”",
           "without_file": "Material sem arquivo “{{name}}”"
-        }
+        },
+        "materials_heading": "Materiais da versão 0.1 que não foram trazidos"
       },
       "notice": {
         "carry_on": "Retomar importação",

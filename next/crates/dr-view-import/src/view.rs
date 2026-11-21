@@ -10,6 +10,7 @@ use dr_i18n::number::grouped;
 use dr_import_v1::gate::{BodyRef, Reason};
 use dr_import_v1::legacy::{Freshness, ProseKind};
 use dr_import_v1::progress::Step;
+use dr_import_v1::receipt::{Block, MATERIALS_HEADING};
 use dr_shell::actions::Dismiss;
 use dr_shell::strings::{tf, tp};
 use dr_shell::{Settings, t};
@@ -498,10 +499,12 @@ fn differences_line(
 }
 
 /// What differs from 0.1, by book: each book's name, then its sentences as
-/// summary.md words them, each with its count where the importer counts it
-/// (「N 处」). Scrolls past [`LIST_MAX_H`] between hairlines, as the books
-/// and the gate's list do. Each book name and each line is a label to
-/// assistive technology, read as it shows (a line with its count).
+/// summary.md words them (but for the two that end in 「逐条列在下方」, said
+/// without it: `Difference::dialog_text`), each with its count where the
+/// importer counts it (「N 处」); above a book's material lines, summary.md's
+/// heading of that block. Scrolls past [`LIST_MAX_H`] between hairlines, as
+/// the books and the gate's list do. Each book name, heading and line is a
+/// label to assistive technology, read as it shows (a line with its count).
 fn differences(d: &Done, window: &Window, cx: &App) -> AnyElement {
     let theme = Theme::of(window, cx);
     let (p, s) = (theme.palette, theme.scale);
@@ -539,11 +542,31 @@ fn differences(d: &Done, window: &Window, cx: &App) -> AnyElement {
                 .text_color(p.ink(1).solid())
                 .child(name),
         );
+        let mut materials_heading = false;
         for (j, line) in book.differences.iter().enumerate() {
+            if line.block == Block::Materials && !materials_heading {
+                materials_heading = true;
+                let heading = t(cx, MATERIALS_HEADING);
+                group = group.child(
+                    div()
+                        .id(SharedString::from(format!(
+                            "legacy-import-differences-materials-{i}"
+                        )))
+                        .debug_selector(move || format!("legacy-import-differences-materials-{i}"))
+                        .role(gpui::Role::Label)
+                        .aria_label(heading.clone())
+                        .pl(px(12.0))
+                        .pt(px(4.0))
+                        .font_role(Role::Ui)
+                        .type_px(s.secondary, s.line_body)
+                        .text_color(p.muted().solid())
+                        .child(heading),
+                );
+            }
             let count = line
                 .counted
                 .then(|| tp(cx, keys::v5_files::USAGE_COUNT, line.count as u64, &[]));
-            let text = line.text(strings);
+            let text = line.dialog_text(strings);
             let read = match &count {
                 Some(c) => format!("{text} {c}"),
                 None => text.clone(),

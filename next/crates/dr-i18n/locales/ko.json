@@ -403,9 +403,11 @@
           "ordered_list_start": "번호 목록의 시작 번호는 남기지 않았습니다",
           "relation_comment_end_dropped": "한쪽 끝이 댓글인 관계는 가져오지 않았습니다",
           "relation_image_end_dropped": "한쪽 끝이 이미지인 관계는 가져오지 않았습니다",
+          "relation_missing_entry_dropped": "한쪽 끝이 더 이상 없는 관계는 가져오지 않았습니다",
           "relation_other_end_dropped": "한쪽 끝이 다른 자료인 관계는 가져오지 않았습니다",
           "relation_patch_end_dropped": "한쪽 끝이 패치인 관계는 가져오지 않았습니다",
           "relation_pdf_end_dropped": "한쪽 끝이 PDF인 관계는 가져오지 않았습니다",
+          "relation_self_end_dropped": "양쪽 끝이 같은 대상인 관계는 가져오지 않았습니다",
           "relation_todo_end_dropped": "한쪽 끝이 할 일인 관계는 가져오지 않았습니다",
           "table_cell_marks": "표 칸 안의 글자 서식은 남기지 않았습니다(새 버전의 칸은 글자만 저장합니다)",
           "table_cell_paragraphs_joined": "표 칸 안의 여러 문단은 문단 안 줄바꿈으로 이어 하나로 합쳤습니다",
@@ -418,12 +420,17 @@
           "unknown_inline": "새 버전이 모르는 인라인 개체를 본문에서 빼고, 원래 모습 그대로 가져오기 기록에 남겼습니다",
           "unknown_mark": "새 버전이 모르는 글자 서식이 있었습니다. 글자는 남기고 서식은 뺐습니다"
         },
+        "lossy_dialog": {
+          "entity_link_to_asset_kept_as_text": "본문에서 이미지나 PDF 자료를 가리키던 링크는 자료에 파일이 없어 연결할 곳이 없으므로 일반 글자로 바꿨습니다",
+          "task_status_follows_tick": "체크리스트 항목에 연결된 할 일의 상태가 체크와 달라, 항목의 체크를 따랐습니다"
+        },
         "material": {
           "empty_folder": "빈 자료 폴더 「{{name}}」",
           "unimported_folder": "안의 자료를 하나도 가져오지 못한 자료 폴더 「{{name}}」",
           "unknown_kind": "종류({{kind}})를 알 수 없는 자료 「{{name}}」",
           "without_file": "파일이 없는 자료 「{{name}}」"
-        }
+        },
+        "materials_heading": "이전 버전 자료 중 가져오지 않은 것"
       },
       "notice": {
         "carry_on": "이어서 가져오기",
