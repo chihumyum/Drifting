@@ -186,7 +186,7 @@ mod tests {
 
     // Synthetic prose and paths, never a real manuscript or library.
     const MANUSCRIPT: &str = "他推开门的时候，雨已经停了，街上只剩下潮湿的灯光。";
-    const PATH: &str = "/Users/user/Library/Drifting/library/书稿.sqlite";
+    const PATH: &str = "/Users/example/Library/Drifting/library/书稿.sqlite";
     const NOW: u64 = 1_793_433_600_000;
 
     fn input(sync: SyncSnapshot) -> SummaryInput {
@@ -572,7 +572,7 @@ mod tests {
             assert!(text.contains(&format!("\"{}\"", err.code())), "{text}");
             assert!(!text.contains("雨已经停了"), "{text}");
             assert!(!text.contains("书稿"), "{text}");
-            assert!(!text.contains("/Users/"), "{text}");
+            assert!(!text.contains("/Users"), "{text}");
             assert!(!text.contains("UPSTREAM"), "{text}");
         }
     }
