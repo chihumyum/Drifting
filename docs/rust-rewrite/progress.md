@@ -190,6 +190,7 @@
 
 坏着的：
 
+- **2026-11-21 `f5a3d549c` 的 CI 全绿**（`next` 工作流第 44852144159 次运行）：`next / macos`、`next / windows-x64`、`next / windows-arm64` 的格式、Clippy、全套测试都过，两个 Windows `dist` 安装包打出来并通过了「装上能启动」的检查。五批改动都在里面，这是 Windows 上第一次带着导入器的丢失检查、HEIC / AVIF、0.1 MCP 兼容、历史快照点、反馈摘要这些一起全绿。下面两条是这之前红过的原因。
 - **2026-11-21 `afb9a340e` 的 CI：`next / macos` 绿（丢失检查临时目录那处修复有效），`next / windows-x64` 红了两步，已修，都是测试的写法，不是产品在 Windows 上的毛病。** (1) Clippy：`dr-platform/tests/image_codec.rs` 里只有 macOS 的测试用得到的辅助函数和引用没加平台条件，Windows 上成了「没用到」。加了条件。本机对 Windows 的交叉 Clippy 原来只查库、不查测试，所以没拦住；现在带 `--all-targets`（`cargo clippy -p dr-platform --all-targets --no-default-features --target x86_64-pc-windows-msvc --locked -- -D warnings`）。(2) `dr-mcp` 的 `tests/v1.rs` 三项：夹具用 `base.join("libraries/local")` 这样带斜杠的写法拼 0.1 资料库的路径，Windows 上得到混着两种分隔符的字符串，和产品代码按一段一段拼出来的不是同一个字符串，客户端配置里那一条就被当成「别人的同名服务」。产品里 0.1 和新版都是一段一段拼的（`relative_root`），不会这样；夹具改成一段一段拼。`dr-mcp` 带 C 依赖，本机没法对 Windows 交叉检查，只能等 CI。
 - **2026-11-21 第五批那次推送（`51d11d521`）会让 0.1 的 `CI` 红一项，下一个提交已修。** `pnpm public:check` 报 `dr-sync/src/diagnostics.rs` 里有「个人绝对路径」：是测试里编的假路径（用户名写的是 `user`，不是任何人的真实路径），这道检查只放行 `example`。改成 `example` 了。推之前这道检查其实已经报了，监管会话的命令把它接在管道后面、没看退出码就推了（当晚第二次）；之后推送前的每道检查都单独看退出码。
 - **2026-11-21 第三批那次推送（`c07480863`）的 CI，`next / macos` 红了两项，已修。** `dr-import-v1` 的 `catalog`、`asset_copies` 各一项：丢失检查（`verify::check_catalog_in`）给 0.1 库拍暂存副本的临时目录只用「进程号加毫秒」起名，CI 上并行跑的两个测试在同一毫秒进来，用了同一个目录，各自读到对方的副本。本机一直是单线程跑，撞不上；并行跑三遍也没撞上。改成名字里再加一个进程内的计数、并且目录必须是新建的（`create_dir`，已存在就换下一个），加了一项测试；`dr-import-v1` 全部 118 项并行跑通过。这是产品代码里的毛病，不只是测试：同一个进程里两次检查同时开始也会撞。
