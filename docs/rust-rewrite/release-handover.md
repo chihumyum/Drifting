@@ -144,6 +144,21 @@ cargo xtask check-binary --precompiled-shaders "target/bundle/Drifting Next.app/
 - 以后要让它对任何账号都安全，得给同步协议加一个重置代号，让留着旧书库的设备被明确拒绝。服务端已有的能力协商（缺能力的客户端收到「需要升级」）可以在发版以后再加这一项，不必赶在 0.2.0 之前。做法记在服务端 `docs/loro-sync-v2.md` 的「Operator reset」末尾。
 - 第一个用到它的多半是作者自己试账号迁移的时候。
 
+## 作者自己试迁移（开发身份的包，2026-11-21）
+
+不用等正式包：开发身份的优化包可以直接拿 0.1 的资料库试导入，只读 0.1 的文件夹，装着的 0.1 不受影响。
+
+1. 打包（在 `next/` 下）：`script/bundle-mac --dist --precompiled-shaders`，产物是 `next/target/bundle/Drifting Next.app`。2026-11-21 停下时那里放着 `490d8bf5` 的包；重新编译会覆盖它。
+2. 先退出 0.1，再这样开（一个新的、不登录的本机库，可以反复导）：
+
+   ```bash
+   DRIFTING_PROFILE=migrate-trial-1 DRIFTING_APP_DATA_DIR="$HOME/Library/Application Support/cc.drifting.client" "next/target/bundle/Drifting Next.app/Contents/MacOS/drifting"
+   ```
+
+   开发版默认不看 0.1 的文件夹，所以要用 `DRIFTING_APP_DATA_DIR` 指过去；`DRIFTING_PROFILE` 换一个名字就是另一份全新的资料库（想重来就换名字）。
+3. 第一次显示「全部项目」时导入列表会自己弹出来。作者的 0.1 资料库是账号库；不登录时走的是「导入到新库」，不占账号那一次机会。登录以后的那条路每个账号只能导一次，导坏了见上面「导坏了怎么重来」。
+4. 导完值得看的：每一章的「快照历史」里有没有 0.1 的旧快照、Agent 栏「历史」里的「Drifting 0.1」、导入完成对话框里「有 N 处和旧版不完全一样」那一行、时间线、素材库、批注。
+
 ## 第一个带迁移的版本发布之前
 
 - 资料库打不开那一页（[F6 的「资料库打不开时」](foundations/f6-shell.md#资料库打不开时2026-11-21作者定)）要给「升级后打不开」那种加上「从升级前的快照恢复」（存储层的 `Library::recovery_receipts`、`restore_from_receipt` 已经有了，作者 2026-11-21 定 0.2.0 先不给）。0.2.0 本身不带要升级的迁移，用不上它。
