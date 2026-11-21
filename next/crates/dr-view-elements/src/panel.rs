@@ -811,8 +811,9 @@ pub mod v3 {
             self.rebuild();
             cx.notify();
         }
-        /// The entry waiting to be shown, once the book has it back: open
-        /// every row above it, and the index of its row to scroll to.
+        /// The entry waiting to be shown, once the book has it back: every
+        /// row above it opens, and it is handed back for its row to be
+        /// scrolled into view.
         fn take_reveal(&mut self) -> Option<String> {
             let id = self.reveal.clone()?;
             let v = self.host.page.book.v3()?;

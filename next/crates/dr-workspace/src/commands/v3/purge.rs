@@ -1,10 +1,10 @@
 //! `entry.purge`: an entry in Recently Deleted deleted for good, with what
-//! went into Recently Deleted with it (`kernel-v5.md` §16 「从最近删除里清除一个条目」).
+//! went into Recently Deleted with it (`kernel-v5.md` §16 「最近删除」).
 //!
 //! What the rest of the book reads afterwards follows the written rules:
 //! a Tab mounted on it keeps its name (§5), its relation rows lose it and a
 //! row left with an empty side goes while the relation stays (§19), its
-//! canvas coordinates are collected in this step and in no other (§18),
+//! canvas coordinates are collected in this step and in no other (「替作者定的」),
 //! its placements and the places that were there only because of it go,
 //! a time pin bound to it is unbound (`V3-TIMELINE-TARGETS-LIVE`), what is
 //! hung on it or what it was hung on is no longer hung, a checklist item's

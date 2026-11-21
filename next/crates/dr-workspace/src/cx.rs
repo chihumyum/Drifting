@@ -581,7 +581,7 @@ impl<'a> Cx<'a> {
     /// After the book commit of `entry.purge`: drop what the entries `gone`
     /// (deleted for good) left in the two documents beside the book, each
     /// only where the document is there already: their canvas coordinates
-    /// in `layout:<book>` (`LayoutTxn::forget_entries`, kernel-v5 §18: only
+    /// in `layout:<book>` (`LayoutTxn::forget_entries`, kernel-v5 「替作者定的」: only
     /// in the step that purges entries) and their checkpoints in
     /// `checkpoints:<book>`. The purge cannot be undone, so these are no
     /// step of their own and run no book guard. Returns how many
