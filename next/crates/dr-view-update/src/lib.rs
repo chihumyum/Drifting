@@ -3,7 +3,9 @@
 //!
 //! - **When**: [`FIRST_CHECK`] after launch, then every three hours while
 //!   the app stays open (`update::CHECK_INTERVAL`, the 0.1 client's), and
-//!   whenever the author clicks 检查更新 in Settings › 关于.
+//!   whenever the author clicks 检查更新 in Settings › 关于 or on the page
+//!   the shell shows when a newer version wrote the library
+//!   ([`page_button`]: the same button, through 重启以更新).
 //! - **A newer version** is downloaded at once, in the background, into
 //!   `<data>/updates`, and verified: the minisign signature with the
 //!   updater key, and that the signed file is the offered version. Then the
@@ -276,6 +278,7 @@ pub fn init(service: Service, cx: &mut App) {
         told: HashSet::new(),
     });
     dr_shell::settings::set_updates_row(cx, row);
+    dr_shell::library_failure::set_update_button(cx, page_button);
     dr_shell::quit::before_quit(cx, install_on_quit);
     if let (true, Some(first)) = (available, schedule.first) {
         cx.spawn(async move |cx| {
@@ -672,6 +675,35 @@ pub fn status_words(status: &Status, cx: &App) -> Option<SharedString> {
         },
         Status::Ready(version) => tf(cx, u::READY_ON_QUIT, &[("version", version)]),
         Status::Failed(problem) => t(cx, refusal_words(*problem)),
+    })
+}
+
+/// The button on the page shown when the library cannot be opened (a newer
+/// version wrote it): the Settings row's 检查更新 or 重启以更新, and while
+/// the row has no button (checking, downloading) its words on a turning
+/// button. A build that cannot update has none, as the row has none.
+pub fn page_button(cx: &App) -> Option<dr_shell::library_failure::UpdateButton> {
+    use dr_shell::library_failure::UpdateButton;
+    let status = Updates::status(cx);
+    Some(match status {
+        Status::Unavailable => return None,
+        Status::Checking | Status::Downloading { .. } => UpdateButton {
+            label: status_words(&status, cx)?,
+            busy: true,
+            run: None,
+        },
+        Status::Ready(_) => UpdateButton {
+            label: t(cx, keys::settings::update::RESTART),
+            busy: false,
+            run: Some(Rc::new(Updates::restart)),
+        },
+        Status::Idle | Status::UpToDate | Status::OlderOffered(_) | Status::Failed(_) => {
+            UpdateButton {
+                label: t(cx, keys::settings::update::CHECK_ACTION),
+                busy: false,
+                run: Some(Rc::new(Updates::check)),
+            }
+        }
     })
 }
 

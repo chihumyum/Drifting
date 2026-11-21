@@ -113,9 +113,11 @@ dr_shell::sync::diagnostics(cx) -> SyncSnapshot;    // 对话框打开时取；�
 
 // dr-shell 的挂接点
 dr_shell::actions::SendFeedback;                     // 任何地方派发它就打开对话框
-dr_shell::dialogs::set_feedback(cx, make);           // 注册对话框（同 pages::set_shelf 的做法）
+dr_shell::dialogs::set_feedback(cx, make);           // 注册对话框（同 pages::set_shelf 的做法）；make(opening, close, window, cx)
 dr_shell::dialogs::FollowUpNotice { notice, crash_id, at };
+dr_shell::dialogs::FeedbackOpening { follow_up, message }; // 2026-11-21：message 是先写好的正文（资料库打不开那一页）
 Workspace::open_feedback(follow_up, window, cx);
+Workspace::open_feedback_with(opening, window, cx);  // 2026-11-21
 Workspace::dialog: Option<AnyView>;
 ```
 

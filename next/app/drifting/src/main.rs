@@ -94,9 +94,9 @@ fn main() {
         return;
     };
     // The library opens on its own thread while AppKit launches, with this
-    // device's identity from the data folder (`library::open`); the shell
-    // takes it once the app is ready. Without one the window still opens,
-    // with no book.
+    // device's identity from the data folder (`library::open_active`); the
+    // shell takes it once the app is ready. Without one the window still
+    // opens, on the page that says the library could not be opened.
     let library = dirs.as_ref().map(|dirs| {
         let data = dirs.own.clone();
         std::thread::Builder::new()
@@ -162,34 +162,41 @@ fn main() {
             url_scheme: platform.url_scheme,
             forced_appearance: forced_appearance(),
         };
-        let library = match library {
+        // Without a library the window shows the page that says why
+        // (`dr_shell::library_failure`), never an empty bookshelf.
+        let data = dirs.as_ref().map(|dirs| dirs.own.as_path());
+        let (library, library_failure) = match library {
             Some(Ok(thread)) => match thread.join() {
                 Ok((Ok(lib), took)) => {
                     probe::library_opened(took);
-                    Some(lib)
+                    (Some(lib), None)
                 }
                 Ok((Err(error), _)) => {
                     let code = library::open_failure_code(&error);
                     log::error!("the library could not be opened: {error} ({code})");
                     crash_reports.report_integrity(&format!("library-open-failed:{code}"));
-                    None
+                    (None, Some(library::failure(&error, data)))
                 }
                 Err(_) => {
                     log::error!("opening the library panicked");
                     crash_reports.report_integrity("library-open-panicked");
-                    None
+                    (None, Some(library::other_failure("panicked", data)))
                 }
             },
             Some(Err(error)) => {
                 log::error!("could not start opening the library: {error}");
-                None
+                (None, Some(library::other_failure("not-started", data)))
             }
-            None => None,
+            None => {
+                log::error!("there is no data folder, so no library");
+                (None, Some(library::other_failure("no-data-folder", None)))
+            }
         };
         let services = Services {
             deep_links: Some(deep_links),
             crash_reports: Some(crash_reports),
             library,
+            library_failure,
             book: std::env::var(BOOK_ENV)
                 .ok()
                 .filter(|b| !b.trim().is_empty()),

@@ -234,7 +234,10 @@ fn swap(
 fn take_up(lib: Library, cx: &mut App) {
     lib.set_auto_links(crate::workspace::editors::editor_settings(cx).auto_entity_links);
     if cx.has_global::<Services>() {
-        cx.global_mut::<Services>().library = Some(lib.clone());
+        let services = cx.global_mut::<Services>();
+        services.library = Some(lib.clone());
+        // A library is in use: the start-up failure's page has had its day.
+        services.library_failure = None;
     }
     dr_view_stats::init(Some(lib.clone()), cx);
     dr_view_review::init(Some(lib.clone()), cx);

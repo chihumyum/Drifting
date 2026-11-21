@@ -572,4 +572,72 @@ fn a_build_without_updates_says_so_and_offers_no_button(cx: &mut TestAppContext)
         words(cx),
         say(cx, |cx| t(cx, keys::settings::update::UNAVAILABLE))
     );
+    // Nor on the page shown when a newer version wrote the library.
+    assert!(cx.update(|_, cx| dr_view_update::page_button(cx)).is_none());
+}
+
+/// The library could not be opened because a newer version wrote it: the
+/// page's 「检查更新」 is the Settings row's, through to 「重启以更新」, which
+/// quits, installs and reopens, so the author finishes the update there.
+#[gpui::test]
+fn the_library_failure_pages_button_finishes_the_update(cx: &mut TestAppContext) {
+    use dr_shell::library_failure::{self as page, Cause, LibraryFailure, PageButton};
+
+    let env = Env::new();
+    env.publish(
+        "0.2.1",
+        &build(&env.key, "0.2.1", "0.2.1", false),
+        Serve::Bytes,
+    );
+    cx.executor().allow_parking();
+    cx.update(|cx| {
+        let _ = dr_ui::init(cx);
+        dr_shell::init(
+            info(),
+            Services {
+                library_failure: Some(LibraryFailure {
+                    cause: Cause::Newer,
+                    code: "schema-newer".into(),
+                    folder: None,
+                }),
+                ..Services::default()
+            },
+            SettingsFile::in_memory(),
+            cx,
+        );
+        dr_view_update::init(env.service("0.2.0", env.server.url(MANIFEST), MANUAL), cx);
+    });
+    let (_, cx) = cx.add_window_view(Workspace::new);
+    cx.run_until_parked();
+    let label = |cx: &mut VisualTestContext| {
+        cx.update(|_, cx| page::button_label(PageButton::Update, cx).to_string())
+    };
+    let press = |cx: &mut VisualTestContext| {
+        cx.update(|window, cx| window.draw(cx).clear(cx));
+        let at = cx
+            .debug_bounds(PageButton::Update.id())
+            .expect("the page's update button")
+            .center();
+        cx.simulate_mouse_move(at, None, gpui::Modifiers::default());
+        cx.simulate_click(at, gpui::Modifiers::default());
+        cx.run_until_parked();
+    };
+    assert_eq!(
+        label(cx),
+        say(cx, |cx| t(cx, keys::settings::update::CHECK_ACTION))
+    );
+
+    // 检查更新: found, downloaded and verified.
+    press(cx);
+    assert_eq!(status(cx), Status::Ready(v("0.2.1")));
+    assert_eq!(
+        label(cx),
+        say(cx, |cx| t(cx, keys::settings::update::RESTART))
+    );
+
+    // 重启以更新: the ordinary quit installs it and reopens the app.
+    assert_eq!(env.installed_marker(), "v0.2.0");
+    press(cx);
+    assert_eq!(env.installed_marker(), "v0.2.1");
+    assert_eq!(*env.reopened.borrow(), std::slice::from_ref(&env.bundle));
 }

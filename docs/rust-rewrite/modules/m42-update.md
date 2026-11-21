@@ -89,6 +89,7 @@ dr_view_update::install_on_quit(cx);                        // 退出钩子本�
 
 - `settings::registry`：「关于」里版本号下面加一行 `about.update`（`RowAction::Updates`，标签是旧版的「新版本」）。
 - `settings::set_updates_row(cx, make)`：M42 给出这一行的说明文字和按钮；没注册时（测试、截图、不能更新的平台）这一行不出现。
+- `library_failure::set_update_button(cx, make)`（2026-11-21）：资料库被更新版本写过、打不开时那一页的「检查更新」（`dr_view_update::page_button`）。和上面那一行同一套：平时「检查更新」，查和下载时按钮上是那一行的字、转圈，下好了「重启以更新」；不能更新的构建没有这颗。见 [F6 的「资料库打不开时」](../foundations/f6-shell.md#资料库打不开时2026-11-21作者定)。
 
 M39 的反馈对话框改了一行：摘要里的更新状态改用 `dr_view_update::snapshot`（之前是固定的「空闲」）。
 

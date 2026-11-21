@@ -593,5 +593,20 @@
     "timeline": {
       "body": "Slides up from under the page and lays out the attached entries by view."
     }
+  },
+  "libraryOpenFailed": {
+    "title": "Couldn't open the library",
+    "unchanged": "The library was not changed.",
+    "keptBeforeUpgrade": "A copy of the library from before the upgrade was kept.",
+    "cause": {
+      "newer": "A newer version of Drifting has opened it. Update Drifting first.",
+      "damaged": "The library file is damaged. Send feedback, and don't delete this folder yet.",
+      "upgradeUnfinished": "This version couldn't upgrade it. Use the previous version of Drifting for now, and send feedback.",
+      "upgradedUnopenable": "The upgraded library doesn't open. Send feedback.",
+      "noPermission": "Drifting can't read or write this folder. Check its permissions.",
+      "diskFull": "The disk is full. Free up some space, then open Drifting again.",
+      "unknown": "Send feedback."
+    },
+    "feedbackMessage": "{{title}} ({{code}})"
   }
 }

@@ -592,7 +592,11 @@ impl Workspace {
                 }
             })
             .unwrap_or_default();
-        let shelf_first = has_shelf && book_id.is_empty();
+        // The library could not be opened at start-up: the window shows the
+        // page that says so (`library_failure`), and nothing of the
+        // bookshelf, its first run or the import's offer.
+        let failed = library.is_none() && services.is_some_and(|s| s.library_failure.is_some());
+        let shelf_first = has_shelf && book_id.is_empty() && !failed;
         let observers = vec![
             cx.observe_window_appearance(window, |ws, window, cx| {
                 ws.style_editors(window, cx);
@@ -696,7 +700,7 @@ impl Workspace {
             projects: None,
             projects_open: false,
             projects_dropped: 0,
-            shelf_if_unread: has_shelf && !shelf_first && named.is_none(),
+            shelf_if_unread: has_shelf && !shelf_first && named.is_none() && !failed,
             shelf_wanted: false,
             v3_home: None,
             drag_armed: false,
@@ -713,7 +717,7 @@ impl Workspace {
         if shelf_first {
             ws.show_shelf(window, cx);
             ws.sea_first_run(window, cx);
-        } else {
+        } else if !failed {
             ws.load_book(preferred, cx);
         }
         ws.listen_on_close(window, cx);
@@ -1752,6 +1756,22 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        let opening = dialogs::FeedbackOpening {
+            follow_up,
+            message: None,
+        };
+        self.open_feedback_with(opening, window, cx);
+    }
+
+    /// The feedback dialog as `opening` says: a crash's follow-up, or with
+    /// a message already written (the page shown when the library cannot
+    /// be opened).
+    pub fn open_feedback_with(
+        &mut self,
+        opening: dialogs::FeedbackOpening,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.notifications_open = false;
         let ws = cx.entity().downgrade();
         let close: dialogs::Close = std::rc::Rc::new(move |window, cx| {
@@ -1761,7 +1781,7 @@ impl Workspace {
             })
             .ok();
         });
-        self.dialog = dialogs::make_feedback(follow_up, close, window, cx);
+        self.dialog = dialogs::make_feedback(opening, close, window, cx);
         cx.notify();
     }
 
@@ -1815,7 +1835,9 @@ impl Workspace {
     }
 
     pub fn open_settings(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.modal() || crate::release::is_releasing(cx) {
+        // Nothing of the workspace over the page that says the library
+        // could not be opened.
+        if self.modal() || crate::release::is_releasing(cx) || self.library_failure(cx).is_some() {
             return;
         }
         self.notifications_open = false;
@@ -1962,6 +1984,9 @@ impl Focusable for Workspace {
 
 impl Render for Workspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if let Some(failure) = self.library_failure(cx) {
+            return self.render_library_failure(failure, window, cx);
+        }
         let theme = Theme::of(window, cx);
         let p = theme.palette;
         if std::mem::take(&mut self.shelf_wanted) {
@@ -2116,6 +2141,70 @@ impl Workspace {
 }
 
 impl Workspace {
+    /// The library could not be opened at start-up and none has been taken
+    /// up since: the window shows [`crate::library_failure`]'s page.
+    pub fn library_failure(&self, cx: &App) -> Option<crate::library_failure::LibraryFailure> {
+        if self.library.is_some() {
+            return None;
+        }
+        crate::library_failure::current(cx)
+    }
+
+    /// The page instead of the bookshelf when the library could not be
+    /// opened: its lines and buttons, the feedback dialog over it, the
+    /// window's own controls. Nothing else of the workspace, and of its
+    /// shortcuts only 提交反馈 (with the page's message written in).
+    fn render_library_failure(
+        &mut self,
+        failure: crate::library_failure::LibraryFailure,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> gpui::AnyElement {
+        let p = Theme::of(window, cx).palette;
+        self.sync_traffic_lights(window, cx);
+        let strip = chrome::drag_region(
+            div()
+                .id("library-failure-drag-strip")
+                .absolute()
+                .top_0()
+                .left_0()
+                .right_0()
+                .h(px(chrome::TITLEBAR_HEIGHT)),
+            cx,
+        );
+        let message = crate::library_failure::feedback_message(&failure, cx);
+        let this = cx.weak_entity();
+        let on_feedback: crate::library_failure::OpenFeedback = Rc::new(move |window, cx| {
+            let opening = dialogs::FeedbackOpening {
+                follow_up: None,
+                message: Some(message.clone()),
+            };
+            this.update(cx, |ws, cx| ws.open_feedback_with(opening, window, cx))
+                .ok();
+        });
+        let page = crate::library_failure::page(&failure, on_feedback.clone(), window, cx);
+        let root = div()
+            .id("workspace")
+            .key_context(keymap::WORKSPACE)
+            .track_focus(&self.focus)
+            .relative()
+            .size_full()
+            .bg(p.desk.solid())
+            .text_color(p.ink(1).solid())
+            .child(page)
+            .child(strip)
+            .when_some(self.dialog.clone(), |el, dialog| el.child(dialog))
+            .child(chrome::windows_caption(window, cx))
+            .children(crate::release::curtain(window, cx));
+        // A dialog over it answers its own keys.
+        let root = if self.modal() {
+            root
+        } else {
+            root.on_action(move |_: &SendFeedback, window, cx| on_feedback(window, cx))
+        };
+        glass::surface(Ground::flat(p.desk), root).into_any_element()
+    }
+
     /// The bookshelf over the whole window, with Settings and the
     /// notification center (opening from the bookshelf's bell) above it.
     fn render_shelf(

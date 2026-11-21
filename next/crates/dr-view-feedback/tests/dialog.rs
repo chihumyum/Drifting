@@ -478,3 +478,55 @@ fn without_a_registered_dialog_nothing_opens(cx: &mut TestAppContext) {
     cx.run_until_parked();
     assert!(cx.read(|cx| ws.read(cx).dialog.is_none()));
 }
+
+/// The page the shell shows when the library could not be opened: its
+/// 「提交反馈」 opens this dialog with no library, the first line and the
+/// code already written; the rest is as always, and it sends.
+#[gpui::test]
+fn the_library_failure_page_opens_it_with_its_first_line_and_code(cx: &mut TestAppContext) {
+    use dr_shell::library_failure::{Cause, LibraryFailure, PageButton};
+
+    cx.executor().allow_parking();
+    cx.update(|cx| {
+        let _ = dr_ui::init(cx);
+        dr_shell::init(
+            info(),
+            Services {
+                library_failure: Some(LibraryFailure {
+                    cause: Cause::Newer,
+                    code: "schema-newer".into(),
+                    folder: None,
+                }),
+                ..Services::default()
+            },
+            SettingsFile::in_memory(),
+            cx,
+        );
+        dr_shell::strings::Strings::install(dr_i18n::Locale::ZhCn, cx);
+        dr_view_feedback::init(service(Delivery::Email), cx);
+    });
+    let (ws, cx) = cx.add_window_view(Workspace::new);
+    cx.run_until_parked();
+    assert!(cx.read(|cx| ws.read(cx).library_failure(cx).is_some()));
+    assert!(cx.read(|cx| cx.global::<Services>().library.is_none()));
+    draw(cx);
+    let at = cx
+        .debug_bounds(PageButton::Feedback.id())
+        .expect("the page's 提交反馈")
+        .center();
+    click(at, cx);
+    let d = dialog(&ws, cx).expect("提交反馈 opens the dialog");
+    let message = cx.read(|cx| d.read(cx).message_field().read(cx).text());
+    assert_eq!(message, "没能打开资料库（schema-newer）");
+    assert!(cx.read(|cx| d.read(cx).attaches_summary()));
+    assert_eq!(cx.read(|cx| d.read(cx).phase()), Phase::Editing);
+    // Written already, so the mist keeps it.
+    click(mist(), cx);
+    assert!(dialog(&ws, cx).is_some());
+    // It sends as it is.
+    cx.simulate_keystrokes(SEND_KEYS);
+    cx.run_until_parked();
+    let mail = decode(&cx.opened_url().expect("mail"));
+    assert!(mail.contains("没能打开资料库（schema-newer）"), "{mail}");
+    assert!(dialog(&ws, cx).is_none());
+}

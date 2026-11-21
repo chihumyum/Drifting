@@ -12,8 +12,11 @@
 //!   ([`crate::workspace::update_workspace`]).
 //! - [`set_feedback`]: the feedback dialog (M39, `dr-view-feedback`) is
 //!   made when [`crate::actions::SendFeedback`] is dispatched (the account
-//!   menu, Settings → About) or a crash follow-up is clicked, and dropped
-//!   when it calls the `close` it was given. Without a maker nothing opens.
+//!   menu, Settings → About), a crash follow-up is clicked or 「提交反馈」 is
+//!   pressed on the page shown when the library cannot be opened (with its
+//!   first line and code written in the message, [`FeedbackOpening`]), and
+//!   dropped when it calls the `close` it was given. Without a maker
+//!   nothing opens.
 
 use std::rc::Rc;
 use std::time::SystemTime;
@@ -33,7 +36,17 @@ pub struct FollowUpNotice {
 /// What a dialog calls to go away.
 pub type Close = Rc<dyn Fn(&mut Window, &mut App)>;
 
-type MakeFeedback = Rc<dyn Fn(Option<FollowUpNotice>, Close, &mut Window, &mut App) -> AnyView>;
+/// What the feedback dialog opens with.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct FeedbackOpening {
+    /// The crash it follows up, when a crash follow-up was clicked.
+    pub follow_up: Option<FollowUpNotice>,
+    /// The message already written in it (the page shown when the library
+    /// cannot be opened: 「没能打开资料库（<code>）」).
+    pub message: Option<String>,
+}
+
+type MakeFeedback = Rc<dyn Fn(FeedbackOpening, Close, &mut Window, &mut App) -> AnyView>;
 
 #[derive(Clone, Default)]
 struct Dialogs {
@@ -42,22 +55,22 @@ struct Dialogs {
 
 impl Global for Dialogs {}
 
-/// Registers the feedback dialog: `make(follow_up, close, window, cx)`.
+/// Registers the feedback dialog: `make(opening, close, window, cx)`.
 pub fn set_feedback(
     cx: &mut App,
-    make: impl Fn(Option<FollowUpNotice>, Close, &mut Window, &mut App) -> AnyView + 'static,
+    make: impl Fn(FeedbackOpening, Close, &mut Window, &mut App) -> AnyView + 'static,
 ) {
     cx.default_global::<Dialogs>().feedback = Some(Rc::new(make));
 }
 
 pub(crate) fn make_feedback(
-    follow_up: Option<FollowUpNotice>,
+    opening: FeedbackOpening,
     close: Close,
     window: &mut Window,
     cx: &mut App,
 ) -> Option<AnyView> {
     let make = cx.try_global::<Dialogs>()?.feedback.clone()?;
-    Some(make(follow_up, close, window, cx))
+    Some(make(opening, close, window, cx))
 }
 
 /// Shows `view` as the dialog (in place of any other) of the workspace an
