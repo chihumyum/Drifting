@@ -16,6 +16,9 @@ dr-index.workspace = true
 dr-model.workspace = true
 dr-samples.workspace = true
 dr-store.workspace = true
+# Each 0.1 history row becomes an entry checkpoint made with the history
+# commands' own checksum and fingerprint (`checkpoints`).
+dr-workspace.workspace = true
 # The size of 0.1's JPEG display and thumbnail copies, read from their
 # headers (`copies`).
 image.workspace = true
@@ -36,7 +39,6 @@ libc.workspace = true
 dr-agent-tools.workspace = true
 # Measured evidence in the one format (`examples/m10-measure.rs`).
 dr-testkit.workspace = true
-dr-workspace.workspace = true
 tempfile.workspace = true
 
 [build-dependencies]

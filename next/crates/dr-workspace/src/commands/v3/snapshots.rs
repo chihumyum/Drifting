@@ -163,6 +163,14 @@ fn point(cx: &Cx<'_>, s: &BookSlot, input: &PointIn) -> Result<Point> {
         .1;
     checked_point(&value, &input.target, &input.point)
 }
+/// The manifest stored under `id`, when it is a sound checkpoint of `target`
+/// by the rules `entry_snapshot.list`, `preview` and `restore` apply (format,
+/// owner, id, checksum, own bodies only). The 0.1 import checks the points
+/// it writes with it; history content is checked apart
+/// ([`checkpoint_history_matches`]).
+pub fn checked_checkpoint(manifest: &str, target: &EntryIn, id: &str) -> Result<Point> {
+    checked_point(manifest, target, id)
+}
 /// The manifest stored under `id`, when it is a sound checkpoint of `target`.
 fn checked_point(value: &str, target: &EntryIn, id: &str) -> Result<Point> {
     let p: Point = serde_json::from_str(value).map_err(|e| WsError::invalid(e.to_string()))?;

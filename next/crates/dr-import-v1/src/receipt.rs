@@ -176,6 +176,14 @@ pub struct BookRecord {
     /// the book document, and of those, how many hold at their point.
     pub history_meta_replayed: usize,
     pub history_meta_checked: usize,
+    /// History rows written as entry checkpoints (`crate::checkpoints`), and
+    /// of those, how many read back as their row (`Options::verify_history`).
+    pub history_checkpoints: usize,
+    pub history_checkpoints_checked: usize,
+    /// History rows with a body version that did not become an entry
+    /// checkpoint: row id → why (`crate::checkpoints::ENTRY_MISSING`, …).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub history_without_checkpoint: BTreeMap<String, String>,
     pub assets_copied: usize,
     pub assets_missing: usize,
     pub assets_mismatched: usize,

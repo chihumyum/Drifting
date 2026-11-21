@@ -13,7 +13,8 @@
 //! - [`time`]: 0.1 timestamps;
 //! - [`run`]: one import, start to finish, reporting [`progress`];
 //! - [`meta`]: the snapshot history's metadata replayed into the book
-//!   document; [`receipt`]: what the import did;
+//!   document; [`checkpoints`]: each history row an entry checkpoint the
+//!   history dialog lists; [`receipt`]: what the import did;
 //! - [`carry`]: what the 0.1 library kept for this device (settings,
 //!   shortcuts, the Agent's working memory) that the new client takes over;
 //! - [`copies`]: 0.1's display and thumbnail copies of the images the new
@@ -25,6 +26,7 @@
 pub mod anchors;
 pub mod book;
 pub mod carry;
+pub mod checkpoints;
 pub mod copies;
 pub mod defaults;
 pub mod error;

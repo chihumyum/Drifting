@@ -53,6 +53,8 @@ pub fn summary(receipt: &Receipt, timing: &Timing) -> Value {
         "historyVersions": receipt.docs.iter().map(|d| d.history_versions).sum::<usize>(),
         "historyMetaReplayed": sum(|b| b.history_meta_replayed),
         "historyMetaChecked": sum(|b| b.history_meta_checked),
+        "historyCheckpoints": sum(|b| b.history_checkpoints),
+        "historyCheckpointsChecked": sum(|b| b.history_checkpoints_checked),
         "repairedBlockIds": receipt.docs.iter().map(|d| d.repaired_block_ids).sum::<usize>(),
         "anchors": receipt.anchors.len(),
         "anchorCursors": receipt.anchors.iter().filter(|a| a.cursor).count(),
@@ -164,6 +166,20 @@ pub fn check_truth(root: &Path, truth: &Path) -> Result<Value> {
     let mut history_skipped = 0usize;
     let mut history_equal = 0usize;
     let mut labels_by_doc: HashMap<String, usize> = HashMap::new();
+    let mut history_checkpointed = 0usize;
+    // Every entry checkpoint id in the library (`crate::checkpoints`).
+    let mut checkpoints: std::collections::HashSet<String> = std::collections::HashSet::new();
+    for info in lib.docs(None, None)? {
+        if let Ok(DocId::Checkpoints(book)) = DocId::parse(&info.doc_id) {
+            let doc = lib.load_copy(&info.doc_id)?;
+            for (id, _) in dr_doc::side::BorrowedCheckpoints::new(&doc, &book)?
+                .view()
+                .entry_checkpoints()
+            {
+                checkpoints.insert(id);
+            }
+        }
+    }
     let mut links_compared = 0usize;
     let mut cells_compared = 0usize;
     for line in std::fs::read_to_string(truth)?
@@ -181,8 +197,13 @@ pub fn check_truth(root: &Path, truth: &Path) -> Result<Value> {
             history_skipped += 1;
             continue;
         }
-        if v.get("historyId").is_some() {
+        if let Some(h) = v.get("historyId") {
             history_rows += 1;
+            if h.as_str()
+                .is_some_and(|h| checkpoints.contains(&crate::checkpoints::checkpoint_id(h)))
+            {
+                history_checkpointed += 1;
+            }
             *labels_by_doc.entry(old.to_string()).or_default() += 1;
             continue;
         }
@@ -284,6 +305,7 @@ pub fn check_truth(root: &Path, truth: &Path) -> Result<Value> {
         "historyRows": history_rows,
         "historyRowsSkippedAndRecorded": history_skipped,
         "historyRowsWithPoints": history_equal,
+        "historyRowsWithCheckpoints": history_checkpointed,
         "historyDocsMatching": labels_ok,
         "historyDocs": labels_by_doc.len(),
         "historyPointsKeptWithBookVersion": kept,

@@ -191,6 +191,81 @@ fn endpoint(
     dr_model::import_v1::EntityRef::new(kind, id)
 }
 
+/// The entry checkpoints of `view`'s book are exactly the 0.1 history rows
+/// the import replayed: one per `periodic` history label, at the label's
+/// time, body version and book version, each sound by the history
+/// commands' own rules, with the import's reason, its history the content
+/// its manifest fingerprints. Nothing but the genesis and the import peer
+/// wrote the document.
+fn imported_checkpoints_match_the_history_labels(view: &BookViewV3<'_>, lib: &Library) {
+    use dr_workspace::commands::v3::snapshots::{self as api, EntryIn};
+    use dr_workspace::naming::{frontiers_from_hex, frontiers_hex};
+    let book = view.book_id().clone();
+    let id = format!("checkpoints:{book}");
+    let h = lib.open_doc(&id, dr_store::OpenDoc::Existing).unwrap();
+    let b = book.clone();
+    let (manifests, vv) = h
+        .read(move |d| {
+            let m = dr_doc::side::BorrowedCheckpoints::new(d, &b)
+                .unwrap()
+                .view()
+                .entry_checkpoints();
+            (m, d.oplog_vv())
+        })
+        .unwrap();
+    h.close();
+    let genesis = dr_doc::side::CheckpointsDoc::create(book.clone(), random_device_peer())
+        .unwrap()
+        .version();
+    let import_peer = dr_doc::peer::import_peer(&id);
+    for peer in vv.keys() {
+        assert!(
+            genesis.get(peer).is_some() || *peer == import_peer,
+            "peer {peer} wrote {id}"
+        );
+    }
+    let mut labels = Vec::new();
+    for info in lib.docs(Some(book.as_str()), None).unwrap() {
+        if matches!(DocId::parse(&info.doc_id), Ok(DocId::Body(_))) {
+            for l in lib.history(&info.doc_id).unwrap() {
+                if l.label == dr_store::history::labels::PERIODIC {
+                    labels.push(l);
+                }
+            }
+        }
+    }
+    assert_eq!(manifests.len(), labels.len(), "{manifests:?}");
+    let mut matched = BTreeSet::new();
+    for (key, value) in &manifests {
+        let owner: serde_json::Value = serde_json::from_str(value).unwrap();
+        let target = EntryIn {
+            book: book.to_string(),
+            entry: owner["entry"].as_str().unwrap().to_owned(),
+        };
+        let p = api::checked_checkpoint(value, &target, key).unwrap();
+        assert!(key.starts_with("import-v1:"), "{key}");
+        assert_eq!(p.reason, "import");
+        let label = labels
+            .iter()
+            .find(|l| {
+                l.ts == p.ts
+                    && p.bodies.get(&l.doc_id) == Some(&frontiers_hex(&l.frontiers))
+                    && l.book_frontiers.as_ref().map(frontiers_hex).as_ref()
+                        == Some(&p.book_version)
+            })
+            .unwrap_or_else(|| panic!("{key}: no history label at its versions"));
+        assert!(matched.insert(label.id), "{key}: a label matched twice");
+        let mut docs = BTreeMap::new();
+        for (doc, version) in std::iter::once((format!("book:{book}"), p.book_version.clone()))
+            .chain(p.bodies.clone())
+        {
+            let at = frontiers_from_hex(&version).unwrap();
+            docs.insert(doc.clone(), lib.load_copy_at(&doc, &at).unwrap());
+        }
+        assert!(api::checkpoint_history_matches(&docs, &target, &p.content_hash).unwrap());
+    }
+}
+
 fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) {
     adapter::validate(view).unwrap();
     let counts = expected.counts();
@@ -770,30 +845,10 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
         writing_days.len(),
         expected.source_rows["writing_day"].len()
     );
-    // `checkpoints:<book>` is created with its deterministic genesis only:
-    // 0.1 had no entry checkpoints, so no post-genesis update is written.
-    let checkpoints_id = format!("checkpoints:{}", view.book_id());
-    let (cp_entries, cp_vv) = {
-        let h = lib
-            .open_doc(&checkpoints_id, dr_store::OpenDoc::Existing)
-            .unwrap();
-        let book = view.book_id().clone();
-        let res = h
-            .read(move |d| {
-                let entries = dr_doc::side::BorrowedCheckpoints::new(d, &book)
-                    .unwrap()
-                    .view()
-                    .entry_checkpoints();
-                (entries, d.oplog_vv())
-            })
-            .unwrap();
-        h.close();
-        res
-    };
-    assert!(cp_entries.is_empty());
-    let fresh_cp =
-        dr_doc::side::CheckpointsDoc::create(view.book_id().clone(), random_device_peer()).unwrap();
-    assert_eq!(cp_vv, fresh_cp.version());
+    // `checkpoints:<book>`: its deterministic genesis, then one entry
+    // checkpoint per 0.1 history row the import replayed (`m10-import.md`
+    // 「快照历史」), each the twin of that row's history label.
+    imported_checkpoints_match_the_history_labels(view, lib);
     // Level descriptions sit in the `说明` prose module (`in_book = false`),
     // never in a separate `/about` document.
     for tpl_id in [TPL_CATEGORY, TPL_STORYLINE, TPL_IDEA_GROUP, TPL_GROUP] {
@@ -3398,14 +3453,18 @@ fn act_track_imports_all_eight_cases_preserves_color_and_leaves_source_untouched
 
 #[test]
 fn unified_entry_v4_side_documents_summary_copy_and_format3_resume_guard() {
-    // 1. Even when a 0.1 book has zero writing_day rows, both `stats:<book>` and
-    //    `checkpoints:<book>` are stored at their deterministic genesis only,
-    //    `summary_zh` reflects the unified-entry model without retired template
-    //    split terms, and the source directory stays untouched (bytes + mtime).
+    // 1. Even when a 0.1 book has zero writing_day rows and zero snapshot
+    //    history rows, both `stats:<book>` and `checkpoints:<book>` are
+    //    stored at their deterministic genesis only, `summary_zh` reflects
+    //    the unified-entry model without retired template split terms, and
+    //    the source directory stays untouched (bytes + mtime). (A book with
+    //    history gets one checkpoint per row: `compare`.)
     let old = fixture::build();
     {
         let c = rusqlite::Connection::open(&old.db).unwrap();
         c.execute("DELETE FROM writing_day", []).unwrap();
+        c.execute("DELETE FROM entity_snapshot_history", [])
+            .unwrap();
     }
     let before = source_tree_snapshot(&old.root);
     let temp = tempfile::tempdir().unwrap();
