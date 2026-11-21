@@ -886,7 +886,8 @@ pub const INVARIANTS: &[Invariant] = &[
         "dr_model::v3::trashed_with 是 entry.trash、entry.restore、entry.purge 共用的一批（删除时间相同的住在下面的条目），restored_residence 是 entry.restore 落在哪；dr-shell 的 recently_deleted 用同两个函数算左栏「最近删除」的哪行收在哪行下面、小字写的住处",
         [
             "an_entry_goes_with_what_went_in_with_it_and_nothing_else",
-            "switching_level_off_trashes_live_descendants_in_place_and_restores_in_one_step"
+            "switching_level_off_trashes_live_descendants_in_place_and_restores_in_one_step",
+            "the_section_folds_what_went_in_together_and_names_where_each_row_goes_back"
         ]
     ),
     inv!(
@@ -911,7 +912,8 @@ pub const INVARIANTS: &[Invariant] = &[
         "entry.purge 在书目提交里给挂着它的每个 Tab 写 gone_title（ProjectWriterV3::tab_gone_title）；读取时 dr-shell 的 tabs::tab_name、帮手的结构说明、tab.remove／tab.move 的效果名在条目不在书里时用它",
         [
             "the_rest_of_the_book_reads_what_the_rules_say",
-            "a_lane_deleted_for_good_takes_the_places_only_it_gave"
+            "a_lane_deleted_for_good_takes_the_places_only_it_gave",
+            "a_tab_on_an_entry_deleted_for_good_keeps_its_name"
         ]
     ),
     inv!(
