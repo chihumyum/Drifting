@@ -104,7 +104,7 @@
           "act_binding_shared_idea_split": "一つのアイデアに複数の幕が結び付いていました。最初の幕がそのアイデアを使い、ほかの幕は「幕」の下に同じ名前の項目を新しく作りました",
           "align_unsupported": "両端揃えは左揃えとしてインポートしました",
           "built_in_relation_type_dropped": "組み込みの「関連」タイプはインポートしていません",
-          "comment_action_dropped": "廃止された Copilot のコメント操作（採用 / 却下）はインポートしません",
+          "comment_action_dropped": "廃止された {{product}} のコメント操作（採用 / 却下）はインポートしません",
           "comment_priority_dropped": "コメントの優先度はインポートしていません（コメントに優先度はなくなりました）",
           "entity_link_same_target_overlap": "同じ文字列に、同じ対象を指すが範囲の違うリンクが二つあったため、後のほうを残しました",
           "entity_link_to_asset_kept_as_text": "本文中の画像や PDF 資料へのリンクは、資料にファイルがなくリンク先がないため普通の文字にしました。一件ずつ下に記しています",

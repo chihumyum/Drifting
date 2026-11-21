@@ -392,7 +392,7 @@
           "act_binding_shared_idea_split": "아이디어 하나에 여러 막이 연결되어 있었습니다. 가장 이른 막이 그 아이디어를 쓰고, 나머지 막은 「幕」 아래에 같은 이름의 항목을 새로 만들었습니다",
           "align_unsupported": "양쪽 맞춤은 왼쪽 맞춤으로 가져왔습니다",
           "built_in_relation_type_dropped": "기본 제공 「연관」 유형은 가져오지 않았습니다",
-          "comment_action_dropped": "없어진 Copilot의 댓글 동작(수락 / 거절)은 더 이상 가져오지 않습니다",
+          "comment_action_dropped": "없어진 {{product}}의 댓글 동작(수락 / 거절)은 더 이상 가져오지 않습니다",
           "comment_priority_dropped": "댓글의 우선순위는 가져오지 않았습니다(댓글에는 더 이상 우선순위가 없습니다)",
           "entity_link_same_target_overlap": "같은 글자에 같은 대상을 가리키지만 범위가 다른 링크가 두 개 있어, 뒤의 것을 남겼습니다",
           "entity_link_to_asset_kept_as_text": "본문에서 이미지나 PDF 자료를 가리키던 링크는 자료에 파일이 없어 연결할 곳이 없으므로 일반 글자로 바꿨습니다. 하나씩 아래에 적었습니다",

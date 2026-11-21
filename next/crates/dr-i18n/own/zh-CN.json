@@ -102,7 +102,7 @@
           "act_binding_shared_idea_split": "同一个构想绑了多个幕：最早的一幕沿用该构想，其余各幕在「幕」下新建了同名条目",
           "align_unsupported": "两端对齐按左对齐导入",
           "built_in_relation_type_dropped": "内置的「关联」类型没有导入",
-          "comment_action_dropped": "已退役的 Copilot 批注动作（采纳 / 拒绝）不再导入",
+          "comment_action_dropped": "已退役的 {{product}} 批注动作（采纳 / 拒绝）不再导入",
           "comment_priority_dropped": "批注的优先级没有导入（批注不再分优先级）",
           "entity_link_same_target_overlap": "同一段文字上有两条指向同一对象、但范围不同的链接，保留了后一条",
           "entity_link_to_asset_kept_as_text": "正文中指向图片或 PDF 素材的链接，素材没有文件、无处可链，已转为普通文字，逐条列在下方",

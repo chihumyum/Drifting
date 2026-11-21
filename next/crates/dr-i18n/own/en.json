@@ -107,7 +107,7 @@
           "act_binding_shared_idea_split": "One idea was bound to several acts: the earliest act keeps the idea, and each of the others got a new entry of the same name under “幕”",
           "align_unsupported": "Justified text was imported as left-aligned",
           "built_in_relation_type_dropped": "The built-in “Association” relation type was not imported",
-          "comment_action_dropped": "Actions of the retired Copilot on comments (accept / reject) are no longer imported",
+          "comment_action_dropped": "Actions of the retired {{product}} on comments (accept / reject) are no longer imported",
           "comment_priority_dropped": "Comment priorities were not imported (comments no longer have priorities)",
           "entity_link_same_target_overlap": "Where two links to the same thing covered different spans of the same text, the later one was kept",
           "entity_link_to_asset_kept_as_text": "Links in the text to image or PDF materials that have no file had nothing to point to and became plain text; each is listed below",

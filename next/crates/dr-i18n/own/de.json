@@ -107,7 +107,7 @@
           "act_binding_shared_idea_split": "Eine Idee war an mehrere Akte gebunden: Der früheste Akt behält die Idee, die übrigen bekamen je einen neuen Eintrag gleichen Namens unter „幕“",
           "align_unsupported": "Blocksatz wurde als linksbündig importiert",
           "built_in_relation_type_dropped": "Der eingebaute Typ „Verknüpfung“ wurde nicht importiert",
-          "comment_action_dropped": "Aktionen des eingestellten Copilot an Kommentaren (annehmen / ablehnen) werden nicht mehr importiert",
+          "comment_action_dropped": "Aktionen des eingestellten {{product}} an Kommentaren (annehmen / ablehnen) werden nicht mehr importiert",
           "comment_priority_dropped": "Die Priorität von Kommentaren wurde nicht importiert (Kommentare haben keine Priorität mehr)",
           "entity_link_same_target_overlap": "Wo zwei Links auf dasselbe Ziel verschiedene Stellen desselben Textes abdeckten, blieb der spätere",
           "entity_link_to_asset_kept_as_text": "Links im Text auf Bild- oder PDF-Materialien ohne Datei hatten kein Ziel und wurden zu normalem Text; jeder steht unten",

@@ -397,7 +397,7 @@
           "act_binding_shared_idea_split": "Uma ideia estava ligada a vários atos: o primeiro ato mantém a ideia, e cada um dos outros ganhou uma nova entrada com o mesmo nome em “幕”",
           "align_unsupported": "O texto justificado foi importado alinhado à esquerda",
           "built_in_relation_type_dropped": "O tipo integrado “Associação” não foi importado",
-          "comment_action_dropped": "As ações do Copilot descontinuado em comentários (aceitar / recusar) não são mais importadas",
+          "comment_action_dropped": "As ações do {{product}} descontinuado em comentários (aceitar / recusar) não são mais importadas",
           "comment_priority_dropped": "A prioridade dos comentários não foi importada (os comentários não têm mais prioridade)",
           "entity_link_same_target_overlap": "Quando dois links para o mesmo destino cobriam trechos diferentes do mesmo texto, o último foi mantido",
           "entity_link_to_asset_kept_as_text": "Os links do texto para materiais de imagem ou PDF sem arquivo não tinham para onde apontar e viraram texto comum; cada um está listado abaixo",

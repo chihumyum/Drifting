@@ -104,7 +104,7 @@
           "act_binding_shared_idea_split": "同一個構想綁了多個幕：最早的一幕沿用該構想，其餘各幕在「幕」下新建了同名條目",
           "align_unsupported": "兩端對齊以靠左對齊匯入",
           "built_in_relation_type_dropped": "內建的「關聯」類型沒有匯入",
-          "comment_action_dropped": "已退役的 Copilot 註解動作（採納／拒絕）不再匯入",
+          "comment_action_dropped": "已退役的 {{product}} 註解動作（採納／拒絕）不再匯入",
           "comment_priority_dropped": "註解的優先順序沒有匯入（註解不再分優先順序）",
           "entity_link_same_target_overlap": "同一段文字上有兩個指向同一對象、但範圍不同的連結，保留了後一個",
           "entity_link_to_asset_kept_as_text": "正文中指向圖片或 PDF 素材的連結，素材沒有檔案、無處可連，已轉為一般文字，逐條列在下方",

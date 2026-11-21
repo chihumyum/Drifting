@@ -628,6 +628,21 @@ pub fn default_sentence(code: &str) -> Option<Key> {
 /// `crate::defaults::CODES` has its own.
 pub const DEFAULT_FALLBACK: Key = k::defaults::FALLBACK;
 
+/// The retired in-app AI whose comment actions 0.1 kept: a name, not
+/// translated, given to its sentence's `{{product}}` here, among the files
+/// that may name it (`xtask` gate `retired`), not in the language tables.
+const RETIRED_COMMENT_ACTIONS_OF: &str = "Copilot";
+
+/// What a lossy sentence names (only the retired comment actions' one
+/// names anything).
+fn lossy_args(key: &str) -> Vec<(&'static str, String)> {
+    if key.starts_with("comment-action-dropped:") {
+        vec![("product", RETIRED_COMMENT_ACTIONS_OF.to_owned())]
+    } else {
+        Vec::new()
+    }
+}
+
 /// The sentence of a lossy normalisation (a key of [`BookRecord::notes`];
 /// `m10-import.md` has the full list). Keys without one are lossless
 /// bookkeeping, in neither summary.md nor the dialog.
@@ -750,7 +765,7 @@ pub fn differences(b: &BookRecord) -> Vec<Difference> {
             out.push(Difference {
                 block: Block::Lossy,
                 sentence,
-                args: Vec::new(),
+                args: lossy_args(key),
                 count: *count,
                 counted: true,
                 codes: vec![key.clone()],
@@ -956,11 +971,20 @@ pub fn summary_zh(r: &Receipt) -> String {
             }
             s.push('\n');
         }
-        let lossy: Vec<(&str, usize, &str)> = b
+        let lossy: Vec<(&str, usize, String)> = b
             .notes
             .0
             .iter()
-            .filter_map(|(k, v)| lossy_sentence(k).map(|e| (k.as_str(), *v, zh.t(e))))
+            .filter_map(|(k, v)| {
+                lossy_sentence(k).map(|e| {
+                    let names = lossy_args(k);
+                    let args: Vec<dr_i18n::Arg<'_>> = names
+                        .iter()
+                        .map(|(n, value)| (*n, value as &dyn std::fmt::Display))
+                        .collect();
+                    (k.as_str(), *v, zh.fmt(e, &args))
+                })
+            })
             .collect();
         if !lossy.is_empty() {
             s.push_str("和旧版不完全一样的地方：\n\n");
@@ -1298,6 +1322,41 @@ mod tests {
             "没有书序的章节按旧版的读法排在最前（书序 0）"
         );
         assert_eq!(zh.t(DEFAULT_FALLBACK), "照原样导入，记在回执里");
+        // The retired AI's name comes from here, not from the tables.
+        let mut b = BookRecord {
+            status: "imported".into(),
+            ..Default::default()
+        };
+        b.notes
+            .0
+            .insert("comment-action-dropped:accept_suggestion".into(), 2);
+        assert_eq!(
+            differences(&b)[0].text(&zh),
+            "已退役的 Copilot 批注动作（采纳 / 拒绝）不再导入"
+        );
+        assert!(summary_zh(&Receipt {
+            importer: "t",
+            started_ms: 0,
+            finished_ms: 0,
+            source_sha256: String::new(),
+            source_bytes: 0,
+            schema_level_before: 0,
+            gate: Gate::decide(false, None, &[], Default::default()),
+            accepted: Default::default(),
+            books: vec![b],
+            docs: Vec::new(),
+            anchors: Vec::new(),
+            originals: Vec::new(),
+            orphan_yjs_docs: 0,
+            archived_rows: BTreeMap::new(),
+            local_rows: BTreeMap::new(),
+            installation_id_adopted: false,
+            history_retention: "kept",
+            cancelled: false,
+        })
+        .contains(
+            "- 已退役的 Copilot 批注动作（采纳 / 拒绝）不再导入（2 处，`comment-action-dropped:accept_suggestion`）"
+        ));
         assert_eq!(
             zh.fmt(k::ASSETS, &[("missing", &2), ("mismatched", &1)]),
             "有 2 个资源文件找不到、1 个和记录的哈希对不上，没有导入。"
