@@ -15,7 +15,8 @@
 //! The contract is asserted here, not recorded: a body proven fresh that
 //! differs from the truth, a body not stored exactly or not round-tripping,
 //! an anchor without its cursors, a history row without its point (kept,
-//! with the book's version), metadata that does not hold at its point, a
+//! with the book's version) or without its entry checkpoint (one that reads
+//! back as the row), metadata that does not hold at its point, a
 //! stale index, a body whose words differ from dr-index's own reading, a
 //! search probe not found, a gate that stops on other bodies than the ones
 //! the generator left behind their Yjs state, a 0.1 row neither imported
@@ -340,6 +341,9 @@ fn measure(fixtures: &Path) -> Res<(Vec<Value>, Value, Vec<String>)> {
         if imported["notes"].get("history-version-differs").is_some() {
             fail("a history version does not check out".into());
         }
+        if n(&imported, "historyCheckpointsChecked") != n(&imported, "historyCheckpoints") {
+            fail("an entry checkpoint does not read back as its history row".into());
+        }
         if imported["progress"]["overallMonotonic"] != json!(true) {
             fail("progress went back".into());
         }
@@ -355,6 +359,9 @@ fn measure(fixtures: &Path) -> Res<(Vec<Value>, Value, Vec<String>)> {
             }
             if n(&truth_check, "historyRowsWithPoints") != n(&truth_check, "historyRows") {
                 fail("a history row has no point".into());
+            }
+            if n(&truth_check, "historyRowsWithCheckpoints") != n(&truth_check, "historyRows") {
+                fail("a history row has no entry checkpoint".into());
             }
             // Rows without a preview are skipped and recorded, never more.
             let skipped = lib["historyRowsSkipped"].as_array().map_or(0, Vec::len) as u64;

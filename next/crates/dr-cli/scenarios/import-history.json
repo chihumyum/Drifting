@@ -1,0 +1,456 @@
+{
+  "about": "M10 + M09: a synthetic 0.1 library with snapshot history is imported through the ordinary import dialog; the imported chapter's 「快照历史」 (opened from its hover card) lists the two 0.1 snapshots at their 0.1 times, one is previewed and restored, and the chapter's text and title are the old ones, with the state before kept as a checkpoint. Secondary display, the scenario's own synthetic profile. Screenshots are records, not visual acceptance.",
+  "steps": [
+    {
+      "legacy": "sample-v3",
+      "save": "source"
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "light",
+          "DRIFTING_WINDOW_DISPLAY": "secondary",
+          "DRIFTING_APP_DATA_DIR": "${source.root}"
+        },
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "import.v1_offered": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          },
+          "account": {
+            "language.ui_locale": "en"
+          }
+        }
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "shelf.show"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/shelf": true
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "import.v3.configure",
+      "params": {
+        "source": "${source.root}"
+      },
+      "expect": {
+        "/phase": "ready"
+      }
+    },
+    {
+      "app": "import.v3.start"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/import/phase": "done",
+          "/library": true
+        },
+        "timeout_ms": 120000
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "button",
+        "label": "Done",
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/import/phase": "idle"
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "call": "entry_snapshot.list",
+      "input": {
+        "book": "${source.book}",
+        "entry": "${source.chapter}"
+      },
+      "expect": {
+        "/0/id": "import-v1:h-2",
+        "/0/ts": 1790933400000,
+        "/0/title": "第一章 序",
+        "/0/reason": "import",
+        "/1/id": "import-v1:h-1",
+        "/1/ts": 1790841600000,
+        "/1/title": "第一章"
+      },
+      "note": "The chapter's two 0.1 snapshots (2026-10-02 09:30 and 2026-10-01 08:00 UTC), newest first, as entry checkpoints."
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${source.book}",
+        "all": true
+      },
+      "save": "entries"
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${source.book}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/book/id": "${source.book}",
+          "/book/version": 5,
+          "/book/loaded": true,
+          "/shelf": false
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${source.chapter}/mod-prose"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/focus/editor": true
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "page.text",
+      "contains": {
+        "/text": "已经不止一两年了"
+      },
+      "note": "The chapter as imported: its current 0.1 text."
+    },
+    {
+      "app": "state.get",
+      "save": "opened"
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-j"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/bottom/pane": null
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ToggleLeftSidebar"
+      },
+      "note": "The entry's history is on its card's hover card in the left sidebar."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/left/open": true
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "RadioButton",
+        "label": "${entries.[template=tpl-manuscript].title}"
+      },
+      "note": "The chapter's card is in the 书稿 Tab."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/v3Sidebar/entry": "${entries.[template=tpl-manuscript].id}"
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {},
+      "save": "sidebar_ui"
+    },
+    {
+      "app": "ui.hover",
+      "params": {
+        "label": "第一章 序",
+        "role": "Group"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Snapshot history",
+        "role": "MenuItem",
+        "timeout_ms": 6000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Snapshot history",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/dialog": true
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 500
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "Button",
+        "contains": "第一章"
+      },
+      "save": "listed"
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "import-history-list.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "contains": "第一章",
+        "nth": 1
+      },
+      "note": "The older 0.1 snapshot (newest first: 「第一章 序」, then 「第一章」)."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 600
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "contains": "我要给阿Q做正传。"
+      },
+      "save": "previewed",
+      "note": "Its preview: the 0.1 snapshot's text."
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "import-history-preview.png"
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${source.book}",
+        "owner": "${source.chapter}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/1/text": "我要给阿Q做正传，已经不止一两年了。"
+      },
+      "note": "Previewing restores nothing."
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "Restore…"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 200
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "Confirm overwrite current version"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 800
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${source.book}",
+        "owner": "${source.chapter}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "第一章",
+        "/paragraphs/1/text": "我要给阿Q做正传。",
+        "/total": 2
+      }
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${source.book}",
+        "id": "${source.chapter}"
+      },
+      "expect": {
+        "/title": "第一章",
+        "/fields/mod-fields/summary": "初稿梗概"
+      }
+    },
+    {
+      "call": "entry_snapshot.list",
+      "input": {
+        "book": "${source.book}",
+        "entry": "${source.chapter}"
+      },
+      "expect": {
+        "/0/reason": "restore",
+        "/0/title": "第一章 序",
+        "/1/id": "import-v1:h-2",
+        "/2/id": "import-v1:h-1"
+      },
+      "save": "after_restore",
+      "note": "The state before the restore, kept as a checkpoint of its own at the top."
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "import-history-restored.png"
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "escape"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/dialog": false
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "text": "我要给阿Q做正传。",
+        "timeout_ms": 10000
+      },
+      "note": "The page shows the old text."
+    },
+    {
+      "app": "page.text",
+      "contains": {
+        "/text": "我要给阿Q做正传。"
+      }
+    },
+    {
+      "app": "app.quit"
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "light",
+          "DRIFTING_WINDOW_DISPLAY": "secondary",
+          "DRIFTING_APP_DATA_DIR": "${source.root}"
+        },
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "import.v1_offered": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          },
+          "account": {
+            "language.ui_locale": "en"
+          }
+        },
+        "book": "${source.book}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/book/id": "${source.book}",
+          "/book/loaded": true
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "call": "entry_snapshot.list",
+      "input": {
+        "book": "${source.book}",
+        "entry": "${source.chapter}"
+      },
+      "expect": {
+        "/0/reason": "close",
+        "/1/reason": "restore",
+        "/2/id": "import-v1:h-2",
+        "/3/id": "import-v1:h-1"
+      },
+      "save": "after_quit",
+      "note": "After the first quit, opened again: the quit's own point, then the one before the restore, then the 0.1 points, which no automatic capture thins."
+    },
+    {
+      "app": "app.quit"
+    }
+  ]
+}

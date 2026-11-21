@@ -7,8 +7,9 @@
 //! The 0.1 side is read with its own SQL from a staging copy (WAL replayed,
 //! schema brought up to the last 0.1 migration), not through the importer's
 //! readers, so a row the importer never read is still counted. The imported
-//! side is read from the stored documents (format 5), the history labels,
-//! the asset store, the receipt tables and `import-v1/receipt.sqlite`.
+//! side is read from the stored documents (format 5), the history labels
+//! and entry checkpoints, the asset store, the receipt tables and
+//! `import-v1/receipt.sqlite`.
 //!
 //! What it does not check: field values beyond presence (it checks the
 //! trashed state, primary storylines and writing-day words), prose content
@@ -1137,6 +1138,39 @@ fn check_book(
         }
     }
     let mut labels: HashMap<String, Vec<i64>> = HashMap::new();
+    // The entry checkpoints the history dialog lists, one per row
+    // (`crate::checkpoints`): written, or recorded as not written.
+    let manifests: HashMap<String, String> = match lib.load_copy(&format!("checkpoints:{book}")) {
+        Ok(doc) => dr_doc::side::BorrowedCheckpoints::new(&doc, &book_id)?
+            .view()
+            .entry_checkpoints()
+            .into_iter()
+            .collect(),
+        Err(dr_store::StoreError::NotFound(_)) => HashMap::new(),
+        Err(e) => return Err(e.into()),
+    };
+    let without_checkpoint = |id: &str| record["historyWithoutCheckpoint"][id].is_string();
+    let checkpoint = |id: &str, body: &str, at: Option<i64>| -> Outcome {
+        let point = crate::checkpoints::checkpoint_id(id);
+        let entry = match DocId::parse(body) {
+            Ok(DocId::Body(b)) => b.entry().to_string(),
+            _ => String::new(),
+        };
+        let target = dr_workspace::commands::v3::snapshots::EntryIn {
+            book: book.to_string(),
+            entry,
+        };
+        match manifests
+            .get(&point)
+            .map(|m| dr_workspace::commands::v3::snapshots::checked_checkpoint(m, &target, &point))
+        {
+            Some(Ok(p)) if Some(p.ts) == at => Carried,
+            Some(Ok(_)) => Missing("its entry checkpoint is not at its time".into()),
+            Some(Err(e)) => Missing(format!("its entry checkpoint is not sound: {e}")),
+            None if without_checkpoint(id) => Dropped,
+            None => Missing("no entry checkpoint for this row".into()),
+        }
+    };
     for (id, kind, entity, created) in rows(
         src,
         "SELECT id, entity_kind, entity_id, created_at FROM entity_snapshot_history WHERE project_id = ?1",
@@ -1157,10 +1191,16 @@ fn check_book(
         };
         let old = format!("{prefix}:{entity}");
         if dropped_by_default("entity_snapshot_history", &id) {
+            t.add("entity_snapshot_history (checkpoint)", id.clone(), Dropped);
             t.add("entity_snapshot_history", id, Dropped);
             continue;
         }
         let Some(new) = receipt.docs.get(&old) else {
+            t.add(
+                "entity_snapshot_history (checkpoint)",
+                id.clone(),
+                Missing(format!("its body {old} was not imported")),
+            );
             t.add(
                 "entity_snapshot_history",
                 id,
@@ -1168,6 +1208,12 @@ fn check_book(
             );
             continue;
         };
+        let at = crate::time::parse_iso_ms(&created);
+        t.add(
+            "entity_snapshot_history (checkpoint)",
+            id.clone(),
+            checkpoint(&id, new, at),
+        );
         if !labels.contains_key(new) {
             let ts = lib
                 .history(new)?
@@ -1178,7 +1224,6 @@ fn check_book(
             labels.insert(new.clone(), ts);
         }
         let points = labels.get_mut(new).expect("labels");
-        let at = crate::time::parse_iso_ms(&created);
         let outcome = match points.iter().position(|ts| Some(*ts) == at) {
             Some(i) => {
                 points.swap_remove(i);

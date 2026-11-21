@@ -109,6 +109,7 @@ fn every_row_is_imported_or_recorded_and_a_lost_one_is_named() {
         "storylines (template)",
         "element_category (template)",
         "entity_snapshot_history",
+        "entity_snapshot_history (checkpoint)",
         "agent_conversation",
         "library_state",
     ] {
@@ -118,6 +119,8 @@ fn every_row_is_imported_or_recorded_and_a_lost_one_is_named() {
     }
     assert_eq!(tally("comment").carried, tally("comment").source);
     assert_eq!(tally("entity_snapshot_history").carried, 3);
+    // Each of them an entry checkpoint too (`m10-import.md` 「快照历史」).
+    assert_eq!(tally("entity_snapshot_history (checkpoint)").carried, 3);
     // Recorded drops: the built-in relation type, the relations ending on
     // a TODO and a patch (kernel-v5.md §19), the accept-suggestion action
     // (m10-import.md 「书目文档：逐表怎么落」), every end kind (kept in the

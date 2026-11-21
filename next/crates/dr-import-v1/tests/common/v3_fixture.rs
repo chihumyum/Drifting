@@ -110,6 +110,145 @@ pub fn build_associations(same_name: bool) -> Old {
     old
 }
 
+/// A chapter in Recently Deleted with 0.1 history of its own.
+pub const CHAPTER_DELETED: &str = "01900000-0000-7000-8000-0000000000c5";
+pub const T3: &str = "2026-10-04T11:00:00.000Z";
+
+/// `body` as editor JSON: one paragraph with id `id`.
+pub fn one_paragraph(id: &str, text: &str) -> String {
+    format!(
+        r#"{{"type":"doc","content":[{{"type":"paragraph","attrs":{{"id":"{id}"}},"content":[{{"type":"text","text":"{text}"}}]}}]}}"#
+    )
+}
+
+/// One `entity_snapshot_history` row: `(id, time, entity kind, entity,
+/// preview, metadata)`.
+pub type HistoryRow = (
+    &'static str,
+    &'static str,
+    &'static str,
+    &'static str,
+    Option<String>,
+    Option<String>,
+);
+
+/// The history rows [`build_history`] adds to [`build`]'s three (`h-1`,
+/// `h-2` on the chapter, `h-3` on the element), with the metadata 0.1's
+/// snapshot service keeps for each kind (`snapshot-history.service.ts`
+/// `entityMeta`).
+pub fn history_rows() -> Vec<HistoryRow> {
+    vec![
+        // The element in the group it is in now (`h-3` has it in 0.1's
+        // 「未庄」, which no element keeps).
+        (
+            "h-element-2",
+            T3,
+            "element",
+            ELEMENT,
+            Some(one_paragraph("e-p1", "未庄的一个闲人。")),
+            Some(
+                r#"{"name":"阿Q","summary":"旧的主人公","aliases":["阿贵"],"groupName":"同行","kvJson":"[{\"key\":\"住处\",\"value\":\"破庙\"},{\"key\":\"职业\",\"value\":\"短工\"},{\"key\":\"年龄\",\"value\":\"30\"}]"}"#
+                    .into(),
+            ),
+        ),
+        (
+            "h-idea-1",
+            T1,
+            "node",
+            IDEA,
+            Some(one_paragraph("i-p1", "构想的旧稿。")),
+            Some(r#"{"title":"旧构想","summary":"构想旧梗概","writingStatus":"drifting"}"#.into()),
+        ),
+        (
+            "h-storyline-1",
+            T0,
+            "storyline",
+            STORYLINE,
+            Some(one_paragraph("s-p1", "阿Q 的半生。")),
+            Some(
+                r#"{"name":"旧主线","summary":"主线旧梗概","kvJson":"[{\"key\":\"起点\",\"value\":\"县城\"}]"}"#
+                    .into(),
+            ),
+        ),
+        // The storyline as it is now: its latest row holds what the import
+        // writes as current.
+        (
+            "h-storyline-2",
+            T2,
+            "storyline",
+            STORYLINE,
+            Some(STORYLINE_JSON.into()),
+            Some(
+                r#"{"name":"主线","summary":"","kvJson":"[{\"key\":\"起点\",\"value\":\"未庄\"}]"}"#
+                    .into(),
+            ),
+        ),
+        (
+            "h-category-1",
+            T1,
+            "category",
+            CATEGORY,
+            Some(one_paragraph("c-p1", "人物分类的旧说明。")),
+            Some(
+                r#"{"name":"人物旧名","elementTemplateKvJson":"[{\"key\":\"年龄\",\"value\":\"\"},{\"key\":\"籍贯\",\"value\":\"\"}]"}"#
+                    .into(),
+            ),
+        ),
+        (
+            "h-note-1",
+            T1,
+            "library_item",
+            NOTE,
+            Some(one_paragraph("n-p1", "待查的旧笔记。")),
+            Some(r#"{"title":"旧的待查"}"#.into()),
+        ),
+        (
+            "h-deleted-1",
+            T1,
+            "node",
+            CHAPTER_DELETED,
+            Some(one_paragraph("x-p1", "删掉那章的旧稿。")),
+            Some(r#"{"title":"删掉那章旧名","summary":"","writingStatus":"draft"}"#.into()),
+        ),
+        // 0.1 lists it with no excerpt; there is no version to check out.
+        ("h-empty", T3, "node", CHAPTER, None, None),
+    ]
+}
+
+/// [`build`] with snapshot history on every kind 0.1 kept it for: the
+/// chapter (two rows, and one without a preview), the element (two rows),
+/// an idea,
+/// the storyline (an old row and one equal to its current state), the
+/// category, the note, and a chapter in Recently Deleted.
+pub fn build_history() -> Old {
+    let old = build();
+    let c = Connection::open(&old.db).unwrap();
+    c.pragma_update(None, "foreign_keys", false).unwrap();
+    exec(
+        &c,
+        "INSERT INTO book_node (id, project_id, title, summary, book_order, narrative_order, writing_status, kind, drift_group_id, position_x, position_y, deleted_at, created_at, updated_at) VALUES (?1, ?2, '删掉那章', '', 30, NULL, 'draft', 'chapter', NULL, 0, 0, ?3, ?4, ?3)",
+        params![CHAPTER_DELETED, BOOK, T2, T0],
+    );
+    exec(
+        &c,
+        "INSERT INTO node_content (node_id, content_json, created_at, updated_at) VALUES (?1, ?2, ?3, ?3)",
+        params![
+            CHAPTER_DELETED,
+            one_paragraph("x-p1", "删掉那章的定稿。"),
+            T0
+        ],
+    );
+    for (id, at, kind, entity, json, meta) in history_rows() {
+        exec(
+            &c,
+            "INSERT INTO entity_snapshot_history (id, project_id, entity_kind, entity_id, state_blob, content_json, meta_json, created_at) VALUES (?1, ?2, ?3, ?4, X'00', ?5, ?6, ?7)",
+            params![id, BOOK, kind, entity, json, meta, at],
+        );
+    }
+    drop(c);
+    old
+}
+
 pub fn build() -> Old {
     let old = super::build(true);
     let c = Connection::open(&old.db).unwrap();
