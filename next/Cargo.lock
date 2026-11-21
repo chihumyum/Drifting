@@ -1762,6 +1762,7 @@ dependencies = [
  "dr-agent",
  "dr-agent-tools",
  "dr-doc",
+ "dr-i18n",
  "dr-index",
  "dr-model",
  "dr-samples",

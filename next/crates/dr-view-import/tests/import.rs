@@ -967,3 +967,257 @@ fn reimport_v5_continuation_preserves_unfinished_earlier_targets_and_refuses_to_
     assert_eq!(earlier_artifacts_after, earlier_artifacts_before);
     assert_eq!(source_files(&old.root), source_before);
 }
+
+// What differs from 0.1 (decisions 六 甲 / 七 甲, m10-import.md 「导入界面」).
+
+fn locale(cx: &mut VisualTestContext, locale: dr_i18n::Locale) {
+    cx.update(|_, cx| dr_shell::Strings::install(locale, cx));
+    cx.run_until_parked();
+}
+
+fn strings(cx: &mut VisualTestContext) -> dr_i18n::I18n {
+    cx.update(|_, cx| {
+        dr_i18n::I18n::new(
+            dr_shell::Strings::get(cx).locale(),
+            dr_i18n::Platform::current(),
+        )
+    })
+}
+
+fn click(cx: &mut VisualTestContext, selector: &'static str) {
+    let b = cx
+        .debug_bounds(selector)
+        .unwrap_or_else(|| panic!("{selector} is not drawn"));
+    cx.simulate_click(b.center(), gpui::Modifiers::none());
+    cx.run_until_parked();
+}
+
+fn open(cx: &mut VisualTestContext) -> bool {
+    importer(cx).read_with(cx, |i, _| i.differences_open())
+}
+
+/// The lines (`selector-0-0`, `selector-0-1`, …) drawn for each book.
+fn drawn_lines(cx: &mut VisualTestContext, books: usize) -> Vec<usize> {
+    (0..books)
+        .map(|i| {
+            (0..)
+                .take_while(|j| {
+                    cx.debug_bounds(Box::leak(
+                        format!("legacy-import-difference-{i}-{j}").into_boxed_str(),
+                    ))
+                    .is_some()
+                })
+                .count()
+        })
+        .collect()
+}
+
+/// A library with differences imported through the ordinary dialog: the
+/// line under the count lines says the total, which is what summary.md
+/// lists for every book; pressed, it lists them by book with their counts,
+/// and pressed again it closes. In Chinese and in English.
+#[gpui::test]
+fn the_done_dialog_says_how_much_differs_from_0_1_and_lists_it_by_book(cx: &mut TestAppContext) {
+    let (_dir, lib) = library();
+    let (_view, cx) = setup(cx, lib);
+    let old = common::build_differences();
+    configure(cx, &old.root);
+    let target = importer(cx).read_with(cx, |i, _| i.destination().unwrap().target());
+    start(cx);
+    let State::Done(done) = settled(cx) else {
+        panic!("{:?}", state(cx))
+    };
+    let summary = std::fs::read_to_string(
+        dr_import_v1::receipt::directory(&target).join(dr_import_v1::receipt::SUMMARY),
+    )
+    .unwrap();
+    let parsed = common::parse_summary(&summary);
+    assert_eq!(done.books.len(), 2);
+    let zh = dr_i18n::I18n::new(dr_i18n::Locale::ZhCn, dr_i18n::Platform::current());
+    let mut total = 0;
+    for book in &done.books {
+        // The dialog's lines are summary.md's, those that read the same
+        // merged: the same words, the same counts.
+        let lines = &parsed[&book.name];
+        let mut merged: Vec<(String, usize)> = Vec::new();
+        for l in lines {
+            match merged
+                .iter_mut()
+                .find(|(text, _)| l.block != "materials" && l.block != "assets" && *text == l.text)
+            {
+                Some((_, n)) => *n += l.count,
+                None => merged.push((l.text.clone(), l.count)),
+            }
+        }
+        assert_eq!(merged.len(), book.differences.len(), "{}", book.name);
+        for ((text, count), d) in merged.iter().zip(&book.differences) {
+            assert_eq!(*count, d.count, "{text}");
+            if d.counted || d.args.iter().all(|(n, _)| *n != "name") {
+                assert_eq!(*text, d.text(&zh));
+            } else {
+                assert!(text.contains(&d.args[0].1), "{text}");
+            }
+        }
+        let differing = dr_import_v1::receipt::total(&book.differences);
+        assert_eq!(differing, lines.iter().map(|l| l.count).sum::<usize>());
+        total += differing;
+    }
+    assert_eq!(done.differences(), total);
+    assert_eq!(total, 19, "{:#?}", done.books);
+
+    for (lang, line) in [
+        (dr_i18n::Locale::ZhCn, "有 19 处和旧版不完全一样"),
+        (
+            dr_i18n::Locale::En,
+            "19 places aren't quite the same as in 0.1",
+        ),
+    ] {
+        locale(cx, lang);
+        let words = cx.update(|_, cx| {
+            dr_view_import::copy::text(dr_view_import::copy::DIFFERENCES, Some(total), cx)
+        });
+        assert_eq!(words, line);
+        // Closed: the line, no list.
+        assert!(!open(cx));
+        assert!(cx.debug_bounds("legacy-import-differences-line").is_some());
+        assert!(cx.debug_bounds("legacy-import-differences").is_none());
+        click(cx, "legacy-import-differences-line");
+        assert!(open(cx));
+        assert!(cx.debug_bounds("legacy-import-differences").is_some());
+        assert!(
+            cx.debug_bounds("legacy-import-differences-book-1")
+                .is_some()
+        );
+        assert_eq!(
+            drawn_lines(cx, 2),
+            done.books
+                .iter()
+                .map(|b| b.differences.len())
+                .collect::<Vec<_>>()
+        );
+        // The sentences in the language of the dialog.
+        let s = strings(cx);
+        let first = &done.books[0].differences;
+        let span = first
+            .iter()
+            .find(|d| d.codes.iter().any(|c| c == "table-cell-span"))
+            .unwrap();
+        assert_eq!(
+            span.text(&s),
+            match lang {
+                dr_i18n::Locale::ZhCn => "表格的合并单元格和列宽没有保留",
+                _ => "Merged table cells and column widths were not kept",
+            }
+        );
+        // Opening scrolls inside the dialog: the list keeps to its height.
+        let list = cx.debug_bounds("legacy-import-differences").unwrap();
+        assert!(
+            list.size.height <= gpui::px(232.0) + gpui::px(0.5),
+            "{list:?}"
+        );
+        click(cx, "legacy-import-differences-line");
+        assert!(!open(cx));
+        assert!(cx.debug_bounds("legacy-import-differences").is_none());
+    }
+    // Closing the dialog forgets it was open.
+    click(cx, "legacy-import-differences-line");
+    let i = importer(cx);
+    cx.update(|w, cx| i.update(cx, |i, cx| i.close(w, cx)));
+    assert!(!open(cx));
+}
+
+/// Nothing differs: no line, and the two count lines read as before.
+#[gpui::test]
+fn the_line_is_absent_when_nothing_differs_and_the_count_lines_stay(cx: &mut TestAppContext) {
+    let (_dir, lib) = library();
+    let (_view, cx) = setup(cx, lib);
+    locale(cx, dr_i18n::Locale::ZhCn);
+    let done = dr_view_import::Done {
+        folder: "app-local-data".into(),
+        books: vec![dr_view_import::DoneBook {
+            id: common::BOOK.into(),
+            name: "阿Q正传".into(),
+            status: "imported".into(),
+            words: Some(1234),
+            differences: Vec::new(),
+        }],
+        from_caches: 2,
+        left: vec!["account-1".into()],
+        cancelled: false,
+        identity_adopted: false,
+        total_ms: 1.0,
+    };
+    assert_eq!(done.differences(), 0);
+    let i = importer(cx);
+    cx.update(|w, cx| i.update(cx, |i, cx| i.show(State::Done(done), w, cx)));
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("legacy-import-from-caches").is_some());
+    assert!(cx.debug_bounds("legacy-import-left").is_some());
+    assert!(cx.debug_bounds("legacy-import-differences-line").is_none());
+    let (caches, left) = cx.update(|_, cx| {
+        use dr_view_import::copy;
+        (
+            copy::text(copy::FROM_CACHES, Some(2), cx),
+            copy::text(copy::ACCOUNT_LIBRARIES_LEFT, Some(1), cx),
+        )
+    });
+    assert_eq!(caches, "有 2 篇照缓存导入，可能少了最后几秒的字");
+    assert_eq!(left, "文件夹里还有 1 个账号资料库没导入");
+    // Nothing to open.
+    cx.update(|_, cx| i.update(cx, |i, cx| i.toggle_differences(cx)));
+    assert!(!open(cx));
+}
+
+/// The line under the count lines when both show, in their order; and it
+/// is a button named by what it says, open or closed, for assistive
+/// technology (the real window's tree is checked by the import-differences
+/// scenario).
+#[gpui::test]
+fn the_line_comes_after_the_count_lines_and_is_a_named_button(cx: &mut TestAppContext) {
+    let (_dir, lib) = library();
+    let (_view, cx) = setup(cx, lib);
+    let mut lines = dr_import_v1::receipt::differences(&{
+        let mut b = dr_import_v1::receipt::BookRecord {
+            book_id: common::BOOK.into(),
+            name: "阿Q正传".into(),
+            status: "imported".into(),
+            ..Default::default()
+        };
+        b.notes.0.insert("table-cell-span".into(), 3);
+        b
+    });
+    lines = dr_import_v1::receipt::merged(lines);
+    let done = dr_view_import::Done {
+        folder: "app-local-data".into(),
+        books: vec![dr_view_import::DoneBook {
+            id: common::BOOK.into(),
+            name: "阿Q正传".into(),
+            status: "imported".into(),
+            words: Some(1234),
+            differences: lines,
+        }],
+        from_caches: 2,
+        left: vec!["account-1".into()],
+        cancelled: false,
+        identity_adopted: false,
+        total_ms: 1.0,
+    };
+    let i = importer(cx);
+    cx.update(|w, cx| i.update(cx, |i, cx| i.show(State::Done(done), w, cx)));
+    cx.run_until_parked();
+    let caches = cx.debug_bounds("legacy-import-from-caches").unwrap();
+    let left = cx.debug_bounds("legacy-import-left").unwrap();
+    let line = cx.debug_bounds("legacy-import-differences-line").unwrap();
+    assert!(caches.bottom() <= left.top() && left.bottom() <= line.top());
+    assert_eq!(caches.left(), line.left() + gpui::px(4.0));
+    let src = include_str!("../src/view.rs");
+    let at = src.find("fn differences_line(").unwrap();
+    let body = &src[at..at + src[at..].find("\n}\n").unwrap()];
+    for needed in [
+        ".role(gpui::Role::Button)",
+        ".aria_label(label.clone())",
+        ".aria_expanded(open)",
+    ] {
+        assert!(body.contains(needed), "{needed}");
+    }
+}

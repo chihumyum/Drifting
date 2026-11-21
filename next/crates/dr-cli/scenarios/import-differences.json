@@ -1,0 +1,948 @@
+{
+  "about": "M10 import UI (decisions 六 甲 / 七 甲): a synthetic 0.1 library with something of each kind that is not quite the same as in 0.1 (two books) is imported through the bookshelf's ordinary dialog, four times into new targets: Chinese and English, light and dark. The done dialog's line under the count lines says the total the state has, is a named button, opens the list by book (which scrolls inside the dialog) and closes it. Secondary display, the scenario's own synthetic profile; screenshots are looked at by hand.",
+  "steps": [
+    {
+      "legacy": "sample-v3-differences",
+      "save": "source"
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "light",
+          "DRIFTING_WINDOW_DISPLAY": "secondary",
+          "DRIFTING_APP_DATA_DIR": "${source.root}"
+        },
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "import.v1_offered": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          },
+          "account": {
+            "language.ui_locale": "zh-CN"
+          }
+        }
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "shelf.show"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/shelf": true
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "导入",
+        "timeout_ms": 15000
+      },
+      "note": "The bookshelf's 「导入 · Drifting 0.1」: the ordinary way in."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/import/phase": "found"
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "本地 app-local-data"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/import/phase": "ready"
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "导入到新库"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/import/phase": "done",
+          "/library": true
+        },
+        "timeout_ms": 120000
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/import/differences/total": 19,
+        "/import/differences/open": false,
+        "/import/books/0/differing": 16,
+        "/import/books/1/differing": 3
+      },
+      "save": "done_0",
+      "note": "《阿Q正传》 16 (1 asset file, 4 by the defaults, 9 lossy, 2 materials), the second book 3: what each book's summary.md lists."
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "Button",
+        "label": "有 19 处和旧版不完全一样",
+        "timeout_ms": 10000
+      },
+      "expect": {
+        "/count": 1
+      },
+      "note": "The line under the count lines says the state's total, and is a button named by what it says (assistive technology reaches it)."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 500
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "01-zh-light-closed.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "有 19 处和旧版不完全一样"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/import/differences/open": true
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "Button",
+        "label": "有 19 处和旧版不完全一样"
+      },
+      "expect": {
+        "/count": 1
+      },
+      "note": "Open, the line keeps its name."
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "StaticText",
+        "contains": "有 1 个资源文件找不到",
+        "timeout_ms": 10000
+      },
+      "save": "first_0",
+      "note": "The list, by book: the first book's first sentence."
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "StaticText",
+        "label": "表格的合并单元格和列宽没有保留 1 处"
+      },
+      "expect": {
+        "/count": 1
+      },
+      "note": "A sentence of the list with its count, as a screen reader reads it."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 500
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "02-zh-light-open.png"
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": "${first_0.nodes.0.center.0}",
+        "y": "${first_0.nodes.0.center.1}",
+        "dy": 2000
+      },
+      "note": "Longer than its room, the list scrolls inside the dialog to its last line."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 500
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "03-zh-light-open-end.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "有 19 处和旧版不完全一样"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/import/differences/open": false
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "完成"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/import/phase": "idle"
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "app.quit"
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "dark",
+          "DRIFTING_WINDOW_DISPLAY": "secondary",
+          "DRIFTING_APP_DATA_DIR": "${source.root}"
+        },
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "import.v1_offered": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          },
+          "account": {
+            "language.ui_locale": "zh-CN"
+          }
+        }
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "shelf.show"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/shelf": true
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "导入",
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/import/phase": "found"
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "本地 app-local-data"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/import/phase": "ready"
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "导入到新库"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/import/phase": "done",
+          "/library": true
+        },
+        "timeout_ms": 120000
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/import/differences/total": 19,
+        "/import/differences/open": false,
+        "/import/books/0/differing": 16,
+        "/import/books/1/differing": 3
+      },
+      "save": "done_1"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "Button",
+        "label": "有 19 处和旧版不完全一样",
+        "timeout_ms": 10000
+      },
+      "expect": {
+        "/count": 1
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 500
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "04-zh-dark-closed.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "有 19 处和旧版不完全一样"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/import/differences/open": true
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "Button",
+        "label": "有 19 处和旧版不完全一样"
+      },
+      "expect": {
+        "/count": 1
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "StaticText",
+        "contains": "有 1 个资源文件找不到",
+        "timeout_ms": 10000
+      },
+      "save": "first_1"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "StaticText",
+        "label": "表格的合并单元格和列宽没有保留 1 处"
+      },
+      "expect": {
+        "/count": 1
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 500
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "05-zh-dark-open.png"
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": "${first_1.nodes.0.center.0}",
+        "y": "${first_1.nodes.0.center.1}",
+        "dy": 2000
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 500
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "06-zh-dark-open-end.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "有 19 处和旧版不完全一样"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/import/differences/open": false
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "完成"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/import/phase": "idle"
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "app.quit"
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "light",
+          "DRIFTING_WINDOW_DISPLAY": "secondary",
+          "DRIFTING_APP_DATA_DIR": "${source.root}"
+        },
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "import.v1_offered": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          },
+          "account": {
+            "language.ui_locale": "en"
+          }
+        }
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "shelf.show"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/shelf": true
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "Import",
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/import/phase": "found"
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "Local app-local-data"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/import/phase": "ready"
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "Import into new library"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/import/phase": "done",
+          "/library": true
+        },
+        "timeout_ms": 120000
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/import/differences/total": 19,
+        "/import/differences/open": false,
+        "/import/books/0/differing": 16,
+        "/import/books/1/differing": 3
+      },
+      "save": "done_2"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "Button",
+        "label": "19 places aren't quite the same as in 0.1",
+        "timeout_ms": 10000
+      },
+      "expect": {
+        "/count": 1
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 500
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "07-en-light-closed.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "19 places aren't quite the same as in 0.1"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/import/differences/open": true
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "Button",
+        "label": "19 places aren't quite the same as in 0.1"
+      },
+      "expect": {
+        "/count": 1
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "StaticText",
+        "contains": "Asset files not found: 1",
+        "timeout_ms": 10000
+      },
+      "save": "first_2"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "StaticText",
+        "label": "Merged table cells and column widths were not kept 1 place"
+      },
+      "expect": {
+        "/count": 1
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 500
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "08-en-light-open.png"
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": "${first_2.nodes.0.center.0}",
+        "y": "${first_2.nodes.0.center.1}",
+        "dy": 2000
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 500
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "09-en-light-open-end.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "19 places aren't quite the same as in 0.1"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/import/differences/open": false
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "Done"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/import/phase": "idle"
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "app.quit"
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "dark",
+          "DRIFTING_WINDOW_DISPLAY": "secondary",
+          "DRIFTING_APP_DATA_DIR": "${source.root}"
+        },
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "import.v1_offered": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          },
+          "account": {
+            "language.ui_locale": "en"
+          }
+        }
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "shelf.show"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/shelf": true
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "Import",
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/import/phase": "found"
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "Local app-local-data"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/import/phase": "ready"
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "Import into new library"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/import/phase": "done",
+          "/library": true
+        },
+        "timeout_ms": 120000
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/import/differences/total": 19,
+        "/import/differences/open": false,
+        "/import/books/0/differing": 16,
+        "/import/books/1/differing": 3
+      },
+      "save": "done_3"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "Button",
+        "label": "19 places aren't quite the same as in 0.1",
+        "timeout_ms": 10000
+      },
+      "expect": {
+        "/count": 1
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 500
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "10-en-dark-closed.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "19 places aren't quite the same as in 0.1"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/import/differences/open": true
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "Button",
+        "label": "19 places aren't quite the same as in 0.1"
+      },
+      "expect": {
+        "/count": 1
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "StaticText",
+        "contains": "Asset files not found: 1",
+        "timeout_ms": 10000
+      },
+      "save": "first_3"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "StaticText",
+        "label": "Merged table cells and column widths were not kept 1 place"
+      },
+      "expect": {
+        "/count": 1
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 500
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "11-en-dark-open.png"
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": "${first_3.nodes.0.center.0}",
+        "y": "${first_3.nodes.0.center.1}",
+        "dy": 2000
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 500
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "12-en-dark-open-end.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "19 places aren't quite the same as in 0.1"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/import/differences/open": false
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "Done"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/import/phase": "idle"
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "app.quit"
+    }
+  ]
+}

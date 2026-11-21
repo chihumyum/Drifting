@@ -472,6 +472,178 @@ pub fn v3_choices() -> dr_import_v1::v3::MappingChoices {
     }
 }
 
+/// The second book of [`build_differences`].
+pub const SECOND_BOOK: &str = "01900000-0000-7000-8000-000000000002";
+pub const SECOND_BOOK_NAME: &str = "第二本：一个名字很长、用来看换行和截断的合成样书";
+
+/// [`build_v3`] with something of each kind summary.md lists as not quite
+/// the same as in 0.1 (`m10-import.md` 「导入界面」): in 《阿Q正传》 a table
+/// with a header row and a merged cell (in the note, whose cache is its
+/// body), an asset whose file is gone, three of the import's defaults (a
+/// chapter without a book order, an idea with one, two writing-day rows of
+/// one device and day), an empty material folder and a web-link material;
+/// and a second book with an empty folder, a web-link material and a
+/// missing asset file of its own.
+pub fn build_differences() -> Old {
+    let old = build_v3(true);
+    let c = Connection::open(&old.db).unwrap();
+    c.pragma_update(None, "foreign_keys", false).unwrap();
+    let note: String = c
+        .query_row(
+            "SELECT body_json FROM library_item WHERE id = ?1",
+            [NOTE],
+            |r| r.get(0),
+        )
+        .unwrap();
+    let mut body: serde_json::Value = serde_json::from_str(&note).unwrap();
+    let cell = |kind: &str, text: &str, colspan: i64| serde_json::json!({"type": kind, "attrs": {"colspan": colspan, "rowspan": 1}, "content": [{"type": "paragraph", "content": [{"type": "text", "text": text}]}]});
+    body["content"].as_array_mut().unwrap().push(serde_json::json!({
+        "type": "table",
+        "content": [
+            {"type": "tableRow", "content": [cell("tableHeader", "人物", 1), cell("tableHeader", "称呼", 1)]},
+            {"type": "tableRow", "content": [cell("tableCell", "赵太爷和秀才合用一格", 2)]},
+        ]
+    }));
+    exec(
+        &c,
+        "UPDATE library_item SET body_json = ?2 WHERE id = ?1",
+        params![NOTE, body.to_string()],
+    );
+    // The import's defaults.
+    exec(
+        &c,
+        "UPDATE book_node SET book_order = NULL WHERE id = ?1",
+        params![CHAPTER],
+    );
+    exec(
+        &c,
+        "UPDATE book_node SET book_order = 4 WHERE id = ?1",
+        params![IDEA],
+    );
+    exec(
+        &c,
+        "INSERT INTO writing_day (id, project_id, day, device_key, words, created_at, updated_at) VALUES ('wd-2', ?1, '2026-10-02', ?2, 66, ?3, ?3)",
+        params![BOOK, DEVICE_KEY, T1],
+    );
+    let materials = |book: &str, n: u8| {
+        let id = |kind: u8| format!("01900000-0000-7000-8000-0000000{n}{kind:04}");
+        exec(
+            &c,
+            "INSERT INTO material_folder (id, project_id, name, parent_folder_id, created_at, updated_at) VALUES (?1, ?2, '空夹', NULL, ?3, ?3)",
+            params![id(1), book, T0],
+        );
+        exec(
+            &c,
+            "INSERT INTO library_item (id, project_id, title, kind, asset_id, external_url, body_json, notes_json, preview_image_url, order_key, created_at, updated_at, provenance_json, folder_id, task_todos) VALUES (?1, ?2, '网页书签', 'url', NULL, 'https://example.invalid/x', NULL, NULL, NULL, 8, ?3, ?3, NULL, NULL, 0)",
+            params![id(2), book, T0],
+        );
+        // An image whose file the 0.1 library no longer has (its record
+        // does): the material comes over, the file does not.
+        let bytes = b"\x89PNG\r\n\x1a\nan image whose file is gone";
+        exec(
+            &c,
+            "INSERT INTO project_asset (id, project_id, kind, source_mime, source_size_bytes, source_sha256, width, height, created_at) VALUES (?1, ?2, 'image', 'image/png', ?3, ?4, 4, 3, ?5)",
+            params![id(3), book, bytes.len() as i64, sha256_bytes(bytes), T0],
+        );
+        exec(
+            &c,
+            "INSERT INTO library_item (id, project_id, title, kind, asset_id, external_url, body_json, notes_json, preview_image_url, order_key, created_at, updated_at, provenance_json, folder_id, task_todos) VALUES (?1, ?2, '缺文件的图', 'image', ?3, NULL, NULL, NULL, NULL, 9, ?4, ?4, NULL, NULL, 0)",
+            params![id(4), book, id(3), T0],
+        );
+    };
+    materials(BOOK, 1);
+    exec(
+        &c,
+        "INSERT INTO project (id, name, summary, kv_json, storyline_template_kv_json, user_id, created_at, updated_at, deleted_at) VALUES (?1, ?2, '', '[]', '[]', 'local', ?3, ?3, NULL)",
+        params![SECOND_BOOK, SECOND_BOOK_NAME, T1],
+    );
+    materials(SECOND_BOOK, 2);
+    drop(c);
+    old
+}
+
+/// One line of summary.md that says what differs from 0.1: its block
+/// (`assets`, `defaults`, `lossy`, `materials`), its words without the
+/// count and the code (a material line keeps its name), the count, and the
+/// code or id in backquotes (empty for the asset files).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SummaryLine {
+    pub block: &'static str,
+    pub text: String,
+    pub count: usize,
+    pub code: String,
+}
+
+/// summary.md's lines that say what differs from 0.1, by book name (as the
+/// heading has it), in their order. Pins the wording of the headings and
+/// the asset line as well.
+pub fn parse_summary(md: &str) -> std::collections::BTreeMap<String, Vec<SummaryLine>> {
+    let mut out = std::collections::BTreeMap::new();
+    for section in md.split("\n## ").skip(1) {
+        let mut lines = section.lines();
+        let name = lines.next().unwrap().to_owned();
+        let mut found = Vec::new();
+        let mut block: Option<&'static str> = None;
+        for line in lines {
+            if line.is_empty() {
+                continue;
+            }
+            if let Some(rest) = line.strip_prefix("有 ")
+                && let Some((missing, rest)) = rest.split_once(" 个资源文件找不到、")
+                && let Some((mismatched, rest)) = rest.split_once(" 个和记录的哈希对不上")
+            {
+                assert_eq!(rest, "，没有导入。", "{line}");
+                let (missing, mismatched): (usize, usize) =
+                    (missing.parse().unwrap(), mismatched.parse().unwrap());
+                found.push(SummaryLine {
+                    block: "assets",
+                    text: line.to_owned(),
+                    count: missing + mismatched,
+                    code: String::new(),
+                });
+                continue;
+            }
+            if !line.starts_with("- ") {
+                block = match line {
+                    "旧库里新版不能照原样收下的地方，导入替你这样处理了（原值都记在回执里）：" => {
+                        Some("defaults")
+                    }
+                    "和旧版不完全一样的地方：" => Some("lossy"),
+                    "旧版素材里没有带过来的：" => Some("materials"),
+                    _ => None,
+                };
+                continue;
+            }
+            let Some(block) = block else { continue };
+            let bullet = &line[2..];
+            if block == "materials" {
+                // The id follows the name's closing quote (a kind 0.1 knew
+                // and this version does not comes before the name).
+                let (text, rest) = bullet.split_once("」（`").unwrap();
+                let (id, _) = rest.split_once("`）").unwrap();
+                found.push(SummaryLine {
+                    block,
+                    text: format!("{text}」"),
+                    count: 1,
+                    code: id.to_owned(),
+                });
+            } else {
+                let (text, rest) = bullet.rsplit_once("（").unwrap();
+                let (count, rest) = rest.split_once(" 处，`").unwrap();
+                let code = rest.strip_suffix("`）").unwrap();
+                found.push(SummaryLine {
+                    block,
+                    text: text.to_owned(),
+                    count: count.parse().unwrap(),
+                    code: code.to_owned(),
+                });
+            }
+        }
+        out.insert(name, found);
+    }
+    out
+}
+
 /// Positive canonical-import fixture. The original builder deliberately has a
 /// dangling relation; strict v3 import refuses that record rather than hiding it.
 /// Keep `build` unchanged for prewrite rejection coverage, remove only that

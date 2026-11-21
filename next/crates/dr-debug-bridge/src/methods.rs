@@ -452,7 +452,9 @@ fn import_state(import: &dr_view_import::LegacyImport) -> Value {
         State::Blocked(_) => json!({"phase":"blocked"}),
         State::Switching(_) => json!({"phase":"switching"}),
         State::Done(d) => {
-            json!({"phase":"done","cancelled":d.cancelled,"books":d.books.iter().map(|b|json!({"id":b.id,"status":b.status,"words":b.words})).collect::<Vec<_>>()})
+            // What differs from 0.1: the dialog's total, whether its list is
+            // open, and each book's lines (sentence key, count, codes).
+            json!({"phase":"done","cancelled":d.cancelled,"differences":{"total":d.differences(),"open":import.differences_open()},"books":d.books.iter().map(|b|json!({"id":b.id,"status":b.status,"words":b.words,"differing":b.differences.iter().map(|l|l.count).sum::<usize>(),"differences":b.differences.iter().map(|l|json!({"sentence":l.sentence.name(),"count":l.count,"counted":l.counted,"codes":l.codes})).collect::<Vec<_>>()})).collect::<Vec<_>>()})
         }
         State::Failed(f) => json!({"phase":"failed","message":f.message}),
     };
