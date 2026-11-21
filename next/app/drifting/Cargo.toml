@@ -116,6 +116,12 @@ required-features = ["debug-bridge"]
 name = "mcp-acceptance"
 required-features = ["debug-bridge"]
 
+# M31 「0.1 的旧对话」: the ordinary import of a synthetic 0.1 library and
+# the scripted model (`dr-view-agent/scenarios/old-conversations.json`).
+[[example]]
+name = "old-conversations-acceptance"
+required-features = ["debug-bridge"]
+
 [[example]]
 name = "home-cards-acceptance"
 required-features = ["debug-bridge"]

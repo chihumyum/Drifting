@@ -15,7 +15,9 @@
 //!   actor's last step; offline only), `app` (a debug-bridge method with
 //!   `params`), `seed` (write a seed preset into the scenario's empty
 //!   library), `legacy` (build a synthetic Drifting 0.1 library to import,
-//!   `sample` or `sample-stale`; answers its data folder as `root`),
+//!   `sample`, `sample-v3`, `sample-v3-association`,
+//!   `sample-v3-conversations` (with 0.1 Agent conversations) or
+//!   `sample-stale`; answers its data folder as `root`),
 //!   `launch` (start the app: `{"book": id, "env": {…}, "settings": {…}}`,
 //!   settings merged into the profile's `settings.json` first; answers
 //!   `pid`, `profile`, `log` and `out`, the run's output folder, where
@@ -65,7 +67,8 @@ pub struct Step {
     #[serde(default)]
     pub seed: Option<String>,
     /// A synthetic Drifting 0.1 library to import (M10): `sample` (handed
-    /// off) or `sample-stale` (without the handoff).
+    /// off), its `sample-v3` forms (`sample-v3-conversations` adds 0.1
+    /// Agent conversations) or `sample-stale` (without the handoff).
     #[serde(default)]
     pub legacy: Option<String>,
     #[serde(default)]

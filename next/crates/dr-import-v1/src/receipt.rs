@@ -34,7 +34,10 @@ pub const DATABASE: &str = "receipt.sqlite";
 pub const SUMMARY: &str = "summary.md";
 
 /// Tables copied as they are into the archive (the 0.1 names prefixed).
+/// `agent_chat_branch` says which of a continued conversation's branches 0.1
+/// listed (`agent_archive`).
 pub const AGENT_ARCHIVE: &[&str] = &[
+    "agent_chat_branch",
     "agent_conversation",
     "agent_runtime_session",
     "agent_runtime_turn",

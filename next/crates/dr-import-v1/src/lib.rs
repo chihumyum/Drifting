@@ -18,11 +18,14 @@
 //! - [`carry`]: what the 0.1 library kept for this device (settings,
 //!   shortcuts, the Agent's working memory) that the new client takes over;
 //! - [`copies`]: 0.1's display and thumbnail copies of the images the new
-//!   client cannot decode itself (HEIC, HEIF, AVIF, …), carried with them.
+//!   client cannot decode itself (HEIC, HEIF, AVIF, …), carried with them;
+//! - [`agent_archive`]: reading the archived 0.1 Agent conversations (M31's
+//!   「0.1 的旧对话」), read only.
 //!
 //! The original library is never written: everything reads the staging copy
 //! (and the asset files, which are only read).
 
+pub mod agent_archive;
 pub mod anchors;
 pub mod book;
 pub mod carry;
