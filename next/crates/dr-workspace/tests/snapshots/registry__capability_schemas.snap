@@ -5323,6 +5323,58 @@ expression: json
       "type": "object"
     },
     "kind": "command",
+    "name": "entry.purge",
+    "output": {
+      "properties": {
+        "docs": {
+          "description": "Their stored body documents deleted.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "purged": {
+          "description": "Every entry deleted for good: `id` and what went into Recently\nDeleted with it, in the order the book had them.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "purged",
+        "docs"
+      ],
+      "title": "EntryPurged",
+      "type": "object"
+    },
+    "summary": "Delete an entry in Recently Deleted for good, with the entries that went in with it: their bodies, checkpoints, memberships, placements, relation memberships and canvas coordinates. An entry below it that went in on its own moves up to where it lived. Refused for an entry not in Recently Deleted. Cannot be undone."
+  },
+  {
+    "access": "write",
+    "book_version": 5,
+    "concurrency": "book",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "command",
     "name": "entry.restore",
     "output": {
       "description": "The entity a command changed.",
@@ -12809,6 +12861,13 @@ expression: json
         "ProjectTab": {
           "description": "A left-sidebar tab. It has no name of its own: it is called what it\nmounts (an entry's title, 「成书」, 「全部」 for the root; an old Tab on a\nview, the view's name).\nAn old `name` in a template's tab is ignored.",
           "properties": {
+            "gone_title": {
+              "description": "What it is called once the entry it mounts was deleted for good\n(`entry.purge`, `TAB-KEEPS-GONE-NAME`); read only while that entry is\nnot in the book.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "id": {
               "type": "string"
             },
@@ -13305,6 +13364,13 @@ expression: json
         "ProjectTab": {
           "description": "A left-sidebar tab. It has no name of its own: it is called what it\nmounts (an entry's title, 「成书」, 「全部」 for the root; an old Tab on a\nview, the view's name).\nAn old `name` in a template's tab is ignored.",
           "properties": {
+            "gone_title": {
+              "description": "What it is called once the entry it mounts was deleted for good\n(`entry.purge`, `TAB-KEEPS-GONE-NAME`); read only while that entry is\nnot in the book.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "id": {
               "type": "string"
             },

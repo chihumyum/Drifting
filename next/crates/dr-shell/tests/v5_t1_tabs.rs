@@ -573,6 +573,7 @@ fn a_tab_whose_mount_is_gone_fades_comes_back_and_can_be_removed(cx: &mut TestAp
                     id: dr_model::id::TabId::parse("tab-old-view").unwrap(),
                     pos: None,
                     mount: dr_model::v3::TabMount::View { view: stored_view },
+                    gone_title: None,
                 })
                 .unwrap();
         })

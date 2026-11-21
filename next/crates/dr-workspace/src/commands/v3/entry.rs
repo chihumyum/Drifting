@@ -599,18 +599,9 @@ fn trash(cx: &Cx<'_>, input: EntityIn, trashed: bool) -> Result<Done> {
         return Ok(Done { id: input.id });
     }
     let stamp = trashed.then(now);
-    let mut ids = BTreeSet::from([id]);
-    loop {
-        let n = ids.len();
-        for e in entries.values() {
-            if e.deleted_at == previous && e.parent.as_ref().is_some_and(|p| ids.contains(p)) {
-                ids.insert(e.id.clone());
-            }
-        }
-        if n == ids.len() {
-            break;
-        }
-    }
+    // What goes in with it (its live subtree), or what comes back with it
+    // (what went in with it, `ENTRY-TRASH-TOGETHER`).
+    let ids = m::trashed_with(&entries, &id);
     for id in &ids {
         entries.get_mut(id).unwrap().deleted_at = stamp;
     }
@@ -620,32 +611,12 @@ fn trash(cx: &Cx<'_>, input: EntityIn, trashed: bool) -> Result<Done> {
         // If a restored entry's stored parent can no longer hold entries
         // (missing, trashed, or `level == false`), relocate it to the nearest
         // live ancestor with `level == true`, or the root (`kernel-v5.md` §16).
+        // What came back with it counts as live by now.
         for rid in &ids {
-            let needs_relocate = match entries[rid].parent.as_ref() {
-                None => false,
-                Some(p) => !entries
-                    .get(p)
-                    .is_some_and(|pe| !pe.is_trashed() && pe.is_level()),
-            };
-            if needs_relocate {
-                let mut cur = entries[rid].parent.clone();
-                let mut seen = BTreeSet::new();
-                let mut new_parent = None;
-                while let Some(anc) = cur {
-                    if !seen.insert(anc.clone()) {
-                        break;
-                    }
-                    let Some(ae) = entries.get(&anc) else {
-                        break;
-                    };
-                    if !ae.is_trashed() && ae.is_level() {
-                        new_parent = Some(anc);
-                        break;
-                    }
-                    cur = ae.parent.clone();
-                }
-                entries.get_mut(rid).unwrap().parent = new_parent.clone();
-                relocated.push((rid.clone(), new_parent));
+            let lands = m::restored_residence(&entries, rid);
+            if lands != entries[rid].parent {
+                entries.get_mut(rid).unwrap().parent = lands.clone();
+                relocated.push((rid.clone(), lands));
             }
         }
         let after = BookGraphV3 {

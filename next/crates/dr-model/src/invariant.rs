@@ -264,7 +264,8 @@ pub const INVARIANTS: &[Invariant] = &[
             "same_named_relations_read_as_the_earliest",
             "a_row_two_removals_emptied_does_not_count_and_is_cleaned",
             "a_member_purged_on_the_other_device_reads_gone_and_is_cleaned",
-            "a_row_whose_side_is_all_in_recently_deleted_keeps_counting"
+            "a_row_whose_side_is_all_in_recently_deleted_keeps_counting",
+            "the_rest_of_the_book_reads_what_the_rules_say"
         ]
     ),
     inv!(
@@ -350,7 +351,8 @@ pub const INVARIANTS: &[Invariant] = &[
             "comments_keep_unlocated_targets_and_anchor_into_prose",
             "v3_comments_address_modules_validate_anchors_and_restore_after_reopen",
             "comments_with_anchors_and_metadata",
-            "asset_direct_region_comments_survive_reopen"
+            "asset_direct_region_comments_survive_reopen",
+            "the_rest_of_the_book_reads_what_the_rules_say"
         ]
     ),
     inv!(
@@ -773,7 +775,8 @@ pub const INVARIANTS: &[Invariant] = &[
         "命令层用 check_timeline_placement_in_lane / is_entry_in_view_lanes 校验条目在至少一条有效泳道上有有效挂名，摘名时用 prune_placement_if_not_in_view_lanes 清理孤立位置；entry.create 带 parent、entry.move 不写位置；读取时 effective_timeline_placements 过滤不在该视图任何泳道里的位置",
         [
             "v3_timeline_lanes_and_placements_require_lane_membership",
-            "a_lane_with_both_switches_holds_only_what_is_hung_on_it"
+            "a_lane_with_both_switches_holds_only_what_is_hung_on_it",
+            "a_lane_deleted_for_good_takes_the_places_only_it_gave"
         ]
     ),
     inv!(
@@ -791,7 +794,10 @@ pub const INVARIANTS: &[Invariant] = &[
         "视图里的泳道、时间钉挂的条目都要在；读取时不在就不显示",
         [Command, Read],
         "命令层用 dr_model::v3::check_timeline_target_live 拒绝指向已删条目；读取时 effective_timeline_lanes / effective_timeline_placements 过滤已删条目，effective_timeline_pins 清掉指向已删条目的绑定",
-        ["v3_timeline_targets_filter_deleted_entries"]
+        [
+            "v3_timeline_targets_filter_deleted_entries",
+            "the_rest_of_the_book_reads_what_the_rules_say"
+        ]
     ),
     inv!(
         "V3-CROSS-DOC-ORDER",
@@ -872,6 +878,41 @@ pub const INVARIANTS: &[Invariant] = &[
         [Command],
         "entry.set_level 关开关时声明 entries/<id>/level 和 children_of(<id>)，在一次写入里调 EntriesTreeWriterV3::switch_level_off 给下面活着的条目写 deleted_at，登记 entry_history.restore 一步撤销；entry.restore 检查原住处",
         ["switching_level_off_trashes_live_descendants_in_place_and_restores_in_one_step"]
+    ),
+    inv!(
+        "ENTRY-TRASH-TOGETHER",
+        "一起进最近删除的条目（住在它下面、删除时间相同）恢复时一起回来、清除时一起清除，在左栏「最近删除」里收在它下面；单独进去的另算一行，能单独恢复、单独清除。单独恢复时原来的住处不能住了，落到往上最近一个开着层级的条目下面，没有就是最外层，那一行的小字事先写的就是这里",
+        [Command, Read],
+        "dr_model::v3::trashed_with 是 entry.trash、entry.restore、entry.purge 共用的一批（删除时间相同的住在下面的条目），restored_residence 是 entry.restore 落在哪；dr-shell 的 recently_deleted 用同两个函数算左栏「最近删除」的哪行收在哪行下面、小字写的住处",
+        [
+            "an_entry_goes_with_what_went_in_with_it_and_nothing_else",
+            "switching_level_off_trashes_live_descendants_in_place_and_restores_in_one_step"
+        ]
+    ),
+    inv!(
+        "ENTRY-PURGE",
+        "从最近删除里清除一个条目：只清最近删除里的，连同和它一起进去的；它们的正文文档删掉并记成已清除，同步把清除带到别的设备，旧副本送来不收；快照点、挂名（挂在别处的和别处挂在它上面的）、视图里的泳道和位置、只因它的泳道才有的位置、画布坐标、它的摘录和情节规划都去掉，时间钉不再绑它；关系的行拿掉它，有一边空了的行跟着删，关系本身留着；清单项投出来的批注跟着那一行没了，别的批注留着、读作找不到原处；别处正文里指向它的链接留着、读作目标不在了；不能撤销，会把它带回来的撤销步骤和历史恢复都作废",
+        [Command, Read, Structure],
+        "dr-workspace 的 entry.purge：先放掉这些正文文档的槽位（编辑器开着就整次拒绝），一次书目提交里写 Tab 的 gone_title、把单独进去的子条目挪到它原来的住处、删挂名和主归属、视图的泳道位置和时间钉绑定、摘录和情节规划、投影批注，再 EntriesTreeWriterV3::purge_entries 删树节点并修剪关系行；提交后 Library::purge_doc 删正文（purged_doc 记录随同步走），Cx::release_purged_entries 清 layout:<书>（LayoutTxn::forget_entries，只在这一步回收）和 checkpoints:<书> 里它的清单，journal.forget_record 让会把它带回来的步骤作废，cx.irreversible；entry_history.restore 遇到书里已经没有的条目报找不到",
+        [
+            "only_an_entry_in_recently_deleted_is_purged",
+            "an_entry_goes_with_what_went_in_with_it_and_nothing_else",
+            "the_rest_of_the_book_reads_what_the_rules_say",
+            "a_lane_deleted_for_good_takes_the_places_only_it_gave",
+            "its_patches_and_plot_grids_go_with_it",
+            "a_purged_entry_does_not_come_back_through_undo_or_entry_history",
+            "a_purge_reaches_another_device_and_old_copies_stay_out"
+        ]
+    ),
+    inv!(
+        "TAB-KEEPS-GONE-NAME",
+        "挂的条目被彻底清除以后，Tab 照样叫原来的名字（kernel-v5 第 5 节）：清除的同一步把名字记进挂着它的 Tab",
+        [Command, Read],
+        "entry.purge 在书目提交里给挂着它的每个 Tab 写 gone_title（ProjectWriterV3::tab_gone_title）；读取时 dr-shell 的 tabs::tab_name、帮手的结构说明、tab.remove／tab.move 的效果名在条目不在书里时用它",
+        [
+            "the_rest_of_the_book_reads_what_the_rules_say",
+            "a_lane_deleted_for_good_takes_the_places_only_it_gave"
+        ]
     ),
     inv!(
         "LEVEL-DEFAULT-FROM-TEMPLATE",
@@ -1035,7 +1076,7 @@ pub const DIVERGENCES: &[Divergence] = &[
 ];
 
 /// How many contracts [`INVARIANTS`] lists.
-pub const ACTIVE_CONTRACTS: usize = 90;
+pub const ACTIVE_CONTRACTS: usize = 93;
 
 /// Invariants nothing tests yet, and why. The checklist's test keeps this
 /// list exact: an untested rule must be named here, and a rule that gains a
