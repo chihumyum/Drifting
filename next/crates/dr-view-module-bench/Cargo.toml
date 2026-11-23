@@ -1,0 +1,29 @@
+[package]
+name = "dr-view-module-bench"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "The module workbench (custom-modules.md §8, CM3): one of my modules worked on in a pill, its blocks in the left column, its look and its words for the Agent in the right"
+
+[dependencies]
+dr-i18n.workspace = true
+dr-model.workspace = true
+dr-shell.workspace = true
+dr-store.workspace = true
+dr-ui.workspace = true
+dr-view-module-look.workspace = true
+dr-workspace.workspace = true
+futures.workspace = true
+gpui.workspace = true
+log.workspace = true
+serde_json.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+dr-testkit.workspace = true
+serde_json.workspace = true
+gpui = { workspace = true, features = ["test-support"] }
+gpui_platform = { workspace = true, features = ["runtime_shaders"] }
+tempfile.workspace = true

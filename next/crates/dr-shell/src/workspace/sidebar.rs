@@ -214,7 +214,23 @@ pub fn left(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>
     let window_w = f32::from(window.viewport_size().width);
     let (inner_w, visible) = ws.sidebar_drawn_widths(Side::Left, window_w);
     let can_resize = !ws.is_filled(FillPlace::Left) || ws.can_drag_fill_edge(Side::Left);
-    let body = if ws.book.v3().is_some()
+    // The page in front brings its own left column (the module workbench's
+    // 「装什么」, CM3, `page_panels.rs`).
+    let body = if let Some(panels) = ws.page_panels() {
+        div()
+            .size_full()
+            .flex()
+            .flex_col()
+            .pt(px(TITLEBAR_HEIGHT))
+            .child(
+                div()
+                    .id("left-page-panel")
+                    .debug_selector(|| "left-page-panel".into())
+                    .flex_1()
+                    .min_h_0()
+                    .child(panels.left.clone()),
+            )
+    } else if ws.book.v3().is_some()
         && let Some(library) = ws.library.clone()
     {
         let host = crate::pages::PageViewHost {
@@ -272,6 +288,22 @@ pub fn right(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace
     let window_w = f32::from(window.viewport_size().width);
     let (inner_w, visible) = ws.sidebar_drawn_widths(Side::Right, window_w);
     let can_resize = !ws.is_filled(FillPlace::Right) || ws.can_drag_fill_edge(Side::Right);
+    // The page in front brings its own right tabs, then the Agent (CM3).
+    if let Some(panels) = ws.page_panels().cloned() {
+        let body = page_panes(ws, &panels, window, cx);
+        return column(
+            Side::Right,
+            inner_w,
+            visible,
+            can_resize,
+            false,
+            ws.right.shown(),
+            ws.fill.animating(),
+            body,
+            window,
+            cx,
+        );
+    }
     let fill_t = ws.fill.progress(FillPlace::Right);
     let panes = if ws.is_filled(FillPlace::Right) || fill_t > 0.0 {
         let focused = ws.right.panes.focused_tab();
@@ -302,6 +334,134 @@ pub fn right(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace
         window,
         cx,
     )
+}
+
+/// The right column while the page in front brings its tabs
+/// ([`crate::pages::PagePanels`]): one pane, its tab row on the title bar's
+/// band as a pane's (the moons' slot kept), the page's tabs then 「Agent」;
+/// a page tab's body straight under the row, the Agent with its own header
+/// row, the same conversation as the 「Agent」 tab of the usual column.
+fn page_panes(
+    ws: &mut Workspace,
+    panels: &crate::pages::PagePanels,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) -> gpui::Div {
+    use crate::pages::AGENT_TAB;
+    let theme = Theme::of(window, cx);
+    let p = theme.palette;
+    let Some(target) = ws.nav.current().cloned() else {
+        return div();
+    };
+    let mut labels: Vec<SharedString> = panels.right.iter().map(|tab| t(cx, tab.label)).collect();
+    labels.push(t(cx, RightTab::Companion.label()));
+    let slugs: Rc<Vec<SharedString>> = Rc::new(
+        panels
+            .right
+            .iter()
+            .map(|tab| tab.slug.clone())
+            .chain([SharedString::new_static(AGENT_TAB)])
+            .collect(),
+    );
+    let current = ws
+        .page_tab()
+        .unwrap_or_else(|| SharedString::new_static(AGENT_TAB));
+    let selected = slugs.iter().position(|s| *s == current).unwrap_or(0);
+    let entity = cx.entity();
+    let change = slugs.clone();
+    let tabs = Segmented::new("right-page-tabs", labels, selected)
+        .motion(motion::PUSH)
+        .report_selected()
+        .font(Role::Structure)
+        .text_size(theme.scale.label)
+        .on_change(move |i, _, cx| {
+            if let Some(slug) = change.get(i) {
+                let slug = slug.clone();
+                let target = target.clone();
+                entity.update(cx, |ws, cx| ws.show_page_tab(&target, &slug, cx));
+            }
+        });
+    let tab_row = div()
+        .id("right-page-tab-row")
+        .debug_selector(|| "right-page-tab-row".into())
+        .flex_none()
+        .h(px(TITLEBAR_HEIGHT))
+        .pl(px(6.0))
+        .pr(px(RIGHT_TOGGLE_END + TOGGLE_GAP))
+        .flex()
+        .flex_row()
+        .items_center()
+        .gap(px(6.0))
+        .child(crate::pages::anchor(
+            crate::pages::anchors::AGENT_TAB,
+            tabs,
+            cx,
+        ))
+        .child(div().flex_1());
+    let tab_row = chrome::drag_region(tab_row, cx);
+    let agent = slugs.get(selected).is_some_and(|s| s.as_ref() == AGENT_TAB);
+    let header_h = (theme.scale.row_height * 1.25).max(40.0);
+    let companion = agent
+        .then(|| companion_panel(ws, crate::panes::PaneId::Primary, window, cx))
+        .flatten();
+    let header = agent.then(|| {
+        div()
+            .flex_none()
+            .h(px(header_h))
+            .pl(px(12.0))
+            .pr(px(10.0))
+            .border_t(px(0.5))
+            .border_color(p.local_hairline())
+            .flex()
+            .flex_row()
+            .items_center()
+            .children(
+                companion
+                    .as_ref()
+                    .map(|c| div().size_full().child(c.head.clone())),
+            )
+    });
+    let bodies: Rc<Vec<(SharedString, gpui::AnyView)>> = Rc::new(
+        panels
+            .right
+            .iter()
+            .map(|tab| (tab.slug.clone(), tab.body.clone()))
+            .collect(),
+    );
+    let agent_body = companion.map(|c| c.body);
+    let body = Push::new(
+        "right-page-push",
+        slugs.get(selected).cloned().unwrap_or_default(),
+        selected,
+        move |slug, _, _| {
+            if slug.as_ref() == AGENT_TAB {
+                return match &agent_body {
+                    Some(body) => body.clone().into_any_element(),
+                    None => div().into_any_element(),
+                };
+            }
+            bodies
+                .iter()
+                .find(|(s, _)| s == slug)
+                .map(|(_, body)| body.clone().into_any_element())
+                .unwrap_or_else(|| div().into_any_element())
+        },
+    );
+    div()
+        .size_full()
+        .flex()
+        .flex_col()
+        .child(tab_row)
+        .children(header)
+        .child(
+            div()
+                .flex_1()
+                .min_h_0()
+                .when(!agent, |el| {
+                    el.border_t(px(0.5)).border_color(p.local_hairline())
+                })
+                .child(body),
+        )
 }
 
 /// The sidebar content slides with its edge.
@@ -519,6 +679,7 @@ impl Workspace {
     pub fn review_visible(&self, pane: PaneId) -> bool {
         self.right.open
             && !self.immersive
+            && !self.page_panels_shown()
             && !self.covered()
             && self
                 .right
@@ -536,6 +697,14 @@ impl Workspace {
             return false;
         }
         let panels = self.companion.borrow();
+        // A page's right column (CM3) shows the primary pane's Agent.
+        if self.page_panels_shown() {
+            return self.page_tab().as_deref() == Some(crate::pages::AGENT_TAB)
+                && panels
+                    .get(pane_slug(PaneId::Primary))
+                    .and_then(Option::as_ref)
+                    .is_some_and(|panel| panel.body.entity_id() == body);
+        }
         self.right.panes.panes.iter().any(|pane| {
             pane.tab == RightTab::Companion
                 && (!self.is_filled(FillPlace::Right) || self.right.panes.focused == pane.id)

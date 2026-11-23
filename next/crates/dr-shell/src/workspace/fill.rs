@@ -314,6 +314,10 @@ impl Workspace {
         if self.modal() || (place == FillPlace::Right && !self.right_can_fill()) {
             return false;
         }
+        // A page's own columns do not fill (CM3, `page_panels.rs`).
+        if place != FillPlace::Bottom && self.page_panels_shown() {
+            return false;
+        }
         // One fill at a time: a module filling the column gives way.
         self.set_module_fill(None, cx);
         if self.fill.active() == Some(place) {

@@ -344,6 +344,36 @@ pub mod anchors {
     pub const NOTIFICATIONS: &str = "notifications";
 }
 
+/// What a page brings into the side columns while it is in front and shows
+/// on the paper (the module workbench, `custom-modules.md` §8, CM3): the
+/// left column's content in place of the Tabs, the right column's tabs in
+/// place of 审阅 · 关系 · 素材库 · 统计, then the shell's own 「Agent」 (the
+/// same conversation). When the page goes behind another pill, is closed or
+/// is covered by a fill, the columns hold what they held before.
+#[derive(Clone)]
+pub struct PagePanels {
+    /// The left column under the title bar's band, its own tab row included.
+    pub left: AnyView,
+    /// The right column's tabs before 「Agent」.
+    pub right: Vec<PageTab>,
+}
+
+/// One of a page's right-column tabs ([`PagePanels`]).
+#[derive(Clone)]
+pub struct PageTab {
+    /// Unique among the page's tabs (not `agent`, the shell's).
+    pub slug: SharedString,
+    pub label: dr_i18n::Key,
+    /// The tab's body under the tab row (no header row of its own).
+    pub body: AnyView,
+}
+
+/// The slug of the shell's 「Agent」 among a page's right-column tabs.
+pub const AGENT_TAB: &str = "agent";
+
+type MakePanels = Rc<dyn Fn(&Target, PageViewHost, &mut Window, &mut App) -> Option<PagePanels>>;
+type PageTitle = Rc<dyn Fn(&Target, &App) -> Option<SharedString>>;
+
 type LocateAsset = Rc<dyn Fn(&WeakEntity<Workspace>, &str, &mut Window, &mut App)>;
 type CanDropFiles = Rc<dyn Fn(&[std::path::PathBuf], &App) -> bool>;
 type OnDropFiles = Rc<dyn Fn(&[std::path::PathBuf], &mut Window, &mut App)>;
@@ -367,6 +397,8 @@ struct Pages {
     locate_asset: Option<LocateAsset>,
     pending_locate_asset: Option<String>,
     file_drop: Option<(CanDropFiles, OnDropFiles)>,
+    panels: Vec<MakePanels>,
+    titles: Vec<PageTitle>,
 }
 
 /// Ephemeral sand-frame highlight triggered when jumping from a file's 「用在」
@@ -530,6 +562,48 @@ pub(crate) fn page_view_for(
     makers
         .iter()
         .find_map(|make| make(target, host.clone(), window, cx))
+}
+
+/// Registers what a page brings into the side columns ([`PagePanels`]):
+/// asked once for a page, the first time it is in front with its columns
+/// shown (its target and a [`PageViewHost`]), it gives the panels or `None`
+/// to leave the columns as they are. The shell keeps them while the page's
+/// pill stays open.
+pub fn add_page_panels(
+    cx: &mut App,
+    make: impl Fn(&Target, PageViewHost, &mut Window, &mut App) -> Option<PagePanels> + 'static,
+) {
+    cx.default_global::<Pages>().panels.push(Rc::new(make));
+}
+
+/// The panels a module brings for `target`'s page, if any.
+pub(crate) fn page_panels_for(
+    target: &Target,
+    host: PageViewHost,
+    window: &mut Window,
+    cx: &mut App,
+) -> Option<PagePanels> {
+    let makers = cx.try_global::<Pages>()?.panels.clone();
+    makers
+        .iter()
+        .find_map(|make| make(target, host.clone(), window, cx))
+}
+
+/// Registers the name a pill, a page or a link shows for a target the book
+/// does not know (one of my modules: its workbench knows its name).
+pub fn add_page_title(
+    cx: &mut App,
+    title: impl Fn(&Target, &App) -> Option<SharedString> + 'static,
+) {
+    cx.default_global::<Pages>().titles.push(Rc::new(title));
+}
+
+/// The name a module gives `target` ([`add_page_title`]), if any.
+pub fn page_title(target: &Target, cx: &App) -> Option<SharedString> {
+    cx.try_global::<Pages>()?
+        .titles
+        .iter()
+        .find_map(|title| title(target, cx))
 }
 
 /// Registers rows for pages' ⋯ menus: asked each time a page's menu opens

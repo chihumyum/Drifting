@@ -235,7 +235,7 @@ pub fn nav_target(t: &Target) -> NavTarget {
             module: module.clone(),
         },
         Target::Template(id) => NavTarget::Template(id.clone()),
-        Target::Material(_) => NavTarget::Book,
+        Target::Material(_) | Target::Module(_) => NavTarget::Book,
     }
 }
 pub fn target(t: NavTarget) -> Option<Target> {

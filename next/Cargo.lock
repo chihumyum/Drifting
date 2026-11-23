@@ -2333,6 +2333,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "dr-view-module-bench"
+version = "0.0.0"
+dependencies = [
+ "dr-i18n",
+ "dr-model",
+ "dr-shell",
+ "dr-store",
+ "dr-testkit",
+ "dr-ui",
+ "dr-view-module-look",
+ "dr-workspace",
+ "futures",
+ "gpui",
+ "gpui_platform",
+ "log",
+ "serde_json",
+ "tempfile",
+ "uuid",
+]
+
+[[package]]
 name = "dr-view-module-look"
 version = "0.0.0"
 dependencies = [
@@ -2492,6 +2513,7 @@ dependencies = [
  "dr-store",
  "dr-testkit",
  "dr-ui",
+ "dr-view-module-look",
  "dr-view-sea",
  "dr-view-shelf-art",
  "dr-workspace",
@@ -2559,8 +2581,10 @@ dependencies = [
  "dr-testkit",
  "dr-ui",
  "dr-workspace",
+ "futures",
  "gpui",
  "gpui_platform",
+ "log",
  "serde",
  "serde_json",
  "tempfile",
@@ -2687,6 +2711,7 @@ dependencies = [
  "dr-view-home",
  "dr-view-import",
  "dr-view-material",
+ "dr-view-module-bench",
  "dr-view-page",
  "dr-view-plot",
  "dr-view-relations",

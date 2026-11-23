@@ -9,6 +9,7 @@
 //! A host that edits values ([`Edit`]) is handed each value node and each
 //! list item as it is drawn, and puts its own controls there.
 
+use std::rc::Rc;
 use std::sync::Arc;
 
 use dr_model::custom_module::{
@@ -25,12 +26,26 @@ use dr_ui::{
     tokens::{Rgb, surface},
 };
 use gpui::{
-    AnyElement, App, ElementId, Hsla, InteractiveElement, IntoElement, ObjectFit, ParentElement,
-    RenderImage, Styled, StyledImage as _, Window, canvas, div, img, point,
-    prelude::FluentBuilder as _, px, relative, size, svg,
+    AnyElement, App, ElementId, Hsla, InteractiveElement, IntoElement, MouseButton, ObjectFit,
+    ParentElement, RenderImage, SharedString, Styled, StyledImage as _, Window, canvas, div, img,
+    point, prelude::FluentBuilder as _, px, relative, size, svg,
 };
 
-use crate::plan::{Content, Fill, PBox, PEach, PItem, PNode, PText, PValue, Plan, TextStyle};
+use crate::plan::{
+    Content, Fill, NodePath, PBox, PEach, PItem, PNode, PText, PValue, Plan, TextStyle,
+};
+
+/// What the workbench's preview adds (CM3, `custom-modules.md` §8): a press
+/// on a node of the look picks it (the innermost under the pointer), the
+/// picked one is ringed, the others ringed faintly under the pointer.
+#[derive(Clone)]
+pub struct Picking {
+    pub picked: Option<NodePath>,
+    pub on_pick: OnPick,
+}
+
+/// What a press on a node of the preview does with its path.
+pub type OnPick = Rc<dyn Fn(&[u16], &mut Window, &mut App)>;
 
 /// How a value with nothing kept is drawn read-only.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -104,11 +119,29 @@ pub fn paint(
     window: &mut Window,
     cx: &mut App,
 ) -> AnyElement {
+    let theme = Theme::of(window, cx);
+    paint_with(id, plan, blanks, edit, theme, None, window, cx)
+}
+
+/// [`paint`] in `theme` (the workbench's preview shows the dark look in a
+/// light window and back) and, with `picking`, nodes that can be picked.
+#[allow(clippy::too_many_arguments)]
+pub fn paint_with(
+    id: impl Into<ElementId>,
+    plan: &Plan,
+    blanks: Blanks,
+    edit: Option<&dyn Edit>,
+    theme: Theme,
+    picking: Option<Picking>,
+    window: &mut Window,
+    cx: &mut App,
+) -> AnyElement {
     let id = id.into();
     let mut p = Painter {
         blanks,
         edit,
-        theme: Theme::of(window, cx),
+        theme,
+        picking,
     };
     p.node(&plan.root, child_id(&id, "root"), false, window, cx)
 }
@@ -117,6 +150,7 @@ struct Painter<'e> {
     blanks: Blanks,
     edit: Option<&'e dyn Edit>,
     theme: Theme,
+    picking: Option<Picking>,
 }
 
 /// The interface role a face is drawn with.
@@ -191,7 +225,7 @@ impl Painter<'_> {
             PNode::Each(e) => self.each(e, id, in_row, window, cx),
             PNode::Value(v) => self.value(v, id, in_row, window, cx),
             PNode::Text(t) => self.text(t, id, in_row),
-            PNode::Mark(m) => self.mark(&m.mark, id),
+            PNode::Mark(m) => self.mark(&m.mark, &m.node, id),
         }
     }
 
@@ -271,7 +305,7 @@ impl Painter<'_> {
         if b.deco == Decoration::Arc {
             el = el.child(arc(child_id(&id, "arc"), self.sand(p.ink(3))));
         }
-        el.into_any_element()
+        self.pickable(el, &b.node, &id).into_any_element()
     }
 
     fn each(
@@ -385,26 +419,69 @@ impl Painter<'_> {
         {
             el = el.child(after);
         }
-        el.into_any_element()
+        self.pickable(el, &e.node, &id).into_any_element()
     }
 
     fn text(&self, t: &PText, id: ElementId, in_row: bool) -> AnyElement {
-        sized(
-            typed(div().id(id).min_w_0(), t.style, &self.theme),
+        let el = sized(
+            typed(div().id(id.clone()).min_w_0(), t.style, &self.theme),
             t.width,
             in_row,
         )
-        .child(wrapped(t.text.clone()))
-        .into_any_element()
+        .child(wrapped(t.text.clone()));
+        self.pickable(el, &t.node, &id).into_any_element()
     }
 
-    fn mark(&self, name: &str, id: ElementId) -> AnyElement {
-        div()
+    fn mark(&self, name: &str, node: &NodePath, id: ElementId) -> AnyElement {
+        let el = div()
+            .id(child_id(&id, "at"))
             .flex_none()
             .flex()
             .items_center()
-            .child(KindMark::new(id, mark_kind(name)).color(self.theme.palette.ink(2)))
-            .into_any_element()
+            .child(KindMark::new(id.clone(), mark_kind(name)).color(self.theme.palette.ink(2)));
+        self.pickable(el, node, &id).into_any_element()
+    }
+
+    /// `el` (node `node`) as the preview's picking makes it: pressed, it is
+    /// picked; ringed when it is the picked one, faintly under the pointer.
+    fn pickable(
+        &self,
+        el: gpui::Stateful<gpui::Div>,
+        node: &NodePath,
+        id: &ElementId,
+    ) -> gpui::Stateful<gpui::Div> {
+        let Some(picking) = &self.picking else {
+            return el;
+        };
+        let accent = self.theme.palette.accent;
+        let picked = picking.picked.as_deref() == Some(node.as_slice());
+        let group = SharedString::from(format!("pick:{id}"));
+        let ring = div()
+            .absolute()
+            .top(px(-PICK_RING))
+            .left(px(-PICK_RING))
+            .right(px(-PICK_RING))
+            .bottom(px(-PICK_RING))
+            .rounded(px(2.0))
+            .border(px(1.0))
+            .border_color(if picked {
+                accent.solid()
+            } else {
+                accent.alpha(0.0)
+            })
+            .when(!picked, |r| {
+                r.group_hover(group.clone(), move |st| st.border_color(accent.alpha(0.55)))
+            });
+        let on_pick = picking.on_pick.clone();
+        let path = node.clone();
+        el.relative()
+            .group(group)
+            .cursor_pointer()
+            .on_mouse_down(MouseButton::Left, move |_, window, cx| {
+                cx.stop_propagation();
+                on_pick(&path, window, cx);
+            })
+            .child(ring)
     }
 
     fn value(
@@ -421,7 +498,9 @@ impl Painter<'_> {
             Some(edit) => el
                 .child(edit.value(v, child_id(&id, "edit"), display, window, cx))
                 .into_any_element(),
-            None => el.child(display).into_any_element(),
+            None => self
+                .pickable(el.child(display), &v.node, &id)
+                .into_any_element(),
         }
     }
 }
@@ -681,6 +760,9 @@ impl gpui::RenderOnce for ArcStroke {
         .size_full()
     }
 }
+
+/// How far outside a node the picked node's ring is drawn, px.
+const PICK_RING: f32 = 2.0;
 
 /// Element ids made from a look's id and a list's or value's place, so
 /// controls keep their state across refreshes.
