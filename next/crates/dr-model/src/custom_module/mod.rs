@@ -92,7 +92,8 @@ pub const MODULE_MARKS: [&str; 7] = [
 
 /// Whether `n` is one of the fixed width steps.
 pub fn is_width_step(n: u16) -> bool {
-    (WIDTH_STEP_MIN..=WIDTH_STEP_MAX).contains(&n) && (n - WIDTH_STEP_MIN) % WIDTH_STEP == 0
+    (WIDTH_STEP_MIN..=WIDTH_STEP_MAX).contains(&n)
+        && (n - WIDTH_STEP_MIN).is_multiple_of(WIDTH_STEP)
 }
 
 /// Attribution: the exporter's account name only (as a project template's).

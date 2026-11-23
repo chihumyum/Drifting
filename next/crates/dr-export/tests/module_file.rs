@@ -31,6 +31,9 @@ fn out(ws: &Workspace, name: &str, input: Value) -> Value {
         .clone()
 }
 
+/// Whether a refusal is the one a case expects.
+type Verdict = fn(&ModuleFileError) -> bool;
+
 fn sample(stem: &str) -> &'static str {
     MODULE_FILES
         .iter()
@@ -50,7 +53,7 @@ fn every_sample_round_trips_byte_for_byte_and_import_always_adds_a_new_one() {
         );
         let id = created["id"].as_str().unwrap();
         let path = e.dir.path().join(module_file::module_filename(
-            &created["name"].as_str().unwrap(),
+            created["name"].as_str().unwrap(),
         ));
         assert!(path.to_str().unwrap().ends_with(".driftingmodule"));
         let a = module_file::export_module(&e.ws, id, Some("林岬"), &path).unwrap();
@@ -98,7 +101,7 @@ fn refused_files_write_nothing_and_say_why_the_way_the_command_line_does() {
     newer["formatVersion"] = json!(2);
     let mut by_id = good.clone();
     by_id["sample"]["items"][0]["back"] = json!(["0192f3a4-5b6c-7d8e-9f00-112233445566"]);
-    let cases: Vec<(&str, Vec<u8>, fn(&ModuleFileError) -> bool)> = vec![
+    let cases: Vec<(&str, Vec<u8>, Verdict)> = vec![
         ("colour", colour.to_string().into_bytes(), |e| {
             matches!(e, ModuleFileError::Damaged(_))
         }),

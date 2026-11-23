@@ -893,10 +893,10 @@ op! {
                     live(&v, raw)?;
                 }
             }
-            (BlockKind::Image, Some(StoredValue::Text(asset))) => {
-                if !v.assets().iter().any(|a| a.id.as_str() == asset) {
-                    return Err(WsError::not_found("asset", asset));
-                }
+            (BlockKind::Image, Some(StoredValue::Text(asset)))
+                if !v.assets().iter().any(|a| a.id.as_str() == asset) =>
+            {
+                return Err(WsError::not_found("asset", asset));
             }
             _ => {}
         }

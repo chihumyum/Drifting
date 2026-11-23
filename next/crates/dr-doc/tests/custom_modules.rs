@@ -234,11 +234,11 @@ fn values_are_kept_by_block_id_and_survive_replacing_the_copy() {
         panic!()
     };
     assert!(
-        items[0].values.get("st").is_none(),
+        !items[0].values.contains_key("st"),
         "a deleted block is not shown"
     );
     assert!(
-        items[0].values.get("line").is_none(),
+        !items[0].values.contains_key("line"),
         "\"旧照片\" does not read as a number"
     );
     // The block comes back, and so does its value.
@@ -341,13 +341,9 @@ fn items_move_with_their_values_and_merge_by_id() {
     )
     .unwrap();
     let (r, _) = a.doc.edit(Origin::User, |t| {
-        t.entries().entry(&a.entry)?.move_custom_item(
-            &a.module,
-            &[],
-            "eras",
-            &era2.to_string(),
-            0,
-        )?;
+        t.entries()
+            .entry(&a.entry)?
+            .move_custom_item(&a.module, &[], "eras", era2.as_str(), 0)?;
         Ok(())
     });
     r.unwrap();
@@ -417,12 +413,9 @@ fn items_move_with_their_values_and_merge_by_id() {
     assert_eq!(a.doc.version(), before);
     // Removing an item takes what it keeps with it.
     let (r, _) = a.doc.edit(Origin::User, |t| {
-        t.entries().entry(&a.entry)?.remove_custom_item(
-            &a.module,
-            &[],
-            "eras",
-            &era1.to_string(),
-        )?;
+        t.entries()
+            .entry(&a.entry)?
+            .remove_custom_item(&a.module, &[], "eras", era1.as_str())?;
         Ok(())
     });
     r.unwrap();
@@ -458,7 +451,7 @@ fn undo_brings_values_back_from_an_entry_snapshot() {
     // Then: era1 removed, era2 moved and renamed, a new one added.
     let (r, _) = b.doc.edit(Origin::User, |t| {
         let e = t.entries().entry(&b.entry)?;
-        e.remove_custom_item(&b.module, &[], "eras", &era1.to_string())?;
+        e.remove_custom_item(&b.module, &[], "eras", era1.as_str())?;
         e.insert_custom_item(&b.module, &[], "eras", Some(0), &ModuleItemId::new_v7())?;
         e.set_custom_value(
             &b.module,
