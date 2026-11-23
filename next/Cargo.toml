@@ -41,6 +41,7 @@ members = [
     "crates/dr-view-home",
     "crates/dr-view-import",
     "crates/dr-view-material",
+    "crates/dr-view-module-look",
     "crates/dr-view-page",
     "crates/dr-view-plot",
     "crates/dr-view-relations",
@@ -327,6 +328,8 @@ dr-view-timeline = { path = "crates/dr-view-timeline" }
 dr-view-import = { path = "crates/dr-view-import" }
 # M03: the chapter page's head and end around the editor (dr-editor's PageChrome).
 dr-view-page = { path = "crates/dr-view-page" }
+# CM2: a custom module's look, drawn from a module value and a set of values.
+dr-view-module-look = { path = "crates/dr-view-module-look" }
 # M19: the image and PDF viewer and its region comments
 # (docs/rust-rewrite/modules/m19-materials.md). hayro renders PDF pages in
 # pure Rust (Apache-2.0 OR MIT): nothing to download or install beside the
