@@ -128,18 +128,16 @@ pub fn on_the_internet(raw: &str) -> bool {
     }
 }
 
-/// Where a URL's host is. `None` only without a host.
+/// Where a URL's host is. `None` only without a host. This computer and the
+/// local network are the same set `dr_platform::proxy` sends directly (no
+/// proxy); everything else is the internet.
 fn reach(url: &Url) -> Option<Reach> {
     let host = url.host_str()?;
     if let Some(v6) = host.strip_prefix('[').and_then(|h| h.strip_suffix(']')) {
-        let Ok(ip) = v6.parse::<Ipv6Addr>() else {
-            return Some(Reach::Internet);
-        };
-        // `::ffff:a.b.c.d` is that IPv4 address.
-        return Some(match ip.to_ipv4_mapped() {
-            Some(v4) => ipv4_reach(v4),
-            None if ip.is_loopback() => Reach::ThisComputer,
-            None => Reach::Internet,
+        return Some(if v6.parse::<Ipv6Addr>().is_ok_and(|ip| ip.is_loopback()) {
+            Reach::ThisComputer
+        } else {
+            Reach::Internet
         });
     }
     if let Ok(ip) = host.parse::<Ipv4Addr>() {
@@ -575,12 +573,6 @@ mod tests {
                 Reach::LocalNetwork,
             ),
             (
-                "http://[::ffff:192.168.1.20]:11434",
-                "http://[::ffff:c0a8:114]:11434",
-                "[::ffff:c0a8:114]:11434",
-                Reach::LocalNetwork,
-            ),
-            (
                 "https://api.example.com/v1",
                 "https://api.example.com",
                 "api.example.com",
@@ -631,6 +623,8 @@ mod tests {
             "http://8.8.8.8",
             "http://[fe80::1]:11434",
             "http://[::ffff:203.0.113.7]",
+            // Only `::1` counts as this computer, as for the proxy's rule.
+            "http://[::ffff:192.168.1.20]:11434",
             "http://local",
             "http://.local",
             "http://intranet",
