@@ -1,7 +1,8 @@
 //! Drifting's platform services (foundation F7): the app's identity and
 //! folders, logs, crash reports, the keychain, deep links and the single
 //! running copy, automatic updates, and the feedback the author sends with
-//! its diagnostic summary (M39).
+//! its diagnostic summary (M39), and the clipboard's HTML for pasting with
+//! formatting (PF).
 //!
 //! None of it depends on GPUI, so every piece is tested without a window; the
 //! app (`app/drifting`) wires the few calls that need one, such as
@@ -27,6 +28,7 @@
 //! computer or the local network.
 
 pub mod cli;
+pub mod clipboard;
 pub mod crash;
 pub mod deep_link;
 pub mod diagnostics;

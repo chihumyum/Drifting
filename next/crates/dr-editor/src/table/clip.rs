@@ -7,8 +7,10 @@
 //! quotes. Drifting's own copy also puts the cells in the metadata
 //! ([`TABLE_KEY`]), so a table copied from a note pastes as a table even if
 //! a cell holds a tab, and each cell's inline marks ([`MARKS_KEY`]: bold,
-//! a highlight, a link …), so they come back with it. Text from elsewhere
-//! pastes plain.
+//! a highlight, a link …), so they come back with it. A table from another
+//! program takes its cells' marks from the HTML the platform reads beside
+//! the text, when that HTML is the same table
+//! ([`crate::clipboard::html_table_marks`]); otherwise it pastes plain.
 //!
 //! When text is a table: [`parse_grid`] reads any tab-separated text; the
 //! note decides by size (a grid pasted into a cell fills from there; into

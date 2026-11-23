@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
-description = "Drifting's platform services: logs, crash reports, keychain, deep links and single instance, updates, feedback, the system's image codecs"
+description = "Drifting's platform services: logs, crash reports, keychain, deep links and single instance, updates, feedback, the system's image codecs, the clipboard's HTML"
 
 [features]
 default = ["network"]
@@ -55,15 +55,22 @@ tracing-subscriber.workspace = true
 uuid.workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
+# `clipboard`: the pasteboard's HTML, and AppKit's RTF-to-HTML for what
+# Pages and other Cocoa text views copy (the bindings GPUI's macOS backend
+# already builds; these features add declarations, not crates).
+objc2.workspace = true
+objc2-app-kit = { workspace = true, features = ["NSAttributedString", "NSPasteboard"] }
 # `CFCGTypes`: the rectangle `image_codec` draws a decoded picture into.
 objc2-core-foundation = { workspace = true, features = ["CFCGTypes"] }
 objc2-core-graphics.workspace = true
+objc2-foundation.workspace = true
 objc2-image-io.workspace = true
 objc2-security.workspace = true
 
 [target.'cfg(windows)'.dependencies]
-# `image_codec`: HEIC, HEIF and AVIF through WIC.
-windows = { workspace = true, features = ["Win32_Graphics_Imaging", "Win32_System_Com"] }
+# `image_codec`: HEIC, HEIF and AVIF through WIC; `clipboard`: the
+# clipboard's "HTML Format".
+windows = { workspace = true, features = ["Win32_Graphics_Imaging", "Win32_System_Com", "Win32_System_DataExchange", "Win32_System_Memory"] }
 
 [dev-dependencies]
 keyring.workspace = true
