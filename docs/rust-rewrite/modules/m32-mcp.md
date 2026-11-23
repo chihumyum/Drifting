@@ -8,6 +8,8 @@
 >
 > 2026-11-16 内核 v5（PT4）：入站目录跟着 M29 多了 `project_template.list`、`get`、`save`，没有导入、导出、编辑模板（`edit`、`working_copies`）和改名、删除；服务说明（`get_info` 的 instructions）末尾加了通用规则 `dr_agent::guidance::PROJECT_GUIDANCE_RULE`。回归：`dr-mcp/tests/inbound.rs` 的 `project_templates_reach_mcp_through_list_get_and_save_only`。
 
+> 2026-11-24（CM4b 条目模块自定义：Agent 的工具）：入站目录跟着 M29 多了我的模块的 `custom_module.list`、`get`、`create`、`update`、`rename`、`save_as`，和条目里自定义模块的值的 `module.read_custom`、`set_custom_value`、`add_custom_item`、`remove_custom_item`、`move_custom_item`；导入、导出、删除、存进我的模块（`adopt`）、谁在用（`uses`）、对一遍抄本（`sync_copies`）和社区都不在目录里，调了回「not in Drifting's author-tool catalog」、一笔不写。我的模块的写入走应用内帮手同一条路（改之前这一轮要读过、读过以后没变），模块过同一个校验器，不合格时错误带位置。服务说明里的通用规则 `PROJECT_GUIDANCE_RULE` 现在点名自定义模块的「写给 Agent」。回归：`dr-mcp/tests/inbound.rs` 的 `custom_modules_reach_mcp_through_the_agents_tools_only`。细节见 [K6](k6-agent-tools.md) 和 [M44](m44-custom-modules.md) 的「Agent 的工具（CM4b）」。
+
 > 2026-11-21：0.1 里连过外部 Agent 的作者，换成新版以后不用重新连。之前只有 0.1「注册表以前的那个书库」的连接接得上，本机书库和账号书库的连接都断了；现在三种都接得上，各自只看得到自己主人的书库里的书。见下面「0.1 各书库的外部 Agent 连接」。
 
 交回状态：分支 `codex/m32-mcp`，实现提交 `0f3a1dc6`，本提交补记交回。入站、出站及设置验收已完成；全量检查中的书架超时与通过的串行复验见「验收」，真实客户端和 Windows 原生运行仍见「待协调」。
