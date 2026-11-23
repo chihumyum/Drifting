@@ -958,7 +958,7 @@
       "app": "ui.wait",
       "params": {
         "until": "time",
-        "ms": 600
+        "ms": 800
       }
     },
     {
@@ -969,17 +969,36 @@
       }
     },
     {
-      "app": "ui.find",
+      "app": "ui.wait",
       "params": {
-        "label": "编辑",
-        "timeout_ms": 8000
+        "until": "time",
+        "ms": 1200
       }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "12b-card-before-edit-light.png"
     },
     {
       "app": "ui.press",
       "params": {
-        "label": "编辑"
+        "label": "伏笔追踪",
+        "role": "Group",
+        "dx": 160,
+        "dy": 175
+      },
+      "note": "The card's 编辑, below its title and the module drawn 120 high (a book card's 编辑 has the same name, so not by name)."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 1500
       }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "13a-after-edit-light.png"
     },
     {
       "app": "ui.find",
@@ -1057,47 +1076,15 @@
       }
     },
     {
-      "app": "action.dispatch",
-      "params": {
-        "name": "workspace::ToggleBottomTimeline"
-      }
-    },
-    {
-      "app": "ui.wait",
-      "params": {
-        "until": "time",
-        "ms": 400
-      }
-    },
-    {
-      "app": "action.dispatch",
-      "params": {
-        "name": "workspace::ToggleLeftSidebar"
-      }
-    },
-    {
       "app": "ui.wait",
       "params": {
         "state": {
-          "/left/open": true
-        },
-        "timeout_ms": 10000
-      }
-    },
-    {
-      "app": "action.dispatch",
-      "params": {
-        "name": "workspace::ToggleRightSidebar"
-      }
-    },
-    {
-      "app": "ui.wait",
-      "params": {
-        "state": {
+          "/left/open": true,
           "/right/open": true
         },
         "timeout_ms": 10000
-      }
+      },
+      "note": "The columns were left open in the light run: the book's layout keeps them."
     },
     {
       "app": "ui.wait",
