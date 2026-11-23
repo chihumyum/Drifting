@@ -503,7 +503,9 @@ pub(crate) fn copy<V: FileView>(
 }
 
 /// Paste in the body: a copied table, or a tab-separated grid of at least
-/// 2 × 2, becomes a table at the caret; an image, or the computer's image
+/// 2 × 2, becomes a table at the caret (another program's with its cells'
+/// formats, when the HTML beside the text is the same table:
+/// [`crate::clipboard::html_table_marks`]); an image, or the computer's image
 /// and PDF files, go into the library (a new pasted image at the top; the
 /// same bytes give back the file already there) and are embedded at the
 /// caret. Returns whether it handled the key.
@@ -526,13 +528,19 @@ pub(crate) fn paste<V: FileView>(this: &mut V, window: &mut Window, cx: &mut Con
         }
         prose.read(cx).selection().head
     };
-    let cells = crate::table::clip::table_from_clipboard(&item).or_else(|| {
+    let copied = crate::table::clip::table_from_clipboard(&item);
+    let from_text = copied.is_none();
+    let cells = copied.or_else(|| {
         item.text()
             .and_then(|t| crate::table::clip::parse_grid(&t))
             .filter(|g| crate::table::clip::is_table(g))
     });
     if let Some(cells) = cells {
         let marks = match crate::table::clip::marks_from_clipboard(&item) {
+            // Another program's table: its cells' formats from its HTML.
+            Ok(m) if m.is_empty() && from_text => {
+                crate::clipboard::html_table_marks(cx, &cells).unwrap_or(m)
+            }
             Ok(m) => m,
             Err(e) => {
                 crate::links::clipboard_refused(cx, e);

@@ -439,7 +439,10 @@ fn synchronized_conversations_are_listed_and_interrupted_controls_are_recovered(
         Event::Configured {
             config: f.start(interrupted.clone()).config,
         },
-        Event::UserMessage { text: f.text() },
+        Event::UserMessage {
+            text: f.text(),
+            images: Vec::new(),
+        },
         Event::StateChanged {
             state: State::Streaming,
         },

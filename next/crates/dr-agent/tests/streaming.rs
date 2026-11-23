@@ -584,7 +584,10 @@ fn lost_run(f: &Fixture, conversation: &ConversationId, session: &str, thinking:
         Event::Started {
             version: PROTOCOL_VERSION,
         },
-        Event::UserMessage { text: text.clone() },
+        Event::UserMessage {
+            text: text.clone(),
+            images: Vec::new(),
+        },
         Event::StateChanged {
             state: State::Streaming,
         },

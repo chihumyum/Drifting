@@ -507,6 +507,9 @@ impl SyncHttpClient {
         validate_sync_url(&base_url, &probe)?;
         let http = reqwest::blocking::Client::builder()
             .timeout(Duration::from_secs(30))
+            // The system's proxy; a development origin on this computer
+            // directly (`dr_platform::proxy`).
+            .proxy(dr_platform::proxy::system())
             .build()
             .map_err(|e| SyncError::Offline(e.to_string()))?;
         Ok(Self { base_url, http })

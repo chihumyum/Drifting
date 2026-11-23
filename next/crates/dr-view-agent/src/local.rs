@@ -50,6 +50,10 @@ pub struct LocalServerModel {
     /// What the author set in Settings; it wins.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub context_override: Option<u64>,
+    /// Whether the server said the model takes images (CM4a); a list kept
+    /// before this was asked, or a model typed by hand, says nothing (no).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image_input: Option<bool>,
 }
 
 impl LocalServerModel {
@@ -58,6 +62,7 @@ impl LocalServerModel {
             id: id.into(),
             context,
             context_override: None,
+            image_input: None,
         }
     }
 
@@ -358,6 +363,7 @@ pub fn merge_models(
                 .iter()
                 .find(|old| old.id == model.id)
                 .and_then(|old| old.context_override),
+            image_input: model.image_input,
         })
         .collect()
 }
@@ -442,11 +448,13 @@ mod tests {
                 id: "kept".into(),
                 context: Some(131_072),
                 context_override: Some(16_384),
+                image_input: None,
             },
             LocalServerModel {
                 id: "gone".into(),
                 context: None,
                 context_override: Some(8_192),
+                image_input: None,
             },
         ];
         let merged = merge_models(
@@ -455,13 +463,18 @@ mod tests {
                 local::LocalModel {
                     id: "kept".into(),
                     context_window: Some(65_536),
+                    image_input: Some(true),
                 },
                 local::LocalModel {
                     id: "new".into(),
                     context_window: None,
+                    image_input: None,
                 },
             ],
         );
+        // What the fresh list says about images replaces the old answer.
+        assert_eq!(merged[0].image_input, Some(true));
+        assert_eq!(merged[1].image_input, None);
         assert_eq!(merged[0].context, Some(65_536));
         assert_eq!(merged[0].context_window(), Some(16_384));
         assert_eq!(merged[1].context_window(), None);

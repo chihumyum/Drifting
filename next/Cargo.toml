@@ -225,6 +225,9 @@ keyring = { version = "3.6", default-features = false, features = ["apple-native
 minisign = "0.10"
 minisign-verify = "0.3"
 objc2-core-foundation = { version = "0.3", default-features = false, features = ["std", "CFBase", "CFData", "CFDictionary", "CFNumber", "CFString"] }
+# dr-platform's `clipboard`: NSData, NSDictionary and NSAttributedString for
+# the pasteboard's HTML and RTF (the version GPUI's macOS backend builds).
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSAttributedString", "NSData", "NSDictionary", "NSRange", "NSString"] }
 # dr-platform's `image_codec`: HEIC, HEIF and AVIF through ImageIO, as the
 # 0.1 client (`src-tauri/Cargo.toml`, the same 0.3.2). CoreGraphics is the
 # version GPUI's macOS backend already builds; ImageIO is its sibling
@@ -235,7 +238,17 @@ objc2-security = { version = "0.3", default-features = false, features = ["std",
 # reqwest 0.13 is the HTTP client Sentry's transport already brings; the
 # updater uses the same blocking client. TLS is rustls with ring, as the 0.1
 # client (it builds on the Windows ARM runner; aws-lc is not proven there).
-reqwest = { version = "0.13", default-features = false, features = ["blocking", "form", "json", "query", "stream", "rustls-no-provider"] }
+# The default features are off for that reason only: `system-proxy` (a
+# default) is turned back on, so a client reads the proxy of the macOS
+# network settings and the Windows internet options, not just the proxy
+# variables an App opened from Finder or the Start menu never has. Every
+# client of the App goes through `dr_platform::proxy`, which keeps this
+# computer and the local network direct (NP, 2026-11-24).
+reqwest = { version = "0.13", default-features = false, features = ["blocking", "form", "json", "query", "stream", "rustls-no-provider", "system-proxy"] }
+# `dr_platform::proxy`: the system's proxy for one destination, read by the
+# same code reqwest's `system-proxy` runs (reqwest keeps it to itself).
+http = "1.4"
+hyper-util = { version = "0.1.21", default-features = false, features = ["client-proxy", "client-proxy-system"] }
 rustls = { version = "0.23", default-features = false, features = ["logging", "ring", "std", "tls12"] }
 semver = "1.0"
 # Without `reqwest` and `rustls-no-provider` (dr-platform's `network` feature

@@ -41,6 +41,9 @@ hot-reload = ["gpui/hot-reload"]
 anyhow.workspace = true
 dr-account.workspace = true
 dr-debug-bridge = { workspace = true, optional = true }
+# PF: where ⌘V in a body reads other programs' formatting from
+# (`set_clipboard_html` with dr-platform's reader).
+dr-editor.workspace = true
 dr-mcp.workspace = true
 dr-platform.workspace = true
 dr-shell.workspace = true
@@ -85,7 +88,6 @@ dr-agent-providers.workspace = true
 # (`data_folder_tests`): a Runtime with the book tools, an MCP client that
 # starts the configured command (rmcp), the reactor, Codex's format.
 dr-agent-tools.workspace = true
-dr-editor.workspace = true
 # The release identity's folders on a synthetic 0.1 data folder
 # (`data_folder_tests`, with dr-import-v1's test library).
 dr-import-v1.workspace = true
@@ -124,4 +126,10 @@ required-features = ["debug-bridge"]
 
 [[example]]
 name = "home-cards-acceptance"
+required-features = ["debug-bridge"]
+
+# CM4a: images dropped on the Agent composer, sent through the real model
+# driver to a loopback stand-in (`dr-view-agent/scenarios/agent-images.json`).
+[[example]]
+name = "agent-images-acceptance"
 required-features = ["debug-bridge"]

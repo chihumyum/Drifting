@@ -1551,6 +1551,7 @@ dependencies = [
  "dr-testkit",
  "dr-workspace",
  "futures",
+ "image",
  "loro",
  "rusqlite",
  "serde",
@@ -1882,12 +1883,17 @@ dependencies = [
  "chrono",
  "dirs",
  "flate2",
+ "http",
+ "hyper-util",
  "keyring",
  "log",
  "minisign",
  "minisign-verify",
+ "objc2 0.6.5",
+ "objc2-app-kit 0.3.2",
  "objc2-core-foundation",
  "objc2-core-graphics",
+ "objc2-foundation 0.3.2",
  "objc2-image-io",
  "objc2-security",
  "regex",
@@ -2107,11 +2113,13 @@ dependencies = [
  "gpui",
  "gpui-prose",
  "gpui_platform",
+ "image",
  "log",
  "rusqlite",
  "serde",
  "serde_json",
  "sha2 0.10.9",
+ "smallvec",
  "tempfile",
  "thiserror 2.0.21",
  "tokio",
@@ -4250,9 +4258,11 @@ dependencies = [
  "percent-encoding",
  "pin-project-lite",
  "socket2",
+ "system-configuration",
  "tokio",
  "tower-service",
  "tracing",
+ "windows-registry",
 ]
 
 [[package]]
@@ -8375,6 +8385,27 @@ dependencies = [
  "ntapi",
  "rayon",
  "windows 0.57.0",
+]
+
+[[package]]
+name = "system-configuration"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a13f3d0daba03132c0aa9767f98351b3488edc2c100cda2d2ec2b04f3d8d3c8b"
+dependencies = [
+ "bitflags 2.13.2",
+ "core-foundation 0.9.4",
+ "system-configuration-sys",
+]
+
+[[package]]
+name = "system-configuration-sys"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8e1d1b10ced5ca923a1fcb8d03e96b8d3268065d724548c0211415ff6ac6bac4"
+dependencies = [
+ "core-foundation-sys",
+ "libc",
 ]
 
 [[package]]

@@ -174,7 +174,7 @@
       "pending": "Vor dem Import sind Zuordnungen erforderlich",
       "start": "In neue Bibliothek importieren",
       "switching": "Die fertige Bibliothek wird geöffnet",
-      "title": "In neue Bibliothek erneut importieren"
+      "title": "In neue Bibliothek importieren"
     }
   },
   "importDialog": {
@@ -699,5 +699,13 @@
       "unknown": "Sende Feedback."
     },
     "feedbackMessage": "{{title}} ({{code}})"
+  },
+  "agentImages": {
+    "image": "Bild",
+    "remove": "Bild entfernen",
+    "tooLarge": "Das Bild ist zu groß: höchstens {{size}} MB und {{side}} Pixel pro Seite.",
+    "tooMany": "Eine Nachricht kann höchstens {{max}} Bilder enthalten.",
+    "unseen": "Das verwendete Modell kann keine Bilder sehen. Wechsle zu einem Modell, das es kann, und sende es noch einmal.",
+    "unsupported": "Es können nur PNG-, JPEG- oder WebP-Bilder gesendet werden."
   }
 }

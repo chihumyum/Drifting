@@ -176,7 +176,7 @@
       "pending": "Se requieren opciones de asignación antes de importar",
       "start": "Importar en una biblioteca nueva",
       "switching": "Abriendo la biblioteca completada",
-      "title": "Reimportar en una biblioteca nueva"
+      "title": "Importar en una biblioteca nueva"
     }
   },
   "importDialog": {
@@ -701,5 +701,13 @@
       "unknown": "Envía comentarios."
     },
     "feedbackMessage": "{{title}} ({{code}})"
+  },
+  "agentImages": {
+    "image": "Imagen",
+    "remove": "Quitar imagen",
+    "tooLarge": "La imagen es demasiado grande: como máximo {{size}} MB y {{side}} píxeles por lado.",
+    "tooMany": "Un mensaje puede llevar como máximo {{max}} imágenes.",
+    "unseen": "El modelo que usas no puede ver imágenes. Cambia a un modelo que pueda y vuelve a enviarlo.",
+    "unsupported": "Solo se pueden enviar imágenes PNG, JPEG o WebP."
   }
 }

@@ -679,7 +679,7 @@ impl Pill {
             .child(
                 div()
                     .whitespace_nowrap()
-                    .when(self.preview, |el| el.italic())
+                    .when(self.preview, |el| el.italic_face())
                     .child(self.label.clone()),
             )
     }

@@ -23,6 +23,7 @@ use dr_ui::{
     Theme,
     components::{DockMark, DockTab, IconButton, Pill, TabDock},
     sand::{self, Icon, KindMark},
+    style::DrStyled,
     tokens::Rgb,
 };
 use gpui::{
@@ -347,7 +348,7 @@ fn pill(tab: &Tab, ws: &Workspace, book: &Book, cx: &mut Context<Workspace>) -> 
                     .child(
                         div()
                             .whitespace_nowrap()
-                            .when(*preview, |el| el.italic())
+                            .when(*preview, |el| el.italic_face())
                             .child(name.clone()),
                     )
                     .child(close);

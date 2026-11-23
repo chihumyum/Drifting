@@ -41,6 +41,12 @@ pub struct ModelInfo {
     /// Raw published limits: a local fallback never masquerades as metadata.
     pub published_context_window: Option<u64>,
     pub published_max_output_tokens: Option<u64>,
+    /// Whether the model takes images, only as the provider's live list says
+    /// (Anthropic's `capabilities.image_input.supported`, the subscription
+    /// catalog's `input_modalities`). `None`: the list says nothing (OpenAI's
+    /// and DeepSeek's lists, a bundled fallback), which counts as no.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image_input: Option<bool>,
 }
 
 impl ModelInfo {
@@ -82,6 +88,7 @@ impl ModelInfo {
             supports_thinking_off: Some(supports_off),
             supports_summary: codex_metadata.then_some(self.supports_summary),
             supports_verbosity: codex_metadata.then_some(self.supports_verbosity),
+            image_input: self.image_input,
         });
         Ok(config)
     }
@@ -149,6 +156,7 @@ fn bundled(
         created: None,
         published_context_window: None,
         published_max_output_tokens: None,
+        image_input: None,
     }
 }
 
@@ -788,6 +796,8 @@ fn project_api(
                 }
                 value.get("supported")?.as_bool()
             };
+            // Anthropic's model list: `capabilities.image_input.supported`.
+            model.image_input = supported(&["image_input"]);
             let adaptive = supported(&["thinking", "types", "adaptive"])
                 .or_else(|| supported(&["thinking"]).map(|_| false));
             match supported(&["effort"]) {
@@ -898,6 +908,12 @@ fn project_codex(value: &Value) -> Result<Vec<ModelInfo>> {
             .get("support_verbosity")
             .and_then(Value::as_bool)
             .unwrap_or(false);
+        // `input_modalities` (`text`, `image`, …). Codex's own client takes
+        // a row without it as text and images; here it counts as no.
+        model.image_input = row
+            .get("input_modalities")
+            .and_then(Value::as_array)
+            .map(|kinds| kinds.iter().any(|kind| kind.as_str() == Some("image")));
         result.push(model);
     }
     Ok(result)

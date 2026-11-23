@@ -225,6 +225,10 @@ pub enum Event {
     },
     UserMessage {
         text: String,
+        /// Images the author attached (CM4a); their bytes stay on this
+        /// device ([`crate::images`]). Absent from older journals.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        images: Vec<crate::images::ImageRef>,
     },
     /// Product-generated instruction; model-visible, never an author message.
     Continuation {

@@ -1,4 +1,12 @@
 {
+  "agentImages": {
+    "image": "Image",
+    "remove": "Retirer l’image",
+    "tooLarge": "L’image est trop grande : {{size}} Mo et {{side}} pixels de côté au maximum.",
+    "tooMany": "Un message peut contenir au maximum {{max}} images.",
+    "unseen": "Le modèle utilisé ne peut pas voir les images. Passez à un modèle qui le peut, puis renvoyez le message.",
+    "unsupported": "Seules les images PNG, JPEG ou WebP peuvent être envoyées."
+  },
   "agentPanel": {
     "budget": {
       "continue": "Continuer la tâche"
@@ -465,7 +473,7 @@
       "pending": "Choix de correspondance requis avant l’import",
       "start": "Importer dans une nouvelle bibliothèque",
       "switching": "Ouverture de la bibliothèque terminée",
-      "title": "Réimporter dans une nouvelle bibliothèque"
+      "title": "Importer dans une nouvelle bibliothèque"
     }
   },
   "importDialog": {

@@ -254,6 +254,10 @@ fn client_options(config: &CrashConfig, consent: Arc<AtomicBool>) -> sentry::Cli
         });
     let mut options = sentry::ClientOptions::new();
     options.dsn = config.dsn.as_deref().and_then(|dsn| dsn.parse().ok());
+    #[cfg(feature = "network")]
+    {
+        options.transport = Some(Arc::new(ProxiedTransport));
+    }
     options.release = Some(config.release.clone().into());
     options.environment = Some(config.environment.into());
     options.send_default_pii = false;
@@ -277,6 +281,37 @@ fn client_options(config: &CrashConfig, consent: Arc<AtomicBool>) -> sentry::Cli
         Some(scrub(event))
     }));
     options.add_integration(minidump)
+}
+
+/// Sentry's own reqwest transport over a client that adds
+/// [`crate::proxy::system`]: reports take the system's proxy like every
+/// other request of the App, and a stand-in on this computer is reached
+/// directly. Without it Sentry's client would take reqwest's system proxy,
+/// which has no exception for this computer.
+#[cfg(feature = "network")]
+struct ProxiedTransport;
+
+#[cfg(feature = "network")]
+impl sentry::TransportFactory for ProxiedTransport {
+    fn create_transport_with_options(
+        &self,
+        options: sentry::TransportOptions,
+    ) -> Arc<dyn sentry::Transport> {
+        crate::install_tls_provider();
+        match reqwest::Client::builder()
+            .proxy(crate::proxy::system())
+            .build()
+        {
+            Ok(client) => Arc::new(
+                sentry::transports::ReqwestHttpTransportOptions::from(options)
+                    .with_client(client)
+                    .build(),
+            ),
+            Err(_) => {
+                sentry::transports::DefaultTransportFactory.create_transport_with_options(options)
+            }
+        }
+    }
 }
 
 /// Only what a crash report needs leaves the machine.
@@ -554,6 +589,40 @@ mod tests {
             environment: "production",
             build_commit: None,
         }
+    }
+
+    /// Reports to a remote Sentry go through the system's proxy, those to a
+    /// stand-in on this computer straight to it (the crash reporter's own
+    /// test, `tests/crash_report.rs`, sends to one).
+    #[cfg(feature = "network")]
+    #[test]
+    fn reports_take_the_system_proxy_except_to_this_computer() {
+        use sentry::TransportFactory;
+
+        let Some(proxy) = crate::proxy::fake::rerun_through(
+            "crash::tests::reports_take_the_system_proxy_except_to_this_computer",
+        ) else {
+            let send = |dsn: &str| {
+                let mut options = sentry::ClientOptions::new();
+                options.dsn = dsn.parse().ok();
+                let transport = ProxiedTransport.create_transport_with_options(
+                    sentry::TransportOptions::try_from_client_options(&options).unwrap(),
+                );
+                transport.send_envelope(Event::default().into());
+                transport.flush(std::time::Duration::from_secs(10));
+            };
+            let ingest = crate::feedback::fake_service::FakeService::start(&[200]);
+            let port = ingest.base.rsplit(':').next().unwrap().to_owned();
+            send(&format!("http://public@127.0.0.1:{port}/1"));
+            let received = ingest.next().expect("the stand-in got the report");
+            assert_eq!(received.request_line, "POST /api/1/envelope/ HTTP/1.1");
+            send("https://public@sentry.drifting.invalid/1");
+            return;
+        };
+        assert_eq!(
+            proxy.request_lines(),
+            vec!["CONNECT sentry.drifting.invalid:443 HTTP/1.1".to_owned()]
+        );
     }
 
     #[test]

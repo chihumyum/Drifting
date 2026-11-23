@@ -456,7 +456,7 @@ impl Store {
                         id,
                         text,
                     }),
-                    Event::UserMessage { text }
+                    Event::UserMessage { text, .. }
                         if member.mode == StartMode::Resume && row.turn == 1 =>
                     {
                         steering.push(AuthorInput {

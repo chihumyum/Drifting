@@ -166,7 +166,7 @@
       "pending": "导入前需要映射选择",
       "start": "导入到新库",
       "switching": "正在打开已完成的新库",
-      "title": "重新导入到新库"
+      "title": "导入到新库"
     }
   },
   "importDialog": {
@@ -678,5 +678,13 @@
       "unknown": "请提交反馈。"
     },
     "feedbackMessage": "{{title}}（{{code}}）"
+  },
+  "agentImages": {
+    "image": "图片",
+    "remove": "移除图片",
+    "tooLarge": "图片太大：每张最多 {{size}} MB，边长最多 {{side}} 像素。",
+    "tooMany": "一条消息最多带 {{max}} 张图片。",
+    "unseen": "现在用的模型看不了图片。请换一个能看图的模型再发。",
+    "unsupported": "只能发送 PNG、JPEG 或 WebP 图片。"
   }
 }
