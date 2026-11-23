@@ -6,6 +6,12 @@
 
 2026-11-07，第一、第二个里程碑；2026-11-08，第三个里程碑（导入界面）、第四个里程碑（认领身份、取消、自动找旧库、真窗口验收）和第五个里程碑（没导完的提醒、多窗口）；同日第六个里程碑（旧模版写成模版文档）。计划见 [modules.md 的 M10](../modules.md#阶段-2写作闭环)，依据是 [P0-E 的结论和规格草稿](../spikes/p0-e-import.md)。导入本身在 `next/crates/dr-import-v1/`（不依赖 GPUI，不依赖 yrs / Yjs），界面在 `next/crates/dr-view-import/`；旧版这一侧只改了交接（`src/renderer/services/v2-handoff/`，[docs/v2-handoff.md](../../v2-handoff.md)）。测量证据在 [acceptance/m10-m4-import.json](../acceptance/m10-m4-import.json)（F8 的新格式，第四个里程碑重测），截图在 [m10/](m10/)。
 
+## 导入确认框的标题（2026-11-24，SM）
+
+导入前那个确认框（选好旧库以后、按「导入到新库」之前那一个）原来叫「重新导入到新库」，第一次导入也这么叫。作者 2026-11-23 定去掉「重新」：标题和按钮一样叫「导入到新库」，九种语言都改了（`import.v3.title`，取 `import.v3.start` 的同一句话）。
+
+代码里没有「第一次导入」和「真的重新导入」两种说法：从列表里点一个库、自己选文件夹、通知里的「接着导入」，都走 `LegacyImport::configure` 到同一个确认框、同一个键，所以全都叫「导入到新库」。测试 `import_confirmation_is_titled_as_its_button_in_all_nine_languages`（`dr-view-import/tests/import.rs`）核对九种语言里标题和按钮是同一句话、中文是「导入到新库」。
+
 ## 0.1 的快照历史进条目的「快照历史」（2026-11-21）
 
 ### 做了什么（大白话）
