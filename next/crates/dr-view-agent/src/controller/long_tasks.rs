@@ -24,7 +24,8 @@ pub struct TaskView {
 }
 
 pub(super) enum StartRequest {
-    Author(Start),
+    /// An author message, with the images attached to it (CM4a).
+    Author(Start, dr_agent::ImageAttachments),
     Resume {
         start: ResumeStart,
         conversation: ConversationId,
@@ -38,7 +39,7 @@ pub(super) enum StartRequest {
 impl StartRequest {
     fn conversation(&self) -> &ConversationId {
         match self {
-            Self::Author(start) => &start.conversation,
+            Self::Author(start, _) => &start.conversation,
             Self::Resume { conversation, .. } | Self::Automatic { conversation, .. } => {
                 conversation
             }
@@ -49,7 +50,7 @@ impl StartRequest {
     }
     fn chain(&self) -> Option<&str> {
         match self {
-            Self::Author(_) => None,
+            Self::Author(..) => None,
             Self::Resume { start, .. } => Some(&start.chain),
             Self::Automatic { start, .. } => Some(&start.chain),
         }
@@ -92,14 +93,14 @@ impl PendingStart {
                 return Err("request chain belongs to another conversation".into());
             }
             snapshot.book
-        } else if let StartRequest::Author(start) = &self.request {
+        } else if let StartRequest::Author(start, _) = &self.request {
             start.book.clone()
         } else {
             return Err("request has no book".into());
         };
-        let is_author_turn = matches!(self.request, StartRequest::Author(_));
+        let is_author_turn = matches!(self.request, StartRequest::Author(..));
         let config = match &mut self.request {
-            StartRequest::Author(start) => &mut start.config,
+            StartRequest::Author(start, _) => &mut start.config,
             StartRequest::Resume { start, .. } => &mut start.config,
             StartRequest::Automatic { start, .. } => &mut start.config,
         };
@@ -126,8 +127,10 @@ impl PendingStart {
                 return Err(closed());
             }
         }
-        let handle = match &self.request {
-            StartRequest::Author(start) => resources.runtime.start(start.clone()),
+        let handle = match &mut self.request {
+            StartRequest::Author(start, images) => resources
+                .runtime
+                .start_with_images(start.clone(), std::mem::take(images)),
             StartRequest::Resume { start, .. } => resources.runtime.start_resume(start.clone()),
             StartRequest::Automatic { start, .. } => {
                 resources.runtime.start_continuation(start.clone())

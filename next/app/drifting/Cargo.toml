@@ -125,3 +125,9 @@ required-features = ["debug-bridge"]
 [[example]]
 name = "home-cards-acceptance"
 required-features = ["debug-bridge"]
+
+# CM4a: images dropped on the Agent composer, sent through the real model
+# driver to a loopback stand-in (`dr-view-agent/scenarios/agent-images.json`).
+[[example]]
+name = "agent-images-acceptance"
+required-features = ["debug-bridge"]

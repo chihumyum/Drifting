@@ -183,6 +183,12 @@ pub struct LocalModel {
     /// What the server reported, when it did. It is often the model's
     /// maximum, not what the server actually runs with.
     pub context_window: Option<u64>,
+    /// Whether the model takes images, as the server says (CM4a): Ollama's
+    /// `vision` capability, LM Studio's `vlm` type, the `image` input
+    /// modality llama.cpp (and servers like it) list for a model, or
+    /// llama.cpp's `/props` `modalities.vision`. `None`: it does not say,
+    /// which counts as no.
+    pub image_input: Option<bool>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -289,6 +295,7 @@ pub async fn discover(
             context: row_context(row),
             embedding: None,
             tools: None,
+            image_input: row_image_input(row),
         });
     }
     let software = if rows
@@ -301,10 +308,12 @@ pub async fn discover(
     } else if let Some(models) = lm_studio(client, address, key).await {
         for model in &mut found {
             if let Some(row) = models.get(&model.id) {
-                model.embedding = row
-                    .get("type")
-                    .and_then(Value::as_str)
-                    .map(|kind| kind == "embeddings");
+                let kind = row.get("type").and_then(Value::as_str);
+                model.embedding = kind.map(|kind| kind == "embeddings");
+                // `vlm` is a model that takes images, `llm` one that does not.
+                if let Some(kind @ ("llm" | "vlm")) = kind {
+                    model.image_input = Some(kind == "vlm");
+                }
                 if let Some(context) = number(row.get("max_context_length")) {
                     model.context = Some(context);
                 }
@@ -321,9 +330,17 @@ pub async fn discover(
             }
         }
         Some(Software::LlamaCpp) => {
-            if let Some(context) = llama_context(client, address, key).await {
+            let props = llama_props(client, address, key).await;
+            if let Some(context) = props.as_ref().and_then(llama_context) {
                 for model in &mut found {
                     model.context = Some(context);
+                }
+            }
+            // Older servers list no modalities: `/props` says whether the
+            // loaded model reads images.
+            if let Some(vision) = props.as_ref().and_then(llama_vision) {
+                for model in found.iter_mut().filter(|m| m.image_input.is_none()) {
+                    model.image_input = Some(vision);
                 }
             }
         }
@@ -340,6 +357,7 @@ pub async fn discover(
         .map(|model| LocalModel {
             id: model.id,
             context_window: model.context,
+            image_input: model.image_input,
         })
         .collect();
     if models.is_empty() {
@@ -355,6 +373,18 @@ struct Found {
     embedding: Option<bool>,
     /// `Some(false)` only when the server says the model has no tools.
     tools: Option<bool>,
+    /// `None`: the server did not say whether it takes images.
+    image_input: Option<bool>,
+}
+
+/// The `architecture.input_modalities` llama.cpp (and servers following
+/// OpenRouter's model shape) give a `/v1/models` row: `image` among them is
+/// a model that reads images.
+fn row_image_input(row: &Value) -> Option<bool> {
+    row.get("architecture")?
+        .get("input_modalities")?
+        .as_array()
+        .map(|kinds| kinds.iter().any(|kind| kind.as_str() == Some("image")))
 }
 
 fn number(value: Option<&Value>) -> Option<u64> {
@@ -439,6 +469,7 @@ async fn show(
         let has = |name: &str| capabilities.iter().any(|c| c.as_str() == Some(name));
         model.embedding = Some(has("embedding") && !has("completion"));
         model.tools = Some(has("tools"));
+        model.image_input = Some(has("vision"));
     }
     if let Some(info) = value.get("model_info").and_then(Value::as_object) {
         let architecture = info.get("general.architecture").and_then(Value::as_str);
@@ -455,23 +486,32 @@ async fn show(
     }
 }
 
-/// llama.cpp's `GET /props`: the context it actually runs with.
-async fn llama_context(
+/// llama.cpp's `GET /props`.
+async fn llama_props(
     client: &reqwest::Client,
     address: &LocalAddress,
     key: Option<&str>,
-) -> Option<u64> {
+) -> Option<Value> {
     let response = get(client, address.at("/props"), key)
         .timeout(PROBE_TIMEOUT)
         .send()
         .await
         .ok()?;
-    let value = json_body(response).await?;
+    json_body(response).await
+}
+
+/// The context llama.cpp actually runs with.
+fn llama_context(props: &Value) -> Option<u64> {
     number(
-        value
+        props
             .get("default_generation_settings")
             .and_then(|settings| settings.get("n_ctx")),
     )
+}
+
+/// Whether llama.cpp's loaded model reads images (`modalities.vision`).
+fn llama_vision(props: &Value) -> Option<bool> {
+    props.get("modalities")?.get("vision")?.as_bool()
 }
 
 #[cfg(test)]

@@ -111,8 +111,25 @@ pub fn request(input: &DriverRequest, search: bool) -> Result<Value> {
             && last_user.is_none_or(|last| position > last);
         match entry.kind {
             ConversationEntryKind::User => {
-                let text = string(&entry.payload, "text")?;
-                messages.push(json!({"role":"user","content":[{"type":"text","text":text}]}));
+                let user = crate::images::user_content(entry, input, true)?;
+                if user.images.is_empty() {
+                    messages
+                        .push(json!({"role":"user","content":[{"type":"text","text":user.text}]}));
+                } else {
+                    // Images first, then the words (Anthropic's vision guide).
+                    let mut content: Vec<Value> = user
+                        .images
+                        .iter()
+                        .map(|image| {
+                            json!({"type":"image","source":{"type":"base64","media_type":image.mime,"data":image.data}})
+                        })
+                        .collect();
+                    // A text block may not be empty.
+                    if !user.text.is_empty() {
+                        content.push(json!({"type":"text","text":user.text}));
+                    }
+                    messages.push(json!({"role":"user","content":content}));
+                }
             }
             ConversationEntryKind::Assistant => {
                 let message: AssistantMessage = serde_json::from_value(entry.payload.clone())?;
@@ -842,6 +859,7 @@ mod tests {
                 access: ToolAccess::Read,
                 policy: ToolPolicy::Local,
             }],
+            images: Default::default(),
         }
     }
 
@@ -962,6 +980,7 @@ mod tests {
             supports_thinking_off: Some(true),
             supports_summary: Some(false),
             supports_verbosity: None,
+            image_input: None,
         });
         let body = request(&request_input, false).unwrap();
         assert_eq!(body["max_tokens"], 48_000);
