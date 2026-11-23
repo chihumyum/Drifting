@@ -370,6 +370,63 @@ fn the_feedback_line_is_in_the_interface_language(cx: &mut TestAppContext) {
     );
 }
 
+/// Every word the page shows is there in each of the nine languages, and
+/// only English's is English: the lines for each cause, the four buttons
+/// (「退出 Drifting」 is the tray menu's words, which had no Portuguese
+/// until 2026-11-24) and the feedback line.
+#[gpui::test]
+fn every_word_on_the_page_is_in_each_of_the_nine_languages(cx: &mut TestAppContext) {
+    setup(cx, Services::default());
+    let f = failure(Cause::Damaged, "sqlite:database-corrupt");
+    let buttons = [
+        PageButton::Update,
+        PageButton::Reveal,
+        PageButton::Feedback,
+        PageButton::Quit,
+    ];
+    let by_locale = cx.update(|cx| {
+        Locale::ALL.map(|locale| {
+            Strings::install(locale, cx);
+            let mut words = Vec::new();
+            for cause in Cause::ALL {
+                let lines = page::lines(cause, cx);
+                words.push((format!("{cause:?} heading"), lines.heading.to_string()));
+                if let Some(second) = lines.second {
+                    words.push((format!("{cause:?} second"), second.to_string()));
+                }
+                words.push((
+                    format!("{cause:?} what to do"),
+                    lines.what_to_do.to_string(),
+                ));
+            }
+            for button in buttons {
+                let label = page::button_label(button, cx).to_string();
+                words.push((format!("{button:?}"), label));
+            }
+            words.push(("feedback".into(), page::feedback_message(&f, cx)));
+            (locale, words)
+        })
+    });
+    let english = &by_locale
+        .iter()
+        .find(|(locale, _)| *locale == Locale::En)
+        .unwrap()
+        .1;
+    for (locale, words) in &by_locale {
+        assert_eq!(words.len(), english.len(), "{locale:?}");
+        for ((what, word), (_, in_english)) in words.iter().zip(english) {
+            assert!(!word.trim().is_empty(), "{locale:?} {what}: empty");
+            if *locale != Locale::En {
+                assert_ne!(word, in_english, "{locale:?} {what}: left in English");
+            }
+        }
+    }
+    cx.update(|cx| {
+        Strings::install(Locale::PtBr, cx);
+        assert_eq!(page::button_label(PageButton::Quit, cx), "Sair do Drifting");
+    });
+}
+
 /// Without a folder to open (no data folder at all) there is no
 /// 「在访达中打开」; a build that cannot update has no 「检查更新」.
 #[gpui::test]

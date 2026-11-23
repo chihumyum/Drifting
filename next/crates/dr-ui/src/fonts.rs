@@ -45,6 +45,19 @@ pub const FACES: [&str; 6] = [
     "SarasaMonoSC-Regular.ttf",
 ];
 
+/// Whether the platform's text system answers an italic request on a family
+/// that has no italic face by slanting the upright one. None of [`FACES`] is
+/// italic, so for the interface every italic request is such a request.
+///
+/// GPUI on macOS picks among a family's own faces and never slants one: an
+/// italic request on any bundled family at any weight draws the very face,
+/// glyphs and raster of the upright request (checked 2026-11-24), Latin
+/// and Chinese alike. DirectWrite on Windows answers it with an oblique
+/// simulation of the upright face, Chinese included. The author
+/// (2026-11-23): Windows draws what macOS draws, so there the interface
+/// does not ask ([`crate::style::DrStyled::italic_face`]).
+pub const SYNTHESIZES_ITALIC: bool = cfg!(windows);
+
 /// Points dr-ui at a folder of fonts, before anything else is tried.
 pub const DIR_ENV: &str = "DRIFTING_FONTS_DIR";
 
@@ -286,6 +299,47 @@ mod tests {
                 panic!("{missing}")
             }
             Err(_) => eprintln!("fonts not built here; skipped (run {BUILD_COMMAND})"),
+        }
+    }
+
+    /// A table of a TrueType face, by tag.
+    fn table<'a>(face: &'a [u8], tag: &[u8; 4]) -> Option<&'a [u8]> {
+        let u16_at = |at: usize| u16::from_be_bytes([face[at], face[at + 1]]) as usize;
+        let u32_at = |at: usize| {
+            u32::from_be_bytes([face[at], face[at + 1], face[at + 2], face[at + 3]]) as usize
+        };
+        (0..u16_at(4)).map(|i| 12 + i * 16).find_map(|record| {
+            (face[record..record + 4] == tag[..]).then(|| {
+                let (offset, length) = (u32_at(record + 8), u32_at(record + 12));
+                &face[offset..offset + length]
+            })
+        })
+    }
+
+    /// [`SYNTHESIZES_ITALIC`] leaves italic requests out on Windows because
+    /// no bundled face has italic glyphs to draw: every one is upright
+    /// (`OS/2` neither italic nor oblique, `head` not italic, `post` with no
+    /// slant). A bundle that gains an italic face has to look at that again.
+    #[test]
+    fn no_bundled_face_is_italic() {
+        let dir = match locate() {
+            Ok(dir) => dir,
+            Err(missing) if std::env::var_os("DR_UI_REQUIRE_FONTS").is_some() => {
+                panic!("{missing}")
+            }
+            Err(_) => return eprintln!("fonts not built here; skipped (run {BUILD_COMMAND})"),
+        };
+        for face in FACES {
+            let bytes = std::fs::read(dir.join(face)).expect("readable");
+            let os2 = table(&bytes, b"OS/2").expect("an OS/2 table");
+            let fs_selection = u16::from_be_bytes([os2[62], os2[63]]);
+            assert_eq!(fs_selection & 0x0001, 0, "{face}: OS/2 says italic");
+            assert_eq!(fs_selection & 0x0200, 0, "{face}: OS/2 says oblique");
+            let head = table(&bytes, b"head").expect("a head table");
+            let mac_style = u16::from_be_bytes([head[44], head[45]]);
+            assert_eq!(mac_style & 0x0002, 0, "{face}: head says italic");
+            let post = table(&bytes, b"post").expect("a post table");
+            assert_eq!(&post[4..8], &[0, 0, 0, 0], "{face}: post has a slant");
         }
     }
 

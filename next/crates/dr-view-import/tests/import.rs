@@ -793,6 +793,24 @@ fn reimport_dialog_copy_is_localized_in_all_nine_languages_without_mapping_json_
     }
 }
 
+/// The confirmation before an import is titled as its button is named
+/// (「导入到新库」), in every language: a first import is not a re-import,
+/// and the dialog tells no import apart from another.
+#[test]
+fn import_confirmation_is_titled_as_its_button_in_all_nine_languages() {
+    use dr_i18n::{I18n, Locale, Platform, keys};
+    for locale in Locale::ALL {
+        let i18n = I18n::new(locale, Platform::Mac);
+        assert_eq!(
+            i18n.t(keys::import::v3::TITLE),
+            i18n.t(keys::import::v3::START),
+            "{locale:?}"
+        );
+    }
+    let zh = I18n::new(Locale::ZhCn, Platform::Mac);
+    assert_eq!(zh.t(keys::import::v3::TITLE), "导入到新库");
+}
+
 #[test]
 fn reimport_v5_continuation_preserves_unfinished_earlier_targets_and_refuses_to_resume_them() {
     let (dir, ws) = library();

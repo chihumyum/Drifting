@@ -1240,9 +1240,36 @@ fn restore_book(now: &LoroDoc, old: &LoroDoc, book: &BookId, entry: &str) -> Res
     }
     let before = current.graph();
     let mut entries = before.entries.clone();
-    m::check_entry_move(&entries, &id, e.parent.as_ref())?;
-    m::check_parent_is_level(e.parent.as_ref(), &entries)?;
-    entries.insert(id.clone(), e.clone());
+    // Where the entry lived then can no longer hold it: gone from the book,
+    // in Recently Deleted, or with its level switch off. It then stays where
+    // it lives now, in its current place among its siblings, and the rest of
+    // the point is restored (author, 2026-11-23). Only a place that is still
+    // there can make the move back a cycle; that is still refused.
+    let stays = e
+        .parent
+        .as_ref()
+        .is_some_and(|p| m::check_parent_is_level(Some(p), &entries).is_err());
+    let parent = if stays {
+        let here = entries
+            .get(&id)
+            .ok_or_else(|| WsError::not_found("entry", entry))?;
+        // Staying must not bring the entry back from Recently Deleted under
+        // an entry that cannot hold it either: refused as before.
+        if here.is_trashed() && !e.is_trashed() {
+            m::check_parent_is_level(here.parent.as_ref(), &entries)?;
+        }
+        here.parent.clone()
+    } else {
+        m::check_entry_move(&entries, &id, e.parent.as_ref())?;
+        e.parent.clone()
+    };
+    entries.insert(
+        id.clone(),
+        m::Entry {
+            parent: parent.clone(),
+            ..e.clone()
+        },
+    );
     if !e.is_level()
         && entries
             .values()
@@ -1265,31 +1292,35 @@ fn restore_book(now: &LoroDoc, old: &LoroDoc, book: &BookId, entry: &str) -> Res
     }
     let mut txn = b.txn();
     txn.restore_entry_owned_at(&id, &ov)?;
-    // Restore sibling order relative to surviving historical neighbours.
-    let siblings: Vec<_> = current
-        .entries_raw()
-        .into_iter()
-        .filter(|x| x.parent == e.parent && x.id != id)
-        .map(|x| x.id)
-        .collect();
-    let historical: Vec<_> = ov
-        .entries_raw()
-        .into_iter()
-        .filter(|x| x.parent == e.parent)
-        .map(|x| x.id)
-        .collect();
-    let pos = historical.iter().position(|x| x == &id).unwrap_or(0);
-    let index = historical[..pos]
-        .iter()
-        .rev()
-        .find_map(|x| siblings.iter().position(|s| s == x).map(|i| i + 1))
-        .or_else(|| {
-            historical[pos + 1..]
-                .iter()
-                .find_map(|x| siblings.iter().position(|s| s == x))
-        })
-        .unwrap_or(pos.min(siblings.len()));
-    txn.entries().move_to_at(&id, e.parent.as_ref(), index)?;
+    // An entry that stays is not moved: its tree node keeps its parent and
+    // its own position key (restoring owned content never touches the tree).
+    if !stays {
+        // Restore sibling order relative to surviving historical neighbours.
+        let siblings: Vec<_> = current
+            .entries_raw()
+            .into_iter()
+            .filter(|x| x.parent == e.parent && x.id != id)
+            .map(|x| x.id)
+            .collect();
+        let historical: Vec<_> = ov
+            .entries_raw()
+            .into_iter()
+            .filter(|x| x.parent == e.parent)
+            .map(|x| x.id)
+            .collect();
+        let pos = historical.iter().position(|x| x == &id).unwrap_or(0);
+        let index = historical[..pos]
+            .iter()
+            .rev()
+            .find_map(|x| siblings.iter().position(|s| s == x).map(|i| i + 1))
+            .or_else(|| {
+                historical[pos + 1..]
+                    .iter()
+                    .find_map(|x| siblings.iter().position(|s| s == x))
+            })
+            .unwrap_or(pos.min(siblings.len()));
+        txn.entries().move_to_at(&id, e.parent.as_ref(), index)?;
+    }
     let view = txn.view();
     changes_ok(&before, &view.graph())?;
     let mut want = ov.entry_owned_raw_state(&id).expect("historical entry");
@@ -1298,6 +1329,9 @@ fn restore_book(now: &LoroDoc, old: &LoroDoc, book: &BookId, entry: &str) -> Res
     // inventory are not part of this entry's owned metadata or records.
     want.as_object_mut().expect("raw object").remove("siblings");
     got.as_object_mut().expect("raw object").remove("siblings");
+    // Where it lives is the plan above: the historical place, or where it
+    // lives now when that place is gone. Everything else is the point's.
+    want["parent"] = serde_json::to_value(&parent).map_err(|e| WsError::Internal(e.to_string()))?;
     if want != got {
         return Err(WsError::invalid(
             "entry history cannot be restored without changing retained container identities",
@@ -1597,6 +1631,213 @@ mod tests {
         s.restore("b", &point);
         assert_eq!(s.order(Some(&s.manuscript)), "b c d e");
         assert_eq!(s.order(None), "a");
+    }
+
+    impl Shelf {
+        /// A folder (`tpl-group`, its level switch on) at the end of the
+        /// manuscript.
+        fn folder(&self, title: &str) -> String {
+            self.out(
+                "entry.create",
+                json!({"book":self.book,"title":title,"parent":self.manuscript,"template":"tpl-group"}),
+            )["id"]
+                .as_str()
+                .unwrap()
+                .to_owned()
+        }
+        /// A checkpoint of `entry` as it is now.
+        fn checkpoint(&self, entry: &str) -> String {
+            self.out(
+                "entry_snapshot.create",
+                json!({"book":self.book,"entry":entry}),
+            )["id"]
+                .as_str()
+                .unwrap()
+                .to_owned()
+        }
+        /// What the history dialog's 「恢复」 does: preview, then restore
+        /// with the preview's guards.
+        fn try_restore(&self, entry: &str, point: &str) -> crate::Result<Value> {
+            let target = json!({"book":self.book,"entry":entry,"point":point});
+            let preview = self.out("entry_snapshot.preview", target.clone());
+            let mut input = target;
+            input["expected"] = preview["expected"].clone();
+            self.ws.call(&Actor::User, "entry_snapshot.restore", input)
+        }
+        /// Chapter `name`'s title, summary and text all say `text`.
+        fn write(&self, name: &str, text: &str) {
+            let (book, id) = (&self.book, self.id(name));
+            self.out("entry.update", json!({"book":book,"id":id,"title":text}));
+            self.out(
+                "module.set_field",
+                json!({"book":book,"entry":id,"module":"mod-fields","field":"summary","value":text}),
+            );
+            self.out(
+                "module.set_prose",
+                json!({"book":book,"owner":id,"module":"mod-prose","paragraphs":[{"text":text}]}),
+            );
+        }
+        /// Chapter `name` as a restore leaves it: its title, summary and
+        /// text, where it lives and the order of the chapters there (by
+        /// their names here, whatever their titles say).
+        fn state(&self, name: &str) -> Value {
+            let (book, id) = (&self.book, self.id(name));
+            let entry = self.out("entry.get", json!({"book":book,"id":id}));
+            let order: Vec<&str> = self
+                .out("entry.list", json!({"book":book,"all":true}))
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|e| e["parent"] == entry["parent"] && e["template"] == "tpl-chapter")
+                .filter_map(|e| {
+                    let id = e["id"].as_str()?;
+                    self.chapters
+                        .iter()
+                        .find(|(_, c)| *c == id)
+                        .map(|(n, _)| *n)
+                })
+                .collect();
+            let text: Vec<Value> = self.out(
+                "module.read_prose",
+                json!({"book":book,"owner":id,"module":"mod-prose"}),
+            )["paragraphs"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|p| p["text"].clone())
+                .collect();
+            json!({
+                "title": entry["title"],
+                "summary": entry["fields"]["mod-fields"]["summary"],
+                "text": text,
+                "parent": entry["parent"],
+                "order": order.join(" "),
+            })
+        }
+    }
+
+    /// The place an entry lived in at a point is deleted now, in Recently
+    /// Deleted or deleted for good: restoring the point brings back its
+    /// title, fields and text, and the entry stays where it lives now, in
+    /// its current place among its siblings (author, 2026-11-23). One undo
+    /// goes back to the state before the restore.
+    #[test]
+    fn restore_leaves_an_entry_where_it_lives_when_its_place_then_is_deleted() {
+        let s = shelf();
+        let folder = s.folder("卷");
+        s.move_to("b", Some(&folder), 0);
+        s.write("b", "旧");
+        let point = s.checkpoint(s.id("b"));
+        let then = s.state("b");
+        assert_eq!(
+            (&then["parent"], &then["text"]),
+            (&json!(folder), &json!(["旧"]))
+        );
+        s.write("b", "新");
+        s.move_to("b", Some(&s.manuscript), 0);
+        for gone in ["entry.trash", "entry.purge"] {
+            s.out(gone, json!({"book":s.book,"id":folder}));
+            let now = s.state("b");
+            assert_eq!(
+                (&now["parent"], &now["order"]),
+                (&json!(s.manuscript), &json!("b a c d")),
+                "{gone}"
+            );
+            s.restore("b", &point);
+            let restored = s.state("b");
+            for key in ["title", "summary", "text"] {
+                assert_eq!(restored[key], then[key], "{gone}: {key}");
+            }
+            for key in ["parent", "order"] {
+                assert_eq!(restored[key], now[key], "{gone}: {key}");
+            }
+            s.ws.undo(&Actor::User).unwrap().expect("the restore");
+            assert_eq!(s.state("b"), now, "{gone}");
+        }
+    }
+
+    /// The place an entry lived in at a point holds no entries now, its level
+    /// switch off: the same, the entry stays where it lives now.
+    #[test]
+    fn restore_leaves_an_entry_where_it_lives_when_its_place_then_holds_no_entries() {
+        let s = shelf();
+        let folder = s.folder("卷");
+        s.move_to("b", Some(&folder), 0);
+        s.write("b", "旧");
+        let point = s.checkpoint(s.id("b"));
+        let then = s.state("b");
+        s.write("b", "新");
+        s.move_to("b", Some(&s.manuscript), 2);
+        let off = s.out(
+            "entry.set_level",
+            json!({"book":s.book,"id":folder,"level":false}),
+        );
+        assert_eq!(off["trashed"], json!([]), "nothing lived in it any more");
+        let now = s.state("b");
+        assert_eq!(now["order"], "a c b d");
+        s.restore("b", &point);
+        let restored = s.state("b");
+        for key in ["title", "summary", "text"] {
+            assert_eq!(restored[key], then[key], "{key}");
+        }
+        for key in ["parent", "order"] {
+            assert_eq!(restored[key], now[key], "{key}");
+        }
+        s.ws.undo(&Actor::User).unwrap().expect("the restore");
+        assert_eq!(s.state("b"), now);
+        // The folder's own switch is not the entry's to restore.
+        let folder = s.out("entry.get", json!({"book":s.book,"id":folder}));
+        assert_eq!(folder["level"], false);
+    }
+
+    /// The other refusals stay. A place still there that now lies below the
+    /// entry: moving back would put the entry under itself. And an entry in
+    /// Recently Deleted with the place it lived in: a point from before would
+    /// bring it back to life where it lives now, which cannot hold it either.
+    /// Both refused before any write, as before.
+    #[test]
+    fn restore_still_refuses_a_cycle_or_a_life_where_nothing_can_hold_the_entry() {
+        let s = shelf();
+        // The book and the checkpoints beside it: a write, or a point saved
+        // before one, would show here.
+        let versions = || {
+            (
+                s.ws.observe(&checkpoints_doc(&s.book)).unwrap().version,
+                s.ws.observe(&book_doc(&s.book)).unwrap().version,
+            )
+        };
+
+        // `mover` lived in `home` at the point; `home` lives in `mover` now.
+        let (mover, home) = (s.folder("上卷"), s.folder("下卷"));
+        s.out(
+            "entry.move",
+            json!({"book":s.book,"id":mover,"parent":home}),
+        );
+        let point = s.checkpoint(&mover);
+        s.out(
+            "entry.move",
+            json!({"book":s.book,"id":mover,"parent":s.manuscript}),
+        );
+        s.out(
+            "entry.move",
+            json!({"book":s.book,"id":home,"parent":mover}),
+        );
+        let before = versions();
+        let refused = s.try_restore(&mover, &point).unwrap_err();
+        assert!(
+            refused.to_string().contains("would create a cycle"),
+            "{refused}"
+        );
+        assert_eq!(versions(), before, "a cycle");
+
+        let folder = s.folder("卷");
+        s.move_to("b", Some(&folder), 0);
+        let point = s.checkpoint(s.id("b"));
+        s.out("entry.trash", json!({"book":s.book,"id":folder}));
+        let before = versions();
+        let refused = s.try_restore(s.id("b"), &point).unwrap_err();
+        assert!(refused.to_string().contains("is trashed"), "{refused}");
+        assert_eq!(versions(), before, "back to life under a deleted place");
     }
 
     #[test]

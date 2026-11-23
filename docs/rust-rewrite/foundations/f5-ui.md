@@ -220,6 +220,8 @@ gpui_platform::application()
 - **GPUI 只在几个静态字面之间挑字重**，可变字体永远画默认那一档。
 - 所以每个字族是几个静态字面，每个字面里同时有拉丁和中文字形：拉丁取原来的 Source Sans 3 / Newsreader，其余全部取 Noto，界面上任何一个字都不靠回退。
 
+**三个字族都没有斜体字面**（2026-11-24 查清，测试 `fonts::tests::no_bundled_face_is_italic` 守着）。所以界面上要斜体的地方（标签页预览的名字、时间线泳道名、头像里的字、设置「关于」最下面那句），两个平台本来画得不一样：macOS 上 GPUI 只在字族自己的几个字面里挑，斜体请求挑到的就是正体那个字面，拉丁字母和中文都是正的（每个字族每档字重都量过：同一个字面、同样的字形和像素）；Windows 上 DirectWrite 找不到斜体字面，就把正体字面整个压斜（oblique 模拟），中文也跟着斜。作者 2026-11-23 定 Windows 跟 Mac 一样，所以界面上要斜体一律用 `DrStyled::italic_face()`：macOS 上就是原来的 `italic()`，一个字都不变；Windows 上（`fonts::SYNTHESIZES_ITALIC`）不要斜体。不给 GPUI 打补丁。正文里作者自己加的斜体（`gpui-prose`）没动，见 [F4](f4-editor.md) 的 G5。
+
 ### 字体是构建产物，不进 git
 
 72 MB 的字体一旦进了公开仓库的历史就删不掉，所以仓库里只有「配方」：

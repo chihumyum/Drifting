@@ -1,5 +1,5 @@
 {
-  "about": "M10 + M09: a synthetic 0.1 library with snapshot history is imported through the ordinary import dialog; the imported chapter's 「快照历史」 (opened from its hover card) lists the two 0.1 snapshots at their 0.1 times, one is previewed and restored, and the chapter's text and title are the old ones, with the state before kept as a checkpoint. Secondary display, the scenario's own synthetic profile. Screenshots are records, not visual acceptance.",
+  "about": "M10 + M09: a synthetic 0.1 library with snapshot history is imported through the ordinary import dialog; the imported chapter's 「快照历史」 (opened from its hover card) lists the two 0.1 snapshots at their 0.1 times, one is previewed and restored, and the chapter's text and title are the old ones, with the state before kept as a checkpoint. The element's one 0.1 snapshot had it in a 0.1 group the imported book does not have: restoring it from the same dialog brings back its text, name and facts, and it stays where it lives now (SR, 2026-11-24). Secondary display, the scenario's own synthetic profile. Screenshots are records, not visual acceptance.",
   "steps": [
     {
       "legacy": "sample-v3",
@@ -395,6 +395,181 @@
       "app": "page.text",
       "contains": {
         "/text": "我要给阿Q做正传。"
+      }
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${source.book}",
+        "id": "${source.element}"
+      },
+      "save": "element_before",
+      "note": "SR: the element lives in 「人物」 now; its 0.1 row h-3 had it in the group 「未庄」, which the imported book does not have."
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "RadioButton",
+        "label": "${entries.[template=tpl-elements].title}"
+      },
+      "note": "The element's card is in the 要素 Tab."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/v3Sidebar/entry": "${entries.[template=tpl-elements].id}"
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "ui.hover",
+      "params": {
+        "label": "阿Q",
+        "role": "Button"
+      },
+      "note": "「人物」 shows what lives in it as cards in a box: the element's card is a button."
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Snapshot history",
+        "role": "MenuItem",
+        "timeout_ms": 6000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Snapshot history",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/dialog": true
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 500
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "contains": "· 阿Q"
+      },
+      "note": "Its one 0.1 snapshot, h-3 (a row reads 「time · title」; the card behind the dialog is 「阿Q」 alone)."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 600
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "contains": "未庄的人。"
+      },
+      "note": "Its preview: the 0.1 snapshot's text."
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "Restore…"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 200
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "Confirm overwrite current version"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 800
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${source.book}",
+        "owner": "${source.element}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "未庄的人。",
+        "/total": 1
+      },
+      "note": "Restored, not refused: the place of the point is gone."
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${source.book}",
+        "id": "${source.element}"
+      },
+      "expect": {
+        "/parent": "${element_before.parent}",
+        "/title": "阿Q",
+        "/fields/mod-fields/aliases": [
+          "阿贵"
+        ],
+        "/kv/mod-kv/1/key": "绰号"
+      },
+      "note": "The row's name, aliases and facts; the element stays where it lives now."
+    },
+    {
+      "call": "entry_snapshot.list",
+      "input": {
+        "book": "${source.book}",
+        "entry": "${source.element}"
+      },
+      "expect": {
+        "/0/reason": "restore",
+        "/1/id": "import-v1:h-3"
+      },
+      "note": "The state before the restore, kept as a checkpoint of its own at the top."
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "import-history-place-gone-restored.png"
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "escape"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/dialog": false
+        },
+        "timeout_ms": 10000
       }
     },
     {
