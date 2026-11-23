@@ -1620,9 +1620,9 @@
       "context": "Contexto",
       "editAddress": "Alterar endereço",
       "modelName": "Nome do modelo",
-      "name": "Modelo local",
+      "name": "Serviço personalizado",
+      "needsHttps": "Endereços na internet precisam de https",
       "noToolModels": "Nenhum modelo deste servidor pode usar ferramentas",
-      "notLocal": "Apenas endereços deste computador ou da rede local",
       "unreachable": "Não foi possível conectar a este endereço"
     },
     "providerAnthropic": "Usado pelo Agent.",
