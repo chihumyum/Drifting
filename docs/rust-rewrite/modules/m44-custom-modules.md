@@ -42,6 +42,7 @@
 - 另存为项目模板时，书里有一份这个 App 读不了的抄本：整个另存拒绝，不悄悄丢掉那个模块。
 - 抄本的 `source` 记的是它从哪来（`library` 从我的模块放进来、`template` 跟着项目模板来），跟不跟着走按 id 现算。没有条目模板再用的抄本留在书里，不清。
 - 新建、另存一份、存进我的模块、导入不能撤销（照 `project_template.save`）；改、改名能撤（撤销把旧的整份写回，开着的项目跟着换回去）。自动换写进书里的那一笔来源是作者的命令（`user:command`），不进撤销日志。
+- 自动换在三个时候：书打开时（工作区第一次打开它的书目文档）、我的模块在这台设备上改了时、我的模块从别的设备同步来时。书目文档从别的设备同步来、带着一份旧抄本（那台设备还没收到新的我的模块）时**不**马上换，等下次打开或我的模块再变：免得两台设备的我的模块版本不同时来回换；两边收齐以后就一样了。
 - 抄本坏了时，这个模块的值只读：写、加项、删项、挪项都拒绝。
 - 一块积木在「一串」和别的种类之间改来改去，两种值分开放（一串在 `list:<id>`，别的在 `<id>`），都不丢。
 - 「一行字」的值不收换行；「条目」积木的值必须是这本书里活着的条目；「图片」必须是这本书素材库里的文件（和字段一样）。
@@ -111,7 +112,7 @@ EntryWriterV3::{set_custom_value, insert_custom_item, remove_custom_item, move_c
 dr_doc::schema::{book_v3::MODULES, custom_module::*, custom_values::*};
 ```
 
-单个条目的撤销（`entry_history.restore`）会把 `module:` 下的值带回去：`restore_entry` 新加了这一块，一串按项的 id 对回去（测过）。快照点恢复走的是按容器整个带回的那条路（`restore_entry_owned_at`），`module:` 容器挂在条目节点下面，按代码会一起带回，这一路没有单独测（那条路这一轮由 SR 在改）。
+单个条目的撤销（`entry_history.restore`）会把 `module:` 下的值带回去：`restore_entry` 新加了这一块，一串按项的 id 对回去。条目快照点恢复（`entry_snapshot.restore`）走按容器整个带回的那条路（`restore_entry_owned_at`），`module:` 容器挂在条目节点下面，一起带回，恢复也能撤。两样都有测试（见下；快照点那条路这一轮 SR 在改，这一路没有动它）。
 
 ### 命令（`dr-workspace`）
 
@@ -197,7 +198,7 @@ dr_export::module_file::{EXTENSION /* "driftingmodule" */, MAX_BYTES, ModuleFile
 | 导入、导出、从社区取不在 Agent 和 MCP 的工具目录里 | `dr-agent-tools` 的 `catalog::tests::custom_module_commands_stay_out_of_the_directory` |
 | 我的模块的文档不算任何一本书的内容 | `dr-workspace`：`my_modules_are_not_the_content_of_any_book`；`dr-export`：`a_book_file_carries_copies_and_values_not_my_modules`；`dr-model` 的 `id::tests`（`DocKind::Module` 不是书的正文） |
 
-另外：`dr-doc`：`a_module_document_keeps_one_whole_module_when_two_devices_save`（整个换）；`dr-workspace`：`my_modules_list_get_update_rename_remove`（改名撤销）。样本模块是 `dr_testkit::samples::MODULE_FILES` / `modules()`（伏笔追踪、人物弧光、世界观年表、魔法规则卡，`dr-testkit/fixtures/modules/`），在 dr-testkit 之下的 crate 按路径读同一批文件。
+另外：`dr-doc`：`a_module_document_keeps_one_whole_module_when_two_devices_save`（整个换）；`dr-workspace`：`my_modules_list_get_update_rename_remove`（改名撤销）、`an_entry_checkpoint_brings_custom_values_back`（条目快照点）、`an_older_copy_from_a_book_update_is_brought_up_to_date_on_request`（别的设备写进书里的旧抄本：书的更新本身不换，打开书时或 `custom_module.sync_copies` 换）。样本模块是 `dr_testkit::samples::MODULE_FILES` / `modules()`（伏笔追踪、人物弧光、世界观年表、魔法规则卡，`dr-testkit/fixtures/modules/`），在 dr-testkit 之下的 crate 按路径读同一批文件。
 
 ## 待协调
 
