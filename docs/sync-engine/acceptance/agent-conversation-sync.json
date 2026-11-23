@@ -22,7 +22,7 @@
       "drizzle/0005_agent_conversation_source.sql": "25b99bdfaf7e002c8601cf6106999d549a2b74727ad4b94aa71fbff4ca00e5b0",
       "scripts/generate-agent-conversation-sync.ts": "578ae6d7535f45f903ddc4ab162d5b8e80d82a3e35d849f0d95c19c89722848d",
       "src-tauri/src/database.rs": "a783d6eeb88a7028fa64beb502aeec4fa9449afee680e5159c7bfe6eec662f6e",
-      "src-tauri/src/hosted_sync.rs": "f9f0a346e3e2f244210e5165d684fa177ddff9fd1e69a8b34909e1f7e9340284",
+      "src-tauri/src/hosted_sync.rs": "5c1efbb1b4dad248404a7a9d7863352826ff686875dbbb4c40e7d2dff1ee7a07",
       "src-tauri/src/mcp_stdio.rs": "b1d8015502206fd816583d0fac6e9e77bd92a6a8927674c380fd8fd3088defe7",
       "src/renderer/domain/agent-conversation-source.ts": "37a221e11da9ed0a625e8b36c3b0e4b6399f6a4fdbd289bc5e8ce426cf4534c0",
       "src/renderer/features/agent/chat-display-projection.test.ts": "eee1f278530a4db6eb502acacb6ac1efbb6aa0875fdafb12ca5319a21e254b22",
@@ -342,7 +342,7 @@
       "command": "cargo test --manifest-path crates/drifting-core/Cargo.toml --locked --lib"
     },
     "native": {
-      "passed": 207,
+      "passed": 210,
       "failed": 0,
       "ignored": 2,
       "command": "cargo test --manifest-path src-tauri/Cargo.toml --lib --no-default-features"
