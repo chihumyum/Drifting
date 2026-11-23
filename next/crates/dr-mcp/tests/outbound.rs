@@ -606,6 +606,31 @@ async fn refreshed_catalog_invalidates_pending_approval_even_when_configuration_
     server.close().await;
 }
 
+/// An MCP server on this computer is reached directly while the system is
+/// set to a proxy (the test runs again with a fake proxy as the system's,
+/// through its proxy variables): unlike the App's other clients, MCP's
+/// takes no proxy at all.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn http_on_this_computer_never_takes_the_system_proxy() {
+    let Some(proxy) = dr_platform::proxy::fake::rerun_through(
+        "http_on_this_computer_never_takes_the_system_proxy",
+    ) else {
+        let f = Fixture::new();
+        let server = Server::new().await;
+        let info = f
+            .manager
+            .save(f.book.to_string(), draft(&server.url, "loopback"))
+            .await
+            .unwrap();
+        assert_eq!(info.status, Status::Ready);
+        assert!(!server.requests().is_empty());
+        f.shutdown().await;
+        server.close().await;
+        return;
+    };
+    assert_eq!(proxy.seen(), vec![]);
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn http_root_url_without_trailing_slash_connects_and_reopens_from_stored_configuration() {
     let f = Fixture::new();

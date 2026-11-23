@@ -30,6 +30,8 @@ tokio.workspace = true
 [dev-dependencies]
 # This crate's own tests reach a stand-in for a service on the internet.
 dr-agent-providers = { workspace = true, features = ["test-support"] }
+# `proxy::fake`: a fake proxy as the system's, for `tests/system_proxy.rs`.
+dr-platform = { workspace = true, features = ["test-support"] }
 dr-store.workspace = true
 dr-testkit.workspace = true
 dr-workspace.workspace = true

@@ -45,6 +45,10 @@ impl HttpClient {
                 .connect_timeout(Duration::from_secs(20))
                 .read_timeout(read)
                 .redirect(reqwest::redirect::Policy::none())
+                // The system's proxy for the providers, their sign-in and a
+                // custom service on the internet; a model server on this
+                // computer or the local network directly (`dr_platform::proxy`).
+                .proxy(dr_platform::proxy::system())
                 // Only the explicit model-attempt policy may repeat a POST.
                 // A single request (and paid image requests sharing this
                 // client) must not be replayed on a protocol NACK either.

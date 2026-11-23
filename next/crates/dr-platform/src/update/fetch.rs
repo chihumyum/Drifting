@@ -218,6 +218,7 @@ impl HttpFetch {
             .connect_timeout(Duration::from_secs(30))
             .timeout(options.stall)
             .redirect(policy)
+            .proxy(crate::proxy::system())
             .https_only(!loopback)
             .build()
             .map_err(|error| FetchError::Network(error.to_string()))?;
@@ -571,6 +572,29 @@ mod tests {
                 Err(FetchError::Interrupted(_))
             ));
             assert!(started.elapsed() < Duration::from_secs(3));
+        }
+
+        /// GitHub through the system's proxy, a stand-in on this computer
+        /// straight there (`proxy::fake::rerun_through`).
+        #[test]
+        fn updates_take_the_system_proxy_except_to_this_computer() {
+            let Some(proxy) = crate::proxy::fake::rerun_through(
+                "update::fetch::tests::over_http::updates_take_the_system_proxy_except_to_this_computer",
+            ) else {
+                let server = FakeServer::start();
+                server.serve("/update.json", Serve::Bytes(b"{}".to_vec()));
+                let http = loopback(STALL_TIMEOUT);
+                assert_eq!(fetch(&http, &server.url("/update.json")).unwrap(), b"{}");
+                assert!(matches!(
+                    fetch(&http, "https://github.drifting.invalid/update.json"),
+                    Err(FetchError::Network(_))
+                ));
+                return;
+            };
+            assert_eq!(
+                proxy.request_lines(),
+                vec!["CONNECT github.drifting.invalid:443 HTTP/1.1".to_owned()]
+            );
         }
 
         #[test]

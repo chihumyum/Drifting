@@ -45,7 +45,7 @@
 
 - `dr_agent::Start.config: RunConfig`：启动时按值接收，工作线程及每次 `DriverRequest` 共享只读快照。`Configured` 事件保存这份配置。
 - `catalog::ModelInfo::run_config(thinking)`：检查模型所支持的档位并冻结能力；调用方填入系统指令、显式输出上限及偏好中的 `max_model_rounds`。M37 后续同步偏好，不改变进行中的配置。
-- `HttpClient::new()`：应用持有一份，传给 `ProviderDriver`；`raw()` 给模型目录和 OAuth 复用，`spawn()` 让 GPUI 调用方把网络任务放进共享执行器。不要为每家另建客户端。
+- `HttpClient::new()`：应用持有一份，传给 `ProviderDriver`；`raw()` 给模型目录和 OAuth 复用，`spawn()` 让 GPUI 调用方把网络任务放进共享执行器。不要为每家另建客户端。它的两个客户端（云端、登录、目录用的和本机模型长等待用的）都加了 `dr_platform::proxy::system()`（NP，2026-11-24）：四家提供商、订阅登录和网上的自定义服务（CA）走系统设的代理，本机和局域网的模型服务（`local` 认成本机和局域网的地址）一律直连，每个请求各自判断。见 [F7「第六轮」](../foundations/f7-platform.md#第六轮联网跟着系统代理走np2026-11-24)，回归 `tests/system_proxy.rs`。
 - `Credentials::new(Arc<SecretStore>)`：由外壳当前身份创建 SecretStore。登录信息不放进 `RunConfig` 或会话。
 - `ProviderDriver::new(http, credentials)`：作为 M27 唯一驱动实现，按请求内的 provider 分派。`oauth()`、`credentials()` 给 M31 连接流程使用；API Key 应先检验成功再保留。密钥管理的界面范围仍按 M31 任务书。
 - `CatalogCache::list`／`list_chatgpt`：模型选择器读取目录，缓存隔离凭据、提供商、地址和订阅账号；ChatGPT 支持 ETag、304 及受五分钟限制的服务端缓存策略。
@@ -123,5 +123,5 @@
    - **2026-11-16 改了（监管会话定，PT4／LM 小修，同日又调一次）**：M27 改成按字的种类估 token（中文和别的非 ASCII 字一字 1.5 个、英文四个字母一个、数字一位一个、标点两个一个，四家和本地同一套，任何时候不超过原来的字节数），输出余量没给时是上下文的八分之一、最多 8192（40960 留 5120，32768 留 4096），见 [m27-agent-runtime.md](m27-agent-runtime.md)「请求有多长」。同一句话现在估约 2.3 万个；上下文 40960 和问不到上下文时的 32768 兜底都能发出去（`dr-view-agent/tests/local_context.rs`，真的驱动对着本机假服务；32768 那档富余约 2 100 个）。131072 和 1M 上下文只会比原来少省略。还没有的：在线服务因为超出上下文拒掉请求时，`dr-agent-providers` 没有单独的一类错误，也不会省略后重发。
 2. 真实 Ollama、LM Studio、llama.cpp 由作者自己验；自动测试只用合成的假服务。
 3. **网上的服务一家真的都没连过**（CA）：中转站、聚合服务在工具调用、流式分块、用量字段上的差别，要到真连上才知道；自动测试只对着回环上的替身。
-4. **网上的服务走不走系统代理**归 NP（联网请求跟着系统代理走）：规则是「本机和局域网直连，别的走系统代理」，网上的自定义服务属于后者。本路交回时 NP 还没进 `main`，见交回报告。
+4. **网上的服务走系统代理**（NP 的规则，`dr_platform::proxy`）：本机和局域网直连，别的走系统代理；网上的自定义服务的清单和对话都走代理（`tests/system_proxy.rs` 用假代理守住：`api.example.com` 的两次请求都是 `CONNECT api.example.com:443`）。直连规则和 `local` 的地址规则是两份：`dr_platform::proxy::reach` 还把 `*.localhost` 算本机，`local` 不算（它算网上的、要 `https`）；别的一样。合成一份要动 `local` 收哪些地址，这一路没动。
 5. 网上的服务的对话和「测试连接」沿用本地的 5 分钟读超时（`local::MODEL_WAIT`，「测试连接」等候上限照旧），没另设。
