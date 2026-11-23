@@ -45,7 +45,7 @@
 
 - `dr_agent::Start.config: RunConfig`：启动时按值接收，工作线程及每次 `DriverRequest` 共享只读快照。`Configured` 事件保存这份配置。
 - `catalog::ModelInfo::run_config(thinking)`：检查模型所支持的档位并冻结能力；调用方填入系统指令、显式输出上限及偏好中的 `max_model_rounds`。M37 后续同步偏好，不改变进行中的配置。
-- `HttpClient::new()`：应用持有一份，传给 `ProviderDriver`；`raw()` 给模型目录和 OAuth 复用，`spawn()` 让 GPUI 调用方把网络任务放进共享执行器。不要为每家另建客户端。
+- `HttpClient::new()`：应用持有一份，传给 `ProviderDriver`；`raw()` 给模型目录和 OAuth 复用，`spawn()` 让 GPUI 调用方把网络任务放进共享执行器。不要为每家另建客户端。它的两个客户端（云端、登录、目录用的和本机模型长等待用的）都加了 `dr_platform::proxy::system()`（NP，2026-11-24）：四家提供商和订阅登录走系统设的代理，本机和局域网的模型服务（`local` 接受的地址）一律直连，每个请求各自判断。见 [F7「第六轮」](../foundations/f7-platform.md#第六轮联网跟着系统代理走np2026-11-24)，回归 `tests/system_proxy.rs`。
 - `Credentials::new(Arc<SecretStore>)`：由外壳当前身份创建 SecretStore。登录信息不放进 `RunConfig` 或会话。
 - `ProviderDriver::new(http, credentials)`：作为 M27 唯一驱动实现，按请求内的 provider 分派。`oauth()`、`credentials()` 给 M31 连接流程使用；API Key 应先检验成功再保留。密钥管理的界面范围仍按 M31 任务书。
 - `CatalogCache::list`／`list_chatgpt`：模型选择器读取目录，缓存隔离凭据、提供商、地址和订阅账号；ChatGPT 支持 ETag、304 及受五分钟限制的服务端缓存策略。

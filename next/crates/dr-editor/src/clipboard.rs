@@ -1,7 +1,12 @@
 //! Versioned rich clipboard. Copy reads the displayed mirror, never a fresh
 //! writer observation. Tagged values retain types; container references refuse
 //! the action before any cut/paste mutation.
-use crate::table::clip::CellMark;
+//!
+//! What other programs copy with formatting (HTML, or RTF the platform
+//! turns into HTML) pastes into a body with the formats a body has
+//! ([`paste_html`]); a table's cell, a title or a field still takes only
+//! the text.
+use crate::table::clip::{CellMark, GridMarks};
 use gpui::{App, ClipboardItem, Entity, Focusable, Window};
 use gpui_prose::{
     HostStep, ProseEditor,
@@ -220,9 +225,21 @@ fn guard(doc: &mut ProseDoc) {
     }
 }
 
+/// The marks the text before `at` would carry on into typed text, cleared:
+/// pasted text has only its own.
+fn caret_clears(doc: &ProseDoc, at: usize) -> Vec<gpui_prose::text::MarkOverride> {
+    doc.marks_before(at)
+        .iter()
+        .map(|(k, _)| (k.to_owned(), None))
+        .collect()
+}
+
+/// Replaces a selection across chapters as one step: `first` gives the
+/// edits of the first chapter's part (its document and range) and the
+/// caret's offset there; the other parts are deleted.
 fn replace_group(
     editor: &mut ProseEditor,
-    paste: Option<(&str, &[CellMark])>,
+    first: impl FnOnce(&ProseDoc, std::ops::Range<usize>) -> (Vec<crate::convert::OwnedEdit>, usize),
     window: &mut Window,
     cx: &mut gpui::Context<ProseEditor>,
 ) -> Result<bool, dr_workspace::WsError> {
@@ -231,41 +248,63 @@ fn replace_group(
     let start = sel.start();
     let mut chapters = Vec::new();
     let mut edits = Vec::new();
+    let mut first = Some(first);
+    let mut offset = start.offset;
     for chapter in start.chapter..=sel.end().chapter {
         let (range, _) = editor.selected_in(chapter).expect("selected chapter");
         chapters.push(chapter);
-        let mut part = Vec::new();
-        if let Some((text, marks)) = paste.filter(|_| chapter == start.chapter) {
-            let clears = editor.book().chapters[chapter]
-                .doc
-                .marks_before(range.start)
-                .iter()
-                .map(|(k, _)| (k.to_owned(), None))
-                .collect::<Vec<_>>();
-            part.push(OwnedEdit::from(Edit::Replace {
-                range: range.clone(),
-                text,
-                overrides: &clears,
-            }));
-            for (a, b, key, value) in marks {
-                part.push(OwnedEdit::from(Edit::Mark {
-                    range: range.start + a..range.start + b,
-                    key,
-                    value: value.clone(),
-                }));
+        match first.take().filter(|_| chapter == start.chapter) {
+            Some(first) => {
+                let (part, caret) = first(&editor.book().chapters[chapter].doc, range);
+                offset = caret;
+                edits.push(part);
             }
-        } else {
-            part.push(OwnedEdit::from(Edit::Delete { range }));
+            None => edits.push(vec![OwnedEdit::from(Edit::Delete { range })]),
         }
-        edits.push(part);
     }
     let caret = gpui_prose::layout::BookPos {
         chapter: start.chapter,
-        offset: start.offset + paste.map_or(0, |(text, _)| text.chars().count()),
+        offset,
     };
     editor.edit_group(&chapters, caret, window, cx, move |docs| {
         crate::SessionSource::edit_group(docs, edits)
     })
+}
+
+/// The first part of a rich paste across chapters: the text and its marks.
+fn rich_part(
+    text: &str,
+    marks: &[CellMark],
+) -> impl FnOnce(&ProseDoc, std::ops::Range<usize>) -> (Vec<crate::convert::OwnedEdit>, usize) {
+    move |doc, range| {
+        use crate::convert::OwnedEdit;
+        let clears = caret_clears(doc, range.start);
+        let mut part = vec![OwnedEdit::from(Edit::Replace {
+            range: range.clone(),
+            text,
+            overrides: &clears,
+        })];
+        for (a, b, key, value) in marks {
+            part.push(OwnedEdit::from(Edit::Mark {
+                range: range.start + a..range.start + b,
+                key,
+                value: value.clone(),
+            }));
+        }
+        (part, range.start + text.chars().count())
+    }
+}
+
+/// The first part of a cut across chapters: deleted, the caret at its start.
+fn cut_part(
+    _: &ProseDoc,
+    range: std::ops::Range<usize>,
+) -> (Vec<crate::convert::OwnedEdit>, usize) {
+    let at = range.start;
+    (
+        vec![crate::convert::OwnedEdit::from(Edit::Delete { range })],
+        at,
+    )
 }
 pub(crate) fn copy(
     editor: &Entity<ProseEditor>,
@@ -287,7 +326,7 @@ pub(crate) fn copy(
                 editor.update(cx, |e, cx| {
                     let sel = e.selection();
                     if sel.spans_chapters() {
-                        if !matches!(replace_group(e, None, window, cx), Ok(true)) {
+                        if !matches!(replace_group(e, cut_part, window, cx), Ok(true)) {
                             crate::links::clipboard_refused(
                                 cx,
                                 "stale or failed cross-document cut",
@@ -365,7 +404,7 @@ pub(crate) fn paste(editor: &Entity<ProseEditor>, window: &mut Window, cx: &mut 
     if sel.spans_chapters() {
         editor.update(cx, move |e, cx| {
             if !matches!(
-                replace_group(e, Some((&text, &marks)), window, cx),
+                replace_group(e, rich_part(&text, &marks), window, cx),
                 Ok(true)
             ) {
                 crate::links::clipboard_refused(cx, "stale or failed cross-document paste");
@@ -379,11 +418,7 @@ pub(crate) fn paste(editor: &Entity<ProseEditor>, window: &mut Window, cx: &mut 
         let saved = std::cell::Cell::new(false);
         let completed = &saved;
         e.edit_chapter(sel.chapter, HostStep::Own, window, cx, move |doc| {
-            let clears = doc
-                .marks_before(at)
-                .iter()
-                .map(|(k, _)| (k.to_owned(), None))
-                .collect::<Vec<_>>();
+            let clears = caret_clears(doc, at);
             let mut edits = vec![Edit::Replace {
                 range: range.clone(),
                 text: &text,
@@ -410,6 +445,159 @@ pub(crate) fn paste(editor: &Entity<ProseEditor>, window: &mut Window, cx: &mut 
         }
     });
     true
+}
+
+/// How the editor reads the HTML on the system clipboard: the app's is
+/// `dr_platform::clipboard::read_html`. Unset (tests, examples), ⌘V never
+/// looks for formatting from other programs.
+#[derive(Clone)]
+pub struct ClipboardHtml(pub std::rc::Rc<dyn Fn() -> Option<String>>);
+
+impl gpui::Global for ClipboardHtml {}
+
+/// Sets where ⌘V in a body reads other programs' formatting from.
+pub fn set_clipboard_html(cx: &mut App, read: impl Fn() -> Option<String> + 'static) {
+    cx.set_global(ClipboardHtml(std::rc::Rc::new(read)));
+}
+
+/// Whether a paste over the selection may bring paragraph formats: not
+/// into a code line (the old editor pasted plain text there), and never
+/// over a selection holding an embed (the plain paste steps around it).
+fn takes_formatting(editor: &ProseEditor) -> bool {
+    let sel = editor.selection();
+    let start = sel.start();
+    for chapter in start.chapter..=sel.end().chapter {
+        let doc = &editor.book().chapters[chapter].doc;
+        let range = if sel.spans_chapters() {
+            match editor.selected_in(chapter) {
+                Some((range, _)) => range,
+                None => continue,
+            }
+        } else {
+            sel.range()
+        };
+        let (first, _) = doc.locate(range.start);
+        let (last, _) = doc.locate(range.end);
+        if chapter == start.chapter
+            && doc
+                .line(first)
+                .block
+                .get(gpui_prose::schema::block::CODE_BLOCK)
+                .is_some()
+        {
+            return false;
+        }
+        let last = last.min(doc.visible_lines().saturating_sub(1));
+        if (first..=last).any(|line| doc.line(line).embed().is_some()) {
+            return false;
+        }
+    }
+    true
+}
+
+/// ⌘V in a body with formatted text from another program on the clipboard
+/// (Word, Pages, a browser …): what this body's format has stays — the
+/// paragraphs' kinds, alignment, bold, italic, links … — and the rest is
+/// text (`gpui_prose::html`). One paste is one undo step; automatic links
+/// follow as for typed text. Returns false to leave the paste to the plain
+/// text path: no reader set, nothing formatted on the clipboard, too large
+/// or nothing in it, a code line, an embed, a composition.
+pub(crate) fn paste_html(editor: &Entity<ProseEditor>, window: &mut Window, cx: &mut App) -> bool {
+    let e = editor.read(cx);
+    if !e.focus_handle(cx).is_focused(window) || e.composition().is_some() {
+        return false;
+    }
+    let Some(read) = cx.try_global::<ClipboardHtml>().map(|r| r.0.clone()) else {
+        return false;
+    };
+    if !takes_formatting(e) {
+        return false;
+    }
+    let Some(fragment) = read().and_then(|html| gpui_prose::html::parse(&html)) else {
+        return false;
+    };
+    let sel = e.selection();
+    if sel.spans_chapters() {
+        editor.update(cx, |e, cx| {
+            let part = |doc: &ProseDoc, range: std::ops::Range<usize>| {
+                let clears = caret_clears(doc, range.start);
+                let plan = gpui_prose::text::PastePlan::new(doc, range, &fragment);
+                let edits = plan
+                    .edits(&clears)
+                    .into_iter()
+                    .map(crate::convert::OwnedEdit::from)
+                    .collect();
+                (edits, plan.caret())
+            };
+            if !matches!(replace_group(e, part, window, cx), Ok(true)) {
+                crate::links::clipboard_refused(cx, "stale or failed cross-document paste");
+            }
+        });
+        return true;
+    }
+    editor.update(cx, |e, cx| {
+        let saved = std::cell::Cell::new(false);
+        e.edit_chapter(sel.chapter, HostStep::Own, window, cx, |doc| {
+            let range = sel.range();
+            let clears = caret_clears(doc, range.start);
+            let plan = gpui_prose::text::PastePlan::new(doc, range, &fragment);
+            guard(doc);
+            let out = doc.edit_batch(&plan.edits(&clears), ORIGIN_USER);
+            saved.set(out.undo_items > 0 || out.caret > 0);
+            saved.get().then_some(plan.caret())
+        });
+        if !saved.get() {
+            crate::links::clipboard_refused(cx, "stale or failed formatted paste");
+        }
+    });
+    true
+}
+
+/// The marks of a table pasted from another program as tab-separated text
+/// (`cells`, read by [`crate::table::clip::parse_grid`]): its cells' bold,
+/// links … from the HTML beside it, when that HTML is exactly this table,
+/// row by row and cell by cell (`gpui_prose::html` reads a table as one
+/// paragraph per row, cells separated by tabs). Otherwise `None`: the cells
+/// stay plain, as before.
+pub(crate) fn html_table_marks(cx: &App, cells: &[Vec<String>]) -> Option<GridMarks> {
+    let read = cx.try_global::<ClipboardHtml>()?.0.clone();
+    let fragment = gpui_prose::html::parse(&read()?)?;
+    if fragment.paragraphs.len() != cells.len() {
+        return None;
+    }
+    let mut grid = GridMarks::new();
+    for (paragraph, row) in fragment.paragraphs.iter().zip(cells) {
+        if !paragraph.attrs.is_empty()
+            || paragraph
+                .text
+                .split('\t')
+                .ne(row.iter().map(String::as_str))
+        {
+            return None;
+        }
+        // Each cell's start, in characters of the row.
+        let mut starts = Vec::with_capacity(row.len());
+        let mut at = 0;
+        for cell in row {
+            starts.push(at);
+            at += cell.chars().count() + 1;
+        }
+        let mut marks = vec![Vec::new(); row.len()];
+        for (range, key, value) in &paragraph.marks {
+            for (ix, cell) in row.iter().enumerate() {
+                let (from, to) = (starts[ix], starts[ix] + cell.chars().count());
+                let (a, b) = (range.start.max(from), range.end.min(to));
+                if a < b {
+                    marks[ix].push((a - from, b - from, key.clone(), value.clone()));
+                }
+            }
+        }
+        for (cell, m) in row.iter().zip(&marks) {
+            validate(cell, m).ok()?;
+        }
+        grid.push(marks);
+    }
+    grid.iter().flatten().any(|m| !m.is_empty()).then_some(grid)
 }
 
 /// Rich text selections inside a cell use the same lossless OS metadata.

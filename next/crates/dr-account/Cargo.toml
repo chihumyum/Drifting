@@ -9,7 +9,7 @@ description = "M35 Hosted account, session, PKCE OAuth and account-isolated libr
 
 [features]
 default = ["network"]
-network = ["dep:reqwest", "dep:rustls"]
+network = ["dep:reqwest", "dep:rustls", "dr-platform/network"]
 test-support = []
 
 [dependencies]
@@ -28,5 +28,7 @@ thiserror.workspace = true
 url.workspace = true
 
 [dev-dependencies]
+# `proxy::fake`: a fake proxy as the system's, for `tests/system_proxy.rs`.
+dr-platform = { workspace = true, features = ["test-support"] }
 dr-store.workspace = true
 tempfile.workspace = true

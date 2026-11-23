@@ -26,6 +26,8 @@ url.workspace = true
 
 [dev-dependencies]
 dr-doc.workspace = true
+# `proxy::fake`: a fake proxy as the system's, for `tests/system_proxy.rs`.
+dr-platform = { workspace = true, features = ["test-support"] }
 dr-model.workspace = true
 dr-testkit.workspace = true
 tempfile.workspace = true

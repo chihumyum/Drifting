@@ -470,7 +470,7 @@
       "pending": "Choix de correspondance requis avant l’import",
       "start": "Importer dans une nouvelle bibliothèque",
       "switching": "Ouverture de la bibliothèque terminée",
-      "title": "Réimporter dans une nouvelle bibliothèque"
+      "title": "Importer dans une nouvelle bibliothèque"
     }
   },
   "importDialog": {

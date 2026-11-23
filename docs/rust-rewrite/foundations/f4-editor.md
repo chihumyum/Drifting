@@ -234,7 +234,7 @@ Drifting 的正文能在新版里编辑并落盘了：新的 AGPL crate `next/cr
 - 渲染：加粗换字重（正文 600，标题 700），斜体换字形，下划线、删除线自己画（编辑器逐字形绘制，不经 GPUI 的整行绘制），链接用链接色加下划线。
 - 扩展点：`ProseExtension::style_run(marks, &mut RunStyle, style)`，F4e 用它给人物链接上色；点击时用 `ProseEditor::marks_at(chapter, offset)` 查。
 
-已知：中文字体没有斜体字形，斜体的中文现在画成正体（WebKit 会合成倾斜）。要合成倾斜得改 GPUI 的字形绘制，记进台账，不急。
+已知：中文字体没有斜体字形，斜体的中文现在画成正体（WebKit 会合成倾斜）。要合成倾斜得改 GPUI 的字形绘制，记进台账，不急。（2026-11-24 补：正文现在用的 Drifting Serif 连拉丁也没有斜体字面，macOS 上正文斜体整段都画成正体，拉丁字母也是；Windows 上 DirectWrite 把它压斜，中文也斜。界面上要斜体的地方 Windows 已改成跟 macOS 一样不斜，正文没动，见 [F5 的字体一节](f5-ui.md)。）
 
 ### 撤销
 
@@ -298,6 +298,8 @@ Drifting 的正文能在新版里编辑并落盘了：新的 AGPL crate `next/cr
 | `ParagraphIndex`、`ParagraphExtent` | SumTree 段落索引 | 可能变（F4b 要按高度查时会加维度） |
 | `text::segment::{…}` | 一段之内的字素和词 | 可能变（F4c 可能改成带缓存的版本） |
 | `ORIGIN_USER`、`ORIGIN_AGENT_PREFIX`、`ORIGIN_REPAIR` | 来源 | v0 稳定 |
+| `Fragment { paragraphs }`、`FragmentParagraph { text, marks, attrs }`、`PASTED_KEYS`；`PastePlan::new(doc, range, &fragment)`、`.edits(overrides) -> Vec<Edit>`、`.caret()`、`.text()` | 要粘贴的一段富文本，和它怎么进正文（照 ProseMirror 的放法，一次 `edit_batch` 一步撤销），见 [f4e-editor.md 的 PF 一节](f4e-editor.md#pf-从-word-和网页粘贴带格式2026-11-24)（2026-11-24） | 可能变 |
+| `html::parse(html) -> Option<Fragment>`、`html::MAX_HTML_BYTES` | 别的程序的 HTML（Word、网页、Cocoa 由 RTF 转的）读成 `Fragment`：正文有的格式留下，别的只留字；纯函数、不递归、坏 HTML 不失败（2026-11-24） | 可能变 |
 
 ### 排版层（`gpui_prose::layout`，F4b）
 
@@ -495,8 +497,8 @@ GPUI 补丁 G1 什么时候正式挂上，由作者在发布档前定（需要�
 
 ## 已知限制
 
-- 中文斜体画成正体（见 G5）。
-- 复制粘贴只有纯文本；粘贴的多段一律按回车规则拆开（第一段并进光标所在段）。
+- 中文斜体画成正体（见 G5）；macOS 上正文的拉丁斜体也是正体（Drifting Serif 没有斜体字面，2026-11-24 量过）。
+- `ProseEditor` 自己的复制粘贴只有纯文本；粘贴的多段一律按回车规则拆开（第一段并进光标所在段）。带格式的复制粘贴在宿主一侧：Drifting 自己的富文本剪贴板（`dr-editor` 的 `clipboard`）；别的程序的 HTML 由 `gpui-prose` 的 `html::parse` 读成 `text::Fragment`，`text::PastePlan` 照 ProseMirror 的放法算出一次提交的编辑，读剪贴板的 HTML 归宿主（Drifting 是 `dr-platform`），见 [f4e-editor.md 的 PF 一节](f4e-editor.md#pf-从-word-和网页粘贴带格式2026-11-24)。没有「粘贴为纯文本」（0.1 的 ⇧⌘V）。
 - 选区不能跨章（接口 `BookRange` 已经留好，见 [m05-book.md](../modules/m05-book.md)）。
 - 列表（只在素材笔记里）由 F4d 画出样子：圆点、序号、任务框，见 [f4d-render.md 第三轮](f4d-render.md#第三轮全书视图列表来源悬停卡)；项与项挨紧、代码块和提示框的样子见[第四轮](f4d-render.md#第四轮段距跟着块走代码块和提示框)（每段的字号、留白、收进由 `ProseEditor::para_set` 一处算，估高度和真画同用）；列表的输入（回车续项、Tab 改层级、Markdown 快捷写法）归 F4c；引用、缩进、对齐、分隔线由 F4d 画出（居中、右对齐的多行段落，输入法候选窗和上下移动还按第一行的偏移算，等 F4b 加每行偏移）。
 - 真输入法的手测清单沿用 [P0-B](../spikes/p0-b-editor.md#待作者手测)，命令换成 `cargo run --release -p dr-editor --example prose-bench -- chapter`（`PROSE_BENCH_IME_LOG=1` 打印输入法调用）。

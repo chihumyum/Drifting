@@ -477,7 +477,7 @@ impl SettingsPanel {
                             .pt(px(28.0))
                             .font_role(Role::Structure)
                             .type_px(s.secondary, s.line_body)
-                            .italic()
+                            .italic_face()
                             .text_color(p.muted().solid())
                             .child(t(cx, keys::settings::about::TAGLINE)),
                     );

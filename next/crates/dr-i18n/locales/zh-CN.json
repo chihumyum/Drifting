@@ -460,7 +460,7 @@
       "pending": "导入前需要映射选择",
       "start": "导入到新库",
       "switching": "正在打开已完成的新库",
-      "title": "重新导入到新库"
+      "title": "导入到新库"
     }
   },
   "importDialog": {

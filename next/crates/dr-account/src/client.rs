@@ -188,6 +188,9 @@ impl HostedClient {
             let http = reqwest::blocking::Client::builder()
                 .timeout(HTTP_TIMEOUT)
                 .redirect(reqwest::redirect::Policy::none())
+                // The system's proxy; a development origin on this computer
+                // directly (`dr_platform::proxy`).
+                .proxy(dr_platform::proxy::system())
                 .build()
                 .expect("build reqwest blocking client");
             Self { http }

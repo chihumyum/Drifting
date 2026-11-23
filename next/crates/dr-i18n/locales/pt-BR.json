@@ -470,7 +470,7 @@
       "pending": "Opções de mapeamento necessárias antes da importação",
       "start": "Importar para nova biblioteca",
       "switching": "Abrindo a biblioteca concluída",
-      "title": "Reimportar para nova biblioteca"
+      "title": "Importar para nova biblioteca"
     }
   },
   "importDialog": {
