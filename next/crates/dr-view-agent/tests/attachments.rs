@@ -275,7 +275,12 @@ fn paste(item: ClipboardItem, views: &Views, cx: &mut VisualTestContext) {
 }
 
 fn drop_files(paths: Vec<PathBuf>, views: &Views, cx: &mut VisualTestContext) {
-    let area = cx.debug_bounds("agent-composer-area").unwrap();
+    drop_on("agent-composer-area", paths, views, cx)
+}
+
+/// Dropped on the middle of the element drawn with `selector`.
+fn drop_on(selector: &'static str, paths: Vec<PathBuf>, views: &Views, cx: &mut VisualTestContext) {
+    let area = cx.debug_bounds(selector).unwrap();
     let at = point(
         area.origin.x + area.size.width / 2.,
         area.origin.y + area.size.height / 2.,
@@ -362,6 +367,21 @@ fn paste_and_drop_attach_images_and_text_pastes_as_text(cx: &mut TestAppContext)
     let unsupported =
         cx.update(|_, cx| t(cx, dr_i18n::keys::agent_images::UNSUPPORTED).to_string());
     assert_eq!(error(&views, cx), Some(unsupported));
+
+    // Anywhere on the Agent column takes them: over the send button, and
+    // over the conversation above the composer.
+    let on_send = fixture.file("send.png", &dr_testkit::media::png(30, 30));
+    drop_on("agent-send", vec![on_send], &views, cx);
+    assert_eq!(attached(&views, cx), 3);
+    let above = fixture.file("above.png", &dr_testkit::media::png(31, 30));
+    drop_on("agent-empty", vec![above], &views, cx);
+    assert_eq!(attached(&views, cx), 4);
+    views.panel.update(cx, |panel, cx| {
+        panel.remove_attached(3, cx);
+        panel.remove_attached(2, cx);
+    });
+    draw(cx);
+    assert_eq!(attached(&views, cx), 2);
 
     // Taking one out (the button next to its picture).
     views

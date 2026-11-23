@@ -1781,6 +1781,14 @@ impl Render for AgentPanel {
         if self.old.is_open() {
             return root.child(self.old_transcript(window, cx));
         }
+        // Images are dropped anywhere on the Agent column (CM4a;
+        // custom-modules.md §8: 「拖进 Agent 那一栏」), the composer included.
+        let wash = p.ink(1).alpha(0.05);
+        let root = root
+            .drag_over::<gpui::ExternalPaths>(move |style, _, _, _| style.bg(wash))
+            .on_drop(cx.listener(|panel, paths: &gpui::ExternalPaths, _, cx| {
+                panel.attach_paths(paths.paths().to_vec(), cx)
+            }));
         let active = self.active().cloned();
         let empty = self
             .snapshot
@@ -1890,8 +1898,6 @@ impl Render for AgentPanel {
             .as_ref()
             .or(self.hub.read(cx).error.as_ref())
             .cloned();
-        // Images are dropped onto the composer's block (CM4a).
-        let wash = p.ink(1).alpha(0.05);
         let mut footer = div()
             .id("agent-composer-area")
             .debug_selector(|| "agent-composer-area".into())
@@ -1899,11 +1905,7 @@ impl Render for AgentPanel {
             .flex_col()
             .gap(px(7.))
             .p(px(12.))
-            .flex_none()
-            .drag_over::<gpui::ExternalPaths>(move |style, _, _, _| style.bg(wash))
-            .on_drop(cx.listener(|panel, paths: &gpui::ExternalPaths, _, cx| {
-                panel.attach_paths(paths.paths().to_vec(), cx)
-            }));
+            .flex_none();
         if let Some(run) = &active {
             footer = footer.child(
                 div()
