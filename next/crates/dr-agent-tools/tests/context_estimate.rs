@@ -5,7 +5,7 @@
 //! schemas and book structure; no model or tokenizer is called.
 
 use dr_agent::ToolExecutor;
-use dr_agent::context::{Prepared, estimate_text_tokens, estimate_tokens, prepare};
+use dr_agent::context::{Contribution, Prepared, estimate_text_tokens, estimate_tokens, prepare};
 use dr_agent::long_task::{ChainSnapshot, ManifestState};
 use dr_agent::{ModelCapabilities, Provider, RunConfig};
 use dr_agent_tools::AgentTools;
@@ -174,6 +174,96 @@ fn history(times: usize) -> Vec<ConversationEntry> {
         }
     }
     rows
+}
+
+/// The pinned record every request starts with carries BOOK_STRUCTURE.json
+/// as JSON, byte for byte, not as a string holding it: the model reads no
+/// backslash before every quote, and the record counts about what the
+/// structure counts on its own. Other local context (PROJECT_MEMORY.md)
+/// stays text, even when it starts with a brace.
+#[test]
+fn the_book_structure_is_pinned_as_json_not_as_an_escaped_string() {
+    let dir = tempfile::tempdir().unwrap();
+    let ws = Workspace::open_dir(dir.path(), "cx-pins").unwrap();
+    let book = samples::slow_clock_v3().unwrap();
+    seed::write_book_v3(ws.library(), &book).unwrap();
+    let mut context = AgentTools::new()
+        .context(&ws, book.book_id(), "pins")
+        .unwrap();
+    let structure = context[0].text.clone();
+    let memory = "{不是 JSON}\n# PROJECT_MEMORY.md\n\n人名以要素为准。";
+    context.push(Contribution {
+        source: "PROJECT_MEMORY.md".into(),
+        text: memory.into(),
+    });
+    let config = RunConfig::new(Provider::Local, "synthetic-model");
+    let snapshot = snapshot(&config);
+    let pins = dr_agent::context::pins(&snapshot, &context).unwrap();
+
+    assert!(
+        pins.contains(&structure),
+        "the structure is set in verbatim"
+    );
+    let read: Value = serde_json::from_str(&pins).unwrap();
+    assert_eq!(
+        read["local_context"][0]["text"],
+        serde_json::from_str::<Value>(&structure).unwrap()
+    );
+    assert_eq!(read["local_context"][1]["text"], memory);
+    let escaped = serde_json::to_string(&structure).unwrap();
+    assert!(!pins.contains(&escaped));
+
+    // The record counts the structure once, as itself: no more than the
+    // structure on its own and the record around an empty object (give or
+    // take the punctuation meeting at its two seams).
+    let structure_tokens = estimate_text_tokens(&structure);
+    let pins_tokens = estimate_text_tokens(&pins);
+    let mut bare = context.clone();
+    bare[0].text = "{}".into();
+    let around = estimate_text_tokens(&dr_agent::context::pins(&snapshot, &bare).unwrap());
+    assert!(
+        pins_tokens <= structure_tokens + around + 2,
+        "{pins_tokens} > {structure_tokens} + {around} + 2"
+    );
+    // Escaped, as it used to be set in, it counts at least 5 % more.
+    assert!(estimate_text_tokens(&escaped) * 20 >= structure_tokens * 21);
+    ws.close();
+}
+
+/// A conversation record's own id and session are never sent to a model;
+/// they count a token a byte, so two requests that differ only in the
+/// digits of their random ids count the same, and never less than the text
+/// rules counted them.
+#[test]
+fn random_record_ids_count_the_same_whatever_their_digits() {
+    let config = RunConfig::new(Provider::Local, "synthetic-model");
+    let counted = |id: &str| {
+        let mut snapshot = snapshot(&config);
+        snapshot.chain = id.to_owned();
+        let history = vec![ConversationEntry {
+            id: format!("{id}:3"),
+            session: id.to_owned(),
+            turn: 1,
+            kind: ConversationEntryKind::User,
+            payload: json!({"text": "你好，本地模型"}),
+        }];
+        let Prepared::Ready {
+            conversation,
+            checkpoint,
+        } = prepare(&config, &snapshot, history, &[], Vec::new()).unwrap()
+        else {
+            panic!("a short message fits");
+        };
+        // 514 is the fixed part (512, an empty system prompt and an empty
+        // tool list).
+        let records = checkpoint.estimated_input_tokens - 514;
+        assert!(records >= estimate_tokens(&conversation).unwrap());
+        assert!(records <= bytes(&conversation));
+        records
+    };
+    let digits = counted("01993726-1185-7012-8324-350617426951");
+    let letters = counted("0bacdefa-cdef-7abc-bdef-abcdefabcdef");
+    assert_eq!(digits, letters);
 }
 
 /// A 1M-context service: a conversation the old bound would have cut is
