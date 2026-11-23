@@ -326,8 +326,11 @@ fn the_directory_opens_what_the_design_gives_the_agent_and_nothing_else() {
 /// A deterministic stand-in for a model: each round is made from the
 /// results the run has so far (a real model reads them the same way), so
 /// the ids a call returns reach the next call.
+/// One round of the script: the steps of one model request.
+type Round = Box<dyn Fn(&Results) -> Vec<Step> + Send>;
+
 struct Script {
-    rounds: Mutex<VecDeque<Box<dyn Fn(&Results) -> Vec<Step> + Send>>>,
+    rounds: Mutex<VecDeque<Round>>,
 }
 
 struct Results(Vec<Value>);
@@ -411,7 +414,6 @@ fn a_scripted_run_makes_a_module_puts_it_into_a_template_and_fills_an_entry() {
         base
     };
     let item_of = |r: &Results| r.of("add")["output"]["item"].as_str().unwrap().to_owned();
-    type Round = Box<dyn Fn(&Results) -> Vec<Step> + Send>;
     let rounds: Vec<Round> = vec![
         Box::new(|_| {
             call(
