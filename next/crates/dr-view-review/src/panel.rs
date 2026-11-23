@@ -3369,8 +3369,9 @@ mod v3_write_tests {
         let [(picked, p), (trashed, t)] = [leaves[0].clone(), leaves[1].clone()];
         let (pn, tn) = (p.chars().count(), t.chars().count());
         seed.write_to(lib.library()).unwrap();
-        let link =
-            |start: usize, end: usize, entry: &str| json!({"start":start,"end":end,"entry":entry});
+        // Given with the comment, every link here was picked with @: it is
+        // recorded as manual (`kernel-v5.md` §16).
+        let link = |start: usize, end: usize, entry: &str| json!({"start":start,"end":end,"entry":entry,"manual":true});
         let text = format!("q{p} z{t}");
         let id = call(
             &lib,

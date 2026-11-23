@@ -512,7 +512,7 @@ pub struct MentionsOut {
 
 op! {
     EntryMentions = "entry.mentions", Read, Shared,
-    "List the paragraphs of the book's prose that link to an entry (its name or an alias linked automatically, or a link the author made), in manuscript order, each with the entry and module it is in, its document, paragraph number and block ID, how many links to the entry it holds and the text around the entry's name. `total` counts the paragraphs, `links` the links. At most `limit` paragraphs (default 20, at most 50) from `from`; `next` is the `from` of the next page. Paragraphs in entries in Recently Deleted only with `trashed: true`. Text that names the entry without a link is found with entry.search.",
+    "List the paragraphs of the book's prose that link to an entry (its name or an alias linked automatically, counted while the entry's own automatic linking and the author's setting are on, or a link the author picked with @, always counted), in manuscript order, each with the entry and module it is in, its document, paragraph number and block ID, how many links to the entry it holds and the text around the entry's name. `total` counts the paragraphs, `links` the links. At most `limit` paragraphs (default 20, at most 50) from `from`; `next` is the `from` of the next page. Paragraphs in entries in Recently Deleted only with `trashed: true`. Text that names the entry without a link is found with entry.search.",
     fn(cx, input: MentionsIn) -> MentionsOut {
         let limit = page_limit(input.limit);
         let slot = cx.book_v3(&input.book)?;
@@ -528,11 +528,20 @@ op! {
             .map(|(i, d)| (d.as_str(), i))
             .collect();
         cx.workspace().flush_book_prose_indices(&slot.book)?;
+        // The links that read as links (`kernel-v5.md` §16): one picked with
+        // @ always, an automatic one while the entry's own 「自动链接」 and
+        // the author's setting are on.
+        let automatic_shown = cx.workspace().auto_links() && target.auto_link;
         // (rank, block) -> links, one place per paragraph.
         let mut places: BTreeMap<usize, BTreeMap<Option<String>, u32>> = BTreeMap::new();
         for r in cx.workspace().library().references_to(target.id.as_str())? {
+            let shown = match r.kind {
+                RefKind::Link => automatic_shown,
+                RefKind::Mention => true,
+                RefKind::Embed => false,
+            };
             if r.book_id.as_deref() != Some(slot.book.as_str())
-                || !matches!(r.kind, RefKind::Link | RefKind::Mention)
+                || !shown
                 || r.target_kind == "asset"
                 || r.count == 0
             {

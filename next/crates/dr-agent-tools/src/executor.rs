@@ -203,6 +203,43 @@ struct TurnState {
     /// turn read, by id, at the revision it was shown. A save replacing one
     /// is held to it.
     templates: HashMap<String, i64>,
+    /// Modules of mine (library documents too) this turn read, by id, as
+    /// they were shown. A change to one is held to it.
+    modules: HashMap<String, ModuleSeen>,
+}
+
+/// What a read showed of a module of mine: when it last changed, and (from
+/// `custom_module.get`, which shows it whole) a digest of the whole module.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ModuleSeen {
+    updated_at: Option<i64>,
+    value: Option<String>,
+}
+
+impl ModuleSeen {
+    fn of_row(row: &Value) -> Self {
+        Self {
+            updated_at: row["updated_at"].as_i64(),
+            value: None,
+        }
+    }
+
+    /// `custom_module.get`'s output.
+    fn of_detail(output: &Value) -> Self {
+        Self {
+            updated_at: output["summary"]["updated_at"].as_i64(),
+            value: Some(crate::catalog::digest(&output["value"])),
+        }
+    }
+
+    /// `now` (as `custom_module.get` shows it now) is what this read showed.
+    fn still(&self, now: &ModuleSeen) -> bool {
+        self.updated_at == now.updated_at
+            && self
+                .value
+                .as_ref()
+                .is_none_or(|v| now.value.as_ref() == Some(v))
+    }
 }
 
 impl TurnState {
@@ -561,6 +598,17 @@ impl AgentTools {
             let turn = turns.entry(key.clone()).or_default();
             turn.templates
                 .extend(template_revisions(&call.name, &output));
+            for (id, seen) in modules_shown(&call.name, &output) {
+                // A list after a get of the same, unchanged module keeps
+                // what the get showed of it.
+                match turn.modules.get_mut(&id) {
+                    Some(old) if seen.value.is_none() && old.updated_at == seen.updated_at => {}
+                    Some(old) => *old = seen,
+                    None => {
+                        turn.modules.insert(id, seen);
+                    }
+                }
+            }
             let paragraphs = |read: &mut ReadState| {
                 for block in output["paragraphs"].as_array().into_iter().flatten() {
                     if let (Some(id), Some(text)) =
@@ -668,7 +716,263 @@ impl AgentTools {
         if call.name == "project_template.save" {
             return self.save_project_template(ws, actor, key, call);
         }
-        self.write_with_checkpoint(ws, actor, key, call, || {})
+        if call.name.starts_with("custom_module.") {
+            return self.save_custom_module(ws, actor, key, call);
+        }
+        let placed = custom_modules_placed(&call);
+        if placed.is_empty() {
+            return self.write_with_checkpoint(ws, actor, key, call, || {});
+        }
+        // An entry template that names a module of mine the book has no
+        // copy of yet takes a copy in the same write (`custom-modules.md`
+        // §13), which the holder refuses unless this call says what it
+        // expects there. The Agent never reads the book's copies: what it
+        // read is the template; the copies are observed here, and the write
+        // is refused if one appears before it lands (another write put the
+        // same module in first). Only where the write replaces them.
+        let book_doc = format!("book:{}", key.book);
+        let keys: Vec<RecordKey> = placed
+            .iter()
+            .map(|(id, _)| RecordKey::record("modules", id))
+            .collect();
+        let copies: Vec<RecordPrecondition> = ws
+            .observe_records(&book_doc, &keys)?
+            .into_iter()
+            .map(|o| RecordPrecondition::from(o).if_replaced())
+            .collect();
+        let template = placed[0].1.clone();
+        let before = custom_modules_of(ws, &key.book, &template)?;
+        let mut value = self.write_with_checkpoint_and(ws, actor, key, call, copies, || {})?;
+        // What it put into the template that was not there before, named
+        // for the conversation's 「打开工作台」 card (CM3).
+        let names = copy_names(ws, &key.book)?;
+        let made: Vec<Value> = placed
+            .iter()
+            .filter(|(id, _)| !before.contains(id))
+            .map(|(id, template)| {
+                json!({"id": id, "name": names.get(id).cloned().unwrap_or_default(), "templates": [template]})
+            })
+            .collect();
+        value["custom_modules"] = Value::Array(made);
+        Ok(value)
+    }
+
+    /// The writes to my modules the Agent makes (`custom-modules.md` §5,
+    /// §13): make one, replace one whole, rename one, save one this project
+    /// uses as a new one. They write a library document, which
+    /// [`Workspace::call_guarded`] does not hold, so each is held here to
+    /// what this turn read, just before the write, as `project_template.save`
+    /// is: a change to a module needs it read in this turn (`update` with
+    /// `custom_module.get`, which shows it whole; `rename` with that or
+    /// `custom_module.list`) and unchanged since; `save_as` needs this
+    /// project's entry templates it re-points read and unchanged. Nothing of
+    /// any entry changes, so no checkpoint is taken; a change's inverse is in
+    /// its result's `undo`.
+    fn save_custom_module(
+        &self,
+        ws: &Workspace,
+        actor: &Actor,
+        key: &TurnKey,
+        call: ResolvedCall,
+    ) -> Result<Value> {
+        let changed = match call.name.as_str() {
+            "custom_module.update" | "custom_module.rename" => {
+                let id = call.arguments["id"]
+                    .as_str()
+                    .ok_or_else(|| Error::Invalid("which module: id".into()))?
+                    .to_owned();
+                self.hold_module(ws, actor, key, &call.name, &id)?;
+                Some(id)
+            }
+            "custom_module.save_as" => {
+                self.hold_templates_using(ws, key, &call)?;
+                None
+            }
+            _ => None,
+        };
+        let result = ws
+            .call(actor, &call.name, call.arguments.clone())
+            .map_err(Error::from);
+        let output = result
+            .as_ref()
+            .map(|value| value["output"].clone())
+            .unwrap_or(Value::Null);
+        // The module written, its list and, where the book's copy of it or
+        // the entry templates using it changed, what was read of those, have
+        // to be read again.
+        let made = output["id"]
+            .as_str()
+            .or_else(|| output["module"]["id"].as_str())
+            .map(str::to_owned);
+        let repointed: Vec<String> = output["templates"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+            .map(str::to_owned)
+            .collect();
+        {
+            let mut turns = self.turns.lock().expect("tool observations");
+            let turn = turns.entry(key.clone()).or_default();
+            turn.book.forget("custom_module:*");
+            for id in changed.iter().chain(&made) {
+                turn.modules.remove(id);
+                turn.book.forget(&format!("custom_module:{id}"));
+            }
+            if result.is_ok() {
+                if let Some(id) = &changed {
+                    turn.book.forget_backed_by(|record| {
+                        record.collection == "modules" && record.path.first() == Some(id)
+                    });
+                }
+                for template in &repointed {
+                    turn.book.forget(&format!("entry_template:{template}"));
+                }
+                if !repointed.is_empty() {
+                    turn.book.forget("entry_template:*");
+                }
+            }
+        }
+        let mut value = result?;
+        let module = if output["module"].is_object() {
+            &output["module"]
+        } else {
+            &output
+        };
+        value["custom_modules"] = json!([{
+            "id": module["id"],
+            "name": module["name"],
+            "templates": repointed,
+        }]);
+        Ok(value)
+    }
+
+    /// A change to module `id` of mine is held to what this turn read of it:
+    /// read (`update`: whole, with `custom_module.get`), and still as read.
+    /// A second refusal stops the turn, as a conflict on a document does.
+    fn hold_module(
+        &self,
+        ws: &Workspace,
+        actor: &Actor,
+        key: &TurnKey,
+        name: &str,
+        id: &str,
+    ) -> Result<()> {
+        let subject = format!("custom_module:{id}");
+        let seen = {
+            let turns = self.turns.lock().expect("tool observations");
+            let turn = turns.get(key);
+            if turn
+                .and_then(|turn| turn.conflicts.get(&subject))
+                .is_some_and(|count| *count >= 2)
+            {
+                return Err(Error::ConflictLimit(subject));
+            }
+            turn.and_then(|turn| turn.modules.get(id)).cloned()
+        }
+        .filter(|seen| name != "custom_module.update" || seen.value.is_some())
+        .ok_or_else(|| Error::ReadRequired(subject.clone()))?;
+        let now = ws.call(actor, "custom_module.get", json!({"id": id}))?;
+        if seen.still(&ModuleSeen::of_detail(&now["output"])) {
+            return Ok(());
+        }
+        let mut turns = self.turns.lock().expect("tool observations");
+        let turn = turns.entry(key.clone()).or_default();
+        turn.modules.remove(id);
+        turn.book.forget(&subject);
+        let count = turn.conflicts.entry(subject.clone()).or_default();
+        *count += 1;
+        Err(if *count >= 2 {
+            Error::ConflictLimit(subject)
+        } else {
+            Error::Conflict(subject)
+        })
+    }
+
+    /// 「另存一份」 points this project's entry templates that use the module
+    /// at the new one: each of them has to be read in this turn and still be
+    /// as it was read.
+    fn hold_templates_using(
+        &self,
+        ws: &Workspace,
+        key: &TurnKey,
+        call: &ResolvedCall,
+    ) -> Result<()> {
+        let module = call.arguments["module"]
+            .as_str()
+            .unwrap_or_default()
+            .to_owned();
+        let book = BookId::parse(&key.book).map_err(|e| Error::Invalid(e.to_string()))?;
+        let users: Vec<String> = ws.read_book_v3(&key.book, move |doc, _| {
+            let borrowed = dr_doc::v3::BorrowedBookV3::new(doc, &book)?;
+            let view = borrowed.view();
+            Ok(view
+                .templates()
+                .into_iter()
+                .filter(|t| !t.is_trashed())
+                .filter(|t| {
+                    t.modules.iter().any(|m| {
+                        m.kind == dr_model::v3::ModuleKind::Custom
+                            && m.config.module.as_ref().map(|id| id.as_str())
+                                == Some(module.as_str())
+                    })
+                })
+                .map(|t| t.id.to_string())
+                .collect())
+        })?;
+        let book_doc = format!("book:{}", key.book);
+        let mut held: Vec<RecordPrecondition> = Vec::new();
+        {
+            let turns = self.turns.lock().expect("tool observations");
+            let turn = turns.get(key);
+            for template in &users {
+                let subject = format!("entry_template:{template}");
+                let read = [subject.clone(), "entry_template:*".to_owned()]
+                    .into_iter()
+                    .find(|s| turn.is_some_and(|turn| turn.has(s)))
+                    .ok_or_else(|| Error::ReadRequired(subject.clone()))?;
+                let turn = turn.expect("a read was found");
+                held.extend(turn.book.records_of(&read).into_iter().filter(|r| {
+                    r.key.collection == "templates"
+                        && r.key
+                            .path
+                            .first()
+                            .is_none_or(|id| id.as_str() == template.as_str())
+                }));
+            }
+        }
+        if held.is_empty() {
+            return Ok(());
+        }
+        let keys: Vec<RecordKey> = held.iter().map(|r| r.key.clone()).collect();
+        let now: HashMap<RecordKey, String> = ws
+            .observe_records(&book_doc, &keys)?
+            .into_iter()
+            .map(|o| (o.key, o.digest))
+            .collect();
+        for expected in &held {
+            let same = matches!(
+                &expected.expected,
+                dr_workspace::Expected::Digest(d) if now.get(&expected.key) == Some(d)
+            );
+            if !same {
+                let subject = expected.subject();
+                let mut turns = self.turns.lock().expect("tool observations");
+                let turn = turns.entry(key.clone()).or_default();
+                turn.book.forget("entry_template:*");
+                for template in &users {
+                    turn.book.forget(&format!("entry_template:{template}"));
+                }
+                let count = turn.conflicts.entry(subject.clone()).or_default();
+                *count += 1;
+                return Err(if *count >= 2 {
+                    Error::ConflictLimit(subject)
+                } else {
+                    Error::Conflict(subject)
+                });
+            }
+        }
+        Ok(())
     }
 
     /// `project_template.save` writes the library's template document; the
@@ -743,6 +1047,21 @@ impl AgentTools {
         actor: &Actor,
         key: &TurnKey,
         call: ResolvedCall,
+        after_checkpoint: impl FnOnce(),
+    ) -> Result<Value> {
+        self.write_with_checkpoint_and(ws, actor, key, call, Vec::new(), after_checkpoint)
+    }
+
+    /// [`Self::write_with_checkpoint`], also held to `extra`: records the
+    /// executor observed for this call itself (never content the model was
+    /// shown).
+    fn write_with_checkpoint_and(
+        &self,
+        ws: &Workspace,
+        actor: &Actor,
+        key: &TurnKey,
+        call: ResolvedCall,
+        extra: Vec<RecordPrecondition>,
         after_checkpoint: impl FnOnce(),
     ) -> Result<Value> {
         let canonical = call.arguments["doc"]
@@ -955,6 +1274,7 @@ impl AgentTools {
                     }
                 }
             }
+            records.extend(extra);
             WritePreconditions {
                 versions,
                 records,
@@ -1060,6 +1380,95 @@ fn template_revisions(name: &str, output: &Value) -> Vec<(String, i64)> {
             .filter_map(row)
             .collect(),
         "project_template.get" => row(&output["summary"]).into_iter().collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// The modules of mine entry template `template` of `book` uses now.
+fn custom_modules_of(ws: &Workspace, book: &str, template: &str) -> Result<Vec<String>> {
+    let book_id = BookId::parse(book).map_err(|e| Error::Invalid(e.to_string()))?;
+    let template = template.to_owned();
+    Ok(ws.read_book_v3(book, move |doc, _| {
+        let borrowed = dr_doc::v3::BorrowedBookV3::new(doc, &book_id)?;
+        let view = borrowed.view();
+        Ok(view
+            .templates()
+            .into_iter()
+            .filter(|t| t.id.as_str() == template)
+            .flat_map(|t| t.modules)
+            .filter(|m| m.kind == dr_model::v3::ModuleKind::Custom)
+            .filter_map(|m| m.config.module.map(|id| id.to_string()))
+            .collect())
+    })?)
+}
+
+/// The names of the book's copies of modules, by module id (a broken copy:
+/// what its JSON still says).
+fn copy_names(ws: &Workspace, book: &str) -> Result<HashMap<String, String>> {
+    let book_id = BookId::parse(book).map_err(|e| Error::Invalid(e.to_string()))?;
+    Ok(ws.read_book_v3(book, move |doc, _| {
+        let borrowed = dr_doc::v3::BorrowedBookV3::new(doc, &book_id)?;
+        Ok(borrowed
+            .view()
+            .module_copies()
+            .into_iter()
+            .map(|(id, copy)| (id.to_string(), copy.name().unwrap_or_default()))
+            .collect())
+    })?)
+}
+
+/// The modules of mine a read showed, by id, as it showed them.
+fn modules_shown(name: &str, output: &Value) -> Vec<(String, ModuleSeen)> {
+    match name {
+        "custom_module.list" => output
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|row| Some((row["id"].as_str()?.to_owned(), ModuleSeen::of_row(row))))
+            .collect(),
+        "custom_module.get" => output["summary"]["id"]
+            .as_str()
+            .map(|id| (id.to_owned(), ModuleSeen::of_detail(output)))
+            .into_iter()
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// The modules of mine a call's entry template names (custom modules'
+/// `config.module`), by the entry template they go into.
+fn custom_modules_placed(call: &ResolvedCall) -> Vec<(String, String)> {
+    let custom = |module: &Value| {
+        (module["kind"] == "custom")
+            .then(|| module["config"]["module"].as_str().map(str::to_owned))
+            .flatten()
+    };
+    match call.name.as_str() {
+        "entry_template.put_module" => call.arguments["template"]
+            .as_str()
+            .and_then(|template| {
+                custom(&call.arguments["module"]).map(|id| (id, template.to_owned()))
+            })
+            .into_iter()
+            .collect(),
+        "entry_template.put" => {
+            let template = &call.arguments["template"];
+            let Some(tid) = template["id"].as_str() else {
+                return Vec::new();
+            };
+            let mut out: Vec<(String, String)> = Vec::new();
+            for id in template["modules"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(custom)
+            {
+                if !out.iter().any(|(seen, _)| *seen == id) {
+                    out.push((id, tid.to_owned()));
+                }
+            }
+            out
+        }
         _ => Vec::new(),
     }
 }

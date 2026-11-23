@@ -5,17 +5,19 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
-description = "Drifting's platform services: logs, crash reports, keychain, deep links and single instance, updates, feedback, the system's image codecs"
+description = "Drifting's platform services: logs, crash reports, keychain, deep links and single instance, updates, feedback, the system's image codecs, the clipboard's HTML"
 
 [features]
 default = ["network"]
-# Sentry's transport and the updater's HTTP client. Off, everything else still
-# builds, which lets `cargo check --target x86_64-pc-windows-msvc` run on a Mac
-# without a Windows C toolchain for the TLS stack.
-network = ["dep:reqwest", "dep:rustls", "sentry/reqwest", "sentry/rustls-no-provider"]
+# Sentry's transport, the updater's HTTP client and `proxy::system`. Off,
+# everything else still builds, which lets `cargo check --target
+# x86_64-pc-windows-msvc` run on a Mac without a Windows C toolchain for the
+# TLS stack.
+network = ["dep:http", "dep:hyper-util", "dep:reqwest", "dep:rustls", "sentry/reqwest", "sentry/rustls-no-provider"]
 # For other crates' tests: `feedback::fake_service`, a stand-in for the
 # Hosted service on 127.0.0.1; `update::fetch::fake_server`, one for GitHub
-# Releases; throwaway updater keys and synthetic bundles.
+# Releases; `proxy::fake`, a proxy on 127.0.0.1 named by the proxy variables
+# of a re-run test; throwaway updater keys and synthetic bundles.
 test-support = ["dep:minisign"]
 # The release client's identity: `Identity::current()` is `RELEASE`
 # (cc.drifting.client, the 0.1 client's keychain service, data folder and
@@ -31,6 +33,8 @@ base64.workspace = true
 chrono.workspace = true
 dirs.workspace = true
 flate2.workspace = true
+http = { workspace = true, optional = true }
+hyper-util = { workspace = true, optional = true }
 log.workspace = true
 minisign = { workspace = true, optional = true }
 minisign-verify.workspace = true
@@ -51,15 +55,22 @@ tracing-subscriber.workspace = true
 uuid.workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
+# `clipboard`: the pasteboard's HTML, and AppKit's RTF-to-HTML for what
+# Pages and other Cocoa text views copy (the bindings GPUI's macOS backend
+# already builds; these features add declarations, not crates).
+objc2.workspace = true
+objc2-app-kit = { workspace = true, features = ["NSAttributedString", "NSPasteboard"] }
 # `CFCGTypes`: the rectangle `image_codec` draws a decoded picture into.
 objc2-core-foundation = { workspace = true, features = ["CFCGTypes"] }
 objc2-core-graphics.workspace = true
+objc2-foundation.workspace = true
 objc2-image-io.workspace = true
 objc2-security.workspace = true
 
 [target.'cfg(windows)'.dependencies]
-# `image_codec`: HEIC, HEIF and AVIF through WIC.
-windows = { workspace = true, features = ["Win32_Graphics_Imaging", "Win32_System_Com"] }
+# `image_codec`: HEIC, HEIF and AVIF through WIC; `clipboard`: the
+# clipboard's "HTML Format".
+windows = { workspace = true, features = ["Win32_Graphics_Imaging", "Win32_System_Com", "Win32_System_DataExchange", "Win32_System_Memory"] }
 
 [dev-dependencies]
 keyring.workspace = true

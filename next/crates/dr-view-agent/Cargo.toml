@@ -27,15 +27,19 @@ dr-ui.workspace = true
 dr-workspace.workspace = true
 futures.workspace = true
 gpui.workspace = true
+image.workspace = true
 log.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+smallvec.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 url.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
+# A stand-in for a service on the internet (`tests/local_models.rs`).
+dr-agent-providers = { workspace = true, features = ["test-support"] }
 dr-debug-bridge = { workspace = true, features = ["screenshot"] }
 dr-editor.workspace = true
 dr-testkit.workspace = true

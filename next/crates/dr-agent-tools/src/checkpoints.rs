@@ -307,9 +307,13 @@ impl Named {
         }
         let args = &call.arguments;
         let keys: &[&str] = match call.name.as_str() {
-            "entry.update" | "entry.move" | "entry.trash" | "entry.restore" | "entry.set_level" => {
-                &["id"]
-            }
+            "entry.update"
+            | "entry.move"
+            | "entry.trash"
+            | "entry.restore"
+            | "entry.set_level"
+            | "entry.set_auto_link"
+            | "entry.set_below_auto_link" => &["id"],
             "membership.add" | "membership.remove" => &["host", "member"],
             "membership.primary" => &["member"],
             "timeline_view.place" | "timeline_view.remove" => &["lane", "entry"],
@@ -321,8 +325,8 @@ impl Named {
                 named.entries.insert(id.to_owned());
             }
         }
-        if call.name == "entry.set_level"
-            && args["level"] == false
+        if (call.name == "entry.set_level" && args["level"] == false
+            || call.name == "entry.set_below_auto_link")
             && let Some(id) = args["id"].as_str()
         {
             named.lookups.children_of.push(id.to_owned());

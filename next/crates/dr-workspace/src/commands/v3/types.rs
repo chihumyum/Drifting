@@ -74,6 +74,10 @@ pub struct ModuleConfig {
     /// `list`); entries may choose their own.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub arrangement: Option<String>,
+    /// For `custom` modules: the module it draws (a module of mine, or one
+    /// the book already has a copy of; `custom-modules.md` §7).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub module: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -232,6 +236,11 @@ pub struct Entry {
     /// The entry's own switch (`层级`): whether entries can live under it.
     #[serde(default)]
     pub level: bool,
+    /// The entry's own 「自动链接」 (`kernel-v5.md` §16): whether its title
+    /// and aliases link by themselves, and whether the automatic links to it
+    /// show as links (`entry.set_auto_link`).
+    #[serde(default)]
+    pub auto_link: bool,
     /// Overrides of the settings for what lives below (kept, but not used,
     /// while the switch is off).
     pub overrides: Option<LevelSettingsOverride>,
@@ -407,6 +416,7 @@ impl Default for ModuleConfig {
             default_rows: default_plot_lines_u32(),
             default_cols: default_plot_lines_u32(),
             arrangement: None,
+            module: None,
         }
     }
 }
@@ -487,6 +497,7 @@ impl From<&dr_model::v3::ModuleConfig> for ModuleConfig {
             default_rows: v.default_rows,
             default_cols: v.default_cols,
             arrangement: v.arrangement.as_ref().map(|a| a.as_str().to_owned()),
+            module: v.module.as_ref().map(ToString::to_string),
         }
     }
 }
@@ -617,6 +628,7 @@ impl From<&dr_model::v3::Entry> for Entry {
             mark: v.mark.clone(),
             template: v.template.as_ref().map(ToString::to_string),
             level: v.level,
+            auto_link: v.auto_link,
             overrides: v.overrides.as_ref().map(Into::into),
             fields: v
                 .fields

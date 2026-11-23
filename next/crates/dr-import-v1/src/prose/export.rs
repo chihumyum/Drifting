@@ -422,6 +422,10 @@ fn marks_of_v3(
         if let Some(b) = &l.end_block {
             attrs.insert("targetEndBlockId".into(), b.as_str().into());
         }
+        // Picked (`kernel-v5.md` §16), so planning it again keeps it so.
+        if l.manual {
+            attrs.insert(dr_model::prose::LINK_MANUAL.into(), true.into());
+        }
         out.push(json!({"type": "entityLink", "attrs": attrs}));
     }
     out

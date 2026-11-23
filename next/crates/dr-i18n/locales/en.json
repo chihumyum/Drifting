@@ -1,4 +1,12 @@
 {
+  "agentImages": {
+    "image": "Image",
+    "remove": "Remove image",
+    "tooLarge": "This image is too large: at most {{size}} MB and {{side}} pixels on a side.",
+    "tooMany": "A message can carry at most {{max}} images.",
+    "unseen": "The model in use can’t look at images. Switch to a model that can, then send again.",
+    "unsupported": "Only PNG, JPEG or WebP images can be sent."
+  },
   "agentPanel": {
     "budget": {
       "continue": "Continue task"
@@ -228,6 +236,9 @@
     "untitled": "Untitled",
     "words": "words",
     "wordsCount": "{{count}} words"
+  },
+  "customModule": {
+    "countOf": "{{count}} {{name}}"
   },
   "dashboard": {
     "today": {
@@ -460,7 +471,7 @@
       "pending": "Mapping choices required before import",
       "start": "Import into new library",
       "switching": "Opening the completed library",
-      "title": "Reimport into new library"
+      "title": "Import into new library"
     }
   },
   "importDialog": {
@@ -652,6 +663,143 @@
     "projectActions": {
       "deleteFailed": "The project could not be deleted. Please try again."
     }
+  },
+  "moduleBench": {
+    "adopt": "Keep in my modules",
+    "autoFull": "As the block, stretched",
+    "autoLine": "The first few, in one line",
+    "blank": "Empty",
+    "blocks": "Blocks",
+    "dark": "Dark",
+    "defaultOptions": "A|B|C",
+    "deleteTitle": "Delete module “{{name}}”?",
+    "dropSketch": "Drop in a sketch or a screenshot",
+    "eachBlock": "Each block",
+    "edit": "Edit",
+    "exportFile": "Export (.driftingmodule)",
+    "follow": "Follow the block",
+    "holds": "Holds",
+    "importModule": "Import module",
+    "importModuleFile": "Import module (.driftingmodule)",
+    "kind": {
+      "date": "Date",
+      "entry": "Entry",
+      "group": "Group",
+      "image": "Image",
+      "list": "List",
+      "longText": "Paragraph",
+      "multiSelect": "Multiple choice",
+      "number": "Number",
+      "select": "Single choice",
+      "text": "Line of text",
+      "toggle": "Checkbox"
+    },
+    "light": "Light",
+    "looks": "Look",
+    "medium": "Medium",
+    "myModule": "My module",
+    "myModules": "My modules",
+    "narrow": "Narrow",
+    "newModule": "New module…",
+    "node": {
+      "col": "Column",
+      "each": "Each {{name}}",
+      "grid": "Grid",
+      "mark": "Mark",
+      "row": "Row"
+    },
+    "openBench": "Open the workbench",
+    "opt": {
+      "arc": "Arc",
+      "arrow": "Arrow",
+      "auto": "Auto",
+      "axis": "Axis",
+      "body": "Body",
+      "center": "Center",
+      "col": "Down",
+      "dots": "Dots",
+      "end": "End",
+      "fill": "Fill",
+      "glassLine": "Glass",
+      "grid": "Grid",
+      "hairline": "Hairline",
+      "hug": "Hug",
+      "ink1": "1",
+      "ink2": "2",
+      "ink3": "3",
+      "ink4": "4",
+      "line": "Line",
+      "mark": "Mark",
+      "mono": "Mono",
+      "none": "None",
+      "note": "Note",
+      "number": "Number",
+      "paper": "Paper",
+      "row": "Across",
+      "sandFrame": "Sand frame",
+      "sans": "Sans",
+      "serif": "Serif",
+      "small": "Small",
+      "start": "Start",
+      "stretch": "Stretch",
+      "title": "Title",
+      "wash": "Wash",
+      "words": "Words"
+    },
+    "own": "Own layout",
+    "prop": {
+      "align": "Align",
+      "bg": "Ground",
+      "border": "Edge",
+      "deco": "Decoration",
+      "dir": "Layout",
+      "font": "Font",
+      "gap": "Gap",
+      "ink": "Ink",
+      "link": "Joined",
+      "mark": "Mark",
+      "pad": "Padding",
+      "radius": "Corners",
+      "sep": "Between",
+      "show": "Show",
+      "size": "Size",
+      "text": "Text",
+      "width": "Width"
+    },
+    "real": "A real entry",
+    "realOf": "A real entry · {{name}}",
+    "sample": "Sample",
+    "saveAs": "Save a copy",
+    "size": {
+      "block": "Block",
+      "full": "Full",
+      "line": "Line"
+    },
+    "tag": {
+      "across": "across",
+      "count": "count",
+      "dots": "dots",
+      "down": "down",
+      "glass": "glass",
+      "hair": "line",
+      "mark": "mark",
+      "paper": "paper",
+      "sand": "sand",
+      "wash": "wash",
+      "words": "words"
+    },
+    "transfer": {
+      "damaged": "This file is damaged and cannot be imported.",
+      "exportFailed": "The module could not be exported. Please try again.",
+      "importFailed": "The module could not be imported. Please try again.",
+      "newer": "This module was exported by a newer Drifting. Update Drifting first.",
+      "notModule": "This is not a module exported from Drifting.",
+      "tooLarge": "This module is too large to import."
+    },
+    "untitled": "Untitled module",
+    "usedIn_one": "My module · used in {{count}} project",
+    "usedIn_other": "My module · used in {{count}} projects",
+    "wide": "Wide"
   },
   "nodeEditor": {
     "meta": {
@@ -1603,9 +1751,9 @@
       "context": "Context",
       "editAddress": "Change address",
       "modelName": "Model name",
-      "name": "Local model",
+      "name": "Custom service",
+      "needsHttps": "Addresses on the internet need https",
       "noToolModels": "No model on this server can use tools",
-      "notLocal": "Only addresses on this computer or your local network",
       "unreachable": "Can't reach this address"
     },
     "providerAnthropic": "Used by Agent.",

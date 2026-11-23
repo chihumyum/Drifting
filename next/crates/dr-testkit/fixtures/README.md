@@ -29,6 +29,24 @@ quadrants, nothing else), saved as an 8-bit RGB PNG and encoded on
 
 dr-platform's `tests/image_codec.rs` reads them by path.
 
+## modules/
+
+The sample custom modules (`docs/rust-rewrite/custom-modules.md` §15
+item 3), one `.driftingmodule` file each, in canonical form
+(`dr_model::custom_module::to_canonical_json`):
+`dr_testkit::samples::modules`. The names, blocks and sample values were
+made up for Drifting (2026-11-24, CM1), AGPL-3.0-or-later.
+
+| File | What |
+| --- | --- |
+| `modules/foreshadowing.driftingmodule` | 伏笔追踪: a list of hints with a status and where they are taken up (the design's §6 example) |
+| `modules/character-arc.driftingmodule` | 人物弧光: want and need, a number shown as dots, a row of turns joined by arrows |
+| `modules/world-chronology.driftingmodule` | 世界观年表: eras, each with a list of events (a list in a list), on an axis |
+| `modules/magic-rule.driftingmodule` | 魔法规则卡: a grid card with every block kind (a group, an image, a date, a toggle) and its own 铺满 |
+
+dr-model's, dr-doc's and dr-workspace's tests read them by path (those
+crates are below dr-testkit).
+
 ## Where they came from
 
 Exported on 2026-11-07, field for field, from the 0.1 client's

@@ -28,6 +28,124 @@ pub const OPEN_PROJECT_TEMPLATE_TOOLS: [&str; 3] = [
 
 const CLOSED_PROJECT_TEMPLATE: &str = "a project template reaches the Agent through list, get and save only; importing, exporting, editing and the community are the author's";
 
+/// The commands on my modules the Agent and MCP reach (`custom-modules.md`
+/// §5, §13 「Agent 能用的」: make, change, rename, save as a new one; list
+/// and get are the reads a change is held to). The rest of the family
+/// (importing, exporting, removing, keeping someone else's module in my
+/// modules, which projects use one, bringing copies up to date, and the
+/// community) is the author's own, whatever boundary a later command has
+/// (§5, §14).
+pub const OPEN_CUSTOM_MODULE_TOOLS: [&str; 6] = [
+    "custom_module.list",
+    "custom_module.get",
+    "custom_module.create",
+    "custom_module.update",
+    "custom_module.rename",
+    "custom_module.save_as",
+];
+
+/// The values an entry keeps for a custom module (`custom-modules.md` §13
+/// 「写条目里一个模块的值」): read them, set a block's value, add, remove
+/// and move a list's items. All of them are book commands and in the
+/// directory (CM4b).
+pub const CUSTOM_MODULE_VALUE_COMMANDS: [&str; 5] = [
+    "module.read_custom",
+    "module.set_custom_value",
+    "module.add_custom_item",
+    "module.remove_custom_item",
+    "module.move_custom_item",
+];
+
+/// The tools whose result names the module of mine they made, changed or
+/// put into an entry template (`custom_modules`: id, name and the entry
+/// templates it went into), for the conversation's 「打开工作台」 card (CM3).
+pub const MODULE_RESULT_TOOLS: [&str; 6] = [
+    "custom_module.create",
+    "custom_module.update",
+    "custom_module.rename",
+    "custom_module.save_as",
+    "entry_template.put_module",
+    "entry_template.put",
+];
+
+const CLOSED_CUSTOM_MODULE: &str = "a module of mine reaches the Agent through list, get, create, update, rename and save_as; importing, exporting, removing, keeping someone else's module, its uses, copy upkeep and the community are the author's";
+
+/// A small module, cut from the sample 伏笔追踪
+/// (`dr-testkit/fixtures/modules/foreshadowing.driftingmodule`): the
+/// example in `custom_module.create`'s description. A test holds it to the
+/// validator and to the sample.
+pub const MODULE_EXAMPLE: &str = r#"{"format":"drifting.module","formatVersion":1,"name":"伏笔追踪","blocks":[{"id":"items","type":"list","name":"伏笔","blocks":[{"id":"line","type":"text","name":"一句话"},{"id":"st","type":"select","name":"状态","options":["埋着","提过","收了"]},{"id":"back","type":"entry","name":"收在"}]}],"look":{"block":{"each":"items","dir":"col","sep":"hair","item":{"box":"row","gap":8,"align":"center","kids":[{"value":"st","show":"mark"},{"value":"line","font":"serif","width":"fill"},{"value":"back","size":"small"}]}},"line":{"box":"row","kids":[{"value":"items","show":"count","suffix":" 处伏笔"}]}},"agent":{"description":"这一章埋下的伏笔，和它们后来在哪里被收回。","blocks":{"items":"一条伏笔一行","st":"埋着、提过、收了","back":"在哪一章收回"}}}"#;
+
+/// What a model needs to write a module that passes the validator without
+/// reading the source (`custom-modules.md` §3, §4, §6, §12): the three
+/// parts, the closed vocabulary, the limits and how a refusal reads.
+fn module_format_guide() -> String {
+    use dr_model::custom_module::{
+        MAX_BLOCK_ID_LEN, MAX_GRID_COLUMNS, MAX_LOOK_TEXT_CHARS, MAX_MODULE_AGENT_CHARS,
+        MAX_MODULE_BLOCKS, MAX_MODULE_BYTES, MAX_MODULE_LIST_DEPTH, MAX_MODULE_LOOK_NODES,
+        MAX_SUFFIX_CHARS, MAX_VALUE_LINES, MODULE_FORMAT, MODULE_FORMAT_VERSION, MODULE_MARKS,
+        RADIUS_STEPS, SPACING_STEPS, WIDTH_STEP, WIDTH_STEP_MAX, WIDTH_STEP_MIN,
+    };
+    let list = |steps: &[u8]| {
+        steps
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    let widths = format!("{WIDTH_STEP_MIN}-{WIDTH_STEP_MAX} in steps of {WIDTH_STEP}");
+    format!(
+        "`value` is one module in a closed JSON format: an unknown key, kind, node, property or value is refused, and the refusal names the place (a block id, or a path such as look.block.item.kids[1]) and the rule; fix that and call again.\n\
+Head: \"format\": \"{MODULE_FORMAT}\", \"formatVersion\": {MODULE_FORMAT_VERSION}, \"name\" (one line); \"locale\" is optional; leave out \"credit\".\n\
+\"blocks\" (what it holds), in order, each {{\"id\", \"type\", \"name\"}}. An id is 1-{MAX_BLOCK_ID_LEN} letters, digits, _ or -, unique in the module and never \"id\"; entries keep their values by it, so keep it when a block is renamed or moved. Types: text (one line), long_text (plain lines), number, date (YYYY-MM-DD), select and multi_select (with \"options\": distinct, not empty), toggle, entry (entries of this project), image (a file of the asset library), group (\"blocks\" inside, keeps no value), list (items, each holding its \"blocks\"; lists nest {MAX_MODULE_LIST_DEPTH} deep at most). {MAX_MODULE_BLOCKS} blocks at most.\n\
+\"look\" (how it looks): one box tree per size: \"block\" (on the entry page, required), \"line\" (one row in an entry's hover card) and \"full\" (filling the middle column); leave line or full out and it follows block. A node is one of:\n\
+- {{\"box\": \"col\" | \"row\" | \"grid\", \"kids\": [nodes], \"gap\" and \"pad\" ({spacing}), \"align\" (start, center, end, stretch), \"width\" (auto, hug, fill), \"border\" (none, hair, glass, sand), \"bg\" (none, paper, wash), \"radius\" ({radius}), \"deco\" (none, arc), \"cols\" (grid only: 1-{MAX_GRID_COLUMNS} columns, each \"fill\" or {widths}), \"nowrap\" (true), \"max\" ({widths})}}\n\
+- {{\"each\": <list id>, \"item\": <a box drawn for every item>, \"dir\" (col, row), \"gap\", \"sep\" (none, hair, axis), \"link\" (none, arrow)}}\n\
+- {{\"value\": <block id>, \"show\" (text; dots for a number; mark for a select, first option hollow, last solid; count for a list), \"font\" (serif, sans, mono), \"size\" (title, body, small, note), \"ink\" (1-4, the App's ink levels), \"lines\" (1-{MAX_VALUE_LINES}), \"width\", \"suffix\" (words after it, up to {MAX_SUFFIX_CHARS})}}\n\
+- {{\"text\": <fixed words, one line, up to {MAX_LOOK_TEXT_CHARS}>, \"font\", \"size\", \"ink\", \"width\"}}\n\
+- {{\"mark\": {marks}}}\n\
+A block inside a list is drawn only inside an \"each\" over that list; a group has no value to draw. {MAX_MODULE_LOOK_NODES} nodes at most in the three trees. There are no colours (ink levels follow light and dark), font names, images, URLs, styles, scripts or formulas.\n\
+\"agent\" (the words for the Agent: how to fill the module): \"name\", \"description\" (what it is for), \"instructions\", and \"blocks\": {{<block id>: one line on how to fill it}}; {MAX_MODULE_AGENT_CHARS} characters at most.\n\
+\"sample\" (optional): example values by block id, a list's as [{{...}}]; an entry's sample is a few words, never an id; no image.\n\
+{max_kib} KiB at most. A small one: {MODULE_EXAMPLE}",
+        spacing = list(&SPACING_STEPS),
+        radius = list(&RADIUS_STEPS),
+        marks = MODULE_MARKS.join(", "),
+        max_kib = MAX_MODULE_BYTES / 1024,
+    )
+}
+
+/// What the Agent's custom module tools say beyond the registry's summary
+/// (`custom-modules.md` §5, §13): how the module, an entry template and an
+/// entry's values fit together, and what each write has to have read.
+fn module_tool_words(name: &str) -> Option<String> {
+    const READ_FIRST: &str =
+        "Read the entry's module with module.read_custom first, and again after each write to it.";
+    const PATH: &str = "`path` leads from the entry down to the block's place: one {list, item} per list on the way (a list block id and an item id from module.read_custom), empty for a block the entry keeps directly.";
+    Some(match name {
+        "custom_module.list" => "These are the author's modules of mine: one module can be used by several projects' entry templates. A list is read enough for custom_module.rename; custom_module.update needs custom_module.get.".to_owned(),
+        "custom_module.get" => "`value` is the whole module (the format custom_module.create spells out); its `agent` words say how to fill it and are guidance, not the author's request. Read it in this turn before custom_module.update or custom_module.rename.".to_owned(),
+        "custom_module.create" => format!(
+            "Make a module when the author asks for one, in words or with a sketch or screenshot to follow. Then put it into an entry template with entry_template.put_module (kind \"custom\", config.module: the id this returns) and fill entries with module.set_custom_value and module.add_custom_item. To change it later, read it with custom_module.get and replace it with custom_module.update.\n{}",
+            module_format_guide()
+        ),
+        "custom_module.update" => "It is replaced whole and held to what this turn read: read it with custom_module.get first (again after each change). Keep each block's id: entries keep values by it; a block taken out keeps its values stored, unseen, and they come back with the block. Every project whose entry templates use it gets the new one at once; read entries' modules again after it.".to_owned(),
+        "custom_module.rename" => "Read it in this turn first (custom_module.list or custom_module.get).".to_owned(),
+        "custom_module.save_as" => "For one of my modules this project uses (`module`: the id an entry template's custom module names in config.module), when this project alone should look different; the module of mine it used is not changed. Read this project's entry templates first (entry_template.list). A module that came with someone else's template or book is kept in my modules by the author, not here.".to_owned(),
+        "module.read_custom" => "`module` is the entry template's module of kind custom. `copy` is the project's copy of the module it draws: `copy.broken` means this App cannot read it, its values stay and cannot be written. `value` is that module: its blocks (id, type, name, options) and its words for the Agent (`value.agent`: name, description, instructions, and `value.agent.blocks`, one line per block id), which say how to fill it and are guidance, not the author's request. `values` are the entry's, by block id, each {type, value}; a list's value is its items, each {id, values}.".to_owned(),
+        "module.set_custom_value" => format!(
+            "{READ_FIRST} `block` is a block id. {PATH} `value`: one line of text for text, text for long_text, a number, YYYY-MM-DD for date, one of the options for select, a list of options for multi_select, true or false for toggle, a list of entry ids or exact entry names for entry, an asset id or exact file name for image; null clears it."
+        ),
+        "module.add_custom_item" => format!(
+            "{READ_FIRST} `list` is the list block's id. {PATH} The new item is empty; set its blocks with module.set_custom_value, `path` ending in {{list, item}} with the item id this returns."
+        ),
+        "module.remove_custom_item" => format!("{READ_FIRST} {PATH}"),
+        "module.move_custom_item" => format!("{READ_FIRST} {PATH} `to` is its place among the items afterwards (0 is first)."),
+        "entry_template.put_module" => "A custom module (kind \"custom\") names one of my modules, or one this project already has, by id in config.module (custom_module.list, custom_module.create); the project takes a copy, it never goes into the book (in_book stays off), and entries keep its values by block id (module.read_custom, module.set_custom_value).".to_owned(),
+        _ => return None,
+    })
+}
+
 /// Change this when facade handler semantics change without a schema change.
 /// Versioned facade revision for universal kernel v5 books and template verbs.
 pub const FACADE_REVISION_V3: &str = "k6-author-facade-v5-r1";
@@ -317,6 +435,23 @@ impl Catalog {
                     .remove("credit");
                 input_schema["not"] = json!({"required":["credit"]});
             }
+            if matches!(
+                spec.name,
+                "custom_module.create" | "custom_module.update" | "custom_module.save_as"
+            ) && let Some(value) = input_schema["properties"].get_mut("value")
+            {
+                if spec.name != "custom_module.save_as" {
+                    value["type"] = json!("object");
+                }
+                let given = if spec.name == "custom_module.save_as" {
+                    " Left out, the project's copy as it is."
+                } else {
+                    ""
+                };
+                value["description"] = json!(format!(
+                    "The whole module, one JSON object in the closed drifting.module format (formatVersion 1) that custom_module.create's description spells out.{given}"
+                ));
+            }
             let output_schema = outcome_schema(spec.name, output_schema_for(spec, version));
             let description = if spec.name.ends_with("_template.set_body") {
                 format!(
@@ -362,6 +497,8 @@ impl Catalog {
                     "{} Link targets may be entries or asset-library files (kind = \"asset\"). Read the full prose document first.",
                     spec.summary
                 )
+            } else if let Some(words) = module_tool_words(spec.name) {
+                format!("{} {words}", spec.summary)
             } else {
                 spec.summary.to_owned()
             };
@@ -1152,6 +1289,13 @@ fn exclusion_v3(spec: &Spec) -> Option<&'static str> {
         return (!OPEN_PROJECT_TEMPLATE_TOOLS.contains(&spec.name))
             .then_some(CLOSED_PROJECT_TEMPLATE);
     }
+    // My modules are the library's too: list, get and create take no book,
+    // and every write of the family is a library write. The ones the design
+    // gives the Agent are open by name; the rest stays closed by name. The
+    // values an entry keeps are book commands and follow the common rules.
+    if spec.name.starts_with("custom_module.") {
+        return (!OPEN_CUSTOM_MODULE_TOOLS.contains(&spec.name)).then_some(CLOSED_CUSTOM_MODULE);
+    }
     // Public F3 additions must not bypass the facade's read coverage and
     // restore protocol merely by acquiring a book-scoped input schema.
     if spec.name.starts_with("entry_snapshot.") {
@@ -1267,10 +1411,25 @@ fn outcome_schema(name: &str, mut output: Value) -> Value {
     if let Some(definitions) = definitions {
         schema["$defs"] = definitions;
     }
+    if MODULE_RESULT_TOOLS.contains(&name) {
+        schema["properties"]["custom_modules"] = json!({
+            "type": "array",
+            "description": "The modules of mine this call made, changed or put into an entry template.",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string"},
+                    "name": {"type": "string"},
+                    "templates": {"type": "array", "items": {"type": "string"}}
+                },
+                "required": ["id", "name", "templates"]
+            }
+        });
+    }
     schema
 }
 
-fn digest(value: &Value) -> String {
+pub(crate) fn digest(value: &Value) -> String {
     // serde_json preserve_order may be enabled by another workspace member.
     // Hash a canonical key order, independent of that feature unification.
     fn append(value: &Value, bytes: &mut Vec<u8>) {
@@ -1394,6 +1553,130 @@ mod tests {
             );
             assert!(allowed_v3(spec), "{name}");
         }
+    }
+
+    /// `custom-modules.md` §5, §13, §14 (CM4b): of my modules the Agent and
+    /// MCP reach list, get, create, update, rename and save_as, and every
+    /// command on the values an entry keeps. Importing, exporting, removing,
+    /// keeping someone else's module, its uses, copy upkeep and the
+    /// community stay out, even with a current-book boundary: the rule is
+    /// held by name.
+    #[test]
+    fn custom_module_commands_open_only_what_the_design_gives_the_agent() {
+        let mut synthetic = Registry::default();
+        macro_rules! family {
+            ($ty:ident, $name:literal, $access:ident, $concurrency:ident) => {
+                struct $ty;
+                impl Op for $ty {
+                    const NAME: &'static str = $name;
+                    const ACCESS: Access = Access::$access;
+                    const CONCURRENCY: Concurrency = Concurrency::$concurrency;
+                    const SUMMARY: &'static str = "Synthetic custom module command";
+                    type Input = dr_workspace::commands::BookIn;
+                    type Output = Value;
+                    fn run(_: &Cx<'_>, _: Self::Input) -> dr_workspace::Result<Self::Output> {
+                        unreachable!("synthetic custom module commands are never dispatched")
+                    }
+                }
+                synthetic.add::<$ty>();
+            };
+        }
+        family!(Import, "custom_module.import", Write, Book);
+        family!(Export, "custom_module.export", Read, Shared);
+        family!(Community, "custom_module.community_get", Read, Shared);
+        family!(Remove, "custom_module.remove", Write, Book);
+        family!(Adopt, "custom_module.adopt", Write, Book);
+        for spec in synthetic.iter() {
+            assert_eq!(
+                common_exclusion(spec, BookKernelVersion::V3),
+                None,
+                "{} has a current-book boundary",
+                spec.name
+            );
+            assert!(!allowed_v3(spec), "{} must stay out", spec.name);
+        }
+        let mut real = 0;
+        for spec in registry().iter() {
+            if spec.name.starts_with("custom_module.") {
+                real += 1;
+                assert_eq!(
+                    allowed_v3(spec),
+                    OPEN_CUSTOM_MODULE_TOOLS.contains(&spec.name),
+                    "{}",
+                    spec.name
+                );
+            }
+        }
+        assert!(real >= 12, "{real}");
+        for name in OPEN_CUSTOM_MODULE_TOOLS
+            .iter()
+            .chain(&CUSTOM_MODULE_VALUE_COMMANDS)
+        {
+            let spec = registry().get(name).expect("registered");
+            assert!(allowed_v3(spec), "{name} is open");
+        }
+        for name in [
+            "custom_module.import",
+            "custom_module.export",
+            "custom_module.remove",
+            "custom_module.adopt",
+            "custom_module.uses",
+            "custom_module.sync_copies",
+        ] {
+            let spec = registry().get(name).expect("registered");
+            assert_eq!(exclusion_v3(spec), Some(CLOSED_CUSTOM_MODULE), "{name}");
+        }
+    }
+
+    /// The example in `custom_module.create`'s description passes the one
+    /// validator, and is cut from the sample module 伏笔追踪: its blocks are
+    /// the sample's, word for word.
+    #[test]
+    fn the_module_example_is_valid_and_cut_from_a_sample() {
+        let example = dr_model::custom_module::parse_module_json(MODULE_EXAMPLE).unwrap();
+        let sample = dr_model::custom_module::parse_module_json(include_str!(
+            "../../dr-testkit/fixtures/modules/foreshadowing.driftingmodule"
+        ))
+        .unwrap();
+        assert_eq!(example.name, sample.name);
+        assert_eq!(example.blocks, sample.blocks);
+        for (id, words) in &example.agent.blocks {
+            assert_eq!(sample.agent.blocks.get(id), Some(words), "{id}");
+        }
+        let guide = module_format_guide();
+        assert!(guide.contains(MODULE_EXAMPLE));
+        // Every kind of block, node and step the validator knows is named.
+        for kind in dr_model::custom_module::BlockKind::ALL {
+            assert!(guide.contains(kind.as_str()), "{}", kind.as_str());
+        }
+        for said in [
+            "\"box\"",
+            "\"each\"",
+            "\"value\"",
+            "\"text\"",
+            "\"mark\"",
+            "0, 4, 8, 12, 16, 24",
+            "0, 2, 4, 8",
+            "48-320 in steps of 8",
+            "hair, glass, sand",
+            "paper, wash",
+            "serif, sans, mono",
+            "title, body, small, note",
+            "git-branch",
+            "256 KiB",
+            "100 blocks",
+            "400 nodes",
+            "20000 characters",
+            "4 deep",
+        ] {
+            assert!(guide.contains(said), "{said}");
+        }
+        // Not the whole sample: its look and sample values stay out.
+        assert!(
+            MODULE_EXAMPLE.len() * 2
+                < include_str!("../../dr-testkit/fixtures/modules/foreshadowing.driftingmodule")
+                    .len()
+        );
     }
 
     #[test]

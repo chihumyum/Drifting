@@ -612,6 +612,122 @@ fn template_check_parses_and_runs_standalone_without_a_library() {
     assert_eq!(dr_cli::run(&a(&["template", "frobnicate"])), 2);
 }
 
+/// dr-testkit's sample modules (`dr_testkit::samples::MODULE_FILES`), by path.
+fn sample_module_path(stem: &str) -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../dr-testkit/fixtures/modules")
+        .join(format!("{stem}.driftingmodule"))
+}
+
+#[test]
+fn module_check_parses_and_runs_standalone_without_a_library() {
+    assert_eq!(
+        parse(&a(&[
+            "module",
+            "check",
+            "--json",
+            "a.driftingmodule",
+            "b.driftingmodule"
+        ]))
+        .unwrap(),
+        Command::ModuleCheck {
+            files: vec![
+                PathBuf::from("a.driftingmodule"),
+                PathBuf::from("b.driftingmodule")
+            ],
+            json: true,
+        }
+    );
+    assert_eq!(parse(&a(&["module"])).unwrap(), Command::Help);
+    assert!(parse(&a(&["module", "check"])).is_err());
+    assert!(parse(&a(&["module", "frobnicate"])).is_err());
+
+    // Every sample module is valid.
+    let samples: Vec<PathBuf> = [
+        "foreshadowing",
+        "character-arc",
+        "world-chronology",
+        "magic-rule",
+    ]
+    .iter()
+    .map(|s| sample_module_path(s))
+    .collect();
+    let (code, human) = execute(Command::ModuleCheck {
+        files: samples.clone(),
+        json: false,
+    })
+    .unwrap();
+    assert_eq!(code, 0, "{human}");
+    assert_eq!(
+        human.lines().filter(|l| l.starts_with("ok: ")).count(),
+        4,
+        "{human}"
+    );
+    let (jcode, jout) = execute(Command::ModuleCheck {
+        files: vec![samples[0].clone()],
+        json: true,
+    })
+    .unwrap();
+    assert_eq!(jcode, 0, "{jout}");
+    let parsed: serde_json::Value = serde_json::from_str(&jout).unwrap();
+    assert_eq!(parsed["valid"], true);
+    assert_eq!(parsed["files"][0]["name"], "伏笔追踪");
+    assert_eq!(parsed["files"][0]["blocks"], 4);
+    assert_eq!(parsed["files"][0]["author"], "示例作者");
+
+    // Damaged on purpose, each a different way: 1, with every verdict.
+    let tmp = tempfile::tempdir().unwrap();
+    let good: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&samples[0]).unwrap()).unwrap();
+    let mut colour = good.clone();
+    colour["look"]["line"]["color"] = serde_json::json!("#ff0000");
+    let mut newer = good.clone();
+    newer["formatVersion"] = serde_json::json!(2);
+    let mut by_id = good.clone();
+    by_id["sample"]["items"][0]["back"] =
+        serde_json::json!(["0192f3a4-5b6c-7d8e-9f00-112233445566"]);
+    let mut gap = good.clone();
+    gap["look"]["line"]["gap"] = serde_json::json!(5);
+    let bad = [
+        ("colour", colour.to_string(), "damaged"),
+        ("newer", newer.to_string(), "newer"),
+        ("by-id", by_id.to_string(), "damaged"),
+        ("gap", gap.to_string(), "damaged"),
+        ("text", "not a module".to_owned(), "not_a_module"),
+        (
+            "template",
+            r#"{"format": "drifting.project-template"}"#.to_owned(),
+            "not_a_module",
+        ),
+        ("huge", "x".repeat(256 * 1024 + 1), "too_large"),
+    ];
+    let mut files = Vec::new();
+    for (stem, body, _) in &bad {
+        let p = tmp.path().join(format!("{stem}.driftingmodule"));
+        std::fs::write(&p, body).unwrap();
+        files.push(p);
+    }
+    let (bad_code, bad_out) = execute(Command::ModuleCheck {
+        files: files.clone(),
+        json: true,
+    })
+    .unwrap();
+    assert_eq!(bad_code, 1, "{bad_out}");
+    let parsed: serde_json::Value = serde_json::from_str(&bad_out).unwrap();
+    for (i, (stem, _, reason)) in bad.iter().enumerate() {
+        assert_eq!(parsed["files"][i]["valid"], false, "{stem}");
+        assert_eq!(parsed["files"][i]["reason"], *reason, "{stem}: {bad_out}");
+    }
+    // A file that cannot be read: 2.
+    let (io_code, _) = execute(Command::ModuleCheck {
+        files: vec![files[0].clone(), tmp.path().join("missing.driftingmodule")],
+        json: false,
+    })
+    .unwrap();
+    assert_eq!(io_code, 2);
+    assert_eq!(dr_cli::run(&a(&["module", "check"])), 2);
+}
+
 #[test]
 fn template_check_verdict_matches_app_import_across_all_cases() {
     let (_tmp, lib_dir) = seeded();

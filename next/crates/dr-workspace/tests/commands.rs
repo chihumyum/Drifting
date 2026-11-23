@@ -582,7 +582,8 @@ fn every_registered_entry_is_exercised_here() {
     // the switch, in project_definition.rs for the project and its tabs, in
     // template_working_copy.rs for a template's working copy, in
     // relations_v5.rs and relations_groups.rs for relation definitions and
-    // rows, and in search.rs for finding text and links).
+    // rows, in search.rs for finding text and links, and in
+    // custom_modules.rs for my modules and the values entries keep for them).
     let srcs = [
         include_str!("commands.rs"),
         include_str!("project_shared.rs"),
@@ -608,6 +609,8 @@ fn every_registered_entry_is_exercised_here() {
         include_str!("relations_merge.rs"),
         include_str!("search.rs"),
         include_str!("entry_purge.rs"),
+        include_str!("auto_link_switch.rs"),
+        include_str!("custom_modules.rs"),
         include_str!("../../dr-agent-tools/tests/checkpoints_v3.rs"),
     ];
     let missing: Vec<&str> = registry()
@@ -1820,6 +1823,7 @@ fn a_prose_link_to_a_file_is_a_usage_and_reads_as_text_while_the_file_is_trashed
         module: None,
         block: None,
         end_block: None,
+        manual: false,
     };
     e.ws()
         .prose_session(&doc)

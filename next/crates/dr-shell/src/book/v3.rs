@@ -295,6 +295,9 @@ impl BookV3 {
                 self.materials.iter().any(|m| m.id == id.as_str())
                     || self.media_items.contains_key(id.as_str())
             }
+            // One of my modules is the library's, not the book's: its
+            // workbench closes its own pill when the module is gone.
+            Target::Module(_) => true,
         }
     }
     /// Standalone asset viewer row for `id` (present for every live `Asset`,

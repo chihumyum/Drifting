@@ -118,6 +118,7 @@ str_like!(
     MemorySource,
     EntryId,
     ModuleId,
+    CustomModuleId,
     EntryTemplateId,
     TimelineViewId,
     BodyDocId,

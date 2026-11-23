@@ -1,4 +1,12 @@
 {
+  "agentImages": {
+    "image": "Imagen",
+    "remove": "Quitar imagen",
+    "tooLarge": "La imagen es demasiado grande: como máximo {{size}} MB y {{side}} píxeles por lado.",
+    "tooMany": "Un mensaje puede llevar como máximo {{max}} imágenes.",
+    "unseen": "El modelo que usas no puede ver imágenes. Cambia a un modelo que pueda y vuelve a enviarlo.",
+    "unsupported": "Solo se pueden enviar imágenes PNG, JPEG o WebP."
+  },
   "agentPanel": {
     "budget": {
       "continue": "Continuar tarea"
@@ -231,6 +239,9 @@
     "words": "palabras",
     "wordsCount": "{{count}} palabras"
   },
+  "customModule": {
+    "countOf": "{{count}} {{name}}"
+  },
   "dashboard": {
     "today": {
       "streak": "Racha",
@@ -462,7 +473,7 @@
       "pending": "Se requieren opciones de asignación antes de importar",
       "start": "Importar en una biblioteca nueva",
       "switching": "Abriendo la biblioteca completada",
-      "title": "Reimportar en una biblioteca nueva"
+      "title": "Importar en una biblioteca nueva"
     }
   },
   "importDialog": {
@@ -655,6 +666,144 @@
     "projectActions": {
       "deleteFailed": "No se pudo eliminar el proyecto. Inténtalo de nuevo."
     }
+  },
+  "moduleBench": {
+    "adopt": "Guardar en mis módulos",
+    "autoFull": "Como el bloque, a lo ancho",
+    "autoLine": "Los primeros, en una línea",
+    "blank": "Vacío",
+    "blocks": "Bloques",
+    "dark": "Oscuro",
+    "defaultOptions": "A|B|C",
+    "deleteTitle": "¿Eliminar el módulo «{{name}}»?",
+    "dropSketch": "Arrastra un boceto o una captura",
+    "eachBlock": "Cada bloque",
+    "edit": "Editar",
+    "exportFile": "Exportar (.driftingmodule)",
+    "follow": "Seguir el bloque",
+    "holds": "Contenido",
+    "importModule": "Importar módulo",
+    "importModuleFile": "Importar módulo (.driftingmodule)",
+    "kind": {
+      "date": "Fecha",
+      "entry": "Entrada",
+      "group": "Grupo",
+      "image": "Imagen",
+      "list": "Lista",
+      "longText": "Párrafo",
+      "multiSelect": "Opción múltiple",
+      "number": "Número",
+      "select": "Opción única",
+      "text": "Línea de texto",
+      "toggle": "Casilla"
+    },
+    "light": "Claro",
+    "looks": "Aspecto",
+    "medium": "Medio",
+    "myModule": "Mi módulo",
+    "myModules": "Mis módulos",
+    "narrow": "Estrecho",
+    "newModule": "Nuevo módulo…",
+    "node": {
+      "col": "Columna",
+      "each": "Cada {{name}}",
+      "grid": "Cuadrícula",
+      "mark": "Marca",
+      "row": "Fila"
+    },
+    "openBench": "Abrir el banco de trabajo",
+    "opt": {
+      "arc": "Arco",
+      "arrow": "Flecha",
+      "auto": "Auto",
+      "axis": "Eje",
+      "body": "Cuerpo",
+      "center": "Centro",
+      "col": "Vertical",
+      "dots": "Puntos",
+      "end": "Final",
+      "fill": "Llenar",
+      "glassLine": "Vidrio",
+      "grid": "Rejilla",
+      "hairline": "Línea fina",
+      "hug": "Ajustar",
+      "ink1": "1",
+      "ink2": "2",
+      "ink3": "3",
+      "ink4": "4",
+      "line": "Línea",
+      "mark": "Marca",
+      "mono": "Mono",
+      "none": "Ninguno",
+      "note": "Nota",
+      "number": "Número",
+      "paper": "Papel",
+      "row": "Horizontal",
+      "sandFrame": "Marco de arena",
+      "sans": "Sans",
+      "serif": "Serifa",
+      "small": "Pequeño",
+      "start": "Inicio",
+      "stretch": "Estirar",
+      "title": "Título",
+      "wash": "Aguada",
+      "words": "Texto"
+    },
+    "own": "Diseño propio",
+    "prop": {
+      "align": "Alinear",
+      "bg": "Fondo",
+      "border": "Borde",
+      "deco": "Adorno",
+      "dir": "Disposición",
+      "font": "Fuente",
+      "gap": "Espacio",
+      "ink": "Tinta",
+      "link": "Unión",
+      "mark": "Marca",
+      "pad": "Relleno",
+      "radius": "Esquinas",
+      "sep": "Separación",
+      "show": "Mostrar",
+      "size": "Tamaño",
+      "text": "Texto",
+      "width": "Ancho"
+    },
+    "real": "Entrada real",
+    "realOf": "Entrada real · {{name}}",
+    "sample": "Ejemplo",
+    "saveAs": "Guardar una copia",
+    "size": {
+      "block": "Bloque",
+      "full": "Completo",
+      "line": "Línea"
+    },
+    "tag": {
+      "across": "horizontal",
+      "count": "cantidad",
+      "dots": "puntos",
+      "down": "vertical",
+      "glass": "vidrio",
+      "hair": "línea",
+      "mark": "marca",
+      "paper": "papel",
+      "sand": "arena",
+      "wash": "aguada",
+      "words": "texto"
+    },
+    "transfer": {
+      "damaged": "Este archivo está dañado y no se puede importar.",
+      "exportFailed": "No se pudo exportar el módulo. Inténtalo de nuevo.",
+      "importFailed": "No se pudo importar el módulo. Inténtalo de nuevo.",
+      "newer": "Este módulo se exportó con un Drifting más reciente. Actualiza Drifting primero.",
+      "notModule": "Este no es un módulo exportado desde Drifting.",
+      "tooLarge": "Este módulo es demasiado grande para importarlo."
+    },
+    "untitled": "Módulo sin nombre",
+    "usedIn_many": "Mi módulo · en {{count}} proyectos",
+    "usedIn_one": "Mi módulo · en {{count}} proyecto",
+    "usedIn_other": "Mi módulo · en {{count}} proyectos",
+    "wide": "Ancho"
   },
   "nodeEditor": {
     "meta": {
@@ -1612,9 +1761,9 @@
       "context": "Contexto",
       "editAddress": "Cambiar dirección",
       "modelName": "Nombre del modelo",
-      "name": "Modelo local",
+      "name": "Servicio personalizado",
+      "needsHttps": "Las direcciones de internet necesitan https",
       "noToolModels": "Ningún modelo de este servidor puede usar herramientas",
-      "notLocal": "Solo direcciones de este equipo o de la red local",
       "unreachable": "No se puede conectar con esta dirección"
     },
     "providerAnthropic": "Usado por Agent.",

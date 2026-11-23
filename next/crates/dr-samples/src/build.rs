@@ -202,6 +202,7 @@ pub fn format_paras(
                     kind: target.kind.clone(),
                     block: None,
                     end_block: None,
+                    manual: false,
                 },
             )?;
             counters.entity_links += 1;

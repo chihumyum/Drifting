@@ -1,5 +1,7 @@
 # M31 帮手面板与改动显现
 
+> 2026-11-24（CM4a 图片）：Agent 栏的输入框收图片：拖到 Agent 那一栏的任何地方、或在输入框里 ⌘V，发出去以前在输入框上方看得到小图、每张旁边一个去掉的按钮；发出去的那条消息上也看得到。看不了图的模型不被问，Agent 在对话里照实说一句。见本页末「图片（CM4a）」，运行时与各家写法见 [M27](m27-agent-runtime.md#图片cm4a2026-11-24)、[M28](m28-model-providers.md#图片cm4a2026-11-24)。
+
 > 2026-11-21（0.1 的旧对话）：导入时存下的 0.1 Agent 对话在「历史」里新对话下面一节「Drifting 0.1」，打开只读、没有输入那一块；「历史」顶上一个搜索框新旧一起搜。作者定的三甲、四甲、五甲。见本页末「0.1 的旧对话」。
 
 > 2026-11-19（格式 5「本轮改动」全量对齐、项目记忆定位与停止竞态测试修正）：`dr-view-agent/src/data.rs` 移除残留的旧格式种类分支，按格式 5 的 15 个 `CollectionV3` 根容器与正文收据补齐「本轮改动」定位：`DocId::Body` 保留具体 `module` 使多正文条目直达被改模块；修复归属键 `<host>|<member>` 的竖线解析、`timeline_view` 的 `book-view:<id>` 跳转以及历史恢复 `templates` 到 `Target::Template` 的映射；补齐 `patch`／`plot_grid`（打开所属条目并滚到对应模块）、`time_pin`（打开所在时间线视图）、`meta`（回作品主页）与 `memory`（打开项目记忆子页并经 `ProjectMemoryView::reveal` 等待目标条目实际绘入视口，切书／关栏／切换子页自动取消）；仍无独立定位入口的 `fact`、`asset_folder`、`relation_type` 与模板默认正文 `template:<tpl>/<mod>` 保持不出现假按钮、不回退整书。`CompanionTools` 同批挂入 M30 的四个会话级计划与工作记忆工具。另修复 `tests/controller.rs` 中 `stop_revokes_continuation_before_a_held_slice_returns` 在 Windows x64 下流式阶段收到停止后立即丢弃 `Step::Wait` 接收端导致的 `oneshot::send` 竞态断言，拆分为流式持锁停止与已进入工具屏障停止两段确定性验证。
@@ -272,7 +274,7 @@ workspace 测试至退出码 0。上述最终统计包含该修复与“最后�
 
 ## 代码位置
 
-- `next/crates/dr-view-agent/src/panel.rs`：面板、提问／许可／搜索卡、输入、改动导航。
+- `next/crates/dr-view-agent/src/panel.rs`：面板、提问／许可／搜索卡、输入、改动导航；`src/images.rs`：输入框里的图片和小图（CM4a，见「图片（CM4a）」）。
 - `src/panel/old.rs`、`next/crates/dr-import-v1/src/agent_archive.rs`：「历史」的搜索框和 0.1 的旧对话（见「0.1 的旧对话」）。
 - `src/controller.rs`、`src/hub.rs`、`src/state.rs`：库级服务、外壳生命周期、持久记录投影。
 - `src/connection.rs`、`src/connection_view.rs`、`src/settings.rs`：连接测试、模型选择、设置。
@@ -286,32 +288,37 @@ workspace 测试至退出码 0。上述最终统计包含该修复与“最后�
 - Agent 栏处处（「思考中…」行与展开思考过程标题）随 `dr_ui::sand::thinking` 换用 68 帧「风·林·火·山」砂笔帧条（`icons/thinking.png`，8 fps 顺序循环，「已思考」静止在第 57 帧山），替代原星芒帧条。
 - 新增 `dr-view-agent/src/review_bridge.rs`，向 `dr-view-review::agent_bridge` 登记批注派发桥：支持把批注连同可选补充说明发进新对话或续接 `comment.agent_conversation` 记录的既有对话（读写工具权限、系统提示词不变），实时向审阅栏推送会话运行/完成状态驱动卡片右下角风车动画；从风车或悬停卡打开批注对话时，面板左上角显示返回审阅按钮（`v3Review.backToReview`）。契约测试：`dr-view-agent/tests/comment_handoff.rs`。详见 [M18](m18-review.md)。
 
-## 本地模型（LM，2026-11-16）
+## 自定义服务（本地模型 LM 2026-11-16；网上的服务 CA 2026-11-24）
 
-作者 2026-11-16 两轮选完、说「做」；交回后的七处同日又定（原话「都按你倾向的」）。定稿笔记在监管会话的共享笔记 `local-models-final.md`（文末「第四版：交回后的七处」），原型第 5 版「第四版定稿」。四格（`PROVIDERS`）一点没动，本地的另外画。
+作者 2026-11-16 两轮选完、说「做」；交回后的七处同日又定（原话「都按你倾向的」）。定稿笔记在监管会话的共享笔记 `local-models-final.md`（文末「第四版：交回后的七处」），原型第 5 版「第四版定稿」。四格（`PROVIDERS`）一点没动，这一格另外画。
+
+2026-11-23 作者把网上的第三方服务也放进这一格（[chihumyum/Drifting#3](https://github.com/chihumyum/Drifting/issues/3)），2026-11-24 对整窗原型（<https://claude.ai/artifact/643qk6p8rs2ig3CyxbDdvK> 页头「版本」里的「第五版 网上的地址（11-23）」）五处答「自定义服务地址按照你的推荐来就行。」这一格从此叫「自定义服务」。代码里的名字（`Provider::Local`、`local_servers`、`LocalConnectionView`、设置行 `models.local`）没改。
 
 **作者会看到的。**
-- Agent 面板没有能用的模型时：「连接模型」下面照旧四格，接着一道细线，再下面是「本地模型」。还没连过时是一格空心的「本地模型」，右边「未连接」；点开在下面展开地址框（等宽字，淡字 `http://localhost:11434`）、「连接」「取消」「加 Key」。点「加 Key」才出密钥框（淡字「粘贴密钥...」）。框里 Enter 就是连接，Esc 收起。
-- 点「连接」以后：网上的地址 →「只能填本机或局域网地址」；没回应 →「连不上这个地址」；要 Key 却没填对 →「密钥无效」；问到了清单、但滤完一个不剩（只有嵌入模型和确知不会用工具的）→ 不连上，表单下面写「这台服务上没有能用工具的模型」，格子照旧「未连接」；问不到模型清单 → 换成「模型名」框加「添加」（和「取消」），添一个就算连上。连上以后照现有做法选中它的第一个模型，面板切到对话。
-- 连上以后每个服务一格：名字是认出来的软件名（Ollama、LM Studio、llama.cpp），认不出就用地址；名字重了，后连的那台用地址。右边是等宽的「主机:端口」。
-- 输入框上面的模型菜单每行「<格子名> · <模型>」，比如「Ollama · qwen3:14b」。嵌入模型、服务确知不支持工具的模型不进菜单，设置里也不列。选中本地模型时推理强度那一栏不出。
-- 设置「模型与 API」：四行下面隔一道细线，每个服务一块：格子；「改地址」「加 Key」（填过就是「编辑密钥」）「测试连接」「断开」。「测试连接」发一句，等的时候按钮转圈，模型真回了才显示「可用」；Key 被拒是「密钥无效」，服务关着是「连不上这个地址」，模型没在等候上限内回话或退回请求是现成的「请求失败（provider 不可用或网络问题）」。模型清单列名「上下文」，每行一个数字框：淡字是问到的值，问不到是 32768；填了以它为准。手填的模型行尾有 ×，这个服务的清单是手填的，最后一行是「模型名」框加「添加」。最后一行「＋ 本地模型」再加一个。
-- 本地服务没开的时候没有特别的状态：格子照旧算连着，模型照旧在菜单里；发消息时对话里出现现成的请求失败。
+- Agent 面板没有能用的模型时：「连接模型」下面照旧四格，接着一道细线，再下面是「自定义服务」。还没连过时是一格空心的「自定义服务」，右边「未连接」；点开在下面展开地址框（等宽字，淡字照旧 `http://localhost:11434`）、「连接」「取消」「加 Key」。本机和局域网的地址点「加 Key」才出密钥框（淡字「粘贴密钥...」）；**地址框里是网上的地址时，密钥框直接出现在地址框下面，「加 Key」不出**，改回本机地址又收起来（框里已经打了字的就留着）。框里 Enter 就是连接，Esc 收起。
+- 点「连接」以后：网上的地址填了 `http://`（或者没写协议）→「网上的地址要用 https」，不发任何请求；没回应 →「连不上这个地址」；要 Key 却没填对 →「密钥无效」；本机和局域网的服务问到了清单、但滤完一个不剩（只有嵌入模型和确知不会用工具的）→ 不连上，表单下面写「这台服务上没有能用工具的模型」，格子照旧「未连接」；问不到模型清单 → 换成「模型名」框加「添加」（和「取消」），添一个就算连上。**网上的服务一律换成「模型名」框**（清单照样问一次，确认服务在、Key 对，但不列出来）。连上以后照现有做法选中它的第一个模型，面板切到对话。
+- 连上以后每个服务一格：名字是认出来的软件名（Ollama、LM Studio、llama.cpp），认不出就用地址（主机名，非标准端口才带端口，比如 `api.example.com`、`api.example.com:8443`；网上的服务基本都是这样）；名字重了，后连的那台用地址。右边是等宽的「主机:端口」。
+- 输入框上面的模型菜单每行「<格子名> · <模型>」，比如「Ollama · qwen3:14b」「api.example.com · example-chat-large」。嵌入模型、服务确知不支持工具的模型不进菜单，设置里也不列。选中这一格的模型时推理强度那一栏不出，没有联网搜索。
+- 设置「模型与 API」：四行下面隔一道细线，每个服务一块：格子；「改地址」「加 Key」（填过就是「编辑密钥」）「测试连接」「断开」。「测试连接」发一句，等的时候按钮转圈，模型真回了才显示「可用」；Key 被拒是「密钥无效」，服务关着是「连不上这个地址」，模型没在等候上限内回话或退回请求是现成的「请求失败（provider 不可用或网络问题）」。模型清单列名「上下文」，每行一个数字框：淡字是问到的值，问不到是 32768；填了以它为准。手填的模型行尾有 ×，这个服务的清单是手填的（网上的服务都是），最后一行是「模型名」框加「添加」。最后一行「＋ 自定义服务」再加一个。「改地址」一台已经存过 Key 的服务，密钥框照旧收着、Key 留着；没存过 Key 的网上服务，密钥框自己出来，空着连接不算去掉 Key。
+- 服务没开的时候没有特别的状态：格子照旧算连着，模型照旧在菜单里；发消息时对话里出现现成的请求失败。
 
 **定下的事。**
-- **清单只存在这台设备上。** 服务清单在设置文件的设备记忆 `agent.local_servers`（地址、名字、有没有 Key、是不是手填、每个模型问到的上下文和作者填的上下文），选中的是哪台在 `agent.local_server`。账户范围的偏好只多了一个取值：`agent.provider = "local"`，`agent.model` 照旧是模型名。作者说过本地服务清单在偏好同步（M37）之前别跟账号走；换电脑时跟过去的如果是本地模型，那台电脑上没有这台服务，就当没连上，回到连接格。
+- **CA 定了的十处（作者 2026-11-23、11-24）。** 1 和本地模型同一处、同一种格子；2 网上的地址只收 `https`，本机和局域网照旧 `http`、`https` 都行，带用户名密码、查询串或 `#` 的照旧不收；3 只认 OpenAI 兼容的 Chat Completions；4 选中这种服务的模型时不出推理强度、没有联网搜索；5 地址清单只存在这台设备上；6 空着的那一格、设置最后一行改叫「自定义服务」（「＋ 自定义服务」），地址框淡字照旧；7 网上的地址时密钥框直接出现在地址框下面，本机和局域网照旧收着；8 网上的地址填了 `http://` 时是「网上的地址要用 https」（「只能填本机或局域网地址」这句删了）；9 连上以后的名字：认得出软件的用软件名，认不出的用主机名；10 网上的服务连上时不列模型清单，出「模型名」框手填，本机和局域网照旧问到多少列多少。原型里照现成做法补的：设置里「改地址」一台存过 Key 的服务，密钥框照旧收着、Key 留着；自动出来的空密钥框不算「去掉 Key」。监管会话补的：手填的模型名在这台服务的清单里找得到时，上下文用清单里那一行的值（连接时手填的、设置里「添加」的都是；设置里添加时再问一次清单），找不到照旧 32768；网上的地址走系统代理、本机和局域网直连（归 NP）。
+- **清单只存在这台设备上。** 服务清单在设置文件的设备记忆 `agent.local_servers`（地址、名字、有没有 Key、是不是手填、每个模型问到的上下文和作者填的上下文），选中的是哪台在 `agent.local_server`。账户范围的偏好只多了一个取值：`agent.provider = "local"`，`agent.model` 照旧是模型名。作者说过本地服务清单在偏好同步（M37）之前别跟账号走，网上的服务也一样（CA 第 5 条）；换电脑时跟过去的如果是这一格的模型，那台电脑上没有这台服务，就当没连上，回到连接格。设备记忆里网上的服务以前读的时候会被丢掉（地址规则不收），现在留着；`http://` 的网上地址照旧丢掉。
 - **Key 只进钥匙串**，`byok.local.<服务 id>`；设置里只记有没有。新服务和「改地址」不打开密钥框就不动 Key；「编辑密钥」打开的框是空的，留空点连接就是去掉 Key（作者选甲），但要先确认这台服务不用 Key 也能问到清单，被拒就照旧显示「密钥无效」、Key 留着。
 - **连接只问清单；「测试连接」发一句（作者 11-16 定，乙）。** 「连接」只问 `/v1/models`（认软件、读上下文和工具能力），要快。「测试连接」先问一次清单（连不上、Key 被拒当场知道），再像四家那样发一句「Return exactly OK.」（输出上限 1024，和四家给会思考的模型的一样），模型回了话、正常结束才算「可用」。本地第一次加载大模型常要几十秒到几分钟，所以等候上限是 M28 的 `local::MODEL_WAIT`（5 分钟），不用四家的 90 秒。发给这台服务现在选的那个模型：选中的路线就在这台上，就是选中的模型；不在（选的是三家或另一台），就是这台清单上的第一个。「断开」或重连这台时，还在等的测试停掉。
 - **选中本地模型时推理强度不出，原来的档位留着。** 本地运行一律不带推理强度（冻结的配置里是 off）；`agent.thinking` 不被改写，切回三家时还是作者原来选的档位。
-- **模型菜单打开时顺带重问清单**，和四家一样最多五分钟一次；问不到就留着原来的清单（「没开的时候」选甲）。重问保留作者填的上下文。手填的服务不重问。
+- **模型菜单打开时顺带重问清单**，和四家一样最多五分钟一次；问不到就留着原来的清单（「没开的时候」选甲）。重问保留作者填的上下文。手填的服务不重问（网上的服务都是手填的，所以从不重问）。
 - 设置「Agent」里的服务商下拉也列出本地服务（按格子名），模型下拉列这台服务的模型；选中本地模型时推理强度那一行整行不出，和输入框上面一致（作者 11-16 定，乙）。行是用 `dr_shell::settings::set_module_row_when` 登记的：返回 `None` 时连标签一起不画。
 
-**接口。** `Connections` 多了 `local_servers`、`local_server`、`selected_local`、`put_local`、`select_local`、`disconnect_local`、`test_local`、`add_local_model`、`remove_local_model`、`set_local_context`、`load_local_catalogs`；`ConnectionService` 多了 `probe_local`、`apply_local_key`、`test_local`、`relist_local`、`forget_local_key`（`src/local.rs`）和 `with_local_test_wait`（测试用短的等候上限）；`Connections::local_test_model` 是「测试连接」发给哪个模型。`ConnectionView::new_companion` 是面板用的（四格加本地），`ConnectionView::new` 只有四格。`LocalConnectionView::new(connections, settings, …)` 画本地那几格；设置登记在 `models.local`（`dr-shell` 注册表加了这一行，`agent.provider` 的取值加了 `local`）。
+**接口。** `Connections` 多了 `local_servers`、`local_server`、`selected_local`、`put_local`、`select_local`、`disconnect_local`、`test_local`、`add_local_model`、`remove_local_model`、`set_local_context`、`load_local_catalogs`；`ConnectionService` 多了 `probe_local`、`apply_local_key`、`test_local`、`relist_local`、`forget_local_key`（`src/local.rs`）和 `with_local_test_wait`（测试用短的等候上限）；`Connections::local_test_model` 是「测试连接」发给哪个模型。`ConnectionView::new_companion` 是面板用的（四格加这一格），`ConnectionView::new` 只有四格。`LocalConnectionView::new(connections, settings, …)` 画这一格；设置登记在 `models.local`（`dr-shell` 注册表加了这一行，`agent.provider` 的取值加了 `local`）。CA 改的：`LocalFailure::NotLocal` 换成 `NeedsHttps`；`Probe::NoList` 换成 `Probe::AskName { software, known }`（问不到清单，或者是网上的服务；`known` 是网上服务清单里的模型，给手填的名字查上下文）；`LocalServer::on_the_internet`；`FormState` 多了 `key_shown`（密钥框在不在，`key_open` 仍是作者自己点开的），`LocalConnectionView::form_state` 现在收 `&App`；`Connections::add_local_model` 对网上的服务会在后台再问一次清单、找到就填上问到的上下文。
 
 **测试。** `tests/local_models.rs`（GPUI 加本机假服务）：
 - `connecting_selects_the_first_tool_model_and_freezes_its_server`：连上选中第一个能用工具的模型；不支持工具的、嵌入模型不进；冻结的配置带服务地址、推理 off、不发搜索、上下文是问到的；清单进设备记忆、账户偏好只有 `local` 和模型名；菜单行「Ollama · qwen3:14b」；不出推理强度；第二台 Ollama 用地址作名字；下次启动读回同样的清单和选择。
-- `the_form_reports_not_local_unreachable_and_a_refused_key`：三种错误；Key 通过后才存；「编辑密钥」清空但服务要 Key 时 Key 留着；「改地址」不开密钥框时 Key 留着。
-- `emptying_the_key_removes_it_when_the_server_needs_none`、`without_a_model_list_the_form_asks_for_a_model_name`（手填、再添、× 掉最后一个就断开）、`settings_context_test_and_disconnect`（填的上下文优先、清空回到问到的；测试连接「可用」和关掉服务后的「连不上」；服务没开照旧算连着；断开删 Key）、`choosing_a_cloud_model_keeps_its_reasoning_level`、`the_service_probes_keys_and_refuses_the_internet_before_asking`、`the_account_keeps_local_as_a_provider_and_nothing_else`。
+- `the_form_reports_plain_http_to_the_internet_unreachable_and_a_refused_key`（CA 前叫 `…_not_local_…`，第一种错误原来是 `https://api.example.com/v1` →「只能填本机或局域网地址」，现在是 `http://api.example.com/v1` →「网上的地址要用 https」）：三种错误；Key 通过后才存；「编辑密钥」清空但服务要 Key 时 Key 留着；「改地址」不开密钥框时 Key 留着。
+- `emptying_the_key_removes_it_when_the_server_needs_none`、`without_a_model_list_the_form_asks_for_a_model_name`（手填、再添、× 掉最后一个就断开）、`settings_context_test_and_disconnect`（填的上下文优先、清空回到问到的；测试连接「可用」和关掉服务后的「连不上」；服务没开照旧算连着；断开删 Key）、`choosing_a_cloud_model_keeps_its_reasoning_level`、`the_service_probes_keys_and_refuses_plain_http_to_the_internet_before_asking`（CA 前叫 `…_refuses_the_internet_…`，原来拒 `https://api.example.com`，现在拒 `http://api.example.com`）、`the_account_keeps_local_as_a_provider_and_nothing_else`。
+- CA（网上的服务是 `https://api.example.com` 的回环替身，M28「网上的服务怎么测」）：`an_address_on_the_internet_shows_the_key_field_by_itself`（不连网：网上的 `https`、`http`、不写协议的地址密钥框自己出来、「加 Key」按钮不在；本机、局域网 `https`、`*.local` 收着；框里有字就一直在；中文「网上的地址要用 https」「自定义服务」）、`a_service_on_the_internet_asks_for_a_model_name_and_takes_its_context`（没 Key「密钥无效」；在自己出来的框里填 Key 后问到清单、但出「模型名」框，什么都没连上、没发对话；填清单里有的名字，上下文是清单给的；名字是 `api.example.com`、手填、有 Key、Key 只进钥匙串；冻结的配置推理 off、不搜索；菜单行「api.example.com · example-chat-large」；设置里再添一个清单里有的名字后台填上上下文、清单里没有的留默认；打开模型菜单不重问；「测试连接」带 Key 发给选中的模型）、`changing_the_address_of_a_service_keeps_its_key`（存过 Key 的网上服务「改地址」密钥框收着、「加 Key」在，连接带着存的 Key、又问模型名，Key 留着；不要 Key 的网上服务 `api.example.com:8443` 名字带端口，「改地址」时框自己出来，空着连接不加 Key、也不删）。
+- `src/local.rs` 单元测试（CA 改的）：存的清单原来连 `https://api.example.com` 也丢掉，现在留着、`http://api.example.com` 丢掉；名字规则加了网上的主机名和端口、认出软件照旧用软件名。
 - 作者 11-16 定的三处：`a_list_with_no_tool_model_stays_unconnected_and_says_why`（只有 gemma3 和嵌入模型：不连上、出新字、不出「模型名」框、没发对话；问不到清单的照旧问模型名）、`the_agent_settings_page_has_no_reasoning_row_for_a_local_model`（设置面板里推理强度那一行在 DeepSeek 时有、选中本地模型时整行没有、切回来又有）、`testing_a_connection_waits_for_the_model_to_answer`（「测试连接」真发了一个对话请求，假服务把回答压着时一直是等候中、放开后才「可用」；发的是这台上选中的模型，选三家时是这台的第一个；对话回 401 是「密钥无效」；服务关掉是「连不上这个地址」）、`a_model_that_does_not_answer_in_time_fails_the_test`（注入 300 毫秒的等候上限，模型不回话是请求失败那句）。
 - `src/local.rs` 单元测试：存的清单里过不了地址规则的条目丢掉、名字规则、重问保留上下文、上下文框只收 1 到 1 亿的数字、`KeyChange` 的调试输出不带 Key。
 
@@ -325,6 +332,25 @@ workspace 测试至退出码 0。上述最终统计包含该修复与“最后�
 7. 「连接」只问清单；「测试连接」发一句，等模型真回了才说「可用」，等的时候转圈。（改了）
 
 另有一处没问作者、照现在：上下文框只收数字，空着就是没填；填 0 或超过 1 亿当没填。
+
+**CA 原型没画、照最保守的做法先做的。**
+- 逐字打本机地址时，打到一半（比如只打了 `l`、`http://l`）会被当成网上的地址，密钥框闪出来再收起；原型的地址判定也是这样。粘贴整条地址时不闪。
+- 网上的服务问到了清单、但滤完一个不剩（只有嵌入模型）：照原型推荐那一项的逻辑，一样出「模型名」框，不说「这台服务上没有能用工具的模型」。
+- 网上的服务「改地址」或「编辑密钥」后点连接，又问一次模型名，原来手填的那几个换成新填的这一个（问不到清单的本地服务现在就是这样，原型网上的服务也是这样）。
+- 设置里给网上的服务「添加」模型名时，后台再问一次清单查上下文（清单不存）；问不到就留默认。
+- 单标签主机名（`http://intranet`）、IPv6 链路本地地址照旧不算局域网，所以现在算网上的、要 `https`。
+
+**CA 的真窗口。** 场景 `next/crates/dr-view-agent/scenarios/custom-service.json`，调试桥例程 `custom-service-acceptance`（tiny 种子书库、内存里的 Key、`https://api.example.com` 的回环替身，运行走真的模型传输层到替身）：
+
+```bash
+cargo build -p drifting --example custom-service-acceptance --features debug-bridge --locked
+cargo drifting workspace scenario crates/dr-view-agent/scenarios/custom-service.json \
+  --app target/debug/examples/custom-service-acceptance --out <输出目录> --yes
+```
+
+面板里点开「自定义服务」、填网上的地址（密钥框自己出来）、不带 Key 连接被拒、填 Key 连接、出「模型名」、填一个、连上、发一句收到替身的回答；设置「模型与 API」搜「自定义服务」看那一块、点「测试连接」；设置「Agent」的服务商下拉是 `api.example.com`。
+
+验收记录（2026-11-24，`DRIFTING_WINDOW_DISPLAY=secondary`，在合进 CM4a、CM1、PF 之前的 CA 提交上）：**49 步、0 pending 全过**，九张图逐张看过，和原型「第五版」选推荐项的样子一致；截图是记录，不进仓库。合进 `main` 以后屏幕已经睡了，没有重跑。
 
 **11-16 三处修改里原型没画、按最保守的做法先做的。**
 - 「测试连接」发给哪个模型：选中的路线在这台服务上就发选中的模型，否则发这台清单上的第一个（原型的「测试连接」不分模型）。
@@ -373,3 +399,48 @@ DRIFTING_WINDOW_DISPLAY=secondary cargo drifting workspace scenario crates/dr-vi
 验收记录（2026-11-21，副屏）：**88 步、0 pending 全过**。浅色、深色各三张（「历史」带「Drifting 0.1」一节、打开的旧对话、搜索结果）逐张看过，和原型第二页甲甲甲一致；截图是记录，不进仓库。导入换库以后右栏回到「审阅」，场景先点右栏的「Agent」；连上脚本模型以后焦点没有自己进输入框，场景照 `companion.json` 点「发送」上方进去；搜索框不在辅助功能树里（`ui.focus` 也够不着），场景点「工作记忆」下方 42 像素进去。
 
 **没做的。** 新对话从搜索结果打开时不停在命中那一轮（见上）；旧对话里命中的字不加深；从批注「交给 Agent」记下的 0.1 对话编号（`comment.agent_conversation`）打开时不会去找存档里的那段旧对话。
+
+## 图片（CM4a，2026-11-24）
+
+依据 [custom-modules.md](../custom-modules.md) 第 16 节第 1 条：「丢一张草图或截图」要 Agent 栏先能收图片；模型看不了图片时，Agent 在对话里照实说这个模型看不了图片、请换一个能看图的，不另加界面。建模块的工具不在这一路（CM4b）。原型没画这一块，样子只用现有组件，拿不准的都选了最朴素的，列在交回报告的「等作者的事」。
+
+**作者会看到的。**
+- 把图片文件拖到 Agent 那一栏的任何地方（对话、输入框、按钮上都行，照设计稿第 8 节「拖进 Agent 那一栏」；拖着经过时整栏底色稍深），或在输入框里 ⌘V 一张复制的图片（比如截图）或复制的文件，输入框上方出现一排 48 像素的小图，每张右边一个「×」（读作「移除图片」），点了就去掉。同一张图再放一次还是一张。只收 PNG、JPEG、WebP；一张最多 7 MB、边长最多 8000 像素；一条消息最多 4 张。超了或格式不对，在对话下面那行出错的红字里说（「只能发送 PNG、JPEG 或 WebP 图片。」「图片太大：每张最多 7 MB，边长最多 8000 像素。」「一条消息最多带 4 张图片。」），能发的照样加进去。
+- 剪贴板上有字时 ⌘V 照旧贴字，不收图（有的程序复制一段字时也放一张图）；剪贴板上有文件时收文件。
+- 可以只发图片不写字。发出去以后那几张小图离开输入框；对话里作者那条消息的框里，字的上面一排 64 像素的小图。这台设备上没有字节的（比如同步来的对话）是一个空的方块带一个图片记号。
+- 看得了图的模型（Anthropic、ChatGPT 订阅的清单说能的模型；本地服务说能的模型）照常回答。选的是 Anthropic 或 ChatGPT 订阅、模型菜单还没打开过（手里只有内置清单）时，带图片的消息先去取一次这家的模型清单再发（这期间发送按钮是忙的）；清单取不到就按看不了处理。
+- 看不了图的模型：作者的消息照常进对话（带着图片），Agent 回一句「现在用的模型看不了图片。请换一个能看图的模型再发。」（按界面语言，九种语言都有），不发请求。
+- 正在运行时输入框里的字照旧是插话或回答，图片留在输入框里，等下一条新消息一起发。
+- 换书或点「新对话」时，输入框里的图片和字一起清掉。
+
+**做法。** `AgentPanel` 多了 `attached`（输入框里的图片：`images::Attached { image: ImageRef, bytes }`）和按摘要缓存的小图 `thumbs`。读文件、认格式、解出小图（`images::check`/`check_file`/`thumbnail`，最长边 192 像素）都在后台线程；比上限大的文件不整个读，只读文件头判断是「太大」还是「格式不对」。粘贴在输入框外面一层用 `capture_action` 先接住 `dr_ui::input::field::Paste`，按上面的规则决定自己收还是让输入框贴字。发送时 `AgentController::start_job_with_images` 把字节交给运行时（`Runtime::start_with_images`），连同按界面语言给的那一句；对话里的小图由 `AgentController::read_image` 从本机读、在后台解。小图在辅助功能树里是 `Image`，名字「图片」；去掉按钮是 `Button`「移除图片」。
+
+**接口**（只加不改）：`AgentPanel::{attach_bytes, attach_paths, remove_attached, attached, thumb, error}`；`AgentController::{start_with_images, start_job_with_images, read_image}`；`Connections::live_catalog`（带图片的消息发送前取一次清单）；`MessageContent::User` 多了 `images`（不认识的记录占位为 `None`）；`LocalServerModel.image_input`（存在设备记忆里，重问清单时更新）。新的界面文字在 `dr-i18n` 的 `own/*.json` 的 `agentImages`（`image`、`remove`、`unsupported`、`tooLarge`、`tooMany`、`unseen`），九种语言。
+
+**测试**（`tests/attachments.rs`，真的 GPUI 面板、合成种子库、脚本模型、dr-testkit 的合成图片）：
+- `paste_and_drop_attach_images_and_text_pastes_as_text`：剪贴板上的图片进输入框不进字、小图画出来；剪贴板上的字照旧贴字、图片还在；同一张再贴还是一张；拖进一张 PNG 和一张 HEIC，PNG 进来、HEIC 不进且出错的那行说格式；拖到发送按钮上、拖到输入框上面的对话里也都收（整栏都收）；去掉一张。
+- `the_limits_are_said_before_anything_is_sent`：8001 像素宽、大于 7 MiB 的都说太大；拖五张不同的进四张、说最多四张；没有任何请求。
+- `a_model_that_cannot_see_is_not_asked_and_the_agent_says_so`：DeepSeek 路线带图发送，脚本模型没被调用，对话里作者消息带一张图、Agent 回那一句，输入框清空，对话里那张小图画出来。
+- `a_local_model_that_sees_gets_the_bytes_and_one_that_does_not_is_told`：本地服务说能看图的模型收到只有图片的消息和它的字节；同一对话换成没说能看图的模型再发一张，模型没被再问。
+- `anthropics_live_list_is_asked_before_an_image_goes`：选 Anthropic、只有内置清单时带图发送，先问了本机假清单（说这个模型能看图），请求带着那张图。
+- `src/local.rs`：重问清单时能不能看图跟着新清单走。
+
+**真窗口。** 场景 `next/crates/dr-view-agent/scenarios/agent-images.json`，例程 `agent-images-acceptance`（临时 tiny 种子库、内存里的合成 Key、一个本机回环服务扮 Anthropic 和 DeepSeek：Anthropic 的清单说模型能看图，它的 Messages 接口把收到的每张图解出来、回「收到 N 张图片：宽×高」；真的模型驱动发请求）：
+
+```bash
+cargo build -p drifting --example agent-images-acceptance --features debug-bridge --locked
+DRIFTING_WINDOW_DISPLAY=secondary cargo drifting workspace scenario crates/dr-view-agent/scenarios/agent-images.json \
+  --app target/debug/examples/agent-images-acceptance --out <输出目录> --yes
+```
+
+第一次启动在 Anthropic 上：右栏展开、等它滑完，把例程写在书库旁的合成草图（640 × 400）拖到发送按钮上，输入框上方出现「图片」和「移除图片」，写一句话回车；假服务只在请求真带着图片时多回一段思考，所以「思考过程」出现就说明图片随请求到了，回的那句「收到 1 张图片：640×400」在截图上；输入框里的图片走了、消息里的图片在。第二次启动在 DeepSeek 上：拖进同一张、只发图片，没有请求发出去，对话里那一句在截图上、图片在。辅助功能树里没有普通文字，回答的字只能看截图。
+
+验收记录（2026-11-24，副屏）：**38 步、0 pending 全过**，三张截图（放进输入框、Anthropic 回「收到 1 张图片：640×400」、DeepSeek 时 Agent 那一句）逐张看过。现成的 `companion.json` 同日 44 步全过。
+
+真窗口里查出来的两件事（都不是这一路的代码，记在这里）：
+- 右栏刚点开时还在滑动，这时按辅助功能树给的位置拖进文件会落空（按钮的 `ui.press` 先停一下再点，不受影响；`input.drop` 不停）。场景在展开后等 1.5 秒。
+- GPUI 只要最后一次输入是键盘，就不认鼠标「悬停」（`Hitbox::is_hovered` 在键盘模式下恒为否），而从访达拖进窗口的文件事件不会把模式改回鼠标。所以作者在输入框里打完字、没动鼠标就直接从别处拖进文件时，这次拖放会被忽略；在窗口里动一下鼠标以后再拖就收下了（调试桥上对 Agent 栏实测过这两种；GPUI 的 `on_drop` 都靠悬停，按代码看全 App 的拖放都一样，素材库也是，没实测）。要不要修是 GPUI 那层的事。
+
+## CM3：「打开工作台」那张卡（2026-11-24）
+
+工具结果里带着 `custom_modules`（CM4b：建、改、改名、另存一份，或者往条目模板里放进了一个之前没有的）时，那条结果下面每个模块一张卡：名字、「我的模块」、「打开工作台」（打开它的工作台药丸）。出错的结果不出卡。代码 `panel.rs` 的 `module_cards`；测试 `tests/module_card.rs`（脚本模型建一个模块，点卡开药丸）。

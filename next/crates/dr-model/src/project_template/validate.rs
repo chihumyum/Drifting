@@ -279,6 +279,7 @@ pub fn validate_project_template_value(
 
     // 2. Validate entry templates (first pass: IDs, modules, fields; second pass: cross-template refs).
     let mut raw_tpl_ids = BTreeSet::new();
+    let mut used_modules: BTreeSet<&str> = BTreeSet::new();
     for tpl in &val.templates {
         let tid = EntryTemplateId::parse(&tpl.id)
             .map_err(|e| ProjectTemplateError::Invalid(format!("template id {:?}: {e}", tpl.id)))?;
@@ -336,6 +337,35 @@ pub fn validate_project_template_value(
                     "module {:?} plot dimensions must be >= 1",
                     module.id
                 ));
+            }
+            // A custom module draws one of the template's modules and is
+            // never part of the book (`custom-modules.md` §11, §16 item 2).
+            match (module.kind, &module.config.module) {
+                (TemplateModuleKind::Custom, Some(mid)) => {
+                    if !val.modules.contains_key(mid) {
+                        return inv(format!(
+                            "custom module {:?} names module {mid:?}, which the template does not carry",
+                            module.id
+                        ));
+                    }
+                    if module.config.in_book {
+                        return inv(format!(
+                            "custom module {:?} is never part of the book (in_book is false)",
+                            module.id
+                        ));
+                    }
+                    used_modules.insert(mid.as_str());
+                }
+                (TemplateModuleKind::Custom, None) => {
+                    return inv(format!("custom module {:?} needs config.module", module.id));
+                }
+                (_, Some(_)) => {
+                    return inv(format!(
+                        "only a custom module has config.module ({:?})",
+                        module.id
+                    ));
+                }
+                (_, None) => {}
             }
             if let Some(ma) = &module.agent {
                 if let Some(rt) = &ma.read_tier
@@ -470,6 +500,20 @@ pub fn validate_project_template_value(
         templates.insert(domain_tpl.id.clone(), domain_tpl);
     }
 
+    // The carried custom modules (`custom-modules.md` §11): each one passes
+    // the module validator and is drawn by a custom module of the template.
+    for (mid, module) in &val.modules {
+        crate::id::CustomModuleId::parse(mid)
+            .map_err(|e| ProjectTemplateError::Invalid(format!("custom module id {mid:?}: {e}")))?;
+        crate::custom_module::validate_module_value(module)
+            .map_err(|e| ProjectTemplateError::Invalid(format!("custom module {mid:?}: {e}")))?;
+        if !used_modules.contains(mid.as_str()) {
+            return inv(format!(
+                "custom module {mid:?} is carried but no entry template uses it"
+            ));
+        }
+    }
+
     // 3. Validate `relation_types`.
     let mut rt_names = BTreeSet::new();
     for rt in &val.relation_types {
@@ -588,6 +632,7 @@ pub fn validate_project_template_value(
                 mark: entry.mark.clone(),
                 template: tpl_id,
                 level: entry.level,
+                auto_link: false,
                 overrides,
                 fields: domain_fields,
                 kv: BTreeMap::new(),
@@ -857,7 +902,26 @@ pub fn validate_project_template_value(
         validate_paragraphs(paragraphs, &val.entries, &templates)?;
     }
 
-    // 9. Validate structural graph rules (`V3-AUTOLINK-NAME-UNIQUE`).
+    // 9. Validate structural graph rules (`V3-AUTOLINK-NAME-UNIQUE`), with
+    // the switches the entries start with in a new book (a template carries
+    // only its levels' defaults, `kernel-v5.md` §16).
+    let starts_on: Vec<_> = entries
+        .values()
+        .filter(|e| {
+            crate::v3::new_entry_auto_link(
+                e.parent.as_ref(),
+                e.template.as_ref(),
+                &entries,
+                &templates,
+            )
+        })
+        .map(|e| e.id.clone())
+        .collect();
+    for id in starts_on {
+        if let Some(e) = entries.get_mut(&id) {
+            e.auto_link = true;
+        }
+    }
     let empty_entries = BTreeMap::new();
     let empty_templates = BTreeMap::new();
     check_new_violations(

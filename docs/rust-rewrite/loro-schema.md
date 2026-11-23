@@ -31,6 +31,7 @@
 | 快照点清单（书目格式 4 起） | `checkpoints:<书 id>` | 1，建书时就建 |
 | 画布坐标（书目格式 5 起） | `layout:<书 id>` | 1，建书时就建 |
 | 我的项目模板（格式 5 起） | `project-template:<模板 id>` | 每份我的模板 1；书库级文档（`book_id` 为空），不属于任何书 |
+| 我的模块（2026-11-24 起） | `module:<模块 id>` | 每个我的模块 1；书库级文档（`book_id` 为空），不属于任何书（见文末「我的模块文档」） |
 
 - 沿用实体的 id 在旧库导入后不变；新建的条目（包括默认根与分类）生成 UUIDv7，新增映射遵循导入方案。文档 id 在整个库中唯一；v3 模板正文必须包含书 id。
 - 格式 5 起正文文档只有一种编辑配置（`ProseProfile::Prose`）：原来仅素材笔记支持的列表、任务、代码块、提示框、高亮、行内代码、表格与文件嵌入对所有条目正文和模板正文初值开放。
@@ -164,7 +165,7 @@ H1、H2、H3 三级同等对待，只叫 H1/H2/H3。
 | --- | --- | --- | --- |
 | `bold` `italic` `underline` `strike` | true | After | 都有 |
 | `link` | 网址 | None | 都有 |
-| `entity:<目标 id>` | `{kind, block?, end_block?}`；v3 另有 `module?` | None（按前缀 `entity` 配置） | 都有 |
+| `entity:<目标 id>` | `{kind, block?, end_block?}`；v3 另有 `module?`、`manual?` | None（按前缀 `entity` 配置） | 都有 |
 | `highlight` | 颜色 | None | 都有（格式 5 起） |
 | `code` | true | None | 都有（格式 5 起） |
 | `embed` | 嵌入 id | None | 都有（只打在 U+FFFC 上） |
@@ -190,7 +191,7 @@ H1、H2、H3 三级同等对待，只叫 H1/H2/H3。
 
 ### 人物链接
 
-- 键是 `entity:<目标 id>`，一个目标一个键。值是映射：v2.2 的 `kind` 为 `element`、`node`、`storyline`、`category`；链到章节里一段范围时再加 `block` 和 `end_block`（沿用旧版 `targetBlockId` / `targetEndBlockId`）。格式 5 的显式接口 `dr_model::v3::EntityLinkV3`／`dr_doc::prose::v3` 接受两种目标：`kind = entry`（条目；指定正文再加独立的 `module`，`block`／`end_block` 仍为独立字段）和 `kind = asset`（素材库里的文件，2026-11-15 起；不带 `module`、`block`、`end_block`）。通用自动链接只链条目。链到文件的链接也记进本机索引（`RefKind::Link`，`target_kind = "asset"`），是文件的一处「用在哪」；文件在最近删除里或不在时，链接读作普通文字的样子（`prose.shape` 的 `missing_links`），数据留着，恢复后回来。0.1 导入时指向图片和 PDF 素材的链接导成指向那个文件的链接；素材没有文件的，才转为普通文字并记入报告。旧共享 `EntityLink` 与源回放接口仅留作 0.1 导入边界。v3 编码、复制保留原始标记的未知字段，模板正文与表格格子使用 `insert_copy_v3`；具体入口及消费边界见 [F3 v3 正文链接接口](foundations/f3-workspace.md#k2-v3-正文链接接口2026-11-10g1-待协调-2)。
+- 键是 `entity:<目标 id>`，一个目标一个键。值是映射：v2.2 的 `kind` 为 `element`、`node`、`storyline`、`category`；链到章节里一段范围时再加 `block` 和 `end_block`（沿用旧版 `targetBlockId` / `targetEndBlockId`）。格式 5 的显式接口 `dr_model::v3::EntityLinkV3`／`dr_doc::prose::v3` 接受两种目标：`kind = entry`（条目；指定正文再加独立的 `module`，`block`／`end_block` 仍为独立字段）和 `kind = asset`（素材库里的文件，2026-11-15 起；不带 `module`、`block`、`end_block`）。通用自动链接只链条目。`manual = true`（2026-11-24 起）：作者用 @ 挑的链接，不受「自动链接」的开关影响，自动链接的规则不动它（不是只有 `kind` 一个键的「裸」条目链接）；没有这个键的，包括之前写下的所有链接，都是自动的；不认识这个键的版本照样保留它（编码时只替换自己认识的字段）。链到文件的链接不带它。链到条目的链接在本机索引里分开记：自动的 `RefKind::Link`，手动的 `RefKind::Mention`。链到文件的链接也记进本机索引（`RefKind::Link`，`target_kind = "asset"`），是文件的一处「用在哪」；文件在最近删除里或不在时，链接读作普通文字的样子（`prose.shape` 的 `missing_links`），数据留着，恢复后回来。0.1 导入时指向图片和 PDF 素材的链接导成指向那个文件的链接；素材没有文件的，才转为普通文字并记入报告。旧共享 `EntityLink` 与源回放接口仅留作 0.1 导入边界。v3 编码、复制保留原始标记的未知字段，模板正文与表格格子使用 `insert_copy_v3`；具体入口及消费边界见 [F3 v3 正文链接接口](foundations/f3-workspace.md#k2-v3-正文链接接口2026-11-10g1-待协调-2)。
 - ExpandType `None`：在链接的前后打字不会扩进链接；在链接中间打字算链接的一部分。
 - **重叠**：不同目标用不同的键，所以可以任意重叠，比如「安娜·卡列尼娜」链一个要素、其中「卡列尼娜」链另一个。v2.2 指向同一目标的两段相邻链接会合成一段。v3 查询还要求 kind、module、block、end_block 一致才合并；原始标记各段的未知数据仍分别保留。
 - 断开链接：`unmark(range, entity:<目标 id>)`。
@@ -250,7 +251,7 @@ H1、H2、H3 三级同等对待，只叫 H1/H2/H3。
 | --- | --- | --- |
 | `meta` | LoroMap | 书名、梗概、创建时间、删除时间。创世写 `v = 5`、`book`、`relation_rows = true`。`level_lanes_cleared`（2026-11-16 DV2，布尔，只写 `true`）在旧泳道修复后或写泳道时记一笔 |
 | `project` | LoroMap | 项目定义：`source`（`{id, version, origin?, name?, credit?}`）、`agent`（`{name, description, instructions}`）、`book?`（`on`、`word_target`、`daily_word_target`；关着时目标留着；没有起点）、`tabs`（id → `{pos, mount, gone_title?}`；没有名字，「全部」是 `tab-all`；`gone_title` 只在挂的条目被彻底清除后写） |
-| `entries` | LoroTree | 条目树；节点 meta 有 `id`、`title`、`mark`、`template`、`level`（缺键读作关）、`overrides`、`fields`、`kv:<模块 id>`、`media:<模块 id>`、`arrangement:<模块 id>`（条目自己的媒体模块摆法）、`primary`、时间戳；没有 `layout` |
+| `entries` | LoroTree | 条目树；节点 meta 有 `id`、`title`、`mark`、`template`、`level`（缺键读作关）、`auto_link`（条目自己的「自动链接」，2026-11-24 起；只写 `true`，缺键读作关）、`overrides`、`fields`、`kv:<模块 id>`、`media:<模块 id>`、`arrangement:<模块 id>`（条目自己的媒体模块摆法）、`module:<模块 id>`（自定义模块的值，2026-11-24 加，见下）、`primary`、时间戳；没有 `layout` |
 | `templates` | LoroMap | 模板 id → `{name, mark, color, agent, modules, level, linkable, settings, verbs, deleted_at}`；`settings` 含 `accept`、`home`、`default_template`、`display`、`auto_link`、`format_shortcuts`，没有 `kind`、`allow`、`lane` |
 | `memberships` | LoroMap | `<宿主条目 id>\|<成员条目 id>` → `{host, member, pos, created_at}`；宿主只要求活着且 `accept` 为真；宿主不在任何活视图里时按 `pos` 排 |
 | `timeline_views` | LoroMap | 视图 id → `{name, pos, lanes, placements, pins, deleted_at}`；泳道条目须活着且开着「收别处的条目」（`accept`；2026-11-16 DV 前是 `level \|\| accept`），在视图内期间刻度 `placements` 是挂在泳道上的条目的唯一顺序权威 |
@@ -262,10 +263,11 @@ H1、H2、H3 三级同等对待，只叫 H1/H2/H3。
 | `assets` | LoroMap | 内置素材库文件清单：`kind`、`mime`、`size`、`sha256`、`width?`、`height?`、`name`、`created_at`、`folder?`（素材夹 id）、`pos?`、`deleted_at?`、`trashed_with?` |
 | `asset_folders` | LoroMap | 素材库的素材夹（2026-11-15）：id → `{name, parent?, pos, deleted_at?, trashed_with?}` |
 | `facts`、`memory` | LoroMap | 项目设定与帮手记忆，沿用既有结构 |
+| `modules` | LoroMap | 自定义模块的抄本（2026-11-24 加，[custom-modules.md](custom-modules.md) 第 7 节）：模块 id → 一个值 `{value: <drifting.module 规范化 JSON>, source: "library" \| "template"}`，整个换（自动换、另存一份、放进模板时写）。条目模板里 `kind = "custom"` 的模块在 `config.module` 记它指哪一份；这个模块 `in_book` 恒为 `false` |
 
 没有 `materials`、`material_folders`（格式 5 退役），也没有 `nodes`、`acts`、`storylines`、`elements`、`categories`、`drift_groups`、全书 `time_pins` 这些 v2.2 根。
 
-关系的描述和批注正文在 LoroText 上用 `entity` 标记条目 id。写入对现有字做局部编辑，标记也按变化的范围更新。同一行的投影首次在两台设备上生成时，合并选择一份初始文字和链接，之后的编辑在相同容器中合并。读模型组装文字和 Unicode 标量区间，只有活条目的标记投为链接。关系行也只投活条目，两边都非空才显示。书目保留最近删除的成员供恢复。参见 [RD 交回](kernel-v5.md#rd-交回项目关系与带链接的短文字2026-11-17)。
+关系的描述和批注正文在 LoroText 上用 `entity` 标记条目 id；@ 挑的链接在同样的字上另有 `entity_manual = true`（2026-11-24 起，不在样式表里，和别的未登记键一样不扩展；不认识它的版本照样把链接读成链接，标记留着）。读者照 `dr_model::v3::link_show` 的规矩投：自动的链接，条目自己的「自动链接」关着时投作普通文字。写入对现有字做局部编辑，标记也按变化的范围更新。同一行的投影首次在两台设备上生成时，合并选择一份初始文字和链接，之后的编辑在相同容器中合并。读模型组装文字和 Unicode 标量区间，只有活条目的标记投为链接。关系行也只投活条目，两边都非空才显示。书目保留最近删除的成员供恢复。参见 [RD 交回](kernel-v5.md#rd-交回项目关系与带链接的短文字2026-11-17)。
 
 **文档 id 是全库主键，不能只在书内唯一。** 内置「写书」项目模板每次建书都生成新的条目 id 与视图 id；找根与起始条目通过 `project` 定义或模板结构，不依赖固定条目 id。
 
@@ -307,6 +309,14 @@ H1、H2、H3 三级同等对待，只叫 H1/H2/H3。
 - **导入校验**：`project_template::validate_import` 检查 `meta.v == 1`、`meta.doc` 与文档身份一致，且合并后的模板内容（`payload.record` 里的 `value`，没有时读 `payload.value`）若存在必须通过统一的封闭校验器 `parse_project_template_json`。
 - **直接清除，不进回收站**：`project_template.remove` 直接调用 `purge_doc`，清除记录随书库同步传到其他设备。
 - **不干扰任何书**：没有编辑配置（`DocKind::profile()` 为空），不是书的正文（`is_book_text() == false`），发 `WsEvent::ProjectTemplate`，不计字数、不进搜索索引、不进成书导出与书文件、不进 Markdown 文件夹、不参加任何书的写入守卫。
+
+## 我的模块文档与自定义模块的值（2026-11-24 起）
+
+[custom-modules.md](custom-modules.md) 第 7 节，结论在 [modules/m44-custom-modules.md](modules/m44-custom-modules.md)。书目格式号不变（仍是 5）。
+
+- **`module:<模块 id>`**（`DocId::Module`，存储种类 `module`）：书库级文档，`book_id` 为空，跟着书库同步。创世 `meta.v = 1`、`meta.doc`（创世版本 `1`，时间戳 `0`）。`payload.record` 一个值整个换：`{info: {origin: "own" | "file", created_at?, updated_at?}, value: <drifting.module 规范化 JSON>}`；名字在 `value` 里。导入校验（`custom_module::validate_import`）查 `meta` 和合并后的模块过模块校验器。删除直接 `purge_doc`。不是书的正文，没有编辑配置，没有 `WsEvent`（听存储事件）。
+- **书目文档的 `modules` 根**：见上面「根容器与身份」。抄本的 id 在「我的模块」里有，就跟着它换（打开书时、我的模块在这台设备上改了时、从别的设备同步来时），值不动；没有就不动。
+- **条目里的值** `module:<模板模块 id>`（条目节点 meta 下的可合并映射）：积木 id → 值（布尔、数、字符串、字符串列表）；一串在 `list:<积木 id>`，是可合并的可移动列表，每项一个映射，`id` 是项的 id，其余键同上（串里套串照样）。读的时候按抄本当前的积木读，读不成的不显示也不改；换抄本不碰值。单个条目的撤销照 id 把项对回去，空了的一串保留键（可合并列表删键会带着旧项回来）。书文件导入时，值整个等于要换 id 的条目、文件的 id 才跟着换。
 
 ## 书目文档（v2.2）
 

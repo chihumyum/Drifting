@@ -1301,8 +1301,9 @@ fn review_at_links_exclude_the_owner_and_survive_editing_rename_and_trash(cx: &m
         let start = prefix.chars().count();
         assert!(
             wait_for(cx, |_| body()["text"] == format!("{prefix}{target_title}")
+                // Picked with @: recorded as manual (`kernel-v5.md` §16).
                 && body()["links"]
-                    == json!([{"start":start,"end":start+target_title.chars().count(),"entry":target_id}])),
+                    == json!([{"start":start,"end":start+target_title.chars().count(),"entry":target_id,"manual":true}])),
             "{query} picked {body:?}",
             body = body()
         );

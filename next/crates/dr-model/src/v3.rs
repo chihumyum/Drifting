@@ -20,10 +20,10 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::check::Violation;
 pub use crate::id::{
-    AssetFolderId, AssetId, BlockId, BodyDocId, BookId, CommentId, DocId, EmbedId, EntryId,
-    EntryTemplateId, FieldId, KvEntryId, MediaItemId, MemoryId, ModuleId, PatchId, PlotColId,
-    PlotRowId, ProjectTemplateDocId, RelationId, RelationTypeId, TabId, TemplateId, TimePinId,
-    TimelineViewId,
+    AssetFolderId, AssetId, BlockId, BodyDocId, BookId, CommentId, CustomModuleId, DocId, EmbedId,
+    EntryId, EntryTemplateId, FieldId, KvEntryId, MediaItemId, MemoryId, ModuleId, PatchId,
+    PlotColId, PlotRowId, ProjectTemplateDocId, RelationId, RelationTypeId, TabId, TemplateId,
+    TimePinId, TimelineViewId,
 };
 use crate::kind::{CommentAuthorKind, CommentOrigin, CommentSource, CommentStatus, EntityKind};
 use crate::order::cmp_order;
@@ -56,6 +56,20 @@ pub struct EntityLinkV3 {
     pub block: Option<BlockId>,
     #[serde(default)]
     pub end_block: Option<BlockId>,
+    /// Picked with @ ([`crate::prose::LINK_MANUAL`]): it shows whatever the
+    /// switches of automatic linking say (`kernel-v5.md` §16).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub manual: bool,
+}
+
+impl EntityLinkV3 {
+    /// Whether the author made this link: picked with @ ([`Self::manual`]),
+    /// or one into a module or a range of blocks, which automatic linking
+    /// never writes (it writes a bare `{kind}`). Such a link shows whatever
+    /// the switches say ([`link_show`]'s `manual`, `kernel-v5.md` §16).
+    pub fn picked(&self) -> bool {
+        self.manual || self.module.is_some() || self.block.is_some() || self.end_block.is_some()
+    }
 }
 
 /// Default block width on a timeline axis when a placement omits `span`:
@@ -169,6 +183,11 @@ v3_open_enum!(
         Members = "members",
         /// Files with captions and order (`media:<module_id>` on the entry, `kernel-v5.md` §6).
         Media = "media",
+        /// A custom module (`custom-modules.md` §7): `config.module` names
+        /// its copy in the book's `modules` root; an entry keeps its values
+        /// by block id in `module:<module_id>` on the entry. Never part of
+        /// the book (`in_book` is always off).
+        Custom = "custom",
     }
 );
 
@@ -382,6 +401,10 @@ pub struct ModuleConfig {
     /// unless an entry chooses its own (`None`: the default, `featured`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub arrangement: Option<MediaArrangement>,
+    /// For `custom` modules: the module whose copy in the book's `modules`
+    /// root this one draws (`custom-modules.md` §7).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub module: Option<CustomModuleId>,
 }
 
 fn default_plot_lines_u32() -> u32 {
@@ -404,6 +427,7 @@ impl Default for ModuleConfig {
             default_rows: default_plot_lines_u32(),
             default_cols: default_plot_lines_u32(),
             arrangement: None,
+            module: None,
         }
     }
 }
@@ -536,6 +560,23 @@ impl ModuleSpec {
         }
     }
 
+    /// A `custom` module drawing the book's copy of `module`; never part of
+    /// the book (`custom-modules.md` §16 item 2).
+    pub fn custom(id: ModuleId, name: impl Into<String>, module: CustomModuleId) -> Self {
+        Self {
+            id,
+            kind: ModuleKind::Custom,
+            name: name.into(),
+            pos: None,
+            config: ModuleConfig {
+                in_book: false,
+                module: Some(module),
+                ..ModuleConfig::default()
+            },
+            agent: None,
+        }
+    }
+
     /// This prose module with its `in_book` switch set.
     pub fn in_book(mut self, in_book: bool) -> Self {
         self.config.in_book = in_book;
@@ -578,8 +619,12 @@ pub struct LevelSettings {
     /// Default workspace presentation mode for entries below or belonging here.
     #[serde(default)]
     pub display: ChildDisplayMode,
-    /// Whether entries residing under this level participate in auto-linking
-    /// (when their template is `linkable`, `kernel-v5.md` §16).
+    /// The level's 「自动链接」 (`kernel-v5.md` §16 「自动链接」): whether an
+    /// entry newly created to live here starts with its own switch
+    /// ([`Entry::auto_link`]) on, when its template is `linkable`. It decides
+    /// nothing about existing entries: turning it on or off through
+    /// `entry.set_below_auto_link` sets the switch of every `linkable` entry
+    /// living below, once.
     #[serde(default)]
     pub auto_link: bool,
     /// Whether entries residing elsewhere may belong to this entry via `memberships` (`收别处的条目`).
@@ -758,8 +803,12 @@ pub struct EntryTemplate {
     /// existing entries.
     #[serde(default)]
     pub level: bool,
-    /// Whether entries of this template take part in auto-linking where the
-    /// level they live in or belong to turns it on (`linkable`, on by default).
+    /// Whether entries of this template follow the level they live in for
+    /// 「自动链接」 (`linkable`, on by default; `kernel-v5.md` §16): a new
+    /// entry starts with the level's default, and turning the level's switch
+    /// on or off carries it along. A container (a group, a category) is not
+    /// `linkable` and keeps its own switch. It never vetoes a link: an entry
+    /// whose own switch the author turned on links whatever its template.
     #[serde(default = "default_true")]
     pub linkable: bool,
     /// Settings for what lives below entries of this template whose switch is
@@ -897,6 +946,15 @@ pub struct Entry {
     /// `entry.create` and `entry.set_level` write it afterwards.
     #[serde(default)]
     pub level: bool,
+    /// The entry's own 「自动链接」 (`kernel-v5.md` §16): whether its title
+    /// and aliases link by themselves in the book's text, and whether the
+    /// automatic links already pointing at it show as links. Off unless
+    /// someone turned it on: `entry.create` takes the default of the level
+    /// it starts living in ([`new_entry_auto_link`]); `entry.set_auto_link`
+    /// and a level's `entry.set_below_auto_link` write it afterwards. Moving
+    /// the entry or switching its template leaves it alone.
+    #[serde(default)]
+    pub auto_link: bool,
     /// Per-entry overrides of the settings for what lives below (kept, but
     /// read as absent, while the switch is off).
     pub overrides: Option<LevelSettingsOverride>,
@@ -977,8 +1035,9 @@ impl Entry {
         self.level || self.accepts_members(templates)
     }
 
-    /// Whether this entry's names may auto-link (`linkable`): its template
-    /// says so, or it has no active template.
+    /// Whether this entry follows its level for 「自动链接」 (`linkable`): its
+    /// template says so, or it has no active template. Not whether it links:
+    /// that is [`Entry::auto_link`].
     pub fn is_linkable(&self, templates: &BTreeMap<EntryTemplateId, EntryTemplate>) -> bool {
         self.effective_template(templates)
             .is_none_or(|t| t.linkable)
@@ -2551,21 +2610,158 @@ pub fn entry_color(
         .or_else(|| template_color(entry, templates))
 }
 
-/// Whether `entry` auto-links (`kernel-v5.md` §16 "自动链接"): it is live, its
-/// template is `linkable` (an entry without an active template is), and the
-/// level it resides in resolves `auto_link` on. Memberships do not count, and
-/// its own switch does not matter. For many entries at once use
-/// [`AutolinkNames`], which resolves each level once.
-pub fn is_autolinked(
-    entry: &Entry,
+/// Whether `entry` auto-links (`kernel-v5.md` §16 「自动链接」): it is live
+/// and its own switch ([`Entry::auto_link`]) is on. Where it lives, what it
+/// belongs to and its template do not count.
+pub fn is_autolinked(entry: &Entry) -> bool {
+    !entry.is_trashed() && entry.auto_link
+}
+
+/// The switch a new entry of `template` starts with when it comes to live
+/// under `parent` (`None`: the outermost level; `kernel-v5.md` §16): on when
+/// the template is `linkable` (no template counts as `linkable`) and the
+/// level's 「自动链接」 resolves on, the nearest level that sets it deciding.
+/// The root sets nothing, so an entry at the outermost level starts off.
+pub fn new_entry_auto_link(
+    parent: Option<&EntryId>,
+    template: Option<&EntryTemplateId>,
     entries: &BTreeMap<EntryId, Entry>,
     templates: &BTreeMap<EntryTemplateId, EntryTemplate>,
 ) -> bool {
-    if entry.is_trashed() || !entry.is_linkable(templates) {
-        return false;
+    let linkable = template
+        .and_then(|t| templates.get(t))
+        .filter(|t| !t.is_trashed())
+        .is_none_or(|t| t.linkable);
+    linkable && resolve_level_settings(parent, entries, templates).auto_link
+}
+
+/// The entries a level's 「自动链接」 carries along when the author turns it
+/// on or off (`kernel-v5.md` §16): every live entry living below `level`,
+/// however deep, whose template is `linkable`. A container that is not
+/// `linkable` keeps its own switch, but what lives in it is carried along.
+/// Entries in Recently Deleted keep theirs.
+pub fn below_auto_link_entries(
+    level: &EntryId,
+    entries: &BTreeMap<EntryId, Entry>,
+    templates: &BTreeMap<EntryTemplateId, EntryTemplate>,
+) -> Vec<EntryId> {
+    let mut children: BTreeMap<&EntryId, Vec<&Entry>> = BTreeMap::new();
+    for e in entries.values().filter(|e| !e.is_trashed()) {
+        if let Some(p) = e.parent.as_ref() {
+            children.entry(p).or_default().push(e);
+        }
     }
-    let parent = effective_parent_id(entry, entries);
-    resolve_level_settings(parent.as_ref(), entries, templates).auto_link
+    let mut out = Vec::new();
+    let mut seen = BTreeSet::new();
+    let mut stack = vec![level];
+    while let Some(at) = stack.pop() {
+        for c in children.get(at).into_iter().flatten() {
+            if c.id == *level || !seen.insert(&c.id) {
+                continue;
+            }
+            if c.is_linkable(templates) {
+                out.push(c.id.clone());
+            }
+            stack.push(&c.id);
+        }
+    }
+    out.sort();
+    out
+}
+
+/// What a link in text shows as (`kernel-v5.md` §16 「自动链接」), for every
+/// reader of links: the editor's paint, its name cards and clicks, the
+/// dotted suggestions, the index queries, the mention lists, the relation
+/// graph, the right bar, and the links of comments and descriptions. The
+/// link's data stays in the text whatever it shows as.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum LinkShow {
+    /// A link: underlined, it opens its entry, its name card shows.
+    Live,
+    /// A link whose entry is gone (in Recently Deleted, purged, not in this
+    /// book): drawn muted, as before.
+    Gone,
+    /// Ordinary text: an automatic link to an entry whose own switch is off,
+    /// or any automatic link while the author's setting
+    /// (`editor.auto_entity_links`) is off. Turning either back on shows it
+    /// again.
+    Plain,
+}
+
+impl LinkShow {
+    /// Whether it reads as a link at all (live or gone).
+    pub fn is_link(self) -> bool {
+        !matches!(self, LinkShow::Plain)
+    }
+}
+
+/// What the link reader knows about the entry a link points at.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct LinkEntry {
+    /// Not in Recently Deleted.
+    pub live: bool,
+    /// Its own 「自动链接」 ([`Entry::auto_link`]).
+    pub auto_link: bool,
+}
+
+impl From<&Entry> for LinkEntry {
+    fn from(e: &Entry) -> Self {
+        Self {
+            live: !e.is_trashed(),
+            auto_link: e.auto_link,
+        }
+    }
+}
+
+/// **The one rule** for what a link shows as (`kernel-v5.md` §16): a link
+/// picked with @ (`manual`) is a link whatever the switches say; an
+/// automatic one (every link written before manual links were recorded
+/// counts as one) is plain text while the author's setting `auto_links` or
+/// its entry's own switch is off. Then a link whose entry is live is
+/// [`LinkShow::Live`], and one whose entry is gone or unknown (`target`
+/// `None`) is [`LinkShow::Gone`].
+pub fn link_show(manual: bool, target: Option<LinkEntry>, auto_links: bool) -> LinkShow {
+    if !manual && (!auto_links || target.is_some_and(|t| !t.auto_link)) {
+        return LinkShow::Plain;
+    }
+    match target {
+        Some(t) if t.live => LinkShow::Live,
+        _ => LinkShow::Gone,
+    }
+}
+
+/// The link targets of one read of a book, for [`link_show`] over many
+/// links: every entry of the book (Recently Deleted included) with its
+/// state.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct LinkEntries {
+    entries: std::collections::HashMap<String, LinkEntry>,
+}
+
+impl LinkEntries {
+    pub fn of<'a>(entries: impl IntoIterator<Item = &'a Entry>) -> Self {
+        Self {
+            entries: entries
+                .into_iter()
+                .map(|e| (e.id.to_string(), LinkEntry::from(e)))
+                .collect(),
+        }
+    }
+
+    /// The state of entry `id`, `None` when the book has no such entry.
+    pub fn get(&self, id: &str) -> Option<LinkEntry> {
+        self.entries.get(id).copied()
+    }
+
+    /// [`link_show`] for a link to entry `id`.
+    pub fn show(&self, id: &str, manual: bool, auto_links: bool) -> LinkShow {
+        link_show(manual, self.get(id), auto_links)
+    }
+
+    /// Whether entry `id` is live.
+    pub fn is_live(&self, id: &str) -> bool {
+        self.get(id).is_some_and(|t| t.live)
+    }
 }
 
 /// All normalized name keys (`element_name_key`) claimed by `entry` (its title
@@ -2589,9 +2785,8 @@ pub fn entry_autolink_keys(
 }
 
 /// The auto-link names of one read of a book (`V3-AUTOLINK-NAME-UNIQUE`,
-/// `kernel-v5.md` §16): which entries auto-link (by residence alone), and every
-/// name key with the auto-linked entries that claim it. Built in one pass: each
-/// level's settings are resolved once, then every entry is visited once.
+/// `kernel-v5.md` §16): which entries auto-link (their own switch), and every
+/// name key with the auto-linked entries that claim it. Built in one pass.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct AutolinkNames {
     linked: BTreeSet<EntryId>,
@@ -2603,19 +2798,9 @@ impl AutolinkNames {
         entries: &BTreeMap<EntryId, Entry>,
         templates: &BTreeMap<EntryTemplateId, EntryTemplate>,
     ) -> Self {
-        let mut levels: BTreeMap<Option<EntryId>, LevelSettings> = BTreeMap::new();
-        let mut settings_of = |id: Option<&EntryId>| -> LevelSettings {
-            levels
-                .entry(id.cloned())
-                .or_insert_with(|| resolve_level_settings(id, entries, templates))
-                .clone()
-        };
         let mut out = Self::default();
         for e in entries.values() {
-            if e.is_trashed() || !e.is_linkable(templates) {
-                continue;
-            }
-            if !settings_of(effective_parent_id(e, entries).as_ref()).auto_link {
+            if !is_autolinked(e) {
                 continue;
             }
             out.linked.insert(e.id.clone());
@@ -2875,7 +3060,7 @@ pub fn check_tab_removable(tab: &ProjectTab) -> Result<(), Violation> {
 /// What the structural invariants look at in one read of a book: its entries
 /// (structural parts are enough: ids, parents, titles, templates, switches,
 /// overrides, alias fields, created and deleted times) and its templates.
-/// Auto-linking is governed by residence alone (`kernel-v5.md` §16).
+/// Auto-linking is each entry's own switch (`kernel-v5.md` §16).
 #[derive(Clone, Copy, Debug)]
 pub struct BookGraph<'a> {
     pub entries: &'a BTreeMap<EntryId, Entry>,
@@ -2891,9 +3076,9 @@ pub struct BookGraph<'a> {
 /// - `V3-AUTOLINK-NAME-UNIQUE`: a name claimed by more than one auto-linked
 ///   entry after the write, at least one of which did not claim it before.
 ///
-/// Writes that change many entries at once (a template switch, a template's
-/// `linkable` or settings, an entry's overrides, a move, a restore, turning a
-/// switch off) go through the same comparison.
+/// Writes that change many entries at once (a level's 「自动链接」 carried
+/// along, a template switch, a restore, turning a switch off) go through the
+/// same comparison.
 pub fn check_new_violations(before: BookGraph<'_>, after: BookGraph<'_>) -> Result<(), Violation> {
     let was = AutolinkNames::of(before.entries, before.templates);
     let now = AutolinkNames::of(after.entries, after.templates);
@@ -3027,6 +3212,7 @@ mod tests {
             mark: None,
             template: tpl.map(tid),
             level: false,
+            auto_link: false,
             overrides: None,
             fields: BTreeMap::new(),
             kv: BTreeMap::new(),
@@ -3367,33 +3553,37 @@ mod tests {
     }
 
     #[test]
-    fn autolink_conflicts_keep_residence_trash_and_tie_breaking_rules_and_ignore_memberships() {
+    fn autolink_follows_each_entrys_own_switch_with_trash_and_tie_breaking() {
+        // A level whose new entries start linked: it no longer decides for
+        // the entries already there (`kernel-v5.md` §16).
         let mut host_tpl = level_template("host-tpl", "Host", true);
         host_tpl.settings.auto_link = Some(true);
         let templates = BTreeMap::from([
             (host_tpl.id.clone(), host_tpl),
             (tid("leaf"), template("leaf", "Leaf")),
         ]);
+        let on = |e: Entry| Entry {
+            auto_link: true,
+            ..e
+        };
         let mut entries = BTreeMap::new();
         for e in [
             level_with("host", None, "Host", Some("host-tpl")),
-            level_with("closed", None, "Closed", None),
-            entry_with("a", Some("host"), "Same", Some("leaf")),
-            // `b` resides at root and only belongs to `host` via membership -> NOT autolinked!
-            entry_with("b", None, "Same", Some("leaf")),
-            // `c` resides under `host` -> autolinked!
-            entry_with("c", Some("host"), "Same", Some("leaf")),
-            entry_with("d", Some("host"), "Same", Some("leaf")),
-            // Under `a`, whose switch is off: it reads as living under `host`.
-            entry_with("e", Some("a"), "Same", Some("leaf")),
+            on(entry_with("a", Some("host"), "Same", Some("leaf"))),
+            // Lives under a level that links, its own switch off: not linked.
+            entry_with("b", Some("host"), "Same", Some("leaf")),
+            // Lives outside any level that links, its own switch on: linked.
+            on(entry_with("c", None, "Same", Some("leaf"))),
+            on(entry_with("d", Some("host"), "Same", Some("leaf"))),
+            on(entry_with("e", Some("a"), "Same", Some("leaf"))),
         ] {
             entries.insert(e.id.clone(), e);
         }
         entries.get_mut(&eid("d")).unwrap().deleted_at = Some(Timestamp(2));
-        // The single-entry rule and the one-pass table agree, ignoring memberships.
+        // The single-entry rule and the one-pass table agree.
         let eligible: Vec<_> = entries
             .values()
-            .filter(|e| is_autolinked(e, &entries, &templates))
+            .filter(|e| is_autolinked(e))
             .map(|e| e.id.clone())
             .collect();
         assert_eq!(eligible, vec![eid("a"), eid("c"), eid("e")]);
@@ -3414,6 +3604,173 @@ mod tests {
         let conflicts = resolve_autolink_name_conflicts(&mut entries, &templates);
         assert_eq!(conflicts, BTreeMap::from([(eid("e"), eid("c"))]));
         assert_eq!(entries[&eid("c")].name_conflict, None);
+        // Memberships, moves and templates change nothing: only the switch.
+        let mut moved = entries.clone();
+        moved.get_mut(&eid("b")).unwrap().parent = None;
+        moved.get_mut(&eid("c")).unwrap().parent = Some(eid("host"));
+        moved.get_mut(&eid("c")).unwrap().template = None;
+        assert_eq!(
+            AutolinkNames::of(&moved, &templates).linked(),
+            AutolinkNames::of(&entries, &templates).linked()
+        );
+    }
+
+    #[test]
+    fn a_new_entry_takes_the_default_of_the_nearest_level_that_sets_one_when_linkable() {
+        let mut cat_tpl = level_template("tpl-cat", "分类", true);
+        cat_tpl.settings.auto_link = Some(true);
+        // A container keeps its own switch: not `linkable`.
+        let group_tpl = level_template("tpl-group", "分组", false);
+        let templates = BTreeMap::from([
+            (tid("tpl-cat"), cat_tpl),
+            (tid("tpl-group"), group_tpl),
+            (tid("tpl-person"), aliases_template("tpl-person")),
+        ]);
+        let mut quiet = level_with("quiet", Some("grp"), "安静的一组", Some("tpl-group"));
+        quiet.overrides = Some(LevelSettingsOverride {
+            auto_link: Some(false),
+            ..Default::default()
+        });
+        let entries = BTreeMap::from([
+            (eid("cat"), level_with("cat", None, "人物", Some("tpl-cat"))),
+            (
+                eid("grp"),
+                level_with("grp", Some("cat"), "主要人物", Some("tpl-group")),
+            ),
+            (eid("quiet"), quiet),
+            (eid("ms"), level_with("ms", None, "书稿", None)),
+        ]);
+        let new = |parent: Option<&str>, tpl: Option<&str>| {
+            new_entry_auto_link(
+                parent.map(eid).as_ref(),
+                tpl.map(tid).as_ref(),
+                &entries,
+                &templates,
+            )
+        };
+        assert!(new(Some("cat"), Some("tpl-person")));
+        // A group inside sets nothing: the category above decides.
+        assert!(new(Some("grp"), Some("tpl-person")));
+        assert!(new(Some("grp"), None), "no template counts as linkable");
+        // A level that sets off decides for what is made in it.
+        assert!(!new(Some("quiet"), Some("tpl-person")));
+        // A container template does not follow the level.
+        assert!(!new(Some("cat"), Some("tpl-group")));
+        // A level that sets nothing, and the outermost level: off.
+        assert!(!new(Some("ms"), Some("tpl-person")));
+        assert!(!new(None, Some("tpl-person")));
+        // A missing template counts as none.
+        assert!(new(Some("cat"), Some("tpl-gone")));
+    }
+
+    #[test]
+    fn a_levels_switch_carries_every_linkable_entry_living_below_it() {
+        let templates = BTreeMap::from([
+            (tid("tpl-cat"), level_template("tpl-cat", "分类", true)),
+            (tid("tpl-group"), level_template("tpl-group", "分组", false)),
+            (tid("tpl-person"), aliases_template("tpl-person")),
+        ]);
+        let mut gone = entry_with("gone", Some("cat"), "走了的人", Some("tpl-person"));
+        gone.deleted_at = Some(Timestamp(9));
+        let entries = BTreeMap::from([
+            (eid("cat"), level_with("cat", None, "人物", Some("tpl-cat"))),
+            (
+                eid("grp"),
+                level_with("grp", Some("cat"), "主要人物", Some("tpl-group")),
+            ),
+            (
+                eid("a"),
+                entry_with("a", Some("grp"), "林凯", Some("tpl-person")),
+            ),
+            (eid("b"), entry_with("b", Some("cat"), "沈青", None)),
+            (eid("gone"), gone),
+            (
+                eid("outside"),
+                entry_with("outside", None, "外人", Some("tpl-person")),
+            ),
+        ]);
+        // What lives in the group is carried along; the group itself and the
+        // entry in Recently Deleted keep their own switch.
+        assert_eq!(
+            below_auto_link_entries(&eid("cat"), &entries, &templates),
+            vec![eid("a"), eid("b")]
+        );
+        assert_eq!(
+            below_auto_link_entries(&eid("grp"), &entries, &templates),
+            vec![eid("a")]
+        );
+        assert!(below_auto_link_entries(&eid("a"), &entries, &templates).is_empty());
+    }
+
+    #[test]
+    fn what_a_link_shows_as_is_one_rule() {
+        let entry = |live: bool, auto_link: bool| Some(LinkEntry { live, auto_link });
+        // An automatic link follows its entry's switch and the setting.
+        assert_eq!(link_show(false, entry(true, true), true), LinkShow::Live);
+        assert_eq!(link_show(false, entry(true, false), true), LinkShow::Plain);
+        assert_eq!(link_show(false, entry(true, true), false), LinkShow::Plain);
+        // Gone stays gone while it would show, plain while it would not.
+        assert_eq!(link_show(false, entry(false, true), true), LinkShow::Gone);
+        assert_eq!(link_show(false, entry(false, false), true), LinkShow::Plain);
+        assert_eq!(link_show(false, None, true), LinkShow::Gone);
+        assert_eq!(link_show(false, None, false), LinkShow::Plain);
+        // A link picked with @ shows whatever the switches say.
+        for auto_links in [true, false] {
+            for auto_link in [true, false] {
+                assert_eq!(
+                    link_show(true, entry(true, auto_link), auto_links),
+                    LinkShow::Live
+                );
+                assert_eq!(
+                    link_show(true, entry(false, auto_link), auto_links),
+                    LinkShow::Gone
+                );
+            }
+            assert_eq!(link_show(true, None, auto_links), LinkShow::Gone);
+        }
+        assert!(LinkShow::Gone.is_link() && !LinkShow::Plain.is_link());
+        // The table of a book says the same.
+        let mut off = entry_with("off", None, "关着的", None);
+        off.auto_link = false;
+        let mut on = entry_with("on", None, "开着的", None);
+        on.auto_link = true;
+        let table = LinkEntries::of([&off, &on]);
+        assert_eq!(table.show("on", false, true), LinkShow::Live);
+        assert_eq!(table.show("off", false, true), LinkShow::Plain);
+        assert_eq!(table.show("off", true, true), LinkShow::Live);
+        assert_eq!(table.show("nobody", false, true), LinkShow::Gone);
+        assert!(table.is_live("off") && !table.is_live("nobody"));
+        // Picked: with @, or into a module or blocks (never automatic).
+        let bare = EntityLinkV3 {
+            target: "off".into(),
+            kind: crate::kind::EntityKind::Entry,
+            module: None,
+            block: None,
+            end_block: None,
+            manual: false,
+        };
+        assert!(!bare.picked());
+        assert!(
+            EntityLinkV3 {
+                manual: true,
+                ..bare.clone()
+            }
+            .picked()
+        );
+        assert!(
+            EntityLinkV3 {
+                module: Some(ModuleId::parse("mod-prose").unwrap()),
+                ..bare.clone()
+            }
+            .picked()
+        );
+        assert!(
+            EntityLinkV3 {
+                block: Some(BlockId::parse("3@7").unwrap()),
+                ..bare
+            }
+            .picked()
+        );
     }
 
     #[test]
@@ -3554,8 +3911,8 @@ mod tests {
                 entries[&eid("ch")].effective_primary(&hosts).cloned(),
                 effective_timeline_lanes(&view.lanes, entries, &templates).len(),
                 effective_timeline_placements(&view, &memberships, entries, &templates).len(),
-                // `ch` resides at root, not under `line`, so membership never auto-links it.
-                is_autolinked(&entries[&eid("ch")], entries, &templates),
+                // Belonging to `line` never links `ch`: only its own switch does.
+                is_autolinked(&entries[&eid("ch")]),
             )
         };
         let on = read(&entries);
@@ -4215,19 +4572,23 @@ mod tests {
     }
 
     #[test]
-    fn autolink_names_are_unique_across_autolinked_entries_whatever_their_switch() {
+    fn autolink_names_are_unique_among_the_entries_whose_own_switch_is_on() {
         let mut tpl_cat = level_template("tpl-cat", "分类", true);
         tpl_cat.settings.auto_link = Some(true);
-        // A grouping template: not linkable even where auto-link is on.
+        // A grouping template: not linkable, which vetoes nothing.
         let tpl_group = level_template("tpl-group", "分组", false);
         let templates = BTreeMap::from([
             (tid("tpl-cat"), tpl_cat),
             (tid("tpl-group"), tpl_group),
             (tid("tpl-person"), aliases_template("tpl-person")),
         ]);
+        let on = |e: Entry| Entry {
+            auto_link: true,
+            ..e
+        };
 
-        // `e1` has entries under it (its switch is on): it still auto-links.
-        let mut e1 = level_with("e1", Some("cat-1"), "林凯", Some("tpl-person"));
+        // `e1` has entries under it (its `level` switch is on): it still links.
+        let mut e1 = on(level_with("e1", Some("cat-1"), "林凯", Some("tpl-person")));
         e1.created_at = Some(Timestamp(1000));
         e1.fields.insert(
             mid("mod-fields"),
@@ -4236,7 +4597,12 @@ mod tests {
                 FieldValue::List(vec!["凯哥".into(), "Captain Lin".into()]),
             )]),
         );
-        let past = entry_with("past", Some("e1"), "林凯的过去", Some("tpl-person"));
+        let past = on(entry_with(
+            "past",
+            Some("e1"),
+            "林凯的过去",
+            Some("tpl-person"),
+        ));
         let group = level_with("grp", Some("cat-1"), "主要人物", Some("tpl-group"));
         let before = BTreeMap::from([
             (
@@ -4249,27 +4615,35 @@ mod tests {
         ]);
         let names = AutolinkNames::of(&before, &templates);
         assert!(names.is_linked(&eid("e1")));
-        // `past` lives under `e1`, which inherits auto-link from the category.
         assert!(names.is_linked(&eid("past")));
         assert!(!names.is_linked(&eid("grp")));
 
-        // `outside` resides outside `cat-1`: even with the same name as `e1`'s
-        // alias, it does NOT auto-link and causes NO name violation until moved in.
-        let mut with_outside = before.clone();
-        with_outside.insert(
-            eid("outside"),
-            entry_with("outside", None, "  CAPTAIN LIN ", Some("tpl-person")),
+        // `quiet` lives in the category with its own switch off: even with the
+        // same name as `e1`'s alias it claims nothing until it is turned on.
+        let mut with_quiet = before.clone();
+        with_quiet.insert(
+            eid("quiet"),
+            entry_with("quiet", Some("cat-1"), "  CAPTAIN LIN ", Some("tpl-person")),
         );
         assert!(
-            check_new_violations(graph(&before, &templates), graph(&with_outside, &templates))
+            check_new_violations(graph(&before, &templates), graph(&with_quiet, &templates))
                 .is_ok()
         );
-        assert!(!AutolinkNames::of(&with_outside, &templates).is_linked(&eid("outside")));
+        assert!(!AutolinkNames::of(&with_quiet, &templates).is_linked(&eid("quiet")));
+        // Turning it on is refused (trimmed, case-insensitive).
+        let mut quiet_on = with_quiet.clone();
+        quiet_on.get_mut(&eid("quiet")).unwrap().auto_link = true;
+        assert_eq!(
+            check_new_violations(graph(&with_quiet, &templates), graph(&quiet_on, &templates))
+                .unwrap_err()
+                .invariant,
+            "V3-AUTOLINK-NAME-UNIQUE"
+        );
 
-        // `e2` resides under `cat-1`, so it auto-links, and its title is `e1`'s
-        // alias (trimmed, case-insensitive): refused.
+        // `e2` outside every level, its switch on, named like `e1`'s alias:
+        // refused, wherever it lives.
         let mut after = before.clone();
-        let mut e2 = entry_with("e2", Some("cat-1"), "  CAPTAIN LIN ", Some("tpl-person"));
+        let mut e2 = on(entry_with("e2", None, "  CAPTAIN LIN ", Some("tpl-person")));
         e2.created_at = Some(Timestamp(2000));
         after.insert(eid("e2"), e2);
         assert_eq!(
@@ -4278,11 +4652,23 @@ mod tests {
                 .invariant,
             "V3-AUTOLINK-NAME-UNIQUE"
         );
-        // A group named like a person claims nothing: it is not linkable.
+        // A group named like a person claims nothing while its switch is off…
         let mut renamed = before.clone();
         renamed.get_mut(&eid("grp")).unwrap().title = "林凯".into();
         assert!(
             check_new_violations(graph(&before, &templates), graph(&renamed, &templates)).is_ok()
+        );
+        // …and claims its name once the author turns it on: `linkable` is no veto.
+        let mut grp_on = renamed.clone();
+        grp_on.get_mut(&eid("grp")).unwrap().auto_link = true;
+        assert!(
+            check_new_violations(graph(&renamed, &templates), graph(&grp_on, &templates)).is_err()
+        );
+        // A template's `linkable` changes no name.
+        let mut linkable = templates.clone();
+        linkable.get_mut(&tid("tpl-group")).unwrap().linkable = true;
+        assert!(
+            check_new_violations(graph(&renamed, &templates), graph(&renamed, &linkable)).is_ok()
         );
 
         // A merge brought `e2` in anyway: readers mark the later one.
@@ -4297,27 +4683,28 @@ mod tests {
         assert!(
             check_new_violations(graph(&after, &templates), graph(&unrelated, &templates)).is_ok()
         );
-        // ...and renaming one of the pair resolves it.
+        // ...renaming one of the pair or turning it off resolves it.
         let mut resolved = after.clone();
         resolved.get_mut(&eid("e2")).unwrap().title = "林二".into();
         assert!(
             check_new_violations(graph(&after, &templates), graph(&resolved, &templates)).is_ok()
         );
+        let mut off = after.clone();
+        off.get_mut(&eid("e2")).unwrap().auto_link = false;
+        assert!(check_new_violations(graph(&after, &templates), graph(&off, &templates)).is_ok());
         // A third entry joining the old duplicate is refused.
         let mut third = after.clone();
         third.insert(
             eid("e3"),
-            entry_with("e3", Some("cat-1"), "captain lin", Some("tpl-person")),
+            on(entry_with(
+                "e3",
+                Some("cat-1"),
+                "captain lin",
+                Some("tpl-person"),
+            )),
         );
         assert!(
             check_new_violations(graph(&after, &templates), graph(&third, &templates)).is_err()
-        );
-        // A batch change counts the same way: turning `linkable` on for the
-        // group template makes `grp` claim a name already taken.
-        let mut linkable = templates.clone();
-        linkable.get_mut(&tid("tpl-group")).unwrap().linkable = true;
-        assert!(
-            check_new_violations(graph(&renamed, &templates), graph(&renamed, &linkable)).is_err()
         );
     }
 

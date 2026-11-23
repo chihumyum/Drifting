@@ -335,6 +335,7 @@ fn the_rest_of_the_book_reads_what_the_rules_say() {
                         module: None,
                         block: None,
                         end_block: None,
+                        manual: false,
                     },
                 )
                 .unwrap();

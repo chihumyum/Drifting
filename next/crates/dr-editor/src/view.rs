@@ -302,7 +302,9 @@ impl ChapterEditor {
                     this.insert_material(material, window, cx);
                 }
                 // The host shows the row (dr-view-page).
-                crate::assist::AssistEvent::RelationPlaced { .. } => {}
+                // The page host writes the switch (`dr-view-page`).
+                crate::assist::AssistEvent::RelationPlaced { .. }
+                | crate::assist::AssistEvent::AutoLink { .. } => {}
             },
         );
         (assist, events)
@@ -634,6 +636,7 @@ impl ChapterEditor {
         if settings == self.settings {
             return;
         }
+        let auto_changed = settings.auto_entity_links != self.settings.auto_entity_links;
         self.settings = settings;
         let style = self.settings.style_for(&self.base_style, self.immersive);
         if let Some(embeds) = &self.embeds {
@@ -642,6 +645,11 @@ impl ChapterEditor {
         self.editor.update(cx, |e, cx| e.set_style(style, cx));
         let auto = self.settings.auto_entity_links;
         self.assist.update(cx, |a, _| a.set_auto_links(auto));
+        if auto_changed {
+            self.decor_layers()
+                .clone()
+                .update(cx, |l, cx| l.refresh_links(cx));
+        }
         cx.notify();
     }
 

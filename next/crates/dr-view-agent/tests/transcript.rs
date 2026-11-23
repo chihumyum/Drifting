@@ -398,7 +398,13 @@ fn session_turn_slots_preserve_model_rounds_and_messages_without_a_local_run() {
         replay: None,
     };
     let events = [
-        (1, Event::UserMessage { text: text.clone() }),
+        (
+            1,
+            Event::UserMessage {
+                text: text.clone(),
+                images: Vec::new(),
+            },
+        ),
         (
             1,
             Event::AssistantMessage {
@@ -418,7 +424,13 @@ fn session_turn_slots_preserve_model_rounds_and_messages_without_a_local_run() {
             },
         ),
         (1, Event::AssistantMessage { message: assistant }),
-        (2, Event::UserMessage { text: text.clone() }),
+        (
+            2,
+            Event::UserMessage {
+                text: text.clone(),
+                images: Vec::new(),
+            },
+        ),
         (
             2,
             Event::ProviderTool {
@@ -456,7 +468,10 @@ fn session_turn_slots_preserve_model_rounds_and_messages_without_a_local_run() {
             id: "synced-message".into(),
             session: "other-device".into(),
             turn: 1,
-            content: MessageContent::User { text: text.clone() },
+            content: MessageContent::User {
+                text: text.clone(),
+                images: Vec::new(),
+            },
         },
     );
     let expected: Vec<String> = messages.iter().map(|message| message.id.clone()).collect();

@@ -20,6 +20,7 @@
 
 pub mod check;
 pub mod conversation;
+pub mod custom_module;
 pub mod id;
 pub mod import_v1;
 pub mod invariant;

@@ -6,6 +6,7 @@ pub mod controller;
 mod data;
 pub mod home_cards;
 pub mod hub;
+pub mod images;
 pub mod local;
 pub mod local_view;
 pub mod mcp;

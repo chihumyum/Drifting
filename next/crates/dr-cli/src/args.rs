@@ -7,6 +7,7 @@ use crate::app::AppCall;
 
 pub const USAGE: &str = "usage: cargo drifting workspace <subcommand>
        cargo drifting template check <file.driftingtemplate>... [--json]
+       cargo drifting module check <file.driftingmodule>... [--json]
        cargo drifting app <verb> (a running development build, through its debug bridge)
 
   describe [--json]                         the command registry (--json: with schemas)
@@ -54,6 +55,12 @@ pub enum Command {
     },
     App(AppCall),
     TemplateCheck {
+        files: Vec<PathBuf>,
+        json: bool,
+    },
+    /// `module check`: the module validator on `.driftingmodule` files
+    /// (`custom-modules.md` §12), as the community repository's CI runs it.
+    ModuleCheck {
         files: Vec<PathBuf>,
         json: bool,
     },
@@ -148,6 +155,22 @@ pub fn parse(args: &[String]) -> Result<Command, String> {
                 }
                 None | Some("help" | "--help") => Ok(Command::Help),
                 Some(other) => Err(format!("unknown subcommand template {other}")),
+            };
+        }
+        Some("module") => {
+            return match args.get(1).map(String::as_str) {
+                Some("check" | "validate") => {
+                    let f = flags(args.get(2..).unwrap_or_default())?;
+                    if f.positional.is_empty() {
+                        return Err("a .driftingmodule file path is required".to_string());
+                    }
+                    Ok(Command::ModuleCheck {
+                        files: f.positional.into_iter().map(PathBuf::from).collect(),
+                        json: f.json,
+                    })
+                }
+                None | Some("help" | "--help") => Ok(Command::Help),
+                Some(other) => Err(format!("unknown subcommand module {other}")),
             };
         }
         Some(other) => return Err(format!("unknown command {other}")),

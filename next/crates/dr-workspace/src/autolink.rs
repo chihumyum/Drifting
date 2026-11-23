@@ -1,11 +1,17 @@
-//! Automatic entity links (人物自动链接): in text other writers put in, and
-//! in the text already written when the book gains a name.
+//! Automatic entity links (自动链接, `kernel-v5.md` §16): in text other
+//! writers put in, and in the links of comments and relation descriptions.
+//!
+//! **Which names.** Every live entry whose own 「自动链接」 is on
+//! ([`dr_model::v3::Entry::auto_link`], off unless someone turned it on: a
+//! new entry takes the default of the level it starts living in), its title
+//! and its aliases. Where it lives, what it belongs to and its template do
+//! not count; a name two of them claim is the earlier one's
+//! (`V3-AUTOLINK-NAME-UNIQUE`).
 //!
 //! **The rule** is dr-text's matcher (`dr_text::autolink`) with the editor's
 //! choices (`dr-editor`'s `entity_links.rs`), and [`plan`] is the one place
-//! it is written down, for the editor too: every live element's name and
-//! aliases and every live chapter's and idea's title, matched verbatim,
-//! leftmost-longest, never a document's own entity.
+//! it is written down, for the editor too: those names, matched verbatim,
+//! leftmost-longest, never a document's own entry.
 //!
 //! - A name already linked to its target all the way is left alone; one
 //!   linked part of the way is linked whole (a split link heals).
@@ -14,6 +20,19 @@
 //! - Someone else's link reaching outside the name, or covering exactly the
 //!   name, is left alone with the name: the second is an old name another
 //!   entity has taken since, and the text still means the one it links to.
+//! - A link picked with @ (its value says `manual`) is never changed: the
+//!   v3 writers ([`link_written_v3`], the editor's `protect_v3`) leave every
+//!   link that is not a bare automatic one alone.
+//!
+//! **What a link shows as** is not this module's: the switches never touch
+//! the text. An automatic link whose entry's switch is off, or any while the
+//! author's setting is off, reads as ordinary text and shows again when it
+//! is turned back on; a link picked with @ shows either way
+//! ([`dr_model::v3::link_show`], the one rule every reader follows).
+//! Turning a switch on links nothing already written: a name typed while it
+//! was off shows the dotted grains until the author types in its paragraph
+//! again ([`keep_added`] is there for a pass over the book, which nothing
+//! runs).
 //!
 //! **Text other writers put in.** A command links only names lying wholly
 //! inside the text it wrote ([`link_written`]), in the same commit, so
@@ -26,21 +45,6 @@
 //! import's ([`links_for`]). Not the author's own commands (the author's
 //! text is linked by the editor as they type), and not sync (the other
 //! device linked its text already).
-//!
-//! **Text already written** (0.1's `retroactive-entity-links` and
-//! `element-name-backfill`): when a command gives the book a new name (an
-//! element created, renamed or given an alias; a chapter or idea created
-//! or retitled), the text of every live chapter, idea, element, storyline
-//! and category that holds the name gains its links, the new name's only,
-//! by the same rule (`backfill`). Material notes are left alone, as in
-//! 0.1. Each document is one commit with the command's origin (the author's
-//! is `user:command`, outside every editor's undo, so an editor open on the
-//! document keeps its own steps), and the command's journal entry undoes
-//! them: `prose.unlink` on the links it wrote, `prose.link` on the shorter
-//! links of others it removed, both by anchor, so the author's typing since
-//! moves nothing. Which documents: the ones dr-store's paragraph index
-//! finds the name in, and every document open here (its newest text may not
-//! be indexed yet).
 //!
 //! The author's setting `editor.auto_entity_links` (on by default) governs
 //! all of it: the shell passes it on with [`crate::Workspace::set_auto_links`].
@@ -93,6 +97,64 @@ fn book_link_names_v3(v: &dr_doc::v3::BookViewV3<'_>) -> Vec<LinkName<LinkTarget
         }
     }
     out
+}
+
+/// Whether an index reference to entry `entry` counts as a link now
+/// (`kernel-v5.md` §16, [`dr_model::v3::link_show`]): one picked with @
+/// (`RefKind::Mention`) whatever the switches say, an automatic one
+/// (`RefKind::Link`) while the author's setting `auto_links` and its entry's
+/// own 「自动链接」 are on; neither when the entry is gone or not in the book
+/// (`None`). Embeds are not links.
+pub fn reference_counts(
+    kind: dr_store::index::RefKind,
+    entry: Option<dr_model::v3::LinkEntry>,
+    auto_links: bool,
+) -> bool {
+    use dr_store::index::RefKind;
+    let manual = match kind {
+        RefKind::Link => false,
+        RefKind::Mention => true,
+        RefKind::Embed => return false,
+    };
+    dr_model::v3::link_show(manual, entry, auto_links) == dr_model::v3::LinkShow::Live
+}
+
+/// Every live entry's title and aliases, whatever its 「自动链接」: what the
+/// prose @ picker lists (`kernel-v5.md` §16, as the pickers of comments and
+/// relations do), the document's own entry left out by the caller.
+pub fn book_mention_names_v3(v: &dr_doc::v3::BookViewV3<'_>) -> Vec<LinkName<LinkTarget>> {
+    let graph = v.graph();
+    let mut out = Vec::new();
+    for e in graph.entries.values() {
+        if e.is_trashed() {
+            continue;
+        }
+        let target = LinkTarget::new(EntityKind::Entry, e.id.as_str());
+        for name in std::iter::once(e.title.clone()).chain(e.aliases(&graph.templates)) {
+            if !name.trim().is_empty() {
+                out.push(LinkName::new(name, target.clone()));
+            }
+        }
+    }
+    out
+}
+
+impl crate::Workspace {
+    /// [`book_mention_names_v3`] of `book`, read now.
+    pub fn book_mention_names(&self, book: &str) -> crate::Result<Vec<LinkName<LinkTarget>>> {
+        let book_id = dr_model::id::BookId::parse(book)
+            .map_err(|e| crate::WsError::Invalid(e.to_string()))?;
+        let slot = self.book_slot(&book_id)?;
+        let id = slot.book.clone();
+        Ok(slot
+            .handle
+            .read(move |d| {
+                dr_doc::v3::BorrowedBookV3::new(d, &id)
+                    .map(|b| book_mention_names_v3(&b.view()))
+                    .unwrap_or_default()
+            })
+            .unwrap_or_else(|_| book_mention_names_v3(&slot.reader_v3.view())))
+    }
 }
 
 pub type CachedLinkNames = Arc<Vec<LinkName<LinkTarget>>>;
@@ -311,6 +373,7 @@ pub fn apply(txn: &mut ProseTxn<'_>, start: usize, edits: &[LinkEdit]) -> dr_doc
                         kind: target.kind.clone(),
                         block: None,
                         end_block: None,
+                        manual: false,
                     },
                 )?;
                 linked += 1;
@@ -459,20 +522,23 @@ fn carried(at: &[Option<usize>], range: Range<usize>) -> Option<Range<usize>> {
 /// writing the book (`kernel-v5.md` §19 「描述和批注里的链接」).
 ///
 /// - `stored` is the text the draft replaces, as stored (`comment_body_raw`,
-///   `relation_type_raw`). Its writer read it with live links under their
-///   entries' titles and the links to entries in Recently Deleted as plain
-///   text. A link on a span the edit leaves unchanged (characters diffed
-///   against what the writer read) is carried over when its entry is in
-///   Recently Deleted: the writer could not see it, and it comes back with
-///   the entry. A plain-string draft (a writer that sends no links: the
-///   review panel's composer, an Agent) carries every link of an unchanged
-///   span. A draft with links states the visible ones itself, so a visible
-///   link it leaves out comes off.
+///   `relation_type_raw`). Its writer read it as readers show it
+///   (`resolve_linked_text`, `kernel-v5.md` §16): live links under their
+///   entries' titles, and as plain text the links to entries in Recently
+///   Deleted and the automatic links that read as text (their entry's
+///   「自动链接」 off, or every one while `auto_links`, the author's setting,
+///   is off). A link on a span the edit leaves unchanged (characters diffed
+///   against what the writer read) is carried over when the writer could
+///   not see it: it comes back with its entry or its switch. A plain-string
+///   draft (a writer that sends no links: the review panel's composer, an
+///   Agent) carries every link of an unchanged span. A draft with links
+///   states the visible ones itself, so a visible link it leaves out comes
+///   off.
 /// - The links the draft adds (picked with @: not the stored link of the
-///   same span) and those carried to entries in Recently Deleted stay as they
-///   are. The rest are automatic and follow the prose rule (module
-///   documentation): a shorter one lying inside a longer name gives way to
-///   it.
+///   same span) are recorded as picked with @ (`manual`), and with those
+///   carried unseen and those picked before stay as they are. The rest are
+///   automatic and follow the prose rule (module documentation): a shorter
+///   one lying inside a longer name gives way to it.
 /// - `names` is the book's compiled matcher ([`book_cache`],
 ///   [`book_text_matcher`]), `None` when the text gets no automatic links. A
 ///   comment never links the entry it is on (`owner`), as a prose document
@@ -483,6 +549,19 @@ pub fn plan_book_text(
     names: Option<&LinkMatcher<LinkTarget>>,
     stored: Option<&dr_model::v3::LinkedText>,
     draft: &crate::dto::LinkedTextIn,
+) -> crate::Result<dr_model::v3::LinkedText> {
+    plan_book_text_shown(book, owner, names, stored, draft, true)
+}
+
+/// [`plan_book_text`] for a writer that read the stored text with the
+/// author's setting `auto_links` (off: every automatic link read as text).
+pub fn plan_book_text_shown(
+    book: &dr_doc::v3::BookViewV3<'_>,
+    owner: Option<&dr_model::id::EntryId>,
+    names: Option<&LinkMatcher<LinkTarget>>,
+    stored: Option<&dr_model::v3::LinkedText>,
+    draft: &crate::dto::LinkedTextIn,
+    auto_links: bool,
 ) -> crate::Result<dr_model::v3::LinkedText> {
     use dr_model::id::EntryId;
     use dr_model::v3::{EntryTextLink, LinkedText};
@@ -500,19 +579,27 @@ pub fn plan_book_text(
     let mut hidden_links = Vec::new();
     let mut echoed = Vec::new();
     if let Some(stored) = stored.filter(|s| !s.links.is_empty()) {
-        let mut hidden = std::collections::BTreeSet::new();
         // What the writer read, with the hidden links still in it: an empty
-        // title keeps the stored spelling.
+        // title keeps the stored spelling. `with_titles` asks once per link,
+        // in order; `hidden` follows the links it keeps.
+        let mut asked = stored.links.iter();
+        let mut hidden = Vec::new();
         let read = stored.with_titles(|id| {
+            let manual = asked.next().is_some_and(|l| l.manual);
             let entry = book.entry_raw(id)?;
-            if entry.deleted_at.is_some() {
-                hidden.insert(id.clone());
-                return Some(String::new());
-            }
-            Some(entry.title)
+            let shown = dr_model::v3::link_show(
+                manual,
+                Some(dr_model::v3::LinkEntry::from(&entry)),
+                auto_links,
+            ) == dr_model::v3::LinkShow::Live;
+            hidden.push(!shown);
+            Some(if shown { entry.title } else { String::new() })
         });
         let at = unchanged(&read.text, &draft.text);
-        for link in read.links.iter().filter(|l| not_owner(&l.entry)) {
+        for (link, hidden) in read.links.iter().zip(hidden) {
+            if !not_owner(&link.entry) {
+                continue;
+            }
             let Some(range) = carried(&at, link.range()) else {
                 continue;
             };
@@ -520,13 +607,14 @@ pub fn plan_book_text(
                 start: range.start,
                 end: range.end,
                 entry: link.entry.clone(),
+                manual: link.manual,
             };
-            if hidden.contains(&link.entry) {
+            if hidden {
                 hidden_links.push(link);
             } else if plain {
                 planned.push(Planned {
+                    pinned: link.manual,
                     link,
-                    pinned: false,
                 });
             } else {
                 echoed.push(link);
@@ -534,9 +622,18 @@ pub fn plan_book_text(
         }
     }
     for link in draft.links.iter().filter(|l| not_owner(&l.entry)) {
+        // The stored link of the same span, echoed back: it stays what it
+        // was. Any other link of the draft was picked with @.
+        let echo = echoed
+            .iter()
+            .find(|e| e.start == link.start && e.end == link.end && e.entry == link.entry);
+        let manual = link.manual || echo.is_none_or(|e| e.manual);
         planned.push(Planned {
-            pinned: !echoed.contains(link),
-            link: link.clone(),
+            pinned: manual,
+            link: EntryTextLink {
+                manual,
+                ..link.clone()
+            },
         });
     }
     for link in hidden_links {
@@ -616,6 +713,7 @@ pub fn plan_book_text(
                             start: whole.start,
                             end: whole.end,
                             entry,
+                            manual: false,
                         },
                         pinned: false,
                     });

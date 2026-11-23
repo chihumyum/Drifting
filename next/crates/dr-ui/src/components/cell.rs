@@ -249,7 +249,7 @@ impl RenderOnce for SandCell {
             // as its longest); a list row fills its width.
             .when(!dense, |el| el.flex_1().min_w_0().overflow_hidden())
             .whitespace_nowrap()
-            .when(self.italic, |el| el.italic())
+            .when(self.italic, |el| el.italic_face())
             .child(self.label.clone());
         let label = match self.sub {
             None => label.into_any_element(),

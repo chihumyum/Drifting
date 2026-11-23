@@ -26,6 +26,7 @@ use gpui::{
 };
 
 use crate::model;
+mod custom;
 mod guidance;
 mod levels;
 
@@ -196,6 +197,10 @@ pub struct TemplateEditor {
     preview_open: bool,
     preview_cache: crate::preview::Cache,
     preview_task: Option<gpui::Task<()>>,
+    /// My modules (`custom_module.list`, CM3): the 「添加模块」 menu's
+    /// section, and which of the template's modules follow them.
+    my_modules: Option<Vec<dr_workspace::commands::v3::custom_module::ModuleSummary>>,
+    _my_modules: Option<dr_store::LibrarySubscription>,
     _book: Option<Subscription>,
 }
 impl Focusable for TemplateEditor {
@@ -214,6 +219,9 @@ pub fn type_label(kind: &str, cx: &App) -> SharedString {
         "children" => k::CHILDREN,
         "members" => dr_i18n::keys::v3_shell::ATTACHED_ENTRIES,
         "media" => k::MEDIA,
+        // A custom module (`custom-modules.md` §7, §9): the row says 「模块」
+        // until the template editor learns to tell 「我的模块」 apart (CM3).
+        "custom" => k::MODULES,
         "text" => k::TEXT,
         "long_text" => k::LONG_TEXT,
         "number" => k::NUMBER,
@@ -257,8 +265,11 @@ impl TemplateEditor {
             preview_open: false,
             preview_cache: crate::preview::Cache::default(),
             preview_task: None,
+            my_modules: None,
+            _my_modules: None,
             _book: None,
         };
+        this.listen_my_modules(cx);
         if let Some(workspace) = this.host.workspace.upgrade() {
             this._book = Some(
                 cx.observe_in(&workspace, window, |this, workspace, window, cx| {
@@ -627,7 +638,7 @@ impl TemplateEditor {
         self.picker = Some((picker, window.mouse_position()));
         cx.notify();
     }
-    fn picker(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+    fn picker(&self, window: &Window, cx: &mut Context<Self>) -> Option<AnyElement> {
         let (which, at) = self.picker.clone()?;
         let values: Vec<&str> = match which {
             // Any template takes any module, 「下面的条目」 once.
@@ -660,6 +671,8 @@ impl TemplateEditor {
                 })),
             );
         }
+        let theme = Theme::of(window, cx);
+        menu = self.my_modules_menu(menu, &theme, cx);
         let list = div()
             .id("k5-menu-scroll")
             .max_h(px(560.))
@@ -791,7 +804,16 @@ impl TemplateEditor {
                         .child(sand::icon(Icon::Grip, 14., theme.palette.ink(4).solid())),
                 )
                 .child(name)
-                .child(type_label(&module.kind, cx))
+                .child(if module.kind == "custom" {
+                    self.custom_kind(module, cx)
+                } else {
+                    type_label(&module.kind, cx)
+                })
+                .children(if module.kind == "custom" {
+                    self.custom_link(module, cx)
+                } else {
+                    None
+                })
                 .child(
                     Button::new(
                         SharedString::from(format!("k5-remove-{mid}")),
@@ -1181,7 +1203,7 @@ impl Render for TemplateEditor {
                     .on_click(cx.listener(|this, _, window, cx| this.show_full_editor(window, cx))),
                 )
             })
-            .children(self.picker(cx))
+            .children(self.picker(window, cx))
             .children(self.mark_picker());
         if self.creating && !compact {
             let close = cx.entity_id();

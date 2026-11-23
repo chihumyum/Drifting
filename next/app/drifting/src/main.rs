@@ -258,8 +258,12 @@ fn main() {
         });
         // M03: the chapter page's head and end around every editor.
         dr_view_page::init(cx);
+        // PF: ⌘V in a body keeps the formatting other programs copy.
+        dr_editor::set_clipboard_html(cx, dr_platform::clipboard::read_html);
         dr_view_elements::init(cx);
         dr_view_templates::init(cx);
+        // CM3: the module workbench, a pill whose side columns are its own.
+        dr_view_module_bench::init(cx);
         // M16: the 构想 panel in the left sidebar, an idea's ⋯ rows.
         // M14 and M15: the Bottom Panel's timeline (⌘J) and the chapter in
         // front's plot planner.

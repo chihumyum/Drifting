@@ -6,6 +6,7 @@
 //! writing days and checkpoint manifests live beside it ([`crate::side`]).
 
 mod linked_text;
+pub mod modules;
 pub mod novel;
 mod raw;
 pub mod read;
@@ -97,10 +98,12 @@ pub enum CollectionV3 {
     AssetFolders,
     Facts,
     Memory,
+    /// The book's copies of custom modules (`custom-modules.md` §7).
+    Modules,
 }
 
 impl CollectionV3 {
-    pub const ALL: [CollectionV3; 15] = [
+    pub const ALL: [CollectionV3; 16] = [
         CollectionV3::Meta,
         CollectionV3::Project,
         CollectionV3::Entries,
@@ -116,6 +119,7 @@ impl CollectionV3 {
         CollectionV3::AssetFolders,
         CollectionV3::Facts,
         CollectionV3::Memory,
+        CollectionV3::Modules,
     ];
 
     pub fn root(self) -> &'static str {
@@ -135,6 +139,7 @@ impl CollectionV3 {
             CollectionV3::AssetFolders => book_v3::ASSET_FOLDERS,
             CollectionV3::Facts => book_v3::FACTS,
             CollectionV3::Memory => book_v3::MEMORY,
+            CollectionV3::Modules => book_v3::MODULES,
         }
     }
 

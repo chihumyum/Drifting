@@ -473,3 +473,7 @@ release，机器负载 21–25，导出到同一个库再导回来（新 id）�
   - **一次拖进几个**（十五乙）：一个一个导，坏的跳过、接着导；最后只弹一次「无法导入」。只有一个文件时框里只写原因（和点「导入模板」一样）；几个文件时框里先写没导进去的文件名（等宽字），下一行写原因，坏好几个时每个文件名下面跟它的原因，按拖进来的顺序列（原型没画几个坏的怎么列，照最保守的做）。不是 `.driftingtemplate` 的文件照旧不出声。
   - **导入、导出失败的说法**（十二甲、十三甲）：照导入项目的原句，把「项目」换成「模板」，九种语言的新键 `allProjects.templateTransfer.{notTemplate,newer,tooLarge,damaged,importFailed,exportFailed}`（「这不是 Drifting 导出的模板。」「这个模板由更新版本的 Drifting 导出，请先更新 Drifting。」「这个模板太大，无法导入。」「这个文件已损坏，无法导入。」「这个模板没能导入，请稍后再试。」「这个模板没能导出，请稍后再试。」；损坏那一句本来就没有「项目」，字和 `projectPicker.bookTransfer.invalid` 一样，也给了模板自己的键）。标题「无法导入」「无法导出」照旧，导出成功不出声，「正在导入」照弹。支持关闭与 Esc 收起。
 - **回归测试。** `dr-export/tests/template_file.rs`、`dr-cli/tests/cli.rs`、`dr-view-transfer/tests/template.rs`、`dr-account` 的离线缓存测试。
+
+## CM3：`.driftingmodule`（2026-11-24）
+
+`src/module.rs` 照 `.driftingtemplate` 那一套：「全部项目」悬停卡的「导出（.driftingmodule）」（`dr_view_shelf::ExportModule`，调试用 `transfer::ExportModuleById`）直接弹存文件窗口，署名是账号显示名；「导入模块」和拖到「全部项目」上的 `.driftingmodule`（和模板文件同一个拖放口，两种一起收）一个个导进「我的模块」，总是新加一份，不问；失败照模板的说法把「模板」换成「模块」（`moduleBench.transfer.*`）。测试 `tests/module.rs`。

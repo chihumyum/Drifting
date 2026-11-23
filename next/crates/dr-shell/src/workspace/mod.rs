@@ -26,6 +26,7 @@ mod links;
 mod mounted;
 pub mod outline;
 pub mod page_actions;
+mod page_panels;
 mod recent;
 pub mod review;
 mod sea;
@@ -80,6 +81,7 @@ pub use chrome::{
 pub use dock::{DOCK_NEW, DOCK_ROW, DockDrag};
 pub use editors::PageEditor;
 pub use fill::FillPlace;
+pub use fill::{FilledModule, MODULE_FILL_INSET, ModuleFill};
 pub use sea::{FIRST_RUN_DONE, SeaState};
 pub use sidebar::{
     LeftTab, RightTab, Side, page_hover_card, page_hover_card_keyed, sidebar_page_hover_card,
@@ -433,6 +435,13 @@ pub struct Workspace {
     library_panel: std::cell::RefCell<HashMap<&'static str, Option<pages::LeftPanel>>>,
     /// The 「关系」 tab a module draws, per pane slug (as the 素材库 tab).
     relations_panel: std::cell::RefCell<HashMap<&'static str, Option<pages::LeftPanel>>>,
+    /// What each open page brings into the side columns (by target key;
+    /// `None`: nothing), made the first time it is in front
+    /// ([`pages::add_page_panels`], `page_panels.rs`).
+    page_panels: HashMap<String, Option<pages::PagePanels>>,
+    /// The right-column tab each such page shows (its slug, or
+    /// [`pages::AGENT_TAB`]), by target key.
+    page_tabs: HashMap<String, gpui::SharedString>,
     /// The notice at the bottom of the window, and the timer that ends it.
     pub toast: Option<toast::Toast>,
     toast_timer: Option<Task<()>>,
@@ -497,6 +506,8 @@ pub struct Workspace {
     /// The page whose corner's ⋯ menu is open (its target key).
     pub corner_menu: Option<String>,
     fill: fill::FillState,
+    /// A module of an entry page filling the middle column (CM2).
+    module_fill: Option<fill::ModuleFill>,
     tab_fill_layouts: BTreeMap<String, crate::v3::tab_fill::FillLayout>,
     want_template_structure: bool,
     /// 「新建模板」 while the left column fills and its sidebar is not made
@@ -652,6 +663,8 @@ impl Workspace {
             companion: Default::default(),
             library_panel: Default::default(),
             relations_panel: Default::default(),
+            page_panels: HashMap::new(),
+            page_tabs: HashMap::new(),
             outline_rails: Default::default(),
             unchecked: Default::default(),
             caret_paragraph: None,
@@ -682,6 +695,7 @@ impl Workspace {
             list_scroll: Default::default(),
             corner_menu: None,
             fill: Default::default(),
+            module_fill: None,
             tab_fill_layouts: BTreeMap::new(),
             want_template_structure: false,
             want_new_template: false,
@@ -1469,6 +1483,7 @@ impl Workspace {
     /// Something in the layout changed: repaint, and store it soon.
     fn changed(&mut self, cx: &mut Context<Self>) {
         self.discard_closed_template_drafts(cx);
+        self.prune_module_fill(cx);
         self.layout_dirty = true;
         cx.notify();
         let task = cx.spawn(async move |this, cx| {
@@ -1795,7 +1810,7 @@ impl Workspace {
             Some(Layer::Search)
         } else if self.settings.is_some() {
             Some(Layer::Settings)
-        } else if self.filled().is_some() {
+        } else if self.filled().is_some() || self.filled_module().is_some() {
             Some(Layer::Fill)
         } else {
             None
@@ -2004,6 +2019,7 @@ impl Render for Workspace {
             self.exit_fill(window, cx);
         }
         self.ensure_pages(window, cx);
+        self.ensure_page_panels(window, cx);
         // M24: while a full-window wait holds the sea, only the sea shows
         // (the page in front gets ready under it).
         if self.sea_settle(window, cx) {
@@ -2361,6 +2377,10 @@ pub fn title_of(book: &Book, target: &Target, cx: &App) -> gpui::SharedString {
         Target::Material(_) => untitled::LIBRARY_ITEM,
         Target::Entry { .. } | Target::Template(_) => {
             return book.title(target).unwrap_or_default().to_owned().into();
+        }
+        // The workbench's own name for it (`pages::add_page_title`).
+        Target::Module(_) => {
+            return crate::pages::page_title(target, cx).unwrap_or_default();
         }
     };
     match book.title(target).filter(|t| !t.trim().is_empty()) {

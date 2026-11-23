@@ -559,7 +559,11 @@ fn rewrite_inline_link(
         let mspec = tpl.module(mid)?;
         (mspec.kind == ModuleKind::Prose).then(|| mid.to_string())
     });
-    Some(TemplateEntityLink { entry: sym, module })
+    Some(TemplateEntityLink {
+        entry: sym,
+        module,
+        manual: link.manual,
+    })
 }
 
 fn slice_runs_with_links(
@@ -736,6 +740,7 @@ fn to_prose_runs_and_links(
                     module,
                     block: None,
                     end_block: None,
+                    manual: el.manual,
                 },
             ));
         }
@@ -831,6 +836,7 @@ pub fn write_prose_paragraphs(
                         module,
                         block: None,
                         end_block: None,
+                        manual: el.manual,
                     },
                 )?;
             }
@@ -1427,6 +1433,38 @@ where
         });
     }
 
+    // The custom modules the carried templates draw go with them, whole
+    // (`custom-modules.md` §11). A copy this build cannot read is not
+    // dropped quietly: the template is not saved.
+    let mut carried_modules = BTreeMap::new();
+    for tpl in &tpl_list {
+        for m in &tpl.modules {
+            let Some(mid) = m.config.module.as_deref() else {
+                continue;
+            };
+            if carried_modules.contains_key(mid) {
+                continue;
+            }
+            let id = dr_model::id::CustomModuleId::parse(mid).map_err(|e| {
+                ProjectTemplateError::Invalid(format!("custom module id {mid:?}: {e}"))
+            })?;
+            let copy = book_view.module_copy(&id).ok_or_else(|| {
+                ProjectTemplateError::Invalid(format!(
+                    "the book has no copy of custom module {mid:?} that template {:?} uses",
+                    tpl.id
+                ))
+            })?;
+            let name = copy.name();
+            let value = copy.value.map_err(|e| {
+                ProjectTemplateError::Invalid(format!(
+                    "custom module {:?} in this book cannot be read by this build: {e}",
+                    name.as_deref().unwrap_or(mid)
+                ))
+            })?;
+            carried_modules.insert(mid.to_owned(), value);
+        }
+    }
+
     let out = ProjectTemplateValue {
         format: PROJECT_TEMPLATE_FORMAT.into(),
         format_version: PROJECT_TEMPLATE_FORMAT_VERSION,
@@ -1443,6 +1481,7 @@ where
         memberships: extracted_memberships,
         views: extracted_views,
         template_prose,
+        modules: carried_modules,
     };
 
     validate_project_template_value(&out)?;
@@ -1606,7 +1645,8 @@ fn extract_entry_template(
             config: TemplateModuleConfig {
                 show_outline: m.config.show_outline,
                 task_todos: m.config.task_todos,
-                in_book: m.config.in_book,
+                // A custom module is never part of the book (`custom-modules.md` §16 item 2).
+                in_book: m.config.in_book && kind != TemplateModuleKind::Custom,
                 defs,
                 aliases_field: m.config.aliases_field.clone(),
                 color_field: m.config.color_field.clone(),
@@ -1617,6 +1657,11 @@ fn extract_entry_template(
                 default_rows: m.config.default_rows.max(1),
                 default_cols: m.config.default_cols.max(1),
                 arrangement,
+                module: if kind == TemplateModuleKind::Custom {
+                    m.config.module.as_ref().map(ToString::to_string)
+                } else {
+                    None
+                },
             },
             agent: m.agent.as_ref().map(Into::into),
         });
@@ -1739,6 +1784,7 @@ pub fn from_seed_template(
                 mark: se.mark.clone(),
                 template: se.template.clone(),
                 level: se.level,
+                auto_link: false,
                 overrides: se.overrides.clone(),
                 fields: se.fields.clone(),
                 kv: BTreeMap::new(),
@@ -1978,6 +2024,7 @@ pub fn from_seed_template(
         memberships: Vec::new(),
         views,
         template_prose: BTreeMap::new(),
+        modules: BTreeMap::new(),
     };
     validate_project_template_value(&val)?;
     Ok(val)
@@ -2025,6 +2072,10 @@ pub struct MaterializedProjectTemplate {
     pub memberships: Vec<Membership>,
     pub views: Vec<TimelineView>,
     pub template_prose: BTreeMap<(EntryTemplateId, ModuleId), Vec<TemplateParagraph>>,
+    /// The book's copies of the custom modules the templates draw, under
+    /// the ids the template carries them by (`custom-modules.md` §7, §11):
+    /// a copy follows my modules when my modules have that id.
+    pub modules: BTreeMap<dr_model::id::CustomModuleId, dr_model::custom_module::ModuleValue>,
 }
 
 /// Validate `val` and materialize fresh UUIDv7 IDs and position keys for a new book.
@@ -2302,6 +2353,13 @@ pub fn materialize_project_template(
         template_prose.insert((tid, mid), paras.clone());
     }
 
+    let mut modules = BTreeMap::new();
+    for (mid, value) in &val.modules {
+        let id = dr_model::id::CustomModuleId::parse(mid)
+            .map_err(|e| ProjectTemplateError::Invalid(format!("custom module id {mid:?}: {e}")))?;
+        modules.insert(id, value.clone());
+    }
+
     Ok(MaterializedProjectTemplate {
         entry_map,
         view_map,
@@ -2312,6 +2370,7 @@ pub fn materialize_project_template(
         memberships,
         views,
         template_prose,
+        modules,
     })
 }
 
@@ -2322,6 +2381,9 @@ pub fn apply_materialized_project_template(
     created_at: Timestamp,
 ) -> Result<()> {
     txn.project().set_full(&mat.project)?;
+    for (id, value) in &mat.modules {
+        txn.put_module_copy(id, value, &crate::v3::modules::CopySource::Template)?;
+    }
     for tpl in &mat.templates {
         txn.template(&tpl.id)?.set_full(tpl)?;
     }
@@ -2365,6 +2427,7 @@ pub fn apply_materialized_project_template(
             w.primary(entry.primary.as_ref())?;
         }
     }
+    start_auto_links(txn, mat.entries.iter().map(|e| &e.id))?;
     for m in &mat.memberships {
         txn.put_membership(&m.host, &m.member, m.pos.as_ref(), Some(created_at))?;
     }
@@ -2381,6 +2444,36 @@ pub fn apply_materialized_project_template(
         for pin in &view.pins {
             w.put_pin(pin)?;
         }
+    }
+    Ok(())
+}
+
+/// Give each of `created` (entries a project template just wrote) the
+/// 「自动链接」 a new entry starts with where it lives
+/// ([`dr_model::v3::new_entry_auto_link`], `kernel-v5.md` §16): a project
+/// template carries no entry's switch, only its levels' defaults. Call after
+/// every entry and its overrides are written.
+pub fn start_auto_links<'e>(
+    txn: &mut crate::v3::BookTxnV3<'_>,
+    created: impl IntoIterator<Item = &'e dr_model::id::EntryId>,
+) -> crate::Result<()> {
+    let graph = txn.view().graph();
+    let on: Vec<dr_model::id::EntryId> = created
+        .into_iter()
+        .filter(|id| {
+            graph.entries.get(*id).is_some_and(|e| {
+                dr_model::v3::new_entry_auto_link(
+                    e.parent.as_ref(),
+                    e.template.as_ref(),
+                    &graph.entries,
+                    &graph.templates,
+                )
+            })
+        })
+        .cloned()
+        .collect();
+    for id in on {
+        txn.entries().entry(&id)?.auto_link(true)?;
     }
     Ok(())
 }

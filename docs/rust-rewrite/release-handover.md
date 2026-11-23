@@ -51,7 +51,7 @@
 | 1 | 作者 | 在仓库 Settings › Secrets and variables › Actions 里加新变量（已有的证书、公证、更新钥匙、Hosted 地址都不用动，0.1 的发布已经在用；证书必须就是 0.1 在用的那张 Developer ID，同一个团队，钥匙串里的登录和 API Key 才读得到、不弹框） | `DRIFTING_LAST_V1_TAG`：最后一个 0.1 Release 的标签。变量 2026-11-21 已经加了，值是 `v0.1.0-alpha.12`；0.1 之后又发到了 `alpha.14`，交接前改成那时最后一个 0.1 的标签。要开崩溃上报再加 `DRIFTING_SENTRY_DSN`、`SENTRY_ORG`、`SENTRY_PROJECT`（变量）和 `SENTRY_AUTH_TOKEN`（`release` 环境的密钥）；整张表在工作流文件开头 |
 | 2 | ~~作者~~ 监管会话 | ~~本机装 Metal Toolchain，打一个预编译着色器的开发包看一眼~~ 作者 2026-11-20 同意装，当天装了、验过，见下面「验证预编译着色器」 | — |
 | 3 | 作者 + 监管会话 | 真实条件下的验收（[progress.md](progress.md)「等作者的事」第 3、4 条），尤其导入自己的 0.1 库；Windows 实机手测挡发布，在 ARM 虚拟机里用 CI 产物里的开发身份安装包照 [m43 的清单](modules/m43-windows.md)走（见「Windows 这一半」） | CI 产物、Windows 11 ARM 虚拟机 |
-| 4 | 监管会话 | 改版本号 `next/app/drifting/Cargo.toml` → `0.2.0`；写发布说明 `docs/releases/0.2.0.md`（第一行 `# Drifting 0.2.0`，先中文后英文，纯文本） | — |
+| 4 | 监管会话 | 改版本号 `next/app/drifting/Cargo.toml` → `0.2.0`；写发布说明 `docs/releases/0.2.0.md`（第一行 `# Drifting 0.2.0`，先中文后英文，纯文本），带上下面「作者定了的事」里要写进发布说明的两句：Windows 第一次运行 SmartScreen 会提示；升级前先在每台设备上把 0.1 同步完 | — |
 | 5 | 监管会话（作者同意推送） | 把工作流挪进来：`git mv next/script/release-next.draft.yml .github/workflows/release-next.yml`；**同一个提交里**把 `release.yml` 的触发改成 `tags: ['v0.1.*']`（现在两个都认所有 `v*` 标签），并把 `scripts/check-ci-contract.mjs` 里「release.yml 必须认 `v*`」那条改成新的规矩；跑 `pnpm ci:contract:check`、`cargo xtask check`；本地 `next/script/check-release v0.2.0` | — |
 | 6 | 作者同意后推 | `git tag v0.2.0 && git push origin main v0.2.0`，等工作流跑完，出草稿 Release。草稿谁也看不到，装着的 App 也不会收到 | — |
 | 7 | 作者 | 检查草稿：文件齐（`Drifting_0.2.0_macos_arm64.dmg`、`Drifting_0.2.0_aarch64.app.tar.gz` 和 `.sig`、`Drifting_0.2.0_windows_x64-setup.exe`、`…_arm64-setup.exe` 和各自的 `.sig`、`update.json` 里正好 `darwin-aarch64`、`windows-x86_64`、`windows-aarch64` 三个键、`latest.json` 的版本是 alpha.12、`SHA256SUMS.txt`）。没有 `update.json` 就是有个 Windows 任务失败了，重跑它，别发 | — |
@@ -130,6 +130,7 @@ cargo xtask check-binary --precompiled-shaders "target/bundle/Drifting Next.app/
 | 老用户升级后第一次打开 | 找到旧书库就自己弹出现有的导入对话框，不加新界面和新文案 | 做了（[m10](modules/m10-import.md#第一次打开时自己弹出2026-11-20)）；正式身份的包上要在第 8 步看一眼 |
 | 登录状态下导入的两句文案 | 照现在：「这个账号已经有书了，直接同步就行。」「文件夹里还有 N 个账号资料库没导入」 | — |
 | 装 Xcode 的 Metal Toolchain | 装 | 装了、验过（「验证预编译着色器」） |
+| 升级前先同步完（2026-11-23 定） | 发布说明里写一句「升级前先在每台设备上把 0.1 同步完」：一个账号只由一台设备导入，别的设备靠同步拿书（[m10「登录状态下导入」](modules/m10-import.md#登录状态下导入2026-11-20)），所以另一台设备上只在 0.1 里写过、还没同步上去的东西，升级以后带不过来 | 写发布说明时带上这一句（第 4 步） |
 | 服务端「清空某个账号的新版同步数据」 | 发布前做，部署前再问作者 | 脚本做了，在服务端仓库的本地 `main`（`dcd1570`，没推送、没部署），见下面「导坏了怎么重来」。部署要作者点头 |
 
 更早定的：两个平台一起发（2026-11-20）。

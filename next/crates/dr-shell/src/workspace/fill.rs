@@ -43,6 +43,45 @@ impl FillPlace {
     }
 }
 
+/// A module of an entry page filling the middle column
+/// (`custom-modules.md` §4 「铺满」, CM2): its own button at the right of
+/// its title row, Esc or the button again to leave. One fill at a time:
+/// filling a panel leaves it, filling it leaves a panel's. The page shows
+/// only its head and that module, at the paper's widest, with the bottom
+/// panel put away. Never kept: like a panel's fill.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ModuleFill {
+    pub entry: String,
+    /// The entry template's module.
+    pub module: String,
+}
+
+/// The module filling the middle column (in the window in front), for the
+/// views that draw it: the entry page and the module itself read it while
+/// they render.
+#[derive(Clone, Debug, Default)]
+pub struct FilledModule(pub Option<ModuleFill>);
+
+impl gpui::Global for FilledModule {}
+
+impl FilledModule {
+    /// Whether `module` of `entry` fills the middle column.
+    pub fn is(cx: &gpui::App, entry: &str, module: &str) -> bool {
+        cx.try_global::<FilledModule>()
+            .and_then(|f| f.0.as_ref())
+            .is_some_and(|f| f.entry == entry && f.module == module)
+    }
+
+    /// The entry whose module fills the middle column, and that module.
+    pub fn of(cx: &gpui::App) -> Option<ModuleFill> {
+        cx.try_global::<FilledModule>().and_then(|f| f.0.clone())
+    }
+}
+
+/// How far in from the column's edges a filling module's paper stands
+/// (the prototype's `midW - 16`).
+pub const MODULE_FILL_INSET: f32 = 8.0;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MoonHalf {
     LeftCrescent,
@@ -275,6 +314,12 @@ impl Workspace {
         if self.modal() || (place == FillPlace::Right && !self.right_can_fill()) {
             return false;
         }
+        // A page's own columns do not fill (CM3, `page_panels.rs`).
+        if place != FillPlace::Bottom && self.page_panels_shown() {
+            return false;
+        }
+        // One fill at a time: a module filling the column gives way.
+        self.set_module_fill(None, cx);
         if self.fill.active() == Some(place) {
             return true;
         }
@@ -366,8 +411,13 @@ impl Workspace {
     }
 
     pub fn exit_fill_with_motion(&mut self, reduce: bool, cx: &mut Context<Self>) -> bool {
+        let module = self.module_fill.is_some();
+        self.set_module_fill(None, cx);
         let Some(prev) = self.fill.active() else {
-            return false;
+            if module {
+                cx.notify();
+            }
+            return module;
         };
         if prev == FillPlace::Left {
             self.want_template_structure = false;
@@ -448,6 +498,78 @@ impl Workspace {
             self.exit_fill(window, cx);
         } else {
             self.enter_fill(place, window, cx);
+        }
+    }
+
+    /// The module filling the middle column, while the page in front is its
+    /// entry's (a split shows no filled module).
+    pub fn filled_module(&self) -> Option<&ModuleFill> {
+        let fill = self.module_fill.as_ref()?;
+        match self.nav.active_tab()? {
+            crate::nav::Tab::Split(_) => None,
+            tab => match &tab.focused().target {
+                Target::Entry { id, .. } if id.as_str() == fill.entry => Some(fill),
+                _ => None,
+            },
+        }
+    }
+
+    /// Fills the middle column with `module` of `entry` (its page in
+    /// front), leaving any panel's fill first.
+    pub fn fill_module(
+        &mut self,
+        entry: &str,
+        module: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.modal() {
+            return;
+        }
+        self.exit_fill(window, cx);
+        self.set_immersive(false, cx);
+        self.set_module_fill(
+            Some(ModuleFill {
+                entry: entry.to_owned(),
+                module: module.to_owned(),
+            }),
+            cx,
+        );
+        cx.notify();
+    }
+
+    /// The module's own fill button: fills, or leaves the fill.
+    pub fn toggle_module_fill(
+        &mut self,
+        entry: &str,
+        module: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self
+            .filled_module()
+            .is_some_and(|f| f.entry == entry && f.module == module)
+        {
+            self.exit_fill(window, cx);
+            self.refocus(window, cx);
+        } else {
+            self.fill_module(entry, module, window, cx);
+        }
+    }
+
+    pub(super) fn set_module_fill(&mut self, fill: Option<ModuleFill>, cx: &mut Context<Self>) {
+        if self.module_fill == fill {
+            return;
+        }
+        self.module_fill = fill.clone();
+        cx.set_global(FilledModule(fill));
+    }
+
+    /// A module fill whose page is no longer in front ends (fills are not
+    /// kept).
+    pub(super) fn prune_module_fill(&mut self, cx: &mut Context<Self>) {
+        if self.module_fill.is_some() && self.filled_module().is_none() {
+            self.set_module_fill(None, cx);
         }
     }
 

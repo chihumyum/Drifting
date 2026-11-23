@@ -22,6 +22,7 @@
 //! | [`layout`] | F4b | line breaking, paragraph geometry, heights, the book |
 //! | [`input`] | F4c | actions, selection, IME, movement, editing, mouse |
 //! | [`render`] | F4d | runs, paragraph element, paint, caret layer |
+//! | [`html`] | PF | other programs' HTML read into a [`text::Fragment`] to paste |
 //!
 //! [`ProseEditor`] (in `editor.rs`) holds the state and the frame and ties
 //! the layers together.
@@ -34,6 +35,7 @@
 pub mod editor;
 pub mod embeds;
 pub mod extension;
+pub mod html;
 pub mod input;
 pub mod layout;
 pub mod platform;

@@ -181,7 +181,8 @@ pub fn moon_look(ws: &Workspace, side: Side) -> MoonLook {
         Side::Left => (
             ws.left.open,
             ws.is_filled(FillPlace::Left),
-            true,
+            // A page's own columns do not fill (CM3, `page_panels.rs`).
+            !ws.page_panels_shown(),
             MoonHalf::LeftCrescent,
             MoonHalf::LeftFull,
             [
@@ -196,7 +197,7 @@ pub fn moon_look(ws: &Workspace, side: Side) -> MoonLook {
             (
                 ws.right.open,
                 filled,
-                filled || ws.right_can_fill(),
+                filled || (ws.right_can_fill() && !ws.page_panels_shown()),
                 MoonHalf::RightCrescent,
                 MoonHalf::RightFull,
                 [

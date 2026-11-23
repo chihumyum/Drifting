@@ -13,6 +13,8 @@ dr-model.workspace = true
 dr-store.workspace = true
 dr-text.workspace = true
 dr-ui.workspace = true
+# CM2: a custom module's 一行 in an entry name's hover card.
+dr-view-module-look.workspace = true
 dr-workspace.workspace = true
 futures.workspace = true
 gpui.workspace = true

@@ -11,6 +11,7 @@
 //! cargo drifting workspace inspect --library DIR [--json] [--doc ID]
 //! cargo drifting workspace scenario scenarios/writing-loop.json --app target/debug/drifting
 //! cargo drifting template check my-template.driftingtemplate [--json]
+//! cargo drifting module check my-module.driftingmodule [--json]
 //! cargo drifting app state | open 第一章 | type 灯塔亮了 | key secondary-z | screenshot a.png
 //! ```
 //!
@@ -53,9 +54,13 @@ pub fn run(argv: &[String]) -> i32 {
         },
         Err(e) => {
             eprintln!("error: {e}\n\n{}", args::USAGE);
-            // `template check` is run by CI: a mistyped call says 2, as a
-            // file it cannot read does (1 is a template that is not valid).
-            if argv.first().map(String::as_str) == Some("template") {
+            // `template check` and `module check` are run by CI: a mistyped
+            // call says 2, as a file it cannot read does (1 is a file that
+            // is not valid).
+            if matches!(
+                argv.first().map(String::as_str),
+                Some("template" | "module")
+            ) {
                 2
             } else {
                 1
@@ -99,6 +104,7 @@ pub fn execute(cmd: Command) -> Result<(i32, String), String> {
         Command::Help => Ok((0, format!("{}{}", args::USAGE, app::VERBS))),
         Command::App(a) => Ok((0, app::execute(&a)?)),
         Command::TemplateCheck { files, json } => check_templates(&files, json),
+        Command::ModuleCheck { files, json } => check_modules(&files, json),
         Command::Describe { json } => Ok((
             0,
             if json {
@@ -373,6 +379,73 @@ fn check_templates(files: &[PathBuf], as_json: bool) -> Result<(i32, String), St
         }
     }
 
+    if as_json {
+        let payload = json!({ "valid": code == 0, "files": items });
+        return Ok((code, pretty(&payload)?));
+    }
+    Ok((code, lines.join("\n")))
+}
+
+/// `module check`: every file's verdict, in the order given, the way
+/// `template check` gives one. Exit 0 when every file is a valid module, 1
+/// when one is not, 2 when a file could not be read. `--json`:
+/// `{"valid": …, "files": [ … ]}`.
+fn check_modules(files: &[PathBuf], as_json: bool) -> Result<(i32, String), String> {
+    use dr_export::module_file::{ModuleFileError, validate_module_file};
+    use serde_json::json;
+
+    let mut code = 0;
+    let mut lines = Vec::with_capacity(files.len());
+    let mut items = Vec::with_capacity(files.len());
+    for path in files {
+        match validate_module_file(path) {
+            Ok(value) => {
+                let blocks = value.blocks_with_scope().len();
+                let author = value
+                    .credit
+                    .as_ref()
+                    .map(|c| c.author.as_str())
+                    .filter(|a| !a.is_empty());
+                lines.push(format!(
+                    "ok: {} ({}, formatVersion {}, {} blocks)",
+                    path.display(),
+                    value.name,
+                    value.format_version,
+                    blocks
+                ));
+                items.push(json!({
+                    "path": path.display().to_string(),
+                    "valid": true,
+                    "name": value.name,
+                    "formatVersion": value.format_version,
+                    "blocks": blocks,
+                    "author": author,
+                }));
+            }
+            Err(err) => {
+                let (kind, unreadable) = match &err {
+                    ModuleFileError::NotAModule => ("not_a_module", false),
+                    ModuleFileError::Newer => ("newer", false),
+                    ModuleFileError::TooLarge => ("too_large", false),
+                    ModuleFileError::Damaged(_) => ("damaged", false),
+                    ModuleFileError::Workspace(_) => ("workspace", false),
+                    ModuleFileError::Io(_) => ("io", true),
+                };
+                code = code.max(if unreadable { 2 } else { 1 });
+                lines.push(format!(
+                    "{}: {}: {err}",
+                    if unreadable { "unreadable" } else { "invalid" },
+                    path.display()
+                ));
+                items.push(json!({
+                    "path": path.display().to_string(),
+                    "valid": false,
+                    "reason": kind,
+                    "error": err.to_string(),
+                }));
+            }
+        }
+    }
     if as_json {
         let payload = json!({ "valid": code == 0, "files": items });
         return Ok((code, pretty(&payload)?));

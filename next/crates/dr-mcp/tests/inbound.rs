@@ -527,6 +527,117 @@ async fn project_templates_reach_mcp_through_list_get_and_save_only() {
     f.finish().await;
 }
 
+/// CM4b (`custom-modules.md` §5, §13, §14): MCP lists the in-app Agent's
+/// custom module tools: of my modules list, get, create, update, rename and
+/// save_as, and the commands on an entry's values; nothing that imports,
+/// exports, removes or keeps someone else's module. A module made over MCP
+/// goes through the one validator, a refusal says where, a change is held
+/// to what was read, and the result names the module.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn custom_modules_reach_mcp_through_the_agents_tools_only() {
+    let f = Fixture::new(false, library_options("cm4b-inbound-modules")).await;
+    let mut client = f.client().await;
+    let listed = client.list_tools(None).await.unwrap();
+    let names: std::collections::BTreeSet<String> = listed
+        .tools
+        .iter()
+        .map(|tool| tool.name.to_string())
+        .collect();
+    let family: std::collections::BTreeSet<&str> = names
+        .iter()
+        .map(String::as_str)
+        .filter(|name| name.starts_with("custom_module."))
+        .collect();
+    assert_eq!(
+        family,
+        [
+            "custom_module.create",
+            "custom_module.get",
+            "custom_module.list",
+            "custom_module.rename",
+            "custom_module.save_as",
+            "custom_module.update",
+        ]
+        .into()
+    );
+    for name in dr_agent_tools::catalog::CUSTOM_MODULE_VALUE_COMMANDS {
+        assert!(names.contains(name), "{name}");
+    }
+    let create = listed
+        .tools
+        .iter()
+        .find(|tool| tool.name == "custom_module.create")
+        .unwrap();
+    assert!(
+        create
+            .description
+            .as_deref()
+            .unwrap()
+            .contains(dr_agent_tools::catalog::MODULE_EXAMPLE)
+    );
+
+    let mut module: Value = serde_json::from_str(include_str!(
+        "../../dr-testkit/fixtures/modules/foreshadowing.driftingmodule"
+    ))
+    .unwrap();
+    module.as_object_mut().unwrap().remove("credit");
+    let mut wrong = module.clone();
+    wrong["look"]["line"]["gap"] = json!(5);
+    let refused = call(&client, "custom_module.create", json!({"value": wrong})).await;
+    assert_eq!(refused.is_error, Some(true));
+    assert!(
+        text(&refused).contains("look.line: gap 5"),
+        "{}",
+        text(&refused)
+    );
+    let made = reply(&call(&client, "custom_module.create", json!({"value": module})).await);
+    let id = made["output"]["output"]["id"].as_str().unwrap().to_owned();
+    assert_eq!(made["output"]["custom_modules"][0]["id"], id.as_str());
+    assert!(!made["settlements"].as_array().unwrap().is_empty());
+    // Changing it needs it read whole first.
+    module["agent"]["instructions"] = json!("外部改的说明");
+    let unread = call(
+        &client,
+        "custom_module.update",
+        json!({"id": id, "value": module}),
+    )
+    .await;
+    assert_eq!(unread.is_error, Some(true));
+    assert!(text(&unread).contains("read_required"), "{}", text(&unread));
+    reply(&call(&client, "custom_module.get", json!({"id": id})).await);
+    let updated = reply(
+        &call(
+            &client,
+            "custom_module.update",
+            json!({"id": id, "value": module}),
+        )
+        .await,
+    );
+    assert_eq!(updated["output"]["output"]["id"], id.as_str());
+
+    let writes = f.ws.library().write_seq().unwrap();
+    for name in [
+        "custom_module.import",
+        "custom_module.export",
+        "custom_module.remove",
+        "custom_module.adopt",
+        "custom_module.uses",
+        "custom_module.sync_copies",
+    ] {
+        let refused = call(&client, name, json!({"id": id})).await;
+        assert_eq!(refused.is_error, Some(true), "{name}");
+        assert!(
+            text(&refused).contains("not in Drifting's author-tool catalog"),
+            "{name}: {}",
+            text(&refused)
+        );
+    }
+    assert_eq!(f.ws.library().write_seq().unwrap(), writes);
+    timeout(WAIT, client.close()).await.unwrap().unwrap();
+    drop(client);
+    f.finish().await;
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn switching_a_b_a_requires_new_reads_and_new_sessions_on_the_same_wire() {
     let f = Fixture::new(false, library_options("m32-inbound-book-epoch")).await;

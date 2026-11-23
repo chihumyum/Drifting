@@ -128,6 +128,7 @@ pub struct EntryPage {
     /// what is drawn under it), at the last render.
     first_section: usize,
     _review_focus: Subscription,
+    _module_fill: Subscription,
 }
 
 /// Where an entry page's parts stand, by its last layout, for the outline
@@ -148,6 +149,10 @@ pub struct PageGeometry {
 impl EntryPage {
     pub fn new(host: PageViewHost, target: Target, cx: &mut Context<Self>) -> Self {
         let review_focus = cx.observe_global::<crate::ReviewFocus>(|_, cx| cx.notify());
+        if !cx.has_global::<crate::workspace::FilledModule>() {
+            cx.set_global(crate::workspace::FilledModule::default());
+        }
+        let module_fill = cx.observe_global::<crate::workspace::FilledModule>(|_, cx| cx.notify());
         Self {
             full_editor: None,
             host,
@@ -165,6 +170,7 @@ impl EntryPage {
             asked: None,
             first_section: 0,
             _review_focus: review_focus,
+            _module_fill: module_fill,
         }
     }
     pub fn new_settings(
@@ -906,7 +912,10 @@ impl EntryPage {
                         })
                         .cursor_pointer()
                         .on_click(move |_, _, cx| {
-                            set_override(&host, &entry, "auto_link", Some(json!(!on)), cx);
+                            // The level's switch: what lives below is set
+                            // the same, new entries start that way
+                            // (`kernel-v5.md` §16).
+                            set_auto_link(&host, &entry, !on, true, cx);
                         })
                         .child(Switch::new(
                             SharedString::from(format!("v3-entry-autolink-switch-{id}")),
@@ -1064,7 +1073,96 @@ pub fn set_override(
     .detach();
 }
 
+/// Turns 「自动链接」 of `id` on or off (`kernel-v5.md` §16): the entry's own
+/// (`entry.set_auto_link`), or with `below` the level's, which sets what
+/// lives below the same (`entry.set_below_auto_link`). Held to what the page
+/// showed; a refused write (a name another linked entry has) says
+/// 「未能保存」.
+pub fn set_auto_link(host: &PageViewHost, id: &str, on: bool, below: bool, cx: &mut App) {
+    if !host_still_valid(host, cx) {
+        return;
+    }
+    let Some(v) = host.book.v3() else {
+        return;
+    };
+    if v.entry(id).is_none() {
+        return;
+    }
+    let command = if below {
+        "entry.set_below_auto_link"
+    } else {
+        "entry.set_auto_link"
+    };
+    let input = json!({ "book": host.book_id, "id": id, "auto_link": on });
+    let guard = WritePreconditions {
+        require_all: false,
+        ..v.guard_for(&input)
+    };
+    let lib = host.library.clone();
+    let job = cx
+        .background_executor()
+        .spawn(async move { lib.call_guarded(&Actor::User, command, input, guard) });
+    let host = host.clone();
+    cx.spawn(async move |cx| {
+        if let Err(error) = job.await {
+            log::warn!("automatic linking write failed: {error}");
+            cx.update(|cx| toast_save_failed(&host, cx));
+        }
+    })
+    .detach();
+}
+
 impl EntryPage {
+    /// The entry's own 「自动链接」, the last row of the switches at the
+    /// bottom of the page (under 「挂在这里的条目」, `kernel-v5.md` §16): its
+    /// switch and its name, grey while it is off, as the blocks' heads.
+    fn own_auto_link_row(&self, id: &str, window: &Window, cx: &App) -> AnyElement {
+        let theme = Theme::of(window, cx);
+        let p = &theme.palette;
+        let on = self
+            .host
+            .book
+            .v3()
+            .and_then(|v| v.entry(id))
+            .is_some_and(|e| e.auto_link);
+        let label = t(cx, keys::v3_levels::AUTO_LINK);
+        let host = self.host.clone();
+        let entry = id.to_owned();
+        let switch = div()
+            .id("v3-entry-own-autolink-toggle")
+            .role(gpui::Role::CheckBox)
+            .aria_label(label.clone())
+            .aria_toggled(if on {
+                gpui::Toggled::True
+            } else {
+                gpui::Toggled::False
+            })
+            .flex_none()
+            .cursor_pointer()
+            .on_click(move |_, _, cx| set_auto_link(&host, &entry, !on, false, cx))
+            .child(Switch::new(
+                SharedString::from(format!("v3-entry-own-autolink-switch-{id}")),
+                on,
+            ));
+        div()
+            .id("v3-entry-own-autolink")
+            .flex()
+            .flex_row()
+            .items_center()
+            .gap_2()
+            .pb_1()
+            .border_b_1()
+            .border_color(p.hairline())
+            .child(switch)
+            .child(
+                div()
+                    .font_role(FontRole::Structure)
+                    .text_color(if on { p.ink(2) } else { p.ink(4) }.solid())
+                    .child(label),
+            )
+            .into_any_element()
+    }
+
     fn render_settings(&self, full: crate::pages::RunRow, window: &Window, cx: &App) -> AnyElement {
         let Target::Entry { id, .. } = &self.target else {
             return div().into_any_element();
@@ -1090,6 +1188,7 @@ impl EntryPage {
                 body = body.child(self.block_setting(id, block, window, cx));
             }
         }
+        body = body.child(self.own_auto_link_row(id, window, cx));
         if let Some((_, settings)) = self.parts.get("settings") {
             body = body
                 .child(t(cx, keys::template_editor::CHILDREN))
@@ -1188,8 +1287,34 @@ impl Render for EntryPage {
                     }
                     let first_section = children.len();
                     self.first_section = first_section;
+                    // A module filling the middle column (CM2): the page is
+                    // its head and that module alone.
+                    let filled = crate::workspace::FilledModule::of(cx)
+                        .filter(|f| f.entry == id.as_str())
+                        .map(|f| f.module);
                     for section in self.sections.clone() {
+                        if filled.as_ref().is_some_and(|m| *m != section.id) {
+                            continue;
+                        }
                         let element = match Block::of(&section.kind) {
+                            Some(Block::Attached) => {
+                                // 「挂在这里的条目」, then the entry's own
+                                // 「自动链接」 (`kernel-v5.md` §16), one item
+                                // of the page's list.
+                                div()
+                                    .flex()
+                                    .flex_col()
+                                    .gap_4()
+                                    .child(self.render_block(
+                                        id.as_str(),
+                                        Block::Attached,
+                                        &section,
+                                        window,
+                                        cx,
+                                    ))
+                                    .child(self.own_auto_link_row(id.as_str(), window, cx))
+                                    .into_any_element()
+                            }
                             Some(block) => {
                                 self.render_block(id.as_str(), block, &section, window, cx)
                             }

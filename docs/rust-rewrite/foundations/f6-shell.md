@@ -27,13 +27,13 @@
 - 「检查更新」：只有「更新版本写的」才有，排第一。和设置「关于」里那一行是同一套（M42 用 `library_failure::set_update_button` 登记）：平时是「检查更新」，查的时候、下载的时候按钮上是那一行的字、转圈、点不了，下好了变「重启以更新」，点了照常退出、装上、重新打开。不能更新的构建（开发构建没有测试清单和密钥时）设置里那一行没有按钮，这里也没有。
 - 「在访达中打开」（Windows「在文件资源管理器中打开」，Markdown 文件夹那颗的字）：用系统打开当前资料库的文件夹（`library/`，里面是 `library.sqlite` 和安全快照）；那个文件夹不在就打开应用的数据文件夹；连数据文件夹都没有时不出这颗。
 - 「提交反馈」：打开现成的反馈对话框（M39），正文里先写好第一行和代号，例如「没能打开资料库（schema-newer）」（中日文全角括号，其他语言半角），别的都照旧；菜单里的「提交反馈」在这一页上也是这样。不需要资料库。
-- 「退出 Drifting」：托盘菜单的字（`TrayLabels`），文字按钮，走平常的退出流程。
+- 「退出 Drifting」：托盘菜单的字（`TrayLabels`），文字按钮，走平常的退出流程。葡萄牙语原来没有这一句、显示成英文的「Quit Drifting」，2026-11-24 补成 0.1 托盘的「Sair do Drifting」（托盘的「打开」同时补成「Abrir o Drifting」）。
 
 没有「重试」（退出再打开就是），也没有从快照或备份恢复。
 
 **还欠的。** 「升级后打不开」那种的「从升级前的快照恢复」（存储层已有 `Library::recovery_receipts`、`restore_from_receipt`）要在第一个带迁移的版本发布之前加上，见 [release-handover.md](../release-handover.md)。0.2.0 的迁移 0000–0008 都是起点，新库直接建好，升级不会发生。
 
-**测试和验收。** 原因表每一行：`app/drifting/src/library.rs` 的 `each_open_failure_is_one_of_the_pages_causes`；标成更新版本写的库、不是数据库的文件，各自以对的原因和代号到壳里、窗口不出书架：同一文件的 `a_refused_library_reaches_the_shell_as_its_cause_and_code`。页面：`dr-shell/tests/library_failure.rs`（七种原因的三行字和按钮、没有书架和首次引导和导入弹窗、首次引导做没做过都一样、「提交反馈」带着那一行、「退出」走退出流程、有资料库时不出这一页）；真的反馈对话框没有资料库也能开、预填、能发：`dr-view-feedback/tests/dialog.rs`；「检查更新」一直走到「重启以更新」并装上：`dr-view-update/tests/updates.rs`。真窗口（带调试桥的开发构建、一次性 profile）里两种原因、深浅色、中英文各截了图，按钮在读屏树里都找得到。仓库里的场景格式没有改坏库文件的步骤，这次没加场景。
+**测试和验收。** 原因表每一行：`app/drifting/src/library.rs` 的 `each_open_failure_is_one_of_the_pages_causes`；标成更新版本写的库、不是数据库的文件，各自以对的原因和代号到壳里、窗口不出书架：同一文件的 `a_refused_library_reaches_the_shell_as_its_cause_and_code`。页面：`dr-shell/tests/library_failure.rs`（七种原因的三行字和按钮、没有书架和首次引导和导入弹窗、首次引导做没做过都一样、「提交反馈」带着那一行、「退出」走退出流程、有资料库时不出这一页；`every_word_on_the_page_is_in_each_of_the_nine_languages` 核对七种原因的每一行字、四颗按钮、反馈那一行在九种语言里都有，除英文外没有一句是英文）；真的反馈对话框没有资料库也能开、预填、能发：`dr-view-feedback/tests/dialog.rs`；「检查更新」一直走到「重启以更新」并装上：`dr-view-update/tests/updates.rs`。真窗口（带调试桥的开发构建、一次性 profile）里两种原因、深浅色、中英文各截了图，按钮在读屏树里都找得到。仓库里的场景格式没有改坏库文件的步骤，这次没加场景。
 
 ### 内核 v5：UP 第三版视觉打磨（2026-11-17）
 
@@ -380,7 +380,7 @@ cargo run --release -p dr-shell --features capture --example shell-capture -- --
 
 ### 4. 标签坞与 Super View 舞台
 
-- **标签坞**在稿纸顶边居中、和红绿灯同一中线。静止时是一排砂笔记号（类型变化处留宽一点的间隔，预览的记号是空心的，分栏是两个相连的记号）；指针移上去（或按了锁）就是一排玻璃药丸：记号 + 名字，当前那颗是静止的选中玻璃，预览的名字是斜体（中文斜体 GPUI 画成正体，见 F4 的 G5）。左端是锁，右端是 `+`（回作品主页，主页露着时 `+` 是选中的）。指针离开 260 ms 后收回成记号。
+- **标签坞**在稿纸顶边居中、和红绿灯同一中线。静止时是一排砂笔记号（类型变化处留宽一点的间隔，预览的记号是空心的，分栏是两个相连的记号）；指针移上去（或按了锁）就是一排玻璃药丸：记号 + 名字，当前那颗是静止的选中玻璃，预览的名字要的是斜体（自带字体没有斜体字面，macOS 上拉丁字母和中文都画成正体；Windows 上 2026-11-24 起也不斜，跟 macOS 一样，见 [F5 的字体一节](f5-ui.md)）。左端是锁，右端是 `+`（回作品主页，主页露着时 `+` 是选中的）。指针离开 260 ms 后收回成记号。
 - 药丸是 dr-ui 的 `PillGroup`：单击激活（换药丸时有水波），双击留下预览，中键关掉，悬停时末尾出现一个 ×（读屏名「关闭标签页」）；分栏药丸的两半各自可点、各自有 ×，关掉一半另一半成为整个标签。锁和 `+` 有读屏名（「保持展开 / 收回小点」「新建实体」）。
 - **拖动**：拖起的是 dr-ui 的 `DraggedPill`：一份静止的副本按弹簧跟手、不加投影。放到另一颗药丸上就占它的位置；拖着的时候稿纸分成左右两半，放到哪半就和当前页分栏、拖来的那页在那一侧。
 - 指针离开后等 `dwell::DOCK_COLLAPSE`（260 ms）收回成记号。
@@ -1418,3 +1418,14 @@ G1 正式接线后，`#L3-L7` 按既定范围语义选择起止块，而旧 F6 �
 - **产品问题：退出铺满后键盘悬空**。铺满的看板上拖过卡以后键盘在那块看板上，收回铺满后那块看板不再画，键盘还挂在它上面，`ToggleRightSidebar`（快捷键和菜单都走它）到不了工作区，右栏打不开。现在退出铺满时把键盘还给稿纸，见 [k4-panel-fill](../modules/k4-panel-fill.md)「外壳与代码」；GPUI 回归在 `dr-view-elements/tests/v5_kb_keyboard.rs`，去掉修补即红。
 
 两个场景还各加了一组 T9 的检查：把同一层里那一章临时设成只收别处的条目，往它上面拖，住处不变、哪儿都没挂上（T9 以前这一下是挂上去），再改回去。改过的每一步都写了照哪条规矩。副屏真窗口：`k4-g2-actions` 181 步、`k4-g2-review-drag` 218 步，都是 0 pending。原有的期望一条没删。
+
+## CM3：页面带来的左右栏（2026-11-24）
+
+条目模块工作台（[m44-custom-modules.md](../modules/m44-custom-modules.md)「工作台、我的模块、导出导入（CM3）」）是第一个让左右栏随药丸换内容的页面。外壳只加了口，原有行为不变：
+
+- `Target::Module(CustomModuleId)`（key `module:<id>`）：一个「我的模块」的工作台，项目里的药丸；书的 `exists` 对它总是真（模块被删时工作台自己关药丸），`nav_target` 当成书，药丸展开时画「线装」记号。名字由 `pages::add_page_title` 给。
+- `pages::add_page_panels(cx, |target, host, window, cx| -> Option<PagePanels>)`：页面在前面时带来的左栏（整块，放在标题栏那条带子下面）和右栏的 Tab（外壳在后面接上自己的「Agent」，就是主窗格那个同一个对话）。外壳在页面第一次在前面时问一次，药丸开着就留着（`workspace/page_panels.rs`）。
+- 什么时候换：页面是有焦点的那一页、没有铺满盖住稿纸（左右底栏的铺满、模块铺满）、不在沉浸写作、「全部项目」没盖着。换药丸、关药丸、铺满、去主页，左右栏马上回到原来的内容（原来的状态没动过，宽度、开合也照旧）。
+- 换着的时候左右栏不能铺满：整月和右栏停在统计、Agent 时一样暗着（`chrome.rs`），`enter_fill_with_motion` 也拒绝；底栏能铺满，铺满时两栏换回原来的。
+- `review_visible`、`companion_visible` 跟着改：页面的右栏在时审阅不算露着；「Agent」露着的是主窗格那个。
+- 测试：`dr-view-module-bench/tests/bench.rs` 的 `the_side_columns_follow_the_workbench_pill`。

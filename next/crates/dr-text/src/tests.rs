@@ -25,6 +25,7 @@ fn link(target: &str) -> EntityLink {
         kind: EntityKind::Element,
         block: None,
         end_block: None,
+        manual: false,
     }
 }
 

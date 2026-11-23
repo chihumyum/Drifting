@@ -8,6 +8,8 @@
 >
 > 2026-11-16 内核 v5（PT4）：入站目录跟着 M29 多了 `project_template.list`、`get`、`save`，没有导入、导出、编辑模板（`edit`、`working_copies`）和改名、删除；服务说明（`get_info` 的 instructions）末尾加了通用规则 `dr_agent::guidance::PROJECT_GUIDANCE_RULE`。回归：`dr-mcp/tests/inbound.rs` 的 `project_templates_reach_mcp_through_list_get_and_save_only`。
 
+> 2026-11-24（CM4b 条目模块自定义：Agent 的工具）：入站目录跟着 M29 多了我的模块的 `custom_module.list`、`get`、`create`、`update`、`rename`、`save_as`，和条目里自定义模块的值的 `module.read_custom`、`set_custom_value`、`add_custom_item`、`remove_custom_item`、`move_custom_item`；导入、导出、删除、存进我的模块（`adopt`）、谁在用（`uses`）、对一遍抄本（`sync_copies`）和社区都不在目录里，调了回「not in Drifting's author-tool catalog」、一笔不写。我的模块的写入走应用内帮手同一条路（改之前这一轮要读过、读过以后没变），模块过同一个校验器，不合格时错误带位置。服务说明里的通用规则 `PROJECT_GUIDANCE_RULE` 现在点名自定义模块的「写给 Agent」。回归：`dr-mcp/tests/inbound.rs` 的 `custom_modules_reach_mcp_through_the_agents_tools_only`。细节见 [K6](k6-agent-tools.md) 和 [M44](m44-custom-modules.md) 的「Agent 的工具（CM4b）」。
+
 > 2026-11-21：0.1 里连过外部 Agent 的作者，换成新版以后不用重新连。之前只有 0.1「注册表以前的那个书库」的连接接得上，本机书库和账号书库的连接都断了；现在三种都接得上，各自只看得到自己主人的书库里的书。见下面「0.1 各书库的外部 Agent 连接」。
 
 交回状态：分支 `codex/m32-mcp`，实现提交 `0f3a1dc6`，本提交补记交回。入站、出站及设置验收已完成；全量检查中的书架超时与通过的串行复验见「验收」，真实客户端和 Windows 原生运行仍见「待协调」。
@@ -86,7 +88,7 @@
 
 **一键配置保留作者其他设置。** Codex 使用 TOML 编辑保留注释，JSON 客户端保留无关数字精度与内容；写入有备份、写前磁盘原值核对、原子替换及同步。外部客户端不参与本应用的文件锁，因此这不是跨进程原子 compare-and-replace；极短的最终核对／替换间隙仍可能撞上其他程序写入，原内容保留在备份。配置失败撤回新授权。启动修复只更新仍属于本安装的条目，不重建用户已经删掉的条目；不能从哈希猜回丢失的令牌。旧单书连接升级到跨书连接时先装好新的，再撤旧的；撞上非本应用条目则保留原授权。无法判定持久化是否成功时关闭授权缓存，重启重读，不继续以旧缓存授权。
 
-**插件调用不自动重放。** stdio 使用绝对程序路径、受限继承环境及显式参数，进程组／Windows Job Object 负责收尾。HTTP 沿用旧版目的地址规则：回环可用 HTTP，公网必须 HTTPS，拒绝重定向、代理、私网解析及不安全地址转换；使用实际连接的 DNS 结果做检查。请求、响应、SSE 原始字节、头部和工具目录分页有界。过期会话和网络错误不会触发自动重新初始化并重发工具；只发一次调用，不自动处理新的输入轮或远程任务。中断后远端结果可能未知，不能宣称已经撤回远端修改。
+**插件调用不自动重放。** stdio 使用绝对程序路径、受限继承环境及显式参数，进程组／Windows Job Object 负责收尾。HTTP 沿用旧版目的地址规则：回环可用 HTTP，公网必须 HTTPS，拒绝重定向、代理、私网解析及不安全地址转换；使用实际连接的 DNS 结果做检查。2026-11-24 App 别的客户端改成跟着系统代理走以后（[F7「第六轮」](../foundations/f7-platform.md#第六轮联网跟着系统代理走np2026-11-24)），MCP 往外连照旧不走任何代理，系统代理也不走：走了代理，地址由代理解析，这里就核对不到实际连到哪。本机端口直连有回归（`tests/outbound.rs` 的 `http_on_this_computer_never_takes_the_system_proxy`）。公网 MCP 要不要也跟着系统代理，是作者的事（`dr-mcp` 的 `outbound::destination`）。请求、响应、SSE 原始字节、头部和工具目录分页有界。过期会话和网络错误不会触发自动重新初始化并重发工具；只发一次调用，不自动处理新的输入轮或远程任务。中断后远端结果可能未知，不能宣称已经撤回远端修改。
 
 调用失败后先撤销连接的可用状态，再等待 transport 清理。清理失败同时保留原调用的“远端结果未知”和安全的清理错误，不会提前返回并留下 Ready 目录；即使持久状态写入失败，本机能力修订仍已失效。该边界按最新整合预审反馈补故障注入契约。
 

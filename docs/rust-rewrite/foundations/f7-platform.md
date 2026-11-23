@@ -64,7 +64,9 @@ dr_view_feedback::init(Service::for_build(platform, Some(&dirs.data), version), 
 | `deep_link` | F6、M35、跳转链接 | `DeepLinks::new(scheme)`；`.push_all/.push_args`、`.drain_matching("auth/")`、`.set_waker(f)` |
 | `single_instance` | app | `acquire(identity, args) -> Instance::{Primary, Forwarded, ForwardFailed}`；`Primary::listen(f)` |
 | `update` | M42（`dr-view-update`） | `UpdaterConfig::for_build(identity, version)`；`Updater::new(config, UpdateFetch::new(policy, ua, stall))`；`.check() -> Offer::{Newer, Current, Older}`、`.download(&available, dir, progress) -> Downloaded`（验签并核对签名里的版本；已下好的验过就复用）；`Downloaded::replace_bundle(bundle)`（macOS，还核对 App 自己的版本）、`.installer_launch(args)[.without_relaunch()].spawn()`（Windows）；`UpdateError::problem()`；`Downloads`（更新文件夹和两张便条）；`update::running_bundle()`；`HttpFetch`、`LocalFetch`；`fetch::fake_server`、`signature::test_keys`、`install::test_bundles`（`test-support`） |
+| `proxy` | 每个联网的客户端（同步、账号、反馈、更新、崩溃上报、模型） | `proxy::system() -> reqwest::Proxy`：每个客户端加的那一个代理，走系统设的代理，去本机和局域网的直连；`reach(host) -> Option<Reach::{ThisComputer, LocalNetwork}>`、`direct(host)`；`proxy::fake::{FakeProxy, rerun_through}`（`test-support`，测试用的本机假代理）。见「第六轮」 |
 | `relaunch` | M42 | `relaunch::after_exit(bundle)`（macOS：等本进程退出再 `open -n`，照旧版 `macos_relaunch.rs`）；`open_arguments` |
+| `clipboard` | 正文的带格式粘贴（PF，2026-11-24） | `clipboard::read_html() -> Option<String>`：系统剪贴板里和纯文字一起的格式，写成 HTML。macOS 读 `public.html`，没有就把 `public.rtf` 交给 AppKit 转成 HTML（Pages、TextEdit 只给 RTF）；Windows 读 `HTML Format`（CF_HTML）；别处没有。超过 `MAX_BYTES`（8 MiB）或读不出都是 `None`。`decode_html(bytes)`（UTF-8／BOM／UTF-16，不是 UTF-8 时按 Windows-1252）、`cf_html(bytes)`（按头取 HTML，头不对就从第一个 `<` 取）。应用由 `main.rs` 交给 `dr_editor::set_clipboard_html`；测试用私有剪贴板，从不碰系统剪贴板。见 [f4e-editor.md 的 PF 一节](f4e-editor.md#pf-从-word-和网页粘贴带格式2026-11-24) |
 | `image_codec` | M19 素材库（2026-11-21） | HEIC / HEIF / AVIF 交给系统解码，照旧版 `apple_image_codec.rs`、`windows_image_codec.rs`：`SystemFormat::{sniff, from_extension, from_mime}`；`dimensions(bytes)`、`decode(bytes, 最长边) -> Decoded { width, height, rgba }`（直通 RGBA）；`CodecError::{NotSystemFormat, Unavailable, Invalid}`。macOS 是 ImageIO（转正、解码时缩小），Windows 是 WIC（要商店扩展，不转正），别处一律不可用。会阻塞，放后台线程。见 [M19「HEIC 与 AVIF」](../modules/m19-materials.md#heic-与-avif2026-11-21) |
 
 两个只给发布和自测用的小程序（`examples/`，不进正式包）：
@@ -518,6 +520,32 @@ M3 Pro，release 构建，机器负载 15–18（其他会话在编译）。
 - Developer ID 签名、公证、staple、`spctl`，工作流本身（没跑过，actionlint 和 shellcheck 过了）。预编译着色器那一面 2026-11-20 装了 Metal Toolchain 以后在本机补验了（release-handover.md「验证预编译着色器」）。
 - 正式身份的程序没运行过（会读写这台机器上正式版的数据）；Windows 的 `-ReleaseIdentity` 没在 Windows 上打过（本机没有 NSIS），`dr-platform` 加正式身份过了 Windows 交叉 Clippy；`next.yml` 的改动（测试之前传开发安装包）只过了 actionlint，要等下一次推送才在 CI 上真跑。
 - 签名包上「0.1 最后一版 → 新版」的真交接，要作者在不是日常用的账户或虚拟机里做（release-handover.md 第 8 步）。
+
+## 第六轮：联网跟着系统代理走（NP，2026-11-24）
+
+**大白话**：以前新版的请求只认 `HTTPS_PROXY` 这类环境变量。从访达或开始菜单打开的 App 没有这些变量，系统里开着代理（不是 TUN 模式）的人，同步、登录、模型、反馈、更新、崩溃上报全都直连；直连线路不好的地方，就是「登录正常、同步失败」。0.1 在 2026-11-23 修过同一个缺口（`d57fb838a`）。现在每个请求都看系统的代理设置：macOS 网络设置里的「网页代理」「安全网页代理」，Windows 的 Internet 选项（代理服务器和它的例外）；设了代理环境变量的话先用环境变量。去本机和局域网的请求不管系统怎么设都直连。作者会看到的不同：开着系统代理时，这些联网功能跟浏览器一样走代理；本机或局域网的模型服务、开发用的假服务照旧直连；没开系统代理的人什么都没变。没有代理设置界面，超时和重试没改。
+
+**规则只有一处**（`dr-platform/src/proxy.rs`）：
+
+- `reach(host)` / `direct(host)`：本机是 `localhost`、`*.localhost`、`127.0.0.0/8`、`::1`，局域网是 `10/8`、`172.16/12`、`192.168/16`、`*.local`。和 `dr_agent_providers::local` 接受的模型服务地址一样，多一个开发用 Hosted 源会用的 `*.localhost`。只看写出来的名字，不去解析。
+- `system()`：每个客户端加的那一个 `reqwest::Proxy`。目的地是本机或局域网就不走代理；不是的话，用 hyper-util 的 `Matcher::from_system` 读系统设置，就是 reqwest `system-proxy` 特性自己用的那份代码，只是 reqwest 不把它露出来，所以自己调一次，再把代理地址和用户名密码交回 reqwest。加了它就替掉了 reqwest 自带的系统代理（那个对本机没有例外：macOS 的例外列表和代理地址分开存，只读了地址）。
+- 每建一条新连接都重新读一次设置，不是每个客户端读一次：中途关掉系统代理、或者代理软件换到 TUN 模式，不用重启 App。
+
+**用它的**：Hosted 同步（`dr-sync` 的 `SyncHttpClient`）、账号（`dr-account` 的 `HostedClient`）、反馈（`feedback::send`）、更新（`HttpFetch`；GitHub 的几次跳转每一跳各自判断）、崩溃上报（`crash.rs` 的 `ProxiedTransport`：Sentry 自己的 reqwest 传输，换成加了这个代理的客户端；不换的话，特性打开以后 Sentry 会把发给本机假服务的报告交给系统代理）、模型（`dr-agent-providers` 的 `HttpClient` 里两个客户端：云端、登录、目录，和本机模型的长等待那一个）。
+
+**不用它的**：MCP 往外连（`dr-mcp` 的 `outbound::destination`）照旧不走任何代理，本机端口和公网都一样。它要按自己实际连到的地址核对是不是公网（M32「插件调用不自动重放」那一条），走了代理，地址由代理去解析，就核对不到了。rmcp 自带的 reqwest 传输没有用到：MCP 的 HTTP 传输是 `dr-mcp` 自己的 `outbound::http::Http`，里面的客户端就是 `destination::client` 建的。
+
+**特性**：工作区的 `reqwest` 加回 `system-proxy`（关默认特性原本只为换掉 TLS，这个是一起被关掉的）；`dr-platform` 的 `network` 特性加上 `http`、`hyper-util`（`client-proxy`、`client-proxy-system`）。macOS 多编两个小 crate `system-configuration`、`system-configuration-sys`（MIT 或 Apache-2.0），Windows 的 `windows-registry` 本来就在。
+
+**读不到的**（reqwest 和 hyper-util 本身就不读）：自动代理配置（PAC 文件）；macOS 上只设了 SOCKS 代理；Windows 的代理服务器按协议分开写的格式（`http=…;https=…`，当成一个地址解析不出来，等于直连）；Windows 例外里的 `<local>`。
+
+**测试**（都不碰这台机器的代理设置）：
+
+- `proxy::tests`：`reach` 的地址表；`the_system_proxy_features_stay_on` 守住两个特性（读工作区和 `dr-platform` 的 `Cargo.toml`，关掉了就失败）；用 `routed` 换上本机假代理（`proxy::fake::FakeProxy`）：去 `127.0.0.1`、`localhost`、`studio.local` 的请求直接到本机假服务，去 `hosted.drifting.invalid` 的普通请求和 HTTPS 的 `CONNECT` 都到了假代理；系统没设代理时全直连；设置里的例外照样算；代理的用户名密码（带要转义的字符）随每个请求带上。
+- 各处客户端各一条：反馈、更新、崩溃上报（`dr-platform`），同步（`dr-sync/tests/system_proxy.rs`），账号（`dr-account/tests/system_proxy.rs`），模型和本机模型服务（`dr-agent-providers/tests/system_proxy.rs`），MCP 本机端口（`dr-mcp/tests/outbound.rs`）。做法是 `proxy::fake::rerun_through`：测试把自己在子进程里再跑一遍，子进程的 `HTTP_PROXY`、`HTTPS_PROXY` 指向一个本机假代理、`NO_PROXY` 写一个用不到的名字。环境变量排在系统设置前面，所以子进程的「系统代理」就是这个假代理，跟这台机器怎么设无关，本进程的环境也不动。子进程里发请求，去本机的必须到本机假服务；父进程再核对假代理只收到去远端的那一条 `CONNECT`。
+- 改坏过一次验证测试能抓到：把 `system()` 里的直连判断去掉，代理和崩溃上报的测试都失败。
+
+**没验到的**：macOS 网络设置和 Windows Internet 选项的读取本身没在测试里碰（不许动这台机器的设置），靠的是 reqwest 自己那份代码；Windows 那一半只过了交叉 Clippy（`--no-default-features`，不编联网这部分），读 Internet 选项要在 Windows 实机或虚拟机里验（[m43](../modules/m43-windows.md) 清单第六条）；真实代理软件（Clash 之类）下的同步没测。
 
 ## 下一个里程碑建议
 

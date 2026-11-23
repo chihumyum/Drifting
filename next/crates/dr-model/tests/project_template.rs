@@ -227,6 +227,7 @@ fn minimal_valid_template() -> ProjectTemplateValue {
                 table: None,
             }],
         )]),
+        modules: BTreeMap::new(),
         relation_types: vec![TemplateRelationType {
             name: "线索指向".to_owned(),
             description: dr_model::v3::LinkedText::plain("连接章节线索与相关人物"),
@@ -595,6 +596,7 @@ fn rejects_real_ids_dangling_refs_and_structural_violations() {
         vec![TemplateEntityLink {
             entry: "e99".to_owned(),
             module: None,
+            manual: false,
         }];
     assert!(validate_project_template_value(&t).is_err());
 
@@ -708,6 +710,7 @@ fn rejects_real_ids_dangling_refs_and_structural_violations() {
                             entities: vec![TemplateEntityLink {
                                 entry: "e4".to_owned(),
                                 module: Some("mod-bio".to_owned()),
+                                manual: false,
                             }],
                             ..TemplateRun::default()
                         }],

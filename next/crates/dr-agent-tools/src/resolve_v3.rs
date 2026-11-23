@@ -40,8 +40,10 @@ pub(crate) fn facade_schema_v3(name: &str, mut schema: Value) -> Value {
     }
     if let Some(properties) = schema["properties"].as_object_mut()
         && let Some((domain, verb)) = name.split_once('.')
-        // A saved project template is the library's, named by its id only.
+        // A saved project template is the library's, named by its id only;
+        // so is a module of mine (and a book's copy of one).
         && domain != "project_template"
+        && domain != "custom_module"
     {
         for key in [
             "id",
@@ -260,6 +262,29 @@ pub(crate) fn resolve_v3(
             return Err(invalid(
                 dr_workspace::commands::v3::project_template::WORKING_COPY_WORDS,
             ));
+        }
+        // A module goes through the one validator before anything is
+        // written; a refusal says where and which rule (CM4b).
+        if matches!(
+            name,
+            "custom_module.create" | "custom_module.update" | "custom_module.save_as"
+        ) && let Some(value) = obj.get("value").filter(|v| !v.is_null())
+        {
+            check_module_value(value)?;
+        }
+        // 「另存一份」 is for a module of mine; one that came with someone
+        // else's template or book is kept in my modules by the author first
+        // (`custom-modules.md` §7 甲, 「存进我的模块」).
+        if name == "custom_module.save_as"
+            && let Some(raw) = obj.get("module").and_then(Value::as_str)
+        {
+            let id = dr_model::id::CustomModuleId::parse(raw.trim())
+                .map_err(|e| invalid(format!("module {raw:?}: {e}")))?;
+            if !dr_workspace::commands::v3::custom_module::in_my_modules(ws, &id)? {
+                return Err(invalid(format!(
+                    "module {raw} is not one of my modules: it came with someone else's template or book, and only the author keeps it in my modules"
+                )));
+            }
         }
     }
 
@@ -503,7 +528,12 @@ pub(crate) fn resolve_v3(
                         *entry_val = eid.to_string().into();
                     }
                 }
-                "entry.get" | "entry.trash" | "entry.restore" | "entry.set_level"
+                "entry.get"
+                | "entry.trash"
+                | "entry.restore"
+                | "entry.set_level"
+                | "entry.set_auto_link"
+                | "entry.set_below_auto_link"
                 | "module.list" => {
                     let include_trashed =
                         matches!(name, "entry.get" | "entry.trash" | "entry.restore");
@@ -853,6 +883,44 @@ pub(crate) fn resolve_v3(
                         } else {
                             extra_subjects.insert(format!("entry:{owner}"));
                         }
+                    }
+                }
+                "module.read_custom"
+                | "module.set_custom_value"
+                | "module.add_custom_item"
+                | "module.remove_custom_item"
+                | "module.move_custom_item" => {
+                    let eid = {
+                        let entry_val = obj
+                            .get_mut("entry")
+                            .ok_or_else(|| invalid("custom module operation needs entry"))?;
+                        let eid = resolve_entry_id(&cx, entry_val, None, false, EntryRole::Any)?;
+                        *entry_val = eid.to_string().into();
+                        eid
+                    };
+                    let entry = cx
+                        .view
+                        .entry_raw(&eid)
+                        .ok_or_else(|| invalid("entry not found"))?;
+                    let is_write = name != "module.read_custom";
+                    let spec = {
+                        let mod_val = obj
+                            .get_mut("module")
+                            .ok_or_else(|| invalid("custom module operation needs module"))?;
+                        let (mid, spec) = resolve_entry_module(&cx, &entry, mod_val, false, is_write)?;
+                        *mod_val = mid.to_string().into();
+                        spec.ok_or_else(|| invalid("custom module values are reached through the entry template's module"))?
+                    };
+                    if spec.kind != ModuleKind::Custom {
+                        return Err(invalid(format!(
+                            "module {:?} ({}) is a {} module, not a custom one: use module.read and its own tools",
+                            spec.name,
+                            spec.id,
+                            spec.kind.as_str()
+                        )));
+                    }
+                    if name == "module.set_custom_value" {
+                        resolve_custom_input(&cx, &spec, obj)?;
                     }
                 }
                 "relation_type.list" => {
@@ -1624,6 +1692,20 @@ pub(crate) fn coverage_v3(name: &str, args: &Value, output: &Value) -> Option<Ve
                 read.insert(format!("module:{entry}:{mid}"));
             }
         }
+        // The entry's values of one custom module and the copy they read
+        // as; not the rest of the entry.
+        "module.read_custom" => {
+            if let (Some(entry), Some(mid)) = (args["entry"].as_str(), args["module"].as_str()) {
+                read.insert(format!("module_custom:{entry}:{mid}"));
+            }
+        }
+        // A module of mine is a library document: the read a change to it is
+        // held to (the executor keeps what it showed).
+        "custom_module.get" => {
+            if let Some(id) = output["summary"]["id"].as_str() {
+                read.insert(format!("custom_module:{id}"));
+            }
+        }
         "module.read_prose" => {
             if let Some(doc) = prose_doc_from_module_args(args) {
                 read.insert(format!("prose:{doc}"));
@@ -1737,10 +1819,21 @@ pub(crate) fn subjects_v3(name: &str, args: &Value) -> Vec<String> {
                 subjects.insert("entry:*".into());
             }
         }
-        "entry.update" | "entry.trash" | "entry.restore" | "entry.set_level" => {
+        "entry.update"
+        | "entry.trash"
+        | "entry.restore"
+        | "entry.set_level"
+        | "entry.set_auto_link" => {
             if let Some(id) = args.get("id").and_then(Value::as_str) {
                 subjects.insert(format!("entry:{id}"));
             }
+        }
+        // A level's 「自动链接」 sets the switch of what lives below it too.
+        "entry.set_below_auto_link" => {
+            if let Some(id) = args.get("id").and_then(Value::as_str) {
+                subjects.insert(format!("entry:{id}"));
+            }
+            subjects.insert("entry:*".into());
         }
         "entry.move" => {
             if let Some(id) = args.get("id").and_then(Value::as_str) {
@@ -1785,6 +1878,20 @@ pub(crate) fn subjects_v3(name: &str, args: &Value) -> Vec<String> {
                 args.get("module").and_then(Value::as_str),
             ) {
                 subjects.insert(format!("module:{entry}:{mid}"));
+            }
+        }
+        // An entry's custom module is read whole (`module.read_custom`): its
+        // values and the copy they are written against. A list of the
+        // entry's modules is not a read of it.
+        "module.set_custom_value"
+        | "module.add_custom_item"
+        | "module.remove_custom_item"
+        | "module.move_custom_item" => {
+            if let (Some(entry), Some(mid)) = (
+                args.get("entry").and_then(Value::as_str),
+                args.get("module").and_then(Value::as_str),
+            ) {
+                subjects.insert(format!("module_custom:{entry}:{mid}"));
             }
         }
         "module.set_prose" | "module.replace_prose" => {
@@ -1959,6 +2066,155 @@ pub(crate) fn prose_doc_from_module_args(args: &Value) -> Option<String> {
     } else {
         Some(format!("body:{owner}/{module}"))
     }
+}
+
+/// A module given to `custom_module.create`, `update` or `save_as`, through
+/// the one validator (`dr_model::custom_module::parse_module_json`), before
+/// anything is written. A refusal is the validator's own words, which name
+/// the block or the look node (`look.block.item.kids[1]`) and the rule; when
+/// the JSON itself does not fit the closed format, the part that does not is
+/// named by its path.
+fn check_module_value(value: &Value) -> Result<()> {
+    use dr_model::custom_module::{ModuleError, parse_module_json};
+    let raw = serde_json::to_string(value).map_err(|e| invalid(e.to_string()))?;
+    match parse_module_json(&raw) {
+        Ok(_) => Ok(()),
+        Err(ModuleError::MalformedJson(message)) => Err(invalid(match locate_malformed(value) {
+            Some((at, why)) => format!("the module was refused at {at}: {why}"),
+            None => format!("the module was refused: {}", without_position(&message)),
+        })),
+        Err(e) => Err(invalid(format!("the module was refused: {e}"))),
+    }
+}
+
+/// serde_json's ` at line 1 column N` points into a compact copy the model
+/// never saw.
+fn without_position(message: &str) -> &str {
+    message
+        .rfind(" at line ")
+        .map_or(message, |at| &message[..at])
+}
+
+/// The deepest part of a module's JSON that its own type refuses, and why:
+/// a block (`blocks[0].blocks[2]`), a look node (`look.line.kids[0]`), the
+/// look, the words for the Agent, the credit or the sample. Only locates:
+/// the types are the validator's, nothing here is a rule of its own.
+fn locate_malformed(value: &Value) -> Option<(String, String)> {
+    use dr_model::custom_module::{Block, Look, ModuleAgent, ModuleCredit, Node, SampleValue};
+    fn fails<T: serde::de::DeserializeOwned>(v: &Value) -> Option<String> {
+        serde_json::from_value::<T>(v.clone())
+            .err()
+            .map(|e| e.to_string())
+    }
+    fn block(b: &Value, at: String) -> Option<(String, String)> {
+        for (i, kid) in b["blocks"].as_array().into_iter().flatten().enumerate() {
+            if let Some(found) = block(kid, format!("{at}.blocks[{i}]")) {
+                return Some(found);
+            }
+        }
+        fails::<Block>(b).map(|why| (at, why))
+    }
+    fn node(n: &Value, at: String) -> Option<(String, String)> {
+        for (i, kid) in n["kids"].as_array().into_iter().flatten().enumerate() {
+            if let Some(found) = node(kid, format!("{at}.kids[{i}]")) {
+                return Some(found);
+            }
+        }
+        if let Some(item) = n.get("item")
+            && let Some(found) = node(item, format!("{at}.item"))
+        {
+            return Some(found);
+        }
+        fails::<Node>(n).map(|why| (at, why))
+    }
+    let obj = value.as_object()?;
+    for (i, b) in obj
+        .get("blocks")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .enumerate()
+    {
+        if let Some(found) = block(b, format!("blocks[{i}]")) {
+            return Some(found);
+        }
+    }
+    if let Some(look) = obj.get("look") {
+        for size in ["block", "line", "full"] {
+            if let Some(n) = look.get(size).filter(|n| !n.is_null())
+                && let Some(found) = node(n, format!("look.{size}"))
+            {
+                return Some(found);
+            }
+        }
+        if let Some(why) = fails::<Look>(look) {
+            return Some(("look".into(), why));
+        }
+    }
+    [
+        ("agent", obj.get("agent").and_then(fails::<ModuleAgent>)),
+        ("credit", obj.get("credit").and_then(fails::<ModuleCredit>)),
+        (
+            "sample",
+            obj.get("sample")
+                .and_then(fails::<BTreeMap<String, SampleValue>>),
+        ),
+    ]
+    .into_iter()
+    .find_map(|(at, why)| why.map(|why| (at.to_owned(), why)))
+}
+
+/// The value given to `module.set_custom_value` for an entry or an image
+/// block, named the way the facade takes names elsewhere: entries by id or
+/// exact title or alias (one name or a list), a file by id or exact name.
+/// Other kinds, and what does not resolve to a block, go to the command as
+/// they are; it checks every value against the block's kind.
+fn resolve_custom_input(
+    cx: &ResolveCtx<'_>,
+    spec: &ModuleSpec,
+    obj: &mut Map<String, Value>,
+) -> Result<()> {
+    use dr_model::custom_module::BlockKind;
+    let Some(copy) = spec
+        .config
+        .module
+        .as_ref()
+        .and_then(|id| cx.view.module_copy(id))
+    else {
+        return Ok(());
+    };
+    let Some(kind) = copy.module().and_then(|module| {
+        obj.get("block")
+            .and_then(Value::as_str)
+            .and_then(|b| module.block(b))
+            .map(|b| b.kind)
+    }) else {
+        return Ok(());
+    };
+    let Some(value) = obj.get_mut("value") else {
+        return Ok(());
+    };
+    match kind {
+        BlockKind::Entry => {
+            let given: Vec<Value> = match value {
+                Value::String(_) => vec![value.clone()],
+                Value::Array(items) if items.iter().all(Value::is_string) => items.clone(),
+                _ => return Ok(()),
+            };
+            let mut ids = Vec::with_capacity(given.len());
+            for item in &given {
+                ids.push(Value::String(
+                    resolve_entry_id(cx, item, None, false, EntryRole::Any)?.to_string(),
+                ));
+            }
+            *value = Value::Array(ids);
+        }
+        BlockKind::Image if value.is_string() => {
+            *value = resolve_asset_id(&cx.view, value, false)?.to_string().into();
+        }
+        _ => {}
+    }
+    Ok(())
 }
 
 fn resolve_initial_bodies(tpl: &EntryTemplate, bodies_val: &Value) -> Result<Map<String, Value>> {

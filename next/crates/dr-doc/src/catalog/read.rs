@@ -213,6 +213,8 @@ pub(crate) struct ForestEntryHeader {
     pub(crate) title: String,
     pub(crate) template: Option<String>,
     pub(crate) level: bool,
+    /// The entry's own 「自动链接」 (`kernel-v5.md` §16).
+    pub(crate) auto_link: bool,
     pub(crate) created_at: Option<dr_model::Timestamp>,
     pub(crate) deleted_at: Option<dr_model::Timestamp>,
     /// The `overrides` map, read deep (it is small).
@@ -318,6 +320,10 @@ pub(crate) fn forest_entry_headers(
                 meta.get("level"),
                 Some(loro::ValueOrContainer::Value(LoroValue::Bool(true)))
             );
+            let auto_link = matches!(
+                meta.get("auto_link"),
+                Some(loro::ValueOrContainer::Value(LoroValue::Bool(true)))
+            );
             let overrides = match meta.get("overrides") {
                 Some(v @ loro::ValueOrContainer::Container(_)) => Some(v.get_deep_value()),
                 _ => None,
@@ -344,6 +350,7 @@ pub(crate) fn forest_entry_headers(
                     title: string("title").unwrap_or_default(),
                     template: string("template").filter(|s| !s.is_empty()),
                     level,
+                    auto_link,
                     created_at: scalar_ts(meta.get("created_at")),
                     deleted_at: scalar_ts(meta.get("deleted_at")),
                     overrides,

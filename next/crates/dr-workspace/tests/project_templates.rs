@@ -817,6 +817,7 @@ fn rich_project_save_and_create_preserves_samples_rewrites_ids_and_strips_exclud
                         module: Some(ModuleId::parse("mod-notes").unwrap()),
                         block: None,
                         end_block: None,
+                        manual: false,
                     },
                 )?;
                 txn.set_style((p2 + 7)..(p2 + 12), &InlineStyle::Bold)?;
@@ -828,6 +829,7 @@ fn rich_project_save_and_create_preserves_samples_rewrites_ids_and_strips_exclud
                         module: None,
                         block: None,
                         end_block: None,
+                        manual: false,
                     },
                 )?;
                 txn.set_style((p2 + 13)..(p2 + 15), &InlineStyle::Italic)?;
@@ -839,6 +841,7 @@ fn rich_project_save_and_create_preserves_samples_rewrites_ids_and_strips_exclud
                         module: None,
                         block: None,
                         end_block: None,
+                        manual: false,
                     },
                 )?;
                 let tbl_at = txn.split(p2 + 15)?;
@@ -1067,9 +1070,11 @@ fn rich_project_save_and_create_preserves_samples_rewrites_ids_and_strips_exclud
         .expect("custom relation type preserved");
     assert_eq!(contra_b["rows"], json!([]));
     assert_eq!(contra_b["direction"], "directed");
+    // The description's link was picked with @: the template carries that
+    // (`kernel-v5.md` §16).
     assert_eq!(
         contra_b["description"]["links"],
-        json!([{"start":0,"end":s2_b["title"].as_str().unwrap().chars().count(),"entry":s2_b_id}])
+        json!([{"start":0,"end":s2_b["title"].as_str().unwrap().chars().count(),"entry":s2_b_id,"manual":true}])
     );
     assert!(
         contra_b["description"]["text"]

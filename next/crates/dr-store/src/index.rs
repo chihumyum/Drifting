@@ -40,9 +40,13 @@ pub struct BlockRow {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RefKind {
-    /// An entity link mark in the text.
+    /// An automatic entity link mark in the text (every link written before
+    /// links picked with @ were told apart counts as one).
     Link,
-    /// A name found in the text.
+    /// An entity link the author picked with @ (its value says `manual`,
+    /// `kernel-v5.md` §16): it counts whatever the switches of automatic
+    /// linking say. Readers that follow the switches read [`Self::Link`]
+    /// through them.
     Mention,
     /// An embedded object (table, material).
     Embed,
@@ -288,6 +292,8 @@ pub const DOC_KIND_CHECKPOINTS: &str = "checkpoints";
 pub const DOC_KIND_LAYOUT: &str = "layout";
 /// A library-level user project template, belonging to no book.
 pub const DOC_KIND_PROJECT_TEMPLATE: &str = "project-template";
+/// A custom module in my modules, belonging to no book.
+pub const DOC_KIND_MODULE: &str = "module";
 
 pub const KNOWN_DOC_KINDS: &[&str] = &[
     DOC_KIND_BOOK,
@@ -302,6 +308,7 @@ pub const KNOWN_DOC_KINDS: &[&str] = &[
     DOC_KIND_CHECKPOINTS,
     DOC_KIND_LAYOUT,
     DOC_KIND_PROJECT_TEMPLATE,
+    DOC_KIND_MODULE,
 ];
 
 /// Whether `kind` is a known document kind in schema v3 or v2.2.

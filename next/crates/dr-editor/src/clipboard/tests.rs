@@ -308,6 +308,9 @@ fn real_table_grid_and_cell_text_clipboard_keep_module_and_binary_on_disk(cx: &m
     cell.update_in(cx, |p, w, cx| p.select(0, 0..0, w, cx));
     draw(cx);
     let point = cell.read_with(cx, |p, _| p.range_bounds(0, 0..1).unwrap().center());
+    // A link into a module and a block is the author's (automatic linking
+    // never writes one): it opens though the chapter's own 「自动链接」 is
+    // off, as a chapter's starts (`kernel-v5.md` §16).
     cx.simulate_click(point, gpui::Modifiers::none());
     draw(cx);
     assert_eq!(opened.borrow().len(), 1);
@@ -479,6 +482,187 @@ fn v3_typing_over_selected_cells_replaces_the_range_and_undoes_once(cx: &mut Tes
             .matches('\u{fffc}')
             .count(),
         1
+    );
+}
+
+/// The body's paragraphs as stored: text, heading level, list kind.
+fn stored(e: &Env, doc: &str) -> Vec<(String, Option<i64>, Option<String>)> {
+    let d = e.ws.library().load_copy(doc).unwrap();
+    let id = dr_model::DocId::parse(doc).unwrap();
+    let p = dr_doc::prose::BorrowedProse::new(&d, &id).unwrap();
+    p.view()
+        .paragraphs()
+        .map(|p| {
+            (
+                p.text(),
+                p.attrs.heading.map(|h| h.level()),
+                p.attrs.list.as_ref().map(|l| l.as_str().to_owned()),
+            )
+        })
+        .collect()
+}
+
+/// What another program put on the clipboard: its plain text through
+/// GPUI's (test) clipboard, its HTML through the reader the app sets.
+fn other_program(cx: &mut VisualTestContext, text: &str, html: &'static str) {
+    cx.write_to_clipboard(ClipboardItem::new_string(text.into()));
+    cx.update(|_, cx| set_clipboard_html(cx, move || Some(html.to_owned())));
+}
+
+const FORMATTED: &str = r#"<meta charset="utf-8"><h2 style="color:#333">标题</h2><p>有<b>粗体</b>和<a href="https://example.com/">链接</a><img src="https://example.com/a.png"><script>alert(1)</script></p><ul><li>一</li><li>二</li></ul>"#;
+
+#[gpui::test]
+fn formatted_text_from_another_program_keeps_the_body_formats(cx: &mut TestAppContext) {
+    let e = env();
+    let (_view, editor, cx) = open(cx, &e, &e.doc);
+    editor.update_in(cx, |p, w, cx| {
+        p.select(0, 5..5, w, cx);
+        p.press_enter(w, cx);
+    });
+    draw(cx);
+    let (before_text, before_links) = durable(&e);
+    other_program(cx, "标题\n有粗体和链接\n一\n二", FORMATTED);
+    cx.dispatch_action(gpui_prose::input::actions::Paste);
+    draw(cx);
+    assert_eq!(
+        stored(&e, &e.doc),
+        [
+            ("前α😀後末".into(), None, None),
+            ("标题".into(), Some(2), None),
+            ("有粗体和链接".into(), None, None),
+            ("一".into(), None, Some("bullet".into())),
+            ("二".into(), None, Some("bullet".into())),
+        ]
+    );
+    let (text, links) = durable(&e);
+    assert_eq!(
+        links.marks(),
+        before_links.marks(),
+        "the entity links around it stay, and none come in"
+    );
+    editor.read_with(cx, |p, _| {
+        let doc = &p.book().chapters[0].doc;
+        let at = doc.line_start(2);
+        assert!(doc.range_has_mark(at + 1..at + 3, "bold"));
+        assert!(!doc.range_has_mark(at..at + 1, "bold"));
+        assert!(doc.range_has_mark(at + 4..at + 6, "link"));
+        assert_eq!(
+            doc.line(2)
+                .spans
+                .iter()
+                .filter_map(|s| s.marks.link())
+                .collect::<Vec<_>>(),
+            ["https://example.com/"]
+        );
+        // The caret after the pasted text.
+        assert_eq!(p.selection().head, doc.line_start(4) + 1);
+    });
+    // One undo takes the whole paste back.
+    cx.dispatch_action(gpui_prose::input::actions::Undo);
+    draw(cx);
+    assert_eq!(durable(&e), (before_text, before_links));
+    assert_ne!(text, durable(&e).0);
+}
+
+#[gpui::test]
+fn without_a_reader_or_into_a_code_line_or_a_cell_only_the_text(cx: &mut TestAppContext) {
+    let e = env();
+    // No reader (tests, examples): the plain text, as before.
+    let (_view, editor, cx) = open(cx, &e, &e.doc);
+    editor.update_in(cx, |p, w, cx| p.select(0, 0..7, w, cx));
+    cx.write_to_clipboard(ClipboardItem::new_string("标题\n有粗体".into()));
+    cx.dispatch_action(gpui_prose::input::actions::Paste);
+    draw(cx);
+    assert_eq!(
+        stored(&e, &e.doc),
+        [("标题".into(), None, None), ("有粗体".into(), None, None)]
+    );
+    // Into a code line: the plain text.
+    editor.update_in(cx, |p, w, cx| {
+        p.edit_chapter(0, gpui_prose::HostStep::Own, w, cx, |doc| {
+            doc.set_block_attr(
+                1,
+                gpui_prose::schema::block::CODE_BLOCK,
+                Some("".into()),
+                ORIGIN_USER,
+            );
+            None
+        });
+        p.select(0, 3..6, w, cx);
+    });
+    draw(cx);
+    other_program(cx, "<b>x</b>", "<p><b>x</b></p><h1>y</h1>");
+    cx.dispatch_action(gpui_prose::input::actions::Paste);
+    draw(cx);
+    assert_eq!(stored(&e, &e.doc)[1].0, "<b>x</b>");
+    editor.read_with(cx, |p, _| {
+        assert!(!p.book().chapters[0].doc.range_has_mark(3..4, "bold"));
+    });
+}
+
+#[gpui::test]
+fn another_programs_table_keeps_its_cells_formats(cx: &mut TestAppContext) {
+    let e = env();
+    let doc = note_doc(&e, "Synthetic table paste");
+    let (view, _body, cx) = open(cx, &e, &doc);
+    let embeds = view.read_with(cx, |v, _| v.note_embeds().unwrap().clone());
+    // A spreadsheet's copy: tab-separated text, and its HTML with classes.
+    other_program(
+        cx,
+        "名字\t年龄\n安\t30\n",
+        r#"<style>.xl65 {font-weight:700}</style><table><tr><td class=xl65>名字</td><td class=xl65>年龄</td></tr><tr><td><a href="https://example.com/">安</a></td><td>30</td></tr></table>"#,
+    );
+    cx.dispatch_action(gpui_prose::input::actions::Paste);
+    draw(cx);
+    let table = embeds.tables()[0].clone();
+    let id = table.read_with(cx, |t, _| t.embed().to_string());
+    let (cells, marks) = embeds.table_grid(&id).unwrap();
+    assert_eq!(cells, [["名字", "年龄"], ["安", "30"]]);
+    assert_eq!(
+        crate::table::clip::marks_at(&marks, 0, 0),
+        [(0, 2, "bold".to_owned(), LoroValue::Bool(true))]
+    );
+    assert_eq!(crate::table::clip::marks_at(&marks, 0, 1).len(), 1);
+    assert_eq!(
+        crate::table::clip::marks_at(&marks, 1, 0),
+        [(
+            0,
+            1,
+            "link".to_owned(),
+            LoroValue::from("https://example.com/")
+        )]
+    );
+    assert!(crate::table::clip::marks_at(&marks, 1, 1).is_empty());
+    // HTML that is not the same table: the cells stay plain.
+    let rows = vec![
+        vec!["名字".to_owned(), "年龄".to_owned()],
+        vec!["安".to_owned(), "31".to_owned()],
+    ];
+    cx.update(|_, cx| assert_eq!(html_table_marks(cx, &rows), None));
+}
+
+#[gpui::test]
+fn a_table_cell_takes_only_the_text(cx: &mut TestAppContext) {
+    let e = env();
+    let doc = note_doc(&e, "Synthetic formatted paste");
+    let (view, _body, cx) = open(cx, &e, &doc);
+    let embeds = view.read_with(cx, |v, _| v.note_embeds().unwrap().clone());
+    let cells = vec![vec!["".to_owned(), "b".to_owned()]];
+    cx.update(|w, cx| crate::embeds::insert_table(&embeds, 0, cells, Vec::new(), w, cx));
+    draw(cx);
+    let table = embeds.tables()[0].clone();
+    let id = table.read_with(cx, |t, _| t.embed().to_string());
+    let cell = table.read_with(cx, |t, _| t.cell_editor(0, 0).unwrap().clone());
+    cell.update_in(cx, |p, w, cx| p.focus_at(0, 0, w, cx));
+    draw(cx);
+    other_program(cx, "粗", "<h1><b>粗</b></h1>");
+    cx.dispatch_action(gpui_prose::input::actions::Paste);
+    draw(cx);
+    assert_eq!(embeds.table_cells(&id).unwrap()[0], ["粗", "b"]);
+    let (_, marks) = embeds.table_grid(&id).unwrap();
+    assert!(
+        marks.iter().flatten().all(|cell| cell.is_empty()),
+        "no bold from the HTML: {marks:?}"
     );
 }
 

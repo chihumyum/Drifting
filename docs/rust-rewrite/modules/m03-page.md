@@ -1,5 +1,13 @@
 # M03 章节页：章首与章末
 
+## AL 条目自己的「自动链接」（2026-11-24）
+
+- 条目页最下面那一组开关（「下面的条目」「挂在这里的条目」两块的块头）后面多一行「自动链接」：条目自己的开关，开着时名字黑、关着时灰，和块头同一个样子（`dr-shell/src/v3/page.rs` 的 `own_auto_link_row`，画在「挂在这里的条目」那一项里，所以页里各节的序号不变）。按下去是 `entry.set_auto_link`；精简设置页（`render_settings`）里同样排在两个块的开关后面。
+- 「下面的条目」块里那一行「自动链接」是按层的开关：按下去是 `entry.set_below_auto_link`（住在下面的条目一起打开或关上，以后在这一层新建的默认跟着），不再改 `overrides` 了事。所以层级页上有两个「自动链接」。
+- 被拒绝（重名）时照别的设置只出「未能保存」（`set_auto_link`）。
+- 正文名字卡的「自动链接」行由页的宿主写（`dr-view-page` 的 `bind_links` 接 `AssistEvent::AutoLink`），出错同样「未能保存」。
+- 规则在 [kernel-v5.md 第 16 节「自动链接」](../kernel-v5.md#自动链接)。
+
 ## 内核 v5 DW：不编号，页头不看进不进成书（2026-11-15 夜里）
 
 - App 不再给任何条目编号（作者：「所有正文APP都不编号。作者自己有需求自己编。」）：`PageInfo` 没有 `number`，页眉第一项一律是模板名（`folio_label`），键 `nodeEditor.folio.chapter`、`nodeEditor.folio.chapterNumber` 删了。下面 T3 那一节说的章号随之不再显示。

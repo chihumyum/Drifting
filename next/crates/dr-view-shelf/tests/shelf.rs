@@ -892,6 +892,7 @@ fn bookless_project_hides_words_and_heatmap_and_shows_recent_entries_on_shelf_an
                 template: None,
                 level: Some(false),
                 bodies: Default::default(),
+                auto_link: None,
             },
         )
         .unwrap()
