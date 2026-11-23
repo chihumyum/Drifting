@@ -149,9 +149,10 @@
       "app": "ui.press",
       "params": {
         "label": "Automatic links",
-        "role": "CheckBox"
+        "role": "CheckBox",
+        "nth": 0
       },
-      "note": "「自动链接」 is a switch on the 「下面的条目」 block now (kernel-v5 §16 「条目页」, T1); it writes the entry's own value."
+      "note": "The level's 「自动链接」 (`entry.set_below_auto_link`, kernel-v5 §16): the first of the page's two switches of that name, on the 「下面的条目」 block; the entry's own one is in the page's last group, under 「挂在这里的条目」. 「自动链接」 is a switch on the 「下面的条目」 block now (kernel-v5 §16 「条目页」, T1); it writes the level's own value and carries what lives below."
     },
     {
       "app": "ui.wait",
@@ -223,9 +224,10 @@
       "app": "ui.press",
       "params": {
         "label": "Automatic links",
-        "role": "CheckBox"
+        "role": "CheckBox",
+        "nth": 0
       },
-      "note": "The switch has no 「还原」 on the page: off is the entry's own value again, not the template's."
+      "note": "The level's 「自动链接」 (`entry.set_below_auto_link`, kernel-v5 §16): the first of the page's two switches of that name, on the 「下面的条目」 block; the entry's own one is in the page's last group, under 「挂在这里的条目」. The switch has no 「还原」 on the page: off is the entry's own value again, not the template's."
     },
     {
       "app": "ui.wait",

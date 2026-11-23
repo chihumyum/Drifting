@@ -891,12 +891,33 @@ fn entity_link_v3(attrs: &str, ctx: &Context<'_>, notes: &mut Notes) -> Option<E
         manual: false,
     };
     match dr_samples::v3::map_entity_link(&legacy, explicit_module) {
-        Ok(mapped) => Some(mapped),
+        Ok(mut mapped) => {
+            // The canonical round trip writes a picked link's mark back
+            // with `manual` ([`super::export::export_v3`]).
+            mapped.manual = picked_in_0_1(&old_kind)
+                || v.get(dr_model::prose::LINK_MANUAL).and_then(Value::as_bool) == Some(true);
+            Some(mapped)
+        }
         Err(_) => {
             notes.add(format!("entity-link-to-{}", old_kind.as_str()));
             None
         }
     }
+}
+
+/// Whether a 0.1 link to an entity of kind `kind` can only have been made by
+/// the author. 0.1 linked by itself the names and aliases of its elements
+/// and the titles of its chapters and ideas (`entity-link-names.ts`), and the
+/// import turns those entries' 「自动链接」 on; a link to a text material (a
+/// note now), a storyline or a category was picked, and those entries come
+/// in with the switch off. Recorded as picked, such a link shows as 0.1
+/// showed it, whatever the switches say (`kernel-v5.md` §16 「从 0.1 导入」).
+fn picked_in_0_1(kind: &dr_model::kind::EntityKind) -> bool {
+    use dr_model::kind::EntityKind;
+    matches!(
+        kind,
+        EntityKind::Material | EntityKind::Storyline | EntityKind::Category
+    )
 }
 
 type MarkedCharV3 = (char, InlineMarks, Vec<EntityLinkV3>);
@@ -1025,7 +1046,7 @@ fn runs_of_v3(
                 kind: l.kind.clone(),
                 block: l.block.clone(),
                 end_block: l.end_block.clone(),
-                manual: false,
+                manual: l.manual,
             })
             .collect();
         entities.sort();
