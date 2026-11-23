@@ -15,8 +15,11 @@
 //! `libraries/<id>`, the same file and folder names this client's account
 //! libraries use. So the release identity keeps its own files beside it, in
 //! [`AppDirs::own`], and writes nothing into `data` but what both clients
-//! share on purpose (`mcp/`, the external Agents' connection files, whose
-//! paths are already in the authors' Agent configs). Not inside it either:
+//! share on purpose: MCP state, the external Agents' connection files, whose
+//! paths are already in the authors' Agent configs (`mcp/` of the
+//! pre-registry library at the root, which is this client's own MCP folder,
+//! and `libraries/<id>/mcp/` of every other 0.1 library, served as they are;
+//! dr-mcp's `v1`). Not inside it either:
 //! the 0.1 pre-registry library's root is `data` itself, and the import
 //! refuses a destination inside the library it reads.
 //!
@@ -63,7 +66,8 @@ impl Layout {
 pub struct AppDirs {
     /// The folder the system names after this run's bundle id. Under the
     /// release identity it is the 0.1 client's data folder: only what both
-    /// clients share lives here (`mcp/`), and 「导入 Drifting 0.1」 finds the
+    /// clients share is written here (MCP state: `mcp/`, and the 0.1
+    /// libraries' `libraries/<id>/mcp/`), and 「导入 Drifting 0.1」 finds the
     /// 0.1 libraries here. Everything else goes in [`Self::own`].
     pub data: PathBuf,
     /// This client's own files: settings, the library registry and the

@@ -29,6 +29,7 @@ pub mod diagnostics;
 pub mod feedback;
 pub mod fonts;
 pub mod identity;
+pub mod image_codec;
 pub mod logging;
 pub mod paths;
 pub mod relaunch;

@@ -56,6 +56,92 @@
         "title": "有几篇正文可能少了最后几秒打的字",
         "unproven": "有 {{count}} 篇正文无法确认是最新的，列在下面"
       },
+      "differences": {
+        "assets": "有 {{missing}} 个资源文件找不到、{{mismatched}} 个和记录的哈希对不上，没有导入。",
+        "defaults": {
+          "act_binding_not_an_idea": "绑在章节上的幕按旧版当作没有绑构想",
+          "act_without_boundary": "没有起点的幕按旧版当作全书第一幕",
+          "ambiguous_history_template_field": "快照历史里同名的模板字段只留第一个",
+          "ambiguous_template_field": "分类模板里同名的字段只留旧版列在前面的那一个",
+          "category_layout_incomplete": "分类的摆放方式不完整时按旧版当作自动摆放",
+          "chapter_in_group_dropped": "章节身上的构想分组旧版不用，没有带过来",
+          "chapter_without_book_order": "没有书序的章节按旧版的读法排在最前（书序 0）",
+          "comment_target_missing": "所属对象已彻底删除的批注照留，显示为找不到位置",
+          "duplicate_act_boundary": "起点相同的几幕按旧版照原样导入",
+          "duplicate_history_value_for_template_field": "快照历史里同名字段的几个值，第一个进字段，其余作为键值留下",
+          "duplicate_value_for_template_field": "同名字段的几个值，第一个进字段，其余作为条目自己的键值留下",
+          "element_missing_category": "没有分类（或分类已删除）的要素放进「要素」下的「未分类」，和旧版一样",
+          "entity_link_dropped": "指不到条目的人物链接去掉链接，字留着",
+          "fallback": "照原样导入，记在回执里",
+          "history_preview_missing": "没有预览的快照历史没法检出，跳过",
+          "history_preview_unreadable": "预览读不出来的快照历史没法检出，跳过",
+          "idea_group_missing": "所在分组已不存在的构想放在构想的最外层，和旧版一样",
+          "idea_has_legacy_book_order": "构想身上的书序旧版不用，没有带过来",
+          "incompatible_history_node_status": "快照历史里和种类对不上的写作状态不回放",
+          "incompatible_source_node_status": "和种类对不上的写作状态换成这一种的默认状态，和旧版显示的一样",
+          "membership_target_missing": "指向已不存在的章节或故事线的归属没有地方挂，没有带过来",
+          "membership_target_trashed": "已删除的故事线上的归属照留，故事线恢复时章节一起回来",
+          "multiple_primary_memberships": "有几条主故事线时，按旧版留最后一条，其余仍是故事线",
+          "orphan_history_source": "所属对象已彻底删除的快照历史跳过",
+          "pin_binding_missing_idea": "时间钉绑的构想已不在或在最近删除里，时间钉留着、不再绑",
+          "plot_grid_position_key_regenerated": "情节规划里坏掉的位置键按旧版的顺序重新生成",
+          "source_tree_cycle": "互为上级的分组、素材夹在 id 最小的那一个断开，放到最外层",
+          "source_tree_missing_parent": "上级已不存在的分组、素材夹放到最外层，和旧版一样",
+          "unknown_node_kind": "旧版不认识种类的章节按构想导入，和旧版一样",
+          "unreadable_history_metadata": "快照历史里读不出来的标题等字段不回放，正文版本照留",
+          "unreadable_source_aliases": "读不出来的别名列表只留能读的",
+          "unreadable_source_kv_projection": "读不出来的字段顺序记录按建立先后排",
+          "unreadable_source_template": "读不出来的正文模板不写成模板，原文留在书目里",
+          "unsupported_table_cell_content": "表格格子里的列表、标题等只留文字",
+          "unsupported_table_cell_mark": "表格格子里新版不认识的格式去掉，字留着",
+          "writing_day_duplicate": "同一台设备同一天的几行写作日加在一起，和旧版热力图一样",
+          "writing_day_invalid": "日期或设备读不出来的写作日没有地方放，没有带过来"
+        },
+        "lossy": {
+          "act_binding_kept_existing_placement": "幕绑定的构想在默认时间线视图里原本就有位置，保留了原位置而未用幕跨度覆盖",
+          "act_binding_shared_idea_split": "同一个构想绑了多个幕：最早的一幕沿用该构想，其余各幕在「幕」下新建了同名条目",
+          "align_unsupported": "两端对齐按左对齐导入",
+          "built_in_relation_type_dropped": "内置的「关联」类型没有导入",
+          "comment_action_dropped": "已退役的 {{product}} 批注动作（采纳 / 拒绝）不再导入",
+          "comment_priority_dropped": "批注的优先级没有导入（批注不再分优先级）",
+          "entity_link_same_target_overlap": "同一段文字上有两条指向同一对象、但范围不同的链接，保留了后一条",
+          "entity_link_to_asset_kept_as_text": "正文中指向图片或 PDF 素材的链接，素材没有文件、无处可链，已转为普通文字，逐条列在下方",
+          "formatting_kept_as_text": "批注、补丁或素材描述里的格式按纯文字导入，原文记在回执里",
+          "heading_or_indent_clamped": "标题层级或缩进超出范围，已收进 H1–H3、0–8",
+          "list_item_extra_paragraph": "一个列表项里有好几段，新版每段是一项",
+          "material_embed_dropped": "素材嵌入找不到对应的素材，按空段落导入",
+          "ordered_list_start": "编号列表的起始编号没有保留",
+          "relation_comment_end_dropped": "一头是批注的关系没有导入",
+          "relation_image_end_dropped": "一头是图片的关系没有导入",
+          "relation_missing_entry_dropped": "一头已不存在的关系没有导入",
+          "relation_other_end_dropped": "一头是其他素材的关系没有导入",
+          "relation_patch_end_dropped": "一头是补丁的关系没有导入",
+          "relation_pdf_end_dropped": "一头是 PDF 的关系没有导入",
+          "relation_self_end_dropped": "两头是同一个对象的关系没有导入",
+          "relation_todo_end_dropped": "一头是待办的关系没有导入",
+          "table_cell_marks": "表格格子里的文字格式没有保留（新版格子只存文字）",
+          "table_cell_paragraphs_joined": "表格格子里的几段合成一段，中间用段内换行",
+          "table_cell_span": "表格的合并单元格和列宽没有保留",
+          "table_header_cell": "表格的表头格按普通格导入",
+          "task_status_follows_tick": "清单项关联的待办状态与勾选不一致，已按清单项的勾选为准，逐条列在下方",
+          "task_todo_link_replaced_by_projection": "清单项不再单独链接旧版待办，保留自身的勾选并对应为清单批注",
+          "template_unreadable": "有模板读不出来，没有导入（旧的字段原样留着）",
+          "unknown_block": "有新版不认识的段落类型，按普通段落导入",
+          "unknown_inline": "正文里有新版不认识的行内对象，已从正文里去掉，原样记在回执里",
+          "unknown_mark": "有新版不认识的文字格式，文字保留，格式去掉"
+        },
+        "lossy_dialog": {
+          "entity_link_to_asset_kept_as_text": "正文中指向图片或 PDF 素材的链接，素材没有文件、无处可链，已转为普通文字",
+          "task_status_follows_tick": "清单项关联的待办状态与勾选不一致，已按清单项的勾选为准"
+        },
+        "material": {
+          "empty_folder": "空的素材夹「{{name}}」",
+          "unimported_folder": "里面的素材都没有带过来的素材夹「{{name}}」",
+          "unknown_kind": "不认识种类（{{kind}}）的素材「{{name}}」",
+          "without_file": "没有文件的素材「{{name}}」"
+        },
+        "materials_heading": "旧版素材里没有带过来的"
+      },
       "notice": {
         "carry_on": "接着导入",
         "unfinished": "《{{name}}》没导完"
@@ -68,6 +154,7 @@
         "already_imported": "这台设备以前导入过，这次没再导入",
         "already_in_library": "新资料库里已经有这本书，没有动",
         "carries_on": "没导入完，再导入一次这个资料库会接着导入",
+        "differences": "有 {{count}} 处和旧版不完全一样",
         "from_caches": "有 {{count}} 篇照缓存导入，可能少了最后几秒的字"
       }
     },
@@ -573,5 +660,20 @@
     "timeline": {
       "body": "从稿纸下面滑上来，按视图把挂着的条目排开。"
     }
+  },
+  "libraryOpenFailed": {
+    "title": "没能打开资料库",
+    "unchanged": "资料库没有改动。",
+    "keptBeforeUpgrade": "升级前的资料库另外存了一份。",
+    "cause": {
+      "newer": "它被更新版本的 Drifting 打开过，请先更新 Drifting。",
+      "damaged": "资料库文件已损坏，请提交反馈，先别删这个文件夹。",
+      "upgradeUnfinished": "这一版没能把它升级，请先用上一版 Drifting，并提交反馈。",
+      "upgradedUnopenable": "升级后的资料库打不开，请提交反馈。",
+      "noPermission": "Drifting 不能读写这个文件夹，请检查它的权限。",
+      "diskFull": "磁盘已满，请腾出一些空间后重新打开 Drifting。",
+      "unknown": "请提交反馈。"
+    },
+    "feedbackMessage": "{{title}}（{{code}}）"
   }
 }

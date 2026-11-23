@@ -567,9 +567,15 @@ impl MediaPage {
         let task = cx.background_executor().spawn(async move {
             let store = lib.library();
             let media = match kind {
-                MediaKind::Image => media::read_image(store, &asset)
-                    .and_then(|bytes| media::decode_image(&bytes))
-                    .map(Media::Image),
+                MediaKind::Image => {
+                    // A HEIC, HEIF or AVIF without its copies gets them now.
+                    if let Err(e) = crate::import::make_missing_copies(store, &asset) {
+                        log::info!("material: {asset}: no display copy or thumbnail: {e}");
+                    }
+                    media::read_image(store, &asset)
+                        .and_then(|bytes| media::decode_image(&bytes))
+                        .map(Media::Image)
+                }
                 MediaKind::Pdf => {
                     media::read_pdf(store, &asset)
                         .and_then(PdfDoc::open)

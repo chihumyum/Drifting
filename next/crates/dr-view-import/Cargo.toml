@@ -38,6 +38,8 @@ serde_json.workspace = true
 tempfile.workspace = true
 
 [dev-dependencies]
+# Each book's working memory, read back after the import.
+dr-agent.workspace = true
 dr-doc.workspace = true
 dr-testkit.workspace = true
 gpui = { workspace = true, features = ["test-support"] }

@@ -225,6 +225,12 @@ keyring = { version = "3.6", default-features = false, features = ["apple-native
 minisign = "0.10"
 minisign-verify = "0.3"
 objc2-core-foundation = { version = "0.3", default-features = false, features = ["std", "CFBase", "CFData", "CFDictionary", "CFNumber", "CFString"] }
+# dr-platform's `image_codec`: HEIC, HEIF and AVIF through ImageIO, as the
+# 0.1 client (`src-tauri/Cargo.toml`, the same 0.3.2). CoreGraphics is the
+# version GPUI's macOS backend already builds; ImageIO is its sibling
+# binding, nothing but declarations over the system framework.
+objc2-core-graphics = { version = "0.3", default-features = false, features = ["std", "CGBitmapContext", "CGColorSpace", "CGContext", "CGImage"] }
+objc2-image-io = { version = "0.3", default-features = false, features = ["std", "CGImageProperties", "CGImageSource", "objc2-core-graphics"] }
 objc2-security = { version = "0.3", default-features = false, features = ["std", "SecBase", "SecItem"] }
 # reqwest 0.13 is the HTTP client Sentry's transport already brings; the
 # updater uses the same blocking client. TLS is rustls with ring, as the 0.1

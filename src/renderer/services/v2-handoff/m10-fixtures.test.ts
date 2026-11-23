@@ -8,6 +8,26 @@
 //                    rows, and no handoff stamp
 //   sample-handoff/  sample-stale after WebView preferences and one real
 //                    handoff pass at quit
+//   sample-wide-one-pass/  sample with what real libraries hold beyond the
+//                    samples (deleted chapter and element, prioritised TODOs,
+//                    rich comment bodies, relations ending on files and
+//                    comments, a note with a formatted table, PDF/AVIF/HEIC
+//                    files, two devices' writing days, a Markdown-folder
+//                    record, working memory, 42 history rows whose preview
+//                    failed to render) after one handoff pass: 10 rows still
+//                    have no preview
+//   sample-wide/     the same after a second pass
+//   sample-damaged/  sample with what 0.1 and its sync leave behind that the
+//                    new book cannot take as it is (a category deleted with
+//                    its elements, a chapter edited and then deleted, one
+//                    deleted for good with a comment on it, acts on one
+//                    boundary, a pin on an idea in Recently Deleted, writing
+//                    days of a day that does not exist and twice for one
+//                    device, a material-folder cycle, sync's placeholder
+//                    plot-grid key), after one handoff pass
+//   accounts/        a 0.1 data folder: libraries.json, the local library
+//                    (`lite`) at its root and an account library
+//                    (`sample-wide`) under libraries/account-<hex>
 //   truth/<name>.jsonl  the importer's ground truth per library
 //   manifest.json
 //
@@ -39,6 +59,25 @@ const LIBRARY_FILE = 'drifting-library.db';
 const STALE_MARK_ZH = '〔退出前打的字〕';
 const STALE_MARK_EN = '[typed before quitting] ';
 const HOUR_MS = 3_600_000;
+/** The handoff fills this many missing history previews per pass (handoff.ts). */
+const HISTORY_PREVIEW_BATCH = 32;
+/** A note in the note Markdown the Agent writes: a table with formatted cells and a checklist. */
+const NOTE_TABLE_MD = [
+  '| 人物 | 说法 | 出处 |',
+  '| --- | --- | --- |',
+  '| **阿Q** | *精神胜利法* | 第二章 |',
+  '| 王胡 | ==癞疮疤== | **第五章** |',
+  '',
+  '- [ ] 核对赛神的日子',
+  '- [x] 抄下县城的告示',
+].join('\n');
+/** Synthetic file bytes: enough for 0.1's sniffing (PDF header, ISO-BMFF brands), not real documents or photos. */
+const PDF_BYTES = new TextEncoder().encode('%PDF-1.4\n% synthetic M10 fixture\n1 0 obj << >> endobj\ntrailer << >>\n%%EOF\n');
+const isoBmff = (brand: string) => new Uint8Array([
+  0, 0, 0, 0x18, ...new TextEncoder().encode(`ftyp${brand}`), 0, 0, 0, 0, ...new TextEncoder().encode(`mif1${brand}`),
+  ...new TextEncoder().encode('synthetic M10 fixture image'),
+]);
+const ACCOUNT_SUBJECT = 'synthetic-m10-account-subject';
 
 /** The renderer modules, loaded only when fixtures are wanted. */
 async function load() {
@@ -65,6 +104,14 @@ async function load() {
     ...(await import('../../lib/agent/runtime/yjs-prose-command')),
     ...(await import('../../sync/reducer/sqlite-materializer')),
     ...(await import('../../sqlite-repo/yjs-repo')),
+    ...(await import('../../sqlite-repo/markdown-mirror-repo')),
+    ...(await import('../../usecase/useAgentWorkingMemory')),
+    ...(await import('../../usecase/entity-relation-cleanup')),
+    ...(await import('../../sqlite-repo/node-repo')),
+    ...(await import('../../sqlite-repo/element-repo')),
+    ...(await import('../sample-project/materials')),
+    ...(await import('../../sqlite-repo/element-category-repo')),
+    ...(await import('../../usecase/book-node-purge')),
     ...(await import('./handoff')),
     ...(await import('./runtime')),
   };
@@ -188,6 +235,30 @@ async function authoring(library: Library) {
   return { one, write, typeWithoutProjection, captureHistoryAt, idOf };
 }
 
+/**
+ * One real handoff pass at quit, with the stores' WebView storage as it is.
+ * `failed`: bodies it cannot re-project (0.1 refuses to write a chapter in
+ * Recently Deleted, so such a chapter whose cache bytes differ from its Yjs
+ * rendering stays unstamped). `orphaned`: Yjs documents of what was deleted
+ * for good (0.1 keeps them).
+ */
+async function handoffPass(library: Library, failed = 0, orphaned = 0) {
+  const m = await modules();
+  const result = await m.runV2Handoff({ liveDocuments: 'include' }, {
+    ...m.defaultV2HandoffDependencies(),
+    database: () => library.client,
+    appVersion: async () => (JSON.parse(readFileSync(new URL('../../../../package.json', import.meta.url), 'utf8')) as { version: string }).version,
+    isLive: () => false,
+    yieldToUi: async () => undefined,
+  });
+  expect(result).toMatchObject({ failed, orphaned, deferred: 0, skippedLive: 0 });
+  return result;
+}
+
+/** The key 0.1 signs a device's writing days with (services/writing-days/device-key.ts). */
+const writingDeviceKey = (installationId: string) =>
+  `device-${createHash('sha256').update(`drifting.writing-day.v1\n${installationId}`).digest('hex').slice(0, 24)}`;
+
 /** The bundled illustration bytes, verified, into the asset store's layout with their receipt. */
 function fileAssetImporter(m: Modules, database: DbClient, appLocalData: string) {
   const directory = new URL('../built-in-sample/pride-and-prejudice/', import.meta.url);
@@ -254,6 +325,12 @@ interface ManifestEntry {
   assets: { rows: number; withSourceBytes: number };
   books: Record<string, unknown> | null;
   notes?: Record<string, unknown>;
+  /** The import must stop before writing, on exactly these preflight findings. */
+  expectRefusal?: { code: string; sources: string[] };
+  /** History rows the import must skip and record (no preview), by id. */
+  historyRowsSkipped?: string[];
+  /** Where the library sits in a 0.1 data folder laid out by the registry. */
+  registry?: { base: string; id: string; owner: { kind: 'local' } | { kind: 'account'; subject: string } };
 }
 
 /**
@@ -523,14 +600,7 @@ describe.skipIf(!FIXTURE_DIR)('M10 import fixtures', () => {
       });
       expect(localStorage.getItem('settings-storage')).toContain('"themeMode":"dark"');
 
-      result = await m.runV2Handoff({ liveDocuments: 'include' }, {
-        ...m.defaultV2HandoffDependencies(),
-        database: () => library.client,
-        appVersion: async () => (JSON.parse(readFileSync(new URL('../../../../package.json', import.meta.url), 'utf8')) as { version: string }).version,
-        isLive: () => false,
-        yieldToUi: async () => undefined,
-      });
-      expect(result).toMatchObject({ failed: 0, orphaned: 0, deferred: 0, skippedLive: 0 });
+      result = await handoffPass(library);
       const stamp = (await m.readV2HandoffState(library.client))!;
       expect(stamp.books).toEqual({
         [aq]: {
@@ -553,12 +623,339 @@ describe.skipIf(!FIXTURE_DIR)('M10 import fixtures', () => {
     manifest.push(entry);
   }, 600_000);
 
+  it('sample-wide: what real libraries hold beyond the samples', async () => {
+    const m = await modules();
+    copyLibrary('sample', 'sample-wide');
+    const appLocalData = join(FIXTURE_DIR!, 'sample-wide', 'app-local-data');
+    const added: Record<string, unknown> = {};
+    let library = await openLibrary('sample-wide');
+    let previewless: string[] = [];
+    try {
+      const a = await authoring(library);
+      const sql = library.gateway.database;
+      const aq = a.one<{ id: string }>('SELECT id FROM project WHERE name = ?', m.A_Q_PROJECT_NAME)!.id;
+      const element = (name: string) => a.idOf('element', aq, 'name', name);
+      // Through the Agent's own certified write paths; every call is also an
+      // archived Agent conversation turn with its tool call.
+      const call = async (toolName: string, args: Record<string, unknown>) => {
+        const { result } = await m.executeOfflineWorkspaceTool({
+          database: library.client, projectId: aq, toolName, arguments: args, requestId: uuidv7(),
+        });
+        expect(result.ok, `${toolName}: ${JSON.stringify(result)}`).toBe(true);
+        return result;
+      };
+      await call('create_relation_type', {
+        name: '师徒', description: '谁教过谁', orientation: 'directed', sourceRole: '师父', targetRole: '徒弟',
+        sourceKinds: ['element'], targetKinds: ['element'],
+      });
+      await call('create_relation', { fromType: 'element', fromName: '赵太爷', toType: 'element', toName: '赵秀才', relationType: '师徒' });
+      await call('create_comment', { kind: 'todo', body: '查一查赛神的日子', targetType: 'chapter', targetName: '第五章 生计问题' });
+      await call('create_comment', { kind: 'todo', body: '核对辫子的来历', targetType: 'element', targetName: '辫子' });
+      // The chapter and element about to be deleted carry review work and
+      // relations.
+      await call('create_comment', { kind: 'note', body: '这一章收得太急', targetType: 'chapter', targetName: '第九章 大团圆' });
+      await call('create_comment', { kind: 'todo', body: '赛神要不要留', targetType: 'element', targetName: '赛神' });
+      await call('create_relation', { fromType: 'element', fromName: '阿Q', toType: 'chapter', toName: '第九章 大团圆', relationType: '关键章节' });
+      await call('create_material_note', { title: '人物对照表', body: NOTE_TABLE_MD });
+      // Opened once, so its Yjs state (and the truth) has the table too.
+      const table = a.one<{ id: string; body: string }>(
+        "SELECT id, body_json AS body FROM library_item WHERE project_id = ? AND kind = 'text' AND title = ?", aq, '人物对照表',
+      )!;
+      expect(table.body).toContain('"tableCell"');
+      await a.write(aq, `library-item:${table.id}`, await m.createYjsProseSeedState(table.body, 'note'), { kind: 'user' });
+      await call('create_project_memory', { body: '少写感叹号，多写动作。' });
+      // Deleted the way the author deletes in the app (useBookNode.deleteNode,
+      // useBookElement.deleteElement with Trash): its relations go, it moves
+      // to Recently Deleted, its comments and storyline links stay. (The
+      // Agent's delete tools refuse while comments or relations remain.)
+      const trash = (kind: 'node' | 'element', id: string) => m.createAtomicRunner(library.client)(aq, async (tx, sync) => {
+        await m.deleteEntityRelationsInTransaction(tx, sync, aq, kind, id);
+        if (kind === 'node') await m.createBookNodeSqliteRepository(aq, tx).softDelete(id);
+        else await m.createBookElementSqliteRepository(aq, tx).softDelete(id);
+        await sync(kind, 'softDelete', id, aq);
+      });
+      const deletedChapter = a.idOf('book_node', aq, 'title', '第九章 大团圆');
+      const deletedElement = element('赛神');
+      await trash('node', deletedChapter);
+      await trash('element', deletedElement);
+      added.deleted = { chapter: deletedChapter, element: deletedElement };
+
+      const now = new Date().toISOString();
+      // Priorities and a rich body, as the Review card's menus write them.
+      const todos = sql.prepare(
+        "SELECT id FROM comment WHERE project_id = ? AND kind = 'todo' AND target_kind IN ('node', 'element') ORDER BY created_at DESC, id LIMIT 2",
+      ).all(aq) as { id: string }[];
+      expect(todos).toHaveLength(2);
+      sql.prepare("UPDATE comment SET priority = 'high', updated_at = ? WHERE id = ?").run(now, todos[0]!.id);
+      sql.prepare("UPDATE comment SET priority = 'low', updated_at = ? WHERE id = ?").run(now, todos[1]!.id);
+      sql.prepare('UPDATE comment SET body_json = ?, updated_at = ? WHERE id = ?').run(JSON.stringify({
+        type: 'doc',
+        content: [
+          { type: 'paragraph', content: [{ type: 'text', text: '先查' }, { type: 'text', text: '县志', marks: [{ type: 'bold' }] }, { type: 'text', text: '，再问老人。' }] },
+          { type: 'bulletList', content: ['赛神在几月', '谁家出钱'].map((text) => ({ type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text }] }] })) },
+        ],
+      }), now, todos[0]!.id);
+
+      // A PDF and the two image formats 0.1 accepts beyond JPEG/PNG, each a
+      // material, and file and comment ends on the built-in association.
+      const files: { kind: 'pdf' | 'image'; mime: string; ext: string; bytes: Uint8Array; title: string }[] = [
+        { kind: 'pdf', mime: 'application/pdf', ext: 'pdf', bytes: PDF_BYTES, title: '县志摘抄' },
+        { kind: 'image', mime: 'image/avif', ext: 'avif', bytes: isoBmff('avif'), title: '土谷祠（AVIF）' },
+        { kind: 'image', mime: 'image/heic', ext: 'heic', bytes: isoBmff('heic'), title: '静修庵（HEIC）' },
+      ];
+      const generic = `system:generic-association:${aq}`;
+      const assets: Awaited<ReturnType<Modules['writeSeedAsset']>>['asset'][] = [];
+      for (const file of files) {
+        const { asset } = await m.writeSeedAsset(library.client, appLocalData, aq, {
+          kind: file.kind, sourceMime: file.mime, sourceExtension: file.ext, source: file.bytes, sha256: sha256(file.bytes),
+          width: file.kind === 'image' ? 4 : null, height: file.kind === 'image' ? 3 : null, variants: [],
+        });
+        assets.push(asset);
+      }
+      const orderBase = a.one<{ n: number }>('SELECT coalesce(max(order_key), 0) AS n FROM library_item WHERE project_id = ?', aq)!.n;
+      const libraryItems = files.map((file, index) => ({
+        id: uuidv7(), projectId: aq, title: file.title, kind: file.kind, assetId: assets[index]!.id,
+        externalUrl: null, previewImageUrl: null, bodyJson: null, notesJson: null, provenanceJson: null,
+        orderKey: orderBase + 1 + index, folderId: null, taskTodos: false, createdAt: now, updatedAt: now,
+      }));
+      // The material library's own commit: asset rows, bindings, items.
+      await m.commitSampleMaterials(m.createAtomicRunner(library.client), aq, { folders: [], items: libraryItems }, assets);
+      const items = libraryItems.map((item) => item.id);
+      const relate = (fromKind: string, fromId: string, toKind: string, toId: string) => sql.prepare(
+        'INSERT INTO entity_relation (id, project_id, from_kind, from_id, to_kind, to_id, relation_type_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      ).run(uuidv7(), aq, fromKind, fromId, toKind, toId, generic, now, now);
+      relate('library_item', items[0]!, 'element', element('阿Q'));
+      relate('library_item', items[1]!, 'element', element('土谷祠'));
+      relate('comment', todos[1]!.id, 'element', element('辫子'));
+      added.files = items;
+
+      // Two devices' writing days for the same book.
+      for (const [device, day, words] of [['m10-device-one', '2026-11-01', 1200], ['m10-device-two', '2026-11-01', 300], ['m10-device-two', '2026-11-02', 450]] as const) {
+        sql.prepare('INSERT INTO writing_day (id, project_id, day, device_key, words, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+          .run(uuidv7(), aq, day, writingDeviceKey(device), words, now, now);
+      }
+
+      // The Markdown folder's ledger and the Agent's working memory, by their own writers.
+      const firstChapter = `node-content:${a.idOf('book_node', aq, 'title', '第一章 序')}`;
+      const markdown = '# 第一章 序\n';
+      const chapterState = await (async () => {
+        const state = await library.client.transaction((tx) => m.readPersistedYjsDocuments(tx, [firstChapter]));
+        const doc = new Y.Doc({ gc: false });
+        const persisted = state.get(firstChapter)!;
+        if (persisted.snapshot) Y.applyUpdate(doc, persisted.snapshot);
+        for (const update of persisted.updates) Y.applyUpdate(doc, update);
+        const bytes = Y.encodeStateAsUpdate(doc);
+        doc.destroy();
+        return bytes;
+      })();
+      await m.createMarkdownMirrorRepository(library.client).record(aq, firstChapter, '/synthetic/m10-markdown-folder', {
+        path: '书稿/第一章 序.md', fileSha256: sha256(markdown), baseState: chapterState, baseFieldsJson: JSON.stringify({ title: '第一章 序' }),
+      });
+      await m.saveAgentWorkingMemoryInDatabase(aq, { contentMd: '- 第五章的赛神还没查完\n', expectedRevision: 0, updatedBy: 'agent' }, library.client);
+
+      // 42 history rows on 14 bodies (six written chapters, eight elements)
+      // whose preview failed to render when they were captured (0.1 then
+      // stores no preview).
+      await m.hydrateHeadlessWorkspace(library.client, aq, m.createAtomicRunner(library.client));
+      const bodies = [
+        ...(sql.prepare(`SELECT n.id FROM book_node n JOIN node_content c ON c.node_id = n.id WHERE n.project_id = ? AND n.kind = 'chapter' AND n.deleted_at IS NULL AND instr(c.content_json, '"text"') > 0 ORDER BY n.book_order LIMIT 6`).all(aq) as { id: string }[])
+          .map((row) => `node-content:${row.id}`),
+        ...(sql.prepare(`SELECT id FROM element WHERE project_id = ? AND deleted_at IS NULL AND instr(content_json, '"text"') > 0 ORDER BY name LIMIT 8`).all(aq) as { id: string }[])
+          .map((row) => `element:${row.id}`),
+      ];
+      const start = Date.now();
+      for (const docId of bodies) {
+        for (const step of [3, 2, 1]) {
+          await a.captureHistoryAt(docId, new Date(start - step * HOUR_MS));
+          await a.typeWithoutProjection(aq, docId, `〔第${4 - step}稿〕`);
+        }
+      }
+      sql.prepare('UPDATE entity_snapshot_history SET content_json = NULL WHERE project_id = ?').run(aq);
+      previewless = (sql.prepare('SELECT id FROM entity_snapshot_history WHERE content_json IS NULL ORDER BY id').all() as { id: string }[]).map((row) => row.id);
+      expect(previewless.length).toBe(42);
+      added.historyRowsWithoutPreview = previewless.length;
+    } finally {
+      await closeLibrary(library);
+    }
+
+    // The last 0.1 release quits once: one handoff pass fills 32 previews.
+    library = await openLibrary('sample-wide');
+    let first: Awaited<ReturnType<typeof handoffPass>>;
+    let left: string[];
+    try {
+      first = await handoffPass(library, 1);
+      left = (library.gateway.database.prepare('SELECT id FROM entity_snapshot_history WHERE content_json IS NULL ORDER BY id').all() as { id: string }[])
+        .map((row) => row.id);
+    } finally {
+      await closeLibrary(library);
+    }
+    expect(first.previewsFilled).toBe(HISTORY_PREVIEW_BATCH);
+    expect(left).toHaveLength(previewless.length - HISTORY_PREVIEW_BATCH);
+    copyLibrary('sample-wide', 'sample-wide-one-pass');
+    const onePass = await describeLibrary('sample-wide-one-pass', 'sample-wide after one handoff pass: history rows still without a preview', {
+      ...added, handoff: first,
+    });
+    // The import skips the 10 rows still without a preview and records
+    // them (`m10-import.md` 「替作者定的，等作者过目」); the rest import.
+    onePass.historyRowsSkipped = left;
+    manifest.push(onePass);
+
+    // And quits again: the rest are filled.
+    library = await openLibrary('sample-wide');
+    let second: Awaited<ReturnType<typeof handoffPass>>;
+    try {
+      second = await handoffPass(library, 1);
+    } finally {
+      await closeLibrary(library);
+    }
+    expect(second.previewsFilled).toBe(left.length);
+    const entry = await describeLibrary('sample-wide', 'sample + workspace tools, files, devices, ledgers and history without previews + two handoff passes', {
+      ...added, handoff: [first, second],
+    });
+    expect(entry.history).toMatchObject({ rows: 42, previewMissing: 0 });
+    // Only the deleted chapter is left unstamped; it never changed after its
+    // creation seed, so the import still proves it fresh.
+    expect(entry.documents).toMatchObject({ textStaleCaches: 0, notStamped: 1 });
+    manifest.push(entry);
+  }, 600_000);
+
+  it('sample-damaged: what 0.1 and its sync leave that the book cannot take as it is', async () => {
+    const m = await modules();
+    copyLibrary('sample', 'sample-damaged');
+    let library = await openLibrary('sample-damaged');
+    const damage: Record<string, unknown> = {};
+    try {
+      const a = await authoring(library);
+      const sql = library.gateway.database;
+      const aq = a.one<{ id: string }>('SELECT id FROM project WHERE name = ?', m.A_Q_PROJECT_NAME)!.id;
+      const pp = a.one<{ id: string }>('SELECT id FROM project WHERE name = ?', m.BUILT_IN_SAMPLES[0]!.name)!.id;
+      const runAtomic = m.createAtomicRunner(library.client);
+      const call = async (toolName: string, args: Record<string, unknown>) => {
+        const { result } = await m.executeOfflineWorkspaceTool({
+          database: library.client, projectId: aq, toolName, arguments: args, requestId: uuidv7(),
+        });
+        expect(result.ok, `${toolName}: ${JSON.stringify(result)}`).toBe(true);
+      };
+      // A category moved to Recently Deleted by 0.1's own trash path
+      // (useElementCategory: its relations go, its elements lose it).
+      const category = a.idOf('element_category', aq, 'name', '物件与说法');
+      await runAtomic(aq, async (tx, sync) => {
+        await m.deleteEntityRelationsInTransaction(tx, sync, aq, 'category', category);
+        await m.createElementCategoryRepository(aq, tx).softDelete(category);
+        await sync('elementCategory', 'softDelete', category, aq);
+      });
+      damage.deletedCategory = category;
+      // A chapter edited and then deleted before the edit reached its cache.
+      const edited = a.idOf('book_node', aq, 'title', '第三章 续优胜记略');
+      await a.typeWithoutProjection(aq, `node-content:${edited}`, '〔删前改的〕');
+      await runAtomic(aq, async (tx, sync) => {
+        await m.deleteEntityRelationsInTransaction(tx, sync, aq, 'node', edited);
+        await m.createBookNodeSqliteRepository(aq, tx).softDelete(edited);
+        await sync('node', 'softDelete', edited, aq);
+      });
+      damage.editedThenDeletedChapter = edited;
+      // A chapter with a comment, deleted and then deleted for good
+      // (book-node-purge.ts: its relations go, its comments stay).
+      const purged = a.idOf('book_node', aq, 'title', '第八章 不准革命');
+      await call('create_comment', { kind: 'note', body: '这一章要重写', targetType: 'chapter', targetName: '第八章 不准革命' });
+      await runAtomic(aq, async (tx, sync) => {
+        await m.deleteEntityRelationsInTransaction(tx, sync, aq, 'node', purged);
+        await m.createBookNodeSqliteRepository(aq, tx).softDelete(purged);
+        await sync('node', 'softDelete', purged, aq);
+      });
+      // Later, 「立刻删除」 in Recently Deleted.
+      await runAtomic(aq, (tx, sync, changes) =>
+        m.deleteNodeForGoodInTransaction(tx, sync, changes, { projectId: aq, nodeId: purged }));
+      damage.purgedChapter = purged;
+      // What sync from another device can leave, in 0.1's row shapes.
+      const now = new Date().toISOString();
+      // 0.1's 「打散」 moves boundaries between the same two chapters to one point.
+      sql.prepare('UPDATE book_act SET start_order = (SELECT min(start_order) FROM book_act WHERE project_id = ?1) WHERE project_id = ?1').run(aq);
+      // A pin on an idea another device moved to Recently Deleted.
+      const idea = a.one<{ id: string }>("SELECT id FROM book_node WHERE project_id = ? AND kind = 'drift' ORDER BY id LIMIT 1", aq)!.id;
+      const pin = a.one<{ id: string }>('SELECT id FROM timeline_marker WHERE project_id = ? ORDER BY id LIMIT 1', aq)!.id;
+      sql.prepare('UPDATE timeline_marker SET drift_node_id = ? WHERE id = ?').run(idea, pin);
+      sql.prepare('UPDATE book_node SET deleted_at = ?, updated_at = ? WHERE id = ?').run(now, now, idea);
+      // Writing days: sync checks the format, not the calendar; no unique
+      // index on (book, day, device).
+      const device = writingDeviceKey('m10-device-one');
+      for (const [day, words] of [['2026-02-31', 40], ['2026-11-01', 300], ['2026-11-01', 120]] as const) {
+        sql.prepare('INSERT INTO writing_day (id, project_id, day, device_key, words, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+          .run(uuidv7(), aq, day, device, words, now, now);
+      }
+      // Two material folders moved into each other on two devices.
+      const folder = a.one<{ id: string }>('SELECT id FROM material_folder WHERE project_id = ? ORDER BY id LIMIT 1', pp)!.id;
+      const other = uuidv7();
+      sql.prepare('INSERT INTO material_folder (id, project_id, name, parent_folder_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
+        .run(other, pp, 'Letters', folder, now, now);
+      sql.prepare('UPDATE material_folder SET parent_folder_id = ? WHERE id = ?').run(other, folder);
+      // Sync inserts a plot-grid row with a placeholder key.
+      const row = a.one<{ id: string }>('SELECT r.id FROM plot_grid_row r JOIN plot_grid_document d ON d.id = r.document_id JOIN book_node n ON n.id = d.node_id WHERE n.project_id = ? ORDER BY r.id LIMIT 1', aq)!.id;
+      sql.prepare("UPDATE plot_grid_row SET position_key = 'pending' WHERE id = ?").run(row);
+      damage.sync = { pin, idea, folders: [folder, other], plotRow: row };
+    } finally {
+      await closeLibrary(library);
+    }
+    // The last 0.1 release quits once. It cannot rewrite the deleted
+    // chapter's cache (0.1 refuses writes to Recently Deleted), so that
+    // chapter stays unproven: the gate stops on it, 「仍然导入」 carries it.
+    library = await openLibrary('sample-damaged');
+    let handoff: Awaited<ReturnType<typeof handoffPass>>;
+    try {
+      handoff = await handoffPass(library, 1, 1);
+    } finally {
+      await closeLibrary(library);
+    }
+    const entry = await describeLibrary('sample-damaged', 'sample + 0.1 trash and purge paths + sync leftovers + one handoff pass', { ...damage, handoff });
+    expect(entry.documents.textStaleDocuments).toEqual([`node-content:${damage.editedThenDeletedChapter}`]);
+    manifest.push(entry);
+  }, 600_000);
+
   it('truth for the seed libraries already in the directory', async () => {
     for (const name of SEED_LIBRARIES) {
       if (!seedLibraryReady(name)) continue;
       manifest.push(await describeLibrary(name, `pnpm dev:seed (${name} preset), not written by this file`));
     }
   }, 600_000);
+
+  it('accounts: an account library beside the local one, as the 0.1 registry lays them out', () => {
+    const local = manifest.find((entry) => entry.name === 'lite');
+    const account = manifest.find((entry) => entry.name === 'sample-wide');
+    if (!local || !account) return;
+    const base = join(FIXTURE_DIR!, 'accounts');
+    rmSync(base, { recursive: true, force: true });
+    // library_registry.rs: an account library's id is the first 16 bytes of
+    // its subject's SHA-256 in hex; `legacy` is the data folder itself.
+    const accountId = `account-${sha256(ACCOUNT_SUBJECT).slice(0, 32)}`;
+    const place = (from: ManifestEntry, root: string) => {
+      mkdirSync(join(base, root, 'databases'), { recursive: true });
+      cpSync(join(FIXTURE_DIR!, from.path), join(base, root, 'databases', LIBRARY_FILE));
+      cpSync(join(FIXTURE_DIR!, from.appLocalData), join(base, root), { recursive: true });
+    };
+    place(local, '.');
+    place(account, join('libraries', accountId));
+    // serde_json::to_vec_pretty of the registry, as 0.1 writes it.
+    writeFileSync(join(base, 'libraries.json'), JSON.stringify({
+      version: 1,
+      active: accountId,
+      libraries: { [accountId]: { owner: { kind: 'account', subject: ACCOUNT_SUBJECT } }, legacy: { owner: { kind: 'local' } } },
+    }, null, 2));
+    manifest.push({
+      ...local,
+      name: 'accounts-local',
+      path: `accounts/databases/${LIBRARY_FILE}`,
+      appLocalData: 'accounts',
+      source: `${local.name}, as the local (legacy) library of a 0.1 data folder with an account library`,
+      registry: { base: 'accounts', id: 'legacy', owner: { kind: 'local' } },
+    }, {
+      ...account,
+      name: 'accounts-account',
+      path: `accounts/libraries/${accountId}/databases/${LIBRARY_FILE}`,
+      appLocalData: `accounts/libraries/${accountId}`,
+      source: `${account.name}, as the account library of the same data folder`,
+      registry: { base: 'accounts', id: accountId, owner: { kind: 'account', subject: ACCOUNT_SUBJECT } },
+    });
+  });
 
   it('manifest', () => {
     writeFileSync(join(FIXTURE_DIR!, 'manifest.json'), `${JSON.stringify({

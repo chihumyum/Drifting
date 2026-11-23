@@ -35,6 +35,58 @@
 
 测试：`dr-account` 的 `an_account_library_moves_once_to_an_imported_directory_and_keeps_it`；整条路在 `dr-view-import/tests/account.rs`。
 
+## 运营公告（2026-11-21）
+
+0.1 从 `0.1.0-alpha.12` 起在通知中心显示 Drifting 服务的运营公告（account notices v1）：运营方发的维护时间、事故说明、对某位作者反馈的答复。切换以后运营方要靠它找到作者，所以新版照 0.1 接上了。契约以 0.1 的客户端和它的文档为准（[`docs/hosted-sync/notices.md`](../../hosted-sync/notices.md)、`src/renderer/features/notices/`），没有看也没有假设私有服务端的代码。
+
+**协议。**
+
+- `GET /api/account/v1/notices`，带账号的 Bearer 会话：回当前给这个账号的公告（旧的在前）、账号的已读线 `readThrough` 和 `refreshAfterSeconds`。每条有 `id`、`seq`（服务端每发一条加一，已读线就按它算）、`personal`（只给这一个账号）、`content`（`zh`、`en` 各一份 `title`、`body`）、`link`、`publishedAt`、`expiresAt`。
+- `POST /api/account/v1/notices/read`，`{ "through": <seq> }`：把已读线抬到这里，回 `{ "readThrough": <seq> }`。服务端不往回挪，也不超过它发过的最新一条。
+- 回 404 是服务端还没有这两条路（旧服务），不算错。除了已读线，什么都不告诉服务端；作者删掉了哪几条只记在本机。
+
+**什么时候读（和 0.1 一样）。** 只在配了 Hosted 服务的构建里装上；账号「已连接」或「离线」时才读，没登录不读，本地版一个请求都不发。会话确认以后读一次（启动时、登录后、账号状态每次变化时）；窗口回到前台时读一次（离上次至少 15 秒）；之后窗口在前台时每隔 `refreshAfterSeconds` 读一次（默认 60 秒，夹在 15 秒到 1 小时之间），在后台时慢五倍、最多一小时。每 15 秒看一次到没到时候，所以公告一般一分钟内到；没有推送，App 没开就收不到。读失败按 1、2、4……最多 300 秒退避重试（随机抖动），不打扰作者；回 404 一小时后再问；会话被拒（401/403）五分钟后、或账号状态下次变化时再问，会话过期由账号状态去报。
+
+**显示。**
+
+- 每条公告是通知中心的一行。给所有账号的，来源写「公告」；只给这个账号的，写「消息」（0.1 的 `notifications.notice.personal`，经 `keys.txt` 原样从 0.1 的语言文件拷过来，九种语言都是 0.1 的原文，没有新文案）。
+- 这一行的字是标题，下面几行是正文（保留正文的换行）。按界面语言选：中文界面（简体、繁体）用中文，其他界面用英文；只写了一种语言就用那一种。
+- 只当纯文本：不解析任何标记，去掉控制字符和双向覆盖字符；标题是一行、最多 200 字，正文最多 2000 字，超出的截断、以「…」结尾；一次最多留最新的 20 条（通知中心总共留 50 条）；回包超过 1 MiB 整个不要。缺 `id`、`seq` 或没有字的条目丢掉，不显示半条；整个回包不对，就当这次读失败，列表和会话都不动。
+- 时间用发布时间，比本机时间晚的按现在算。
+- 日志和错误只写失败的种类和状态码，不写公告的字，也不写会话令牌。
+
+**已读。**
+
+- 通知中心的列表只在内存里。重启后服务端还在给的公告重新列出来，在账号已读线以下的进来就是已读。
+- 通知中心打开时列着的，算这台设备读过；开着的时候进来的，关上时算读过。这一条对通知中心的所有来源都适用（和 0.1 的 `setCenterOpen` 一样）：外壳在通知中心打开和关上时都调 `Notifications::mark_read`（`dr_shell::workspace` 里的 `observe_self`，Esc、点外面、开设置或对话框盖上去，都算关上）。
+- 读过的最新一条，或作者删掉的一条，把账号的已读线抬上去；账号的其他设备下次读时就当已读。一次只有一个已读请求在路上，失败了下次读的时候再发。
+- 作者删掉的一条（行上的 ×，或「清空」）在这台设备上不再出现，直到服务端不再给它（设备记忆 `account.notices_dismissed`，按账号分开）。
+- 运营方撤回的、过期的，下次读时从列表里拿掉，不当作作者删的。退出登录把这个账号的公告全拿掉；换一个账号，各看各的。
+
+**和 0.1 不一样的地方。** 都是新版通知中心本来就没有的东西，按「不加界面」做了最接近的：
+
+1. **带链接的公告不打开链接。** 0.1 点这一行用系统浏览器打开它的 `https:` 链接；新版通知中心的行只能打开书里的东西，不能开外部链接，所以链接只按 0.1 的规则解析（`AccountNotice::link`），不打开，这一行点了没反应。
+2. **风铃上没有未读记号。** 0.1 有没读的公告时风铃换成名章；新版风铃本来就不显示未读（只在有同步问题时显示危险记号）。所以「读过」在新版里只影响账号的已读线，和重启后进来是不是已读，作者在界面上看不出来。
+3. **别的设备读过的，这一行不变。** 0.1 把这一行单独标成已读；新版通知中心只有一个整体的「有没有未读」、没有每行各自的已读，所以只记下它读过、不再为它发已读请求。因为第 2 条，看不出区别。
+4. **标题和正文在同一段字里**，标题在第一行（新版每行只有一段字）。
+5. **「回到网络」不单独监听。** 0.1 听浏览器的 `online` 事件；新版没有这个事件。离线时照样按退避重试，账号状态从离线变回已连接时（`apply_account_state`）立刻读一次。
+
+**代码。**
+
+- `next/crates/dr-account/src/notices.rs`：解析和约束（`parse_account_notices`、`notice_link`、长度和条数上限）、`AccountService::read_notices` / `mark_notices_read`（没配服务、没会话时不发请求）。`client.rs` 的 `HostedClient::get_notices` / `mark_notices_read`：限着大小读回包，失败只带状态码。
+- `next/crates/dr-account/src/fake_server.rs`：假服务的两条公告路由，照上面的契约（只给本账号的、已读线只升不降），测试用 `publish_notice`、`withdraw_notice`、`notice_read_through`、`set_notices_supported`（404）、`set_notices_failure`（如 500）、`set_notices_body`（原样回一段坏的或超大的字节）、`set_notices_refresh` 和 `requests_to`（某条路收到几次请求）。
+- `next/crates/dr-view-account/src/notices.rs`：什么时候读、放进通知中心、已读线、删掉的记在本机；`init` 在配了服务时装上，`apply_account_state` 末尾告诉它账号变了。
+- `next/crates/dr-shell/src/notifications.rs`：`Source::PersonalNotice`；`workspace/mod.rs`：通知中心关上时也读。
+
+**测试。**
+
+- `dr-account` 的 `notices::tests`（5 条）：只留格式对的条目、按 `seq` 排、同一个 id 只留一条、最多 20 条、刷新间隔夹住；纯文本清理和截断；链接规则；按界面语言选；坏回包的错误里没有回包的字。
+- `dr-account` 的 `account_notices_are_read_for_the_signed_in_account_and_the_mark_only_rises`：本地版和没登录不发请求；只给一个账号的别的账号看不到；已读线只升不降、不超过最新一条；坏的、超大的、500 的回包报错，错误里没有回包的字；404 是 `Unsupported`；会话过期是 401 的 `Unauthorized`。
+- `dr-view-account/tests/notices.rs`（7 条）：本地版一个请求都不发；没登录不读；登录后每条只列一次（后台每五分钟读一次，读几次都一样）、来源「公告」「消息」、按中文界面显示、打开通知中心才抬已读线；新来的不读不抬；撤回的下次读时拿掉、不算删掉；退出登录全拿掉、不再读；开着时进来的、关上以后才抬到它；重启后服务端还在给的重新列出来、已读的进来是已读、只列一次，删掉的不回来，删掉也算看过；坏的、超大的、500 的回包列表和会话都不动，失败后自己重试，服务好了就显示新的；404 一小时内不再问，401 五分钟内不再问，列着的不动。
+- `dr-shell/tests/notifications.rs`：通知中心打开时读列着的，开着时进来的关上（Esc、开设置）时读，关着时进来的等下次打开。
+
+**没验的。** 真实的 Hosted 服务（2026-11-20 从外面旁证过正式服务上公告接口在，没登录回 401；没有用真账号走过一遍）。真窗口里没看过这一行：现在没有通知中心的真窗口场景，F6 的离屏截图例子 `shell-capture` 在切到现行格式时删了，所以没有可以加公告的截图。窗口回到前台时读只在代码里：测试平台没有在前台的窗口，测试走的都是后台的间隔。
+
 ## 定下的事
 
 - **分层**：协议、状态机、OAuth PKCE、书库注册表与本机假服务全部放在服务层 crate `next/crates/dr-account`（`Layer::Services`，不依赖 GPUI）；界面弹窗、首次运行步骤、设置页与书库切换挂接放在界面层 crate `next/crates/dr-view-account`（`Layer::Interface`）。
@@ -60,7 +112,7 @@ dr_view_account::apply_account_state(state, cx);
 ## 外壳里的挂接点
 
 1. `next/app/drifting/src/library.rs`：`open_active` 在启动打开书库前读取 `<数据目录>/libraries.json` 的当前激活书库路径（无记录时默认 `<数据目录>/library`）。
-2. `next/app/drifting/src/main.rs`：在 `dr_view_sea::shell::init` 之前调用 `dr_view_account::init`，确保首次运行先出欢迎卡片再出 Markdown 文件夹卡片，并把当前会话令牌传给 `dr_view_feedback::Service::set_session`。
+2. `next/app/drifting/src/main.rs`：在 `dr_view_sea::shell::init` 之前调用 `dr_view_account::init`，确保首次运行先出欢迎卡片再出 Markdown 文件夹卡片，并把当前会话令牌传给 `dr_view_feedback::Service::set_session`、账号邮箱传给 `set_account_email`（反馈对话框打开时先填它，2026-11-23）。
 3. `next/crates/dr-shell/src/account.rs`：通过 `set_hook` 注入当前账号显示名、状态行、裁切后的圆形头像（`RenderImage`）和登录/退出菜单项；通过 `set_auth_link_handler` 接收 `auth/` 深链。
 4. `next/crates/dr-shell/src/settings/registry.rs` 与 `panel.rs`：新增 `Section::Account`（排在外观之前）与 `"account.hosted"` 模块行（`dr_shell::settings::set_module_row`）。
 

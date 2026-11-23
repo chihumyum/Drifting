@@ -3,12 +3,14 @@
 //!
 //! This crate lives in `Layer::Services` and does not depend on GPUI.
 
+pub mod diagnostics;
 pub mod engine;
 pub mod fake_server;
 pub mod health;
 pub mod protocol;
 pub mod runtime;
 
+pub use diagnostics::diagnostics_snapshot;
 pub use engine::{
     AfterRemoteImportHook, AfterRemotePurgeHook, BeforeRemotePurgeHook, SYNC_STATE_SCOPE,
     SyncCycleReport, SyncEngine,

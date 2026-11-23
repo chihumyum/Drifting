@@ -14,6 +14,12 @@
 //! a small text button under its words, which runs the poster's callback in
 //! the window it was clicked in (M10's 「接着导入」 for a book an import left
 //! unfinished).
+//!
+//! Read: opening the center reads what it lists, and closing it reads what
+//! arrived while it was open, whatever the source (0.1's `setCenterOpen`;
+//! the workspace calls [`Notifications::mark_read`] on both). A module that
+//! needs to know (the account notices) watches the global: while
+//! [`Notifications::unread`] is false, every row listed has been read.
 
 use std::rc::Rc;
 use std::time::{Duration, SystemTime};
@@ -33,10 +39,11 @@ pub enum Source {
     MarkdownFolder,
     Update,
     CrashFollowUp,
-    /// What the Hosted service's operator tells signed-in authors (account
-    /// notices v1). Nothing posts it yet: the account module reads the same
-    /// routes as the 0.1 client when it takes this over.
+    /// What the Hosted service's operator tells every signed-in author
+    /// (account notices v1, posted by `dr_view_account::notices`).
     Notice,
+    /// A notice the operator addressed to this account alone.
+    PersonalNotice,
     /// The 0.1 library import (M10): a book it left unfinished.
     Import,
 }
@@ -51,6 +58,7 @@ impl Source {
             Source::Update => n::app_update::SOURCE,
             Source::CrashFollowUp => n::crash_follow_up::SOURCE,
             Source::Notice => n::notice::SOURCE,
+            Source::PersonalNotice => n::notice::PERSONAL,
             Source::Import => keys::user_menu::IMPORT,
         }
     }
@@ -237,6 +245,7 @@ impl Notifications {
         cx.refresh_windows();
     }
 
+    /// Every row listed now has been read (the center opened or closed).
     pub fn mark_read(cx: &mut App) {
         cx.global_mut::<Notifications>().unread = false;
     }

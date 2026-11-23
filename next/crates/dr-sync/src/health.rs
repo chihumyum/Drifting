@@ -131,10 +131,16 @@ pub struct SyncHealthSnapshot {
     pub library_failing_since_ms: Option<u64>,
     pub library_failed_cycles: u32,
     pub last_error: Option<String>,
+    /// The kind of the last failure ([`SyncError::code`]); set and cleared
+    /// with `last_error`, which is text and never leaves the device.
+    ///
+    /// [`SyncError::code`]: crate::protocol::SyncError::code
+    #[serde(default)]
+    pub last_error_code: Option<String>,
     pub books: BTreeMap<String, SyncBookHealthSnapshot>,
 }
 
-fn failing_escalated(
+pub(crate) fn failing_escalated(
     consecutive_failed_cycles: u32,
     failing_since_ms: Option<u64>,
     now_ms: u64,
@@ -450,6 +456,12 @@ impl SyncHealthTracker {
         }
     }
 
+    /// Hosted sync could not start for `err` (the engine could not be made).
+    pub fn record_init_failure(&mut self, err: &crate::protocol::SyncError) {
+        self.set_init_failed(true, Some(err.to_string()));
+        self.snapshot.last_error_code = Some(err.code());
+    }
+
     /// Record an editor keystroke at `now_ms`.
     pub fn record_typing(&mut self, now_ms: u64) {
         self.last_typing_ms = Some(now_ms);
@@ -496,6 +508,7 @@ impl SyncHealthTracker {
         self.snapshot.init_failed = false;
         self.snapshot.offline = false;
         self.snapshot.last_error = None;
+        self.snapshot.last_error_code = None;
 
         if let Some(id) = book_id {
             let entry = self.snapshot.books.entry(id.to_string()).or_default();
@@ -549,6 +562,7 @@ impl SyncHealthTracker {
         }
 
         self.snapshot.last_error = Some(err.to_string());
+        self.snapshot.last_error_code = Some(err.code());
         if err.is_unauthorized() {
             self.snapshot.reauth_required = true;
             return;

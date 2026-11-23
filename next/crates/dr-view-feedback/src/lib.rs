@@ -1,9 +1,11 @@
 //! dr-view-feedback: feedback and the crash follow-up (module M39).
 //!
 //! - **The feedback dialog** ([`FeedbackDialog`], components.md
-//!   「提交反馈」): the author's message, a reply-to address and a switch,
-//!   on by default, for the sanitized diagnostic summary, which the dialog
-//!   takes once as it opens and can preview. ⌘↩ (Ctrl+Enter on Windows)
+//!   「提交反馈」): the author's message, a reply-to address (the signed-in
+//!   account's by default; required when the Hosted service stores the
+//!   feedback, so it can be answered) and a switch, on by default, for the
+//!   sanitized diagnostic summary, which the dialog takes once as it opens
+//!   and can preview. ⌘↩ (Ctrl+Enter on Windows)
 //!   sends. It goes to the Hosted service over the 0.1 client's versioned
 //!   contract (`dr_platform::feedback`: `POST /api/diagnostics/v1/feedback`,
 //!   `drifting.feedback` v1); without the service, in development builds,
@@ -15,6 +17,10 @@
 //!   that crash: its time above the title, the message asks what the author
 //!   was doing, and 「忽略」 retires the notice. Sending a note retires it
 //!   too; closing keeps it.
+//! - **The library could not be opened**: 「提交反馈」 on the page the shell
+//!   shows then opens this dialog with 「没能打开资料库（<code>）」 already in
+//!   the message (`dr_shell::dialogs::FeedbackOpening`); the rest is as
+//!   always, and it needs no library.
 //!
 //! Nothing here reads the manuscript, the library or the keychain: the
 //! summary is counts and codes, sanitized with the 0.1 rules.
@@ -45,6 +51,10 @@ pub struct Service {
     /// (M36) sets it with [`Service::set_session`]; until then feedback goes
     /// without one, as 0.1 sent it when signed out.
     pub session: Option<String>,
+    /// The signed-in account's email: the reply-to address the dialog opens
+    /// with, as 0.1's did. The account module sets it with
+    /// [`Service::set_account_email`]; `None` when signed out.
+    pub account_email: Option<String>,
 }
 
 impl Global for Service {}
@@ -57,6 +67,7 @@ impl Service {
             app_version: app_version.to_owned(),
             data: data.map(Path::to_path_buf),
             session: None,
+            account_email: None,
         }
     }
 
@@ -73,13 +84,25 @@ impl Service {
             cx.global_mut::<Service>().session = session;
         }
     }
+
+    pub fn set_account_email(email: Option<String>, cx: &mut App) {
+        if cx.has_global::<Service>() {
+            cx.global_mut::<Service>().account_email = email;
+        }
+    }
 }
 
 /// Registers the feedback dialog with the shell.
 pub fn init(service: Service, cx: &mut App) {
     cx.set_global(service);
-    dr_shell::dialogs::set_feedback(cx, |follow_up, close, window, cx| {
-        cx.new(|cx| FeedbackDialog::new(follow_up, close, window, cx))
-            .into()
+    dr_shell::dialogs::set_feedback(cx, |opening, close, window, cx| {
+        cx.new(|cx| {
+            let dialog = FeedbackDialog::new(opening.follow_up, close, window, cx);
+            match opening.message {
+                Some(message) => dialog.with_message(message, cx),
+                None => dialog,
+            }
+        })
+        .into()
     });
 }

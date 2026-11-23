@@ -58,8 +58,20 @@ pub struct EntityLinkV3 {
     pub end_block: Option<BlockId>,
 }
 
-/// Default block width on a timeline axis when a placement omits `span`.
+/// Default block width on a timeline axis when a placement omits `span`:
+/// the view draws such a card this many units wide, and
+/// [`timeline_scale_end`] counts it that wide.
 pub const DEFAULT_PLACEMENT_SPAN: f64 = 4.0;
+
+/// Air left after the last card when an entry is placed at the end of a
+/// timeline scale (`VIEW-LANE-MEMBERS-PLACED`).
+pub const PLACEMENT_GAP: f64 = 1.0;
+
+/// Distance between entries without a span placed at the end of a scale in
+/// one go: a card's drawn width plus the air after it, so the cards do not
+/// overlap. 0.1 spaced new chapters the same way
+/// ([`crate::import_v1::order::CHAPTER_ORDER_STRIDE`]).
+pub const PLACEMENT_STEP: f64 = DEFAULT_PLACEMENT_SPAN + PLACEMENT_GAP;
 
 macro_rules! v3_open_enum {
     (
@@ -1190,18 +1202,25 @@ pub fn sort_timeline_placements(placements: &mut [TimelinePlacement]) {
 }
 
 /// Next coordinate at the end of `placements` (`VIEW-LANE-MEMBERS-PLACED`,
-/// `kernel-v5.md` §4): `0.0` when there are no finite placements, otherwise
-/// `max(at + span.unwrap_or(0.0)) + 1.0`.
+/// `kernel-v5.md` §4): after the last card as the view draws it, with
+/// [`PLACEMENT_GAP`] of air. `0.0` when there are no finite placements,
+/// otherwise `max(at + span) + PLACEMENT_GAP`, where a placement without a
+/// usable span (none, negative or not finite) counts
+/// [`DEFAULT_PLACEMENT_SPAN`] wide. Entries placed there in one go without
+/// a span follow each other [`PLACEMENT_STEP`] apart.
 pub fn timeline_scale_end(placements: &[TimelinePlacement]) -> f64 {
     placements
         .iter()
         .filter(|p| p.at.is_finite())
         .map(|p| {
-            let span = p.span.filter(|s| s.is_finite() && *s >= 0.0).unwrap_or(0.0);
+            let span = p
+                .span
+                .filter(|s| s.is_finite() && *s >= 0.0)
+                .unwrap_or(DEFAULT_PLACEMENT_SPAN);
             p.at + span
         })
         .reduce(f64::max)
-        .map_or(0.0, |m| m + 1.0)
+        .map_or(0.0, |m| m + PLACEMENT_GAP)
 }
 
 /// A time pin on a [`TimelineView`]'s axis (`pins` sub-map).
@@ -1562,6 +1581,12 @@ pub struct ProjectTab {
     #[serde(default)]
     pub pos: Option<PosKey>,
     pub mount: TabMount,
+    /// The title of the entry it mounts, written in the step that deletes
+    /// that entry for good (`entry.purge`, `TAB-KEEPS-GONE-NAME`): the Tab
+    /// keeps being called by it (`kernel-v5.md` §5). Read only while the
+    /// entry is not in the book.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gone_title: Option<String>,
 }
 
 /// The fixed id of 「全部」, the tab mounted at the root (`TAB-ROOT-ALWAYS`,
@@ -1609,6 +1634,7 @@ pub fn shown_project_tabs(mut tabs: Vec<ProjectTab>) -> Vec<ProjectTab> {
                 id: all,
                 pos: Some(pos),
                 mount: TabMount::Root,
+                gone_title: None,
             },
         );
     }
@@ -1829,6 +1855,56 @@ pub fn effective_ancestors(entries: &BTreeMap<EntryId, Entry>, start: &EntryId) 
         .into_iter()
         .filter(|id| entries.get(id).is_some_and(Entry::is_level))
         .collect()
+}
+
+/// What goes with `id` when it is restored from Recently Deleted or deleted
+/// for good (`kernel-v5.md` §16, `ENTRY-TRASH-TOGETHER`): `id` itself and
+/// every entry living below it that went in with it, which carries the same
+/// `deleted_at`. An entry below it that went in on its own (another time)
+/// stays out, and so does everything below that one. A live `id` takes only
+/// its live subtree, as `entry.trash` does.
+pub fn trashed_with(entries: &BTreeMap<EntryId, Entry>, id: &EntryId) -> BTreeSet<EntryId> {
+    let Some(stamp) = entries.get(id).map(|e| e.deleted_at) else {
+        return BTreeSet::new();
+    };
+    let mut children: BTreeMap<&EntryId, Vec<&Entry>> = BTreeMap::new();
+    for e in entries.values() {
+        if let Some(parent) = &e.parent {
+            children.entry(parent).or_default().push(e);
+        }
+    }
+    let mut out = BTreeSet::from([id.clone()]);
+    let mut todo = vec![id];
+    while let Some(cur) = todo.pop() {
+        for child in children.get(cur).into_iter().flatten() {
+            if child.deleted_at == stamp && out.insert(child.id.clone()) {
+                todo.push(&child.id);
+            }
+        }
+    }
+    out
+}
+
+/// Where `id` lives once it is restored on its own from Recently Deleted
+/// (`kernel-v5.md` §16): where it lived, while that entry is still there,
+/// out of Recently Deleted and with its `层级` switch on; otherwise the
+/// nearest entry above it that is all three, or the outermost (`None`). An
+/// entry above it that is no longer stored ends the walk at the outermost.
+pub fn restored_residence(entries: &BTreeMap<EntryId, Entry>, id: &EntryId) -> Option<EntryId> {
+    let takes = |e: &Entry| !e.is_trashed() && e.is_level();
+    let mut cur = entries.get(id)?.parent.clone();
+    let mut seen = BTreeSet::from([id.clone()]);
+    while let Some(anc) = cur {
+        if !seen.insert(anc.clone()) {
+            return None;
+        }
+        let e = entries.get(&anc)?;
+        if takes(e) {
+            return Some(anc);
+        }
+        cur = e.parent.clone();
+    }
+    None
 }
 
 /// Provenance of one resolved setting, using the same precedence as its value.
@@ -4276,6 +4352,57 @@ mod tests {
     }
 
     #[test]
+    fn the_scale_ends_after_the_last_card_as_drawn_with_one_unit_of_air() {
+        let p = |entry: &str, at: f64, span: Option<f64>| TimelinePlacement {
+            entry: eid(entry),
+            at,
+            span,
+        };
+        assert_eq!(DEFAULT_PLACEMENT_SPAN, 4.0);
+        assert_eq!(PLACEMENT_STEP, 5.0);
+        // An empty scale starts at 0.
+        assert_eq!(timeline_scale_end(&[]), 0.0);
+        // A card without a span is drawn four units wide.
+        assert_eq!(timeline_scale_end(&[p("a", 10.0, None)]), 15.0);
+        // A stored span counts as it is, however short.
+        assert_eq!(timeline_scale_end(&[p("a", 10.0, Some(2.5))]), 13.5);
+        assert_eq!(timeline_scale_end(&[p("a", 10.0, Some(0.0))]), 11.0);
+        // The card that ends last counts, not the one that starts last.
+        assert_eq!(
+            timeline_scale_end(&[p("a", 0.0, Some(30.0)), p("b", 20.0, None)]),
+            31.0
+        );
+        assert_eq!(
+            timeline_scale_end(&[p("a", 0.0, Some(3.0)), p("b", 20.0, None)]),
+            25.0
+        );
+        // A coordinate that is not finite is not on the scale.
+        assert_eq!(
+            timeline_scale_end(&[p("a", f64::NAN, None), p("b", f64::INFINITY, None)]),
+            0.0
+        );
+        assert_eq!(
+            timeline_scale_end(&[p("a", f64::NEG_INFINITY, None), p("b", 2.0, None)]),
+            7.0
+        );
+        // A span that is not finite or is negative is drawn as no span.
+        for bad in [f64::NAN, f64::INFINITY, -3.0] {
+            assert_eq!(timeline_scale_end(&[p("a", 2.0, Some(bad))]), 7.0, "{bad}");
+        }
+        // Entries placed there one step apart never overlap.
+        let mut placements = vec![p("a", 1.0, None)];
+        let start = timeline_scale_end(&placements);
+        for (i, id) in ["b", "c", "d"].into_iter().enumerate() {
+            placements.push(p(id, start + PLACEMENT_STEP * i as f64, None));
+        }
+        assert_eq!(
+            placements.iter().map(|p| p.at).collect::<Vec<_>>(),
+            [1.0, 6.0, 11.0, 16.0]
+        );
+        assert_eq!(timeline_scale_end(&placements), 21.0);
+    }
+
+    #[test]
     fn v5_flatten_starts_and_tab_mounts_validate_all_four_kinds() {
         let mut tpl_lane = template("tpl-lane", "故事线");
         tpl_lane.level = false;
@@ -4424,6 +4551,7 @@ mod tests {
             id: TabId::parse(id).unwrap(),
             pos: pos.map(|p| PosKey::parse(p).unwrap()),
             mount,
+            gone_title: None,
         }
     }
 

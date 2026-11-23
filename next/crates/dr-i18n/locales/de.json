@@ -266,6 +266,7 @@
     "close": "Schließen",
     "contact": "Antwortadresse",
     "contactPlaceholder": "Optional",
+    "contactRequired": "Erforderlich",
     "crash": {
       "emailSubject": "Rückmeldung zum Drifting-Absturz",
       "ignore": "Ignorieren",
@@ -349,6 +350,92 @@
         "unproven_one": "Bei {{count}} Text ist nicht sicher, dass er aktuell ist; er steht unten",
         "unproven_other": "Bei {{count}} Texten ist nicht sicher, dass sie aktuell sind; sie stehen unten"
       },
+      "differences": {
+        "assets": "Nicht gefundene Ressourcendateien: {{missing}}; nicht passend zum gespeicherten Hash: {{mismatched}}. Sie wurden nicht importiert.",
+        "defaults": {
+          "act_binding_not_an_idea": "An ein Kapitel gebundene Akte gelten wie in Version 0.1 als an keine Idee gebunden",
+          "act_without_boundary": "Akte ohne Anfangspunkt gelten wie in Version 0.1 als erster Akt des Buchs",
+          "ambiguous_history_template_field": "Von gleichnamigen Vorlagenfeldern in Momentaufnahmen blieb nur das erste",
+          "ambiguous_template_field": "Von gleichnamigen Feldern einer Kategorievorlage blieb nur das, das Version 0.1 zuerst auflistete",
+          "category_layout_incomplete": "Unvollständige Anordnungen von Kategorien gelten wie in Version 0.1 als automatisch",
+          "chapter_in_group_dropped": "Ideengruppen an Kapiteln, die Version 0.1 nicht nutzte, wurden nicht übernommen",
+          "chapter_without_book_order": "Kapitel ohne Buchreihenfolge kamen an den Anfang, wie Version 0.1 sie liest (Reihenfolge 0)",
+          "comment_target_missing": "Kommentare zu endgültig Gelöschtem blieben erhalten und erscheinen ohne Ort",
+          "duplicate_act_boundary": "Akte mit demselben Anfangspunkt wurden wie in Version 0.1 unverändert importiert",
+          "duplicate_history_value_for_template_field": "In den Momentaufnahmen kam von mehreren Werten unter einem Feldnamen der erste ins Feld, die übrigen blieben als Schlüssel-Wert-Paare",
+          "duplicate_value_for_template_field": "Von mehreren Werten unter einem Feldnamen kam der erste ins Feld, die übrigen blieben als eigene Schlüssel-Wert-Paare des Eintrags",
+          "element_missing_category": "Elemente ohne Kategorie (oder mit gelöschter Kategorie) kamen unter „要素“ in „未分类“, wie in Version 0.1",
+          "entity_link_dropped": "Links, die auf keinen Eintrag zeigen, wurden entfernt; die Wörter bleiben",
+          "fallback": "Unverändert importiert; im Importprotokoll festgehalten",
+          "history_preview_missing": "Momentaufnahmen ohne Vorschau ließen sich nicht abrufen und wurden übersprungen",
+          "history_preview_unreadable": "Momentaufnahmen mit unlesbarer Vorschau ließen sich nicht abrufen und wurden übersprungen",
+          "idea_group_missing": "Ideen, deren Gruppe nicht mehr existiert, kamen auf die oberste Ebene der Ideen, wie in Version 0.1",
+          "idea_has_legacy_book_order": "Buchreihenfolgen an Ideen, die Version 0.1 nicht nutzte, wurden nicht übernommen",
+          "incompatible_history_node_status": "Schreibstatus in Momentaufnahmen, die nicht zu ihrer Art passten, wurden nicht übernommen",
+          "incompatible_source_node_status": "Schreibstatus, die nicht zu ihrer Art passten, wurden zum Standardstatus dieser Art, wie Version 0.1 sie anzeigte",
+          "membership_target_missing": "Zugehörigkeiten zu einem Kapitel oder Handlungsstrang, den es nicht mehr gibt, hatten keinen Platz und wurden nicht übernommen",
+          "membership_target_trashed": "Zugehörigkeiten zu gelöschten Handlungssträngen blieben erhalten; wird der Strang wiederhergestellt, kommen die Kapitel mit",
+          "multiple_primary_memberships": "Wo es mehrere Haupthandlungsstränge gab, blieb wie in Version 0.1 der letzte; die anderen bleiben Handlungsstränge",
+          "orphan_history_source": "Momentaufnahmen von endgültig Gelöschtem wurden übersprungen",
+          "pin_binding_missing_idea": "Zeitmarken, deren Idee fehlt oder in „Kürzlich gelöscht“ liegt, blieben erhalten, aber ungebunden",
+          "plot_grid_position_key_regenerated": "Defekte Positionsschlüssel im Handlungsplaner wurden in der Reihenfolge von Version 0.1 neu erzeugt",
+          "source_tree_cycle": "Gruppen und Materialordner, die sich gegenseitig übergeordnet waren, wurden beim Element mit der kleinsten ID getrennt und auf die oberste Ebene gesetzt",
+          "source_tree_missing_parent": "Gruppen und Materialordner, deren übergeordnetes Element fehlt, kamen auf die oberste Ebene, wie in Version 0.1",
+          "unknown_node_kind": "Kapitel einer Art, die Version 0.1 nicht kannte, wurden wie in Version 0.1 als Ideen importiert",
+          "unreadable_history_metadata": "Nicht lesbare Titel und andere Felder in Momentaufnahmen wurden nicht übernommen; die Textfassungen blieben",
+          "unreadable_source_aliases": "Von nicht lesbaren Aliaslisten blieb nur das Lesbare",
+          "unreadable_source_kv_projection": "Nicht lesbare Feldreihenfolgen wurden nach Erstellungszeit sortiert",
+          "unreadable_source_template": "Nicht lesbare Textvorlagen wurden nicht zu Vorlagen; das Original bleibt im Katalog des Buchs",
+          "unsupported_table_cell_content": "Listen, Überschriften und Ähnliches in Tabellenzellen behielten nur ihren Text",
+          "unsupported_table_cell_mark": "Formatierung in Tabellenzellen, die die neue Version nicht kennt, wurde entfernt; die Wörter bleiben",
+          "writing_day_duplicate": "Mehrere Schreibtag-Zeilen für dasselbe Gerät und denselben Tag wurden addiert, wie in der Heatmap von Version 0.1",
+          "writing_day_invalid": "Schreibtage, deren Datum oder Gerät nicht lesbar war, hatten keinen Platz und wurden nicht übernommen"
+        },
+        "lossy": {
+          "act_binding_kept_existing_placement": "An einen Akt gebundene Ideen hatten in der Standard-Zeitleiste schon eine Position; sie blieb und wurde nicht durch die Spanne des Akts ersetzt",
+          "act_binding_shared_idea_split": "Eine Idee war an mehrere Akte gebunden: Der früheste Akt behält die Idee, die übrigen bekamen je einen neuen Eintrag gleichen Namens unter „幕“",
+          "align_unsupported": "Blocksatz wurde als linksbündig importiert",
+          "built_in_relation_type_dropped": "Der eingebaute Typ „Verknüpfung“ wurde nicht importiert",
+          "comment_action_dropped": "Aktionen des eingestellten {{product}} an Kommentaren (annehmen / ablehnen) werden nicht mehr importiert",
+          "comment_priority_dropped": "Die Priorität von Kommentaren wurde nicht importiert (Kommentare haben keine Priorität mehr)",
+          "entity_link_same_target_overlap": "Wo zwei Links auf dasselbe Ziel verschiedene Stellen desselben Textes abdeckten, blieb der spätere",
+          "entity_link_to_asset_kept_as_text": "Links im Text auf Bild- oder PDF-Materialien ohne Datei hatten kein Ziel und wurden zu normalem Text; jeder steht unten",
+          "formatting_kept_as_text": "Formatierung in Kommentaren, Patches oder Materialbeschreibungen wurde als reiner Text importiert; das Original steht im Importprotokoll",
+          "heading_or_indent_clamped": "Überschriftenebenen oder Einzüge außerhalb des Bereichs wurden auf H1–H3 und 0–8 begrenzt",
+          "list_item_extra_paragraph": "Ein Listenpunkt hatte mehrere Absätze; in der neuen Version ist jeder Absatz ein Punkt",
+          "material_embed_dropped": "Eingebettete Materialien, deren Material fehlte, wurden als leere Absätze importiert",
+          "ordered_list_start": "Die Startnummer nummerierter Listen wurde nicht übernommen",
+          "relation_comment_end_dropped": "Beziehungen mit einem Kommentar an einem Ende wurden nicht importiert",
+          "relation_image_end_dropped": "Beziehungen mit einem Bild an einem Ende wurden nicht importiert",
+          "relation_missing_entry_dropped": "Beziehungen, deren eines Ende nicht mehr existiert, wurden nicht importiert",
+          "relation_other_end_dropped": "Beziehungen mit anderem Material an einem Ende wurden nicht importiert",
+          "relation_patch_end_dropped": "Beziehungen mit einem Patch an einem Ende wurden nicht importiert",
+          "relation_pdf_end_dropped": "Beziehungen mit einem PDF an einem Ende wurden nicht importiert",
+          "relation_self_end_dropped": "Beziehungen, deren beide Enden dasselbe sind, wurden nicht importiert",
+          "relation_todo_end_dropped": "Beziehungen mit einer Aufgabe an einem Ende wurden nicht importiert",
+          "table_cell_marks": "Textformatierung in Tabellenzellen wurde nicht übernommen (Zellen der neuen Version speichern nur Text)",
+          "table_cell_paragraphs_joined": "Mehrere Absätze in einer Tabellenzelle wurden zu einem zusammengefasst, getrennt durch Zeilenumbrüche",
+          "table_cell_span": "Verbundene Tabellenzellen und Spaltenbreiten wurden nicht übernommen",
+          "table_header_cell": "Kopfzellen von Tabellen wurden als normale Zellen importiert",
+          "task_status_follows_tick": "Wo der Aufgabenstatus eines Checklistenpunkts nicht zu seinem Häkchen passte, gilt das Häkchen; jeder Fall steht unten",
+          "task_todo_link_replaced_by_projection": "Checklistenpunkte verweisen nicht mehr auf eine eigene Aufgabe aus Version 0.1; sie behalten ihr Häkchen und werden zu Checklisten-Kommentaren",
+          "template_unreadable": "Nicht lesbare Vorlagen wurden nicht importiert (ihre alten Felder blieben, wie sie waren)",
+          "unknown_block": "Absatzarten, die die neue Version nicht kennt, wurden als normale Absätze importiert",
+          "unknown_inline": "Inline-Objekte, die die neue Version nicht kennt, wurden aus dem Text entfernt und unverändert im Importprotokoll festgehalten",
+          "unknown_mark": "Textformatierung, die die neue Version nicht kennt: Der Text blieb, die Formatierung wurde entfernt"
+        },
+        "lossy_dialog": {
+          "entity_link_to_asset_kept_as_text": "Links im Text auf Bild- oder PDF-Materialien ohne Datei hatten kein Ziel und wurden zu normalem Text",
+          "task_status_follows_tick": "Wo der Aufgabenstatus eines Checklistenpunkts nicht zu seinem Häkchen passte, gilt das Häkchen"
+        },
+        "material": {
+          "empty_folder": "Leerer Materialordner „{{name}}“",
+          "unimported_folder": "Materialordner „{{name}}“, aus dem kein Material übernommen wurde",
+          "unknown_kind": "Material unbekannter Art ({{kind}}) „{{name}}“",
+          "without_file": "Material ohne Datei „{{name}}“"
+        },
+        "materials_heading": "Materialien aus Version 0.1, die nicht übernommen wurden"
+      },
       "notice": {
         "carry_on": "Import fortsetzen",
         "unfinished": "„{{name}}“ wurde nicht fertig importiert"
@@ -362,6 +449,8 @@
         "already_imported": "Auf diesem Gerät schon importiert; übersprungen",
         "already_in_library": "Schon in der Bibliothek; unverändert gelassen",
         "carries_on": "Nicht fertig; importiere diese Bibliothek noch einmal, um weiterzumachen",
+        "differences_one": "{{count}} Stelle ist nicht ganz wie in Version 0.1",
+        "differences_other": "{{count}} Stellen sind nicht ganz wie in Version 0.1",
         "from_caches_one": "{{count}} Text kam aus dem Cache; die letzten Sekunden fehlen vielleicht",
         "from_caches_other": "{{count}} Texte kamen aus dem Cache; die letzten Sekunden fehlen vielleicht"
       }
@@ -440,6 +529,21 @@
       "close": "Linke Seitenleiste schließen",
       "open": "Linke Seitenleiste öffnen"
     }
+  },
+  "libraryOpenFailed": {
+    "cause": {
+      "damaged": "Die Bibliotheksdatei ist beschädigt. Sende Feedback und lösche diesen Ordner noch nicht.",
+      "diskFull": "Der Datenträger ist voll. Schaffe etwas Platz und öffne Drifting dann erneut.",
+      "newer": "Eine neuere Version von Drifting hat sie geöffnet. Aktualisiere zuerst Drifting.",
+      "noPermission": "Drifting kann diesen Ordner nicht lesen oder schreiben. Prüfe seine Berechtigungen.",
+      "unknown": "Sende Feedback.",
+      "upgradeUnfinished": "Diese Version konnte sie nicht aktualisieren. Nutze vorerst die vorherige Version von Drifting und sende Feedback.",
+      "upgradedUnopenable": "Die aktualisierte Bibliothek lässt sich nicht öffnen. Sende Feedback."
+    },
+    "feedbackMessage": "{{title}} ({{code}})",
+    "keptBeforeUpgrade": "Eine Kopie der Bibliothek von vor dem Upgrade wurde aufbewahrt.",
+    "title": "Bibliothek konnte nicht geöffnet werden",
+    "unchanged": "Die Bibliothek wurde nicht verändert."
   },
   "manuscriptExport": {
     "author": "Autor",
@@ -582,6 +686,7 @@
       "source": "Markdown-Ordner"
     },
     "notice": {
+      "personal": "Nachricht",
       "source": "Mitteilung"
     },
     "remove": "Entfernen",

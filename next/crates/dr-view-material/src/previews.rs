@@ -7,7 +7,10 @@
 //!   caller shows its stand-in (a glyph, the kind's name).
 //! - A thumbnail comes from the asset's thumbnail (made at import), else
 //!   from its display copy or source, decoded small; a PDF without a
-//!   thumbnail has its first page rendered small.
+//!   thumbnail has its first page rendered small. An image only the system
+//!   can decode (HEIC, HEIF, AVIF) without them gets its display copy and
+//!   thumbnail made here and kept (`import::make_missing_copies`); other
+//!   images' stand-in thumbnails are not written back.
 //! - A note's first words are read from its prose document and read again
 //!   when it changes (F3's bus).
 //!
@@ -152,6 +155,14 @@ pub fn thumbnail(asset: &str, kind: MediaKind, cx: &mut App) -> Option<Picture> 
 
 fn make_thumbnail(lib: &Library, asset: &str, kind: MediaKind) -> Option<Picture> {
     let store = lib.library();
+    if kind == MediaKind::Image {
+        // A HEIC, HEIF or AVIF that came without copies (from 0.1, or synced
+        // from a device that could not make them) gets them now, kept for
+        // every other view; nothing for any other image.
+        if let Err(e) = crate::import::make_missing_copies(store, asset) {
+            log::info!("material: {asset}: no display copy or thumbnail: {e}");
+        }
+    }
     let thumb = store
         .asset(asset, dr_store::asset::Variant::Thumbnail)
         .ok()

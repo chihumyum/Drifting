@@ -3494,6 +3494,7 @@
     "placeholder": "问题或建议",
     "contact": "联系邮箱",
     "contactPlaceholder": "选填",
+    "contactRequired": "必填",
     "attachDiagnostics": "附上脱敏诊断摘要",
     "preview": "预览",
     "hidePreview": "收起",

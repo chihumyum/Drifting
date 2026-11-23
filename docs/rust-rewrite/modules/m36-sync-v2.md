@@ -51,6 +51,7 @@
   - `src/engine.rs`：`SyncEngine` 增量上传、增量拉取合并、断网续传、空库恢复与墓碑同步。
   - `src/health.rs`：`SyncHealthTracker`、`SyncCornerState`、`SyncProblem`、`SyncStatusVisual`、`evaluate_paper_sync_mark` 与 `sync_problems_of`。
   - `src/fake_server.rs`：绑定 `127.0.0.1:0` 的本机回环假同步服务 `FakeSyncServer`（支持断网注入、半途断连注入、配额上限注入与令牌校验）。
+  - `src/diagnostics.rs`（2026-11-21）：反馈摘要里同步那一段（`diagnostics_snapshot`）。为此 `SyncError::code()` 给每种失败一个固定代号，`SyncHealthSnapshot.last_error_code` 和 `last_error` 一起记、一起清，`SyncRuntimeSnapshot.attached` 说有没有挂着的引擎。字段怎么对见 [m39-feedback.md 的「摘要里的同步」](m39-feedback.md#摘要里的同步2026-11-21)。
   - `src/lib.rs`：模块导出与覆盖收敛、断网续传、配额触顶、空库恢复、状态机全分支及安全边界的测试。
 - `next/crates/dr-view-account/`（`Layer::Interface`）：
   - `src/sync_mark.rs`：稿纸左下角砂笔记号视图 `render_paper_sync_mark` / `paper_sync_mark_for`、悬停卡文案与动作按钮、通知中心钉住/解除桥接 `reconcile_sync_problem_notifications`。

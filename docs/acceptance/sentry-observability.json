@@ -17,18 +17,18 @@
     },
     "sourceSha256": {
       ".env.example": "sha256:338a5a4db58995c66d2dced89cfa454e6fc6d04bb3c1e689cdf4f532be310f57",
-      "PRIVACY.md": "sha256:23741a6a13dba8c871c185802c8abba6aedf943e237b3dcf30f95a5127095329",
+      "PRIVACY.md": "sha256:74b33f6371630b54806167043a201f64efd8a4bf7df5743d1c7d1ce2fdb9d51b",
       "docs/acceptance/sentry-cloud.json": "sha256:06f5ed0d0186a8c69850583ac2ddc2f46b1638d3abd144e7ce07cee8306502c3",
       "docs/acceptance/sentry-packaged.json": "sha256:b53fe1a1bd6697290542a1b532fb522fea1c36e06cb92a3701e27251f0546f77",
-      "docs/crash-reports.md": "sha256:10ed8ac652694387492c626f3cd0a250c3cef47497c0782fe286e4a1bd36971b",
+      "docs/crash-reports.md": "sha256:a84e73654da02dc8b3f7fc22954caf19dce869a62684ba1ec13a4ff0864526ed",
       "docs/sentry-observability.md": "sha256:dd9590ffeba6e597bc67e28d49ce3ffc5688be66fef9bcb543703022e7897963",
       "docs/worktree-development.md": "sha256:c3956b7f24fbcfe7c07231d61b2dbeb81333bdda40441cd60be207a356b68fae",
-      "package.json": "sha256:56dc9c74af8e796df08c560b9e25296b992b4a4505184ec251ec3b5f1b690e6b",
-      "pnpm-lock.yaml": "sha256:feb89f6f6ca1b74bb94049a049a05b7f0fc7e8e3ce3a832629327bb0d3c3ba79",
+      "package.json": "sha256:4dfd07d6340278832e371ff377589170a70aa6711539c237d85bc5e81b882d83",
+      "pnpm-lock.yaml": "sha256:646655b2c748d06a35395035cf80afa6cc712d17e0b0bba0372b25b88bdae3e3",
       "pnpm-workspace.yaml": "sha256:7d6410a48fec22405f5e29f87f7035f87ce97229d19f62148fc4f1ff16985bd2",
       "scripts/check-frontend-debug-release.mjs": "sha256:4b23b372810e017c7131739dd2437e2742d537e22c3ebb7dff0d613d9df50fcf",
       "scripts/generate-sentry-observability.ts": "sha256:fb0005e37f79624446d03c41c77e8e9191d4f58fa6ebebadecced9ef0ec81914",
-      "scripts/renderer-headless-browser.mjs": "sha256:4b16c348700d3ae57ccc13e679f557c116a84c6d688992e11a8dd6114290510f",
+      "scripts/renderer-headless-browser.mjs": "sha256:6840fbced1357a6d66dab39bf2d5bc6d1cfe2ccdce8142d31fc08774ed6b3626",
       "scripts/renderer-sentry-acceptance.html": "sha256:4b0b7d85dcd7a7ede09538f81942f9adc44a27f7aaaf5abf1ff0842dab8d7e95",
       "scripts/renderer-sentry-acceptance.ts": "sha256:8207c0bb4401ed9026553cf76fbb49c87504bc6234871b301a92a6c5de7ed8ca",
       "scripts/run-desktop-tauri.mjs": "sha256:44e35add512388eea4689f43217a0d823205e816549c87e87989272bb671ee77",
@@ -39,8 +39,8 @@
       "scripts/sentry-packaged-acceptance.ts": "sha256:710b59ceb7c86d6814ad718152f9c2c5f042cdf9d5a072fbcb9e31f1cd1ee722",
       "scripts/verify-sentry-cloud.mjs": "sha256:8a74bf919a4a6cc99a8317bdc8d303ab6b377697c009257d9f1fea7161e73367",
       "scripts/verify-sentry-packaged.mjs": "sha256:b583b3d71d0b9c1d93073caa1921bf5795de6e72f76b29077ca829ddf7fb963c",
-      "src/renderer/locales/en.json": "sha256:70f0a4ba9a26d91f6ccd75deeb2f5757fb6cc1c90ca922bd3d7479ea09a66fc7",
-      "src/renderer/locales/zh-CN.json": "sha256:6c5e020aa219d3cbc3e9f2b1fe02597efc6f24cf0a0087311a6d53ddc42469f8",
+      "src/renderer/locales/en.json": "sha256:421f672517f756ae9f16bafc74f05fafc71b26dc66b874fa0e4c448be33669bd",
+      "src/renderer/locales/zh-CN.json": "sha256:97fd431637434642b7d9ae6679a4ecac33a9cf60c66f17cf5f0fba6a14150687",
       "src/renderer/platform/desktop-tauri-launcher.acceptance.test.ts": "sha256:36ecd46d7e7d453ab0b4815f81a6c32cbd8e3449bacd4d4acda9df60b58bc7c6",
       "src/renderer/platform/sentry-environment.acceptance.test.ts": "sha256:6455ae63404c4981649d2378bda5cdbfb2c9dcea25d29c9c8a225d7599ec2353",
       "src/renderer/platform/worktree-dev-launcher.acceptance.test.ts": "sha256:6399941c1e0db3691c847d325e4c823b4f2cd5ab1afbb181cbbc0b5885454ce3",
@@ -62,7 +62,7 @@
   "automated": {
     "status": "passed",
     "command": "pnpm exec vitest run src/renderer/services/diagnostics src/renderer/services/update/update-service.test.ts src/renderer/platform/sentry-environment.acceptance.test.ts src/renderer/platform/desktop-tauri-launcher.acceptance.test.ts src/renderer/platform/worktree-dev-launcher.acceptance.test.ts",
-    "passed": 112,
+    "passed": 113,
     "failed": 0,
     "skipped": 0,
     "cases": [
@@ -452,6 +452,10 @@
       },
       {
         "name": "requires a separate acceptance build for the packaged controls and leaves normal entries untouched",
+        "status": "passed"
+      },
+      {
+        "name": "requires the reply-to address for feedback the Hosted service stores",
         "status": "passed"
       },
       {

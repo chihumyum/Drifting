@@ -766,7 +766,9 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
         out.default_view.lanes.push(Entry::Unaffiliated);
     }
     // Every live member of every effective lane in `default_view` receives a
-    // finite placement at scale end (`VIEW-LANE-MEMBERS-PLACED`).
+    // finite placement at scale end (`VIEW-LANE-MEMBERS-PLACED`): one unit
+    // after the last card as drawn (a card without a span is 4 wide), and
+    // those placed in one go a card's width plus one (5) apart.
     {
         let live_lanes: BTreeSet<Entry> = out
             .default_view
@@ -793,7 +795,7 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
             .iter()
             .filter(|p| p.at.is_finite())
             .map(|p| {
-                let span = p.span.filter(|s| s.is_finite() && *s >= 0.0).unwrap_or(0.0);
+                let span = p.span.filter(|s| s.is_finite() && *s >= 0.0).unwrap_or(4.0);
                 p.at + span
             })
             .reduce(f64::max)
@@ -808,7 +810,7 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
                     at: next_at,
                     span: None,
                 });
-                next_at += 1.0;
+                next_at += 5.0;
             }
         }
         for leaf in &out.leaves {
@@ -825,7 +827,7 @@ pub fn read(path: &Path, book: &str) -> Result<Manifest> {
                     at: next_at,
                     span: None,
                 });
-                next_at += 1.0;
+                next_at += 5.0;
             }
         }
     }

@@ -332,6 +332,18 @@ impl ProjectWriterV3 {
         Ok(self)
     }
 
+    /// Write what a stored tab is called once the entry it mounts is deleted
+    /// for good (`gone_title`, `TAB-KEEPS-GONE-NAME`). A tab not stored is
+    /// left alone: only 「全部」 can be unstored, and it mounts no entry.
+    pub fn tab_gone_title(&self, id: &TabId, title: &str) -> Result<&Self> {
+        let tabs = self.map.ensure_mergeable_map("tabs")?;
+        if tabs.get(id.as_str()).is_some() {
+            let t = tabs.ensure_mergeable_map(id.as_str())?;
+            set(&t, "gone_title", title)?;
+        }
+        Ok(self)
+    }
+
     pub fn move_tab(&self, id: &TabId, pos: Option<&PosKey>) -> Result<&Self> {
         let tabs = self.map.ensure_mergeable_map("tabs")?;
         let t = tabs.ensure_mergeable_map(id.as_str())?;
@@ -970,6 +982,49 @@ impl EntriesTreeWriterV3<'_> {
             });
         };
         for t in &me.tree_ids {
+            if !self.tree.is_node_deleted(t).unwrap_or(true) {
+                self.tree.delete(*t)?;
+            }
+        }
+        self.prune_relations()
+    }
+
+    /// Permanently delete exactly `ids` (every stored copy of each) from
+    /// `entries`: an entry living directly under one of them that is not
+    /// among them first moves to `home` (`None`: the outermost), so nothing
+    /// else goes with them (a tree node deleted takes what is under it).
+    /// Then the relation rows are pruned (`REL-ROW-SIDES`). For
+    /// `entry.purge`, whose `ids` are what left Recently Deleted together.
+    pub fn purge_entries(
+        &self,
+        ids: &std::collections::BTreeSet<EntryId>,
+        home: Option<&EntryId>,
+    ) -> Result<()> {
+        let f = forest(&self.tree);
+        let gone: std::collections::HashSet<TreeID> = f
+            .iter()
+            .filter(|n| ids.iter().any(|id| id.as_str() == n.id))
+            .flat_map(|n| n.tree_ids.iter().copied())
+            .collect();
+        let target = match home {
+            Some(h) if !ids.contains(h) => self.parent(Some(h)).unwrap_or(TreeParentId::Root),
+            _ => TreeParentId::Root,
+        };
+        self.tree.enable_fractional_index(0);
+        let mut copies: Vec<TreeID> = gone.iter().copied().collect();
+        copies.sort();
+        for t in &copies {
+            for c in self
+                .tree
+                .children(TreeParentId::Node(*t))
+                .unwrap_or_default()
+            {
+                if !gone.contains(&c) {
+                    self.tree.mov(c, target)?;
+                }
+            }
+        }
+        for t in &copies {
             if !self.tree.is_node_deleted(t).unwrap_or(true) {
                 self.tree.delete(*t)?;
             }

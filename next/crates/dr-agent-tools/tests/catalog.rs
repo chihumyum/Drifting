@@ -406,6 +406,8 @@ fn v3_catalog_exposes_generic_commands_and_excludes_v2_2_fixed_domains() {
         "entry.trash",
         "entry.restore",
         "entry.set_level",
+        "entry.search",
+        "entry.mentions",
         "entry_template.list",
         "entry_template.put",
         "entry_template.delete",
@@ -530,6 +532,7 @@ fn v3_catalog_exposes_generic_commands_and_excludes_v2_2_fixed_domains() {
         "todo.project",
         "asset.purge",
         "asset_folder.purge",
+        "entry.purge",
         "comment.delete",
         "comment.project",
     ] {
@@ -1039,6 +1042,7 @@ fn v5_catalog_exposes_media_project_tabs_assets_layout_and_binds_home_by_accept(
     }
     assert!(catalog.descriptor("asset.purge").is_none());
     assert!(catalog.descriptor("asset_folder.purge").is_none());
+    assert!(catalog.descriptor("entry.purge").is_none());
     assert!(catalog.descriptor("comment.delete").is_none());
     assert!(catalog.descriptor("comment.project").is_none());
 

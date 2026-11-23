@@ -63,6 +63,92 @@
         "unproven_one": "Não dá para confirmar que {{count}} texto é o mais recente; ele está abaixo",
         "unproven_other": "Não dá para confirmar que {{count}} textos são os mais recentes; eles estão abaixo"
       },
+      "differences": {
+        "assets": "Arquivos de recurso não encontrados: {{missing}}; que não batem com o hash registrado: {{mismatched}}. Não foram importados.",
+        "defaults": {
+          "act_binding_not_an_idea": "Atos ligados a um capítulo foram tratados como sem ideia, como na versão 0.1",
+          "act_without_boundary": "Atos sem ponto de início foram tratados como o primeiro ato do livro, como na versão 0.1",
+          "ambiguous_history_template_field": "Dos campos de modelo com o mesmo nome no histórico, só ficou o primeiro",
+          "ambiguous_template_field": "Dos campos com o mesmo nome em um modelo de categoria, só ficou o que a versão 0.1 listava primeiro",
+          "category_layout_incomplete": "Disposições de categoria incompletas foram tratadas como automáticas, como na versão 0.1",
+          "chapter_in_group_dropped": "Os grupos de ideias em capítulos, que a versão 0.1 não usava, não foram trazidos",
+          "chapter_without_book_order": "Capítulos sem ordem no livro foram colocados primeiro, como a versão 0.1 os lê (ordem 0)",
+          "comment_target_missing": "Os comentários sobre o que foi excluído de vez foram mantidos e aparecem sem local",
+          "duplicate_act_boundary": "Atos com o mesmo ponto de início foram importados como estavam, como na versão 0.1",
+          "duplicate_history_value_for_template_field": "No histórico de instantâneos, de vários valores com o mesmo nome de campo, o primeiro foi para o campo e o resto ficou como chaves e valores",
+          "duplicate_value_for_template_field": "De vários valores com o mesmo nome de campo, o primeiro foi para o campo e o resto ficou como chaves e valores da própria entrada",
+          "element_missing_category": "Elementos sem categoria (ou cuja categoria foi excluída) foram para “未分类” em “要素”, como na versão 0.1",
+          "entity_link_dropped": "Links que não apontam para nenhuma entrada foram removidos; as palavras ficam",
+          "fallback": "Importado como estava; consta no registro da importação",
+          "history_preview_missing": "O histórico de instantâneos sem pré-visualização não pôde ser recuperado e foi ignorado",
+          "history_preview_unreadable": "O histórico de instantâneos com pré-visualização ilegível não pôde ser recuperado e foi ignorado",
+          "idea_group_missing": "Ideias cujo grupo não existe mais ficaram no nível mais externo das ideias, como na versão 0.1",
+          "idea_has_legacy_book_order": "A ordem no livro das ideias, que a versão 0.1 não usava, não foi trazida",
+          "incompatible_history_node_status": "Status de escrita do histórico que não combinavam com o tipo não foram reproduzidos",
+          "incompatible_source_node_status": "Status de escrita que não combinavam com o tipo viraram o status padrão desse tipo, como a versão 0.1 mostrava",
+          "membership_target_missing": "Vínculos com um capítulo ou linha narrativa que não existe mais não tinham onde ficar e não foram trazidos",
+          "membership_target_trashed": "Os vínculos com linhas narrativas excluídas foram mantidos; ao restaurar a linha, os capítulos voltam com ela",
+          "multiple_primary_memberships": "Onde havia várias linhas narrativas principais, ficou a última, como na versão 0.1; as outras continuam sendo linhas narrativas",
+          "orphan_history_source": "O histórico de instantâneos do que foi excluído de vez foi ignorado",
+          "pin_binding_missing_idea": "Pinos de tempo cuja ideia não existe mais ou está em excluídos recentemente foram mantidos, sem vínculo",
+          "plot_grid_position_key_regenerated": "As chaves de posição quebradas do planejador de enredo foram recriadas na ordem da versão 0.1",
+          "source_tree_cycle": "Grupos e pastas de materiais que eram superiores um do outro foram separados no de menor id e foram para o nível mais externo",
+          "source_tree_missing_parent": "Grupos e pastas de materiais cujo nível superior não existe mais foram para o nível mais externo, como na versão 0.1",
+          "unknown_node_kind": "Capítulos de um tipo que a versão 0.1 não reconhecia foram importados como ideias, como na versão 0.1",
+          "unreadable_history_metadata": "Títulos e outros campos ilegíveis do histórico de instantâneos não foram reproduzidos; as versões do texto foram mantidas",
+          "unreadable_source_aliases": "Das listas de apelidos ilegíveis ficou só o que pôde ser lido",
+          "unreadable_source_kv_projection": "As ordens de campos que não puderam ser lidas foram organizadas pela data de criação",
+          "unreadable_source_template": "Modelos de texto ilegíveis não viraram modelos; o original fica no catálogo do livro",
+          "unsupported_table_cell_content": "Listas, títulos e afins dentro das células mantiveram só o texto",
+          "unsupported_table_cell_mark": "A formatação das células que a nova versão não reconhece foi removida; as palavras ficam",
+          "writing_day_duplicate": "Várias linhas de dias de escrita do mesmo dispositivo e dia foram somadas, como no mapa de atividade da versão 0.1",
+          "writing_day_invalid": "Dias de escrita cuja data ou dispositivo não pôde ser lido não tinham onde ficar e não foram trazidos"
+        },
+        "lossy": {
+          "act_binding_kept_existing_placement": "As ideias ligadas a um ato já tinham posição na visualização padrão da linha do tempo; ela foi mantida e não substituída pelo intervalo do ato",
+          "act_binding_shared_idea_split": "Uma ideia estava ligada a vários atos: o primeiro ato mantém a ideia, e cada um dos outros ganhou uma nova entrada com o mesmo nome em “幕”",
+          "align_unsupported": "O texto justificado foi importado alinhado à esquerda",
+          "built_in_relation_type_dropped": "O tipo integrado “Associação” não foi importado",
+          "comment_action_dropped": "As ações do {{product}} descontinuado em comentários (aceitar / recusar) não são mais importadas",
+          "comment_priority_dropped": "A prioridade dos comentários não foi importada (os comentários não têm mais prioridade)",
+          "entity_link_same_target_overlap": "Quando dois links para o mesmo destino cobriam trechos diferentes do mesmo texto, o último foi mantido",
+          "entity_link_to_asset_kept_as_text": "Os links do texto para materiais de imagem ou PDF sem arquivo não tinham para onde apontar e viraram texto comum; cada um está listado abaixo",
+          "formatting_kept_as_text": "A formatação de comentários, patches ou descrições de materiais foi importada como texto simples; o original está no registro da importação",
+          "heading_or_indent_clamped": "Níveis de título ou recuos fora do intervalo foram ajustados para H1–H3 e 0–8",
+          "list_item_extra_paragraph": "Um item de lista tinha vários parágrafos; na nova versão, cada parágrafo é um item",
+          "material_embed_dropped": "Materiais incorporados cujo material não foi encontrado foram importados como parágrafos vazios",
+          "ordered_list_start": "O número inicial das listas numeradas não foi mantido",
+          "relation_comment_end_dropped": "As relações com um comentário em uma ponta não foram importadas",
+          "relation_image_end_dropped": "As relações com uma imagem em uma ponta não foram importadas",
+          "relation_missing_entry_dropped": "As relações com uma ponta que não existe mais não foram importadas",
+          "relation_other_end_dropped": "As relações com outro tipo de material em uma ponta não foram importadas",
+          "relation_patch_end_dropped": "As relações com um patch em uma ponta não foram importadas",
+          "relation_pdf_end_dropped": "As relações com um PDF em uma ponta não foram importadas",
+          "relation_self_end_dropped": "As relações cujas duas pontas são a mesma coisa não foram importadas",
+          "relation_todo_end_dropped": "As relações com uma tarefa em uma ponta não foram importadas",
+          "table_cell_marks": "A formatação do texto nas células de tabela não foi mantida (na nova versão as células guardam só texto)",
+          "table_cell_paragraphs_joined": "Os parágrafos de uma célula foram unidos em um só, separados por quebras de linha",
+          "table_cell_span": "As células mescladas e a largura das colunas não foram mantidas",
+          "table_header_cell": "As células de cabeçalho das tabelas foram importadas como células comuns",
+          "task_status_follows_tick": "Quando o status da tarefa de um item de lista não batia com a marcação, valeu a marcação; cada caso está listado abaixo",
+          "task_todo_link_replaced_by_projection": "Os itens de lista não ligam mais a uma tarefa separada da versão 0.1; mantêm a própria marcação e viram comentários de lista",
+          "template_unreadable": "Modelos que não puderam ser lidos não foram importados (os campos antigos ficaram como estavam)",
+          "unknown_block": "Tipos de parágrafo que a nova versão não reconhece foram importados como parágrafos comuns",
+          "unknown_inline": "Objetos em linha que a nova versão não reconhece foram tirados do texto e registrados como estavam no registro da importação",
+          "unknown_mark": "Formatação de texto que a nova versão não reconhece: o texto foi mantido e a formatação, removida"
+        },
+        "lossy_dialog": {
+          "entity_link_to_asset_kept_as_text": "Os links do texto para materiais de imagem ou PDF sem arquivo não tinham para onde apontar e viraram texto comum",
+          "task_status_follows_tick": "Quando o status da tarefa de um item de lista não batia com a marcação, valeu a marcação"
+        },
+        "material": {
+          "empty_folder": "Pasta de materiais vazia “{{name}}”",
+          "unimported_folder": "Pasta de materiais “{{name}}”, da qual nenhum material foi trazido",
+          "unknown_kind": "Material de tipo desconhecido ({{kind}}) “{{name}}”",
+          "without_file": "Material sem arquivo “{{name}}”"
+        },
+        "materials_heading": "Materiais da versão 0.1 que não foram trazidos"
+      },
       "notice": {
         "carry_on": "Retomar importação",
         "unfinished": "“{{name}}” não terminou de ser importado"
@@ -76,6 +162,8 @@
         "already_imported": "Já importado neste dispositivo; ignorado",
         "already_in_library": "Já está na biblioteca; mantido como está",
         "carries_on": "Não terminou; importe esta biblioteca de novo para continuar",
+        "differences_one": "{{count}} local não está exatamente como na versão 0.1",
+        "differences_other": "{{count}} locais não estão exatamente como na versão 0.1",
         "from_caches_one": "{{count}} texto veio do cache e pode estar sem os últimos segundos",
         "from_caches_other": "{{count}} textos vieram do cache e podem estar sem os últimos segundos"
       }
@@ -595,5 +683,20 @@
     "timeline": {
       "body": "Sobe de baixo da página e organiza as entradas vinculadas por visualização."
     }
+  },
+  "libraryOpenFailed": {
+    "title": "Não foi possível abrir a biblioteca",
+    "unchanged": "A biblioteca não foi alterada.",
+    "keptBeforeUpgrade": "Uma cópia da biblioteca de antes da atualização foi guardada.",
+    "cause": {
+      "newer": "Uma versão mais recente do Drifting abriu esta biblioteca. Atualize o Drifting primeiro.",
+      "damaged": "O arquivo da biblioteca está danificado. Envie feedback e não apague esta pasta ainda.",
+      "upgradeUnfinished": "Esta versão não conseguiu atualizá-la. Use a versão anterior do Drifting por enquanto e envie feedback.",
+      "upgradedUnopenable": "A biblioteca atualizada não abre. Envie feedback.",
+      "noPermission": "O Drifting não consegue ler nem gravar nesta pasta. Verifique as permissões dela.",
+      "diskFull": "O disco está cheio. Libere algum espaço e abra o Drifting de novo.",
+      "unknown": "Envie feedback."
+    },
+    "feedbackMessage": "{{title}} ({{code}})"
   }
 }

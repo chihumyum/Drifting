@@ -679,7 +679,26 @@ pub fn write(txn: &mut BookTxn<'_>, inp: &Inputs<'_>, notes: &mut Notes) -> Resu
         let to = entity(&rel.to_kind, &rel.to_id, &new_comment_ids);
         let invalid_association = || {
             if !built_in {
-                return None;
+                // An author's relation with nothing at one end, or the same
+                // thing at both, has no row to go into: dropped, the pair
+                // kept below (an end in Recently Deleted is still there).
+                let has_row = |kind: &str, id: &str| match legacy::entity_kind(kind) {
+                    EntityKind::Node => r.nodes.iter().any(|x| x.id == id),
+                    EntityKind::Element => r.elements.iter().any(|x| x.id == id),
+                    EntityKind::Category => r.categories.iter().any(|x| x.id == id),
+                    EntityKind::Storyline => r.storylines.iter().any(|x| x.id == id),
+                    EntityKind::Material => materials.contains_key(id),
+                    _ => false,
+                };
+                return if from == to {
+                    Some("relation-self-end-dropped")
+                } else if !has_row(&rel.from_kind, &rel.from_id)
+                    || !has_row(&rel.to_kind, &rel.to_id)
+                {
+                    Some("relation-missing-entry-dropped")
+                } else {
+                    None
+                };
             }
             // Structural entries are already in the replay catalog. Text
             // notes are written later, so check the source material rows.

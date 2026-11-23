@@ -12,10 +12,16 @@
 //!   still retires its notice); a click on the mist closes only while
 //!   nothing is written;
 //! - nothing is sent while the message is empty or the address is not one;
-//! - without the service, the message goes to the mail client at once.
+//! - feedback the service stores cannot go without a reply-to address (a
+//!   crash follow-up can, and so can a message for the mail client); the
+//!   field opens with the signed-in account's email;
+//! - without the service, the message goes to the mail client at once;
+//! - the summary's sync part is what the sync runtime's owner registered
+//!   with the shell, and a library that does not sync without it.
 
 use std::time::{Duration, UNIX_EPOCH};
 
+use dr_platform::diagnostics::{self, Pending, SummaryInput, SyncSnapshot};
 use dr_platform::feedback::fake_service::FakeService;
 use dr_platform::feedback::{Delivery, Endpoint};
 use dr_shell::actions::SendFeedback;
@@ -48,6 +54,7 @@ fn service(delivery: Delivery) -> Service {
         app_version: "0.2.0-dev".into(),
         data: None,
         session: Some("session-token".into()),
+        account_email: None,
     }
 }
 
@@ -388,6 +395,175 @@ fn nothing_goes_until_the_draft_can_be_answered(cx: &mut TestAppContext) {
     assert!(dialog(&ws, cx).is_none());
 }
 
+/// Feedback the Hosted service stores must be answerable: without a
+/// reply-to address nothing goes, to the service or to the mail client.
+#[gpui::test]
+fn feedback_for_the_service_waits_for_a_reply_to_address(cx: &mut TestAppContext) {
+    let fake = FakeService::start(&[202]);
+    let (ws, cx) = setup(cx, hosted(&fake));
+    cx.dispatch_action(SendFeedback);
+    cx.run_until_parked();
+    let d = dialog(&ws, cx).unwrap();
+    assert!(cx.read(|cx| d.read(cx).contact_required(cx)));
+    // Signed out: the field opens empty and says it is required.
+    let (text, placeholder) = cx.read(|cx| {
+        let field = d.read(cx).contact_field().read(cx);
+        (field.text(), field.placeholder_text().clone())
+    });
+    assert_eq!(text, "");
+    let required = cx.read(|cx| dr_shell::t(cx, dr_i18n::keys::feedback::CONTACT_REQUIRED));
+    let optional = cx.read(|cx| dr_shell::t(cx, dr_i18n::keys::feedback::CONTACT_PLACEHOLDER));
+    assert_eq!(placeholder, required);
+    assert_ne!(required, optional);
+    draw(cx);
+
+    for contact in ["", "   "] {
+        write(&d, "导出的封面颜色不对", contact, cx);
+        cx.simulate_keystrokes(SEND_KEYS);
+        cx.run_until_parked();
+        assert_eq!(
+            cx.read(|cx| d.read(cx).phase()),
+            Phase::Editing,
+            "{contact:?}"
+        );
+        assert_eq!(cx.opened_url(), None);
+    }
+
+    write(&d, "导出的封面颜色不对", "author@example.com", cx);
+    cx.simulate_keystrokes(SEND_KEYS);
+    cx.run_until_parked();
+    // The first thing the service hears is the one with the address.
+    let body = fake.next().expect("it goes once it can be answered").json();
+    assert_eq!(body["contactEmail"], "author@example.com");
+    assert_eq!(cx.read(|cx| d.read(cx).phase()), Phase::Sent);
+}
+
+/// Signed in, the reply-to field opens with the account's email (0.1), so
+/// requiring it asks nothing more of a signed-in author. A crash follow-up
+/// and a message for the mail client say 「选填」 and go without one.
+#[gpui::test]
+fn the_reply_to_field_opens_with_the_accounts_email(cx: &mut TestAppContext) {
+    let fake = FakeService::start(&[202]);
+    let (ws, cx) = setup(cx, hosted(&fake));
+    cx.update(|_, cx| Service::set_account_email(Some("author@example.com".into()), cx));
+    cx.dispatch_action(SendFeedback);
+    cx.run_until_parked();
+    let d = dialog(&ws, cx).unwrap();
+    let contact = cx.read(|cx| d.read(cx).contact_field().read(cx).text());
+    assert_eq!(contact, "author@example.com");
+    d.update(cx, |d, cx| {
+        d.message_field()
+            .clone()
+            .update(cx, |f, cx| f.set_text("同步好像停了", cx))
+    });
+    cx.simulate_keystrokes(SEND_KEYS);
+    cx.run_until_parked();
+    let body = fake.next().expect("the service received it").json();
+    assert_eq!(body["contactEmail"], "author@example.com");
+    click_close_button(&ws, cx);
+
+    // A crash follow-up: optional, though the service stores it.
+    let optional = cx.read(|cx| dr_shell::t(cx, dr_i18n::keys::feedback::CONTACT_PLACEHOLDER));
+    let follow_up = post_follow_up(cx);
+    open_follow_up(&ws, follow_up, cx);
+    let d = dialog(&ws, cx).unwrap();
+    let (required, placeholder) = cx.read(|cx| {
+        let dialog = d.read(cx);
+        (
+            dialog.contact_required(cx),
+            dialog.contact_field().read(cx).placeholder_text().clone(),
+        )
+    });
+    assert!(!required);
+    assert_eq!(placeholder, optional);
+    d.update_in(cx, |d, window, cx| d.dismiss(window, cx));
+    cx.run_until_parked();
+
+    // Signed out again: the next dialog opens empty.
+    cx.update(|_, cx| Service::set_account_email(None, cx));
+    cx.dispatch_action(SendFeedback);
+    cx.run_until_parked();
+    let d = dialog(&ws, cx).unwrap();
+    assert_eq!(cx.read(|cx| d.read(cx).contact_field().read(cx).text()), "");
+}
+
+#[gpui::test]
+fn the_summary_carries_the_sync_state_the_runtime_registered(cx: &mut TestAppContext) {
+    let (ws, cx) = setup(cx, service(Delivery::Email));
+    let summary_of = |ws: &Entity<Workspace>, cx: &mut VisualTestContext| {
+        cx.dispatch_action(SendFeedback);
+        cx.run_until_parked();
+        let d = dialog(ws, cx).expect("SendFeedback opens the dialog");
+        let text = cx.read(|cx| d.read(cx).summary().to_owned());
+        (d, serde_json::from_str::<serde_json::Value>(&text).unwrap())
+    };
+
+    // Nothing registered: a library that does not sync, as before.
+    let (d, value) = summary_of(&ws, cx);
+    let local: serde_json::Value =
+        serde_json::from_str(&diagnostics::summary(&SummaryInput::current("0.2.0-dev"))).unwrap();
+    assert_eq!(value["sync"], local["sync"]);
+    assert_eq!(value["sync"]["authorityStatus"], "local");
+    d.update_in(cx, |d, window, cx| d.dismiss(window, cx));
+    cx.run_until_parked();
+
+    // The sync runtime's owner registers its state (signed in, the session
+    // expired, a failed cycle, two changes and an image waiting).
+    cx.update(|_, cx| {
+        dr_shell::sync::set_diagnostics_hook(cx, |_| SyncSnapshot {
+            authority_status: "cloud-attention".into(),
+            provider_mode: "hosted".into(),
+            runtime_mounted: true,
+            online: Some(true),
+            suspended: Some(false),
+            pending: Pending {
+                change_sets: 2,
+                transfers: 1,
+                failed: 1,
+                ..Pending::default()
+            },
+            error_codes: vec![
+                "sync.reauth-required".into(),
+                "他推开门的时候，雨已经停了".into(),
+            ],
+            ..SyncSnapshot::local()
+        })
+    });
+    let (d, value) = summary_of(&ws, cx);
+    assert_eq!(
+        value["sync"],
+        serde_json::json!({
+            "authorityStatus": "cloud-attention",
+            "providerMode": "hosted",
+            "activeProjects": 0,
+            "readyProjects": 0,
+            "provisioningProjects": 0,
+            "pausedProjects": 0,
+            "attentionProjects": 0,
+            "runtimeMounted": true,
+            "online": true,
+            "suspended": false,
+            "pending": {
+                "changeSets": 2, "segments": 0, "transfers": 1, "gaps": 0,
+                "conflicts": 0, "quarantined": 0, "failed": 1,
+            },
+            // Still sanitized: only plain identifiers.
+            "errorCodes": ["redacted-error", "sync.reauth-required"],
+        })
+    );
+    // What it would send is that summary.
+    write(&d, "同步好像停了", "", cx);
+    cx.simulate_keystrokes(SEND_KEYS);
+    cx.run_until_parked();
+    let body = decode(&cx.opened_url().expect("mail"));
+    assert!(
+        body.contains("\"authorityStatus\": \"cloud-attention\""),
+        "{body}"
+    );
+    assert!(body.contains("\"providerMode\": \"hosted\""), "{body}");
+    assert!(!body.contains("雨已经停了"));
+}
+
 #[gpui::test]
 fn without_a_registered_dialog_nothing_opens(cx: &mut TestAppContext) {
     cx.update(|cx| {
@@ -397,4 +573,56 @@ fn without_a_registered_dialog_nothing_opens(cx: &mut TestAppContext) {
     cx.dispatch_action(SendFeedback);
     cx.run_until_parked();
     assert!(cx.read(|cx| ws.read(cx).dialog.is_none()));
+}
+
+/// The page the shell shows when the library could not be opened: its
+/// 「提交反馈」 opens this dialog with no library, the first line and the
+/// code already written; the rest is as always, and it sends.
+#[gpui::test]
+fn the_library_failure_page_opens_it_with_its_first_line_and_code(cx: &mut TestAppContext) {
+    use dr_shell::library_failure::{Cause, LibraryFailure, PageButton};
+
+    cx.executor().allow_parking();
+    cx.update(|cx| {
+        let _ = dr_ui::init(cx);
+        dr_shell::init(
+            info(),
+            Services {
+                library_failure: Some(LibraryFailure {
+                    cause: Cause::Newer,
+                    code: "schema-newer".into(),
+                    folder: None,
+                }),
+                ..Services::default()
+            },
+            SettingsFile::in_memory(),
+            cx,
+        );
+        dr_shell::strings::Strings::install(dr_i18n::Locale::ZhCn, cx);
+        dr_view_feedback::init(service(Delivery::Email), cx);
+    });
+    let (ws, cx) = cx.add_window_view(Workspace::new);
+    cx.run_until_parked();
+    assert!(cx.read(|cx| ws.read(cx).library_failure(cx).is_some()));
+    assert!(cx.read(|cx| cx.global::<Services>().library.is_none()));
+    draw(cx);
+    let at = cx
+        .debug_bounds(PageButton::Feedback.id())
+        .expect("the page's 提交反馈")
+        .center();
+    click(at, cx);
+    let d = dialog(&ws, cx).expect("提交反馈 opens the dialog");
+    let message = cx.read(|cx| d.read(cx).message_field().read(cx).text());
+    assert_eq!(message, "没能打开资料库（schema-newer）");
+    assert!(cx.read(|cx| d.read(cx).attaches_summary()));
+    assert_eq!(cx.read(|cx| d.read(cx).phase()), Phase::Editing);
+    // Written already, so the mist keeps it.
+    click(mist(), cx);
+    assert!(dialog(&ws, cx).is_some());
+    // It sends as it is.
+    cx.simulate_keystrokes(SEND_KEYS);
+    cx.run_until_parked();
+    let mail = decode(&cx.opened_url().expect("mail"));
+    assert!(mail.contains("没能打开资料库（schema-newer）"), "{mail}");
+    assert!(dialog(&ws, cx).is_none());
 }

@@ -311,9 +311,11 @@ fn memberships_keep_primary_and_one_position_per_entry_in_multiple_lanes() {
             .iter()
             .any(|p| p.entry == Entry::Node(fixture::CHAPTER_BEFORE.into()))
     );
+    // At scale end: one after the last card as drawn (`IDEA_LINKED` at
+    // 21.75, no span, 4 wide).
     assert!(positions.contains(&Placement {
         entry: Entry::Node(fixture::CHAPTER_UNPLACED.into()),
-        at: 23.25,
+        at: 26.75,
         span: None,
     }));
     assert_eq!(level(&m, &Entry::Unaffiliated).title, "未归属");
@@ -442,12 +444,14 @@ fn manifest_reads_the_source_instead_of_returning_fixed_fixture_counts() {
         at: 10.,
         span: Some(4.),
     }));
+    // At scale end: one after the last card as drawn (`IDEA_LINKED` at
+    // 21.75, no span, 4 wide).
     assert!(after.default_view.placements.contains(&Placement {
         entry: Entry::ActLeaf {
             act: "act-2".into(),
             synthetic_rank: 0,
         },
-        at: 22.75,
+        at: 26.75,
         span: None,
     }));
     assert!(

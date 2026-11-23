@@ -26,9 +26,13 @@ pub const ACCOUNT_LIBRARIES_LEFT: &str = "import.v1.summary.account_libraries_le
 /// A book the import stopped in the middle of (the app quit): importing the
 /// same library again carries it on.
 pub const CARRIES_ON: &str = "import.v1.summary.carries_on";
+/// `{count}` places are not quite the same as in 0.1 (decision 七 甲); the
+/// line opens the list of them by book.
+pub const DIFFERENCES: &str = "import.v1.summary.differences";
 
-/// Every sentence the dialogs show from the new client's strings.
-pub const ALL: [&str; 14] = [
+/// Every sentence the dialogs show from the new client's strings. (The
+/// sentences of that list are the importer's: `receipt::Difference`.)
+pub const ALL: [&str; 15] = [
     BLOCKED_TITLE,
     NO_HANDOFF,
     UNPROVEN,
@@ -43,6 +47,7 @@ pub const ALL: [&str; 14] = [
     FROM_CACHES,
     ACCOUNT_LIBRARIES_LEFT,
     CARRIES_ON,
+    DIFFERENCES,
 ];
 
 /// The sentence for `key`, with `count` filled in where it has one.
@@ -63,6 +68,7 @@ pub fn text(key: &str, count: Option<usize>, cx: &App) -> SharedString {
         FROM_CACHES => tp(cx, k::summary::FROM_CACHES, n, &[]),
         ACCOUNT_LIBRARIES_LEFT => tp(cx, k::summary::ACCOUNT_LIBRARIES_LEFT, n, &[]),
         CARRIES_ON => t(cx, k::summary::CARRIES_ON),
+        DIFFERENCES => tp(cx, k::summary::DIFFERENCES, n, &[]),
         other => other.to_owned().into(),
     }
 }
@@ -88,6 +94,15 @@ mod tests {
         assert_eq!(
             en.plural(k::blocked::STALE, 3, &[]),
             "3 chapters are older than what you wrote"
+        );
+        // 七 甲, as the author chose it.
+        assert_eq!(
+            zh.plural(k::summary::DIFFERENCES, 21, &[]),
+            "有 21 处和旧版不完全一样"
+        );
+        assert_eq!(
+            en.plural(k::summary::DIFFERENCES, 1, &[]),
+            "1 place isn't quite the same as in 0.1"
         );
     }
 }

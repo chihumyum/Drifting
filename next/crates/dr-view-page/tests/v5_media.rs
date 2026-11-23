@@ -267,3 +267,69 @@ fn media_asset_once_captions_reorder_and_folder_trash_restore(cx: &mut TestAppCo
     );
     assert_eq!(live_assets.as_array().unwrap().len(), 2);
 }
+
+/// A HEIC that came without its display copy and thumbnail (imported from a
+/// 0.1 library that had none, or synced from a device that could not make
+/// them) gets them when an entry's media module shows it, decoded by the
+/// system in the module's background load (`dr_view_material::import::
+/// make_missing_copies`); the module then draws the JPEG copies. ImageIO
+/// decodes it, so this runs on macOS.
+#[cfg(target_os = "macos")]
+#[gpui::test]
+fn a_heic_without_copies_gets_them_when_a_media_module_shows_it(cx: &mut TestAppContext) {
+    use dr_store::asset::{MAX_COPY_BYTES, SourceImport, Variant};
+
+    let e = env();
+    // The source alone, as such an import leaves it.
+    let path = e.dir.path().join("source.heic");
+    std::fs::write(&path, dr_testkit::media::HEIC).unwrap();
+    let asset = dr_model::id::new_uuid_v7();
+    let source =
+        e.ws.library()
+            .import_asset(&SourceImport {
+                book_id: &e.book,
+                asset_id: &asset,
+                source: &path,
+                mime: "image/heic",
+                ext: "heic",
+                dimensions: Some((600, 400)),
+                limit: MAX_COPY_BYTES,
+            })
+            .unwrap();
+    call(
+        &e.ws,
+        "asset.put",
+        json!({"book": e.book, "id": asset, "name": "IMG_0412", "kind": "image",
+               "mime": "image/heic", "size": source.size, "sha256": source.sha256,
+               "width": 600, "height": 400}),
+    );
+    assert!(
+        e.ws.library()
+            .asset(&asset, Variant::Display)
+            .unwrap()
+            .is_none()
+    );
+
+    let (view, mut vcx) = open(cx, &e);
+    view.update(&mut vcx, |v, cx| v.put_assets(vec![asset.clone()], cx));
+    wait_settled(&view, &mut vcx);
+    let meta = view
+        .read_with(&vcx, |v, _| v.asset_meta(&asset).cloned())
+        .expect("the module shows the file");
+    let name = |p: &Option<std::path::PathBuf>| {
+        p.as_ref()
+            .and_then(|p| p.file_name())
+            .map(|n| n.to_string_lossy().into_owned())
+    };
+    assert_eq!(name(&meta.display).as_deref(), Some("display.jpg"));
+    assert_eq!(name(&meta.thumb).as_deref(), Some("thumbnail.jpg"));
+    let store = e.ws.library();
+    let display = store.asset(&asset, Variant::Display).unwrap().unwrap();
+    assert_eq!(display.mime, "image/jpeg");
+    assert_eq!((display.width, display.height), (Some(600), Some(400)));
+    assert!(store.asset(&asset, Variant::Thumbnail).unwrap().is_some());
+    // The source is the original.
+    let kept = store.asset(&asset, Variant::Source).unwrap().unwrap();
+    assert_eq!(kept, source);
+    assert_eq!(std::fs::read(&kept.path).unwrap(), dr_testkit::media::HEIC);
+}

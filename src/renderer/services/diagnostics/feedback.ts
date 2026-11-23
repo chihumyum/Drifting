@@ -6,9 +6,9 @@ import { reportToken } from './crash-sanitize';
 
 /**
  * Feedback the author writes and sends on purpose (see the Hosted service's
- * docs/diagnostics-v1.md). It carries their own words, an optional reply-to
- * address and, when they leave it attached, the sanitized diagnostic summary;
- * never manuscript text, the database or credentials. It does not depend on
+ * docs/diagnostics-v1.md). It carries their own words, a reply-to address and,
+ * when they leave it attached, the sanitized diagnostic summary; never
+ * manuscript text, the database or credentials. It does not depend on
  * Settings → Privacy → Send fault diagnostics automatically: that switch only
  * governs what is sent without asking. Builds without a Hosted service, and
  * moments without a network, hand the same message to the mail client.
@@ -16,7 +16,8 @@ import { reportToken } from './crash-sanitize';
 export const FEEDBACK_MESSAGE_MAX = 5000;
 
 export type FeedbackKind = 'feedback' | 'crash-follow-up';
-export type FeedbackProblem = 'empty-message' | 'message-too-long' | 'invalid-email';
+export type FeedbackDelivery = 'hosted' | 'email';
+export type FeedbackProblem = 'empty-message' | 'message-too-long' | 'missing-email' | 'invalid-email';
 
 export interface FeedbackDraft {
   message: string;
@@ -52,18 +53,32 @@ const EMAIL = /^[^\s@<>()[\]",;:\\]+@[^\s@<>()[\]",;:\\]+\.[A-Za-z]{2,}$/;
 // Mail clients are reliable up to a few thousand characters of URL.
 const MAX_MAIL_BODY = 6000;
 
-export function feedbackProblems(draft: Pick<FeedbackDraft, 'message' | 'contactEmail'>): FeedbackProblem[] {
+/**
+ * Whether a submission must carry a reply-to address. Feedback stored by the
+ * Hosted service does: without one the maintainer cannot answer it. A crash
+ * follow-up explains a report and asks for nothing back, and a message handed
+ * to the mail client arrives from the author's own address.
+ */
+export function feedbackContactRequired(delivery: FeedbackDelivery, followUp: CrashFollowUp | null): boolean {
+  return delivery === 'hosted' && !followUp;
+}
+
+export function feedbackProblems(
+  draft: Pick<FeedbackDraft, 'message' | 'contactEmail'>,
+  contactRequired: boolean,
+): FeedbackProblem[] {
   const problems: FeedbackProblem[] = [];
   const message = draft.message.trim();
   if (!message) problems.push('empty-message');
   if (message.length > FEEDBACK_MESSAGE_MAX) problems.push('message-too-long');
   const email = draft.contactEmail.trim();
+  if (!email && contactRequired) problems.push('missing-email');
   if (email && (email.length > 254 || !EMAIL.test(email))) problems.push('invalid-email');
   return problems;
 }
 
 /** Where a submission goes right now: the Hosted service, or the mail client. */
-export function feedbackDelivery(): 'hosted' | 'email' {
+export function feedbackDelivery(): FeedbackDelivery {
   if (APP_CONFIG.LOCAL_ONLY_MODE || !canUseHostedService()) return 'email';
   if (import.meta.env.DEV && import.meta.env.VITE_DRIFTING_CRASH_REPORTS_IN_DEV !== '1') return 'email';
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return 'email';

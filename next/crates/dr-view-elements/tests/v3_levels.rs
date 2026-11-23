@@ -33,6 +33,8 @@ fn ids(rows: &[Row]) -> Vec<&str> {
             Row::Island { id, members } => std::iter::once(id.as_str())
                 .chain(members.iter().map(String::as_str))
                 .collect(),
+            // 「最近删除」 lists what is no longer in the tree.
+            Row::TrashHead { .. } | Row::Trashed(_) => Vec::new(),
         })
         .collect()
 }

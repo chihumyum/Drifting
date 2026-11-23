@@ -8,7 +8,12 @@ overrides:
   tar: ^7.5.4
   esbuild: ^0.25.0
   tmp@<=0.2.3: '>=0.2.4'
-  prosemirror-model: 1.25.7
+  # One copy of prosemirror-model for Tiptap and the Yjs binding. Keep it at
+  # 1.25.11 or later: prosemirror-view 1.42 parses clipboard HTML inside a
+  # <body>, and an older model reads the line breaks Chromium on Windows puts
+  # around the copied fragment as content (two hard breaks above and below
+  # every paste of text copied in the app).
+  prosemirror-model: 1.25.13
   # Security patch floors for transitive XML/YAML parsers.
   '@xmldom/xmldom@<0.8.15': 0.8.15
   'js-yaml@>=4.0.0 <4.3.2': 4.3.2

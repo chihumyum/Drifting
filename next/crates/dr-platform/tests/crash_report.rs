@@ -40,6 +40,8 @@ const PORT_ENV: &str = "DR_CRASH_REPORT_PORT";
 const DIR_ENV: &str = "DR_CRASH_REPORT_DIR";
 /// Synthetic prose, never a real manuscript.
 const PROSE: &str = "雨还在下，远处的灯一盏一盏地灭了";
+/// As the app reports a library written by a newer build.
+const INTEGRITY_CODE: &str = "library-open-failed:schema-newer";
 
 fn main() {
     match std::env::var(MODE_ENV) {
@@ -82,6 +84,10 @@ fn child(mode: &str) {
             assert!(reporting.flush(Duration::from_secs(10)), "sent in time");
             let follow_up = reporting.take_follow_up().expect("a follow-up");
             println!("follow-up {}", follow_up.id);
+        }
+        "integrity" => {
+            reporting.report_integrity(INTEGRITY_CODE);
+            assert!(reporting.flush(Duration::from_secs(10)), "sent in time");
         }
         other => panic!("unknown mode {other}"),
     }
@@ -212,6 +218,33 @@ fn driver(native: bool) {
         frames.len(),
         line.trim()
     );
+
+    // 4. A library that could not be opened is reported by its code, at
+    // once, with nothing else.
+    let out = run(&shipped, "integrity", ingest.port, &crashes);
+    assert!(out.status.success(), "{out:?}");
+    let request = ingest.next_with(|r| {
+        r.item("event").is_some_and(|event| {
+            serde_json::from_slice::<Value>(&event).is_ok_and(|event| {
+                event["message"]
+                    .as_str()
+                    .is_some_and(|m| m.starts_with("integrity: "))
+            })
+        })
+    });
+    let event: Value = serde_json::from_slice(&request.item("event").unwrap()).unwrap();
+    assert_eq!(
+        event["message"],
+        format!("integrity: {INTEGRITY_CODE}").as_str()
+    );
+    assert_eq!(
+        event["fingerprint"],
+        serde_json::json!(["integrity", INTEGRITY_CODE])
+    );
+    // An error, which is the level an event has when it names none.
+    assert!(event.get("level").is_none_or(|l| l == "error"), "{event}");
+    assert!(event.get("user").is_none_or(Value::is_null));
+    println!("crash_report: integrity code sent");
 
     if native {
         native_crash(&ingest, &shipped, &crashes, &uuid);

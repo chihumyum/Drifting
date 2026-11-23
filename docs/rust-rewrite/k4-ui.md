@@ -15,7 +15,7 @@
    - 开着「层级」开关的条目，页面上多出「下面的条目」（模板里有 `children` 模块就在它的位置，没有就排在最后；按「显示」设置交给**显示渲染器**画，注册口 `add_level_display`；左栏和条目页共用一个渲染器，`LevelHost.surface` 区分）和「下面」的设置。
    - 渲染器拿到的 `Rendered` 要接 `on_refresh`，刷新时不能冲掉没提交的输入。
 4. **条目的记号和颜色**：记号按模板；颜色是一个公用函数 `dr_model::v3::entry_color`（外壳的快照和编辑器的页眉都用它）：条目自己的颜色字段有值就用，没有再取主归属泳道的颜色，都没有才用模板的颜色，不看开关。未知的记号退回通用方印，不丢原值。
-5. **左栏**：每个顶层层级是一个标签。小说模板默认是书稿、构想、要素、故事线四个。标签里的内容按那一层的「显示」设置交给显示渲染器。左栏底部是模板集合。
+5. **左栏**：每个顶层层级是一个标签。小说模板默认是书稿、构想、要素、故事线四个。标签里的内容按那一层的「显示」设置交给显示渲染器。左栏底部是模板集合。每个 Tab 的树最底下一节是「最近删除」（2026-11-21，作者选一甲、二乙，规则在 [kernel-v5.md 第 16 节「最近删除」](kernel-v5.md#最近删除)）：快照里有 `trash`、`trash_roots`（`dr_shell::book::v3::Trashed`：一起进去的收在谁下面、恢复后落在哪、在哪些 Tab 的树里出现过、有没有成书正文），`dr_shell::v3::trash` 给出一个 Tab 的那一节（`section`）、小节头、行和行的悬停卡（「恢复」「永久删除」，都不问；恢复后那一行闪一下，用 `UsageFlash`）。列表渲染器（`dr-view-elements` 的 `LevelDisplay`）把它接在左栏的树后面（`Row::TrashHead`、`Row::Trashed`），挂成书的 Tab 在 `tabs::book_list` 里接；方向键不走这一节。挂的条目被彻底清除后 Tab 叫什么用 `tabs::tab_name`（`gone_title`）。
 6. **条目的悬停卡**：公用的头部和操作行（打开、新建、编辑模板、换模板、归属到、放进最近删除）；各模块用 `add_entry_action`（`EntryAction::{New, ChangeTemplate, BelongTo}`）和 `add_entry_card_rows` 往里加自己的行。
 7. **其他注册口**：`add_template_creator`（模板编辑器）、`add_v3_bottom_panel`（底部时间线）。
 8. **开发手段**：种子 `seed:tiny` / `lite` / `heavy` / `showcase`，生成当前格式的书（`seed:v3-<preset>` 别名在书目格式 4 时删掉）；调试桥能打开书、读出页面的状态。

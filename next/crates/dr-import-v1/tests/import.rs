@@ -765,14 +765,60 @@ fn independent_targets_keep_identical_source_prose_operations_and_catalog_semant
     // deterministic. Catalog roots, synthetic groups and timeline identities
     // are allocated afresh for each new target; compare their entire catalog
     // under that explicit bijection, including unknown metadata and order.
+    // The entry checkpoints of the 0.1 history fingerprint each entry's
+    // place in that catalog (its parent may be a root allocated here), so
+    // `checkpoints:<book>` is compared the same way: every manifest field
+    // but the fingerprint and the checksum over it, and in each target the
+    // fingerprint is that target's own historical content.
     let prose = |rows: Vec<(String, Vec<u8>)>| {
         rows.into_iter()
-            .filter(|(id, _)| !id.starts_with("book:"))
+            .filter(|(id, _)| !id.starts_with("book:") && !id.starts_with("checkpoints:"))
             .collect::<Vec<_>>()
     };
     assert!(ra.len() >= 9);
     assert_eq!(prose(ra), prose(rb));
     assert_eq!(catalog_state(&a), catalog_state(&b));
+    let (ca, cb) = (checkpoints_state(&a), checkpoints_state(&b));
+    assert_eq!(ca.len(), 3, "{ca:#?}");
+    assert_eq!(ca, cb);
+}
+
+/// The entry checkpoints of [`BOOK`], by id, without the content
+/// fingerprint and the checksum over it, each checked to fingerprint its
+/// own target's history at its versions (as preview checks it).
+fn checkpoints_state(n: &New) -> std::collections::BTreeMap<String, serde_json::Value> {
+    use dr_workspace::commands::v3::snapshots::{self as api, EntryIn};
+    let lib = open_library(&n.root, LibraryOptions::new("0.2.0-test"));
+    let doc = lib.load_copy(&format!("checkpoints:{BOOK}")).unwrap();
+    let book = BookId::parse(BOOK).unwrap();
+    let mut out = std::collections::BTreeMap::new();
+    for (id, value) in dr_doc::side::BorrowedCheckpoints::new(&doc, &book)
+        .unwrap()
+        .view()
+        .entry_checkpoints()
+    {
+        let owner: serde_json::Value = serde_json::from_str(&value).unwrap();
+        let target = EntryIn {
+            book: BOOK.into(),
+            entry: owner["entry"].as_str().unwrap().into(),
+        };
+        let p = api::checked_checkpoint(&value, &target, &id).unwrap();
+        let mut docs = std::collections::BTreeMap::new();
+        for (doc, version) in
+            std::iter::once((format!("book:{BOOK}"), p.book_version.clone())).chain(p.bodies)
+        {
+            let at = dr_workspace::naming::frontiers_from_hex(&version).unwrap();
+            docs.insert(doc.clone(), lib.load_copy_at(&doc, &at).unwrap());
+        }
+        assert!(api::checkpoint_history_matches(&docs, &target, &p.content_hash).unwrap());
+        let mut fields = owner;
+        let m = fields.as_object_mut().unwrap();
+        m.remove("content_hash");
+        m.remove("checksum");
+        out.insert(id, fields);
+    }
+    lib.close().unwrap();
+    out
 }
 
 #[test]
@@ -1077,6 +1123,12 @@ fn imported_points_can_follow_the_usual_retention() {
     );
     assert!(labels.iter().any(|l| l.label == "import"));
     lib.close().unwrap();
+    // The setting is the labels': the entry checkpoints the history dialog
+    // lists carry the import's reason, which no thinning takes.
+    assert_eq!(r.books[0].history_checkpoints, 3);
+    let points = checkpoints_state(&new);
+    assert_eq!(points.len(), 3);
+    assert!(points.values().all(|p| p["reason"] == "import"));
 }
 
 /// DY fix 11: a library imported in several runs is checked against every
@@ -1238,6 +1290,14 @@ fn an_interrupted_import_carries_on_without_doubling_history() {
         lib.close().unwrap();
         v
     };
+    let checkpoints = || {
+        let lib = open_library(&new.root, LibraryOptions::new("0.2.0-test"));
+        let doc = lib.load_copy(&format!("checkpoints:{BOOK}")).unwrap();
+        let v = (doc.get_deep_value(), doc.oplog_vv());
+        lib.close().unwrap();
+        v
+    };
+    let checkpoints_before = checkpoints();
     // As if the run had stopped in the middle of the book: its receipt row
     // still says `importing`.
     {
@@ -1273,6 +1333,10 @@ fn an_interrupted_import_carries_on_without_doubling_history() {
     diff_values("", &got, &book_before, &mut differ);
     assert!(differ.is_empty(), "resumed book differs: {differ:#?}");
     lib.close().unwrap();
+    // The entry checkpoints again, the same operations: not one more.
+    assert_eq!(again.books[0].history_checkpoints, 3);
+    assert_eq!(checkpoints(), checkpoints_before);
+    assert_eq!(checkpoints_state(&new).len(), 3);
 }
 
 #[test]
@@ -1502,18 +1566,29 @@ fn stopping_now_leaves_the_book_to_carry_on() {
     assert_eq!(catalog_state(&new), catalog_state(&clean));
 }
 
+/// The original fixture's relation from an element with no row: dropped,
+/// its pair kept in the receipt, the rest imported (`tests/defaults.rs`).
 #[test]
-fn original_dangling_source_relation_is_pending_before_any_target_or_identity_write() {
+fn original_dangling_source_relation_is_dropped_and_recorded() {
     let old = build(true);
     let new = new_library();
     let before = sha_of(&old.db);
-    let error = run::import(&old.db, &new.root, &options(&old, &new, Accept::NOTHING)).unwrap_err();
-    assert!(
-        matches!(error,dr_import_v1::ImportError::V3Pending(items) if items.iter().any(|p|p.code=="invalid-or-duplicate-source-relation"))
+    let receipt = imported(
+        run::import(&old.db, &new.root, &options(&old, &new, Accept::NOTHING))
+            .unwrap()
+            .0,
     );
+    let (_, _, _, json) = receipt
+        .originals
+        .iter()
+        .find(|(c, i, f, _)| c == "relations" && i == "rel-1" && f == "dropped")
+        .expect("the dangling relation is recorded");
+    assert!(json.contains("relation-missing-entry-dropped"), "{json}");
     assert_eq!(sha_of(&old.db), before);
-    assert!(!dr_store::LibraryPaths::new(&new.root).db.exists());
-    assert!(!new.device.exists());
+    let lib = open_library(&new.root, LibraryOptions::new("0.2.0-test"));
+    let catalog = dr_import_v1::verify::check_catalog_in(&old.db, &lib).unwrap();
+    assert!(catalog.is_clean(), "{:#?}", catalog.unexplained);
+    lib.close().unwrap();
 }
 
 #[test]

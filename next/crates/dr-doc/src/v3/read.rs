@@ -623,6 +623,7 @@ impl<'a> BookViewV3<'a> {
                         id: TabId::parse(id).ok()?,
                         pos: tf.pos("pos"),
                         mount: Self::read_tab_mount(tf.sub("mount")?)?,
+                        gone_title: tf.opt_string("gone_title").filter(|t| !t.is_empty()),
                     })
                 })
                 .collect(),

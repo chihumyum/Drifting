@@ -1,5 +1,18 @@
 # K6：通用帮手工具与书的结构说明（方案）
 
+> 2026-11-21（全书搜索与提及）：目录多了两条只读查询，补上 0.1 的帮手有、`next/` 之前没有的两样：在整本书里找字（0.1 的 `search_prose`、`search_project`），和一个条目在哪里被链接（0.1 的 `where_does_entity_appear`／`find_element_appearances`）。代码在 `dr-workspace/src/commands/v3/search.rs`。
+>
+> - **`entry.search { query, trashed?, from?, limit? }` → `{ hits, next? }`。** 在当前书的条目里找一个词或一句话：照原样匹配，不分大小写，不拆词。找的地方是标题、字段值（图片和条目引用字段里存的是 id，不算）、键值行（键和值）、补丁（标题和正文）、情节格的行名、列名和格子、正文；不找模板、批注和素材库。范围、顺序和匹配规则照搬搜索面板（`dr-view-search` 的 `v3::search`）：条目树深度优先，一个条目里先标题，再按模板顺序的各模块，再是模板已经没有、内容还留着的模块；正文走 dr-store 的段落索引（三个字起是 trigram 全文检索，一两个字逐段找子串），短文字用同一条不分大小写的逐字匹配。每条命中带 `entry`、`title`、`module`、`module_name`（模板里的名字）、`in`（`title`／`field`／`row`／`patch`／`plot`／`prose`），字段命中另带 `field`、`field_name`，正文命中另带 `doc`、`paragraph`（和 `prose.read` 的段号一样）、`block_id`；`snippet` 是匹配处前后各 24 个字。正文一段只算一条命中。
+> - **`entry.mentions { entry, trashed?, from?, limit? }` → `{ entry, title, total, links, mentions, next? }`。** 列出书里正文链接到这个条目的段落：自动链接上的名字或别名，或作者自己加的链接。读的是 dr-index 的引用行，不打开正文；段号和段落文字用 dr-store 新加的 `Library::paragraphs_by_block` 按块 ID 取。顺序同上（按条目树、模块、段号）。每处带所在条目、模块、`doc`、`paragraph`、`block_id`、这一段里链到它的次数 `links`，`snippet` 围着这一段里最先出现的它的名字或别名（链着的字不是它现在的名字时从段首起）。`total` 是全部段落数，`links` 是全部链接数。只写了名字、没链上的地方用 `entry.search` 找。`entry` 照别的工具一样给 id 或作者写的名字（别名也行，重名拒绝）；回收站里的条目只在 `trashed: true` 时能按名字找到。只看正文：关系说明、批注里的链接不在引用索引里。
+> - **分页**照 `prose.read` 的 `from`：每页默认 20 条、最多 50 条（大于 50 按 50，0 按 1），`next` 是下一页的 `from`，最后一页没有 `next`。搜索不数总数，提及有 `total`。翻页之间书变了，页就按新的书算。
+> - **回收站**：回收站里的条目（连同祖先在回收站里的）只在 `trashed: true` 时出现，那些命中带 `trashed: true`。
+> - **新写的字马上搜得到**：两条先补齐这本书打开文档的索引（`flush_book_prose_indices`，和资源用处、共现查询一样）。去掉这一步，`dr-workspace/tests/search.rs` 里六条有五条不过。
+> - **不算读**：`coverage_v3` 对两条都返回空。命中的段落要先 `prose.read`（可以只读那一段：`{doc, from: paragraph, limit: 1}`）或 `module.read_prose` 才能改；`entry.search` 的说明里写了这一句。
+> - **MCP**：入站 MCP 列的就是同一份 `Catalog`，两条自动出现在 `tools/list`，说明和 Schema 一样（`dr-mcp/tests/inbound.rs` 的 `mcp_lists_and_calls_the_search_tools`）。这符合 M32「对外目录与聊天同一份」。
+> - **名字**：[M29 对照表](m29-tool-mapping.md)当年写的 `book.search`、`mention.list` 是格式 2.2 的命令，切换到 canonical v3 时和按种类的命令一起删了（`dr-workspace/tests/v3_common.rs` 还断言当前格式的书调不到 `book.search`）。新的两条都是找条目的，放在 `entry.` 下，`tool_search` 搜「search」「mention」都能找到。
+> - **和搜索面板的关系**：面板仍是自己那份实现（`dr-view-search/src/v3.rs`），规则一样但没有共用代码，面板也不先补索引；以后可以让面板改调 `entry.search`。`dr-view-search/tests/agent_parity.rs` 在 tiny 种子上对一、二、四、八个字和两个标题逐条比过：条目、模块、段号、片段和顺序都一样。面板还搜素材库的文件名，Agent 用 `asset.list`。
+> - **heavy 种子上量过**（release，临时探针，每项 15 次，没提交证据；一分钟负载 4–8 时量的）：索引补齐以后，`entry.search` 一个字到八个字（含零命中）、每页 20 或 50 条从第 0 条起，p50 6.6–8.1 ms、p95 不过 8.5 ms；从第 500 条起要先数出前 550 条，一个字 14 ms、两个字 9.5 ms。其中约 6.5 ms 是固定的：读一遍书目里的条目、模板、补丁和情节格，列出这本书的文档，零命中也要这么多。`entry.mentions` 链接最多的条目（124 段）每页 6.8–7.9 ms。一边连续搜索一边做作者的写：`book.update` p50 0.07 → 0.08 ms、最长 1.2 → 3.5 ms，`prose.read` 加 `prose.replace` p50 0.86 → 1.02 ms、最长 2.3 → 1.9 ms。查询在调用者的线程上跑，读书目文档用共享的读取器，SQL 走只读连接；占用持有者线程的只有补索引那一步：这本书每篇打开着的正文各排一次「现在派生」（没有新改动时立刻返回）。索引还没补齐时（刚开库、后台重建还没做完），第一次调用会自己把落后的正文重建一遍：这次全书落后，用了 1.4 秒。同一探针在一分钟负载 78–144 时量的是 p50 13–45 ms、写最长 26–37 ms。
+
 > 2026-11-19（M30 会话级工具注册）：应用内 `CompanionTools` 在 `tool_search`、`call_tool`、`ask_user` 旁注册绑定当前聊天会话的 `read_task_plan`、`update_task_plan`、`read_working_memory`、`edit_working_memory`（另加已配置的出站 MCP `mcp_search`／`mcp_call`）。`AgentTools` 的共享作者工具目录保持 1:1 投影 `dr_workspace::registry` 与书内模板动作，入站 MCP 不暴露会话局部的计划／工作记忆工具；重启继续保持手动点「继续」（作者 2026-11-19 定）。详见 [M30](m30-long-tasks-memory.md)。
 
 > 2026-11-17，RD。目录使用 `relation_type.{list,create,rename,set_description,set_direction,delete}` 和 `relation_row.{create_pair,add_entry,remove_entry,delete}`。结构说明介绍项目定义及跨左右两组的条目对。查询带 `entry` 时只返回包含该条目的行。删除整种关系前需要读过本次将被删除的各行。参见 [RD 交回](../kernel-v5.md#rd-交回项目关系与带链接的短文字2026-11-17)。
@@ -178,7 +191,7 @@ F1 的工厂不能反向依赖 `dr-agent` 或 UI 本地化层。小说文本／�
 | `book.get/search/update/word_counts/writing_days`、`mention.list` | 原名可保留；结构／搜索／链接改认通用条目和模块，成书与字数来自最外层成书根。搜索片段、索引和统计不授予全文读取覆盖 |
 | `history.agent_changes/points/preview/restore_entities/undo_agent`、`recent.list` | 名称保留，目标适配通用引用；来源撤回仍需先读该来源结算清单，并对当前版本做 CAS，不因此授权普通正文替换 |
 
-原有排除仍是底线：全书库生命周期、无当前书范围的操作、书的回收／恢复、`asset.put`、`recent.touch`、`writing_day.record`、`todo.project`／`note_tasks.project`、`patch.check_sources`、内部 `*_template.document`、永久 purge 和隐藏关联级联删除不自动开放。`comment.delete`、`material.delete`、`patch.delete`、`relation_type.delete` 仍等完整受影响集合；`history.restore_point` 仍等原子受控接口；旧 `idea.to_chapter/to_element` 不复活。
+原有排除仍是底线：全书库生命周期、无当前书范围的操作、书的回收／恢复、`asset.put`、`recent.touch`、`writing_day.record`、`todo.project`／`note_tasks.project`、`patch.check_sources`、内部 `*_template.document`、永久 purge 和隐藏关联级联删除不自动开放。2026-11-21 加的 `entry.purge`（从最近删除里彻底清除条目）照这一条排除，和 `asset.purge`、`asset_folder.purge` 同一个理由（「permanent deletion needs complete cascade coverage」，目录快照多一行排除）；同一天 `project.get` 的 Tab 多了 `gone_title`（挂的条目被清除后 Tab 叫什么），它在目录里的修订号跟着变，帮手的结构说明里这种 Tab 用这个名字。`comment.delete`、`material.delete`、`patch.delete`、`relation_type.delete` 仍等完整受影响集合；`history.restore_point` 仍等原子受控接口；旧 `idea.to_chapter/to_element` 不复活。
 
 v3 的移动／换模板是普通通用命令，但若涉及正文复制、自动补链或其他跨文档影响，也必须满足同样的源版本、读取覆盖、影响查询与结算条件，不能借新名称绕过 M29 的转换排除。此前缺失的整篇结构编辑、原子关系更新、完整成员集合替换，仍由 K2 登记真实能力后再开放。
 

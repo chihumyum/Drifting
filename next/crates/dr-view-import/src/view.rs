@@ -10,6 +10,7 @@ use dr_i18n::number::grouped;
 use dr_import_v1::gate::{BodyRef, Reason};
 use dr_import_v1::legacy::{Freshness, ProseKind};
 use dr_import_v1::progress::Step;
+use dr_import_v1::receipt::{Block, MATERIALS_HEADING};
 use dr_shell::actions::Dismiss;
 use dr_shell::strings::{tf, tp};
 use dr_shell::{Settings, t};
@@ -17,6 +18,7 @@ use dr_ui::{
     Theme,
     components::{Button, Dialog, Progress as Bar},
     fonts::{Role, weight},
+    sand::{self, Icon},
     style::DrStyled,
 };
 use gpui::{
@@ -36,6 +38,7 @@ const LIST_MAX_H: f32 = 232.0;
 
 impl Render for LegacyImport {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let differences_open = self.differences_open();
         let dialog = match &self.state {
             State::Idle | State::Picking => None,
             State::Found(f) => Some(found(f, window, cx)),
@@ -49,7 +52,7 @@ impl Render for LegacyImport {
             ),
             State::Running(r) => Some(running(r, window, cx)),
             State::Blocked(b) => Some(blocked(b, window, cx)),
-            State::Done(d) => Some(done(d, window, cx)),
+            State::Done(d) => Some(done(d, differences_open, window, cx)),
             State::Failed(f) => Some(failed(f, window, cx)),
         };
         div()
@@ -243,9 +246,19 @@ fn found(f: &Found, window: &mut Window, cx: &mut Context<LegacyImport>) -> AnyE
             .modified_ms
             .map(|at| dr_view_shelf::format::ago(at, now, cx));
         let entity = entity.clone();
+        let kind = if library.account {
+            t(cx, keys::settings::rail::ACCOUNT)
+        } else {
+            t(cx, keys::common::LOCAL)
+        };
+        // The row is a button to assistive technology, named by what it
+        // shows: which kind of library and its folder.
+        let name = format!("{kind} {}", library.folder);
         rows = rows.child(
             div()
                 .id(("legacy-import-library", i))
+                .role(gpui::Role::Button)
+                .aria_label(name)
                 .flex()
                 .flex_row()
                 .items_baseline()
@@ -257,15 +270,7 @@ fn found(f: &Found, window: &mut Window, cx: &mut Context<LegacyImport>) -> AnyE
                 .on_click(move |_, window, cx| {
                     entity.update(cx, |import, cx| import.pick(i, window, cx))
                 })
-                .child(
-                    div()
-                        .text_color(p.ink(1).solid())
-                        .child(if library.account {
-                            t(cx, keys::settings::rail::ACCOUNT)
-                        } else {
-                            t(cx, keys::common::LOCAL)
-                        }),
-                )
+                .child(div().text_color(p.ink(1).solid()).child(kind))
                 .child(div().flex_1().min_w_0().truncate().child(index(
                     library.folder.clone(),
                     window,
@@ -451,7 +456,157 @@ fn blocked(b: &Blocked, window: &mut Window, cx: &mut Context<LegacyImport>) -> 
 
 // The summary.
 
-fn done(d: &Done, window: &mut Window, cx: &mut Context<LegacyImport>) -> AnyElement {
+/// 「有 N 处和旧版不完全一样」 under the count lines, in their look, with the
+/// disclosure triangle at its end; a button to assistive technology, named
+/// by what it says. Pressed, it opens or closes [`differences`].
+fn differences_line(
+    total: usize,
+    open: bool,
+    window: &Window,
+    cx: &mut Context<LegacyImport>,
+) -> AnyElement {
+    let p = Theme::of(window, cx).palette;
+    let label = copy::text(copy::DIFFERENCES, Some(total), cx);
+    let entity = cx.entity();
+    div()
+        .id("legacy-import-differences-line")
+        .debug_selector(|| "legacy-import-differences-line".into())
+        .role(gpui::Role::Button)
+        .aria_label(label.clone())
+        .aria_expanded(open)
+        .flex()
+        .flex_row()
+        .items_center()
+        .gap(px(6.0))
+        // The hover wash reaches past the text, which stays in line with
+        // the lines above.
+        .mx(px(-4.0))
+        .px(px(4.0))
+        .cursor_pointer()
+        .hover(|el| el.bg(p.ink(1).alpha(0.04)).text_color(p.ink(1).solid()))
+        .on_click(move |_, _, cx| entity.update(cx, |import, cx| import.toggle_differences(cx)))
+        .child(div().flex_1().min_w_0().child(label))
+        .child(sand::icon(
+            if open {
+                Icon::ChevronDown
+            } else {
+                Icon::ChevronRight
+            },
+            11.0,
+            p.muted().solid(),
+        ))
+        .into_any_element()
+}
+
+/// What differs from 0.1, by book: each book's name, then its sentences as
+/// summary.md words them (but for the two that end in 「逐条列在下方」, said
+/// without it: `Difference::dialog_text`), each with its count where the
+/// importer counts it (「N 处」); above a book's material lines, summary.md's
+/// heading of that block. Scrolls past [`LIST_MAX_H`] between hairlines, as
+/// the books and the gate's list do. Each book name, heading and line is a
+/// label to assistive technology, read as it shows (a line with its count).
+fn differences(d: &Done, window: &Window, cx: &App) -> AnyElement {
+    let theme = Theme::of(window, cx);
+    let (p, s) = (theme.palette, theme.scale);
+    let strings = dr_shell::Strings::get(cx);
+    let mut list = div()
+        .id("legacy-import-differences")
+        .debug_selector(|| "legacy-import-differences".into())
+        .max_h(px(LIST_MAX_H))
+        .overflow_y_scroll()
+        .flex()
+        .flex_col()
+        .gap(px(10.0))
+        .py(px(8.0))
+        .border_t(px(0.5))
+        .border_b(px(0.5))
+        .border_color(p.hairline());
+    for (i, book) in d
+        .books
+        .iter()
+        .filter(|b| !b.differences.is_empty())
+        .enumerate()
+    {
+        let name = name_or_untitled(&book.name, cx);
+        let mut group = div().flex().flex_col().gap(px(4.0)).child(
+            div()
+                .id(SharedString::from(format!(
+                    "legacy-import-differences-book-{i}"
+                )))
+                .debug_selector(move || format!("legacy-import-differences-book-{i}"))
+                .role(gpui::Role::Label)
+                .aria_label(name.clone())
+                .font_role(Role::Ui)
+                .type_px(s.secondary, s.line_body)
+                .weight(weight::SEMIBOLD)
+                .text_color(p.ink(1).solid())
+                .child(name),
+        );
+        let mut materials_heading = false;
+        for (j, line) in book.differences.iter().enumerate() {
+            if line.block == Block::Materials && !materials_heading {
+                materials_heading = true;
+                let heading = t(cx, MATERIALS_HEADING);
+                group = group.child(
+                    div()
+                        .id(SharedString::from(format!(
+                            "legacy-import-differences-materials-{i}"
+                        )))
+                        .debug_selector(move || format!("legacy-import-differences-materials-{i}"))
+                        .role(gpui::Role::Label)
+                        .aria_label(heading.clone())
+                        .pl(px(12.0))
+                        .pt(px(4.0))
+                        .font_role(Role::Ui)
+                        .type_px(s.secondary, s.line_body)
+                        .text_color(p.muted().solid())
+                        .child(heading),
+                );
+            }
+            let count = line
+                .counted
+                .then(|| tp(cx, keys::v5_files::USAGE_COUNT, line.count as u64, &[]));
+            let text = line.dialog_text(strings);
+            let read = match &count {
+                Some(c) => format!("{text} {c}"),
+                None => text.clone(),
+            };
+            group = group.child(
+                div()
+                    .id(SharedString::from(format!(
+                        "legacy-import-difference-{i}-{j}"
+                    )))
+                    .debug_selector(move || format!("legacy-import-difference-{i}-{j}"))
+                    .role(gpui::Role::Label)
+                    .aria_label(read)
+                    .flex()
+                    .flex_row()
+                    .items_start()
+                    .gap(px(12.0))
+                    .pl(px(12.0))
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .font_role(Role::Ui)
+                            .type_px(s.secondary, s.line_body)
+                            .text_color(p.ink(2).solid())
+                            .child(text),
+                    )
+                    .children(count.map(|c| {
+                        div()
+                            .flex_none()
+                            .whitespace_nowrap()
+                            .child(index(c, window, cx))
+                    })),
+            );
+        }
+        list = list.child(group);
+    }
+    list.into_any_element()
+}
+
+fn done(d: &Done, open: bool, window: &mut Window, cx: &mut Context<LegacyImport>) -> AnyElement {
     let theme = Theme::of(window, cx);
     let p = theme.palette;
     let locale = Settings::locale(cx);
@@ -519,6 +674,7 @@ fn done(d: &Done, window: &mut Window, cx: &mut Context<LegacyImport>) -> AnyEle
         );
     }
     let close = closer(cx);
+    let differing = d.differences();
     Dialog::new("legacy-import-done", t(cx, keys::user_menu::IMPORT))
         .eyebrow(EYEBROW)
         .subtitle(d.folder.clone())
@@ -526,15 +682,28 @@ fn done(d: &Done, window: &mut Window, cx: &mut Context<LegacyImport>) -> AnyEle
         .body(div().text_color(p.ink(1).solid()).child(headline))
         .body(rows)
         .when(d.from_caches > 0, |dialog| {
-            dialog.body(missing(copy::FROM_CACHES, Some(d.from_caches), window, cx))
+            dialog.body(
+                div()
+                    .debug_selector(|| "legacy-import-from-caches".into())
+                    .child(missing(copy::FROM_CACHES, Some(d.from_caches), window, cx)),
+            )
         })
         .when(!d.left.is_empty(), |dialog| {
-            dialog.body(missing(
-                copy::ACCOUNT_LIBRARIES_LEFT,
-                Some(d.left.len()),
-                window,
-                cx,
-            ))
+            dialog.body(
+                div()
+                    .debug_selector(|| "legacy-import-left".into())
+                    .child(missing(
+                        copy::ACCOUNT_LIBRARIES_LEFT,
+                        Some(d.left.len()),
+                        window,
+                        cx,
+                    )),
+            )
+        })
+        .when(differing > 0, |dialog| {
+            dialog
+                .body(differences_line(differing, open, window, cx))
+                .when(open, |dialog| dialog.body(differences(d, window, cx)))
         })
         .action(
             Button::new(

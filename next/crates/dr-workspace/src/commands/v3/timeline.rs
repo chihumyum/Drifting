@@ -142,7 +142,7 @@ op! {
                         at: next_at,
                         span: None,
                     });
-                    next_at += 1.0;
+                    next_at += m::PLACEMENT_STEP;
                 }
             }
         }

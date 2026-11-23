@@ -65,6 +65,13 @@ pub mod v3 {
             id: String,
             members: Vec<String>,
         },
+        /// A left-column Tab's last section, 「最近删除」 (`kernel-v5.md` §16,
+        /// 一甲 2026-11-21): its head with how many entries it holds…
+        TrashHead {
+            count: usize,
+        },
+        /// … and one of its rows (`dr_shell::v3::trash`).
+        Trashed(dr_shell::v3::trash::TrashRow),
     }
 
     /// What lives under `level` and what is attached to it (the outermost
@@ -547,6 +554,15 @@ pub mod v3 {
         /// The list body's drawn width and current body font size. Row
         /// grouping follows this width as the column grows or shrinks.
         tile_space: Option<(f32, f32)>,
+        /// A left-column Tab's 「最近删除」: whether it is open (it opens
+        /// open), and which of its rows are opened to what went in with
+        /// them (none at first).
+        pub trash_open: bool,
+        pub trash_unfolded: BTreeSet<String>,
+        /// An entry just restored from it: once the book has it back, the
+        /// tree opens down to its row and scrolls it into view (its row
+        /// flashes, `dr_shell::v3::trash::flashing`).
+        reveal: Option<String>,
     }
 
     /// Opt-in native draw timings for the G2 milestone. No prose, IDs, paths
@@ -744,9 +760,76 @@ pub mod v3 {
                 timestamp_reads,
                 tile_units: 0.0,
                 tile_space: None,
+                trash_open: true,
+                trash_unfolded: BTreeSet::new(),
+                reveal: None,
             };
             this.rebuild();
             this
+        }
+        /// What this list's Tab is mounted on, when it is a left-column
+        /// Tab's tree (its 「最近删除」 lists what was deleted from it).
+        fn trash_mount(&self) -> Option<dr_workspace::commands::v3::types::TabMount> {
+            use dr_workspace::commands::v3::types::TabMount;
+            (self.host.surface == DisplaySurface::Sidebar && self.display != Display::Board).then(
+                || {
+                    if self.host.level == ROOT_LEVEL {
+                        TabMount::Root
+                    } else {
+                        TabMount::Entry {
+                            entry: self.host.level.clone(),
+                        }
+                    }
+                },
+            )
+        }
+        /// The section's name in element ids: the Tab's entry, or `all`.
+        fn trash_scope(&self) -> &str {
+            if self.host.level == ROOT_LEVEL {
+                "all"
+            } else {
+                &self.host.level
+            }
+        }
+        /// Folds or unfolds the section (its head).
+        pub fn toggle_trash(&mut self, cx: &mut Context<Self>) {
+            self.trash_open = !self.trash_open;
+            self.rebuild();
+            cx.notify();
+        }
+        /// Opens or closes a deleted row to what went in with it.
+        pub fn toggle_trashed(&mut self, id: &str, cx: &mut Context<Self>) {
+            if !self.trash_unfolded.remove(id) {
+                self.trash_unfolded.insert(id.to_owned());
+            }
+            self.rebuild();
+            cx.notify();
+        }
+        /// `id` was restored from the section: show it where it now is.
+        pub fn reveal_restored(&mut self, id: &str, cx: &mut Context<Self>) {
+            self.reveal = Some(id.to_owned());
+            self.rebuild();
+            cx.notify();
+        }
+        /// The entry waiting to be shown, once the book has it back: every
+        /// row above it opens, and it is handed back for its row to be
+        /// scrolled into view.
+        fn take_reveal(&mut self) -> Option<String> {
+            let id = self.reveal.clone()?;
+            let v = self.host.page.book.v3()?;
+            v.entry(&id)?;
+            self.reveal = None;
+            let mut at = v.entry(&id).and_then(|e| e.parent.clone());
+            let mut guard = 0;
+            while let Some(parent) = at {
+                self.folded.remove(&parent);
+                guard += 1;
+                if guard > 64 {
+                    break;
+                }
+                at = v.entry(&parent).and_then(|e| e.parent.clone());
+            }
+            Some(id)
         }
         /// How many times the rows were built (sorted, remeasured) and the
         /// update times read since the list was made.
@@ -846,6 +929,7 @@ pub mod v3 {
         }
         fn rebuild(&mut self) {
             self.rebuilds += 1;
+            let reveal = self.take_reveal();
             let rows = rows_sorted(
                 &self.host.page.book,
                 &self.host.level,
@@ -876,7 +960,7 @@ pub mod v3 {
             // Keep virtualized rows, but group their tiles by the width
             // actually available, not a fixed two/four columns. All lines
             // use the same least width, including a short last line.
-            let rows: Vec<Row> = rows
+            let mut rows: Vec<Row> = rows
                 .into_iter()
                 .flat_map(|row| match row {
                     Row::Tiles { ids, depth } => ids
@@ -889,6 +973,17 @@ pub mod v3 {
                     row => vec![row],
                 })
                 .collect();
+            // The Tab's last section: what was deleted from it.
+            if let Some(mount) = self.trash_mount()
+                && let Some(v) = self.host.page.book.v3()
+                && let Some((count, trashed)) =
+                    dr_shell::v3::trash::section(v, &mount, &self.trash_unfolded)
+            {
+                rows.push(Row::TrashHead { count });
+                if self.trash_open {
+                    rows.extend(trashed.into_iter().map(Row::Trashed));
+                }
+            }
             // Keep the visible entry anchored when a book event inserts or
             // removes rows above it. reset() alone clears GPUI's anchor.
             if *self.rows != rows {
@@ -914,6 +1009,17 @@ pub mod v3 {
             } else {
                 // Tile names can change wrapping without changing row IDs.
                 self.list.remeasure_items(0..rows.len());
+            }
+            // An entry just back from 「最近删除」: its row in view.
+            if let Some(id) = reveal
+                && let Some(index) = self.rows.iter().position(|row| match row {
+                    Row::Entry { id: e, .. } | Row::Member { id: e, .. } => *e == id,
+                    Row::Tiles { ids, .. } => ids.contains(&id),
+                    Row::Island { id: e, members } => *e == id || members.contains(&id),
+                    Row::TrashHead { .. } | Row::Trashed(_) => false,
+                })
+            {
+                self.list.scroll_to_reveal_item(index);
             }
             self.restop();
         }
@@ -1134,6 +1240,9 @@ pub mod v3 {
                             });
                         }
                     }
+                    // 「最近删除」 is the pointer's: the keyboard's walk is
+                    // the tree's (KB), and the section was not drawn for it.
+                    Row::TrashHead { .. } | Row::Trashed(_) => {}
                 }
             }
             out
@@ -1702,9 +1811,12 @@ pub mod v3 {
             let (mark, color) = self.host.page.book.mark(&target);
             let weak = self.host.page.workspace.clone();
             let card_ws = weak.upgrade();
+            // A row just back from 「最近删除」 flashes once.
             let selected = card_ws
                 .as_ref()
-                .is_some_and(|ws| ws.read(cx).nav.is_selected(&target));
+                .is_some_and(|ws| ws.read(cx).nav.is_selected(&target))
+                || (self.host.surface.is_sidebar()
+                    && dr_shell::v3::trash::flashing(id, window, cx));
             // The keyboard (KB): its row lit, the card it opened.
             let key = key.filter(|_| self.walks()).map(str::to_owned);
             let lit = key.is_some()
@@ -2328,7 +2440,56 @@ pub mod v3 {
                         })
                         .into_any_element()
                 }
+                Row::TrashHead { count } => {
+                    let weak = entity.downgrade();
+                    let head = dr_shell::v3::trash::head(
+                        self.trash_scope(),
+                        *count,
+                        self.trash_open,
+                        move |_, cx| {
+                            let _ = weak.update(cx, |this, cx| this.toggle_trash(cx));
+                        },
+                        window,
+                        cx,
+                    );
+                    self.pointer_only(head)
+                }
+                Row::Trashed(row) => {
+                    let (fold, restored) = (entity.downgrade(), entity.downgrade());
+                    let hooks = dr_shell::v3::trash::RowHooks {
+                        fold: Rc::new(move |id: &str, cx: &mut App| {
+                            let _ = fold.update(cx, |this, cx| this.toggle_trashed(id, cx));
+                        }),
+                        restored: Rc::new(move |id: &str, cx: &mut App| {
+                            let _ = restored.update(cx, |this, cx| this.reveal_restored(id, cx));
+                        }),
+                    };
+                    let row = dr_shell::v3::trash::row(
+                        &self.host.page,
+                        self.trash_scope(),
+                        row,
+                        self.trash_unfolded.contains(&row.id),
+                        self.sidebar_cards.clone(),
+                        hooks,
+                        window,
+                        cx,
+                    );
+                    self.pointer_only(row)
+                }
             }
+        }
+        /// 「最近删除」 is the pointer's: a press on it is a press on a row,
+        /// not on the tree's blank space, so the keyboard stays where it was
+        /// (the tree's press would land it on the first row).
+        fn pointer_only(&self, el: AnyElement) -> AnyElement {
+            let pressing = self.me.clone();
+            div()
+                .w_full()
+                .on_mouse_down(MouseButton::Left, move |_, _, cx| {
+                    let _ = pressing.update(cx, |this, _| this.pressing_row = true);
+                })
+                .child(el)
+                .into_any_element()
         }
         fn board(&self, window: &mut Window, cx: &mut App) -> AnyElement {
             let ids = board_ids(&self.host.page.book, &self.host.level, self.host.surface);

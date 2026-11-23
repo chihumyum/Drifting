@@ -13,12 +13,25 @@
 //! - [`time`]: 0.1 timestamps;
 //! - [`run`]: one import, start to finish, reporting [`progress`];
 //! - [`meta`]: the snapshot history's metadata replayed into the book
-//!   document; [`receipt`]: what the import did.
+//!   document; [`checkpoints`]: each history row an entry checkpoint the
+//!   history dialog lists; [`receipt`]: what the import did;
+//! - [`carry`]: what the 0.1 library kept for this device (settings,
+//!   shortcuts, the Agent's working memory) that the new client takes over;
+//! - [`copies`]: 0.1's display and thumbnail copies of the images the new
+//!   client cannot decode itself (HEIC, HEIF, AVIF, …), carried with them;
+//! - [`agent_archive`]: reading the archived 0.1 Agent conversations (M31's
+//!   「0.1 的旧对话」), read only.
 //!
-//! The original library is never written: everything reads the staging copy.
+//! The original library is never written: everything reads the staging copy
+//! (and the asset files, which are only read).
 
+pub mod agent_archive;
 pub mod anchors;
 pub mod book;
+pub mod carry;
+pub mod checkpoints;
+pub mod copies;
+pub mod defaults;
 pub mod error;
 pub mod gate;
 pub mod handoff;

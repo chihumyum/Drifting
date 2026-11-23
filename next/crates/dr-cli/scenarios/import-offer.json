@@ -43,6 +43,17 @@
       "png": "import-offer.png"
     },
     {
+      "app": "ui.find",
+      "params": {
+        "role": "Button",
+        "contains": "本地 "
+      },
+      "expect": {
+        "/count": 1
+      },
+      "note": "The library's row is a button with a name (which kind of library, its folder), so a screen reader can reach it."
+    },
+    {
       "app": "input.key",
       "params": {
         "keys": "escape"

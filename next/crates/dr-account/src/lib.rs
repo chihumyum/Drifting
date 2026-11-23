@@ -9,6 +9,7 @@ pub mod endpoint;
 #[cfg(any(test, feature = "test-support"))]
 pub mod fake_server;
 pub mod library_registry;
+pub mod notices;
 pub mod oauth;
 pub mod preferences;
 pub mod profile;
@@ -23,15 +24,17 @@ pub use library_registry::{
     DEFAULT_LOCAL_ID, DEFAULT_LOCAL_REL_PATH, LIBRARIES_FILE, LibraryEntry, LibraryOwner,
     LibraryRegistry, account_library_id, account_library_rel_path, registry_lock,
 };
+pub use notices::{AccountNotice, AccountNotices, NoticeText, NoticesEndpoint};
 pub use oauth::{
     NATIVE_OAUTH_STATE_FILE, OAUTH_STATE_TTL_MS, ParsedOAuthCallback, PendingNativeOAuth,
     build_oauth_redirect_url, clear_pending_oauth, consume_pending_oauth, parse_oauth_callback_url,
     pkce_s256_challenge, read_pending_oauth, save_pending_oauth,
 };
 pub use preferences::{
-    PreferenceEndpointStatus, PreferenceLedger, PreferenceLedgerEntry, PreferenceSyncOutcome,
-    PreferenceWrite, RemotePreference, UNCHANGED_AT, clamp_to_server_clock, compare_iso_timestamps,
-    now_iso8601, sync_preferences_with_client,
+    Adopt, PreferenceEndpointStatus, PreferenceLedger, PreferenceLedgerEntry,
+    PreferenceSyncOutcome, PreferenceWrite, RemotePreference, UNCHANGED_AT, clamp_to_server_clock,
+    compare_iso_timestamps, now_iso8601, sync_preferences_with_client,
+    sync_preferences_with_client_adopting,
 };
 pub use profile::{
     AVATAR_CANVAS_SIZE, AccountErrorCode, HostedUser, MAX_AVATAR_DATA_URL_BYTES,
@@ -504,6 +507,158 @@ mod tests {
         assert_eq!(rechecked.status, SessionStatus::Connected);
     }
 
+    /// Account notices v1 against the fake service: nothing asked without a
+    /// service or a session; the account reads what is addressed to it; the
+    /// read mark only rises; a malformed, oversized or failing answer is an
+    /// error that carries none of the answer's words; a refused session is
+    /// `Unauthorized`; a service without the routes is `Unsupported`.
+    #[test]
+    fn account_notices_are_read_for_the_signed_in_account_and_the_mark_only_rises() {
+        use crate::notices::{MAX_RESPONSE_BYTES, NOTICES_PATH, NOTICES_READ_PATH};
+        use serde_json::json;
+
+        let server = FakeAuthServer::start();
+        server.set_require_signup_verification(false);
+        let local_dir = TempDir::new().expect("tempdir");
+        let local = AccountService::new(
+            HostedConfig::local_only(),
+            local_dir.path(),
+            "cc.drifting.next.dev",
+            Arc::new(SecretStore::in_memory()),
+        )
+        .expect("local service");
+        assert_eq!(
+            local.read_notices().unwrap_err().code,
+            AccountErrorCode::HostedNotConfigured
+        );
+        assert_eq!(
+            local.mark_notices_read(1).unwrap_err().code,
+            AccountErrorCode::HostedNotConfigured
+        );
+        assert_eq!(server.request_count(), 0);
+
+        let service = |dir: &TempDir| {
+            AccountService::new(
+                server.config(),
+                dir.path(),
+                "cc.drifting.next.dev",
+                Arc::new(SecretStore::in_memory()),
+            )
+            .expect("hosted service")
+        };
+        let (dir_a, dir_b) = (TempDir::new().unwrap(), TempDir::new().unwrap());
+        let (svc, other) = (service(&dir_a), service(&dir_b));
+        // Signed out: no session, nothing asked.
+        assert_eq!(
+            svc.read_notices().unwrap_err().code,
+            AccountErrorCode::Unauthorized
+        );
+        assert_eq!(server.requests_to("GET", NOTICES_PATH), 0);
+
+        svc.sign_up_email("Reader", "reader@example.test", "reader-password-1")
+            .expect("sign up");
+        other
+            .sign_up_email("Other", "other@example.test", "other-password-1")
+            .expect("sign up other");
+        let to_all = server.publish_notice(
+            None,
+            json!({ "zh": { "title": "维护", "body": "今晚十点" }, "en": { "title": "Maintenance", "body": "Tonight at ten" } }),
+            Some("https://drifting.example/status"),
+        );
+        let to_reader = server.publish_notice(
+            Some("reader@example.test"),
+            json!({ "zh": { "title": "回复你的反馈", "body": "" } }),
+            None,
+        );
+
+        let NoticesEndpoint::Supported(got) = svc.read_notices().expect("read") else {
+            panic!("the fake service has notices");
+        };
+        let ids: Vec<_> = got
+            .notices
+            .iter()
+            .map(|n| (n.id.clone(), n.personal))
+            .collect();
+        assert_eq!(ids, [(to_all.clone(), false), (to_reader, true)]);
+        assert_eq!(got.notices[0].text_for("zh-CN").unwrap().body, "今晚十点");
+        assert_eq!(got.notices[0].text_for("en").unwrap().title, "Maintenance");
+        assert_eq!(
+            got.notices[0].link.as_deref(),
+            Some("https://drifting.example/status")
+        );
+        assert_eq!(got.read_through, 0);
+        assert_eq!(got.refresh_after, std::time::Duration::from_secs(60));
+        let NoticesEndpoint::Supported(theirs) = other.read_notices().expect("read other") else {
+            panic!("the fake service has notices");
+        };
+        assert_eq!(
+            theirs.notices.iter().map(|n| &n.id).collect::<Vec<_>>(),
+            [&to_all],
+            "a notice to one account is that account's alone"
+        );
+
+        // The mark rises, never goes back, never passes the newest notice.
+        assert_eq!(
+            svc.mark_notices_read(1).unwrap(),
+            NoticesEndpoint::Supported(1)
+        );
+        assert_eq!(
+            svc.mark_notices_read(0).unwrap(),
+            NoticesEndpoint::Supported(1)
+        );
+        assert_eq!(
+            svc.mark_notices_read(99).unwrap(),
+            NoticesEndpoint::Supported(2)
+        );
+        assert_eq!(server.notice_read_through("reader@example.test"), 2);
+        assert_eq!(server.notice_read_through("other@example.test"), 0);
+        assert_eq!(server.requests_to("POST", NOTICES_READ_PATH), 3);
+
+        // Malformed and oversized answers are refused whole.
+        let secret_words = "operator words that must not reach an error";
+        for body in [
+            format!("{{\"notices\": \"{secret_words}\"}}"),
+            format!("<html>{secret_words}</html>"),
+            format!(
+                "{{\"notices\": [], \"pad\": \"{}\"}}",
+                "x".repeat(MAX_RESPONSE_BYTES as usize)
+            ),
+        ] {
+            server.set_notices_body(Some(body));
+            let err = svc.read_notices().expect_err("refused");
+            assert_eq!(err.code, AccountErrorCode::Unknown);
+            assert!(!err.message.contains(secret_words), "{}", err.message);
+        }
+        server.set_notices_body(None);
+
+        // A failing service: the status, not its words.
+        server.set_notices_failure(Some(500));
+        let err = svc.read_notices().expect_err("failing");
+        assert_eq!(
+            (err.code, err.status),
+            (AccountErrorCode::Unknown, Some(500))
+        );
+        assert!(!err.message.contains("Notices unavailable"));
+        server.set_notices_failure(None);
+
+        // A service without the routes.
+        server.set_notices_supported(false);
+        assert_eq!(svc.read_notices().unwrap(), NoticesEndpoint::Unsupported);
+        assert_eq!(
+            svc.mark_notices_read(2).unwrap(),
+            NoticesEndpoint::Unsupported
+        );
+        server.set_notices_supported(true);
+
+        // A refused session.
+        server.expire_token(&svc.current_token().unwrap());
+        let err = svc.read_notices().expect_err("refused session");
+        assert_eq!(
+            (err.code, err.status),
+            (AccountErrorCode::Unauthorized, Some(401))
+        );
+    }
+
     #[test]
     fn preference_sync_lww_future_clock_clamping_and_404_unsupported() {
         use serde_json::json;
@@ -630,5 +785,126 @@ mod tests {
             .expect("404 must not error");
         assert!(!out_unsupported.supported);
         assert!(out_unsupported.applied.is_empty());
+    }
+
+    /// M37 with another client's names in the bag (the 0.1 client's,
+    /// `m10-import.md` 「0.1 的设置、快捷键和工作记忆」): its value stands in
+    /// only for a key that holds no change, the newest change still wins,
+    /// and its own entries are never written.
+    #[test]
+    fn another_clients_value_stands_in_for_a_key_without_a_change_and_is_left_alone() {
+        use serde_json::json;
+        use std::collections::BTreeMap;
+
+        let server = FakeAuthServer::start();
+        server.set_require_signup_verification(false);
+        server.set_server_clock(Some("2026-11-21T12:00:00.000Z"));
+        let tmp = TempDir::new().expect("tempdir");
+        let svc = AccountService::new(
+            server.config(),
+            tmp.path(),
+            "cc.drifting.next.dev",
+            Arc::new(SecretStore::in_memory()),
+        )
+        .expect("svc");
+        svc.sign_up_email("Writer", "adopt@example.test", "adopt-password-123")
+            .expect("sign up");
+        let origin = server.origin();
+        let token = svc.current_token().expect("token");
+        let write = |key: &str, value: serde_json::Value, at: &str| PreferenceWrite {
+            key: key.into(),
+            value,
+            changed_at: at.into(),
+        };
+        let october = "2026-10-01T08:00:00.000Z";
+        // What the other client wrote under its own names, and a seed and a
+        // real change of this client's.
+        svc.client()
+            .put_preferences(
+                &origin,
+                &token,
+                &[
+                    write("old.theme", json!("dark"), october),
+                    write("old.size", json!(19), october),
+                    write("old.width", json!(840), UNCHANGED_AT),
+                    write("old.spacing", json!(2.0), october),
+                    write("theme", json!("system"), UNCHANGED_AT),
+                    write("spacing", json!(1.2), "2026-11-01T08:00:00.000Z"),
+                ],
+            )
+            .expect("seed the bag");
+        let theirs = |bag: &BTreeMap<String, RemotePreference>| -> String {
+            serde_json::to_string(
+                &bag.iter()
+                    .filter(|(k, _)| k.starts_with("old."))
+                    .collect::<BTreeMap<_, _>>(),
+            )
+            .unwrap()
+        };
+        let before = theirs(&server.preferences_for("adopt@example.test"));
+        let adopt = |key: &str, bag: &BTreeMap<String, RemotePreference>| {
+            bag.get(&format!("old.{key}")).cloned()
+        };
+        let keys = ["theme", "size", "width", "spacing"];
+        let local = BTreeMap::from([
+            ("theme".to_string(), json!("system")),
+            ("size".to_string(), json!(22)),
+            ("width".to_string(), json!(720)),
+            ("spacing".to_string(), json!(1.0)),
+        ]);
+        let mut ledger = PreferenceLedger::default();
+        ledger.entries.insert(
+            "size".into(),
+            PreferenceLedgerEntry {
+                changed_at: "2026-11-20T08:00:00.000Z".into(),
+                pending: true,
+            },
+        );
+        let out = svc
+            .sync_preferences_adopting(&keys, &local, &ledger, &adopt)
+            .expect("sync");
+        assert!(out.supported);
+        // A seed loses to the other client's change; a newer change here
+        // wins; an untouched seed of theirs is no change; a change of ours
+        // is never replaced.
+        assert_eq!(out.applied.get("theme"), Some(&json!("dark")));
+        assert_eq!(out.ledger.entries["theme"].changed_at, october);
+        assert!(!out.applied.contains_key("size"));
+        assert!(!out.applied.contains_key("width"));
+        assert_eq!(out.applied.get("spacing"), Some(&json!(1.2)));
+        let bag = server.preferences_for("adopt@example.test");
+        assert_eq!(bag["theme"].value, json!("dark"));
+        assert_eq!(bag["theme"].changed_at, october);
+        assert_eq!(bag["size"].value, json!(22));
+        assert_eq!(bag["width"].value, json!(720));
+        assert_eq!(
+            theirs(&bag),
+            before,
+            "the other client's entries as they were"
+        );
+
+        // Taken once: a later change of theirs is no longer adopted, the key
+        // holds a change now.
+        svc.client()
+            .put_preferences(
+                &origin,
+                &token,
+                &[write(
+                    "old.theme",
+                    json!("light"),
+                    "2026-11-10T08:00:00.000Z",
+                )],
+            )
+            .expect("a later change of theirs");
+        let mut local = local;
+        local.insert("theme".into(), json!("dark"));
+        let again = svc
+            .sync_preferences_adopting(&keys, &local, &out.ledger, &adopt)
+            .expect("sync again");
+        assert_eq!(again.applied.get("theme"), Some(&json!("dark")));
+        assert_eq!(
+            server.preferences_for("adopt@example.test")["theme"].value,
+            json!("dark")
+        );
     }
 }

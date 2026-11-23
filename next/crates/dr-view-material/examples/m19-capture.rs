@@ -110,7 +110,10 @@ fn region(
     region: Value,
     body: &str,
 ) -> Result<String> {
-    let origin = if kind == "todo" { "marker" } else { "manual" };
+    // `marker` comments are only projected from prose now (`comment.create`
+    // refuses them), so the to-do region is written as a manual one too.
+    let _ = kind;
+    let origin = "manual";
     let snapshot = dr_shell::book::Book::load(ws, book)?;
     let item = snapshot
         .material_info(on)
@@ -354,7 +357,7 @@ fn layout(ws: &mut Workspace, window: &mut gpui::Window, cx: &mut Context<Worksp
     ws.left.width = 220.0;
     ws.left.reveal.set(1.0);
     ws.right.reveal.set(0.0);
-    ws.left.panes = dr_shell::panes::Panes::single(LeftTab::Chapters);
+    ws.left.panes = dr_shell::panes::Panes::single(LeftTab::Structure);
     ws.dock_locked = true;
 }
 
@@ -594,11 +597,74 @@ fn run(modules: PathBuf) -> Result<()> {
         });
         h.still()?;
     }
+
+    // An iPhone photo as a 0.1 import leaves it: its HEIC source in the
+    // asset library, no display copy or thumbnail. Added after the shots
+    // above so they stay as they were.
+    let heic = legacy_heic(&lib, &book)?;
+    h.wait(|ws, _| ws.book.v3().unwrap().materials.len() >= 5)?;
+    let heic_target = Target::Material(heic.parse().map_err(|_| anyhow!("material id"))?);
+    for appearance in [Appearance::Light, Appearance::Dark] {
+        let a = appearance.slug();
+        h.cx.update(|cx| theme::force_appearance(Some(appearance), cx));
+        // Open beside the 素材库 tab: the picture (or the line saying it
+        // cannot be shown) and its row's thumbnail (or stand-in).
+        h.set(|ws, window, cx| {
+            library_layout(ws, window, cx);
+            ws.open(heic_target.clone(), Open::KEEP, cx);
+        });
+        let t = heic_target.clone();
+        h.wait(move |ws, cx| {
+            ws.module_page(&t)
+                .cloned()
+                .and_then(|v| v.downcast::<MediaPage>().ok())
+                .is_some_and(|p| {
+                    let p = p.read(cx);
+                    p.ready() || p.trouble().is_some()
+                })
+        })?;
+        h.pointer(W - 10.0, H - 10.0, None);
+        h.still()?;
+        h.save(&dir, &format!("heic-{a}.png"))?;
+    }
     println!(
         "image page open → picture shown: {image_ms:.1} ms; PDF page open → first page: \
          {pdf_ms:.1} ms; page turn → rendered: {turn_ms:.1} ms"
     );
     Ok(())
+}
+
+/// A HEIC material the way the 0.1 import writes one: the source copied
+/// into the asset library and recorded, nothing derived. Returns its id.
+fn legacy_heic(ws: &dr_workspace::Workspace, book: &str) -> Result<String> {
+    let bytes = dr_testkit::media::HEIC;
+    let staging = tempfile::tempdir()?;
+    let path = staging.path().join("source.heic");
+    std::fs::write(&path, bytes)?;
+    let asset = dr_model::id::new_uuid_v7();
+    ws.library().import_asset(&dr_store::asset::SourceImport {
+        book_id: book,
+        asset_id: &asset,
+        source: &path,
+        mime: "image/heic",
+        ext: "heic",
+        dimensions: Some((600, 400)),
+        limit: dr_store::asset::MAX_COPY_BYTES,
+    })?;
+    let source = ws
+        .library()
+        .asset(&asset, dr_store::asset::Variant::Source)?
+        .ok_or_else(|| anyhow!("the source"))?;
+    out(
+        ws,
+        "asset.put",
+        json!({
+            "book": book, "id": asset, "name": "IMG_0412", "kind": "image",
+            "mime": "image/heic", "size": bytes.len() as i64, "sha256": source.sha256,
+            "width": 600, "height": 400,
+        }),
+    )?;
+    Ok(asset)
 }
 
 fn main() -> Result<()> {

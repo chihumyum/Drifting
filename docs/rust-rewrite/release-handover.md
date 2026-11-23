@@ -32,9 +32,9 @@
 
 | | macOS | Windows |
 | --- | --- | --- |
-| 0.1 的文件夹：新版除了 `mcp/` 什么都不写，导入时从这里找旧书 | `~/Library/Application Support/cc.drifting.client` | `%LOCALAPPDATA%\cc.drifting.client` |
+| 0.1 的文件夹：新版除了 MCP 状态（根上的 `mcp/` 和各书库的 `libraries/<id>/mcp/`）什么都不写，导入时从这里找旧书 | `~/Library/Application Support/cc.drifting.client` | `%LOCALAPPDATA%\cc.drifting.client` |
 | 新版自己的东西：书库登记表、书库、设备身份、设置、下载的更新、崩溃记录 | `~/Library/Application Support/cc.drifting.client.v2` | `%LOCALAPPDATA%\cc.drifting.client.v2` |
-| 两版共用、留在原处的 | 0.1 文件夹里的 `mcp/`（外部 Agent 的连接文件，路径已经写在作者的 Codex、Claude Code 配置里） | 同左 |
+| 两版共用、留在原处的 | 外部 Agent 的连接文件，路径已经写在作者的 Codex、Claude Code 配置里。0.1 是按书库放的：注册表以前的那个书库在 0.1 文件夹根上的 `mcp/`（新版把它当自己的文件夹，开着哪个书库都能用），本机书库和账号书库在各自的 `libraries/<id>/mcp/`（2026-11-21 起新版照原样一并接上，只在新版打开的是它主人的书库时看得到书；之前这两种在新版里连不上）。见 [m32 的「0.1 各书库的外部 Agent 连接」](modules/m32-mcp.md#01-各书库的外部-agent-连接2026-11-21)，那里还有三条待作者定的 | 同左；Windows 上新版每次启动换端口，并把新端口写进这些连接文件 |
 | 日志 | `~/Library/Logs/cc.drifting.client` | `%LOCALAPPDATA%\cc.drifting.client.v2\logs` |
 
 为什么放在「旁边」而不是 0.1 文件夹「里面」的子文件夹：0.1 最常见的本地书库，它的根就是整个 0.1 文件夹；导入有一道保护，不许把导入结果放进来源书库的里面。放在里面的话，最常见的那种旧书库会被拒绝导入（也试过，报 `reimport requires a new destination`）。
@@ -48,7 +48,7 @@
 | 步 | 谁 | 做什么 | 要什么 |
 | --- | --- | --- | --- |
 | 0 | ~~作者~~ | ~~先定「要作者定的事」那几条~~ 2026-11-20 都定了，见下面「作者定了的事」 | — |
-| 1 | 作者 | 在仓库 Settings › Secrets and variables › Actions 里加新变量（已有的证书、公证、更新钥匙、Hosted 地址都不用动，0.1 的发布已经在用；证书必须就是 0.1 在用的那张 Developer ID，同一个团队，钥匙串里的登录和 API Key 才读得到、不弹框） | `DRIFTING_LAST_V1_TAG`：最后一个 0.1 Release 的标签，现在是 `v0.1.0-alpha.12`。要开崩溃上报再加 `DRIFTING_SENTRY_DSN`、`SENTRY_ORG`、`SENTRY_PROJECT`（变量）和 `SENTRY_AUTH_TOKEN`（`release` 环境的密钥）；整张表在工作流文件开头 |
+| 1 | 作者 | 在仓库 Settings › Secrets and variables › Actions 里加新变量（已有的证书、公证、更新钥匙、Hosted 地址都不用动，0.1 的发布已经在用；证书必须就是 0.1 在用的那张 Developer ID，同一个团队，钥匙串里的登录和 API Key 才读得到、不弹框） | `DRIFTING_LAST_V1_TAG`：最后一个 0.1 Release 的标签。变量 2026-11-21 已经加了，值是 `v0.1.0-alpha.12`；0.1 之后又发到了 `alpha.14`，交接前改成那时最后一个 0.1 的标签。要开崩溃上报再加 `DRIFTING_SENTRY_DSN`、`SENTRY_ORG`、`SENTRY_PROJECT`（变量）和 `SENTRY_AUTH_TOKEN`（`release` 环境的密钥）；整张表在工作流文件开头 |
 | 2 | ~~作者~~ 监管会话 | ~~本机装 Metal Toolchain，打一个预编译着色器的开发包看一眼~~ 作者 2026-11-20 同意装，当天装了、验过，见下面「验证预编译着色器」 | — |
 | 3 | 作者 + 监管会话 | 真实条件下的验收（[progress.md](progress.md)「等作者的事」第 3、4 条），尤其导入自己的 0.1 库；Windows 实机手测挡发布，在 ARM 虚拟机里用 CI 产物里的开发身份安装包照 [m43 的清单](modules/m43-windows.md)走（见「Windows 这一半」） | CI 产物、Windows 11 ARM 虚拟机 |
 | 4 | 监管会话 | 改版本号 `next/app/drifting/Cargo.toml` → `0.2.0`；写发布说明 `docs/releases/0.2.0.md`（第一行 `# Drifting 0.2.0`，先中文后英文，纯文本） | — |
@@ -114,7 +114,7 @@ cargo xtask check-binary --precompiled-shaders "target/bundle/Drifting Next.app/
 | --- | --- | --- |
 | 安装包 | NSIS，`next/script/bundle-windows.ps1 -BuildProfile dist -Target <x86_64 或 aarch64>-pc-windows-msvc -ReleaseIdentity`，出 `Drifting_<版本>_windows_x64-setup.exe` 和 `…_arm64-setup.exe`。不要管理员权限，装到当前用户下 | 工作流里每个架构一个任务；开发身份的安装包 CI 每次都打、装一遍、升级一遍、卸一遍（`check-windows-installer.ps1`） |
 | 从 0.1 原位升级 | 0.1 最后一版的更新器下载新安装包、验签，用 `/P /R /UPDATE /ARGS` 运行它，自己马上退出。新安装器装进**同一个**文件夹 `%LOCALAPPDATA%\Drifting`（之前装在别处的，按 `HKCU\Software\drifting\Drifting` 记下的位置），改写同一个卸载项（「已安装的应用」里还是一个 Drifting）、同一个 `drifting:` 协议键；最多等旧进程 10 秒，被动模式下再结束本用户残留的同名进程；`/UPDATE` 时不动开始菜单和任务栏上已有的固定；装完把新版打开 | 安装位置、卸载项、厂商键、协议、`/P /UPDATE` 都对着旧版 Tauri 安装器写的，CI 上验过开发身份那一套；**正式身份的安装包没在 Windows 上打过**，从 0.1 真升级一次是实机验收（m43 清单第一节最后一条） |
-| 数据 | 0.1 的 `%LOCALAPPDATA%\cc.drifting.client`（书库、登记表、WebView2 的 `EBWebView/`）新版除了 `mcp/` 不写；新版自己的东西在 `%LOCALAPPDATA%\cc.drifting.client.v2`，日志在它的 `logs\`；程序在 `%LOCALAPPDATA%\Drifting`，卸载只删程序自己的文件，书不在那里 | 测试按 Windows 的规则也跑一遍（不管在哪个系统上跑），含程序文件夹不被碰 |
+| 数据 | 0.1 的 `%LOCALAPPDATA%\cc.drifting.client`（书库、登记表、WebView2 的 `EBWebView/`）新版除了 MCP 状态（`mcp\` 和 `libraries\<id>\mcp\`）不写；新版自己的东西在 `%LOCALAPPDATA%\cc.drifting.client.v2`，日志在它的 `logs\`；程序在 `%LOCALAPPDATA%\Drifting`，卸载只删程序自己的文件，书不在那里 | 测试按 Windows 的规则也跑一遍（不管在哪个系统上跑），含程序文件夹不被碰 |
 | 更新签名 | Windows 的更新包就是安装包本身：`update-tool sign` 用同一把 minisign 私钥签出 `-setup.exe.sig`，签名里带文件名（含版本号），`update.json` 的 Windows 两个键指向安装包和它的签名 | 工作流里签完立刻用公钥验一次 |
 | 代码签名（Authenticode） | **作者 2026-11-20 定：不签，照 0.1**。不签时第一次运行 SmartScreen 会提示「Windows 已保护你的电脑」（点「更多信息」→「仍要运行」），发布说明里照 0.1 写一句；更新照样由 minisign 签名保证。要签得买代码签名证书，工作流里在「Sign the installer with the updater key」前面加一步 | 不签 |
 | 实机验收 | 作者只有一台 Windows 11 ARM 虚拟机：开发身份的安装包从 `next` 工作流每次运行的产物里下（`windows-installer` 任务打的 `drifting-next-windows-arm64-<提交号>`，x64 的叫 `…-windows-x64-…`；`dist` 档，留 7 天），照 [m43-windows.md](modules/m43-windows.md) 的清单走。2026-11-21 监管会话先用脚本走了一遍（装、启动、单实例、深链接、通知区收起和唤回、原地更新），查出两处启动不了的问题并修了，见 m43 的「第一次在干净的 Windows 上装和启动」；修好的包还没重验，通知区、微软拼音、观感等要作者点 | **挡发布**（progress「等作者的事」第 3 条） |
@@ -143,6 +143,25 @@ cargo xtask check-binary --precompiled-shaders "target/bundle/Drifting Next.app/
 - **客户端没有做这件事的界面。** 开发版最简单：换一个 `--instance` 名字，就是一套全新的数据文件夹。正式版只能手动处理新版的数据文件夹，这条路没演练过；要对别人的账号用之前，先在开发版上完整走一遍。
 - 以后要让它对任何账号都安全，得给同步协议加一个重置代号，让留着旧书库的设备被明确拒绝。服务端已有的能力协商（缺能力的客户端收到「需要升级」）可以在发版以后再加这一项，不必赶在 0.2.0 之前。做法记在服务端 `docs/loro-sync-v2.md` 的「Operator reset」末尾。
 - 第一个用到它的多半是作者自己试账号迁移的时候。
+
+## 作者自己试迁移（开发身份的包，2026-11-21）
+
+不用等正式包：开发身份的优化包可以直接拿 0.1 的资料库试导入，只读 0.1 的文件夹，装着的 0.1 不受影响。
+
+1. 打包（在 `next/` 下）：`script/bundle-mac --dist --precompiled-shaders`，产物是 `next/target/bundle/Drifting Next.app`。2026-11-21 停下时那里放着 `490d8bf5` 的包；重新编译会覆盖它。
+2. 先退出 0.1，再这样开（一个新的、不登录的本机库，可以反复导）：
+
+   ```bash
+   DRIFTING_PROFILE=migrate-trial-1 DRIFTING_APP_DATA_DIR="$HOME/Library/Application Support/cc.drifting.client" "next/target/bundle/Drifting Next.app/Contents/MacOS/drifting"
+   ```
+
+   开发版默认不看 0.1 的文件夹，所以要用 `DRIFTING_APP_DATA_DIR` 指过去；`DRIFTING_PROFILE` 换一个名字就是另一份全新的资料库（想重来就换名字）。
+3. 第一次显示「全部项目」时导入列表会自己弹出来。作者的 0.1 资料库是账号库；不登录时走的是「导入到新库」，不占账号那一次机会。登录以后的那条路每个账号只能导一次，导坏了见上面「导坏了怎么重来」。
+4. 导完值得看的：每一章的「快照历史」里有没有 0.1 的旧快照、Agent 栏「历史」里的「Drifting 0.1」、导入完成对话框里「有 N 处和旧版不完全一样」那一行、时间线、素材库、批注。
+
+## 第一个带迁移的版本发布之前
+
+- 资料库打不开那一页（[F6 的「资料库打不开时」](foundations/f6-shell.md#资料库打不开时2026-11-21作者定)）要给「升级后打不开」那种加上「从升级前的快照恢复」（存储层的 `Library::recovery_receipts`、`restore_from_receipt` 已经有了，作者 2026-11-21 定 0.2.0 先不给）。0.2.0 本身不带要升级的迁移，用不上它。
 
 ## 本机演练（2026-11-20）
 

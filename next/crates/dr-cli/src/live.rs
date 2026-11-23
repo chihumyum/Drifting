@@ -370,13 +370,17 @@ impl Backend for Session {
         }
 
         let stamped = match kind {
-            "sample" | "sample-v3" | "sample-v3-association" => true,
+            "sample"
+            | "sample-v3"
+            | "sample-v3-association"
+            | "sample-v3-conversations"
+            | "sample-v3-differences" => true,
             "sample-stale" => false,
             other => {
                 return Err(StepError::new(
                     "bad_request",
                     format!(
-                        "legacy {other}: sample, sample-v3, sample-v3-association or sample-stale"
+                        "legacy {other}: sample, sample-v3, sample-v3-association, sample-v3-conversations, sample-v3-differences or sample-stale"
                     ),
                 ));
             }
@@ -384,17 +388,24 @@ impl Backend for Session {
         let old = match kind {
             "sample-v3" => legacy_fixture::build_v3(stamped),
             "sample-v3-association" => legacy_fixture::v3_fixture::build_associations(false),
+            // M31 「0.1 的旧对话」: sample-v3 with 0.1 Agent conversations.
+            "sample-v3-conversations" => legacy_fixture::conversations::build_v3(stamped),
+            // Something of each kind summary.md lists as not quite the same
+            // as in 0.1, in two books (`build_differences`).
+            "sample-v3-differences" => legacy_fixture::build_differences(),
             _ => legacy_fixture::build(stamped),
         };
+        let v3 = matches!(kind, "sample-v3" | "sample-v3-conversations");
         let out = json!({
             "source_files": fixture_files(&old.root)?,
-            "choices": if kind == "sample-v3" { serde_json::to_value(legacy_fixture::v3_choices()).map_err(io)? } else { Value::Null },
+            "choices": if v3 { serde_json::to_value(legacy_fixture::v3_choices()).map_err(io)? } else { Value::Null },
             "root": old.root.display().to_string(),
             "db": old.db.display().to_string(),
             "book": legacy_fixture::BOOK,
             "name": "阿Q正传",
             "chapter": legacy_fixture::CHAPTER,
             "element": legacy_fixture::ELEMENT,
+            "second_book": if kind == "sample-v3-differences" { Value::from(legacy_fixture::SECOND_BOOK) } else { Value::Null },
         });
         if self.keep {
             self.notes

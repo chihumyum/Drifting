@@ -15,7 +15,7 @@ use dr_i18n::keys;
 use dr_import_v1::gate::{Accept, Gate, Reason};
 use dr_import_v1::locate::{self, Owner, Picked};
 use dr_import_v1::progress::Progress;
-use dr_import_v1::receipt::{Receipt, Unfinished};
+use dr_import_v1::receipt::{Difference, Receipt, Unfinished};
 use dr_import_v1::run::Cancel;
 use dr_import_v1::{
     ImportError,
@@ -145,6 +145,21 @@ pub struct DoneBook {
     /// The live chapters' words, as the bookshelf counts them; `None` for a
     /// book that is in Recently Deleted (or was not read).
     pub words: Option<u64>,
+    /// What is not quite the same as in 0.1, as its summary.md says it
+    /// (`receipt::differences`, the lines that read the same merged), read
+    /// from the book's receipt record; empty for a book not imported.
+    pub differences: Vec<Difference>,
+}
+
+impl Done {
+    /// How many places differ from 0.1 in all the books: the done dialog's
+    /// 「有 N 处和旧版不完全一样」, the sum of what its list shows.
+    pub fn differences(&self) -> usize {
+        self.books
+            .iter()
+            .map(|b| dr_import_v1::receipt::total(&b.differences))
+            .sum()
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -190,6 +205,9 @@ pub struct LegacyImport {
     /// The window an offer came from while the library was being swapped:
     /// made again once the swap is over ([`Self::offer_again`]).
     offer_waits: Option<AnyWindowHandle>,
+    /// The done dialog's list of what differs from 0.1 is open (its line
+    /// was pressed). Closed again for each import and each dialog.
+    differences_open: bool,
 }
 
 impl LegacyImport {
@@ -209,6 +227,23 @@ impl LegacyImport {
             reminders: Vec::new(),
             offering: None,
             offer_waits: None,
+            differences_open: false,
+        }
+    }
+
+    /// Whether the done dialog lists what differs from 0.1 by book.
+    pub fn differences_open(&self) -> bool {
+        self.differences_open
+    }
+
+    /// The done dialog's 「有 N 处和旧版不完全一样」: opens or closes its
+    /// list. Only there, and only when something differs.
+    pub fn toggle_differences(&mut self, cx: &mut Context<Self>) {
+        if let State::Done(done) = &self.state
+            && done.differences() > 0
+        {
+            self.differences_open = !self.differences_open;
+            cx.notify();
         }
     }
 
@@ -673,6 +708,7 @@ impl LegacyImport {
 
     fn close_now(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.state = State::Idle;
+        self.differences_open = false;
         self.task = None;
         if let Some(back) = self.restore.take() {
             window.focus(&back, cx);
@@ -686,6 +722,7 @@ impl LegacyImport {
     pub fn show(&mut self, state: State, window: &mut Window, cx: &mut Context<Self>) {
         self.task = None;
         self.state = state;
+        self.differences_open = false;
         self.take_focus(window, cx);
         cx.notify();
     }
@@ -766,6 +803,7 @@ impl LegacyImport {
             }
         };
         self.cancel = Cancel::default();
+        self.differences_open = false;
         let cancel = self.cancel.clone();
         let (tx, mut rx) = futures::channel::mpsc::unbounded::<Msg>();
         self.worker_live.store(true, Ordering::Release);
@@ -808,6 +846,16 @@ impl LegacyImport {
                                     .map_err(|e| e.to_string())
                                 }) {
                                 Ok(ws) => {
+                                    // Each book's 0.1 working memory, where the
+                                    // book has none here (never over one).
+                                    if let Err(error) = dr_import_v1::carry::carry_working_memory(
+                                        ws.library(),
+                                        &job.target(),
+                                    ) {
+                                        log::warn!(
+                                            "the 0.1 working memories did not come over: {error}"
+                                        );
+                                    }
                                     let done =
                                         summary(&ws, folder, &picked, &receipt, timing.total_ms);
                                     match ws.try_shutdown() {
@@ -1006,6 +1054,7 @@ impl LegacyImport {
                 // Release hooks only settle already finished work; the long
                 // cancellable import above ran with ordinary UI admission.
                 let commit = job.clone();
+                let root = job.target();
                 dr_shell::library::replace_with_commit(
                     cx,
                     move |old, options| job.open_target(old, options),
@@ -1015,6 +1064,9 @@ impl LegacyImport {
                         // and sync connects to it.
                         if result.is_ok() {
                             dr_view_account::follow_library_registry(cx);
+                            // The 0.1 settings and shortcuts of this device,
+                            // once per device.
+                            crate::carry::adopt_settings(&root, cx);
                         }
                         this.update(cx, |import, cx| {
                             import.state = match result {
@@ -1289,6 +1341,7 @@ fn summary(
             name: b.name.clone(),
             status: b.status.clone(),
             words: words(&b.book_id),
+            differences: dr_import_v1::receipt::merged(dr_import_v1::receipt::differences(b)),
         })
         .collect();
     let imported: HashSet<&str> = receipt

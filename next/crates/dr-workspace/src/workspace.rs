@@ -1386,6 +1386,40 @@ impl Workspace {
         Ok((purged, assets.len()))
     }
 
+    /// Close this workspace's slots of the prose documents `docs`, about to
+    /// be deleted for good (`entry.purge`). Readers finishing a query may
+    /// hold one for a moment; one still held after that (an editor has it)
+    /// refuses the whole call before any slot is closed (`Conflict`).
+    pub(crate) fn release_prose_docs(&self, docs: &[DocId]) -> Result<()> {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+        loop {
+            let busy = {
+                let p = lock(&self.inner.prose);
+                docs.iter()
+                    .any(|d| p.map.get(d).is_some_and(|(_, s)| Arc::strong_count(s) > 1))
+            };
+            if !busy {
+                break;
+            }
+            if std::time::Instant::now() >= deadline {
+                return Err(WsError::Conflict(
+                    "the entry is open in an editor; close it first".into(),
+                ));
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        let slots: Vec<Arc<ProseSlot>> = {
+            let mut p = lock(&self.inner.prose);
+            docs.iter()
+                .filter_map(|d| p.map.remove(d).map(|(_, s)| s))
+                .collect()
+        };
+        for s in slots {
+            unwrap_slot(s, deadline, |s| s.handle)?.close();
+        }
+        Ok(())
+    }
+
     /// Runs `f` holding `book`'s write lease, the one every `Write, Book`
     /// command and book metadata sync import hold: such writers wait until `f`
     /// returns, and a command `f` runs itself takes it again (the lease is

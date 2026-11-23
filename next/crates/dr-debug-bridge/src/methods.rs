@@ -452,7 +452,9 @@ fn import_state(import: &dr_view_import::LegacyImport) -> Value {
         State::Blocked(_) => json!({"phase":"blocked"}),
         State::Switching(_) => json!({"phase":"switching"}),
         State::Done(d) => {
-            json!({"phase":"done","cancelled":d.cancelled,"books":d.books.iter().map(|b|json!({"id":b.id,"status":b.status,"words":b.words})).collect::<Vec<_>>()})
+            // What differs from 0.1: the dialog's total, whether its list is
+            // open, and each book's lines (sentence key, count, codes).
+            json!({"phase":"done","cancelled":d.cancelled,"differences":{"total":d.differences(),"open":import.differences_open()},"books":d.books.iter().map(|b|json!({"id":b.id,"status":b.status,"words":b.words,"differing":b.differences.iter().map(|l|l.count).sum::<usize>(),"differences":b.differences.iter().map(|l|json!({"sentence":l.sentence.name(),"count":l.count,"counted":l.counted,"codes":l.codes})).collect::<Vec<_>>()})).collect::<Vec<_>>()})
         }
         State::Failed(f) => json!({"phase":"failed","message":f.message}),
     };
@@ -972,6 +974,9 @@ fn state_of(owner: gpui::EntityId, ws: &Workspace, window: &Window, cx: &App) ->
         });
     json!({
         "library": ws.library.is_some(),
+        // The library could not be opened at start-up: the page that says
+        // so shows instead of the bookshelf.
+        "libraryFailure": ws.library_failure(cx).map(|f| json!({"cause": f.cause.slug(), "code": f.code})),
         "import": dr_view_import::importer(cx).map(|i|import_state(i.read(cx))),
         "book": {
             "id": ws.book_id, "name": book.name,

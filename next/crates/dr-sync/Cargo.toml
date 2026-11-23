@@ -10,6 +10,8 @@ description = "M36 Hosted Sync v2 object-log transport, Loro/asset engine and sy
 [dependencies]
 base64.workspace = true
 dr-account.workspace = true
+# The diagnostic summary's sync part (M39's feedback).
+dr-platform.workspace = true
 dr-store.workspace = true
 dr-workspace.workspace = true
 log.workspace = true

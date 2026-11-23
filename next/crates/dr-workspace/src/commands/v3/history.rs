@@ -68,6 +68,14 @@ fn restore(cx: &Cx<'_>, input: RestoreIn) -> Result<Vec<Done>> {
         match target.collection.as_str() {
             "entries" => {
                 let id: EntryId = pid("entry", &target.id)?;
+                if current.entry_raw(&id).is_none() && old.entry(&id).is_some() {
+                    // Only a purge takes an entry out of the book (here or
+                    // on another device, `entry.purge`): its bodies are gone
+                    // for good, so it is not brought back from history.
+                    // Not there any more (not a refusal to try again): an
+                    // undo step that would do this is retired.
+                    return Err(WsError::not_found("entry", id.to_string()));
+                }
                 if let Some(mut e) = old.entry(&id) {
                     let parent = e.parent.clone().filter(|p| {
                         entries.contains_key(p)

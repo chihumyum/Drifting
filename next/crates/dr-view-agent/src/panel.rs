@@ -50,6 +50,9 @@ use crate::{
 };
 
 mod continuity;
+mod old;
+
+pub use old::{EYEBROW, Results as HistoryResults};
 
 /// The conversation a book's Agent panel shows (the workspace's book memory).
 pub(crate) const MEMORY: &str = "agent.conversation";
@@ -99,6 +102,8 @@ pub struct AgentPanel {
     _signal: Option<Task<()>>,
     _subs: Vec<Subscription>,
     continuity: continuity::Continuity,
+    /// 「0.1 的旧对话」 and the search of 「历史」.
+    old: old::Old,
 }
 
 impl AgentPanel {
@@ -115,6 +120,7 @@ impl AgentPanel {
                 .placeholder(t(cx, k::composer::PLACEHOLDER))
         });
         let connect = cx.new(|cx| ConnectionView::new_companion(connections.clone(), window, cx));
+        let (old, old_field) = old::Old::new(window, cx);
         let mut panel = Self {
             ws,
             hub: hub.clone(),
@@ -143,8 +149,9 @@ impl AgentPanel {
             scroll: ScrollHandle::new(),
             _run_subscription: None,
             _signal: None,
-            _subs: Vec::new(),
+            _subs: vec![old_field],
             continuity: Default::default(),
+            old,
         };
         panel._subs.push(
             cx.subscribe_in(&composer, window, |panel, _, event, _, cx| {
@@ -266,6 +273,7 @@ impl AgentPanel {
         self.conversations.clear();
         self.starters = None;
         self.composer.update(cx, |field, cx| field.set_text("", cx));
+        self.reset_old(cx);
         self.invalidate();
         self.refresh(cx);
     }
@@ -275,6 +283,8 @@ impl AgentPanel {
         self._signal = None;
         self.close_memory(cx);
         self.controller = self.hub.read(cx).controller.clone();
+        // Another library may have its own archive (an import switches).
+        self.forget_old_list();
         self.invalidate();
         if let Some(controller) = &self.controller {
             let (send, mut receive) = mpsc::unbounded();
@@ -302,6 +312,7 @@ impl AgentPanel {
     }
 
     fn refresh(&mut self, cx: &mut Context<Self>) {
+        self.load_old(cx);
         if self.loading {
             self.again = true;
             return;
@@ -408,6 +419,7 @@ impl AgentPanel {
         self.fresh = true;
         self.snapshot = None;
         self.show_list = false;
+        self.old.leave();
         self.starters = None;
         self.error = None;
         self.expanded.clear();
@@ -426,6 +438,7 @@ impl AgentPanel {
         self.selected = Some(id);
         self.fresh = false;
         self.show_list = false;
+        self.old.leave();
         self.snapshot = None;
         self.error = None;
         self.expanded.clear();
@@ -463,6 +476,7 @@ impl AgentPanel {
         self.book.as_ref().map(BookId::as_str) == Some(book_id)
             && self.selected.as_ref() == Some(conversation_id)
             && !self.show_list
+            && !self.old.is_open()
             && self
                 .ws
                 .upgrade()
@@ -537,7 +551,11 @@ impl AgentPanel {
         self.composer.clone()
     }
     pub fn is_settled(&self) -> bool {
-        !self.busy && !self.loading && self.navigation.is_empty() && self.active().is_none()
+        !self.busy
+            && !self.loading
+            && self.navigation.is_empty()
+            && self.active().is_none()
+            && self.old.settled()
     }
     pub fn active(&self) -> Option<&RunSnapshot> {
         self.snapshot
@@ -549,6 +567,10 @@ impl AgentPanel {
     }
 
     pub fn send(&mut self, cx: &mut Context<Self>) {
+        // A 0.1 conversation is read only: nothing continues it.
+        if self.old.is_open() {
+            return;
+        }
         let text = self.composer.read(cx).text();
         if text.trim().is_empty() || self.busy || dr_shell::release::is_releasing(cx) {
             return;
@@ -1390,6 +1412,37 @@ impl Render for AgentPanel {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::of(window, cx);
         let p = theme.palette;
+        let root = div()
+            .id("agent-panel")
+            .tab_group()
+            .on_key_down(|event, window, cx| {
+                let modifiers = &event.keystroke.modifiers;
+                if event.keystroke.key == "tab"
+                    && !(modifiers.control
+                        || modifiers.alt
+                        || modifiers.platform
+                        || modifiers.function)
+                {
+                    cx.stop_propagation();
+                    if modifiers.shift {
+                        window.focus_prev(cx);
+                    } else {
+                        window.focus_next(cx);
+                    }
+                }
+            })
+            .size_full()
+            .flex()
+            .flex_col()
+            .min_h_0()
+            .min_w_0()
+            .font_role(Role::Ui)
+            .text_size(px(theme.scale.body))
+            .text_color(p.ink(1).solid());
+        // A 0.1 conversation is read only: no input block at all (四甲).
+        if self.old.is_open() {
+            return root.child(self.old_transcript(window, cx));
+        }
         let active = self.active().cloned();
         let empty = self
             .snapshot
@@ -1407,27 +1460,7 @@ impl Render for AgentPanel {
                 content = content.child(view.clone());
             }
         } else if self.show_list {
-            if self.conversations.is_empty() {
-                content = content.child(t(cx, k::history::EMPTY));
-            }
-            for (index, item) in self.conversations.iter().enumerate() {
-                let id = item.id.clone();
-                let title = if item.title.is_empty() {
-                    t(cx, k::history::UNTITLED)
-                } else {
-                    dr_shell::review_agent::clean_conversation_title(&item.title)
-                        .to_owned()
-                        .into()
-                };
-                content = content.child(
-                    Button::new(("agent-conversation", index), title)
-                        .text()
-                        .full_width()
-                        .on_click(cx.listener(move |panel, _, _, cx| {
-                            panel.select_conversation(id.clone(), cx)
-                        })),
-                );
-            }
+            content = content.child(self.history(window, cx));
         } else if empty {
             match onboarding::resolve_view(
                 onboarding::step(cx),
@@ -1630,52 +1663,25 @@ impl Render for AgentPanel {
                         .on_click(cx.listener(|panel, _, _, cx| panel.send(cx))),
                     ),
             );
-        div()
-            .id("agent-panel")
-            .tab_group()
-            .on_key_down(|event, window, cx| {
-                let modifiers = &event.keystroke.modifiers;
-                if event.keystroke.key == "tab"
-                    && !(modifiers.control
-                        || modifiers.alt
-                        || modifiers.platform
-                        || modifiers.function)
-                {
-                    cx.stop_propagation();
-                    if modifiers.shift {
-                        window.focus_prev(cx);
-                    } else {
-                        window.focus_next(cx);
-                    }
-                }
-            })
-            .size_full()
-            .flex()
-            .flex_col()
-            .min_h_0()
-            .min_w_0()
-            .font_role(Role::Ui)
-            .text_size(px(theme.scale.body))
-            .text_color(p.ink(1).solid())
-            .child(
+        root.child(
+            div()
+                .id("agent-transcript")
+                .flex_1()
+                .min_h_0()
+                .overflow_y_scroll()
+                .track_scroll(&self.scroll)
+                .p(px(14.))
+                .child(content),
+        )
+        .when_some(error, |el, error| {
+            el.child(
                 div()
-                    .id("agent-transcript")
-                    .flex_1()
-                    .min_h_0()
-                    .overflow_y_scroll()
-                    .track_scroll(&self.scroll)
-                    .p(px(14.))
-                    .child(content),
+                    .px(px(12.))
+                    .text_color(p.danger.solid())
+                    .child(text::wrapped(error)),
             )
-            .when_some(error, |el, error| {
-                el.child(
-                    div()
-                        .px(px(12.))
-                        .text_color(p.danger.solid())
-                        .child(text::wrapped(error)),
-                )
-            })
-            .child(footer)
+        })
+        .child(footer)
     }
 }
 
@@ -1698,6 +1704,10 @@ impl PanelHead {
 }
 impl Render for PanelHead {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // An opened 0.1 conversation: the back arrow and its title only.
+        if let Some(head) = old::head(&self.panel, window, cx) {
+            return head;
+        }
         if let Some(ret) = self.panel.read(cx).return_to_review().cloned() {
             let panel = self.panel.clone();
             let back_label = t(cx, dr_i18n::keys::v3_review::BACK_TO_REVIEW);
@@ -1725,7 +1735,8 @@ impl Render for PanelHead {
                         .truncate()
                         .text_color(p.ink(1).solid())
                         .child(ret.title),
-                );
+                )
+                .into_any_element();
         }
         let panel = self.panel.clone();
         let new = self.panel.clone();
@@ -1739,11 +1750,7 @@ impl Render for PanelHead {
                     .text()
                     .small()
                     .on_click(move |_, _, cx| {
-                        panel.update(cx, |p, cx| {
-                            p.show_list = !p.show_list;
-                            p.refresh(cx);
-                            cx.notify();
-                        })
+                        panel.update(cx, |p, cx| p.show_history(!p.show_list, cx))
                     }),
             )
             .child(
@@ -1752,5 +1759,6 @@ impl Render for PanelHead {
                     .small()
                     .on_click(move |_, _, cx| new.update(cx, |p, cx| p.new_conversation(cx))),
             )
+            .into_any_element()
     }
 }

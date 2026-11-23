@@ -6,6 +6,340 @@
 
 2026-11-07，第一、第二个里程碑；2026-11-08，第三个里程碑（导入界面）、第四个里程碑（认领身份、取消、自动找旧库、真窗口验收）和第五个里程碑（没导完的提醒、多窗口）；同日第六个里程碑（旧模版写成模版文档）。计划见 [modules.md 的 M10](../modules.md#阶段-2写作闭环)，依据是 [P0-E 的结论和规格草稿](../spikes/p0-e-import.md)。导入本身在 `next/crates/dr-import-v1/`（不依赖 GPUI，不依赖 yrs / Yjs），界面在 `next/crates/dr-view-import/`；旧版这一侧只改了交接（`src/renderer/services/v2-handoff/`，[docs/v2-handoff.md](../../v2-handoff.md)）。测量证据在 [acceptance/m10-m4-import.json](../acceptance/m10-m4-import.json)（F8 的新格式，第四个里程碑重测），截图在 [m10/](m10/)。
 
+## 0.1 的快照历史进条目的「快照历史」（2026-11-21）
+
+### 做了什么（大白话）
+
+- **起因。** 导入早就把 0.1 的每一行快照历史写进了新文档：正文的每一版用旧行的时间提交，打成存储层的历史标签；书目文档在对应的那一版上带着这一行的标题、梗概等字段（见下文「快照历史」）。可格式 5 的「快照历史」（条目悬停卡上那一项，`dr_view_history::EntryHistoryDialog`）读的不是这些标签，是 `checkpoints:<书>` 里的条目快照点。所以导入以后，每一章、每个要素的历史都是空的。当天早上在真窗口量的：真实 0.1 代码写出的库里 14 个对象、各 3 行历史，`entry_snapshot.list` 全是 0。
+- **现在。** 导入给每一行有正文版本的快照历史写一个条目快照点（`dr-import-v1/src/checkpoints.rs`）。对话框一行没改，就能列出来（时间是旧行的时间，标题是当时的标题）、预览、恢复。同一份真实 0.1 代码写出的库：42 行，42 个点，导入自己的核对 42 个都对，逐个恢复 42 个都成功。
+- 存储层的历史标签照旧写（见下文「快照历史」里「条目快照点」一节最后一条）。
+
+### 导入的点是什么、不是什么
+
+- **记了什么。** 条目是 0.1 对象变成的那个条目。时间是旧行的 `created_at`，标题是那一版书目里条目的标题。书目版本是带着这一行字段的那一版，就是历史标签记的那一版。正文：这一行回放出的那一版；条目别的正文 0.1 没留历史，用导入时的版本。
+- **恢复带回什么。** 这一行的正文，加上 0.1 在这一行旁边记的字段：章节和构想的标题、梗概、状态，要素的名字、别名、梗概、分组、事实，故事线的名字、梗概、事实，分类的名字，笔记的标题。恢复前照常先存一个「恢复前」的点，也能撤销。
+- **不带回什么。** 0.1 没记的东西，比如条目住在哪、在哪条故事线上、新版才有的字段和模块，在那一版里都是导入时的样子，恢复以后还是导入时的样子。0.1 自己恢复也不动它们。只有一点不同：导入以后在新版里改过这些，恢复导入的点会把它们放回导入时的样子。这和恢复任何一个更早的点一样，改过的样子在「恢复前」那个点里。
+- **分类的模板字段不跟着恢复。** 0.1 把它记在分类上；新版里它是这本书的条目模板，不归条目所有。新版的恢复本来就不动模板，预览里照样能看到当时的定义（m09「共享模板的历史定义只供预览」）。
+- **一行没带某个字段时**，那一版里这个字段是这个对象前面最近一行的值；前面没有，就是导入时的值。0.1 的快照服务从第一版起，同一种对象每一行都记同一组字段（对过 0.1 的源码历史），所以真实数据里只有导入的默认处理改过的行会这样：`incompatible-history-node-status` 去掉了状态，`unreadable-history-metadata` 整行字段不回放。测试库里有一行只带标题的章，是测这条规矩的，不是 0.1 写得出的样子。
+
+### 一处恢复不了的（等作者定）
+
+要素当时在 0.1 的某个分组里（比如「未庄」），而这个分组现在一个要素都没有了，导入完的书里也就没有这个分组。回放时那一版的书目里有它，所以恢复这样一个点时，`entry_snapshot.restore` 在写之前就拒绝（「parent … does not exist」，对话框显示「恢复失败」），什么都不改；预览照常。恢复任何一个住处已经不在的点都是这样。回执里记 `history-checkpoint-place-gone` 的个数。那份真实 0.1 代码写出的库里没有这种情况（要素都没分组）。
+
+要不要改成「住处不在了，就留在现在的地方，其余照常恢复」，是 m09 恢复规则的事，影响所有的点，这次没改。建议改：分组改名、拆掉在 0.1 里不少见，不改的话这些要素的旧点都只能看、不能恢复。
+
+### 测试
+
+| 测试 | 内容 |
+| --- | --- |
+| `tests/history_checkpoints.rs`（5） | 合成 0.1 库加了历史（`v3_fixture::build_history`：章两行加一行没预览、要素两行、构想、故事线两行（后一行和现在一样）、分类、笔记、最近删除里的章）：11 行，10 个点，1 行跳过并记进回执；每个条目的点、顺序、时间、标题、种类、正文清单、预览里的字和字段都逐个对；恢复章、故事线、构想、笔记、删掉的章、分类和分组还在的要素，正文和字段回来，住处和故事线不动，分类的模板不动，「恢复前」的点在最上面、能恢复回去；分组已不在的要素的旧点恢复被拒、什么都没改；后台补第一个点不碰有历史的条目，退出时存的点排在导入的点上面，和最近一行一样的故事线不多存，再存一次也不修剪导入的点；在回放历史时停、写完点以后停，两种续传都写出同样的 10 个点，后一种文档和停之前一样，续传以后能恢复；丢失检查数出 11 行，删掉一个点就点名那一行，回执里写了原因就算有交代 |
+| `tests/v3_import.rs`、`tests/import.rs`（改） | `compare` 原来断言 `checkpoints:<书>` 只有创世提交，改成：点和历史标签一一对上（时间、正文版本、书目版本），每个都站得住、指纹和历史内容相符，文档只有创世和导入者写过；零写作日的那一例同时删掉历史，照旧断言只有创世提交；两个新库各导一遍时 `checkpoints:<书>` 不再比字节，比清单除指纹和校验和以外的每一项，各自验指纹；照常修剪标签时点照样在；续传以后点的文档不变 |
+| `tests/catalog.rs`（改） | 多数一行 `entity_snapshot_history (checkpoint)`，3 行都带过来 |
+
+### 真窗口
+
+`crates/dr-cli/scenarios/import-history.json`（副屏 `DRIFTING_WINDOW_DISPLAY=secondary`，场景自己的合成 profile，英文界面）：在普通导入对话框里导入合成 0.1 库 `sample-v3`，打开那一章，从左栏卡片的悬停卡点「Snapshot history」。2026-11-21 最后一版 55 步全过、0 步待定（之前两遍 52 步也全过，后来按 dr-cli 的规矩改成退出后重开再查、最后退出）：
+
+- 列表是「10/02 17:30 · 第一章 序」「10/01 16:00 · 第一章」，0.1 的两行，时间按这台机器的时区；
+- 点开旧的那个，预览是当时的正文「第一章／我要给阿Q做正传。」、写作状态 draft、梗概「初稿梗概」，这时正文没变；
+- 「Restore…」再「Confirm overwrite current version」：正文、标题、梗概都是旧的，列表最上面多了「恢复前」那个点，页面上是旧的字；
+- 退出以后列表是：退出时存的点、恢复前的点、两个 0.1 的点（导入的点没被修剪）。
+
+截图（列表、预览、恢复后）只作记录，留在场景的输出目录，没进仓库。
+
+## 对着 0.1 的真实输出重测、丢失检查（2026-11-21）
+
+### 做了什么（大白话）
+
+- **重测。** 上一次拿 0.1 自己的代码写出的库验导入器是 11-08（`m10-m4-import.json`），那时导入目标还是旧格式；之后目标换过几次（v3、v4、格式 5、11-18 的 RI）。这次照下文「测试数据」在当前代码上重新生成库，导进格式 5，`m10-measure` 不带 `--write` 跑（测量证据只在里程碑提交，这次没写）。原来五份库照旧全过。
+- **库加宽了。** 新加三份，更像作者真用过的库（见下）。
+- **加了丢失检查**（`verify::check_catalog`）：0.1 里导入器说要带过来的每一行，要么在新库里找得到，要么回执里写了为什么没带；两样都没有，就报出表名、书和 id，测量当场失败。测量程序和导入器自己的测试都接上了。
+- **查出两处真问题，都修了**：作者删过一章或一个要素、上面还有批注，整个库导不进来；删掉的章的故事线丢了。另外补了测量自己的三个漏洞（见「修了的」）。
+
+### 新加的测试库
+
+都由 `m10-fixtures.test.ts` 生成，全是合成数据。
+
+- **`sample-wide`**：在样书上，尽量走 0.1 自己的写入路径：
+  - 帮手的写入工具（`executeOfflineWorkspaceTool`）：带角色的新关系类型和关系、章和要素上的批注和待办、一篇带格式表格（格子里有加粗、斜体、高亮）和清单的笔记、一条 Project Memory。这些调用本身也留下了一段帮手对话（会话、轮次、工具调用）。
+  - 作者在 App 里删除（`deleteNode` / `deleteElement` 走回收站的那条路：删关系、标删除）：删一章（上面有批注、原来有关系）、删一个要素（上面有待办）。帮手的删除工具在有批注或关系时会拒绝，所以不用它。
+  - 素材库自己的提交（`commitSampleMaterials`）：一个 PDF、一张 AVIF、一张 HEIC（字节是合成的，文件头能让 0.1 认出格式，不是真图片）。
+  - Markdown 文件夹的台账（`createMarkdownMirrorRepository().record`）、帮手的工作记忆（`saveAgentWorkingMemoryInDatabase`）。
+  - 0.1 没有现成写入函数可调的，照 0.1 写出的行的样子用 SQL 写：两条待办的优先级（高、低）、一条带格式的批注正文（加粗加列表）、端点是 PDF、图片、待办的内置关联、两台设备的写作日（设备键照 `device-key.ts` 算）。
+  - 14 篇正文各 3 行快照历史（用 0.1 的快照服务拍），再把 42 行的预览清空，当成拍的时候没渲染出来。
+  - 最后像作者退出 App 那样跑两次真实交接：第一次补上 32 行预览（交接每次只补 32 行），第二次补上剩下的 10 行。删掉的那章交接改不了缓存（0.1 不许写回收站里的章），所以没盖章；它从创建后没改过，导入照样证明它是最新的。
+- **`sample-wide-one-pass`**：同一份库只跑了一次交接，还有 10 行历史没有预览。清单里写着它必须被拒：导入前的检查只报这 10 行 `history-preview-missing`，别的什么都不报，测量核对正好是这 10 行。
+- **`accounts/`**：照 0.1 登记表摆的数据目录：`libraries.json`（照 `library_registry.rs` 的格式：`legacy` 认领为本机，另一个是账号库，id 是账号 subject 的 SHA-256 前 16 字节）、本机库（`lite` 的拷贝）在根上、账号库（`sample-wide` 的拷贝）在 `libraries/account-<hex>/`。测量核对 `locate::discover` 读出的主人和数据库路径，`locate::resolve` 选的是本机库、账号库留着不动，两个库各导一遍。
+
+没有真照片也做得出 AVIF 和 HEIC：0.1 的资源管线只按文件头认格式，不解码。导入照字节复制，`display` / `thumbnail` 照旧不搬（见「资源文件」）。
+
+### 数字
+
+M3 Pro，release；机器同时在跑别的构建（最后一次跑时一分钟负载 28–49），时间只能参考，不和 11-08 比。
+
+| | 样书 | 用旧 | 交接过 | 加宽（两次交接） | 加宽（一次交接） | 轻量 | 重型 | 数据目录·本机 | 数据目录·账号 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 书 / 正文 | 2 / 156 | 2 / 156 | 2 / 156 | 2 / 157 | 拒绝导入 | 1 / 80 | 1 / 679 | 1 / 80 | 2 / 157 |
+| 闸门 | 通过 | 拦住 7 篇，正是生成时落后的 7 篇 | 通过 | 通过 | — | 通过 | 通过 | 通过 | 通过 |
+| 和 Yjs 真值一致 | 152 / 152 | 146 / 153 | 153 / 153 | 153 / 153 | — | 68 / 68 | 619 / 619 | 68 / 68 | 153 / 153 |
+| 判为最新、其实不同 | 0 | 0 | 0 | 0 | — | 0 | 0 | 0 | 0 |
+| 比过的人物链接 / 表格格子 | 3 857 / 0 | 3 857 / 0 | 3 857 / 0 | 3 857 / 9 | — | 0 / 0 | 0 / 0 | 0 / 0 | 3 857 / 9 |
+| 快照历史行 → 历史点 | 0 | 6 / 6 | 6 / 6 | 42 / 42 | 10 行没预览，拒绝 | 0 | 0 | 0 | 42 / 42 |
+| 快照历史行 → 条目快照点（同日补；只在加宽库上跑过，用导入加逐个恢复，没跑 `m10-measure`） | — | — | — | 42 / 42，42 个都能恢复 | — | — | — | — | — |
+| 丢失检查：0.1 行 / 带过来 / 回执记了不带 / 没交代 | 790 / 740 / 50 / **0** | 796 / 746 / 50 / **0** | 797 / 747 / 50 / **0** | 889 / 834 / 55 / **0** | — | 915 / 903 / 12 / **0** | 13 942 / 13 900 / 42 / **0** | 915 / 903 / 12 / **0** | 889 / 834 / 55 / **0** |
+| 资源文件 | 7 | 7 | 7 | 10（含 PDF、AVIF、HEIC） | — | 6 | 6 | 6 | 10 |
+| 整库导入耗时 | 3.5 s | 4.1 s | 3.7 s | 8.3 s | — | 1.6 s | 16.1 s | 2.4 s | 12.5 s |
+| 峰值内存 | 49 MB | 50 MB | 49 MB | 54 MB | — | 44 MB | 182 MB | 41 MB | 55 MB |
+
+存得一致、往返一致、锚点全成光标、历史元数据在各自的点上成立、索引不落后、字数和 dr-index 一致、五类正文的搜索探针都搜得到：九份里能导的八份全部成立。「回执记了不带」里大多是关系类型的端点种类（格式 5 没有这一项，原值在回执里），其余见下文「有意不带的」。
+
+### 修了的
+
+| # | 问题 | 怎么修 | 测试 |
+| --- | --- | --- | --- |
+| 1 | **删过一章或一个要素、上面还有批注，整个库导不进来。** 0.1 把章、要素放进最近删除时，批注留着。导入前的检查把「目标在回收站里」和「目标根本不在」当成一回事（`comment-target-missing-or-trashed`），整库拒绝。格式 5 自己删条目时批注也留着，恢复时跟着回来。 | 只有目标在 0.1 里根本没有这一行才拒绝（改名 `comment-target-missing`，`v3.rs`）；回收站里的照常导入，批注挂在回收站里的条目上 | `tests/catalog.rs` 的 `comments_and_storylines_of_deleted_chapters_and_elements_come_over`；`v3_import.rs` 里原来的悬空批注用例照旧拒绝 |
+| 2 | **删掉的章的故事线丢了。** 0.1 删章时故事线的归属留着，恢复后章回到故事线里；导入只给没删的章写归属，恢复以后章不在任何故事线上（主故事线倒是写了）。丢失检查报出了 `node_storyline_link`。 | 回收站里的章、构想照样写归属（`dr-samples/src/v3/catalog.rs`），读的时候照格式 5 的规矩不算（`V3-MEMBERSHIP-RULES`），恢复时回来，和格式 5 自己的回收站一样；导入自己的格式检查跟着放行这种归属 | 同上（存着两条归属、读出来没有、主故事线还在） |
+| 3 | 测量：和 Yjs 真值比较时，格式 5 的人物链接、表格格子里的字和格式都没比（只比了有没有嵌入）。换到 `plan_v3` 以后这两项挪到了别的字段，比较没跟上。 | `check_truth` 比链接（目标、种类、模块，不比改指过的块）、整个嵌入、每个格子的字、格式和链接；结果里多了比过多少条链接、多少个格子 | 测量当场断言（3 857 条链接、9 个格子，全部一致） |
+| 4 | 测量：格式 5 里每篇正文都是 `body:` 文档，「每类正文一个搜索探针」按新 id 分类，五类并成了一类。 | 按 0.1 的文档种类分 | 测量：五类各一个探针，都搜得到 |
+| 5 | 测量：文档说闸门拦下的正好是那几篇，测量没核对；被拒的库、数据目录里的登记表也没人核对。 | 测量核对：闸门怀疑的正文等于生成器留在 Yjs 后面的那些；清单写了必须拒的，拒绝理由必须一条不多一条不少；登记表照生成的样子读出 | 测量当场断言 |
+
+回执多记了三样，丢失检查才能点名（导入的东西没变）：没复制成功的资源文件的 id（`assetFilesMissing` / `assetFilesMismatched`，原来只有个数）、同字节合并掉的资源（`mergedAssets`，原来不记）。
+
+### 有意不带的（有出处，丢失检查算「回执记了」）
+
+- 批注和待办的优先级：[kernel-v5 第 13 节](../kernel-v5.md#13-导入-01-的映射)（回执 `comment-priority-dropped`）。
+- 内置的「关联」类型本身、一头是图片／PDF／批注／待办／补丁的关系：[kernel-v5 第 19 节「导入 0.1」](../kernel-v5.md#导入-01)（原值在 `import_original` 的 `relations / dropped`）。
+- 关系类型的角色名、颜色、端点种类：同上，只进回执。
+- 批注正文的格式（加粗、列表）：批注正文是纯文字加链接（上文「待协调」4，kernel-v5 第 19 节），原 JSON 在 `import_original`，回执 `comment-body-formatting-kept-as-text`。
+- 表格的表头按普通格：上文「正文」的规整清单（`table-header-cell`）。格子里的格式现在保留。
+- 0.1 Copilot 的采纳／拒绝动作：上文「书目文档：逐表怎么落」。
+- ~~还有快照历史没有预览就整库拒绝~~：同日改成跳过并记下，见下一节「旧库里新版不能照原样收下的：默认处理」。
+
+### 还剩的（要作者或别的会话定）
+
+- ~~**删过分类、分类里还有要素的库导不进来**~~（同日已改：放进「未分类」，见下一节）（探针验证过）：0.1 删分类时把里面要素的分类清空（`element-category-repo.ts` 的 `softDeleteCategory`），导入前的检查对没有分类的要素报 `element-missing-category`，整库拒绝。在 `sample-wide` 的拷贝上照这个函数的写法删掉「物件与说法」（7 个要素），`m10-import analyse` 报 7 条 `element-missing-category`（外加一条 `mapping-choice-invalid`）。这是上文「待协调」26 留着没定的「无分类的要素」。建议：照 0.1 的「未分类」，导进「要素」下面一个「未分类」层级。
+- ~~**快照历史没预览的库，可能永远导不进来**~~（同日已改：跳过并记下，见下一节）（推断，来自代码）：交接每次只补 32 行，而且每次都从同一批没预览的行补起，渲染失败的不跳过；有 32 行以上永远渲染不出来时，后面的永远补不上，导入一直拒绝。这次只验了「补得上、要退出两次」那种。建议：导入把补不上预览的历史行跳过并记进回执（上文「快照历史」原来就是这么写的），而不是整库拒绝。
+- **删掉的章若删前改过，最后一版交接证明不了它**（同日用 `sample-damaged` 验过：闸门只拦这一篇，「仍然导入」照缓存导入）：交接写不了回收站里的章，这一篇不盖章，闸门会把它列进「无法证明」，要作者点「仍然导入」。这次的章删前没改过，所以没触发。
+- 删掉的章在时间线上的位置不带（格式 5 只给不在回收站里的条目摆位置），恢复时排到刻度末尾（推断，来自代码）。
+- 丢失检查不管的：字段的值（只核对有没有、在不在回收站、主故事线、写作日字数）、正文内容（那是真值比较的事）、锚点；从正文生成的待办按「同一条目、同一种」的个数对，不按 id 对；帮手对话存档和本机表按整表行数对。
+- 五份库还是每次现生成，没有钉住字节（阶段 7 的事，见下文）。
+
+### 检查
+
+在 `next/`：`cargo fmt --all --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings`、`cargo test -p dr-import-v1 -p dr-view-import -p dr-doc -p dr-samples --locked`（314 项通过、0 失败、1 项原有忽略）、`cargo xtask check --skip audit`（`m10-m4-import.json` 照旧报「过期」，这次不重写）。仓库根：`pnpm typecheck`、`pnpm lint`（0 错误，44 条原有警告，改的文件里没有）、`pnpm ci:contract:check`、`pnpm public:check`，`m10-fixtures.test.ts` 带 `DRIFTING_M10_FIXTURE_DIR` 跑通（7 项）。`m10-measure` 九份库：契约 0 条不成立。
+
+## 旧库里新版不能照原样收下的：默认处理（2026-11-21，替作者定的，等作者过目）
+
+**替作者定的，等作者过目。** 作者把这件事交给了协调会话，规则是：0.1 自己能打开、能显示的东西，导入一律不因为它拒绝整个库。每一种情况都有一个默认处理：作者写的字一个不丢，挪了位置的放在看得见、找得回的地方，做了什么都记下来（回执的 `adjustments`、`import_original` 的 `adjusted:<表>`、`summary.md`；丢失检查按 id 算「回执记了」）。0.1 有自己的做法的，照 0.1 的做法。只有真读不出来、或者会把新库写坏的，才仍然拒绝（见下面「还会拒绝导入的」）。原来这些情况整库拒绝（上文「待协调」26 的「先报告再协调」），升级以后作者既回不去 0.1 修，也进不了 0.2。
+
+### 怎么做的
+
+- 默认处理在导入自己的暂存副本上做（`dr-import-v1/src/defaults.rs`），在闸门、预检、写书目、回放历史之前，后面每一步读到的都是同一份处理过的库。原库照旧一个字节不碰。正文缓存和 Yjs 表不动（闸门的证明要对它们算哈希）；正文要做的（去掉指不到条目的链接、把表格格子摊平成字）在规划正文时做，按正文记下来。
+- 新版里要起名字的只有一处：没有分类的要素放进的层级，名字用 0.1 自己的「未分类」（`leftSidebar.uncategorized`），和「未归属」「文本素材」一样写在 `dr-samples/src/v3/catalog.rs` 里（`UNCATEGORIZED`）。没有新文案。
+- `MappingChoices` 照旧是作者的选择、照旧优先；但下面这些情况原来就没有可选的项（`MappingChoices` 只有 `profile` 和 `auto_entity_links`），所以没有「选择盖过默认」可测。
+- 0.1 的做法逐条从 0.1 源码查过（下表「0.1 怎么显示」一列，出处是 `src/renderer` 下的文件）。
+
+### 逐条
+
+| 代码 | 真实数据怎么来的 | 0.1 怎么显示 | 现在的默认 | 记下什么 | 测试 |
+| --- | --- | --- | --- | --- | --- |
+| `element-missing-category` | 0.1 删分类时把里面要素的分类清空（`element-category-repo.ts` 的 `softDeleteCategory`）；另一台设备删分类时这台的要素还挂着它的 id；外键使「分类不存在」只能是损坏 | 左栏最后一组「未分类」；挂着已删分类 id 的另成一组、组名是那个 id | 「要素」下最后一个层级「未分类」，基本要素模板；它们的键值照旧是键值 | 要素 id、原分类 id | `every_default_imports_records_and_keeps_every_body`（两例）、`an_element_whose_category_has_no_row_goes_under_uncategorized_and_is_recorded`、加宽库 `sample-damaged` |
+| `chapter-without-book-order` | 0.1 没有写入路径；旧数据或导入包照搬 | 读成书序 0，同序按 id | 书序 0 | 章 id | 同上 |
+| `idea-has-legacy-book-order` | 没有写入路径 | 不用（读成空） | 去掉 | 原书序 | 同上 |
+| `unknown-node-kind` | 没有写入路径；导入包照搬 | 不是章就当构想 | 构想 | 原种类 | 同上 |
+| `incompatible-source-node-status` | 恢复构想时期拍的快照到已转成章的节点；同步接受任何状态 | 这一种的状态列表、没有一个是选中的；内存里换成默认 | 这一种的默认状态（章「草稿」、构想「漂流」） | 原状态 | 同上 |
+| `chapter-in-group-dropped` | 没有写入路径 | 不用 | 去掉 | 原分组 | 同上 |
+| `idea-group-missing` | 删分组时回收站里的构想还挂着它（`useDriftGroup.ts:247`） | 构想最外层 | 构想最外层 | 原分组 | 同上 |
+| `membership-target-missing` | 外键使它只能是损坏 | — | 没有地方挂，去掉 | 原归属 | 同上 |
+| `membership-target-trashed`（原 `membership-target-missing-or-trashed`） | 两台设备一个删故事线、一个加归属 | 章不在任何故事线下 | 归属照留，读的时候不算，故事线恢复时回来；这一章在时间线上没有位置 | 归属 | 同上 |
+| `multiple-primary-memberships` | 部分唯一索引挡着，只能是损坏 | 按故事线顺序最后一条算 | 按故事线顺序最后一条是主故事线，其余仍是故事线 | 原来的几条 | 同上 |
+| `act-binding-not-an-idea` | 没有能用的写入路径；导入包照搬 | 当作没绑（提示退回「幕笔记」） | 不绑 | 原绑定 | 同上 |
+| `act-without-boundary` | 旧的「书首锚点」、同步种子 | 全书第一幕 | 照原样：全书第一幕 | 幕 id | 同上 |
+| `duplicate-act-boundary` | 0.1 的「打散」 | 同起点按 id，后一幕拿到章节 | 照原样 | 幕 id | 同上 |
+| `pin-binding-missing-idea` | 外键清掉不存在的；绑在章上没有写入路径；绑在回收站里的构想：同步竞争 | 照显示为已绑 | 时间钉留着，不再绑 | 原绑定 | 同上 |
+| `source-tree-missing-parent` | 构想分组、素材夹：两台设备同时移动或删除 | 放最外层 | 放最外层 | 原上级 | 同上 |
+| `source-tree-cycle` | 同上 | 素材夹在 id 最小的那个断开；构想分组会让 0.1 递归溢出 | 在 id 最小的那个断开，放最外层 | 原上级 | 同上 |
+| `unknown-category-layout`、`incomplete-category-grid-position`、`auto-category-has-grid-position` | 没有写入路径（三个字段一起写）；同步按字段合并可能拆开 | 只有「固定」且两个坐标都有才用位置，否则自动摆放 | 自动摆放，不带位置 | 原摆放和坐标 | 同上 |
+| `unreadable-source-kv-projection` | 损坏或旧开发数据 | `parseKv` 读成空 | 键值行按建立先后（uuidv7 的 id）排 | 原 JSON | 同上 |
+| `unreadable-source-aliases` | 损坏 | 只留字符串 | 只留字符串 | 原 JSON | 同上 |
+| `ambiguous-template-field`（同名） | 分类模板编辑器允许同名字段 | 两行都显示，新建要素时都抄过去 | 0.1 列在前面的那个成字段，其余的值进回执 | 被去掉的那行 | 同上 |
+| `ambiguous-template-field`（id 是 `aliases`／`summary`／`portrait`） | 0.1 不会生成，只能是别的写入方经同步 | — | 换成确定的新 id（`import-kv-<哈希>`）；0.1 里没有东西按 id 指它，值按字段名跟着走 | 原 id | 同上 |
+| `duplicate-value-for-template-field` | 作者在键值编辑器里打了同名；同名模板抄进新要素 | 几行都显示 | 第一个（0.1 的顺序）进字段，其余作为条目自己的键值留下 | 留作键值的那几行 | 同上 |
+| `duplicate-history-value-for-template-field` | 同上，拍快照时 | — | 每个历史点上同样的规则 | 历史行 | 同上 |
+| `ambiguous-history-template-field` | 模板同名时拍的快照 | — | 每个名字只留第一个 | 原元数据 | 同上 |
+| `history-preview-missing` | 拍的时候预览没渲染出来；交接每次只补 32 行 | 列出来、没有摘录、能恢复 | 跳过（没有历史点），其余照导 | 历史行 | 同上；加宽库 `sample-wide-one-pass`（42 行、一次交接、10 行跳过） |
+| `history-preview-unreadable`（新） | 损坏 | — | 跳过 | 历史行 | 同上 |
+| `orphan-history-source` | 0.1 彻底删除东西时留着它的历史行（`project-deletion-repo.ts:94-96`） | 只能从直接链接进去 | 跳过 | 历史行 | 同上 |
+| `unreadable-history-metadata` | 已删的 Apple 前端写的另一种格式；损坏 | 恢复时元数据那一半失败 | 正文版本照留，元数据不回放 | 原元数据 | 同上 |
+| `incompatible-history-node-status` | 构想时期拍的、之后转成章 | 恢复时照写 | 这一项不回放 | 原元数据 | 同上 |
+| `comment-target-missing`（原 `comment-target-missing-or-trashed`） | 彻底删除章、要素、分类、故事线时批注留着（`book-node-purge.ts` 等） | 审阅栏「已删除」一组 | 照留在原目标上，显示为找不到位置 | 批注 id | 同上；`sample-damaged` |
+| `invalid-or-duplicate-source-relation` | 自指：帮手的 `add_relation` 不查；一头没有：同步 | 指不到的边不画 | 自指或一头没有行：去掉；一头在回收站里：照带 | `import_original` 的 `relations / dropped`（`relation-self-end-dropped`／`relation-missing-entry-dropped`） | `relations_with_nothing_at_an_end_are_dropped_and_recorded`、`original_dangling_source_relation_is_dropped_and_recorded` |
+| `writing-day-invalid` | 同步只查格式不查日历（`2026-02-31` 能过） | — | 没有地方放，去掉 | 原行 | 同上；`sample-damaged` |
+| `writing-day-duplicate`（新） | `(书, 天, 设备)` 没有唯一索引 | 热力图加在一起 | 加在一起，放进 id 最小的那行 | 原字数 | 同上 |
+| `plot-grid-position-key-regenerated` | 同步插行时的占位键 `pending` | 按键、再按 id 排 | 按同样的顺序生成新键 | 原键 | 同上 |
+| `unreadable-source-template` | 损坏 | — | 不写成模板文档，原文留在书目上 | 原 JSON | 同上 |
+| `invalid-source-entity-link`、`unsupported-entity-link-target-kind` | 粘贴可以带进任何种类、空 id | 指不到的链接变暗 | 去掉链接，字留着 | 正文 | `links_the_book_cannot_keep_and_flattened_table_cells_keep_their_text` |
+| `unsupported-table-cell-mark`、`unsupported-table-cell-content` | 笔记的表格格子收 `block+`：列表、标题、代码块等，能用快捷输入或粘贴写进去 | 照显示 | 字留着，格子里的块格式和不认识的标记去掉 | 正文 | 同上 |
+
+每一例都核对：导入不带选择就完成；每篇正文的字和 0.1 的缓存一样；回执、`import_original`、`summary.md` 都记了；丢失检查没有没交代的。
+
+### 还会拒绝导入的
+
+这些在普通的导入对话框里仍然会出现，样子照旧（「导入前需要映射选择」加 `代码: 来源` 的列表），没有改文案，交给作者定说法。
+
+| 代码 | 什么时候出现 | 为什么不给默认 | 测试 |
+| --- | --- | --- | --- |
+| `entry-id-invalid-or-colliding`、`invalid-id` | 章、构想、分类、要素、故事线、笔记等的 id 带 `/` 或 `\|`、超过 246 字节、以 `root-`／`import-` 开头，或者两行同一个 id。0.1 自己只写 uuidv7；只有别的写入方经同步（同步收任何不含控制字符、255 字节以内的 id；已删的 Apple 前端接受调用方给的 id），或者本来就撞号的导入包 | 这些 id 写在正文缓存的链接里、快照预览里、Yjs 文档 id 里、交接清单里、Markdown 文件夹台账里；改 id 就得改缓存的字节，交接的哈希证明随之失效 | `what_cannot_be_read_or_named_still_refuses`（两例） |
+| `template-prose-id-not-representable` | 书的 id 带 `/` 或者太长（模板文档名是 `<书>/<模板>/<模块>`）。分类、故事线 id 太长的情况，这次改成模板 id 超过 64 字节就用哈希，能导了 | 书的 id 0.1 只写 uuidv7；同上 | 同上；`a_long_category_id_gets_a_hashed_template_and_imports` |
+| `invalid-book-id` | 书的 id 为空、带控制字符或超过 256 字节：0.1 的 id 规则（255 字节以内、无控制字符）下到不了，只能是损坏 | 同上 | 同上 |
+| `unreadable-source-prose` | 一篇正文的缓存不是 JSON：笔记有 `CHECK` 挡着，别的只能是损坏 | 这篇的字只在 Yjs 里，新版读不了 Yjs | 同上；`undecided_mapping_stops_before_target_or_device_writes`、开发命令行那一例 |
+| `prose-not-writable`（新）、`mapping-choice-invalid`、`v3-invariant` | 新版的正文或书目写入器、或格式 5 的检查不收；现在没有已知的 0.1 数据会走到这里 | 兜底：宁可拒绝，也不写出半本书或坏掉的书。预检先在内存里把每篇正文、模板写一遍试试 | 没有能合成出来的例子，没有测试 |
+
+### 两处顺带的
+
+- 交接每次只补 32 行预览：现在跳过没预览的行，不再整库拒绝，所以只退出一次也能导（`sample-wide-one-pass`：42 行里 32 行成历史点，10 行跳过并记下）。
+- 删前改过的章：最后一版交接写不了回收站里的章，这一篇证明不了，闸门照旧列出它（`sample-damaged`：闸门只拦这一篇），「仍然导入」照缓存导入它。
+
+### 数字
+
+`m10-measure` 不带 `--write`，十份库（原来九份加 `sample-damaged`；`sample-wide-one-pass` 原来是「必须被拒」，现在照导）。契约 0 条不成立。
+
+| | 书 / 正文 | 闸门 | 和真值一致 | 历史行 → 点（跳过并记下） | 丢失检查：行 / 带过来 / 记了不带 / 没交代 |
+| --- | ---: | --- | ---: | ---: | ---: |
+| 样书 | 2 / 156 | 通过 | 152 / 152 | 0 | 790 / 740 / 50 / **0** |
+| 用旧 | 2 / 156 | 拦住 7 篇 | 146 / 153 | 6 / 6 | 796 / 746 / 50 / **0** |
+| 交接过 | 2 / 156 | 通过 | 153 / 153 | 6 / 6 | 797 / 747 / 50 / **0** |
+| 加宽（一次交接） | 2 / 157 | 通过 | 153 / 153 | 32 / 32（10） | 889 / 824 / 65 / **0** |
+| 加宽（两次交接） | 2 / 157 | 通过 | 153 / 153 | 42 / 42 | 889 / 834 / 55 / **0** |
+| 损坏 | 2 / 155 | 拦住 1 篇（删前改过的章） | 150 / 151 | 0 | 798 / 746 / 52 / **0** |
+| 轻量 | 1 / 80 | 通过 | 68 / 68 | 0 | 915 / 903 / 12 / **0** |
+| 重型 | 1 / 679 | 通过 | 619 / 619 | 0 | 13 942 / 13 870 / 72 / **0** |
+| 数据目录·本机 | 1 / 80 | 通过 | 68 / 68 | 0 | 915 / 903 / 12 / **0** |
+| 数据目录·账号 | 2 / 157 | 通过 | 153 / 153 | 42 / 42 | 889 / 834 / 55 / **0** |
+
+「判为最新、其实不同」十份都是 0。「损坏」里和真值不同的 1 篇就是闸门拦下、作者点了「仍然导入」的那一章；还有 1 篇 Yjs 文档没有对应的正文，是彻底删掉的那一章留下的。重型库「记了不带」从 42 变成 72：丢失检查原来读素材的不带记录时用错了字段名（`materialId`，回执写的是 `material_id`），同一个文件的第二个素材（名字不保留）原来算成「带过来」，现在算「记了不带」；导入本身没变，加了单元测试钉住字段名。
+
+### 检查
+
+在 `next/`：`cargo fmt --all --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings`、`cargo xtask check --skip audit` 通过。`cargo test`：`dr-import-v1`、`dr-view-import`、`dr-workspace` 463 项通过；`dr-agent-tools` 107 项、`dr-doc` 172 项（1 项原有忽略）、`dr-samples` 13 项通过。仓库根：`pnpm typecheck`、`pnpm lint`（0 错误，44 条原有警告）、`pnpm ci:contract:check`、`pnpm public:check`，`m10-fixtures.test.ts` 带 `DRIFTING_M10_FIXTURE_DIR` 跑通（8 项）。
+
+改了的测试：原来断言「拒绝导入」的几例（`ambiguous_or_unsupported_sources_stop_before_v3_writes`、`malformed_source_is_reported_without_automatic_repairs`、`duplicate_historical_values_do_not_overwrite_one_structured_field`、`unsupported_prose_links_and_table_marks_remain_in_the_source_and_stop_import`、`a_long_legacy_id_is_reported_before_constructing_a_scoped_template_doc_id`、`original_dangling_source_relation_is_pending_before_any_target_or_identity_write`）照这次的规则改成断言照导、记下、字不丢、丢失检查通过，并入 `tests/defaults.rs`；要验「预检拦住时什么都不写」的几例（`undecided_mapping_stops_before_target_or_device_writes`、开发命令行一例、`dr-view-import` 的 `pending_is_prewrite_then_explicit_choices_import_into_a_new_preferred_v3_library`）换成仍会拒绝的情况（正文缓存不是 JSON、id 撞号）。
+## 0.1 的设置、快捷键和工作记忆（2026-11-21）
+
+审计发现三样东西导入时搬进了回执、却没人用，作者升级后拿到的是默认值：这台设备的设置和快捷键、账号里同步的 0.1 偏好、每本书的帮手工作记忆。这一轮把它们接上。没有新界面、没有新的界面文案；只有导入摘要 `summary.md` 末尾多一节。
+
+### 做了什么（大白话）
+
+1. **设置和快捷键跟过来（每台设备一次）。** 0.1 最后几版退出时，把这台设备的设置、快捷键和「主动建议」开关抄进交接清单（[docs/v2-handoff.md](../../v2-handoff.md)），导入时原样存进 `<新库>/import-v1/receipt.sqlite` 的 `local_setting`。现在导入完、新库成为打开的库的那一刻，新版把其中意思相同的设置写进自己的设置（下表），快捷键写进 `keys.bindings`，马上生效。
+   - **只写新版里还没设过的键。** 作者在新版里改过的，或者偏好同步给这个键记过真正改动的（账本里时间晚于 `1970-01-01`），都不动。
+   - **0.1 的默认值不带。** 0.1 把每个设置都存着，改没改过都存，所以和 0.1 默认值一样的值不算作者选的，不写，新版用自己的默认值（见下面「替作者定的」第 1 条）。
+   - **超出新版范围的数照注册表的办法收进范围**（段距 0.1 最多 3em，新版 2.5em），原值和写进去的值都记下。新版不认的值（比如不存在的主题名）不写，记下。
+   - **登录着时**，带过来的设置和作者刚在这台设备上改的一样：下一轮偏好同步把其中跟账号的传进账号（谁新谁赢照旧）。
+   - **一台设备只做一次。** 做过就记设备值 `import.v1_settings_adopted`（和「自己弹出」的 `import.v1_offered` 同一种做法）。导的旧库没抄到设置（没经过交接）不算做过，之后导别的库还会看。
+   - **快捷键。** 新版的快捷键表本来就用 0.1 的命令 id，同一个 id 才算同一个命令（10 个）。作者在新版里改过的不动；键位换成新版的写法（`Mod+Shift+F` → `shift-secondary-f`，`Mod` 是 ⌘ / Ctrl，Mac 以外 0.1 的 Ctrl 也是主键）；和新版别的命令撞了的（查法和「设置 → 快捷键」里改键时一样：列出的、固定的、整个 App 的，编辑器里的格式键不算），这个命令留默认，并记下撞了谁；两个命令在 0.1 里互换了键位的，照样互换。新版没有的命令（`saveCurrentEditor`、`closeProject`）、新版认不出的键位（比如要按 Shift 才打得出的符号，跟键盘布局有关）记下不带。和改键一样，带过来的键位替换这个命令的全部默认键位（`prevTab` / `nextTab` 默认各有两个）。
+2. **账号里的 0.1 偏好（登录时）。** 0.1 用自己的键名把一组偏好同步进账号（`preference-fields.ts`：`themeMode`、`bodyFontSize`、`shortcutBindings`…），新版用自己的键名同步进同一个袋子。现在新版同步时，某个新键在账号里还没有真正的改动（没有，或者只有某台设备补上的「没改过」默认值，时间是 `1970-01-01`），就看袋子里对应的 0.1 键：它有真正的改动时间，就把它（按同一张表换算、收进范围）当作这个新键的账号值，照 M37 的规则合并——谁新谁赢，本机更晚、还没传上去的改动照样赢；它赢了就写进新键，别的设备以后直接从新键拿。**0.1 的键一个字节都不改、不删**：另一台设备上的 0.1 可能还在用。只在本机的设置（界面字号、故障报告）两边都不同步，不参与。
+3. **工作记忆（导入时）。** 0.1 每本书的帮手工作记忆在 `receipt.sqlite` 的 `local_agent_working_memory`；新版的工作记忆是另一处（M30，`dr_agent::memory`，[m30-long-tasks-memory.md](m30-long-tasks-memory.md)）。现在导入一写完（还在导入的后台线程里、换库之前），每本书的旧工作记忆就写成这本书的工作记忆——前提是新版这本书的工作记忆是空的；不是空的就不动。0.1 里删掉的、只有空白的不算（和 0.1 自己判断「有没有」一样）。续导时以前带过来的不再带。没有界面。
+
+### 对照表
+
+范围写「账号」的是跟账号同步的设置（两边都同步），「本机」的两边都只在这台设备。
+
+| 0.1 键 | 新键 | 换算 |
+| --- | --- | --- |
+| `settings-storage.themeMode` | `appearance.theme`（账号） | `light` / `dark` / `system` 原样。0.1 默认浅色，新版默认跟随系统 |
+| `settings-storage.interfaceTextSize` | `appearance.interface_text_size`（本机） | 五档同名；0.1 存储版本低于 35 的先照 0.1 自己的改名换算（`small`→`smallest`、`standard`→`small`、`large`→`standard`） |
+| `settings-storage.uiLocale` | `language.ui_locale`（账号） | 九种语言同一个码；和这台电脑的系统语言一样的不算选择（新版默认就跟系统） |
+| `settings-storage.bodyFontSize` | `editor.font_size`（账号） | px，两边都是 12–28 |
+| `settings-storage.lineHeight` | `editor.line_height`（账号） | 两边都是 1.0–2.0 |
+| `settings-storage.paragraphSpacing` | `editor.paragraph_spacing`（账号） | em；0.1 是 0–3，新版 0–2.5，超出的收进 |
+| `settings-storage.maxLineWidth` | `editor.page_width`（账号） | px，两边都是 480–1280 |
+| `settings-storage.paragraphIndent` | `editor.paragraph_indent`（账号） | `none` / `one` / `two` 原样 |
+| `settings-storage.autoImmersiveWriting` | `editor.auto_immersive`（账号） | 开关 |
+| `settings-storage.typewriterMode` | `editor.typewriter_mode`（账号） | 开关 |
+| `settings-storage.typewriterPosition` | `editor.typewriter_position`（账号） | %，两边都是 25–75 |
+| `settings-storage.autoElementLinkEnabled` | `editor.auto_entity_links`（账号） | 开关（同一句「自动要素链接」） |
+| `settings-storage.agentTurnIterationLimit` | `agent.max_model_rounds`（账号） | 正整数；`null` 两边都是不限 |
+| `settings-storage.sendCrashLogs` | `privacy.crash_reports`（本机） | 开关 |
+| `project-checkin.enabled` | `agent.proactive_suggestions`（本机） | 开关（「主动建议」） |
+| `shortcuts-storage.bindings.<id>`，账号里是 `shortcutBindings` | `keys.bindings.<同一 id>`（账号） | `closeActiveTab`、`findInEditor`、`globalSearch`、`goBack`、`goForward`、`prevTab`、`nextTab`、`toggleBottomTimeline`、`toggleImmersiveWriting`、`newEntity`；只带和 0.1 默认不一样、也和新版默认不一样的 |
+
+没有对应、不带的（0.1 的值不是 0.1 默认时，回执和摘要里记下）：
+
+| 0.1 键 | 为什么 |
+| --- | --- |
+| `accentColor` | 新版没有强调色设置 |
+| `agentEditRevealAnimation` | 新版没有改动揭示动画的设置 |
+| `editorFontSource`、`editorSystemFontFamily` | 新版没有正文字体选择 |
+| `editorIndentStep` | 新版没有 Tab 缩进宽度 |
+| `editorTextWrap` | 新版没有换行方式选择 |
+| `caretColor` | 新版没有光标颜色 |
+| `outlineRailMode` | 新版没有大纲栏开关 |
+| `commentMarksVisible` | 新版没有批注标记开关 |
+| `entityLinkInteractive`、`entityLinkColorMode`、`entityLinkHighlightMode`、`entityLinkBandStyle`、`entityLinkKindColors` | 新版没有人物链接外观设置 |
+| `recentEntitiesLimit` | 新版没有最近列表长度 |
+| `editorUndoDepth` | 新版没有撤销步数设置 |
+| `autoSnapshot` | 新版历史一直记（M09），没有开关 |
+| `agentAuth` | 0.1 已退役的凭据记号 |
+| `agentProvider`、`agentModel` | 新版有意思一样的 `agent.provider`、`agent.model`，但不直接写：新版的模型路线由模型连接来定，先查服务商连没连上，再给模型配一个它支持的思考档；直接写进去，模型不支持现在的思考档时帮手发不出去（`ModelInfo::run_config` 会拒绝）。作者在「设置 → Agent」重选一次 |
+| `agentEffort`、`agentThinking` | 0.1 是「推理强度」和「思考开关」两个值，新版 `agent.thinking` 是一个档位，可选的档随模型变，没有一对一 |
+| `agentToolSearch` | 新版没有工具搜索开关 |
+| `lastAgentConvByProject` | 旧对话只读搬过来，没有能接着开的对话 |
+| `agentOnboardingStep`、`guidesSeen` | 这是这台设备看过哪些引导，不是设置（新版有自己的设备值 `agent.onboarding`、`guides.seen`），见「替作者定的」第 3 条 |
+| 快捷键 `saveCurrentEditor` | 新版不用手动保存 |
+| 快捷键 `closeProject` | 2026-11-14 去掉了 |
+
+新版独有、0.1 没有的：`editor.justify`、`appearance.reduce_motion`、`agent.thinking`（见上）、快捷键 `focusLeftSidebar`。交接里还有书架封面画风、导出对话框记的名字和选项、各书布局等，不是注册表里的设置，这一轮没带（见「没做的」）。
+
+表在代码里是 `next/crates/dr-shell/src/settings/v1.rs` 的 `FIELDS`、`NO_EQUIVALENT`、`SHORTCUTS`；测试 `every_field_of_the_01_state_is_mapped_or_has_a_reason` 钉住 0.1 `settings-store.ts` 的 40 个字段每个要么有对应、要么有原因。
+
+### 什么时候、在哪里做
+
+| 什么 | 什么时候 | 在哪里 |
+| --- | --- | --- |
+| 设置和快捷键 | 导入完、换库成功的那一刻（`replace_with_commit` 的回调里，`follow_library_registry` 之后），每台设备一次 | `dr-view-import/src/carry.rs` 的 `adopt_settings`：读 `dr_import_v1::carry::captured_settings`，按 `dr_shell::settings::v1::adopt` 写进设置文件，重绑快捷键 |
+| 工作记忆 | 导入写完、建摘要之前，导入的后台线程里 | `dr_import_v1::carry::carry_working_memory`，经 `dr_agent::memory::replace`（按版本号比较写入，不会盖掉别人刚写的） |
+| 账号里的 0.1 偏好 | 每一轮偏好同步；只对还没有真正改动的新键起作用 | `dr-account` 的 `sync_preferences_with_client_adopting`，`dr-view-account` 传 `adopt_from_v1` |
+
+**为什么放在偏好同步的合并里，而不是「第一次同步时做一次」。** M37 的合并本来就是一个键一个键地比时间、谁新谁赢；把 0.1 键当成这个新键的另一个候选值，「谁新谁赢」「不盖新版已有的改动」就是同一次比较，不用另立规则。它不靠这台设备记什么，所以晚登录的设备、上次同步半路断了的设备都对；每台设备看同一个袋子，算出同一个结果。新键一旦有了真正的改动（带过来以后马上写进新键），以后就不再看 0.1 键，所以它实际上只发生一次。做成「第一次同步做一次」要另记一个设备值，而且第一次同步失败、或者别的设备先补了默认值时都会出错。
+
+### 记在哪里
+
+- `receipt.sqlite` 新表 `carried`，每个 0.1 值一行：种类（`setting` / `shortcut` / `working-memory`）、0.1 键、新键、去向、原值、写进去的值、原因、书名。去向：`adopted`（带了）、`clamped`（收进范围后带了）、`kept-here`（新版已有，没动）、`default`（0.1 默认，没什么可带）、`no-equivalent`、`invalid`、`conflict`；工作记忆是 `adopted` / `kept-here` / `not-carried`。
+- `summary.md` 末尾一节「设置、快捷键和工作记忆」，按去向一行一类列出；0.1 默认值不列（没丢东西）。续导会重写摘要，下一次记录时这一节照表补回。
+- 偏好同步带进来的不进回执（那不是导入，也可能根本没导入过）；带过来以后它就在账号的新键里。
+
+### 顺手修的两处
+
+- **偏好同步把「不限」丢了。** M37 收到 `null` 一律当「回到默认」，`agent.max_model_rounds` 的 `null`（不限）到了另一台设备变成 50。现在只有不接受 `null` 的键（界面语言：`null` 是跟系统）才回到默认（`dr-view-account` 的 `apply_synced_preference`）。
+- **帮手的模型连接不跟设置。** 它启动时把迭代上限读进内存，之后偏好同步或导入改了设置它不知道，作者下次换模型时又把旧值写回去。现在设置一变它就跟上迭代上限（`dr-view-agent` 的 `Connections::follow_settings`）；模型路线仍由它自己检查后定。
+
+### 替作者定的
+
+1. **和 0.1 默认值一样的值不带**（推荐保持）。理由：0.1 存的是全部值，分不出哪些是作者选的；把默认值也写进新版，会让它们都变成「作者设过的」，以后跟不上新版默认，登录时还会当成这台设备的新改动传进账号、盖掉别的设备。后果：主题 0.1 默认浅色、新版默认跟随系统，所以 0.1 里没碰过主题的作者升级后跟随系统（系统是深色就变深色）；0.1 里明确选过「浅色」的作者和没选过的分不出来，也跟随系统。要改成「浅色也带」只改对照表一处。
+2. **模型服务商和模型、思考和推理强度不带**（推荐保持）。理由见对照表：直接写会绕过模型连接的检查，可能让帮手发不出去。作者在「设置 → Agent」重选一次。
+3. **看过哪些引导不带**（`agentOnboardingStep`、`guidesSeen`）。它们不是设置；新版的引导介绍的是新界面。
+4. **账号里的 0.1 偏好只在新键还没有真正改动时才看**，带过来一次以后不再跟着 0.1 走；之后另一台设备在 0.1 里改的，新版不再跟（反过来新版改的，0.1 也看不到，两边键名不同）。
+5. **快捷键撞了留默认，不替作者挑谁让**；被撞的是新版固定的键（比如 ⌘, 是设置）时只能这样。
+6. **回收站里的书的工作记忆带不过来**：M30 不许往回收站里的书写工作记忆，记为 `not-carried`（原因写在回执里）。
+7. **一台设备只做一次，没抄到设置的导入不算做过**。
+
+### 测试
+
+| 测试 | 证明 |
+| --- | --- |
+| `dr-shell` `settings::v1::tests`（8 条） | 0.1 的 40 个设置字段每个都在表里；每个有对应的设置照值写进；0.1 默认、新版已设、偏好同步记过改动的不写；超出范围收进并记原值；新版不认的值不写；存储版本 35 前后的界面字号；键位换算（Mac 与 Windows 的 Ctrl、`{`、功能键、单键不收）；快捷键互换、撞了新版的 ⌘,、新版已改、命令不存在、键位认不出；账号里的 0.1 值换算 |
+| `dr-import-v1` `tests/carry.rs`（4 条） | 合成 0.1 库（加了交接抄下的设置、快捷键、主动建议开关和一本书的工作记忆）导入后：读回抄下的设置；工作记忆带过来，在新版里改过以后再带一次不动、记录还是「带了」；新版已有的不覆盖；删掉的、空白的不算，别的库的书记为没带过来；摘要那一节只有一份 |
+| `dr-view-import` `tests/carry.rs`（2 条） | GPUI 测试平台上从对话框导入：每个有对应的设置都换上了，段距收进 2.5，新版已设的字号、偏好同步记过的行距没动，服务商没动；快捷键互换、新键位带了，撞 ⌘, 的没带；设备值记下；书的工作记忆在新库里；回执和摘要逐条记着，包括没带的；再做一次什么都不变。没抄到设置的旧库什么都不带、不记设备值 |
+| `dr-account` `another_clients_value_stands_in_for_a_key_without_a_change_and_is_left_alone` | 假服务上，别的客户端的值只顶替没有真正改动的键，本机更晚的改动赢，新版已有的改动不被替，它自己没改过的默认值不算，0.1 的条目逐字节不变；带过来一次以后它再改也不跟 |
+| `dr-view-account` `the_01_clients_synced_preferences_are_adopted_and_left_in_the_bag` | 假服务上一袋 0.1 客户端写的真实键名：主题、字号、行距、缩进、段距（收进 2.5）、页宽、打字机、语言、不限迭代、快捷键照规则带过来；本机更晚的字号、新版别的设备选过的行距赢；0.1 没改过的不算；⌘, 撞了不带；每个 0.1 条目逐字节不变、一个不少；第二台设备从新键拿到；0.1 之后再改不跟 |
+| `dr-view-agent` `a_round_limit_written_into_the_settings_is_followed` | 设置里改了迭代上限（80、不限），模型连接跟上；它自己再保存时写的是它跟上的值 |
+
+### 没做的
+
+- 交接里还有但不是注册表设置的：书架封面画风（`shelf:cover-style`，新版是设备值 `shelf.cover_style`）、导出对话框记的作者名和选项（`drifting.manuscriptExport.v1`）、各书的布局和视图模式（`ui-storage` 等）、看过的 Markdown 文件夹引导。没对过两边的值，这一轮不带。
+- 回收站里的书的工作记忆（见上第 6 条）。
+- 真窗口（调试桥）和真实 Hosted 上没验；正式身份的包从 0.1 升级的那一次也没验。
+
 ## 第一次打开时自己弹出（2026-11-20）
 
 作者 2026-11-20 定：老用户升级后第一次打开新版，找到旧书库就自动弹出现有的导入对话框，不加新界面、不加新文案。在这之前，升级的人打开新版看到的是空的「全部项目」，入口只在左栏。
@@ -142,7 +476,7 @@
 ### 做了什么（大白话）
 
 1. **0.1 旧库直接导入成统一条目模型（书格式 4）。** 原书稿／构想／要素／故事线四个根、幕分组、构想分组、分类、要素分组、故事线、有幕时顶层创建的「幕」轨道、按需创建的「未归属」泳道都打开条目自己的「层级」开关；章节、构想、要素以及未绑定构想的合成幕条目都关闭「层级」开关。
-2. **说明、写作日与检查点各归其位。** 分类与故事线的旧说明写进条目模板的「说明」正文模块（`body:<entry>/mod-description`，`in_book = false`，不参与成书字数与导出），不再产生单独的 `/about` 文档；写作日写入书旁边的 `stats:<book>`；`checkpoints:<book>` 只写确定性创世提交，不为 0.1 历史编造整条目检查点。
+2. **说明、写作日与检查点各归其位。** 分类与故事线的旧说明写进条目模板的「说明」正文模块（`body:<entry>/mod-description`，`in_book = false`，不参与成书字数与导出），不再产生单独的 `/about` 文档；写作日写入书旁边的 `stats:<book>`；~~`checkpoints:<book>` 只写确定性创世提交，不为 0.1 历史编造整条目检查点~~（2026-11-21 改：格式 5 的「快照历史」只读条目快照点，导入后 0.1 的历史在对话框里是空的；现在每一行有正文版本的历史写一个点，只记这一行有的东西，0.1 没记的就是导入时的样子，见页首「0.1 的快照历史进条目的『快照历史』」和「快照历史」里「条目快照点」）。
 3. **续传与旧前缀隔离。** 新导入目标目录和待续传指针使用 `reimport-v4-` 前缀，内核级续传标记使用 `4:<sha256>`。此前留下的 `reimport-v3-` 未完成目录、清单与指针原封保留在磁盘上，既不删改也不续传。
 4. **界面与摘要文案切到新模型。** 九种语言的导入对话框（标题、独立新库说明、切换提示）不再把新库称为 `v3` 库；`import-v1/summary.md` 中文摘要改为「旧版正文模板写成了条目模板的初始正文，新建条目照它开头」，不再提旧模板二分。
 
@@ -155,15 +489,15 @@
 
 - `dr-view-import/src/reimport.rs`：目标目录前缀 `reimport-v4-`，待续传指针 `reimport-v4-pending.json`；拒绝非 `reimport-v4-` 身份的目标与篡改指针，保留既有 `reimport-v3-` 文件不动。
 - `dr-import-v1/src/v3.rs`：`mapping_key` 前缀从 `3:` 升为 `4:`，阻止对旧格式中断目录误续传。
-- `dr-import-v1/src/run.rs`、`tables.rs`：每本书落盘前先写入 `stats:<book>` 与仅含创世提交的 `checkpoints:<book>`，再写格式 4 的 `book:<book>`；`writing_day` 归属 `stats-doc`。
+- `dr-import-v1/src/run.rs`、`tables.rs`：每本书落盘前先写入 `stats:<book>` 与仅含创世提交的 `checkpoints:<book>`，再写格式 4 的 `book:<book>`；`writing_day` 归属 `stats-doc`。（2026-11-21 起书目存好以后再往 `checkpoints:<book>` 写 0.1 历史的条目快照点。）
 - `dr-i18n/own/*.json`（经 `sync-locales.py` 同步到 `locales/*.json`）与 `dr-import-v1/src/receipt.rs`：更新九语导入对话框文案与 `summary_zh` 模板说明。
 
 ### 测试
 
 - `dr-import-v1/tests/v3_import.rs`：
-  - `compare` 逐项核对导入后全部原层级条目 `is_level() == true`、全部章／构想／要素／合成幕条目 `is_level() == false`、四类内置层级模板「说明」模块 `in_book == false`、库内不存在任何 `body:<entry>/about` 文档、`stats:<book>` 写作日一致、`checkpoints:<book>` 为空且版本向量等于创世提交；
+  - `compare` 逐项核对导入后全部原层级条目 `is_level() == true`、全部章／构想／要素／合成幕条目 `is_level() == false`、四类内置层级模板「说明」模块 `in_book == false`、库内不存在任何 `body:<entry>/about` 文档、`stats:<book>` 写作日一致、`checkpoints:<book>` 为空且版本向量等于创世提交（2026-11-21 改：点和 0.1 历史的标签一一对上，只有创世和导入者写过）；
   - `every_inventory_row_imports_into_real_v3_documents_with_history` 在首次导入与重复导入后核对源目录全部文件的哈希、字节数与 `mtime` 不变；
-  - `unified_entry_v4_side_documents_summary_copy_and_format3_resume_guard` 核对零写作日旧书仍写出仅含创世提交的 `stats:<book>` 与 `checkpoints:<book>`、`summary.md` 文案不含退役术语、以及带 `3:` 旧标记的中断目录被拒绝续传且不改动源目录。
+  - `unified_entry_v4_side_documents_summary_copy_and_format3_resume_guard` 核对零写作日（2026-11-21 起也零快照历史）旧书仍写出仅含创世提交的 `stats:<book>` 与 `checkpoints:<book>`、`summary.md` 文案不含退役术语、以及带 `3:` 旧标记的中断目录被拒绝续传且不改动源目录。
 - `dr-view-import/tests/import.rs`：
   - `reimport_v4_continuation_preserves_unfinished_v3_targets_and_refuses_to_resume_them` 核对 `reimport-v4-` 中断续传成功，同时同目录下的 `reimport-v3-` 未完成目录、清单、指针与 0.1 源目录的哈希、字节数和 `mtime` 完全不变，且直接调用或篡改指针指向 `reimport-v3-` 均被拒绝；
   - `reimport_dialog_copy_is_localized_in_all_nine_languages_without_mapping_json_or_paths` 核对全部九种语言的导入文案均不含 `v2`、`v3`、旧模板二分词或内部目录前缀。
@@ -593,11 +927,37 @@ cargo test -p dr-import-v1 --test v3_manifest --locked
 
 ### 保留
 
-导入的历史点（包括 `import` 那个点）默认 `LabelRetention::Kept`：不参加修剪，也不会 30 天后被删。理由是作者可能几个月后才导入，照常修剪的话，早于 30 天的点一写进去就被删掉。`Options::history_retention = Thinned` 时照常修剪（测试证明：样书里的旧点马上被删，只剩 `import`）。回执的 `import_run.summary_json` 里记着这一次用的是哪种。
+导入的历史点（包括 `import` 那个点）默认 `LabelRetention::Kept`：不参加修剪，也不会 30 天后被删。理由是作者可能几个月后才导入，照常修剪的话，早于 30 天的点一写进去就被删掉。`Options::history_retention = Thinned` 时照常修剪（测试证明：样书里的旧点马上被删，只剩 `import`）。回执的 `import_run.summary_json` 里记着这一次用的是哪种。这个设置只管存储层的标签；条目快照点（下一节）不分这两种，一律不修剪。
+
+### 条目快照点（2026-11-21）
+
+格式 5 的「快照历史」对话框经 `entry_snapshot.list` / `preview` / `restore` 读 `checkpoints:<书>` 里的清单，不读上面的标签，所以每一行有正文版本的历史再写一个条目快照点（`src/checkpoints.rs`，大白话的说明在页首「0.1 的快照历史进条目的『快照历史』」）。
+
+- **什么时候写。** 书目文档整个存好以后（最后一版 `persist_at` 之后），按时间顺序，一行一个，写进书目之前就存好的那份 `checkpoints:<书>`（同一个导入对等方，一次提交，时间是 `final_ts`），再存一次。
+- **清单（`Point`，格式 1）。** `id` = `import-v1:<旧行 id>`；`book`、`entry` = 这本书、这篇正文所属的条目；`ts` = 旧行的毫秒时间；`title` = 那一版书目里这个条目的标题；`reason` = `import`；`book_version` = 这一行的书目版本（回放时这一行的字段那一步，`replay_frontiers`；没有字段的行是它之前那一步），也就是 `label_at` 记的那一版；`bodies` = 这个条目在库里登记的每篇正文：这一行的正文在这一行的版本，别的在导入时的版本。`content_hash` 和 `checksum` 用 dr-workspace 的 `checkpoint_history_fingerprint`、`checkpoint_manifest_checksum` 算，算的时候文档是从库里读出来、检出到这些版本的，和预览加载的一样（预览就是在同样的文档上算一遍再比）。
+- **种类和保留。** `import` 是 `entry_snapshot.create` 给 `Actor::Import` 存的点的名字（`Origin::Import`），对话框不显示种类。修剪只看 `periodic`、`close`（`snapshots.rs` 的 `is_automatic`），所以导入的点多旧都不会被修剪或删掉。没用 `periodic`：那样第一次自动捕获就会按「一天以前每天一个、30 天以前删掉」把它们删光。
+- **和新版自己的点。** `entries_without_checkpoint`（后台补第一个点）不包括导入了历史的条目；`entries_due_for_capture`（退出时）拿现在的内容和最近一个点（按时间）比，变了才存，存的点时间是现在，排在导入的点上面；最近一行和现在内容指纹相同就不多存。
+- **写不成点的行。** 记进回执 `historyWithoutCheckpoint`（行 id → 代码）并计数：`history-checkpoint-entry-missing`（那一版书目里没有这个条目）、`history-checkpoint-not-an-entry-body`（正文不是条目的正文）、`history-checkpoint-unreadable`（文档在那些版本上读不出来、算不出指纹）。数据库读写出错照旧让导入失败。合成库和真实 0.1 代码写出的库里一行都没有。
+- **只计数的两种。** `history-checkpoint-place-gone`：点在那一版里的上级，导入完的书里没有了（要素的旧分组），恢复会被拒绝。`history-checkpoint-differs`：导入自己核对时读回来不对。
+- **导入自己的核对**（`Options::verify_history`）：从存好的文档读回每个点，`snapshots::checked_checkpoint`（dr-workspace 新加的公开函数，就是三个命令用的那套规则）验格式、书、条目、id、校验和、只含自己的正文，再和写的逐字段比；按清单的版本从库里加载，`checkpoint_history_matches` 成立；正文的段落和这一行预览规划出来的一样；回放了字段的行，`v3::holds` 在那一版成立。都对的数进 `historyCheckpointsChecked`。
+- **丢失检查**多一行表 `entity_snapshot_history (checkpoint)`：每一行要么有一个站得住、时间对的点，要么是默认处理跳过的、或在 `historyWithoutCheckpoint` 里，不然点名。真值核对多 `historyRowsWithCheckpoints`，`m10-measure` 要求它等于 `historyRows`、`historyCheckpointsChecked` 等于 `historyCheckpoints`。
+- **续传。** 停在写点之前，接着导时照常写；停在写完以后，接着导时同样的操作再写一遍，Loro 认出来什么都不加（测试比过文档的值和版本）。同一行永远是同一个 id，不会多一个点。
+- **确定性。** 两个新库各导一遍同一个旧库，正文照旧逐字节相同，`checkpoints:<书>` 和书目文档一样不再逐字节相同：指纹里有条目的上级，书稿根、合成分组这些 id 是每个新库自己分配的（K3 起就这样，见上文「待协调」8 的单设备导入边界）。清单里除了指纹和校验和，每一项都相同。
+- **标签照留。** 存储层的 `periodic`、`import` 标签照旧写：格式 5 的对话框不读它们，但它们不碍事，丢失检查和测量的老一行、历史回放的核对都在用，删掉要改的比留着多。
 
 ## 资源文件
 
-旧路径 `<旧库根>/assets/<书>/<资源>/source.*`（路径段用 dr-store 同一套 0.1 规则清理），读出来核对 `project_asset.source_sha256` 和大小，对上才经 `Library::import_asset`（导入标记、原子写入、落盘）复制。找不到、对不上的不导，计数进回执和摘要。`display`、`thumbnail` 不搬：等 dr-store 的图片管线做好由它重建（F2 已留接口）。
+旧路径 `<旧库根>/assets/<书>/<资源>/source.*`（路径段用 dr-store 同一套 0.1 规则清理），读出来核对 `project_asset.source_sha256` 和大小，对上才经 `Library::import_asset`（导入标记、原子写入、落盘）复制。找不到、对不上的不导，计数进回执和摘要。`display`、`thumbnail`：新版自己读得了的图片和 PDF 不搬，由新版做；新版自己解不开的图片（HEIC 等）连旧版的两份副本一起搬，见下一段。
+
+2026-11-21（同日两步）：新版自己解不开的图片（HEIC、HEIF、AVIF，iPhone 照片多半是 HEIC；还有旧版收过的图标等）连同旧版留在旁边的两份副本一起搬，都不解码：
+
+- **旧版留着什么。** 每个资源一个文件夹 `assets/<书>/<资源>/`：原件 `source.<按 MIME 定的扩展名>`，派生副本一律 JPEG、一律叫 `<变体>.jpg`。图片有 `display.jpg`（最长边 1600、质量 82）和 `thumbnail.jpg`（512、质量 72），HEIC / HEIF / AVIF 的由 ImageIO 或 WIC 做、别的由 `image` 做；PDF 只有 `thumbnail.jpg`（第一页，512）。从同步或书文件收到、旧版还没显示过的资源只有原件（`asset-store.service.ts`、`local-project-asset.service.ts`、`image_pipeline.rs`）。
+- **搬哪些。** 只有 0.1 记录的 `kind` 是 `image`、`source_mime` 不是新版自己读得了的（PNG、JPEG、GIF、WebP、BMP、TIFF）时，才在原件复制之后把 `display.jpg`、`thumbnail.jpg` 存成这个资源的 `display`、`thumbnail` 变体（`dr-import-v1` 的 `copies` 模块、`run.rs` 的 `carry_copies`）；原件照旧是存着的那份，字节、`mime` 不变。新版自己读得了的图片和 PDF 不搬副本，新版自己做。接着导时，原件已在而副本没在的照样补搬。
+- **怎么查。** 旧版的库里没有副本的哈希，所以每份副本查：是普通文件（不是文件夹、链接）、不超过 dr-store 给这个变体的上限（8 MiB、1 MiB）、以 JPEG 头开头且头里读得出尺寸、结尾有 JPEG 结束标记（截断的不要）；只读文件头和结尾，不解码。存进库里时 dr-store 记下它的 SHA-256 和尺寸。旧版文件夹只读不写（测试前后逐文件比哈希）。
+- **回执。** `import_book.record_json` 每本书多两项：`assetCopiesCarried`（资源 id → 搬到的变体）和 `assetCopiesMissing`（资源 id → 变体 → 为什么没搬：`missing`、`not-a-file`、`too-large`、`not-jpeg`、`truncated`、`unreadable`）。给作者看的摘要不变。没搬到的由新版在第一次显示时用系统解码补做（素材库、查看器、条目的媒体模块；见 [M19「HEIC 与 AVIF」](m19-materials.md#heic-与-avif2026-11-21)）。
+- **漏查。** `verify::check_catalog` 对原件已搬、该带副本的资源多记两行 `project_asset (display)`、`project_asset (thumbnail)`：库里有就是搬了，回执的 `assetCopiesMissing` 写了原因就是有记录地没搬，都不是就列为说不清的丢失。
+
+测试：`tests/asset_copies.rs`（带两份副本的 HEIC 原样搬到、旧版文件夹不变、漏查干净；缺一份、截断一份的照记回执、漏查算有记录，回执里删掉原因后漏查点出这两行；PNG 旁边的副本不搬）；`src/copies.rs` 的单元测试（哪些图片要副本；缺、不是文件、太大、不是 JPEG、头里截断、数据里截断）。
 
 ## 写作日和设备
 
@@ -629,8 +989,9 @@ cargo test -p dr-import-v1 --test v3_manifest --locked
 
 | 表 | 内容 |
 | --- | --- |
-| `archive_agent_*` | 旧帮手对话的 7 张表，原样只读：对话、运行会话、轮次、消息、工具调用、工具结果（作者已定：能看能搜，不能接着聊） |
+| `archive_agent_*` | 旧帮手对话的 8 张表，原样只读：对话、对话分支（2026-11-21 加的）、运行会话、轮次、消息、工具调用、工具结果（作者已定：能看能搜，不能接着聊；2026-11-21 起在 Agent 栏「历史」里，见 [m31「0.1 的旧对话」](m31-agent-panel.md#01-的旧对话2026-11-21)） |
 | `local_*`、`local_setting` | 本机状态原样：MCP 扩展配置、工作记忆、`library_state`（内置样书标记、交接清单）、Markdown 文件夹台账；交接导出的 WebView 设置 |
+| `carried` | 2026-11-21 起：这台设备的 0.1 设置、快捷键和每本书的工作记忆各自的去向（见「0.1 的设置、快捷键和工作记忆」） |
 
 Agent 的结算记录、读取回执、检查点、事件流、长任务状态留在旧库（作者已定）。`summary.md` 是给作者看的中文摘要（书名、导入了多少、哪几篇无法证明、哪些地方和旧版不完全一样），以后由界面按作者的语言显示。
 
@@ -659,7 +1020,7 @@ Agent 的结算记录、读取回执、检查点、事件流、长任务状态�
 | 本机没找到旧库，或点了「选择文件夹」 | 系统的选文件夹面板，按钮是「选择文件夹」 | 选一个文件夹；取消就什么都不发生 |
 | 拷贝、检查、写书、建索引 | 对话框「导入」：眉题「Drifting 0.1」、副标题是选的文件夹名；一行写正在导的书名和「第几 / 共几本」（不在某本书里时写「处理中…」），一条进度条，底下「正在导入」和百分比，右边「取消」 | 「取消」：按钮转圈、状态变成「正在停止…」，这本书写完就停（还没开始写书就直接关掉，什么都不写）。Esc、点外面不关 |
 | 闸门拦下 | 同一个对话框：拦下的原因、按书分组的几篇（类别 + 标题，太多时可以滚动）、怎么办、去下载旧版最后一版的按钮 | 「取消」（或 Esc、点外面）：什么都没写；「仍然导入」：照缓存再导一次 |
-| 导完（或取消后停下） | 「N 本 · 多少字」，每本书一行：书名、字数、状态（已导入 / 已取消。/ 没导完、下次接着导 / 以前导过 / 库里已有）；照缓存导入的篇数和没导的账号库（有才写） | 「完成」、Esc 或点外面关掉 |
+| 导完（或取消后停下） | 「N 本 · 多少字」，每本书一行：书名、字数、状态（已导入 / 已取消。/ 没导完、下次接着导 / 以前导过 / 库里已有）；照缓存导入的篇数和没导的账号库（有才写）；再下面一行「有 N 处和旧版不完全一样」（有才写，2026-11-21，见下面「导完时说哪些和旧版不完全一样」） | 点那一行：按书展开、再点收起；「完成」、Esc 或点外面关掉 |
 | 出错 | 「无法导入」，正文是导入器给的原因 | 「关闭」 |
 | 启动时，回执里有没导完的书 | 通知中心里每本一条：来源「导入」、「《书名》没导完」、按钮「接着导入」 | 「接着导入」：再导那本书来自的旧库（旧库搬走了就先列本机旧库或弹面板）；书导完，这条消失。✕ 删掉这条 |
 
@@ -676,6 +1037,30 @@ Agent 的结算记录、读取回执、检查点、事件流、长任务状态�
   
   找到以后用 `locate::discover` 读登记表，只看文件在不在、改过的时间，不打开旧库的数据库（打开会在旁边留下 `-wal`、`-shm`）。列出的是本机库（没认领的或认领为本机的 `legacy`，以及 `local`）；登录时最前面再加 0.1 里同一个账号的库（见「登录状态下导入」）。不列的账号库记进摘要。
 - **退出 App**：`dr_view_import::init` 登记了一个退出钩子（`LegacyImport::stop_for_quit`），见「流程 → 进度」里的取消。
+
+### 导完时说哪些和旧版不完全一样（2026-11-21，作者定六甲、七甲）
+
+**作者定的。** 2026-11-21 退役前空白原型的第三页，作者回「都按推荐做」：六选甲（计数那几行下面多一行总数，点了按书展开），七选甲（那一行说「有 N 处和旧版不完全一样」），规则没管到的 11–13 条也照推荐。
+
+- **原来。** 导入器早就把这些写进回执目录的 `summary.md`，可导完的对话框只说「N 本 · 多少字」、每本书一行、照缓存导入几篇和没导的账号库，作者不打开那个文件就不知道少了什么。
+- **现在。** 照缓存、账号库那两行下面多一行，样子和它们一样：「有 N 处和旧版不完全一样」，末尾一个三角（不写「展开」）。N 是 0 就没有这一行。点一下按书展开：书名下面一句一句，说法和 `summary.md` 一样（只有两句不同，见下面「作者 2026-11-21 定的三处」），导入器数了个数的句子右边写「N 处」（「处」是素材库现成的 `v5Files.usageCount`）；一本书有素材那几行时，它们上面是 `summary.md` 那一块的小标题「旧版素材里没有带过来的」（浅一号的字，没有素材行就没有）。再点收起。列表比较长时在对话框里自己滚，和闸门、书的列表一样高（232 像素）。这一行对读屏是一个按钮，名字就是这句话，带展开状态；展开后书名和每一句也是读屏读得到的标签，句子连着它的「N 处」一起读。
+- **算哪些（规则 11）。** `summary.md` 里说「和旧版不一样」的都算，每本书照文件里的顺序：
+  1. 资源文件：「有 N 个资源文件找不到、M 个和记录的哈希对不上，没有导入。」，算 N+M 处，句子自己带数字，右边不再写；
+  2. 导入的默认处理（「旧库里新版不能照原样收下的地方，导入替你这样处理了」，见上文「默认处理」），每个代码一句、带个数；
+  3. 「和旧版不完全一样的地方」，每种一句、带个数；
+  4. 「旧版素材里没有带过来的」，每个素材或素材夹一句，算一处，不写个数。
+  
+  原型画的时候 `summary.md` 还没有第 2 块（默认处理同一天早上才合进来），原型上写的是「三块都算」；第 2 块也是新版没照原样收下的东西，监管会话交代算进去，就一起算。合进同一个文件夹的第二个素材（「合并为同一个文件的旧版素材」）带过来了，不算；锚住的段落不在了的批注（「有 N 条批注或补丁锚住的段落已经不在」）在原型说的三块外面，也没算。说法一样的几行（比如「标题层级或缩进超出范围」的两个代码）在对话框里合成一句、个数相加；素材一行一个，同名也不合。总数等于展开后所有数字加起来（素材一行一处）。
+- **数从哪来。** 每本书导完时记进回执的那一条（`import_book` 的 `record_json`，`receipt::BookRecord`），由 `receipt::differences` 一行一行读出来；`summary.md` 用同一套句子，所以两边的行和数永远一样（说法只差那两句的对话框版本）。导入的线程把它放进 `Done` 每本书的 `differences`，不重新推算。
+- **句子在哪（规则 12）。** 原来写在 `receipt.rs` 的 `explain`、`adjusted` 和素材那几行里，只有中文；现在都进了 `dr-i18n/own/<语言>.json` 的 `import.v1.differences`（九种语言），`receipt::lossy_sentence` / `default_sentence` 把代码对到键。简体中文就是原来那些字；繁体照台湾用词（批注叫註解、分类叫類目、模板叫範本）；别的语言是各自已有说法下的简短直译。新版建出来的层级名「要素」「未分类」「幕」在书里本来就是中文，各语言的句子里照原名写。退役的 Copilot 那一句，名字不进语言表（`xtask` 的 `retired` 门只让导入器自己的几个文件提它），表里写 `{{product}}`，由 `receipt.rs` 填进去，出来的字和原来一样。导入的默认处理每个代码都有自己的一句（`defaults::CODES`），有测试盯着：源码里记了一个新代码而这里没有，或者有代码没有句子，测试就失败；万一回执里出现这一版不认识的代码，照原来的做法说「照原样导入，记在回执里」并照样计数。
+- **`summary.md` 还是中文。** 它在导入的线程上、在书库旁边写，跟界面语言无关，今天就是这样，没改；那些句子现在从简体中文的语言表里取，内容逐字没变（拿覆盖每一句的回执比过改前改后的文件，一个字节不差）。
+- **关掉以后（规则 13）。** 不另做入口：通知中心、菜单里都没有。`summary.md` 照旧在回执目录里。
+- **新的字。** 第一版只有那一行，九种语言（英文「N places aren't quite the same as in 0.1」），其余都是从 `receipt.rs` 搬进语言表的原句。2026-11-21 作者定的三处又加了两种关系的两句、两句的对话框版本，小标题是从 `receipt.rs` 搬进语言表的原句。
+- **真窗口。** `crates/dr-cli/scenarios/import-differences.json`（157 步，副屏、场景自己的合成 profile）：合成 0.1 库 `sample-v3-differences`（两本书，`build_differences`；作者定那三处以后多了一张没有文件的图和指向它的链接、一条状态和勾选不一致的清单待办、两条两头是同一个要素和一头不在的关系）从书架的「导入 · Drifting 0.1」走普通对话框导四次，中文浅色、中文深色、英文浅色、英文深色。每次：状态里总数 24、两本书 21 和 3、列表收着；读屏的树里有一个按钮，名字正好是「有 24 处和旧版不完全一样」（英文那句），按下展开，按钮名字不变，表格那一句连着「1 处」能读到；小标题两个（两本书都有素材行）；那两句是去掉「逐条列在下方」的说法连着「1 处」，整个列表里没有「逐条列在下方」（英文没有「listed below」）；两种关系的句子连着「1 处」；列表滚到中间、再滚到最后一行，再按收起，「完成」关掉。2026-11-21 全过、0 步待定。截图只作记录，没进仓库。照原型做时改了一处：原型展开的列表没有上下两条发丝线，真窗口里列表滚动时字在边上被切断、像画坏了，就照对话框里书的列表和闸门的列表加了。
+- **作者 2026-11-21 定的三处**（第一版交回时列成待定、各带建议，作者回「必须。都按照你的建议。」）：
+  1. **两种关系有了句子。** 默认处理那一轮让导入把「两头是同一个东西」和「一头已经不在」的关系去掉并记下（`relation-self-end-dropped`、`relation-missing-entry-dropped`，上文「逐条」表 `invalid-or-duplicate-source-relation`），原来 `explain` 没给句子，`summary.md` 不提、对话框也不算。现在是「两头是同一个对象的关系没有导入」「一头已不存在的关系没有导入」（九种语言），在「和旧版不完全一样的地方」里，和别的关系那几句一样计数。`summary.md` 只是出现这两种时多这两行，没有它们的回执写出来的文件和以前一个字节不差（拿第一次比对用的那张回执再比过）。测试不留例外：书目里每个丢关系的代码（`book.rs` 里的 `relation-…-dropped`）都要有句子。
+  2. **素材那几行上面有小标题。** 对话框里一本书有素材那几行时，上面照搬 `summary.md` 那一块的小标题「旧版素材里没有带过来的」：同一个键（`import.v1.differences.materials_heading`），`summary.md` 在后面加冒号。总数和每行的数都不变。
+  3. **两句去掉「逐条列在下方」。** 「正文中指向图片或 PDF 素材的链接……」「清单项关联的待办状态……」两句在 `summary.md` 里后面真有明细，照旧说「，逐条列在下方」；对话框里下面没有明细，说的是去掉这一截的句子。做成这两句在语言表里的对话框版本（`import.v1.differences.lossy_dialog`，九种语言，每种都是原句去掉最后那一截、别的一字不动，测试逐种语言核对），不是在代码里截字。
 
 ### 文案
 
@@ -756,14 +1141,14 @@ Agent 的结算记录、读取回执、检查点、事件流、长任务状态�
 DRIFTING_M10_FIXTURE_DIR=<dir> ./node_modules/.bin/vitest run src/renderer/services/v2-handoff/m10-fixtures.test.ts
 ```
 
-`m10-fixtures.test.ts` 不设环境变量时跳过。它写出 `sample`（两本内置样书，和首次启动一样，插图带真实字节）、`sample-stale`（在 7 篇正文的 Yjs 里追加字不誊缓存，两篇各 3 行快照历史，没有交接）、`sample-handoff`（再放进按书设置、跑一次真实的交接），每份库一个 `truth/<名字>.jsonl`（每篇正文的 Yjs 渲染、每行快照历史从 `state_blob` 的渲染）和 `manifest.json`。书和库的 id 每次生成都不同，以清单为准。
+`m10-fixtures.test.ts` 不设环境变量时跳过。它写出 `sample`（两本内置样书，和首次启动一样，插图带真实字节）、`sample-stale`（在 7 篇正文的 Yjs 里追加字不誊缓存，两篇各 3 行快照历史，没有交接）、`sample-handoff`（再放进按书设置、跑一次真实的交接）、`sample-wide-one-pass` 和 `sample-wide`（2026-11-21：删掉的章和要素、带优先级的待办、带格式的批注、端点是文件和待办的关系、带格式表格的笔记、PDF／AVIF／HEIC、两台设备的写作日、Markdown 文件夹台账、工作记忆、42 行没预览的快照历史，跑一次／两次交接，见上文「对着 0.1 的真实输出重测」），每份库一个 `truth/<名字>.jsonl`（每篇正文的 Yjs 渲染、每行快照历史从 `state_blob` 的渲染）和 `manifest.json`。先生成好 `lite` 时它还摆出 `accounts/`（0.1 的数据目录：登记表、本机库、账号库）。书和库的 id 每次生成都不同，以清单为准。
 
 ```bash
 cd next
 cargo run --release -p dr-import-v1 --example m10-measure -- <dir> --milestone m10-m4 --write
 ```
 
-`m10-measure` 对清单里每份库在子进程里导入一遍（峰值内存按库算），先不勾「仍然导入」，被拦了再勾着导一遍；然后和真值核对，再查索引。契约有一条不成立就报错，不写证据；成立时写 `docs/rust-rewrite/acceptance/<里程碑>-import.json`（不加 `--write` 只打印）。新证据写好后删掉上一份。
+`m10-measure` 对清单里每份库在子进程里导入一遍（峰值内存按库算），先不勾「仍然导入」，被拦了再勾着导一遍；然后和真值核对，再查索引，再跑丢失检查（`verify::check_catalog`）。闸门拦下的必须正好是生成器留在 Yjs 后面的那几篇；清单写了 `expectRefusal` 的库必须正好因为那几条被拒；带 `registry` 的库照登记表核对主人和位置。契约有一条不成立就报错，不写证据；成立时写 `docs/rust-rewrite/acceptance/<里程碑>-import.json`（不加 `--write` 只打印）。新证据写好后删掉上一份。
 
 ## 测试与证据
 
@@ -780,6 +1165,10 @@ cargo xtask check
 | 单元测试（41） | 迁移的前缀规则和补齐、登记表规则、作者选的文件夹认成哪个库（数据目录、库根、`databases` 文件夹、只有账号库时拒绝）、暂存副本不动原库、时间解析、交接清单（含旧格式退回原始设置）、闸门、编辑器 JSON 的解析和映射、写入后读回和多版本检出、往返、锚点（UTF-16、硬换行、容器块、找回和退回）、键值顺序、树的孤儿和环、100 张表和已发布迁移建出的表完全一致；进度只增不减、到 100 %；快照元数据的读法、事实的 ID 在几行之间不变 |
 | `tests/import.rs`（15） | 用已发布迁移和纯 SQL 建一个合成 0.1 库（不需要 Node、不需要 Yjs），整本导入真实的 dr-store 再用 dr-doc 读回：每个集合的字段、锚点解析出的原文、待办换 id 和关系跟着换、历史点的时间和检出、各历史点上书目文档里的标题 / 梗概 / 别名 / 分组 / 事实、资源文件字节、安装身份、库里的回执和旁边的存档；没交接时闸门拦住、勾了才导；同一本书不导第二次；两次导入写出的字节完全一样；旧迁移级别的库在副本上补齐、原库不变；进度的步骤和计数；导入后的索引（字数、大纲、搜索）；回放历史后书目文档和不带历史导入的一样；历史点照常修剪的选项；中途打断后接着导（不多打历史点、资源文件不重复）；回执记下旧库位置，`receipt::unfinished` 列出没导完的书、接着导完后为空；库里已有、本机没有回执的书不动；导入写进一个开着的库（带 dr-index 的派生器，和 App 一样）：被闸门拦下时什么都不留，导完库还开着、索引都是新的、再导一次不动那本书；闸门列出的每篇带书名、分得清章节和构想；App 的设备（带 F7 的身份打开的库）导入时认领旧版身份，写作日键马上换成旧版的，重开库不换代；取消：开始前取消什么都不写，写第一本时请求「写完再停」则第二本记 `cancelled`、之后再导能导进来；正文写到一半立刻停，书目文档还没写、那本记 `importing`，再导一次的书目文档和一次导完的完全一样；（第六个里程碑）合成库的分类和故事线各带一份旧模版：书目文档上的旧字段原样，两份模版文档已登记，读出来是 H1「外貌」+ 带人物链接的「像阿Q那样」、H2「开端」+ 加粗的「冲突：」，回执记 2 份 |
 | `dr-view-import`：单元测试（1）和 `tests/import.rs`（8） | 占位文案的键都在 `import.v1.` 下、不重复，只有「仍然导入」在简体中文里有字。GPUI 测试平台上，外壳 + 书架 + 真的库（F3 经 dr-store 和 dr-index），旧库是上面那个合成库：书架入口派发动作 → 弹出只能选一个文件夹的面板 → 导入 → 摘要里的书和字数和书架上一致、索引不落后、经 F3 在那个分类里新建一个要素，正文照导入的要素模版开头（H1「外貌」、「像阿Q那样」）、旧库文件的哈希和修改时间不变 → Esc 关掉 → 同一个库再导，书标「这台设备导过」；没交接时闸门拦下、库里什么都没写、旁边也没留文件夹，列出的两篇都带书名 → Esc 取消，库还是空的 → 再导、「仍然导入」→ 摘要写「2 篇照缓存导入」、书上了书架；选了没有旧库的文件夹报错，Esc 关掉；选文件夹时取消，什么都不打开；本机旧库列出来（不弹面板），Esc 关掉，从列表里「选择文件夹」弹面板，点一行导入、设备认领了旧版身份；按「取消」后不会留下半本书（库里的书目文档数等于导入的书数）；退出钩子先停下导入，回执里没有 `importing`；（第五个里程碑）库里有一本没导完的书时，启动后通知中心有一条「《阿Q正传》没导完」带「接着导入」，旧库搬走时点它弹面板、取消后提醒还在，搬回来再点就接着导完、提醒消失、回执里不再有没导完的书；两个工作区窗口时，在第二个（活跃的）里点入口，面板和之后的对话框都在第二个，中途切到第一个也不跟过去，之后在第一个里点入口就归第一个 |
+| `tests/catalog.rs`（2，2026-11-21） | 丢失检查：合成 0.1 库导入后每张表的 0.1 行都对上（带过来的加回执记了不带的），三十多类各自数到了（同日起多一行 `entity_snapshot_history (checkpoint)`）；反面对照：导入后从书目文档里删掉一条批注，检查只报这一条（表 `comment`、书、id）；把回执里一条「不带」的记录删掉，那条关系就成了没交代的。删掉的章和要素（照 0.1 的删法）上的批注导进来，挂在回收站里的条目上；章的两条故事线归属存着、读出来不算，主故事线还在 |
+| `receipt.rs` 单元测试（5）、`tests/differences.rs`（2）、`tests/defaults.rs`（改），2026-11-21 | 导完时说哪些和旧版不完全一样：源码里默认处理记下的每个代码都在 `defaults::CODES` 里、每个都有自己的一句，书目记下的每个丢关系的代码（`book.rs` 的 `relation-…-dropped`）都有句子、不留例外；作者定的三处：两种关系的中英文句子、小标题中英文、两句的对话框版本中英文，每种语言都是原句去掉最后一截，别的句子对话框照 `summary.md` 说，`summary.md` 里是全句、两种关系各一行、小标题带冒号；`import.v1.differences` 下的每一句都有代码用到、九种语言都有、不和简体中文相同，英文里除了「要素」「未分类」「幕」三个层级名没有汉字；简体中文几句钉住原来的字；`differences` 照 `summary.md` 的顺序、说法相同的合并、素材一行一个、不认识的代码说兜底的那句并计数、没导入的书什么都不说。一张覆盖每一句的回执和一次真实导入（合成库 `build_differences`：笔记里带表头和合并格的表格、一个找不到文件的图片、三种默认处理、一个空素材夹、一个网页素材、一张没有文件的图和指向它的链接、一条状态和勾选不一致的清单待办、两条去掉的关系，再加第二本书），把 `summary.md` 一行一行读回来（`common::parse_summary`），每本书的行、说法、个数和 `differences` 一样，展开后的总数也一样；默认处理的每一例都不落到兜底的句子，`summary.md` 里默认处理那块的个数等于回执的条数 |
+| `tests/history_checkpoints.rs`（5，2026-11-21） | 0.1 快照历史成了条目快照点：列出、预览、恢复都经 `entry_snapshot.*`，后台补点和退出时的点排在后面、不重复，续传不多写，丢失检查点名少了点的那一行（详见页首「0.1 的快照历史进条目的『快照历史』」的测试表） |
+| `dr-view-import`：`tests/import.rs` 加 3 个，2026-11-21 | 在普通对话框里导 `build_differences`：`Done` 每本书的句子和个数与新库里的 `summary.md` 读回来的相同（说法相同的合并后），总数 24；中文「有 24 处和旧版不完全一样」、英文「24 places aren't quite the same as in 0.1」；收着时只有那一行、没有列表，点一下展开、两本书的行都画出来、句子是界面语言的（那两句是去掉「逐条列在下方」的，中英文都核对），两本书的素材行上面各有小标题、在前一行下面、第一行素材上面，列表不超过 232 像素高，再点收起；关掉对话框就忘了展开过。什么都没差时没有那一行，照缓存和账号库两行照旧（字也照旧），点了也打不开。两行都在时新的一行在它们下面、字对齐；这一行是带名字和展开状态的按钮（真窗口里读屏的树由场景查）；没有素材行时展开后没有小标题；列表用的是对话框的说法（`dialog_text`） |
 | `dr-index/tests/m10.rs`（2026-11-08 起在 `dr-import-v1/tests/index.rs`） | 关掉导入时建索引（`index = false`），打开库时由 dr-store 补建；这个测试原来就在，只加了这一行 |
 
 证据按 [F8 的做法](../foundations/f8-testkit.md#证据)：
@@ -855,11 +1244,11 @@ cargo xtask check
    建议来源只有 `import`、`genesis`、`repair` 时不打 `close`，和 `records_periodic` 的口径一致。M10 这边不绕过它。
 2. **F2（可选）：`NewLabel` 加一个可选的书目文档版本。** 现在 `label_at` 记的是书目文档当前落盘的版本，所以 M10 把书目文档分段存（每行历史一次追加、一次打点）。允许调用方给出书目文档版本的话，就可以一次存完再一次打完。现在的做法是对的，只是事务多一些。
 3. **存档和本机表的去处**（原第 3 条剩下的）：
-   - `archive_agent_*` 交给 M31；
+   - `archive_agent_*` 交给 M31（2026-11-21 已接：Agent 栏「历史」里一节「Drifting 0.1」，能看能搜、不能接着聊；读存档的是 `dr_import_v1::agent_archive`，只读，不迁移、不另存一份；导入同时多搬一张 `agent_chat_branch`，好照 0.1 只列现在那一支。见 [m31「0.1 的旧对话」](m31-agent-panel.md#01-的旧对话2026-11-21)）；
    - `local_agent_mcp_server` 交给 M32；
-   - `local_agent_working_memory` 交给 M30；
+   - `local_agent_working_memory` 交给 M30（2026-11-21 已接：导入时写成每本书的工作记忆，见「0.1 的设置、快捷键和工作记忆」）；
    - `local_markdown_mirror_file` 交给 M40；
-   - `local_setting` 交给 F6 的设置注册表。
+   - `local_setting` 交给 F6 的设置注册表（2026-11-21 已接：换库时每台设备一次带进设置，见同一节）。
 
    它们接手时追加自己的迁移，从 `receipt.sqlite` 读一次就行。
 4. **F1：批注、补丁的正文和素材描述是纯文字**（F1 待协调 4）。有格式的计数并把原 JSON 存进回执；五份库里都没有。F1 加了富文本以后，可以从 `import_original` 补回来。
@@ -917,6 +1306,8 @@ cargo xtask check
    **作者已定 11-11（暂定默认行为，夜间队列第 6 项已落地）**：非内置关系类型的端点种类按 `node`、`element`、`category`、`storyline` → `entry`，`patch` → `patch`，`comment` → `comment`，`library_item` → `material` 映射并去重；`source_templates` 和 `target_templates` 留空，不展开成模板清单；旧的端点种类数组原样保存在导入回执 `import_original`（`collection = "relation_types"`，`field = "source_kinds" | "target_kinds"`）里以便日后还原；内置关系类型（`generic-association`）不动。这是作者重构关系类型前的暂定规则，已改为默认行为，不再需要 `MappingChoices`。
 26. **K3：旧数据无法直接落进 v3 的情况，先报告再协调。** 无分类／分类已缺失的要素（旧列允许 NULL）、找不到住处的分组／归属、分组环、无书序的章节、没有起点或起点重叠的幕、构想残留书序、同名字段模板／同名字段多值、坏的章节模板、悬空关系／批注／时间钉／幕绑定。清单保留原始数据，用 `pending` 报告对应来源；缺分类不新造分类，环不自动拆，重叠边界不替作者选幕，多值不覆盖，坏模板不当成空模板。完整夹具是正常映射数据，异常回归在临时库中修改它；真正导入时的提示／阻止／修复策略留给后半段协调，不改变定稿方案。
 
+   **2026-11-21 替作者定了，等作者过目**：这些情况现在都有默认处理、照导并记下，只剩读不出来或写不进去的仍然拒绝，逐条见上文「旧库里新版不能照原样收下的：默认处理」。
+
 27. **K3 / K1：旧层级自己的颜色如何落位。** 幕、构想分组、分类、故事线各行可以有不同颜色；定稿结构列了模板的 `color`，条目 meta 只明确列出层级设置覆盖，没有明确列出颜色覆盖。清单 `Level.color` 保留旧值，尚不宣称它就是 v3 字段。请 K1 确认已有的覆盖接口或其他既定落点；导入不擅自加条目字段，也不为了保色自创一批层级模板。当前只钉住叶子模板数量，不钉层级模板的生成策略。
 
    **K1 已回应（`dd39c0bd`）**：分类、构想分组、通用分组、故事线的层级模板已有带 `color_field` 的 `mod-fields`，个别条目颜色写 `fields.mod-fields.color`。K3 后半段已在 `d28e911d` 用该接口保留旧颜色并与旧幕分组逐项核对，第四十二批整合验收通过；没有新造每色模板。
@@ -952,7 +1343,7 @@ cargo xtask check
   - 系统的选文件夹面板是原生窗口，调试桥点不到，真窗口验收里没走它（GPUI 测试平台上模拟过）。
   - 整库备份 `.drifting`（ZIP：SQLite 加资源文件，读的部分来自 `library_backup.rs`）。
   - 旧的 `.driftingbook` v1：只有 Yjs 状态，新版读不了，要先导入旧版再交接。
-  - 资源文件的 `display` / `thumbnail` 没搬。
+  - 资源文件的 `display` / `thumbnail` 只给新版自己解不开的图片搬（2026-11-21，见「资源文件」）；PNG、JPEG 等和 PDF 的不搬，新版显示时自己做（不写回库里）。
   - Windows 上「旧版是否开着」的判断（独占打开）只在 CI 能验。
 - **下一个里程碑建议**：
   1. ~~按账号库逐个导入的流程~~：2026-11-20 改成登录哪个账号就导进哪个账号的书库（见「登录状态下导入」），不一次导多个库；
@@ -979,8 +1370,10 @@ cargo xtask check
 | `src/progress.rs` | 进度：步骤、计数、整体估计 |
 | `src/meta.rs` | 快照历史的元数据：读法、对象的当前字段、回放、核对 |
 | `src/receipt.rs` | 库里的回执表、旁边的帮手对话存档和本机状态、给作者的摘要 |
+| `src/carry.rs` | 读回抄下的 0.1 设置、把工作记忆写成每本书的工作记忆、记下去向（`carried` 表和摘要末尾一节） |
 | `src/tables.rs` | 100 张表的去向，和已发布迁移建出的表比对 |
-| `src/verify.rs` | 和 Yjs 真值核对、核对索引（测量和开发工具用，不属于导入） |
+| `src/verify/mod.rs` | 和 Yjs 真值核对、核对索引（测量和开发工具用，不属于导入） |
+| `src/verify/catalog.rs` | 丢失检查 `check_catalog`：0.1 的每一行要么在新库里，要么回执记了为什么不带（2026-11-21） |
 | `src/bin/m10-import.rs` | 开发工具：`discover`、`analyse`、`import`（`--progress` 打出进度）、`check`、`mapping-md` |
 | `examples/m10-measure.rs` | 测量：五份测试库，断言契约，写测量证据 |
 | `tests/` | 合成 0.1 库的整本导入 |
@@ -993,6 +1386,8 @@ cargo xtask check
 | `src/flow.rs` | 状态（本机旧库列表、选文件夹、导入中、被拦、导完、出错）、找本机旧库、导入线程、取消和退出时停下、摘要 |
 | `src/view.rs` | 五种对话框 |
 | `src/copy.rs` | 旧版没有的句子：占位键和作者定过的「仍然导入」 |
+| `src/carry.rs` | 换库后每台设备一次带进 0.1 的设置和快捷键（表在 `dr-shell/src/settings/v1.rs`） |
+| `tests/carry.rs` | 从对话框导入后的设置、快捷键、工作记忆和回执 |
 | `tests/import.rs` | GPUI 测试平台上的整条路（用 dr-import-v1 的合成旧库） |
 | `examples/import-capture.rs` | 截图（`--features capture`） |
 
@@ -1003,7 +1398,7 @@ cargo xtask check
 | 旧表 | 去向 | 落到哪里 / 为什么 |
 | --- | --- | --- |
 | `agent_chat_binding` | drop | 帮手对话扩展的投递状态，留在旧库 |
-| `agent_chat_branch` | drop | 帮手对话扩展的投递状态，留在旧库 |
+| `agent_chat_branch` | agent-archive | 对话的分支（接着别的设备的对话聊时分出一支），只读搬过去，旧对话按它只列现在那一支 |
 | `agent_chat_cursor` | drop | 帮手对话扩展的投递状态，留在旧库 |
 | `agent_chat_delivery` | drop | 帮手对话扩展的投递状态，留在旧库 |
 | `agent_chat_object` | drop | 帮手对话扩展的投递状态，留在旧库 |

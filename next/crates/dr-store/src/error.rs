@@ -102,6 +102,59 @@ impl StoreError {
             value: value.into(),
         }
     }
+
+    /// A stable code for reports and logs: which kind of failure, with
+    /// SQLite's or the system's own class of error where there is one. Never
+    /// a path, an id or text from the library.
+    pub fn code(&self) -> String {
+        match self {
+            Self::Sqlite(error) => match error.sqlite_error_code() {
+                Some(code) => format!("sqlite:{}", kebab(&format!("{code:?}"))),
+                None => "sqlite".into(),
+            },
+            Self::Loro(_) => "loro".into(),
+            Self::LoroEncode(_) => "loro-encode".into(),
+            Self::Io(error) => format!("io:{}", kebab(&format!("{:?}", error.kind()))),
+            Self::Migration(failure) => format!("migration:{}", failure.stage.as_str()),
+            Self::SchemaNewer { .. } => "schema-newer".into(),
+            Self::SchemaMismatch(_) => "schema-mismatch".into(),
+            Self::AlreadyOpen(_) => "already-open".into(),
+            Self::DocumentsOpen(_) => "documents-open".into(),
+            Self::NotFound(_) => "not-found".into(),
+            Self::Purged(_) => "purged".into(),
+            Self::Closed(_) => "closed".into(),
+            Self::WritePanicked(_) => "write-panicked".into(),
+            Self::ReadPanicked(_) => "read-panicked".into(),
+            Self::Invalid { what, .. } => format!("invalid:{}", kebab(what)),
+            Self::Asset(_) => "asset".into(),
+            Self::Backup { code, .. } => format!("backup:{code}"),
+            Self::Recovery { code, .. } => format!("recovery:{code}"),
+            Self::Identity(_) => "identity".into(),
+            Self::ReadOnly => "read-only".into(),
+            Self::NeedsMigration { .. } => "needs-migration".into(),
+            Self::IndexBase { .. } => "index-base".into(),
+            Self::AgentSequence { .. } => "agent-sequence".into(),
+        }
+    }
+}
+
+/// `DatabaseCorrupt` and `integrity check` as `database-corrupt` and
+/// `integrity-check`.
+fn kebab(name: &str) -> String {
+    let mut out = String::with_capacity(name.len() + 4);
+    for c in name.chars() {
+        if c.is_ascii_uppercase() {
+            if !out.is_empty() && !out.ends_with('-') {
+                out.push('-');
+            }
+            out.push(c.to_ascii_lowercase());
+        } else if c.is_ascii_alphanumeric() {
+            out.push(c);
+        } else if !out.is_empty() && !out.ends_with('-') {
+            out.push('-');
+        }
+    }
+    out.trim_end_matches('-').to_owned()
 }
 
 /// A failed migration. Unless it failed while reopening the replaced
@@ -149,3 +202,81 @@ impl std::fmt::Display for MigrationFailure {
 }
 
 impl std::error::Error for MigrationFailure {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sqlite(code: std::ffi::c_int) -> StoreError {
+        StoreError::Sqlite(rusqlite::Error::SqliteFailure(
+            rusqlite::ffi::Error::new(code),
+            Some("no such text in a code".into()),
+        ))
+    }
+
+    #[test]
+    fn codes_name_the_kind_of_failure_and_carry_no_text() {
+        let cases = [
+            (
+                sqlite(rusqlite::ffi::SQLITE_CORRUPT),
+                "sqlite:database-corrupt",
+            ),
+            (
+                sqlite(rusqlite::ffi::SQLITE_NOTADB),
+                "sqlite:not-a-database",
+            ),
+            (sqlite(rusqlite::ffi::SQLITE_FULL), "sqlite:disk-full"),
+            (
+                StoreError::Sqlite(rusqlite::Error::QueryReturnedNoRows),
+                "sqlite",
+            ),
+            (
+                StoreError::Io(std::io::Error::new(
+                    std::io::ErrorKind::PermissionDenied,
+                    "/a/path/that/must/not/show",
+                )),
+                "io:permission-denied",
+            ),
+            (
+                StoreError::SchemaNewer {
+                    applied: 10,
+                    known: 9,
+                },
+                "schema-newer",
+            ),
+            (
+                StoreError::SchemaMismatch("a table name".into()),
+                "schema-mismatch",
+            ),
+            (
+                StoreError::invalid("integrity check", "row 7 of some table"),
+                "invalid:integrity-check",
+            ),
+            (
+                StoreError::Migration(MigrationFailure {
+                    stage: MigrationStage::Validate,
+                    detail: "detail that must not show".into(),
+                    safety_snapshot: PathBuf::from("/a/snapshot/path"),
+                    recovery_id: None,
+                    from: 8,
+                    to: 9,
+                }),
+                "migration:validate",
+            ),
+            (
+                StoreError::Recovery {
+                    recovery_id: "01aa".into(),
+                    code: "snapshot-changed",
+                },
+                "recovery:snapshot-changed",
+            ),
+            (
+                StoreError::AlreadyOpen("node:secret".into()),
+                "already-open",
+            ),
+        ];
+        for (error, code) in cases {
+            assert_eq!(error.code(), code, "{error}");
+        }
+    }
+}

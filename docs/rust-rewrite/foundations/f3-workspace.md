@@ -235,6 +235,7 @@
    - 不能撤销（`irreversible`）。
    - 另加 **`book.purge_expired`**：把到期的书都删掉。旧版是书架打开 2 分钟以后跑一次（让别的设备上的「恢复」先同步过来），M01 照这个时机调用就行。还开着的书留到下次，列在结果的 `waiting` 里。
    - **只删这台设备上的。** 旧版先删 Hosted 上的、确认了再删本地；新版的同步（M36）还没做，见「待协调」M36。
+   - **条目也能这样删了**（2026-11-21，`entry.purge {book, id}`，作者选二乙）：只收「最近删除」里的条目，连同和它一起进去的（`dr_model::v3::trashed_with`），没有保留期、不自动清。照 `asset.purge` 的样子：书目一次提交，提交后删它们的正文文档（`purge_doc`，清除记录随同步走）、`layout:<书>` 的坐标和 `checkpoints:<书>` 的清单，`journal.forget_record` 让会把它们带回来的撤销步骤作废，`irreversible`；编辑器开着其中一篇正文时整次拒绝（`Workspace::release_prose_docs`）。`entry_history.restore` 遇到书里已经没有的条目报找不到。清掉什么、之后各处读到什么见 [kernel-v5.md 第 16 节「最近删除」](../kernel-v5.md#最近删除)；不进帮手和 MCP 的目录（`*.purge` 的排除）。测试在 `dr-workspace/tests/entry_purge.rs`。
 4. **「最近打开」：`recent.touch`、`recent.list`**（M02 的「继续写」）。旧版是 WebView 的 localStorage，只在这台设备上，所以这里也**只在本机、不同步**。
    - 一条记录是作者打开过的一页：章节、构想、要素、故事线、分类、素材，和打开的时间。
    - `recent.touch` 把这一页挪到最前面（不重复），每本书留最近 **10** 条（旧版的默认值）。它不是作者的一步操作：不记日志、没有撤销。

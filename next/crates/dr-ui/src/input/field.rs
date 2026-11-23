@@ -292,6 +292,16 @@ impl TextField {
         cx.notify();
     }
 
+    /// What [`Self::set_meta`] put at the end of the field.
+    pub fn meta(&self) -> Option<&SharedString> {
+        self.meta.as_ref()
+    }
+
+    /// The words shown while the field is empty (a search field has none).
+    pub fn placeholder_text(&self) -> &SharedString {
+        &self.placeholder
+    }
+
     pub fn set_disabled(&mut self, disabled: bool, cx: &mut Context<Self>) {
         self.disabled = disabled;
         cx.notify();

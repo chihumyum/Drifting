@@ -869,6 +869,11 @@ pub struct ProjectTab {
     /// Whether `mount` currently points to a valid target (`TAB-MOUNT-VALID`).
     #[serde(default = "default_true")]
     pub mount_valid: bool,
+    /// What it is called once the entry it mounts was deleted for good
+    /// (`entry.purge`, `TAB-KEEPS-GONE-NAME`); read only while that entry is
+    /// not in the book.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gone_title: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -911,6 +916,7 @@ impl Project {
                     pos: t.pos.as_ref().map(|k| k.as_str().to_owned()),
                     mount: (&t.mount).into(),
                     mount_valid: s.is_valid_tab_mount(&t.mount),
+                    gone_title: t.gone_title.clone(),
                 })
                 .collect(),
             selected_tab: None,

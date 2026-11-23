@@ -72,12 +72,19 @@ futures.workspace = true
 gpui.workspace = true
 gpui_platform.workspace = true
 log.workspace = true
+# The library's open failure by SQLite's class of error (`library::open_failure_cause`).
+rusqlite.workspace = true
 # DRIFTING_CHECK (development builds): F3's queries the self-check reads.
 serde_json.workspace = true
 
 [dev-dependencies]
 dr-agent.workspace = true
 dr-agent-providers.workspace = true
+# The 0.1 clients' MCP connections through the real executable
+# (`tests/mcp_v1.rs`) and the release layout's MCP state
+# (`data_folder_tests`): a Runtime with the book tools, an MCP client that
+# starts the configured command (rmcp), the reactor, Codex's format.
+dr-agent-tools.workspace = true
 dr-editor.workspace = true
 # The release identity's folders on a synthetic 0.1 data folder
 # (`data_folder_tests`, with dr-import-v1's test library).
@@ -88,9 +95,12 @@ dr-view-search.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
 gpui-prose.workspace = true
 gpui_platform = { workspace = true, features = ["runtime_shaders", "test-support"] }
+rmcp.workspace = true
 rusqlite.workspace = true
 sha2.workspace = true
 tempfile.workspace = true
+tokio.workspace = true
+toml_edit.workspace = true
 
 [target.'cfg(target_os = "macos")'.dev-dependencies]
 libc.workspace = true
@@ -104,6 +114,12 @@ required-features = ["debug-bridge"]
 
 [[example]]
 name = "mcp-acceptance"
+required-features = ["debug-bridge"]
+
+# M31 「0.1 的旧对话」: the ordinary import of a synthetic 0.1 library and
+# the scripted model (`dr-view-agent/scenarios/old-conversations.json`).
+[[example]]
+name = "old-conversations-acceptance"
 required-features = ["debug-bridge"]
 
 [[example]]

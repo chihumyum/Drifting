@@ -18,7 +18,7 @@
 | 自动更新 | 读清单、比版本、下载、用现有公钥的格式验签、macOS 原地换包、Windows 交给安装器；本地用自造的密钥对和本地文件从头到尾走通了。第四轮（M42）：启动后和每 3 小时自动查、设置里手动查，查到就后台下好验好，通知中心「重启以更新」，退出时换；坏签名、旧包冒充新版本、半截下载、断网都拒绝并说清楚，全对着本机假服务测过 | 签名正式包上的交接演练（旧版那头 alpha.11 起已经带两条更新地址） |
 | 外部 Agent 的命令行 | 新程序认旧版写进 Codex、Claude Code 配置里的 `drifting --mcp --connection <文件>`，在入口最先分流，不开窗口、不拿单实例锁 | M32 实现桥接（发 GPUI 版的前提） |
 | 设备身份（第二轮） | 应用打开库时带上这台设备的身份（和旧版同一个身份文件，换了机器算新设备），写作日真正存下来；开发 profile 各有一份 | — |
-| 反馈与崩溃跟进（第二轮，M39） | 反馈对话框，可附脱敏诊断摘要，走旧版的接口；崩溃后通知中心里点「上次出了故障」问一句；没有服务时交给邮件程序。脱敏规则补全成旧版的整套。第三轮：多行写话框，✕ 总能关、写了字点雾不关，和旧版一样。第四轮：摘要里的更新状态接上了 M42 | 登录会话、摘要里的同步状态（见 [m39-feedback.md](../modules/m39-feedback.md) 待协调） |
+| 反馈与崩溃跟进（第二轮，M39） | 反馈对话框，可附脱敏诊断摘要，走旧版的接口；崩溃后通知中心里点「上次出了故障」问一句；没有服务时交给邮件程序。脱敏规则补全成旧版的整套。第三轮：多行写话框，✕ 总能关、写了字点雾不关，和旧版一样。第四轮：摘要里的更新状态接上了 M42。2026-11-21：摘要里的同步状态接上了 M36 的同步运行时，登录了、在同步的书库不再报「本机库」；每个字段从哪来、哪些留旧版默认值，见 [m39-feedback.md 的「摘要里的同步」](../modules/m39-feedback.md#摘要里的同步2026-11-21) | 登录会话（见 [m39-feedback.md](../modules/m39-feedback.md) 待协调） |
 | 发布流水线 | 第五轮写全了：`next/script/release-next.draft.yml`，挪进 `.github/workflows` 就会跑 | 作者配密钥、定几件事、按 [release-handover.md](../release-handover.md) 的顺序发 |
 
 **最要紧的三个发现**：
@@ -54,7 +54,7 @@ dr_view_feedback::init(Service::for_build(platform, Some(&dirs.data), version), 
 | --- | --- | --- |
 | `cli` | app、M32 | `cli::parse(args) -> Launch::{App, Mcp(Result<PathBuf, _>)}`；`MCP_USAGE`、`MCP_ERROR_PREFIX`（旧版的报错写法） |
 | `identity` | 全部 | `Identity { channel, bundle_id, product_name, executable, url_scheme, keychain_service, publisher }`；`DEVELOPMENT`、`RELEASE`、`Identity::current()`；`RELEASE_BUILD`（`release-identity` 特性开没开，`const`）、`BUILD_MARKER`（程序里只编进当前身份的那个标记，`check-binary` 认它） |
-| `paths` | F2、F6 | `AppDirs { data, own, logs, crashes }`：`own` 放新版自己的东西，`data` 是系统按 bundle id 起名的文件夹（正式身份下就是 0.1 的，只放两版共用的 `mcp/`、导入从这里找旧书）；`AppDirs::for_identity`、`for_identity_at`（换掉系统文件夹的根，测试用）、`AppDirs::under(root)`（测试和隔离运行） |
+| `paths` | F2、F6 | `AppDirs { data, own, logs, crashes }`：`own` 放新版自己的东西，`data` 是系统按 bundle id 起名的文件夹（正式身份下就是 0.1 的，只写两版共用的 MCP 状态：根上的 `mcp/` 和各书库的 `libraries/<id>/mcp/`；导入从这里找旧书）；`AppDirs::for_identity`、`for_identity_at`（换掉系统文件夹的根，测试用）、`AppDirs::under(root)`（测试和隔离运行） |
 | `logging` | app | `LogConfig::for_build`、`logging::init`、`logging::installed()` |
 | `crash` | app、F6、F2 | `crash::init(CrashConfig) -> CrashReporting`；`.status()`、`.set_consent(bool)`、`.take_follow_up() -> Option<CrashFollowUp>`、`.report_integrity(code)`、`.flush(timeout)` |
 | `sanitize` | 任何要上报文字的地方 | `sanitize::message`、`report_text(text, max)`、`report_token`、`error_code`、`redact_home`（规则逐条照旧版 `crash-sanitize.ts`） |
@@ -65,6 +65,7 @@ dr_view_feedback::init(Service::for_build(platform, Some(&dirs.data), version), 
 | `single_instance` | app | `acquire(identity, args) -> Instance::{Primary, Forwarded, ForwardFailed}`；`Primary::listen(f)` |
 | `update` | M42（`dr-view-update`） | `UpdaterConfig::for_build(identity, version)`；`Updater::new(config, UpdateFetch::new(policy, ua, stall))`；`.check() -> Offer::{Newer, Current, Older}`、`.download(&available, dir, progress) -> Downloaded`（验签并核对签名里的版本；已下好的验过就复用）；`Downloaded::replace_bundle(bundle)`（macOS，还核对 App 自己的版本）、`.installer_launch(args)[.without_relaunch()].spawn()`（Windows）；`UpdateError::problem()`；`Downloads`（更新文件夹和两张便条）；`update::running_bundle()`；`HttpFetch`、`LocalFetch`；`fetch::fake_server`、`signature::test_keys`、`install::test_bundles`（`test-support`） |
 | `relaunch` | M42 | `relaunch::after_exit(bundle)`（macOS：等本进程退出再 `open -n`，照旧版 `macos_relaunch.rs`）；`open_arguments` |
+| `image_codec` | M19 素材库（2026-11-21） | HEIC / HEIF / AVIF 交给系统解码，照旧版 `apple_image_codec.rs`、`windows_image_codec.rs`：`SystemFormat::{sniff, from_extension, from_mime}`；`dimensions(bytes)`、`decode(bytes, 最长边) -> Decoded { width, height, rgba }`（直通 RGBA）；`CodecError::{NotSystemFormat, Unavailable, Invalid}`。macOS 是 ImageIO（转正、解码时缩小），Windows 是 WIC（要商店扩展，不转正），别处一律不可用。会阻塞，放后台线程。见 [M19「HEIC 与 AVIF」](../modules/m19-materials.md#heic-与-avif2026-11-21) |
 
 两个只给发布和自测用的小程序（`examples/`，不进正式包）：
 
@@ -118,7 +119,7 @@ dr_view_feedback::init(Service::for_build(platform, Some(&dirs.data), version), 
 
 - **Rust 崩溃（panic）**：我们自己的 panic hook 总会把它记到 `crashes/pending/<id>.json`，不管开没开上报：消息先过 `sanitize`，带调用栈和当时加载的镜像列表（服务端拿符号文件还原函数名要用）。GPUI 的回调不能展开，panic 通常直接中止进程，当场发不出去，所以和旧版一样**下次启动再发**；没开上报就直接删掉。最多攒 20 条。
 - **原生崩溃**（段错误、`abort`、访问冲突）：Sentry 官方的 `minidump` 特性。开了上报才有：启动时把同一个可执行文件以 `DRIFTING_CRASH_REPORTER` 再起一个「Drifting Crash Reporter」旁路进程，主进程崩溃时它写 minidump 并当场上传。minidump 里有崩溃线程的栈内存，可能夹着当时正在处理的一小段文字；这一点要写进同意说明。
-- **完整性事件**：`report_integrity("database-open-failed:corrupt")` 这类固定代码，给 F2 用。
+- **完整性事件**：`report_integrity(code)`，固定代号，不带书库里的文字。2026-11-21 起有了第一个调用方：应用启动时书库打不开，报 `library-open-failed:<代号>`（代号来自存储层的 `StoreError::code()`：`schema-newer`、`schema-mismatch`、`sqlite:database-corrupt`、`sqlite:not-a-database`、`migration:<阶段>`、`recovery:<原因>`、`io:permission-denied` 这类；不是存储层拒绝的用工作区的代号），打开书库的线程崩了报 `library-open-panicked`。`crash_report` 测试对着本机假 Sentry 验了这一条（消息、指纹、不带用户）。打不开时窗口整页换成一页说明（2026-11-21，作者「按推荐做」）：同一个代号按错误类型归成七种原因之一，页面说原因和该怎么办，代号只进反馈的第一行、日志和上报，见 [F6 的「资料库打不开时」](f6-shell.md#资料库打不开时2026-11-21作者定)。
 
 ### 发出去的是什么
 
@@ -204,7 +205,7 @@ dr_view_feedback::init(Service::for_build(platform, Some(&dirs.data), version), 
 - 可执行文件路径交接后不变：macOS `…/Drifting.app/Contents/MacOS/drifting`，Windows `<安装目录>\drifting.exe`（正式版身份和安装器保证）。
 - 参数规则照旧版 `run_stdio_cli`：第一个参数是 `--mcp` 才算；恰好是 `--mcp --connection <文件>` 时进桥接，其他写法报 `Usage: Drifting --mcp --connection <connection-file>`；所有错误都写成 `Drifting MCP: <原因>` 打到 stderr、以 1 退出。`dr_platform::cli` 实现了这套解析（有测试），`app/drifting` 的 `main` 在第一行分流，桥接本身 `run_mcp_bridge` 现在只返回「这个版本还没有 MCP 桥接」，由 M32 实现：读连接文件（`version: 1`）、连运行中的 Drifting、转发帧，和旧版 `local::cli` 一致。
 - 本机冒烟：开发构建 `drifting --mcp --connection <不存在的文件>` 和 `drifting --mcp` 都立刻在 stderr 报错、以 1 退出，没开窗口、没留进程。
-- 连接文件放在应用数据目录的 `mcp/` 下，正式版身份和旧版共用这个目录，M32 照旧版格式读即可；桥接要连的是一个开着的 Drifting，所以 Windows 上关窗后程序是否还在（见「Windows 托盘」）直接影响外部 Agent。
+- 连接文件放在**正在用的书库**的根下的 `mcp/`：旧版注册表以前的那个书库（`legacy`）的根就是应用数据目录，其他书库（`local`、`account-<hex>`）的根是 `libraries/<id>`，连接文件在 `libraries/<id>/mcp/`。正式版身份把前一个当自己的文件夹，后一种由 M32 照原样一并接上（2026-11-21，见 [m32 的「0.1 各书库的外部 Agent 连接」](../modules/m32-mcp.md#01-各书库的外部-agent-连接2026-11-21)）；桥接要连的是一个开着的 Drifting，所以 Windows 上关窗后程序是否还在（见「Windows 托盘」）直接影响外部 Agent。
 - Windows 正式包如果用 GUI 子系统（不弹控制台），被 Agent 以管道启动时标准输入输出照样能用，旧版就是这样；F6 加 `windows_subsystem` 时保持这一点。
 
 ## 退出时能做多少

@@ -6,7 +6,9 @@ use dr_workspace::commands::v3::types::{
 use gpui::{Font, Hsla, Pixels, SharedString, TextRun, Window};
 use std::collections::{BTreeMap, BTreeSet};
 
-pub const DEFAULT_SPAN: f64 = 4.0;
+/// How wide a card without a span is drawn; the kernel places entries at the
+/// end of the scale after it (`dr_model::v3::timeline_scale_end`).
+pub const DEFAULT_SPAN: f64 = dr_model::v3::DEFAULT_PLACEMENT_SPAN;
 pub const SHORT_ACT_SPAN: f64 = 0.9;
 /// The lane-name column in the bar (`W9Bottom`: `nameW` 96).
 pub const RAIL: f32 = 96.0;

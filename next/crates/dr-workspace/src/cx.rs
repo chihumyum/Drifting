@@ -578,6 +578,59 @@ impl<'a> Cx<'a> {
         })
     }
 
+    /// After the book commit of `entry.purge`: drop what the entries `gone`
+    /// (deleted for good) left in the two documents beside the book, each
+    /// only where the document is there already: their canvas coordinates
+    /// in `layout:<book>` (`LayoutTxn::forget_entries`, kernel-v5 「替作者定的」: only
+    /// in the step that purges entries) and their checkpoints in
+    /// `checkpoints:<book>`. The purge cannot be undone, so these are no
+    /// step of their own and run no book guard. Returns how many
+    /// checkpoints went.
+    pub(crate) fn release_purged_entries(
+        &self,
+        book: &BookId,
+        gone: &BTreeSet<dr_model::id::EntryId>,
+    ) -> Result<usize> {
+        if self.spec.access != Access::Write {
+            return Err(WsError::Internal(format!("{} is a query", self.spec.name)));
+        }
+        let origin = self.actor.store_origin();
+        if let Some(side) = self
+            .ws
+            .side_slot(&DocId::Layout(book.clone()), book, false)?
+        {
+            let (id, gone) = (book.clone(), gone.clone());
+            holder::write(&side.handle, origin.clone(), None, move |doc| {
+                let layout = dr_doc::side::BorrowedLayout::new(doc, &id)?;
+                let mut txn = layout.txn();
+                Ok(txn.forget_entries(|e| gone.contains(e))?)
+            })?;
+        }
+        let Some(side) = self
+            .ws
+            .side_slot(&DocId::Checkpoints(book.clone()), book, false)?
+        else {
+            return Ok(0);
+        };
+        let (id, gone) = (book.clone(), gone.clone());
+        holder::write(&side.handle, origin, None, move |doc| {
+            let points = dr_doc::side::BorrowedCheckpoints::new(doc, &id)?;
+            let mut txn = points.txn();
+            let mut removed = 0;
+            for (point, manifest) in txn.view().entry_checkpoints() {
+                let owner = serde_json::from_str::<Value>(&manifest)
+                    .ok()
+                    .and_then(|m| m["entry"].as_str().map(str::to_owned))
+                    .and_then(|e| dr_model::id::EntryId::parse(&e).ok());
+                if owner.is_some_and(|e| gone.contains(&e)) {
+                    txn.remove_entry_checkpoint(&point)?;
+                    removed += 1;
+                }
+            }
+            Ok(removed)
+        })
+    }
+
     /// The open prose document `doc` (created from its genesis if only
     /// registered).
     pub(crate) fn prose(&self, doc: &DocId) -> Result<Arc<ProseSlot>> {

@@ -4,7 +4,7 @@
 
 ## 做了什么（大白话）
 
-1. **能写反馈了。** 一个对话框：写你想说的话（多行，回车换行），留个回信邮箱（选填），下面一个开关「附上脱敏诊断摘要」，默认开着，点「预览」能看到要发的摘要原文。在写话的框里按 ⌘↩（Windows 上 Ctrl+Enter）或点「发送」就发出去；发完左下角是完成的墨印加「已发送」，只剩「关闭」。右上角的 ✕ 总能关；点对话框外面的雾，只有还没写字时才关，免得一下子丢了写的话（第三轮改的，和旧版一样）。
+1. **能写反馈了。** 一个对话框：写你想说的话（多行，回车换行），留个回信邮箱（登录了会先填好账号邮箱；发到托管服务的普通反馈必填，见下面「回信邮箱必填」），下面一个开关「附上脱敏诊断摘要」，默认开着，点「预览」能看到要发的摘要原文。在写话的框里按 ⌘↩（Windows 上 Ctrl+Enter）或点「发送」就发出去；发完左下角是完成的墨印加「已发送」，只剩「关闭」。右上角的 ✕ 总能关；点对话框外面的雾，只有还没写字时才关，免得一下子丢了写的话（第三轮改的，和旧版一样）。
 2. **发到哪儿，和旧版一模一样。** 有托管服务的正式版，发到服务端同一个接口（`POST /api/diagnostics/v1/feedback`，格式 `drifting.feedback` 第 1 版），登录了就带上会话；服务端收下后给维护者发邮件，回信地址是作者填的那个。没有托管服务的构建（公开源码默认就是）、开发构建、或者发送失败，都改成「用邮件发送」：打开作者的邮件程序，收件人 `support@drifting.cc`，正文就是同一段话、版本号，以及（附上的话）摘要。
 3. **崩溃之后会问一句。** 上次崩溃并且报告已经发出去了，下次打开过两秒，通知中心里出现「上次出了故障」。点它打开同一个对话框：标题上方是故障时间，输入框提示「当时在做什么」，发出去的话会注明是哪一次崩溃。「忽略」把这条通知收掉；发出去也收掉；直接关掉对话框，通知还留着。每次崩溃只问一次。
 4. **摘要里没有你的稿子。** 摘要只有版本、平台、芯片架构、同步的计数和错误代号、更新的状态，以及一段「隐私承诺」；没有正文、没有凭据、没有书名或任何 id、没有完整路径、没有原始错误文字。错误代号不是干净的标识符就换成 `redacted-error`。崩溃上报和这里共用一套脱敏规则，现在逐条照旧版来（见下）。
@@ -14,8 +14,8 @@
 
 ### 照旧版的地方
 
-- **接口、字段、校验全照 `services/diagnostics/feedback.ts`**：正文去掉首尾空白、最多 5000 字；邮箱选填，填了就必须是一个干净的地址（不能带空格、尖括号、逗号分号、反斜杠，顶级域两个字母以上，最长 254），挡住在地址里夹带邮件头；摘要只有确实是摘要格式的 JSON 才附；`kind` 是 `feedback` 或 `crash-follow-up`；字段名和顺序一样。
-- **摘要格式不升版本**：`drifting.sanitized-diagnostics` 第 2 版，字段一个不少、顺序一样。新版还没有同步和在跑的更新服务，这两段先按旧版「本机库、更新空闲」时的值填（`authorityStatus: local`、`phase: idle`），以后同步和 M42 的更新服务接进来时填真实值（`SyncSnapshot`、`UpdateSnapshot`）。
+- **接口、字段、校验全照 `services/diagnostics/feedback.ts`**：正文去掉首尾空白、最多 5000 字；邮箱填了就必须是一个干净的地址（不能带空格、尖括号、逗号分号、反斜杠，顶级域两个字母以上，最长 254），挡住在地址里夹带邮件头，什么时候必填见「回信邮箱必填」；摘要只有确实是摘要格式的 JSON 才附；`kind` 是 `feedback` 或 `crash-follow-up`；字段名和顺序一样。
+- **摘要格式不升版本**：`drifting.sanitized-diagnostics` 第 2 版，字段一个不少、顺序一样，键名也不加不改（服务端和运营台按这些键读）。同步和更新两段起先按旧版「本机库、更新空闲」时的值填（`authorityStatus: local`、`phase: idle`）；更新那段第四轮接上了 M42，同步那段 2026-11-21 接上了 M36 的同步运行时，见下面「摘要里的同步」。不同步的库（本机库、没登录）还是原来那份，一字不差。
 - **诊断专用安装 id**：`diag-<随机 uuid>`，和同步的安装 id、写作日的设备键都无关；放在应用数据目录的 `diagnostics-installation-v1`，第一次发反馈时才生成（旧版也是用到才生成），不是一启动就写。
 - **反馈不看「自动发送故障诊断」开关**：那个开关只管不问就发的崩溃报告；反馈是作者主动发的。
 - **开发构建默认走邮件**：要对着本机的服务验收，设 `DRIFTING_CRASH_REPORTS_IN_DEV=1` 再加 `DRIFTING_DEV_API_BASE_URL=http://127.0.0.1:<端口>`（只在开发构建认）。正式版的服务地址只在构建时由 `DRIFTING_API_BASE_URL` 给，公开构建不设。地址只认 `https://`，`http://` 只认本机（`127.0.0.1`、`localhost`、`::1`）。
@@ -40,6 +40,66 @@
   - 外壳用 F5 的 `Dialog::on_close` / `on_mist`：✕ 总能关；点雾只在写话框里没有字（只有空格、换行也算没有）且不在发送中时才关（旧版的 `closeOnBackdrop`）。发完以后话还在框里，所以点雾也不关，用「关闭」或 ✕。
 - **发送中**：「取消」灰掉，Esc 和点雾都不关，和旧版一样；只有 ✕ 能关。发送中点 ✕，对话框立刻关掉，话照样发出去，发到了照样收掉崩溃跟进的通知（旧版也是这样：关掉的是界面，请求还在走）。收通知这一步因此放在发送任务里做，不靠对话框还在。
 
+## 回信邮箱必填（2026-11-23）
+
+**为什么**：作者（维护者）发现收到的反馈没法回。查了服务端：没带邮箱的反馈都来自没登录的人，那个框是空的，占位字还写着「选填」。0.1 客户端当天改成必填，新版照着改，规则一样：
+
+- **发到托管服务的普通反馈必须填回信邮箱。** 框里的占位字从「选填」换成「必填」，没填时按 ⌘↩ 或点「发送」什么都不发（发送键是灰的），填了但不是一个地址照旧那圈细线变危险色。
+- **崩溃跟进仍是选填**：那是作者在帮我们补一句当时在做什么，不是等回信。
+- **用邮件发送时仍是选填**：没有托管服务的构建、开发构建，信是从作者自己的邮箱发来的，直接回就行。
+- **按对话框打开时要发到哪儿算**（和 0.1 一样）：本来要发到托管服务、没发出去改用邮件时，邮箱已经填过了，照旧要求。
+- **登录了的作者不用多做什么**：对话框打开时回信邮箱先填好账号邮箱（0.1 一直如此，新版原来没做，这次补上）。账户模块在启动和每次账号状态变化时把账号邮箱交给 `dr_view_feedback::Service::set_account_email`，退出后是空的。
+- **服务端接口不变**：`contactEmail` 仍然可以是空（崩溃跟进、0.1 的 `0.1.0-alpha.12` 及更早版本都会发空的）。
+
+规则在 `dr_platform::feedback::contact_required(delivery, follow_up)`，校验多一种问题 `Problem::MissingEmail`（排在「地址不对」前面）。占位字用的是 0.1 新加的词条 `feedback.contactRequired`，九种语言都有。
+
+## 摘要里的同步（2026-11-21）
+
+**为什么要接**：之前不管作者登没登录、书库在不在同步，摘要的同步那段一律是 `authorityStatus: local`、`providerMode: local`、什么都没排队、没有错误代号。维护者靠这段判断一份反馈是不是同步出了问题，错报一个「本机库」比什么都不报还糟。
+
+**怎么接的**：同步运行时归 App（`app/drifting/src/sync.rs`），它像登记稿纸角记号那样，用 `dr_shell::sync::set_diagnostics_hook` 登记一个「现在同步是什么状态」；对话框打开时用 `dr_shell::sync::diagnostics(cx)` 取一次（和更新那段一样，只在打开时取一次，预览的就是发出去的），没人登记时就是原来的 `local`。运行时的状态怎么翻成摘要的字段，在 `dr-sync` 的 `diagnostics_snapshot` 里（服务层，不碰界面）；对话框只依赖外壳，依赖方向照旧往下指。
+
+**不同步的库**：本机库、没登录（运行时的 `local_only`、`signed_out`）还是 `SyncSnapshot::local()`，整份摘要和以前逐字相同（测试逐字比对）。**启动时还在核对登录**（打开的是账号书库、会话还没核完，运行时这时按没登录等着）：报 `authorityStatus: loading`、`providerMode: hosted`，其余是默认值，不报 `local`；`loading` 是旧版「还不知道」的说法。
+
+每个字段现在从哪来：
+
+| 字段 | 现在从哪来 | 对得上吗 |
+| --- | --- | --- |
+| `authorityStatus` | 账号书库：运行时有要作者处理的问题（没能启动、要重新登录、空间满、连续失败、某本书自己的问题，即 `sync_problems_of` 不空）是 `cloud-attention`；暂停（`health.paused`）是 `cloud-paused`；否则 `cloud-ready`。离线不改它，看 `online` 和代号 | 近似：旧版按每个项目的绑定状态推，新版是整库一个运行时。旧版的 `cloud-provisioning`、`transitioning`、`unavailable` 新版没有对应的状态，不会出现 |
+| `providerMode` | 运行时的 `hosted_enabled`：账号书库不管在线、离线、要重新登录还是已连上，都是 `hosted` | 准确 |
+| `activeProjects`、`readyProjects`、`pausedProjects`、`attentionProjects` | 运行时按书记的健康状态（`health.books`）：记了几本；其中有自己的问题或连续失败的算要处理，其余算正常；暂停时全算暂停 | 近似。现在的运行时整库一轮同步，不按书记，所以实际都是 0；书库本身的状态看 `authorityStatus` 和代号 |
+| `provisioningProjects` | 0，旧版默认值 | 新版没有：旧版有「连上、找、发首版、恢复」这种按项目的准备阶段，新版没有 |
+| `runtimeMounted` | `SyncRuntimeSnapshot.attached`：有没有登录着、挂在书库上的同步引擎（停着也算挂着） | 准确 |
+| `online` | 挂着引擎时是「最近一次连服务器没断」（`!health.offline`）；没挂时 `null`，和旧版一样 | 近似：旧版看系统的联网状态，新版看最近一次请求。账号本身离线时没挂引擎，`online` 是 `null`，靠代号 `sync.offline` 看出来 |
+| `suspended` | 挂着引擎时是 `health.paused`；没挂时 `null` | 近似。App 里现在没有地方设这个标志：运行时只在要重新登录、空间满时自己停下自动同步，那两种有自己的代号；换库、退出时的短暂停顿不进快照 |
+| `pending.changeSets` | `pending_docs + pending_purges`：有没传上去的改动的文档数，加上没传上去的删除 | 近似：旧版数改动集，一篇文档可以有好几个；新版一篇文档算一个 |
+| `pending.segments` | 0 | 新版没有：Loro 的增量一批传，不分段 |
+| `pending.transfers` | `pending_assets`：等着上传的图片等资源 | 近似：旧版还数正在下载的；新版下载在一轮里做完，不排队 |
+| `pending.gaps` | 0 | 新版没有：收到缺依赖的更新时停下、从头重放，不留缺口计数；碰上时有代号 `sync.missing-dependencies` |
+| `pending.conflicts` | 0 | 新版没有：Loro 自己合并，没有冲突要处理 |
+| `pending.quarantined` | 0 | 新版没有：不隔离坏对象，校验不过就算这一轮失败（代号 `sync.integrity-mismatch`） |
+| `pending.failed` | 书库上一轮失败了算 1（没能启动不算，那时一轮也没跑），再加上一轮失败了的书 | 近似：旧版按项目数，新版整库算一个 |
+| `errorCodes` | 运行时的几个标志各一个代号，加上一次失败的种类（`SyncError::code`）；成功一轮就清掉。只有下面这些固定的标识符，不带错误原文、路径、id、书名；`summary()` 照旧再过一遍 `sanitize::error_code` | 准确（新版自己的代号表） |
+
+代号（都以 `sync.` 开头）：
+
+| 代号 | 什么时候有 |
+| --- | --- |
+| `sync.not-started` | 同步引擎没能建起来（标志 `init_failed`） |
+| `sync.reauth-required` | 会话过期或被撤销，要重新登录（标志 `reauth_required`，或上一次请求被拒 401） |
+| `sync.quota-exceeded` | 云端空间满了（标志 `quota_exceeded`，或上一次请求 413） |
+| `sync.offline` | 连不上服务器，或账号本身离线（标志 `offline`） |
+| `sync.failing` | 连续失败 3 轮或持续 5 分钟（离线时不算），书库或某本书 |
+| `sync.http-<状态码>` | 上一次失败是服务器报错，比如 `sync.http-503` |
+| `sync.invalid-origin`、`sync.invalid-path` | 服务地址或对象路径不合规 |
+| `sync.integrity-mismatch`、`sync.object-too-large` | 下载的对象校验不过、对象超过 64 MiB |
+| `sync.missing-dependencies` | 收到的更新缺本机没有的改动（随后会重放） |
+| `sync.cancelled` | 传到一半被取消（换库、退出） |
+| `sync.store-already-open`、`sync.store-sqlite`、`sync.store-io`、`sync.store` | 本机书库出错：文档正开着挡住了远端删除、数据库、读写、其他 |
+| `sync.loro`、`sync.loro-encode`、`sync.io`、`sync.json` | 合并、导出、文件读写、解析出错 |
+
+为此 `dr-sync` 加了三样（都只加不改）：`SyncError::code()`；`SyncHealthSnapshot.last_error_code`，和 `last_error` 一起记、一起清（`last_error` 是原文，只留在本机，不进摘要）；`SyncRuntimeSnapshot.attached`。
+
 ## 接口
 
 ```rust
@@ -47,7 +107,8 @@
 dr_platform::sanitize::{message, report_text, report_token, error_code, redact_home};
 dr_platform::diagnostics::summary(&SummaryInput::current(version)) -> String; // 带缩进的 JSON + 换行
 dr_platform::diagnostics::installation_id(Some(data_dir)) -> String;           // diag-<uuid>，用到才建
-dr_platform::feedback::problems(message, email) -> Vec<Problem>;
+dr_platform::feedback::contact_required(&delivery, follow_up) -> bool;        // 2026-11-23：回信邮箱是不是必填
+dr_platform::feedback::problems(message, email, contact_required) -> Vec<Problem>;
 dr_platform::feedback::payload(&draft, &sender, now) -> Payload;               // drifting.feedback v1
 dr_platform::feedback::Delivery::for_build(identity) -> Delivery;             // Hosted(Endpoint) | Email
 dr_platform::feedback::send(&endpoint, session, &payload) -> Result<(), SendError>; // 阻塞，别在主线程
@@ -57,13 +118,22 @@ dr_platform::feedback::fake_service::FakeService;  // 测试用：127.0.0.1 上�
 // dr-view-feedback
 dr_view_feedback::init(Service::for_build(identity, Some(data_dir), version), cx);
 dr_view_feedback::Service::set_session(Some(token), cx);   // 账户模块（M36）登录后调
+dr_view_feedback::Service::set_account_email(Some(email), cx); // 2026-11-23：对话框打开时先填它，退出时传 None
+dr_view_feedback::FeedbackDialog::contact_required(&self, cx) -> bool;
 dr_view_feedback::FeedbackDialog;                          // 对话框本身（测试读它的状态）
+
+// 摘要里的同步（2026-11-21）
+dr_sync::diagnostics_snapshot(&runtime_snapshot, session_checking, now_ms) -> SyncSnapshot;
+dr_shell::sync::set_diagnostics_hook(cx, |cx| -> SyncSnapshot { … }); // 管同步运行时的（App）登记
+dr_shell::sync::diagnostics(cx) -> SyncSnapshot;    // 对话框打开时取；没登记就是 local()
 
 // dr-shell 的挂接点
 dr_shell::actions::SendFeedback;                     // 任何地方派发它就打开对话框
-dr_shell::dialogs::set_feedback(cx, make);           // 注册对话框（同 pages::set_shelf 的做法）
+dr_shell::dialogs::set_feedback(cx, make);           // 注册对话框（同 pages::set_shelf 的做法）；make(opening, close, window, cx)
 dr_shell::dialogs::FollowUpNotice { notice, crash_id, at };
+dr_shell::dialogs::FeedbackOpening { follow_up, message }; // 2026-11-21：message 是先写好的正文（资料库打不开那一页）
 Workspace::open_feedback(follow_up, window, cx);
+Workspace::open_feedback_with(opening, window, cx);  // 2026-11-21
 Workspace::dialog: Option<AnyView>;
 ```
 
@@ -89,6 +159,8 @@ F6 也在改 dr-shell，逐条列出，合并时好对：
 
 - `dr-platform`：`sanitize`（旧版单测的例子原样搬来、密钥邮箱网址、令牌和错误代号）、`diagnostics`（字段和顺序与旧版一致、错误代号只留标识符、时间格式与 JavaScript 的 `toISOString` 一致、诊断 id 只建一次）、`feedback`（校验、载荷字段与旧版一致且不含稿件、附件和邮箱留空、崩溃跟进的 `related`、何时走邮件、`mailto:` 正文、对着本机假服务发出去：路径、`Authorization`、`Content-Type`、503 报错、没人听的端口算网络错误）。合计 dr-platform 单测 82 个。
 - `dr-view-feedback/tests/dialog.rs`（GPUI 测试平台 + 本机假服务，7 个）：`SendFeedback` 打开、⌘↩ 发出、服务端收到的正文（带换行）和预览里的摘要逐字相同、带会话，发完点雾不关、点 ✕ 关；崩溃跟进发送失败（503）后改用邮件、邮件里有崩溃指纹、通知收掉；Esc 关掉通知还在、「忽略」收掉；写了字点雾不关、只有空格换行时点雾关；发送中点 ✕ 立刻关、话照样到了假服务、通知照样收掉；发送中 Esc 和点雾都不关，失败后点 ✕ 关、通知还在；空话（含只有换行）、坏邮箱时什么都不发；没有服务时直接交给邮件程序；没注册对话框时 `SendFeedback` 什么都不开。点雾、点 ✕ 都是真的鼠标点击（✕ 的位置随卡片高度变，测试从窗口顶上沿 ✕ 那一列往下点，碰到 ✕ 为止）。对话框和展开的摘要预览都真画了一帧。
+- 摘要里的同步（2026-11-21）：`dr-sync` 的 `diagnostics` 单测 11 个：不同步的库整份摘要和以前逐字相同、还在核对登录时是 `loading`、正常时的排队数、要重新登录（一轮被拒和账号要求重新登录两种）、空间满、离线（引擎连不上和账号本身离线两种，长时间离线也不算连续失败）、没能启动、连续失败（3 轮或 5 分钟，成功一轮就清）、暂停、书自己的问题，以及每种失败都有干净的代号、摘要里没有错误原文。对话框测试多一个（共 8 个）：登记了就是登记的那份（代号照样脱敏），没登记就是 `local`，发出去的邮件里也是它。App 的 `sync.rs` 多一个对着本机假同步服务的测试：启动时核对登录期间是 `loading`，第一轮同步完是 `hosted`、`cloud-ready`、挂着、在线、没有代号，服务端不再认这个会话以后是 `cloud-attention` 加 `sync.reauth-required`，账号转成要重新登录、引擎摘下以后还是这个代号；本机库那个测试也确认摘要还是 `local`。
+- 回信邮箱必填（2026-11-23）：`dr-platform` 的 `feedback` 单测多一个（什么时候必填、没填是 `MissingEmail`、和空话一起时的顺序）。对话框测试多两个：要发到假服务的普通反馈，框打开时是空的、占位字是「必填」那个词条，没填或只有空格时 ⌘↩ 什么都不发，填了地址才到假服务；登录了（交了账号邮箱）打开就是那个地址，不用再填就发得出去，崩溃跟进的占位字还是「选填」那个词条、不要求，退出以后再开是空的。原有的测试没改：崩溃跟进不带邮箱照样发到假服务，用邮件发送不带邮箱照样交给邮件程序。
 - 全程不碰真服务：假服务只听 `127.0.0.1`，邮件程序是 GPUI 测试平台记下的网址。
 
 还没做的验收：对话框在真窗口里的观感（字体、间距、玻璃）没截图，待作者看；对着真托管服务发一条要作者同意后再试。
@@ -98,10 +170,13 @@ F6 也在改 dr-shell，逐条列出，合并时好对：
 1. ~~F5（dr-ui）：多行输入框~~：**已做**（F5 的 `TextArea`），第三轮换上了，见「新版自己的地方」。框现在是 F5 的 `TextArea::framed`（2026-11-08 由 M01 那一路和书架、Project Home 一起换过去，`dr-view-feedback` 不再依赖 `dr-view-shelf`）。
 2. ~~F5（dr-ui）：对话框外壳分开「✕」和「点雾」~~：**已做**（F5 的 `Dialog::on_mist`），第三轮接上了。
 3. ~~M01（书架账户菜单）和设置的「关于」：加「提交反馈」一项~~：**已做**（第十一批），两处都派发 `SendFeedback`。
-4. **M36（账户）：登录后 `dr_view_feedback::Service::set_session(Some(令牌), cx)`，退出时传 `None`。** 回信邮箱默认填账户邮箱（旧版如此）也在那时加，对话框里留了 `contact_field()`。
-5. **同步模块、M42（更新服务）：往摘要里填真实值**（`SummaryInput` 的 `sync`、`update`），设置 → 隐私的「复制摘要」到时也用 `diagnostics::summary`。
+4. ~~M36（账户）：登录后 `dr_view_feedback::Service::set_session(Some(令牌), cx)`，退出时传 `None`；回信邮箱默认填账户邮箱~~：**已做**。会话是 M36 接的；默认填账户邮箱 2026-11-23 补上（`set_account_email`），见「回信邮箱必填」。
+5. ~~同步模块、M42（更新服务）：往摘要里填真实值~~：**已做**，更新那段第四轮、同步那段 2026-11-21（见「摘要里的同步」）。还剩：设置 → 隐私的「复制摘要」到时也用 `diagnostics::summary`，同步那段用 `dr_shell::sync::diagnostics`。
 6. **M42（发布）：正式构建设 `DRIFTING_API_BASE_URL`**（和 `DRIFTING_SENTRY_DSN` 一样只在发布工作流里给）。不设，正式版的反馈也只走邮件。
 7. **F6：** 外壳的改动见上一节（第三轮没再改外壳）；单行输入框 `set_text` 给带换行的字会 panic（GPUI 的 `shape_line`），调用方别传换行——反馈的写话框已换成多行框，不再涉及，记一笔给 F5/F6。
+8. **要不要给摘要加新键**（等作者定）：新版运行时还知道上次同步成功是什么时候、游标、跑完了几轮、退避了几次，这些对判断「同步停了多久」有用，但摘要里没有对应的键；加键要服务端和运营台也认，这次没加。
+
+9. ~~回信邮箱必填，新版跟上 0.1~~：**已做**（2026-11-23），见「回信邮箱必填」。还没验的：真窗口里「必填」那个状态（开发构建走邮件，看不到；要带托管服务的构建）。
 
 ## 设备身份（M07 待协调 1）
 
@@ -123,5 +198,8 @@ next/crates/dr-view-feedback/
   src/dialog.rs    FeedbackDialog
   tests/dialog.rs  对话框测试（GPUI 测试平台 + 本机假服务）
 next/crates/dr-shell/src/dialogs.rs   挂接点（见「改了外壳的地方」）
+next/crates/dr-shell/src/sync.rs      摘要里同步那段的挂接点（set_diagnostics_hook、diagnostics）
+next/crates/dr-sync/src/diagnostics.rs 运行时状态翻成摘要的同步那段、代号
+next/app/drifting/src/sync.rs         登记摘要里的同步那段
 next/app/drifting/src/library.rs      带设备身份打开库
 ```

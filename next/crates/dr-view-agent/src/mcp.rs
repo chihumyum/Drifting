@@ -2,16 +2,21 @@
 //! and every external author call borrows the same Agent controller as chat.
 //! The endpoint lists the open book's catalog from the companion's own book
 //! tools, read under that controller's lease.
+//!
+//! Under the release identity it also serves the 0.1 client's other
+//! libraries' MCP folders (`dr_mcp::v1`): each one's connections reach the
+//! open book only while the open library is that 0.1 library's owner's.
 
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use dr_agent_tools::AgentTools;
 use dr_mcp::{
     GrantPaths, GrantStore, PluginSlot, Result,
     host::{Backend, CatalogSource, Host, ScopeOpener},
-    inbound::Server,
+    inbound::{self, Network},
     outbound::Manager,
-    transport::Listener,
+    v1::{self, Connections, OwnerOf},
 };
 use dr_model::id::BookId;
 use dr_platform::{AppDirs, Identity, secrets::SecretStore};
@@ -25,13 +30,15 @@ use gpui::{App, AppContext as _, Context, Entity, Global, Task, WeakEntity, Wind
 
 use crate::AgentViews;
 
-#[derive(Clone)]
-struct Network {
-    grants: GrantStore,
-    server: Arc<Server>,
-    warnings: Vec<String>,
-}
 type Opening = Shared<BoxFuture<'static, Result<Network>>>;
+
+/// Where the 0.1 client keeps its libraries on this device, and who owns
+/// the library at a root (this app's registry): what serving the 0.1
+/// libraries' own MCP folders needs ([`init`]).
+pub struct V1 {
+    pub data: PathBuf,
+    pub owner_of: OwnerOf,
+}
 
 pub struct McpGlobal {
     pub service: Entity<McpService>,
@@ -52,6 +59,11 @@ pub struct McpService {
     /// The attached library's book edits, so the Host can announce a change
     /// to the open book's catalog. Dropped before the library is released.
     follow: Option<dr_workspace::Subscription>,
+    /// The 0.1 libraries' own MCP folders, who owns the open library, and
+    /// the folders' book-edit subscriptions (dropped with `follow`).
+    v1: Connections,
+    owner_of: Option<OwnerOf>,
+    v1_follow: Vec<dr_workspace::Subscription>,
     secrets: Arc<SecretStore>,
     selected: Option<BookId>,
     active: Option<(WindowId, WeakEntity<Workspace>)>,
@@ -93,9 +105,14 @@ impl McpService {
     pub fn host(&self) -> Option<Host> {
         self.host.clone()
     }
+    /// The 0.1 libraries' own MCP folders this service serves.
+    pub fn v1(&self) -> &Connections {
+        &self.v1
+    }
 
     fn new(
         paths: Result<GrantPaths>,
+        v1: Option<(Vec<v1::Folder>, OwnerOf)>,
         secrets: Arc<SecretStore>,
         slot: PluginSlot,
         tools: AgentTools,
@@ -106,6 +123,7 @@ impl McpService {
             .thread_name("dr-mcp")
             .enable_all()
             .build();
+        let (folders, owner_of) = v1.unzip();
         let mut service = Self {
             reactor: None,
             host: None,
@@ -115,6 +133,9 @@ impl McpService {
             slot,
             tools,
             follow: None,
+            v1: Connections::default(),
+            owner_of,
+            v1_follow: Vec::new(),
             secrets,
             selected: None,
             active: None,
@@ -134,39 +155,16 @@ impl McpService {
                 let host = Host::new(handle.clone());
                 service.host = Some(host.clone());
                 service.reactor = Some(reactor);
+                let v1 = match (&paths, folders) {
+                    (Ok(paths), Some(folders)) => Some((folders, paths.clone())),
+                    _ => None,
+                };
                 let (send, receive) = oneshot::channel();
                 handle.spawn(async move {
-                    let result = async {
-                        let paths = paths?;
-                        let listener = Listener::bind(&paths).await?;
-                        let endpoint = listener.endpoint()?;
-                        let grants =
-                            tokio::task::spawn_blocking(move || GrantStore::open(paths, endpoint))
-                                .await
-                                .map_err(|_| {
-                                    "MCP authorization initialization ended".to_owned()
-                                })??;
-                        // Refresh only entries still owned by this installation.
-                        // Missing client entries stay missing; no home is rewritten
-                        // merely because somebody removed their configuration.
-                        let report = grants.repair_owned(true).await?;
-                        let server = Server::start(
-                            listener,
-                            grants.clone(),
-                            host,
-                            &tokio::runtime::Handle::current(),
-                        );
-                        Ok(Network {
-                            grants,
-                            server: Arc::new(server),
-                            warnings: report
-                                .warnings
-                                .into_iter()
-                                .map(|warning| warning.message)
-                                .collect(),
-                        })
-                    }
-                    .await;
+                    let result = match paths {
+                        Ok(paths) => inbound::serve(paths, host).await,
+                        Err(error) => Err(error),
+                    };
                     let _ = send.send(result);
                 });
                 let opening = async move {
@@ -176,6 +174,12 @@ impl McpService {
                 }
                 .boxed()
                 .shared();
+                // The 0.1 folders start after this app's own folder: each
+                // start repairs the same client configurations.
+                if let Some((folders, paths)) = v1 {
+                    let after = opening.clone().map(drop).boxed();
+                    service.v1 = Connections::serve(folders, &paths, &handle, after);
+                }
                 service.opening = Some(opening.clone());
                 service.opening_task = Some(cx.spawn(async move |this, cx| {
                     let result = opening.await;
@@ -214,13 +218,18 @@ impl McpService {
         let (Some(reactor), Some(host)) = (&self.reactor, &self.host) else {
             return;
         };
-        let Some((library, follow)) = cx
+        let Some((library, follow, v1_follow)) = cx
             .try_global::<Services>()
             .and_then(|services| services.library.as_ref())
-            .map(|ws| (ws.library().clone(), host.follow(ws)))
+            .map(|ws| (ws.library().clone(), host.follow(ws), self.v1.follow(ws)))
         else {
             return;
         };
+        // The 0.1 folders whose owner owns this library get its backend too.
+        let owner = self
+            .owner_of
+            .as_ref()
+            .and_then(|owner_of| owner_of(&library.paths().root));
         let handle = reactor.handle().clone();
         // The companion's book tools under the controller's read lease: the
         // same catalog and cache chat uses, and a release waits for the read.
@@ -267,8 +276,12 @@ impl McpService {
         self.manager = Some(manager);
         self.attached = true;
         self.generation += 1;
-        host.replace(self.selected.clone(), Some(Backend { opener, catalog }));
+        let backend = Backend { opener, catalog };
+        host.replace(self.selected.clone(), Some(backend.clone()));
+        self.v1
+            .attach(owner.as_ref(), self.selected.clone(), Some(backend));
         self.follow = Some(follow);
+        self.v1_follow = v1_follow;
         self.activate_plugins(cx);
         cx.notify();
     }
@@ -322,6 +335,7 @@ impl McpService {
         if let Some(host) = &self.host {
             host.select(self.selected.clone());
         }
+        self.v1.select(self.selected.clone());
         self.activate_plugins(cx);
         cx.notify();
     }
@@ -348,7 +362,9 @@ impl McpService {
         if let Some(host) = &self.host {
             host.suspend();
         }
+        self.v1.suspend();
         self.follow = None;
+        self.v1_follow.clear();
         self.slot.replace(None);
         let closing = self.manager.take().map(|manager| manager.begin_close());
         self.activation_task = None;
@@ -356,6 +372,7 @@ impl McpService {
         self.watch_task = None;
         let opening = self.opening.clone();
         let network = self.network.clone();
+        let v1 = self.v1.drain();
         cx.notify();
         async move {
             // Every participant is awaited even if another one fails.
@@ -377,8 +394,8 @@ impl McpService {
                     Ok(())
                 }
             };
-            let (plugins, grants) = futures::join!(plugins, grants);
-            plugins.and(grants)
+            let (plugins, grants, v1) = futures::join!(plugins, grants, v1);
+            plugins.and(grants).and(v1)
         }
         .boxed()
     }
@@ -398,15 +415,19 @@ impl McpService {
     fn close_network(&self) -> BoxFuture<'static, ()> {
         let opening = self.opening.clone();
         let network = self.network.clone();
+        let v1 = self.v1.close();
         async move {
             let network = match (network, opening) {
                 (Some(network), _) => Some(network),
                 (_, Some(opening)) => opening.await.ok(),
                 _ => None,
             };
-            if let Some(network) = network {
-                let _ = network.server.close().await;
-            }
+            let own = async {
+                if let Some(network) = network {
+                    let _ = network.server.close().await;
+                }
+            };
+            futures::join!(own, v1);
         }
         .boxed()
     }
@@ -417,7 +438,9 @@ impl Drop for McpService {
         if let Some(host) = &self.host {
             host.suspend();
         }
+        self.v1.suspend();
         self.follow = None;
+        self.v1_follow.clear();
         self.slot.replace(None);
         self.activation_task = None;
         if let Some(manager) = self.manager.take() {
@@ -435,7 +458,11 @@ fn selected_book(workspace: &Workspace) -> Option<BookId> {
         .flatten()
 }
 
-pub fn init(identity: &Identity, dirs: Option<&AppDirs>, cx: &mut App) {
+/// `v1`: the 0.1 client's data folder on this device (the release
+/// identity's `dirs.data`, or a synthetic one a development run names), whose
+/// other libraries' MCP folders are served too; `None` serves only this app's
+/// own folder.
+pub fn init(identity: &Identity, dirs: Option<&AppDirs>, v1: Option<V1>, cx: &mut App) {
     let paths = dirs
         .ok_or_else(|| "MCP requires the application's data directory".to_owned())
         .and_then(|dirs| {
@@ -443,14 +470,27 @@ pub fn init(identity: &Identity, dirs: Option<&AppDirs>, cx: &mut App) {
                 .map_err(|error| error.to_string())
                 .and_then(|executable| GrantPaths::for_app(dirs.data.clone(), executable))
         });
-    init_with(paths, Arc::new(SecretStore::for_identity(identity)), cx);
+    init_with(paths, v1, Arc::new(SecretStore::for_identity(identity)), cx);
 }
 
 /// Synthetic acceptance supplies isolated paths and a memory secret backend.
-pub fn init_with(paths: Result<GrantPaths>, secrets: Arc<SecretStore>, cx: &mut App) {
+/// The 0.1 folders are found here, before anything is served: one small
+/// registry read.
+pub fn init_with(
+    paths: Result<GrantPaths>,
+    v1: Option<V1>,
+    secrets: Arc<SecretStore>,
+    cx: &mut App,
+) {
+    let v1 = match (&paths, v1) {
+        (Ok(paths), Some(V1 { data, owner_of })) => {
+            Some((v1::folders(&data, &paths.directory), owner_of))
+        }
+        _ => None,
+    };
     let slot = PluginSlot::default();
     let tools = AgentTools::new();
-    let service = cx.new(|cx| McpService::new(paths, secrets, slot.clone(), tools.clone(), cx));
+    let service = cx.new(|cx| McpService::new(paths, v1, secrets, slot.clone(), tools.clone(), cx));
     cx.set_global(McpGlobal {
         service: service.clone(),
         slot,
@@ -567,6 +607,7 @@ mod tests {
         let service = cx.new(|cx| {
             McpService::new(
                 Err("Synthetic inbound warning".into()),
+                None,
                 Arc::new(SecretStore::in_memory()),
                 PluginSlot::default(),
                 AgentTools::new(),

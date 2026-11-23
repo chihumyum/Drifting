@@ -706,3 +706,57 @@ fn chatgpt_device_login_copy_code_button_writes_user_code_to_clipboard(cx: &mut 
     vcx.run_until_parked();
     server.join();
 }
+
+/// The round limit preference sync (M37) or the 0.1 import's settings
+/// write behind the connections' back is theirs from then on: a later
+/// save of theirs does not write the old one back.
+#[gpui::test]
+fn a_round_limit_written_into_the_settings_is_followed(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    cx.update(|cx| {
+        let _ = dr_ui::init(cx);
+        dr_shell::init(
+            dr_shell::ShellInfo {
+                app_name: "Drifting Next",
+                bundle_id: "cc.drifting.next.dev",
+                version: "test",
+                url_scheme: "drifting-next-dev",
+                forced_appearance: None,
+            },
+            dr_shell::Services::default(),
+            SettingsFile::in_memory(),
+            cx,
+        );
+    });
+    let service = ConnectionService::new(ProviderDriver::new(
+        HttpClient::new().unwrap(),
+        Credentials::new(Arc::new(SecretStore::in_memory())),
+    ));
+    let connections = cx.new(|cx| Connections::with_service(service, cx));
+    let rounds = |cx: &mut TestAppContext| {
+        connections.read_with(cx, |connections, _| {
+            connections.preferences().max_model_rounds
+        })
+    };
+    assert_eq!(rounds(cx), Some(50));
+    for (value, expected) in [(json!(80), Some(80)), (Value::Null, None)] {
+        cx.update(|cx| {
+            dr_shell::Settings::update(cx, |file| {
+                file.set(registry::AGENT_MAX_MODEL_ROUNDS, value, None)
+                    .unwrap()
+            })
+        });
+        cx.run_until_parked();
+        assert_eq!(rounds(cx), expected);
+    }
+    // Its own save afterwards keeps what it follows, and the file has it.
+    connections.update(cx, |connections, cx| {
+        assert!(connections.set_max_model_rounds(Some(25), cx));
+    });
+    cx.run_until_parked();
+    assert_eq!(rounds(cx), Some(25));
+    assert_eq!(
+        cx.update(|cx| dr_shell::Settings::read(cx).get(registry::AGENT_MAX_MODEL_ROUNDS)),
+        json!(25)
+    );
+}

@@ -101,11 +101,12 @@ unless you write a note and choose **Send**; the note goes out as feedback
 ## Feedback
 
 **Send feedback** (account menu, Settings → About) sends what you write only
-when you choose **Send**: your message, the reply-to address you leave in the
-form (your account email by default, or none), and, unless you switch it off,
-the sanitized diagnostic summary you can preview in the form. Drifting never
-attaches manuscript text, project data, the database or credentials. When you
-are signed in, the feedback includes your account.
+when you choose **Send**: your message, the reply-to address you enter in the
+form (your account email by default; a note after a crash can go without one),
+and, unless you switch it off, the sanitized diagnostic summary you can
+preview in the form. Drifting never attaches manuscript text, project data,
+the database or credentials. When you are signed in, the feedback includes
+your account.
 
 Feedback goes to the official service at `https://api.drifting.cc` and is
 emailed to the maintainer, so they can answer you. It does not depend on the

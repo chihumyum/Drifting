@@ -1,11 +1,14 @@
 //! Lower-left paper sync status mark, hover card, bell danger seal, and
 //! scheduling hooks between the shell and the app's Hosted Sync runtime
-//! (`docs/hosted-sync/sync-status.md`, `docs/design-system/components.md`).
+//! (`docs/hosted-sync/sync-status.md`, `docs/design-system/components.md`),
+//! plus the sync part of the diagnostic summary feedback attaches
+//! ([`diagnostics`]).
 
 use std::f32::consts::TAU;
 use std::rc::Rc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use dr_platform::diagnostics::SyncSnapshot;
 use dr_ui::{
     Theme,
     anim::{self, Tween},
@@ -80,9 +83,13 @@ pub struct MarkSpec {
 type MarkHookFn = Rc<dyn Fn(Option<&str>, bool, Option<u64>, u64, &App) -> Option<MarkSpec>>;
 type BeforeAccountActionFn = Rc<dyn Fn(&mut App) -> Option<LocalBoxFuture<'static, ()>>>;
 type HolderReleasedFn = Rc<dyn Fn(&mut App)>;
+type DiagnosticsHookFn = Rc<dyn Fn(&App) -> SyncSnapshot>;
 
 struct MarkHook(MarkHookFn);
 impl Global for MarkHook {}
+
+struct DiagnosticsHook(DiagnosticsHookFn);
+impl Global for DiagnosticsHook {}
 
 struct BeforeAccountActionHook(BeforeAccountActionFn);
 impl Global for BeforeAccountActionHook {}
@@ -110,6 +117,23 @@ pub fn set_before_account_action(
 /// Registers a callback invoked when open editors or the active book release their holders.
 pub fn set_holder_released_hook(cx: &mut App, hook: impl Fn(&mut App) + 'static) {
     cx.set_global(HolderReleasedHook(Rc::new(hook)));
+}
+
+/// Registers what the diagnostic summary says about sync: whoever owns the
+/// sync runtime does, as it registers the mark. Only counts, flags and
+/// stable codes (`dr_platform::diagnostics::SyncSnapshot`).
+pub fn set_diagnostics_hook(cx: &mut App, hook: impl Fn(&App) -> SyncSnapshot + 'static) {
+    cx.set_global(DiagnosticsHook(Rc::new(hook)));
+}
+
+/// The sync part of the diagnostic summary (M39's feedback dialog takes it
+/// as it opens): the registered hook's, or a library that does not sync
+/// ([`SyncSnapshot::local`]) when nothing registered one.
+#[must_use]
+pub fn diagnostics(cx: &App) -> SyncSnapshot {
+    cx.try_global::<DiagnosticsHook>()
+        .map(|h| h.0.clone())
+        .map_or_else(SyncSnapshot::local, |h| h(cx))
 }
 
 /// Current wall-clock timestamp in Unix milliseconds.

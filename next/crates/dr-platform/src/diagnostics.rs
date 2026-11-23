@@ -8,10 +8,16 @@
 //! project or book identifiers, absolute paths or raw error text. Error codes
 //! that are not plain identifiers become `redacted-error`.
 //!
-//! The new client has no sync and no running updater yet, so their parts
-//! start from what 0.1 reported for a local library with an idle updater
-//! ([`SyncSnapshot::local`], [`UpdateSnapshot::idle`]); the modules that
-//! bring them (sync, M42's update service) fill them in.
+//! [`SummaryInput::current`] starts both from what 0.1 reported for a local
+//! library with an idle updater ([`SyncSnapshot::local`],
+//! [`UpdateSnapshot::idle`]); the feedback dialog then fills them from the
+//! running app: the sync part from whoever owns the sync runtime
+//! (`dr_shell::sync::diagnostics`, which the app fills with
+//! `dr_sync::diagnostics_snapshot`), the updater's from M42
+//! (`dr_view_update::snapshot`). A library that does not sync keeps
+//! [`SyncSnapshot::local`] exactly. Which runtime state each sync key shows,
+//! and which keep 0.1's default, is in docs/rust-rewrite/modules/
+//! m39-feedback.md 「摘要里的同步」.
 //!
 //! Also here: the diagnostics-only installation id that feedback carries
 //! (`diag-<uuid>`, random, unrelated to the sync installation id and to the
@@ -147,7 +153,7 @@ pub struct SummaryInput {
 }
 
 impl SummaryInput {
-    /// This build now, with no sync and an idle updater.
+    /// This build now, with a library that does not sync and an idle updater.
     pub fn current(version: &str) -> SummaryInput {
         SummaryInput {
             app: AppInfo::current(version),

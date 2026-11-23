@@ -702,6 +702,7 @@ impl StructureContext {
                     TabMount::Entry { entry } => structure_snap
                         .entry(entry)
                         .map(|e| e.title.clone())
+                        .or_else(|| tab.gone_title.clone())
                         .unwrap_or_default(),
                     TabMount::View { view } => structure_snap
                         .timeline_views_map()

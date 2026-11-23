@@ -320,7 +320,11 @@ async fn main_chain(unix: bool, through_bridge: bool) {
                 || name.starts_with("todo.")
                 || matches!(
                     name,
-                    "asset.purge" | "asset_folder.purge" | "comment.delete" | "comment.project"
+                    "asset.purge"
+                        | "asset_folder.purge"
+                        | "entry.purge"
+                        | "comment.delete"
+                        | "comment.project"
                 )
         }),
         "retired material/todo and destructive purge/delete operations must stay excluded from MCP"
@@ -1442,6 +1446,60 @@ async fn mcp_lists_and_writes_current_relation_rows() {
             .iter()
             .all(|relation| relation["id"] != placed["relation_type"])
     );
+    client.close().await.unwrap();
+    drop(client);
+    f.finish().await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn mcp_lists_and_calls_the_search_tools() {
+    let f = Fixture::new(false, library_options("k6-mcp-search")).await;
+    let mut client = f.client().await;
+    let listed = client.list_tools(None).await.unwrap().tools;
+    let catalog = f.catalog(0);
+    for name in ["entry.search", "entry.mentions"] {
+        let tool = listed
+            .iter()
+            .find(|tool| tool.name == name)
+            .unwrap_or_else(|| panic!("{name} is listed"));
+        let entry = catalog.descriptor(name).unwrap();
+        assert_eq!(
+            tool.description.as_deref(),
+            Some(entry.description.as_str())
+        );
+    }
+    // A phrase of the open book's chapter finds that paragraph.
+    let book = &f.books[0];
+    let phrase: String = book.paragraph["text"]
+        .as_str()
+        .unwrap()
+        .chars()
+        .take(12)
+        .collect();
+    let found = reply(
+        &call(
+            &client,
+            "entry.search",
+            json!({"query": phrase, "limit": 50}),
+        )
+        .await,
+    );
+    let hits = found["output"]["output"]["hits"].as_array().unwrap();
+    assert!(
+        hits.iter()
+            .any(|hit| hit["doc"] == book.doc && hit["paragraph"] == 1),
+        "{phrase}: {hits:?}"
+    );
+    // The places that link to the chapter's entry, with their count.
+    let entry = book
+        .doc
+        .strip_prefix("body:")
+        .and_then(|d| d.strip_suffix("/mod-prose"))
+        .unwrap();
+    let out = reply(&call(&client, "entry.mentions", json!({"entry": entry})).await);
+    let out = &out["output"]["output"];
+    assert_eq!(out["entry"], entry);
+    assert!(out["total"].as_u64().unwrap() >= out["mentions"].as_array().unwrap().len() as u64);
     client.close().await.unwrap();
     drop(client);
     f.finish().await;

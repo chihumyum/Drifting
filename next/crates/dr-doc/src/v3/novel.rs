@@ -932,6 +932,7 @@ pub fn novel_project_template_with(ids: &NovelRootEntries) -> ProjectTemplate {
             id,
             pos: Some(pos),
             mount,
+            gone_title: None,
         })
         .collect();
     let project = ProjectDefinition {

@@ -131,7 +131,28 @@ fn close(cx: &mut TestAppContext) {
 
 fn block_folder(f: &Fixture) {
     // A disconnected/moved directory cannot be recreated over this path.
-    fs::rename(&f.root, f.root.with_extension("moved")).unwrap();
+    //
+    // Windows refuses to rename a folder while anything inside it is open,
+    // and the files the first pass just wrote can stay open for a moment
+    // after this process closed them (the indexer, the virus scanner): on
+    // a hosted Windows x64 runner the rename was refused once with "Access
+    // is denied" while three sibling tests moved theirs. The folder going
+    // away is this fixture's doing, not what the tests check, so the move
+    // waits for that moment to pass.
+    let moved = f.root.with_extension("moved");
+    let until = Instant::now() + Duration::from_secs(10);
+    loop {
+        match fs::rename(&f.root, &moved) {
+            Ok(()) => break,
+            Err(error)
+                if error.kind() == std::io::ErrorKind::PermissionDenied
+                    && Instant::now() < until =>
+            {
+                std::thread::sleep(Duration::from_millis(20));
+            }
+            Err(error) => panic!("the Markdown folder could not be moved away: {error}"),
+        }
+    }
     fs::write(&f.root, b"unavailable mount").unwrap();
 }
 

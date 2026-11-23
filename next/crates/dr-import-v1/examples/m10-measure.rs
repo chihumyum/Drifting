@@ -15,9 +15,15 @@
 //! The contract is asserted here, not recorded: a body proven fresh that
 //! differs from the truth, a body not stored exactly or not round-tripping,
 //! an anchor without its cursors, a history row without its point (kept,
-//! with the book's version), metadata that does not hold at its point, a
+//! with the book's version) or without its entry checkpoint (one that reads
+//! back as the row), metadata that does not hold at its point, a
 //! stale index, a body whose words differ from dr-index's own reading, a
-//! search probe not found — any of these fails the run and nothing is
+//! search probe not found, a gate that stops on other bodies than the ones
+//! the generator left behind their Yjs state, a 0.1 row neither imported
+//! nor recorded as dropped in the receipt (`verify::check_catalog`), a
+//! library the manifest says must be refused that is not (or one refused
+//! for anything else), a registry the importer reads differently from how
+//! the generator laid it out — any of these fails the run and nothing is
 //! written. Only the measurements go into the evidence.
 
 use std::path::{Path, PathBuf};
@@ -25,7 +31,7 @@ use std::time::Instant;
 
 use dr_import_v1::gate::Accept;
 use dr_import_v1::run::{self, Options, Outcome};
-use dr_import_v1::verify;
+use dr_import_v1::{ImportError, locate, verify};
 use dr_testkit::evidence::{self, Evidence};
 use serde_json::{Value, json};
 
@@ -124,7 +130,7 @@ fn one(args: &[String]) -> Res<Value> {
     let mut steps: Vec<String> = Vec::new();
     let mut monotonic = true;
     let mut overall = 0f64;
-    let (outcome, timing) = run::import_with(&db, &work.join("library"), &options, &mut |p| {
+    let imported = run::import_with(&db, &work.join("library"), &options, &mut |p| {
         events += 1;
         max_gap_ms = max_gap_ms.max(last.elapsed().as_secs_f64() * 1e3);
         last = Instant::now();
@@ -134,7 +140,14 @@ fn one(args: &[String]) -> Res<Value> {
         if steps.last() != Some(&s) {
             steps.push(s);
         }
-    })?;
+    });
+    let (outcome, timing) = match imported {
+        // Stopped before anything was written: the preflight's findings.
+        Err(ImportError::V3Pending(pending)) => {
+            return Ok(json!({"outcome": "refused", "pending": pending}));
+        }
+        other => other?,
+    };
     let progress = json!({
         "events": events,
         "maxGapMs": (max_gap_ms * 10.0).round() / 10.0,
@@ -191,11 +204,103 @@ fn measure(fixtures: &Path) -> Res<(Vec<Value>, Value, Vec<String>)> {
             Ok(serde_json::from_slice(&out.stdout)?)
         };
         let first = run(false)?;
+        let mut fail = |what: String| failures.push(format!("{name}: {what}"));
+
+        // A library the generator made to be refused: refused on exactly
+        // these findings, and nothing else measured.
+        let refusal = &lib["expectRefusal"];
+        if first["outcome"] == "refused" || !refusal.is_null() {
+            let _ = std::fs::remove_dir_all(&work);
+            let found: std::collections::BTreeSet<(String, String)> = first["pending"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .map(|p| {
+                    (
+                        p["code"].as_str().unwrap_or("").to_string(),
+                        p["source"].as_str().unwrap_or("").to_string(),
+                    )
+                })
+                .collect();
+            let wanted: std::collections::BTreeSet<(String, String)> = refusal["sources"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|s| {
+                    Some((
+                        refusal["code"].as_str()?.to_string(),
+                        s.as_str()?.to_string(),
+                    ))
+                })
+                .collect();
+            if refusal.is_null() {
+                fail(format!("refused before writing: {}", first["pending"]));
+            } else if first["outcome"] != "refused" || found != wanted {
+                fail(format!(
+                    "expected a refusal on {} {}, got {} {}",
+                    refusal["code"], refusal["sources"], first["outcome"], first["pending"]
+                ));
+            }
+            libraries.push(json!({
+                "name": name,
+                "refused": first["pending"],
+            }));
+            continue;
+        }
+
+        // The gate stops on the bodies the generator left behind their Yjs
+        // state, and on no other.
+        let stale: std::collections::BTreeSet<&str> = lib["documents"]["textStaleDocuments"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+            .collect();
+        let doubtful: std::collections::BTreeSet<&str> = first["gate"]["doubtful"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|d| d["doc"].as_str())
+            .collect();
+        if doubtful != stale {
+            fail(format!(
+                "the gate doubts {doubtful:?}, the generator left {stale:?} behind"
+            ));
+        }
         let (stopped, imported) = if first["outcome"] == "blocked" {
             (Some(first["gate"]["reasons"].clone()), run(true)?)
         } else {
             (None, first)
         };
+
+        // Where the registry says the library is, and whose.
+        if let Some(registry) = lib.get("registry").filter(|r| !r.is_null()) {
+            let base = fixtures.join(registry["base"].as_str().unwrap_or(""));
+            let id = registry["id"].as_str().unwrap_or("");
+            match locate::discover(&base) {
+                Ok(found) => match found.iter().find(|l| l.id == id) {
+                    Some(l)
+                        if serde_json::to_value(&l.owner)? == registry["owner"]
+                            && l.database == db
+                            && l.exists => {}
+                    other => fail(format!("the registry reads as {other:?}")),
+                },
+                Err(e) => fail(format!("the registry does not read: {e}")),
+            }
+            match locate::resolve(&base) {
+                Ok(picked) if registry["owner"]["kind"] == "local" => {
+                    if picked.database != db {
+                        fail(format!("the data folder resolves to {:?}", picked.database));
+                    }
+                }
+                Ok(picked) => {
+                    if !picked.left.iter().any(|l| l == id) {
+                        fail(format!("the account library is not left alone: {picked:?}"));
+                    }
+                }
+                Err(e) => fail(format!("the data folder does not resolve: {e}")),
+            }
+        }
         let target = work.join("library");
         let truth_check = if truth.is_file() {
             verify::check_truth(&target, &truth)?
@@ -203,12 +308,24 @@ fn measure(fixtures: &Path) -> Res<(Vec<Value>, Value, Vec<String>)> {
             Value::Null
         };
         let index = verify::check_index(&target)?;
+        let catalog = verify::check_catalog(&db, &target)?;
         let new_bytes = std::fs::metadata(target.join("library.sqlite")).map_or(0, |m| m.len());
         let _ = std::fs::remove_dir_all(&work);
 
         // The contract.
         let bodies = n(&imported, "bodies");
-        let mut fail = |what: String| failures.push(format!("{name}: {what}"));
+        for u in catalog.unexplained.iter().take(20) {
+            fail(format!(
+                "{} {} (book {}): {}",
+                u.table, u.id, u.book, u.what
+            ));
+        }
+        if catalog.unexplained.len() > 20 {
+            fail(format!(
+                "… and {} more rows neither imported nor recorded",
+                catalog.unexplained.len() - 20
+            ));
+        }
         if n(&imported, "storedExactly") != bodies {
             fail("a body is not stored exactly".into());
         }
@@ -223,6 +340,9 @@ fn measure(fixtures: &Path) -> Res<(Vec<Value>, Value, Vec<String>)> {
         }
         if imported["notes"].get("history-version-differs").is_some() {
             fail("a history version does not check out".into());
+        }
+        if n(&imported, "historyCheckpointsChecked") != n(&imported, "historyCheckpoints") {
+            fail("an entry checkpoint does not read back as its history row".into());
         }
         if imported["progress"]["overallMonotonic"] != json!(true) {
             fail("progress went back".into());
@@ -239,6 +359,17 @@ fn measure(fixtures: &Path) -> Res<(Vec<Value>, Value, Vec<String>)> {
             }
             if n(&truth_check, "historyRowsWithPoints") != n(&truth_check, "historyRows") {
                 fail("a history row has no point".into());
+            }
+            if n(&truth_check, "historyRowsWithCheckpoints") != n(&truth_check, "historyRows") {
+                fail("a history row has no entry checkpoint".into());
+            }
+            // Rows without a preview are skipped and recorded, never more.
+            let skipped = lib["historyRowsSkipped"].as_array().map_or(0, Vec::len) as u64;
+            if n(&truth_check, "historyRowsSkippedAndRecorded") != skipped {
+                fail(format!(
+                    "{} history rows skipped and recorded, the generator left {skipped} without a preview",
+                    n(&truth_check, "historyRowsSkippedAndRecorded")
+                ));
             }
             if truth_check["historyPointsKeptWithBookVersion"] != json!(true) {
                 fail("a history point is not kept or has no book version".into());
@@ -272,6 +403,7 @@ fn measure(fixtures: &Path) -> Res<(Vec<Value>, Value, Vec<String>)> {
             "import": imported,
             "truth": truth_check,
             "index": index,
+            "catalog": catalog.tables,
             "newLibraryBytes": new_bytes,
         }));
     }

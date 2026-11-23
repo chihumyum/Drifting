@@ -152,6 +152,11 @@ impl SyncTarget {
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SyncRuntimeSnapshot {
     pub mode: String,
+    /// Whether an engine is attached to a library and signed in (a
+    /// `Connected` generation, paused or not); `false` in every other mode,
+    /// when the engine could not start, and once a library is detached.
+    #[serde(default)]
+    pub attached: bool,
     pub health: SyncHealthSnapshot,
     pub cursor: u64,
     pub completed_cycles: u64,
@@ -458,6 +463,7 @@ fn build_active_snapshot(active: &ActiveGeneration) -> SyncRuntimeSnapshot {
         .unwrap_or((0, 0, 0));
     SyncRuntimeSnapshot {
         mode: "connected".into(),
+        attached: true,
         health: active.engine.health_snapshot().clone(),
         cursor: active.engine.cursor(),
         completed_cycles: active.completed_cycles,
@@ -473,7 +479,7 @@ fn build_active_snapshot(active: &ActiveGeneration) -> SyncRuntimeSnapshot {
 
 fn build_inactive_snapshot(
     mode: &SyncSessionMode,
-    init_err: Option<String>,
+    init_err: Option<&SyncError>,
 ) -> SyncRuntimeSnapshot {
     let mut tracker = SyncHealthTracker::new(mode.hosted_enabled());
     match mode {
@@ -485,8 +491,8 @@ fn build_inactive_snapshot(
             tracker.set_reauth_required(true);
         }
         SyncSessionMode::Connected { .. } => {
-            if let Some(msg) = init_err {
-                tracker.set_init_failed(true, Some(msg));
+            if let Some(err) = init_err {
+                tracker.record_init_failure(err);
             }
         }
     }
@@ -782,10 +788,7 @@ fn worker_loop(
                         }
                         Err(err) => {
                             drop(target);
-                            shared.publish(build_inactive_snapshot(
-                                &current_mode,
-                                Some(err.to_string()),
-                            ));
+                            shared.publish(build_inactive_snapshot(&current_mode, Some(&err)));
                         }
                     },
                     (unused_target, non_connected) => {

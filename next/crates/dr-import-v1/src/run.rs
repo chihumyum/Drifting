@@ -205,7 +205,7 @@ fn analyse_reporting(
         reporter.copying(done, total)
     })?;
     reporter.checking();
-    let legacy = Legacy::new(staged.open()?)?;
+    let legacy = Legacy::with_defaults(&staged)?;
     let (owners, _) = legacy.prose_owners()?;
     let sync = legacy.sync_blockers()?;
     let mut gate = Gate::decide(
@@ -302,6 +302,9 @@ struct Point {
     frontiers: Frontiers,
     owner: Option<Owner>,
     meta: Option<Meta>,
+    /// The version's paragraphs, kept to check its entry checkpoint
+    /// against (`Options::verify_history` only).
+    paras: Option<Vec<Para>>,
 }
 
 fn old_doc_of_target(kind: &str, id: &str) -> Option<String> {
@@ -686,7 +689,9 @@ pub fn import_with(
             return Ok((stopped.outcome(), timing));
         }
     };
-    crate::v3::preflight(&analysed.legacy, options)?;
+    let mut analysed = analysed;
+    let found = crate::v3::preflight(&analysed.legacy, options)?;
+    analysed.legacy.adjustments.extend(found);
     let adopted = match &options.device_dir {
         Some(dir) => adopt_identity(options.old_root.as_deref(), dir),
         None => false,
@@ -752,7 +757,9 @@ pub fn import_into_library(
         Gated::Clear(a) => a,
         stopped => return Ok((stopped.outcome(), timing)),
     };
-    crate::v3::preflight(&analysed.legacy, options)?;
+    let mut analysed = analysed;
+    let found = crate::v3::preflight(&analysed.legacy, options)?;
+    analysed.legacy.adjustments.extend(found);
     let adopted = take_over_identity(options.old_root.as_deref(), lib);
     let written = write_library(lib, analysed, options, adopted, &mut reporter, &mut timing)?;
     let receipt = finish(&root, written, options, &mut timing)?;
@@ -1156,6 +1163,11 @@ fn write_library(
             rec.material_provenances_to_comments,
             rec.materials_dropped,
         ) = material_report(&rows, &material_assets);
+        rec.merged_assets = rows
+            .asset_aliases
+            .iter()
+            .map(|(merged, kept)| (merged.clone(), kept.clone()))
+            .collect();
         rec.material_assets = material_assets
             .iter()
             .map(|(k, v)| ((*k).to_string(), v.to_string()))
@@ -1236,6 +1248,7 @@ fn write_library(
                     frontiers: doc.frontiers(),
                     owner: owner.clone(),
                     meta: parsed,
+                    paras: options.verify_history.then(|| p.paras.clone()),
                 });
             }
             let (r, _) = doc.edit_at(Origin::Import, Some(secs(final_ms)), |t| {
@@ -1570,6 +1583,8 @@ fn write_library(
         let t3 = Instant::now();
         let mut replay_frontiers = Vec::new();
         let mut expected: Vec<(Frontiers, Owner, Fields)> = Vec::new();
+        // The fields each replayed row holds at its version, by row.
+        let mut held_by_row: HashMap<String, (Owner, Fields)> = HashMap::new();
         let relation_times = crate::v3::relation_times(&rows);
         let t5;
         {
@@ -1624,6 +1639,9 @@ fn write_library(
                     let frontiers = push(&bdoc, secs(p.ts_ms))?;
                     timing.store_ms += ms(t);
                     rec.history_meta_replayed += 1;
+                    if options.verify_history {
+                        held_by_row.insert(p.row_id.clone(), (o.clone(), after.clone()));
+                    }
                     expected.push((frontiers, o.clone(), after));
                 }
                 reporter.book_step(Step::Book, here, i as u64 + 1, n_points, n_bodies);
@@ -1673,10 +1691,11 @@ fn write_library(
             stop_in_book!();
         }
         // The documents beside the book before the book itself, like its
-        // bodies: writing days from the source, an empty checkpoint list, and
+        // bodies: writing days from the source, an empty checkpoint list (the
+        // 0.1 history's checkpoints follow once the book is stored), and
         // canvas coordinates. Deterministic, so a resumed import stores the
         // same changes again.
-        let (stats, checkpoints, layout) =
+        let (stats, mut checkpoints, layout) =
             dr_samples::v3::side_documents(&book_id, &bdoc.view(), &v3doc.view(), final_ts)?;
         let all = loro::VersionVector::default();
         store_doc(
@@ -1743,6 +1762,78 @@ fn write_library(
         persist_at(replay_frontiers.last().expect("catalog current version"))?;
         bh.close();
         timing.store_ms += ms(t5);
+
+        // Each history row an entry checkpoint, at the book version that
+        // carries its metadata (`crate::checkpoints`): what the history
+        // dialog lists, previews and restores. Written after the book is
+        // stored whole, into the side document stored before it; the same
+        // manifests again when the import carries on after a stop.
+        let t = Instant::now();
+        let mut version = 0;
+        let replayed: Vec<crate::checkpoints::Row<'_>> = points
+            .iter()
+            .zip(&steps)
+            .map(|(p, step)| {
+                if step.is_some() {
+                    version += 1;
+                }
+                crate::checkpoints::Row {
+                    row: &p.row_id,
+                    doc: &p.doc_id,
+                    ts_ms: p.ts_ms,
+                    body_at: &p.frontiers,
+                    book_at: &replay_frontiers[version],
+                }
+            })
+            .collect();
+        let planned = crate::checkpoints::plan(lib, &book_id, &replayed)?;
+        if !planned.points.is_empty() {
+            let manifests = planned
+                .points
+                .iter()
+                .map(|p| Ok((p.id.as_str(), serde_json::to_string(p)?)))
+                .collect::<Result<Vec<_>>>()?;
+            let (r, _) = checkpoints.edit_at(Origin::Import, Some(final_ts), |t| {
+                for (id, manifest) in &manifests {
+                    t.put_entry_checkpoint(id, manifest)?;
+                }
+                Ok(())
+            });
+            r?;
+            store_doc(
+                lib,
+                checkpoints.doc_id(),
+                &project.id,
+                dr_doc::side::checkpoints_genesis(&book_id),
+                checkpoints.export_updates_since(&all)?,
+            )?;
+        }
+        rec.history_checkpoints = planned.points.len();
+        for code in planned.without.values() {
+            notes.add(code.clone());
+        }
+        for _ in &planned.place_gone {
+            notes.add(crate::checkpoints::PLACE_GONE);
+        }
+        rec.history_without_checkpoint = planned.without;
+        if options.verify_history && !planned.points.is_empty() {
+            let wants: HashMap<String, crate::checkpoints::Want<'_>> = points
+                .iter()
+                .filter_map(|p| {
+                    Some((
+                        crate::checkpoints::checkpoint_id(&p.row_id),
+                        crate::checkpoints::Want {
+                            doc: &p.doc_id,
+                            paras: p.paras.as_deref()?,
+                            meta: held_by_row.get(&p.row_id).map(|(o, f)| (o, f)),
+                        },
+                    ))
+                })
+                .collect();
+            rec.history_checkpoints_checked =
+                crate::checkpoints::verify(lib, &book_id, &planned.points, &wants, &mut notes)?;
+        }
+        timing.store_ms += ms(t);
         if options.verify_history && !expected.is_empty() {
             let snapshot = vec![v3doc.export_snapshot()?];
             for (at, o, want) in &expected {
@@ -1815,6 +1906,20 @@ fn write_library(
         .into_iter()
         .map(|(k, v)| (k.to_string(), v))
         .collect();
+        rec.adjustments = legacy
+            .adjustments
+            .iter()
+            .filter(|a| a.book == project.id)
+            .cloned()
+            .collect();
+        for a in &rec.adjustments {
+            originals.push((
+                format!("adjusted:{}", a.table),
+                a.id.clone(),
+                a.code.clone(),
+                a.original.clone().unwrap_or_else(|| a.done.clone()),
+            ));
+        }
         rec.notes = notes;
         rec.status = "imported".into();
         books.push(rec);
@@ -2007,6 +2112,7 @@ fn copy_assets(
         });
         let Some(source) = source else {
             rec.assets_missing += 1;
+            rec.asset_files_missing.push(a.id.clone());
             continue;
         };
         if lib
@@ -2015,6 +2121,7 @@ fn copy_assets(
         {
             // Already copied (an interrupted import carrying on).
             rec.assets_copied += 1;
+            carry_copies(lib, &dir, a, rec)?;
             continue;
         }
         let bytes = std::fs::read(&source)?;
@@ -2024,6 +2131,7 @@ fn copy_assets(
             .collect();
         if sha != a.sha256 || bytes.len() as i64 != a.size {
             rec.assets_mismatched += 1;
+            rec.asset_files_mismatched.push(a.id.clone());
             continue;
         }
         let ext = source
@@ -2045,9 +2153,54 @@ fn copy_assets(
             limit: 512 * 1024 * 1024,
         })?;
         rec.assets_copied += 1;
+        carry_copies(lib, &dir, a, rec)?;
     }
     if total > 0 {
         progress(total, total);
     }
     Ok(true)
+}
+
+/// 0.1's display and thumbnail copies of `a`, whose source is in `lib`,
+/// carried from its 0.1 folder `dir` when the new client cannot decode the
+/// source itself (`crate::copies`): each copy the library lacks is checked
+/// and stored as that variant, or the receipt says why not. The 0.1 folder
+/// is only read.
+fn carry_copies(
+    lib: &Library,
+    dir: &Path,
+    a: &crate::legacy::AssetRow,
+    rec: &mut BookRecord,
+) -> Result<()> {
+    if !crate::copies::wanted(&a.kind, &a.mime) {
+        return Ok(());
+    }
+    for variant in crate::copies::VARIANTS {
+        let held = lib.asset(&a.id, variant)?.is_some();
+        let carried = if held {
+            Ok(())
+        } else {
+            match crate::copies::read(dir, variant) {
+                Ok(copy) => {
+                    lib.put_variant(&a.id, variant, &copy)?;
+                    Ok(())
+                }
+                Err(why) => Err(why),
+            }
+        };
+        match carried {
+            Ok(()) => rec
+                .asset_copies_carried
+                .entry(a.id.clone())
+                .or_default()
+                .push(variant.as_str().to_owned()),
+            Err(why) => {
+                rec.asset_copies_missing
+                    .entry(a.id.clone())
+                    .or_default()
+                    .insert(variant.as_str().to_owned(), why.to_owned());
+            }
+        }
+    }
+    Ok(())
 }
