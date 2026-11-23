@@ -1566,7 +1566,6 @@ version = "0.0.0"
 dependencies = [
  "base64 0.22.1",
  "dr-agent",
- "dr-agent-providers",
  "dr-model",
  "dr-platform",
  "dr-store",

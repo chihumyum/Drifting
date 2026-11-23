@@ -33,7 +33,7 @@ pub struct HttpClient {
     /// silent for [`crate::local::MODEL_WAIT`] while it loads a model.
     local: reqwest::Client,
     /// Tests only: `(origin, stand-in)` pairs ([`HttpClient::with_stand_in`]).
-    #[cfg(feature = "test-support")]
+    #[cfg(any(test, feature = "test-support"))]
     stand_ins: std::sync::Arc<Vec<(String, String)>>,
 }
 
@@ -58,7 +58,7 @@ impl HttpClient {
         Ok(Self {
             shared: client(Duration::from_secs(90))?,
             local: client(crate::local::MODEL_WAIT)?,
-            #[cfg(feature = "test-support")]
+            #[cfg(any(test, feature = "test-support"))]
             stand_ins: Default::default(),
         })
     }
@@ -72,7 +72,7 @@ impl HttpClient {
     /// injected name resolution would. Everything else, the address rules
     /// included, still sees `origin`. Applies to the model servers' requests
     /// ([`crate::local`] and a [`Provider::Local`] route's chat).
-    #[cfg(feature = "test-support")]
+    #[cfg(any(test, feature = "test-support"))]
     #[doc(hidden)]
     pub fn with_stand_in(mut self, origin: &str, stand_in: &str) -> Self {
         std::sync::Arc::make_mut(&mut self.stand_ins).push((
@@ -84,7 +84,7 @@ impl HttpClient {
 
     /// Where a request for `url` goes: `url` itself outside tests.
     pub(crate) fn destination(&self, url: String) -> String {
-        #[cfg(feature = "test-support")]
+        #[cfg(any(test, feature = "test-support"))]
         for (origin, stand_in) in self.stand_ins.iter() {
             if let Some(rest) = url.strip_prefix(origin.as_str())
                 && (rest.is_empty() || rest.starts_with('/'))

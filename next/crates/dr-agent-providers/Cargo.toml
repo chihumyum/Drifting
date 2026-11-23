@@ -8,8 +8,11 @@ publish.workspace = true
 description = "M28 model protocols, shared streaming HTTP, catalogs and subscription login"
 
 [features]
-# For tests: `HttpClient::with_stand_in`, which sends what is meant for a
-# service on the internet (`https://api.example.com`) to a loopback fake.
+# For other crates' tests: `HttpClient::with_stand_in`, which sends what is
+# meant for a service on the internet (`https://api.example.com`) to a
+# loopback fake. This crate's own unit tests have it without the feature
+# (`src/internet_tests.rs`): a dev-dependency on itself is a cycle the
+# hot-reload gate refuses.
 test-support = []
 
 [dependencies]
@@ -28,8 +31,6 @@ thiserror.workspace = true
 tokio.workspace = true
 
 [dev-dependencies]
-# This crate's own tests reach a stand-in for a service on the internet.
-dr-agent-providers = { workspace = true, features = ["test-support"] }
 # `proxy::fake`: a fake proxy as the system's, for `tests/system_proxy.rs`.
 dr-platform = { workspace = true, features = ["test-support"] }
 dr-store.workspace = true

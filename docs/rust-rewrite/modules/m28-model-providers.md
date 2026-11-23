@@ -101,21 +101,22 @@
 - 用量可以没有（记 0）；`[DONE]` 前没有 `finish_reason`、`length` 截断、参数不是 JSON 对象、断流，都照旧失败、不发布事件。
 - 不产生 `Replay`：本地模型没有要原样回放的签名或加密内容，历史一律按通用投影发送。
 
-**Key。** 钥匙串里一个服务一条，`byok.local.<服务 id>`；服务 id 是 App 自己生成的不透明 id，不是地址。没存 Key 就不带 `Authorization`（不像三家那样按 401 失败）。`Credentials::local_candidate` 只在内存里试。Key 只发给存它的那一台：运行按路线里的服务 id 取 Key、发到同一条路线的地址；两个客户端都不跟重定向（`redirect::Policy::none()`），3xx 照失败处理，Key 不会跟到别的主机（`tests/local.rs` 守住）。设置里「改地址」不打开密钥框时 Key 跟着这台服务去新地址，是 M31 11-16 定的（作者的选择，原型第五版照旧）。
+**Key。** 钥匙串里一个服务一条，`byok.local.<服务 id>`；服务 id 是 App 自己生成的不透明 id，不是地址。没存 Key 就不带 `Authorization`（不像三家那样按 401 失败）。`Credentials::local_candidate` 只在内存里试。Key 只发给存它的那一台：运行按路线里的服务 id 取 Key、发到同一条路线的地址；两个客户端都不跟重定向（`redirect::Policy::none()`），3xx 照失败处理，Key 不会跟到别的主机（`src/internet_tests.rs` 守住）。设置里「改地址」不打开密钥框时 Key 跟着这台服务去新地址，是 M31 11-16 定的（作者的选择，原型第五版照旧）。
 
 **路线和配置。** `ModelRoute.local: Option<LocalRoute { server, base_url }>`，只有 `Provider::Local` 带它（`RunConfig::validate` 检查两边对得上）；旧的路线读出来照旧，序列化时不多写字段。地址和模型一起冻结进这次运行，运行中改设置只影响下一次。`catalog` 对 `Local` 没有内置清单（`bundled_models` 为空），本地的清单由 M31 存在本机。
 
-**网上的服务怎么测（`test-support`）。** 假服务只能起在回环地址上，又只说明文 HTTP，网上的 `https` 地址走不到它。所以 `HttpClient` 在 `test-support` 特性下多一个 `with_stand_in(origin, stand_in)`：发往 `https://api.example.com` 的请求改发到回环上的假服务，像注入了一条域名解析；地址规则、`display`、名字、`validate_endpoint` 看到的仍是 `https://api.example.com`。只改「本地」这条路线的请求（`local::*` 和 `Provider::Local` 的对话），在 `validate_endpoint` 之后才换。特性只由测试和验收例程打开（本 crate 自己的 dev-dependency、`dr-view-agent` 和 `app/drifting` 的 dev-dependency），不进任何正式构建；没打开时 `destination` 原样返回。
+**网上的服务怎么测（`test-support`）。** 假服务只能起在回环地址上，又只说明文 HTTP，网上的 `https` 地址走不到它。所以 `HttpClient` 在 `test-support` 特性下（和本 crate 自己的单元测试里）多一个 `with_stand_in(origin, stand_in)`：发往 `https://api.example.com` 的请求改发到回环上的假服务，像注入了一条域名解析；地址规则、`display`、名字、`validate_endpoint` 看到的仍是 `https://api.example.com`。只改「本地」这条路线的请求（`local::*` 和 `Provider::Local` 的对话），在 `validate_endpoint` 之后才换。特性只由别的 crate 的测试和验收例程打开（`dr-view-agent` 和 `app/drifting` 的 dev-dependency），不进任何正式构建；没打开时 `destination` 原样返回。本 crate 用到替身的测试放在 `src/internet_tests.rs`（单元测试，`cfg(test)` 就有替身）：本 crate 对自己的 dev-dependency 是依赖环，hot-reload 门禁不收。
 
-**测试。** 全部对着本机假服务（`tests/local.rs`），不连真实服务：
+**测试。** 全部对着本机假服务（`tests/local.rs`、`src/internet_tests.rs`），不连真实服务：
 - `ollama_is_recognized_and_only_tool_models_are_offered`：认出 Ollama，gemma3（没有 tools）和嵌入模型不进清单，上下文读对，不带 Key 时没有 `Authorization`。
 - `lm_studio_and_llama_cpp_are_recognized_by_their_own_endpoints`、`an_unknown_server_keeps_its_address_name_and_row_context`。
 - `no_list_wrong_key_and_nothing_listening_are_told_apart`：`NoList`／`NoToolModels`／`Unauthorized`／`Unreachable` 分清（空清单、只有嵌入模型是 `NoToolModels`），`check` 对没有清单的服务也算可用。
 - `an_ollama_with_only_models_without_tools_has_none_to_offer`：只装了 gemma3 和嵌入模型的 Ollama 是 `NoToolModels`，两个都问过 `/api/show`。
 - `a_local_chat_goes_to_its_own_server_without_a_key_or_deepseek_fields`：走那台服务的 `/v1/chat/completions`，不落到四家的端点；`<think>` 成思考；存了 Key 才带 Bearer；工具调用照收。
-- `plain_http_to_the_internet_or_a_route_without_a_server_is_refused_before_any_request`（CA 前叫 `a_route_off_this_network_…`）：网上的 `http`、`ftp`、带用户名密码的地址、缺服务的路线在请求前拒绝（给这些地址挂了替身，替身一个请求都没收到）；没人监听时按网络错误失败。
-- `a_service_on_the_internet_is_listed_and_chatted_with_over_https`（CA）：`https://api.example.com/v1` 是 `Reach::Internet`、`display` 是 `api.example.com`；没 Key 是 `Unauthorized`，带 Key 问到清单（嵌入模型滤掉、`context_length` 读到）；对话发到它的 `/v1/chat/completions`、带 Bearer、不带推理和搜索字段。
-- `a_key_goes_only_to_its_own_service_and_never_along_a_redirect`（CA）：网上服务对清单和对话都回 307 指向另一台假服务：对话失败、清单是 `NoList`，另一台一个请求都没收到，发出去的只有这台自己的 Key；另一台自己的路线只带它自己的 Key。
+- `plain_http_to_the_internet_or_a_route_without_a_server_is_refused_before_any_request`（CA 前叫 `a_route_off_this_network_…`，原来拒的是 `https://api.example.com` 和 `http://8.8.8.8:11434`；`https://api.example.com` 现在收了，换成不会有人应答的地址 `http://203.0.113.7:11434`、`ftp://…`、带用户名密码的）：缺服务的路线也在请求前拒绝；没人监听时按网络错误失败。
+- `src/internet_tests.rs`（CA，单元测试，用替身）：`plain_http_to_the_internet_is_refused_before_any_request`：网上的 `http`、`ftp`、带用户名密码的地址在请求前拒绝，挂在这些地址上的替身一个请求都没收到。
+- `a_service_on_the_internet_is_listed_and_chatted_with_over_https`（CA，同一文件）：`https://api.example.com/v1` 是 `Reach::Internet`、`display` 是 `api.example.com`；没 Key 是 `Unauthorized`，带 Key 问到清单（嵌入模型滤掉、`context_length` 读到）；对话发到它的 `/v1/chat/completions`、带 Bearer、不带推理和搜索字段。
+- `a_key_goes_only_to_its_own_service_and_never_along_a_redirect`（CA，同一文件）：网上服务对清单和对话都回 307 指向另一台假服务：对话失败、清单是 `NoList`，另一台一个请求都没收到，发出去的只有这台自己的 Key；另一台自己的路线只带它自己的 Key。
 - `tests/system_proxy.rs` 的 `providers_take_the_system_proxy_and_a_local_model_server_never_does`（NP 写的，CA 并进来以后加了一段）：假代理当系统代理重跑一遍，本机的模型服务直连；网上的自定义服务的清单（共用客户端）和对话（5 分钟那个客户端）都只到假代理（两条 `CONNECT api.example.com:443`），假代理自己拒掉，什么都没出这台机器。
 - 单元测试：`local.rs` 的地址规则（本机、局域网、网上 `https`、网上 `http`、坏地址各一组，CA 前是「本机、局域网、网上被拒、坏地址」），`chat.rs` 的 `<think>` 逐字节分块、两种思考字段、缺用量、宽松的工具调用和各种截断，`credentials.rs` 的一服务一条 Key。
 
