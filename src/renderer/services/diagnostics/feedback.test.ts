@@ -21,6 +21,7 @@ vi.mock('../../platform/runtime', () => ({
 }));
 import {
   buildFeedbackPayload,
+  feedbackContactRequired,
   feedbackDelivery,
   feedbackEmailUrl,
   feedbackProblems,
@@ -82,12 +83,30 @@ afterEach(() => {
 });
 
 it('asks for a message and a reply-to address that can be answered', () => {
-  expect(feedbackProblems({ message: '   ', contactEmail: '' })).toEqual(['empty-message']);
-  expect(feedbackProblems({ message: 'x'.repeat(5001), contactEmail: '' })).toEqual(['message-too-long']);
-  expect(feedbackProblems({ message: 'Hi', contactEmail: 'not an address' })).toEqual(['invalid-email']);
-  expect(feedbackProblems({ message: 'Hi', contactEmail: 'a@b.c\nBcc: x@y.zz' })).toEqual(['invalid-email']);
-  expect(feedbackProblems({ message: 'Hi', contactEmail: '' })).toEqual([]);
-  expect(feedbackProblems({ message: 'Hi', contactEmail: ' author@example.com ' })).toEqual([]);
+  expect(feedbackProblems({ message: '   ', contactEmail: '' }, false)).toEqual(['empty-message']);
+  expect(feedbackProblems({ message: 'x'.repeat(5001), contactEmail: '' }, false)).toEqual(['message-too-long']);
+  expect(feedbackProblems({ message: 'Hi', contactEmail: 'not an address' }, false)).toEqual(['invalid-email']);
+  expect(feedbackProblems({ message: 'Hi', contactEmail: 'a@b.c\nBcc: x@y.zz' }, true)).toEqual(['invalid-email']);
+  expect(feedbackProblems({ message: 'Hi', contactEmail: '' }, false)).toEqual([]);
+  expect(feedbackProblems({ message: 'Hi', contactEmail: ' author@example.com ' }, true)).toEqual([]);
+});
+
+it('requires the reply-to address for feedback the Hosted service stores', () => {
+  const followUp = {
+    kind: 'native-panic' as const, fingerprint: 'native-panic:crash:1',
+    occurredAt: '2026-10-31T07:59:00.000Z', reportId: null,
+  };
+  expect(feedbackContactRequired('hosted', null)).toBe(true);
+  // A follow-up explains a report; the mail client carries the author's own address.
+  expect(feedbackContactRequired('hosted', followUp)).toBe(false);
+  expect(feedbackContactRequired('email', null)).toBe(false);
+  expect(feedbackProblems({ message: 'Hi', contactEmail: '' }, true)).toEqual(['missing-email']);
+  expect(feedbackProblems({ message: 'Hi', contactEmail: '   ' }, true)).toEqual(['missing-email']);
+  expect(feedbackProblems({ message: ' ', contactEmail: '' }, true)).toEqual(['empty-message', 'missing-email']);
+
+  const dialog = readFileSync(new URL('../../features/feedback/FeedbackDialog.tsx', import.meta.url), 'utf8');
+  expect(dialog).toContain('const contactRequired = feedbackContactRequired(delivery, followUp);');
+  expect(dialog).toContain('feedbackProblems(draft, contactRequired)');
 });
 
 it('builds a bounded payload with the author’s words and only the sanitized summary', () => {

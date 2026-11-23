@@ -178,10 +178,21 @@ notification. Closing the dialog keeps it. The note is sent as feedback with
 `services/diagnostics/feedback.ts` and `features/feedback/FeedbackDialog.tsx`.
 The dialog opens from the account menu, Settings → About and a crash
 follow-up. It holds the author's message (up to 5000 characters), a reply-to
-address (the signed-in account's email by default; optional, validated as one
-plain address) and a switch, on by default, for the sanitized diagnostic
-summary of Settings → Privacy, which the dialog takes once as it opens and can
-preview. ⌘↩ sends.
+address (the signed-in account's email by default, validated as one plain
+address) and a switch, on by default, for the sanitized diagnostic summary of
+Settings → Privacy, which the dialog takes once as it opens and can preview.
+⌘↩ sends.
+
+Feedback the Hosted service stores must carry the reply-to address
+(`feedbackContactRequired`), so the maintainer can answer it: the field's
+placeholder reads Required and Send stays disabled until it holds an address.
+Since 2026-11-23; before that the address was optional, and feedback from
+authors who were not signed in could not be answered. The address stays
+optional for a crash follow-up, which explains a report and asks for nothing
+back, and when the message goes to the mail client, where it arrives from the
+author's own address. The service's contract is unchanged: `contactEmail` may
+still be null, as it is from follow-ups and from builds up to
+`0.1.0-alpha.12`.
 
 Feedback is sent on purpose, so it ignores the automatic report switch. With a
 Hosted service and a network it goes to

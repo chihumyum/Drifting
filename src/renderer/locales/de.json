@@ -3501,6 +3501,7 @@
     "placeholder": "Ein Problem oder eine Idee",
     "contact": "Antwortadresse",
     "contactPlaceholder": "Optional",
+    "contactRequired": "Erforderlich",
     "attachDiagnostics": "Bereinigte Diagnosedaten anhängen",
     "preview": "Vorschau",
     "hidePreview": "Ausblenden",

@@ -3501,6 +3501,7 @@
     "placeholder": "문제 또는 아이디어",
     "contact": "답장받을 이메일",
     "contactPlaceholder": "선택 사항",
+    "contactRequired": "필수",
     "attachDiagnostics": "민감 정보를 제거한 진단 정보 첨부",
     "preview": "미리보기",
     "hidePreview": "숨기기",

@@ -159,6 +159,8 @@ F6 也在改 dr-shell，逐条列出，合并时好对：
 7. **F6：** 外壳的改动见上一节（第三轮没再改外壳）；单行输入框 `set_text` 给带换行的字会 panic（GPUI 的 `shape_line`），调用方别传换行——反馈的写话框已换成多行框，不再涉及，记一笔给 F5/F6。
 8. **要不要给摘要加新键**（等作者定）：新版运行时还知道上次同步成功是什么时候、游标、跑完了几轮、退避了几次，这些对判断「同步停了多久」有用，但摘要里没有对应的键；加键要服务端和运营台也认，这次没加。
 
+9. **回信邮箱必填，新版还没跟上**（2026-11-23）：0.1 客户端从这天起，发到托管服务的普通反馈必须填回信邮箱（`feedbackContactRequired`，`docs/crash-reports.md` 的 Feedback 一节），因为没登录的作者不填邮箱，维护者没法回。崩溃跟进、用邮件发送时仍是选填，服务端接口不变。新版的 `dr_platform::feedback::problems` 和对话框还是「选填」，首发前要照这条改；第 4 条（默认填账户邮箱）也要一起做完，不然登录了的作者每次都得手填。
+
 ## 设备身份（M07 待协调 1）
 
 - **做法**：`app/drifting/src/library.rs` 的 `open(data, version)`：`dr_store::Device::open(<应用本机数据目录>)` 放进 `LibraryOptions::device`，再在 `<数据目录>/library` 打开库。`main` 原来调 `Workspace::open_dir`，现在调它。

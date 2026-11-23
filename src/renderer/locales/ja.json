@@ -3501,6 +3501,7 @@
     "placeholder": "問題やアイデア",
     "contact": "返信先メールアドレス",
     "contactPlaceholder": "任意",
+    "contactRequired": "必須",
     "attachDiagnostics": "機密情報を除去した診断情報を添付",
     "preview": "プレビュー",
     "hidePreview": "非表示",

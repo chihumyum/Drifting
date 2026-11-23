@@ -10,6 +10,7 @@ import { crashFollowUpNotificationId } from '../../services/diagnostics/crash-fo
 import type { CrashFollowUp } from '../../services/diagnostics/crash-reporter';
 import {
   FEEDBACK_MESSAGE_MAX,
+  feedbackContactRequired,
   feedbackDelivery,
   feedbackEmailUrl,
   feedbackProblems,
@@ -28,9 +29,11 @@ type Phase = 'editing' | 'sending' | 'sent' | 'failed';
 
 /**
  * Feedback the author sends on purpose: their message, a reply-to address
- * (the account's by default) and the sanitized diagnostic summary unless they
- * detach it. As a crash follow-up it carries the report it explains. Without
- * the Hosted service, or when sending fails, the same message goes to mail.
+ * (the account's by default; required when the Hosted service stores the
+ * feedback, so it can be answered) and the sanitized diagnostic summary unless
+ * they detach it. As a crash follow-up it carries the report it explains and
+ * the address stays optional. Without the Hosted service, or when sending
+ * fails, the same message goes to mail.
  */
 export function FeedbackDialog({ followUp, onClose }: { followUp: CrashFollowUp | null; onClose: () => void }) {
   const { t, i18n } = useTranslation();
@@ -50,7 +53,8 @@ export function FeedbackDialog({ followUp, onClose }: { followUp: CrashFollowUp 
 
   const locale = i18n.resolvedLanguage ?? i18n.language;
   const draft: FeedbackDraft = { message, contactEmail, diagnostics: attach ? summary : null, followUp, locale };
-  const problems = feedbackProblems(draft);
+  const contactRequired = feedbackContactRequired(delivery, followUp);
+  const problems = feedbackProblems(draft, contactRequired);
   const invalidEmail = problems.includes('invalid-email');
   const locked = phase === 'sending' || phase === 'sent';
   const byEmail = delivery === 'email' || phase === 'failed';
@@ -121,7 +125,8 @@ export function FeedbackDialog({ followUp, onClose }: { followUp: CrashFollowUp 
                 spellCheck={false}
                 aria-label={t('feedback.contact')}
                 aria-invalid={invalidEmail || undefined}
-                placeholder={t('feedback.contactPlaceholder')}
+                aria-required={contactRequired || undefined}
+                placeholder={contactRequired ? t('feedback.contactRequired') : t('feedback.contactPlaceholder')}
                 disabled={locked}
                 onChange={(event) => setContactEmail(event.target.value)}
               />

@@ -3516,6 +3516,7 @@
     "placeholder": "Um problema ou uma ideia",
     "contact": "E-mail para resposta",
     "contactPlaceholder": "Opcional",
+    "contactRequired": "Obrigatório",
     "attachDiagnostics": "Anexar diagnósticos sem dados sensíveis",
     "preview": "Prévia",
     "hidePreview": "Ocultar",
