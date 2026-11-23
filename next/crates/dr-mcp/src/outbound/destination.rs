@@ -403,6 +403,10 @@ pub(super) fn client(value: &str) -> Result<(Client, Url), String> {
     let client = Client::builder()
         .connect_timeout(Duration::from_secs(5))
         .timeout(Duration::from_secs(300))
+        // Never through a proxy, not even the system's, unlike the App's
+        // other clients (`dr_platform::proxy`): a loopback server is on this
+        // computer, and a public one is checked by the addresses this client
+        // itself connects to, which a proxy would resolve out of sight.
         .no_proxy()
         .referer(false)
         .redirect(Policy::none())

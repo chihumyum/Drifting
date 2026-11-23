@@ -43,6 +43,8 @@ libc.workspace = true
 windows.workspace = true
 
 [dev-dependencies]
+# `proxy::fake`: a fake proxy as the system's (`tests/outbound.rs`).
+dr-platform = { workspace = true, features = ["test-support"] }
 dr-testkit.workspace = true
 insta.workspace = true
 tempfile.workspace = true
