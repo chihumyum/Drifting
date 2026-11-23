@@ -460,7 +460,7 @@
       "pending": "Mapping choices required before import",
       "start": "Import into new library",
       "switching": "Opening the completed library",
-      "title": "Reimport into new library"
+      "title": "Import into new library"
     }
   },
   "importDialog": {
