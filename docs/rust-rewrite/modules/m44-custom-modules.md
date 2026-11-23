@@ -224,7 +224,7 @@ dr_export::module_file::{EXTENSION /* "driftingmodule" */, MAX_BYTES, ModuleFile
 ### 做了什么（大白话）
 
 1. **盒子树画成界面。** 一个模块的「长什么样」加一份值，画成一块界面。五种节点（盒子、每一项、值、字、记号）和第 4 节清单里的每个属性都有对应，档位都落到 `dr-ui` 现成的东西上：三种字体是 App 的三种字（衬线是正文的、无衬线是界面的、等宽是索引的），四档大小是界面字号，四档墨色是调色板的墨，边是发丝线、静止的玻璃线或者静止的砂笔框，底是稿纸或一层淡墨，弧线是一道砂笔，记号是记号选择器的那七个砂笔记号；单选显示成记号时第一个选项空心、最后一个实心、中间半实，数字显示成点数是五个砂笔点。没有别的颜色，深浅模式跟着主题自己换。
-2. **条目页上能看到、能填。** 条目模板里放了自定义模块的条目，条目页上按模板的顺序画出这个模块的「一块」，就地填：一行字、一段字、数字、日期直接在原处打字（无边框的输入框，字体字号墨色就是这个值自己的，离开时存，一行的回车存，Esc 放回原来的字）；单选、多选、条目、图片按一下弹出和「字段」模块下拉框一样的选项列表（「未设置」在最前面）；勾选按一下就翻；显示成点数的数字按一下变成输入框，存了以后回到点数。一串的每一项指上去右上角出拖动把手和删除，拖到另一项上就挪到那里；最后一项下面是一行「＋ 串的名字」，按了加一项。串里套串一样。每一次改动是一条命令、一步撤销，不拿读到的整份去替换。
+2. **条目页上能看到、能填。** 条目模板里放了自定义模块的条目，条目页上按模板的顺序画出这个模块的「一块」，就地填：一行字、一段字、数字、日期直接在原处打字（无边框的输入框，字体字号墨色就是这个值自己的，离开时存，一行的回车存，Esc 放回原来的字）；单选、多选、条目、图片按一下弹出和「字段」模块下拉框一样的选项列表（「未设置」在最前面）；勾选按一下就翻；显示成点数的数字按一下变成输入框，存了以后回到点数。一串的每一项指上去出拖动把手和删除（竖着排的一串，把手在左边的页边、删除在右边的页边，不压住这一项的字；横着排的在这一项右上角），拖到另一项上就挪到那里；最后一项下面是一行「＋ 串的名字」，按了加一项。串里套串一样。每一次改动是一条命令、一步撤销，不拿读到的整份去替换。
 3. **铺满。** 模块标题行右边的铺满按钮（指着标题行时出现，铺满时一直在），按了这个模块铺满中间一列：稿纸撑到这一列最宽，只剩条目的头和这个模块，底栏收起；画的是「铺满」那棵树（没单独摆就是「一块」撑满）。Esc 或再按一次退出。和左右栏、底栏的铺满一样一次只有一处：铺左栏会退掉模块的铺满，反过来也一样；换页、关项目以后不记。
 4. **悬停卡里一行。** 指着正文里一个条目的名字，悬停卡在梗概下面给这个条目的每个自定义模块各画一行（模块单独摆了「一行」就画它，没摆就是前三块积木的值连成一行，一串显示成「3 个伏笔」这样的个数，图片和一组跳过）。
 5. **坏了的抄本**（更新的 App 存的模块拿到这里）画一块空的占位，只写模块的名字，不能填，值一个字节都不动。书里没有这份抄本时也一样。
@@ -273,7 +273,7 @@ trait Edit { fn value(..) -> AnyElement; fn item(..) -> AnyElement; fn after_ite
 宿主：
 
 - **条目页**：`dr-view-page/src/custom.rs` 的 `CustomModule`，`add_module_view` 注册在种类 `custom` 下（`dr_view_page::init` 里）。读用 `module.read_custom`，写用 `module.set_custom_value`、`add_custom_item`、`remove_custom_item`、`move_custom_item`，按顺序一条一条跑；听书库的书事件和外壳的 `on_refresh` 重读。打字没存的字参加外壳的释放前存盘（`settlement::Drafts`）。铺满按钮用 `Rendered::with_head_action` 放在标题行。
-- **铺满**（`dr-shell`，只加）：`dr_shell::workspace::{ModuleFill, FilledModule, MODULE_FILL_INSET}`；`Workspace::{fill_module, toggle_module_fill, filled_module}`；`FilledModule` 是一个全局值，条目页和模块在画的时候读它。`enter_fill` 先退掉模块的铺满，`exit_fill`（Esc、⌘[、点药丸、去主页……）也退掉它；`top_layer` 在模块铺满时是 `Layer::Fill`；换页以后自己失效。中间一列（`stage.rs`）铺满时稿纸宽到这一列减两边各 8 px、不画底栏；条目页（`v3/page.rs`）铺满时只画头和这个模块。
+- **铺满**（`dr-shell`，只加）：`dr_shell::workspace::{ModuleFill, FilledModule, MODULE_FILL_INSET}`；`Workspace::{fill_module, toggle_module_fill, filled_module}`；`FilledModule` 是一个全局值，条目页和模块在画的时候读它。`enter_fill` 先退掉模块的铺满，`exit_fill`（Esc、⌘[、点药丸、去主页……）也退掉它；`top_layer` 在模块铺满时是 `Layer::Fill`；换页以后自己失效。中间一列（`stage.rs`）铺满时稿纸宽到这一列减两边各 8 px、不画底栏，也不画左边页边的大纲栏（没有页边了）；条目页（`v3/page.rs`）铺满时只画头和这个模块。
 - **悬停卡**（`dr-editor/src/link_card.rs`，只加）：`CardFacts` 多一个 `lines: Vec<ModuleLine>`（模板模块 id、模块、值），条目卡在梗概下面一节画它们。
 
 ### 测试
@@ -285,12 +285,14 @@ trait Edit { fn value(..) -> AnyElement; fn item(..) -> AnyElement; fn after_ite
 | 每种积木、每种「显示成」画什么 | `every_kind_of_block_shows_its_value`、`a_select_as_a_mark_is_hollow_half_or_full_by_its_place`、`foreshadowing_draws_a_ledger_with_marks_and_counts_in_its_line`、`a_blank_scope_has_one_item_in_every_list_and_no_values` |
 | 渲染器不认识的东西不崩（校验器拦着，渲染器自己也不崩） | `a_value_node_for_a_block_the_module_does_not_have_draws_nothing`；坏了的抄本见下 |
 | 四份样本浅深色、三种大小都画得出来；占位；一行 | `dr-view-module-look/tests/paint.rs`：`every_sample_draws_at_every_size_in_both_themes`、`a_broken_copy_is_its_name_alone`、`a_line_draws_without_the_apps_words` |
-| 每种积木就地填、读回一致 | `dr-view-page/tests/v5_custom_modules.rs`：`every_kind_of_block_is_filled_in_place_and_reads_back`（魔法规则卡：九种积木都在里面，含无效的数字不存、Esc 放回）、`a_row_of_items_with_marks_and_words_is_filled_in`（人物弧光：横排带箭头的一串、单选画成记号） |
+| 每种积木就地填、读回一致 | `dr-view-page/tests/v5_custom_modules.rs`：`every_kind_of_block_is_filled_in_place_and_reads_back`（魔法规则卡：九种积木都在里面，含无效的数字不存、Esc 放回）、`a_row_of_items_with_marks_and_words_is_filled_in`（人物弧光：横排带箭头的一串、单选画成记号）、`typed_words_are_stored_when_another_field_is_pressed`（按到别的格子上，打的字照样存） |
 | 一串加、删、挪（串里套串），每次一步撤销 | `list_items_are_added_taken_away_and_moved_each_one_step_of_undo` |
 | 坏抄本画占位、值逐字节不变 | `a_broken_copy_is_its_name_and_its_values_stay` |
 | 抄本换了页面当场跟着变、值还在、正在打的字不丢 | `a_replaced_copy_redraws_at_once_and_keeps_values_and_typing` |
 | 铺满、Esc 退出、再按退出、一次只铺一处 | `the_module_fills_the_middle_column_and_esc_leaves` |
 | 悬停卡里每个自定义模块一行 | `an_entry_names_hover_card_has_the_modules_line` |
+
+真窗口：`next/crates/dr-view-page/scenarios/cm2-custom-modules.json`（lite 种子，一个条目模板放伏笔追踪、魔法规则卡、世界观年表，江微月的模板放人物弧光；就地填、拖动挪一项、串里套串、两个模块铺满、名字的悬停卡，浅深色截图）。调试桥驱动的窗口没有键盘焦点，按到别的格子上不会让原来的格子失焦，所以场景里打完字用回车或 ⌘↵ 存；悬停卡那一步按坐标指到第 1 章正文第一行的「江微月」（正文里的链接不是无障碍节点）。
 
 ### 待协调
 
