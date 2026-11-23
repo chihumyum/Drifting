@@ -1,0 +1,61 @@
+{
+  "about": "CM4b real-window smoke: the Agent makes a custom module (伏笔追踪, from the sample modules), puts it into the chapter template and fills a chapter. Run with dr-view-agent's modules-acceptance example only: v3 Tiny testkit seed, a memory-only synthetic credential, a deterministic script standing in for a model (each round made from the results so far), every provider address loopback and never asked. Window must open on the secondary display.",
+  "steps": [
+    { "launch": { "env": { "DRIFTING_WINDOW_DISPLAY": "secondary" } } },
+    { "app": "ui.wait", "params": { "until": "ready", "timeout_ms": 30000 } },
+    { "app": "window.focus" },
+    { "app": "ui.wait", "params": { "until": "ready", "state": { "/window/active": true }, "timeout_ms": 30000 } },
+    { "app": "app.info", "save": "environment" },
+    { "app": "ui.press", "params": { "label": "展开右侧栏" } },
+    { "app": "ui.wait", "params": { "until": "ready", "state": { "/right/open": true } } },
+    { "app": "ui.press", "params": { "label": "发送", "role": "Button", "dy": -60 }, "note": "Focus the composer above the send button." },
+    { "app": "input.type", "params": { "text": "做一个记伏笔的模块，放进章节，把这一章的伏笔填上。" } },
+    { "app": "input.key", "params": { "keys": "enter" } },
+    { "app": "ui.find", "params": { "label": "结果 · back", "role": "Button", "timeout_ms": 30000 }, "note": "The last write of the script has its result in the conversation." },
+    { "app": "ui.find", "params": { "label": "custom_module.create", "role": "Button" } },
+    { "app": "ui.find", "params": { "label": "entry_template.put_module", "role": "Button" } },
+    { "app": "ui.find", "params": { "label": "module.set_custom_value", "role": "Button" } },
+    { "app": "ui.find", "params": { "label": "发送", "role": "Button", "count": 1, "timeout_ms": 20000 }, "note": "The turn has finished." },
+    { "app": "ui.screenshot", "png": "01-module-made.png" },
+    { "app": "state.get", "save": "state" },
+    {
+      "call": "custom_module.list",
+      "input": {},
+      "save": "mine",
+      "expect": { "/0/name": "伏笔追踪", "/0/origin": "own", "/0/blocks": 4, "/1": null }
+    },
+    {
+      "call": "entry_template.list",
+      "input": { "book": "${state.book.id}" },
+      "expect": {
+        "/[id=tpl-chapter]/modules/[id=mod-foreshadow]/kind": "custom",
+        "/[id=tpl-chapter]/modules/[id=mod-foreshadow]/config/module": "${mine.0.id}",
+        "/[id=tpl-chapter]/modules/[id=mod-foreshadow]/config/in_book": false
+      }
+    },
+    {
+      "call": "entry.list",
+      "input": { "book": "${state.book.id}", "query": "CM4b", "all": true },
+      "save": "entries"
+    },
+    {
+      "call": "module.read_custom",
+      "input": { "book": "${state.book.id}", "entry": "${entries.[title=CM4b chapter].id}", "module": "mod-foreshadow" },
+      "expect": {
+        "/copy/id": "${mine.0.id}",
+        "/copy/follows": true,
+        "/copy/broken": false,
+        "/values/items/value/0/values/line/value": "钟楼的钟慢了七分钟",
+        "/values/items/value/0/values/st/value": "埋着",
+        "/values/items/value/0/values/back/value/0": "${entries.[title=CM4b clock tower].id}"
+      }
+    },
+    {
+      "call": "entry_snapshot.list",
+      "input": { "book": "${state.book.id}", "entry": "${entries.[title=CM4b chapter].id}" },
+      "expect": { "/0/entry": "${entries.[title=CM4b chapter].id}" },
+      "note": "The Agent's writes to the entry left checkpoints first."
+    },
+    { "app": "app.quit", "expect": { "/quit": true, "/exitCode": 0, "/connectionFileLeft": false } }
+  ]
+}

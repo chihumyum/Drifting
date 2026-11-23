@@ -41,6 +41,9 @@ pub(super) fn backing(subject: &str, name: &str, output: &Value) -> Backing {
         // A saved project template is a library document of its own: a
         // save is held to the revision the turn read, not to the book.
         "project_template" => Backing::Outside,
+        // So is a module of mine (`module:<id>` in the library): a change is
+        // held to what the turn read of it, by the executor.
+        "custom_module" => Backing::Outside,
         "entry_history" => Backing::Document,
         // The set of entries is read as the order of the top level; each
         // listed entry is its own subject, with its own record.
@@ -73,6 +76,20 @@ pub(super) fn backing(subject: &str, name: &str, output: &Value) -> Backing {
                     .collect::<Vec<_>>()
             };
             keys.extend(rows("patches", "patches"));
+            Backing::Records(keys)
+        }
+        // An entry's values of a custom module (`module.read_custom`), and
+        // the book's copy of the module they were read as: a write is
+        // refused once either changed (the copy is replaced when the module
+        // of mine changes, `custom-modules.md` §7).
+        "module_custom" => {
+            let Some((entry, module)) = id.split_once(':') else {
+                return Backing::Document;
+            };
+            let mut keys = vec![RecordKey::entry(entry).at([format!("module:{module}")])];
+            if let Some(copy) = output["copy"]["id"].as_str() {
+                keys.push(RecordKey::record("modules", copy));
+            }
             Backing::Records(keys)
         }
         "project" => Backing::Records(vec![
@@ -202,6 +219,25 @@ impl BookReads {
 
     pub(super) fn version_of(&self, subject: &str) -> Option<&str> {
         self.whole.get(subject).map(String::as_str)
+    }
+
+    /// Forget every subject read from a record `changed` says changed: the
+    /// turn's own write elsewhere changed it (a module of mine replaced the
+    /// book's copy of it), so what was read from it has to be read again
+    /// rather than cost the turn a conflict.
+    pub(super) fn forget_backed_by(&mut self, changed: impl Fn(&RecordKey) -> bool) {
+        let stale: Vec<String> = self
+            .subjects
+            .iter()
+            .filter(|(_, keys)| {
+                keys.iter()
+                    .any(|key| self.records.get(key).is_some_and(|r| changed(&r.key)))
+            })
+            .map(|(subject, _)| subject.clone())
+            .collect();
+        for subject in stale {
+            self.forget(&subject);
+        }
     }
 
     /// After a write that needed `subject`: what it was read from may have

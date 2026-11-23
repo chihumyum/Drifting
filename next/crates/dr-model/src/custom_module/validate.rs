@@ -216,8 +216,9 @@ pub fn validate_module_value(value: &ModuleValue) -> Result<(), ModuleError> {
         .into_iter()
         .map(|(b, s)| (b.id.as_str(), (b, s)))
         .collect();
-    for (_, tree) in value.look.trees() {
-        check_node(tree, &scopes, &mut vec![None])?;
+    for (size, tree) in value.look.trees() {
+        let at = format!("look.{}", look_key(size));
+        check_node(tree, &scopes, &mut vec![None], &at)?;
     }
 
     // Words for the Agent.
@@ -327,6 +328,25 @@ fn check_blocks<'a>(
 
 type Scopes<'a> = BTreeMap<&'a str, (&'a Block, Option<&'a str>)>;
 
+/// A look tree's key in the module JSON.
+fn look_key(size: super::LookSize) -> &'static str {
+    match size {
+        super::LookSize::Block => "block",
+        super::LookSize::Line => "line",
+        super::LookSize::Full => "full",
+    }
+}
+
+/// A rule broken at the look node `at` (a JSON path such as
+/// `look.block.kids[1].item`) says where: a workbench or the Agent can go
+/// straight to the node.
+fn here<T>(at: &str, r: Result<T, ModuleError>) -> Result<T, ModuleError> {
+    r.map_err(|e| match e {
+        ModuleError::Invalid(msg) => ModuleError::Invalid(format!("{at}: {msg}")),
+        other => other,
+    })
+}
+
 fn step(name: &str, v: Option<u8>, steps: &[u8]) -> Result<(), ModuleError> {
     match v {
         Some(v) if !steps.contains(&v) => inv(format!("{name} {v} is not one of {steps:?}")),
@@ -345,7 +365,17 @@ fn check_box<'a>(
     b: &BoxNode,
     scopes: &Scopes<'a>,
     chain: &mut Vec<Option<&'a str>>,
+    at: &str,
 ) -> Result<(), ModuleError> {
+    here(at, check_box_itself(b))?;
+    for (i, kid) in b.kids.iter().enumerate() {
+        check_node(kid, scopes, chain, &format!("{at}.kids[{i}]"))?;
+    }
+    Ok(())
+}
+
+/// A box's own properties (its kids are checked where they are).
+fn check_box_itself(b: &BoxNode) -> Result<(), ModuleError> {
     step("gap", b.gap, &SPACING_STEPS)?;
     step("pad", b.pad, &SPACING_STEPS)?;
     step("radius", b.radius, &RADIUS_STEPS)?;
@@ -374,9 +404,6 @@ fn check_box<'a>(
         _ if !b.cols.is_empty() => return inv("only a grid box has columns"),
         _ => {}
     }
-    for kid in &b.kids {
-        check_node(kid, scopes, chain)?;
-    }
     Ok(())
 }
 
@@ -384,31 +411,57 @@ fn check_node<'a>(
     node: &Node,
     scopes: &Scopes<'a>,
     chain: &mut Vec<Option<&'a str>>,
+    at: &str,
 ) -> Result<(), ModuleError> {
     match node {
-        Node::Box(b) => check_box(b, scopes, chain),
+        Node::Box(b) => check_box(b, scopes, chain, at),
         Node::Each(e) => {
-            step("gap", e.gap, &SPACING_STEPS)?;
-            let Some((block, scope)) = scopes.get(e.list.as_str()) else {
-                return inv(format!(
-                    "each names block {:?}, which the module does not have",
-                    e.list
-                ));
-            };
-            if block.kind != BlockKind::List {
-                return inv(format!("each names {:?}, which is not a list", e.list));
-            }
-            if !chain.contains(scope) {
-                return inv(format!(
-                    "each over {:?} is drawn outside the items that keep it",
-                    e.list
-                ));
-            }
-            chain.push(Some(block.id.as_str()));
-            let r = check_box(&e.item, scopes, chain);
+            let block = here(at, check_each(e, scopes, chain))?;
+            chain.push(Some(block));
+            let r = check_box(&e.item, scopes, chain, &format!("{at}.item"));
             chain.pop();
             r
         }
+        other => here(at, check_leaf(other, scopes, chain)),
+    }
+}
+
+/// An each node's own properties; returns the list it draws.
+fn check_each<'a>(
+    e: &super::EachNode,
+    scopes: &Scopes<'a>,
+    chain: &[Option<&'a str>],
+) -> Result<&'a str, ModuleError> {
+    step("gap", e.gap, &SPACING_STEPS)?;
+    let Some((block, scope)) = scopes.get(e.list.as_str()) else {
+        return Err(ModuleError::Invalid(format!(
+            "each names block {:?}, which the module does not have",
+            e.list
+        )));
+    };
+    if block.kind != BlockKind::List {
+        return Err(ModuleError::Invalid(format!(
+            "each names {:?}, which is not a list",
+            e.list
+        )));
+    }
+    if !chain.contains(scope) {
+        return Err(ModuleError::Invalid(format!(
+            "each over {:?} is drawn outside the items that keep it",
+            e.list
+        )));
+    }
+    Ok(block.id.as_str())
+}
+
+/// A value, text or mark node.
+fn check_leaf<'a>(
+    node: &Node,
+    scopes: &Scopes<'a>,
+    chain: &[Option<&'a str>],
+) -> Result<(), ModuleError> {
+    match node {
+        Node::Box(_) | Node::Each(_) => Ok(()),
         Node::Value(v) => {
             let Some((block, scope)) = scopes.get(v.block.as_str()) else {
                 return inv(format!(
