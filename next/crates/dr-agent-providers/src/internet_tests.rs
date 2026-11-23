@@ -203,6 +203,7 @@ fn request(server: &str, base_url: &str) -> DriverRequest {
             payload: json!({"text":"synthetic request"}),
         }],
         tools: Vec::new(),
+        images: Default::default(),
     }
 }
 
@@ -315,6 +316,7 @@ async fn a_service_on_the_internet_is_listed_and_chatted_with_over_https() {
         [LocalModel {
             id: "example-chat-large".into(),
             context_window: Some(131_072),
+            image_input: None,
         }]
     );
     local::check(&http, &address, Some("synthetic-service-key"))

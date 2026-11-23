@@ -570,7 +570,12 @@ fn collect_entry_all_content(
                     }
                 }
                 // `Children` and `Members` are structural UI views storing no data on the entry.
-                ModuleKind::Children | ModuleKind::Members | ModuleKind::Other(_) => {}
+                // A custom module is not exported in the first phase
+                // (`custom-modules.md` §16 item 2).
+                ModuleKind::Children
+                | ModuleKind::Members
+                | ModuleKind::Custom
+                | ModuleKind::Other(_) => {}
             }
         }
     } else {

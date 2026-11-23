@@ -479,6 +479,7 @@ fn request(base_url: &str, tools: bool) -> DriverRequest {
         } else {
             Vec::new()
         },
+        images: Default::default(),
     }
 }
 
@@ -610,4 +611,146 @@ async fn plain_http_to_the_internet_or_a_route_without_a_server_is_refused_befor
         Some(Err(dr_agent::Error::Provider(failure)))
             if failure.category == ModelErrorCategory::Network
     ));
+}
+
+/// CM4a: what each kind of server says about images is what counts. Ollama's
+/// `vision` capability, LM Studio's `vlm`, llama.cpp's `image` input
+/// modality or, from an older llama.cpp, `/props` `modalities.vision`; a
+/// server that says nothing leaves it unknown (no).
+#[tokio::test]
+async fn what_each_server_says_about_images_is_what_counts() {
+    let http = HttpClient::new().unwrap();
+    let ollama = Fake::new(Box::new(|seen| {
+        match (seen.method.as_str(), seen.path.as_str()) {
+            ("POST", "/api/show") if seen.body["model"] == "qwen3-vl:8b" => (
+                200,
+                json!({"capabilities":["completion","tools","vision"]}).to_string(),
+            ),
+            ("GET", "/v1/models") => (
+                200,
+                listed(json!([{"id":"qwen3:14b"},{"id":"qwen3-vl:8b"}])),
+            ),
+            _ => ollama_reply(seen),
+        }
+    }));
+    let found = local::discover(&http, &address(&ollama), None)
+        .await
+        .unwrap();
+    assert_eq!(
+        found
+            .models
+            .iter()
+            .map(|m| (m.id.as_str(), m.image_input))
+            .collect::<Vec<_>>(),
+        [("qwen3:14b", Some(false)), ("qwen3-vl:8b", Some(true))]
+    );
+
+    let studio = Fake::new(Box::new(|seen| match seen.path.as_str() {
+        "/v1/models" => (200, listed(json!([{"id":"text-only"},{"id":"sees"}]))),
+        "/api/v0/models" => (
+            200,
+            listed(json!([
+                {"id":"text-only","type":"llm"},
+                {"id":"sees","type":"vlm"},
+            ])),
+        ),
+        _ => (404, "{}".into()),
+    }));
+    let found = local::discover(&http, &address(&studio), None)
+        .await
+        .unwrap();
+    assert_eq!(
+        found
+            .models
+            .iter()
+            .map(|m| m.image_input)
+            .collect::<Vec<_>>(),
+        [Some(false), Some(true)]
+    );
+
+    for (row, props, expected) in [
+        (
+            json!({"id":"m","owned_by":"llamacpp","architecture":{"input_modalities":["text","image"]}}),
+            json!({"modalities":{"vision":false}}),
+            Some(true),
+        ),
+        (
+            json!({"id":"m","owned_by":"llamacpp","architecture":{"input_modalities":["text"]}}),
+            json!({}),
+            Some(false),
+        ),
+        (
+            json!({"id":"m","owned_by":"llamacpp"}),
+            json!({"modalities":{"vision":true}}),
+            Some(true),
+        ),
+        (json!({"id":"m","owned_by":"llamacpp"}), json!({}), None),
+    ] {
+        let llama = Fake::new(Box::new(move |seen| match seen.path.as_str() {
+            "/v1/models" => (200, listed(json!([row.clone()]))),
+            "/props" => (200, props.to_string()),
+            _ => (404, "{}".into()),
+        }));
+        let found = local::discover(&http, &address(&llama), None)
+            .await
+            .unwrap();
+        assert_eq!(found.models[0].image_input, expected);
+    }
+
+    // A server nobody recognizes says nothing unless its rows do.
+    let unknown = Fake::new(Box::new(|seen| match seen.path.as_str() {
+        "/v1/models" => (200, listed(json!([{"id":"served"}]))),
+        _ => (404, "{}".into()),
+    }));
+    let found = local::discover(&http, &address(&unknown), None)
+        .await
+        .unwrap();
+    assert_eq!(found.models[0].image_input, None);
+}
+
+/// CM4a: a local model that takes images gets the author's words and then
+/// each image as an `image_url` data URL (the OpenAI-compatible shape of
+/// Ollama, llama.cpp and LM Studio); one that does not, a line of text.
+#[tokio::test]
+async fn a_local_model_that_sees_gets_image_url_parts() {
+    let fake = Fake::new(Box::new(|seen| match seen.path.as_str() {
+        "/v1/chat/completions" => (200, chat("看到了")),
+        _ => (404, "{}".into()),
+    }));
+    let driver = driver(Credentials::new(Arc::new(SecretStore::in_memory())));
+    let png = dr_testkit::media::png(32, 24);
+    let image = dr_agent::images::inspect(&png).unwrap();
+    let mut seeing = request(&fake.url, false);
+    seeing.conversation[0].payload =
+        dr_agent::images::user_payload("照这张草图", std::slice::from_ref(&image));
+    seeing
+        .images
+        .insert("session:1", 0, Arc::from(png.as_slice()));
+    Arc::make_mut(&mut seeing.config).capabilities = Some(dr_agent::ModelCapabilities {
+        image_input: Some(true),
+        ..Default::default()
+    });
+    let mut blind = seeing.clone();
+    Arc::make_mut(&mut blind.config).capabilities = None;
+    for request in [seeing, blind] {
+        let got = events(&driver, request).await;
+        assert!(got.iter().all(Result::is_ok));
+    }
+    let sent = fake.requests("/v1/chat/completions");
+    assert_eq!(
+        sent[0].body["messages"][1]["content"],
+        json!([
+            {"type":"text","text":"照这张草图"},
+            {"type":"image_url","image_url":{"url":format!(
+                "data:image/png;base64,{}",
+                base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &png)
+            )}},
+        ])
+    );
+    let content = sent[1].body["messages"][1]["content"].as_str().unwrap();
+    assert!(
+        content.starts_with("照这张草图\n\n[The author attached an image (PNG, 32×24 px) here."),
+        "{content}"
+    );
+    assert!(content.contains("cannot view images"));
 }

@@ -53,6 +53,7 @@ fn invalid_journals_fail_before_creating_or_replaying_conversations() {
             },
             Event::UserMessage {
                 text: String::new(),
+                images: Vec::new(),
             },
             Event::Started {
                 version: PROTOCOL_VERSION,

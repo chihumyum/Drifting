@@ -78,6 +78,38 @@
 - 行为标准：旧版 `runtime/drivers/`、`agent-provider-contract.ts`、`byok_models.rs`、`codex_models.rs`、`codex_oauth.rs` 和 [provider extension protocol](../../agent-runtime/provider-extension-protocol.md)。
 - Responses 的增量、完成事件和终止输出形状也核对了 [OpenAI 官方流事件文档](https://developers.openai.com/api/reference/resources/responses/streaming-events)。
 
+## 图片（CM4a，2026-11-24）
+
+作者消息带的图片（存法、上限、哪些随请求走见 [M27「图片」](m27-agent-runtime.md#图片cm4a2026-11-24)）怎么写进各家的请求、哪些模型算看得了图。各家写法照各自官方文档（2026-11-24 查）：Anthropic 的 [Vision](https://platform.claude.com/docs/en/build-with-claude/vision) 与 [List Models](https://platform.claude.com/docs/en/api/models/list)；OpenAI 的 [Images and vision](https://developers.openai.com/api/docs/guides/images-vision) 与 [List models](https://developers.openai.com/api/reference/resources/models/methods/list)；ChatGPT 订阅的模型清单字段照 OpenAI 开源的 Codex 客户端（`codex-rs/protocol/src/openai_models.rs` 的 `input_modalities`）；Ollama、llama.cpp、LM Studio 照各自仓库或网站的文档。
+
+**写法**（`src/images.rs` 先把一条作者记录分成「字」和「随请求走的图片」，各家再写成自己的样子；没有图片的消息照旧，一个字节都不变）：
+
+| 路线 | 有图片时作者消息的 `content` |
+| --- | --- |
+| Anthropic Messages | 先图片后字：`{"type":"image","source":{"type":"base64","media_type":…,"data":…}}` 每张一块，再一块 `{"type":"text"}`（字是空的就不写这块，Anthropic 不收空的文字块）。缓存断点照旧打在最后一块上 |
+| OpenAI Responses、ChatGPT 订阅 | 先字后图片：`{"type":"input_text"}`，每张一个 `{"type":"input_image","image_url":"data:<mime>;base64,…"}`，`detail` 不写（默认 `auto`） |
+| 本地模型（Chat Completions） | 先字后图片：`{"type":"text"}`，每张一个 `{"type":"image_url","image_url":{"url":"data:<mime>;base64,…"}}`（Ollama 两种写法都收；llama.cpp、LM Studio 收这种） |
+| DeepSeek | 没有图片的写法：每张都是一行字 |
+
+没随请求走的图片（模型看不了图，或这台设备没有字节、超了一次请求的上限）在作者的字后面各成一行英文给模型：`[The author attached an image (PNG, 640×400 px) here. The current model cannot view images, so it was not sent.]` 或 `… It is not included in this request.]`，让模型知道那里有过一张图。
+
+**哪些模型算看得了图**：只按各家模型清单接口给的能力字段认，清单没说的当看不了（`ModelInfo.image_input`、`LocalModel.image_input`，`None` 即否；冻结进 `RunConfig.capabilities.image_input`）：
+
+| 路线 | 怎么认 | 现在的结果 |
+| --- | --- | --- |
+| Anthropic | 清单每行 `capabilities.image_input.supported` | 清单说能的能；清单没取到（只有内置清单）时不能，所以带图发送前界面先取一次清单（M31） |
+| OpenAI API Key | `/v1/models` 每行只有 `id`、`created`、`object`、`owned_by`、`shutdown_date`，没有能力字段 | **一律看不了**（照「没这个字段按最保守的认」）；要不要按 0.1 的做法认，见「等作者的事」 |
+| ChatGPT 订阅 | 订阅清单每行 `input_modalities` 里有 `image` | 有的能；没有这个字段的不能（Codex 自己的客户端把没有字段当能看图，这里没跟） |
+| DeepSeek | 清单没有能力字段；对话接口也不收图片 | 一律看不了（`RunConfig::sees_images` 对 DeepSeek 路线恒为否） |
+| 本地：Ollama | `POST /api/show` 的 `capabilities` 里有 `vision` | 有的能，问过但没有的不能；只问前 64 个模型（照旧），其余不能 |
+| 本地：LM Studio | `/api/v0/models` 每行 `type` 是 `vlm` | `vlm` 能、`llm` 不能 |
+| 本地：llama.cpp | `/v1/models` 每行 `architecture.input_modalities` 里有 `image`；较旧的服务没有这个字段时看 `/props` 的 `modalities.vision` | 照它说的 |
+| 本地：认不出的服务 | 行上有 `architecture.input_modalities` 就照它 | 没有就不能 |
+
+内置清单（0.1 的那份，取清单失败时的兜底）一律不说能看图。设置里存的本地服务清单（`LocalServerModel.image_input`）只有这次改动以后问过的才有这个值，以前存的要等下一次重问清单（打开模型菜单时）。
+
+**测试**（对着本机假服务，不连真服务）：`tests/transport.rs` 的 `each_protocol_writes_images_its_own_way`（Anthropic 看得了图有字、只有图、看不了图三种，OpenAI、ChatGPT 订阅、DeepSeek 各一种；对上面那张表逐字核对，base64 和发出去的字节一致，看不了图时请求里没有字节）；`tests/local.rs` 的 `what_each_server_says_about_images_is_what_counts`（Ollama 的 `vision`、LM Studio 的 `vlm`/`llm`、llama.cpp 的 `input_modalities` 和 `/props` 四种组合、认不出的服务）和 `a_local_model_that_sees_gets_image_url_parts`；`tests/auth_catalog.rs` 的 `only_a_list_that_says_so_makes_a_model_take_images`（Anthropic 说能、说不能、`capabilities: null`；OpenAI、DeepSeek 的清单和内置清单都不说；订阅清单 `input_modalities` 三种），各自冻结进运行配置后 `sees_images` 对得上。**没调过任何真实模型**：三家和订阅、本地软件的真实服务都没验过。
+
 ## 自定义服务（本地模型 LM 2026-11-16；网上的服务 CA 2026-11-24）
 
 作者 2026-11-16 定稿、说「做」：Agent 能用本机或局域网里部署的模型。交回后的七处同日定（「都按你倾向的」），本模块跟着改了两处：滤完一个不剩不再当「没有清单」，「测试连接」真发一句。2026-11-23 作者改主意、把网上的第三方服务也放进来，2026-11-24 在原型「第五版 网上的地址」上五处都照推荐定（「自定义服务地址按照你的推荐来就行。」），定了的十处在下面和 M31 同名一节。代码里的名字（`Provider::Local`、`local::*`、`byok.local.*`）没改。

@@ -20,10 +20,10 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::check::Violation;
 pub use crate::id::{
-    AssetFolderId, AssetId, BlockId, BodyDocId, BookId, CommentId, DocId, EmbedId, EntryId,
-    EntryTemplateId, FieldId, KvEntryId, MediaItemId, MemoryId, ModuleId, PatchId, PlotColId,
-    PlotRowId, ProjectTemplateDocId, RelationId, RelationTypeId, TabId, TemplateId, TimePinId,
-    TimelineViewId,
+    AssetFolderId, AssetId, BlockId, BodyDocId, BookId, CommentId, CustomModuleId, DocId, EmbedId,
+    EntryId, EntryTemplateId, FieldId, KvEntryId, MediaItemId, MemoryId, ModuleId, PatchId,
+    PlotColId, PlotRowId, ProjectTemplateDocId, RelationId, RelationTypeId, TabId, TemplateId,
+    TimePinId, TimelineViewId,
 };
 use crate::kind::{CommentAuthorKind, CommentOrigin, CommentSource, CommentStatus, EntityKind};
 use crate::order::cmp_order;
@@ -169,6 +169,11 @@ v3_open_enum!(
         Members = "members",
         /// Files with captions and order (`media:<module_id>` on the entry, `kernel-v5.md` §6).
         Media = "media",
+        /// A custom module (`custom-modules.md` §7): `config.module` names
+        /// its copy in the book's `modules` root; an entry keeps its values
+        /// by block id in `module:<module_id>` on the entry. Never part of
+        /// the book (`in_book` is always off).
+        Custom = "custom",
     }
 );
 
@@ -382,6 +387,10 @@ pub struct ModuleConfig {
     /// unless an entry chooses its own (`None`: the default, `featured`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub arrangement: Option<MediaArrangement>,
+    /// For `custom` modules: the module whose copy in the book's `modules`
+    /// root this one draws (`custom-modules.md` §7).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub module: Option<CustomModuleId>,
 }
 
 fn default_plot_lines_u32() -> u32 {
@@ -404,6 +413,7 @@ impl Default for ModuleConfig {
             default_rows: default_plot_lines_u32(),
             default_cols: default_plot_lines_u32(),
             arrangement: None,
+            module: None,
         }
     }
 }
@@ -532,6 +542,23 @@ impl ModuleSpec {
             name: name.into(),
             pos: None,
             config: ModuleConfig::default(),
+            agent: None,
+        }
+    }
+
+    /// A `custom` module drawing the book's copy of `module`; never part of
+    /// the book (`custom-modules.md` §16 item 2).
+    pub fn custom(id: ModuleId, name: impl Into<String>, module: CustomModuleId) -> Self {
+        Self {
+            id,
+            kind: ModuleKind::Custom,
+            name: name.into(),
+            pos: None,
+            config: ModuleConfig {
+                in_book: false,
+                module: Some(module),
+                ..ModuleConfig::default()
+            },
             agent: None,
         }
     }

@@ -7,6 +7,7 @@ mod conversation;
 pub mod credentials;
 mod deepseek;
 mod error;
+mod images;
 #[cfg(test)]
 mod internet_tests;
 pub mod local;

@@ -224,6 +224,9 @@ keyring = { version = "3.6", default-features = false, features = ["apple-native
 minisign = "0.10"
 minisign-verify = "0.3"
 objc2-core-foundation = { version = "0.3", default-features = false, features = ["std", "CFBase", "CFData", "CFDictionary", "CFNumber", "CFString"] }
+# dr-platform's `clipboard`: NSData, NSDictionary and NSAttributedString for
+# the pasteboard's HTML and RTF (the version GPUI's macOS backend builds).
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSAttributedString", "NSData", "NSDictionary", "NSRange", "NSString"] }
 # dr-platform's `image_codec`: HEIC, HEIF and AVIF through ImageIO, as the
 # 0.1 client (`src-tauri/Cargo.toml`, the same 0.3.2). CoreGraphics is the
 # version GPUI's macOS backend already builds; ImageIO is its sibling

@@ -40,6 +40,7 @@ macro_rules! op {
 pub mod book;
 pub mod comment;
 pub mod content;
+pub mod custom_module;
 pub mod entry;
 pub mod history;
 pub mod layout;
@@ -61,6 +62,7 @@ pub mod types;
 pub(crate) fn register(r: &mut Registry) {
     project::register(r);
     project_template::register(r);
+    custom_module::register(r);
     layout::register(r);
     relations::register(r);
     snapshots::register(r);

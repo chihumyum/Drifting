@@ -155,7 +155,21 @@ impl Runtime {
     }
 
     pub fn start(&self, start: Start) -> Result<RunHandle> {
-        self.start_mode(start, crate::long_task::StartMode::Author, None)
+        self.start_mode(
+            start,
+            crate::long_task::StartMode::Author,
+            None,
+            ImageAttachments::default(),
+        )
+    }
+
+    /// An author message with images (CM4a). The bytes are kept on this
+    /// device first ([`crate::images`]); the message names them. Its text may
+    /// be empty when there are images. When the run's model cannot see
+    /// images ([`RunConfig::sees_images`]) the model is not asked: the Agent
+    /// answers with `images.unseen_reply`, which must then be given.
+    pub fn start_with_images(&self, start: Start, images: ImageAttachments) -> Result<RunHandle> {
+        self.start_mode(start, crate::long_task::StartMode::Author, None, images)
     }
 
     pub fn start_continuation(&self, start: ContinuationStart) -> Result<RunHandle> {
@@ -179,6 +193,7 @@ impl Runtime {
             },
             crate::long_task::StartMode::Automatic,
             Some(start.chain),
+            ImageAttachments::default(),
         )
     }
 
@@ -203,6 +218,7 @@ impl Runtime {
             },
             crate::long_task::StartMode::Resume,
             Some(start.chain),
+            ImageAttachments::default(),
         )
     }
 
@@ -211,10 +227,37 @@ impl Runtime {
         start: Start,
         mode: crate::long_task::StartMode,
         chain: Option<String>,
+        images: ImageAttachments,
     ) -> Result<RunHandle> {
         let _lifecycle = self.inner.lifecycle.lock().expect("runtime lifecycle");
         start.config.validate()?;
-        if mode == crate::long_task::StartMode::Author && start.input.trim().is_empty() {
+        let has_images = !images.images.is_empty();
+        if has_images {
+            if mode != crate::long_task::StartMode::Author {
+                return Err(Error::Protocol(
+                    "only an author message carries images".into(),
+                ));
+            }
+            if images.images.len() > crate::images::MAX_IMAGES_PER_MESSAGE {
+                return Err(Error::Protocol(format!(
+                    "image: {}",
+                    crate::images::ImageError::TooMany
+                )));
+            }
+            for bytes in &images.images {
+                crate::images::inspect(bytes)
+                    .map_err(|e| Error::Protocol(format!("image: {e}")))?;
+            }
+            if !start.config.sees_images() && images.unseen_reply.trim().is_empty() {
+                return Err(Error::Protocol(
+                    "a model that cannot see images needs the Agent's answer".into(),
+                ));
+            }
+        }
+        if mode == crate::long_task::StartMode::Author
+            && start.input.trim().is_empty()
+            && !has_images
+        {
             return Err(Error::Protocol("empty author message".into()));
         }
         if let Some(chain) = &chain {
@@ -247,6 +290,14 @@ impl Runtime {
                 "conversation belongs to another book or document kind".into(),
             ));
         }
+        // The bytes first: the message that names them must find them.
+        let image_refs = images
+            .images
+            .iter()
+            .map(|bytes| crate::images::put(lib, &start.conversation, bytes))
+            .collect::<Result<Vec<_>>>()?;
+        let unseen_reply =
+            (has_images && !start.config.sees_images()).then(|| images.unseen_reply.clone());
         lib.local_write(|tx| {
             tx.agent_create_session(&session, &conversation_doc, start.book.as_str())?;
             crate::long_task::begin(tx, &session, &start, mode, chain.as_deref())?;
@@ -262,10 +313,15 @@ impl Runtime {
         journal.append(Event::Configured {
             config: start.config.clone(),
         })?;
-        if mode == crate::long_task::StartMode::Automatic || start.input.trim().is_empty() {
+        if mode == crate::long_task::StartMode::Automatic
+            || (start.input.trim().is_empty() && image_refs.is_empty())
+        {
             journal.append(Event::Continuation { text:"Continue the same author request using the current durable task plan and evidence. Read the plan, reconcile structural drift when needed, and do the next actionable step. Do not repeat saved writes or claim completion without matching evidence.".into() })?;
         } else {
-            journal.append(Event::UserMessage { text: start.input })?;
+            journal.append(Event::UserMessage {
+                text: start.input,
+                images: image_refs,
+            })?;
         }
         let (sender, commands) = mpsc::unbounded();
         let (finished_tx, finished) = oneshot::channel();
@@ -299,6 +355,9 @@ impl Runtime {
                     aborting: false,
                     seen_calls: HashSet::new(),
                     flush_timer: FlushTimer::default(),
+                    conversation: start.conversation,
+                    unseen_reply,
+                    image_bytes: HashMap::new(),
                 };
                 let result = futures::executor::block_on(
                     std::panic::AssertUnwindSafe(worker.run()).catch_unwind(),
@@ -375,6 +434,8 @@ impl Runtime {
     pub fn recover(&self) -> Result<Vec<RecoveredRun>> {
         let _lifecycle = self.inner.lifecycle.lock().expect("runtime lifecycle");
         let lib = self.inner.ws.library();
+        // Images of conversations purged since the library was last open.
+        crate::images::sweep(lib);
         let marks: HashMap<String, String> = lib
             .local_entries(SETTLED, None)?
             .into_iter()
@@ -605,6 +666,13 @@ struct Worker {
     aborting: bool,
     seen_calls: HashSet<String>,
     flush_timer: FlushTimer,
+    conversation: ConversationId,
+    /// The Agent's answer instead of a model request, once: this run's
+    /// author message has images its model cannot see.
+    unseen_reply: Option<String>,
+    /// Image bytes read for this run's requests, by digest (`None`: not on
+    /// this device).
+    image_bytes: HashMap<String, Option<Arc<[u8]>>>,
 }
 
 /// Wakes a run when its buffered text is due, without an async timer
@@ -743,7 +811,10 @@ impl Worker {
                 .turn
                 .checked_add(1)
                 .ok_or_else(|| Error::Protocol("turn overflow".into()))?;
-            self.journal.append(Event::UserMessage { text })?;
+            self.journal.append(Event::UserMessage {
+                text,
+                images: Vec::new(),
+            })?;
             self.journal.append(Event::SteeringApplied { id })?;
         }
         Ok(applied)
@@ -821,51 +892,87 @@ impl Worker {
         Ok(State::Checkpointed)
     }
 
-    async fn model(&mut self, round: u32) -> Result<Option<Vec<ToolCall>>> {
-        let store = crate::long_task::Store::new(self.journal.lib.clone());
-        let chain = store
-            .chain_for_session(&self.journal.session)?
-            .ok_or_else(|| Error::Protocol("run has no request chain".into()))?;
-        let snapshot = store.snapshot(&chain)?;
-        let contributions =
-            self.inner
-                .tools
-                .context(&self.inner.ws, &self.book, &self.journal.session)?;
-        let prepared = crate::context::prepare(
-            &self.config,
-            &snapshot,
-            self.journal.transcript()?,
-            &self.inner.descriptors,
-            contributions,
-        )?;
-        let crate::context::Prepared::Ready {
-            conversation,
-            checkpoint,
-        } = prepared
-        else {
-            self.checkpoint("context_capacity")?;
-            return Ok(None);
-        };
-        crate::context::save_checkpoint(&self.journal.lib, &snapshot, &checkpoint)?;
-        self.drain()?;
-        if self.halted() {
-            return Ok(Some(Vec::new()));
+    /// The bytes of the newest images `conversation` names, within the
+    /// request's limits ([`crate::images`]); none when the model cannot see
+    /// images. Read once per run.
+    fn request_images(
+        &mut self,
+        conversation: &[dr_model::conversation::ConversationEntry],
+    ) -> RequestImages {
+        if !self.config.sees_images() {
+            return RequestImages::default();
         }
-        self.set_state(State::Streaming)?;
-        let request = DriverRequest {
-            purpose: crate::RequestPurpose::Chat,
-            config: self.config.clone(),
-            session: self.journal.session.clone(),
-            turn: self.journal.turn,
-            round,
-            conversation,
-            tools: self.inner.descriptors.clone(),
+        let (lib, id, cache) = (&self.journal.lib, &self.conversation, &mut self.image_bytes);
+        crate::images::select(conversation, |image| {
+            cache
+                .entry(image.sha256.clone())
+                .or_insert_with(|| crate::images::read(lib, id, image).map(Arc::from))
+                .clone()
+        })
+    }
+
+    async fn model(&mut self, round: u32) -> Result<Option<Vec<ToolCall>>> {
+        let stream = if let Some(reply) = self.unseen_reply.take() {
+            // The model cannot see the images the author just sent: it is
+            // not asked, and the Agent says so (custom-modules.md §16.1).
+            self.drain()?;
+            if self.halted() {
+                return Ok(Some(Vec::new()));
+            }
+            self.set_state(State::Streaming)?;
+            futures::stream::iter([
+                Ok(DriverEvent::TextDelta {
+                    index: 0,
+                    text: reply,
+                }),
+                Ok(DriverEvent::Finish(FinishReason::Complete)),
+            ])
+            .boxed()
+        } else {
+            let store = crate::long_task::Store::new(self.journal.lib.clone());
+            let chain = store
+                .chain_for_session(&self.journal.session)?
+                .ok_or_else(|| Error::Protocol("run has no request chain".into()))?;
+            let snapshot = store.snapshot(&chain)?;
+            let contributions =
+                self.inner
+                    .tools
+                    .context(&self.inner.ws, &self.book, &self.journal.session)?;
+            let prepared = crate::context::prepare(
+                &self.config,
+                &snapshot,
+                self.journal.transcript()?,
+                &self.inner.descriptors,
+                contributions,
+            )?;
+            let crate::context::Prepared::Ready {
+                conversation,
+                checkpoint,
+            } = prepared
+            else {
+                self.checkpoint("context_capacity")?;
+                return Ok(None);
+            };
+            crate::context::save_checkpoint(&self.journal.lib, &snapshot, &checkpoint)?;
+            self.drain()?;
+            if self.halted() {
+                return Ok(Some(Vec::new()));
+            }
+            let images = self.request_images(&conversation);
+            self.set_state(State::Streaming)?;
+            let request = DriverRequest {
+                purpose: crate::RequestPurpose::Chat,
+                config: self.config.clone(),
+                session: self.journal.session.clone(),
+                turn: self.journal.turn,
+                round,
+                conversation,
+                tools: self.inner.descriptors.clone(),
+                images,
+            };
+            self.inner.driver.stream(request, self.cancel.clone())
         };
-        let mut stream = self
-            .inner
-            .driver
-            .stream(request, self.cancel.clone())
-            .fuse();
+        let mut stream = stream.fuse();
         let mut message = AssistantMessage::default();
         let mut calls = Vec::new();
         // Streamed text is buffered by the journal (see `Journal`); this

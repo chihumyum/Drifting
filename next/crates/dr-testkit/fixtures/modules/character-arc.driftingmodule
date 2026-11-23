@@ -1,0 +1,149 @@
+{
+  "format": "drifting.module",
+  "formatVersion": 1,
+  "name": "人物弧光",
+  "locale": "zh-Hans",
+  "blocks": [
+    {
+      "id": "want",
+      "type": "text",
+      "name": "想要"
+    },
+    {
+      "id": "need",
+      "type": "text",
+      "name": "需要"
+    },
+    {
+      "id": "resolve",
+      "type": "number",
+      "name": "坚定"
+    },
+    {
+      "id": "turns",
+      "type": "list",
+      "name": "转变",
+      "blocks": [
+        {
+          "id": "stage",
+          "type": "select",
+          "name": "阶段",
+          "options": [
+            "起点",
+            "动摇",
+            "转折",
+            "新我"
+          ]
+        },
+        {
+          "id": "at",
+          "type": "entry",
+          "name": "在"
+        },
+        {
+          "id": "what",
+          "type": "long_text",
+          "name": "发生了什么"
+        }
+      ]
+    }
+  ],
+  "look": {
+    "block": {
+      "box": "col",
+      "gap": 12,
+      "kids": [
+        {
+          "box": "row",
+          "gap": 8,
+          "kids": [
+            {
+              "text": "想要",
+              "size": "small",
+              "ink": 3
+            },
+            {
+              "value": "want",
+              "font": "serif",
+              "width": "fill"
+            },
+            {
+              "value": "resolve",
+              "show": "dots"
+            }
+          ]
+        },
+        {
+          "box": "row",
+          "gap": 8,
+          "kids": [
+            {
+              "text": "需要",
+              "size": "small",
+              "ink": 3
+            },
+            {
+              "value": "need",
+              "font": "serif",
+              "width": "fill"
+            }
+          ]
+        },
+        {
+          "each": "turns",
+          "dir": "row",
+          "gap": 8,
+          "link": "arrow",
+          "item": {
+            "box": "col",
+            "gap": 4,
+            "pad": 8,
+            "border": "hair",
+            "radius": 4,
+            "kids": [
+              {
+                "value": "stage",
+                "show": "mark"
+              },
+              {
+                "value": "stage",
+                "size": "small"
+              },
+              {
+                "value": "what",
+                "size": "note",
+                "lines": 3
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "agent": {
+    "description": "一个人物从想要走到需要的路。",
+    "blocks": {
+      "need": "他真正缺的东西",
+      "turns": "按先后记每一次转变",
+      "want": "他以为自己想要的"
+    }
+  },
+  "sample": {
+    "need": "原谅自己",
+    "resolve": 3.0,
+    "turns": [
+      {
+        "stage": "起点",
+        "what": "离开小镇"
+      },
+      {
+        "at": [
+          "第九章"
+        ],
+        "stage": "转折",
+        "what": "在钟楼下认出了父亲"
+      }
+    ],
+    "want": "找回那块怀表"
+  }
+}

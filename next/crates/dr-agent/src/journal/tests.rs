@@ -75,6 +75,7 @@ fn appending_and_replaying_parse_each_entry_a_bounded_number_of_times() {
         journal
             .append(Event::UserMessage {
                 text: f.text.clone(),
+                images: Vec::new(),
             })
             .unwrap();
     }
@@ -92,6 +93,7 @@ fn appending_and_replaying_parse_each_entry_a_bounded_number_of_times() {
     for _ in 0..M {
         next.append(Event::UserMessage {
             text: f.text.clone(),
+            images: Vec::new(),
         })
         .unwrap();
     }

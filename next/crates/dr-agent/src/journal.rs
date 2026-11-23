@@ -367,7 +367,10 @@ impl Journal {
 
     fn project(&mut self, event: &JournalEvent) -> Result<()> {
         let (kind, payload) = match &event.event {
-            Event::UserMessage { text } => (ConversationEntryKind::User, json!({"text": text})),
+            Event::UserMessage { text, images } => (
+                ConversationEntryKind::User,
+                crate::images::user_payload(text, images),
+            ),
             Event::Continuation { text } => (
                 ConversationEntryKind::Other(crate::long_task::CONTINUATION_ENTRY_KIND.into()),
                 json!({"version":1,"text":text}),

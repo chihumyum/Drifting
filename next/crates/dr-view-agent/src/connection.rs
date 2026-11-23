@@ -280,6 +280,8 @@ fn local_config(server: &LocalServer, model: &LocalServerModel) -> RunConfig {
     config.capabilities = Some(ModelCapabilities {
         context_window: model.context_window(),
         supports_thinking_off: Some(true),
+        // Only what the server said: a model it did not describe cannot see.
+        image_input: model.image_input,
         ..ModelCapabilities::default()
     });
     config
@@ -310,6 +312,7 @@ pub(crate) async fn say_ok(
             payload: serde_json::json!({"text":"Return exactly OK."}),
         }],
         tools: Vec::new(),
+        images: Default::default(),
     };
     let mut stream = driver.stream(request, Cancellation::default());
     let mut text = false;
@@ -718,6 +721,15 @@ impl Connections {
     }
 
     pub fn load_catalog(&mut self, provider: Provider, cx: &mut Context<Self>) {
+        self.load_catalog_then(provider, None, cx);
+    }
+
+    fn load_catalog_then(
+        &mut self,
+        provider: Provider,
+        done: Option<futures::channel::oneshot::Sender<()>>,
+        cx: &mut Context<Self>,
+    ) {
         if self.operation.is_some() || self.readiness(provider) != Readiness::Ready {
             return;
         }
@@ -739,8 +751,37 @@ impl Connections {
                 })
                 .ok();
             }
+            // Dropped without a send when the list could not be had.
+            drop(done);
         })
         .detach();
+    }
+
+    /// CM4a: whether the selected model takes images is what its provider's
+    /// live list says, and until the model menu is opened only the bundled
+    /// list is here. For a message with images, fetch the live list first:
+    /// `Some` completes (or is dropped) once it is in or could not be had.
+    /// `None`: nothing to wait for (a list that can say is already here or
+    /// was already tried; a provider whose list never says; a local model,
+    /// whose server was asked when it was connected).
+    pub fn live_catalog(
+        &mut self,
+        cx: &mut Context<Self>,
+    ) -> Option<futures::channel::oneshot::Receiver<()>> {
+        let provider = self.preferences.route.provider;
+        if !matches!(provider, Provider::Anthropic | Provider::Chatgpt)
+            || self
+                .catalogs
+                .get(&provider)
+                .is_some_and(|c| c.source != CatalogSource::Bundled || c.failure.is_some())
+            || self.operation.is_some()
+            || self.readiness(provider) != Readiness::Ready
+        {
+            return None;
+        }
+        let (send, receive) = futures::channel::oneshot::channel();
+        self.load_catalog_then(provider, Some(send), cx);
+        Some(receive)
     }
 
     fn begin(&mut self, operation: Operation, cx: &mut Context<Self>) -> Option<u64> {

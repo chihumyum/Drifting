@@ -22,6 +22,7 @@ mod files;
 pub mod import;
 mod manuscript;
 pub mod markdown;
+pub mod module_file;
 pub mod template_file;
 pub mod v3;
 

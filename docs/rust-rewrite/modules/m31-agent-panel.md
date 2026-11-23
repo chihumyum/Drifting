@@ -1,5 +1,7 @@
 # M31 帮手面板与改动显现
 
+> 2026-11-24（CM4a 图片）：Agent 栏的输入框收图片：拖到 Agent 那一栏的任何地方、或在输入框里 ⌘V，发出去以前在输入框上方看得到小图、每张旁边一个去掉的按钮；发出去的那条消息上也看得到。看不了图的模型不被问，Agent 在对话里照实说一句。见本页末「图片（CM4a）」，运行时与各家写法见 [M27](m27-agent-runtime.md#图片cm4a2026-11-24)、[M28](m28-model-providers.md#图片cm4a2026-11-24)。
+
 > 2026-11-21（0.1 的旧对话）：导入时存下的 0.1 Agent 对话在「历史」里新对话下面一节「Drifting 0.1」，打开只读、没有输入那一块；「历史」顶上一个搜索框新旧一起搜。作者定的三甲、四甲、五甲。见本页末「0.1 的旧对话」。
 
 > 2026-11-19（格式 5「本轮改动」全量对齐、项目记忆定位与停止竞态测试修正）：`dr-view-agent/src/data.rs` 移除残留的旧格式种类分支，按格式 5 的 15 个 `CollectionV3` 根容器与正文收据补齐「本轮改动」定位：`DocId::Body` 保留具体 `module` 使多正文条目直达被改模块；修复归属键 `<host>|<member>` 的竖线解析、`timeline_view` 的 `book-view:<id>` 跳转以及历史恢复 `templates` 到 `Target::Template` 的映射；补齐 `patch`／`plot_grid`（打开所属条目并滚到对应模块）、`time_pin`（打开所在时间线视图）、`meta`（回作品主页）与 `memory`（打开项目记忆子页并经 `ProjectMemoryView::reveal` 等待目标条目实际绘入视口，切书／关栏／切换子页自动取消）；仍无独立定位入口的 `fact`、`asset_folder`、`relation_type` 与模板默认正文 `template:<tpl>/<mod>` 保持不出现假按钮、不回退整书。`CompanionTools` 同批挂入 M30 的四个会话级计划与工作记忆工具。另修复 `tests/controller.rs` 中 `stop_revokes_continuation_before_a_held_slice_returns` 在 Windows x64 下流式阶段收到停止后立即丢弃 `Step::Wait` 接收端导致的 `oneshot::send` 竞态断言，拆分为流式持锁停止与已进入工具屏障停止两段确定性验证。
@@ -272,7 +274,7 @@ workspace 测试至退出码 0。上述最终统计包含该修复与“最后�
 
 ## 代码位置
 
-- `next/crates/dr-view-agent/src/panel.rs`：面板、提问／许可／搜索卡、输入、改动导航。
+- `next/crates/dr-view-agent/src/panel.rs`：面板、提问／许可／搜索卡、输入、改动导航；`src/images.rs`：输入框里的图片和小图（CM4a，见「图片（CM4a）」）。
 - `src/panel/old.rs`、`next/crates/dr-import-v1/src/agent_archive.rs`：「历史」的搜索框和 0.1 的旧对话（见「0.1 的旧对话」）。
 - `src/controller.rs`、`src/hub.rs`、`src/state.rs`：库级服务、外壳生命周期、持久记录投影。
 - `src/connection.rs`、`src/connection_view.rs`、`src/settings.rs`：连接测试、模型选择、设置。
@@ -395,3 +397,44 @@ DRIFTING_WINDOW_DISPLAY=secondary cargo drifting workspace scenario crates/dr-vi
 验收记录（2026-11-21，副屏）：**88 步、0 pending 全过**。浅色、深色各三张（「历史」带「Drifting 0.1」一节、打开的旧对话、搜索结果）逐张看过，和原型第二页甲甲甲一致；截图是记录，不进仓库。导入换库以后右栏回到「审阅」，场景先点右栏的「Agent」；连上脚本模型以后焦点没有自己进输入框，场景照 `companion.json` 点「发送」上方进去；搜索框不在辅助功能树里（`ui.focus` 也够不着），场景点「工作记忆」下方 42 像素进去。
 
 **没做的。** 新对话从搜索结果打开时不停在命中那一轮（见上）；旧对话里命中的字不加深；从批注「交给 Agent」记下的 0.1 对话编号（`comment.agent_conversation`）打开时不会去找存档里的那段旧对话。
+
+## 图片（CM4a，2026-11-24）
+
+依据 [custom-modules.md](../custom-modules.md) 第 16 节第 1 条：「丢一张草图或截图」要 Agent 栏先能收图片；模型看不了图片时，Agent 在对话里照实说这个模型看不了图片、请换一个能看图的，不另加界面。建模块的工具不在这一路（CM4b）。原型没画这一块，样子只用现有组件，拿不准的都选了最朴素的，列在交回报告的「等作者的事」。
+
+**作者会看到的。**
+- 把图片文件拖到 Agent 那一栏的任何地方（对话、输入框、按钮上都行，照设计稿第 8 节「拖进 Agent 那一栏」；拖着经过时整栏底色稍深），或在输入框里 ⌘V 一张复制的图片（比如截图）或复制的文件，输入框上方出现一排 48 像素的小图，每张右边一个「×」（读作「移除图片」），点了就去掉。同一张图再放一次还是一张。只收 PNG、JPEG、WebP；一张最多 7 MB、边长最多 8000 像素；一条消息最多 4 张。超了或格式不对，在对话下面那行出错的红字里说（「只能发送 PNG、JPEG 或 WebP 图片。」「图片太大：每张最多 7 MB，边长最多 8000 像素。」「一条消息最多带 4 张图片。」），能发的照样加进去。
+- 剪贴板上有字时 ⌘V 照旧贴字，不收图（有的程序复制一段字时也放一张图）；剪贴板上有文件时收文件。
+- 可以只发图片不写字。发出去以后那几张小图离开输入框；对话里作者那条消息的框里，字的上面一排 64 像素的小图。这台设备上没有字节的（比如同步来的对话）是一个空的方块带一个图片记号。
+- 看得了图的模型（Anthropic、ChatGPT 订阅的清单说能的模型；本地服务说能的模型）照常回答。选的是 Anthropic 或 ChatGPT 订阅、模型菜单还没打开过（手里只有内置清单）时，带图片的消息先去取一次这家的模型清单再发（这期间发送按钮是忙的）；清单取不到就按看不了处理。
+- 看不了图的模型：作者的消息照常进对话（带着图片），Agent 回一句「现在用的模型看不了图片。请换一个能看图的模型再发。」（按界面语言，九种语言都有），不发请求。
+- 正在运行时输入框里的字照旧是插话或回答，图片留在输入框里，等下一条新消息一起发。
+- 换书或点「新对话」时，输入框里的图片和字一起清掉。
+
+**做法。** `AgentPanel` 多了 `attached`（输入框里的图片：`images::Attached { image: ImageRef, bytes }`）和按摘要缓存的小图 `thumbs`。读文件、认格式、解出小图（`images::check`/`check_file`/`thumbnail`，最长边 192 像素）都在后台线程；比上限大的文件不整个读，只读文件头判断是「太大」还是「格式不对」。粘贴在输入框外面一层用 `capture_action` 先接住 `dr_ui::input::field::Paste`，按上面的规则决定自己收还是让输入框贴字。发送时 `AgentController::start_job_with_images` 把字节交给运行时（`Runtime::start_with_images`），连同按界面语言给的那一句；对话里的小图由 `AgentController::read_image` 从本机读、在后台解。小图在辅助功能树里是 `Image`，名字「图片」；去掉按钮是 `Button`「移除图片」。
+
+**接口**（只加不改）：`AgentPanel::{attach_bytes, attach_paths, remove_attached, attached, thumb, error}`；`AgentController::{start_with_images, start_job_with_images, read_image}`；`Connections::live_catalog`（带图片的消息发送前取一次清单）；`MessageContent::User` 多了 `images`（不认识的记录占位为 `None`）；`LocalServerModel.image_input`（存在设备记忆里，重问清单时更新）。新的界面文字在 `dr-i18n` 的 `own/*.json` 的 `agentImages`（`image`、`remove`、`unsupported`、`tooLarge`、`tooMany`、`unseen`），九种语言。
+
+**测试**（`tests/attachments.rs`，真的 GPUI 面板、合成种子库、脚本模型、dr-testkit 的合成图片）：
+- `paste_and_drop_attach_images_and_text_pastes_as_text`：剪贴板上的图片进输入框不进字、小图画出来；剪贴板上的字照旧贴字、图片还在；同一张再贴还是一张；拖进一张 PNG 和一张 HEIC，PNG 进来、HEIC 不进且出错的那行说格式；拖到发送按钮上、拖到输入框上面的对话里也都收（整栏都收）；去掉一张。
+- `the_limits_are_said_before_anything_is_sent`：8001 像素宽、大于 7 MiB 的都说太大；拖五张不同的进四张、说最多四张；没有任何请求。
+- `a_model_that_cannot_see_is_not_asked_and_the_agent_says_so`：DeepSeek 路线带图发送，脚本模型没被调用，对话里作者消息带一张图、Agent 回那一句，输入框清空，对话里那张小图画出来。
+- `a_local_model_that_sees_gets_the_bytes_and_one_that_does_not_is_told`：本地服务说能看图的模型收到只有图片的消息和它的字节；同一对话换成没说能看图的模型再发一张，模型没被再问。
+- `anthropics_live_list_is_asked_before_an_image_goes`：选 Anthropic、只有内置清单时带图发送，先问了本机假清单（说这个模型能看图），请求带着那张图。
+- `src/local.rs`：重问清单时能不能看图跟着新清单走。
+
+**真窗口。** 场景 `next/crates/dr-view-agent/scenarios/agent-images.json`，例程 `agent-images-acceptance`（临时 tiny 种子库、内存里的合成 Key、一个本机回环服务扮 Anthropic 和 DeepSeek：Anthropic 的清单说模型能看图，它的 Messages 接口把收到的每张图解出来、回「收到 N 张图片：宽×高」；真的模型驱动发请求）：
+
+```bash
+cargo build -p drifting --example agent-images-acceptance --features debug-bridge --locked
+DRIFTING_WINDOW_DISPLAY=secondary cargo drifting workspace scenario crates/dr-view-agent/scenarios/agent-images.json \
+  --app target/debug/examples/agent-images-acceptance --out <输出目录> --yes
+```
+
+第一次启动在 Anthropic 上：右栏展开、等它滑完，把例程写在书库旁的合成草图（640 × 400）拖到发送按钮上，输入框上方出现「图片」和「移除图片」，写一句话回车；假服务只在请求真带着图片时多回一段思考，所以「思考过程」出现就说明图片随请求到了，回的那句「收到 1 张图片：640×400」在截图上；输入框里的图片走了、消息里的图片在。第二次启动在 DeepSeek 上：拖进同一张、只发图片，没有请求发出去，对话里那一句在截图上、图片在。辅助功能树里没有普通文字，回答的字只能看截图。
+
+验收记录（2026-11-24，副屏）：**38 步、0 pending 全过**，三张截图（放进输入框、Anthropic 回「收到 1 张图片：640×400」、DeepSeek 时 Agent 那一句）逐张看过。现成的 `companion.json` 同日 44 步全过。
+
+真窗口里查出来的两件事（都不是这一路的代码，记在这里）：
+- 右栏刚点开时还在滑动，这时按辅助功能树给的位置拖进文件会落空（按钮的 `ui.press` 先停一下再点，不受影响；`input.drop` 不停）。场景在展开后等 1.5 秒。
+- GPUI 只要最后一次输入是键盘，就不认鼠标「悬停」（`Hitbox::is_hovered` 在键盘模式下恒为否），而从访达拖进窗口的文件事件不会把模式改回鼠标。所以作者在输入框里打完字、没动鼠标就直接从别处拖进文件时，这次拖放会被忽略；在窗口里动一下鼠标以后再拖就收下了（调试桥上对 Agent 栏实测过这两种；GPUI 的 `on_drop` 都靠悬停，按代码看全 App 的拖放都一样，素材库也是，没实测）。要不要修是 GPUI 那层的事。

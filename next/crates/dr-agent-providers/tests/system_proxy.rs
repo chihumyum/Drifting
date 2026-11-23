@@ -44,6 +44,7 @@ fn chat(base_url: &str) -> DriverRequest {
             payload: json!({"text":"synthetic request"}),
         }],
         tools: Vec::new(),
+        images: Default::default(),
     }
 }
 

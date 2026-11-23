@@ -8,6 +8,8 @@
 
 **2026-11-15 夜里改了两处**（作者在项目模板界面的原型上定的，kernel-v5 第 15 节第 27 条）：成书没有起点了，`project.book` 去掉 `root`；导出署名用账号名、不要主页，`credit` 去掉 `homepage`。格式还没发布，直接改，不留兼容：`formatVersion` 仍是 `1`，结构是封闭的，带这两个键的模板拒收。代码在任务书 DW 一步里跟着改了（`dr-model/tests/project_template.rs` 的 `a_book_start_a_homepage_or_derived_from_is_refused`）。
 
+**2026-11-24 加了自定义模块**（[custom-modules.md](custom-modules.md) 第 11 节，任务书 CM1，结论在 [modules/m44-custom-modules.md](modules/m44-custom-modules.md)）：模板值多一个 `modules`（第 3 节），模块种类多一种 `custom`，配置多一个 `module`（第 5 节）。格式还没发布，照旧直接改：`formatVersion` 仍是 `1`。
+
 **同一夜补问又改了两处**（kernel-v5 第 15 节第 28 条）：「改自」整个去掉，`credit` 只剩 `author`，取导出的人的账号显示名；编辑模板的工作区随改随存，没有保存和放弃（第 11 节）。照样直接改、不留兼容，带 `derivedFrom` 的模板拒收。代码在任务书 DW 里一起改了（监管会话 2026-11-16 把它从 PT2 挪进 DW）。
 
 ## 1. 总则与封闭结构
@@ -55,6 +57,7 @@
 | `memberships` | `memberships` | `TemplateMembership[]` | 默认 `[]` | 挂名归属与主归属，见第 8 节 |
 | `views` | `views` | `TemplateView[]` | 默认 `[]` | 视图、泳道、刻度位置与时间钉，见第 9 节 |
 | `template_prose` | `template_prose` | `Map<string, TemplateParagraph[]>` | 默认 `{}` | 键为 `"<条目模板 id>/<模块 id>"`，目标须是 `templates` 中存在的 `prose` 模块；段落规格见第 10 节 |
+| `modules` | `modules` | `Map<string, ModuleValue>` | 默认 `{}`，空时省略 | 条目模板里 `custom` 模块用到的自定义模块，整份带上（2026-11-24 加）。键是模块 id（合法 `CustomModuleId`：非空、不超过 256 字节、无控制字符、无 `/` 和 `|`）；值是一份 `drifting.module` 模块，过模块的封闭校验器（[custom-modules.md](custom-modules.md) 第 6、12 节）；每个键都必须有 `custom` 模块用着，没人用的拒收 |
 
 ### `credit`（署名）
 
@@ -111,7 +114,7 @@
 
 ### 模块定义（`TemplateModuleSpec` 与 `TemplateModuleConfig`）
 
-- `id`：合法 `ModuleId`；`name`：非空单行文本；`kind`：封闭枚举 `"prose"` \| `"fields"` \| `"kv"` \| `"patches"` \| `"plot_grid"` \| `"children"` \| `"members"` \| `"media"`。
+- `id`：合法 `ModuleId`；`name`：非空单行文本；`kind`：封闭枚举 `"prose"` \| `"fields"` \| `"kv"` \| `"patches"` \| `"plot_grid"` \| `"children"` \| `"members"` \| `"media"` \| `"custom"`（2026-11-24 加）。
 - `agent`（可选）：`{ writable: bool (默认 true), read_tier?: string, instructions: string }`。
 - `config`：
   - `show_outline`（`bool`，默认 `false`）、`task_todos`（`bool`，默认 `false`）、`in_book`（`bool`，默认 `true`）；
@@ -122,7 +125,8 @@
   - 字段角色 `aliases_field`、`color_field`、`status_field`、`summary_field`、`portrait_field`：有值时须指向本模块 `defs` 中已定义的字段 `id`；
   - `initial_kv`（`TemplateKvRow[]`，仅 `kind == "kv"` 允许非空）：`{ key, value }`，`key` 去空白后非空；
   - `default_rows`、`default_cols`（`u32`，默认 `3`）：须 `>= 1`；
-  - `arrangement`（可选 `"featured"` \| `"grid"` \| `"list"`）：仅 `kind == "media"` 允许设置。
+  - `arrangement`（可选 `"featured"` \| `"grid"` \| `"list"`）：仅 `kind == "media"` 允许设置；
+  - `module`（可选字符串，2026-11-24 加）：`kind == "custom"` 时必填，须是顶层 `modules` 的一个键；别的种类不得有。`custom` 模块的 `in_book` 必须是 `false`（自定义模块不进成书，custom-modules.md 第 16 节第 2 条）。示例条目（第 7 节）**不带**自定义模块的值：另存时不取，新建项目时也没有（设计稿没说到，按最保守的做，等作者定）。
 
 ## 6. 自定义关系类型（`relation_types[]`）
 
@@ -196,10 +200,12 @@
    - 未勾选为示例的骨架条目只保留 `title`、`template`、`level`、`overrides`、`mark`、模块 `color_field` 指定的颜色字段，以及两端都在已选集合内的 `memberships` 与视图 `placements`（保住泳道与线上的骨架结构）。若某骨架条目被取消且它下面仍有被选中的子孙条目，子孙的 `parent` 上提到最近一个保留下来的层级祖先（没有则落顶层）。
    - 勾选进 `sample_entries` 的条目额外带走非图片 `fields`、`kv`、`arrangements` 与当前 `prose`；勾选进 `view_pins` 的视图带走未绑定条目或绑定条目已在模板内的时间钉。
 3. **第一期去文件与引用降级**：跳过 `FieldType::Image` 的默认值与字段值、跳过 `media` 模块文件项、跳过正文里的 `EmbedView::Asset` 文件嵌入段；正文与表格里指向未选条目或指向素材库文件（`EntityKind::Asset`）的行内链接去掉链接标记、保留文字与加粗／斜体等原有样式；指向已删条目模板的引用置空。
-4. **2026-11-15 夜里加（任务书 DW）**：另存（`project_template.save`）时调用方可以给一份写给 Agent 的话（`agent: {name, description, instructions}`），给了就用它代替项目的 `project.agent`，`null` 就不带，项目不变；替换一份（`replace`）时名字和描述可以不给，不给就留着那一份原来的。编辑模板的工作区随改随存，也走这一条（`save_working_copy`）：活着的条目全部当示例带上，时间钉都带，名字和描述取工作区的书名和简介，写给 Agent 取工作区的项目定义（所以在工作区里调 `save` 给这三样会被拒，改它们用 `project.update`，2026-11-16），`credit`、语言和来源照被替换的那一份留着；提取出来的内容（不算 `revision`、`madeWith`）和模板一样就不写。
+4. **自定义模块（2026-11-24，CM1）**：带走的条目模板里每个 `custom` 模块指的模块，从书目文档的 `modules` 根取它的抄本，整份放进 `modules`（键还是那个模块 id）。书里没有那份抄本，或者抄本过不了这个 App 的模块校验器（比如更新的 App 存的），整个另存拒绝并说明是哪个模块，不悄悄丢掉。
+5. **2026-11-15 夜里加（任务书 DW）**：另存（`project_template.save`）时调用方可以给一份写给 Agent 的话（`agent: {name, description, instructions}`），给了就用它代替项目的 `project.agent`，`null` 就不带，项目不变；替换一份（`replace`）时名字和描述可以不给，不给就留着那一份原来的。编辑模板的工作区随改随存，也走这一条（`save_working_copy`）：活着的条目全部当示例带上，时间钉都带，名字和描述取工作区的书名和简介，写给 Agent 取工作区的项目定义（所以在工作区里调 `save` 给这三样会被拒，改它们用 `project.update`，2026-11-16），`credit`、语言和来源照被替换的那一份留着；提取出来的内容（不算 `revision`、`madeWith`）和模板一样就不写。
 
 ### 展开新建（`materialize_project_template` + `project.create`）
 
 1. 所有模板来源（内置「写书」`builtin:novel`、书库 `project-template:<id>`、传入的完整模板值、测试种子）统一先转为并通过 `validate_project_template_value`，再由同一条建书路径落盘。
 2. 为每个 `e…`、`v…`、Tab、自定义关系类型、键值行、时间钉、正文块与表格嵌入生成全新 UUIDv7 和分数索引 `PosKey`；把 `source`（`id`、`version`、`origin`、`name`、`credit`）写入新项目的 `project.source`。
-3. **写入顺序与失败回滚**：先写／登记全部模板正文初值与条目正文文档，再写 `stats:<book>`、`checkpoints:<book>`、`layout:<book>` 三篇旁路文档，最后写 `book:<book>`。中途任一步失败（含注入故障）按逆序彻底清除并 `forget_purged_doc` 已写文档，不留半个项目或孤儿文档。
+3. **自定义模块（2026-11-24）**：`modules` 里的每一份写成新书书目文档 `modules` 根里同一个 id 的抄本（`source = "template"`），和条目模板同一笔写入。模块 id 在新书所在书库的「我的模块」里有，这份抄本就跟着它走（用自己的模板新建的项目）；没有就是跟着别人来的（custom-modules.md 第 7 节）。
+4. **写入顺序与失败回滚**：先写／登记全部模板正文初值与条目正文文档，再写 `stats:<book>`、`checkpoints:<book>`、`layout:<book>` 三篇旁路文档，最后写 `book:<book>`。中途任一步失败（含注入故障）按逆序彻底清除并 `forget_purged_doc` 已写文档，不留半个项目或孤儿文档。

@@ -25,6 +25,10 @@ pub const SIDE_SCHEMA_VERSION: i64 = 1;
 /// (`project-template:<id>`, `docs/rust-rewrite/project-templates.md` §5).
 pub const PROJECT_TEMPLATE_SCHEMA_VERSION: i64 = 1;
 
+/// `meta.v` of library-level custom module documents (`module:<id>`, my
+/// modules, `docs/rust-rewrite/custom-modules.md` §7).
+pub const CUSTOM_MODULE_SCHEMA_VERSION: i64 = 1;
+
 /// Version of the genesis content; part of the genesis peer's hash.
 pub const GENESIS_VERSION: u32 = 2;
 
@@ -37,6 +41,9 @@ pub const SIDE_GENESIS_VERSION: u32 = 1;
 
 /// Version of the genesis content of library-level user project template documents.
 pub const PROJECT_TEMPLATE_GENESIS_VERSION: u32 = 1;
+
+/// Version of the genesis content of library-level custom module documents.
+pub const CUSTOM_MODULE_GENESIS_VERSION: u32 = 1;
 
 /// Keys every document's `meta` map has.
 pub mod meta {
@@ -80,6 +87,37 @@ pub mod project_template {
     /// once keep one whole record (`info` and `value` keys inside it).
     pub const RECORD: &str = "record";
     pub const RECORD_INFO: &str = "info";
+}
+
+/// Root containers and keys of a library-level custom module document
+/// (`module:<id>`): one record, replaced whole (`custom-modules.md` §7).
+pub mod custom_module {
+    pub const META: &str = "meta";
+    pub const PAYLOAD: &str = "payload";
+    /// `payload.record`: `{info: {origin, created_at?, updated_at?}, value:
+    /// <canonical JSON>}` written as one value, so two devices saving at
+    /// once keep one whole module.
+    pub const RECORD: &str = "record";
+    pub const RECORD_INFO: &str = "info";
+    pub const VALUE: &str = "value";
+}
+
+/// A book's copies of custom modules and the values entries keep for them
+/// (`custom-modules.md` §7).
+pub mod custom_values {
+    /// The key of an entry node holding its values for template module
+    /// `<id>`: `module:<id>` (a mergeable map by block id).
+    pub const ENTRY_PREFIX: &str = "module:";
+    /// The key of a list's items inside a scope: `list:<block id>` (a
+    /// mergeable movable list of item maps), apart from the plain values so
+    /// a block that changes between a list and a value keeps both.
+    pub const LIST_PREFIX: &str = "list:";
+    /// An item map's own id.
+    pub const ITEM_ID: &str = "id";
+    /// A copy in `modules`: its canonical JSON.
+    pub const COPY_VALUE: &str = "value";
+    /// A copy in `modules`: where it came from (`library`, `template`).
+    pub const COPY_SOURCE: &str = "source";
 }
 
 /// Root containers of the book document.
@@ -141,6 +179,9 @@ pub mod book_v3 {
     pub const ASSET_FOLDERS: &str = "asset_folders";
     pub const FACTS: &str = "facts";
     pub const MEMORY: &str = "memory";
+    /// The custom modules the book's templates draw (`custom-modules.md` §7):
+    /// module id → `{value, source}`, one value replaced whole.
+    pub const MODULES: &str = "modules";
 
     /// Root maps of the form "id → entity map" in v3.
     pub const ENTITY_MAPS: &[&str] = &[

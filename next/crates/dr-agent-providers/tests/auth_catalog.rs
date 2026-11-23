@@ -650,3 +650,109 @@ async fn codex_catalog_revalidates_etag_and_preserves_account_visibility() {
     );
     assert!(server.requests()[0].contains("client_version=0.166.0"));
 }
+
+/// CM4a: a model takes images only when its provider's live list says so
+/// (Anthropic's `capabilities.image_input.supported`, the subscription
+/// catalog's `input_modalities`); OpenAI's and DeepSeek's lists and the
+/// bundled fallback say nothing, which counts as no.
+#[tokio::test]
+async fn only_a_list_that_says_so_makes_a_model_take_images() {
+    let server = Server::new(vec![
+        Reply::json(
+            200,
+            json!({"data":[
+                {"id":"claude-sees","capabilities":{"image_input":{"supported":true}}},
+                {"id":"claude-blind","capabilities":{"image_input":{"supported":false}}},
+                {"id":"claude-silent","capabilities":null},
+            ],"has_more":false}),
+        ),
+        Reply::json(200, json!({"data":[{"id":"gpt-6.1-sol"}]})),
+        Reply::json(200, json!({"data":[{"id":"deepseek-flash"}]})),
+        Reply::json(
+            200,
+            json!({"models":[
+                {"slug":"codex-sees","visibility":"list","input_modalities":["text","image"]},
+                {"slug":"codex-text","visibility":"list","input_modalities":["text"]},
+                {"slug":"codex-silent","visibility":"list"},
+            ]}),
+        ),
+    ]);
+    let http = HttpClient::new().unwrap();
+    let cache = CatalogCache::default();
+    let endpoint = format!("{}/models", server.url);
+    let sees = |models: &[dr_agent_providers::catalog::ModelInfo]| {
+        models
+            .iter()
+            .map(|m| {
+                let config = m
+                    .run_config(if m.thinking_modes.iter().any(|t| t == "off") {
+                        ThinkingLevel::Off
+                    } else {
+                        ThinkingLevel::High
+                    })
+                    .unwrap();
+                assert_eq!(
+                    config.capabilities.as_ref().unwrap().image_input,
+                    m.image_input
+                );
+                (m.id.clone(), m.image_input, config.sees_images())
+            })
+            .collect::<Vec<_>>()
+    };
+    let a = cache
+        .list_with_key_at(http.raw(), Provider::Anthropic, "synthetic", &endpoint, 0)
+        .await;
+    assert_eq!(
+        sees(&a.models),
+        [
+            ("claude-sees".to_owned(), Some(true), true),
+            ("claude-blind".to_owned(), Some(false), false),
+            ("claude-silent".to_owned(), None, false),
+        ]
+    );
+    for provider in [Provider::Openai, Provider::Deepseek] {
+        let listed = cache
+            .list_with_key_at(http.raw(), provider, "synthetic", &endpoint, 0)
+            .await;
+        assert_eq!(listed.source, CatalogSource::Live);
+        assert!(
+            sees(&listed.models)
+                .iter()
+                .all(|(_, said, seen)| said.is_none() && !seen)
+        );
+    }
+    for provider in [Provider::Anthropic, Provider::Openai, Provider::Chatgpt] {
+        assert!(
+            bundled_models(provider)
+                .iter()
+                .all(|m| m.image_input.is_none())
+        );
+    }
+    let (_, credentials) = credentials();
+    credentials
+        .save_tokens(&StoredTokens {
+            access_token: token(json!({"chatgpt_account_id":"synthetic-account"})),
+            refresh_token: "synthetic-refresh".into(),
+            expires_at_ms: oauth::now_ms() + 3_600_000,
+            id_token: None,
+        })
+        .await
+        .unwrap();
+    let oauth = OAuth::new(credentials, OAuthEndpoints::at(&server.url).unwrap());
+    let c = cache
+        .list_chatgpt(
+            http.raw(),
+            &oauth,
+            &OAuthCancellation::default(),
+            Some(&endpoint),
+        )
+        .await;
+    assert_eq!(
+        sees(&c.models),
+        [
+            ("codex-sees".to_owned(), Some(true), true),
+            ("codex-text".to_owned(), Some(false), false),
+            ("codex-silent".to_owned(), None, false),
+        ]
+    );
+}

@@ -1067,7 +1067,8 @@ impl<'a> BookView<'a> {
             DocId::Stats(_)
             | DocId::Checkpoints(_)
             | DocId::Layout(_)
-            | DocId::ProjectTemplate(_) => false,
+            | DocId::ProjectTemplate(_)
+            | DocId::Module(_) => false,
             DocId::Node(id) => has(book::NODES, id.as_str()),
             DocId::Element(id) => has(book::ELEMENTS, id.as_str()),
             DocId::Storyline(id) => has(book::STORYLINES, id.as_str()),
