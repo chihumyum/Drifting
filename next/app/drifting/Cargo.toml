@@ -82,7 +82,8 @@ serde_json.workspace = true
 
 [dev-dependencies]
 dr-agent.workspace = true
-dr-agent-providers.workspace = true
+# `custom-service-acceptance`: a stand-in for a service on the internet.
+dr-agent-providers = { workspace = true, features = ["test-support"] }
 # The 0.1 clients' MCP connections through the real executable
 # (`tests/mcp_v1.rs`) and the release layout's MCP state
 # (`data_folder_tests`): a Runtime with the book tools, an MCP client that
@@ -126,6 +127,12 @@ required-features = ["debug-bridge"]
 
 [[example]]
 name = "home-cards-acceptance"
+required-features = ["debug-bridge"]
+
+# M31 「自定义服务」 with a service on the internet: a loopback stand-in for
+# `https://api.example.com` (`dr-view-agent/scenarios/custom-service.json`).
+[[example]]
+name = "custom-service-acceptance"
 required-features = ["debug-bridge"]
 
 # CM4a: images dropped on the Agent composer, sent through the real model

@@ -1,10 +1,12 @@
-//! Local model servers (本地模型): the list this device keeps, and the
-//! network steps the connection form takes. The list stays on this device
-//! (it is not an account preference): an address on one computer means
-//! nothing on another. Keys stay in the credential store, one per server.
+//! Model servers the author adds by address (「自定义服务」; a local model
+//! server on this computer or the local network, or a service on the
+//! internet over https): the list this device keeps, and the network steps
+//! the connection form takes. The list stays on this device (it is not an
+//! account preference, 作者 2026-11-16 and 2026-11-23). Keys stay in the
+//! credential store, one per server.
 
 use dr_agent_providers::local::{
-    self, AddressError, DiscoverError, Discovery, LocalAddress, Software,
+    self, AddressError, DiscoverError, Discovery, LocalAddress, LocalModel, Reach, Software,
 };
 use dr_shell::Settings;
 use gpui::App;
@@ -83,6 +85,11 @@ impl LocalServer {
 
     pub fn model(&self, id: &str) -> Option<&LocalServerModel> {
         self.models.iter().find(|model| model.id == id)
+    }
+
+    /// A service on the internet: its model list is never offered.
+    pub fn on_the_internet(&self) -> bool {
+        LocalAddress::parse(&self.base_url).is_ok_and(|address| address.reach == Reach::Internet)
     }
 
     fn valid(&self) -> bool {
@@ -171,8 +178,9 @@ pub fn label_for(
 /// What the form shows under its buttons.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LocalFailure {
-    /// 「只能填本机或局域网地址」
-    NotLocal,
+    /// 「网上的地址要用 https」: an address on the internet over plain http
+    /// (作者 2026-11-24).
+    NeedsHttps,
     /// 「连不上这个地址」
     Unreachable,
     /// 「密钥无效」
@@ -222,14 +230,31 @@ impl KeyChange {
 /// What the server answered to the form.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Probe {
+    /// Its models, offered as they are: this computer or the local network.
     Listed(Discovery),
-    /// It answered without a model list: ask for a model name.
-    NoList,
+    /// Ask for a model name: the server answered without a model list, or
+    /// it is on the internet, whose list is not offered (作者 2026-11-24).
+    /// `known` is what its list said, for the context of a name typed from it.
+    AskName {
+        software: Option<Software>,
+        known: Vec<LocalModel>,
+    },
+}
+
+impl Probe {
+    fn ask_name() -> Self {
+        Self::AskName {
+            software: None,
+            known: Vec::new(),
+        }
+    }
 }
 
 impl ConnectionService {
     /// Parse what was typed, then ask the server for its models with the key
-    /// the form would leave (`existing`: the server being edited).
+    /// the form would leave (`existing`: the server being edited). A service
+    /// on the internet is asked too: that is how the form knows it is there
+    /// and takes the key.
     pub async fn probe_local(
         &self,
         raw: &str,
@@ -237,7 +262,7 @@ impl ConnectionService {
         existing: Option<&str>,
     ) -> Result<(LocalAddress, Probe), LocalFailure> {
         let address = LocalAddress::parse(raw).map_err(|error| match error {
-            AddressError::NotLocal => LocalFailure::NotLocal,
+            AddressError::NeedsHttps => LocalFailure::NeedsHttps,
             AddressError::Invalid => LocalFailure::Unreachable,
         })?;
         let stored = match (key, existing) {
@@ -255,10 +280,20 @@ impl ConnectionService {
             KeyChange::Keep => stored,
         };
         let http = self.driver().http().clone();
-        let found = local::discover(http.raw(), &address, key.as_deref()).await;
+        let found = local::discover(&http, &address, key.as_deref()).await;
+        let internet = address.reach == Reach::Internet;
         match found {
+            Ok(discovery) if internet => Ok((
+                address,
+                Probe::AskName {
+                    software: discovery.software,
+                    known: discovery.models,
+                },
+            )),
             Ok(discovery) => Ok((address, Probe::Listed(discovery))),
-            Err(DiscoverError::NoList) => Ok((address, Probe::NoList)),
+            Err(DiscoverError::NoList) => Ok((address, Probe::ask_name())),
+            // Nothing on its list to offer, but the list is not offered anyway.
+            Err(DiscoverError::NoToolModels) if internet => Ok((address, Probe::ask_name())),
             Err(DiscoverError::NoToolModels) => Err(LocalFailure::NoToolModels),
             Err(DiscoverError::Unauthorized) => Err(LocalFailure::InvalidKey),
             Err(DiscoverError::Unreachable) => Err(LocalFailure::Unreachable),
@@ -297,7 +332,7 @@ impl ConnectionService {
             None
         };
         let http = self.driver().http().clone();
-        local::check(http.raw(), &address, key.as_deref())
+        local::check(&http, &address, key.as_deref())
             .await
             .map_err(|error| match error {
                 DiscoverError::Unauthorized => LocalFailure::InvalidKey,
@@ -320,7 +355,8 @@ impl ConnectionService {
         }
     }
 
-    /// A fresh model list for a server whose list came from the server.
+    /// A fresh model list for a server whose list came from the server, or
+    /// what a service on the internet lists (for a typed name's context).
     pub async fn relist_local(&self, server: &LocalServer) -> Option<Discovery> {
         let address = LocalAddress::parse(&server.base_url).ok()?;
         let key = if server.has_key {
@@ -333,9 +369,7 @@ impl ConnectionService {
             None
         };
         let http = self.driver().http().clone();
-        local::discover(http.raw(), &address, key.as_deref())
-            .await
-            .ok()
+        local::discover(&http, &address, key.as_deref()).await.ok()
     }
 
     pub async fn forget_local_key(&self, server: &str) -> Result<(), LocalFailure> {
@@ -387,7 +421,9 @@ mod tests {
             {"id":"a1","base_url":"http://localhost:11434","label":"Ollama",
              "models":[{"id":"qwen3:14b","context":40960},{"id":"qwen3:14b"},{"id":" "}]},
             {"id":"a1","base_url":"http://localhost:1234","label":"dup id"},
-            {"id":"b2","base_url":"https://api.example.com","label":"internet"},
+            {"id":"b2","base_url":"https://api.example.com","label":"api.example.com",
+             "has_key":true,"manual":true,"models":[{"id":"example-chat"}]},
+            {"id":"b3","base_url":"http://api.example.com","label":"plain http"},
             {"id":"c 3","base_url":"http://localhost:8080","label":"bad id"},
             {"id":"d4","base_url":"http://localhost:8080/v1","label":"unnormalized"},
             {"id":"e5","base_url":"http://192.168.1.20:11434","label":"Ollama","has_key":true,
@@ -395,13 +431,17 @@ mod tests {
         ])));
         assert_eq!(
             servers.iter().map(|s| s.id.as_str()).collect::<Vec<_>>(),
-            ["a1", "e5"]
+            ["a1", "b2", "e5"]
         );
         assert_eq!(servers[0].models.len(), 1);
         assert_eq!(servers[0].models[0].context_window(), Some(40960));
-        assert!(servers[1].has_key);
-        assert_eq!(servers[1].models[0].context_override, None);
-        assert_eq!(servers[1].display(), "192.168.1.20:11434");
+        assert!(!servers[0].on_the_internet());
+        assert!(servers[1].on_the_internet());
+        assert_eq!(servers[1].display(), "api.example.com");
+        assert!(servers[2].has_key);
+        assert_eq!(servers[2].models[0].context_override, None);
+        assert_eq!(servers[2].display(), "192.168.1.20:11434");
+        assert!(!servers[2].on_the_internet());
         assert!(from_value(Some(json!({"not":"a list"}))).is_empty());
     }
 
@@ -438,6 +478,22 @@ mod tests {
         assert_eq!(
             label_for(Some(Software::LmStudio), &address, &[], None),
             "LM Studio"
+        );
+        // A service on the internet is rarely recognized: its host, and the
+        // port only when it is not the standard one (作者 2026-11-24).
+        for (raw, label) in [
+            ("https://api.example.com/v1", "api.example.com"),
+            ("https://api.example.com:443/v1", "api.example.com"),
+            ("https://api.example.com:8443", "api.example.com:8443"),
+        ] {
+            let address = LocalAddress::parse(raw).unwrap();
+            assert_eq!(label_for(None, &address, &[], None), label, "{raw}");
+        }
+        let internet = LocalAddress::parse("https://api.example.com").unwrap();
+        assert_eq!(
+            label_for(Some(Software::Ollama), &internet, &[], None),
+            "Ollama",
+            "recognized software keeps its name"
         );
     }
 
