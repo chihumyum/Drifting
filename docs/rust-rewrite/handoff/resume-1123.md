@@ -16,7 +16,7 @@
 | GU | GPUI 从 Zed `v1.27.0` 加补丁升到 `v1.29.3`，不再用 fork；同时在 macOS 上打开编辑器的「改完立刻画」 | 作者 2026-11-24 定了「升并打开」（11-23 夜三轮测量：照原样升每次按键到显示慢约 19 ms，打开「改完立刻画」以后和升级前一样、没有拖尾；数字在 [progress.md](../progress.md)「等作者的事」第 18 条）。2026-11-24 凌晨在 `supervisor/gpui-1293` 上开工：补钩子、开选项、跑全套；合进 `main` 之前监管会话在安静的机器上重量、在真输入法上验 |
 | NP `np-system-proxy` | 联网请求跟着系统代理走，本机和局域网仍直连 | 2026-11-24 凌晨开工 |
 | SR `sr-restore-missing-home` | 恢复快照点时原来住的地方没了：留在现在的位置，不再拒绝 | 2026-11-24 凌晨开工 |
-| SM `sm-small-fixes` | 四处小修：导入确认框的标题、Windows 上泳道名不斜、葡萄牙语的「退出」、两句写进说明的话 | 2026-11-24 凌晨开工 |
+| SM `sm-small-fixes` | 四处小修：导入确认框的标题、Windows 上泳道名不斜、葡萄牙语的「退出」、两句写进说明的话 | 2026-11-24 交回（`handback/r1123-sm`），监管会话审过，等和 NP、SR 一起在合并树上跑全套 |
 | PF `pf-paste-formatting` | 从 Word 和网页粘贴带格式 | 2026-11-24 凌晨开工 |
 | CM1 `cm1-module-data` | 条目模块自定义的数据：模块格式和校验器、我的模块、书里的抄本和值、自动换、命令、项目模板带模块 | 2026-11-24 凌晨开工 |
 | CM4a `cm4a-agent-images` | Agent 栏收图片、发给看得了图的模型 | 2026-11-24 凌晨开工，和 CM1 无关 |
@@ -24,7 +24,7 @@
 | CM4b `cm4b-module-agent-tools` | Agent 建模块、改模块、写值的工具和结构说明 | 等 CM1 |
 | CM3 `cm3-module-workbench` | 模块工作台、导出导入、「全部项目」页的我的模块、添加模块菜单 | 等 CM1、CM2 |
 | CA `ca-custom-address` | Agent 能连网上的第三方服务（chihumyum/Drifting#3） | 作者 2026-11-24 在原型上五处都照推荐定了，凌晨开工 |
-| AL `al-entry-auto-link` | 单个条目自己的「自动链接」开关 | 原型出了（<https://claude.ai/artifact/Vxfunju8SBn37AxGW1yGQ2>），等作者定四处 |
+| AL `al-entry-auto-link` | 条目的自动链接默认关、显式打开才链接；开关影响已经连好的链接 | 作者 2026-11-24 定了八条（[progress.md](../progress.md)「作者定下的」），等定稿页（<https://claude.ai/artifact/Vxfunju8SBn37AxGW1yGQ2> 第 2 版）出来就写全这一节、开工 |
 
 CM5 社区模块和 PT5 社区模板一样，新版发布以后再做，不在这一页。
 
@@ -129,7 +129,7 @@ CM1 交回以后由监管会话照 CM1 报告里的接口补全这三节再开�
 
 - **依据**：chihumyum/Drifting#3。作者 2026-11-23 定了四处，2026-11-24 对整窗原型（<https://claude.ai/artifact/643qk6p8rs2ig3CyxbDdvK> 页头「版本」里的「第五版 网上的地址（11-23）」）上的五处答「自定义服务地址按照你的推荐来就行。」形状以那一页选中推荐项时的样子为准。
 - **现在**：四格下面隔一道细线的那一格叫「本地模型」，只收本机和局域网的地址（[m28](../modules/m28-model-providers.md)、[m31](../modules/m31-agent-panel.md) 末尾的「本地模型」）。
-- **定了的九处**：
+- **定了的十处**：
   1. 和本地模型同一处、同一种格子，不另起一组。
   2. 网上的地址只收 `https`；本机和局域网照旧 `http`、`https` 都行。带用户名密码、查询串或 `#` 的照旧不收。
   3. 只认 OpenAI 兼容的 Chat Completions。
