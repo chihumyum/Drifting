@@ -1,0 +1,201 @@
+{
+  "format": "drifting.module",
+  "formatVersion": 1,
+  "name": "魔法规则卡",
+  "locale": "zh-Hans",
+  "blocks": [
+    {
+      "id": "power",
+      "type": "number",
+      "name": "强度"
+    },
+    {
+      "id": "school",
+      "type": "select",
+      "name": "流派",
+      "options": [
+        "风",
+        "林",
+        "火",
+        "山"
+      ]
+    },
+    {
+      "id": "schools",
+      "type": "multi_select",
+      "name": "相通",
+      "options": [
+        "风",
+        "林",
+        "火",
+        "山"
+      ]
+    },
+    {
+      "id": "cost",
+      "type": "group",
+      "name": "代价",
+      "blocks": [
+        {
+          "id": "price",
+          "type": "text",
+          "name": "要付出"
+        },
+        {
+          "id": "risk",
+          "type": "select",
+          "name": "风险",
+          "options": [
+            "低",
+            "中",
+            "高"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "forbidden",
+      "type": "toggle",
+      "name": "禁术"
+    },
+    {
+      "id": "since",
+      "type": "date",
+      "name": "立规"
+    },
+    {
+      "id": "seal",
+      "type": "image",
+      "name": "符印"
+    },
+    {
+      "id": "rules",
+      "type": "long_text",
+      "name": "规则"
+    }
+  ],
+  "look": {
+    "block": {
+      "box": "grid",
+      "gap": 12,
+      "pad": 16,
+      "border": "sand",
+      "bg": "paper",
+      "radius": 4,
+      "deco": "arc",
+      "cols": [
+        "fill",
+        96
+      ],
+      "kids": [
+        {
+          "box": "col",
+          "gap": 8,
+          "kids": [
+            {
+              "box": "row",
+              "gap": 8,
+              "align": "center",
+              "kids": [
+                {
+                  "mark": "lightbulb"
+                },
+                {
+                  "value": "school",
+                  "font": "serif",
+                  "size": "title"
+                },
+                {
+                  "value": "power",
+                  "show": "dots"
+                }
+              ]
+            },
+            {
+              "value": "rules",
+              "lines": 4
+            },
+            {
+              "box": "row",
+              "gap": 4,
+              "kids": [
+                {
+                  "text": "代价",
+                  "size": "small",
+                  "ink": 3
+                },
+                {
+                  "value": "price",
+                  "size": "small"
+                },
+                {
+                  "value": "risk",
+                  "show": "mark"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "box": "col",
+          "gap": 4,
+          "align": "end",
+          "kids": [
+            {
+              "value": "seal"
+            },
+            {
+              "value": "forbidden",
+              "size": "note"
+            }
+          ]
+        }
+      ]
+    },
+    "full": {
+      "box": "col",
+      "gap": 16,
+      "pad": 24,
+      "max": 320,
+      "kids": [
+        {
+          "value": "school",
+          "font": "serif",
+          "size": "title"
+        },
+        {
+          "value": "schools"
+        },
+        {
+          "value": "rules"
+        },
+        {
+          "value": "since",
+          "size": "small",
+          "ink": 3
+        }
+      ]
+    }
+  },
+  "agent": {
+    "description": "一种魔法的规则：能做什么，要付出什么。",
+    "instructions": "规则只写书里已经出现过的；没出现的留空。",
+    "blocks": {
+      "cost": "代价一栏两样都填",
+      "power": "一到五"
+    }
+  },
+  "sample": {
+    "forbidden": false,
+    "power": 4.0,
+    "price": "一段记忆",
+    "risk": "高",
+    "rules": "只在起雾的夜里有效。\n念错一个字，钟会停。",
+    "school": "风",
+    "schools": [
+      "风",
+      "山"
+    ],
+    "since": "2024-03-01"
+  }
+}
