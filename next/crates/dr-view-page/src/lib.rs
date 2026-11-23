@@ -25,6 +25,7 @@
 //! and idea pages get the head and end (an idea's folio says 「构想」);
 //! other pages get nothing.
 
+pub mod custom;
 pub mod end;
 pub mod entry_head;
 pub mod head;

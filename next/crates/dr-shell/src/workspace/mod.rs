@@ -80,6 +80,7 @@ pub use chrome::{
 pub use dock::{DOCK_NEW, DOCK_ROW, DockDrag};
 pub use editors::PageEditor;
 pub use fill::FillPlace;
+pub use fill::{FilledModule, MODULE_FILL_INSET, ModuleFill};
 pub use sea::{FIRST_RUN_DONE, SeaState};
 pub use sidebar::{
     LeftTab, RightTab, Side, page_hover_card, page_hover_card_keyed, sidebar_page_hover_card,
@@ -497,6 +498,8 @@ pub struct Workspace {
     /// The page whose corner's ⋯ menu is open (its target key).
     pub corner_menu: Option<String>,
     fill: fill::FillState,
+    /// A module of an entry page filling the middle column (CM2).
+    module_fill: Option<fill::ModuleFill>,
     tab_fill_layouts: BTreeMap<String, crate::v3::tab_fill::FillLayout>,
     want_template_structure: bool,
     /// 「新建模板」 while the left column fills and its sidebar is not made
@@ -682,6 +685,7 @@ impl Workspace {
             list_scroll: Default::default(),
             corner_menu: None,
             fill: Default::default(),
+            module_fill: None,
             tab_fill_layouts: BTreeMap::new(),
             want_template_structure: false,
             want_new_template: false,
@@ -1469,6 +1473,7 @@ impl Workspace {
     /// Something in the layout changed: repaint, and store it soon.
     fn changed(&mut self, cx: &mut Context<Self>) {
         self.discard_closed_template_drafts(cx);
+        self.prune_module_fill(cx);
         self.layout_dirty = true;
         cx.notify();
         let task = cx.spawn(async move |this, cx| {
@@ -1795,7 +1800,7 @@ impl Workspace {
             Some(Layer::Search)
         } else if self.settings.is_some() {
             Some(Layer::Settings)
-        } else if self.filled().is_some() {
+        } else if self.filled().is_some() || self.filled_module().is_some() {
             Some(Layer::Fill)
         } else {
             None

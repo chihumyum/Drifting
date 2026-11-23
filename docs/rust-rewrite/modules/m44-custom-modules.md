@@ -1,6 +1,8 @@
-# M44 条目模块自定义：数据层（CM1）
+# M44 条目模块自定义：数据层（CM1）和渲染（CM2）
 
 2026-11-24，任务书 [handoff/resume-1123.md](../handoff/resume-1123.md) 的 CM1。设计是 [custom-modules.md](../custom-modules.md)（作者 2026-11-20 定稿，2026-11-23「现在就迁」）。这一路只做数据：格式和校验器、我的模块、书里的抄本和值、自动换、命令、项目模板带模块、`.driftingmodule` 文件。没有任何界面，也没有 Agent 的工具（CM2 渲染、CM3 工作台、CM4b Agent 照这一页的接口接）。
+
+同一天的 CM2（画出来、能填）写在本页末尾 [「渲染（CM2）」](#渲染cm2)：盒子树画成界面、条目页上能填、铺满、悬停卡里的一行、坏了的抄本。
 
 ## 做了什么（大白话）
 
@@ -202,7 +204,7 @@ dr_export::module_file::{EXTENSION /* "driftingmodule" */, MAX_BYTES, ModuleFile
 
 ## 待协调
 
-- **CM2**：渲染器读 `module_copy(id)`；`is_broken()` 时画只写 `name()` 的空占位。一行没单独摆时，`ModuleValue::line_blocks(n)` 给出前几块（图片、一组不算，一串是个数），`n` 由渲染定。「条目」积木的值是条目 id 列表，已删的条目要渲染时过滤；示例值里的条目是几个字。
+- **CM2**（已做，见下面「渲染（CM2）」）：渲染器读 `module_copy(id)`；`is_broken()` 时画只写 `name()` 的空占位。一行没单独摆时，`ModuleValue::line_blocks(n)` 给出前几块（图片、一组不算，一串是个数），`n` 由渲染定。「条目」积木的值是条目 id 列表，已删的条目要渲染时过滤；示例值里的条目是几个字。
 - **CM3**：工作台随改随存就是一次次 `custom_module.update`（每次都过校验器，所以中间状态也得合格：空的一串、一组可以，指着不存在的积木的节点不行）；⌘Z 走工作区撤销。「另存一份」是 `custom_module.save_as`，模板编辑器那一行的「存进我的模块」是 `custom_module.adopt`，「用在 N 个项目」是 `custom_module.uses`。删除要先问一句（§16 第 4 条），命令本身不问。
 - **CM4b**：目录里现在关着全部自定义模块命令（`dr-agent-tools/src/catalog.rs` 的 `CUSTOM_MODULE_VALUE_COMMANDS` 和 `custom_module.` 前缀），按 §13「Agent 能用的」放开建、改、改名、另存一份、写值；`import`、`export`、`remove` 命令里也拒绝 Agent。结构说明里 `custom` 模块现在和未知种类一样只给读的工具（`dr-agent-tools/src/structure.rs`）。
 - 书文件导入只换「整个等于」要换 id 的值（见上）；条目链接以外的写法以后要改，改 `dr-export/src/book_file/v3.rs` 的那一段。
@@ -214,3 +216,95 @@ dr_export::module_file::{EXTENSION /* "driftingmodule" */, MAX_BYTES, ModuleFile
 - 命令和自动换：`next/crates/dr-workspace/src/commands/v3/custom_module.rs`；放进模板：`commands/v3/template.rs`；打开书、同步来的文档：`dr-workspace/src/workspace.rs`。
 - 文件：`next/crates/dr-export/src/module_file.rs`；书文件里的值：`dr-export/src/book_file/v3.rs`；命令行：`next/crates/dr-cli/src/lib.rs`、`args.rs`。
 - 工具目录：`next/crates/dr-agent-tools/src/catalog.rs`。
+
+## 渲染（CM2）
+
+2026-11-24，任务书 [handoff/resume-1123.md](../handoff/resume-1123.md) 的 CM2。依据是 [custom-modules.md](../custom-modules.md) 第 3、4 节和第 16 节第 5、6 条，长相对着原型第二页「摆在条目页上」。
+
+### 做了什么（大白话）
+
+1. **盒子树画成界面。** 一个模块的「长什么样」加一份值，画成一块界面。五种节点（盒子、每一项、值、字、记号）和第 4 节清单里的每个属性都有对应，档位都落到 `dr-ui` 现成的东西上：三种字体是 App 的三种字（衬线是正文的、无衬线是界面的、等宽是索引的），四档大小是界面字号，四档墨色是调色板的墨，边是发丝线、静止的玻璃线或者静止的砂笔框，底是稿纸或一层淡墨，弧线是一道砂笔，记号是记号选择器的那七个砂笔记号；单选显示成记号时第一个选项空心、最后一个实心、中间半实，数字显示成点数是五个砂笔点。没有别的颜色，深浅模式跟着主题自己换。
+2. **条目页上能看到、能填。** 条目模板里放了自定义模块的条目，条目页上按模板的顺序画出这个模块的「一块」，就地填：一行字、一段字、数字、日期直接在原处打字（无边框的输入框，字体字号墨色就是这个值自己的，离开时存，一行的回车存，Esc 放回原来的字）；单选、多选、条目、图片按一下弹出和「字段」模块下拉框一样的选项列表（「未设置」在最前面）；勾选按一下就翻；显示成点数的数字按一下变成输入框，存了以后回到点数。一串的每一项指上去出拖动把手和删除（竖着排的一串，把手在左边的页边、删除在右边的页边，不压住这一项的字；横着排的在这一项右上角），拖到另一项上就挪到那里；最后一项下面是一行「＋ 串的名字」，按了加一项。串里套串一样。每一次改动是一条命令、一步撤销，不拿读到的整份去替换。
+3. **铺满。** 模块标题行右边的铺满按钮（指着标题行时出现，铺满时一直在），按了这个模块铺满中间一列：稿纸撑到这一列最宽，只剩条目的头和这个模块，底栏收起；画的是「铺满」那棵树（没单独摆就是「一块」撑满）。Esc 或再按一次退出。和左右栏、底栏的铺满一样一次只有一处：铺左栏会退掉模块的铺满，反过来也一样；换页、关项目以后不记。
+4. **悬停卡里一行。** 指着正文里一个条目的名字，悬停卡在梗概下面给这个条目的每个自定义模块各画一行（模块单独摆了「一行」就画它，没摆就是前三块积木的值连成一行，一串显示成「3 个伏笔」这样的个数，图片和一组跳过）。
+5. **坏了的抄本**（更新的 App 存的模块拿到这里）画一块空的占位，只写模块的名字，不能填，值一个字节都不动。书里没有这份抄本时也一样。
+6. **抄本被自动换掉时**，开着的条目页当场跟着变（新积木当场出现），值都在；正在打字的那一格不丢字，离开时照常存。
+7. **批注**只落到整个模块：条目页给每个模块的标题行页边按钮照旧，没有为自定义模块加别的。
+
+### 定下的事（设计稿没说到、照原型或最保守做的，交回报告的「等作者的事」逐条列了）
+
+- 格式里没写的属性用原型的默认：盒子没有间距、内边距、边、底、圆角，子节点撑满；每一项竖着排、没有间距；值是无衬线、正文大小、墨色 2；写死的字是等宽、注、墨色 4。
+- 点数固定五个，值四舍五入，小于 0 算 0、大于 5 算 5。
+- 「条目」显示成标题用「 · 」连起来，多选同样；勾选写成「✓ 积木名」「□ 积木名」（「字段」模块的样子）；图片画成 64 高、按比例放进格子的缩略图，没有图的画一个带图片记号的空框；没有值的画一道「—」（工作台的「空」画积木名）。
+- 就地编辑照「字段」模块的控件：打字的用同一个无边框多行输入（`TextArea`），选的用和下拉框同一个菜单列表，勾选按一下翻。原型第二页没画编辑，选项列表是按在值上弹出来的，不是一个常驻的下拉框，这样看着还是模块自己的样子。
+- 一串加一项的那一行写的是串自己的名字（作者起的），前面一个加号；删除和拖动把手的读屏名字借现成的「删除」「拖动排序」。
+- 工作台的「空」预览里每一串画一项、不带值（`Scope::blank`，原型的空预览就是这样）；条目页上一串没有项时什么都不画，只有「＋」那一行。
+- 能打字的格子空着时，淡字写的是积木的名字（输入框的占位字）；不能打字的值（单选、条目……）空着时画「—」。
+- 自动一行的「3 个伏笔」是新加的一句文案 `customModule.countOf`，九种语言。
+- 铺满时稿纸离这一列左右各 8 px（原型的 `midW - 16`）；没有开合动画（直接铺开、直接收回）。
+
+### 接口
+
+渲染器在新 crate `dr-view-module-look`（界面层，只依赖 `dr-model`、`dr-ui`、`gpui`；不依赖打开的书，所以 CM3 的工作台预览、条目页、悬停卡都能直接用）：
+
+```rust
+// 值：一个条目的（read_scope 的结果）、示例值、空的
+dr_view_module_look::{Scope, Item, Shown, EntryName, Picture, Names, NoNames};
+Scope::read(&BTreeMap<积木 id, BlockValue>, &dyn Names) -> Scope; // 条目 id、素材 id 由 Names 换成标题和图
+Scope::sample(&ModuleValue) -> Scope;  // 「示例」
+Scope::empty() -> Scope;               // 什么都没有
+Scope::blank(&ModuleValue) -> Scope;   // 「空」：每串一项、没有值（配 Blanks::Names 画积木名）
+
+// 一步画出来（CM3 的预览用它）：
+dr_view_module_look::render(id, &ModuleValue, &Scope, LookSize, Blanks, Option<&dyn Edit>, window, cx) -> AnyElement;
+dr_view_module_look::placeholder(id, name, window, cx) -> AnyElement;        // 坏了的抄本
+dr_view_module_look::Line::new(id, Arc<ModuleValue>, Arc<Scope>);           // 悬停卡里的一行（RenderOnce）
+dr_view_module_look::set_words(cx, |count, list, cx| …);                     // 版面自己写的字（自动一行的个数）
+Blanks::{Dash, Names};                                                       // 没有值时画「—」还是积木名
+
+// 分两步：纯函数的排版，和画
+dr_view_module_look::plan::plan(&ModuleValue, &Scope, LookSize, &dyn Words) -> Plan;
+Plan { size, own, root: PNode }; PNode::{Box(PBox), Each(PEach), Value(PValue), Text(PText), Mark(PMark)};
+PValue { block, name, kind, options, path: Vec<ItemStep>, show, style, lines, width, suffix, content: Content };
+Content::{Words, Missing, Dots{filled, of}, Mark(Fill), Count, Toggle, Choices, Entries, Image};
+dr_view_module_look::paint::paint(id, &Plan, Blanks, Option<&dyn Edit>, window, cx) -> AnyElement;
+trait Edit { fn value(..) -> AnyElement; fn item(..) -> AnyElement; fn after_items(..) -> Option<AnyElement>; }
+```
+
+宿主：
+
+- **条目页**：`dr-view-page/src/custom.rs` 的 `CustomModule`，`add_module_view` 注册在种类 `custom` 下（`dr_view_page::init` 里）。读用 `module.read_custom`，写用 `module.set_custom_value`、`add_custom_item`、`remove_custom_item`、`move_custom_item`，按顺序一条一条跑；听书库的书事件和外壳的 `on_refresh` 重读。打字没存的字参加外壳的释放前存盘（`settlement::Drafts`）。铺满按钮用 `Rendered::with_head_action` 放在标题行。
+- **铺满**（`dr-shell`，只加）：`dr_shell::workspace::{ModuleFill, FilledModule, MODULE_FILL_INSET}`；`Workspace::{fill_module, toggle_module_fill, filled_module}`；`FilledModule` 是一个全局值，条目页和模块在画的时候读它。`enter_fill` 先退掉模块的铺满，`exit_fill`（Esc、⌘[、点药丸、去主页……）也退掉它；`top_layer` 在模块铺满时是 `Layer::Fill`；换页以后自己失效。中间一列（`stage.rs`）铺满时稿纸宽到这一列减两边各 8 px、不画底栏，也不画左边页边的大纲栏（没有页边了）；条目页（`v3/page.rs`）铺满时只画头和这个模块。
+- **悬停卡**（`dr-editor/src/link_card.rs`，只加）：`CardFacts` 多一个 `lines: Vec<ModuleLine>`（模板模块 id、模块、值），条目卡在梗概下面一节画它们。
+
+### 测试
+
+| 要守的 | 测试 |
+| --- | --- |
+| 四份样本在三种大小下排得出来，值落在保存它的那一串里 | `dr-view-module-look/tests/plan.rs`：`every_sample_lays_out_at_every_size_with_its_sample_and_with_nothing`、`an_entrys_values_are_kept_where_their_items_are` |
+| 「一行」「铺满」没单独摆时跟着「一块」（§4） | `a_line_that_is_not_laid_out_is_the_first_blocks_and_a_list_as_its_count`、`a_full_size_that_is_not_laid_out_is_the_block_stretched` |
+| 每种积木、每种「显示成」画什么 | `every_kind_of_block_shows_its_value`、`a_select_as_a_mark_is_hollow_half_or_full_by_its_place`、`foreshadowing_draws_a_ledger_with_marks_and_counts_in_its_line`、`a_blank_scope_has_one_item_in_every_list_and_no_values` |
+| 渲染器不认识的东西不崩（校验器拦着，渲染器自己也不崩） | `a_value_node_for_a_block_the_module_does_not_have_draws_nothing`；坏了的抄本见下 |
+| 四份样本浅深色、三种大小都画得出来；占位；一行 | `dr-view-module-look/tests/paint.rs`：`every_sample_draws_at_every_size_in_both_themes`、`a_broken_copy_is_its_name_alone`、`a_line_draws_without_the_apps_words` |
+| 每种积木就地填、读回一致 | `dr-view-page/tests/v5_custom_modules.rs`：`every_kind_of_block_is_filled_in_place_and_reads_back`（魔法规则卡：九种积木都在里面，含无效的数字不存、Esc 放回）、`a_row_of_items_with_marks_and_words_is_filled_in`（人物弧光：横排带箭头的一串、单选画成记号）、`typed_words_are_stored_when_another_field_is_pressed`（按到别的格子上，打的字照样存） |
+| 一串加、删、挪（串里套串），每次一步撤销 | `list_items_are_added_taken_away_and_moved_each_one_step_of_undo` |
+| 坏抄本画占位、值逐字节不变 | `a_broken_copy_is_its_name_and_its_values_stay` |
+| 抄本换了页面当场跟着变、值还在、正在打的字不丢 | `a_replaced_copy_redraws_at_once_and_keeps_values_and_typing` |
+| 铺满、Esc 退出、再按退出、一次只铺一处 | `the_module_fills_the_middle_column_and_esc_leaves` |
+| 悬停卡里每个自定义模块一行 | `an_entry_names_hover_card_has_the_modules_line` |
+
+真窗口：`next/crates/dr-view-page/scenarios/cm2-custom-modules.json`（lite 种子，一个条目模板放伏笔追踪、魔法规则卡、世界观年表，江微月的模板放人物弧光；就地填、拖动挪一项、串里套串、两个模块铺满、名字的悬停卡，浅深色截图）。调试桥驱动的窗口没有键盘焦点，按到别的格子上不会让原来的格子失焦，所以场景里打完字用回车或 ⌘↵ 存；悬停卡那一步按坐标指到第 1 章正文第一行的「江微月」（正文里的链接不是无障碍节点）。
+
+### 待协调
+
+- **CM3**：工作台的预览直接用 `dr_view_module_look::render`（「示例」`Scope::sample`、「空」`Scope::blank` + `Blanks::Names`、「借一个真实条目」读 `module.read_custom` 的 `values` 后 `Scope::read`）；点预览选节点要的是值节点和盒子到盒子树节点的对应，现在 `Plan` 里没有记节点在树里的路径，到时候在 `plan` 里加一个字段（只加）。
+- 铺满的开合动画没做（左右栏、底栏的是 420 ms 结构性开合）；要的话在 `FillState` 里给模块加一条和别的一样的 tween。
+- 模块铺满是全局状态（`FilledModule`），两个窗口开着两本书时会互相看见；现在 App 只有一个工作区窗口。
+
+### 代码位置
+
+- 渲染器：`next/crates/dr-view-module-look/src/`（`values.rs` 值、`plan.rs` 排版、`paint.rs` 画、`lib.rs` 入口、占位、一行、文案钩子）。
+- 条目页上的模块：`next/crates/dr-view-page/src/custom.rs`。
+- 铺满：`next/crates/dr-shell/src/workspace/fill.rs`（`ModuleFill` 一段）、`stage.rs`、`mod.rs`（`top_layer`、`changed`）、`v3/page.rs`。
+- 悬停卡：`next/crates/dr-editor/src/link_card.rs`。
+- 文案：`next/crates/dr-i18n/own/*.json` 的 `customModule.countOf`。

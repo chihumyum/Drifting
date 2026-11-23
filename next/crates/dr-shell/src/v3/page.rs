@@ -128,6 +128,7 @@ pub struct EntryPage {
     /// what is drawn under it), at the last render.
     first_section: usize,
     _review_focus: Subscription,
+    _module_fill: Subscription,
 }
 
 /// Where an entry page's parts stand, by its last layout, for the outline
@@ -148,6 +149,10 @@ pub struct PageGeometry {
 impl EntryPage {
     pub fn new(host: PageViewHost, target: Target, cx: &mut Context<Self>) -> Self {
         let review_focus = cx.observe_global::<crate::ReviewFocus>(|_, cx| cx.notify());
+        if !cx.has_global::<crate::workspace::FilledModule>() {
+            cx.set_global(crate::workspace::FilledModule::default());
+        }
+        let module_fill = cx.observe_global::<crate::workspace::FilledModule>(|_, cx| cx.notify());
         Self {
             full_editor: None,
             host,
@@ -165,6 +170,7 @@ impl EntryPage {
             asked: None,
             first_section: 0,
             _review_focus: review_focus,
+            _module_fill: module_fill,
         }
     }
     pub fn new_settings(
@@ -1188,7 +1194,15 @@ impl Render for EntryPage {
                     }
                     let first_section = children.len();
                     self.first_section = first_section;
+                    // A module filling the middle column (CM2): the page is
+                    // its head and that module alone.
+                    let filled = crate::workspace::FilledModule::of(cx)
+                        .filter(|f| f.entry == id.as_str())
+                        .map(|f| f.module);
                     for section in self.sections.clone() {
+                        if filled.as_ref().is_some_and(|m| *m != section.id) {
+                            continue;
+                        }
                         let element = match Block::of(&section.kind) {
                             Some(block) => {
                                 self.render_block(id.as_str(), block, &section, window, cx)

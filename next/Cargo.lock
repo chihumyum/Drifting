@@ -1700,6 +1700,7 @@ dependencies = [
  "dr-testkit",
  "dr-text",
  "dr-ui",
+ "dr-view-module-look",
  "dr-workspace",
  "futures",
  "gpui",
@@ -2332,6 +2333,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "dr-view-module-look"
+version = "0.0.0"
+dependencies = [
+ "dr-model",
+ "dr-testkit",
+ "dr-ui",
+ "gpui",
+ "gpui_platform",
+]
+
+[[package]]
 name = "dr-view-page"
 version = "0.0.0"
 dependencies = [
@@ -2344,10 +2356,12 @@ dependencies = [
  "dr-shell",
  "dr-store",
  "dr-testkit",
+ "dr-text",
  "dr-ui",
  "dr-view-export",
  "dr-view-history",
  "dr-view-material",
+ "dr-view-module-look",
  "dr-view-search",
  "dr-view-stats",
  "dr-view-templates",
@@ -2357,6 +2371,7 @@ dependencies = [
  "gpui-prose",
  "gpui_platform",
  "log",
+ "loro",
  "serde_json",
  "tempfile",
 ]

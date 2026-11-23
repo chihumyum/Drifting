@@ -33,6 +33,9 @@
     "trashEmpty": "最近沒有刪除的專案。",
     "trashSub": "專案會在這裡保留 30 天，到期後自動永久刪除。"
   },
+  "customModule": {
+    "countOf": "{{count}} 個{{name}}"
+  },
   "entrySnapshot": {
     "empty": "尚無快照",
     "save": "儲存快照",

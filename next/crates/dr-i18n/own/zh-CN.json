@@ -31,6 +31,9 @@
     "trashEmpty": "最近没有删除的项目。",
     "trashSub": "项目在这里保留 30 天，到期后自动永久删除。"
   },
+  "customModule": {
+    "countOf": "{{count}} 个{{name}}"
+  },
   "entrySnapshot": {
     "empty": "暂无快照",
     "save": "保存快照",

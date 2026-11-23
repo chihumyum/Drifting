@@ -239,6 +239,9 @@
     "words": "mots",
     "wordsCount": "{{count}} mots"
   },
+  "customModule": {
+    "countOf": "{{count}} {{name}}"
+  },
   "dashboard": {
     "today": {
       "streak": "Série",
