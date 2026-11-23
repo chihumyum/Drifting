@@ -204,6 +204,7 @@ fn request(provider: Provider, tools: bool) -> DriverRequest {
         } else {
             vec![]
         },
+        images: Default::default(),
     }
 }
 fn driver(service: &Service) -> ProviderDriver {
@@ -751,4 +752,141 @@ fn deepseek_wire_ignores_search_and_streams_text_usage_without_tool_round_retry(
             .find("web_search")
             .is_none()
     );
+}
+
+/// CM4a: each protocol writes an author message's images its own way, as
+/// its provider's documentation shows: Anthropic image blocks (base64
+/// source) before the words; Responses `input_image` data URLs after
+/// `input_text`, the same for the ChatGPT subscription; DeepSeek, which
+/// takes no images, a line of text. An image the request does not carry,
+/// and every image for a model that cannot see, is a line of text too.
+#[test]
+fn each_protocol_writes_images_its_own_way() {
+    use base64::Engine as _;
+    let text = source_text();
+    let png = dr_testkit::media::png(32, 24);
+    let quadrants = dr_testkit::media::quadrants(20, 10);
+    let encoded = base64::engine::general_purpose::STANDARD.encode(&png);
+    let named = [
+        dr_agent::images::inspect(&png).unwrap(),
+        dr_agent::images::inspect(&quadrants).unwrap(),
+    ];
+    let input = |provider: Provider, sees: bool, words: &str| {
+        let mut input = request(provider, false);
+        input.conversation[0].payload = dr_agent::images::user_payload(words, &named);
+        // Only the first image's bytes travel with this request.
+        input
+            .images
+            .insert("user-1", 0, std::sync::Arc::from(png.as_slice()));
+        Arc::make_mut(&mut input.config).capabilities = Some(dr_agent::ModelCapabilities {
+            image_input: Some(sees),
+            ..Default::default()
+        });
+        input
+    };
+    let not_included =
+        "[The author attached an image (PNG, 20×10 px) here. It is not included in this request.]";
+    let cannot = "The current model cannot view images, so it was not sent.]";
+    let deepseek_body =
+        sse(json!({"choices":[{"index":0,"delta":{"content":text},"finish_reason":null}]}))
+            + &sse(json!({"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}))
+            + &sse(json!({"choices":[],"usage":{"prompt_tokens":4,"completion_tokens":2}}))
+            + "data: [DONE]\n\n";
+    let cases = [
+        (
+            Provider::Anthropic,
+            true,
+            text.as_str(),
+            anthropic_response(&text, "end_turn"),
+        ),
+        (
+            Provider::Anthropic,
+            true,
+            "",
+            anthropic_response(&text, "end_turn"),
+        ),
+        (
+            Provider::Anthropic,
+            false,
+            text.as_str(),
+            anthropic_response(&text, "end_turn"),
+        ),
+        (
+            Provider::Openai,
+            true,
+            text.as_str(),
+            response(&text, false),
+        ),
+        (Provider::Chatgpt, true, "", response(&text, false)),
+        (Provider::Deepseek, true, text.as_str(), deepseek_body),
+    ];
+    for (provider, sees, words, reply) in cases {
+        let mut service = Service::new(vec![Reply {
+            status: 200,
+            body: reply,
+        }]);
+        let events = collect(&driver(&service), input(provider, sees, words));
+        service.join();
+        assert!(events.iter().all(Result::is_ok), "{provider:?}: {events:?}");
+        let body = service.requests.lock().unwrap()[0].1.clone();
+        let case = format!("{provider:?} sees={sees} words={words:?}");
+        match (provider, sees) {
+            (Provider::Anthropic, true) => {
+                let content = &body["messages"][0]["content"];
+                assert_eq!(
+                    content[0],
+                    json!({"type":"image","source":{"type":"base64","media_type":"image/png","data":encoded}}),
+                    "{case}"
+                );
+                let words_block = format!(
+                    "{}{not_included}",
+                    if words.is_empty() {
+                        String::new()
+                    } else {
+                        format!("{words}\n\n")
+                    }
+                );
+                assert_eq!(content[1]["type"], "text", "{case}");
+                assert_eq!(content[1]["text"], words_block, "{case}");
+                assert_eq!(content.as_array().unwrap().len(), 2, "{case}");
+                // The latest author block still marks the cache.
+                assert_eq!(content[1]["cache_control"]["type"], "ephemeral");
+            }
+            (Provider::Anthropic, false) => {
+                let content = &body["messages"][0]["content"];
+                assert_eq!(content.as_array().unwrap().len(), 1, "{case}");
+                let only = content[0]["text"].as_str().unwrap();
+                assert!(
+                    only.starts_with(&format!(
+                        "{words}\n\n[The author attached an image (PNG, 32×24 px) here."
+                    )),
+                    "{case}: {only}"
+                );
+                assert_eq!(only.matches(cannot).count(), 2, "{case}: {only}");
+                assert!(!body.to_string().contains(&encoded));
+            }
+            (Provider::Openai | Provider::Chatgpt, _) => {
+                let mut expected = Vec::new();
+                let words_part = if words.is_empty() {
+                    not_included.to_owned()
+                } else {
+                    format!("{words}\n\n{not_included}")
+                };
+                expected.push(json!({"type":"input_text","text":words_part}));
+                expected.push(json!({"type":"input_image","image_url":format!("data:image/png;base64,{encoded}")}));
+                assert_eq!(body["input"][0]["role"], "user", "{case}");
+                assert_eq!(body["input"][0]["content"], json!(expected), "{case}");
+            }
+            (Provider::Deepseek, _) => {
+                let content = body["messages"][1]["content"].as_str().unwrap();
+                assert!(
+                    content.starts_with(&format!("{words}\n\n[The author attached")),
+                    "{case}"
+                );
+                assert_eq!(content.matches(cannot).count(), 2, "{case}: {content}");
+                assert!(!body.to_string().contains(&encoded), "{case}");
+            }
+            _ => unreachable!(),
+        }
+    }
 }

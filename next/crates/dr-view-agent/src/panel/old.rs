@@ -179,7 +179,7 @@ fn search_new(
         let mut turns = Vec::new();
         for (i, message) in snapshot.messages.iter().enumerate() {
             match &message.content {
-                MessageContent::User { text } => turns.push((i, Speaker::User, text.as_str())),
+                MessageContent::User { text, .. } => turns.push((i, Speaker::User, text.as_str())),
                 MessageContent::Assistant { message } => {
                     for block in &message.blocks {
                         if let ContentBlock::Text { text, .. } = block {

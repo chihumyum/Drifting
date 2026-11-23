@@ -95,7 +95,22 @@ pub fn request(request: &DriverRequest, search: bool) -> Result<Value> {
             && last_user.is_none_or(|i| position > i);
         match entry.kind {
             ConversationEntryKind::User => {
-                input.push(json!({"role":"user","content":string(&entry.payload,"text")?}))
+                let user = crate::images::user_content(entry, request, true)?;
+                if user.images.is_empty() {
+                    input.push(json!({"role":"user","content":user.text}))
+                } else {
+                    // Words, then images (OpenAI's images-and-vision guide).
+                    let mut content = Vec::new();
+                    if !user.text.is_empty() {
+                        content.push(json!({"type":"input_text","text":user.text}));
+                    }
+                    content.extend(
+                        user.images.iter().map(
+                            |image| json!({"type":"input_image","image_url":image.data_url()}),
+                        ),
+                    );
+                    input.push(json!({"role":"user","content":content}))
+                }
             }
             ConversationEntryKind::ToolResult => {
                 let output = entry
@@ -992,6 +1007,7 @@ mod request_tests {
                 access: ToolAccess::Read,
                 policy: ToolPolicy::Local,
             }],
+            images: Default::default(),
         }
     }
 

@@ -48,8 +48,10 @@ pub fn request(request: &DriverRequest, _search: bool) -> Result<Value> {
             && entry.turn == request.turn
             && last_user.is_none_or(|i| position > i);
         match entry.kind {
+            // DeepSeek's chat takes no images: each is a line of text.
             ConversationEntryKind::User => messages.push(json!({
-                "role": "user", "content": string(&entry.payload, "text")?,
+                "role": "user",
+                "content": crate::images::user_content(entry, request, false)?.text,
             })),
             ConversationEntryKind::Assistant => {
                 let message: AssistantMessage = serde_json::from_value(entry.payload.clone())
@@ -662,6 +664,7 @@ mod request_tests {
                 access: ToolAccess::Read,
                 policy: ToolPolicy::Local,
             }],
+            images: Default::default(),
         }
     }
     fn add_round(request: &mut DriverRequest, replay: bool) {
