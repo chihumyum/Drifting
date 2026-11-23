@@ -235,6 +235,9 @@
     "words": "字",
     "wordsCount": "{{count}} 字"
   },
+  "customModule": {
+    "countOf": "{{count}} 个{{name}}"
+  },
   "dashboard": {
     "today": {
       "streak": "连续写作",

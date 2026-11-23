@@ -1,0 +1,18 @@
+[package]
+name = "dr-view-module-look"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "A custom module's look (custom-modules.md §4): its box tree and a set of values drawn at one of three sizes, read-only or with the host's editing controls in its value nodes; no open book needed"
+
+[dependencies]
+dr-model.workspace = true
+dr-ui.workspace = true
+gpui.workspace = true
+
+[dev-dependencies]
+dr-testkit.workspace = true
+gpui = { workspace = true, features = ["test-support"] }
+gpui_platform = { workspace = true, features = ["runtime_shaders"] }

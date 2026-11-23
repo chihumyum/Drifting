@@ -239,6 +239,9 @@
     "words": "palabras",
     "wordsCount": "{{count}} palabras"
   },
+  "customModule": {
+    "countOf": "{{count}} {{name}}"
+  },
   "dashboard": {
     "today": {
       "streak": "Racha",

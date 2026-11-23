@@ -237,6 +237,9 @@
     "words": "Wörter",
     "wordsCount": "{{count}} Wörter"
   },
+  "customModule": {
+    "countOf": "{{count}} {{name}}"
+  },
   "dashboard": {
     "today": {
       "streak": "Serie",

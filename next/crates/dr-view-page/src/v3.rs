@@ -26,6 +26,7 @@ pub struct BodyModule {
 pub fn register(cx: &mut App) {
     crate::whole::register(cx);
     crate::media::register(cx);
+    crate::custom::register(cx);
     dr_shell::v3::add_module_view(cx, "prose", |host, window, cx| {
         let page = host.page.clone();
         let view = cx.new(|cx| BodyModule::new(host, window, cx));
