@@ -33,6 +33,9 @@
     "trashEmpty": "Keine kürzlich gelöschten Projekte.",
     "trashSub": "Projekte bleiben hier 30 Tage und werden dann endgültig gelöscht."
   },
+  "customModule": {
+    "countOf": "{{count}} {{name}}"
+  },
   "entrySnapshot": {
     "empty": "Noch keine Momentaufnahmen",
     "save": "Momentaufnahme speichern",

@@ -113,8 +113,26 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
                 + ws.sidebar_drawn_widths(Side::Right, window_w).1
         })
     .max(0.0);
+    // A module filling the middle column (CM2): the paper at the column's
+    // widest, the bottom panel put away.
+    ws.prune_module_fill(cx);
+    let module_filled = ws.filled_module().is_some();
+    let look = if module_filled {
+        EditorLook {
+            page_width: look
+                .page_width
+                .max(column_w - 2.0 * super::fill::MODULE_FILL_INSET),
+            ..look
+        }
+    } else {
+        look
+    };
     // The Bottom Panel takes the column's foot; the pages have the rest.
-    let panel = bottom::panel(ws, f32::from(viewport.height), window, cx);
+    let panel = if module_filled {
+        None
+    } else {
+        bottom::panel(ws, f32::from(viewport.height), window, cx)
+    };
     let fill_header = TITLEBAR_HEIGHT
         * ws.fill
             .progress(FillPlace::Left)

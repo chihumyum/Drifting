@@ -229,6 +229,9 @@
     "words": "자",
     "wordsCount": "{{count}}자"
   },
+  "customModule": {
+    "countOf": "{{name}} {{count}}개"
+  },
   "dashboard": {
     "today": {
       "streak": "연속 집필",

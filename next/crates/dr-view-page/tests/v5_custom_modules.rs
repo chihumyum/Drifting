@@ -1,0 +1,895 @@
+//! CM2 (`custom-modules.md` §4, §16 items 5 and 6) on GPUI's test platform:
+//! a custom module on its entry's page, filled in place through the page's
+//! controls and read back from the book; a list's items added, taken away
+//! and moved, nested lists too, each change one step of undo; a copy this
+//! build cannot read drawn as its name with the values untouched; a copy
+//! replaced while the page is open (its values kept, the words being typed
+//! kept); the module filling the middle column and leaving it; an entry
+//! name's hover card with the module's 一行. The modules are dr-testkit's
+//! samples (`fixtures/modules/`).
+
+use std::rc::Rc;
+use std::time::{Duration, Instant};
+
+use dr_shell::{
+    Services, SettingsFile, ShellInfo,
+    book::Book,
+    nav::{Open, Target},
+    pages::PageViewHost,
+    settings::registry,
+    v3::ModuleHost,
+    workspace::{FilledModule, ModuleFill},
+};
+use dr_ui::Appearance;
+use dr_view_page::custom::CustomModule;
+use dr_workspace::{Actor, Workspace, WorkspaceOptions, library_options};
+use gpui::{Entity, Modifiers, TestAppContext, VisualTestContext, WeakEntity, point, px, size};
+use loro::ExportMode;
+use serde_json::{Value, json};
+
+const FORESHADOWING: &str =
+    include_str!("../../dr-testkit/fixtures/modules/foreshadowing.driftingmodule");
+const ARC: &str = include_str!("../../dr-testkit/fixtures/modules/character-arc.driftingmodule");
+const CHRONOLOGY: &str =
+    include_str!("../../dr-testkit/fixtures/modules/world-chronology.driftingmodule");
+const MAGIC: &str = include_str!("../../dr-testkit/fixtures/modules/magic-rule.driftingmodule");
+
+struct Env {
+    dir: tempfile::TempDir,
+    ws: Workspace,
+    book: String,
+    entry: String,
+    /// My module's id.
+    module: String,
+}
+
+fn call(ws: &Workspace, name: &str, input: Value) -> Value {
+    ws.call(&Actor::User, name, input)
+        .unwrap_or_else(|e| panic!("{name}: {e}"))["output"]
+        .clone()
+}
+
+/// A book with a template `tpl-mod` drawing `raw` as module `mod-c` after a
+/// body, and an entry 「第一个」 of it.
+fn env(raw: &str) -> Env {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = dr_store::Library::open(dir.path().join("lib"), library_options("test")).unwrap();
+    let ws = Workspace::open(lib, WorkspaceOptions::default()).unwrap();
+    let book = call(&ws, "project.create", json!({"name": "自定义模块"}))["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let module = call(
+        &ws,
+        "custom_module.create",
+        json!({"value": serde_json::from_str::<Value>(raw).unwrap()}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    call(
+        &ws,
+        "entry_template.put",
+        json!({"book": book, "template": {
+            "id": "tpl-mod", "name": "有模块的", "modules": [
+                {"id": "mod-text", "kind": "prose", "name": "正文"},
+                {"id": "mod-c", "kind": "custom", "name": "自定义", "config": {"module": module}}
+            ]
+        }}),
+    );
+    let entry = call(
+        &ws,
+        "entry.create",
+        json!({"book": book, "title": "第一个", "template": "tpl-mod"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    Env {
+        dir,
+        ws,
+        book,
+        entry,
+        module,
+    }
+}
+
+fn read(e: &Env) -> Value {
+    call(
+        &e.ws,
+        "module.read_custom",
+        json!({"book": e.book, "entry": e.entry, "module": "mod-c"}),
+    )
+}
+
+fn shell_init(cx: &mut TestAppContext) {
+    cx.update(|cx| {
+        if cx.try_global::<dr_shell::strings::Strings>().is_none() {
+            dr_shell::init(
+                ShellInfo {
+                    app_name: "Drifting Next",
+                    bundle_id: "cc.drifting.next.dev",
+                    version: "0.2.0-dev",
+                    url_scheme: "drifting-next-dev",
+                    forced_appearance: Some(Appearance::Light),
+                },
+                Services::default(),
+                SettingsFile::in_memory(),
+                cx,
+            );
+            dr_view_page::init(cx);
+        }
+    });
+}
+
+fn draw(cx: &mut VisualTestContext) {
+    cx.run_until_parked();
+    cx.update(|window, cx| {
+        window.simulate_next_frame(cx);
+        window.draw(cx).clear(cx);
+    });
+    cx.run_until_parked();
+}
+
+/// Runs until the module has been read and nothing is left to store.
+fn settle(view: &Entity<CustomModule>, cx: &mut VisualTestContext) {
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        draw(cx);
+        if view.read_with(cx, |v, _| v.data().is_some() && v.is_settled()) {
+            return;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "the custom module did not settle"
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
+/// Runs until `done` holds for what the book reads, at most ten seconds.
+fn until(e: &Env, cx: &mut VisualTestContext, what: &str, done: impl Fn(&Value) -> bool) -> Value {
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        draw(cx);
+        let r = read(e);
+        if done(&r) {
+            return r;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "timed out waiting for {what}: {r}"
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
+fn open(cx: &mut TestAppContext, e: &Env) -> (Entity<CustomModule>, VisualTestContext) {
+    cx.executor().allow_parking();
+    shell_init(cx);
+    let book = Rc::new(Book::load(&e.ws, &e.book).unwrap());
+    let module = book
+        .v3()
+        .unwrap()
+        .template_of(&e.entry)
+        .unwrap()
+        .modules
+        .iter()
+        .find(|m| m.id == "mod-c")
+        .unwrap()
+        .clone();
+    let host = ModuleHost {
+        page: PageViewHost {
+            workspace: WeakEntity::new_invalid(),
+            library: e.ws.clone(),
+            book_id: e.book.clone(),
+            book,
+        },
+        entry: e.entry.clone(),
+        module,
+    };
+    let window = cx.add_window(|window, cx| CustomModule::new(host, window, cx));
+    let view = window.root(cx).unwrap();
+    let mut vcx = VisualTestContext::from_window(window.into(), cx);
+    vcx.update(|window, _| window.activate_window());
+    vcx.simulate_resize(size(px(900.0), px(1100.0)));
+    settle(&view, &mut vcx);
+    (view, vcx)
+}
+
+/// Where `selector` was drawn last (GPUI keeps selectors as `'static`
+/// strings; the tests' are made from ids, and kept for the test's life).
+fn bounds(cx: &mut VisualTestContext, selector: &str) -> Option<gpui::Bounds<gpui::Pixels>> {
+    let selector: &'static str = Box::leak(selector.to_owned().into_boxed_str());
+    cx.debug_bounds(selector)
+}
+
+fn click(cx: &mut VisualTestContext, selector: &str) {
+    draw(cx);
+    let at = bounds(cx, selector)
+        .unwrap_or_else(|| panic!("{selector} is drawn"))
+        .center();
+    cx.simulate_mouse_move(at, None, Modifiers::none());
+    draw(cx);
+    cx.simulate_click(at, Modifiers::none());
+    draw(cx);
+}
+
+/// The pointer on a module's title row (where its fill button shows).
+fn hover_title(cx: &mut VisualTestContext, module: &str) {
+    draw(cx);
+    let section = bounds(cx, &format!("v3-section-{module}"))
+        .unwrap_or_else(|| panic!("the section of {module} is drawn"));
+    let at = section.origin + point(px(40.0), px(20.0));
+    cx.simulate_mouse_move(at, None, Modifiers::none());
+    draw(cx);
+}
+
+fn hover(cx: &mut VisualTestContext, selector: &str) {
+    draw(cx);
+    let at = bounds(cx, selector)
+        .unwrap_or_else(|| panic!("{selector} is drawn"))
+        .center();
+    cx.simulate_mouse_move(at, None, Modifiers::none());
+    draw(cx);
+}
+
+/// Types `text` into the field of the value at `key` (as `custom-field-…`
+/// names it), then leaves it with `leave` (a key, or a blur).
+fn type_into(cx: &mut VisualTestContext, key: &str, text: &str, leave: Option<&str>) {
+    click(cx, &format!("custom-field-{key}"));
+    cx.simulate_input(text);
+    draw(cx);
+    match leave {
+        Some(keys) => cx.simulate_keystrokes(keys),
+        None => cx.update(|window, cx| window.blur(cx)),
+    }
+    draw(cx);
+}
+
+/// Opens the choice list on the value at `key` and picks row `row`.
+fn pick(cx: &mut VisualTestContext, key: &str, row: usize) {
+    click(cx, &format!("custom-value-{key}"));
+    pick_row(cx, row);
+}
+
+/// Picks row `row` of the open choice list, scrolled into view first (a
+/// list taller than its 280 px scrolls, as a select's does).
+fn pick_row(cx: &mut VisualTestContext, row: usize) {
+    let selector = format!("custom-menu-row-{row}");
+    for _ in 0..40 {
+        draw(cx);
+        let list = bounds(cx, "custom-menu-scroll").expect("the choice list is open");
+        let b = bounds(cx, &selector).unwrap_or_else(|| panic!("{selector} is in the list"));
+        let dy = if b.bottom() > list.bottom() {
+            list.bottom() - b.bottom()
+        } else if b.top() < list.top() {
+            list.top() - b.top()
+        } else {
+            break;
+        };
+        cx.simulate_mouse_move(list.center(), None, Modifiers::none());
+        cx.simulate_event(gpui::ScrollEvent {
+            position: list.center(),
+            delta: gpui::ScrollDelta::Pixels(point(px(0.0), dy)),
+            ..Default::default()
+        });
+    }
+    click(cx, &selector);
+}
+
+fn values(r: &Value) -> &Value {
+    &r["values"]
+}
+
+#[gpui::test]
+fn every_kind_of_block_is_filled_in_place_and_reads_back(cx: &mut TestAppContext) {
+    let e = env(MAGIC);
+    let png = e.dir.path().join("seal.png");
+    std::fs::write(&png, dr_testkit::media::png(8, 8)).unwrap();
+    let asset = dr_view_material::import::import_path(&e.ws, &e.book, None, &png)
+        .unwrap()
+        .material;
+    let (view, mut cx) = open(cx, &e);
+    let cx = &mut cx;
+    assert_eq!(values(&read(&e)), &json!({}));
+
+    // 一段字: stored when the field is left.
+    type_into(cx, "rules", "只在起雾的夜里有效。", None);
+    let r = until(&e, cx, "rules", |r| !values(r)["rules"].is_null());
+    assert_eq!(
+        values(&r)["rules"],
+        json!({"type": "long_text", "value": "只在起雾的夜里有效。"})
+    );
+    // 一行字 inside a group: Enter stores it.
+    type_into(cx, "price", "一段记忆", Some("enter"));
+    let r = until(&e, cx, "price", |r| !values(r)["price"].is_null());
+    assert_eq!(values(&r)["price"]["value"], "一段记忆");
+
+    // 单选, shown as words: picked from its list (row 0 is 「未设置」).
+    pick(cx, "school", 2);
+    let r = until(&e, cx, "school", |r| !values(r)["school"].is_null());
+    assert_eq!(
+        values(&r)["school"],
+        json!({"type": "select", "value": "林"})
+    );
+    // 单选, shown as a mark.
+    pick(cx, "risk", 3);
+    let r = until(&e, cx, "risk", |r| !values(r)["risk"].is_null());
+    assert_eq!(values(&r)["risk"]["value"], "高");
+    // 「未设置」 clears it.
+    pick(cx, "risk", 0);
+    until(&e, cx, "risk cleared", |r| values(r)["risk"].is_null());
+
+    // 勾选: a press turns it.
+    click(cx, "custom-value-forbidden");
+    let r = until(&e, cx, "forbidden", |r| !values(r)["forbidden"].is_null());
+    assert_eq!(
+        values(&r)["forbidden"],
+        json!({"type": "toggle", "value": true})
+    );
+    click(cx, "custom-value-forbidden");
+    until(&e, cx, "forbidden off", |r| {
+        values(r)["forbidden"]["value"] == false
+    });
+
+    // A number shown as dots is typed into while it is pressed.
+    click(cx, "custom-value-power");
+    settle(&view, cx);
+    cx.simulate_input("4");
+    cx.simulate_keystrokes("enter");
+    let r = until(&e, cx, "power", |r| !values(r)["power"].is_null());
+    assert_eq!(values(&r)["power"], json!({"type": "number", "value": 4.0}));
+    draw(cx);
+    assert!(
+        cx.debug_bounds("custom-field-power").is_none(),
+        "the dots are back once it is stored"
+    );
+    // Words that are no number are not stored.
+    click(cx, "custom-value-power");
+    settle(&view, cx);
+    cx.simulate_input("很强");
+    cx.simulate_keystrokes("enter");
+    draw(cx);
+    assert_eq!(values(&read(&e))["power"]["value"], 4.0);
+    assert!(
+        cx.debug_bounds("custom-field-power").is_some(),
+        "the field stays while what is in it is no number"
+    );
+    // Esc puts the stored number back, and the dots.
+    cx.simulate_keystrokes("escape");
+    settle(&view, cx);
+    assert!(cx.debug_bounds("custom-field-power").is_none());
+    assert_eq!(values(&read(&e))["power"]["value"], 4.0);
+
+    // 图片: one of the book's images.
+    pick(cx, "seal", 1);
+    let r = until(&e, cx, "seal", |r| !values(r)["seal"].is_null());
+    assert_eq!(values(&r)["seal"], json!({"type": "image", "value": asset}));
+
+    // 铺满 lays out 多选 and 日期 too.
+    cx.update(|_, cx| {
+        cx.set_global(FilledModule(Some(ModuleFill {
+            entry: e.entry.clone(),
+            module: "mod-c".into(),
+        })))
+    });
+    draw(cx);
+    pick(cx, "schools", 0);
+    until(&e, cx, "schools", |r| !values(r)["schools"].is_null());
+    pick(cx, "schools", 3);
+    let r = until(&e, cx, "two schools", |r| {
+        values(r)["schools"]["value"].as_array().map(Vec::len) == Some(2)
+    });
+    assert_eq!(values(&r)["schools"]["value"], json!(["风", "山"]));
+    type_into(cx, "since", "2026-11-24", Some("enter"));
+    let r = until(&e, cx, "since", |r| !values(r)["since"].is_null());
+    assert_eq!(
+        values(&r)["since"],
+        json!({"type": "date", "value": "2026-11-24"})
+    );
+    // The words typed earlier are the field's words now.
+    let rules = view.read_with(cx, |v, cx| v.input(&[], "rules").unwrap().read(cx).text());
+    assert_eq!(rules, "只在起雾的夜里有效。");
+    settle(&view, cx);
+}
+
+#[gpui::test]
+fn list_items_are_added_taken_away_and_moved_each_one_step_of_undo(cx: &mut TestAppContext) {
+    let e = env(CHRONOLOGY);
+    let other = call(
+        &e.ws,
+        "entry.create",
+        json!({"book": e.book, "title": "北渡", "template": "tpl-mod"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let (view, mut cx) = open(cx, &e);
+    let cx = &mut cx;
+    let items = |r: &Value, list: &str| {
+        r["values"][list]["value"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default()
+    };
+
+    click(cx, "custom-add-eras");
+    let r = until(&e, cx, "an era", |r| items(r, "eras").len() == 1);
+    let era = items(&r, "eras")[0]["id"].as_str().unwrap().to_owned();
+    settle(&view, cx);
+    type_into(cx, &format!("eras:{era}/era"), "雾纪", Some("enter"));
+    until(&e, cx, "the era's name", |r| {
+        items(r, "eras")[0]["values"]["era"]["value"] == "雾纪"
+    });
+
+    // A list inside the item's list.
+    for n in 1..=3 {
+        click(cx, &format!("custom-add-eras:{era}/events"));
+        until(&e, cx, "an event", |r| {
+            items(r, "eras")[0]["values"]["events"]["value"]
+                .as_array()
+                .map(Vec::len)
+                == Some(n)
+        });
+        settle(&view, cx);
+    }
+    let events = |r: &Value| -> Vec<String> {
+        items(r, "eras")[0]["values"]["events"]["value"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|i| i["id"].as_str().unwrap().to_owned())
+            .collect()
+    };
+    let order = events(&read(&e));
+    for (i, id) in order.iter().enumerate() {
+        type_into(
+            cx,
+            &format!("eras:{era}/events:{id}/year"),
+            &format!("{}", (i + 1) * 10),
+            Some("enter"),
+        );
+    }
+    until(&e, cx, "three years", |r| {
+        items(r, "eras")[0]["values"]["events"]["value"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|i| !i["values"]["year"].is_null())
+    });
+    // 条目: the entries of the book, picked (row 0 is 「未设置」).
+    let first = &order[0];
+    click(cx, &format!("custom-value-eras:{era}/events:{first}/where"));
+    let row = {
+        let v3 = Book::load(&e.ws, &e.book).unwrap();
+        let live: Vec<String> = v3
+            .v3()
+            .unwrap()
+            .entries
+            .iter()
+            .filter(|x| x.deleted_at.is_none())
+            .map(|x| x.id.clone())
+            .collect();
+        1 + live.iter().position(|x| *x == other).unwrap()
+    };
+    pick_row(cx, row);
+    let r = until(&e, cx, "where", |r| {
+        !items(r, "eras")[0]["values"]["events"]["value"][0]["values"]["where"].is_null()
+    });
+    assert_eq!(
+        items(&r, "eras")[0]["values"]["events"]["value"][0]["values"]["where"],
+        json!({"type": "entry", "value": [other]})
+    );
+
+    // Moved: the last event first; its values go with it.
+    let path = vec![dr_model::custom_module::values::ItemStep {
+        list: "eras".into(),
+        item: era.clone(),
+    }];
+    view.update(cx, |v, cx| v.move_item(path, "events", &order[2], 0, cx));
+    let r = until(&e, cx, "the move", |r| events(r)[0] == order[2]);
+    assert_eq!(
+        events(&r),
+        [order[2].clone(), order[0].clone(), order[1].clone()]
+    );
+    assert_eq!(
+        items(&r, "eras")[0]["values"]["events"]["value"][0]["values"]["year"]["value"],
+        30.0
+    );
+    // ⌘Z puts it back, in one step.
+    e.ws.undo(&Actor::User).unwrap().unwrap();
+    let r = until(&e, cx, "the move undone", |r| events(r)[0] == order[0]);
+    assert_eq!(events(&r), order);
+
+    // Taken away from where it is (its button shows while the pointer is on it).
+    let second = order[1].clone();
+    hover(cx, &format!("custom-item-{second}"));
+    click(cx, &format!("custom-item-remove-{second}"));
+    let r = until(&e, cx, "the removal", |r| events(r).len() == 2);
+    assert!(!events(&r).contains(&second));
+    e.ws.undo(&Actor::User).unwrap().unwrap();
+    let r = until(&e, cx, "the removal undone", |r| events(r).len() == 3);
+    assert_eq!(events(&r), order);
+    assert_eq!(
+        items(&r, "eras")[0]["values"]["events"]["value"][1]["values"]["year"]["value"],
+        20.0,
+        "what it kept comes back with it"
+    );
+    settle(&view, cx);
+}
+
+/// 人物弧光: items side by side with arrows between them, a select drawn as
+/// a mark and as words (one choice list for both), several lines of words
+/// in an item, a number as dots outside the list.
+#[gpui::test]
+fn a_row_of_items_with_marks_and_words_is_filled_in(cx: &mut TestAppContext) {
+    let e = env(ARC);
+    let (view, mut cx) = open(cx, &e);
+    let cx = &mut cx;
+    type_into(cx, "want", "找回那块怀表", Some("enter"));
+    until(&e, cx, "want", |r| {
+        r["values"]["want"]["value"] == "找回那块怀表"
+    });
+    click(cx, "custom-add-turns");
+    let r = until(&e, cx, "a turn", |r| {
+        r["values"]["turns"]["value"].as_array().map(Vec::len) == Some(1)
+    });
+    let turn = r["values"]["turns"]["value"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    settle(&view, cx);
+    // 起点、动摇、转折、新我: row 0 is 「未设置」.
+    pick(cx, &format!("turns:{turn}/stage"), 3);
+    until(&e, cx, "the stage", |r| {
+        r["values"]["turns"]["value"][0]["values"]["stage"]["value"] == "转折"
+    });
+    type_into(
+        cx,
+        &format!("turns:{turn}/what"),
+        "在钟楼下认出了父亲",
+        None,
+    );
+    let r = until(&e, cx, "what happened", |r| {
+        !r["values"]["turns"]["value"][0]["values"]["what"].is_null()
+    });
+    assert_eq!(
+        r["values"]["turns"]["value"][0]["values"]["what"],
+        json!({"type": "long_text", "value": "在钟楼下认出了父亲"})
+    );
+    click(cx, "custom-value-resolve");
+    settle(&view, cx);
+    cx.simulate_input("3");
+    cx.simulate_keystrokes("enter");
+    until(&e, cx, "resolve", |r| {
+        r["values"]["resolve"]["value"] == 3.0
+    });
+    settle(&view, cx);
+}
+
+/// A copy this build cannot read: its name alone, nothing to fill in, the
+/// values untouched byte for byte.
+#[gpui::test]
+fn a_broken_copy_is_its_name_and_its_values_stay(cx: &mut TestAppContext) {
+    let e = env(FORESHADOWING);
+    let target = json!({"book": e.book, "entry": e.entry, "module": "mod-c"});
+    let mut add = target.clone();
+    add["list"] = json!("items");
+    let item = call(&e.ws, "module.add_custom_item", add)["item"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let mut set = target.clone();
+    set["path"] = json!([{"list": "items", "item": item}]);
+    set["block"] = json!("line");
+    set["value"] = json!("旧照片");
+    call(&e.ws, "module.set_custom_value", set);
+    // A newer build's copy arrives from another device, and my modules no
+    // longer have it (CM1's `a_broken_copy_reads_as_broken…`).
+    call(&e.ws, "custom_module.remove", json!({"id": e.module}));
+    let raw =
+        e.ws.library()
+            .load_copy(&format!("book:{}", e.book))
+            .unwrap();
+    let before = raw.oplog_vv();
+    raw.set_peer_id(4242).unwrap();
+    let newer = FORESHADOWING.replace("\"formatVersion\": 1", "\"formatVersion\": 3");
+    let record: std::collections::HashMap<String, loro::LoroValue> = [
+        ("value".to_owned(), loro::LoroValue::from(newer.as_str())),
+        ("source".to_owned(), loro::LoroValue::from("library")),
+    ]
+    .into_iter()
+    .collect();
+    raw.get_map("modules")
+        .insert(&e.module, loro::LoroValue::from(record))
+        .unwrap();
+    raw.commit();
+    let bytes = raw.export(ExportMode::updates(&before)).unwrap();
+    e.ws.import_remote(&format!("book:{}", e.book), None, bytes, &Actor::Sync)
+        .unwrap();
+    // The whole book document, as it is stored.
+    let entries = |e: &Env| {
+        let doc =
+            e.ws.library()
+                .load_copy(&format!("book:{}", e.book))
+                .unwrap();
+        serde_json::to_string(&doc.get_deep_value()).unwrap()
+    };
+    let stored = entries(&e);
+    assert!(stored.contains("旧照片"));
+
+    let (view, mut cx) = open(cx, &e);
+    let cx = &mut cx;
+    assert_eq!(view.read_with(cx, |v, _| v.is_broken()), Some(true));
+    draw(cx);
+    assert!(cx.debug_bounds("module-placeholder").is_some());
+    assert!(
+        bounds(cx, &format!("custom-field-items:{item}/line")).is_none(),
+        "nothing to fill in"
+    );
+    assert!(cx.debug_bounds("custom-add-items").is_none());
+    assert_eq!(entries(&e), stored, "the values are as they were");
+}
+
+/// My module changed while its entry's page is open: the page takes the new
+/// copy at once, every value stays, and the words being typed stay.
+#[gpui::test]
+fn a_replaced_copy_redraws_at_once_and_keeps_values_and_typing(cx: &mut TestAppContext) {
+    let e = env(FORESHADOWING);
+    let (view, mut cx) = open(cx, &e);
+    let cx = &mut cx;
+    click(cx, "custom-add-items");
+    let r = until(&e, cx, "an item", |r| {
+        r["values"]["items"]["value"].as_array().map(Vec::len) == Some(1)
+    });
+    let item = r["values"]["items"]["value"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    settle(&view, cx);
+    type_into(
+        cx,
+        &format!("items:{item}/line"),
+        "墙上的旧照片",
+        Some("enter"),
+    );
+    until(&e, cx, "the line", |r| {
+        r["values"]["items"]["value"][0]["values"]["line"]["value"] == "墙上的旧照片"
+    });
+    pick(cx, &format!("items:{item}/st"), 2);
+    until(&e, cx, "the state", |r| {
+        r["values"]["items"]["value"][0]["values"]["st"]["value"] == "提过"
+    });
+    // Typing, not stored yet.
+    click(cx, &format!("custom-field-items:{item}/line"));
+    cx.simulate_input("，少了一个人");
+    draw(cx);
+
+    // In the workbench (or on another device): a block 「提过在」 added to
+    // each item and drawn after the line.
+    let mut changed: Value = serde_json::from_str(FORESHADOWING).unwrap();
+    changed["blocks"][0]["blocks"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"id": "seen", "type": "entry", "name": "提过在"}));
+    changed["look"]["block"]["item"]["kids"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"value": "seen", "size": "small"}));
+    call(
+        &e.ws,
+        "custom_module.update",
+        json!({"id": e.module, "value": changed}),
+    );
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        draw(cx);
+        let has = view.read_with(cx, |v, _| {
+            v.data()
+                .and_then(|d| d.value.as_ref())
+                .is_some_and(|m| m.block("seen").is_some())
+        });
+        if has {
+            break;
+        }
+        assert!(Instant::now() < deadline, "the new copy was not drawn");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    draw(cx);
+    assert!(
+        bounds(cx, &format!("custom-value-items:{item}/seen")).is_some(),
+        "the new block is on the page"
+    );
+    let r = read(&e);
+    assert_eq!(
+        r["values"]["items"]["value"][0]["values"]["st"]["value"],
+        "提过"
+    );
+    let typed = view.read_with(cx, |v, cx| {
+        v.input(&[("items", item.as_str())], "line")
+            .unwrap()
+            .read(cx)
+            .text()
+    });
+    assert_eq!(
+        typed, "墙上的旧照片，少了一个人",
+        "what is being typed stays"
+    );
+    cx.simulate_keystrokes("enter");
+    until(&e, cx, "the typed words", |r| {
+        r["values"]["items"]["value"][0]["values"]["line"]["value"] == "墙上的旧照片，少了一个人"
+    });
+    settle(&view, cx);
+}
+
+fn workspace<'a>(
+    cx: &'a mut TestAppContext,
+    e: &Env,
+) -> (Entity<dr_shell::Workspace>, &'a mut VisualTestContext) {
+    cx.executor().allow_parking();
+    let lib = e.ws.clone();
+    cx.update(|cx| {
+        dr_shell::init(
+            ShellInfo {
+                app_name: "Drifting Next",
+                bundle_id: "cc.drifting.next.dev",
+                version: "0.2.0-dev",
+                url_scheme: "drifting-next-dev",
+                forced_appearance: Some(Appearance::Light),
+            },
+            Services {
+                deep_links: None,
+                crash_reports: None,
+                library: Some(lib),
+                library_failure: None,
+                book: Some(e.book.clone()),
+            },
+            SettingsFile::in_memory(),
+            cx,
+        );
+        dr_view_page::init(cx);
+        dr_shell::Settings::update(cx, |f| f.set(registry::REDUCE_MOTION, json!(true), None))
+            .unwrap();
+    });
+    let (view, cx) = cx.add_window_view(dr_shell::Workspace::new);
+    cx.simulate_resize(size(px(1440.0), px(900.0)));
+    (view, cx)
+}
+
+/// The module fills the middle column from its own button: the page is its
+/// head and that module, at the column's widest; Esc leaves, and so does the
+/// button.
+#[gpui::test]
+fn the_module_fills_the_middle_column_and_esc_leaves(cx: &mut TestAppContext) {
+    let e = env(CHRONOLOGY);
+    let (view, cx) = workspace(cx, &e);
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while view.read_with(cx, |ws, _| ws.book.v3().is_none()) {
+        assert!(Instant::now() < deadline, "the book did not open");
+        draw(cx);
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let target = Target::Entry {
+        id: e.entry.parse().unwrap(),
+        module: None,
+    };
+    view.update(cx, |ws, cx| ws.open(target.clone(), Open::KEEP, cx));
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        draw(cx);
+        if cx.debug_bounds("custom-module").is_some()
+            && cx.debug_bounds("v3-section-mod-text").is_some()
+        {
+            break;
+        }
+        assert!(Instant::now() < deadline, "the entry page did not show");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let paper = |cx: &mut VisualTestContext| {
+        cx.debug_bounds("custom-module")
+            .map(|b| f32::from(b.size.width))
+            .unwrap_or(0.0)
+    };
+    let narrow = paper(cx);
+    hover_title(cx, "mod-c");
+    click(cx, "custom-module-fill");
+    assert_eq!(
+        view.read_with(cx, |ws, _| ws.filled_module().cloned()),
+        Some(ModuleFill {
+            entry: e.entry.clone(),
+            module: "mod-c".into()
+        })
+    );
+    draw(cx);
+    assert!(
+        cx.debug_bounds("v3-section-mod-text").is_none(),
+        "filled, the page is the module alone"
+    );
+    assert!(paper(cx) > narrow + 100.0, "{narrow} → {}", paper(cx));
+    assert!(
+        cx.debug_bounds("bottom-panel-grip").is_none(),
+        "the bottom panel is put away"
+    );
+    // Esc leaves.
+    cx.simulate_keystrokes("escape");
+    draw(cx);
+    assert_eq!(
+        view.read_with(cx, |ws, _| ws.filled_module().cloned()),
+        None
+    );
+    assert!(cx.debug_bounds("v3-section-mod-text").is_some());
+    // So does the button, pressed again; and a panel's fill takes over.
+    hover_title(cx, "mod-c");
+    click(cx, "custom-module-fill");
+    assert!(view.read_with(cx, |ws, _| ws.filled_module().is_some()));
+    click(cx, "custom-module-fill");
+    assert!(view.read_with(cx, |ws, _| ws.filled_module().is_none()));
+    hover_title(cx, "mod-c");
+    click(cx, "custom-module-fill");
+    view.update_in(cx, |ws, window, cx| {
+        assert!(ws.enter_fill(dr_shell::workspace::FillPlace::Bottom, window, cx));
+        assert!(ws.filled_module().is_none(), "one fill at a time");
+    });
+    let _ = point(px(0.0), px(0.0));
+}
+
+/// An entry name's hover card: under the synopsis, one 一行 for each custom
+/// module whose copy can be read, with the entry's values.
+#[gpui::test]
+fn an_entry_names_hover_card_has_the_modules_line(cx: &mut TestAppContext) {
+    let e = env(FORESHADOWING);
+    let target = json!({"book": e.book, "entry": e.entry, "module": "mod-c"});
+    for _ in 0..3 {
+        let mut add = target.clone();
+        add["list"] = json!("items");
+        call(&e.ws, "module.add_custom_item", add);
+    }
+    let link = dr_text::autolink::LinkTarget {
+        kind: dr_model::kind::EntityKind::Entry,
+        id: e.entry.clone(),
+    };
+    let facts = dr_editor::link_card::card_facts(&e.ws, &e.book, &link).expect("a card");
+    assert_eq!(facts.lines.len(), 1);
+    let line = &facts.lines[0];
+    assert_eq!(line.module, "mod-c");
+    assert_eq!(line.values.lists["items"].len(), 3);
+    struct Zh;
+    impl dr_view_module_look::Words for Zh {
+        fn count_of(&self, count: usize, list: &str) -> String {
+            format!("{count} 个{list}")
+        }
+    }
+    let laid = dr_view_module_look::plan::plan(
+        &line.value,
+        &line.values,
+        dr_model::custom_module::LookSize::Line,
+        &Zh,
+    );
+    let count = laid.root.values()[0].clone();
+    assert_eq!(count.content, dr_view_module_look::Content::Count(3));
+    assert_eq!(count.suffix.as_deref(), Some(" 处伏笔"));
+
+    // The card draws it.
+    shell_init(cx);
+    struct Card(dr_editor::link_card::CardFacts);
+    impl gpui::Render for Card {
+        fn render(
+            &mut self,
+            _: &mut gpui::Window,
+            _: &mut gpui::Context<Self>,
+        ) -> impl gpui::IntoElement {
+            use gpui::{InteractiveElement as _, ParentElement as _};
+            gpui::div()
+                .debug_selector(|| "card".into())
+                .child(dr_editor::link_card::card_element(&self.0))
+        }
+    }
+    let (_, vcx) = cx.add_window_view(move |_, _| Card(facts));
+    draw(vcx);
+    assert!(vcx.debug_bounds("card").is_some());
+    let drawn = vcx
+        .debug_bounds("module-line")
+        .expect("the module's line is in the card");
+    assert!(drawn.size.height > px(0.0));
+}

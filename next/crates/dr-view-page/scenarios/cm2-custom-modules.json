@@ -1,0 +1,1405 @@
+{
+  "about": "CM2 条目模块自定义：副屏 lite 真窗口。一个条目模板放伏笔追踪、魔法规则卡、世界观年表三个样本模块，人物模板放人物弧光；条目页上就地填几种积木、加一项、拖动挪一项、串里套串、铺满再 Esc 退出，浅深色各截图。",
+  "steps": [
+    {
+      "seed": "lite"
+    },
+    {
+      "call": "book.list",
+      "input": {},
+      "save": "books"
+    },
+    {
+      "call": "custom_module.create",
+      "input": {
+        "value": {
+          "format": "drifting.module",
+          "formatVersion": 1,
+          "name": "伏笔追踪",
+          "locale": "zh-Hans",
+          "credit": {
+            "author": "示例作者"
+          },
+          "blocks": [
+            {
+              "id": "items",
+              "type": "list",
+              "name": "伏笔",
+              "blocks": [
+                {
+                  "id": "line",
+                  "type": "text",
+                  "name": "一句话"
+                },
+                {
+                  "id": "st",
+                  "type": "select",
+                  "name": "状态",
+                  "options": [
+                    "埋着",
+                    "提过",
+                    "收了"
+                  ]
+                },
+                {
+                  "id": "back",
+                  "type": "entry",
+                  "name": "收在"
+                }
+              ]
+            }
+          ],
+          "look": {
+            "block": {
+              "each": "items",
+              "dir": "col",
+              "sep": "hair",
+              "item": {
+                "box": "row",
+                "gap": 8,
+                "align": "center",
+                "kids": [
+                  {
+                    "value": "st",
+                    "show": "mark"
+                  },
+                  {
+                    "value": "line",
+                    "font": "serif",
+                    "ink": 1,
+                    "width": "fill"
+                  },
+                  {
+                    "box": "row",
+                    "gap": 4,
+                    "width": "hug",
+                    "kids": [
+                      {
+                        "text": "收在"
+                      },
+                      {
+                        "value": "back",
+                        "size": "small"
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            "line": {
+              "box": "row",
+              "gap": 8,
+              "kids": [
+                {
+                  "value": "items",
+                  "show": "count",
+                  "suffix": " 处伏笔"
+                }
+              ]
+            }
+          },
+          "agent": {
+            "name": "伏笔追踪",
+            "description": "这一章埋下的伏笔，和它们后来在哪里被收回。",
+            "instructions": "只登记作者写进正文的伏笔；收回要指到具体的章。",
+            "blocks": {
+              "back": "在哪一章收回",
+              "items": "一条伏笔一行",
+              "st": "埋着、提过、收了"
+            }
+          },
+          "sample": {
+            "items": [
+              {
+                "back": [
+                  "第十二章"
+                ],
+                "line": "墙上的旧照片少了一个人",
+                "st": "收了"
+              },
+              {
+                "line": "钟楼的钟慢了七分钟",
+                "st": "埋着"
+              }
+            ]
+          }
+        }
+      },
+      "save": "fore"
+    },
+    {
+      "call": "custom_module.create",
+      "input": {
+        "value": {
+          "format": "drifting.module",
+          "formatVersion": 1,
+          "name": "魔法规则卡",
+          "locale": "zh-Hans",
+          "blocks": [
+            {
+              "id": "power",
+              "type": "number",
+              "name": "强度"
+            },
+            {
+              "id": "school",
+              "type": "select",
+              "name": "流派",
+              "options": [
+                "风",
+                "林",
+                "火",
+                "山"
+              ]
+            },
+            {
+              "id": "schools",
+              "type": "multi_select",
+              "name": "相通",
+              "options": [
+                "风",
+                "林",
+                "火",
+                "山"
+              ]
+            },
+            {
+              "id": "cost",
+              "type": "group",
+              "name": "代价",
+              "blocks": [
+                {
+                  "id": "price",
+                  "type": "text",
+                  "name": "要付出"
+                },
+                {
+                  "id": "risk",
+                  "type": "select",
+                  "name": "风险",
+                  "options": [
+                    "低",
+                    "中",
+                    "高"
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "forbidden",
+              "type": "toggle",
+              "name": "禁术"
+            },
+            {
+              "id": "since",
+              "type": "date",
+              "name": "立规"
+            },
+            {
+              "id": "seal",
+              "type": "image",
+              "name": "符印"
+            },
+            {
+              "id": "rules",
+              "type": "long_text",
+              "name": "规则"
+            }
+          ],
+          "look": {
+            "block": {
+              "box": "grid",
+              "gap": 12,
+              "pad": 16,
+              "border": "sand",
+              "bg": "paper",
+              "radius": 4,
+              "deco": "arc",
+              "cols": [
+                "fill",
+                96
+              ],
+              "kids": [
+                {
+                  "box": "col",
+                  "gap": 8,
+                  "kids": [
+                    {
+                      "box": "row",
+                      "gap": 8,
+                      "align": "center",
+                      "kids": [
+                        {
+                          "mark": "lightbulb"
+                        },
+                        {
+                          "value": "school",
+                          "font": "serif",
+                          "size": "title"
+                        },
+                        {
+                          "value": "power",
+                          "show": "dots"
+                        }
+                      ]
+                    },
+                    {
+                      "value": "rules",
+                      "lines": 4
+                    },
+                    {
+                      "box": "row",
+                      "gap": 4,
+                      "kids": [
+                        {
+                          "text": "代价",
+                          "size": "small",
+                          "ink": 3
+                        },
+                        {
+                          "value": "price",
+                          "size": "small"
+                        },
+                        {
+                          "value": "risk",
+                          "show": "mark"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "box": "col",
+                  "gap": 4,
+                  "align": "end",
+                  "kids": [
+                    {
+                      "value": "seal"
+                    },
+                    {
+                      "value": "forbidden",
+                      "size": "note"
+                    }
+                  ]
+                }
+              ]
+            },
+            "full": {
+              "box": "col",
+              "gap": 16,
+              "pad": 24,
+              "max": 320,
+              "kids": [
+                {
+                  "value": "school",
+                  "font": "serif",
+                  "size": "title"
+                },
+                {
+                  "value": "schools"
+                },
+                {
+                  "value": "rules"
+                },
+                {
+                  "value": "since",
+                  "size": "small",
+                  "ink": 3
+                }
+              ]
+            }
+          },
+          "agent": {
+            "description": "一种魔法的规则：能做什么，要付出什么。",
+            "instructions": "规则只写书里已经出现过的；没出现的留空。",
+            "blocks": {
+              "cost": "代价一栏两样都填",
+              "power": "一到五"
+            }
+          },
+          "sample": {
+            "forbidden": false,
+            "power": 4.0,
+            "price": "一段记忆",
+            "risk": "高",
+            "rules": "只在起雾的夜里有效。\n念错一个字，钟会停。",
+            "school": "风",
+            "schools": [
+              "风",
+              "山"
+            ],
+            "since": "2024-03-01"
+          }
+        }
+      },
+      "save": "magic"
+    },
+    {
+      "call": "custom_module.create",
+      "input": {
+        "value": {
+          "format": "drifting.module",
+          "formatVersion": 1,
+          "name": "世界观年表",
+          "locale": "zh-Hans",
+          "blocks": [
+            {
+              "id": "eras",
+              "type": "list",
+              "name": "纪元",
+              "blocks": [
+                {
+                  "id": "era",
+                  "type": "text",
+                  "name": "纪元"
+                },
+                {
+                  "id": "span",
+                  "type": "text",
+                  "name": "起止"
+                },
+                {
+                  "id": "events",
+                  "type": "list",
+                  "name": "事件",
+                  "blocks": [
+                    {
+                      "id": "year",
+                      "type": "number",
+                      "name": "年"
+                    },
+                    {
+                      "id": "event",
+                      "type": "text",
+                      "name": "事件"
+                    },
+                    {
+                      "id": "where",
+                      "type": "entry",
+                      "name": "在哪"
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "look": {
+            "block": {
+              "each": "eras",
+              "dir": "col",
+              "gap": 16,
+              "sep": "axis",
+              "item": {
+                "box": "col",
+                "gap": 8,
+                "kids": [
+                  {
+                    "box": "row",
+                    "gap": 8,
+                    "kids": [
+                      {
+                        "value": "era",
+                        "font": "serif",
+                        "size": "title"
+                      },
+                      {
+                        "value": "span",
+                        "size": "small",
+                        "ink": 3
+                      }
+                    ]
+                  },
+                  {
+                    "each": "events",
+                    "dir": "col",
+                    "gap": 4,
+                    "item": {
+                      "box": "grid",
+                      "gap": 8,
+                      "cols": [
+                        64,
+                        "fill",
+                        120
+                      ],
+                      "kids": [
+                        {
+                          "value": "year",
+                          "font": "mono",
+                          "size": "small"
+                        },
+                        {
+                          "value": "event"
+                        },
+                        {
+                          "value": "where",
+                          "size": "small",
+                          "ink": 2
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "line": {
+              "box": "row",
+              "gap": 8,
+              "kids": [
+                {
+                  "value": "eras",
+                  "show": "count",
+                  "suffix": " 个纪元"
+                }
+              ]
+            }
+          },
+          "agent": {
+            "name": "世界观年表",
+            "instructions": "年份按书里的纪年写，不换算成公元。"
+          },
+          "sample": {
+            "eras": [
+              {
+                "era": "雾纪",
+                "events": [
+                  {
+                    "event": "第一座钟楼建成",
+                    "year": 12.0
+                  },
+                  {
+                    "event": "大雾",
+                    "where": [
+                      "北渡"
+                    ],
+                    "year": 87.0
+                  }
+                ],
+                "span": "1–120"
+              },
+              {
+                "era": "钟纪",
+                "span": "121–"
+              }
+            ]
+          }
+        }
+      },
+      "save": "chrono"
+    },
+    {
+      "call": "custom_module.create",
+      "input": {
+        "value": {
+          "format": "drifting.module",
+          "formatVersion": 1,
+          "name": "人物弧光",
+          "locale": "zh-Hans",
+          "blocks": [
+            {
+              "id": "want",
+              "type": "text",
+              "name": "想要"
+            },
+            {
+              "id": "need",
+              "type": "text",
+              "name": "需要"
+            },
+            {
+              "id": "resolve",
+              "type": "number",
+              "name": "坚定"
+            },
+            {
+              "id": "turns",
+              "type": "list",
+              "name": "转变",
+              "blocks": [
+                {
+                  "id": "stage",
+                  "type": "select",
+                  "name": "阶段",
+                  "options": [
+                    "起点",
+                    "动摇",
+                    "转折",
+                    "新我"
+                  ]
+                },
+                {
+                  "id": "at",
+                  "type": "entry",
+                  "name": "在"
+                },
+                {
+                  "id": "what",
+                  "type": "long_text",
+                  "name": "发生了什么"
+                }
+              ]
+            }
+          ],
+          "look": {
+            "block": {
+              "box": "col",
+              "gap": 12,
+              "kids": [
+                {
+                  "box": "row",
+                  "gap": 8,
+                  "kids": [
+                    {
+                      "text": "想要",
+                      "size": "small",
+                      "ink": 3
+                    },
+                    {
+                      "value": "want",
+                      "font": "serif",
+                      "width": "fill"
+                    },
+                    {
+                      "value": "resolve",
+                      "show": "dots"
+                    }
+                  ]
+                },
+                {
+                  "box": "row",
+                  "gap": 8,
+                  "kids": [
+                    {
+                      "text": "需要",
+                      "size": "small",
+                      "ink": 3
+                    },
+                    {
+                      "value": "need",
+                      "font": "serif",
+                      "width": "fill"
+                    }
+                  ]
+                },
+                {
+                  "each": "turns",
+                  "dir": "row",
+                  "gap": 8,
+                  "link": "arrow",
+                  "item": {
+                    "box": "col",
+                    "gap": 4,
+                    "pad": 8,
+                    "border": "hair",
+                    "radius": 4,
+                    "kids": [
+                      {
+                        "value": "stage",
+                        "show": "mark"
+                      },
+                      {
+                        "value": "stage",
+                        "size": "small"
+                      },
+                      {
+                        "value": "what",
+                        "size": "note",
+                        "lines": 3
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "agent": {
+            "description": "一个人物从想要走到需要的路。",
+            "blocks": {
+              "need": "他真正缺的东西",
+              "turns": "按先后记每一次转变",
+              "want": "他以为自己想要的"
+            }
+          },
+          "sample": {
+            "need": "原谅自己",
+            "resolve": 3.0,
+            "turns": [
+              {
+                "stage": "起点",
+                "what": "离开小镇"
+              },
+              {
+                "at": [
+                  "第九章"
+                ],
+                "stage": "转折",
+                "what": "在钟楼下认出了父亲"
+              }
+            ],
+            "want": "找回那块怀表"
+          }
+        }
+      },
+      "save": "arc"
+    },
+    {
+      "call": "entry_template.put",
+      "input": {
+        "book": "${books.0.id}",
+        "template": {
+          "id": "tpl-cm2",
+          "name": "伏笔章",
+          "modules": [
+            {
+              "id": "cm2-fore",
+              "kind": "custom",
+              "name": "伏笔追踪",
+              "config": {
+                "module": "${fore.id}"
+              }
+            },
+            {
+              "id": "cm2-magic",
+              "kind": "custom",
+              "name": "魔法规则卡",
+              "config": {
+                "module": "${magic.id}"
+              }
+            },
+            {
+              "id": "cm2-chrono",
+              "kind": "custom",
+              "name": "世界观年表",
+              "config": {
+                "module": "${chrono.id}"
+              }
+            },
+            {
+              "id": "cm2-text",
+              "kind": "prose",
+              "name": "正文"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "call": "entry.create",
+      "input": {
+        "book": "${books.0.id}",
+        "title": "雾港",
+        "template": "tpl-cm2"
+      },
+      "save": "page"
+    },
+    {
+      "call": "entry_template.put_module",
+      "input": {
+        "book": "${books.0.id}",
+        "template": "tpl-character",
+        "module": {
+          "id": "cm2-arc",
+          "kind": "custom",
+          "name": "人物弧光",
+          "config": {
+            "module": "${arc.id}"
+          }
+        }
+      },
+      "note": "Every character gets 人物弧光: its 一行 is in a character name's hover card."
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}",
+        "all": true
+      },
+      "save": "entries"
+    },
+    {
+      "call": "module.set_custom_value",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${entries.[template=tpl-character].id}",
+        "module": "cm2-arc",
+        "block": "want",
+        "value": "找回那块怀表"
+      }
+    },
+    {
+      "call": "module.set_custom_value",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${entries.[template=tpl-character].id}",
+        "module": "cm2-arc",
+        "block": "need",
+        "value": "原谅自己"
+      }
+    },
+    {
+      "call": "module.set_custom_value",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${entries.[template=tpl-character].id}",
+        "module": "cm2-arc",
+        "block": "resolve",
+        "value": 3
+      }
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "light",
+          "DRIFTING_WINDOW_DISPLAY": "secondary"
+        },
+        "settings": {
+          "account": {
+            "language.ui_locale": "zh-CN"
+          },
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "window.focus",
+      "params": {}
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${books.0.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/book/version": 5,
+          "/book/loaded": true
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ToggleBottomTimeline"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 500
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${page.id}"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "伏笔",
+        "timeout_ms": 15000
+      },
+      "note": "The 「＋ 伏笔」 row under 伏笔追踪: the module is drawn."
+    },
+    {
+      "app": "input.move",
+      "params": {
+        "x": 640,
+        "y": 20
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "01-empty-light.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "伏笔"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "一句话",
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "一句话"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "墙上的旧照片少了一个人"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "enter"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "状态"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "MenuItem",
+        "label": "收了",
+        "timeout_ms": 6000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "伏笔"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "一句话",
+        "count": 2,
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "一句话",
+        "nth": 1
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "钟楼的钟慢了七分钟"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "enter"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "状态",
+        "nth": 1
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "MenuItem",
+        "label": "提过",
+        "timeout_ms": 6000
+      }
+    },
+    {
+      "call": "module.read_custom",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${page.id}",
+        "module": "cm2-fore"
+      },
+      "save": "fore1",
+      "expect": {
+        "/values/items/value/0/values/line/value": "墙上的旧照片少了一个人",
+        "/values/items/value/0/values/st/value": "收了",
+        "/values/items/value/1/values/line/value": "钟楼的钟慢了七分钟",
+        "/values/items/value/1/values/st/value": "提过"
+      }
+    },
+    {
+      "app": "ui.hover",
+      "params": {
+        "label": "一句话",
+        "nth": 1
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "拖动排序",
+        "timeout_ms": 6000
+      },
+      "save": "grip"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "一句话"
+      },
+      "save": "lines"
+    },
+    {
+      "app": "input.drag",
+      "params": {
+        "from": [
+          "${grip.nodes.0.center.0}",
+          "${grip.nodes.0.center.1}"
+        ],
+        "to": [
+          "${lines.nodes.0.center.0}",
+          "${lines.nodes.0.center.1}"
+        ],
+        "steps": 12
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 800
+      }
+    },
+    {
+      "call": "module.read_custom",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${page.id}",
+        "module": "cm2-fore"
+      },
+      "expect": {
+        "/values/items/value/0/values/line/value": "钟楼的钟慢了七分钟"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "流派"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "MenuItem",
+        "label": "风",
+        "timeout_ms": 6000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "强度"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 400
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "4"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "enter"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "禁术"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "要付出"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "一段记忆"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "enter"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "风险"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "MenuItem",
+        "label": "中",
+        "timeout_ms": 6000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "规则"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "只在起雾的夜里有效。"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "要付出"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "escape"
+      }
+    },
+    {
+      "call": "module.read_custom",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${page.id}",
+        "module": "cm2-magic"
+      },
+      "expect": {
+        "/values/school/value": "风",
+        "/values/power/value": 4.0,
+        "/values/forbidden/value": true,
+        "/values/price/value": "一段记忆",
+        "/values/risk/value": "中",
+        "/values/rules/value": "只在起雾的夜里有效。"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "纪元"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "起止",
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "纪元",
+        "nth": 0
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "雾纪"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "enter"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "起止"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "1–120"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "enter"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "事件"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "年",
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "年"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "87"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "enter"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "事件",
+        "nth": 0
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "大雾"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "enter"
+      }
+    },
+    {
+      "call": "module.read_custom",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${page.id}",
+        "module": "cm2-chrono"
+      },
+      "expect": {
+        "/values/eras/value/0/values/era/value": "雾纪",
+        "/values/eras/value/0/values/events/value/0/values/year/value": 87.0,
+        "/values/eras/value/0/values/events/value/0/values/event/value": "大雾"
+      }
+    },
+    {
+      "app": "input.move",
+      "params": {
+        "x": 640,
+        "y": 20
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "02-filled-in-light.png"
+    },
+    {
+      "app": "ui.hover",
+      "params": {
+        "label": "起止",
+        "dy": -60
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "铺满"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "退出铺满",
+        "timeout_ms": 6000
+      }
+    },
+    {
+      "app": "input.move",
+      "params": {
+        "x": 640,
+        "y": 20
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "03-fill-light.png"
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "escape"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 600
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "04-after-fill-light.png"
+    },
+    {
+      "app": "app.quit"
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "dark",
+          "DRIFTING_WINDOW_DISPLAY": "secondary"
+        },
+        "settings": {
+          "account": {
+            "language.ui_locale": "zh-CN"
+          }
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "window.focus",
+      "params": {}
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${books.0.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/book/version": 5,
+          "/book/loaded": true
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ToggleBottomTimeline"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 500
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${page.id}"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "伏笔",
+        "timeout_ms": 15000
+      },
+      "note": "The 「＋ 伏笔」 row under 伏笔追踪: the module is drawn."
+    },
+    {
+      "app": "input.move",
+      "params": {
+        "x": 640,
+        "y": 20
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "05-filled-in-dark.png"
+    },
+    {
+      "app": "ui.hover",
+      "params": {
+        "label": "起止",
+        "dy": -60
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "铺满"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "退出铺满",
+        "timeout_ms": 6000
+      }
+    },
+    {
+      "app": "input.move",
+      "params": {
+        "x": 640,
+        "y": 20
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "06-fill-dark.png"
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "escape"
+      }
+    },
+    {
+      "app": "app.quit"
+    }
+  ]
+}

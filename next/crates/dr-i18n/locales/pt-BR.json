@@ -231,6 +231,9 @@
     "words": "palavras",
     "wordsCount": "{{count}} palavras"
   },
+  "customModule": {
+    "countOf": "{{count}} {{name}}"
+  },
   "dashboard": {
     "today": {
       "streak": "Sequência",

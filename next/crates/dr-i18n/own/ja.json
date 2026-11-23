@@ -33,6 +33,9 @@
     "trashEmpty": "最近削除したプロジェクトはありません。",
     "trashSub": "プロジェクトはここに 30 日間保管され、その後完全に削除されます。"
   },
+  "customModule": {
+    "countOf": "{{name}} {{count}} 件"
+  },
   "entrySnapshot": {
     "empty": "スナップショットはまだありません",
     "save": "スナップショットを保存",

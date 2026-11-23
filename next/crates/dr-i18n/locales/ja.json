@@ -229,6 +229,9 @@
     "words": "文字",
     "wordsCount": "{{count}}文字"
   },
+  "customModule": {
+    "countOf": "{{name}} {{count}} 件"
+  },
   "dashboard": {
     "today": {
       "streak": "連続執筆",
