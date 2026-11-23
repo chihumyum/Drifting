@@ -59,6 +59,7 @@ dr-view-feedback.workspace = true
 dr-view-home.workspace = true
 dr-view-import.workspace = true
 dr-view-material.workspace = true
+dr-view-module-bench.workspace = true
 dr-view-transfer.workspace = true
 # M42: automatic updates.
 dr-view-update.workspace = true

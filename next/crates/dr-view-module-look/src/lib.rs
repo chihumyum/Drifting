@@ -19,8 +19,10 @@ pub mod paint;
 pub mod plan;
 pub mod values;
 
-pub use paint::{Blanks, Edit};
-pub use plan::{Content, Fill, PBox, PEach, PItem, PMark, PNode, PText, PValue, Plan, Words};
+pub use paint::{Blanks, Edit, Picking};
+pub use plan::{
+    Content, Fill, NodePath, PBox, PEach, PItem, PMark, PNode, PText, PValue, Plan, Words,
+};
 pub use values::{EntryName, Item, Names, NoNames, Picture, Scope, Shown};
 
 use std::rc::Rc;

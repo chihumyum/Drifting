@@ -262,6 +262,8 @@ fn main() {
         dr_editor::set_clipboard_html(cx, dr_platform::clipboard::read_html);
         dr_view_elements::init(cx);
         dr_view_templates::init(cx);
+        // CM3: the module workbench, a pill whose side columns are its own.
+        dr_view_module_bench::init(cx);
         // M16: the 构想 panel in the left sidebar, an idea's ⋯ rows.
         // M14 and M15: the Bottom Panel's timeline (⌘J) and the chapter in
         // front's plot planner.

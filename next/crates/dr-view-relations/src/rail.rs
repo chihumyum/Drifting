@@ -742,7 +742,7 @@ impl RelationsRail {
                         .collect()
                 })
                 .unwrap_or_default(),
-            Target::Template(_) | Target::Material(_) => Vec::new(),
+            Target::Template(_) | Target::Material(_) | Target::Module(_) => Vec::new(),
         }
     }
 

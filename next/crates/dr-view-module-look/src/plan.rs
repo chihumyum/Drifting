@@ -49,9 +49,18 @@ pub enum PNode {
     Mark(PMark),
 }
 
+/// Where a laid-out node comes from in the look's box tree (CM3, the
+/// workbench picks a node by pressing it in the preview): the index of each
+/// kid from the root down, an each node's item box being its kid `0`. Every
+/// item of a list is laid out from the same item box, so they share it. An
+/// automatic 一行's nodes (none of the module's own) have an empty one.
+pub type NodePath = Vec<u16>;
+
 /// 盒子.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PBox {
+    /// Where it is in the box tree ([`NodePath`]).
+    pub node: NodePath,
     pub dir: BoxDir,
     pub gap: f32,
     pub pad: f32,
@@ -71,6 +80,8 @@ pub struct PBox {
 /// 每一项: a list's items, each drawn with the same box.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PEach {
+    /// Where it is in the box tree ([`NodePath`]).
+    pub node: NodePath,
     /// The list block, and its name.
     pub list: String,
     pub name: String,
@@ -95,6 +106,8 @@ pub struct PItem {
 /// 值: one block's value.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PValue {
+    /// Where it is in the box tree ([`NodePath`]).
+    pub node: NodePath,
     pub block: String,
     pub name: String,
     pub kind: BlockKind,
@@ -114,6 +127,8 @@ pub struct PValue {
 /// 字: fixed words.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PText {
+    /// Where it is in the box tree ([`NodePath`]).
+    pub node: NodePath,
     pub text: String,
     pub style: TextStyle,
     pub width: Width,
@@ -122,6 +137,8 @@ pub struct PText {
 /// 记号: one of the seven sand marks (`MODULE_MARKS`).
 #[derive(Clone, Debug, PartialEq)]
 pub struct PMark {
+    /// Where it is in the box tree ([`NodePath`]).
+    pub node: NodePath,
     pub mark: String,
 }
 
@@ -176,11 +193,11 @@ pub fn plan(module: &ModuleValue, values: &Scope, size: LookSize, words: &dyn Wo
     }];
     let own = module.look.own(size);
     let root = match (size, own) {
-        (_, Some(tree)) => node(module, tree, &mut frames),
+        (_, Some(tree)) => node(module, tree, &mut frames, Vec::new()),
         (LookSize::Line, None) => PNode::Box(auto_line(module, values, words)),
         (_, None) => {
             // 铺满 follows 一块, stretched across the column.
-            let mut root = node(module, &module.look.block, &mut frames);
+            let mut root = node(module, &module.look.block, &mut frames, Vec::new());
             if let PNode::Box(b) = &mut root {
                 b.width = Width::Fill;
             }
@@ -213,9 +230,14 @@ fn frame_of<'f, 'a>(module: &ModuleValue, frames: &'f [Frame<'a>], block: &str) 
         .unwrap_or(&frames[0])
 }
 
-fn node<'a>(module: &'a ModuleValue, n: &'a Node, frames: &mut Vec<Frame<'a>>) -> PNode {
+fn node<'a>(
+    module: &'a ModuleValue,
+    n: &'a Node,
+    frames: &mut Vec<Frame<'a>>,
+    at: NodePath,
+) -> PNode {
     match n {
-        Node::Box(b) => PNode::Box(boxed(module, b, frames)),
+        Node::Box(b) => PNode::Box(boxed(module, b, frames, at)),
         Node::Each(e) => {
             let block = module.block(&e.list);
             let (items, path): (&'a [crate::values::Item], Vec<ItemStep>) = {
@@ -226,6 +248,8 @@ fn node<'a>(module: &'a ModuleValue, n: &'a Node, frames: &mut Vec<Frame<'a>>) -
                     frame.path.clone(),
                 )
             };
+            let mut item_at = at.clone();
+            item_at.push(0);
             let laid = items
                 .iter()
                 .map(|item| {
@@ -239,7 +263,7 @@ fn node<'a>(module: &'a ModuleValue, n: &'a Node, frames: &mut Vec<Frame<'a>>) -
                         scope: &item.scope,
                         path: steps,
                     });
-                    let body = boxed(module, &e.item, frames);
+                    let body = boxed(module, &e.item, frames, item_at.clone());
                     frames.pop();
                     PItem {
                         id: item.id.clone(),
@@ -248,6 +272,7 @@ fn node<'a>(module: &'a ModuleValue, n: &'a Node, frames: &mut Vec<Frame<'a>>) -
                 })
                 .collect();
             PNode::Each(PEach {
+                node: at,
                 list: e.list.clone(),
                 name: block.map(|b| b.name.clone()).unwrap_or_default(),
                 path,
@@ -262,6 +287,7 @@ fn node<'a>(module: &'a ModuleValue, n: &'a Node, frames: &mut Vec<Frame<'a>>) -
             let Some(block) = module.block(&v.block) else {
                 // The validator refuses this; drawn as nothing.
                 return PNode::Text(PText {
+                    node: at,
                     text: String::new(),
                     style: text_style(None, None, None),
                     width: Width::Auto,
@@ -273,6 +299,7 @@ fn node<'a>(module: &'a ModuleValue, n: &'a Node, frames: &mut Vec<Frame<'a>>) -
                 _ => Show::Text,
             });
             PNode::Value(PValue {
+                node: at,
                 block: block.id.clone(),
                 name: block.name.clone(),
                 kind: block.kind,
@@ -287,17 +314,24 @@ fn node<'a>(module: &'a ModuleValue, n: &'a Node, frames: &mut Vec<Frame<'a>>) -
             })
         }
         Node::Text(t) => PNode::Text(PText {
+            node: at,
             text: t.text.clone(),
             style: text_style(t.font, t.size, t.ink),
             width: t.width.unwrap_or(Width::Auto),
         }),
         Node::Mark(m) => PNode::Mark(PMark {
+            node: at,
             mark: m.mark.clone(),
         }),
     }
 }
 
-fn boxed<'a>(module: &'a ModuleValue, b: &'a BoxNode, frames: &mut Vec<Frame<'a>>) -> PBox {
+fn boxed<'a>(
+    module: &'a ModuleValue,
+    b: &'a BoxNode,
+    frames: &mut Vec<Frame<'a>>,
+    at: NodePath,
+) -> PBox {
     PBox {
         dir: b.dir,
         gap: f32::from(b.gap.unwrap_or(0)),
@@ -311,7 +345,17 @@ fn boxed<'a>(module: &'a ModuleValue, b: &'a BoxNode, frames: &mut Vec<Frame<'a>
         cols: b.cols.clone(),
         nowrap: b.nowrap,
         max: b.max.map(f32::from),
-        kids: b.kids.iter().map(|k| node(module, k, frames)).collect(),
+        kids: b
+            .kids
+            .iter()
+            .enumerate()
+            .map(|(i, k)| {
+                let mut kid = at.clone();
+                kid.push(i as u16);
+                node(module, k, frames, kid)
+            })
+            .collect(),
+        node: at,
     }
 }
 
@@ -415,6 +459,7 @@ fn auto_line(module: &ModuleValue, values: &Scope, words: &dyn Words) -> PBox {
                 )
             };
             PNode::Value(PValue {
+                node: Vec::new(),
                 block: block.id.clone(),
                 name: block.name.clone(),
                 kind: block.kind,
@@ -434,6 +479,7 @@ fn auto_line(module: &ModuleValue, values: &Scope, words: &dyn Words) -> PBox {
         })
         .collect();
     PBox {
+        node: Vec::new(),
         dir: BoxDir::Row,
         gap: 8.0,
         pad: 0.0,

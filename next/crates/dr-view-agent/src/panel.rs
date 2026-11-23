@@ -1327,6 +1327,15 @@ impl AgentPanel {
                                 .child(text::wrapped(data::result_text(output))),
                         )
                     });
+                // The modules it made, changed or put into a template
+                // (CM4b's `custom_modules`): a card each, 「打开工作台」 (CM3).
+                if *status != dr_agent::ToolStatus::Error {
+                    row = row
+                        .flex()
+                        .flex_col()
+                        .gap(px(8.))
+                        .children(self.module_cards(&message.id, output, window, cx));
+                }
             }
             MessageContent::Other { payload, .. } => {
                 let text = payload["text"]
@@ -1336,6 +1345,87 @@ impl AgentPanel {
             }
         }
         Some(row.into_any_element())
+    }
+
+    /// One card for each module a tool result names (`custom_modules`):
+    /// its name, 「我的模块」 and 「打开工作台」 (the module's workbench, a pill
+    /// of the project in front; `custom-modules.md` §8 entrances 1 and 2).
+    fn module_cards(
+        &self,
+        message: &str,
+        output: &serde_json::Value,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Vec<AnyElement> {
+        let p = Theme::of(window, cx).palette;
+        let Some(modules) = output["custom_modules"].as_array() else {
+            return Vec::new();
+        };
+        modules
+            .iter()
+            .filter_map(|m| {
+                let id: dr_model::id::CustomModuleId = m["id"].as_str()?.parse().ok()?;
+                let name = m["name"].as_str().unwrap_or_default().to_owned();
+                let element = format!("agent-module-card-{message}-{id}");
+                let sel = format!("agent-module-card-{id}");
+                let open_sel = format!("agent-open-bench-{id}");
+                let ws = self.ws.clone();
+                let target = dr_shell::nav::Target::Module(id);
+                Some(
+                    div()
+                        .id(SharedString::from(element))
+                        .debug_selector(move || sel.clone())
+                        .flex()
+                        .flex_row()
+                        .items_center()
+                        .gap(px(10.))
+                        .px(px(12.))
+                        .py(px(9.))
+                        .rounded(px(4.))
+                        .bg(p.paper.solid())
+                        .border(px(0.5))
+                        .border_color(p.hairline())
+                        .child(
+                            div()
+                                .flex_1()
+                                .min_w_0()
+                                .flex()
+                                .flex_col()
+                                .child(
+                                    div()
+                                        .font_role(Role::Ui)
+                                        .type_px(15., 20.)
+                                        .text_color(p.ink(1).solid())
+                                        .child(name),
+                                )
+                                .child(
+                                    div()
+                                        .font_role(Role::Index)
+                                        .type_px(12.5, 18.)
+                                        .text_color(p.ink(3).solid())
+                                        .child(t(cx, dr_i18n::keys::module_bench::MY_MODULE)),
+                                ),
+                        )
+                        .child(
+                            div().debug_selector(move || open_sel.clone()).child(
+                                Button::new(
+                                    SharedString::from(format!(
+                                        "agent-open-bench-{message}-{}",
+                                        m["id"].as_str().unwrap_or_default()
+                                    )),
+                                    t(cx, dr_i18n::keys::module_bench::OPEN_BENCH),
+                                )
+                                .small()
+                                .on_click(move |_, _, cx| {
+                                    let target = target.clone();
+                                    ws.update(cx, |ws, cx| ws.open(target, Open::KEEP, cx)).ok();
+                                }),
+                            ),
+                        )
+                        .into_any_element(),
+                )
+            })
+            .collect()
     }
 
     fn run(

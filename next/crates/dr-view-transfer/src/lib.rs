@@ -9,6 +9,11 @@
 //!   Projects' 「导入模板 .driftingtemplate」 ([`dr_view_shelf::ImportTemplate`]),
 //!   and `.driftingtemplate` files dropped onto All Projects (not into an
 //!   open project); the file is `dr_export::template_file` (format version 1).
+//! - **`.driftingmodule`** ([`module`], CM3): a module's hover-card export
+//!   ([`dr_view_shelf::ExportModule`]) straight to the save panel, All
+//!   Projects' 「导入模块 .driftingmodule」 ([`dr_view_shelf::ImportModule`]),
+//!   and `.driftingmodule` files dropped onto All Projects; the file is
+//!   `dr_export::module_file` (module format version 1).
 //!
 //! - **Importing documents** ([`documents`]): Markdown, text and Word
 //!   files into a chosen level of the open book using its resolved default
@@ -30,9 +35,11 @@ pub mod backup;
 pub mod book;
 mod dialog;
 pub mod documents;
+pub mod module;
 pub mod template;
 
 pub use dialog::{Proceed, State, TransferDialog, WIDTH};
+pub use module::ExportModuleById;
 pub use template::{ExportTemplate, ExportTemplateById, ImportTemplate};
 
 use gpui::App;
@@ -59,16 +66,37 @@ pub fn init(cx: &mut App) {
     cx.on_action(|_: &dr_view_shelf::ImportTemplate, cx| {
         dr_shell::menus::after_dispatch(cx, template::import);
     });
+    cx.on_action(|a: &dr_view_shelf::ExportModule, cx| {
+        let id = a.module.clone();
+        dr_shell::menus::after_dispatch(cx, move |cx| module::export(id, cx));
+    });
+    cx.on_action(|a: &module::ExportModuleById, cx| {
+        let id = a.id.clone();
+        dr_shell::menus::after_dispatch(cx, move |cx| module::export(id, cx));
+    });
+    cx.on_action(|_: &dr_view_shelf::ImportModule, cx| {
+        dr_shell::menus::after_dispatch(cx, module::import);
+    });
+    // Templates and modules dropped on All Projects (CM3: modules too).
     dr_shell::pages::set_all_projects_file_drop(
         cx,
-        |paths, _| paths.iter().any(|p| template::is_template_file(p)),
+        |paths, _| {
+            paths
+                .iter()
+                .any(|p| template::is_template_file(p) || module::is_module_file(p))
+        },
         |paths, _, cx| {
             let tpl_paths: Vec<_> = paths
                 .iter()
                 .filter(|p| template::is_template_file(p))
                 .cloned()
                 .collect();
-            if tpl_paths.is_empty() {
+            let module_paths: Vec<_> = paths
+                .iter()
+                .filter(|p| module::is_module_file(p))
+                .cloned()
+                .collect();
+            if tpl_paths.is_empty() && module_paths.is_empty() {
                 return;
             }
             let lib = cx
@@ -76,7 +104,12 @@ pub fn init(cx: &mut App) {
                 .and_then(|s| s.library.clone());
             if let Some(lib) = lib {
                 dr_shell::menus::after_dispatch(cx, move |cx| {
-                    template::import_paths(lib, tpl_paths, cx);
+                    if !tpl_paths.is_empty() {
+                        template::import_paths(lib.clone(), tpl_paths, cx);
+                    }
+                    if !module_paths.is_empty() {
+                        module::import_paths(lib, module_paths, cx);
+                    }
                 });
             }
         },

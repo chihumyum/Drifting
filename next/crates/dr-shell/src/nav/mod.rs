@@ -24,7 +24,9 @@ pub mod location;
 
 use std::collections::VecDeque;
 
-use dr_model::id::{EntryId, EntryTemplateId, MediaItemId, ModuleId, TimelineViewId};
+use dr_model::id::{
+    CustomModuleId, EntryId, EntryTemplateId, MediaItemId, ModuleId, TimelineViewId,
+};
 use serde::{Deserialize, Serialize};
 
 /// Something a tab can show.
@@ -46,6 +48,11 @@ pub enum Target {
         view: TimelineViewId,
         entry: EntryId,
     },
+    /// The module workbench (`custom-modules.md` §8, CM3): one of my
+    /// modules, worked on in a pill of the project in front; while it is in
+    /// front the side columns hold what the workbench brings
+    /// ([`crate::pages::add_page_panels`]).
+    Module(CustomModuleId),
 }
 
 impl Target {
@@ -68,6 +75,7 @@ impl Target {
             "material" => Target::Material(id.parse().ok()?),
             "book" => Target::Book(id.parse().ok()?),
             "book-view" => Target::BookView(id.parse().ok()?),
+            "module" => Target::Module(id.parse().ok()?),
             "book-lane" => {
                 let (view, entry) = id.split_once('/')?;
                 Target::BookLane {
@@ -92,6 +100,7 @@ impl Target {
             Target::Book(id) => format!("book:{id}"),
             Target::BookView(view) => format!("book-view:{view}"),
             Target::BookLane { view, entry } => format!("book-lane:{view}/{entry}"),
+            Target::Module(id) => format!("module:{id}"),
         }
     }
 

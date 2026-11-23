@@ -97,6 +97,12 @@ pub struct ShelfData {
     pub trashed: Vec<TrashedBook>,
     /// Saved project templates (`project-template:<id>`), most recently updated first.
     pub templates: Vec<ProjectTemplateSummary>,
+    /// My modules (`module:<id>`, CM3), most recently changed first, each
+    /// with its value (its card draws it with its sample).
+    pub modules: Vec<(
+        dr_workspace::commands::v3::custom_module::ModuleSummary,
+        Option<dr_model::custom_module::ModuleValue>,
+    )>,
 }
 
 /// Whether `event` announces a saved project template created, updated, imported or deleted.
@@ -168,8 +174,33 @@ impl ShelfData {
         data.templates = lib
             .run::<ProjectTemplateList>(&Actor::User, ProjectTemplateListIn {})?
             .output;
+        data.modules = read_my_modules(lib)?;
         Ok(data)
     }
+}
+
+/// My modules and their values (a module whose value cannot be read is
+/// listed without one).
+type MyModules = Vec<(
+    dr_workspace::commands::v3::custom_module::ModuleSummary,
+    Option<dr_model::custom_module::ModuleValue>,
+)>;
+
+fn read_my_modules(lib: &Library) -> Result<MyModules, dr_workspace::WsError> {
+    use dr_workspace::commands::v3::custom_module::{CustomModuleList, ListIn, my_module};
+    let list = lib.run::<CustomModuleList>(&Actor::User, ListIn {})?.output;
+    Ok(list
+        .into_iter()
+        .map(|summary| {
+            let value = summary
+                .id
+                .parse()
+                .ok()
+                .and_then(|id| my_module(lib, &id).ok().flatten())
+                .map(|(_, v)| v);
+            (summary, value)
+        })
+        .collect())
 }
 
 fn read_entry_summary(lib: &Library, book_id: &str) -> (bool, u32, Vec<RecentEntry>) {

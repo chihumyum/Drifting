@@ -16,6 +16,7 @@ dr-model.workspace = true
 dr-shell.workspace = true
 dr-store.workspace = true
 dr-ui.workspace = true
+dr-view-module-look.workspace = true
 dr-view-sea.workspace = true
 dr-view-shelf-art.workspace = true
 dr-workspace.workspace = true
@@ -29,4 +30,5 @@ dr-testkit.workspace = true
 dr-view-sea.workspace = true
 dr-view-shelf-art.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
+serde_json.workspace = true
 tempfile.workspace = true

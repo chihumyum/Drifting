@@ -244,6 +244,8 @@ fn dock_insets(ws: &Workspace, window_w: f32) -> (f32, f32) {
 /// One page of a pill: a tab's leaf, or one side of a split.
 struct Half {
     preview: bool,
+    /// A module's workbench (CM3): drawn with the 「线装」 icon.
+    stitched: bool,
     mark: (sand::Kind, Option<Rgb>),
     name: SharedString,
     side: Option<PageSide>,
@@ -278,6 +280,7 @@ fn pill(tab: &Tab, ws: &Workspace, book: &Book, cx: &mut Context<Workspace>) -> 
     let group: SharedString = format!("pill-{key}").into();
     let half = |leaf: &Leaf, side: Option<PageSide>| Half {
         preview: leaf.preview,
+        stitched: matches!(leaf.target, crate::nav::Target::Module(_)),
         mark: book.mark(&leaf.target),
         name: super::title_of(book, &leaf.target, cx),
         side,
@@ -305,6 +308,7 @@ fn pill(tab: &Tab, ws: &Workspace, book: &Book, cx: &mut Context<Workspace>) -> 
                 n,
                 Half {
                     preview,
+                    stitched,
                     mark: m,
                     name,
                     side,
@@ -334,17 +338,21 @@ fn pill(tab: &Tab, ws: &Workspace, book: &Book, cx: &mut Context<Workspace>) -> 
                             ws.changed(cx);
                         })
                     });
+                // A module's workbench: the one 「线装」 mark every module
+                // has (`custom-modules.md` §2).
+                let lead = if *stitched {
+                    sand::icon(Icon::Stitched, 14.0, p.ink(2).solid()).into_any_element()
+                } else {
+                    mark(format!("{pill_key}-mark-{side:?}").into(), *m, *preview)
+                        .into_any_element()
+                };
                 let mut half = div()
                     .id(ElementId::Name(format!("{pill_key}-half-{side:?}").into()))
                     .flex()
                     .flex_row()
                     .items_center()
                     .gap(px(6.0))
-                    .child(mark(
-                        format!("{pill_key}-mark-{side:?}").into(),
-                        *m,
-                        *preview,
-                    ))
+                    .child(lead)
                     .child(
                         div()
                             .whitespace_nowrap()

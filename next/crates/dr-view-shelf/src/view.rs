@@ -62,6 +62,9 @@ actions!(
         /// Imports a `.driftingtemplate` into the library's saved templates
         /// (M41, `dr-view-transfer`, handles it; All Projects only has the entry).
         ImportTemplate,
+        /// Imports a `.driftingmodule` into my modules (CM3,
+        /// `dr-view-transfer` handles it; All Projects only has the entry).
+        ImportModule,
         /// Imports a Drifting 0.1 library (M10, `dr-view-import`, handles it
         /// with `cx.on_action`; the bookshelf only has the entry).
         ImportLegacyLibrary,
@@ -86,6 +89,15 @@ pub struct ExportBook {
 #[action(namespace = shelf, no_json)]
 pub struct ExportTemplate {
     pub template: String,
+}
+
+/// Exports module `module` of mine as a `.driftingmodule` (CM3,
+/// `dr-view-transfer` handles it with `cx.on_action`; the module's hover
+/// card on All Projects only has the entry).
+#[derive(Clone, Debug, PartialEq, Eq, gpui::Action)]
+#[action(namespace = shelf, no_json)]
+pub struct ExportModule {
+    pub module: String,
 }
 
 /// The rail's width (`.pp__frame`'s first column).
@@ -113,6 +125,8 @@ pub enum ShelfDialog {
     Purge(String),
     /// Deleting a saved project template for good.
     DeleteTemplate(String),
+    /// Deleting a module of mine for good (CM3).
+    DeleteModule(String),
 }
 
 enum DialogState {
@@ -132,6 +146,9 @@ enum DialogState {
     },
     DeleteTemplate {
         template: ProjectTemplateSummary,
+    },
+    DeleteModule {
+        module: dr_workspace::commands::v3::custom_module::ModuleSummary,
     },
 }
 
@@ -339,6 +356,7 @@ impl Shelf {
             DialogState::DeleteTemplate { template } => {
                 ShelfDialog::DeleteTemplate(template.id.clone())
             }
+            DialogState::DeleteModule { module } => ShelfDialog::DeleteModule(module.id.clone()),
         })
     }
 
@@ -397,7 +415,9 @@ impl Shelf {
             }
         }));
         self._store_events = Some(lib.library().subscribe(move |event| {
-            if is_template_store_event(event) {
+            if is_template_store_event(event)
+                || dr_workspace::commands::v3::custom_module::is_my_module_store_event(event)
+            {
                 let _ = tx.unbounded_send(());
             }
         }));
@@ -702,6 +722,102 @@ impl Shelf {
                     }
                     Err(error) => {
                         log::warn!("the project template could not be deleted: {error}");
+                        shelf.error = Some(keys::mobile_workspace::project_actions::DELETE_FAILED);
+                    }
+                }
+                cx.notify();
+            })
+            .ok();
+        })
+        .detach();
+    }
+
+    /// The window's workspace.
+    pub fn workspace(&self) -> WeakEntity<Workspace> {
+        self.ws.clone()
+    }
+
+    /// 编辑 a module of mine (CM3): All Projects gives way to the project the
+    /// window has open (without one, the most recently changed), and the
+    /// module's workbench opens there as a pill.
+    pub fn edit_module(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) {
+        let Ok(id) = id.parse::<dr_model::id::CustomModuleId>() else {
+            return;
+        };
+        self.menu_open = false;
+        let first = self
+            .data
+            .as_ref()
+            .and_then(|d| d.books.first())
+            .map(|b| b.id.clone());
+        self.ws
+            .update(cx, |ws, cx| {
+                let book = if ws.book_id.is_empty() {
+                    first
+                } else {
+                    Some(ws.book_id.clone())
+                };
+                let Some(book) = book else {
+                    log::warn!("a module's workbench needs a project to open in");
+                    return;
+                };
+                ws.open_book(&book, window, cx);
+                ws.open(
+                    dr_shell::nav::Target::Module(id),
+                    dr_shell::nav::Open::KEEP,
+                    cx,
+                );
+            })
+            .ok();
+    }
+
+    /// Asks before deleting a module of mine for good (as a saved template).
+    pub fn ask_delete_module(
+        &mut self,
+        module: dr_workspace::commands::v3::custom_module::ModuleSummary,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.dialog = Some(DialogState::DeleteModule { module });
+        self.error = None;
+        self.menu_open = false;
+        self.focus.focus(window, cx);
+        cx.notify();
+    }
+
+    /// Deletes the module of the open question for good
+    /// (`custom_module.remove`): the projects using it keep their copies and
+    /// stop following it (§16 item 4).
+    pub fn confirm_delete_module(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(DialogState::DeleteModule { module }) = &self.dialog else {
+            return;
+        };
+        if self.releasing || dr_shell::release::is_releasing(cx) || self.busy {
+            return;
+        }
+        let Some(lib) = self.lib.clone() else {
+            return;
+        };
+        let id = module.id.clone();
+        self.busy = true;
+        self.error = None;
+        cx.notify();
+        let lib = self.jobs.enter(lib);
+        cx.spawn_in(window, async move |this, cx| {
+            use dr_workspace::commands::v3::custom_module::{CustomModuleRemove, IdIn};
+            let result = cx
+                .background_executor()
+                .spawn(async move { lib.run::<CustomModuleRemove>(&Actor::User, IdIn { id }) })
+                .await;
+            this.update_in(cx, |shelf, window, cx| {
+                shelf.busy = false;
+                match result {
+                    Ok(_) => {
+                        shelf.stale = true;
+                        shelf.close_dialog(window, cx);
+                    }
+                    Err(error) => {
+                        log::warn!("the module could not be deleted: {error}");
                         shelf.error = Some(keys::mobile_workspace::project_actions::DELETE_FAILED);
                     }
                 }
@@ -1065,6 +1181,9 @@ fn rail(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) -> AnyE
         .data
         .as_ref()
         .and_then(|d| render_rail_templates(&d.templates, shelf.press_taken.clone(), window, cx));
+    let my_modules = shelf.data.clone().and_then(|d| {
+        crate::modules::render_rail_modules(&d.modules, shelf.press_taken.clone(), window, cx)
+    });
     let entity = cx.entity();
     let deleted = {
         let entity = entity.clone();
@@ -1101,6 +1220,7 @@ fn rail(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) -> AnyE
                 .child(library),
         )
         .children(my_templates)
+        .children(my_modules)
         .child(div().flex_1())
         .child(rail_cell(
             "shelf-import-book",
@@ -1122,6 +1242,20 @@ fn rail(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) -> AnyE
                     RailMeta::Subtitle(".driftingtemplate"),
                     t(cx, keys::all_projects::IMPORT_TEMPLATE_FILE),
                     |_, window, cx| window.dispatch_action(Box::new(ImportTemplate), cx),
+                    window,
+                    cx,
+                )),
+        )
+        .child(
+            div()
+                .debug_selector(|| "shelf-import-module".into())
+                .child(rail_cell(
+                    "shelf-import-module",
+                    Icon::ArrowIn,
+                    t(cx, keys::module_bench::IMPORT_MODULE),
+                    RailMeta::Subtitle(".driftingmodule"),
+                    t(cx, keys::module_bench::IMPORT_MODULE_FILE),
+                    |_, window, cx| window.dispatch_action(Box::new(ImportModule), cx),
                     window,
                     cx,
                 )),
@@ -2136,6 +2270,13 @@ fn dialog(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) -> An
         }
         DialogState::DeleteTemplate { template } => render_delete_template_dialog(
             template,
+            busy,
+            error.map(IntoElement::into_any_element),
+            close,
+            cx,
+        ),
+        DialogState::DeleteModule { module } => crate::modules::render_delete_module_dialog(
+            module,
             busy,
             error.map(IntoElement::into_any_element),
             close,

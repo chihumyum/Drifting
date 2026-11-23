@@ -256,3 +256,7 @@ TS 的实现与回归（2026-11-18）：`dr-view-shelf/src/view.rs` 把三个导
 `dr-view-shelf/tests/v5_pt3_shelf_templates.rs` 实测默认和最大界面字号下的两行高度与新建卡的内容位置，也覆盖提交时的折叠按钮、创建项目失败与打开模板失败。`dr-view-shelf/scenarios/v5f-ts-template-shelf.json` 用隔离窗口截两种语言的全部项目，并核对关药丸后的模板列表。
 
 TS 合并树 `dc96f1662` 的全套检查通过，Rust 工作区 3,109 通过、0 失败、21 项原有忽略。macOS 的 2× 副屏用 lite 合成种子完成 52 步，核对了英文默认字号和简中最大字号，关药丸后空白模板消失、保存过的保留。
+
+## CM3：我的模块（2026-11-24）
+
+「我的模板」下面一节「我的模块」（`src/modules.rs`）：一个模块一行（「线装」记号），悬停卡里名字、用示例画的「一块」、编辑、导出（.driftingmodule）、删除（先问一句，照「我的模板」）；「导入模板」下面多一行「导入模块 .driftingmodule」（`ImportModule` 动作，`dr-view-transfer` 接）。「编辑」收起「全部项目」，在窗口开着的项目（没开着就开最近改过的）里打开工作台药丸。数据在 `ShelfData::modules`，听 `module:` 文档的存储事件重读。详见 [m44-custom-modules.md](m44-custom-modules.md)「工作台、我的模块、导出导入（CM3）」；测试 `tests/cm3_shelf_modules.rs`。

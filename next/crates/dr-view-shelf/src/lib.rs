@@ -32,14 +32,15 @@ pub mod art;
 pub mod data;
 pub mod format;
 mod jobs;
+mod modules;
 pub mod projects;
 pub mod templates;
 mod view;
 
 pub use templates::{NewProjectModal, TemplatePick};
 pub use view::{
-    ExportBook, ExportTemplate, ImportBook, ImportLegacyLibrary, ImportTemplate,
-    PURGE_EXPIRED_AFTER, Shelf, ShelfDialog, SubmitDialog,
+    ExportBook, ExportModule, ExportTemplate, ImportBook, ImportLegacyLibrary, ImportModule,
+    ImportTemplate, PURGE_EXPIRED_AFTER, Shelf, ShelfDialog, SubmitDialog,
 };
 
 use std::rc::Rc;
