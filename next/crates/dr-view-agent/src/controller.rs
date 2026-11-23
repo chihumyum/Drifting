@@ -231,12 +231,47 @@ impl AgentController {
     /// Background synchronous entry. UI callers use `start_job`, which
     /// reserves its close lease before scheduling any background work.
     pub fn start(&self, start: Start) -> Result<String, String> {
-        self.prepare_start(long_tasks::StartRequest::Author(start), None)?
+        self.start_with_images(start, dr_agent::ImageAttachments::default())
+    }
+
+    /// An author message with images (CM4a): the bytes are kept on this
+    /// device, the message names them; see [`dr_agent::images`].
+    pub fn start_with_images(
+        &self,
+        start: Start,
+        images: dr_agent::ImageAttachments,
+    ) -> Result<String, String> {
+        self.prepare_start(long_tasks::StartRequest::Author(start, images), None)?
             .run()
     }
 
     pub fn start_job(&self, start: Start) -> BoxFuture<'static, Result<String, String>> {
-        long_tasks::spawn_start(self.prepare_start(long_tasks::StartRequest::Author(start), None))
+        self.start_job_with_images(start, dr_agent::ImageAttachments::default())
+    }
+
+    pub fn start_job_with_images(
+        &self,
+        start: Start,
+        images: dr_agent::ImageAttachments,
+    ) -> BoxFuture<'static, Result<String, String>> {
+        long_tasks::spawn_start(
+            self.prepare_start(long_tasks::StartRequest::Author(start, images), None),
+        )
+    }
+
+    /// The bytes of `image` in `conversation`, when this device holds them
+    /// (CM4a). A background read.
+    pub fn read_image(
+        &self,
+        conversation: &ConversationId,
+        image: &dr_agent::ImageRef,
+    ) -> Result<Option<Vec<u8>>, String> {
+        let lease = self.read_lease()?;
+        Ok(dr_agent::images::read(
+            lease.resources().workspace.library(),
+            conversation,
+            image,
+        ))
     }
 
     pub fn control(&self, session: &str) -> Option<Control> {
@@ -378,7 +413,7 @@ impl AgentController {
                 .messages
                 .iter()
                 .find_map(|message| {
-                    if let crate::state::MessageContent::User { text } = &message.content {
+                    if let crate::state::MessageContent::User { text, .. } = &message.content {
                         Some(
                             text.lines()
                                 .next()

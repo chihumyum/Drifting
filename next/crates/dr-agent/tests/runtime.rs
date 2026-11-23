@@ -347,7 +347,10 @@ fn recovery_reconciles_commit_before_result_and_replays_projection_once() {
         ws.library(),
         session,
         1,
-        Event::UserMessage { text: text.into() },
+        Event::UserMessage {
+            text: text.into(),
+            images: Vec::new(),
+        },
     );
     append(
         ws.library(),

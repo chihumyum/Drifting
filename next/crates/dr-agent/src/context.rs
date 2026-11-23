@@ -199,6 +199,34 @@ fn cost(value: &impl Serialize) -> Result<u64> {
     estimate_tokens(value)
 }
 
+/// Most a single image is counted at. Anthropic downsizes an image to at
+/// most 4 784 visual tokens; OpenAI's newer models read up to 10 000
+/// patches of one at the detail this client asks for (the default).
+const MAX_IMAGE_TOKENS: u64 = 10_000;
+
+/// About how many tokens the images of `conversation` take as model input
+/// (CM4a): a token for every 28 × 28 pixel patch (Anthropic's visual
+/// tokens, OpenAI's patches), at most [`MAX_IMAGE_TOKENS`] an image, for
+/// the newest images a request carries. Nothing when the model cannot see
+/// images: each is then a line of text, counted with its message.
+pub fn image_tokens(config: &RunConfig, conversation: &[ConversationEntry]) -> u64 {
+    if !config.sees_images() {
+        return 0;
+    }
+    conversation
+        .iter()
+        .rev()
+        .filter(|entry| entry.kind == ConversationEntryKind::User)
+        .flat_map(|entry| crate::images::payload_images(&entry.payload))
+        .flatten()
+        .take(crate::images::MAX_IMAGES_PER_REQUEST)
+        .map(|image| {
+            (u64::from(image.width).div_ceil(28) * u64::from(image.height).div_ceil(28))
+                .min(MAX_IMAGE_TOKENS)
+        })
+        .sum()
+}
+
 /// The model's context, or 32 768 when it told none.
 pub(crate) fn context_window(config: &RunConfig) -> u64 {
     config
@@ -309,7 +337,7 @@ pub fn prepare(
             }))?));
         }
         conversation.extend(units.iter().flat_map(|unit| unit.entries.iter().cloned()));
-        let input = cost(&conversation)?;
+        let input = cost(&conversation)?.saturating_add(image_tokens(config, &conversation));
         if input <= available {
             let checkpoint = Checkpoint {
                 version: 1,

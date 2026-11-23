@@ -677,5 +677,13 @@
       "unknown": "피드백을 보내 주세요."
     },
     "feedbackMessage": "{{title}} ({{code}})"
+  },
+  "agentImages": {
+    "image": "이미지",
+    "remove": "이미지 제거",
+    "tooLarge": "이미지가 너무 큽니다. 한 장에 최대 {{size}}MB, 한 변 최대 {{side}}픽셀입니다.",
+    "tooMany": "메시지 하나에 이미지는 최대 {{max}}장까지 첨부할 수 있습니다.",
+    "unseen": "지금 쓰는 모델은 이미지를 볼 수 없습니다. 이미지를 볼 수 있는 모델로 바꾼 뒤 다시 보내 주세요.",
+    "unsupported": "PNG, JPEG, WebP 이미지만 보낼 수 있습니다."
   }
 }

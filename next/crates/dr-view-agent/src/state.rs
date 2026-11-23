@@ -94,6 +94,10 @@ pub struct ChatMessage {
 pub enum MessageContent {
     User {
         text: String,
+        /// The images it names (CM4a), in order; a record this device would
+        /// not have written is `None` and shows as an empty place.
+        #[serde(skip_serializing_if = "Vec::is_empty")]
+        images: Vec<Option<dr_agent::ImageRef>>,
     },
     Assistant {
         message: AssistantMessage,
@@ -120,6 +124,7 @@ impl From<&ConversationEntry> for ChatMessage {
                     .and_then(Value::as_str)
                     .map(|text| MessageContent::User {
                         text: text.to_owned(),
+                        images: dr_agent::images::payload_images(payload),
                     })
             }
             ConversationEntryKind::Assistant => serde_json::from_value(payload.clone())
@@ -426,9 +431,9 @@ impl ChatState {
             _ => {}
         }
         let projected = match &row.event {
-            Event::UserMessage { text } => Some((
+            Event::UserMessage { text, images } => Some((
                 ConversationEntryKind::User,
-                serde_json::json!({"text":text}),
+                dr_agent::images::user_payload(text, images),
             )),
             Event::AssistantMessage { message } => Some((
                 ConversationEntryKind::Assistant,

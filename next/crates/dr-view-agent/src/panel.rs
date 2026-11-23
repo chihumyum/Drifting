@@ -43,6 +43,7 @@ use crate::{
     controller::{AgentController, Subscription as RunSubscription},
     data,
     hub::AgentHub,
+    images,
     onboarding::{self, StarterSource},
     state::{
         ChatMessage, ChatSnapshot, ConversationSummary, MessageContent, RunSnapshot, TranscriptItem,
@@ -104,6 +105,14 @@ pub struct AgentPanel {
     continuity: continuity::Continuity,
     /// 「0.1 的旧对话」 and the search of 「历史」.
     old: old::Old,
+    /// CM4a: images waiting in the composer for the next message.
+    attached: Vec<images::Attached>,
+    /// Pictures of images, by digest: the composer's and the transcript's.
+    thumbs: HashMap<String, images::Thumb>,
+    /// Attachments still being read; and which composer they belong to (a
+    /// new book or conversation empties it).
+    attaching: usize,
+    tray_generation: u64,
 }
 
 impl AgentPanel {
@@ -152,6 +161,10 @@ impl AgentPanel {
             _subs: vec![old_field],
             continuity: Default::default(),
             old,
+            attached: Vec::new(),
+            thumbs: HashMap::new(),
+            attaching: 0,
+            tray_generation: 0,
         };
         panel._subs.push(
             cx.subscribe_in(&composer, window, |panel, _, event, _, cx| {
@@ -273,6 +286,8 @@ impl AgentPanel {
         self.conversations.clear();
         self.starters = None;
         self.composer.update(cx, |field, cx| field.set_text("", cx));
+        self.clear_attached();
+        self.thumbs.clear();
         self.reset_old(cx);
         self.invalidate();
         self.refresh(cx);
@@ -425,6 +440,7 @@ impl AgentPanel {
         self.expanded.clear();
         self.invalidate();
         self.composer.update(cx, |field, cx| field.set_text("", cx));
+        self.clear_attached();
         self.refresh(cx);
         cx.notify();
     }
@@ -556,6 +572,177 @@ impl AgentPanel {
             && self.navigation.is_empty()
             && self.active().is_none()
             && self.old.settled()
+            && self.attaching == 0
+            && !self
+                .thumbs
+                .values()
+                .any(|thumb| matches!(thumb, images::Thumb::Loading))
+    }
+
+    /// CM4a: the images waiting in the composer for the next message.
+    pub fn attached(&self) -> &[images::Attached] {
+        &self.attached
+    }
+
+    /// The error line under the transcript, if any.
+    pub fn error(&self) -> Option<&str> {
+        self.error.as_deref()
+    }
+
+    /// The picture of `image` as it stands (tests).
+    pub fn thumb(&self, image: &dr_agent::ImageRef) -> Option<&images::Thumb> {
+        self.thumbs.get(&image.sha256)
+    }
+
+    fn clear_attached(&mut self) {
+        self.attached.clear();
+        self.tray_generation += 1;
+    }
+
+    /// Attach image bytes (pasted) to the next message.
+    pub fn attach_bytes(&mut self, items: Vec<Vec<u8>>, cx: &mut Context<Self>) {
+        self.attach_with(move || items.into_iter().map(images::check).collect(), cx);
+    }
+
+    /// Attach image files (dropped or pasted) to the next message.
+    pub fn attach_paths(&mut self, paths: Vec<std::path::PathBuf>, cx: &mut Context<Self>) {
+        self.attach_with(
+            move || paths.iter().map(|path| images::check_file(path)).collect(),
+            cx,
+        );
+    }
+
+    /// Reads and checks off the main thread, then adds in order what can be
+    /// sent, up to the per-message limit; the same image twice is once. What
+    /// cannot be sent is said on the error line.
+    fn attach_with(
+        &mut self,
+        job: impl FnOnce() -> Vec<Result<images::Checked, dr_agent::ImageError>> + Send + 'static,
+        cx: &mut Context<Self>,
+    ) {
+        if self.old.is_open() {
+            return;
+        }
+        self.attaching += 1;
+        let tray = self.tray_generation;
+        let checked = cx.background_executor().spawn(async move { job() });
+        cx.spawn(async move |this, cx| {
+            let checked = checked.await;
+            let _ = this.update(cx, |panel, cx| {
+                panel.attaching -= 1;
+                if panel.tray_generation != tray {
+                    cx.notify();
+                    return;
+                }
+                let mut problem = None;
+                for result in checked {
+                    match result {
+                        Ok(checked) => {
+                            let sha = checked.attached.image.sha256.clone();
+                            if panel.attached.iter().any(|a| a.image.sha256 == sha) {
+                                continue;
+                            }
+                            if panel.attached.len() >= dr_agent::images::MAX_IMAGES_PER_MESSAGE {
+                                problem.get_or_insert(dr_agent::ImageError::TooMany);
+                                continue;
+                            }
+                            if let Some(thumb) = checked.thumb {
+                                panel.thumbs.insert(sha, images::Thumb::Ready(thumb));
+                            }
+                            panel.attached.push(checked.attached);
+                        }
+                        Err(error) => {
+                            problem.get_or_insert(error);
+                        }
+                    }
+                }
+                panel.error = problem.map(|error| image_error(error, cx));
+                cx.notify();
+            });
+        })
+        .detach();
+        cx.notify();
+    }
+
+    pub fn remove_attached(&mut self, index: usize, cx: &mut Context<Self>) {
+        if index < self.attached.len() {
+            self.attached.remove(index);
+            cx.notify();
+        }
+    }
+
+    /// ⌘V in the composer: files on the clipboard, or an image without any
+    /// text, are attached; anything with text is pasted as text by the field
+    /// itself. True when it was taken here.
+    fn paste_images(&mut self, cx: &mut Context<Self>) -> bool {
+        let Some(item) = cx.read_from_clipboard() else {
+            return false;
+        };
+        let mut paths = Vec::new();
+        let mut pictures = Vec::new();
+        let mut text = false;
+        for entry in item.entries() {
+            match entry {
+                gpui::ClipboardEntry::ExternalPaths(found) => {
+                    paths.extend(found.paths().iter().cloned())
+                }
+                gpui::ClipboardEntry::Image(image) => pictures.push(image.bytes().to_vec()),
+                gpui::ClipboardEntry::String(_) => text = true,
+                #[allow(unreachable_patterns)]
+                _ => {}
+            }
+        }
+        if !paths.is_empty() {
+            self.attach_paths(paths, cx);
+            true
+        } else if !text && !pictures.is_empty() {
+            self.attach_bytes(pictures, cx);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// The picture of an image a message in this conversation names: read
+    /// from this device in the background the first time.
+    fn transcript_thumb(
+        &mut self,
+        image: &dr_agent::ImageRef,
+        cx: &mut Context<Self>,
+    ) -> images::Thumb {
+        if let Some(thumb) = self.thumbs.get(&image.sha256) {
+            return thumb.clone();
+        }
+        let (Some(controller), Some(conversation)) =
+            (self.controller.clone(), self.selected.clone())
+        else {
+            return images::Thumb::Missing;
+        };
+        self.thumbs
+            .insert(image.sha256.clone(), images::Thumb::Loading);
+        let image = image.clone();
+        let sha = image.sha256.clone();
+        let read = cx.background_executor().spawn(async move {
+            controller
+                .read_image(&conversation, &image)
+                .ok()
+                .flatten()
+                .and_then(|bytes| images::thumbnail(&bytes))
+        });
+        cx.spawn(async move |this, cx| {
+            let thumb = read.await;
+            let _ = this.update(cx, |panel, cx| {
+                if matches!(panel.thumbs.get(&sha), Some(images::Thumb::Loading)) {
+                    panel.thumbs.insert(
+                        sha,
+                        thumb.map_or(images::Thumb::Missing, images::Thumb::Ready),
+                    );
+                    cx.notify();
+                }
+            });
+        })
+        .detach();
+        images::Thumb::Loading
     }
     pub fn active(&self) -> Option<&RunSnapshot> {
         self.snapshot
@@ -567,18 +754,34 @@ impl AgentPanel {
     }
 
     pub fn send(&mut self, cx: &mut Context<Self>) {
+        self.send_after_list(false, cx);
+    }
+
+    /// `waited`: the selected provider's live list was already fetched for
+    /// this message's images (see [`Connections::live_catalog`]).
+    fn send_after_list(&mut self, waited: bool, cx: &mut Context<Self>) {
         // A 0.1 conversation is read only: nothing continues it.
         if self.old.is_open() {
             return;
         }
         let text = self.composer.read(cx).text();
-        if text.trim().is_empty() || self.busy || dr_shell::release::is_releasing(cx) {
+        let attached = self.attached.clone();
+        if (text.trim().is_empty() && attached.is_empty())
+            || self.busy
+            || self.attaching > 0
+            || dr_shell::release::is_releasing(cx)
+        {
             return;
         }
         let (Some(controller), Some(book)) = (self.controller.clone(), self.book.clone()) else {
             return;
         };
         if let Some(run) = self.active() {
+            // Words go into the running turn; images wait for the next
+            // message (CM4a).
+            if text.trim().is_empty() {
+                return;
+            }
             if let Some(control) = controller.control(&run.session) {
                 let question = run.question.clone();
                 let submitted = text.clone();
@@ -595,6 +798,27 @@ impl AgentPanel {
                     cx,
                 );
             }
+            return;
+        }
+        // Whether the model takes images is what its live list says: fetch
+        // it before deciding, once.
+        if !attached.is_empty()
+            && !waited
+            && let Some(ready) = self.connections.update(cx, |c, cx| c.live_catalog(cx))
+        {
+            self.busy = true;
+            let generation = self.generation;
+            cx.spawn(async move |this, cx| {
+                let _ = ready.await;
+                let _ = this.update(cx, |panel, cx| {
+                    if panel.generation == generation {
+                        panel.busy = false;
+                        panel.send_after_list(true, cx);
+                    }
+                });
+            })
+            .detach();
+            cx.notify();
             return;
         }
         let mut config = match self.connections.read(cx).run_config() {
@@ -615,7 +839,14 @@ impl AgentPanel {
             input: text.clone(),
         };
         self.busy = true;
-        let start = controller.start_job(start);
+        let sent: Vec<String> = attached.iter().map(|a| a.image.sha256.clone()).collect();
+        let start = controller.start_job_with_images(
+            start,
+            dr_agent::ImageAttachments {
+                images: attached.into_iter().map(|a| a.bytes).collect(),
+                unseen_reply: t(cx, dr_i18n::keys::agent_images::UNSEEN).to_string(),
+            },
+        );
         cx.spawn(async move |this, cx| {
             let result = start.await;
             let _ = this.update(cx, |panel, cx| {
@@ -633,6 +864,9 @@ impl AgentPanel {
                                 field.set_text("", cx);
                             }
                         });
+                        // What was sent leaves the composer; an image
+                        // added meanwhile stays.
+                        panel.attached.retain(|a| !sent.contains(&a.image.sha256));
                         panel.remember(cx);
                         onboarding::note(cx, onboarding::Event::Sent);
                     }
@@ -1006,7 +1240,35 @@ impl AgentPanel {
             .debug_selector(|| format!("agent-message-{}", message.id))
             .min_w_0();
         match &message.content {
-            MessageContent::User { text } => {
+            MessageContent::User { text, images } if !images.is_empty() => {
+                let mut pictures = div().flex().flex_wrap().gap(px(6.));
+                for (index, image) in images.iter().enumerate() {
+                    pictures = pictures.child(
+                        self.tile(
+                            SharedString::from(format!(
+                                "agent-message-{}-image-{index}",
+                                message.id
+                            )),
+                            image
+                                .as_ref()
+                                .and_then(|image| self.thumbs.get(&image.sha256)),
+                            64.,
+                            window,
+                            cx,
+                        ),
+                    );
+                }
+                row = row
+                    .p(px(12.))
+                    .rounded(px(12.))
+                    .bg(p.paper.solid())
+                    .flex()
+                    .flex_col()
+                    .gap(px(8.))
+                    .child(pictures)
+                    .when(!text.is_empty(), |el| el.child(text::wrapped(text.clone())))
+            }
+            MessageContent::User { text, .. } => {
                 if let Some((header, body)) =
                     dr_shell::review_agent::parse_comment_user_message(text)
                 {
@@ -1374,11 +1636,87 @@ impl AgentPanel {
         column.into_any_element()
     }
 
+    /// One image's square: its picture, or an empty place when this device
+    /// does not hold it (CM4a). Read as an image named 「图片」.
+    fn tile(
+        &self,
+        id: SharedString,
+        thumb: Option<&images::Thumb>,
+        size: f32,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> gpui::Stateful<gpui::Div> {
+        use gpui::StyledImage as _;
+        let p = Theme::of(window, cx).palette;
+        let selector = id.to_string();
+        let tile = div()
+            .id(id)
+            .debug_selector(move || selector)
+            .role(gpui::Role::Image)
+            .aria_label(t(cx, dr_i18n::keys::agent_images::IMAGE))
+            .size(px(size))
+            .flex_none()
+            .rounded(px(8.))
+            .overflow_hidden()
+            .bg(p.page.solid());
+        match thumb {
+            Some(images::Thumb::Ready(picture)) => tile.child(
+                gpui::img(picture.clone())
+                    .size_full()
+                    .object_fit(gpui::ObjectFit::Cover),
+            ),
+            Some(images::Thumb::Loading) => tile,
+            _ => tile
+                .flex()
+                .items_center()
+                .justify_center()
+                .child(sand::icon(sand::Icon::Image, 16., p.ink(4).solid())),
+        }
+    }
+
+    /// The images waiting for the next message, each with its remove button.
+    fn tray(&self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+        let mut row = div().flex().flex_wrap().gap(px(8.));
+        for (index, attached) in self.attached.iter().enumerate() {
+            row = row.child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(px(2.))
+                    .child(self.tile(
+                        SharedString::from(format!("agent-attachment-{index}")),
+                        self.thumbs.get(&attached.image.sha256),
+                        48.,
+                        window,
+                        cx,
+                    ))
+                    .child(
+                        dr_ui::components::PanelIconButton::new(
+                            ("agent-attachment-remove", index),
+                            sand::Icon::Close,
+                        )
+                        .label(t(cx, dr_i18n::keys::agent_images::REMOVE))
+                        .on_click(
+                            cx.listener(move |panel, _, _, cx| panel.remove_attached(index, cx)),
+                        ),
+                    ),
+            );
+        }
+        row.into_any_element()
+    }
+
     fn transcript(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let mut column = div().flex().flex_col().gap(px(18.)).min_w_0();
         let Some(snapshot) = self.snapshot.clone() else {
             return column.into_any_element();
         };
+        for message in &snapshot.messages {
+            if let MessageContent::User { images, .. } = &message.content {
+                for image in images.iter().flatten() {
+                    self.transcript_thumb(image, cx);
+                }
+            }
+        }
         let mut assistants: HashMap<(&str, u32), usize> = HashMap::new();
         for item in snapshot.transcript() {
             match item {
@@ -1552,7 +1890,20 @@ impl Render for AgentPanel {
             .as_ref()
             .or(self.hub.read(cx).error.as_ref())
             .cloned();
-        let mut footer = div().flex().flex_col().gap(px(7.)).p(px(12.)).flex_none();
+        // Images are dropped onto the composer's block (CM4a).
+        let wash = p.ink(1).alpha(0.05);
+        let mut footer = div()
+            .id("agent-composer-area")
+            .debug_selector(|| "agent-composer-area".into())
+            .flex()
+            .flex_col()
+            .gap(px(7.))
+            .p(px(12.))
+            .flex_none()
+            .drag_over::<gpui::ExternalPaths>(move |style, _, _, _| style.bg(wash))
+            .on_drop(cx.listener(|panel, paths: &gpui::ExternalPaths, _, cx| {
+                panel.attach_paths(paths.paths().to_vec(), cx)
+            }));
         if let Some(run) = &active {
             footer = footer.child(
                 div()
@@ -1619,9 +1970,19 @@ impl Render for AgentPanel {
                 window,
                 cx,
             ))
+            .when(!self.attached.is_empty(), |el| {
+                el.child(self.tray(window, cx))
+            })
             .child(
                 div()
                     .key_context("DrAgentComposer")
+                    // ⌘V with an image or files on the clipboard attaches
+                    // them; anything with text is the field's own paste.
+                    .capture_action(cx.listener(|panel, _: &dr_ui::input::field::Paste, _, cx| {
+                        if panel.paste_images(cx) {
+                            cx.stop_propagation();
+                        }
+                    }))
                     .child(self.composer.clone()),
             )
             .child(
@@ -1682,6 +2043,27 @@ impl Render for AgentPanel {
             )
         })
         .child(footer)
+    }
+}
+
+/// Why an image cannot go with the message, in the author's language.
+fn image_error(error: dr_agent::ImageError, cx: &App) -> String {
+    use dr_agent::{ImageError, images};
+    use dr_i18n::keys::agent_images as k;
+    match error {
+        ImageError::Unsupported => t(cx, k::UNSUPPORTED).to_string(),
+        ImageError::TooLarge => tf(
+            cx,
+            k::TOO_LARGE,
+            &[
+                ("size", &(images::MAX_IMAGE_BYTES / 1024 / 1024)),
+                ("side", &images::MAX_IMAGE_SIDE),
+            ],
+        )
+        .to_string(),
+        ImageError::TooMany => {
+            tf(cx, k::TOO_MANY, &[("max", &images::MAX_IMAGES_PER_MESSAGE)]).to_string()
+        }
     }
 }
 
