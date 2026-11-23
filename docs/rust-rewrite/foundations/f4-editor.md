@@ -496,7 +496,7 @@ GPUI 补丁 G1 什么时候正式挂上，由作者在发布档前定（需要�
 ## 已知限制
 
 - 中文斜体画成正体（见 G5）。
-- 复制粘贴只有纯文本；粘贴的多段一律按回车规则拆开（第一段并进光标所在段）。
+- `ProseEditor` 自己的复制粘贴只有纯文本；粘贴的多段一律按回车规则拆开（第一段并进光标所在段）。带格式的复制粘贴在宿主一侧：Drifting 自己的富文本剪贴板（`dr-editor` 的 `clipboard`）；别的程序的 HTML 由 `gpui-prose` 的 `html::parse` 读成 `text::Fragment`，`text::PastePlan` 照 ProseMirror 的放法算出一次提交的编辑，读剪贴板的 HTML 归宿主（Drifting 是 `dr-platform`），见 [f4e-editor.md 的 PF 一节](f4e-editor.md#pf-从-word-和网页粘贴带格式2026-11-24)。没有「粘贴为纯文本」（0.1 的 ⇧⌘V）。
 - 选区不能跨章（接口 `BookRange` 已经留好，见 [m05-book.md](../modules/m05-book.md)）。
 - 列表（只在素材笔记里）由 F4d 画出样子：圆点、序号、任务框，见 [f4d-render.md 第三轮](f4d-render.md#第三轮全书视图列表来源悬停卡)；项与项挨紧、代码块和提示框的样子见[第四轮](f4d-render.md#第四轮段距跟着块走代码块和提示框)（每段的字号、留白、收进由 `ProseEditor::para_set` 一处算，估高度和真画同用）；列表的输入（回车续项、Tab 改层级、Markdown 快捷写法）归 F4c；引用、缩进、对齐、分隔线由 F4d 画出（居中、右对齐的多行段落，输入法候选窗和上下移动还按第一行的偏移算，等 F4b 加每行偏移）。
 - 真输入法的手测清单沿用 [P0-B](../spikes/p0-b-editor.md#待作者手测)，命令换成 `cargo run --release -p dr-editor --example prose-bench -- chapter`（`PROSE_BENCH_IME_LOG=1` 打印输入法调用）。
