@@ -84,7 +84,7 @@
 
 **大白话。** 作者在连接格里粘贴一个地址：本机或局域网的（比如 `http://localhost:11434`），App 去问这台服务有哪些模型，认出是哪种软件，把能用的模型放进模型菜单；网上的（比如 `https://api.example.com/v1`），App 照样问一次清单，确认服务在、Key 对，但不把清单列出来，让作者自己填模型名。发消息时走同一个 HTTP 客户端和 SSE 解析器，只是请求发到那台服务、用通用的 Chat Completions。
 
-**能填什么地址。** 本机（`localhost`、`127.0.0.0/8`、`::1`）和局域网（`10/8`、`172.16/12`、`192.168/16`、`*.local`）`http` 或 `https` 都行；别处都算网上的（`Reach::Internet`），只收 `https`，`http` 是 `AddressError::NeedsHttps`。本机和局域网这一组和 NP 的直连规则（`dr_platform::proxy::reach`）认的一样，所以网上的服务走系统代理、这一组直连。带用户名密码、查询串或 `#` 的不收（`Invalid`）。没写 `http://` 的当 `http://`（所以不写协议的网上地址是 `NeedsHttps`）；末尾的 `/` 和 `/v1` 去掉；标准端口（`http` 80、`https` 443）不写进 `display`。规则只有一份（`local::LocalAddress::parse`），传输层发请求前用同一条规则再查一次冻结进运行的地址（`local::validate_endpoint`：网上的不是 `https` 就拒），手改设置文件也放不宽。`local::on_the_internet` 是给表单用的：打出来的地址是不是网上的（`http` 也算），决定密钥框要不要自己出来。四家原来的端点检查（HTTPS 或本机）不变。
+**能填什么地址。** 本机（`localhost`、`127.0.0.0/8`、`::1`）和局域网（`10/8`、`172.16/12`、`192.168/16`、`*.local`）`http` 或 `https` 都行；别处都算网上的（`Reach::Internet`），只收 `https`，`http` 是 `AddressError::NeedsHttps`。本机和局域网这一组除了 `*.localhost`（见待协调第 4 条）和 NP 的直连规则（`dr_platform::proxy::reach`）认的一样，所以网上的服务走系统代理、这一组直连。带用户名密码、查询串或 `#` 的不收（`Invalid`）。没写 `http://` 的当 `http://`（所以不写协议的网上地址是 `NeedsHttps`）；末尾的 `/` 和 `/v1` 去掉；标准端口（`http` 80、`https` 443）不写进 `display`。规则只有一份（`local::LocalAddress::parse`），传输层发请求前用同一条规则再查一次冻结进运行的地址（`local::validate_endpoint`：网上的不是 `https` 就拒），手改设置文件也放不宽。`local::on_the_internet` 是给表单用的：打出来的地址是不是网上的（`http` 也算），决定密钥框要不要自己出来。四家原来的端点检查（HTTPS 或本机）不变。
 
 **问模型清单（`local::discover`）。** 先 `GET {base}/v1/models`：连不上 → `Unreachable`；401／403 → `Unauthorized`；别的回答但不是清单（404、500、不是 JSON、没有 `data` 数组）→ `NoList`，界面改问模型名；给了清单、但滤完一个不剩（只有嵌入模型和确知不会用工具的，或清单是空的）→ `NoToolModels`，界面写「这台服务上没有能用工具的模型」、不连上（作者 11-16 定，乙）。认软件看各自独有的接口：`/v1/models` 的行里 `owned_by` 是 `llamacpp` 是 llama.cpp；`GET /api/version` 回 `{"version":…}` 是 Ollama；`GET /api/v0/models` 的行带 `type`（`llm`／`vlm`／`embeddings`）是 LM Studio。认不出就没有名字。
 - 上下文：Ollama 读 `POST /api/show` 的 `model_info["<架构>.context_length"]`，LM Studio 读 `max_context_length`，llama.cpp 读 `/props` 的 `default_generation_settings.n_ctx`（它实际开的大小），别的服务读行上的 `max_model_len`／`context_length`。前两种是模型上限、不是运行时实际开的大小，所以设置里能手改（M31）。
@@ -116,6 +116,7 @@
 - `plain_http_to_the_internet_or_a_route_without_a_server_is_refused_before_any_request`（CA 前叫 `a_route_off_this_network_…`）：网上的 `http`、`ftp`、带用户名密码的地址、缺服务的路线在请求前拒绝（给这些地址挂了替身，替身一个请求都没收到）；没人监听时按网络错误失败。
 - `a_service_on_the_internet_is_listed_and_chatted_with_over_https`（CA）：`https://api.example.com/v1` 是 `Reach::Internet`、`display` 是 `api.example.com`；没 Key 是 `Unauthorized`，带 Key 问到清单（嵌入模型滤掉、`context_length` 读到）；对话发到它的 `/v1/chat/completions`、带 Bearer、不带推理和搜索字段。
 - `a_key_goes_only_to_its_own_service_and_never_along_a_redirect`（CA）：网上服务对清单和对话都回 307 指向另一台假服务：对话失败、清单是 `NoList`，另一台一个请求都没收到，发出去的只有这台自己的 Key；另一台自己的路线只带它自己的 Key。
+- `tests/system_proxy.rs` 的 `providers_take_the_system_proxy_and_a_local_model_server_never_does`（NP 写的，CA 并进来以后加了一段）：假代理当系统代理重跑一遍，本机的模型服务直连；网上的自定义服务的清单（共用客户端）和对话（5 分钟那个客户端）都只到假代理（两条 `CONNECT api.example.com:443`），假代理自己拒掉，什么都没出这台机器。
 - 单元测试：`local.rs` 的地址规则（本机、局域网、网上 `https`、网上 `http`、坏地址各一组，CA 前是「本机、局域网、网上被拒、坏地址」），`chat.rs` 的 `<think>` 逐字节分块、两种思考字段、缺用量、宽松的工具调用和各种截断，`credentials.rs` 的一服务一条 Key。
 
 **待协调。**
