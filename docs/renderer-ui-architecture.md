@@ -355,6 +355,19 @@ restored selection even when the author had scrolled away from the caret.
 `src/renderer/lib/editor-undo-selection.test.ts` runs the real sync and undo
 plugins over these cases.
 
+Paste has no code of its own in the prose editor: ProseMirror parses the
+clipboard. `pnpm-workspace.yaml` pins one `prosemirror-model` for Tiptap and the
+Yjs binding, and that pin must stay at 1.25.11 or later. `prosemirror-view`
+1.42 parses clipboard HTML inside a `<body>`, and Chromium on Windows (WebView2)
+delivers a copied fragment as
+`<html>\r\n<body>\r\n<!--StartFragment-->…<!--EndFragment-->\r\n</body>\r\n</html>`.
+Text copied from a ProseMirror editor is parsed with whitespace preserved, so an
+older model turned those line breaks into hard breaks: through 0.1.0-alpha.12,
+text copied in the app and pasted on Windows landed in a paragraph of its own
+with two hard breaks above and below it. macOS and iOS never showed it, because
+WebKit hands over the bare fragment.
+`src/renderer/lib/editor-clipboard-parse.test.ts` parses that clipboard shape.
+
 Initial no-autofocus session setup blurs only its own DOM synchronously; it never
 queues Tiptap's global-selection-clearing blur command after user interaction.
 The initialization save-suppression frame stays owned and cancellable.
