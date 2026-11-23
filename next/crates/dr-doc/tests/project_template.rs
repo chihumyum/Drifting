@@ -322,6 +322,7 @@ fn prose_paragraphs_round_trip_blocks_marks_links_tables_and_strip_assets() {
             mark: None,
             template: Some(tpl_char_id),
             level: false,
+            auto_link: false,
             overrides: None,
             fields: BTreeMap::new(),
             kv: BTreeMap::new(),
@@ -374,6 +375,7 @@ fn prose_paragraphs_round_trip_blocks_marks_links_tables_and_strip_assets() {
                     module: Some(mod_bio_id.clone()),
                     block: None,
                     end_block: None,
+                    manual: false,
                 },
             )?;
             // "旧宅" (pos+5..pos+7): italic + excluded entry link -> keeps italic, drops link
@@ -386,6 +388,7 @@ fn prose_paragraphs_round_trip_blocks_marks_links_tables_and_strip_assets() {
                     module: None,
                     block: None,
                     end_block: None,
+                    manual: false,
                 },
             )?;
             // "照片" (pos+10..pos+12): underline + Asset link -> keeps underline, drops link
@@ -398,6 +401,7 @@ fn prose_paragraphs_round_trip_blocks_marks_links_tables_and_strip_assets() {
                     module: None,
                     block: None,
                     end_block: None,
+                    manual: false,
                 },
             )?;
 
@@ -458,6 +462,7 @@ fn prose_paragraphs_round_trip_blocks_marks_links_tables_and_strip_assets() {
                     text: "顾侦探".to_owned(),
                     marks: InlineMarks::default(),
                 }],
+                // Picked with @ (`kernel-v5.md` §16).
                 &[(
                     0..3,
                     EntityLinkV3 {
@@ -466,6 +471,7 @@ fn prose_paragraphs_round_trip_blocks_marks_links_tables_and_strip_assets() {
                         module: Some(mod_bio_id.clone()),
                         block: None,
                         end_block: None,
+                        manual: true,
                     },
                 )],
             )?;
@@ -504,6 +510,7 @@ fn prose_paragraphs_round_trip_blocks_marks_links_tables_and_strip_assets() {
                 entities: vec![TemplateEntityLink {
                     entry: "e1".to_owned(),
                     module: Some("mod-bio".to_owned()),
+                    manual: false,
                 }],
                 ..TemplateRun::default()
             },
@@ -537,6 +544,21 @@ fn prose_paragraphs_round_trip_blocks_marks_links_tables_and_strip_assets() {
     assert!(
         extracted.iter().any(|p| p.table.is_some()),
         "missing table paragraph"
+    );
+    // The pick stays one in the template (and, below, in a new book).
+    let picked: Vec<&TemplateEntityLink> = extracted
+        .iter()
+        .filter_map(|p| p.table.as_ref())
+        .flat_map(|t| t.rows.iter().flatten().flatten())
+        .flat_map(|r| &r.entities)
+        .collect();
+    assert_eq!(
+        picked,
+        vec![&TemplateEntityLink {
+            entry: "e1".to_owned(),
+            module: Some("mod-bio".to_owned()),
+            manual: true,
+        }]
     );
 
     // Write into a brand-new prose doc with a fresh EntryId and re-extract -> identical!

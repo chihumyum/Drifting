@@ -389,6 +389,10 @@ pub enum AssistEvent {
     /// the system's file window was open (`BookEditor::insert_material` says
     /// where the file goes then).
     InsertMaterial { chapter: usize, material: String },
+    /// The link card's 「自动链接」: the host turns entry `entry`'s own
+    /// switch to `on` (`entry.set_auto_link`, `kernel-v5.md` §16) and says
+    /// so when the book refuses it.
+    AutoLink { entry: String, on: bool },
 }
 
 #[derive(Clone, Debug)]
@@ -427,6 +431,9 @@ pub struct Assist {
     extension: Option<Rc<crate::links::DriftingExtension>>,
     assist_origin: Rc<Cell<gpui::Point<Pixels>>>,
     names: Option<Rc<NameIndex>>,
+    /// Every live entry's names, for the @ picker (`kernel-v5.md` §16: it
+    /// lists the book's live entries whatever their 「自动链接」).
+    mention_names: Option<Rc<NameIndex>>,
     mention_assets: Option<Vec<MentionAsset>>,
     material_picker: Option<MaterialPickerState>,
     /// How many times `asset.list` ran for the slash file picker (for tests;
@@ -521,6 +528,7 @@ impl Assist {
             extension: None,
             assist_origin: Rc::new(Cell::new(point(px(0.), px(0.)))),
             names: None,
+            mention_names: None,
             mention_assets: None,
             material_picker: None,
             material_list_calls: 0,
@@ -627,6 +635,7 @@ impl Assist {
     pub fn invalidate_names(&mut self, cx: &mut Context<Self>) {
         self.relate.invalidate();
         self.names = None;
+        self.mention_names = None;
         self.mention_assets = None;
         self.names_dropped += 1;
         cx.notify();
@@ -699,6 +708,24 @@ impl Assist {
             }
         }
         self.names.clone()
+    }
+
+    /// Every live entry's names for the @ picker, read once until the book's
+    /// names change.
+    fn mention_names(&mut self) -> Option<Rc<NameIndex>> {
+        if self.mention_names.is_none() {
+            match self.ws.book_mention_names(&self.book) {
+                Ok(names) => {
+                    let groups = names
+                        .iter()
+                        .map(|n| (n.target.id.clone(), entity_links::NameGroup::Entry))
+                        .collect();
+                    self.mention_names = Some(Rc::new(NameIndex::new(names).with_groups(groups)));
+                }
+                Err(e) => log::warn!("dr-editor: entries of {}: {e}", self.book),
+            }
+        }
+        self.mention_names.clone()
     }
 
     /// The target id of chapter `chapter`'s own document (never linked).
@@ -1064,7 +1091,7 @@ impl Assist {
             MenuKind::Mention => {
                 let own = self.own_id(chapter).map(str::to_owned);
                 let mut rows: Vec<MenuRow> = self
-                    .names()
+                    .mention_names()
                     .map(|names| {
                         names
                             .search(query, MAX_ROWS + 1)
@@ -1545,7 +1572,8 @@ impl Assist {
         cx: &mut Context<Self>,
     ) {
         let key = inline::entity_key(&target.id);
-        let value = entity_links::link_value(target);
+        // Picked with @: recorded as manual (`kernel-v5.md` §16).
+        let value = entity_links::picked_link_value(target);
         let text = format!("{name} ");
         let len = name.chars().count();
         self.write(chapter, HostStep::Own, window, cx, move |doc| {
@@ -1809,10 +1837,20 @@ impl Assist {
         let range = e.decoration_range(chapter, "links", id)?;
         let doc = &e.book().chapters.get(chapter)?.doc;
         let marks = doc.marks_before(range.start + 1);
-        let (target, value) = marks.entities().next()?;
-        {
+        // The first mark there that reads as a link (`kernel-v5.md` §16).
+        marks.entities().find_map(|(target, value)| {
             let link = dr_doc::prose::v3::decode_entity_link(target, value)?;
-            Some(LinkTarget::new(link.kind, link.target))
+            self.shows_as_link(&link, value)
+                .then(|| LinkTarget::new(link.kind, link.target))
+        })
+    }
+
+    /// Whether `link` (its raw `value`) reads as a link now: through the
+    /// editor's extension when it has one, from the book otherwise.
+    fn shows_as_link(&self, link: &dr_model::v3::EntityLinkV3, value: &loro::LoroValue) -> bool {
+        match &self.extension {
+            Some(x) => x.show(&link.kind, &link.target, value).is_link(),
+            None => crate::v3::link_show(&self.ws, &self.book, link).is_link(),
         }
     }
 
@@ -1852,8 +1890,10 @@ impl Assist {
                         .map(|c| c.doc.marks_before(r.start + 1))
                 })
                 .and_then(|m| {
-                    m.entities()
-                        .find_map(|(t, v)| dr_doc::prose::v3::decode_entity_link(t, v))
+                    m.entities().find_map(|(t, v)| {
+                        dr_doc::prose::v3::decode_entity_link(t, v)
+                            .filter(|link| self.shows_as_link(link, v))
+                    })
                 });
             self.close_card();
             if let Some(link) = link {
@@ -1868,6 +1908,12 @@ impl Assist {
         link: dr_model::v3::EntityLinkV3,
         cx: &mut Context<Self>,
     ) {
+        // An automatic link whose entry's 「自动链接」 is off (or any while
+        // the setting is off) reads as text and opens nothing
+        // (`kernel-v5.md` §16); so does a trashed file's.
+        if !crate::v3::link_show(&self.ws, &self.book, &link).is_link() {
+            return;
+        }
         if crate::link_card::card_facts(
             &self.ws,
             &self.book,
@@ -2526,6 +2572,9 @@ impl Render for Assist {
                 let this = cx.entity();
                 let actions = if card.facts.target.kind == dr_model::kind::EntityKind::Entry {
                     let start = cx.entity();
+                    let switch = cx.entity();
+                    let on = card.facts.auto_link;
+                    let entry = card.facts.target.id.clone();
                     vec![
                         dr_ui::components::CardAction::new(
                             "dr-editor-link-card-relate",
@@ -2534,6 +2583,28 @@ impl Render for Assist {
                         )
                         .on_click(move |_, window, cx| {
                             start.update(cx, |a, cx| a.start_relation(window, cx));
+                        })
+                        .into_any_element(),
+                        // The entry's own 「自动链接」 under 「建关系」
+                        // (`kernel-v5.md` §16): off, this link and every
+                        // automatic one to the entry read as text.
+                        dr_ui::components::CardAction::new(
+                            "dr-editor-link-card-auto-link",
+                            Icon::Hook,
+                            self.auto_link_label(),
+                        )
+                        .current(on)
+                        .on_click(move |_, _, cx| {
+                            let entry = entry.clone();
+                            switch.update(cx, |a, cx| {
+                                // Shown at once; turned off, the card goes
+                                // with the link once the editor redraws.
+                                if let Some(card) = a.card.as_mut() {
+                                    card.facts.auto_link = !on;
+                                }
+                                cx.emit(AssistEvent::AutoLink { entry, on: !on });
+                                cx.notify();
+                            });
                         })
                         .into_any_element(),
                     ]

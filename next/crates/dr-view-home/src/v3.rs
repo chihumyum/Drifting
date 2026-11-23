@@ -180,6 +180,7 @@ pub fn create(
             template: action.template.clone(),
             level: None,
             bodies: Default::default(),
+            auto_link: None,
         })
         .expect("serializable entry input"),
         WritePreconditions::from_records(declared),

@@ -1,17 +1,21 @@
 //! Entity links (人物链接) as the editor shows them, and what the editor
 //! adds to gpui-prose through its extension hooks.
 //!
-//! An `entity:<id>` mark gets a look from what it points at: an element,
-//! chapter, storyline or category link in the link colour with a thin
-//! underline; a link whose target is gone (deleted, or in the trash) muted,
-//! with the underline only. Whether a target is alive comes from the
-//! workspace's catalog (F3's `BookCatalog`, the same lookup position links
-//! use), cached per target until the book changes.
+//! An `entity:<id>` mark gets a look from what it shows as
+//! ([`dr_model::v3::link_show`], `kernel-v5.md` §16 「自动链接」, the one rule
+//! every reader of links follows): a live link in the link colour with a
+//! thin underline; a link whose target is gone (deleted, or in the trash)
+//! muted, with the underline only; an automatic link to an entry whose own
+//! 「自动链接」 is off, or any automatic link while the author's setting is
+//! off, as ordinary text (its data stays in the text). A link picked with @
+//! shows whatever the switches say. What the targets are comes from the
+//! book, cached per target until the book changes.
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 
 use dr_model::kind::EntityKind;
+use dr_model::v3::{LinkEntries, LinkEntry, LinkShow};
 use gpui_prose::render::RunStyle;
 use gpui_prose::schema::inline;
 use gpui_prose::style::ProseStyle;
@@ -21,24 +25,57 @@ use loro::LoroValue;
 
 use crate::rules::markdown_rule;
 
-/// Bulk live target IDs `(entries, materials)` for one book state.
-pub type TargetSnapshot = (HashSet<String>, HashSet<String>);
+/// Bulk link targets for one book state: every entry of the book with its
+/// state (Recently Deleted too), and the live files.
+pub type TargetSnapshot = (LinkEntries, HashSet<String>);
 
-/// Whether entity link targets are alive.
+/// What entity link targets are.
 pub trait LinkTargets {
     fn alive(&self, kind: &EntityKind, id: &str) -> bool;
 
-    /// Optional bulk snapshot of `(live_entry_ids, live_material_ids)` so an
-    /// editor can populate its cache in a single book read instead of one read
-    /// per distinct link target.
+    /// The state of entry `id` for [`dr_model::v3::link_show`], `None` when
+    /// the book has no such entry. Without it, an entry reads as live and
+    /// linking when [`Self::alive`] says so.
+    fn entry(&self, id: &str) -> Option<LinkEntry> {
+        self.alive(&EntityKind::Entry, id).then_some(LinkEntry {
+            live: true,
+            auto_link: true,
+        })
+    }
+
+    /// Optional bulk snapshot ([`TargetSnapshot`]) so an editor can populate
+    /// its cache in a single book read instead of one read per distinct link
+    /// target.
     fn snapshot(&self) -> Option<TargetSnapshot> {
         None
+    }
+
+    /// The author's setting `editor.auto_entity_links` (on by default):
+    /// off, every automatic link reads as ordinary text.
+    fn auto_links(&self) -> bool {
+        true
     }
 
     /// Live asset IDs whose `kind` is PDF, so file-link badges pick the right icon.
     fn pdf_assets(&self) -> HashSet<String> {
         HashSet::new()
     }
+}
+
+/// Whether an entity mark's value says the author made the link: picked
+/// with @ ([`dr_model::prose::LINK_MANUAL`]), or into a module or a range of
+/// blocks, which automatic linking never writes
+/// ([`dr_model::v3::EntityLinkV3::picked`], `kernel-v5.md` §16).
+pub fn link_manual(value: &LoroValue) -> bool {
+    let LoroValue::Map(map) = value else {
+        return false;
+    };
+    matches!(
+        map.get(dr_model::prose::LINK_MANUAL),
+        Some(LoroValue::Bool(true))
+    ) || ["module", "block", "end_block"]
+        .iter()
+        .any(|k| map.get(*k).is_some_and(|v| !matches!(v, LoroValue::Null)))
 }
 
 /// The kind an entity mark's value names (elements when unsaid).
@@ -58,6 +95,10 @@ pub struct DriftingExtension {
     targets: Option<Box<dyn LinkTargets>>,
     alive: RefCell<HashMap<(EntityKind, String), bool>>,
     preloaded: RefCell<Option<Option<TargetSnapshot>>>,
+    /// Entry states read one at a time (no snapshot).
+    entries: RefCell<HashMap<String, Option<LinkEntry>>>,
+    /// The author's setting, read once until [`Self::invalidate`].
+    auto_links: std::cell::Cell<Option<bool>>,
     pdf_assets: RefCell<Option<HashSet<String>>>,
     markdown: bool,
     /// A material note's rules too (`==highlight==`).
@@ -85,6 +126,8 @@ impl DriftingExtension {
             targets,
             alive: RefCell::default(),
             preloaded: RefCell::new(None),
+            entries: RefCell::default(),
+            auto_links: std::cell::Cell::new(None),
             pdf_assets: RefCell::new(None),
             markdown: true,
             note: std::cell::Cell::new(false),
@@ -100,11 +143,78 @@ impl DriftingExtension {
         self
     }
 
-    /// Forgets cached link targets (the book changed).
+    /// Forgets cached link targets (the book changed, or the author's
+    /// setting did).
     pub fn invalidate(&self) {
         self.alive.borrow_mut().clear();
         *self.preloaded.borrow_mut() = None;
+        self.entries.borrow_mut().clear();
+        self.auto_links.set(None);
         *self.pdf_assets.borrow_mut() = None;
+    }
+
+    /// The author's setting `editor.auto_entity_links` (cached until
+    /// [`Self::invalidate`]); on without targets.
+    pub fn auto_links(&self) -> bool {
+        let Some(targets) = &self.targets else {
+            return true;
+        };
+        if let Some(on) = self.auto_links.get() {
+            return on;
+        }
+        let on = targets.auto_links();
+        self.auto_links.set(Some(on));
+        on
+    }
+
+    fn preload(&self, targets: &dyn LinkTargets) {
+        if self.preloaded.borrow().is_none() {
+            *self.preloaded.borrow_mut() = Some(targets.snapshot());
+        }
+    }
+
+    fn entry_state(&self, id: &str) -> Option<LinkEntry> {
+        let targets = self.targets.as_ref()?;
+        self.preload(targets.as_ref());
+        if let Some((entries, _)) = self.preloaded.borrow().as_ref().and_then(Option::as_ref) {
+            return entries.get(id);
+        }
+        if let Some(state) = self.entries.borrow().get(id) {
+            return *state;
+        }
+        let state = targets.entry(id);
+        self.entries.borrow_mut().insert(id.to_owned(), state);
+        state
+    }
+
+    /// What the entity mark `entity:<id>` with `value` shows as
+    /// ([`dr_model::v3::link_show`]): the one rule the editor's paint, name
+    /// cards, clicks, relation lines and suggestions read. A file link is a
+    /// link while its file is live and ordinary text otherwise. Without
+    /// targets every link is live.
+    pub fn show(&self, kind: &EntityKind, id: &str, value: &LoroValue) -> LinkShow {
+        if self.targets.is_none() {
+            return LinkShow::Live;
+        }
+        match kind {
+            EntityKind::Asset | EntityKind::Material => {
+                if self.is_alive(kind, id) {
+                    LinkShow::Live
+                } else {
+                    LinkShow::Plain
+                }
+            }
+            EntityKind::Entry => {
+                dr_model::v3::link_show(link_manual(value), self.entry_state(id), self.auto_links())
+            }
+            _ => {
+                if self.is_alive(kind, id) {
+                    LinkShow::Live
+                } else {
+                    LinkShow::Gone
+                }
+            }
+        }
     }
 
     pub fn is_pdf_asset(&self, id: &str) -> bool {
@@ -162,12 +272,10 @@ impl DriftingExtension {
         if let Some(&cached) = self.alive.borrow().get(&key) {
             return cached;
         }
-        if self.preloaded.borrow().is_none() {
-            *self.preloaded.borrow_mut() = Some(targets.snapshot());
-        }
+        self.preload(targets.as_ref());
         let alive = match self.preloaded.borrow().as_ref().and_then(Option::as_ref) {
             Some((entries, materials)) => match kind {
-                EntityKind::Entry => entries.contains(id),
+                EntityKind::Entry => entries.is_live(id),
                 EntityKind::Asset | EntityKind::Material => materials.contains(id),
                 _ => false,
             },
@@ -183,14 +291,15 @@ impl ProseExtension for DriftingExtension {
         let mut linked = None;
         for (key, value) in marks.iter() {
             if let Some(id) = inline::entity_target(key) {
-                let kind = link_kind(value);
-                let alive = self.is_alive(&kind, id);
-                // Format 5 (`v5-tracks.md` §T5): a link to a trashed file reads
-                // like ordinary prose text until the file is restored.
-                if !alive && matches!(kind, EntityKind::Asset | EntityKind::Material) {
-                    continue;
+                // Format 5 (`v5-tracks.md` §T5): a link to a trashed file
+                // reads like ordinary prose text until the file is restored;
+                // so does an automatic link whose entry's 「自动链接」 is off
+                // (`kernel-v5.md` §16).
+                match self.show(&link_kind(value), id, value) {
+                    LinkShow::Live => linked = Some(true),
+                    LinkShow::Gone => linked = Some(linked.unwrap_or(false)),
+                    LinkShow::Plain => {}
                 }
-                linked = Some(linked.unwrap_or(false) || alive);
             }
         }
         match linked {

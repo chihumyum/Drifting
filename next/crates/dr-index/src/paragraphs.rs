@@ -23,25 +23,26 @@ pub struct Block {
     pub(crate) text: String,
     pub(crate) words: u64,
     pub(crate) chars: u64,
-    /// Entity links: (kind, target) → separate spans in this paragraph.
-    pub(crate) links: BTreeMap<(String, String), u32>,
+    /// Entity links: (kind, target, picked with @) → separate spans in this
+    /// paragraph.
+    pub(crate) links: BTreeMap<(String, String, bool), u32>,
     /// The asset a file embed shows.
     pub(crate) asset: Option<String>,
 }
 
 fn count_links<'a>(
     runs: impl IntoIterator<Item = &'a dr_doc::prose::Run>,
-    links: &mut BTreeMap<(String, String), u32>,
+    links: &mut BTreeMap<(String, String, bool), u32>,
 ) {
     // A span starts where a target appears that the previous run did
     // not link to (dr-doc merges adjacent runs of one target).
-    let mut previous: HashSet<(String, String)> = HashSet::new();
+    let mut previous: HashSet<(String, String, bool)> = HashSet::new();
     for r in runs {
-        let here: HashSet<(String, String)> = r
+        let here: HashSet<(String, String, bool)> = r
             .marks
             .entities
             .iter()
-            .map(|l| (l.kind.as_str().to_string(), l.target.clone()))
+            .map(|l| (l.kind.as_str().to_string(), l.target.clone(), l.picked()))
             .collect();
         for t in &here {
             if !previous.contains(t) {
@@ -145,12 +146,18 @@ pub(crate) fn references<'b>(blocks: impl IntoIterator<Item = (&'b Block, bool)>
             continue;
         }
         let id = b.visible_id(kept);
-        for ((kind, target), count) in &b.links {
+        for ((kind, target, manual), count) in &b.links {
             out.push(RefRow {
                 source_block: id.clone(),
                 target_kind: kind.clone(),
                 target_id: target.clone(),
-                kind: RefKind::Link,
+                // A link picked with @ is recorded as such (`kernel-v5.md`
+                // §16): readers count it whatever the switches say.
+                kind: if *manual {
+                    RefKind::Mention
+                } else {
+                    RefKind::Link
+                },
                 count: *count,
             });
         }

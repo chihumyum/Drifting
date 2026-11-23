@@ -735,6 +735,14 @@ pub fn load(ws: &Workspace, book: &str) -> Result<Snapshot> {
         }
     }
 
+    // While the author's setting is off, an automatic link reads as text
+    // and only those picked with @ stay links (`kernel-v5.md` §16); the
+    // book gave the rest under their entries' own switches.
+    if !ws.auto_links() {
+        for item in &mut items {
+            item.comment.body.links.retain(|l| l.manual);
+        }
+    }
     let mut by_id = HashMap::with_capacity(items.len());
     let mut by_place = HashMap::with_capacity(items.len());
     for (idx, item) in items.iter().enumerate() {

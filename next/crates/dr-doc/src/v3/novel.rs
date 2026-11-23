@@ -1071,6 +1071,13 @@ pub fn apply_project_template(txn: &mut BookTxnV3<'_>, pt: &ProjectTemplate) -> 
             }
         }
     }
+    crate::project_template::start_auto_links(
+        txn,
+        pt.entries
+            .iter()
+            .filter(|e| !existing_entries.contains(&e.id))
+            .map(|e| &e.id),
+    )?;
     for view in &pt.views {
         let w = txn.timeline_view(&view.id)?;
         w.name(&view.name)?.pos(view.pos.as_ref())?;

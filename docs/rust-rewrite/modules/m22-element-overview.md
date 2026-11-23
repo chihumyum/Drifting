@@ -19,7 +19,7 @@
   - 提供无状态共享组件 `Legend` / `Row` / `render`，在内容区右上角统一绘制「正文同段」砂线开关、各 `RelationType` 颜色图例与计数显隐开关、「编辑类型」与「新建手动关联」入口，供全景视图复用。
 - **`next/crates/dr-view-element-overview`（M22 舞台）**
   - **确定性力导向「关系」布局（`relate.rs`）**：纯 Rust 实现，固定步数（首算 240 步，拖动固定重热 `alpha = 0.35`），初始扰动由 `EntryId` 的 FNV-1a 哈希驱动 `splitmix64`，保证同一本书每次冷算坐标逐位一致。合力包含四项：显式 `Relation` 弹簧、同段共现弱弹簧、按窗口宽高比缩放的所属岛位弱锚点、以及带文字宽度的矩形防重叠分离与斥力。弧线采用二次贝塞尔曲线，有向关系在两端绘制 `source_role` / `target_role` 角标，对称关系在中点绘制类型名；当可见关系边超过 60 条或缩放到远景时，自动收敛角标与远景姓名（仅保留提及最多的前 12 个要素、当前聚焦要素及其一跳邻居）。
-  - **确定性「群岛」分箱布局（`isles.rs`）**：从 canonical v3 读取 `display == "island"` 根下的分类子层级及独立的 `auto_link && !is_manuscript` 非泳道层级，区分本层常住条目（`residents`）、子层级分组与 `accept == true` 收入的归属成员（`members`），对多归属要素在「关系」模式下去重并在「群岛」模式下按 `(island_id, group_idx, entry_id)` 独立赋予交互标识。双带货架装箱（`Top` / `Bottom`）平衡总宽；画布支持远／中／近三档缩放 LOD，印章尺寸随提及次数对数权重缩放。
+  - **确定性「群岛」分箱布局（`isles.rs`）**：从 canonical v3 读取 Tab 里开着「层级」或「收别处的条目」的条目当岛屿（2026-11-24 核对：不看 `auto_link`），区分本层常住条目（`residents`）、子层级分组与 `accept == true` 收入的归属成员（`members`），对多归属要素在「关系」模式下去重并在「群岛」模式下按 `(island_id, group_idx, entry_id)` 独立赋予交互标识。双带货架装箱（`Top` / `Bottom`）平衡总宽；画布支持远／中／近三档缩放 LOD，印章尺寸随提及次数对数权重缩放。
   - **页眉双槽与按书本机记忆（`view.rs`）**：`head_start` 槽左侧放置「群岛 / 关系」分段切换器，右侧显示 `{{categories}} 类 · {{elements}} 要素`；`head_end` 槽提供要素搜索定位、同段连线阈值（`≥1 / ≥2 / ≥3 / ≥5`）、「重新排布」与画布重置。`Workspace::book_memory("element-overview")` 按书将当前模式、连线阈值、隐藏关系类型、浮岛抽屉宽度比例及带弹簧拓扑签名的落定坐标存入 `local_state`：新书默认打开「关系」，上次停在「群岛」的书重开仍回到「群岛」；拓扑未变时重开走 `520 ms` 平滑过渡到上次位置。
   - **守卫写入与 G1 / G2 复用（`view.rs`、`view/island.rs`、`view/relations.rs`）**：
     - 在「关系」画布拖动要素卡片松手即固定：通过 `dr_view_elements::data::v3::prepare_edit` 写入 `Entry.layout.relation_graph`，原样保留同一条目的 `EntryLayout::board` 与 `EntryLayout::grid`；浮岛小卡点「恢复自动排布」即清除 `relation_graph`。

@@ -31,9 +31,13 @@ fn reference(ws: &Workspace, key: &TurnKey, call: &ResolvedCall) -> Result<Vec<S
     }
     let args = &call.arguments;
     let keys: &[&str] = match call.name.as_str() {
-        "entry.update" | "entry.move" | "entry.trash" | "entry.restore" | "entry.set_level" => {
-            &["id"]
-        }
+        "entry.update"
+        | "entry.move"
+        | "entry.trash"
+        | "entry.restore"
+        | "entry.set_level"
+        | "entry.set_auto_link"
+        | "entry.set_below_auto_link" => &["id"],
         "membership.add" | "membership.remove" => &["host", "member"],
         "membership.primary" => &["member"],
         "timeline_view.place" | "timeline_view.remove" => &["lane", "entry"],
@@ -63,8 +67,8 @@ fn reference(ws: &Workspace, key: &TurnKey, call: &ResolvedCall) -> Result<Vec<S
     let borrowed = BorrowedBookV3::new(&copy, &book).map_err(|e| Error::Invalid(e.to_string()))?;
     let view = borrowed.view();
     let headers = view.entry_headers_with(&std::collections::BTreeMap::new());
-    if call.name == "entry.set_level"
-        && args["level"] == false
+    if (call.name == "entry.set_level" && args["level"] == false
+        || call.name == "entry.set_below_auto_link")
         && let Some(id) = args["id"].as_str()
         && let Ok(parent_id) = dr_model::id::EntryId::parse(id)
         && let Some(parent) = view.entry_raw(&parent_id)
@@ -246,6 +250,7 @@ const LOOKUPS: &[&str] = &[
     "asset_folder.trash",
     "comment.reanchor",
     "comment.update",
+    "entry.set_below_auto_link",
     "entry.set_level",
     "entry_history.restore",
     "relation_row.add_entry",
@@ -440,7 +445,8 @@ fn every_write_selects_the_same_entries_and_only_lookups_need_the_book() {
                     looks_up,
                     matches!(
                         name.as_str(),
-                        "relation_row.add_entry"
+                        "entry.set_below_auto_link"
+                            | "relation_row.add_entry"
                             | "relation_row.remove_entry"
                             | "relation_row.delete"
                             | "relation_type.set_direction"

@@ -45,6 +45,7 @@ fn link(target: &str) -> EntityLink {
         kind: EntityKind::Element,
         block: None,
         end_block: None,
+        manual: false,
     }
 }
 
@@ -471,6 +472,7 @@ fn entity_links_overlap_and_do_not_expand() {
                 kind: EntityKind::Patch,
                 block: None,
                 end_block: None,
+                manual: false,
             },
         )
     });

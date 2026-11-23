@@ -975,6 +975,7 @@ impl<'a> BookViewV3<'a> {
             mark: f.opt_string("mark"),
             template: f.id("template"),
             level: f.bool("level").unwrap_or(false),
+            auto_link: f.bool("auto_link").unwrap_or(false),
             overrides,
             fields,
             kv,
@@ -1042,7 +1043,7 @@ impl<'a> BookViewV3<'a> {
     }
 
     /// Structural entry headers keyed by `EntryId`: `id`, `parent`, `title`,
-    /// `template`, `level`, `overrides`, `created_at`, `deleted_at`, and the
+    /// `template`, `level`, `auto_link`, `overrides`, `created_at`, `deleted_at`, and the
     /// alias fields `templates` declare (the only `fields` values decoded);
     /// no `kv:*` or `layout`. Exact for the switch, settings inheritance,
     /// memberships, auto-linking and name keys (`entry_autolink_keys`).
@@ -1113,6 +1114,7 @@ impl<'a> BookViewV3<'a> {
                     mark: None,
                     template,
                     level: h.level,
+                    auto_link: h.auto_link,
                     overrides,
                     fields,
                     kv: BTreeMap::new(),
@@ -1604,15 +1606,35 @@ impl<'a> BookViewV3<'a> {
         Some(relation)
     }
 
+    /// Linked text as readers show it: a link to a live entry under its
+    /// current title; a link to an entry in Recently Deleted or gone, and an
+    /// automatic link to an entry whose own 「自动链接」 is off, as the text
+    /// it was saved with (`kernel-v5.md` §16, §19). Whether the author's
+    /// setting shows automatic links at all is the surface's
+    /// ([`LinkedText`]'s `manual`).
     pub fn resolve_linked_text(&self, text: &LinkedText) -> LinkedText {
         if text.links.is_empty() {
             return text.clone();
         }
         let tree = self.tree(book_v3::ENTRIES);
-        text.with_titles(|id| {
+        let state = |id: &EntryId| {
             let node = forest_node(&tree, id.as_str())?;
             let f = F(&node.meta);
-            f.ts("deleted_at").is_none().then(|| f.string("title"))
+            Some((
+                f.ts("deleted_at").is_none(),
+                f.bool("auto_link").unwrap_or(false),
+                f.string("title"),
+            ))
+        };
+        // Hide the automatic links whose entry's switch is off first, then
+        // project the rest under their titles.
+        let mut shown = text.clone();
+        shown.links.retain(|link| {
+            link.manual || state(&link.entry).is_none_or(|(_, auto_link, _)| auto_link)
+        });
+        shown.with_titles(|id| {
+            let (live, _, title) = state(id)?;
+            live.then_some(title)
         })
     }
 

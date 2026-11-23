@@ -246,3 +246,9 @@ xtask（审计 972 crate、0 漏洞、12 既有 notice）及 public（5536 文�
 ## 内核 v5 · 审阅铺满的列宽（2026-11-18 作者定的）
 
 kernel-v5 第 15 节第 52 条，作者「全照建议」，[v5-followups.md](../handoff/v5-followups.md) 的 SF 已把审阅铺满的分列接到 `dr-view-review/src/panel.rs` 的 `fill_columns`。铺满宽减 24 再除以 310 取整，限制在 1 到 6 列。同文件测试核对未铺满、换列临界宽度和上限。
+
+## AL 批注里的链接跟着「自动链接」（2026-11-24）
+
+- 批注里 @ 出来的链接记成手动的（`entity_manual`，对外 JSON 里 `manual: true`），不受开关影响；自动的链接在条目自己的「自动链接」关着时读成普通字（`resolve_linked_text`），作者的总开关关着时审阅栏只留手动的（`v3.rs` 的 `load`）。改字时看不见的自动链接照留在数据里，开关再打开就回来。
+- 总开关一变，外壳把设置交给书库后调 `dr_view_review::auto_links_changed`，每个审阅栏当场重读（测试 `tests/v3.rs` 的 `the_review_tab_follows_the_authors_setting_at_once`）。
+- 规则在 [kernel-v5.md 第 16 节「自动链接」](../kernel-v5.md#自动链接)。

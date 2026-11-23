@@ -105,19 +105,41 @@ pub mod v3 {
                 book: host.book.clone(),
             };
             let id = id.to_string();
+            let (link_page, link_id, linked) = (page.clone(), id.clone(), entry.auto_link);
             CardRows {
                 before_danger: vec![PageMenuSection {
                     title: None,
-                    items: vec![PageMenuItem {
-                        id: "entry-toggle-level".into(),
-                        icon: dr_ui::sand::Icon::Layers.into(),
-                        label: dr_shell::strings::t(cx, dr_i18n::keys::v3_shell::LEVEL_SWITCH),
-                        checked: entry.level,
-                        danger: false,
-                        run: Rc::new(move |window, cx| {
-                            dr_shell::v3::page::toggle_level(page.clone(), id.clone(), window, cx);
-                        }),
-                    }],
+                    items: vec![
+                        PageMenuItem {
+                            id: "entry-toggle-level".into(),
+                            icon: dr_ui::sand::Icon::Layers.into(),
+                            label: dr_shell::strings::t(cx, dr_i18n::keys::v3_shell::LEVEL_SWITCH),
+                            checked: entry.level,
+                            danger: false,
+                            run: Rc::new(move |window, cx| {
+                                dr_shell::v3::page::toggle_level(
+                                    page.clone(),
+                                    id.clone(),
+                                    window,
+                                    cx,
+                                );
+                            }),
+                        },
+                        // The entry's own 「自动链接」, under 「层级」
+                        // (`kernel-v5.md` §16).
+                        PageMenuItem {
+                            id: "entry-toggle-auto-link".into(),
+                            icon: dr_ui::sand::Icon::Hook.into(),
+                            label: dr_shell::strings::t(cx, dr_i18n::keys::v3_levels::AUTO_LINK),
+                            checked: linked,
+                            danger: false,
+                            run: Rc::new(move |_, cx| {
+                                dr_shell::v3::page::set_auto_link(
+                                    &link_page, &link_id, !linked, false, cx,
+                                );
+                            }),
+                        },
+                    ],
                 }],
                 ..Default::default()
             }

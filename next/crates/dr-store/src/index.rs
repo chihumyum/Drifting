@@ -40,9 +40,13 @@ pub struct BlockRow {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RefKind {
-    /// An entity link mark in the text.
+    /// An automatic entity link mark in the text (every link written before
+    /// links picked with @ were told apart counts as one).
     Link,
-    /// A name found in the text.
+    /// An entity link the author picked with @ (its value says `manual`,
+    /// `kernel-v5.md` §16): it counts whatever the switches of automatic
+    /// linking say. Readers that follow the switches read [`Self::Link`]
+    /// through them.
     Mention,
     /// An embedded object (table, material).
     Embed,

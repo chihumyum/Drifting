@@ -191,6 +191,7 @@ fn run(ops: &[Op]) -> Result<(), TestCaseError> {
                     kind: EntityKind::Element,
                     block: None,
                     end_block: None,
+                    manual: false,
                 };
                 user(d, |t| t.link_entity(start..end, &link));
             }

@@ -54,6 +54,7 @@ fn link(target: &str) -> EntityLink {
         kind: EntityKind::Element,
         block: None,
         end_block: None,
+        manual: false,
     }
 }
 
@@ -114,6 +115,55 @@ fn holders_derive_from_diffs_and_the_rows_match_the_text() {
     assert_eq!(embeds.len(), 1);
     assert_eq!(embeds[0].kind, RefKind::Embed);
     assert_eq!(embeds[0].target_kind, "asset");
+    h.close();
+    lib.close().unwrap();
+}
+
+/// `kernel-v5.md` §16: a link picked with @ is indexed as such (`Mention`),
+/// apart from the automatic ones (`Link`), so readers can count it whatever
+/// the switches of automatic linking say; the same paragraph may hold both.
+#[test]
+fn links_picked_with_at_are_indexed_apart_from_the_automatic_ones() {
+    let dir = tempfile::tempdir().unwrap();
+    let (lib, _deriver) = open(dir.path(), true);
+    let id = DocId::parse("node:c1").unwrap();
+    let h = open_doc(&lib, &id);
+    let mut p = ProseDoc::create(id.clone(), 5).unwrap();
+    write(&h, &mut p, |t| {
+        t.insert_paragraphs(0, "安娜和安娜。\n安娜。")?;
+        t.link_entity(0..2, &link("anna"))?;
+        t.link_entity(
+            3..5,
+            &EntityLink {
+                manual: true,
+                ..link("anna")
+            },
+        )?;
+        t.link_entity(7..9, &link("anna"))?;
+        Ok(())
+    });
+    assert!(h.reindex_now().unwrap());
+    let mut refs: Vec<(RefKind, u32)> = lib
+        .references_to("anna")
+        .unwrap()
+        .into_iter()
+        .map(|r| (r.kind, r.count))
+        .collect();
+    refs.sort_by_key(|(k, c)| (k.as_str(), *c));
+    assert_eq!(
+        refs,
+        vec![
+            (RefKind::Link, 1),
+            (RefKind::Link, 1),
+            (RefKind::Mention, 1)
+        ]
+    );
+    // The value says so when read back.
+    let marks = p.view().entity_links();
+    assert_eq!(
+        marks.iter().map(|(_, l)| l.manual).collect::<Vec<_>>(),
+        vec![false, true, false]
+    );
     h.close();
     lib.close().unwrap();
 }
@@ -442,6 +492,7 @@ fn entry_body_indexes_counts_searches_and_links_across_all_formats() {
         module: Some(ModuleId::parse("m-prose").unwrap()),
         block: None,
         end_block: None,
+        manual: false,
     };
     write(&h, &mut p, |t| {
         t.set_table_cell_runs_v3(

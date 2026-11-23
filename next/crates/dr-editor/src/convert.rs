@@ -221,6 +221,9 @@ pub fn entity_value(link: &EntityLink) -> LoroValue {
     if let Some(b) = &link.end_block {
         m.push(("end_block".into(), b.as_str().into()));
     }
+    if link.manual {
+        m.push((dr_model::prose::LINK_MANUAL.into(), true.into()));
+    }
     LoroValue::Map(m.into())
 }
 

@@ -37,12 +37,13 @@ fn planned_body(
     let automatic = cx.workspace().auto_links()
         && (crate::autolink::links_for(cx.actor()) || matches!(cx.actor(), crate::Actor::User));
     let names = automatic.then(|| crate::autolink::book_cache(slot).2);
-    crate::autolink::plan_book_text(
+    crate::autolink::plan_book_text_shown(
         &slot.reader_v3.view(),
         owner.as_ref(),
         names.as_deref(),
         stored,
         body,
+        cx.workspace().auto_links(),
     )
 }
 
@@ -78,10 +79,12 @@ pub fn projected_body(
             && link.target != owner
             && let Ok(entry) = EntryId::parse(&link.target)
         {
+            // A link picked with @ in the line stays one in the comment.
             body.links.push(EntryTextLink {
                 start: from - start,
                 end: to - start,
                 entry,
+                manual: link.manual,
             });
             next = to;
         }

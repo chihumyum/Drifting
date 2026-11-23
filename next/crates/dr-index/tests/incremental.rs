@@ -72,6 +72,7 @@ fn link(target: u8) -> EntityLink {
         kind: EntityKind::Element,
         block: None,
         end_block: None,
+        manual: false,
     }
 }
 

@@ -117,6 +117,19 @@ pub fn init(lib: Option<Workspace>, cx: &mut App) {
     .detach();
 }
 
+/// The author's 「自动要素链接」 changed and the shell passed it on to the
+/// library: every Review tab reads its comments again, so their automatic
+/// links show, or read as text, at once (`kernel-v5.md` §16).
+pub fn auto_links_changed(cx: &mut App) {
+    let views: Vec<Entity<ReviewView>> = cx
+        .try_global::<Hub>()
+        .map(|h| h.views.values().cloned().collect())
+        .unwrap_or_default();
+    for view in views {
+        view.update(cx, |v, cx| v.reload_now(cx));
+    }
+}
+
 /// Lets go of the library before quitting.
 pub fn release(cx: &mut App) {
     agent_bridge::reset_library_state(cx);

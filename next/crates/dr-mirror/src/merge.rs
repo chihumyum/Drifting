@@ -568,6 +568,7 @@ fn restyle(txn: &mut ProseTxn<'_>, start: usize, want: &Para) -> dr_doc::Result<
                             kind: EntityKind::Asset,
                             block: None,
                             end_block: None,
+                            manual: false,
                         },
                     )?;
                 }

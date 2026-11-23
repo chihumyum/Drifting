@@ -559,7 +559,11 @@ fn rewrite_inline_link(
         let mspec = tpl.module(mid)?;
         (mspec.kind == ModuleKind::Prose).then(|| mid.to_string())
     });
-    Some(TemplateEntityLink { entry: sym, module })
+    Some(TemplateEntityLink {
+        entry: sym,
+        module,
+        manual: link.manual,
+    })
 }
 
 fn slice_runs_with_links(
@@ -736,6 +740,7 @@ fn to_prose_runs_and_links(
                     module,
                     block: None,
                     end_block: None,
+                    manual: el.manual,
                 },
             ));
         }
@@ -831,6 +836,7 @@ pub fn write_prose_paragraphs(
                         module,
                         block: None,
                         end_block: None,
+                        manual: el.manual,
                     },
                 )?;
             }
@@ -1778,6 +1784,7 @@ pub fn from_seed_template(
                 mark: se.mark.clone(),
                 template: se.template.clone(),
                 level: se.level,
+                auto_link: false,
                 overrides: se.overrides.clone(),
                 fields: se.fields.clone(),
                 kv: BTreeMap::new(),
@@ -2420,6 +2427,7 @@ pub fn apply_materialized_project_template(
             w.primary(entry.primary.as_ref())?;
         }
     }
+    start_auto_links(txn, mat.entries.iter().map(|e| &e.id))?;
     for m in &mat.memberships {
         txn.put_membership(&m.host, &m.member, m.pos.as_ref(), Some(created_at))?;
     }
@@ -2436,6 +2444,36 @@ pub fn apply_materialized_project_template(
         for pin in &view.pins {
             w.put_pin(pin)?;
         }
+    }
+    Ok(())
+}
+
+/// Give each of `created` (entries a project template just wrote) the
+/// 「自动链接」 a new entry starts with where it lives
+/// ([`dr_model::v3::new_entry_auto_link`], `kernel-v5.md` §16): a project
+/// template carries no entry's switch, only its levels' defaults. Call after
+/// every entry and its overrides are written.
+pub fn start_auto_links<'e>(
+    txn: &mut crate::v3::BookTxnV3<'_>,
+    created: impl IntoIterator<Item = &'e dr_model::id::EntryId>,
+) -> crate::Result<()> {
+    let graph = txn.view().graph();
+    let on: Vec<dr_model::id::EntryId> = created
+        .into_iter()
+        .filter(|id| {
+            graph.entries.get(*id).is_some_and(|e| {
+                dr_model::v3::new_entry_auto_link(
+                    e.parent.as_ref(),
+                    e.template.as_ref(),
+                    &graph.entries,
+                    &graph.templates,
+                )
+            })
+        })
+        .cloned()
+        .collect();
+    for id in on {
+        txn.entries().entry(&id)?.auto_link(true)?;
     }
     Ok(())
 }

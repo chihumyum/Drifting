@@ -379,6 +379,7 @@ fn sample_conversion_preserves_material_links_block_links_table_cell_links_and_f
                     kind: EntityKind::Element,
                     block: Some(block_id.clone()),
                     end_block: None,
+                    manual: false,
                 },
             )?;
             let p0 = PosKey::parse("a0").unwrap();
@@ -480,6 +481,7 @@ fn sample_conversion_preserves_material_links_block_links_table_cell_links_and_f
                 module: Some(ModuleId::parse(MOD_PROSE).unwrap()),
                 block: Some(block_id),
                 end_block: None,
+                manual: false,
             }
         )])
     );

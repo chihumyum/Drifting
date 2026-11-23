@@ -596,6 +596,7 @@ fn rejects_real_ids_dangling_refs_and_structural_violations() {
         vec![TemplateEntityLink {
             entry: "e99".to_owned(),
             module: None,
+            manual: false,
         }];
     assert!(validate_project_template_value(&t).is_err());
 
@@ -709,6 +710,7 @@ fn rejects_real_ids_dangling_refs_and_structural_violations() {
                             entities: vec![TemplateEntityLink {
                                 entry: "e4".to_owned(),
                                 module: Some("mod-bio".to_owned()),
+                                manual: false,
                             }],
                             ..TemplateRun::default()
                         }],

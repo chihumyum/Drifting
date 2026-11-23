@@ -1945,6 +1945,8 @@ fn legacy_entity_links_adapt_losslessly_to_v3_across_bodies_templates_and_histor
         BookDocV3::load(BookId::parse(BOOK).unwrap(), random_device_peer(), &[bytes]).unwrap();
     compare(&book.view(), &expected, &lib);
 
+    // A link to a note, a storyline or a category was picked in 0.1: it is
+    // recorded as manual (`kernel-v5.md` §16 「从 0.1 导入」).
     let elem_doc_id = adapter::body_id(ELEMENT, MOD_PROSE);
     let elem_doc = load_prose(&lib, &elem_doc_id);
     assert_eq!(
@@ -1958,6 +1960,7 @@ fn legacy_entity_links_adapt_losslessly_to_v3_across_bodies_templates_and_histor
                     module: None,
                     block: None,
                     end_block: None,
+                    manual: true,
                 }
             ),
             (
@@ -1968,6 +1971,7 @@ fn legacy_entity_links_adapt_losslessly_to_v3_across_bodies_templates_and_histor
                     module: Some(mid(MOD_PROSE)),
                     block: Some(BlockId::parse("q1").unwrap()),
                     end_block: Some(BlockId::parse("q2").unwrap()),
+                    manual: false,
                 }
             ),
             (
@@ -1978,6 +1982,7 @@ fn legacy_entity_links_adapt_losslessly_to_v3_across_bodies_templates_and_histor
                     module: Some(mid(MOD_DESCRIPTION)),
                     block: Some(BlockId::parse("s-p1").unwrap()),
                     end_block: None,
+                    manual: true,
                 }
             ),
             (
@@ -1988,6 +1993,7 @@ fn legacy_entity_links_adapt_losslessly_to_v3_across_bodies_templates_and_histor
                     module: Some(mid(MOD_DESCRIPTION)),
                     block: None,
                     end_block: None,
+                    manual: true,
                 }
             ),
         ]
@@ -2014,6 +2020,7 @@ fn legacy_entity_links_adapt_losslessly_to_v3_across_bodies_templates_and_histor
                 module: None,
                 block: None,
                 end_block: None,
+                manual: true,
             }
         )]
     );
@@ -2036,6 +2043,7 @@ fn legacy_entity_links_adapt_losslessly_to_v3_across_bodies_templates_and_histor
                     module: None,
                     block: None,
                     end_block: None,
+                    manual: true,
                 }
             ),
             (
@@ -2046,9 +2054,182 @@ fn legacy_entity_links_adapt_losslessly_to_v3_across_bodies_templates_and_histor
                     module: Some(mid(MOD_PROSE)),
                     block: Some(BlockId::parse("p1").unwrap()),
                     end_block: None,
+                    manual: false,
                 }
             ),
         ]
+    );
+    lib.close().unwrap();
+}
+
+/// `kernel-v5.md` §16 「从 0.1 导入」: what 0.1 linked by itself (every
+/// element, chapter and idea) comes in with its 「自动链接」 on, everything
+/// else off. A link 0.1 drew to an element, a chapter or an idea is
+/// automatic, as 0.1 made it; one to a text material's note, a storyline or
+/// a category could only have been picked by the author, so it comes in
+/// recorded as picked and shows as it did, the switch off — in the prose, a
+/// table cell or a TODO projected from a line.
+#[test]
+fn imported_entries_keep_linking_as_0_1_linked_them() {
+    use serde_json::json;
+
+    let link = |text: &str, kind: &str, id: &str| {
+        json!({"type": "text", "text": text,
+            "marks": [{"type": "entityLink", "attrs": {"targetKind": kind, "targetId": id}}]})
+    };
+    let old = fixture::build();
+    let live = json!({
+        "type": "doc",
+        "content": [{
+            "type": "paragraph",
+            "attrs": {"id": "e-p1"},
+            "content": [
+                link("札记", "library_item", NOTE),
+                {"type": "text", "text": "与"},
+                link("第一章", "node", CHAPTER),
+                {"type": "text", "text": "及"},
+                link("主线", "storyline", STORYLINE),
+                {"type": "text", "text": "和"},
+                link("分类", "category", CATEGORY),
+                {"type": "text", "text": "、"},
+                link("构想", "node", IDEA)
+            ]
+        }, {
+            "type": "table",
+            "attrs": {"id": "e-t"},
+            "content": [{"type": "tableRow", "content": [
+                {"type": "tableCell", "content": [{"type": "paragraph", "content": [link("主线", "storyline", STORYLINE)]}]},
+                {"type": "tableCell", "content": [{"type": "paragraph", "content": [link("第一章", "node", CHAPTER)]}]}
+            ]}]
+        }]
+    });
+    // The note's checklist item, a TODO in 0.1: its comment follows the line.
+    let note = json!({
+        "type": "doc",
+        "content": [{"type": "taskList", "attrs": {"id": "tl"}, "content": [{
+            "type": "taskItem",
+            "attrs": {"id": "ti1", "checked": false, "todoId": NOTE_TODO},
+            "content": [{"type": "paragraph", "attrs": {"id": "tp1"}, "content": [
+                {"type": "text", "text": "核对"},
+                link("主线", "storyline", STORYLINE),
+                {"type": "text", "text": "里的称呼"}
+            ]}]
+        }]}]
+    });
+    let c = rusqlite::Connection::open(&old.db).unwrap();
+    c.execute(
+        "UPDATE element SET content_json=?1 WHERE id=?2",
+        rusqlite::params![live.to_string(), ELEMENT],
+    )
+    .unwrap();
+    c.execute(
+        "UPDATE library_item SET body_json=?1 WHERE id=?2",
+        rusqlite::params![note.to_string(), NOTE],
+    )
+    .unwrap();
+    drop(c);
+    let before = source_tree_snapshot(&old.root);
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("library");
+    let mut opts = options(&old);
+    opts.accept = dr_import_v1::gate::Accept::EVERYTHING;
+    let (outcome, _) = run::import(&old.db, &root, &opts).unwrap();
+    assert!(matches!(outcome, Outcome::Imported(_)));
+    // The source's bytes and times are left as they were.
+    assert_eq!(before, source_tree_snapshot(&old.root));
+
+    let lib = open(&root);
+    let bytes = lib
+        .load_copy(&format!("book:{BOOK}"))
+        .unwrap()
+        .export(loro::ExportMode::Snapshot)
+        .unwrap();
+    let book =
+        BookDocV3::load(BookId::parse(BOOK).unwrap(), random_device_peer(), &[bytes]).unwrap();
+    let view = book.view();
+    let switch = |id: &str| view.entry_raw(&eid(id)).unwrap().auto_link;
+    for id in [ELEMENT, CHAPTER, IDEA] {
+        assert!(switch(id), "{id} linked by itself in 0.1");
+    }
+    for id in [NOTE, STORYLINE, CATEGORY] {
+        assert!(!switch(id), "{id} was not linked by itself in 0.1");
+    }
+    // Every entry of another kind is off: the roots, groups and the rest.
+    for e in view.entries_raw() {
+        let linked_kind = e.template.as_ref().is_some_and(|t| {
+            [TPL_CHAPTER, TPL_IDEA, TPL_ELEMENT].contains(&t.as_str())
+                || t.as_str().starts_with("import-category-")
+        });
+        if !linked_kind {
+            assert!(!e.auto_link, "{} ({:?})", e.title, e.template);
+        }
+    }
+    // The links: automatic to what 0.1 linked by itself, picked to the
+    // rest; every one shows as 0.1 showed it, the setting on or off for the
+    // picked ones.
+    let states = LinkEntries::of(view.graph().entries.values());
+    let picked = |id: &str| [NOTE, STORYLINE, CATEGORY].contains(&id);
+    let check = |links: Vec<(String, bool)>| {
+        for (target, manual) in &links {
+            assert_eq!(*manual, picked(target), "{target}");
+            assert_eq!(
+                states.show(target, *manual, true),
+                LinkShow::Live,
+                "{target}"
+            );
+            if *manual {
+                assert_eq!(states.show(target, *manual, false), LinkShow::Live);
+            }
+        }
+        links.into_iter().map(|(t, _)| t).collect::<Vec<_>>()
+    };
+    let doc = load_prose(&lib, &adapter::body_id(ELEMENT, MOD_PROSE));
+    let prose: Vec<(String, bool)> = doc
+        .view()
+        .entity_links_v3()
+        .into_iter()
+        .map(|(_, l)| (l.target, l.manual))
+        .collect();
+    assert_eq!(
+        check(prose),
+        [NOTE, CHAPTER, STORYLINE, CATEGORY, IDEA].map(str::to_owned)
+    );
+    // The table's cells.
+    let view_doc = doc.view();
+    let (embed, rows, cols) = view_doc
+        .paragraphs()
+        .find_map(|p| match view_doc.embed(p.embed()?)? {
+            dr_doc::prose::EmbedView::Table { id, rows, cols, .. } => Some((id, rows, cols)),
+            _ => None,
+        })
+        .expect("the element's table");
+    let mut cells = Vec::new();
+    for r in &rows {
+        for c in &cols {
+            for (_, l) in view_doc
+                .table_cell_entity_links_v3(&embed, &r.id, &c.id)
+                .unwrap_or_default()
+            {
+                cells.push((l.target, l.manual));
+            }
+        }
+    }
+    assert_eq!(check(cells), [STORYLINE, CHAPTER].map(str::to_owned));
+    // The TODO projected from the note's line.
+    let todo = view
+        .comments()
+        .into_iter()
+        .find(|c| c.body.text.contains("里的称呼"))
+        .expect("the note's TODO");
+    assert_eq!(
+        check(
+            todo.body
+                .links
+                .iter()
+                .map(|l| (l.entry.to_string(), l.manual))
+                .collect()
+        ),
+        [STORYLINE.to_owned()]
     );
     lib.close().unwrap();
 }
@@ -2374,6 +2555,8 @@ fn marked_and_linked_legacy_table_cells_import_losslessly_across_profiles_templa
     compare(&book.view(), &expected, &lib);
 
     // 1. Live Prose-profile element table cell preserves bold, marked hardBreak, underline+link, joined paragraph break, and strike+material/block links!
+    // A link to a note, a storyline or a category was picked in 0.1: it is
+    // recorded as manual (`kernel-v5.md` §16 「从 0.1 导入」).
     let elem_doc_id = adapter::body_id(ELEMENT, MOD_PROSE);
     let elem_doc = load_prose(&lib, &elem_doc_id);
     let tbl_elem = EmbedId::parse("tbl-elem").unwrap();
@@ -2403,6 +2586,7 @@ fn marked_and_linked_legacy_table_cells_import_losslessly_across_profiles_templa
                     module: Some(mid(MOD_PROSE)),
                     block: Some(BlockId::parse("q1").unwrap()),
                     end_block: Some(BlockId::parse("q2").unwrap()),
+                    manual: false,
                 }
             ),
             (
@@ -2413,6 +2597,7 @@ fn marked_and_linked_legacy_table_cells_import_losslessly_across_profiles_templa
                     module: None,
                     block: None,
                     end_block: None,
+                    manual: true,
                 }
             ),
         ])
@@ -2456,6 +2641,7 @@ fn marked_and_linked_legacy_table_cells_import_losslessly_across_profiles_templa
                 module: Some(mid(MOD_PROSE)),
                 block: None,
                 end_block: None,
+                manual: false,
             }
         )])
     );
@@ -2482,6 +2668,7 @@ fn marked_and_linked_legacy_table_cells_import_losslessly_across_profiles_templa
                 module: Some(mid(MOD_PROSE)),
                 block: Some(BlockId::parse("tbl-elem").unwrap()),
                 end_block: None,
+                manual: false,
             }
         )])
     );

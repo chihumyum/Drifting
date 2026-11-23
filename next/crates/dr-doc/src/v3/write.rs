@@ -617,6 +617,21 @@ impl EntryWriterV3 {
         Ok(self)
     }
 
+    /// The entry's own 「自动链接」 (`auto_link`, `kernel-v5.md` §16). Off is
+    /// stored as absent, as every entry written before the switch existed.
+    pub fn auto_link(&self, v: bool) -> Result<&Self> {
+        set(&self.map, "auto_link", v.then_some(true))?;
+        Ok(self)
+    }
+
+    /// Only the level's own 「自动链接」 in `overrides` (`None`: inherit),
+    /// leaving its other overrides as they are.
+    pub fn below_auto_link(&self, v: Option<bool>) -> Result<&Self> {
+        let m = self.map.ensure_mergeable_map("overrides")?;
+        set(&m, "auto_link", v)?;
+        Ok(self)
+    }
+
     pub fn overrides(&self, ov: Option<&LevelSettingsOverride>) -> Result<&Self> {
         match ov {
             Some(ov) if !ov.is_empty() => {
@@ -1898,9 +1913,10 @@ impl<'a> BookTxnV3<'a> {
         .remove_fact(id)
     }
 
-    /// Restore an entry's metadata (`title`, `mark`, `template`, `level`, `primary`,
-    /// timestamps, `overrides`, `fields`, all `kv:<module_id>` / `media:<module_id>`
-    /// tables and its custom module values `module:<module_id>`) from `old`
+    /// Restore an entry's metadata (`title`, `mark`, `template`, `level`,
+    /// `auto_link`, `primary`, timestamps, `overrides`, `fields`, all
+    /// `kv:<module_id>` / `media:<module_id>` tables and its custom module
+    /// values `module:<module_id>`) from `old`
     /// (`BookViewV3::entry_snapshot`).
     pub fn restore_entry(&mut self, id: &EntryId, old: &EntrySnapshotV3) -> Result<()> {
         let w = match self.entries().entry(id) {
@@ -1914,6 +1930,7 @@ impl<'a> BookTxnV3<'a> {
             "mark",
             "template",
             "level",
+            "auto_link",
             "primary",
             "created_at",
             "updated_at",
