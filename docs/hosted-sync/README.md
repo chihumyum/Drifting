@@ -58,13 +58,24 @@ about a minute. See [account notices](notices.md).
 Sync requests leave through the proxy the system is set to use: the macOS
 network settings, the Windows internet options, or the `HTTPS_PROXY` /
 `HTTP_PROXY` environment variables, the same route the WebView takes for
-sign-in. The settings are read as each request starts, so turning a proxy on or
-off takes effect at the next sync cycle without a relaunch. A loopback Hosted
-origin (local development) is always reached directly. Builds up to
-`0.1.0-alpha.13` ignored the system settings and connected directly; where the
-direct route drops packets, that showed as `provider-unavailable` in the
-paper's sync corner while sign-in kept working. The Agent's OpenAI, ChatGPT and
-model-list requests follow the same settings, read once per launch.
+sign-in. A loopback Hosted origin (local development) is always reached
+directly. Builds up to `0.1.0-alpha.13` ignored the system settings and
+connected directly; where the direct route drops packets, that showed as
+`provider-unavailable` in the paper's sync corner while sign-in kept working.
+The Agent's OpenAI, ChatGPT and model-list requests follow the same settings,
+read once per launch.
+
+Sync requests share one client and the connections it holds open, so the
+requests of a sync cycle, and the cycles five seconds apart while the author is
+writing, do not each pay a TCP and TLS handshake. Builds up to `0.1.0-alpha.14`
+opened a connection for every request; on a route that drops packets each of
+those handshakes was another chance for the cycle to fail. A client serves for
+at most a minute and is given up at once when a request is lost in transit. The
+proxy settings are read when a client is built, so turning a proxy on or off
+takes effect within a minute, or at the first request after a failed one,
+without a relaunch. An unused connection is closed after 20 seconds, and a
+connection that stops answering under a request in flight is dropped after
+about half a minute rather than at the request's three-minute limit.
 
 [Account settings](account-settings.md) supports changing the display name,
 choosing/removing an avatar and changing the password. With sync connected,
