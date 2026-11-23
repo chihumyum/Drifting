@@ -126,6 +126,20 @@ async fn response_error(response: reqwest::Response) -> String {
     }
     .into()
 }
+/// A local development origin is reached directly. The macOS proxy settings
+/// carry their exception list apart from the proxy addresses, and only the
+/// addresses are read, so a loopback request would be handed to the proxy.
+fn is_loopback_target(url: &Url) -> bool {
+    let Some(host) = url.host_str() else {
+        return false;
+    };
+    let host = host.trim_start_matches('[').trim_end_matches(']');
+    host == "localhost"
+        || host.ends_with(".localhost")
+        || host
+            .parse::<std::net::IpAddr>()
+            .is_ok_and(|address| address.is_loopback())
+}
 async fn transfer(app: &AppHandle, input: &HostedRequest) -> Result<Value, String> {
     let url = request_url(&input.origin, &input.path)?;
     if input.token.is_empty() || input.token.len() > 8192 {
@@ -143,10 +157,18 @@ async fn transfer(app: &AppHandle, input: &HostedRequest) -> Result<Value, Strin
     {
         return Err("HOSTED_INVALID_METHOD".into());
     }
-    let client = Client::builder()
+    // The client follows the proxy the system is set to use (macOS network
+    // settings, Windows internet options, or the proxy environment variables),
+    // like the WebView does for sign-in. A direct route that drops packets
+    // otherwise fails sync while the rest of the App stays online.
+    let mut builder = Client::builder()
         .redirect(reqwest::redirect::Policy::none())
         .connect_timeout(Duration::from_secs(15))
-        .timeout(Duration::from_secs(180))
+        .timeout(Duration::from_secs(180));
+    if is_loopback_target(&url) {
+        builder = builder.no_proxy();
+    }
+    let client = builder
         .build()
         .map_err(|_| "HOSTED_TRANSPORT_UNAVAILABLE")?;
     let method = reqwest::Method::from_bytes(input.method.as_bytes())
@@ -337,6 +359,27 @@ mod tests {
             "/api/sync/v1/x#fragment",
         ] {
             assert!(request_url(origin, path).is_err());
+        }
+    }
+    #[test]
+    fn only_loopback_origins_bypass_the_system_proxy() {
+        for origin in [
+            "http://localhost:8787",
+            "http://hosted.localhost:8787",
+            "http://127.0.0.1:8787",
+            "http://[::1]:8787",
+        ] {
+            assert!(is_loopback_target(&Url::parse(origin).unwrap()), "{origin}");
+        }
+        for origin in [
+            "https://example.test",
+            "https://localhost.example.test",
+            "https://192.168.1.20:8787",
+        ] {
+            assert!(
+                !is_loopback_target(&Url::parse(origin).unwrap()),
+                "{origin}"
+            );
         }
     }
 }

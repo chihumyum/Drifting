@@ -55,6 +55,17 @@ The service's operator can send signed-in authors a short notice (a maintenance
 window, an answer to feedback); it arrives in the notification center within
 about a minute. See [account notices](notices.md).
 
+Sync requests leave through the proxy the system is set to use: the macOS
+network settings, the Windows internet options, or the `HTTPS_PROXY` /
+`HTTP_PROXY` environment variables, the same route the WebView takes for
+sign-in. The settings are read as each request starts, so turning a proxy on or
+off takes effect at the next sync cycle without a relaunch. A loopback Hosted
+origin (local development) is always reached directly. Builds up to
+`0.1.0-alpha.13` ignored the system settings and connected directly; where the
+direct route drops packets, that showed as `provider-unavailable` in the
+paper's sync corner while sign-in kept working. The Agent's OpenAI, ChatGPT and
+model-list requests follow the same settings, read once per launch.
+
 [Account settings](account-settings.md) supports changing the display name,
 choosing/removing an avatar and changing the password. With sync connected,
 appearance, typography, writing behaviour, interface language and shortcuts
