@@ -64,6 +64,19 @@ pub struct CardFacts {
     pub facts: Vec<(String, String)>,
     /// Present when `target` is a live asset-library file.
     pub asset: Option<AssetCardMeta>,
+    /// An entry's custom modules, each drawn as its 一行 under the synopsis
+    /// (`custom-modules.md` §4 「一行」), in its template's order. A copy
+    /// this build cannot read has no line.
+    pub lines: Vec<ModuleLine>,
+}
+
+/// One custom module of an entry, as its hover card draws it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ModuleLine {
+    /// The entry template's module.
+    pub module: String,
+    pub value: std::sync::Arc<dr_model::custom_module::ModuleValue>,
+    pub values: std::sync::Arc<dr_view_module_look::Scope>,
 }
 
 /// The card of `target` in `book`, or `None` when it is in the trash, gone,
@@ -116,6 +129,24 @@ fn card_body(facts: &CardFacts, actions: Vec<AnyElement>) -> AnyElement {
     }
     if !facts.summary.is_empty() {
         body = body.summary(facts.summary.clone());
+    }
+    if !facts.lines.is_empty() {
+        let lines = facts
+            .lines
+            .iter()
+            .map(|line| {
+                dr_view_module_look::Line::new(
+                    SharedString::from(format!(
+                        "dr-editor-link-card-{}-line-{}",
+                        facts.target.id, line.module
+                    )),
+                    line.value.clone(),
+                    line.values.clone(),
+                )
+                .into_any_element()
+            })
+            .collect();
+        body = body.section(lines);
     }
     if !facts.facts.is_empty() {
         let rows = facts
@@ -229,6 +260,55 @@ pub fn card_element_in(facts: &CardFacts, window: &Window, cx: &App) -> AnyEleme
     .into_any_element()
 }
 
+/// The 一行 of each custom module of `entry`'s template whose copy this
+/// build can read, with the entry's values (entries named by their titles;
+/// an entry since deleted is left out).
+fn module_lines(
+    v: &dr_doc::v3::BookViewV3<'_>,
+    entry: &dr_model::v3::Entry,
+    modules: &[dr_model::v3::ModuleSpec],
+) -> Vec<ModuleLine> {
+    use dr_model::custom_module::values::read_scope;
+    let custom: Vec<_> = modules
+        .iter()
+        .filter(|m| m.kind == dr_model::v3::ModuleKind::Custom)
+        .collect();
+    if custom.is_empty() {
+        return Vec::new();
+    }
+    struct Titles(std::collections::BTreeMap<String, String>);
+    impl dr_view_module_look::Names for Titles {
+        fn entry(&self, id: &str) -> Option<String> {
+            self.0.get(id).cloned()
+        }
+        fn image(&self, id: &str) -> Option<dr_view_module_look::Picture> {
+            let _ = id;
+            None
+        }
+    }
+    let titles = Titles(
+        v.entries()
+            .into_iter()
+            .filter(|e| !e.is_trashed())
+            .map(|e| (e.id.to_string(), e.title.clone()))
+            .collect(),
+    );
+    custom
+        .into_iter()
+        .filter_map(|m| {
+            let copy = v.module_copy(m.config.module.as_ref()?)?;
+            let module = copy.module()?.clone();
+            let stored = v.custom_values(&entry.id, &m.id);
+            let read = read_scope(&module, None, &stored);
+            Some(ModuleLine {
+                module: m.id.to_string(),
+                values: std::sync::Arc::new(dr_view_module_look::Scope::read(&read, &titles)),
+                value: std::sync::Arc::new(module),
+            })
+        })
+        .collect()
+}
+
 fn card_facts_v3(ws: &Workspace, book: &str, target: &LinkTarget) -> Option<CardFacts> {
     let target = target.clone();
     if matches!(target.kind, EntityKind::Asset | EntityKind::Material) {
@@ -283,6 +363,7 @@ fn card_facts_v3(ws: &Workspace, book: &str, target: &LinkTarget) -> Option<Card
                 dimensions,
                 pages,
             }),
+            lines: Vec::new(),
         });
     }
     crate::v3::read(ws, book, move |v| {
@@ -297,6 +378,7 @@ fn card_facts_v3(ws: &Workspace, book: &str, target: &LinkTarget) -> Option<Card
             summary: String::new(),
             facts: Vec::new(),
             asset: None,
+            lines: Vec::new(),
         };
         match target.kind {
             EntityKind::Entry => {
@@ -328,6 +410,7 @@ fn card_facts_v3(ws: &Workspace, book: &str, target: &LinkTarget) -> Option<Card
                             .extend(rows.iter().map(|r| (r.key.clone(), r.value.clone())));
                     }
                 }
+                card.lines = module_lines(&v, &e, &t.modules);
             }
             _ => return None,
         }
