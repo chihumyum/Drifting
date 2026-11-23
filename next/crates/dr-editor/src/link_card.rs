@@ -14,7 +14,10 @@
 //! - a category: its name, 「N 要素」.
 //!
 //! A target in the trash or gone has no card (and a click on its link does
-//! nothing). Timing and placement are the assist's ([`crate::assist`]).
+//! nothing); neither has a link that reads as text (an automatic one whose
+//! entry's 「自动链接」 is off, `kernel-v5.md` §16). An entry's card ends
+//! with 「建关系」 and its 「自动链接」. Timing and placement are the
+//! assist's ([`crate::assist`]).
 
 use std::path::PathBuf;
 
@@ -64,6 +67,8 @@ pub struct CardFacts {
     pub facts: Vec<(String, String)>,
     /// Present when `target` is a live asset-library file.
     pub asset: Option<AssetCardMeta>,
+    /// An entry's own 「自动链接」 (`kernel-v5.md` §16), for the card's row.
+    pub auto_link: bool,
 }
 
 /// The card of `target` in `book`, or `None` when it is in the trash, gone,
@@ -283,6 +288,7 @@ fn card_facts_v3(ws: &Workspace, book: &str, target: &LinkTarget) -> Option<Card
                 dimensions,
                 pages,
             }),
+            auto_link: false,
         });
     }
     crate::v3::read(ws, book, move |v| {
@@ -297,6 +303,7 @@ fn card_facts_v3(ws: &Workspace, book: &str, target: &LinkTarget) -> Option<Card
             summary: String::new(),
             facts: Vec::new(),
             asset: None,
+            auto_link: false,
         };
         match target.kind {
             EntityKind::Entry => {
@@ -307,6 +314,7 @@ fn card_facts_v3(ws: &Workspace, book: &str, target: &LinkTarget) -> Option<Card
                 let templates = v.templates_map();
                 let t = e.effective_template(&templates)?;
                 card.title = e.title.clone();
+                card.auto_link = e.auto_link;
                 card.color = t.color.clone();
                 card.tags.push(t.name.clone());
                 let aliases = e.aliases(&templates);

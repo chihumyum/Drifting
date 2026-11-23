@@ -355,6 +355,7 @@ fn entity_link(attrs: &str, ctx: &Context<'_>, notes: &mut Notes) -> Option<Enti
         kind,
         block: block("targetBlockId", false),
         end_block: block("targetEndBlockId", true),
+        manual: false,
     })
 }
 
@@ -887,6 +888,7 @@ fn entity_link_v3(attrs: &str, ctx: &Context<'_>, notes: &mut Notes) -> Option<E
         kind: old_kind.clone(),
         block: block("targetBlockId", false),
         end_block: block("targetEndBlockId", true),
+        manual: false,
     };
     match dr_samples::v3::map_entity_link(&legacy, explicit_module) {
         Ok(mapped) => Some(mapped),
@@ -974,6 +976,7 @@ fn runs_of_v3(
                                     module: None,
                                     block: None,
                                     end_block: None,
+                                    manual: false,
                                 });
                             }
                             // No file to point at: the words stay, listed
@@ -1022,6 +1025,7 @@ fn runs_of_v3(
                 kind: l.kind.clone(),
                 block: l.block.clone(),
                 end_block: l.end_block.clone(),
+                manual: false,
             })
             .collect();
         entities.sort();

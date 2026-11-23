@@ -89,6 +89,9 @@ pub struct RelationLabels {
     pub relation: SharedString,
     /// The chosen entry's ×: 「换一个」.
     pub change: SharedString,
+    /// The card's row under 「建关系」: the entry's own 「自动链接」
+    /// (`kernel-v5.md` §16).
+    pub auto_link: SharedString,
 }
 
 impl Default for RelationLabels {
@@ -101,6 +104,7 @@ impl Default for RelationLabels {
             other_entry: "另一个条目".into(),
             relation: "关系".into(),
             change: "换一个".into(),
+            auto_link: "自动链接".into(),
         }
     }
 }
@@ -422,9 +426,14 @@ impl Assist {
         self.relate.labels = labels;
     }
 
-    /// The card's last row: 「建关系」.
+    /// The card's row 「建关系」.
     pub(super) fn relate_label(&self) -> SharedString {
         self.relate.labels.create.clone()
+    }
+
+    /// The card's last row: 「自动链接」.
+    pub(super) fn auto_link_label(&self) -> SharedString {
+        self.relate.labels.auto_link.clone()
     }
 
     /// The page a flow body scrolls in, so the lines and the composer keep

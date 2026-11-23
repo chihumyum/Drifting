@@ -818,6 +818,10 @@ pub struct TemplateEntityLink {
     pub entry: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub module: Option<String>,
+    /// Picked with @ (`kernel-v5.md` §16): it shows whatever the target's
+    /// 「自动链接」 says. Without it the link is automatic.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub manual: bool,
 }
 
 /// One run of styled text inside a [`TemplateParagraph`] or [`TemplateTable`] cell.

@@ -588,6 +588,7 @@ pub fn validate_project_template_value(
                 mark: entry.mark.clone(),
                 template: tpl_id,
                 level: entry.level,
+                auto_link: false,
                 overrides,
                 fields: domain_fields,
                 kv: BTreeMap::new(),
@@ -857,7 +858,26 @@ pub fn validate_project_template_value(
         validate_paragraphs(paragraphs, &val.entries, &templates)?;
     }
 
-    // 9. Validate structural graph rules (`V3-AUTOLINK-NAME-UNIQUE`).
+    // 9. Validate structural graph rules (`V3-AUTOLINK-NAME-UNIQUE`), with
+    // the switches the entries start with in a new book (a template carries
+    // only its levels' defaults, `kernel-v5.md` §16).
+    let starts_on: Vec<_> = entries
+        .values()
+        .filter(|e| {
+            crate::v3::new_entry_auto_link(
+                e.parent.as_ref(),
+                e.template.as_ref(),
+                &entries,
+                &templates,
+            )
+        })
+        .map(|e| e.id.clone())
+        .collect();
+    for id in starts_on {
+        if let Some(e) = entries.get_mut(&id) {
+            e.auto_link = true;
+        }
+    }
     let empty_entries = BTreeMap::new();
     let empty_templates = BTreeMap::new();
     check_new_violations(

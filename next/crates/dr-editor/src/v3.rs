@@ -367,6 +367,27 @@ pub struct LinkTargets {
     pub workspace: Workspace,
     pub book: String,
 }
+
+/// What `link` shows as now ([`dr_model::v3::link_show`]), read from the
+/// book: a click or a card on anything but a link does nothing.
+pub fn link_show(
+    ws: &Workspace,
+    book: &str,
+    link: &dr_model::v3::EntityLinkV3,
+) -> dr_model::v3::LinkShow {
+    use crate::links::LinkTargets as _;
+    let targets = LinkTargets {
+        workspace: ws.clone(),
+        book: book.to_owned(),
+    };
+    match link.kind {
+        dr_model::kind::EntityKind::Entry => {
+            dr_model::v3::link_show(link.manual, targets.entry(&link.target), ws.auto_links())
+        }
+        _ if targets.alive(&link.kind, &link.target) => dr_model::v3::LinkShow::Live,
+        _ => dr_model::v3::LinkShow::Plain,
+    }
+}
 impl crate::links::LinkTargets for LinkTargets {
     fn alive(&self, kind: &dr_model::kind::EntityKind, id: &str) -> bool {
         let normalized = match kind {
@@ -383,18 +404,27 @@ impl crate::links::LinkTargets for LinkTargets {
         .unwrap_or(false)
     }
 
+    fn entry(&self, id: &str) -> Option<dr_model::v3::LinkEntry> {
+        let id = dr_model::id::EntryId::parse(id).ok()?;
+        read(&self.workspace, &self.book, move |v| {
+            v.entry_raw(&id).map(|e| dr_model::v3::LinkEntry::from(&e))
+        })
+        .ok()
+        .flatten()
+    }
+
     fn snapshot(&self) -> Option<crate::links::TargetSnapshot> {
         read(&self.workspace, &self.book, |v| {
-            let entries = v
-                .entries_raw()
-                .into_iter()
-                .filter(|e| !e.is_trashed())
-                .map(|e| e.id.to_string())
-                .collect();
+            let entries =
+                dr_model::v3::LinkEntries::of(&v.graph().entries.into_values().collect::<Vec<_>>());
             let assets = v.assets().into_iter().map(|a| a.id.to_string()).collect();
             (entries, assets)
         })
         .ok()
+    }
+
+    fn auto_links(&self) -> bool {
+        self.workspace.auto_links()
     }
 
     fn pdf_assets(&self) -> std::collections::HashSet<String> {

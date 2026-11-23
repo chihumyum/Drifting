@@ -326,6 +326,7 @@ pub(crate) fn relation_labels(cx: &App) -> dr_editor::assist::relate::RelationLa
         other_entry: dr_shell::t(cx, k::OTHER_ENTRY),
         relation: dr_shell::t(cx, k::RELATION),
         change: dr_shell::t(cx, k::CHANGE),
+        auto_link: dr_shell::t(cx, dr_i18n::keys::v3_levels::AUTO_LINK),
     }
 }
 
@@ -356,6 +357,15 @@ pub(crate) fn bind_links<T: 'static>(
 ) -> Subscription {
     let host = host.clone();
     let relations = bind_relations(assist, window, cx);
+    // The link card's 「自动链接」 (`kernel-v5.md` §16): a refused write
+    // says 「未能保存」.
+    let switch_host = host.clone();
+    let switches = cx.subscribe_in(assist, window, move |_, _, event, _, cx| {
+        if let dr_editor::assist::AssistEvent::AutoLink { entry, on } = event {
+            dr_shell::v3::page::set_auto_link(&switch_host, entry, *on, false, cx);
+        }
+    });
+    let relations = Subscription::join(relations, switches);
     let links = cx.subscribe_in(assist, window, move |_, _, event, window, cx| {
         let dr_editor::assist::AssistEvent::OpenLink { target, module, .. } = event else {
             return;

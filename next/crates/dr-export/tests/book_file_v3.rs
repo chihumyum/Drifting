@@ -773,6 +773,7 @@ fn v5_showcase_archive_roundtrips_asset_folders_media_fields_file_links_and_comm
         module: None,
         block: None,
         end_block: None,
+        manual: false,
     };
     ch_prose
         .edit(Origin::User, |t| {

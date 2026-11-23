@@ -232,6 +232,11 @@ pub struct Entry {
     /// The entry's own switch (`层级`): whether entries can live under it.
     #[serde(default)]
     pub level: bool,
+    /// The entry's own 「自动链接」 (`kernel-v5.md` §16): whether its title
+    /// and aliases link by themselves, and whether the automatic links to it
+    /// show as links (`entry.set_auto_link`).
+    #[serde(default)]
+    pub auto_link: bool,
     /// Overrides of the settings for what lives below (kept, but not used,
     /// while the switch is off).
     pub overrides: Option<LevelSettingsOverride>,
@@ -617,6 +622,7 @@ impl From<&dr_model::v3::Entry> for Entry {
             mark: v.mark.clone(),
             template: v.template.as_ref().map(ToString::to_string),
             level: v.level,
+            auto_link: v.auto_link,
             overrides: v.overrides.as_ref().map(Into::into),
             fields: v
                 .fields

@@ -234,10 +234,28 @@ pub fn convert(source: &crate::SeededBook, choices: &MappingChoices) -> Result<S
     let id = source.book_id().clone();
     let mut book = BookDocV3::create(id.clone(), import_peer(&format!("sample-v3:{id}")))?;
     let (r, _) = book.edit_at(Origin::Import, Some(crate::build::T0 + 10_001), |t| {
-        sync_catalog(t, &catalog.view(), choices, &lines)
+        sync_catalog(t, &catalog.view(), choices, &lines)?;
+        // A sample book is a book of the writing template, not a 0.1 one:
+        // its entries keep the switches a new book's would give them
+        // (`kernel-v5.md` §16), the elements in their categories linked and
+        // the chapters and ideas not (the adapter turns those on for a book
+        // imported from 0.1).
+        let graph = t.view().graph();
+        for e in graph.entries.values().filter(|e| e.auto_link) {
+            if !dr_model::v3::new_entry_auto_link(
+                e.parent.as_ref(),
+                e.template.as_ref(),
+                &graph.entries,
+                &graph.templates,
+            ) {
+                t.entries().entry(&e.id)?.auto_link(false)?;
+            }
+        }
+        Ok(())
     });
     r?;
     validate(&book.view()).map_err(super::catalog::invalid)?;
+    super::catalog::validate_names(&book.view()).map_err(super::catalog::invalid)?;
     let (stats, checkpoints, layout) = super::catalog::side_documents(
         &id,
         &source.book.view(),

@@ -174,6 +174,7 @@ impl Entries<'_, '_> {
             w.title(title)?
                 .template(Some(template))?
                 .level(level)?
+                .auto_link(false)?
                 .overrides(None)?
                 .primary(None)?
                 .mark(None)?
@@ -1243,8 +1244,11 @@ fn put_element(
         &element.name,
         template,
     )?;
+    // 0.1 linked every element's name and aliases by itself, so its entry
+    // keeps linking (`kernel-v5.md` §16 「从 0.1 导入」).
     w.created_at(element.created_at)?
-        .deleted_at(element.deleted_at)?;
+        .deleted_at(element.deleted_at)?
+        .auto_link(true)?;
     text(&w, "summary", &element.summary)?;
     w.set_field(
         &mid(MOD_FIELDS),
@@ -1274,7 +1278,12 @@ fn node_fields(
 ) -> Result<()> {
     text(w, "summary", &node.summary)?;
     text(w, "status", node.status.as_str())?;
-    w.created_at(node.created_at)?.deleted_at(node.deleted_at)?;
+    // 0.1 linked every chapter's and idea's title by itself (its book
+    // nodes, `entity-link-names.ts`), so the entry keeps linking
+    // (`kernel-v5.md` §16 「从 0.1 导入」).
+    w.created_at(node.created_at)?
+        .deleted_at(node.deleted_at)?
+        .auto_link(true)?;
     Ok(())
 }
 
@@ -1758,6 +1767,25 @@ fn target_module(target: &EntityRef) -> Option<ModuleId> {
 
 /// Validate raw writes, rather than relying on tolerant readers that could
 /// hide an invalid imported relationship or timeline position.
+/// No name belongs to two linked entries (`V3-AUTOLINK-NAME-UNIQUE`), the
+/// whole book against an empty one: what the sample books keep to.
+pub fn validate_names(view: &BookViewV3<'_>) -> std::result::Result<(), String> {
+    let entries = view.entries_map();
+    let templates = view.templates_map();
+    let none = BTreeMap::new();
+    check_new_violations(
+        BookGraph {
+            entries: &none,
+            templates: &templates,
+        },
+        BookGraph {
+            entries: &entries,
+            templates: &templates,
+        },
+    )
+    .map_err(|v| format!("{v:?}"))
+}
+
 pub fn validate(view: &BookViewV3<'_>) -> std::result::Result<(), String> {
     let entries = view.entries_map();
     let templates = view.templates_map();
@@ -1790,19 +1818,12 @@ pub fn validate(view: &BookViewV3<'_>) -> std::result::Result<(), String> {
             }
         }
     }
-    // The whole book against an empty one: no duplicate auto-link name and
-    // no nested manuscript at all.
-    let none = BTreeMap::new();
-    check(check_new_violations(
-        BookGraph {
-            entries: &none,
-            templates: &templates,
-        },
-        BookGraph {
-            entries: &entries,
-            templates: &templates,
-        },
-    ))?;
+    // A name two linked entries share is kept as 0.1 had it: 0.1 linked every
+    // element, chapter and idea and let a chapter take an element's name
+    // (`entity-link-names.ts`), so the import turns them all on
+    // (`kernel-v5.md` §16 「从 0.1 导入」) and readers mark the later one
+    // (`resolve_autolink_name_conflicts`), as after a merge. The sample books
+    // keep their names unique ([`validate_names`]).
     for membership in &memberships {
         // Kept for an entry in Recently Deleted (either end), read as
         // absent until it comes back: the state format 5's own trash leaves.

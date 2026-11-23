@@ -609,7 +609,7 @@ fn an_unrelated_write_moves_the_name_table_on_and_a_rename_replaces_it() {
 }
 
 #[test]
-fn v3_autolinks_use_residence_only_and_ignore_membership_changes() {
+fn v3_autolinks_follow_the_entrys_own_switch_never_membership_or_residence() {
     let e = env();
     let b = project(&e);
     let ms = root(&e, &b, "tpl-manuscript");
@@ -626,8 +626,9 @@ fn v3_autolinks_use_residence_only_and_ignore_membership_changes() {
         json!({"book":b,"id":host,"overrides":{"accept":true,"auto_link":true}}),
     );
 
-    // An entry living under `构想` (`auto_link == false`) and attached by membership to `host`
-    // (`auto_link == true`) is NOT auto-linked and does NOT claim name uniqueness.
+    // An entry made under `构想` (whose new entries start off) and attached by
+    // membership to `host` (whose new entries start on) is NOT auto-linked
+    // and does NOT claim name uniqueness (`kernel-v5.md` §16: its own switch).
     let outsider = create(&e, &b, &ideas, "Synthetic Person", "tpl-character");
     e.call(
         "module.set_field",
@@ -670,7 +671,8 @@ fn v3_autolinks_use_residence_only_and_ignore_membership_changes() {
             .all(|r| r.marks.entities.is_empty()),
         "membership alone must not auto-link"
     );
-    // Another entry living under `host` CAN use the same name because `outsider` does not claim it.
+    // Another entry made under `host` (it starts linked) CAN use the same name
+    // because `outsider` does not claim it.
     let same_name = create(&e, &b, &host, "Synthetic Person", "tpl-character");
     e.call("entry.trash", json!({"book":b,"id":same_name}));
 
@@ -688,8 +690,30 @@ fn v3_autolinks_use_residence_only_and_ignore_membership_changes() {
         &e.ws().book_link_names(&b).unwrap()
     ));
 
-    // Moving `outsider` to RESIDE under `host` makes it auto-linked and enforces uniqueness.
+    // Moving `outsider` to RESIDE under `host` changes nothing: its switch is
+    // its own (2026-11-24; it used to make it linked).
     e.call("entry.move", json!({"book":b,"id":outsider,"parent":host}));
+    e.ws()
+        .call(
+            &dr_workspace::Actor::Import,
+            "module.set_prose",
+            json!({"book":b,"owner":chapter,"module":"mod-prose","paragraphs":[{"text":"Synthetic Person FirstAlias"}]}),
+        )
+        .unwrap();
+    let state = e.ws().library().load_copy(&doc.to_string()).unwrap();
+    let p = dr_doc::prose::ProseReader::from_loro(doc.clone(), &state).unwrap();
+    assert!(
+        p.view()
+            .paragraphs()
+            .flat_map(|p| p.runs)
+            .all(|r| r.marks.entities.is_empty()),
+        "residence alone must not auto-link"
+    );
+    // Turning its own switch on makes it auto-linked and enforces uniqueness.
+    e.call(
+        "entry.set_auto_link",
+        json!({"book":b,"id":outsider,"auto_link":true}),
+    );
     e.call(
         "module.set_prose",
         json!({"book":b,"owner":chapter,"module":"mod-prose","paragraphs":[{"text":"placeholder"}]}),
@@ -1132,6 +1156,7 @@ fn v3_template_module_links_survive_copy_edit_history_and_other_book_is_untouche
         module: Some(ModuleId::parse("mod-prose").unwrap()),
         block: None,
         end_block: None,
+        manual: false,
     };
     let linked = first.clone();
     e.ws()

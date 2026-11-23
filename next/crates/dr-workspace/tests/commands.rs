@@ -608,6 +608,7 @@ fn every_registered_entry_is_exercised_here() {
         include_str!("relations_merge.rs"),
         include_str!("search.rs"),
         include_str!("entry_purge.rs"),
+        include_str!("auto_link_switch.rs"),
         include_str!("../../dr-agent-tools/tests/checkpoints_v3.rs"),
     ];
     let missing: Vec<&str> = registry()
@@ -1820,6 +1821,7 @@ fn a_prose_link_to_a_file_is_a_usage_and_reads_as_text_while_the_file_is_trashed
         module: None,
         block: None,
         end_block: None,
+        manual: false,
     };
     e.ws()
         .prose_session(&doc)

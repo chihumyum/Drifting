@@ -280,9 +280,10 @@ fn linked_text_round_trips_resolves_renames_and_suppresses_trashed_targets() {
         "entry.update",
         json!({"book":f.book,"id":f.d,"title":"新钟楼"}),
     );
+    // Picked with @, the link is recorded as manual (`kernel-v5.md` §16).
     assert_eq!(
         body(&f),
-        json!({"text":"😀新钟楼","links":[{"start":1,"end":4,"entry":f.d}]})
+        json!({"text":"😀新钟楼","links":[{"start":1,"end":4,"entry":f.d,"manual":true}]})
     );
     f.env.call("entry.trash", json!({"book":f.book,"id":f.d}));
     assert_eq!(body(&f), json!({"text":"😀老钟","links":[]}));
@@ -347,24 +348,29 @@ fn link_planning_respects_aliases_ownership_explicit_links_and_the_setting() {
         2
     );
     f.env.ws().set_auto_links(false);
+    // Only the pick, recorded as one (`kernel-v5.md` §16).
+    let mut kept = draft.clone();
+    kept.links[0].manual = true;
     assert_eq!(
         f.env
             .ws()
             .plan_entry_text_links(&book, None, &draft)
             .unwrap(),
-        draft
+        kept
     );
     f.env.call(
         "relation_type.set_description",
         json!({"book":f.book,"id":f.kind,"description":draft}),
     );
-    assert_eq!(f.list()[0]["description"]["links"][0]["entry"], outside);
+    // The pick, and the stored automatic link on the unchanged 阿林: hidden
+    // while the setting is off, it stays in the data, so turning the setting
+    // back on brings it back (`kernel-v5.md` §16; it used to be dropped).
     assert_eq!(
-        f.list()[0]["description"]["links"]
-            .as_array()
-            .unwrap()
-            .len(),
-        1
+        f.list()[0]["description"]["links"],
+        json!([
+            {"start":0,"end":2,"entry":outside,"manual":true},
+            {"start":2,"end":4,"entry":f.a},
+        ])
     );
 }
 

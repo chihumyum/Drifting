@@ -59,6 +59,10 @@ pub fn decode_entity_link(target: &str, value: &LoroValue) -> Option<EntityLinkV
             .map(BlockId::parse)
             .transpose()
             .ok()?,
+        manual: matches!(
+            map.get(dr_model::prose::LINK_MANUAL),
+            Some(LoroValue::Bool(true))
+        ),
     };
     check(&link).ok()?;
     Some(link)
@@ -86,6 +90,11 @@ pub fn encode_entity_link(link: &EntityLinkV3, previous: Option<&LoroValue>) -> 
         } else {
             map.remove(key);
         }
+    }
+    if link.manual {
+        map.insert(dr_model::prose::LINK_MANUAL.into(), true.into());
+    } else {
+        map.remove(dr_model::prose::LINK_MANUAL);
     }
     Ok(LoroValue::Map(map.into_iter().collect::<Vec<_>>().into()))
 }

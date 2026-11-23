@@ -18,6 +18,11 @@ pub struct EntryTextLink {
     pub end: usize,
     #[schemars(with = "String")]
     pub entry: EntryId,
+    /// Picked with @: it shows whatever the switches of automatic linking
+    /// say (`kernel-v5.md` §16). A link without it is automatic: it reads as
+    /// ordinary text while its entry's 「自动链接」 is off.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub manual: bool,
 }
 
 impl EntryTextLink {
@@ -105,6 +110,7 @@ impl LinkedText {
                     start: written,
                     end,
                     entry: link.entry.clone(),
+                    manual: link.manual,
                 });
                 written = end;
             } else {

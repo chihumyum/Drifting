@@ -781,12 +781,13 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "V3-AUTOLINK-NAME-UNIQUE",
-        "自动链接的名字和别名唯一（范围：自动链接的条目，即活着、模板 linkable、住的那一层解析后开了自动链接的条目；只看住处，不看挂在哪，也不看它自己的开关）",
+        "自动链接的名字和别名唯一（范围：自动链接的条目，即活着、自己的「自动链接」开着的条目，2026-11-24；住在哪、挂在哪、模板都不看）",
         [Command, Read],
-        "命令层用 dr_model::v3::check_new_violations 比较改前改后的名字表（AutolinkNames，一遍扫出，只读住处），只拒绝这次写入新造成的重名；挂名增删不重算名字表；并发合并产生重名时 resolve_autolink_name_conflicts 按创建时间与 id 保留最早的，其余标出 name_conflict，不挡无关的写入",
+        "命令层用 dr_model::v3::check_new_violations 比较改前改后的名字表（AutolinkNames，一遍扫出，只读条目自己的开关），只拒绝这次写入新造成的重名（打开一个条目、按层一起打开都算）；挂名增删、搬家不重算名字表；并发合并产生重名时 resolve_autolink_name_conflicts 按创建时间与 id 保留最早的，其余标出 name_conflict，不挡无关的写入",
         [
-            "autolink_names_are_unique_across_autolinked_entries_whatever_their_switch",
-            "a_duplicate_name_a_merge_left_blocks_no_unrelated_write_and_a_rename_resolves_it"
+            "autolink_names_are_unique_among_the_entries_whose_own_switch_is_on",
+            "a_duplicate_name_a_merge_left_blocks_no_unrelated_write_and_a_rename_resolves_it",
+            "names_are_unique_among_the_entries_that_link"
         ]
     ),
     inv!(

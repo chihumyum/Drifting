@@ -559,7 +559,11 @@ fn rewrite_inline_link(
         let mspec = tpl.module(mid)?;
         (mspec.kind == ModuleKind::Prose).then(|| mid.to_string())
     });
-    Some(TemplateEntityLink { entry: sym, module })
+    Some(TemplateEntityLink {
+        entry: sym,
+        module,
+        manual: link.manual,
+    })
 }
 
 fn slice_runs_with_links(
@@ -736,6 +740,7 @@ fn to_prose_runs_and_links(
                     module,
                     block: None,
                     end_block: None,
+                    manual: el.manual,
                 },
             ));
         }
@@ -831,6 +836,7 @@ pub fn write_prose_paragraphs(
                         module,
                         block: None,
                         end_block: None,
+                        manual: el.manual,
                     },
                 )?;
             }
@@ -1739,6 +1745,7 @@ pub fn from_seed_template(
                 mark: se.mark.clone(),
                 template: se.template.clone(),
                 level: se.level,
+                auto_link: false,
                 overrides: se.overrides.clone(),
                 fields: se.fields.clone(),
                 kv: BTreeMap::new(),
@@ -2365,6 +2372,7 @@ pub fn apply_materialized_project_template(
             w.primary(entry.primary.as_ref())?;
         }
     }
+    crate::v3::novel::start_auto_links(txn, mat.entries.iter().map(|e| &e.id))?;
     for m in &mat.memberships {
         txn.put_membership(&m.host, &m.member, m.pos.as_ref(), Some(created_at))?;
     }

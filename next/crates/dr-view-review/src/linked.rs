@@ -30,6 +30,7 @@ pub(crate) fn input(draft: &Draft) -> LinkedTextIn {
                     start,
                     end,
                     entry: target.parse().ok()?,
+                    manual: false,
                 })
             })
             .collect(),

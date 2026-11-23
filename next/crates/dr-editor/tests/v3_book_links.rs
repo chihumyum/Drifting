@@ -746,7 +746,7 @@ fn v3_cross_document_atomic_sessions_preserve_undo_items_in_every_live_session()
     );
 }
 #[test]
-fn eligibility_uses_home_or_any_membership_and_never_links_the_owner() {
+fn eligibility_is_the_entrys_own_switch_never_a_membership_and_never_links_the_owner() {
     let e = env();
     let chapter = entry(&e, "tpl-chapter");
     let id = chapter["id"].as_str().unwrap();
@@ -761,7 +761,7 @@ fn eligibility_uses_home_or_any_membership_and_never_links_the_owner() {
         json!({"id":host,"overrides":{"auto_link":true,"accept":true}}),
     );
     call(&e, "membership.add", json!({"host":host,"member":id}));
-    // Kernel v5 §16: auto-linking depends on residence (`home`) only, never memberships.
+    // Kernel v5 §16: auto-linking is the entry's own switch, never a membership.
     let names = NameIndex::load(&e.ws, &e.book, &[]).unwrap();
     assert!(
         !names
@@ -770,11 +770,34 @@ fn eligibility_uses_home_or_any_membership_and_never_links_the_owner() {
             .any(|r| r.1.id == id && r.2 == NameGroup::Entry)
     );
     call(&e, "membership.remove", json!({"host":host,"member":id}));
+    // A level's default alone changes no entry living there…
     call(
         &e,
         "entry.update",
         json!({"id":home,"overrides":{"auto_link":true}}),
     );
+    assert!(
+        !NameIndex::load(&e.ws, &e.book, &[])
+            .unwrap()
+            .search("", 1000)
+            .iter()
+            .any(|r| r.1.id == id)
+    );
+    // …its switch carries them along.
+    let carried = call(
+        &e,
+        "entry.set_below_auto_link",
+        json!({"id":home,"auto_link":true}),
+    );
+    assert!(
+        carried["changed"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|c| c == id),
+        "{carried}"
+    );
+    assert_eq!(call(&e, "entry.get", json!({"id":id}))["auto_link"], true);
     let own = format!("body:{id}/mod-prose");
     assert!(
         !NameIndex::load(&e.ws, &e.book, &[&own])
@@ -914,6 +937,97 @@ fn manuscript_refresh_keeps_sessions_undo_and_document_order(cx: &mut TestAppCon
     assert_eq!(
         view.read_with(cx, |v, cx| v.plain_text(&second, cx).unwrap()),
         second_original
+    );
+}
+
+/// `kernel-v5.md` §16: with the entry's own 「自动链接」 off its name typed
+/// links nothing, the @ picker still lists it (as comments do), and the link
+/// picked there is recorded as manual and drawn as a link.
+#[gpui::test]
+fn the_at_picker_lists_an_entry_whose_switch_is_off_and_records_its_link_as_manual(
+    cx: &mut TestAppContext,
+) {
+    use dr_editor::{ChapterEditor, assist::MenuRow};
+    let e = env();
+    let owner = entry(&e, "tpl-chapter")["id"].as_str().unwrap().to_owned();
+    let doc = format!("body:{owner}/mod-prose");
+    let target = entry(&e, "tpl-character")["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let name = entry(&e, "tpl-character")["title"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    call(
+        &e,
+        "entry.set_auto_link",
+        json!({"id":target,"auto_link":false}),
+    );
+    let ws = e.ws.clone();
+    let book = e.book.clone();
+    let opened = doc.clone();
+    cx.executor().allow_parking();
+    let (view, cx) = cx.add_window_view(move |w, cx| {
+        ChapterEditor::open(ws, &book, &opened, EditorSettings::default(), w, cx).unwrap()
+    });
+    let prose = view.read_with(cx, |v, _| v.editor().clone());
+    let len = name.chars().count();
+    // What the first `len` characters link to.
+    let head_link = |cx: &mut gpui::VisualTestContext| {
+        prose.read_with(cx, |p, _| {
+            p.book().chapters[0]
+                .doc
+                .marks_before(len)
+                .entities()
+                .find(|(id, _)| *id == target)
+                .map(|(_, value)| value.clone())
+        })
+    };
+    prose.update_in(cx, |p, w, cx| {
+        p.select(0, 0..0, w, cx);
+        p.replace_text_in_range(None, &format!("{name} "), w, cx);
+    });
+    cx.run_until_parked();
+    cx.executor().advance_clock(Duration::from_millis(700));
+    cx.run_until_parked();
+    assert!(
+        head_link(cx).is_none(),
+        "an entry whose switch is off links nothing"
+    );
+    prose.update_in(cx, |p, w, cx| p.undo(w, cx));
+    prose.update_in(cx, |p, w, cx| {
+        p.select(0, 0..0, w, cx);
+        p.replace_text_in_range(None, &format!("@{name}"), w, cx);
+    });
+    cx.run_until_parked();
+    let assist = view.read_with(cx, |v, _| v.assist().clone());
+    let row = assist.read_with(cx, |a, _| {
+        a.menu().unwrap().rows.iter().position(
+            |r| matches!(r, MenuRow::Link {target:t,group:NameGroup::Entry,..} if t.id==target),
+        )
+    });
+    let row = row.expect("the @ picker lists every live entry");
+    assist.update_in(cx, |a, w, cx| a.choose(Some(row), w, cx));
+    cx.run_until_parked();
+    let value = head_link(cx).expect("the picked link is written");
+    assert!(dr_editor::links::link_manual(&value), "{value:?}");
+    // It reads as a link while the switch is off.
+    let ext = dr_editor::DriftingExtension::new(Some(Box::new(dr_editor::v3::LinkTargets {
+        workspace: e.ws.clone(),
+        book: e.book.clone(),
+    })));
+    assert_eq!(
+        ext.show(&dr_model::kind::EntityKind::Entry, &target, &value),
+        dr_model::v3::LinkShow::Live
+    );
+    let automatic = dr_editor::entity_links::link_value(&dr_text::autolink::LinkTarget::new(
+        dr_model::kind::EntityKind::Entry,
+        target.clone(),
+    ));
+    assert_eq!(
+        ext.show(&dr_model::kind::EntityKind::Entry, &target, &automatic),
+        dr_model::v3::LinkShow::Plain
     );
 }
 

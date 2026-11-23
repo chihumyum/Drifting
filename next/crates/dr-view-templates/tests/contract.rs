@@ -498,7 +498,9 @@ fn prose_in_book_children_module_and_linkable_govern_manuscript_and_autolinks() 
         vec![notes_id]
     );
 
-    // Linkable governs auto-link name participation and uniqueness checks.
+    // `linkable` decides only whether a new entry takes its level's default;
+    // each entry's own switch decides whether its names link and must be
+    // unique (`kernel-v5.md` §16, 2026-11-24).
     let _existing = call(
         &ws,
         "entry.create",
@@ -524,20 +526,40 @@ fn prose_in_book_children_module_and_linkable_govern_manuscript_and_autolinks() 
         let names = dr_model::v3::AutolinkNames::of(&entries, &view.templates_map());
         names.is_linked(id)
     };
+    // Made in a level whose new entries link, but its template does not
+    // follow the level: it starts off and claims no name.
+    assert_eq!(custom_entry["auto_link"], false);
     assert!(!is_linked(&ws, &book, &custom_entry_id));
 
+    // Making the template linkable changes no entry's switch (it used to
+    // make this entry claim the name, so the save was refused).
     let mut make_linkable = saved.clone();
     make_linkable.linkable = true;
-    assert!(model::save(&ws, &book, Some(&saved), &make_linkable).is_err());
-
+    let saved = model::save(&ws, &book, Some(&saved), &make_linkable).unwrap();
+    assert!(saved.linkable);
+    assert!(!is_linked(&ws, &book, &custom_entry_id));
+    // Turning the entry on claims the name: refused while another linked
+    // entry has it, done once the name is its own.
+    let on = json!({"book":book,"id":custom_entry_id.as_str(),"auto_link":true});
+    assert!(
+        ws.call(&Actor::User, "entry.set_auto_link", on.clone())
+            .is_err()
+    );
+    assert!(!is_linked(&ws, &book, &custom_entry_id));
     call(
         &ws,
         "entry.update",
         json!({"book":book,"id":custom_entry_id.as_str(),"title":"Synthetic Unique Autolink"}),
     );
-    let saved = model::save(&ws, &book, Some(&saved), &make_linkable).unwrap();
-    assert!(saved.linkable);
+    call(&ws, "entry.set_auto_link", on);
     assert!(is_linked(&ws, &book, &custom_entry_id));
+    // A new entry of the linkable template takes the level's default.
+    let next = call(
+        &ws,
+        "entry.create",
+        json!({"book":book,"parent":category_id,"title":"Synthetic Next Autolink","template":saved.id}),
+    );
+    assert_eq!(next["auto_link"], true);
     ws.shutdown().unwrap();
 }
 

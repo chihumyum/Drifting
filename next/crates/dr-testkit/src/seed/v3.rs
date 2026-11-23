@@ -989,11 +989,11 @@ pub(crate) fn write_direct_v3(p: &Plan) -> Result<SeededBookV3> {
                 Some(&tid(TPL_CHARACTER)),
                 false,
             )?;
-            w.created_at(Some(Timestamp(T0 + i as i64)))?.set_field(
-                &fmod,
-                "summary",
-                Some(&FieldValue::Text(e.summary.clone())),
-            )?;
+            // The category's new entries start linked (`kernel-v5.md` §16):
+            // a seeded element is one made there.
+            w.created_at(Some(Timestamp(T0 + i as i64)))?
+                .auto_link(true)?
+                .set_field(&fmod, "summary", Some(&FieldValue::Text(e.summary.clone())))?;
             if !e.aliases.is_empty() {
                 w.set_field(&fmod, "aliases", Some(&FieldValue::List(e.aliases.clone())))?;
             }
@@ -2001,6 +2001,7 @@ fn clone_prose_to_v3(
                     kind: map_entity_kind_v3(&l.kind),
                     block: l.block.clone(),
                     end_block: l.end_block.clone(),
+                    manual: false,
                 },
             )?;
         }

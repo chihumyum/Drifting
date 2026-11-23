@@ -8,8 +8,8 @@
 //! | --- | --- | --- |
 //! | `comments` | each open comment's and TODO's dry swash, with a tick | the book document's comments, anchors resolved on each prose document's holder thread |
 //! | `agent` | the Agent's words in green (new) or purple (rewritten), another editor's in blue; the pointer's touch lets them go | [`ledger::AgentMarks`] (settlement records) |
-//! | `links` | entity links' dry underline (gone targets in grey) | the entity marks on the text |
-//! | `suggestions` | names [`dr_text`]'s matcher finds that are not linked yet: grains only | `book_link_names` of the book |
+//! | `links` | entity links' dry underline (gone targets in grey; none for a link that reads as text: an automatic one whose entry's 「自动链接」 is off, or any while the author's setting is off, `kernel-v5.md` §16) | the entity marks on the text, through [`DriftingExtension::show`] |
+//! | `suggestions` | names [`dr_text`]'s matcher finds that are not linked yet: grains only, none while the author's setting is off | `book_link_names` of the book (the entries whose switch is on) |
 //! | `todo-marks` | the `TODO` / `待办` keyword in the TODO colour | the TODO markers |
 //! | find | F4c's matches, the current one stronger | gpui-prose reads them itself ([`DecorLooks::find_wash`]) |
 //!
@@ -851,6 +851,20 @@ impl Layers {
 
     // ----- links, suggestions, TODO keywords ---------------------------------------------
 
+    /// The author's setting `editor.auto_entity_links` changed: every
+    /// automatic link and the grains are drawn again under it at once
+    /// (`kernel-v5.md` §16), nothing in the text changes.
+    pub fn refresh_links(&mut self, cx: &mut Context<Layers>) {
+        self.extension.invalidate();
+        for part in &mut self.parts {
+            part.links_dirty = true;
+        }
+        self.run_links_now(cx);
+        if let Some(editor) = self.editor.upgrade() {
+            editor.update(cx, |_, cx| cx.notify());
+        }
+    }
+
     fn load_names(&mut self, cx: &mut Context<Layers>) {
         self.name_reads += 1;
         let (ws, book) = (self.ws.clone(), self.book.clone());
@@ -1432,38 +1446,53 @@ pub(crate) fn find_links(
     let doc = &editor.book().chapters[chapter].doc;
     let mut found = FoundLinks::default();
     let mut start = 0;
-    let alive_memo: RefCell<std::collections::HashMap<(dr_model::kind::EntityKind, String), bool>> =
+    type ShowKey = (dr_model::kind::EntityKind, String, bool);
+    let show_memo: RefCell<std::collections::HashMap<ShowKey, dr_model::v3::LinkShow>> =
         RefCell::default();
+    // The dotted grains follow the author's setting too (`kernel-v5.md` §16).
+    let names = names.filter(|_| extension.auto_links());
     for line in &doc.lines()[..doc.visible_lines()] {
         let mut linked: Vec<Range<usize>> = Vec::new();
         let mut prev_file_id: Option<String> = None;
         for span in line.spans.iter() {
             let mut target = None;
             let mut file_link: Option<(String, bool)> = None;
+            let mut marked = false;
             for (key, value) in span.marks.iter() {
                 if let Some(id) = inline::entity_target(key) {
+                    marked = true;
                     let kind = link_kind(value);
-                    let alive = *alive_memo
+                    let manual = crate::links::link_manual(value);
+                    // The one rule for what a link shows as: an automatic
+                    // link whose entry's 「自动链接」 is off, or any while the
+                    // author's setting is off, is ordinary text; a trashed
+                    // file's link too.
+                    let show = *show_memo
                         .borrow_mut()
-                        .entry((kind.clone(), id.to_owned()))
-                        .or_insert_with(|| extension.alive(&kind, id));
+                        .entry((kind.clone(), id.to_owned(), manual))
+                        .or_insert_with(|| extension.show(&kind, id, value));
+                    if show == dr_model::v3::LinkShow::Plain {
+                        continue;
+                    }
                     if matches!(
                         kind,
                         dr_model::kind::EntityKind::Asset | dr_model::kind::EntityKind::Material
                     ) {
-                        if !alive {
-                            // Trashed file links degrade to ordinary prose text.
-                            continue;
-                        }
                         file_link = Some((id.to_owned(), extension.is_pdf_asset(id)));
                         target = Some(true);
                     } else {
-                        target = Some(target.unwrap_or(false) || alive);
+                        target =
+                            Some(target.unwrap_or(false) || show == dr_model::v3::LinkShow::Live);
                     }
                 }
             }
+            let range = line.char_of_byte(span.range.start)..line.char_of_byte(span.range.end);
+            if marked && target.is_none() {
+                // A link that reads as text still is one to the matcher:
+                // no grains over it.
+                linked.push(range.clone());
+            }
             if let Some(alive) = target {
-                let range = line.char_of_byte(span.range.start)..line.char_of_byte(span.range.end);
                 let abs = start + range.start..start + range.end;
                 if let Some((fid, is_pdf)) = file_link {
                     if prev_file_id.as_deref() == Some(fid.as_str())

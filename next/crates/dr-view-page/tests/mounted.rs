@@ -236,6 +236,7 @@ fn versioned_module_click_reveals_block_range(cx: &mut TestAppContext) {
         module: Some("second".parse().unwrap()),
         block: Some(paragraphs[0]["block_id"].as_str().unwrap().parse().unwrap()),
         end_block: Some(paragraphs[1]["block_id"].as_str().unwrap().parse().unwrap()),
+        manual: false,
     };
     let assist = first.read_with(cx, |e, _| e.assist().clone());
     assist.update(cx, |a, cx| a.open_entity_link_v3(link.clone(), cx));

@@ -254,6 +254,9 @@ fn is_offered_move(row: &JournalEntry, before: Option<&JournalEntry>) -> bool {
 pub fn describe(row: &JournalEntry, book: &crate::book::Book, cx: &App) -> SharedString {
     let label = match row.command.as_str() {
         "entry.set_level" => Some(crate::t(cx, keys::v3_shell::LEVEL_SWITCH)),
+        "entry.set_auto_link" | "entry.set_below_auto_link" => {
+            Some(crate::t(cx, keys::v3_levels::AUTO_LINK))
+        }
         "entry.move" => Some(crate::t(cx, keys::plot_grid::MOVE)),
         _ => None,
     };

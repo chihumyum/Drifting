@@ -18,6 +18,7 @@ fn link(target: &str, module: Option<&str>) -> EntityLinkV3 {
         module: module.map(|m| ModuleId::parse(m).unwrap()),
         block: None,
         end_block: None,
+        manual: false,
     }
 }
 fn other_entry() -> EntityLinkV3 {
@@ -121,6 +122,67 @@ fn module_identity_survives_adjacent_runs_overlap_encoding_sync_and_reopen() {
             .filter(|k| k.starts_with("entity:"))
             .all(|k| k == "entity:entry-a" || k == "entity:entry-b")
     );
+}
+
+/// `kernel-v5.md` §16: a link picked with @ carries `manual` in its value
+/// through sync, a copy and a paste, a snapshot and a reopen, and the
+/// automatic rule's bare-entry test sees it as not bare (a version that does
+/// not know the key keeps it with the value and leaves the link alone).
+#[test]
+fn a_manual_link_keeps_its_mark_through_sync_copy_paste_snapshot_and_older_writers() {
+    let mut a = doc("body:entry-source/prose", 1);
+    let mut b = doc("body:entry-source/prose", 2);
+    let picked = EntityLinkV3 {
+        manual: true,
+        ..link("entry-a", None)
+    };
+    user(&mut a, |t| {
+        t.insert_paragraphs(0, "甲乙丙丁")?;
+        t.link_entity_v3(0..2, &picked)?;
+        t.link_entity_v3(2..4, &link("entry-a", None))
+    });
+    assert_eq!(
+        a.view().entity_links_v3(),
+        vec![(0..2, picked.clone()), (2..4, link("entry-a", None))]
+    );
+    // The stored value: `manual: true`, not a bare `{kind: "entry"}`.
+    let copied = a.view().copy_entity_links_v3(0..4).unwrap();
+    let values: Vec<&LoroValue> = copied.marks().iter().map(|(_, _, v)| v).collect();
+    let bare = |v: &LoroValue| matches!(v, LoroValue::Map(m) if m.len() == 1);
+    assert!(!bare(values[0]) && bare(values[1]), "{values:?}");
+    // Sync, snapshot and reopen.
+    b.import(&a.export_updates_since(&b.version()).unwrap(), Origin::Sync)
+        .unwrap();
+    assert_eq!(b.view().entity_links_v3(), a.view().entity_links_v3());
+    let reopened = ProseDoc::load(a.doc_id().clone(), 3, &[a.export_snapshot().unwrap()]).unwrap();
+    assert_eq!(
+        reopened.view().entity_links_v3(),
+        a.view().entity_links_v3()
+    );
+    // Copy and paste the raw marks elsewhere.
+    let mut c = doc("body:entry-other/prose", 4);
+    user(&mut c, |t| {
+        t.insert_text(0, "甲乙丙丁")?;
+        t.apply_entity_links_v3(0, &copied)
+    });
+    assert_eq!(c.view().entity_links_v3(), a.view().entity_links_v3());
+    // Writing the link over again keeps what the value says it is; an
+    // automatic one written over a picked one is automatic.
+    let previous = values[0].clone();
+    let again = encode_entity_link(&picked, Some(&previous)).unwrap();
+    assert_eq!(again, previous);
+    let older = link("entry-a", None);
+    let auto = encode_entity_link(&older, Some(&previous)).unwrap();
+    assert_eq!(decode_entity_link("entry-a", &auto), Some(older));
+    // The legacy reader of runs (the index's) says so too.
+    let runs: Vec<bool> = a
+        .view()
+        .paragraphs()
+        .flat_map(|p| p.runs)
+        .flat_map(|r| r.marks.entities)
+        .map(|l| l.manual)
+        .collect();
+    assert_eq!(runs, vec![true, false]);
 }
 
 #[test]

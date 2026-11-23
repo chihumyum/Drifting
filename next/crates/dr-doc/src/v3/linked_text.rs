@@ -11,6 +11,12 @@ use crate::{DocError, Result};
 // The bare "entity" style is reserved for book-local linked text. Prose
 // uses "entity:<target>" to allow overlapping links and carry module/range.
 const ENTRY_MARK: &str = inline::ENTITY;
+/// On the characters of a link picked with @ (`true`), beside its
+/// [`ENTRY_MARK`] (`kernel-v5.md` §16): it shows whatever the switches of
+/// automatic linking say. A version that does not know it reads the link as
+/// it always did and keeps the mark. It is not in the schema's style table:
+/// like every key that is not, it does not expand.
+pub(crate) const MANUAL_MARK: &str = "entity_manual";
 
 fn read_text(text: &LoroText) -> LinkedText {
     let mut result = LinkedText::default();
@@ -24,13 +30,23 @@ fn read_text(text: &LoroText) -> LinkedText {
             && let Ok(entry) = EntryId::parse(id.as_str())
             && start < end
         {
+            let manual = matches!(
+                attributes.as_ref().and_then(|a| a.get(MANUAL_MARK)),
+                Some(LoroValue::Bool(true))
+            );
             if let Some(last) = result.links.last_mut()
                 && last.entry == entry
+                && last.manual == manual
                 && last.end == start
             {
                 last.end = end;
             } else {
-                result.links.push(EntryTextLink { start, end, entry });
+                result.links.push(EntryTextLink {
+                    start,
+                    end,
+                    entry,
+                    manual,
+                });
             }
         }
         result.text.push_str(&insert);
@@ -46,11 +62,15 @@ pub(super) fn read(map: &LoroMap, key: &str) -> Option<LinkedText> {
     }
 }
 
-fn targets(text: &LinkedText) -> Vec<Option<&EntryId>> {
+/// Each character's link: its entry and whether it was picked with @.
+fn targets(text: &LinkedText) -> Vec<Option<(&EntryId, bool)>> {
     let mut entries = Vec::new();
     for link in &text.links {
         entries.resize(link.start, None);
-        entries.extend(repeat_n(Some(&link.entry), link.end - link.start));
+        entries.extend(repeat_n(
+            Some((&link.entry, link.manual)),
+            link.end - link.start,
+        ));
     }
     entries.resize(text.text.chars().count(), None);
     entries
@@ -94,10 +114,19 @@ fn update(text: &LoroText, value: &LinkedText) -> Result<()> {
         while end < changes.len() && changes[end].0 != want && changes[end].1 == want {
             end += 1;
         }
-        if let Some(entry) = want {
-            text.mark(start..end, ENTRY_MARK, entry.as_str())?;
-        } else {
-            text.unmark(start..end, ENTRY_MARK)?;
+        match want {
+            Some((entry, manual)) => {
+                text.mark(start..end, ENTRY_MARK, entry.as_str())?;
+                if manual {
+                    text.mark(start..end, MANUAL_MARK, true)?;
+                } else {
+                    text.unmark(start..end, MANUAL_MARK)?;
+                }
+            }
+            None => {
+                text.unmark(start..end, ENTRY_MARK)?;
+                text.unmark(start..end, MANUAL_MARK)?;
+            }
         }
         start = end;
     }

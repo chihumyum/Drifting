@@ -1958,6 +1958,7 @@ fn legacy_entity_links_adapt_losslessly_to_v3_across_bodies_templates_and_histor
                     module: None,
                     block: None,
                     end_block: None,
+                    manual: false,
                 }
             ),
             (
@@ -1968,6 +1969,7 @@ fn legacy_entity_links_adapt_losslessly_to_v3_across_bodies_templates_and_histor
                     module: Some(mid(MOD_PROSE)),
                     block: Some(BlockId::parse("q1").unwrap()),
                     end_block: Some(BlockId::parse("q2").unwrap()),
+                    manual: false,
                 }
             ),
             (
@@ -1978,6 +1980,7 @@ fn legacy_entity_links_adapt_losslessly_to_v3_across_bodies_templates_and_histor
                     module: Some(mid(MOD_DESCRIPTION)),
                     block: Some(BlockId::parse("s-p1").unwrap()),
                     end_block: None,
+                    manual: false,
                 }
             ),
             (
@@ -1988,6 +1991,7 @@ fn legacy_entity_links_adapt_losslessly_to_v3_across_bodies_templates_and_histor
                     module: Some(mid(MOD_DESCRIPTION)),
                     block: None,
                     end_block: None,
+                    manual: false,
                 }
             ),
         ]
@@ -2014,6 +2018,7 @@ fn legacy_entity_links_adapt_losslessly_to_v3_across_bodies_templates_and_histor
                 module: None,
                 block: None,
                 end_block: None,
+                manual: false,
             }
         )]
     );
@@ -2036,6 +2041,7 @@ fn legacy_entity_links_adapt_losslessly_to_v3_across_bodies_templates_and_histor
                     module: None,
                     block: None,
                     end_block: None,
+                    manual: false,
                 }
             ),
             (
@@ -2046,8 +2052,102 @@ fn legacy_entity_links_adapt_losslessly_to_v3_across_bodies_templates_and_histor
                     module: Some(mid(MOD_PROSE)),
                     block: Some(BlockId::parse("p1").unwrap()),
                     end_block: None,
+                    manual: false,
                 }
             ),
+        ]
+    );
+    lib.close().unwrap();
+}
+
+/// `kernel-v5.md` §16 「从 0.1 导入」: what 0.1 linked by itself (every
+/// element, chapter and idea) comes in with its 「自动链接」 on, everything
+/// else off, so the links 0.1 drew to them show as they did; the links the
+/// import keeps to the others (a text material's note, a storyline, a
+/// category) stay in the text and read as text until their switch is on.
+#[test]
+fn imported_entries_keep_linking_as_0_1_linked_them() {
+    use serde_json::json;
+
+    let old = fixture::build();
+    let live = json!({
+        "type": "doc",
+        "content": [{
+            "type": "paragraph",
+            "attrs": {"id": "e-p1"},
+            "content": [
+                {"type": "text", "text": "札记", "marks": [{"type": "entityLink", "attrs": {"targetKind": "library_item", "targetId": NOTE}}]},
+                {"type": "text", "text": "与"},
+                {"type": "text", "text": "第一章", "marks": [{"type": "entityLink", "attrs": {"targetKind": "node", "targetId": CHAPTER}}]},
+                {"type": "text", "text": "及"},
+                {"type": "text", "text": "主线", "marks": [{"type": "entityLink", "attrs": {"targetKind": "storyline", "targetId": STORYLINE}}]},
+                {"type": "text", "text": "和"},
+                {"type": "text", "text": "分类", "marks": [{"type": "entityLink", "attrs": {"targetKind": "category", "targetId": CATEGORY}}]}
+            ]
+        }]
+    });
+    let c = rusqlite::Connection::open(&old.db).unwrap();
+    c.execute(
+        "UPDATE element SET content_json=?1 WHERE id=?2",
+        rusqlite::params![live.to_string(), ELEMENT],
+    )
+    .unwrap();
+    drop(c);
+    let before = source_tree_snapshot(&old.root);
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("library");
+    let mut opts = options(&old);
+    opts.accept = dr_import_v1::gate::Accept::EVERYTHING;
+    let (outcome, _) = run::import(&old.db, &root, &opts).unwrap();
+    assert!(matches!(outcome, Outcome::Imported(_)));
+    assert_eq!(before, source_tree_snapshot(&old.root));
+
+    let lib = open(&root);
+    let bytes = lib
+        .load_copy(&format!("book:{BOOK}"))
+        .unwrap()
+        .export(loro::ExportMode::Snapshot)
+        .unwrap();
+    let book =
+        BookDocV3::load(BookId::parse(BOOK).unwrap(), random_device_peer(), &[bytes]).unwrap();
+    let view = book.view();
+    let switch = |id: &str| view.entry_raw(&eid(id)).unwrap().auto_link;
+    for id in [ELEMENT, CHAPTER, IDEA] {
+        assert!(switch(id), "{id} linked by itself in 0.1");
+    }
+    for id in [NOTE, STORYLINE, CATEGORY] {
+        assert!(!switch(id), "{id} was not linked by itself in 0.1");
+    }
+    // Every entry of another kind is off: the roots, groups and the rest.
+    for e in view.entries_raw() {
+        let linked_kind = e.template.as_ref().is_some_and(|t| {
+            [TPL_CHAPTER, TPL_IDEA, TPL_ELEMENT].contains(&t.as_str())
+                || t.as_str().starts_with("import-category-")
+        });
+        if !linked_kind {
+            assert!(!e.auto_link, "{} ({:?})", e.title, e.template);
+        }
+    }
+    // The links: kept as written, shown as 0.1 showed those to what it linked.
+    let states = LinkEntries::of(view.graph().entries.values());
+    let doc = load_prose(&lib, &adapter::body_id(ELEMENT, MOD_PROSE));
+    let shown: Vec<(String, LinkShow)> = doc
+        .view()
+        .entity_links_v3()
+        .into_iter()
+        .map(|(_, l)| {
+            assert!(!l.manual, "every link of 0.1 counts as automatic");
+            let show = states.show(&l.target, l.manual, true);
+            (l.target, show)
+        })
+        .collect();
+    assert_eq!(
+        shown,
+        vec![
+            (NOTE.to_owned(), LinkShow::Plain),
+            (CHAPTER.to_owned(), LinkShow::Live),
+            (STORYLINE.to_owned(), LinkShow::Plain),
+            (CATEGORY.to_owned(), LinkShow::Plain),
         ]
     );
     lib.close().unwrap();
@@ -2403,6 +2503,7 @@ fn marked_and_linked_legacy_table_cells_import_losslessly_across_profiles_templa
                     module: Some(mid(MOD_PROSE)),
                     block: Some(BlockId::parse("q1").unwrap()),
                     end_block: Some(BlockId::parse("q2").unwrap()),
+                    manual: false,
                 }
             ),
             (
@@ -2413,6 +2514,7 @@ fn marked_and_linked_legacy_table_cells_import_losslessly_across_profiles_templa
                     module: None,
                     block: None,
                     end_block: None,
+                    manual: false,
                 }
             ),
         ])
@@ -2456,6 +2558,7 @@ fn marked_and_linked_legacy_table_cells_import_losslessly_across_profiles_templa
                 module: Some(mid(MOD_PROSE)),
                 block: None,
                 end_block: None,
+                manual: false,
             }
         )])
     );
@@ -2482,6 +2585,7 @@ fn marked_and_linked_legacy_table_cells_import_losslessly_across_profiles_templa
                 module: Some(mid(MOD_PROSE)),
                 block: Some(BlockId::parse("tbl-elem").unwrap()),
                 end_block: None,
+                manual: false,
             }
         )])
     );

@@ -1033,6 +1033,36 @@ pub fn novel_project_template_with(ids: &NovelRootEntries) -> ProjectTemplate {
     }
 }
 
+/// Give each of `created` (entries a project template just wrote) the
+/// 「自动链接」 a new entry starts with where it lives
+/// ([`dr_model::v3::new_entry_auto_link`], `kernel-v5.md` §16): a project
+/// template carries no entry's switch, only its levels' defaults. Call after
+/// every entry and its overrides are written.
+pub fn start_auto_links<'e>(
+    txn: &mut BookTxnV3<'_>,
+    created: impl IntoIterator<Item = &'e EntryId>,
+) -> Result<()> {
+    let graph = txn.view().graph();
+    let on: Vec<EntryId> = created
+        .into_iter()
+        .filter(|id| {
+            graph.entries.get(*id).is_some_and(|e| {
+                dr_model::v3::new_entry_auto_link(
+                    e.parent.as_ref(),
+                    e.template.as_ref(),
+                    &graph.entries,
+                    &graph.templates,
+                )
+            })
+        })
+        .cloned()
+        .collect();
+    for id in on {
+        txn.entries().entry(&id)?.auto_link(true)?;
+    }
+    Ok(())
+}
+
 /// Apply any [`ProjectTemplate`] (`project` definition, `templates`, initial
 /// `entries` and initial `views`) into `txn`. The definition's tabs are
 /// written as a project shows them ([`shown_project_tabs`]), so 「全部」 is
@@ -1071,6 +1101,13 @@ pub fn apply_project_template(txn: &mut BookTxnV3<'_>, pt: &ProjectTemplate) -> 
             }
         }
     }
+    start_auto_links(
+        txn,
+        pt.entries
+            .iter()
+            .filter(|e| !existing_entries.contains(&e.id))
+            .map(|e| &e.id),
+    )?;
     for view in &pt.views {
         let w = txn.timeline_view(&view.id)?;
         w.name(&view.name)?.pos(view.pos.as_ref())?;

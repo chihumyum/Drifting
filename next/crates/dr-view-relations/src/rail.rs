@@ -463,9 +463,21 @@ impl RelationsRail {
         self.loaded = false;
         self.load_gen += 1;
         let (generation, epoch, book) = (self.load_gen, self.epoch, self.book.id.clone());
-        let task = cx
-            .background_executor()
-            .spawn(async move { guarded::load(&lib, &book) });
+        // While the author's setting is off an automatic link in a
+        // description reads as text, one picked with @ stays a link
+        // (`kernel-v5.md` §16); the book gave the rest under their entries'
+        // own switches.
+        let auto_links = lib.auto_links();
+        let task = cx.background_executor().spawn(async move {
+            guarded::load(&lib, &book).map(|mut snapshot| {
+                if !auto_links {
+                    for relation in &mut snapshot.relations {
+                        relation.description.links.retain(|l| l.manual);
+                    }
+                }
+                snapshot
+            })
+        });
         self.load_task = Some(cx.spawn(async move |this, cx| {
             let out = task.await;
             this.update(cx, |rail, cx| {
@@ -613,6 +625,24 @@ impl RelationsRail {
             } else {
                 roots
             };
+            // Only the links that read as links on the page count
+            // (`kernel-v5.md` §16): one picked with @, or an automatic one
+            // while its entry's 「自动链接」 and the author's setting are on.
+            let auto_links = lib.auto_links();
+            let states = book
+                .parse::<dr_model::id::BookId>()
+                .ok()
+                .and_then(|id| {
+                    lib.read_book_v3(&book, move |doc, _| {
+                        let b = dr_doc::v3::BorrowedBookV3::new(doc, &id)
+                            .map_err(|e| dr_workspace::WsError::Invalid(e.to_string()))?;
+                        Ok(dr_model::v3::LinkEntries::of(
+                            b.view().graph().entries.values(),
+                        ))
+                    })
+                    .ok()
+                })
+                .unwrap_or_default();
             let mut set: HashSet<String> = roots.iter().cloned().collect();
             for entry in &roots {
                 if let Ok(refs) = lib.library().references_from_entry(entry) {
@@ -620,7 +650,11 @@ impl RelationsRail {
                         refs.into_iter()
                             .filter(|r| {
                                 r.target_kind == "entry"
-                                    && matches!(r.kind, dr_store::index::RefKind::Link)
+                                    && dr_workspace::autolink::reference_counts(
+                                        r.kind,
+                                        states.get(&r.target_id),
+                                        auto_links,
+                                    )
                             })
                             .map(|r| r.target_id),
                     );
@@ -1688,6 +1722,7 @@ pub fn linked_text(draft: &Draft) -> LinkedText {
                     start,
                     end,
                     entry: target.parse().ok()?,
+                    manual: false,
                 })
             })
             .collect(),

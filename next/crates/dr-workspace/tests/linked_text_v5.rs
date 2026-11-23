@@ -99,6 +99,11 @@ fn link(start: usize, end: usize, entry: &str) -> Value {
     json!({"start":start,"end":end,"entry":entry})
 }
 
+/// A link picked with @ (`kernel-v5.md` §16): recorded as manual.
+fn picked(start: usize, end: usize, entry: &str) -> Value {
+    json!({"start":start,"end":end,"entry":entry,"manual":true})
+}
+
 /// The review composer sends plain text: an edit elsewhere keeps the link to
 /// an entry in Recently Deleted (shown as plain text) and the visible one,
 /// and the hidden one comes back with the entry.
@@ -175,12 +180,12 @@ fn a_plain_edit_keeps_explicit_links_on_unchanged_words_only() {
     }));
     assert_eq!(
         f.body(&c)["links"],
-        json!([link(0, 2, &note), link(4, 6, &zhu)])
+        json!([picked(0, 2, &note), link(4, 6, &zhu)])
     );
     f.edit(&c, json!("书签夹在小竹的书里。"));
     assert_eq!(
         f.body(&c)["links"],
-        json!([link(0, 2, &note), link(4, 6, &zhu)])
+        json!([picked(0, 2, &note), link(4, 6, &zhu)])
     );
     f.edit(&c, json!("书笺夹在小竹的书里。"));
     assert_eq!(f.body(&c)["links"], json!([link(4, 6, &zhu)]));
@@ -272,11 +277,12 @@ fn a_longer_name_takes_over_an_automatic_link_but_not_a_pick() {
     for got in [f.body(&c), f.description(&r)] {
         assert_eq!(got["links"], json!([link(0, 3, &town)]));
     }
-    let picked = f.comment(json!({"text":"石桥镇很远","links":[link(0, 2, &bridge)]}));
-    assert_eq!(f.body(&picked)["links"], json!([link(0, 2, &bridge)]));
-    // Once saved, the pick is an existing link like any other.
-    f.edit(&picked, json!("石桥镇很远。"));
-    assert_eq!(f.body(&picked)["links"], json!([link(0, 3, &town)]));
+    let pick = f.comment(json!({"text":"石桥镇很远","links":[link(0, 2, &bridge)]}));
+    assert_eq!(f.body(&pick)["links"], json!([picked(0, 2, &bridge)]));
+    // Once saved, the pick stays one: the automatic rule leaves it alone
+    // (`kernel-v5.md` §16, 2026-11-24; a saved pick used to give way).
+    f.edit(&pick, json!("石桥镇很远。"));
+    assert_eq!(f.body(&pick)["links"], json!([picked(0, 2, &bridge)]));
 }
 
 /// Comment writes plan with the book's compiled matcher: it is built once

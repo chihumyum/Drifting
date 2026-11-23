@@ -1405,6 +1405,11 @@ expression: json
               "description": "This entry's own arrangement of a media module (`featured`, `grid`\nor `list`): `module_id -> arrangement`; a module not listed uses its\ntemplate's (`module.read` gives the effective one).",
               "type": "object"
             },
+            "auto_link": {
+              "default": false,
+              "description": "The entry's own 「自动链接」 (`kernel-v5.md` §16): whether its title\nand aliases link by themselves, and whether the automatic links to it\nshow as links (`entry.set_auto_link`).",
+              "type": "boolean"
+            },
             "below": {
               "anyOf": [
                 {
@@ -1550,6 +1555,7 @@ expression: json
             "mark",
             "template",
             "level",
+            "auto_link",
             "overrides",
             "fields",
             "kv",
@@ -2517,6 +2523,10 @@ expression: json
             "entry": {
               "type": "string"
             },
+            "manual": {
+              "description": "Picked with @: it shows whatever the switches of automatic linking\nsay (`kernel-v5.md` §16). A link without it is automatic: it reads as\nordinary text while its entry's 「自动链接」 is off.",
+              "type": "boolean"
+            },
             "start": {
               "format": "uint",
               "minimum": 0,
@@ -3125,6 +3135,10 @@ expression: json
             "entry": {
               "type": "string"
             },
+            "manual": {
+              "description": "Picked with @: it shows whatever the switches of automatic linking\nsay (`kernel-v5.md` §16). A link without it is automatic: it reads as\nordinary text while its entry's 「自动链接」 is off.",
+              "type": "boolean"
+            },
             "start": {
               "format": "uint",
               "minimum": 0,
@@ -3408,6 +3422,10 @@ expression: json
             "entry": {
               "type": "string"
             },
+            "manual": {
+              "description": "Picked with @: it shows whatever the switches of automatic linking\nsay (`kernel-v5.md` §16). A link without it is automatic: it reads as\nordinary text while its entry's 「自动链接」 is off.",
+              "type": "boolean"
+            },
             "start": {
               "format": "uint",
               "minimum": 0,
@@ -3501,6 +3519,10 @@ expression: json
             },
             "entry": {
               "type": "string"
+            },
+            "manual": {
+              "description": "Picked with @: it shows whatever the switches of automatic linking\nsay (`kernel-v5.md` §16). A link without it is automatic: it reads as\nordinary text while its entry's 「自动链接」 is off.",
+              "type": "boolean"
             },
             "start": {
               "format": "uint",
@@ -3609,6 +3631,14 @@ expression: json
     "concurrency": "book",
     "input": {
       "properties": {
+        "auto_link": {
+          "default": null,
+          "description": "The new entry's own 「自动链接」; when omitted, on only if its template\nis linkable and the level it comes to live in has new entries start\nlinked (`kernel-v5.md` §16).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "bodies": {
           "additionalProperties": {
             "type": "string"
@@ -3959,6 +3989,11 @@ expression: json
           "description": "This entry's own arrangement of a media module (`featured`, `grid`\nor `list`): `module_id -> arrangement`; a module not listed uses its\ntemplate's (`module.read` gives the effective one).",
           "type": "object"
         },
+        "auto_link": {
+          "default": false,
+          "description": "The entry's own 「自动链接」 (`kernel-v5.md` §16): whether its title\nand aliases link by themselves, and whether the automatic links to it\nshow as links (`entry.set_auto_link`).",
+          "type": "boolean"
+        },
         "below": {
           "anyOf": [
             {
@@ -4104,6 +4139,7 @@ expression: json
         "mark",
         "template",
         "level",
+        "auto_link",
         "overrides",
         "fields",
         "kv",
@@ -4430,6 +4466,11 @@ expression: json
           "description": "This entry's own arrangement of a media module (`featured`, `grid`\nor `list`): `module_id -> arrangement`; a module not listed uses its\ntemplate's (`module.read` gives the effective one).",
           "type": "object"
         },
+        "auto_link": {
+          "default": false,
+          "description": "The entry's own 「自动链接」 (`kernel-v5.md` §16): whether its title\nand aliases link by themselves, and whether the automatic links to it\nshow as links (`entry.set_auto_link`).",
+          "type": "boolean"
+        },
         "below": {
           "anyOf": [
             {
@@ -4575,6 +4616,7 @@ expression: json
         "mark",
         "template",
         "level",
+        "auto_link",
         "overrides",
         "fields",
         "kv",
@@ -4685,6 +4727,11 @@ expression: json
               },
               "description": "This entry's own arrangement of a media module (`featured`, `grid`\nor `list`): `module_id -> arrangement`; a module not listed uses its\ntemplate's (`module.read` gives the effective one).",
               "type": "object"
+            },
+            "auto_link": {
+              "default": false,
+              "description": "The entry's own 「自动链接」 (`kernel-v5.md` §16): whether its title\nand aliases link by themselves, and whether the automatic links to it\nshow as links (`entry.set_auto_link`).",
+              "type": "boolean"
             },
             "below": {
               "anyOf": [
@@ -4831,6 +4878,7 @@ expression: json
             "mark",
             "template",
             "level",
+            "auto_link",
             "overrides",
             "fields",
             "kv",
@@ -5246,7 +5294,7 @@ expression: json
       "title": "MentionsOut",
       "type": "object"
     },
-    "summary": "List the paragraphs of the book's prose that link to an entry (its name or an alias linked automatically, or a link the author made), in manuscript order, each with the entry and module it is in, its document, paragraph number and block ID, how many links to the entry it holds and the text around the entry's name. `total` counts the paragraphs, `links` the links. At most `limit` paragraphs (default 20, at most 50) from `from`; `next` is the `from` of the next page. Paragraphs in entries in Recently Deleted only with `trashed: true`. Text that names the entry without a link is found with entry.search."
+    "summary": "List the paragraphs of the book's prose that link to an entry (its name or an alias linked automatically, counted while the entry's own automatic linking and the author's setting are on, or a link the author picked with @, always counted), in manuscript order, each with the entry and module it is in, its document, paragraph number and block ID, how many links to the entry it holds and the text around the entry's name. `total` counts the paragraphs, `links` the links. At most `limit` paragraphs (default 20, at most 50) from `from`; `next` is the `from` of the next page. Paragraphs in entries in Recently Deleted only with `trashed: true`. Text that names the entry without a link is found with entry.search."
   },
   {
     "access": "write",
@@ -5577,6 +5625,105 @@ expression: json
       "type": "object"
     },
     "summary": "Search the book's entries for a word or phrase, matched as written (case-insensitive, not split into words): titles, field values, key/value rows, patches, plot cells and prose, not templates or comments. Hits come in manuscript order, each with its entry, its module and the text around the match; a prose hit (one per paragraph) also gives its document, paragraph number and block ID. At most `limit` hits (default 20, at most 50) from `from`; `next` is the `from` of the next page. Entries in Recently Deleted only with `trashed: true`. A hit is not a read of the prose."
+  },
+  {
+    "access": "write",
+    "book_version": 5,
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "auto_link": {
+          "description": "The entry's own 「自动链接」.",
+          "type": "boolean"
+        },
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id",
+        "auto_link"
+      ],
+      "title": "SetAutoLinkIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "entry.set_auto_link",
+    "output": {
+      "properties": {
+        "auto_link": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "auto_link"
+      ],
+      "title": "SetAutoLinkOut",
+      "type": "object"
+    },
+    "summary": "Turn an entry's own automatic linking (「自动链接」) on or off: whether its title and aliases link by themselves in the book's text, and whether the automatic links already pointing at it show as links. No text is rewritten: turned off, those links read as plain text and their data stays; turned back on, they show again. Links picked with @ show either way. Refused when, turned on, one of its names is already another linked entry's."
+  },
+  {
+    "access": "write",
+    "book_version": 5,
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "auto_link": {
+          "description": "The level's 「自动链接」.",
+          "type": "boolean"
+        },
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "description": "A live entry whose level switch is on.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id",
+        "auto_link"
+      ],
+      "title": "SetBelowAutoLinkIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "entry.set_below_auto_link",
+    "output": {
+      "properties": {
+        "auto_link": {
+          "type": "boolean"
+        },
+        "changed": {
+          "description": "The entries living below whose own switch this changed.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "auto_link",
+        "changed"
+      ],
+      "title": "SetBelowAutoLinkOut",
+      "type": "object"
+    },
+    "summary": "Turn a level's automatic linking (「自动链接」) on or off: entries made to live in it from now on start with their own switch that way, and every entry living below it now (however deep, not those in Recently Deleted, not containers whose template does not follow its level) gets its own switch set the same, in one step one undo takes back. Each entry can be changed on its own afterwards. Refused when a name would then belong to two linked entries."
   },
   {
     "access": "write",
@@ -10789,6 +10936,11 @@ expression: json
               "description": "This entry's own arrangement of a media module (`featured`, `grid`\nor `list`): `module_id -> arrangement`; a module not listed uses its\ntemplate's (`module.read` gives the effective one).",
               "type": "object"
             },
+            "auto_link": {
+              "default": false,
+              "description": "The entry's own 「自动链接」 (`kernel-v5.md` §16): whether its title\nand aliases link by themselves, and whether the automatic links to it\nshow as links (`entry.set_auto_link`).",
+              "type": "boolean"
+            },
             "below": {
               "anyOf": [
                 {
@@ -10934,6 +11086,7 @@ expression: json
             "mark",
             "template",
             "level",
+            "auto_link",
             "overrides",
             "fields",
             "kv",
@@ -15386,6 +15539,10 @@ expression: json
             "entry": {
               "type": "string"
             },
+            "manual": {
+              "description": "Picked with @: it shows whatever the switches of automatic linking\nsay (`kernel-v5.md` §16). A link without it is automatic: it reads as\nordinary text while its entry's 「自动链接」 is off.",
+              "type": "boolean"
+            },
             "start": {
               "format": "uint",
               "minimum": 0,
@@ -15602,6 +15759,10 @@ expression: json
             "entry": {
               "type": "string"
             },
+            "manual": {
+              "description": "Picked with @: it shows whatever the switches of automatic linking\nsay (`kernel-v5.md` §16). A link without it is automatic: it reads as\nordinary text while its entry's 「自动链接」 is off.",
+              "type": "boolean"
+            },
             "start": {
               "format": "uint",
               "minimum": 0,
@@ -15772,6 +15933,10 @@ expression: json
             },
             "entry": {
               "type": "string"
+            },
+            "manual": {
+              "description": "Picked with @: it shows whatever the switches of automatic linking\nsay (`kernel-v5.md` §16). A link without it is automatic: it reads as\nordinary text while its entry's 「自动链接」 is off.",
+              "type": "boolean"
             },
             "start": {
               "format": "uint",
@@ -15966,6 +16131,10 @@ expression: json
             },
             "entry": {
               "type": "string"
+            },
+            "manual": {
+              "description": "Picked with @: it shows whatever the switches of automatic linking\nsay (`kernel-v5.md` §16). A link without it is automatic: it reads as\nordinary text while its entry's 「自动链接」 is off.",
+              "type": "boolean"
             },
             "start": {
               "format": "uint",
@@ -16279,6 +16448,10 @@ expression: json
             },
             "entry": {
               "type": "string"
+            },
+            "manual": {
+              "description": "Picked with @: it shows whatever the switches of automatic linking\nsay (`kernel-v5.md` §16). A link without it is automatic: it reads as\nordinary text while its entry's 「自动链接」 is off.",
+              "type": "boolean"
             },
             "start": {
               "format": "uint",
