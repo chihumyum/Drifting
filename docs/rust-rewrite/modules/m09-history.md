@@ -463,5 +463,51 @@ AutomaticHistory::start_with(ws, Cadence { interval, first_points, gap, quiet })
 
 - 点的种类是 `import`（`entry_snapshot.create` 给导入者存的点就叫这个），不是自动点，不参加修剪，多旧都留着；界面照旧不显示种类。
 - 时间是 0.1 那一行的时间，排在新版自己存的点下面。后台补第一个点不碰这些条目；退出时内容和最近一个 0.1 点一样，就不再多存。
-- 恢复一个导入的点，带回这一行的正文和 0.1 当时记的字段；0.1 没记的东西就是导入时的样子。点里记的住处已经不在（要素在 0.1 里的旧分组，现在没有要素了），恢复照这里一贯的规矩在写之前拒绝，这次没改，等作者定要不要「住处不在就留在原地」。
+- 恢复一个导入的点，带回这一行的正文和 0.1 当时记的字段；0.1 没记的东西就是导入时的样子。点里记的住处已经不在（要素在 0.1 里的旧分组，现在没有要素了）：原来在写之前拒绝；2026-11-24 起照下一节，要素留在现在住的地方，别的照常恢复。
 - 新加一个公开函数 `snapshots::checked_checkpoint`：三个命令验清单用的那套规则，导入核对自己写的点时用。
+
+## 恢复时原来住的地方没了：留在现在的地方（2026-11-24，SR）
+
+**依据**：作者 2026-11-23「都按推荐」，推荐是「原来的位置没了就留在现在的位置」，对所有快照点都这样，不只是从 0.1 导入的（[progress.md](../progress.md)「等作者的事」第 16 条，任务书 [handoff/resume-1123.md](../handoff/resume-1123.md) 的 SR）。
+
+**做了什么（大白话）：**
+
+- 快照点记着条目当时住在哪个条目下面。恢复时那个条目已经不能放它了：被删了（在最近删除里，或者已经永久删除，或者像导入的 0.1 分组那样书里本来就没有了），或者它的「层级」关了。以前恢复在动手之前整个拒绝，对话框显示「恢复失败」。现在照常恢复：正文、标题、字段、名下的记录都回到那个点，条目留在它现在住的地方、现在的先后位置，树上的节点一动不动。
+- 恢复仍是一条原子命令，恢复前照旧先存一个「恢复前」的点，一步能撤。撤销就是恢复那个点：条目本来就在现在的地方，撤销以后还在原处、原位置。
+- 原来住的地方还在、还能放条目时照旧：搬回去，排在仍然在的历史邻居旁边（上面「一个条目变没变只看它自己」一节第 6 条）。
+- 预览照常；界面没改：对话框只在失败时显示原因，这种情况不再失败。命令的入参、出参和摘要都没变。
+- 代码：`dr-workspace/src/commands/v3/snapshots.rs` 的 `restore_book`。`dr-doc` 没改：`restore_entry_owned_at` 本来就只写元数据和名下记录，不碰树。
+
+**还会拒绝的**（都在第一次真正写入之前，什么都不改）：
+
+| 情况 | 报什么 | 在哪 |
+| --- | --- | --- |
+| 不是作者在恢复（Agent、MCP、导入） | `entry snapshot restoration is an author operation` | `Restore` |
+| 点找不到；清单坏了、不是这个条目的、带着别的条目的正文 | 找不到 / `checkpoint format or owner mismatch` / `foreign body` | `point`、`checked_point` |
+| 点记的文档找不到、属于别的书；历史内容和清单的指纹对不上 | 找不到 / `belongs to another book` / `does not match its manifest` | `load_point` |
+| 条目有登记了还没内容的正文 | `uninitialized body documents` | `initialized_handles` |
+| 预览以后书或正文变了，或调用方的守卫不符；预览以后点被修剪或改了 | `entry changed since preview` / `checkpoint was removed or changed since preview` | `Restore` |
+| 点里的正文文档现在没了；正文的历史没法不换容器身份地还原；后来加的正文清不空 | `checkpoint body is missing` / `body history cannot be restored …` / `later body cannot be cleared …` | `Restore` |
+| 点里没有这个条目；条目已经永久删除 | 找不到 | `restore_book` |
+| **原来住的地方还在、还能放条目，但现在住在这个条目下面**（搬回去会成环） | `V3-TREE-NO-CYCLE … would create a cycle` | `restore_book`（`check_entry_move`） |
+| **条目现在在最近删除里，点是它进去以前的**（恢复会让它回来），而原来住的地方和现在住的地方都放不了它（比如和住处一起进了最近删除） | `V3-LEAF-NO-CHILDREN … does not exist or is trashed`（或 `switch off`） | `restore_book`（`check_parent_is_level`） |
+| 点里这个条目的「层级」关着，而现在它下面住着活的条目 | `restoration would leave entries under an entry whose switch is off` | `restore_book` |
+| 点里它名下的记录现在属于别的条目 | `record now belongs to another entry` | `restore_book` |
+| 恢复以后它的名字或别名和别的自动链接条目撞了 | `V3-AUTOLINK-NAME-UNIQUE` | `restore_book`（`changes_ok`） |
+| 元数据或名下记录没法不换容器身份地还原（含不认识的 CRDT 容器） | `entry history cannot be restored …` / `unsupported CRDT container` | `restore_book`、`dr-doc` 的 `restore_entry_owned_at` |
+
+加粗的两行和「住在哪」有关：成环是原来的地方还在，不算「没了」，照旧拒绝；第二行是「留在现在的地方」也站不住的那一种，照旧拒绝（任务书没说到，按最保守的做法，等作者看）。照 kernel-v5 第 16 节，最近删除里的条目不能点开、悬停卡上只有「恢复」「永久删除」，平常从界面走不到第二行（没在真窗口里核对过）。
+
+**挂在哪（这一轮没改，查清的）**：恢复把点里这个条目名下的挂名记录（它挂在别处的、别处挂在它上面的）和主归属原样写回，不看挂的目标现在怎样，也不因此拒绝。目标现在：
+
+- 在最近删除里：记录写回，读作没挂（`membership.list` 不列）；目标恢复以后又挂上。
+- 关了「收别处的条目」：记录写回，读作没挂；再打开又挂上。
+- 已经永久删除：记录写回，指着一个书里没有的条目，永远读作没挂。`entry.purge` 去掉的这一行因此回到书里，不会再自己消失。`entry.get` 的 `primary` 是存着的值，会显示那个 id；挂名的查询都会滤掉。
+- 还在、还收：挂回去（点以后摘掉的名，恢复会挂回来）。
+
+视图里的位置（刻度）是书的，不属于条目，恢复不动它。以上是用一个临时探针在合成库上查的，没进仓库。要不要改是作者的事。
+
+**测试：**
+
+- `dr-workspace`（`snapshots.rs` 的单测）：`restore_leaves_an_entry_where_it_lives_when_its_place_then_is_deleted`：章在一个分组里时存点，之后改了字、挪到书稿开头，分组进最近删除、再永久删除，两种情况各恢复一次：标题、梗概、正文回到点里的，住处和先后位置是恢复前的，一步撤销回到恢复前。`…_when_its_place_then_holds_no_entries`：同样，分组的「层级」关了；分组的开关不跟着恢复。`restore_still_refuses_a_cycle_or_a_life_where_nothing_can_hold_the_entry`：上表加粗的两种照旧拒绝，书目和清单文档的版本都不变。前两条在改之前的代码上失败，第三条改前改后都过。
+- `dr-import-v1`（`tests/history_checkpoints.rs`）：`restoring_a_point_whose_0_1_group_is_gone_keeps_the_element_where_it_lives`：导入的要素旧点（0.1 分组「未庄」已经没有了）能恢复：正文、名字、别名、梗概、事实回到那一行，住处和同级的先后不变，多一个「恢复前」的点，一步撤销回到恢复前。原来 `restoring_an_imported_point_brings_back_its_prose_and_fields_and_keeps_the_state_before` 末尾断言「拒绝、什么都没改」的那一段删掉，由这一条代替。
