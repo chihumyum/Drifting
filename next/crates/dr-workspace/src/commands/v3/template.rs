@@ -48,6 +48,28 @@ fn put(
             }
         }
     }
+    // A custom module is never part of the book and draws a copy the book
+    // has; a module of mine it names is copied in by the same write
+    // (`custom-modules.md` §7, §13, §16 item 2).
+    let mut new_copies: Vec<(CustomModuleId, dr_model::custom_module::ModuleValue)> = Vec::new();
+    for module in &mut t.modules {
+        if module.kind == m::ModuleKind::Custom {
+            module.config.in_book = false;
+            let Some(mid) = module.config.module.clone() else {
+                return Err(WsError::invalid(
+                    "a custom module names the module it draws (config.module)",
+                ));
+            };
+            if v.module_copy(&mid).is_none() && !new_copies.iter().any(|(id, _)| *id == mid) {
+                match super::custom_module::my_module(cx.workspace(), &mid)? {
+                    Some((_, value)) => new_copies.push((mid, value)),
+                    None => return Err(WsError::not_found("module", mid.as_str())),
+                }
+            }
+        } else if module.config.module.is_some() {
+            return Err(WsError::invalid("only a custom module names a module"));
+        }
+    }
     if t.settings.display.as_ref().is_some_and(|d| !d.is_known())
         || t.settings
             .format_shortcuts
@@ -134,6 +156,12 @@ fn put(
         Some(module) => template.at(["modules", module]),
         None => template,
     };
+    let mut replaces = vec![replaced];
+    replaces.extend(
+        new_copies
+            .iter()
+            .map(|(id, _)| rec(CollectionV3::Modules, id)),
+    );
     // A template that starts taking entries from elsewhere brings the
     // members of its entries back: where such an entry is a lane of a live
     // view, they get a position there (`VIEW-LANE-MEMBERS-PLACED`). Only the
@@ -158,9 +186,12 @@ fn put(
             }
         }
     }
-    let (placed, at) = cx.write_book_v3(&slot, Replaces::records([replaced]), move |tx| {
+    let (placed, at) = cx.write_book_v3(&slot, Replaces::records(replaces), move |tx| {
         if draft && tx.view().template(&t.id).is_some() {
             return Err(WsError::Conflict("template draft id already exists".into()));
+        }
+        for (id, value) in &new_copies {
+            tx.put_module_copy(id, value, &dr_doc::v3::modules::CopySource::Library)?;
         }
         tx.template(&t.id)?.set_full(&t)?;
         let mut placed = BTreeSet::new();

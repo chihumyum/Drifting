@@ -227,6 +227,7 @@ fn minimal_valid_template() -> ProjectTemplateValue {
                 table: None,
             }],
         )]),
+        modules: BTreeMap::new(),
         relation_types: vec![TemplateRelationType {
             name: "线索指向".to_owned(),
             description: dr_model::v3::LinkedText::plain("连接章节线索与相关人物"),

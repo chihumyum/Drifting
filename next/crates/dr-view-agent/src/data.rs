@@ -110,10 +110,15 @@ pub fn change_targets(run: &crate::state::RunSnapshot, turn: u32) -> Vec<ChangeT
                 Some(Collection::Comments) => ("comment", effect.id),
                 Some(Collection::Assets) => ("asset", effect.id),
                 Some(Collection::Memory) => ("memory", effect.id),
-                // Facts, AssetFolders, and RelationTypes have no dedicated shell
-                // page or single-record reveal hook yet; never fake whole-book
-                // navigation for them.
-                Some(Collection::Facts | Collection::AssetFolders | Collection::RelationTypes) => {
+                // Facts, AssetFolders, RelationTypes and module copies have no
+                // dedicated shell page or single-record reveal hook yet; never
+                // fake whole-book navigation for them.
+                Some(
+                    Collection::Facts
+                    | Collection::AssetFolders
+                    | Collection::RelationTypes
+                    | Collection::Modules,
+                ) => {
                     continue;
                 }
                 None => match effect.kind.as_str() {

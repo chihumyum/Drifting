@@ -142,6 +142,12 @@ pub struct ProjectTemplateValue {
     pub views: Vec<TemplateView>,
     #[serde(default)]
     pub template_prose: BTreeMap<String, Vec<TemplateParagraph>>,
+    /// The custom modules the template's `custom` modules draw, by module id
+    /// (`custom-modules.md` §11): each one a module value of the module
+    /// format, carried whole. A module id that my modules have makes the
+    /// new project's copy follow my modules (§7).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub modules: BTreeMap<String, crate::custom_module::ModuleValue>,
 }
 
 /// Project-level definition inside a [`ProjectTemplateValue`] (no `source`).
@@ -235,6 +241,8 @@ pub enum TemplateModuleKind {
     Children,
     Members,
     Media,
+    /// A custom module: `config.module` names one of the template's `modules`.
+    Custom,
 }
 
 impl From<TemplateModuleKind> for ModuleKind {
@@ -248,6 +256,7 @@ impl From<TemplateModuleKind> for ModuleKind {
             TemplateModuleKind::Children => Self::Children,
             TemplateModuleKind::Members => Self::Members,
             TemplateModuleKind::Media => Self::Media,
+            TemplateModuleKind::Custom => Self::Custom,
         }
     }
 }
@@ -264,6 +273,7 @@ impl TryFrom<&ModuleKind> for TemplateModuleKind {
             ModuleKind::Children => Ok(Self::Children),
             ModuleKind::Members => Ok(Self::Members),
             ModuleKind::Media => Ok(Self::Media),
+            ModuleKind::Custom => Ok(Self::Custom),
             ModuleKind::Other(s) => Err(format!("unknown module kind {s:?}")),
         }
     }
@@ -470,6 +480,9 @@ pub struct TemplateModuleConfig {
     pub default_cols: u32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub arrangement: Option<TemplateMediaArrangement>,
+    /// `custom` modules only: a key of the template's `modules`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub module: Option<String>,
 }
 
 impl Default for TemplateModuleConfig {
@@ -488,6 +501,7 @@ impl Default for TemplateModuleConfig {
             default_rows: default_plot_lines(),
             default_cols: default_plot_lines(),
             arrangement: None,
+            module: None,
         }
     }
 }
@@ -985,6 +999,13 @@ impl TemplateModuleSpec {
                 default_rows: self.config.default_rows,
                 default_cols: self.config.default_cols,
                 arrangement: self.config.arrangement.map(Into::into),
+                module: self
+                    .config
+                    .module
+                    .as_deref()
+                    .map(crate::id::CustomModuleId::parse)
+                    .transpose()
+                    .map_err(|e| format!("custom module id: {e}"))?,
             },
             agent: self.agent.as_ref().map(Into::into),
         })
