@@ -23,6 +23,25 @@ comment.create [write] Add a comment on an entry, any module of an entry, a sub-
 comment.list [read] List comments (a target or module sub-part in the trash or gone shows as unlocated).
 comment.reanchor [write] Put a comment's anchor back where the editor's undo brought its text back (the author's change, synced; it follows the editor's undo, so it is not an entry of the object-level undo). Read the comment and its complete source prose before setting an anchor; both versions are guarded. Clearing needs the comment read.
 comment.update [write] Change a comment: its text, status (resolve / reopen; a checklist item's comment ticks or clears the item in the prose) or linked Agent conversation. A checklist item's comment takes no other text: its words are the line's, so change the line in the prose. Comments have no priority. Resolving or reopening a checklist comment (origin = "task") ticks or clears the item in its source prose; read both the comment and that prose document first.
+custom_module.create [write] Make a new module in my modules from a module value (format drifting.module); it gets a new id. Make a module when the author asks for one, in words or with a sketch or screenshot to follow. Then put it into an entry template with entry_template.put_module (kind "custom", config.module: the id this returns) and fill entries with module.set_custom_value and module.add_custom_item. To change it later, read it with custom_module.get and replace it with custom_module.update.
+`value` is one module in a closed JSON format: an unknown key, kind, node, property or value is refused, and the refusal names the place (a block id, or a path such as look.block.item.kids[1]) and the rule; fix that and call again.
+Head: "format": "drifting.module", "formatVersion": 1, "name" (one line); "locale" is optional; leave out "credit".
+"blocks" (what it holds), in order, each {"id", "type", "name"}. An id is 1-32 letters, digits, _ or -, unique in the module and never "id"; entries keep their values by it, so keep it when a block is renamed or moved. Types: text (one line), long_text (plain lines), number, date (YYYY-MM-DD), select and multi_select (with "options": distinct, not empty), toggle, entry (entries of this project), image (a file of the asset library), group ("blocks" inside, keeps no value), list (items, each holding its "blocks"; lists nest 4 deep at most). 100 blocks at most.
+"look" (how it looks): one box tree per size: "block" (on the entry page, required), "line" (one row in an entry's hover card) and "full" (filling the middle column); leave line or full out and it follows block. A node is one of:
+- {"box": "col" | "row" | "grid", "kids": [nodes], "gap" and "pad" (0, 4, 8, 12, 16, 24), "align" (start, center, end, stretch), "width" (auto, hug, fill), "border" (none, hair, glass, sand), "bg" (none, paper, wash), "radius" (0, 2, 4, 8), "deco" (none, arc), "cols" (grid only: 1-12 columns, each "fill" or 48-320 in steps of 8), "nowrap" (true), "max" (48-320 in steps of 8)}
+- {"each": <list id>, "item": <a box drawn for every item>, "dir" (col, row), "gap", "sep" (none, hair, axis), "link" (none, arrow)}
+- {"value": <block id>, "show" (text; dots for a number; mark for a select, first option hollow, last solid; count for a list), "font" (serif, sans, mono), "size" (title, body, small, note), "ink" (1-4, the App's ink levels), "lines" (1-10), "width", "suffix" (words after it, up to 40)}
+- {"text": <fixed words, one line, up to 200>, "font", "size", "ink", "width"}
+- {"mark": file-text, square, compass, folder, lightbulb, git-branch, book}
+A block inside a list is drawn only inside an "each" over that list; a group has no value to draw. 400 nodes at most in the three trees. There are no colours (ink levels follow light and dark), font names, images, URLs, styles, scripts or formulas.
+"agent" (the words for the Agent: how to fill the module): "name", "description" (what it is for), "instructions", and "blocks": {<block id>: one line on how to fill it}; 20000 characters at most.
+"sample" (optional): example values by block id, a list's as [{...}]; an entry's sample is a few words, never an id; no image.
+256 KiB at most. A small one: {"format":"drifting.module","formatVersion":1,"name":"伏笔追踪","blocks":[{"id":"items","type":"list","name":"伏笔","blocks":[{"id":"line","type":"text","name":"一句话"},{"id":"st","type":"select","name":"状态","options":["埋着","提过","收了"]},{"id":"back","type":"entry","name":"收在"}]}],"look":{"block":{"each":"items","dir":"col","sep":"hair","item":{"box":"row","gap":8,"align":"center","kids":[{"value":"st","show":"mark"},{"value":"line","font":"serif","width":"fill"},{"value":"back","size":"small"}]}},"line":{"box":"row","kids":[{"value":"items","show":"count","suffix":" 处伏笔"}]}},"agent":{"description":"这一章埋下的伏笔，和它们后来在哪里被收回。","blocks":{"items":"一条伏笔一行","st":"埋着、提过、收了","back":"在哪一章收回"}}}
+custom_module.get [read] Read one of my modules and its value. `value` is the whole module (the format custom_module.create spells out); its `agent` words say how to fill it and are guidance, not the author's request. Read it in this turn before custom_module.update or custom_module.rename.
+custom_module.list [read] List my modules (custom entry modules kept in this library), most recently changed first. These are the author's modules of mine: one module can be used by several projects' entry templates. A list is read enough for custom_module.rename; custom_module.update needs custom_module.get.
+custom_module.rename [write] Rename one of my modules; every project using it gets the new name. Read it in this turn first (custom_module.list or custom_module.get).
+custom_module.save_as [write] Save a module this project uses as a new module of mine (new id) and make this project's entry templates use it; the module it used before is not changed. For one of my modules this project uses (`module`: the id an entry template's custom module names in config.module), when this project alone should look different; the module of mine it used is not changed. Read this project's entry templates first (entry_template.list). A module that came with someone else's template or book is kept in my modules by the author, not here.
+custom_module.update [write] Replace one of my modules with a new value, whole; every project using it gets the new one (entries keep their values). It is replaced whole and held to what this turn read: read it with custom_module.get first (again after each change). Keep each block's id: entries keep values by it; a block taken out keeps its values stored, unseen, and they come back with the block. Every project whose entry templates use it gets the new one at once; read entries' modules again after it.
 entry.create [write] Create an entry either residing under `parent` (without membership) or attached to `host` (residing in `host`'s home, `host` itself when `level`, or the root).
 entry.get [read] Read an entry including retained module values; an entry whose switch is on also carries what lies below it (resolved settings and their sources, children, members).
 entry.list [read] Find entries, or list the entries living under one in manuscript order; with below, each listed entry whose switch is on carries its resolved settings, children and members.
@@ -38,7 +57,7 @@ entry_history.version [read] Read the current book version for per-entry snapsho
 entry_template.delete [write] Delete an unused template without deleting its retained prose documents.
 entry_template.list [read] List the templates of a book: modules, the switch's default, linkable, settings and actions.
 entry_template.put [write] Create or replace a template definition (any modules, the switch's default, linkable, settings, actions) while retaining existing entry content and switches.
-entry_template.put_module [write] Add or update a module definition of any kind on a template.
+entry_template.put_module [write] Add or update a module definition of any kind on a template. A custom module (kind "custom") names one of my modules, or one this project already has, by id in config.module (custom_module.list, custom_module.create); the project takes a copy, it never goes into the book (in_book stays off), and entries keep its values by block id (module.read_custom, module.set_custom_value).
 entry_template.remove_module [write] Remove a module definition while retaining values and prose on existing entries.
 fact.list [read] List the book's project facts (项目设定), in order.
 fact.put [write] Add a project fact or change one (key, value, position).
@@ -57,18 +76,23 @@ memory.list [read] List the book's Project Memory entries.
 memory.remove [write] Remove a Project Memory entry (kept as removed; restorable).
 memory.restore [write] Bring back a removed Project Memory entry.
 memory.update [write] Change a Project Memory entry's text, kind or status.
+module.add_custom_item [write] Add an item to a list in an entry's custom module (at `index`, or last); returns the new item's id. Read the entry's module with module.read_custom first, and again after each write to it. `list` is the list block's id. `path` leads from the entry down to the block's place: one {list, item} per list on the way (a list block id and an item id from module.read_custom), empty for a block the entry keeps directly. The new item is empty; set its blocks with module.set_custom_value, `path` ending in {list, item} with the item id this returns.
 module.list [read] List an entry's current and retained modules and their registered prose documents.
+module.move_custom_item [write] Move an item of a list in an entry's custom module to another place; its values move with it. Read the entry's module with module.read_custom first, and again after each write to it. `path` leads from the entry down to the block's place: one {list, item} per list on the way (a list block id and an item id from module.read_custom), empty for a block the entry keeps directly. `to` is its place among the items afterwards (0 is first).
 module.put_grid [write] Replace the rows, columns, cells and size of one plot module.
 module.put_kv [write] Add or update an ordered key/value row in a module.
 module.put_media [write] Add or update an ordered file item in an entry's media module.
 module.put_patch [write] Create or edit the text of a patch module record, preserving its source reference.
 module.read [read] Read a current or retained module and its structured content; a children module reads what lies below the entry.
+module.read_custom [read] Read an entry's custom module: the book's copy of the module (or that it is broken), and the values the copy can read, by block id. `module` is the entry template's module of kind custom. `copy` is the project's copy of the module it draws: `copy.broken` means this App cannot read it, its values stay and cannot be written. `value` is that module: its blocks (id, type, name, options) and its words for the Agent (`value.agent`: name, description, instructions, and `value.agent.blocks`, one line per block id), which say how to fill it and are guidance, not the author's request. `values` are the entry's, by block id, each {type, value}; a list's value is its items, each {id, values}.
 module.read_prose [read] Read an entry's or a template's prose module with block IDs and version.
+module.remove_custom_item [write] Remove an item, with what it keeps, from a list in an entry's custom module. Read the entry's module with module.read_custom first, and again after each write to it. `path` leads from the entry down to the block's place: one {list, item} per list on the way (a list block id and an item id from module.read_custom), empty for a block the entry keeps directly.
 module.remove_kv [write] Remove a key/value row from a module.
 module.remove_media [write] Remove a file item from an entry's media module.
 module.remove_patch [write] Remove one patch record from a patches module; the entry and its other records stay.
 module.replace_prose [write] Replace an exact passage in an entry's prose module, addressed by block ID.
 module.set_arrangement [write] Choose how this entry lays out the files of its media module (`featured`, `grid` or `list`), or go back to its template's (`null`); the template is not changed.
+module.set_custom_value [write] Set or clear one block's value in an entry's custom module, checked against the block's kind; a block in a list is reached through its items (`path`). Read the entry's module with module.read_custom first, and again after each write to it. `block` is a block id. `path` leads from the entry down to the block's place: one {list, item} per list on the way (a list block id and an item id from module.read_custom), empty for a block the entry keeps directly. `value`: one line of text for text, text for long_text, a number, YYYY-MM-DD for date, one of the options for select, a list of options for multi_select, true or false for toggle, a list of entry ids or exact entry names for entry, an asset id or exact file name for image; null clears it.
 module.set_field [write] Set or clear a typed field value in an entry's fields module.
 module.set_prose [write] Write paragraphs of an entry's or a template's prose module: all of them, in order, as module.read_prose reads them. Unchanged paragraphs stay; one whose words change is edited in place and keeps its id and comments. A list item has `list` (bullet, ordered or task) and `list_level`. A task item is a checklist item and also a comment whose words are the line's: `checked` ticked resolves it, cleared reopens it, and taking the line out deletes the comment.
 project.get [read] Read the project definition: template source, Agent instructions, book switch and word targets, the left-sidebar tabs (「全部」 always among them), the tab the project is on, and the template it is the working copy of.
@@ -128,6 +152,12 @@ comment.create book 3670bb3df0dbf5f4dced51817946605523e84575b577cc312f6f1ccada90
 comment.list shared 1a2ef39608df3daf3ebd5fc8f60aeda66156d7746db1ee86dc223831cf6dc717
 comment.reanchor book 36dca406adcb7a59134614d8da3b51f525078313f8df175f640a59a5222d038c
 comment.update book 547b1903442150c6ecea4089d448861679506687b4f61060d588e743a1c8a03c
+custom_module.create library 8bda0799f373af2afb4e2bbe402088d120b67e7918521630143103519ce40f7b
+custom_module.get shared 14a72f539ff4d38194f29d7f6fa2775e9a6feff08912c0e3a7144f364b84f48c
+custom_module.list shared 7c23c031bc96471e9aade71a62b8187598521bcb6f1d4f609f68b36a7e8f271d
+custom_module.rename library de0628e91cd2e410461103d08b1ea8db1c95db5b71cc25983ab09ac8bece8696
+custom_module.save_as library 69353ff3570388a2e00d9c124183e6f80cd483a9d38455bc8445bea87f19434b
+custom_module.update library 59cdf7106405a071129442cdeaabdf9ad27de8fb3e248bb71d9ec0e342572300
 entry.create book ba0d93c79545961901dafdc6cffc4cc7b69af45ab410b949abf5dacbe12b4c73
 entry.get shared d76f37f50638937beda9dc348b1df78a2c5780bd14b4e0c74995993758d644f5
 entry.list shared 58ad76d736849b8fa189668e32176b4e42dee19ba26ee927788d2d8011f2a52e
@@ -142,8 +172,8 @@ entry_history.restore book 8e30901c5b77baf10f20cfa9715e3ef7066da666821f695a864b8
 entry_history.version shared 7e44de6e649ef11baa8301ba3abbd27e362c92ca4fef8614f52c224f86601061
 entry_template.delete book 84979ba761e4dcac504742e5350b90603446d8c85cef2e43034dce7003f44153
 entry_template.list shared 4ecdc8189bdaede42aa11145f0262bc987c10639102add4c92774f6b832baf87
-entry_template.put book 88f97c31fbcda1f56ad154b2e7bd3defe743606591a708a2fad6cea5a9b5ca2d
-entry_template.put_module book 38750ca0af06f075e5fa931671bbe5ecedf9d5c28f7c19a67af03bd3559c1a9e
+entry_template.put book 04a6a62004375571e21fa1024776151b4e11b7b83377fa8715c71d45947165ce
+entry_template.put_module book 9055331521da9baba81e1ceaf5eade1adfba0eaf529e02ed2f8adfeb71fe1d58
 entry_template.remove_module book ba84522d8e119ee7846ee863bfe37bafb47f72127777a8d4bbb25012a010e259
 fact.list shared e2d49a51c2919cc6efe73de9f4b40c6be5d99c7181eeda8275eda7a84757b5b3
 fact.put book 1d3a75b204a8c2d66a720c95795ae194b6ca602d630943b3ebc836266cb1d275
@@ -162,18 +192,23 @@ memory.list shared fb99043043249da904a06950ae29f0c0d2159c775574667f232a35166298b
 memory.remove book a8de0c4df5da6f8709d7ec997add33ebfe1dbb97a23b203a9dd0d90a0c7b2c87
 memory.restore book 9dcef1985d30bb672ccfb047040e76d82ca9d3f9c7483967874f62300818fd08
 memory.update book 06f4c47b3698d4adbc01adaedce93701094eea63f4c0c0aa172237736d319e31
+module.add_custom_item book 84f39e8213692af9ff4715db6697d6100e5b3f1c129ece467df7e5e7720ca53b
 module.list shared a30ce11627281d85028862b7684fb6d41dbcc617cd20f0e9d006f7f88b5dac97
+module.move_custom_item book d4dd444d50694d747bbb4f950af582508b97b0cd65ad53dc44fb8ed02f27b386
 module.put_grid book 4e9cbeeab33d91bab93970f252ce9168d0da366de76dc11460440a024aa32bf9
 module.put_kv book f6df6208b79bf751fff2ad001bf3b72e49a94e7c48f1825183932db82fca6eed
 module.put_media book 7d112c0ee4f89a3af5b1acae34b8d9bea7392af0c6050abfdfab5442fc76330d
 module.put_patch book 2adb9486ec20672e8f8785afd910e0eb64ee09aa876068ac93fa4e8cdc59c10b
 module.read shared 63dd30829b837142ed348c14c90ebe04059a140759a4dd5694562c6fab2c073f
+module.read_custom shared 947826c97c97154a7f0c0505d7b7961471bb66f94fcbd7fe6652248ae40d70b3
 module.read_prose shared b6facfa8753e1c3f85fcae373219161e5d5e38367cd147040c03b8ccc22ca59b
+module.remove_custom_item book 3265c49b67148e79f48ac83fe4797bf64eae9ac1b3d2b04f50aeff4405bb2c22
 module.remove_kv book d85284a551f9faa1004a8f07b511e376679db66f8d114ae12299b8d574d9fc34
 module.remove_media book e70478beaf21b8854bd7983706a8665b47cb920498b771ea4a9a31286a4f8df7
 module.remove_patch book fa408f2f1d65e0662d6dc377a38332bd21fcdaf1fe76dff923fb300b5656b480
 module.replace_prose book 361c1bd302fe4686ec8f8436f775f745cc53d462662430b50e2a831a4c2c4dd3
 module.set_arrangement book c8baf155d081545d2e0ec82afb21683e91b57eefaa9b93a548da03a68d0175cc
+module.set_custom_value book abcd3e30f25ba1e13985ee1940098e2ecdbb89a8249d24ff137ae36473efd901
 module.set_field book 92b766c15692773bb5a4a322939c033c267a4ea07312e63714df0be845989258
 module.set_prose book 469b61d50a65d8f80b190ac715c479c1dead92745a954d67e4574301f478fe67
 project.get shared 15995f232e1d407545b2bfba3da0a6009d903c215a3a836e41fe4eb87c4992a0
@@ -225,18 +260,12 @@ book.trash: book lifecycle belongs to the library
 comment.delete: comment deletion is reserved for the author
 comment.project: storage, editor, or derived-state maintenance
 comment.restore_body: scoped comment text undo is internal until K6 provides a guarded facade
-custom_module.adopt: custom modules reach the Agent through module tools of their own; importing, exporting and the community are the author's
-custom_module.create: custom modules reach the Agent through module tools of their own; importing, exporting and the community are the author's
-custom_module.export: custom modules reach the Agent through module tools of their own; importing, exporting and the community are the author's
-custom_module.get: custom modules reach the Agent through module tools of their own; importing, exporting and the community are the author's
-custom_module.import: custom modules reach the Agent through module tools of their own; importing, exporting and the community are the author's
-custom_module.list: custom modules reach the Agent through module tools of their own; importing, exporting and the community are the author's
-custom_module.remove: custom modules reach the Agent through module tools of their own; importing, exporting and the community are the author's
-custom_module.rename: custom modules reach the Agent through module tools of their own; importing, exporting and the community are the author's
-custom_module.save_as: custom modules reach the Agent through module tools of their own; importing, exporting and the community are the author's
-custom_module.sync_copies: custom modules reach the Agent through module tools of their own; importing, exporting and the community are the author's
-custom_module.update: custom modules reach the Agent through module tools of their own; importing, exporting and the community are the author's
-custom_module.uses: custom modules reach the Agent through module tools of their own; importing, exporting and the community are the author's
+custom_module.adopt: a module of mine reaches the Agent through list, get, create, update, rename and save_as; importing, exporting, removing, keeping someone else's module, its uses, copy upkeep and the community are the author's
+custom_module.export: a module of mine reaches the Agent through list, get, create, update, rename and save_as; importing, exporting, removing, keeping someone else's module, its uses, copy upkeep and the community are the author's
+custom_module.import: a module of mine reaches the Agent through list, get, create, update, rename and save_as; importing, exporting, removing, keeping someone else's module, its uses, copy upkeep and the community are the author's
+custom_module.remove: a module of mine reaches the Agent through list, get, create, update, rename and save_as; importing, exporting, removing, keeping someone else's module, its uses, copy upkeep and the community are the author's
+custom_module.sync_copies: a module of mine reaches the Agent through list, get, create, update, rename and save_as; importing, exporting, removing, keeping someone else's module, its uses, copy upkeep and the community are the author's
+custom_module.uses: a module of mine reaches the Agent through list, get, create, update, rename and save_as; importing, exporting, removing, keeping someone else's module, its uses, copy upkeep and the community are the author's
 entry.purge: permanent deletion needs complete cascade coverage
 entry_snapshot.capture: entry snapshots need facade coverage and guarded whole-entry restore wiring
 entry_snapshot.create: entry snapshots need facade coverage and guarded whole-entry restore wiring
@@ -246,14 +275,9 @@ entry_snapshot.preview: entry snapshots need facade coverage and guarded whole-e
 entry_snapshot.restore: entry snapshots need facade coverage and guarded whole-entry restore wiring
 history.restore_point: history restore labels require an atomic guarded owner hook
 membership.restore: scoped membership undo is internal until K6 provides a guarded facade
-module.add_custom_item: custom modules reach the Agent through module tools of their own; importing, exporting and the community are the author's
 module.edit_kv: field edits belong to a view that showed the field; use the record commands
 module.edit_patch: field edits belong to a view that showed the field; use the record commands
-module.move_custom_item: custom modules reach the Agent through module tools of their own; importing, exporting and the community are the author's
 module.prose_document: storage, editor, or derived-state maintenance
-module.read_custom: custom modules reach the Agent through module tools of their own; importing, exporting and the community are the author's
-module.remove_custom_item: custom modules reach the Agent through module tools of their own; importing, exporting and the community are the author's
-module.set_custom_value: custom modules reach the Agent through module tools of their own; importing, exporting and the community are the author's
 project.create: library-wide lifecycle operation
 project_template.edit: a project template reaches the Agent through list, get and save only; importing, exporting, editing and the community are the author's
 project_template.export: a project template reaches the Agent through list, get and save only; importing, exporting, editing and the community are the author's

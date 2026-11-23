@@ -276,6 +276,51 @@ fn style_outside_the_vocabulary_is_refused() {
     );
 }
 
+/// A rule broken in a box tree says which node broke it (CM4b: the Agent
+/// and the workbench go straight to it), as a path into the module JSON.
+#[test]
+fn look_errors_say_which_node() {
+    let base = foreshadowing();
+    for (path, set, says) in [
+        (
+            vec!["look", "line", "gap"],
+            json!(5),
+            "look.line: gap 5 is not one of",
+        ),
+        (
+            vec!["look", "line", "kids", "0", "ink"],
+            json!(7),
+            "look.line.kids[0]: ink 7",
+        ),
+        (
+            vec!["look", "block", "item", "kids", "2", "kids", "0", "text"],
+            json!(""),
+            "look.block.item.kids[2].kids[0]: fixed text",
+        ),
+        (
+            vec!["look", "block", "item", "kids", "2", "gap"],
+            json!(6),
+            "look.block.item.kids[2]: gap 6",
+        ),
+        (vec!["look", "block", "gap"], json!(3), "look.block: gap 3"),
+        (
+            vec!["look", "block", "item", "kids", "0", "show"],
+            json!("dots"),
+            "look.block.item.kids[0]: a select block (\"st\") is not shown as dots",
+        ),
+    ] {
+        invalid(&with(base.clone(), &path, set), says);
+    }
+    invalid(
+        &with(
+            base,
+            &["look", "full"],
+            json!({"box": "col", "kids": [{"mark": "star"}]}),
+        ),
+        "look.full.kids[0]: \"star\" is not one of the sand marks",
+    );
+}
+
 #[test]
 fn no_id_of_anything_in_a_project() {
     let base = foreshadowing();

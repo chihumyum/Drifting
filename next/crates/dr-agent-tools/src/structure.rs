@@ -9,10 +9,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 use dr_doc::schema::BOOK_SCHEMA_VERSION;
-use dr_doc::v3::{BookViewV3, BorrowedBookV3};
+use dr_doc::v3::{BookViewV3, BorrowedBookV3, modules::ModuleCopy};
 use dr_model::{
     DocId,
-    id::{BodyDocId, BookId, EntryId, EntryTemplateId, ModuleId, TimelineViewId},
+    id::{BodyDocId, BookId, CustomModuleId, EntryId, EntryTemplateId, ModuleId, TimelineViewId},
     v3::{
         Entry, EntryTemplate, LevelSettingSource, LevelSettings, ModuleKind, ModuleSpec,
         ProjectTemplateRef, TabMount, effective_ancestors, effective_parent_id,
@@ -91,6 +91,136 @@ pub struct ModuleSummary {
     pub name: String,
     pub agent: ModuleAgentSummary,
     pub capabilities: ModuleCapabilities,
+    /// A custom module (`kind: "custom"`): the module it draws.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub custom: Option<CustomModuleSummary>,
+}
+
+fn is_false(b: &bool) -> bool {
+    !*b
+}
+
+/// The module a custom module of an entry template draws
+/// (`custom-modules.md` §5): the project's copy of it, its blocks, and its
+/// words for the Agent, which only say how to fill it (project guidance,
+/// not the author's request, wherever they come from). An entry's values
+/// are read with `module.read_custom`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CustomModuleSummary {
+    /// Its id in my modules and of the project's copy.
+    pub module: String,
+    /// Its name (a broken copy: what its JSON still says).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// My modules have it: the copy follows them, and a change with
+    /// `custom_module.update` changes every project using it. Absent when
+    /// the library was not looked at.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub follows: Option<bool>,
+    /// The project has no copy of it.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub missing: bool,
+    /// This App cannot read the copy: drawn as an empty placeholder with its
+    /// name; the values stay, and cannot be written.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub broken: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    /// Its words for the Agent: name, what it is for, how to fill it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent: Option<TemplateAgentSummary>,
+    /// Its blocks, depth first.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub blocks: Vec<CustomBlockSummary>,
+}
+
+/// One block of a custom module.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CustomBlockSummary {
+    pub id: String,
+    #[serde(rename = "type")]
+    pub kind: String,
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub options: Vec<String>,
+    /// The list whose items keep its value; absent: the entry keeps it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub list: Option<String>,
+    /// Its line in the module's words for the Agent: how to fill it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent: Option<String>,
+}
+
+impl CustomModuleSummary {
+    /// The module `id` as the book has it (`copies`); `follows` from the
+    /// library when it is given.
+    fn of(
+        id: &CustomModuleId,
+        copies: &BTreeMap<CustomModuleId, ModuleCopy>,
+        lib: Option<&Library>,
+    ) -> Self {
+        let follows = lib.map(|lib| {
+            lib.doc_info(&DocId::Module(id.clone()).to_string())
+                .ok()
+                .flatten()
+                .is_some()
+        });
+        let Some(copy) = copies.get(id) else {
+            return Self {
+                module: id.to_string(),
+                name: None,
+                follows,
+                missing: true,
+                broken: false,
+                error: None,
+                agent: None,
+                blocks: Vec::new(),
+            };
+        };
+        let (agent, blocks) = match copy.module() {
+            Some(module) => {
+                let words = &module.agent;
+                let agent = (!words.name.is_empty()
+                    || !words.description.is_empty()
+                    || !words.instructions.is_empty())
+                .then(|| TemplateAgentSummary {
+                    name: words.name.clone(),
+                    description: words.description.clone(),
+                    instructions: words.instructions.clone(),
+                });
+                let blocks = module
+                    .blocks_with_scope()
+                    .into_iter()
+                    .map(|(block, list)| CustomBlockSummary {
+                        id: block.id.clone(),
+                        kind: block.kind.as_str().to_owned(),
+                        name: block.name.clone(),
+                        options: block.options.clone(),
+                        list: list.map(str::to_owned),
+                        agent: words.blocks.get(&block.id).cloned(),
+                    })
+                    .collect();
+                (agent, blocks)
+            }
+            None => (None, Vec::new()),
+        };
+        Self {
+            module: id.to_string(),
+            name: copy.name(),
+            follows,
+            missing: false,
+            broken: copy.is_broken(),
+            error: copy.value.as_ref().err().map(ToString::to_string),
+            agent,
+            blocks,
+        }
+    }
+}
+
+/// What a template summary needs to describe its custom modules.
+struct CustomContext<'a> {
+    copies: BTreeMap<CustomModuleId, ModuleCopy>,
+    lib: Option<&'a Library>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -111,7 +241,7 @@ impl TemplateSummary {
     /// draft. Uses the runtime's exact module identities and capability schema;
     /// grants no read coverage and neither binds nor executes template actions.
     pub fn from_v3_template(template: &EntryTemplate) -> Self {
-        summarize_template(template, &Catalog::new_v3())
+        summarize_template(template, &Catalog::new_v3(), None)
     }
 }
 
@@ -499,11 +629,16 @@ impl StructureContext {
             None
         };
 
-        // 4. Build sorted, deduplicated TemplateSummary list.
+        // 4. Build sorted, deduplicated TemplateSummary list. A custom module
+        // is described by the project's copy of the module it draws.
+        let custom = CustomContext {
+            copies: view.module_copies(),
+            lib,
+        };
         let templates: Vec<TemplateSummary> = included_templates
             .iter()
             .filter_map(|tid| live_templates.get(tid))
-            .map(|template| summarize_template(template, catalog))
+            .map(|template| summarize_template(template, catalog, Some(&custom)))
             .collect();
 
         // 5. Build LevelSummary list + bounded summaries for large books.
@@ -792,7 +927,11 @@ fn action_diagnostic_to_structure(diag: &ActionDiagnostic) -> StructureDiagnosti
     }
 }
 
-fn summarize_template(tpl: &EntryTemplate, catalog: &Catalog) -> TemplateSummary {
+fn summarize_template(
+    tpl: &EntryTemplate,
+    catalog: &Catalog,
+    custom: Option<&CustomContext<'_>>,
+) -> TemplateSummary {
     let agent = tpl
         .agent
         .as_ref()
@@ -808,7 +947,13 @@ fn summarize_template(tpl: &EntryTemplate, catalog: &Catalog) -> TemplateSummary
         if !seen_modules.insert(m.id.clone()) {
             continue;
         }
-        modules.push(summarize_module(m, catalog));
+        let mut summary = summarize_module(m, catalog);
+        if m.kind == ModuleKind::Custom
+            && let (Some(custom), Some(id)) = (custom, m.config.module.as_ref())
+        {
+            summary.custom = Some(CustomModuleSummary::of(id, &custom.copies, custom.lib));
+        }
+        modules.push(summary);
     }
     TemplateSummary {
         id: tpl.id.to_string(),
@@ -862,11 +1007,17 @@ fn summarize_module(m: &ModuleSpec, catalog: &Catalog) -> ModuleSummary {
         ModuleKind::Children | ModuleKind::Members => {
             (vec!["module.read", "entry.get"], Vec::new())
         }
-        // A custom module reaches the Agent with its own tools (task CM4b);
-        // until then it reads as a module of a kind the Agent cannot write.
-        ModuleKind::Custom | ModuleKind::Other(_) => {
-            (vec!["module.read", "module.list"], Vec::new())
-        }
+        // An entry's values of a custom module, by block id (CM4b).
+        ModuleKind::Custom => (
+            vec!["module.read_custom"],
+            vec![
+                "module.set_custom_value",
+                "module.add_custom_item",
+                "module.remove_custom_item",
+                "module.move_custom_item",
+            ],
+        ),
+        ModuleKind::Other(_) => (vec!["module.read", "module.list"], Vec::new()),
     };
     let write_tools = if writable {
         candidate_write_tools
@@ -897,6 +1048,7 @@ fn summarize_module(m: &ModuleSpec, catalog: &Catalog) -> ModuleSummary {
             read_tools,
             write_tools,
         },
+        custom: None,
     }
 }
 
