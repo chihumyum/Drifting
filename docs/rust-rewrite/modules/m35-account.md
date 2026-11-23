@@ -112,7 +112,7 @@ dr_view_account::apply_account_state(state, cx);
 ## 外壳里的挂接点
 
 1. `next/app/drifting/src/library.rs`：`open_active` 在启动打开书库前读取 `<数据目录>/libraries.json` 的当前激活书库路径（无记录时默认 `<数据目录>/library`）。
-2. `next/app/drifting/src/main.rs`：在 `dr_view_sea::shell::init` 之前调用 `dr_view_account::init`，确保首次运行先出欢迎卡片再出 Markdown 文件夹卡片，并把当前会话令牌传给 `dr_view_feedback::Service::set_session`。
+2. `next/app/drifting/src/main.rs`：在 `dr_view_sea::shell::init` 之前调用 `dr_view_account::init`，确保首次运行先出欢迎卡片再出 Markdown 文件夹卡片，并把当前会话令牌传给 `dr_view_feedback::Service::set_session`、账号邮箱传给 `set_account_email`（反馈对话框打开时先填它，2026-11-23）。
 3. `next/crates/dr-shell/src/account.rs`：通过 `set_hook` 注入当前账号显示名、状态行、裁切后的圆形头像（`RenderImage`）和登录/退出菜单项；通过 `set_auth_link_handler` 接收 `auth/` 深链。
 4. `next/crates/dr-shell/src/settings/registry.rs` 与 `panel.rs`：新增 `Section::Account`（排在外观之前）与 `"account.hosted"` 模块行（`dr_shell::settings::set_module_row`）。
 

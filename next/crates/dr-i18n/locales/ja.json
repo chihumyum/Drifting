@@ -266,6 +266,7 @@
     "close": "閉じる",
     "contact": "返信先メールアドレス",
     "contactPlaceholder": "任意",
+    "contactRequired": "必須",
     "crash": {
       "emailSubject": "Drifting のクラッシュについて",
       "ignore": "無視",

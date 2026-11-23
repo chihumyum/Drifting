@@ -266,6 +266,7 @@
     "close": "關閉",
     "contact": "回覆用電子郵件",
     "contactPlaceholder": "選填",
+    "contactRequired": "必填",
     "crash": {
       "emailSubject": "Drifting 當機後續回報",
       "ignore": "忽略",

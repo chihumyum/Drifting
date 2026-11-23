@@ -44,6 +44,7 @@ feedback.title
 feedback.placeholder
 feedback.contact
 feedback.contactPlaceholder
+feedback.contactRequired
 feedback.attachDiagnostics
 feedback.preview
 feedback.hidePreview

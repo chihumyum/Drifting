@@ -1,7 +1,10 @@
 //! The feedback dialog (components.md, 「提交反馈」).
 //!
 //! The dialog shell (dr-ui's `Dialog`): the message field, a small index-type
-//! label over the reply-to field, a row with the switch 「附上脱敏诊断摘要」
+//! label over the reply-to field (it opens with the signed-in account's
+//! email; feedback the Hosted service stores cannot go without an address,
+//! and the field's placeholder says 「必填」 instead of 「选填」), a row with
+//! the switch 「附上脱敏诊断摘要」
 //! and the text button 「预览」 that opens a read-only hairline card with the
 //! summary in the index face. Actions: cancel (「忽略」 for a crash
 //! follow-up) and send. Once sent: the done mark and 「已发送」, only
@@ -99,16 +102,31 @@ impl FeedbackDialog {
                 fb::PLACEHOLDER
             },
         );
-        let optional = t(cx, fb::CONTACT_PLACEHOLDER);
+        let contact_placeholder = t(
+            cx,
+            if Self::contact_required_for(follow_up.is_some(), cx) {
+                fb::CONTACT_REQUIRED
+            } else {
+                fb::CONTACT_PLACEHOLDER
+            },
+        );
+        // The signed-in account's address, as 0.1 opened with.
+        let account_email = cx
+            .try_global::<Service>()
+            .and_then(|s| s.account_email.clone());
         let message = cx.new(|cx| {
             TextArea::new("feedback-message", window, cx)
                 .framed(MESSAGE_ROWS)
                 .placeholder(placeholder)
         });
         let contact = cx.new(|cx| {
-            TextField::new("feedback-contact", window, cx)
+            let mut field = TextField::new("feedback-contact", window, cx)
                 .small()
-                .placeholder(optional)
+                .placeholder(contact_placeholder);
+            if let Some(email) = account_email {
+                field.set_text(email, cx);
+            }
+            field
         });
         let subscriptions = vec![
             cx.subscribe_in(&message, window, Self::on_message),
@@ -212,8 +230,26 @@ impl FeedbackDialog {
         matches!(self.phase, Phase::Sending | Phase::Sent)
     }
 
+    /// Whether this dialog's feedback must carry a reply-to address: what
+    /// the Hosted service stores, unless it is a crash follow-up
+    /// (`feedback::contact_required`). As in 0.1 it follows where the
+    /// feedback was to go as the dialog opened, so it stays required after a
+    /// failed send offers mail.
+    pub fn contact_required(&self, cx: &gpui::App) -> bool {
+        Self::contact_required_for(self.follow_up.is_some(), cx)
+    }
+
+    fn contact_required_for(follow_up: bool, cx: &gpui::App) -> bool {
+        cx.try_global::<Service>()
+            .is_some_and(|s| feedback::contact_required(&s.delivery, follow_up))
+    }
+
     fn problems(&self, cx: &gpui::App) -> Vec<Problem> {
-        feedback::problems(&self.message.read(cx).text(), &self.contact.read(cx).text())
+        feedback::problems(
+            &self.message.read(cx).text(),
+            &self.contact.read(cx).text(),
+            self.contact_required(cx),
+        )
     }
 
     /// Whether the primary button hands the message to the mail client.
@@ -238,8 +274,8 @@ impl FeedbackDialog {
     }
 
     /// Sends (or, by mail, hands over) the message. Nothing happens while
-    /// the message is empty or too long, the address is not one, or it is
-    /// already on its way.
+    /// the message is empty or too long, the address is missing where it is
+    /// required or is not one, or it is already on its way.
     pub fn submit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.locked() || !self.problems(cx).is_empty() {
             return;

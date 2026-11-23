@@ -268,6 +268,7 @@
     "close": "Cerrar",
     "contact": "Correo para responder",
     "contactPlaceholder": "Opcional",
+    "contactRequired": "Obligatorio",
     "crash": {
       "emailSubject": "Seguimiento de un fallo de Drifting",
       "ignore": "Ignorar",

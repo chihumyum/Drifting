@@ -281,11 +281,16 @@ fn main() {
             ),
             cx,
         );
-        if let Some(token) = cx
-            .try_global::<dr_view_account::Service>()
-            .and_then(|s| s.inner.current_token())
-        {
-            dr_view_feedback::Service::set_session(Some(token), cx);
+        // The account module started before the dialog was registered:
+        // hand over the session and the reply-to address it already has.
+        if let Some((token, email)) = cx.try_global::<dr_view_account::Service>().map(|s| {
+            (
+                s.inner.current_token(),
+                dr_view_account::account_email(&s.state),
+            )
+        }) {
+            dr_view_feedback::Service::set_session(token, cx);
+            dr_view_feedback::Service::set_account_email(email, cx);
         }
         // M10: the bookshelf's 「导入 · Drifting 0.1」.
         dr_view_import::init(cx);

@@ -12,6 +12,9 @@
 //!   still retires its notice); a click on the mist closes only while
 //!   nothing is written;
 //! - nothing is sent while the message is empty or the address is not one;
+//! - feedback the service stores cannot go without a reply-to address (a
+//!   crash follow-up can, and so can a message for the mail client); the
+//!   field opens with the signed-in account's email;
 //! - without the service, the message goes to the mail client at once;
 //! - the summary's sync part is what the sync runtime's owner registered
 //!   with the shell, and a library that does not sync without it.
@@ -51,6 +54,7 @@ fn service(delivery: Delivery) -> Service {
         app_version: "0.2.0-dev".into(),
         data: None,
         session: Some("session-token".into()),
+        account_email: None,
     }
 }
 
@@ -389,6 +393,98 @@ fn nothing_goes_until_the_draft_can_be_answered(cx: &mut TestAppContext) {
     assert!(body.contains("导出的封面颜色不对"));
     assert!(body.contains("\"format\": \"drifting.sanitized-diagnostics\""));
     assert!(dialog(&ws, cx).is_none());
+}
+
+/// Feedback the Hosted service stores must be answerable: without a
+/// reply-to address nothing goes, to the service or to the mail client.
+#[gpui::test]
+fn feedback_for_the_service_waits_for_a_reply_to_address(cx: &mut TestAppContext) {
+    let fake = FakeService::start(&[202]);
+    let (ws, cx) = setup(cx, hosted(&fake));
+    cx.dispatch_action(SendFeedback);
+    cx.run_until_parked();
+    let d = dialog(&ws, cx).unwrap();
+    assert!(cx.read(|cx| d.read(cx).contact_required(cx)));
+    // Signed out: the field opens empty and says it is required.
+    let (text, placeholder) = cx.read(|cx| {
+        let field = d.read(cx).contact_field().read(cx);
+        (field.text(), field.placeholder_text().clone())
+    });
+    assert_eq!(text, "");
+    let required = cx.read(|cx| dr_shell::t(cx, dr_i18n::keys::feedback::CONTACT_REQUIRED));
+    let optional = cx.read(|cx| dr_shell::t(cx, dr_i18n::keys::feedback::CONTACT_PLACEHOLDER));
+    assert_eq!(placeholder, required);
+    assert_ne!(required, optional);
+    draw(cx);
+
+    for contact in ["", "   "] {
+        write(&d, "导出的封面颜色不对", contact, cx);
+        cx.simulate_keystrokes(SEND_KEYS);
+        cx.run_until_parked();
+        assert_eq!(
+            cx.read(|cx| d.read(cx).phase()),
+            Phase::Editing,
+            "{contact:?}"
+        );
+        assert_eq!(cx.opened_url(), None);
+    }
+
+    write(&d, "导出的封面颜色不对", "author@example.com", cx);
+    cx.simulate_keystrokes(SEND_KEYS);
+    cx.run_until_parked();
+    // The first thing the service hears is the one with the address.
+    let body = fake.next().expect("it goes once it can be answered").json();
+    assert_eq!(body["contactEmail"], "author@example.com");
+    assert_eq!(cx.read(|cx| d.read(cx).phase()), Phase::Sent);
+}
+
+/// Signed in, the reply-to field opens with the account's email (0.1), so
+/// requiring it asks nothing more of a signed-in author. A crash follow-up
+/// and a message for the mail client say 「选填」 and go without one.
+#[gpui::test]
+fn the_reply_to_field_opens_with_the_accounts_email(cx: &mut TestAppContext) {
+    let fake = FakeService::start(&[202]);
+    let (ws, cx) = setup(cx, hosted(&fake));
+    cx.update(|_, cx| Service::set_account_email(Some("author@example.com".into()), cx));
+    cx.dispatch_action(SendFeedback);
+    cx.run_until_parked();
+    let d = dialog(&ws, cx).unwrap();
+    let contact = cx.read(|cx| d.read(cx).contact_field().read(cx).text());
+    assert_eq!(contact, "author@example.com");
+    d.update(cx, |d, cx| {
+        d.message_field()
+            .clone()
+            .update(cx, |f, cx| f.set_text("同步好像停了", cx))
+    });
+    cx.simulate_keystrokes(SEND_KEYS);
+    cx.run_until_parked();
+    let body = fake.next().expect("the service received it").json();
+    assert_eq!(body["contactEmail"], "author@example.com");
+    click_close_button(&ws, cx);
+
+    // A crash follow-up: optional, though the service stores it.
+    let optional = cx.read(|cx| dr_shell::t(cx, dr_i18n::keys::feedback::CONTACT_PLACEHOLDER));
+    let follow_up = post_follow_up(cx);
+    open_follow_up(&ws, follow_up, cx);
+    let d = dialog(&ws, cx).unwrap();
+    let (required, placeholder) = cx.read(|cx| {
+        let dialog = d.read(cx);
+        (
+            dialog.contact_required(cx),
+            dialog.contact_field().read(cx).placeholder_text().clone(),
+        )
+    });
+    assert!(!required);
+    assert_eq!(placeholder, optional);
+    d.update_in(cx, |d, window, cx| d.dismiss(window, cx));
+    cx.run_until_parked();
+
+    // Signed out again: the next dialog opens empty.
+    cx.update(|_, cx| Service::set_account_email(None, cx));
+    cx.dispatch_action(SendFeedback);
+    cx.run_until_parked();
+    let d = dialog(&ws, cx).unwrap();
+    assert_eq!(cx.read(|cx| d.read(cx).contact_field().read(cx).text()), "");
 }
 
 #[gpui::test]

@@ -264,6 +264,7 @@
     "close": "关闭",
     "contact": "联系邮箱",
     "contactPlaceholder": "选填",
+    "contactRequired": "必填",
     "crash": {
       "emailSubject": "Drifting 故障补充",
       "ignore": "忽略",

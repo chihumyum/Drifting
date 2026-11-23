@@ -237,6 +237,7 @@ pub fn init(mut service: Service, cx: &mut App) {
     }
 
     dr_view_feedback::Service::set_session(inner.current_token(), cx);
+    dr_view_feedback::Service::set_account_email(account_email(&initial_state), cx);
 
     // Seed built-in sample books only if the startup library is the local library.
     if !initial_state.is_account_library
@@ -444,6 +445,12 @@ pub fn handle_oauth_deep_link(url: String, cx: &mut App) {
     .detach();
 }
 
+/// The signed-in account's email, which the feedback dialog opens with as its
+/// reply-to address (0.1's `hostedUser.email`).
+pub fn account_email(state: &AccountState) -> Option<String> {
+    state.user.as_ref().map(|user| user.email.clone())
+}
+
 /// Applies a new [`AccountState`] to the global [`Service`], updates `dr_view_feedback`,
 /// marks the first-run welcome step as answered when signed in, and switches the open
 /// `dr_store::Library` via `dr_shell::library::replace` if `active_library_dir` changed.
@@ -453,6 +460,7 @@ pub fn apply_account_state(state: AccountState, cx: &mut App) {
     }
     let token = cx.global::<Service>().inner.current_token();
     dr_view_feedback::Service::set_session(token, cx);
+    dr_view_feedback::Service::set_account_email(account_email(&state), cx);
 
     if state.status.has_account() {
         Settings::set_device_memory(cx, FIRST_RUN_ACCOUNT_SEEN_KEY, Some(true.into()));

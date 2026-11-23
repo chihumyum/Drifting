@@ -6,7 +6,8 @@
 //!   `drifting.feedback` format, version 1, with `Authorization: Bearer
 //!   <session>` when signed in; any 2xx means it arrived;
 //! - it carries the author's own words (at most [`MESSAGE_MAX`]
-//!   characters), an optional reply-to address and, when they leave it
+//!   characters), a reply-to address (required when the Hosted service
+//!   stores the feedback, [`contact_required`]) and, when they leave it
 //!   attached, the sanitized diagnostic summary ([`crate::diagnostics`]);
 //!   never manuscript text, the database or credentials;
 //! - as a crash follow-up it names the crash it explains (`related`);
@@ -52,11 +53,22 @@ const CRASH_KIND: &str = "native-panic";
 pub enum Problem {
     EmptyMessage,
     MessageTooLong,
+    /// No reply-to address where one is required ([`contact_required`]).
+    MissingEmail,
     InvalidEmail,
 }
 
+/// Whether a submission must carry a reply-to address (0.1's
+/// `feedbackContactRequired`, since 2026-11-23). Feedback the Hosted service
+/// stores does: without one the maintainer cannot answer it. A crash
+/// follow-up explains a report and asks for nothing back, and a message
+/// handed to the mail client arrives from the author's own address.
+pub fn contact_required(delivery: &Delivery, follow_up: bool) -> bool {
+    matches!(delivery, Delivery::Hosted(_)) && !follow_up
+}
+
 /// What stops a draft from being sent, in 0.1's order.
-pub fn problems(message: &str, contact_email: &str) -> Vec<Problem> {
+pub fn problems(message: &str, contact_email: &str, contact_required: bool) -> Vec<Problem> {
     let mut problems = Vec::new();
     let message = message.trim();
     if message.is_empty() {
@@ -66,6 +78,9 @@ pub fn problems(message: &str, contact_email: &str) -> Vec<Problem> {
         problems.push(Problem::MessageTooLong);
     }
     let email = contact_email.trim();
+    if email.is_empty() && contact_required {
+        problems.push(Problem::MissingEmail);
+    }
     if !email.is_empty() && (email.len() > 254 || !valid_email(email)) {
         problems.push(Problem::InvalidEmail);
     }
@@ -526,18 +541,35 @@ mod tests {
     #[test]
     fn asks_for_a_message_and_an_address_that_can_be_answered() {
         use Problem::*;
-        assert_eq!(problems("   ", ""), [EmptyMessage]);
-        assert_eq!(problems(&"x".repeat(5001), ""), [MessageTooLong]);
-        assert_eq!(problems(&"字".repeat(5000), ""), Vec::<Problem>::new());
-        assert_eq!(problems("Hi", "not an address"), [InvalidEmail]);
-        assert_eq!(problems("Hi", "a@b.c\nBcc: x@y.zz"), [InvalidEmail]);
-        assert_eq!(problems("Hi", "a@b.c"), [InvalidEmail]);
-        assert_eq!(problems("Hi", "a<b@c.de"), [InvalidEmail]);
-        assert_eq!(problems("Hi", ""), Vec::<Problem>::new());
+        assert_eq!(problems("   ", "", false), [EmptyMessage]);
+        assert_eq!(problems(&"x".repeat(5001), "", false), [MessageTooLong]);
         assert_eq!(
-            problems("Hi", " author@example.com "),
+            problems(&"字".repeat(5000), "", false),
             Vec::<Problem>::new()
         );
+        assert_eq!(problems("Hi", "not an address", false), [InvalidEmail]);
+        assert_eq!(problems("Hi", "a@b.c\nBcc: x@y.zz", true), [InvalidEmail]);
+        assert_eq!(problems("Hi", "a@b.c", false), [InvalidEmail]);
+        assert_eq!(problems("Hi", "a<b@c.de", true), [InvalidEmail]);
+        assert_eq!(problems("Hi", "", false), Vec::<Problem>::new());
+        assert_eq!(
+            problems("Hi", " author@example.com ", true),
+            Vec::<Problem>::new()
+        );
+    }
+
+    #[test]
+    fn feedback_the_service_stores_must_carry_a_reply_to_address() {
+        use Problem::*;
+        let hosted = Delivery::Hosted(Endpoint::from_base("https://sync.example.test").unwrap());
+        assert!(contact_required(&hosted, false));
+        // A follow-up explains a report; the mail client carries the
+        // author's own address.
+        assert!(!contact_required(&hosted, true));
+        assert!(!contact_required(&Delivery::Email, false));
+        assert_eq!(problems("Hi", "", true), [MissingEmail]);
+        assert_eq!(problems("Hi", "   ", true), [MissingEmail]);
+        assert_eq!(problems(" ", "", true), [EmptyMessage, MissingEmail]);
     }
 
     #[test]

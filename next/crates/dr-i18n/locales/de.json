@@ -266,6 +266,7 @@
     "close": "Schließen",
     "contact": "Antwortadresse",
     "contactPlaceholder": "Optional",
+    "contactRequired": "Erforderlich",
     "crash": {
       "emailSubject": "Rückmeldung zum Drifting-Absturz",
       "ignore": "Ignorieren",

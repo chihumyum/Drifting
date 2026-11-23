@@ -266,6 +266,7 @@
     "close": "Close",
     "contact": "Reply-to email",
     "contactPlaceholder": "Optional",
+    "contactRequired": "Required",
     "crash": {
       "emailSubject": "Drifting crash follow-up",
       "ignore": "Ignore",

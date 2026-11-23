@@ -266,6 +266,7 @@
     "close": "닫기",
     "contact": "답장받을 이메일",
     "contactPlaceholder": "선택 사항",
+    "contactRequired": "필수",
     "crash": {
       "emailSubject": "Drifting 충돌 후속 보고",
       "ignore": "무시",
