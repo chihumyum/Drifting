@@ -76,10 +76,20 @@
 //!    from the mouse-down. Not verified with a real input method: see the
 //!    manual tests in `docs/rust-rewrite/foundations/f4c-input.md`.
 //!
+//! # Drawing an edit at once (macOS)
+//!
+//! [`SystemIme`] also answers [`PlatformHooks::present_now`] on macOS:
+//! `[view setNeedsDisplay:YES]` on GPUI's view of the window, so Core
+//! Animation calls GPUI's `displayLayer:` as the current event ends and the
+//! edit is drawn then, not on the next display-link tick. The editor asks
+//! for it after each edit and composition update while
+//! [`crate::EditorOptions::present_now`] is on. Windows and Linux keep the
+//! trait's default (nothing).
+//!
 //! The editor installs one by itself when input starts in a window with a
-//! native handle, unless the host set its own hooks
-//! ([`crate::ProseEditor::set_platform_hooks`]); test windows have no handle
-//! and get none.
+//! native handle, or at its first edit while `present_now` is on, unless the
+//! host set its own hooks ([`crate::ProseEditor::set_platform_hooks`]); test
+//! windows have no handle and get none.
 
 use gpui::Window;
 
@@ -105,6 +115,16 @@ impl SystemIme {
                 hwnd: win32.hwnd.get(),
             }),
             _ => None,
+        }
+    }
+
+    /// One that belongs to no window, for tests of what it does with a
+    /// window that has no native handle.
+    #[cfg(test)]
+    pub(crate) fn detached() -> SystemIme {
+        SystemIme {
+            #[cfg(target_os = "windows")]
+            hwnd: 0,
         }
     }
 
@@ -152,6 +172,28 @@ impl PlatformHooks for SystemIme {
                 let _ = ImmNotifyIME(himc, NI_COMPOSITIONSTR, CPS_CANCEL, 0);
                 let _ = ImmReleaseContext(hwnd, himc);
             }
+        }
+    }
+
+    /// `[view setNeedsDisplay:YES]` on GPUI's view of this window (the
+    /// AppKit handle's view, whose layer GPUI draws in `displayLayer:`; GPUI
+    /// sends the same message when it shows a window). Other platforms keep
+    /// the default, nothing.
+    #[cfg(target_os = "macos")]
+    fn present_now(&self, window: &Window) {
+        use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+        let Ok(handle) = HasWindowHandle::window_handle(window) else {
+            return;
+        };
+        let RawWindowHandle::AppKit(appkit) = handle.as_raw() else {
+            return;
+        };
+        // SAFETY: this window's live content view, on GPUI's UI thread
+        // (AppKit's main thread).
+        unsafe {
+            use objc2::{msg_send, runtime::AnyObject};
+            let view = appkit.ns_view.as_ptr() as *mut AnyObject;
+            let _: () = msg_send![view, setNeedsDisplay: true];
         }
     }
 

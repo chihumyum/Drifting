@@ -600,7 +600,8 @@ impl BookEditor {
         let body_style = style.clone();
         let ext = extension.clone();
         let editor = cx.new(|cx| {
-            let mut editor = ProseEditor::new(book, body_style, window, cx);
+            let mut editor =
+                ProseEditor::with_options(book, body_style, crate::editor_options(), window, cx);
             editor.set_extension(ext);
             editor
         });

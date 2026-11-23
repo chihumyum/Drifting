@@ -2,6 +2,16 @@
 
 2026-11-07 起。代码在 `next/crates/gpui-prose`（Drifting 自己的那一层在 `next/crates/dr-editor`，AGPL，见「第三轮」），加两个小 crate `next/crates/gpui-ime`（组字规则，只用标准库）和 `next/crates/prose-linebreak`（中文断行，只依赖 `icu_segmenter`），三个都是 `MIT OR Apache-2.0`。`gpui-prose` 依赖 `gpui`（和它自带的 `sum_tree`）、`loro`、这两个小 crate，默认特性 `icu` 另加 ICU4X 分词，不依赖任何 `dr-*`。计划见 [foundation.md 的 F4 一节](../foundation.md#f4-编辑引擎gpui-prose-与-dr-editor)，正文格式见 [loro-schema.md](../loro-schema.md)，起点是 [P0-B 探针](../spikes/p0-b-editor.md)。
 
+## 「改完立刻画」在 macOS 上打开（2026-11-24，GPUI `v1.29.3`）
+
+GPUI 升到 Zed 官方 `v1.29.3`、不挂补丁（见「GPUI 补丁台账」）。作者 2026-11-24 定「升并打开」：Drifting 的编辑器在 macOS 上打开「改完立刻画」（`EditorOptions::present_now`），每次改完正文当场画，不等下一个刷新节拍。Windows 和 Linux 照旧走 GPUI 自己的节奏。
+
+- **为什么。** 2026-11-23 夜新旧版本交替量了三轮（`prose-bench present`，数字和条件见 [progress.md](../progress.md)「等作者的事」第 18 条里「GPUI 升到 v1.29.3」那一小条）。`v1.29.3` 照 GPUI 自己的节奏：按键到真正显示中位 46.4–47.6 ms，比 `v1.27.0` 加 G1 时（27.6–27.7 ms）慢约 19 ms，但没有拖尾；按键到交出画面 p50 / p95 8.5–8.9 / 12.5–13.3 ms，超过发布档 8.3 ms。打开「改完立刻画」：交出画面 5.0–5.1 / 7.2–7.5 ms，真正显示中位 25.6–27.1 ms、p95 31.6–43.8 ms，也没有拖尾，中位回到升级前的水平。第一个里程碑不开它，是因为在 `v1.27.0` 上它有长尾（p95 54–137 ms）；`v1.29.3` 上的三轮没有这条长尾。三轮的一分钟负载在 1.4 到 6 之间，都只能作参考；在安静的机器上重量、在真实输入法上验过，由监管会话做完再合进 `main`。
+- **`gpui-prose` 里。** 系统输入法的钩子 `SystemIme`（`input/system_ime.rs`）在 macOS 上实现了 `PlatformHooks::present_now`：对窗口的 AppKit 视图（GPUI 自己的视图）发 `setNeedsDisplay: YES`，Core Animation 在当前事件结束时调 GPUI 的 `displayLayer:`，当场画这一帧（GPUI 显示窗口时也发同一个消息）。Windows、Linux 是 trait 的空默认。编辑器在每次编辑、每次组字更新之后调一次。选项开着时，还没装钩子就先装上：以前只在第一次文字输入时装，打开以后先按退格、回车、粘贴或撤销的那一下会照原节奏画。`EditorOptions::default()` 仍然关着，单独用 `gpui-prose` 的宿主和测试不受影响。
+- **`dr-editor` 里。** `dr_editor::editor_options()` 是 Drifting 每个编辑器的起点：macOS 上 `present_now` 开，别处关。建编辑器的三处都从它开始：条目正文（`view.rs`）、整书（`book.rs`，原来用的是默认选项）、表格的每个格子（`table/mod.rs`）。三处都不自己设钩子，由 `gpui-prose` 自己装 `SystemIme`：App 的窗口都有原生句柄，所以每个编辑器都装得上；GPUI 的测试窗口没有句柄，不装，选项开着也只是照常编辑。
+- **测量程序。** `prose-bench` 去掉了自带的 `MacHooks`，编辑器像在 App 里一样自己装 `SystemIme`。`present` 量的两档照旧：「stock」是 GPUI 自己的节奏，「present_now」就是产品在 macOS 上走的那条路（同一份钩子、同一个装上的时机）。
+- **测试。** `gpui-prose` 的 `input/tests/present.rs`：选项开着时，打字、退格、回车、粘贴、撤销、重做、拼音出现、拼音变长、确认、删光拼音、按原样接受，每一步都恰好让平台画一次（每一步也核对作者看到的东西确实变了）；移动光标不画；选项关着时一次也不画；没有原生视图的窗口里选项开着也只是照常编辑、不装钩子；`SystemIme` 的钩子碰到没有原生视图的窗口什么也不做。`dr-editor` 的 `tests/editor.rs`、`tests/book.rs`、`tests/note.rs`：条目正文、整书、笔记正文和表格的每个格子，`present_now` 都等于「是不是 macOS」。
+
 ## 轨道 2：提交后的公共播放接口（2026-11-09）
 
 `gpui_prose::playback` 提供 `CommitPlaybackOptions` 和 `CommitPlaybackStatus`，`dr_editor` 重新导出。宿主给实际 `ProseEditor` 调 `set_commit_playback(Some(CommitPlaybackOptions::new("agent:")), cx)` 后，原有 `refresh_chapter` 在收到已提交的源事件时启动播放。默认关闭，不改 M31 面板或按种类的画层。
@@ -136,7 +146,7 @@ Drifting 的正文能在新版里编辑并落盘了：新的 AGPL crate `next/cr
 **上屏到底多快。** P0-B 量的「上屏」是 GPUI 交出这一帧之后的下一个刷新节拍，以为那时字已经在屏幕上了。这次用 Instruments（`xctrace`，Metal System Trace）看真正显示的时刻：GPUI 交出画面后，还要等 WindowServer 合成、再等屏幕刷新，又多出两到三个刷新周期（交出 → 显示的中位数 21–27 ms）。所以：
 
 - GPUI 原样：按键到字出现在屏幕上，中位数 25–31 ms，p95 约 36 ms（几次测量，机器负载不同；证据 [f4-present.json](../acceptance/f4-present.json) 是在别的会话正编译时测的：31.4 / 36.5 ms）；
-- 「改完立刻画」（探针里的 `present_now`，走 GPUI 的 `displayLayer:`）：中位数快 2–6 ms，但长尾明显变差（p95 54–137 ms，每次都有一成左右的按键要多等好几个周期）。**结论：不开。** `EditorOptions::present_now` 默认关；
+- 「改完立刻画」（探针里的 `present_now`，走 GPUI 的 `displayLayer:`）：中位数快 2–6 ms，但长尾明显变差（p95 54–137 ms，每次都有一成左右的按键要多等好几个周期）。**结论：不开。** `EditorOptions::present_now` 默认关（2026-11-24 起 GPUI `v1.29.3` 上这条长尾没了，Drifting 在 macOS 上打开了它，见文首）；
 - 打了补丁 G1（见下）以后不开「立刻画」：中位数 25.0、p95 36.1 ms，按键到交出画面只要 2.1 ms。
 
 旧版（WebKit）同一项是用另一种方法量的（29–32 ms 到「第二帧」），也不是真正上屏，不能直接比。**用「真正上屏」量，16 ms 这条线 GPUI 过不了，8.3 ms 任何经过 WindowServer 合成的窗口都过不了**，这件事要重新定预算的口径，见「待协调」第 1 条。
@@ -318,9 +328,9 @@ Drifting 的正文能在新版里编辑并落盘了：新的 AGPL crate `next/cr
 | `select(chapter, range, …)`、`jump_to_chapter`、`scroll_by_estimate`、`scroll_y`、`press_enter`、`press_backspace`、`paste_text`、`toggle_mark(key, …)`、`set_link(url, …)`、`mark_active(key)`、`undo`、`redo`、`word_range_at`、`marks_at` | 宿主和测试驱动编辑器 | v0 稳定 |
 | `agent_write(chapter, range, text, session, cx)`、`import_remote(chapter, bytes, cx)`、`refresh_chapter(chapter, cx)` | 别人的写入；文本源在编辑器外变了以后调 `refresh_chapter`；选区和组字跟着挪 | `agent_write` 可能变（F3 的命令总线定下 Agent 写入的入口后改成走它） |
 | `EditorEvent::{Edited, SelectionChanged, AnchorsChanged}`（`EventEmitter`） | 通知宿主 | v0 稳定（只加变体） |
-| `set_platform_hooks(Rc<dyn PlatformHooks>)`：`discard_marked_text(&Window)`、`present_now` | 平台钩子 | 可能变（打了「丢弃组字接口」补丁后 `discard_marked_text` 可删） |
+| `set_platform_hooks(Rc<dyn PlatformHooks>)`：`discard_marked_text(&Window)`、`present_now`；不设时编辑器自己装 `input::system_ime::SystemIme`（macOS 上两样都实现，Windows 只实现前一样） | 平台钩子 | 可能变（打了「丢弃组字接口」补丁后 `discard_marked_text` 可删） |
 | `set_extension(Rc<dyn ProseExtension>)`：`style_run` | 扩展点 | 可能变（F4e 会加：输入规则、装饰层、浮条位置） |
-| `ProseStyle`、`EditorOptions { present_now, cursor_blink, ime_log }` | 样式与选项 | 可能变（F5 的令牌接进来后换成从令牌来） |
+| `ProseStyle`、`EditorOptions { present_now, cursor_blink, ime_log, fit_content, flow }` | 样式与选项（`present_now` 默认关；Drifting 的编辑器从 `dr_editor::editor_options()` 开始，macOS 上开） | 可能变（F5 的令牌接进来后换成从令牌来） |
 | `after_next_paint`、`painted_lines` | 给基准用 | 可能变 |
 
 ### 第三轮给 `gpui-prose` 加的
@@ -443,8 +453,8 @@ GPUI 的 fork 由 F4 负责（D1：需要挂补丁时再开 fork）。作者 202
 
 | # | 补丁 | 状态 | 改哪里 | 规模 | 设计 | 上游 |
 | --- | --- | --- | --- | --- | --- | --- |
-| G1 | 空闲时停掉刷新时钟 | **撤了**（作者 2026-11-20 定挂，2026-11-21 挂在 fork 的 `v1.27.0-drifting.1` 上；同日升到 `v1.29.3` 时撤掉，上游做了）：`next/patches/gpui/0001-macos-stop-idle-display-link.patch` | `gpui_macos/src/window.rs` | +94 行 | v1.27 的 GPUI 已经有「平台空闲时停帧、有事时唤醒」的接口（`PlatformWindow::frame_waker`，网页端在用），macOS 没实现。补丁：macOS 实现 `frame_waker`；显示链接每一拍记下这一拍有没有画（`draw` 置位）、有没有新的需求（唤醒置位），连续 6 拍（120 Hz 下 50 ms）两样都没有就停掉显示链接。GPUI 在窗口变脏、要下一帧回调、节流重试时都会调唤醒；唤醒时在主队列的下一轮重新启动显示链接，**并且当场画这一帧**（不等重启后的第一拍，不开 CA 事务）。第一版只重启不当场画，量出来每次停顿后的第一个按键要多等将近一拍（按键到交出画面中位数 4.6 → 14.7 ms），所以改成当场画。唤醒可能发生在持有窗口状态锁的平台回调里，所以唤醒本身不拿锁，只置标志、排到主队列 | **不用提了**：上游 2026-10-29 自己做了（[zed#65472](https://github.com/zed-industries/zed/pull/65472)，在 `v1.28.1` 及以后）：macOS 14 起每个窗口改用 `CAMetalDisplayLink`，空闲时暂停、由 `frame_waker` 唤醒，它量的空闲 CPU 从约 1% 到 0；同一个改动还修了 M5（以及 macOS 26 上别的基础款 M 系列）动画只有 30 帧、输入被拖慢的问题。macOS 13 仍走旧的 `CVDisplayLink`，不停。所以这个补丁和 fork 只用到 GPUI 升到 `v1.28.1` 以后为止；2026-11-21 升到 `v1.29.3` 时撤掉了。上游那边写着「空闲暂停后的第一帧会不会晚」还没量，这里量过旧路径上的数（中位数 4.6 → 14.7 ms），升级后可以重量一次再决定要不要报。读 `v1.29.3` 的代码：一拍没画、也没被唤醒就暂停，唤醒只解除暂停、等下一拍再画，和 G1 第一版一样不当场画，所以升级后按键到上屏一定要重量 |
-| G2 | 输入后立即绘制（不经 CA 事务、不重启显示链接） | **实验，量过，不挂**：`next/patches/gpui/0002-experiment-present-now-direct.patch`，环境变量 `GPUI_PRESENT_NOW_DIRECT=1` 才生效 | `gpui_macos/src/window.rs` 的 `displayLayer:` | +20 行 | 现在的「改完立刻画」走 `setNeedsDisplay:` → `displayLayer:`，GPUI 在这条路上开 `presentsWithTransaction`、停掉再启动显示链接，造成长尾。实验让 `displayLayer:` 直接画、不开事务、不动显示链接。结果：有了 G1 以后，G2 的「立刻画」中位数 25.0、p95 33.3 ms，和只开 G1、不开「立刻画」（25.0 / 36.1 ms）差不多；只有 G2 才能去掉「立刻画」的长尾（不开 G2 时 p95 137 ms）。**第一轮的结论：不需要 G2**，G1 当场画醒来的那一帧已经拿到了好处。两轮都是在高负载下量的，这个结论等空闲时重测再确认 | 中：要先证明有用；正式版应该是单独的「输入后立即画」入口，不改 `displayLayer:`（它也管窗口缩放时的同步绘制） |
+| G1 | 空闲时停掉刷新时钟 | **撤了**（作者 2026-11-20 定挂，2026-11-21 挂在 fork 的 `v1.27.0-drifting.1` 上；同日升到 `v1.29.3` 时撤掉，上游做了）：`next/patches/gpui/0001-macos-stop-idle-display-link.patch` | `gpui_macos/src/window.rs` | +94 行 | v1.27 的 GPUI 已经有「平台空闲时停帧、有事时唤醒」的接口（`PlatformWindow::frame_waker`，网页端在用），macOS 没实现。补丁：macOS 实现 `frame_waker`；显示链接每一拍记下这一拍有没有画（`draw` 置位）、有没有新的需求（唤醒置位），连续 6 拍（120 Hz 下 50 ms）两样都没有就停掉显示链接。GPUI 在窗口变脏、要下一帧回调、节流重试时都会调唤醒；唤醒时在主队列的下一轮重新启动显示链接，**并且当场画这一帧**（不等重启后的第一拍，不开 CA 事务）。第一版只重启不当场画，量出来每次停顿后的第一个按键要多等将近一拍（按键到交出画面中位数 4.6 → 14.7 ms），所以改成当场画。唤醒可能发生在持有窗口状态锁的平台回调里，所以唤醒本身不拿锁，只置标志、排到主队列 | **不用提了**：上游 2026-10-29 自己做了（[zed#65472](https://github.com/zed-industries/zed/pull/65472)，在 `v1.28.1` 及以后）：macOS 14 起每个窗口改用 `CAMetalDisplayLink`，空闲时暂停、由 `frame_waker` 唤醒，它量的空闲 CPU 从约 1% 到 0；同一个改动还修了 M5（以及 macOS 26 上别的基础款 M 系列）动画只有 30 帧、输入被拖慢的问题。macOS 13 仍走旧的 `CVDisplayLink`，不停。所以这个补丁和 fork 只用到 GPUI 升到 `v1.28.1` 以后为止；2026-11-21 升到 `v1.29.3` 时撤掉了。上游那边写着「空闲暂停后的第一帧会不会晚」还没量，这里量过旧路径上的数（中位数 4.6 → 14.7 ms），升级后可以重量一次再决定要不要报。读 `v1.29.3` 的代码：一拍没画、也没被唤醒就暂停，唤醒只解除暂停、等下一拍再画，和 G1 第一版一样不当场画，所以升级后按键到上屏一定要重量。2026-11-23 夜量了：照 GPUI 自己的节奏中位慢约 19 ms、不拖尾；作者 2026-11-24 定升级，同时在 macOS 上打开「改完立刻画」（见文首） |
+| G2 | 输入后立即绘制（不经 CA 事务、不重启显示链接） | **实验，量过，不挂**：`next/patches/gpui/0002-experiment-present-now-direct.patch`，环境变量 `GPUI_PRESENT_NOW_DIRECT=1` 才生效 | `gpui_macos/src/window.rs` 的 `displayLayer:` | +20 行 | 现在的「改完立刻画」走 `setNeedsDisplay:` → `displayLayer:`，GPUI 在这条路上开 `presentsWithTransaction`、停掉再启动显示链接，造成长尾。实验让 `displayLayer:` 直接画、不开事务、不动显示链接。结果：有了 G1 以后，G2 的「立刻画」中位数 25.0、p95 33.3 ms，和只开 G1、不开「立刻画」（25.0 / 36.1 ms）差不多；只有 G2 才能去掉「立刻画」的长尾（不开 G2 时 p95 137 ms）。**第一轮的结论：不需要 G2**，G1 当场画醒来的那一帧已经拿到了好处。两轮都是在高负载下量的，这个结论等空闲时重测再确认。`v1.29.3` 上不挂 G2，「改完立刻画」也没有长尾（2026-11-23 夜三轮，仅供参考）；2026-11-24 起产品在 macOS 上走的就是这条不挂 G2 的路 | 中：要先证明有用；正式版应该是单独的「输入后立即画」入口，不改 `displayLayer:`（它也管窗口缩放时的同步绘制） |
 | G3 | 丢弃组字的接口 | **已写，未挂**：`next/patches/gpui/0005-window-discard-marked-text.patch` | `gpui/src/{platform,window}.rs`、`gpui_macos/src/window.rs`、`gpui_windows/src/window.rs` | +47 行 | `Window::discard_marked_text(&self)` 转发到 `PlatformWindow`；默认空实现保持其他后端兼容。调用方先清自身组字；macOS 用本窗视图 `inputContext`、发消息前放开状态锁；Windows 用本窗 HWND 获取／取消／释放 IMM 上下文，失活后仍取消，不调用会提交正文的 `unmark_text`。补丁挂接前仍保留应用侧 hooks | 待本地使用后再考虑上游；本轮未发 PR |
 | G4 | Windows 组字丢弃（IMM32） | **第四轮实现已合，不改 GPUI；Windows 实机待验**（第二十二批） | HWND 的 IMM 上下文取消并释放；输入开始时装平台钩子，`GetFocus` 判断迟到输入，空上屏不删选区；同窗失焦和窗口失活都丢弃组字 | 见 `input/system_ime.rs`、`input/ime.rs` | 五项模拟回调测试；交付方做过 x86_64 交叉类型检查。本批没有运行真实微软拼音；TSF 经 IMM 兼容层的实际时序、ARM 检查仍待做 | — |
 | G5 | 中文斜体合成倾斜 | 未做，不急 | `gpui_macos` 的字形光栅化加倾斜变换 | 待估 | 苹方没有斜体字形，现在中文斜体画成正体 | 低 |
@@ -457,7 +467,7 @@ GPUI 的 fork 由 F4 负责（D1：需要挂补丁时再开 fork）。作者 202
 
 ## 待协调
 
-1. **按键上屏的预算（监管会话已定）。** 拆成两条，`benchmarks.md` 已改：「按键到交出画面」照旧 16 / 8.3 ms，发布档靠 G1；「按键到真正显示」只记录。G1 正式挂上要开可推送的 GPUI fork，发布档前由作者定；这之前补丁只存成文件，`present_now` 关。两轮的上屏都是在高负载下量的（第二轮的证据标了仅供参考），G1、G2 好不好、「按键到真正显示」的最终数字，由作者或监管会话找机器空闲时照「测量 / 重测上屏」重测。
+1. **按键上屏的预算（监管会话已定）。** 拆成两条，`benchmarks.md` 已改：「按键到交出画面」照旧 16 / 8.3 ms，发布档靠 G1；「按键到真正显示」只记录。G1 正式挂上要开可推送的 GPUI fork，发布档前由作者定；这之前补丁只存成文件，`present_now` 关。（2026-11-24 起：G1 随升到 `v1.29.3` 撤掉，上游做了；macOS 上 `present_now` 开着，按键到交出画面在 `v1.29.3` 下量过 p95 7.2–7.5 ms，见文首。）两轮的上屏都是在高负载下量的（第二轮的证据标了仅供参考），G1、G2 好不好、「按键到真正显示」的最终数字，由作者或监管会话找机器空闲时照「测量 / 重测上屏」重测。
    - **TextEdit 参照还没量，要作者点头一件事。** 量法：`prose-bench` 加一个子命令，打开 TextEdit 的一个空文档、把它的窗口放到最前，往它的进程发按键（`CGEventPostToPid`）并在每次按键前打 `os_signpost`，在 Instruments 下录约 30 秒；TextEdit 不用 Metal，没有我们用的那张「显示」表，所以用 Core Animation 的提交（`Commit` 信号）加 WindowServer 的帧交换（`displayed-surfaces-interval`）来对，并用同样的方法再量一次 `gpui-prose`，两边口径一致。要点头的是：这半分钟 TextEdit 会挡在作者的窗口前面，而且往别的程序发按键多半要给终端开「辅助功能」权限。这两件都超出了这一轮的约定（不接管屏幕、不改系统设置），所以没做。
 2. **文本源 trait（F1 的约定，第二轮定稿，第三轮由 `dr-editor` 实现）。** 定稿的样子见「文本源」一节。第三轮加了两个有默认值的方法 `resync` / `needs_resync`（别的线程也写这篇文档时不重复算提交，见第三轮「大白话」）。`dr-editor` 的 `SessionSource` 过了一致性检查。剩下：
    - **给 F1 的小建议**：`dr-doc` 的 `ProseEvent` 里插入不带标记（`TextChange::Insert { text }`）。`dr-editor` 现在直接订阅正文的 Loro 事件拿到标记；如果 `TextChange::Insert` 加一个可选的 `marks`，就可以改用 `dr-doc` 的事件。不急。（F1 第四轮已做：`TextChange::Insert` 带上了新字的 `marks`，dr-editor 可以改用它。）

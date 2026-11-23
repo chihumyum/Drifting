@@ -4,6 +4,8 @@
 
 工作区现在不挂补丁：2026-11-21 GPUI 升到 Zed `v1.29.3`，`next/Cargo.toml` 的 `gpui`、`gpui_platform`、`sum_tree` 直接指向 Zed 仓库的标签。之前挂着的 `0001`（作者 2026-11-20 定）在 fork [chihumyum/zed](https://github.com/chihumyum/zed) 的标签 `v1.27.0-drifting.1` 上（Zed `v1.27.0`（`c84af5b`）上只打了 `0001` 的那个提交，分支 `drifting/v1.27.0`，`22d52319`）；上游从 `v1.28.1` 起自己做了同一件事（zed#65472），`0001` 只对 `v1.27.0` 有用，不再挂，fork 上的分支和标签留着不动。这些补丁都只存文件，方便审阅、以后挂上去，或者提给上游；它们是对 `v1.27.0` 写的，挂到新标签上之前先重做。补丁以这个目录里的文件为准；fork 里的提交是 `git am` 这些文件得到的，不在 fork 上直接改。
 
+「改完立刻画」不需要补丁：2026-11-24 起 Drifting 的编辑器在 macOS 上打开 `gpui-prose` 的 `present_now`，走的是 GPUI `v1.29.3` 自己的 `setNeedsDisplay:` → `displayLayer:`（钩子是 `gpui-prose` 的 `SystemIme`），不挂 `0002`；`v1.29.3` 上这条路没有 `v1.27.0` 时的长尾（见 f4-editor.md 文首）。
+
 要挂一个补丁：在 fork 的本地检出里从对应的 Zed 标签开分支，按编号 `git am` 要挂的补丁，打一个新标签（`v<Zed 标签>-drifting.<下一个数>`，已经推过的标签不移动）推上去，再把 `next/Cargo.toml` 的三处改指 fork 的这个标签。
 
 | 文件 | 内容 | 状态 |

@@ -46,7 +46,7 @@ release 构建，2026-10-30，修复之后的数字。来源：`docs/renderer-pe
 
 | 项 | 怎么量 | 探针档 | 发布档 |
 | --- | --- | ---: | ---: |
-| 按键到交出画面 p95 | 从按键事件到包含该字的那一帧交给系统（CAMetalLayer present）。程序内探针和 Instruments 都量 | ≤ 16 ms | ≤ 8.3 ms（靠 GPUI 补丁 G1，见 [f4-editor.md](foundations/f4-editor.md#gpui-补丁台账)） |
+| 按键到交出画面 p95 | 从按键事件到包含该字的那一帧交给系统（CAMetalLayer present）。程序内探针和 Instruments 都量 | ≤ 16 ms | ≤ 8.3 ms（原先靠 GPUI 补丁 G1，升到 GPUI `v1.29.3` 时撤了；macOS 上靠「改完立刻画」，见 [f4-editor.md](foundations/f4-editor.md)） |
 | 按键到真正显示 | Instruments：到这一帧开始显示（`prose-bench present`）。用同一方法量一次 TextEdit 当参照 | 记录 | 记录 |
 | 单次按键的写入（中位数） | Loro 提交，加追加到 SQLite | ≤ 2 ms | ≤ 1 ms |
 | 打字时的 CPU | 整个进程，每秒 8 个字，持续 60 s | ≤ 15% | ≤ 8% |
@@ -172,7 +172,7 @@ cargo xtask check
   - 被测进程打开单章、关掉光标闪烁（这样画面只因按键而变），每秒 8 字、按键时刻错开在一个 120 Hz 周期里，每次按键前打一个 `os_signpost` 事件（`cc.drifting.prose-bench` / `PointsOfInterest` / `key`）；
   - 导出三张表：`os-signpost`（按键时刻）、`ca-client-present-request`（本进程交出画面的时刻）、`metal-object-dependency-chain-display`（这一帧开始显示的时刻；和 Core Animation 的 `DrawableLifetime` 结束时刻一致，比这一帧的 presented 回调早约 0.3 ms）；
   - 每次按键取它之后第一次交出画面、再取那之后第一次开始显示，得到「按键 → 交出」「按键 → 显示」「交出 → 显示」三个数；
-  - GPUI 原节奏和「改完立刻画」各录一次，结果写进同一个证据文件。
+  - GPUI 原节奏和「改完立刻画」各录一次，结果写进同一个证据文件。2026-11-24 起产品在 macOS 上打开「改完立刻画」，这一档就是产品走的路：`prose-bench` 不设自己的钩子，编辑器像在 App 里一样自己装 `gpui-prose` 的 `SystemIme`。
 - **空闲 CPU 单独量（`idle`）。** 单章打开、窗口可见：聚焦且光标闪烁、聚焦且光标不闪、不聚焦三种，各 30 s。用来对比 GPUI 补丁前后；环境变量 `PROSE_BENCH_GPUI` 给证据里的 `gpui_build` 标名字。
 - **负载。** 窗口、`present`、`idle` 的证据里记下测量前的一分钟负载（`load_average_1m_*`）。这台机器上常有别的会话在编译，负载高时帧间隔、上屏的长尾和单线程的数字都会变差，比较时先看负载。2026-11-07 起 `headless`、`window`、`present`、`idle` 在每次测量前后各取一次负载，写进 `conditions`：最高值不低于 2（这台 12 核的机器）就标 `reference_only: true`，表示「高负载、仅供参考」，不能拿来比较构建或补丁；`check` 会列出这些文件，但不算失败。空闲时怎么重测见 [f4-editor.md 的「重测上屏」](foundations/f4-editor.md#重测上屏机器空闲时)。
 - **GPUI 补丁的对比。** 临时把工作区指向本机 fork（做法见 [f4-editor.md 的「GPUI 补丁台账」](foundations/f4-editor.md#gpui-补丁台账)），设 `PROSE_BENCH_GPUI` 给构建标名字，跑 `idle` 和 `present` 写成 `f4-idle-patched.json`、`f4-present-patched.json`；量完把工作区改回 Zed 官方标签。

@@ -353,6 +353,30 @@ fn a_table_from_the_slash_menu_and_tab_through_its_cells(cx: &mut TestAppContext
     assert_eq!(o.stored().len(), 4);
 }
 
+/// The note's body and every cell of its table, like every editor Drifting
+/// builds (`dr_editor::editor_options`): each edit drawn at once on macOS,
+/// GPUI's own timing elsewhere.
+#[gpui::test]
+fn the_note_and_its_cells_draw_each_edit_at_once_on_macos_only(cx: &mut TestAppContext) {
+    let e = env();
+    let doc = note(&e, "");
+    let mut o = open(cx, &e, &doc);
+    o.slash_table();
+    let body = o.editor.read_with(o.cx, |e, _| e.options().clone());
+    assert_eq!(body.present_now, cfg!(target_os = "macos"));
+    let table = o.table();
+    let cells = table.read_with(o.cx, |t, cx| {
+        (0..t.rows().len())
+            .flat_map(|r| (0..t.cols().len()).map(move |c| (r, c)))
+            .map(|(r, c)| {
+                let options = t.cell_editor(r, c).unwrap().read(cx).options();
+                (options.present_now, options.fit_content)
+            })
+            .collect::<Vec<_>>()
+    });
+    assert_eq!(cells, vec![(cfg!(target_os = "macos"), true); 9]);
+}
+
 #[gpui::test]
 fn enter_breaks_a_cells_line_and_arrows_leave_the_table(cx: &mut TestAppContext) {
     let e = env();

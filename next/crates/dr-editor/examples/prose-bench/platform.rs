@@ -1,6 +1,7 @@
-//! Process metrics, display facts and the editor's platform hooks, for
-//! macOS. (The machine itself and the load average are F8's:
-//! `dr_testkit::evidence`.)
+//! Process metrics and display facts, for macOS. (The machine itself and the
+//! load average are F8's: `dr_testkit::evidence`. The editor's platform
+//! hooks are gpui-prose's `SystemIme`, which the editor installs itself, as
+//! in the app.)
 
 use std::time::Duration;
 
@@ -83,52 +84,3 @@ pub fn display_facts(_display_id: u64) -> (bool, f64) {
 pub static IMMEDIATE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 /// Keep the caret solid (no blink frames), for trace measurements.
 pub static NO_BLINK: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-
-/// The editor's platform hooks on macOS.
-pub struct MacHooks;
-
-impl gpui_prose::PlatformHooks for MacHooks {
-    fn present_now(&self, window: &gpui::Window) {
-        #[cfg(target_os = "macos")]
-        {
-            use raw_window_handle::{HasWindowHandle, RawWindowHandle};
-            let Ok(handle) = HasWindowHandle::window_handle(window) else {
-                return;
-            };
-            if let RawWindowHandle::AppKit(appkit) = handle.as_raw() {
-                // SAFETY: GPUI's own content view, on the main thread; GPUI
-                // sends the same message when it shows a window.
-                unsafe {
-                    use objc2::{msg_send, runtime::AnyObject};
-                    let view = appkit.ns_view.as_ptr() as *mut AnyObject;
-                    let _: () = msg_send![view, setNeedsDisplay: true];
-                }
-            }
-        }
-    }
-
-    fn discard_marked_text(&self, window: &gpui::Window) {
-        #[cfg(target_os = "macos")]
-        {
-            use raw_window_handle::{HasWindowHandle, RawWindowHandle};
-            let Ok(handle) = HasWindowHandle::window_handle(window) else {
-                return;
-            };
-            let RawWindowHandle::AppKit(appkit) = handle.as_raw() else {
-                return;
-            };
-            // SAFETY: this window's live content view, on GPUI's UI thread.
-            // The current context may already belong to another window.
-            unsafe {
-                use objc2::{msg_send, runtime::AnyObject};
-                let view = appkit.ns_view.as_ptr() as *mut AnyObject;
-                let context: *mut AnyObject = msg_send![view, inputContext];
-                if !context.is_null() {
-                    let _: () = msg_send![context, discardMarkedText];
-                }
-            }
-        }
-        #[cfg(not(target_os = "macos"))]
-        let _ = window;
-    }
-}

@@ -57,6 +57,22 @@ pub use view::{
     EmbedFrameRequested, EntityLinkOpened, MaterialOpened, PositionLinkCopied, WritingTyped,
 };
 
+/// The options every editor Drifting builds starts from (a chapter or entry
+/// body, the whole book, a table cell): gpui-prose's defaults, except that
+/// on macOS each edit and composition update is drawn at once
+/// ([`gpui_prose::EditorOptions::present_now`], through gpui-prose's
+/// `SystemIme`). The author's decision of 2026-11-24, with GPUI v1.29.3:
+/// on GPUI's own timing a keystroke took about 47 ms to reach the screen at
+/// the median, drawn at once about 27 ms, neither with a long tail
+/// (`docs/rust-rewrite/foundations/f4-editor.md`). Windows and Linux keep
+/// GPUI's timing.
+pub fn editor_options() -> gpui_prose::EditorOptions {
+    gpui_prose::EditorOptions {
+        present_now: cfg!(target_os = "macos"),
+        ..gpui_prose::EditorOptions::default()
+    }
+}
+
 // The public playback switch lives on each host's `editor()` entity.
 pub use gpui_prose::playback::{CommitPlaybackOptions, CommitPlaybackStatus};
 /// The page a v3 body is part of ([`ChapterEditor::set_page_scroll`]).

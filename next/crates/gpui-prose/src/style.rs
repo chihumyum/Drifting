@@ -134,9 +134,13 @@ impl ProseStyle {
 /// Behaviour switches of an editor.
 #[derive(Clone, Debug)]
 pub struct EditorOptions {
-    /// Draw right after each edit instead of on the next display-link tick
-    /// (needs [`crate::PlatformHooks::present_now`]). Off by default until the
-    /// real on-glass latency is measured (see the F4 notes).
+    /// Draw right after each edit and composition update instead of on the
+    /// next display-link tick (needs [`crate::PlatformHooks::present_now`];
+    /// the system's hooks do it on macOS only). Off by default; Drifting
+    /// turns it on for its editors on macOS: measured on GPUI v1.29.3 it
+    /// brings a keystroke's way to the screen back to about 27 ms at the
+    /// median without a long tail, against about 47 ms on GPUI's own timing
+    /// (the F4 notes, `docs/rust-rewrite/foundations/f4-editor.md`).
     pub present_now: bool,
     /// Caret blink half-period; `None` keeps the caret solid.
     pub cursor_blink: Option<Duration>,

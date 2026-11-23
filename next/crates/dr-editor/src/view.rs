@@ -376,7 +376,7 @@ impl ChapterEditor {
                 body_style,
                 gpui_prose::EditorOptions {
                     flow,
-                    ..Default::default()
+                    ..crate::editor_options()
                 },
                 window,
                 cx,

@@ -433,7 +433,7 @@ impl TableView {
                 style,
                 EditorOptions {
                     fit_content: true,
-                    ..EditorOptions::default()
+                    ..crate::editor_options()
                 },
                 window,
                 cx,

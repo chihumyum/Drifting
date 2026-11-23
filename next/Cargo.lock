@@ -1809,11 +1809,9 @@ dependencies = [
  "libc",
  "log",
  "loro",
- "objc2 0.6.5",
  "pinyin",
  "png 0.18.1",
  "prose-metrics",
- "raw-window-handle",
  "serde_json",
  "tempfile",
 ]

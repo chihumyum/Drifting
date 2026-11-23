@@ -946,10 +946,16 @@ impl ProseEditor {
         self.present_now(window);
     }
 
-    pub(crate) fn present_now(&self, window: &Window) {
-        if self.options.present_now
-            && let Some(hooks) = &self.hooks
-        {
+    /// After an edit or a composition update: asks the platform to draw this
+    /// frame now ([`EditorOptions::present_now`]). Installs the system's
+    /// hooks first (`input/system_ime.rs`), so an edit that comes before any
+    /// text input (Backspace, Return, a paste, an undo) is drawn at once too.
+    pub(crate) fn present_now(&mut self, window: &Window) {
+        if !self.options.present_now {
+            return;
+        }
+        self.ensure_system_ime(window);
+        if let Some(hooks) = &self.hooks {
             hooks.present_now(window);
         }
     }

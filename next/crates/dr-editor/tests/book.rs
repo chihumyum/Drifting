@@ -196,6 +196,18 @@ fn every_manuscript_entry_in_one_scroll_with_author_named_groups(cx: &mut TestAp
     assert_eq!(stored(&e, &one), ["雨夜。"]);
 }
 
+/// Like every editor Drifting builds (`dr_editor::editor_options`): each
+/// edit drawn at once on macOS, GPUI's own timing elsewhere.
+#[gpui::test]
+fn the_book_draws_each_edit_at_once_on_macos_only(cx: &mut TestAppContext) {
+    let e = env();
+    chapter(&e, "一", "雨夜。");
+    let (view, cx) = open(cx, &e);
+    let options = view.read_with(cx, |v, cx| v.editor().read(cx).options().clone());
+    assert_eq!(options.present_now, cfg!(target_os = "macos"));
+    assert!(!options.fit_content && !options.flow);
+}
+
 #[gpui::test]
 fn undo_stays_in_the_caret_chapter(cx: &mut TestAppContext) {
     let e = env();

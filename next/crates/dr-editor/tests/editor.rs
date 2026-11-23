@@ -112,6 +112,21 @@ fn caret_at(view: &Entity<ChapterEditor>, cx: &mut VisualTestContext, at: usize)
     });
 }
 
+/// Like every editor Drifting builds (`dr_editor::editor_options`): each
+/// edit drawn at once on macOS, GPUI's own timing elsewhere.
+#[gpui::test]
+fn the_chapter_draws_each_edit_at_once_on_macos_only(cx: &mut TestAppContext) {
+    let e = env();
+    let doc = chapter(&e, "第一章", "雨夜。");
+    let (view, cx) = open(cx, &e, &doc);
+    let options = view.read_with(cx, |v, cx| v.editor().read(cx).options().clone());
+    assert_eq!(options.present_now, cfg!(target_os = "macos"));
+    assert_eq!(
+        options.cursor_blink,
+        dr_editor::editor_options().cursor_blink
+    );
+}
+
 #[gpui::test]
 fn typing_persists_through_the_workspace(cx: &mut TestAppContext) {
     let e = env();

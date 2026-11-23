@@ -43,11 +43,9 @@ tempfile.workspace = true
 
 [target.'cfg(target_os = "macos")'.dev-dependencies]
 # book-bench and prose-bench read the process's memory footprint and CPU
-# time; prose-bench also asks AppKit to draw right after an edit
-# (present-now) and drops the input method's marked text.
+# time. (prose-bench's editor uses gpui-prose's own platform hooks, as the
+# app's do.)
 libc.workspace = true
-objc2.workspace = true
-raw-window-handle.workspace = true
 
 [[example]]
 name = "edit"

@@ -60,12 +60,12 @@ impl Root {
             ime_log: std::env::var_os("PROSE_BENCH_IME_LOG").is_some(),
             ..EditorOptions::default()
         };
-        let editor = cx.new(|cx| {
-            let mut editor =
-                ProseEditor::with_options(book, ProseStyle::default(), options, window, cx);
-            editor.set_platform_hooks(Rc::new(platform::MacHooks));
-            editor
-        });
+        // No hooks of its own: like every editor in the app, the editor
+        // installs gpui-prose's `SystemIme` itself (at the first input, or
+        // the first edit while `present_now` is on), so `present` measures
+        // the app's own `setNeedsDisplay:` path.
+        let editor = cx
+            .new(|cx| ProseEditor::with_options(book, ProseStyle::default(), options, window, cx));
         self.editor = Some(editor.clone());
         cx.notify();
         editor

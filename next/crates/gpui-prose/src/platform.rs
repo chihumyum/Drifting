@@ -32,8 +32,10 @@ pub trait PlatformHooks: 'static {
 
     /// Ask for this frame to be drawn now instead of on the next display-link
     /// tick (on macOS `[view setNeedsDisplay:YES]`, which makes Core
-    /// Animation call GPUI's `displayLayer:` when the current event ends).
-    /// Called after every edit and composition update while
-    /// [`crate::EditorOptions::present_now`] is on.
+    /// Animation call GPUI's `displayLayer:` when the current event ends;
+    /// [`crate::input::system_ime::SystemIme`] does that). Called once after
+    /// every edit and composition update while
+    /// [`crate::EditorOptions::present_now`] is on. Default: nothing (other
+    /// platforms, test windows).
     fn present_now(&self, _window: &Window) {}
 }
