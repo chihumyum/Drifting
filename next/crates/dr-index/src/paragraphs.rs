@@ -42,7 +42,7 @@ fn count_links<'a>(
             .marks
             .entities
             .iter()
-            .map(|l| (l.kind.as_str().to_string(), l.target.clone(), l.manual))
+            .map(|l| (l.kind.as_str().to_string(), l.target.clone(), l.picked()))
             .collect();
         for t in &here {
             if !previous.contains(t) {

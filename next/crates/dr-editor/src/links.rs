@@ -62,13 +62,20 @@ pub trait LinkTargets {
     }
 }
 
-/// Whether an entity mark's value says the link was picked with @
-/// ([`dr_model::prose::LINK_MANUAL`]).
+/// Whether an entity mark's value says the author made the link: picked
+/// with @ ([`dr_model::prose::LINK_MANUAL`]), or into a module or a range of
+/// blocks, which automatic linking never writes
+/// ([`dr_model::v3::EntityLinkV3::picked`], `kernel-v5.md` §16).
 pub fn link_manual(value: &LoroValue) -> bool {
+    let LoroValue::Map(map) = value else {
+        return false;
+    };
     matches!(
-        value,
-        LoroValue::Map(map) if matches!(map.get(dr_model::prose::LINK_MANUAL), Some(LoroValue::Bool(true)))
-    )
+        map.get(dr_model::prose::LINK_MANUAL),
+        Some(LoroValue::Bool(true))
+    ) || ["module", "block", "end_block"]
+        .iter()
+        .any(|k| map.get(*k).is_some_and(|v| !matches!(v, LoroValue::Null)))
 }
 
 /// The kind an entity mark's value names (elements when unsaid).

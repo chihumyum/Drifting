@@ -430,6 +430,138 @@ fn panel_follows_module_scope_jumps_directly_and_refreshes_entry_changes(
     f.ws.close();
 }
 
+/// `kernel-v5.md` §16: while the author's 「自动要素链接」 is off, a comment's
+/// automatic links read as text and those picked with @ stay links; the
+/// Review tab follows the setting at once, and the comment is not rewritten.
+#[gpui::test]
+fn the_review_tab_follows_the_authors_setting_at_once(cx: &mut gpui::TestAppContext) {
+    use gpui::{Context, IntoElement, ParentElement, Render, Styled, Window, div};
+    use std::{
+        rc::Rc,
+        time::{Duration, Instant},
+    };
+    struct Root {
+        book: String,
+    }
+    impl Render for Root {
+        fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+            div().size_full().child(dr_view_review::v3_panel::panel(
+                "v3-review-auto-links",
+                &self.book,
+                None,
+                dr_i18n::Locale::En,
+                dr_i18n::Platform::Mac,
+                Rc::new(|_, _, _| {}),
+                Rc::new(|_| Some(dr_ui::sand::Kind::Element)),
+                cx,
+            ))
+        }
+    }
+    let f = fixture();
+    // A character linking by itself, and one picked with @ while off.
+    let people = call(&f.ws, "entry.list", json!({"book":f.book,"all":true}))
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|e| e["template"] == "tpl-category")
+        .unwrap()["id"]
+        .clone();
+    let on = call(
+        &f.ws,
+        "entry.create",
+        json!({"book":f.book,"parent":people,"title":"白鹭洲","template":"tpl-character"}),
+    )["id"]
+        .clone();
+    assert_eq!(
+        call(&f.ws, "entry.get", json!({"book":f.book,"id":on}))["auto_link"],
+        true
+    );
+    let off = call(
+        &f.ws,
+        "entry.create",
+        json!({"book":f.book,"parent":people,"title":"青石巷","template":"tpl-character","auto_link":false}),
+    )["id"]
+        .clone();
+    let made = call(
+        &f.ws,
+        "comment.create",
+        json!({"book":f.book,"body":{"text":"白鹭洲与青石巷","links":[{"start":4,"end":7,"entry":off}]}}),
+    );
+    let id = made["id"].as_str().unwrap().to_owned();
+    let body = |ws: &Workspace| {
+        call(ws, "comment.list", json!({"book":f.book}))
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|c| c["id"] == id.as_str())
+            .unwrap()["body"]
+            .clone()
+    };
+    let stored = body(&f.ws);
+    assert_eq!(
+        stored["links"],
+        json!([
+            {"start":0,"end":3,"entry":on},
+            {"start":4,"end":7,"entry":off,"manual":true},
+        ])
+    );
+
+    cx.executor().allow_parking();
+    cx.update(|cx| dr_view_review::init(Some(f.ws.clone()), cx));
+    let (_root, cx) = cx.add_window_view(|_, _| Root {
+        book: f.book.clone(),
+    });
+    let view = cx.update(|window, cx| {
+        window.draw(cx).clear(cx);
+        dr_view_review::view("v3-review-auto-links", cx).unwrap()
+    });
+    let shown = |cx: &mut gpui::VisualTestContext| {
+        view.read_with(cx, |v, _| {
+            let list = v.listing();
+            list.open
+                .iter()
+                .chain(&list.resolved)
+                .flat_map(|g| &g.items)
+                .find(|i| i.id == id)
+                .map(|i| {
+                    i.body
+                        .links
+                        .iter()
+                        .map(|l| l.entry.to_string())
+                        .collect::<Vec<_>>()
+                })
+        })
+    };
+    let wait_for = |cx: &mut gpui::VisualTestContext, want: Vec<String>| {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            cx.executor().advance_clock(Duration::from_millis(30));
+            cx.run_until_parked();
+            cx.update(|window, cx| window.draw(cx).clear(cx));
+            if shown(cx).as_ref() == Some(&want) {
+                break;
+            }
+            assert!(Instant::now() < deadline, "{:?} != {want:?}", shown(cx));
+            std::thread::sleep(Duration::from_millis(5));
+        }
+    };
+    let both = vec![
+        on.as_str().unwrap().to_owned(),
+        off.as_str().unwrap().to_owned(),
+    ];
+    wait_for(cx, both.clone());
+    // Off: what the shell does when the author turns it off.
+    f.ws.set_auto_links(false);
+    cx.update(|_, cx| dr_view_review::auto_links_changed(cx));
+    wait_for(cx, vec![off.as_str().unwrap().to_owned()]);
+    assert_eq!(body(&f.ws), stored, "nothing is rewritten");
+    f.ws.set_auto_links(true);
+    cx.update(|_, cx| dr_view_review::auto_links_changed(cx));
+    wait_for(cx, both);
+    cx.update(|_, cx| dr_view_review::release(cx));
+    f.ws.close();
+}
+
 #[test]
 fn stable_create_anchors_follow_prefixes_and_partial_deletion_but_refuse_foreign_or_gone_text() {
     use dr_workspace::dto::AnchorBytes;

@@ -62,6 +62,16 @@ pub struct EntityLinkV3 {
     pub manual: bool,
 }
 
+impl EntityLinkV3 {
+    /// Whether the author made this link: picked with @ ([`Self::manual`]),
+    /// or one into a module or a range of blocks, which automatic linking
+    /// never writes (it writes a bare `{kind}`). Such a link shows whatever
+    /// the switches say ([`link_show`]'s `manual`, `kernel-v5.md` §16).
+    pub fn picked(&self) -> bool {
+        self.manual || self.module.is_some() || self.block.is_some() || self.end_block.is_some()
+    }
+}
+
 /// Default block width on a timeline axis when a placement omits `span`:
 /// the view draws such a card this many units wide, and
 /// [`timeline_scale_end`] counts it that wide.
@@ -3703,6 +3713,37 @@ mod tests {
         assert_eq!(table.show("off", true, true), LinkShow::Live);
         assert_eq!(table.show("nobody", false, true), LinkShow::Gone);
         assert!(table.is_live("off") && !table.is_live("nobody"));
+        // Picked: with @, or into a module or blocks (never automatic).
+        let bare = EntityLinkV3 {
+            target: "off".into(),
+            kind: crate::kind::EntityKind::Entry,
+            module: None,
+            block: None,
+            end_block: None,
+            manual: false,
+        };
+        assert!(!bare.picked());
+        assert!(
+            EntityLinkV3 {
+                manual: true,
+                ..bare.clone()
+            }
+            .picked()
+        );
+        assert!(
+            EntityLinkV3 {
+                module: Some(ModuleId::parse("mod-prose").unwrap()),
+                ..bare.clone()
+            }
+            .picked()
+        );
+        assert!(
+            EntityLinkV3 {
+                block: Some(BlockId::parse("3@7").unwrap()),
+                ..bare
+            }
+            .picked()
+        );
     }
 
     #[test]

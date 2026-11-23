@@ -390,6 +390,49 @@ fn a_written_name_becomes_a_link_when_the_description_is_saved(cx: &mut TestAppC
     );
 }
 
+/// `kernel-v5.md` §16: while the author's 「自动要素链接」 is off, a
+/// description's automatic links read as text; the rail follows the setting
+/// at once (the shell notifies it after passing the setting on), and the
+/// description is not rewritten.
+#[gpui::test]
+fn descriptions_follow_the_authors_setting_at_once(cx: &mut TestAppContext) {
+    let e = env();
+    let [a, b] = [&e.entries[0].0, &e.entries[1].0];
+    pair(&e, a, b, "RL 同乡", "symmetric");
+    let book = Book::load(&e.ws, &e.book).unwrap();
+    let element = book
+        .v3()
+        .unwrap()
+        .entries
+        .iter()
+        .find(|x| x.auto_link && x.deleted_at.is_none() && x.title.chars().count() >= 2)
+        .unwrap()
+        .clone();
+    let kind = relation(&e, "RL 同乡").unwrap()["id"].clone();
+    call(
+        &e.ws,
+        "relation_type.set_description",
+        json!({"book": e.book, "id": kind, "description": format!("都认得{}", element.title)}),
+    );
+    let stored = relation(&e, "RL 同乡").unwrap()["description"].clone();
+    assert_eq!(stored["links"][0]["entry"], element.id.as_str(), "{stored}");
+    let (rail, mut cx, _) = open(cx, &e);
+    let cx = &mut cx;
+    let shown = |rail: &Entity<RelationsRail>, cx: &mut VisualTestContext| {
+        rail.read_with(cx, |r, _| {
+            rail_relation(r, "RL 同乡").unwrap().description.links.len()
+        })
+    };
+    assert_eq!(shown(&rail, cx), 1);
+    e.ws.set_auto_links(false);
+    rail.update(cx, |r, cx| r.follow_auto_links(cx));
+    wait_for(cx, "the link to read as text", |cx| shown(&rail, cx) == 0);
+    assert_eq!(relation(&e, "RL 同乡").unwrap()["description"], stored);
+    e.ws.set_auto_links(true);
+    rail.update(cx, |r, cx| r.follow_auto_links(cx));
+    wait_for(cx, "the link back", |cx| shown(&rail, cx) == 1);
+}
+
 #[gpui::test]
 fn a_new_row_is_written_once_both_sides_have_an_entry(cx: &mut TestAppContext) {
     let e = env();
@@ -975,14 +1018,18 @@ fn current_tracks_entry_links_from_the_pages_prose(cx: &mut TestAppContext) {
     };
     let a = body.entry().to_string();
     let refs = e.ws.library().references_from_entry(&a).unwrap();
+    // `prose.link` writes an automatic link: it shows while its entry's own
+    // 「自动链接」 is on (`kernel-v5.md` §16), so `b` is one that is.
+    let on =
+        |id: &str| call(&e.ws, "entry.get", json!({"book": e.book, "id": id}))["auto_link"] == true;
     let others: Vec<_> = e
         .entries
         .iter()
         .filter(|(id, _)| id != &a && !refs.iter().any(|r| &r.target_id == id))
-        .take(2)
         .map(|(id, _)| id.clone())
         .collect();
-    let [b, c] = [&others[0], &others[1]];
+    let b = others.iter().find(|id| on(id)).unwrap();
+    let c = others.iter().find(|id| *id != b).unwrap();
     pair(&e, b, c, "RL 正文链接", "directed");
     let (rail, mut cx, _) = open(cx, &e);
     let cx = &mut cx;

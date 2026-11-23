@@ -169,6 +169,8 @@ pub struct RelationsRail {
     pub(crate) focus: FocusHandle,
     bus: Option<dr_workspace::events::Subscription>,
     bus_task: Option<Task<()>>,
+    /// The author's 「自动要素链接」 the shown relations were read under.
+    auto_links: bool,
     _subs: Vec<Subscription>,
 }
 
@@ -245,6 +247,7 @@ impl RelationsRail {
                     rail.set_book(book, cx);
                 }
                 rail.set_front(front, cx);
+                rail.follow_auto_links(cx);
                 cx.notify();
             }));
             cx.spawn(async move |this, cx| {
@@ -279,6 +282,7 @@ impl RelationsRail {
                     .ok();
             })
         };
+        let auto_links = lib.as_ref().is_none_or(Library::auto_links);
         let mut rail = RelationsRail {
             shell,
             lib,
@@ -310,6 +314,7 @@ impl RelationsRail {
             focus: cx.focus_handle(),
             bus: None,
             bus_task: None,
+            auto_links,
             _subs: subs,
         };
         if !book.id.is_empty() {
@@ -450,6 +455,20 @@ impl RelationsRail {
                 }
             }
         }));
+    }
+
+    /// The author's 「自动要素链接」 changed (the shell passes it on to the
+    /// library before it notifies): the descriptions' and the page's
+    /// automatic links show, or read as text, at once (`kernel-v5.md` §16).
+    pub fn follow_auto_links(&mut self, cx: &mut Context<Self>) {
+        let Some(on) = self.lib.as_ref().map(Library::auto_links) else {
+            return;
+        };
+        if on != self.auto_links {
+            self.auto_links = on;
+            self.reload(cx);
+            self.reload_page(cx);
+        }
     }
 
     /// Reads the relations again.

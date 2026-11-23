@@ -382,7 +382,7 @@ pub fn link_show(
     };
     match link.kind {
         dr_model::kind::EntityKind::Entry => {
-            dr_model::v3::link_show(link.manual, targets.entry(&link.target), ws.auto_links())
+            dr_model::v3::link_show(link.picked(), targets.entry(&link.target), ws.auto_links())
         }
         _ if targets.alive(&link.kind, &link.target) => dr_model::v3::LinkShow::Live,
         _ => dr_model::v3::LinkShow::Plain,

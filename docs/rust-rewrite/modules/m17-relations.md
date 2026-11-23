@@ -11,7 +11,7 @@
 ## AL 描述和批注里的链接跟着「自动链接」（2026-11-24）
 
 - @ 挑的链接记成手动的：`EntryTextLink.manual`，存成字上另一个标记 `entity_manual`（`dr-doc/src/v3/linked_text.rs`）。规划器（`plan_book_text_shown`）把草稿里新加的链接记成手动、钉住；回写原样的链接保持原来是什么。
-- 读出来（`resolve_linked_text`）时，自动的链接在条目自己的开关关着时读作普通文字；总开关关着时，右栏和审阅栏只留手动的（`rail.rs` 的 `reload`、`dr-view-review/src/v3.rs` 的 `load`）。写回时这些看不见的链接照「最近删除」那样留着（`auto_links` 传给规划器）。
+- 读出来（`resolve_linked_text`）时，自动的链接在条目自己的开关关着时读作普通文字；总开关关着时，右栏和审阅栏只留手动的（`rail.rs` 的 `reload`、`dr-view-review/src/v3.rs` 的 `load`）；总开关一变两栏当场重读：外壳把设置交给书库后调 `dr_view_review::auto_links_changed`，右栏在外壳通知时 `follow_auto_links`。写回时这些看不见的链接照「最近删除」那样留着（`auto_links` 传给规划器）。
 - 右栏「关系」按当前页筛时只算显示成链接的（`reference_counts`）。
 
 ## 做了什么（大白话）

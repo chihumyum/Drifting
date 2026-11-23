@@ -2596,8 +2596,14 @@ impl Render for Assist {
                         .current(on)
                         .on_click(move |_, _, cx| {
                             let entry = entry.clone();
-                            switch.update(cx, |_, cx| {
-                                cx.emit(AssistEvent::AutoLink { entry, on: !on })
+                            switch.update(cx, |a, cx| {
+                                // Shown at once; turned off, the card goes
+                                // with the link once the editor redraws.
+                                if let Some(card) = a.card.as_mut() {
+                                    card.facts.auto_link = !on;
+                                }
+                                cx.emit(AssistEvent::AutoLink { entry, on: !on });
+                                cx.notify();
                             });
                         })
                         .into_any_element(),

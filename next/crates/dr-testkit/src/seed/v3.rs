@@ -1420,6 +1420,7 @@ pub fn book_to_v3(src: &SeededBook) -> Result<SeededBookV3> {
                 .or_else(|| categories.first().map(|c| eid(c.id.as_str())))
                 .unwrap_or_else(|| roots.elements.clone());
             let entry_id = eid(e.id.as_str());
+            let in_category = parent_id != roots.elements;
             let w = t.entries().create(
                 &entry_id,
                 Some(&parent_id),
@@ -1427,11 +1428,11 @@ pub fn book_to_v3(src: &SeededBook) -> Result<SeededBookV3> {
                 Some(&tid(TPL_CHARACTER)),
                 false,
             )?;
-            w.created_at(e.created_at)?.set_field(
-                &fmod,
-                "summary",
-                Some(&FieldValue::Text(e.summary.clone())),
-            )?;
+            // A category's new entries start linked (`kernel-v5.md` §16): an
+            // element there is one made there.
+            w.created_at(e.created_at)?
+                .auto_link(in_category)?
+                .set_field(&fmod, "summary", Some(&FieldValue::Text(e.summary.clone())))?;
             if !e.aliases.is_empty() {
                 w.set_field(
                     &fmod,

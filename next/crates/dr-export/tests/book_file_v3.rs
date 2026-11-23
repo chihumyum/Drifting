@@ -1083,7 +1083,9 @@ fn archive_rekeys_relation_row_members_and_book_text_links() {
     let mut right = [nb, nc];
     right.sort_unstable();
     assert_eq!(relation["rows"][0]["right"], json!(right));
-    let linked = json!({"text":"甲灯塔","links":[{"start":0,"end":3,"entry":na}]});
+    // Given with its link, the link was picked with @: the book file keeps
+    // that (`kernel-v5.md` §16).
+    let linked = json!({"text":"甲灯塔","links":[{"start":0,"end":3,"entry":na,"manual":true}]});
     assert_eq!(relation["description"], linked);
     let comments = call("comment.list", json!({"book":imported}));
     assert_eq!(comments[0]["body"], linked);
