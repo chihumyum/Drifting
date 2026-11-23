@@ -26,10 +26,12 @@ comment.update [write] Change a comment: its text, status (resolve / reopen; a c
 entry.create [write] Create an entry either residing under `parent` (without membership) or attached to `host` (residing in `host`'s home, `host` itself when `level`, or the root).
 entry.get [read] Read an entry including retained module values; an entry whose switch is on also carries what lies below it (resolved settings and their sources, children, members).
 entry.list [read] Find entries, or list the entries living under one in manuscript order; with below, each listed entry whose switch is on carries its resolved settings, children and members.
-entry.mentions [read] List the paragraphs of the book's prose that link to an entry (its name or an alias linked automatically, or a link the author made), in manuscript order, each with the entry and module it is in, its document, paragraph number and block ID, how many links to the entry it holds and the text around the entry's name. `total` counts the paragraphs, `links` the links. At most `limit` paragraphs (default 20, at most 50) from `from`; `next` is the `from` of the next page. Paragraphs in entries in Recently Deleted only with `trashed: true`. Text that names the entry without a link is found with entry.search.
+entry.mentions [read] List the paragraphs of the book's prose that link to an entry (its name or an alias linked automatically, counted while the entry's own automatic linking and the author's setting are on, or a link the author picked with @, always counted), in manuscript order, each with the entry and module it is in, its document, paragraph number and block ID, how many links to the entry it holds and the text around the entry's name. `total` counts the paragraphs, `links` the links. At most `limit` paragraphs (default 20, at most 50) from `from`; `next` is the `from` of the next page. Paragraphs in entries in Recently Deleted only with `trashed: true`. Text that names the entry without a link is found with entry.search.
 entry.move [write] Move an entry's residence and its position in the folder's manual order (`index` among the folder's stored children). Moving where an entry lives never hangs it on a lane or moves it on a timeline scale.
 entry.restore [write] Restore an entry and what lives under it from trash; if its stored residence can no longer hold entries, relocate it to the nearest live level ancestor or the root.
 entry.search [read] Search the book's entries for a word or phrase, matched as written (case-insensitive, not split into words): titles, field values, key/value rows, patches, plot cells and prose, not templates or comments. Hits come in manuscript order, each with its entry, its module and the text around the match; a prose hit (one per paragraph) also gives its document, paragraph number and block ID. At most `limit` hits (default 20, at most 50) from `from`; `next` is the `from` of the next page. Entries in Recently Deleted only with `trashed: true`. A hit is not a read of the prose.
+entry.set_auto_link [write] Turn an entry's own automatic linking (「自动链接」) on or off: whether its title and aliases link by themselves in the book's text, and whether the automatic links already pointing at it show as links. No text is rewritten: turned off, those links read as plain text and their data stays; turned back on, they show again. Links picked with @ show either way. Refused when, turned on, one of its names is already another linked entry's.
+entry.set_below_auto_link [write] Turn a level's automatic linking (「自动链接」) on or off: entries made to live in it from now on start with their own switch that way, and every entry living below it now (however deep, not those in Recently Deleted, not containers whose template does not follow its level) gets its own switch set the same, in one step one undo takes back. Each entry can be changed on its own afterwards. Refused when a name would then belong to two linked entries.
 entry.set_level [write] Turn an entry's level switch on or off. Turning it off moves all live descendants below it to the trash in place (leaving already-trashed entries, overrides, memberships and swimlanes untouched) in one commit that one undo reverts.
 entry.trash [write] Trash an entry with what lives under it, keeping entries that only belong to it.
 entry.update [write] Rename an entry, set its mark, switch its template or change the overrides of what lives below it, without deleting retained content or touching its switch.
@@ -120,21 +122,23 @@ asset_folder.rename book 1c92033f8dcf73f2b5fcceab6a17f167ce57c6f5e48d538311681d1
 asset_folder.restore book 87d66f0d66fe1660dad31c88bb3fb09eab501576f4c6d0d345be9e76b68f179f
 asset_folder.trash book 2c53c7dfed9e6d458560de675938a1948e72f24a886b64677dfcbf5dee797f59
 book.get shared 3405b89fc23a4ce7c0d8663d8c6e9c8a1179e5e57f1b018c3a76b9aab9c425de
-book.sequence shared fc4cb9ed814e91156adecde1db023ff89bd26adf6d59b997786c7d646d28c2f0
+book.sequence shared a6e288f923ce65c35fad7571354138fab3914b5ce839f0437795cbf2ea485b06
 book.update book c9b8c91de4f1331368b187db91a606e226dbf69490048290efecfd7a54f5448f
 book.writing_days shared 1666501ae181dc1e83a34e6f26a03fc9a21240aa81f61d2827cb860bc719b4fd
 comment.anchors shared 4d752a111e8d3be9cb0410c15a60d9e5a77f243816761fb8131e70074df16492
-comment.create book 3670bb3df0dbf5f4dced51817946605523e84575b577cc312f6f1ccada907cc6
-comment.list shared 1a2ef39608df3daf3ebd5fc8f60aeda66156d7746db1ee86dc223831cf6dc717
+comment.create book 60feec8435df908ad4a59f03a6851806806e3e67eedb66bb72dffe505eb523f7
+comment.list shared c90688172e415c2bfa0e3d60cb7f31b82482f1cdc49f0cde6a820d41ee141e7d
 comment.reanchor book 36dca406adcb7a59134614d8da3b51f525078313f8df175f640a59a5222d038c
-comment.update book 547b1903442150c6ecea4089d448861679506687b4f61060d588e743a1c8a03c
-entry.create book ba0d93c79545961901dafdc6cffc4cc7b69af45ab410b949abf5dacbe12b4c73
-entry.get shared d76f37f50638937beda9dc348b1df78a2c5780bd14b4e0c74995993758d644f5
-entry.list shared 58ad76d736849b8fa189668e32176b4e42dee19ba26ee927788d2d8011f2a52e
-entry.mentions shared b0eb0b099e26c62ee720f167a0c43f02f0c419519f35177861da830cfd5ca651
+comment.update book 5d22a9624ab15e1b2fadf113d779d1dbf907f7d50afe5da616d6bef43cf9750c
+entry.create book 01b312ff9396532f32bfd2a4340271cca63614cbd0584c99f0c1df2489411f39
+entry.get shared 7bd56f8527340ce9bffa254d5461ac7f2c87075e8b42951f856e2b46884504f0
+entry.list shared 441eba998f739dd87e6e32751b83320b6304d88f705d63c344b93712d0b0c08d
+entry.mentions shared e609cd3d5dd8afd75086e1fa5f76540055686ab993b2799936781634ea47629a
 entry.move book cc56f7c3f7ff844cf00b25f0ada60b2863e26567395b9cf4be0cde1b5d5b1dd5
 entry.restore book f1d264ca48c651e7b29eb82bd4937e30411cf35a2b9d10f5f1cd21dc63fa38e3
 entry.search shared 26ed98c6a05d0416a30eb2eef368f1034212d8ef20cab954dca2c190aab257c7
+entry.set_auto_link book ea5282f3d3d89bdeb5b6c0d9ccd9c6fb5b24fa6ac939e4f44c74fdea660c9e7f
+entry.set_below_auto_link book 7f25bb33a2631f540fe68c33055f64be13fad14bfcf5d8f017db7d785d1042fe
 entry.set_level book e642a1caeba7f5395ffa5c12f9f9366485c7e8380f9b65501909bcccaf07c706
 entry.trash book 6db569ddb41f851f424706d3a94d226c120a8335ea214b3d91497a68b3f978c5
 entry.update book fd719d8c8b0299db4068d986160e8ea6b24df78a56c4dddd113c03a3b91818ff
@@ -167,7 +171,7 @@ module.put_grid book 4e9cbeeab33d91bab93970f252ce9168d0da366de76dc11460440a024aa
 module.put_kv book f6df6208b79bf751fff2ad001bf3b72e49a94e7c48f1825183932db82fca6eed
 module.put_media book 7d112c0ee4f89a3af5b1acae34b8d9bea7392af0c6050abfdfab5442fc76330d
 module.put_patch book 2adb9486ec20672e8f8785afd910e0eb64ee09aa876068ac93fa4e8cdc59c10b
-module.read shared 63dd30829b837142ed348c14c90ebe04059a140759a4dd5694562c6fab2c073f
+module.read shared c9ae8d8a83bc26f3843b43257e8605791d10371ce9eb25cf0205fe79c84cdfce
 module.read_prose shared b6facfa8753e1c3f85fcae373219161e5d5e38367cd147040c03b8ccc22ca59b
 module.remove_kv book d85284a551f9faa1004a8f07b511e376679db66f8d114ae12299b8d574d9fc34
 module.remove_media book e70478beaf21b8854bd7983706a8665b47cb920498b771ea4a9a31286a4f8df7
@@ -190,14 +194,14 @@ prose.unlink book 2647f19489c612a2909a603328f14636ad6e6b870a1334359ceea5798256f3
 recent.list shared bc76196f15de079012bdd643cac937fc642bb0303bc43e622f34d7d7ac85cdee
 relation_row.add_entry book 9768857751c01fdb8f58f2a04efb14adb257336415b6eda5b480c15e54d7484d
 relation_row.create_group book 1be96244a1422816f6da3fe8a28ed5c5a2df057943d7461c5143fbf5cad6f9e0
-relation_row.create_pair book 7aad3e7a51a802dff94fab1ea61b7683fe96537bbab4d2ee8b291f78110ffaee
+relation_row.create_pair book 827ba9f93d91395425c7ad4bf7d474c1d87f3f7bd19dbe4465ae5464416af18a
 relation_row.delete book 9ad2e3e7fa7aa5f2b440e5d6855efbd2a8cd07cd8f700a87fb7ddc4fe7bf61ec
 relation_row.remove_entry book da6615d43ed54680b2c774c53425cc74ced8530b55974f3143802633a0283cdb
-relation_type.create book a09fd406a6b2f6494d0aa78dfa4c1db8642a4259171142d601440018c4ae5dfe
+relation_type.create book 12594291e92fb95568217220bd235401bef212316216184d61fba30060df8126
 relation_type.delete book f40c296ab5eb14e6388fff8a1be55507854f9f9df38b8ed06f8a334b4058b7c2
-relation_type.list shared 892d3b661b2ec953f679ecb19e5fbb7497f779c4951427052cc598585f495d31
+relation_type.list shared 98499518f928fc038e71d9acc5430069e3a05c1e720568ab56df64c314eb3d3c
 relation_type.rename book 993241cc0ffd8fb6882970b3321a09cebe069c9fd3b2e5d199412906ea473625
-relation_type.set_description book 1c1f49a85691f00c26d9b3250abb1e51657b6babb7978dc4af96423ea5ae5807
+relation_type.set_description book 0f80d1bc5b303301567502d648bfaf075daecb3a958a5e2d3f3173f780e91a7e
 relation_type.set_direction book f13d9a825e5fb842c5a4a38a559a27221a63f2fa71ad31f0d8c2eab59182aaf5
 tab.move book b6cd2dba62c3e344b71bbc75972b479cb4bbbb1aa19cc70a0dcb699011f003d6
 tab.put book 50580f39f9e74333eff26ecc9ee395463cb1022cc3767c34639f7b3b682c2fa0
