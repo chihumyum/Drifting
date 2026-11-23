@@ -3,7 +3,7 @@
 use dr_model::conversation::{ConversationEntry, ConversationEntryKind};
 use dr_store::Library;
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use serde_json::{Value, json, value::RawValue};
 
 use crate::{
     Error, Result, RunConfig, ToolDescriptor,
@@ -53,7 +53,35 @@ pub fn plan_projection(snapshot: &ChainSnapshot, from: usize, limit: usize) -> V
     json!({"plan":plan,"constraints":snapshot.constraints,"manifest_state":snapshot.manifest_state})
 }
 
+/// The pinned record every request starts with: the durable request state
+/// and the local context. A contribution whose text is a JSON object
+/// (`BOOK_STRUCTURE.json`) is set in as that object, byte for byte, not as a
+/// string holding it: the model reads it without a backslash before every
+/// quote, and the estimate counts what it reads (CX, 2026-11-24: for the
+/// sample book's structure the escaped form took about 5 % more tokens on
+/// Qwen3's tokenizer and was counted about 11 % more). Any other text stays
+/// a string.
 pub fn pins(snapshot: &ChainSnapshot, contributions: &[Contribution]) -> Result<String> {
+    #[derive(Serialize)]
+    struct Pins<'a> {
+        source: &'static str,
+        original_author_request: &'a str,
+        author_steering: Vec<&'a str>,
+        task: Value,
+        other_steps: &'static str,
+        local_context: Vec<Pinned<'a>>,
+    }
+    #[derive(Serialize)]
+    struct Pinned<'a> {
+        source: &'a str,
+        text: PinnedText<'a>,
+    }
+    #[derive(Serialize)]
+    #[serde(untagged)]
+    enum PinnedText<'a> {
+        Json(&'a RawValue),
+        Text(&'a str),
+    }
     let current = snapshot
         .plan
         .as_ref()
@@ -67,14 +95,28 @@ pub fn pins(snapshot: &ChainSnapshot, contributions: &[Contribution]) -> Result<
             })
         })
         .unwrap_or(0);
-    Ok(serde_json::to_string(&json!({
-        "source":"Drifting durable request state; these are product facts, not model summaries",
-        "original_author_request":snapshot.original_request,
-        "author_steering":snapshot.steering.iter().map(|input|&input.text).collect::<Vec<_>>(),
-        "task":plan_projection(snapshot,current,1),
-        "other_steps":"The host retains all other steps and accepted evidence; inspect them with read_task_plan when available, and never infer completion from a summary.",
-        "local_context":contributions
-    }))?)
+    let local_context = contributions
+        .iter()
+        .map(|c| Pinned {
+            source: &c.source,
+            text: match serde_json::from_str::<&RawValue>(&c.text) {
+                Ok(raw) if raw.get().starts_with('{') => PinnedText::Json(raw),
+                _ => PinnedText::Text(&c.text),
+            },
+        })
+        .collect();
+    Ok(serde_json::to_string(&Pins {
+        source: "Drifting durable request state; these are product facts, not model summaries",
+        original_author_request: &snapshot.original_request,
+        author_steering: snapshot
+            .steering
+            .iter()
+            .map(|input| input.text.as_str())
+            .collect(),
+        task: plan_projection(snapshot, current, 1),
+        other_steps: "The host retains all other steps and accepted evidence; inspect them with read_task_plan when available, and never infer completion from a summary.",
+        local_context,
+    })?)
 }
 
 fn entry(snapshot: &ChainSnapshot, id: &str, text: String) -> ConversationEntry {
@@ -199,6 +241,37 @@ fn cost(value: &impl Serialize) -> Result<u64> {
     estimate_tokens(value)
 }
 
+/// What a conversation record counts: [`estimate_tokens`] of it, except
+/// its own `id` and `session`, this App's bookkeeping that no model is sent,
+/// count a token a byte. A random id then counts the same whatever digits
+/// it happens to have, and never less than the text rules counted it (they
+/// never exceed the bytes), so the same request always counts the same (CX,
+/// 2026-11-24: the digits of the random session ids had made the sample
+/// book's first message count up to a dozen tokens more or less from run to
+/// run).
+fn record_cost(record: &ConversationEntry) -> Result<u64> {
+    let Value::Object(mut fields) = serde_json::to_value(record)? else {
+        return Err(Error::Protocol(
+            "a conversation record is not an object".into(),
+        ));
+    };
+    let mut tokens = 0;
+    for key in ["id", "session"] {
+        if let Some(Value::String(id)) = fields.remove(key) {
+            // A key, its quotes, colon and comma, as `value_tokens` counts.
+            tokens += 3 + estimate_text_tokens(key) + id.len() as u64;
+        }
+    }
+    Ok(tokens + value_tokens(&Value::Object(fields)))
+}
+
+/// [`record_cost`] over a list of records, counted as a JSON list.
+fn records_cost(records: &[ConversationEntry]) -> Result<u64> {
+    records
+        .iter()
+        .try_fold(1, |sum, record| Ok(sum + 1 + record_cost(record)?))
+}
+
 /// Most a single image is counted at. Anthropic downsizes an image to at
 /// most 4 784 visual tokens; OpenAI's newer models read up to 10 000
 /// patches of one at the detail this client asks for (the default).
@@ -314,7 +387,7 @@ pub fn prepare(
         .saturating_sub(fixed);
     let pins = pins(snapshot, &contributions)?;
     let pinned = entry(snapshot, "pins", pins.clone());
-    let required = cost(&pinned)?;
+    let required = record_cost(&pinned)?;
     if required > available {
         return Ok(Prepared::TooLarge {
             required,
@@ -337,7 +410,8 @@ pub fn prepare(
             }))?));
         }
         conversation.extend(units.iter().flat_map(|unit| unit.entries.iter().cloned()));
-        let input = cost(&conversation)?.saturating_add(image_tokens(config, &conversation));
+        let input =
+            records_cost(&conversation)?.saturating_add(image_tokens(config, &conversation));
         if input <= available {
             let checkpoint = Checkpoint {
                 version: 1,

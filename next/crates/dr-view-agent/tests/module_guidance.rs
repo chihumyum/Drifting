@@ -126,8 +126,9 @@ fn a_custom_modules_words_reach_the_model_as_guidance_not_as_the_authors_request
         .find(|c| c["source"] == STRUCTURE_CONTEXT_SOURCE)
         .unwrap();
     assert!(STRUCTURE_CONTEXT_SOURCE.contains("not the author's request"));
-    let structure: StructureContext =
-        serde_json::from_str(structure["text"].as_str().unwrap()).unwrap();
+    // The structure is set into the pins as the JSON object it is (CX), not
+    // as a string holding it.
+    let structure: StructureContext = serde_json::from_value(structure["text"].clone()).unwrap();
     let custom = structure
         .templates
         .iter()

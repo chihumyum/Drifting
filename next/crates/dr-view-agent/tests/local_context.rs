@@ -1,5 +1,7 @@
 //! LM hand-back (`m28-model-providers.md`, the measurement at its end): a
-//! local model with a small context sends the sample book's first message.
+//! local model with a small context sends the sample book's first message,
+//! with room to spare at the 32 768 fallback (CX, `m27-agent-runtime.md`
+//! 「请求有多长」).
 //! The App's controller, system prompt and tools, the real provider driver's
 //! local route and a synthetic loopback server; no real server or model.
 //! The book is 《慢钟》 of the showcase seed, which the LM smoke run used.
@@ -12,6 +14,7 @@ use std::sync::{
 };
 use std::time::{Duration, Instant};
 
+use dr_agent::context::Checkpoint;
 use dr_agent::{LocalRoute, ModelCapabilities, Provider, RunConfig, Start};
 use dr_agent_providers::{
     Endpoints, HttpClient, ProviderDriver, RetryPolicy, credentials::Credentials,
@@ -22,6 +25,7 @@ use dr_platform::SecretStore;
 use dr_testkit::seed::{self, Preset};
 use dr_view_agent::{controller::AgentController, tools::CompanionTools};
 use dr_workspace::{Workspace, WorkspaceOptions, library_options};
+use rusqlite::OptionalExtension as _;
 use serde_json::{Value, json};
 
 /// Answers every chat request with a short reply and keeps the size of
@@ -164,10 +168,28 @@ fn driver() -> ProviderDriver {
     )
 }
 
+/// What happened to 《慢钟》's first message.
+struct Sent {
+    /// The size of each chat request the server got.
+    chats: Vec<usize>,
+    /// The run's state when it ended.
+    state: Value,
+    /// How the request was counted (`dr_agent::context::Checkpoint`): none
+    /// when it did not fit.
+    counted: Option<Checkpoint>,
+}
+
+impl Sent {
+    /// Tokens of the request's budget the first message leaves unused.
+    fn headroom(&self) -> u64 {
+        let counted = self.counted.as_ref().expect("the request was counted");
+        counted.input_budget - counted.estimated_input_tokens
+    }
+}
+
 /// Send 《慢钟》's first message to a local model whose context is
-/// `context_window`; the chat requests the server got and the run's state
-/// when it ended.
-fn first_message(context_window: u64) -> (Vec<usize>, Value) {
+/// `context_window`.
+fn first_message(context_window: u64) -> Sent {
     let fake = Fake::new();
     let dir = tempfile::tempdir().unwrap();
     let lib = dr_store::Library::open(dir.path(), library_options("lm-local-context")).unwrap();
@@ -219,26 +241,69 @@ fn first_message(context_window: u64) -> (Vec<usize>, Value) {
         assert!(Instant::now() < deadline, "no run started");
         std::thread::sleep(Duration::from_millis(10));
     };
+    // The one request chain's count, saved before the request is sent.
+    let counted = ws
+        .library()
+        .local_read(|conn| {
+            Ok(conn
+                .query_row(
+                    "SELECT value FROM local_state WHERE scope = 'agent.context'",
+                    [],
+                    |row| row.get::<_, String>(0),
+                )
+                .optional()?)
+        })
+        .unwrap()
+        .map(|value| serde_json::from_str(&value).unwrap());
     futures::executor::block_on(controller.close()).unwrap();
     ws.shutdown().unwrap();
-    (fake.chats(), state)
+    Sent {
+        chats: fake.chats(),
+        state,
+        counted,
+    }
 }
+
+/// Tokens the sample book's first message must leave unused at the 32 768
+/// fallback (CX, 2026-11-24): room for the turn's first tool calls and
+/// results. It was 2 168 when this was set (and between none and a dozen,
+/// by the luck of the random ids, before); the fixed context (system
+/// prompt, tools, the book's structure) growing by more than the difference
+/// turns this red, every time.
+const HEADROOM_AT_32K: u64 = 1_024;
 
 /// Ollama tells 40 960 for qwen3:14b, and a server that tells nothing gets
 /// the 32 768 fallback: either way the sample book's first message goes out
-/// (it used to stop at 「继续此任务」 with nothing sent). A context too small
-/// for the book's fixed part still stops before anything is sent.
+/// (it used to stop at 「继续此任务」 with nothing sent), at 32 768 with at
+/// least [`HEADROOM_AT_32K`] to spare. A context too small for the book's
+/// fixed part still stops before anything is sent.
 #[test]
 fn a_small_local_context_sends_the_sample_books_first_message() {
     for window in [40_960, 32_768] {
-        let (chats, state) = first_message(window);
-        assert_eq!(chats.len(), 1, "{window}: {state}");
+        let sent = first_message(window);
+        assert_eq!(sent.chats.len(), 1, "{window}: {}", sent.state);
         // The request is about the size the LM smoke run measured (54 KB).
-        assert!(chats[0] > 30_000, "{window}: {} bytes", chats[0]);
-        assert_eq!(state, json!("completed"), "{window}");
+        assert!(sent.chats[0] > 30_000, "{window}: {} bytes", sent.chats[0]);
+        assert_eq!(sent.state, json!("completed"), "{window}");
+        let counted = sent.counted.as_ref().unwrap();
+        assert!(counted.estimated_input_tokens <= counted.input_budget);
     }
 
-    let (chats, state) = first_message(16_384);
-    assert!(chats.is_empty(), "{chats:?}");
-    assert_eq!(state, json!("checkpointed"));
+    // Counted the same every time (the random session ids no longer move
+    // it), so this holds or fails on the book and the code, not on luck.
+    let (first, again) = (first_message(32_768), first_message(32_768));
+    assert_eq!(
+        first.counted.as_ref().unwrap().estimated_input_tokens,
+        again.counted.as_ref().unwrap().estimated_input_tokens
+    );
+    assert!(
+        first.headroom() >= HEADROOM_AT_32K,
+        "32 768: {} tokens to spare, fewer than {HEADROOM_AT_32K}",
+        first.headroom()
+    );
+
+    let sent = first_message(16_384);
+    assert!(sent.chats.is_empty(), "{:?}", sent.chats);
+    assert_eq!(sent.state, json!("checkpointed"));
+    assert!(sent.counted.is_none());
 }
