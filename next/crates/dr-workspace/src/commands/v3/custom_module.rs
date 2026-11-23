@@ -924,10 +924,7 @@ pub struct ListAt {
 }
 
 /// The list block `list` of the copy, and the path to it checked.
-fn list_target(
-    v: &BookViewV3<'_>,
-    at: &ListAt,
-) -> Result<(m::Entry, m::ModuleSpec, StoredScope)> {
+fn list_target(v: &BookViewV3<'_>, at: &ListAt) -> Result<(m::Entry, m::ModuleSpec, StoredScope)> {
     let (e, spec, mid) = custom_target(v, &at.target)?;
     let module = readable_copy(v, &mid)?;
     let block = module

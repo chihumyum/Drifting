@@ -768,7 +768,10 @@ fn an_entry_checkpoint_brings_custom_values_back() {
     let book = e.book();
     let entry = entry_with(&e, &book, &id);
     let t = target(&book, &entry);
-    let era = e.out("module.add_custom_item", with(t.clone(), json!({"list": "eras"})))["item"]
+    let era = e.out(
+        "module.add_custom_item",
+        with(t.clone(), json!({"list": "eras"})),
+    )["item"]
         .as_str()
         .unwrap()
         .to_owned();
@@ -791,7 +794,10 @@ fn an_entry_checkpoint_brings_custom_values_back() {
         "module.remove_custom_item",
         with(t.clone(), json!({"list": "eras", "item": era})),
     );
-    e.call("module.add_custom_item", with(t.clone(), json!({"list": "eras"})));
+    e.call(
+        "module.add_custom_item",
+        with(t.clone(), json!({"list": "eras"})),
+    );
     let after = read(&e, &book, &entry)["values"].clone();
     assert_ne!(after, before);
     let expected = e.out(

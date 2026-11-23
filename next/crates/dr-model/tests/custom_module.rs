@@ -362,7 +362,11 @@ fn values_can_be_kept_and_read() {
     let base = foreshadowing();
     // `id` is where a list item keeps its own id.
     invalid(
-        &with(base.clone(), &["blocks", "0", "blocks", "0", "id"], json!("id")),
+        &with(
+            base.clone(),
+            &["blocks", "0", "blocks", "0", "id"],
+            json!("id"),
+        ),
         "block id",
     );
     invalid(
