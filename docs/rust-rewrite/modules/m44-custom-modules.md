@@ -1,8 +1,8 @@
-# M44 条目模块自定义：数据层（CM1）和渲染（CM2）
+# M44 条目模块自定义：数据层（CM1）、渲染（CM2）和工作台（CM3）
 
 2026-11-24，任务书 [handoff/resume-1123.md](../handoff/resume-1123.md) 的 CM1。设计是 [custom-modules.md](../custom-modules.md)（作者 2026-11-20 定稿，2026-11-23「现在就迁」）。这一路只做数据：格式和校验器、我的模块、书里的抄本和值、自动换、命令、项目模板带模块、`.driftingmodule` 文件。没有任何界面，也没有 Agent 的工具（CM2 渲染、CM3 工作台、CM4b Agent 照这一页的接口接）。
 
-同一天的 CM2（画出来、能填）写在本页末尾 [「渲染（CM2）」](#渲染cm2)：盒子树画成界面、条目页上能填、铺满、悬停卡里的一行、坏了的抄本。
+同一天的 CM2（画出来、能填）写在本页末尾 [「渲染（CM2）」](#渲染cm2)：盒子树画成界面、条目页上能填、铺满、悬停卡里的一行、坏了的抄本。CM3（工作台、我的模块、导出导入）在它后面 [「工作台、我的模块、导出导入（CM3）」](#工作台我的模块导出导入cm3)。
 
 ## 做了什么（大白话）
 
@@ -276,7 +276,7 @@ blocks   每块积木：id、type、name、options、list（住在哪一串）�
 ## 待协调
 
 - **CM2**（已做，见下面「渲染（CM2）」）：渲染器读 `module_copy(id)`；`is_broken()` 时画只写 `name()` 的空占位。一行没单独摆时，`ModuleValue::line_blocks(n)` 给出前几块（图片、一组不算，一串是个数），`n` 由渲染定。「条目」积木的值是条目 id 列表，已删的条目要渲染时过滤；示例值里的条目是几个字。
-- **CM3**：工作台随改随存就是一次次 `custom_module.update`（每次都过校验器，所以中间状态也得合格：空的一串、一组可以，指着不存在的积木的节点不行）；⌘Z 走工作区撤销。「另存一份」是 `custom_module.save_as`，模板编辑器那一行的「存进我的模块」是 `custom_module.adopt`，「用在 N 个项目」是 `custom_module.uses`。删除要先问一句（§16 第 4 条），命令本身不问。
+- **CM3**（已做，见下面「工作台、我的模块、导出导入（CM3）」）：工作台随改随存就是一次次 `custom_module.update`（每次都过校验器，所以中间状态也得合格：空的一串、一组可以，指着不存在的积木的节点不行）；⌘Z 走工作区撤销。「另存一份」是 `custom_module.save_as`，模板编辑器那一行的「存进我的模块」是 `custom_module.adopt`，「用在 N 个项目」是 `custom_module.uses`。删除要先问一句（§16 第 4 条），命令本身不问。
 - **CM4b**：2026-11-24 做了，见「Agent 的工具（CM4b）」。
 - 书文件导入只换「整个等于」要换 id 的值（见上）；条目链接以外的写法以后要改，改 `dr-export/src/book_file/v3.rs` 的那一段。
 
@@ -368,7 +368,7 @@ trait Edit { fn value(..) -> AnyElement; fn item(..) -> AnyElement; fn after_ite
 
 ### 待协调
 
-- **CM3**：工作台的预览直接用 `dr_view_module_look::render`（「示例」`Scope::sample`、「空」`Scope::blank` + `Blanks::Names`、「借一个真实条目」读 `module.read_custom` 的 `values` 后 `Scope::read`）；点预览选节点要的是值节点和盒子到盒子树节点的对应，现在 `Plan` 里没有记节点在树里的路径，到时候在 `plan` 里加一个字段（只加）。
+- **CM3**（已做）：工作台的预览直接用 `dr_view_module_look::render`（「示例」`Scope::sample`、「空」`Scope::blank` + `Blanks::Names`、「借一个真实条目」读 `module.read_custom` 的 `values` 后 `Scope::read`）；点预览选节点要的是值节点和盒子到盒子树节点的对应，现在 `Plan` 里没有记节点在树里的路径，到时候在 `plan` 里加一个字段（只加）。
 - 铺满的开合动画没做（左右栏、底栏的是 420 ms 结构性开合）；要的话在 `FillState` 里给模块加一条和别的一样的 tween。
 - 模块铺满是全局状态（`FilledModule`），两个窗口开着两本书时会互相看见；现在 App 只有一个工作区窗口。
 
@@ -379,3 +379,98 @@ trait Edit { fn value(..) -> AnyElement; fn item(..) -> AnyElement; fn after_ite
 - 铺满：`next/crates/dr-shell/src/workspace/fill.rs`（`ModuleFill` 一段）、`stage.rs`、`mod.rs`（`top_layer`、`changed`）、`v3/page.rs`。
 - 悬停卡：`next/crates/dr-editor/src/link_card.rs`。
 - 文案：`next/crates/dr-i18n/own/*.json` 的 `customModule.countOf`。
+
+## 工作台、我的模块、导出导入（CM3）
+
+2026-11-24，任务书 [handoff/resume-1123.md](../handoff/resume-1123.md) 的 CM3。依据是 [custom-modules.md](../custom-modules.md) 第 2、7、8、9、10 节和第 15、16 节定下的；长相对着原型第一页「工作台」、第三页「进模板 · 导出导入 · 我的模块」、第四页「改了我的模块以后」。数据是 CM1 的命令，画法是 CM2 的渲染器，Agent 的那一半是 CM4b 的工具。
+
+### 做了什么（大白话）
+
+1. **工作台是项目里的一个药丸。** 打开一个「我的模块」，稿纸上多一个药丸（「线装」记号、模块的名字）。它在前面、稿纸露着的时候，左栏换成「装什么」，右栏换成「长什么样 · 写给 Agent · Agent」；切到别的药丸、关掉它、或者有一处铺满盖住了稿纸，两栏马上换回原来的样子。右栏的「Agent」就是平时那个对话，不另起。底栏照旧。两栏在工作台露着时不能铺满（整月变暗，和右栏停在统计、Agent 时一样）。
+2. **稿纸**：最上面是「线装」记号和模块的名字（点了就改，回车或离开时存，Esc 放回）；下面一行「我的模块」或「我的模块 · 用在 N 个项目」和「另存一份」；再下面是四排切换（一行、一块、铺满 · 示例、空、借真实条目 · 窄、中、宽 · 浅、深；铺满时没有宽窄）；最下面是预览，画法和条目页同一个渲染器。没有积木的模块只有一句「拖进草图或截图」。预览里按哪一处，就选中盒子树里的那个节点，右栏跳到「长什么样」。
+3. **左栏「装什么」**：积木一块一行（套在一组、一串里的缩进），每行名字、种类，指上去出删除；点一行选中它，选中的那一行下面出「名字」和（单选、多选的）「选项」，离开或回车时存；拖一行放到另一行上：放到一组、一串上是放进去，放到别的积木上是挪到它前面，放到列表下面空白处是挪到最外层最后。最下面「积木」一排是全部十一种，点一个就加进去（选中的是一组、一串就加进它里面），新的一组、一串会被选中。
+4. **右栏「长什么样」**：上面写着现在看的是哪种大小，一行、铺满时有「跟着一块 / 单独摆」；下面是这种大小那棵盒子树，一个节点一行；选中的节点下面是它的属性，只有设计稿第 4 节那张清单里的档位（盒子：排法、间距、内边距、对齐、宽、边、底、圆角、装饰；每一项：排法、间距、分隔、连接；值：显示（数字、单选才有）、字体、大小、墨色；字：文字、字体、大小、墨色；记号：七个砂笔记号）。没有颜色、没有数值输入。跟着一块时只有一句「取前几样连成一行」或「和一块一样，撑满」。
+5. **右栏「写给 Agent」**：名字、说明、注意事项（和条目模板那一栏同样的三样），下面「每一样」每块积木一句。
+6. **随改随存、⌘Z**：每一次改动就是一次 `custom_module.update`，没有保存键；⌘Z、⇧⌘Z 在工作台改过的步骤之间来回。别处（Agent、另一台设备）改了这个模块，工作台当场换成新的；在工作台改的时候要是别处刚改过、工作台还没看到，这一笔不写，换成别处那一版，窗口底下说「未能保存」——不会拿一整份旧的盖掉别人的改动。
+7. **三个入口**：模板编辑器「添加模块」菜单最下面「新建模块…」（建一个空模块、加进模板的草稿、打开它的工作台）；模板编辑器里模块那一行的「改」；Agent 建好、改了、放进模板以后，对话里那条工具结果下面一张卡（名字、「我的模块」、「打开工作台」）。另外「全部项目」页悬停卡里的「编辑」。
+8. **「添加模块」菜单**：自带的那一串照旧，一道线，「我的模块」一节（这个模板还没放的我的模块，一个一行），一道线，「新建模块…」。「社区」是第二期，这一期没有。放进去的那一行写「我的模块」和「改」；跟着别人的模板或书来的写「模块」和「存进我的模块」（没存进去之前没有「改」），点了以后那一行换成「我的模块」和「改」。
+9. **「全部项目」页**：左栏「我的模板」下面一节「我的模块」，一个模块一行（「线装」记号）；悬停卡里是名字、用示例画的「一块」、一道线，编辑、导出（.driftingmodule），一道线，删除。删除先问一句「删除模块「…」？」（取消 / 删除，照「我的模板」），删了以后用着它的项目留着抄本照常能用。「导入模板」下面多一行「导入模块 .driftingmodule」，`.driftingmodule` 文件也能拖到「全部项目」上；导入不问、总是新加一份，失败照导入模板的说法（把「模板」换成「模块」）。导出直接弹系统的存文件窗口，署名是账号的显示名。
+10. **改了我的模块以后**：用着它的项目当场换（CM1）；开着的条目页当场跟着变（CM2）；工作台里也当场是新的（上面第 6 条）。
+
+### 定下的事（原型没画到、照现成做法补的，交回报告「等作者的事」逐条列了）
+
+- 工作台的两栏只在工作台在稿纸上露着时换：分栏时看有焦点的那一侧；铺满盖住稿纸时（底栏铺满、模块铺满）换回原来的；工作台露着时左右栏都不能铺满。
+- 「另存一份」以后，新模块的工作台顶替原来的药丸（原来的模块不动）。
+- 「借真实条目」借的是这个项目里第一个用着这个模块的条目（按条目树的顺序）；预览只画这个模块，不画那个条目页上的别的模块；图片画成空框（预览不读文件）。没有这样的条目时这一格写「借真实条目」，选了画「—」。
+- 「一行」的预览是一张卡（有借到的条目时卡上写它的名字），宽 300。
+- 新积木叫它种类的名字；单选、多选先给三个选项「甲、乙、丙」（英文等是 A、B、C；新文案 `moduleBench.defaultOptions`）；新模块叫「未命名模块」（原型的名字）。
+- 新积木在「一块」里怎么摆照原型的 `addBlock`：一串是一列、每项一行、项之间一道线；一组是带发丝线框、圆角 4 的竖排盒子，里面先写它的名字；一串里的积木是它的值（小字）；别的是它的名字压在值上面。积木在一串里时摆进这一串第一个「每一项」，那一串没有「每一项」就不摆（只在「装什么」里有）。
+- 积木挪进、挪出一串以后，画不出来的节点一起去掉（只给值当标签的盒子跟着去掉），示例里的值和写给 Agent 的那一句跟着去掉；条目里存的值不动。改选项以后示例里不在选项里的值去掉。
+- 积木的 id 随机给（`b` 加 8 位十六进制），不从 1 往上数：删掉的积木在书里还留着值，从 1 数会让新积木捡到别的积木的旧值。
+- 删积木不问（⌘Z 能撤）；「改选项」是一行一个的多行输入，和模板编辑器的字段选项一样。
+- 盒子树里不能加、删节点（原型没有）；节点只能随积木加删。盒子的「格」给两列「填满」，列宽、不换行、最宽这三样不在右栏（原型没有）。
+- 「新建模块…」在新建模板的对话框里不出现（对话框盖着窗口，工作台是项目里的药丸）。
+- 「全部项目」页点「编辑」：「全部项目」收起，回到窗口开着的项目（没开着的就开最近改过的那个），工作台作为药丸打开；一个项目都没有时什么都不做（记一行日志）。
+- 撤销是工作台自己的：每一次 ⌘Z 写回上一个整份（也是一次 `custom_module.update`）；工作区的「撤销书的命令」管不到书库一级的命令。别处改了模块以后，工作台的撤销记录清空。
+
+### 接口（只加不改）
+
+```rust
+// dr-shell
+dr_shell::nav::Target::Module(CustomModuleId);              // key "module:<id>"
+dr_shell::pages::{PagePanels, PageTab, AGENT_TAB, add_page_panels, add_page_title, page_title};
+Workspace::{page_panels, page_panels_shown, page_tab, show_page_tab};
+// dr-view-module-look：给预览的
+PNode 各种节点多一个 `node: NodePath`（在盒子树里的位置，每一项的项盒子是它的第 0 个孩子）；
+dr_view_module_look::{NodePath, Picking, paint::{paint_with, OnPick}};
+// dr-view-module-bench（新 crate）
+dr_view_module_bench::{init, open, bench_of, Bench, Breadth, Content, LOOK_TAB, GUIDE_TAB};
+dr_view_module_bench::edit::{add_block, rename_block, remove_block, move_block, set_options, set_prop, set_own, set_words, rename, repair, rows, spot, tree, MoveTo, Prop, Spot, Words};
+// dr-view-shelf
+dr_view_shelf::{ExportModule, ImportModule, ShelfDialog::DeleteModule};
+Shelf::{edit_module, ask_delete_module, confirm_delete_module, workspace};
+// dr-view-transfer
+dr_view_transfer::{module, ExportModuleById};               // module::{import, import_path(s), export, export_path, is_module_file}
+```
+
+### 外壳里的挂接点
+
+- `pages::add_page_panels`：一个页面在前面、稿纸露着时带来左右栏（左栏整个、右栏若干个 Tab 加外壳自己的「Agent」）。外壳在页面第一次在前面时问一次，药丸开着就留着；`sidebar.rs` 的 `left`、`right` 先看 `Workspace::page_panels()`。
+- `pages::add_page_title`：书里没有的目标（我的模块）的名字，药丸和链接用。
+- `Target::Module` 在书的 `exists` 里总算在（我的模块是书库的东西，模块被删时工作台自己关掉药丸）；`nav_target` 当成书；药丸画「线装」记号（`dock.rs`）。
+- `chrome.rs` 的整月、`fill.rs` 的 `enter_fill_with_motion`：工作台露着时左右栏不铺满。`review_visible`、`companion_visible` 算上工作台的右栏（「Agent」是主窗格的那个）。
+- `dr-view-relations/src/rail.rs` 的 `page_roots` 多认一种目标（没有条目，空的）：加了枚举成员，那里是穷尽匹配。
+
+### 测试
+
+| 要守的 | 测试 |
+| --- | --- |
+| 药丸和左右栏：在前面时换、换药丸换回、铺满盖住稿纸时换回、关掉换回、不能铺满、「Agent」是同一个 | `dr-view-module-bench/tests/bench.rs`：`the_side_columns_follow_the_workbench_pill` |
+| 加积木（进选中的一串）、删积木以后条目里的值还在、⌘Z 回来、⇧⌘Z | `blocks_change_and_entries_keep_their_values` |
+| 预览四排切换、借到的条目、点预览选中节点、右栏跳到「长什么样」、属性只有清单里的、改完过校验器、单独摆 | `the_preview_picks_nodes_and_the_look_sets_steps` |
+| 别处改了当场换、药丸名字跟着、盖别人改动的那一笔不写并说未能保存 | `a_change_made_elsewhere_shows_and_is_never_written_over` |
+| 积木的加、改名、挪、删按 id，值的去处、标签跟着去、选项、属性档位、跟着一块/单独摆、写给 Agent | `dr-view-module-bench/tests/edit.rs`（六条） |
+| 添加模块菜单（我的模块、不列已放的、新建模块…）、「改」、「存进我的模块」给新 id、新建模块进草稿并开工作台、保存带新模块的模板 | `dr-view-templates/tests/custom_modules.rs` |
+| 全部项目页的我的模块、悬停卡、导出发出动作、删除先问、取消不删、删了项目还有抄本、编辑开工作台 | `dr-view-shelf/tests/cm3_shelf_modules.rs` |
+| 导出不出对话框、同一模块逐字节相同、导入和拖进总是新加一份、坏文件的说法、什么都不写 | `dr-view-transfer/tests/module.rs` |
+| Agent 建了模块以后对话里的卡、「打开工作台」开药丸 | `dr-view-agent/tests/module_card.rs` |
+
+真窗口：`next/crates/dr-view-module-bench/scenarios/cm3-module-bench.json`（lite 种子，伏笔追踪和魔法规则卡；工作台的三栏、加积木、选节点、预览切换、写给 Agent、Agent、换回条目页、添加模块菜单、全部项目页的悬停卡、拖进导入、删除先问、编辑开工作台，浅深色截图）。系统的存文件窗口点不了，导出用 `custom_module.export` 命令写文件代替。
+
+### 待协调
+
+- 工作台的撤销是它自己的一串整份；要是以后工作区有了按对象撤销书库一级命令的口，可以换过去。
+- 「借真实条目」只借第一个；要能挑别的条目，等作者定。
+- 盒子树里加、删节点、格的列宽、不换行、最宽、值的最多几行和宽，右栏都还没有（原型没有）；Agent 能写，校验器认。
+- 拖草图进 Agent 栏（入口 2）用的是 CM4a 的收图片和 CM4b 的工具，工作台这边只接那张卡。
+
+### 代码位置
+
+- 工作台：`next/crates/dr-view-module-bench/src/`（`edit.rs` 改动、`state.rs` 一个工作台、`page.rs` 稿纸、`panels.rs` 两栏、`lib.rs` 注册）。
+- 外壳：`next/crates/dr-shell/src/pages.rs`（`PagePanels` 一段）、`workspace/page_panels.rs`、`workspace/sidebar.rs`（`page_panes`）、`workspace/chrome.rs`、`workspace/fill.rs`、`workspace/dock.rs`、`nav/mod.rs`。
+- 预览的节点位置：`next/crates/dr-view-module-look/src/plan.rs`（`NodePath`）、`paint.rs`（`paint_with`、`Picking`）。
+- 模板编辑器：`next/crates/dr-view-templates/src/view/custom.rs`，存模板时带上抄本的前提在 `model.rs`。
+- 全部项目页：`next/crates/dr-view-shelf/src/modules.rs`、`view.rs`、`data.rs`。
+- 导出导入：`next/crates/dr-view-transfer/src/module.rs`。
+- Agent 的卡：`next/crates/dr-view-agent/src/panel.rs`（`module_cards`）。
+- 文案：`next/crates/dr-i18n/own/*.json` 的 `moduleBench.*`。

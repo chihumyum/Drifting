@@ -1418,3 +1418,14 @@ G1 正式接线后，`#L3-L7` 按既定范围语义选择起止块，而旧 F6 �
 - **产品问题：退出铺满后键盘悬空**。铺满的看板上拖过卡以后键盘在那块看板上，收回铺满后那块看板不再画，键盘还挂在它上面，`ToggleRightSidebar`（快捷键和菜单都走它）到不了工作区，右栏打不开。现在退出铺满时把键盘还给稿纸，见 [k4-panel-fill](../modules/k4-panel-fill.md)「外壳与代码」；GPUI 回归在 `dr-view-elements/tests/v5_kb_keyboard.rs`，去掉修补即红。
 
 两个场景还各加了一组 T9 的检查：把同一层里那一章临时设成只收别处的条目，往它上面拖，住处不变、哪儿都没挂上（T9 以前这一下是挂上去），再改回去。改过的每一步都写了照哪条规矩。副屏真窗口：`k4-g2-actions` 181 步、`k4-g2-review-drag` 218 步，都是 0 pending。原有的期望一条没删。
+
+## CM3：页面带来的左右栏（2026-11-24）
+
+条目模块工作台（[m44-custom-modules.md](../modules/m44-custom-modules.md)「工作台、我的模块、导出导入（CM3）」）是第一个让左右栏随药丸换内容的页面。外壳只加了口，原有行为不变：
+
+- `Target::Module(CustomModuleId)`（key `module:<id>`）：一个「我的模块」的工作台，项目里的药丸；书的 `exists` 对它总是真（模块被删时工作台自己关药丸），`nav_target` 当成书，药丸展开时画「线装」记号。名字由 `pages::add_page_title` 给。
+- `pages::add_page_panels(cx, |target, host, window, cx| -> Option<PagePanels>)`：页面在前面时带来的左栏（整块，放在标题栏那条带子下面）和右栏的 Tab（外壳在后面接上自己的「Agent」，就是主窗格那个同一个对话）。外壳在页面第一次在前面时问一次，药丸开着就留着（`workspace/page_panels.rs`）。
+- 什么时候换：页面是有焦点的那一页、没有铺满盖住稿纸（左右底栏的铺满、模块铺满）、不在沉浸写作、「全部项目」没盖着。换药丸、关药丸、铺满、去主页，左右栏马上回到原来的内容（原来的状态没动过，宽度、开合也照旧）。
+- 换着的时候左右栏不能铺满：整月和右栏停在统计、Agent 时一样暗着（`chrome.rs`），`enter_fill_with_motion` 也拒绝；底栏能铺满，铺满时两栏换回原来的。
+- `review_visible`、`companion_visible` 跟着改：页面的右栏在时审阅不算露着；「Agent」露着的是主窗格那个。
+- 测试：`dr-view-module-bench/tests/bench.rs` 的 `the_side_columns_follow_the_workbench_pill`。

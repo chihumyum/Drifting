@@ -1,0 +1,1237 @@
+{
+  "about": "CM3 条目模块自定义：工作台、我的模块、导出导入。副屏 lite 真窗口，浅深色截图：工作台药丸和它带来的左右栏（装什么、长什么样、写给 Agent、Agent），预览四排切换，换到别的药丸两栏换回，条目页上当场是新的模块；模板编辑器的添加模块菜单；全部项目页的我的模块、悬停卡、拖进 .driftingmodule 导入、删除先问、编辑开工作台。系统存文件窗口点不了，导出用 custom_module.export 命令写文件。",
+  "steps": [
+    {
+      "seed": "lite"
+    },
+    {
+      "call": "book.list",
+      "input": {},
+      "save": "books"
+    },
+    {
+      "call": "custom_module.create",
+      "input": {
+        "value": {
+          "format": "drifting.module",
+          "formatVersion": 1,
+          "name": "伏笔追踪",
+          "locale": "zh-Hans",
+          "credit": {
+            "author": "示例作者"
+          },
+          "blocks": [
+            {
+              "id": "items",
+              "type": "list",
+              "name": "伏笔",
+              "blocks": [
+                {
+                  "id": "line",
+                  "type": "text",
+                  "name": "一句话"
+                },
+                {
+                  "id": "st",
+                  "type": "select",
+                  "name": "状态",
+                  "options": [
+                    "埋着",
+                    "提过",
+                    "收了"
+                  ]
+                },
+                {
+                  "id": "back",
+                  "type": "entry",
+                  "name": "收在"
+                }
+              ]
+            }
+          ],
+          "look": {
+            "block": {
+              "each": "items",
+              "dir": "col",
+              "sep": "hair",
+              "item": {
+                "box": "row",
+                "gap": 8,
+                "align": "center",
+                "kids": [
+                  {
+                    "value": "st",
+                    "show": "mark"
+                  },
+                  {
+                    "value": "line",
+                    "font": "serif",
+                    "ink": 1,
+                    "width": "fill"
+                  },
+                  {
+                    "box": "row",
+                    "gap": 4,
+                    "width": "hug",
+                    "kids": [
+                      {
+                        "text": "收在"
+                      },
+                      {
+                        "value": "back",
+                        "size": "small"
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            "line": {
+              "box": "row",
+              "gap": 8,
+              "kids": [
+                {
+                  "value": "items",
+                  "show": "count",
+                  "suffix": " 处伏笔"
+                }
+              ]
+            }
+          },
+          "agent": {
+            "name": "伏笔追踪",
+            "description": "这一章埋下的伏笔，和它们后来在哪里被收回。",
+            "instructions": "只登记作者写进正文的伏笔；收回要指到具体的章。",
+            "blocks": {
+              "back": "在哪一章收回",
+              "items": "一条伏笔一行",
+              "st": "埋着、提过、收了"
+            }
+          },
+          "sample": {
+            "items": [
+              {
+                "back": [
+                  "第十二章"
+                ],
+                "line": "墙上的旧照片少了一个人",
+                "st": "收了"
+              },
+              {
+                "line": "钟楼的钟慢了七分钟",
+                "st": "埋着"
+              }
+            ]
+          }
+        }
+      },
+      "save": "fore"
+    },
+    {
+      "call": "custom_module.create",
+      "input": {
+        "value": {
+          "format": "drifting.module",
+          "formatVersion": 1,
+          "name": "魔法规则卡",
+          "locale": "zh-Hans",
+          "blocks": [
+            {
+              "id": "power",
+              "type": "number",
+              "name": "强度"
+            },
+            {
+              "id": "school",
+              "type": "select",
+              "name": "流派",
+              "options": [
+                "风",
+                "林",
+                "火",
+                "山"
+              ]
+            },
+            {
+              "id": "schools",
+              "type": "multi_select",
+              "name": "相通",
+              "options": [
+                "风",
+                "林",
+                "火",
+                "山"
+              ]
+            },
+            {
+              "id": "cost",
+              "type": "group",
+              "name": "代价",
+              "blocks": [
+                {
+                  "id": "price",
+                  "type": "text",
+                  "name": "要付出"
+                },
+                {
+                  "id": "risk",
+                  "type": "select",
+                  "name": "风险",
+                  "options": [
+                    "低",
+                    "中",
+                    "高"
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "forbidden",
+              "type": "toggle",
+              "name": "禁术"
+            },
+            {
+              "id": "since",
+              "type": "date",
+              "name": "立规"
+            },
+            {
+              "id": "seal",
+              "type": "image",
+              "name": "符印"
+            },
+            {
+              "id": "rules",
+              "type": "long_text",
+              "name": "规则"
+            }
+          ],
+          "look": {
+            "block": {
+              "box": "grid",
+              "gap": 12,
+              "pad": 16,
+              "border": "sand",
+              "bg": "paper",
+              "radius": 4,
+              "deco": "arc",
+              "cols": [
+                "fill",
+                96
+              ],
+              "kids": [
+                {
+                  "box": "col",
+                  "gap": 8,
+                  "kids": [
+                    {
+                      "box": "row",
+                      "gap": 8,
+                      "align": "center",
+                      "kids": [
+                        {
+                          "mark": "lightbulb"
+                        },
+                        {
+                          "value": "school",
+                          "font": "serif",
+                          "size": "title"
+                        },
+                        {
+                          "value": "power",
+                          "show": "dots"
+                        }
+                      ]
+                    },
+                    {
+                      "value": "rules",
+                      "lines": 4
+                    },
+                    {
+                      "box": "row",
+                      "gap": 4,
+                      "kids": [
+                        {
+                          "text": "代价",
+                          "size": "small",
+                          "ink": 3
+                        },
+                        {
+                          "value": "price",
+                          "size": "small"
+                        },
+                        {
+                          "value": "risk",
+                          "show": "mark"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "box": "col",
+                  "gap": 4,
+                  "align": "end",
+                  "kids": [
+                    {
+                      "value": "seal"
+                    },
+                    {
+                      "value": "forbidden",
+                      "size": "note"
+                    }
+                  ]
+                }
+              ]
+            },
+            "full": {
+              "box": "col",
+              "gap": 16,
+              "pad": 24,
+              "max": 320,
+              "kids": [
+                {
+                  "value": "school",
+                  "font": "serif",
+                  "size": "title"
+                },
+                {
+                  "value": "schools"
+                },
+                {
+                  "value": "rules"
+                },
+                {
+                  "value": "since",
+                  "size": "small",
+                  "ink": 3
+                }
+              ]
+            }
+          },
+          "agent": {
+            "description": "一种魔法的规则：能做什么，要付出什么。",
+            "instructions": "规则只写书里已经出现过的；没出现的留空。",
+            "blocks": {
+              "cost": "代价一栏两样都填",
+              "power": "一到五"
+            }
+          },
+          "sample": {
+            "forbidden": false,
+            "power": 4.0,
+            "price": "一段记忆",
+            "risk": "高",
+            "rules": "只在起雾的夜里有效。\n念错一个字，钟会停。",
+            "school": "风",
+            "schools": [
+              "风",
+              "山"
+            ],
+            "since": "2024-03-01"
+          }
+        }
+      },
+      "save": "magic"
+    },
+    {
+      "call": "entry_template.put",
+      "input": {
+        "book": "${books.0.id}",
+        "template": {
+          "id": "tpl-cm3",
+          "name": "伏笔章",
+          "modules": [
+            {
+              "id": "cm3-fore",
+              "kind": "custom",
+              "name": "伏笔追踪",
+              "config": {
+                "module": "${fore.id}"
+              }
+            },
+            {
+              "id": "cm3-text",
+              "kind": "prose",
+              "name": "正文"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "call": "entry.create",
+      "input": {
+        "book": "${books.0.id}",
+        "title": "雾港",
+        "template": "tpl-cm3"
+      },
+      "save": "page"
+    },
+    {
+      "call": "module.add_custom_item",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${page.id}",
+        "module": "cm3-fore",
+        "path": [],
+        "list": "items"
+      },
+      "save": "it"
+    },
+    {
+      "call": "module.set_custom_value",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${page.id}",
+        "module": "cm3-fore",
+        "path": [
+          {
+            "list": "items",
+            "item": "${it.item}"
+          }
+        ],
+        "block": "line",
+        "value": "灯塔顶层少了一块玻璃"
+      }
+    },
+    {
+      "call": "module.set_custom_value",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${page.id}",
+        "module": "cm3-fore",
+        "path": [
+          {
+            "list": "items",
+            "item": "${it.item}"
+          }
+        ],
+        "block": "st",
+        "value": "提过"
+      }
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "light",
+          "DRIFTING_WINDOW_DISPLAY": "secondary"
+        },
+        "settings": {
+          "account": {
+            "language.ui_locale": "zh-CN"
+          },
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${books.0.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/book/version": 5,
+          "/book/loaded": true
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ToggleBottomTimeline"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 400
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ToggleLeftSidebar"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/left/open": true
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ToggleRightSidebar"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/right/open": true
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 800
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "module:${fore.id}"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "伏笔",
+        "role": "Group",
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "input.move",
+      "params": {
+        "x": 640,
+        "y": 20
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 600
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "01-bench-light.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "伏笔",
+        "role": "Group"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "数字",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 900
+      }
+    },
+    {
+      "call": "custom_module.get",
+      "input": {
+        "id": "${fore.id}"
+      },
+      "expect": {
+        "/value/blocks/0/blocks/3/type": "number"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "每个「伏笔」",
+        "role": "Group"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 500
+      }
+    },
+    {
+      "app": "input.move",
+      "params": {
+        "x": 640,
+        "y": 20
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "02-look-each-light.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "RadioButton",
+        "label": "借真实条目 · 雾港"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "RadioButton",
+        "label": "窄"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 500
+      }
+    },
+    {
+      "app": "input.move",
+      "params": {
+        "x": 640,
+        "y": 20
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "03-real-narrow-light.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "RadioButton",
+        "label": "宽"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "RadioButton",
+        "label": "一行"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 500
+      }
+    },
+    {
+      "app": "input.move",
+      "params": {
+        "x": 640,
+        "y": 20
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "04-line-light.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "RadioButton",
+        "label": "一块"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "RadioButton",
+        "label": "深"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 500
+      }
+    },
+    {
+      "app": "input.move",
+      "params": {
+        "x": 640,
+        "y": 20
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "05-dark-preview-light.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "RadioButton",
+        "label": "浅"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "RadioButton",
+        "label": "写给 Agent"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 500
+      }
+    },
+    {
+      "app": "input.move",
+      "params": {
+        "x": 640,
+        "y": 20
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "06-guide-light.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "RadioButton",
+        "label": "Agent"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 600
+      }
+    },
+    {
+      "app": "input.move",
+      "params": {
+        "x": 640,
+        "y": 20
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "07-agent-light.png"
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${page.id}"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "伏笔",
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 800
+      }
+    },
+    {
+      "app": "input.move",
+      "params": {
+        "x": 640,
+        "y": 20
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "08-entry-after-change-light.png"
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "template:tpl-cm3"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "添加模块",
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "添加模块"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "新建模块…",
+        "timeout_ms": 6000
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 400
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "09-add-module-menu-light.png"
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "escape"
+      }
+    },
+    {
+      "app": "shelf.show"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "魔法规则卡",
+        "role": "Group",
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "ui.hover",
+      "params": {
+        "label": "魔法规则卡",
+        "role": "Group"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 900
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "10-shelf-card-light.png"
+    },
+    {
+      "app": "library.info",
+      "save": "lib"
+    },
+    {
+      "call": "custom_module.export",
+      "input": {
+        "id": "${magic.id}",
+        "path": "${lib.root}/../cm3-magic.driftingmodule"
+      },
+      "note": "The save panel is the system's: the export command writes the file instead."
+    },
+    {
+      "app": "input.drop",
+      "params": {
+        "paths": [
+          "${lib.root}/../cm3-magic.driftingmodule"
+        ],
+        "x": 700,
+        "y": 400
+      },
+      "note": "Dropped on All Projects: a new module, no question first."
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "魔法规则卡",
+        "role": "Group",
+        "count": 2,
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 500
+      }
+    },
+    {
+      "app": "input.move",
+      "params": {
+        "x": 640,
+        "y": 20
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "11-shelf-imported-light.png"
+    },
+    {
+      "app": "ui.hover",
+      "params": {
+        "label": "魔法规则卡",
+        "role": "Group",
+        "nth": 1
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "删除",
+        "timeout_ms": 8000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "删除"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "取消",
+        "role": "Button",
+        "timeout_ms": 6000
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "12-delete-question-light.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "取消",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 600
+      }
+    },
+    {
+      "app": "input.move",
+      "params": {
+        "x": 1100,
+        "y": 900
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 600
+      }
+    },
+    {
+      "app": "ui.hover",
+      "params": {
+        "label": "伏笔追踪",
+        "role": "Group"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "编辑",
+        "timeout_ms": 8000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "编辑"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "伏笔",
+        "role": "Group",
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 600
+      }
+    },
+    {
+      "app": "input.move",
+      "params": {
+        "x": 640,
+        "y": 20
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "13-edit-from-shelf-light.png"
+    },
+    {
+      "app": "app.quit"
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "dark",
+          "DRIFTING_WINDOW_DISPLAY": "secondary"
+        },
+        "settings": {
+          "account": {
+            "language.ui_locale": "zh-CN"
+          },
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${books.0.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/book/version": 5,
+          "/book/loaded": true
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ToggleBottomTimeline"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 400
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ToggleLeftSidebar"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/left/open": true
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ToggleRightSidebar"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/right/open": true
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 800
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "module:${fore.id}"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "伏笔",
+        "role": "Group",
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "每个「伏笔」",
+        "role": "Group"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 800
+      }
+    },
+    {
+      "app": "input.move",
+      "params": {
+        "x": 640,
+        "y": 20
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "14-bench-dark.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "RadioButton",
+        "label": "写给 Agent"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 500
+      }
+    },
+    {
+      "app": "input.move",
+      "params": {
+        "x": 640,
+        "y": 20
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "15-guide-dark.png"
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${page.id}"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "伏笔",
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 800
+      }
+    },
+    {
+      "app": "input.move",
+      "params": {
+        "x": 640,
+        "y": 20
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "16-entry-dark.png"
+    },
+    {
+      "app": "shelf.show"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "魔法规则卡",
+        "role": "Group",
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "ui.hover",
+      "params": {
+        "label": "魔法规则卡",
+        "role": "Group"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 900
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "17-shelf-card-dark.png"
+    },
+    {
+      "app": "app.quit"
+    }
+  ]
+}
