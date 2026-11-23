@@ -93,7 +93,7 @@ fn a_custom_modules_words_reach_the_model_as_guidance_not_as_the_authors_request
     // The general rule is in the system prompt and names these words.
     let prompt = &request.config.system_prompt;
     assert!(prompt.contains(dr_agent::guidance::PROJECT_GUIDANCE_RULE));
-    assert!(prompt.contains("a custom module's agent words"));
+    assert!(prompt.contains("custom module agent words are author-configured project guidance"));
     // The words are never the author's message.
     for entry in &request.conversation {
         if entry.kind == ConversationEntryKind::User {
