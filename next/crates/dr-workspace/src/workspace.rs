@@ -96,6 +96,14 @@ pub fn library_options(app_version: &str) -> LibraryOptions {
                 }
             })?;
         }
+        if let Ok(DocId::Module(module)) = DocId::parse(id) {
+            dr_doc::custom_module::validate_import(&module, doc, bytes).map_err(|e| {
+                StoreError::Invalid {
+                    what: "module import",
+                    value: e.to_string(),
+                }
+            })?;
+        }
         Ok(())
     }));
     o
@@ -908,7 +916,7 @@ impl Workspace {
                 }
                 false
             }
-            DocId::Conversation(_) | DocId::ProjectTemplate(_) => false,
+            DocId::Conversation(_) | DocId::ProjectTemplate(_) | DocId::Module(_) => false,
             other => {
                 let removed = {
                     let mut prose = lock(&self.inner.prose);
@@ -948,7 +956,7 @@ impl Workspace {
                     let _ = repair_book(&slot);
                 }
             }
-            DocId::Conversation(_) | DocId::ProjectTemplate(_) => {}
+            DocId::Conversation(_) | DocId::ProjectTemplate(_) | DocId::Module(_) => {}
             other => {
                 let slot = lock(&self.inner.prose)
                     .map
@@ -1237,11 +1245,12 @@ impl Workspace {
         let gate = gated_book.as_ref().map(|book| self.book_gate(book));
         let _lease = gate.as_ref().map(|gate| gate.enter());
         if let Some((kind, book)) = kind_book {
-            let book_opt = if matches!(doc, DocId::ProjectTemplate(_)) || book.is_empty() {
-                None
-            } else {
-                Some(book)
-            };
+            let book_opt =
+                if matches!(doc, DocId::ProjectTemplate(_) | DocId::Module(_)) || book.is_empty() {
+                    None
+                } else {
+                    Some(book)
+                };
             self.inner.lib.register(doc_id, kind, book_opt)?;
         }
         // dr-store's own import path: it records what the server has for a
@@ -1290,6 +1299,25 @@ impl Workspace {
                 let res = handle.import(bytes, origin);
                 handle.close();
                 res?;
+            }
+            DocId::Module(id) => {
+                let genesis = dr_doc::custom_module::genesis(id);
+                let handle = self.inner.lib.open_doc(
+                    doc_id,
+                    OpenDoc::CreateIfMissing {
+                        kind: crate::commands::v3::custom_module::DOC_KIND,
+                        book_id: None,
+                        genesis: &move |d| {
+                            d.import(&genesis).expect("module genesis");
+                        },
+                    },
+                )?;
+                let res = handle.import(bytes, origin);
+                handle.close();
+                res?;
+                // A module of mine changed on another device: the open
+                // books using it take the new one (`custom-modules.md` §7).
+                crate::commands::v3::custom_module::sync_open_books(self, id);
             }
             _ => {
                 let slot = self.prose_slot(&doc)?;
@@ -1443,6 +1471,11 @@ impl Workspace {
         self.book_slot_with(book, false)
     }
 
+    /// Every book open in this workspace now.
+    pub(crate) fn open_book_slots(&self) -> Vec<Arc<BookSlot>> {
+        lock(&self.inner.books).values().cloned().collect()
+    }
+
     pub(crate) fn flush_book_prose_indices(&self, book: &BookId) -> Result<()> {
         let handles: Vec<DocHandle> = {
             let p = lock(&self.inner.prose);
@@ -1578,6 +1611,12 @@ impl Workspace {
         });
         // dr-doc's deterministic background repair, once per open.
         repair_book(&slot)?;
+        // Copies of my modules that changed since the book was last open
+        // take the new ones (`custom-modules.md` §7 丙); a failure leaves
+        // the copies as they are and the book opens.
+        if let Err(e) = crate::commands::v3::custom_module::sync_slot_copies(self, &slot, None) {
+            log::warn!("book {book}: copies of my modules not brought up to date: {e}");
+        }
         let slot = lock(&self.inner.books)
             .entry(book.clone())
             .or_insert(slot)
@@ -2030,8 +2069,8 @@ impl Inner {
                                 || !side_keys(&ev.changes, dr_doc::schema::side::TAB).is_empty(),
                         }),
                     ),
-                    // Conversation and project-template documents are never prose events.
-                    DocId::Conversation(_) | DocId::ProjectTemplate(_) => {}
+                    // Conversation, project-template and module documents are never prose events.
+                    DocId::Conversation(_) | DocId::ProjectTemplate(_) | DocId::Module(_) => {}
                     _ => {
                         let (ranges, embeds) = prose_ranges(&ev.changes);
                         let slot = lock(&self.prose).map.get(&doc).map(|(_, s)| s.clone());

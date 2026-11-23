@@ -38,6 +38,7 @@ pub mod anchor;
 pub mod catalog;
 pub mod conversation;
 mod core;
+pub mod custom_module;
 pub mod error;
 pub mod import_v1;
 pub mod peer;

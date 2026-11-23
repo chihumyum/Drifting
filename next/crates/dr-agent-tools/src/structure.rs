@@ -864,7 +864,11 @@ fn summarize_module(m: &ModuleSpec, catalog: &Catalog) -> ModuleSummary {
         ModuleKind::Children | ModuleKind::Members => {
             (vec!["module.read", "entry.get"], Vec::new())
         }
-        ModuleKind::Other(_) => (vec!["module.read", "module.list"], Vec::new()),
+        // A custom module reaches the Agent with its own tools (task CM4b);
+        // until then it reads as a module of a kind the Agent cannot write.
+        ModuleKind::Custom | ModuleKind::Other(_) => {
+            (vec!["module.read", "module.list"], Vec::new())
+        }
     };
     let write_tools = if writable {
         candidate_write_tools

@@ -1,4 +1,12 @@
 {
+  "agentImages": {
+    "image": "Image",
+    "remove": "Remove image",
+    "tooLarge": "This image is too large: at most {{size}} MB and {{side}} pixels on a side.",
+    "tooMany": "A message can carry at most {{max}} images.",
+    "unseen": "The model in use can’t look at images. Switch to a model that can, then send again.",
+    "unsupported": "Only PNG, JPEG or WebP images can be sent."
+  },
   "agentPanel": {
     "budget": {
       "continue": "Continue task"

@@ -14,7 +14,7 @@ use dr_model::conversation::ConversationEntryKind;
 use serde_json::{Value, json};
 
 use crate::deepseek::{
-    check_tool_closure, nonblank, optional_string, stream_error, string, tool_result, wire_call,
+    check_tool_closure, nonblank, optional_string, stream_error, tool_result, wire_call,
 };
 use crate::{ProviderError, Result, SseEvent};
 
@@ -26,9 +26,23 @@ pub fn request(request: &DriverRequest, _search: bool) -> Result<Value> {
     let conversation = crate::conversation::project(&request.conversation)?;
     for entry in conversation.iter() {
         match entry.kind {
-            ConversationEntryKind::User => messages.push(json!({
-                "role": "user", "content": string(&entry.payload, "text")?,
-            })),
+            ConversationEntryKind::User => {
+                let user = crate::images::user_content(entry, request, true)?;
+                if user.images.is_empty() {
+                    messages.push(json!({"role": "user", "content": user.text}));
+                } else {
+                    // Words, then images, as OpenAI-compatible servers take
+                    // them (Ollama's, llama.cpp's and LM Studio's examples).
+                    let mut content = Vec::new();
+                    if !user.text.is_empty() {
+                        content.push(json!({"type": "text", "text": user.text}));
+                    }
+                    content.extend(user.images.iter().map(|image| {
+                        json!({"type": "image_url", "image_url": {"url": image.data_url()}})
+                    }));
+                    messages.push(json!({"role": "user", "content": content}));
+                }
+            }
             ConversationEntryKind::Assistant => {
                 let message: AssistantMessage = serde_json::from_value(entry.payload.clone())
                     .map_err(|_| {
@@ -777,6 +791,7 @@ mod tests {
                 access: ToolAccess::Read,
                 policy: ToolPolicy::Local,
             }],
+            images: Default::default(),
         }
     }
 

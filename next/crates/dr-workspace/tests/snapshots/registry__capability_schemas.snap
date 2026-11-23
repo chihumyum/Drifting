@@ -3628,6 +3628,839 @@ expression: json
   {
     "access": "write",
     "book_version": 5,
+    "concurrency": "library",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "module": {
+          "description": "A module that came with someone else's template or book (not in my modules).",
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "module"
+      ],
+      "title": "AdoptIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "custom_module.adopt",
+    "output": {
+      "$defs": {
+        "ModuleSummary": {
+          "description": "One of my modules, as lists show it.",
+          "properties": {
+            "author": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "blocks": {
+              "description": "Blocks, nested ones included.",
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "created_at": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "locale": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "origin": {
+              "description": "`own` (made here) or `file` (imported from a `.driftingmodule`).",
+              "type": "string"
+            },
+            "updated_at": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "origin",
+            "blocks"
+          ],
+          "type": "object"
+        }
+      },
+      "description": "What 「另存一份」 and 「存进我的模块」 made.",
+      "properties": {
+        "module": {
+          "$ref": "#/$defs/ModuleSummary",
+          "description": "The new module of mine."
+        },
+        "templates": {
+          "description": "The entry templates of the book that now use it.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "module",
+        "templates"
+      ],
+      "title": "Saved",
+      "type": "object"
+    },
+    "summary": "Keep a module that came with someone else's template or book in my modules (new id); this project's entry templates use it from now on and follow it."
+  },
+  {
+    "access": "write",
+    "book_version": 5,
+    "concurrency": "library",
+    "input": {
+      "properties": {
+        "value": {
+          "description": "The module (`drifting.module`, format version 1)."
+        }
+      },
+      "required": [
+        "value"
+      ],
+      "title": "CreateIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "custom_module.create",
+    "output": {
+      "description": "One of my modules, as lists show it.",
+      "properties": {
+        "author": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "blocks": {
+          "description": "Blocks, nested ones included.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "created_at": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "locale": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "origin": {
+          "description": "`own` (made here) or `file` (imported from a `.driftingmodule`).",
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "origin",
+        "blocks"
+      ],
+      "title": "ModuleSummary",
+      "type": "object"
+    },
+    "summary": "Make a new module in my modules from a module value (format drifting.module); it gets a new id."
+  },
+  {
+    "access": "read",
+    "book_version": 5,
+    "concurrency": "shared",
+    "input": {
+      "properties": {
+        "author": {
+          "description": "The signed-in account's display name (left out or blank: no credit).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "path": {
+          "description": "The `.driftingmodule` file to write.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "path"
+      ],
+      "title": "ExportIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "custom_module.export",
+    "output": {
+      "properties": {
+        "bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "path",
+        "bytes"
+      ],
+      "title": "ExportOut",
+      "type": "object"
+    },
+    "summary": "Write one of my modules to a .driftingmodule file (the same module is the same bytes every time)."
+  },
+  {
+    "access": "read",
+    "book_version": 5,
+    "concurrency": "shared",
+    "input": {
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "IdIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "custom_module.get",
+    "output": {
+      "$defs": {
+        "ModuleSummary": {
+          "description": "One of my modules, as lists show it.",
+          "properties": {
+            "author": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "blocks": {
+              "description": "Blocks, nested ones included.",
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "created_at": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "locale": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "origin": {
+              "description": "`own` (made here) or `file` (imported from a `.driftingmodule`).",
+              "type": "string"
+            },
+            "updated_at": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "origin",
+            "blocks"
+          ],
+          "type": "object"
+        }
+      },
+      "description": "One of my modules with its value.",
+      "properties": {
+        "summary": {
+          "$ref": "#/$defs/ModuleSummary"
+        },
+        "value": true
+      },
+      "required": [
+        "summary",
+        "value"
+      ],
+      "title": "ModuleDetail",
+      "type": "object"
+    },
+    "summary": "Read one of my modules and its value."
+  },
+  {
+    "access": "write",
+    "book_version": 5,
+    "concurrency": "library",
+    "input": {
+      "properties": {
+        "path": {
+          "description": "A `.driftingmodule` file on disk.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "title": "ImportIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "custom_module.import",
+    "output": {
+      "description": "One of my modules, as lists show it.",
+      "properties": {
+        "author": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "blocks": {
+          "description": "Blocks, nested ones included.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "created_at": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "locale": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "origin": {
+          "description": "`own` (made here) or `file` (imported from a `.driftingmodule`).",
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "origin",
+        "blocks"
+      ],
+      "title": "ModuleSummary",
+      "type": "object"
+    },
+    "summary": "Validate a .driftingmodule file and add it to my modules as a new module (always a new one, with a new id)."
+  },
+  {
+    "access": "read",
+    "book_version": 5,
+    "concurrency": "shared",
+    "input": {
+      "title": "ListIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "custom_module.list",
+    "output": {
+      "$defs": {
+        "ModuleSummary": {
+          "description": "One of my modules, as lists show it.",
+          "properties": {
+            "author": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "blocks": {
+              "description": "Blocks, nested ones included.",
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "created_at": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "locale": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "origin": {
+              "description": "`own` (made here) or `file` (imported from a `.driftingmodule`).",
+              "type": "string"
+            },
+            "updated_at": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "origin",
+            "blocks"
+          ],
+          "type": "object"
+        }
+      },
+      "items": {
+        "$ref": "#/$defs/ModuleSummary"
+      },
+      "title": "Array_of_ModuleSummary",
+      "type": "array"
+    },
+    "summary": "List my modules (custom entry modules kept in this library), most recently changed first."
+  },
+  {
+    "access": "write",
+    "book_version": 5,
+    "concurrency": "library",
+    "input": {
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "IdIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "custom_module.remove",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Delete one of my modules for good. Projects using it keep their copies and stop following it."
+  },
+  {
+    "access": "write",
+    "book_version": 5,
+    "concurrency": "library",
+    "input": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "RenameIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "custom_module.rename",
+    "output": {
+      "description": "One of my modules, as lists show it.",
+      "properties": {
+        "author": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "blocks": {
+          "description": "Blocks, nested ones included.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "created_at": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "locale": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "origin": {
+          "description": "`own` (made here) or `file` (imported from a `.driftingmodule`).",
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "origin",
+        "blocks"
+      ],
+      "title": "ModuleSummary",
+      "type": "object"
+    },
+    "summary": "Rename one of my modules; every project using it gets the new name."
+  },
+  {
+    "access": "write",
+    "book_version": 5,
+    "concurrency": "library",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "module": {
+          "description": "The module the book's entry templates use now (its copy's id).",
+          "type": "string"
+        },
+        "value": {
+          "description": "The value to save: left out, the book's copy as it is."
+        }
+      },
+      "required": [
+        "book",
+        "module"
+      ],
+      "title": "SaveAsIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "custom_module.save_as",
+    "output": {
+      "$defs": {
+        "ModuleSummary": {
+          "description": "One of my modules, as lists show it.",
+          "properties": {
+            "author": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "blocks": {
+              "description": "Blocks, nested ones included.",
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "created_at": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "locale": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "origin": {
+              "description": "`own` (made here) or `file` (imported from a `.driftingmodule`).",
+              "type": "string"
+            },
+            "updated_at": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "origin",
+            "blocks"
+          ],
+          "type": "object"
+        }
+      },
+      "description": "What 「另存一份」 and 「存进我的模块」 made.",
+      "properties": {
+        "module": {
+          "$ref": "#/$defs/ModuleSummary",
+          "description": "The new module of mine."
+        },
+        "templates": {
+          "description": "The entry templates of the book that now use it.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "module",
+        "templates"
+      ],
+      "title": "Saved",
+      "type": "object"
+    },
+    "summary": "Save a module this project uses as a new module of mine (new id) and make this project's entry templates use it; the module it used before is not changed."
+  },
+  {
+    "access": "write",
+    "book_version": 5,
+    "concurrency": "book",
+    "input": {
+      "description": "A book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "BookIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "custom_module.sync_copies",
+    "output": {
+      "properties": {
+        "replaced": {
+          "description": "The copies replaced with my modules' values.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "replaced"
+      ],
+      "title": "Synced",
+      "type": "object"
+    },
+    "summary": "Bring this project's copies of my modules up to date (a project does this itself when it is opened and when a module of mine changes); entries keep their values."
+  },
+  {
+    "access": "write",
+    "book_version": 5,
+    "concurrency": "library",
+    "input": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "value": {
+          "description": "The whole new module (format drifting.module)."
+        }
+      },
+      "required": [
+        "id",
+        "value"
+      ],
+      "title": "UpdateIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "custom_module.update",
+    "output": {
+      "description": "One of my modules, as lists show it.",
+      "properties": {
+        "author": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "blocks": {
+          "description": "Blocks, nested ones included.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "created_at": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "locale": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "origin": {
+          "description": "`own` (made here) or `file` (imported from a `.driftingmodule`).",
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "origin",
+        "blocks"
+      ],
+      "title": "ModuleSummary",
+      "type": "object"
+    },
+    "summary": "Replace one of my modules with a new value, whole; every project using it gets the new one (entries keep their values)."
+  },
+  {
+    "access": "read",
+    "book_version": 5,
+    "concurrency": "shared",
+    "input": {
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "IdIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "custom_module.uses",
+    "output": {
+      "$defs": {
+        "ModuleUse": {
+          "description": "A project that uses one of my modules.",
+          "properties": {
+            "book": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "book",
+            "name"
+          ],
+          "type": "object"
+        }
+      },
+      "items": {
+        "$ref": "#/$defs/ModuleUse"
+      },
+      "title": "Array_of_ModuleUse",
+      "type": "array"
+    },
+    "summary": "The projects (not in Recently Deleted, not a template's working copy) whose entry templates use one of my modules."
+  },
+  {
+    "access": "write",
+    "book_version": 5,
     "concurrency": "book",
     "input": {
       "properties": {
@@ -6798,6 +7631,13 @@ expression: json
               },
               "type": "array"
             },
+            "module": {
+              "description": "For `custom` modules: the module it draws (a module of mine, or one\nthe book already has a copy of; `custom-modules.md` §7).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "portrait_field": {
               "default": null,
               "description": "For `fields` modules: which field id supplies the portrait `AssetId`.",
@@ -7553,6 +8393,13 @@ expression: json
               },
               "type": "array"
             },
+            "module": {
+              "description": "For `custom` modules: the module it draws (a module of mine, or one\nthe book already has a copy of; `custom-modules.md` §7).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "portrait_field": {
               "default": null,
               "description": "For `fields` modules: which field id supplies the portrait `AssetId`.",
@@ -8057,6 +8904,13 @@ expression: json
               },
               "type": "array"
             },
+            "module": {
+              "description": "For `custom` modules: the module it draws (a module of mine, or one\nthe book already has a copy of; `custom-modules.md` §7).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "portrait_field": {
               "default": null,
               "description": "For `fields` modules: which field id supplies the portrait `AssetId`.",
@@ -8425,6 +9279,13 @@ expression: json
                 "$ref": "#/$defs/KvEntry"
               },
               "type": "array"
+            },
+            "module": {
+              "description": "For `custom` modules: the module it draws (a module of mine, or one\nthe book already has a copy of; `custom-modules.md` §7).",
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "portrait_field": {
               "default": null,
@@ -9898,6 +10759,102 @@ expression: json
     "book_version": 5,
     "concurrency": "book",
     "input": {
+      "$defs": {
+        "ItemStep": {
+          "description": "One step down to the scope a write goes to: an item of a list.",
+          "properties": {
+            "item": {
+              "description": "The item's id.",
+              "type": "string"
+            },
+            "list": {
+              "description": "The list block.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "list",
+            "item"
+          ],
+          "type": "object"
+        }
+      },
+      "description": "A list, in the scope `path` leads to.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "entry": {
+          "type": "string"
+        },
+        "index": {
+          "description": "Where the new item goes (left out: last).",
+          "format": "uint",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "list": {
+          "description": "The list block.",
+          "type": "string"
+        },
+        "module": {
+          "description": "The template module (of kind `custom`).",
+          "type": "string"
+        },
+        "path": {
+          "default": [],
+          "description": "The items down to the list's scope (empty: the entry's own).",
+          "items": {
+            "$ref": "#/$defs/ItemStep"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "book",
+        "entry",
+        "module",
+        "list"
+      ],
+      "title": "AddItemIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "module.add_custom_item",
+    "output": {
+      "description": "A new item.",
+      "properties": {
+        "entry": {
+          "type": "string"
+        },
+        "index": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "item": {
+          "description": "The new item's id.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "entry",
+        "item",
+        "index"
+      ],
+      "title": "ItemAdded",
+      "type": "object"
+    },
+    "summary": "Add an item to a list in an entry's custom module (at `index`, or last); returns the new item's id."
+  },
+  {
+    "access": "write",
+    "book_version": 5,
+    "concurrency": "book",
+    "input": {
       "properties": {
         "book": {
           "type": "string"
@@ -10306,6 +11263,13 @@ expression: json
               },
               "type": "array"
             },
+            "module": {
+              "description": "For `custom` modules: the module it draws (a module of mine, or one\nthe book already has a copy of; `custom-modules.md` §7).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "portrait_field": {
               "default": null,
               "description": "For `fields` modules: which field id supplies the portrait `AssetId`.",
@@ -10455,6 +11419,93 @@ expression: json
       "type": "array"
     },
     "summary": "List an entry's current and retained modules and their registered prose documents."
+  },
+  {
+    "access": "write",
+    "book_version": 5,
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "ItemStep": {
+          "description": "One step down to the scope a write goes to: an item of a list.",
+          "properties": {
+            "item": {
+              "description": "The item's id.",
+              "type": "string"
+            },
+            "list": {
+              "description": "The list block.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "list",
+            "item"
+          ],
+          "type": "object"
+        }
+      },
+      "description": "A list, in the scope `path` leads to.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "entry": {
+          "type": "string"
+        },
+        "item": {
+          "type": "string"
+        },
+        "list": {
+          "description": "The list block.",
+          "type": "string"
+        },
+        "module": {
+          "description": "The template module (of kind `custom`).",
+          "type": "string"
+        },
+        "path": {
+          "default": [],
+          "description": "The items down to the list's scope (empty: the entry's own).",
+          "items": {
+            "$ref": "#/$defs/ItemStep"
+          },
+          "type": "array"
+        },
+        "to": {
+          "description": "Its place among the list's items afterwards (0 is first).",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "book",
+        "entry",
+        "module",
+        "list",
+        "item",
+        "to"
+      ],
+      "title": "MoveItemIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "module.move_custom_item",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Move an item of a list in an entry's custom module to another place; its values move with it."
   },
   {
     "access": "write",
@@ -11484,6 +12535,13 @@ expression: json
               },
               "type": "array"
             },
+            "module": {
+              "description": "For `custom` modules: the module it draws (a module of mine, or one\nthe book already has a copy of; `custom-modules.md` §7).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "portrait_field": {
               "default": null,
               "description": "For `fields` modules: which field id supplies the portrait `AssetId`.",
@@ -11838,6 +12896,114 @@ expression: json
     "book_version": 5,
     "concurrency": "shared",
     "input": {
+      "description": "An entry's custom module.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "entry": {
+          "type": "string"
+        },
+        "module": {
+          "description": "The template module (of kind `custom`).",
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "entry",
+        "module"
+      ],
+      "title": "CustomIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "module.read_custom",
+    "output": {
+      "$defs": {
+        "CopyInfo": {
+          "description": "A book's copy of a module, as a reader needs it.",
+          "properties": {
+            "broken": {
+              "description": "This build's validator refuses the copy (§16 item 6): it is drawn as\nan empty placeholder with its name; the values stay.",
+              "type": "boolean"
+            },
+            "error": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "follows": {
+              "description": "My modules have this id: the copy follows them (§7).",
+              "type": "boolean"
+            },
+            "id": {
+              "type": "string"
+            },
+            "name": {
+              "description": "The module's name (for a broken copy: what its JSON still says).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "source": {
+              "description": "`library` or `template`.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "source",
+            "follows",
+            "broken"
+          ],
+          "type": "object"
+        }
+      },
+      "description": "`module.read_custom`.",
+      "properties": {
+        "copy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CopyInfo"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "`None`: the template names a module the book has no copy of."
+        },
+        "module": {
+          "description": "The template module.",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "value": {
+          "description": "The copy's module, when it can be read."
+        },
+        "values": {
+          "description": "What the copy can read of the entry's values, by block id (a list as\nits items, each with its id). A value its block cannot read now is\nleft out, and stays stored."
+        }
+      },
+      "required": [
+        "module",
+        "name",
+        "values"
+      ],
+      "title": "CustomData",
+      "type": "object"
+    },
+    "summary": "Read an entry's custom module: the book's copy of the module (or that it is broken), and the values the copy can read, by block id."
+  },
+  {
+    "access": "read",
+    "book_version": 5,
+    "concurrency": "shared",
+    "input": {
       "properties": {
         "book": {
           "type": "string"
@@ -11945,6 +13111,86 @@ expression: json
       "type": "object"
     },
     "summary": "Read an entry's or a template's prose module with block IDs and version."
+  },
+  {
+    "access": "write",
+    "book_version": 5,
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "ItemStep": {
+          "description": "One step down to the scope a write goes to: an item of a list.",
+          "properties": {
+            "item": {
+              "description": "The item's id.",
+              "type": "string"
+            },
+            "list": {
+              "description": "The list block.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "list",
+            "item"
+          ],
+          "type": "object"
+        }
+      },
+      "description": "A list, in the scope `path` leads to.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "entry": {
+          "type": "string"
+        },
+        "item": {
+          "type": "string"
+        },
+        "list": {
+          "description": "The list block.",
+          "type": "string"
+        },
+        "module": {
+          "description": "The template module (of kind `custom`).",
+          "type": "string"
+        },
+        "path": {
+          "default": [],
+          "description": "The items down to the list's scope (empty: the entry's own).",
+          "items": {
+            "$ref": "#/$defs/ItemStep"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "book",
+        "entry",
+        "module",
+        "list",
+        "item"
+      ],
+      "title": "ItemIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "module.remove_custom_item",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Remove an item, with what it keeps, from a list in an entry's custom module."
   },
   {
     "access": "write",
@@ -12203,6 +13449,110 @@ expression: json
       "type": "object"
     },
     "summary": "Choose how this entry lays out the files of its media module (`featured`, `grid` or `list`), or go back to its template's (`null`); the template is not changed."
+  },
+  {
+    "access": "write",
+    "book_version": 5,
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "InputValue": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "format": "double",
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "A value given to write one block (`null` clears it)."
+        },
+        "ItemStep": {
+          "description": "One step down to the scope a write goes to: an item of a list.",
+          "properties": {
+            "item": {
+              "description": "The item's id.",
+              "type": "string"
+            },
+            "list": {
+              "description": "The list block.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "list",
+            "item"
+          ],
+          "type": "object"
+        }
+      },
+      "description": "An entry's custom module.",
+      "properties": {
+        "block": {
+          "type": "string"
+        },
+        "book": {
+          "type": "string"
+        },
+        "entry": {
+          "type": "string"
+        },
+        "module": {
+          "description": "The template module (of kind `custom`).",
+          "type": "string"
+        },
+        "path": {
+          "default": [],
+          "description": "The items down to the block's scope, one per list from the entry\ndown (empty for a block the entry keeps directly).",
+          "items": {
+            "$ref": "#/$defs/ItemStep"
+          },
+          "type": "array"
+        },
+        "value": {
+          "$ref": "#/$defs/InputValue",
+          "description": "The value (`null` clears it): text for text, long_text, date, select\nand image (an asset id); a number; true or false for a toggle; a list\nof texts for multi_select and entry (entry ids)."
+        }
+      },
+      "required": [
+        "book",
+        "entry",
+        "module",
+        "block",
+        "value"
+      ],
+      "title": "SetValueIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "module.set_custom_value",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Set or clear one block's value in an entry's custom module, checked against the block's kind; a block in a list is reached through its items (`path`)."
   },
   {
     "access": "write",
@@ -12715,6 +14065,13 @@ expression: json
                 "$ref": "#/$defs/KvEntry"
               },
               "type": "array"
+            },
+            "module": {
+              "description": "For `custom` modules: the module it draws (a module of mine, or one\nthe book already has a copy of; `custom-modules.md` §7).",
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "portrait_field": {
               "default": null,

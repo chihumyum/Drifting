@@ -261,6 +261,7 @@ pub async fn run_checkin_with_guidance(
             payload: json!({"text":context}),
         }],
         tools: Vec::new(),
+        images: Default::default(),
     };
     let mut stream = driver.stream(request, cancel.clone());
     let mut response = String::new();

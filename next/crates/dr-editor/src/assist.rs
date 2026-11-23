@@ -2718,7 +2718,12 @@ fn wrap_at(
             }
         })
         .capture_action(move |_: &gpui_prose::input::actions::Paste, window, cx| {
-            if crate::clipboard::paste(&paste.read(cx).editor.clone(), window, cx) {
+            // Drifting's own copy first, then another program's formatting;
+            // else gpui-prose pastes the plain text.
+            let editor = paste.read(cx).editor.clone();
+            if crate::clipboard::paste(&editor, window, cx)
+                || crate::clipboard::paste_html(&editor, window, cx)
+            {
                 cx.stop_propagation();
             }
         })

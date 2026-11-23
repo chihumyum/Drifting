@@ -2,7 +2,7 @@
 //! writes through ([`ProseSource`], with the built-in [`LoroSource`]), the
 //! paragraph mirror and SumTree index fed by its events, the write rules for
 //! paragraphs and block ids, inline marks, the author's undo steps, anchors,
-//! and grapheme / word boundaries.
+//! grapheme / word boundaries, and how a pasted piece of rich text goes in.
 //!
 //! Nothing here depends on layout or input; this layer can be used (and is
 //! tested) without a window.
@@ -12,6 +12,7 @@ pub mod blocks;
 #[cfg(any(test, feature = "conformance"))]
 pub mod conformance;
 pub mod doc;
+pub mod fragment;
 pub mod index;
 pub mod loro_source;
 pub mod marks;
@@ -24,6 +25,7 @@ pub mod units;
 pub use anchor::{Anchor, AnchorChange, AnchorId, AnchorSet, Resolved};
 pub use blocks::{BlockAttrs, BlockKind};
 pub use doc::{ORIGIN_AGENT_PREFIX, ORIGIN_USER, ProseDoc};
+pub use fragment::{Fragment, FragmentParagraph, PASTED_KEYS, PastePlan};
 pub use index::{ParagraphExtent, ParagraphIndex};
 pub use loro_source::{LoroSource, ORIGIN_REPAIR, change_of, read_paragraphs};
 pub use marks::{Marks, Span};

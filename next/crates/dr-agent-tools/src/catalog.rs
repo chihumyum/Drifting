@@ -28,6 +28,21 @@ pub const OPEN_PROJECT_TEMPLATE_TOOLS: [&str; 3] = [
 
 const CLOSED_PROJECT_TEMPLATE: &str = "a project template reaches the Agent through list, get and save only; importing, exporting, editing and the community are the author's";
 
+/// The custom module commands (`custom-modules.md` §13): my modules
+/// (`custom_module.*`) and the values an entry keeps for one. None of them
+/// is in the directory until the Agent's own module tools are made (task
+/// CM4b, which opens the ones the design lets the Agent use); importing,
+/// exporting and the community never are (§5, §14).
+pub const CUSTOM_MODULE_VALUE_COMMANDS: [&str; 5] = [
+    "module.read_custom",
+    "module.set_custom_value",
+    "module.add_custom_item",
+    "module.remove_custom_item",
+    "module.move_custom_item",
+];
+
+const CLOSED_CUSTOM_MODULE: &str = "custom modules reach the Agent through module tools of their own; importing, exporting and the community are the author's";
+
 /// Change this when facade handler semantics change without a schema change.
 /// Versioned facade revision for universal kernel v5 books and template verbs.
 pub const FACADE_REVISION_V3: &str = "k6-author-facade-v5-r1";
@@ -1152,6 +1167,10 @@ fn exclusion_v3(spec: &Spec) -> Option<&'static str> {
         return (!OPEN_PROJECT_TEMPLATE_TOOLS.contains(&spec.name))
             .then_some(CLOSED_PROJECT_TEMPLATE);
     }
+    if spec.name.starts_with("custom_module.") || CUSTOM_MODULE_VALUE_COMMANDS.contains(&spec.name)
+    {
+        return Some(CLOSED_CUSTOM_MODULE);
+    }
     // Public F3 additions must not bypass the facade's read coverage and
     // restore protocol merely by acquiring a book-scoped input schema.
     if spec.name.starts_with("entry_snapshot.") {
@@ -1393,6 +1412,57 @@ mod tests {
                 "{name}"
             );
             assert!(allowed_v3(spec), "{name}");
+        }
+    }
+
+    /// `custom-modules.md` §14: importing, exporting and taking a module
+    /// from the community are never in the Agent's or MCP's directory, even
+    /// with a current-book boundary; the rest of the family waits for the
+    /// Agent's module tools.
+    #[test]
+    fn custom_module_commands_stay_out_of_the_directory() {
+        let mut synthetic = Registry::default();
+        macro_rules! family {
+            ($ty:ident, $name:literal, $access:ident, $concurrency:ident) => {
+                struct $ty;
+                impl Op for $ty {
+                    const NAME: &'static str = $name;
+                    const ACCESS: Access = Access::$access;
+                    const CONCURRENCY: Concurrency = Concurrency::$concurrency;
+                    const SUMMARY: &'static str = "Synthetic custom module command";
+                    type Input = dr_workspace::commands::BookIn;
+                    type Output = Value;
+                    fn run(_: &Cx<'_>, _: Self::Input) -> dr_workspace::Result<Self::Output> {
+                        unreachable!("synthetic custom module commands are never dispatched")
+                    }
+                }
+                synthetic.add::<$ty>();
+            };
+        }
+        family!(Import, "custom_module.import", Write, Book);
+        family!(Export, "custom_module.export", Read, Shared);
+        family!(Community, "custom_module.community_get", Read, Shared);
+        for spec in synthetic.iter() {
+            assert_eq!(
+                common_exclusion(spec, BookKernelVersion::V3),
+                None,
+                "{} has a current-book boundary",
+                spec.name
+            );
+            assert!(!allowed_v3(spec), "{} must stay out", spec.name);
+        }
+        let mut real = 0;
+        for spec in registry().iter() {
+            if spec.name.starts_with("custom_module.")
+                || CUSTOM_MODULE_VALUE_COMMANDS.contains(&spec.name)
+            {
+                real += 1;
+                assert!(!allowed_v3(spec), "{} must stay out", spec.name);
+            }
+        }
+        assert!(real >= 17, "{real}");
+        for name in ["custom_module.import", "custom_module.export"] {
+            assert!(registry().get(name).is_some(), "{name}");
         }
     }
 

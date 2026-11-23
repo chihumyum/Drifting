@@ -256,6 +256,48 @@ fn cross_case(cx: &mut TestAppContext, cut: bool, external: bool) {
         "one routed Undo must restore the whole group"
     );
 }
+/// Another program's formatted text over a selection across chapters: the
+/// first chapter's part takes it with its formats, the rest is deleted, one
+/// undo restores all of it.
+#[gpui::test]
+fn v3_cross_document_formatted_paste_keeps_formats_and_undoes_once(cx: &mut TestAppContext) {
+    use gpui_prose::input::actions::{Paste, Undo};
+    let (e, docs) = cross_fixture();
+    let before = cross_texts(&e, &docs);
+    let (_view, prose, cx) = open_cross(cx, &e);
+    cx.write_to_clipboard(gpui::ClipboardItem::new_string("子丑\n寅".into()));
+    cx.update(|_, cx| {
+        dr_editor::set_clipboard_html(cx, || Some("<p><b>子</b>丑</p><h2>寅</h2>".to_owned()))
+    });
+    select_cross(&prose, cx);
+    cx.dispatch_action(Paste);
+    draw_cross(cx);
+    let mut after = before.clone();
+    after[0] = "甲子丑\n寅\n".into();
+    after[1] = "戊\n己\n".into();
+    assert_eq!(cross_texts(&e, &docs), after);
+    let d = e.ws.library().load_copy(&docs[0]).unwrap();
+    let id = dr_model::DocId::parse(&docs[0]).unwrap();
+    let p = dr_doc::prose::BorrowedProse::new(&d, &id).unwrap();
+    let paragraphs: Vec<_> = p.view().paragraphs().collect();
+    assert_eq!(paragraphs[0].attrs.heading, None);
+    assert_eq!(paragraphs[1].attrs.heading.map(|h| h.level()), Some(2));
+    let bold: String = paragraphs[0]
+        .runs
+        .iter()
+        .filter(|r| r.marks.bold)
+        .map(|r| r.text.as_str())
+        .collect();
+    assert_eq!(bold, "子");
+    cx.dispatch_action(Undo);
+    draw_cross(cx);
+    assert_eq!(
+        cross_texts(&e, &docs),
+        before,
+        "one undo restores the group"
+    );
+}
+
 #[gpui::test]
 fn v3_cross_document_cut_through_assist_persists_and_undoes_once(cx: &mut TestAppContext) {
     cross_case(cx, true, false);

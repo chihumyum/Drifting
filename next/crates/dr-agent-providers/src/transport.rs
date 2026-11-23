@@ -707,6 +707,7 @@ mod single_tests {
             round: 1,
             conversation: Vec::new(),
             tools: Vec::new(),
+            images: Default::default(),
         }
     }
 

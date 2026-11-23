@@ -31,6 +31,10 @@ pub struct DriverRequest {
     pub round: u32,
     pub conversation: Vec<ConversationEntry>,
     pub tools: Vec<ToolDescriptor>,
+    /// The image bytes this request carries (CM4a), by the author message
+    /// that names them; empty when the model cannot see images. An image a
+    /// message names without bytes here is left out of the request.
+    pub images: crate::images::RequestImages,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

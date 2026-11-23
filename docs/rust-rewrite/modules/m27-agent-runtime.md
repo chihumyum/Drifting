@@ -99,6 +99,23 @@
 - **签到**（`proactive::checkin`）判断书的说明放不放得下，原来也按字节、也固定留 8192，现在用同一套估法和余量。
 - **测试**：`dr-agent-tools/tests/context_estimate.rs`（中文一字至少 1.5 个、约 2 字节一个；英文一词至少一个、约 3.5 字节一个；工具 Schema 按 JSON 算、约 2～3 字节一个，书的结构约 2 字节一个，装着 JSON 的字符串不重复计转义；什么都不超过字节数；1M 上下文：原来要省略的整段对话现在整段发，超过窗口的照样省略、估数不超过余量）、`dr-view-agent/tests/local_context.rs`（App 的控制器、系统指令和工具，真的模型驱动走本地路线、对着本机假服务：上下文 40960 和 32768 两档，showcase 种子里《慢钟》的第一句都发出去了，假服务各收到一个请求，这一轮正常结束；上下文 16384 时装不下书的固定部分，照样一个请求都不发、停在「继续此任务」）。`dr-view-agent/tests/v3_guidance.rs` 的 `oversized_guidance_never_sends_a_truncated_suggestion_request` 原来的「超长说明」是按字节定的大小（75 万字节英文），按 token 估约 21 万，在共用的 25.6 万窗口里放得下了；断言不变，这一个测试的窗口换成 12.8 万，让说明按 token 也确实超长。
 
+## 图片（CM4a，2026-11-24）
+
+大白话：作者发给 Agent 的一条消息可以带图片（拖进、粘进 Agent 栏的输入框，界面见 [M31](m31-agent-panel.md)「图片（CM4a）」）。图片的字节只存在这台设备上，同步的对话里只记「这条消息带了哪几张图」；看得了图的模型收到字节，看不了的模型不问它，Agent 在对话里照实说一句。依据是 [custom-modules.md](../custom-modules.md) 第 16 节第 1 条（「丢草图」那条路要先能收图片），任务书 `handoff/resume-1123.md` 的 CM4a。
+
+- **收什么**（`dr_agent::images`）：PNG、JPEG、WebP，按字节本身认格式（文件头），不看文件名。三家协议和 Ollama 的 OpenAI 兼容接口都收这三种；GIF 不收（Ollama 不认，OpenAI 只收不动的）。一张最多 `MAX_IMAGE_BYTES` = 7 MiB（base64 以后 9 786 712 字节，在 Anthropic「API 上一张 10 MB（base64 后）」以内）、边长最多 `MAX_IMAGE_SIDE` = 8000 像素（Anthropic 的 8000 × 8000）；一条消息最多 `MAX_IMAGES_PER_MESSAGE` = 4 张。`images::inspect(字节)` 给出 `ImageRef { sha256, mime, width, height, size }` 或 `ImageError::{Unsupported, TooLarge, TooMany}`，界面在加进输入框时就用它说超了什么。
+- **字节存在哪**：没有附件的先例可照（对话里从没有过附件；素材库的字节存储会跟着同步上传、算进 Hosted 配额，而且放进去的文件会出现在素材库里），所以照任务书最保守的做法：**只存在本机**，书库根目录旁的 `agent-images/<对话 id>/<sha256>.<扩展名>`，先写临时文件、`fsync`、改名；同一对话里同样的字节只一个文件。`images::read` 读回时核对大小和 SHA-256，对不上当没有。路径只由校验过的 `ImageRef`（64 位小写十六进制摘要、三种格式之一、尺寸在上限内）拼出来，别的设备同步来的记录不会变成任意路径。
+- **对话里记什么**：日志的 `Event::UserMessage` 多一个 `images: Vec<ImageRef>`（空时不写，旧日志照读）；投影到同步对话的作者记录 `payload` 是 `{"text": …, "images": [ImageRef…]}`，没有图片的消息仍然只有 `{"text"}`，和以前逐字节相同（`images::user_payload`；面板 `state.rs` 的投影用同一个函数）。字节从不进同步文档、日志或书文件。别的设备收到这段对话：有图片的记录、没有字节，界面画一个空的占位，发给模型时是一行字。读记录用 `images::payload_images`，读不懂的一项占着位置是 `None`。
+- **一次请求带哪些**：模型看得了图（`RunConfig::sees_images()`：冻结的 `ModelCapabilities.image_input == Some(true)`，DeepSeek 的路线一律不算）时，`Worker::request_images` 从对话最新的作者消息往前，取本机有字节的图片，最多 `MAX_IMAGES_PER_REQUEST` = 20 张（Anthropic 一次请求超过 20 张就对每张用更严的尺寸）、合计 `MAX_REQUEST_IMAGE_BYTES` = 32 MiB（base64 约 43 MiB，远在 Anthropic 一次请求 128 MB 以内），刚发的那条的四张一定放得下。字节放在 `DriverRequest.images`（`RequestImages`，按「哪条记录、第几张」取），同一 run 里按摘要缓存，不每轮重读。没带上的图片、看不了图的模型收到的每张图片，由 M28 的各家写法变成一行给模型的字。
+- **看不了图的模型**：作者这条消息带图、这次运行的模型看不了图时，运行时**不问模型**：作者的消息照常记下（带着图片），Agent 的回答就是调用方给的那一句（`ImageAttachments::unseen_reply`，界面按作者的语言给「现在用的模型看不了图片。请换一个能看图的模型再发。」），走和模型回答完全一样的事件（`StateChanged Streaming`、`TextDelta`、`AssistantMessage`、`Completed`），所以面板、同步、恢复都不用另认一种东西。选它而不是让模型自己说，是因为它确定：不花一次请求，也不依赖本机小模型肯不肯照实说（任务书「按最简单、最不会出错的做」）。之后作者换成看得了图的模型接着说，历史里的图片照样带上。
+- **请求有多长**：`context::image_tokens` 按每 28 × 28 像素一个 token（Anthropic 的 visual token、OpenAI 的 patch）估每张图，一张最多算 10 000（OpenAI 较新的模型默认细节下一张最多读 10 000 个 patch；Anthropic 一张最多 4 784），只算一次请求会带的最新 20 张，加进「请求有多长」的估算；模型看不了图时不加（那时每张是一行字，随消息一起算）。
+- **清理**：`Runtime::recover()`（每次打开书库）先 `images::sweep`：`agent-images/` 下对话 id 在这台设备上已被彻底清除（单独清除，或随书清除）的文件夹删掉。还在的对话、这台设备没存过的对话名下的文件夹都不动。尽力而为，删不掉下次再删。
+- **没带走的**：书库备份、`.driftingbook`/`.driftingproject` 书文件、同步都不带这些字节（见「等作者的事」），在另一台设备或恢复备份后，这些图片是占位。
+
+接口（只加不改）：`Runtime::start_with_images(Start, ImageAttachments)`（`start` 等于不带图片的它）；`ImageAttachments { images: Vec<Arc<[u8]>>, unseen_reply: String }`；`dr_agent::images::{inspect, read, user_payload, payload_images, ImageRef, ImageError, RequestImages}` 和上面的几个上限；`RunConfig::sees_images`；`ModelCapabilities.image_input: Option<bool>`（M28 从各家清单填）；`DriverRequest.images`。只有作者的新消息能带图片：插话、回答提问、接着做、恢复都不带，带了在开始前拒绝；超过张数、格式不对、看不了图却没给那一句，都在写任何东西之前拒绝（`Error::Protocol`）。
+
+测试（全部用 `dr_testkit::media` 合成的 PNG、四色图和 HEIC，JPEG/WebP 由它们重新编码得来）：`src/images/tests.rs`（三种格式按字节认、HEIC/AVIF/GIF/PDF/字都不收、截断的 PNG 头；8000 像素和 7 MiB 的边界；没有图片的消息 payload 一字不变；别的设备写来的坏记录占位不越界；同一字节一个文件、改过的文件读不回、坏记录不成路径；一次请求取最新 20 张、32 MiB 以内、本机没有的不占名额）；`tests/images.rs`（看得了图的模型收到三张的字节、对话只记引用不记字节、同样的字节一个文件、之后纯文字的一轮照样带上、换成看不了图的模型时不带字节；看不了图的模型不被调用、Agent 说那一句、只有图片的消息也算一条、DeepSeek 不论能力怎么写都看不了；张数、格式、没有那一句时什么都不写；对话被清除后重开书库文件夹删掉，别的不动）。
+
 ## 接口
 
 ```rust
@@ -214,7 +231,7 @@ M31 接入换库与退出后补充了资源释放边界：只读 future 可取�
 
 ## 代码位置
 
-- `next/crates/dr-agent/src/`：`protocol.rs`、`driver.rs`、`tools.rs`、`control.rs`、`runtime.rs`、`journal.rs`。
+- `next/crates/dr-agent/src/`：`protocol.rs`、`driver.rs`、`tools.rs`、`control.rs`、`runtime.rs`、`journal.rs`；作者消息带的图片在 `images.rs`（CM4a）。
 - `next/crates/dr-model/src/conversation.rs`、`dr-doc/src/conversation.rs`：同步对话结构。
 - `next/crates/dr-store/src/agent.rs`、`migrations/0007_agent_runtime.sql`：本机日志。
 - F3、dr-index、dr-export 中的新文档种类分派，以及相应回归测试。

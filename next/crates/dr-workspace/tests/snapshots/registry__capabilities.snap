@@ -35,6 +35,18 @@ comment.project              command  book     Keep projected comments from TODO
 comment.reanchor             command  book     Put a comment's anchor back where the editor's undo brought its text back (the author's change, synced; it follows the editor's undo, so it is not an entry of the object-level undo).
 comment.restore_body         command  book     Undo or redo a change of a comment's text: bring back `body` while the text still reads `expected`; any other change since refuses it. Status, resolution time and linked conversation are not touched.
 comment.update               command  book     Change a comment: its text, status (resolve / reopen; a checklist item's comment ticks or clears the item in the prose) or linked Agent conversation. A checklist item's comment takes no other text: its words are the line's, so change the line in the prose.
+custom_module.adopt          command  library  Keep a module that came with someone else's template or book in my modules (new id); this project's entry templates use it from now on and follow it.
+custom_module.create         command  library  Make a new module in my modules from a module value (format drifting.module); it gets a new id.
+custom_module.export         query    shared   Write one of my modules to a .driftingmodule file (the same module is the same bytes every time).
+custom_module.get            query    shared   Read one of my modules and its value.
+custom_module.import         command  library  Validate a .driftingmodule file and add it to my modules as a new module (always a new one, with a new id).
+custom_module.list           query    shared   List my modules (custom entry modules kept in this library), most recently changed first.
+custom_module.remove         command  library  Delete one of my modules for good. Projects using it keep their copies and stop following it.
+custom_module.rename         command  library  Rename one of my modules; every project using it gets the new name.
+custom_module.save_as        command  library  Save a module this project uses as a new module of mine (new id) and make this project's entry templates use it; the module it used before is not changed.
+custom_module.sync_copies    command  book     Bring this project's copies of my modules up to date (a project does this itself when it is opened and when a module of mine changes); entries keep their values.
+custom_module.update         command  library  Replace one of my modules with a new value, whole; every project using it gets the new one (entries keep their values).
+custom_module.uses           query    shared   The projects (not in Recently Deleted, not a template's working copy) whose entry templates use one of my modules.
 entry.create                 command  book     Create an entry either residing under `parent` (without membership) or attached to `host` (residing in `host`'s home, `host` itself when `level`, or the root).
 entry.get                    query    shared   Read an entry including retained module values; an entry whose switch is on also carries what lies below it (resolved settings and their sources, children, members).
 entry.list                   query    shared   Find entries, or list the entries living under one in manuscript order; with below, each listed entry whose switch is on carries its resolved settings, children and members.
@@ -80,21 +92,26 @@ memory.list                  query    shared   List the book's Project Memory en
 memory.remove                command  book     Remove a Project Memory entry (kept as removed; restorable).
 memory.restore               command  book     Bring back a removed Project Memory entry.
 memory.update                command  book     Change a Project Memory entry's text, kind or status.
+module.add_custom_item       command  book     Add an item to a list in an entry's custom module (at `index`, or last); returns the new item's id.
 module.edit_kv               command  book     Change the key or the value of one key/value row of a module, leaving what is not named as it is.
 module.edit_patch            command  book     Change the title or the body of one patch record, leaving what is not named as it is.
 module.list                  query    shared   List an entry's current and retained modules and their registered prose documents.
+module.move_custom_item      command  book     Move an item of a list in an entry's custom module to another place; its values move with it.
 module.prose_document        command  book     Initialize an entry's or a template's prose module and return its document ID.
 module.put_grid              command  book     Replace the rows, columns, cells and size of one plot module.
 module.put_kv                command  book     Add or update an ordered key/value row in a module.
 module.put_media             command  book     Add or update an ordered file item in an entry's media module.
 module.put_patch             command  book     Create or edit the text of a patch module record, preserving its source reference.
 module.read                  query    shared   Read a current or retained module and its structured content; a children module reads what lies below the entry.
+module.read_custom           query    shared   Read an entry's custom module: the book's copy of the module (or that it is broken), and the values the copy can read, by block id.
 module.read_prose            query    shared   Read an entry's or a template's prose module with block IDs and version.
+module.remove_custom_item    command  book     Remove an item, with what it keeps, from a list in an entry's custom module.
 module.remove_kv             command  book     Remove a key/value row from a module.
 module.remove_media          command  book     Remove a file item from an entry's media module.
 module.remove_patch          command  book     Remove one patch record from a patches module; the entry and its other records stay.
 module.replace_prose         command  book     Replace an exact passage in an entry's prose module, addressed by block ID.
 module.set_arrangement       command  book     Choose how this entry lays out the files of its media module (`featured`, `grid` or `list`), or go back to its template's (`null`); the template is not changed.
+module.set_custom_value      command  book     Set or clear one block's value in an entry's custom module, checked against the block's kind; a block in a list is reached through its items (`path`).
 module.set_field             command  book     Set or clear a typed field value in an entry's fields module.
 module.set_prose             command  book     Write paragraphs of an entry's or a template's prose module: all of them, in order, as module.read_prose reads them. Unchanged paragraphs stay; one whose words change is edited in place and keeps its id and comments. A list item has `list` (bullet, ordered or task) and `list_level`. A task item is a checklist item and also a comment whose words are the line's: `checked` ticked resolves it, cleared reopens it, and taking the line out deletes the comment.
 project.create               command  library  Create a project from a project template (defaults to the built-in writing template).

@@ -464,6 +464,7 @@ impl TemplateWriterV3 {
         set(&cfg, "default_rows", spec.config.default_rows as i64)?;
         set(&cfg, "default_cols", spec.config.default_cols as i64)?;
         set(&cfg, "arrangement", spec.config.arrangement.as_ref())?;
+        set(&cfg, "module", spec.config.module.as_ref())?;
         let defs_list: Vec<LoroValue> = spec
             .config
             .defs
@@ -1913,8 +1914,9 @@ impl<'a> BookTxnV3<'a> {
     }
 
     /// Restore an entry's metadata (`title`, `mark`, `template`, `level`,
-    /// `auto_link`, `primary`, timestamps, `overrides`, `fields`, and all
-    /// `kv:<module_id>` / `media:<module_id>` tables) from `old`
+    /// `auto_link`, `primary`, timestamps, `overrides`, `fields`, all
+    /// `kv:<module_id>` / `media:<module_id>` tables and its custom module
+    /// values `module:<module_id>`) from `old`
     /// (`BookViewV3::entry_snapshot`).
     pub fn restore_entry(&mut self, id: &EntryId, old: &EntrySnapshotV3) -> Result<()> {
         let w = match self.entries().entry(id) {
@@ -2000,6 +2002,14 @@ impl<'a> BookTxnV3<'a> {
                 sync_nested_map(&sub, want_rows)?;
             }
         }
+
+        // Restore the entry's values for custom modules (`module:<module>`,
+        // `custom-modules.md` §7): lists keep their items' containers.
+        crate::v3::modules::restore_entry_values(
+            map,
+            &|k: &str| old.field(k).cloned(),
+            &old.keys(),
+        )?;
 
         // Restore the entry's own media arrangements (`arrangement:<module>`).
         let is_arrangement = |k: &str| k.starts_with("arrangement:");

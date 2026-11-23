@@ -121,6 +121,17 @@ impl RunConfig {
         }
         Ok(())
     }
+
+    /// Whether this run's model takes images: only when its model list said
+    /// so ([`ModelCapabilities::image_input`]). DeepSeek's route never does.
+    pub fn sees_images(&self) -> bool {
+        self.route.provider != Provider::Deepseek
+            && self
+                .capabilities
+                .as_ref()
+                .and_then(|c| c.image_input)
+                .unwrap_or(false)
+    }
 }
 
 /// Catalog metadata captured together with the route. Adapters never consult
@@ -133,6 +144,10 @@ pub struct ModelCapabilities {
     pub supports_thinking_off: Option<bool>,
     pub supports_summary: Option<bool>,
     pub supports_verbosity: Option<bool>,
+    /// Whether the model takes images (CM4a), as its provider's model list
+    /// says. `None`, the list says nothing, counts as no.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image_input: Option<bool>,
 }
 
 #[cfg(test)]
