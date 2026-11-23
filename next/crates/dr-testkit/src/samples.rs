@@ -31,6 +31,38 @@ use crate::rng::Rng;
 use crate::seed::{Builder, SeededBook, SeededBookV3, T0, book_to_v3};
 use crate::text;
 
+/// The sample custom modules (`custom-modules.md` §15 item 3), as their
+/// `.driftingmodule` files: canonical JSON, by file stem.
+pub const MODULE_FILES: [(&str, &str); 4] = [
+    (
+        "foreshadowing",
+        include_str!("../fixtures/modules/foreshadowing.driftingmodule"),
+    ),
+    (
+        "character-arc",
+        include_str!("../fixtures/modules/character-arc.driftingmodule"),
+    ),
+    (
+        "world-chronology",
+        include_str!("../fixtures/modules/world-chronology.driftingmodule"),
+    ),
+    (
+        "magic-rule",
+        include_str!("../fixtures/modules/magic-rule.driftingmodule"),
+    ),
+];
+
+/// The sample custom modules: 伏笔追踪, 人物弧光, 世界观年表, 魔法规则卡.
+pub fn modules() -> Vec<dr_model::custom_module::ModuleValue> {
+    MODULE_FILES
+        .iter()
+        .map(|(name, raw)| {
+            dr_model::custom_module::parse_module_json(raw)
+                .unwrap_or_else(|e| panic!("fixtures/modules/{name}.driftingmodule: {e}"))
+        })
+        .collect()
+}
+
 const SLOW_CLOCK: &str = include_str!("../fixtures/slow-clock.json");
 const SHELF: &str = include_str!("../fixtures/shelf.json");
 

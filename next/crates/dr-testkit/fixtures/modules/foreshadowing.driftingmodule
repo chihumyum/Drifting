@@ -1,0 +1,112 @@
+{
+  "format": "drifting.module",
+  "formatVersion": 1,
+  "name": "伏笔追踪",
+  "locale": "zh-Hans",
+  "credit": {
+    "author": "示例作者"
+  },
+  "blocks": [
+    {
+      "id": "items",
+      "type": "list",
+      "name": "伏笔",
+      "blocks": [
+        {
+          "id": "line",
+          "type": "text",
+          "name": "一句话"
+        },
+        {
+          "id": "st",
+          "type": "select",
+          "name": "状态",
+          "options": [
+            "埋着",
+            "提过",
+            "收了"
+          ]
+        },
+        {
+          "id": "back",
+          "type": "entry",
+          "name": "收在"
+        }
+      ]
+    }
+  ],
+  "look": {
+    "block": {
+      "each": "items",
+      "dir": "col",
+      "sep": "hair",
+      "item": {
+        "box": "row",
+        "gap": 8,
+        "align": "center",
+        "kids": [
+          {
+            "value": "st",
+            "show": "mark"
+          },
+          {
+            "value": "line",
+            "font": "serif",
+            "ink": 1,
+            "width": "fill"
+          },
+          {
+            "box": "row",
+            "gap": 4,
+            "width": "hug",
+            "kids": [
+              {
+                "text": "收在"
+              },
+              {
+                "value": "back",
+                "size": "small"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "line": {
+      "box": "row",
+      "gap": 8,
+      "kids": [
+        {
+          "value": "items",
+          "show": "count",
+          "suffix": " 处伏笔"
+        }
+      ]
+    }
+  },
+  "agent": {
+    "name": "伏笔追踪",
+    "description": "这一章埋下的伏笔，和它们后来在哪里被收回。",
+    "instructions": "只登记作者写进正文的伏笔；收回要指到具体的章。",
+    "blocks": {
+      "back": "在哪一章收回",
+      "items": "一条伏笔一行",
+      "st": "埋着、提过、收了"
+    }
+  },
+  "sample": {
+    "items": [
+      {
+        "back": [
+          "第十二章"
+        ],
+        "line": "墙上的旧照片少了一个人",
+        "st": "收了"
+      },
+      {
+        "line": "钟楼的钟慢了七分钟",
+        "st": "埋着"
+      }
+    ]
+  }
+}

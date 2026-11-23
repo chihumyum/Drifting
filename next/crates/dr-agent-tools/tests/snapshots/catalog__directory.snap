@@ -141,9 +141,9 @@ entry.update book fd719d8c8b0299db4068d986160e8ea6b24df78a56c4dddd113c03a3b91818
 entry_history.restore book 8e30901c5b77baf10f20cfa9715e3ef7066da666821f695a864b83631103552a
 entry_history.version shared 7e44de6e649ef11baa8301ba3abbd27e362c92ca4fef8614f52c224f86601061
 entry_template.delete book 84979ba761e4dcac504742e5350b90603446d8c85cef2e43034dce7003f44153
-entry_template.list shared 6e0a41b7e01c12df1a5f9c8cd4e41f61c6344ae306f8f51d2e7d990551a4fa1f
-entry_template.put book 82f4fcfe521f51f271d7ee6b1934b8b5ce265b2dccc3e332acf2846d79e8d2ac
-entry_template.put_module book 8ef3caf0ad031e286d6709d905dd43cea7e6f3d23ebb9234d3702c312efcd839
+entry_template.list shared 4ecdc8189bdaede42aa11145f0262bc987c10639102add4c92774f6b832baf87
+entry_template.put book 88f97c31fbcda1f56ad154b2e7bd3defe743606591a708a2fad6cea5a9b5ca2d
+entry_template.put_module book 38750ca0af06f075e5fa931671bbe5ecedf9d5c28f7c19a67af03bd3559c1a9e
 entry_template.remove_module book ba84522d8e119ee7846ee863bfe37bafb47f72127777a8d4bbb25012a010e259
 fact.list shared e2d49a51c2919cc6efe73de9f4b40c6be5d99c7181eeda8275eda7a84757b5b3
 fact.put book 1d3a75b204a8c2d66a720c95795ae194b6ca602d630943b3ebc836266cb1d275
@@ -162,12 +162,12 @@ memory.list shared fb99043043249da904a06950ae29f0c0d2159c775574667f232a35166298b
 memory.remove book a8de0c4df5da6f8709d7ec997add33ebfe1dbb97a23b203a9dd0d90a0c7b2c87
 memory.restore book 9dcef1985d30bb672ccfb047040e76d82ca9d3f9c7483967874f62300818fd08
 memory.update book 06f4c47b3698d4adbc01adaedce93701094eea63f4c0c0aa172237736d319e31
-module.list shared e6ed92badf732f7db0b9f6fd0fbfbb9de794705de89e0002fd064eac9bbbf6fd
+module.list shared a30ce11627281d85028862b7684fb6d41dbcc617cd20f0e9d006f7f88b5dac97
 module.put_grid book 4e9cbeeab33d91bab93970f252ce9168d0da366de76dc11460440a024aa32bf9
 module.put_kv book f6df6208b79bf751fff2ad001bf3b72e49a94e7c48f1825183932db82fca6eed
 module.put_media book 7d112c0ee4f89a3af5b1acae34b8d9bea7392af0c6050abfdfab5442fc76330d
 module.put_patch book 2adb9486ec20672e8f8785afd910e0eb64ee09aa876068ac93fa4e8cdc59c10b
-module.read shared 0cb22be1bc0dd5fbfdb4696eb8b07f001e344251ea14a2244af6bff5ba209122
+module.read shared 63dd30829b837142ed348c14c90ebe04059a140759a4dd5694562c6fab2c073f
 module.read_prose shared b6facfa8753e1c3f85fcae373219161e5d5e38367cd147040c03b8ccc22ca59b
 module.remove_kv book d85284a551f9faa1004a8f07b511e376679db66f8d114ae12299b8d574d9fc34
 module.remove_media book e70478beaf21b8854bd7983706a8665b47cb920498b771ea4a9a31286a4f8df7
@@ -225,6 +225,18 @@ book.trash: book lifecycle belongs to the library
 comment.delete: comment deletion is reserved for the author
 comment.project: storage, editor, or derived-state maintenance
 comment.restore_body: scoped comment text undo is internal until K6 provides a guarded facade
+custom_module.adopt: custom modules reach the Agent through module tools of their own; importing, exporting and the community are the author's
+custom_module.create: custom modules reach the Agent through module tools of their own; importing, exporting and the community are the author's
+custom_module.export: custom modules reach the Agent through module tools of their own; importing, exporting and the community are the author's
+custom_module.get: custom modules reach the Agent through module tools of their own; importing, exporting and the community are the author's
+custom_module.import: custom modules reach the Agent through module tools of their own; importing, exporting and the community are the author's
+custom_module.list: custom modules reach the Agent through module tools of their own; importing, exporting and the community are the author's
+custom_module.remove: custom modules reach the Agent through module tools of their own; importing, exporting and the community are the author's
+custom_module.rename: custom modules reach the Agent through module tools of their own; importing, exporting and the community are the author's
+custom_module.save_as: custom modules reach the Agent through module tools of their own; importing, exporting and the community are the author's
+custom_module.sync_copies: custom modules reach the Agent through module tools of their own; importing, exporting and the community are the author's
+custom_module.update: custom modules reach the Agent through module tools of their own; importing, exporting and the community are the author's
+custom_module.uses: custom modules reach the Agent through module tools of their own; importing, exporting and the community are the author's
 entry.purge: permanent deletion needs complete cascade coverage
 entry_snapshot.capture: entry snapshots need facade coverage and guarded whole-entry restore wiring
 entry_snapshot.create: entry snapshots need facade coverage and guarded whole-entry restore wiring
@@ -234,9 +246,14 @@ entry_snapshot.preview: entry snapshots need facade coverage and guarded whole-e
 entry_snapshot.restore: entry snapshots need facade coverage and guarded whole-entry restore wiring
 history.restore_point: history restore labels require an atomic guarded owner hook
 membership.restore: scoped membership undo is internal until K6 provides a guarded facade
+module.add_custom_item: custom modules reach the Agent through module tools of their own; importing, exporting and the community are the author's
 module.edit_kv: field edits belong to a view that showed the field; use the record commands
 module.edit_patch: field edits belong to a view that showed the field; use the record commands
+module.move_custom_item: custom modules reach the Agent through module tools of their own; importing, exporting and the community are the author's
 module.prose_document: storage, editor, or derived-state maintenance
+module.read_custom: custom modules reach the Agent through module tools of their own; importing, exporting and the community are the author's
+module.remove_custom_item: custom modules reach the Agent through module tools of their own; importing, exporting and the community are the author's
+module.set_custom_value: custom modules reach the Agent through module tools of their own; importing, exporting and the community are the author's
 project.create: library-wide lifecycle operation
 project_template.edit: a project template reaches the Agent through list, get and save only; importing, exporting, editing and the community are the author's
 project_template.export: a project template reaches the Agent through list, get and save only; importing, exporting, editing and the community are the author's

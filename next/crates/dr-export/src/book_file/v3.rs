@@ -80,6 +80,8 @@ impl Paths {
         }
         // Older writers may attach normal children rather than mergeable maps.
         // Iterate until their parent chain is known; unknown roots stay opaque.
+        // The items of a custom module's list are maps put into a movable
+        // list (`custom-modules.md` §7): their path is the list's and `*`.
         loop {
             let before = this.normal.len();
             for change in changes {
@@ -93,6 +95,20 @@ impl Paths {
                         if !path.is_empty() && !this.normal.contains_key(child) {
                             path.push(key.clone());
                             this.normal.insert(child.clone(), path);
+                        }
+                    }
+                    if let JsonOpContent::MovableList(MovableListOp::Insert { value, .. }) =
+                        &op.content
+                    {
+                        for v in value {
+                            let LoroValue::Container(child) = v else {
+                                continue;
+                            };
+                            let mut path = this.path(&op.container);
+                            if !path.is_empty() && !this.normal.contains_key(child) {
+                                path.push("*".into());
+                                this.normal.insert(child.clone(), path);
+                            }
                         }
                     }
                 }
@@ -589,6 +605,32 @@ impl Rewriter<'_> {
         }
         if self.conversation {
             return value.clone();
+        }
+        // A custom module's values (`module:<module>` on an entry, its
+        // lists' items below it): a value that is exactly the id of
+        // something the book file moves (an entry, a file) is a reference
+        // (an entry block's or an image block's) and follows it. Words that
+        // only contain an id stay as written.
+        if self.book
+            && matches!(path, [root, _, values, ..]
+                if root == "entries" && values.starts_with(schema::custom_values::ENTRY_PREFIX))
+            && key != schema::custom_values::ITEM_ID
+        {
+            let exact = |s: &str| self.rw.ids.get(s).cloned().unwrap_or_else(|| s.to_owned());
+            return match value {
+                LoroValue::String(s) => LoroValue::from(exact(s)),
+                LoroValue::List(items) => LoroValue::List(
+                    items
+                        .iter()
+                        .map(|v| match v {
+                            LoroValue::String(s) => LoroValue::from(exact(s)),
+                            other => other.clone(),
+                        })
+                        .collect::<Vec<_>>()
+                        .into(),
+                ),
+                other => other.clone(),
+            };
         }
         let reference = match path {
             [root, _] if root == "entries" => matches!(key, "id" | "primary"),

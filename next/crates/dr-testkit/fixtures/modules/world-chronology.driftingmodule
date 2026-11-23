@@ -1,0 +1,146 @@
+{
+  "format": "drifting.module",
+  "formatVersion": 1,
+  "name": "世界观年表",
+  "locale": "zh-Hans",
+  "blocks": [
+    {
+      "id": "eras",
+      "type": "list",
+      "name": "纪元",
+      "blocks": [
+        {
+          "id": "era",
+          "type": "text",
+          "name": "纪元"
+        },
+        {
+          "id": "span",
+          "type": "text",
+          "name": "起止"
+        },
+        {
+          "id": "events",
+          "type": "list",
+          "name": "事件",
+          "blocks": [
+            {
+              "id": "year",
+              "type": "number",
+              "name": "年"
+            },
+            {
+              "id": "event",
+              "type": "text",
+              "name": "事件"
+            },
+            {
+              "id": "where",
+              "type": "entry",
+              "name": "在哪"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "look": {
+    "block": {
+      "each": "eras",
+      "dir": "col",
+      "gap": 16,
+      "sep": "axis",
+      "item": {
+        "box": "col",
+        "gap": 8,
+        "kids": [
+          {
+            "box": "row",
+            "gap": 8,
+            "kids": [
+              {
+                "value": "era",
+                "font": "serif",
+                "size": "title"
+              },
+              {
+                "value": "span",
+                "size": "small",
+                "ink": 3
+              }
+            ]
+          },
+          {
+            "each": "events",
+            "dir": "col",
+            "gap": 4,
+            "item": {
+              "box": "grid",
+              "gap": 8,
+              "cols": [
+                64,
+                "fill",
+                120
+              ],
+              "kids": [
+                {
+                  "value": "year",
+                  "font": "mono",
+                  "size": "small"
+                },
+                {
+                  "value": "event"
+                },
+                {
+                  "value": "where",
+                  "size": "small",
+                  "ink": 2
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "line": {
+      "box": "row",
+      "gap": 8,
+      "kids": [
+        {
+          "value": "eras",
+          "show": "count",
+          "suffix": " 个纪元"
+        }
+      ]
+    }
+  },
+  "agent": {
+    "name": "世界观年表",
+    "instructions": "年份按书里的纪年写，不换算成公元。"
+  },
+  "sample": {
+    "eras": [
+      {
+        "era": "雾纪",
+        "events": [
+          {
+            "event": "第一座钟楼建成",
+            "year": 12.0
+          },
+          {
+            "event": "大雾",
+            "where": [
+              "北渡"
+            ],
+            "year": 87.0
+          }
+        ],
+        "span": "1–120"
+      },
+      {
+        "era": "钟纪",
+        "span": "121–"
+      }
+    ]
+  }
+}

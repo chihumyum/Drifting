@@ -288,6 +288,8 @@ pub const DOC_KIND_CHECKPOINTS: &str = "checkpoints";
 pub const DOC_KIND_LAYOUT: &str = "layout";
 /// A library-level user project template, belonging to no book.
 pub const DOC_KIND_PROJECT_TEMPLATE: &str = "project-template";
+/// A custom module in my modules, belonging to no book.
+pub const DOC_KIND_MODULE: &str = "module";
 
 pub const KNOWN_DOC_KINDS: &[&str] = &[
     DOC_KIND_BOOK,
@@ -302,6 +304,7 @@ pub const KNOWN_DOC_KINDS: &[&str] = &[
     DOC_KIND_CHECKPOINTS,
     DOC_KIND_LAYOUT,
     DOC_KIND_PROJECT_TEMPLATE,
+    DOC_KIND_MODULE,
 ];
 
 /// Whether `kind` is a known document kind in schema v3 or v2.2.

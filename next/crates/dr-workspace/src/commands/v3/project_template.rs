@@ -994,6 +994,12 @@ fn read_template_file_checked(path: &std::path::Path) -> Result<ProjectTemplateV
     parse_project_template_json(raw).map_err(|e| WsError::invalid(e.to_string()))
 }
 
+/// Write `bytes` to `path` through a temporary file in the same folder
+/// (also `.driftingmodule` files, `custom_module.export`).
+pub(crate) fn write_file_atomic(path: &std::path::Path, bytes: &[u8]) -> Result<()> {
+    write_template_file_atomic(path, bytes)
+}
+
 fn write_template_file_atomic(path: &std::path::Path, bytes: &[u8]) -> Result<()> {
     use std::io::Write as _;
     use std::sync::atomic::{AtomicU64, Ordering};

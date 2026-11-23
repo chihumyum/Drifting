@@ -813,6 +813,7 @@ impl<'a> BookViewV3<'a> {
                                 .map(|n| n.max(1) as u32)
                                 .unwrap_or(default_cfg.default_cols),
                             arrangement: c.kind("arrangement"),
+                            module: c.id("module"),
                         },
                         None => ModuleConfig {
                             defs,
@@ -2193,7 +2194,8 @@ impl<'a> BookViewV3<'a> {
             | DocId::Element(_)
             | DocId::Storyline(_)
             | DocId::Category(_)
-            | DocId::ProjectTemplate(_) => false,
+            | DocId::ProjectTemplate(_)
+            | DocId::Module(_) => false,
         }
     }
 

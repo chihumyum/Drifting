@@ -214,6 +214,9 @@ pub fn type_label(kind: &str, cx: &App) -> SharedString {
         "children" => k::CHILDREN,
         "members" => dr_i18n::keys::v3_shell::ATTACHED_ENTRIES,
         "media" => k::MEDIA,
+        // A custom module (`custom-modules.md` §7, §9): the row says 「模块」
+        // until the template editor learns to tell 「我的模块」 apart (CM3).
+        "custom" => k::MODULES,
         "text" => k::TEXT,
         "long_text" => k::LONG_TEXT,
         "number" => k::NUMBER,
