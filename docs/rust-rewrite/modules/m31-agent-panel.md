@@ -394,7 +394,7 @@ DRIFTING_WINDOW_DISPLAY=secondary cargo drifting workspace scenario crates/dr-vi
 **接口**（只加不改）：`AgentPanel::{attach_bytes, attach_paths, remove_attached, attached, thumb, error}`；`AgentController::{start_with_images, start_job_with_images, read_image}`；`Connections::live_catalog`（带图片的消息发送前取一次清单）；`MessageContent::User` 多了 `images`（不认识的记录占位为 `None`）；`LocalServerModel.image_input`（存在设备记忆里，重问清单时更新）。新的界面文字在 `dr-i18n` 的 `own/*.json` 的 `agentImages`（`image`、`remove`、`unsupported`、`tooLarge`、`tooMany`、`unseen`），九种语言。
 
 **测试**（`tests/attachments.rs`，真的 GPUI 面板、合成种子库、脚本模型、dr-testkit 的合成图片）：
-- `paste_and_drop_attach_images_and_text_pastes_as_text`：剪贴板上的图片进输入框不进字、小图画出来；剪贴板上的字照旧贴字、图片还在；同一张再贴还是一张；拖进一张 PNG 和一张 HEIC，PNG 进来、HEIC 不进且出错的那行说格式；去掉一张。
+- `paste_and_drop_attach_images_and_text_pastes_as_text`：剪贴板上的图片进输入框不进字、小图画出来；剪贴板上的字照旧贴字、图片还在；同一张再贴还是一张；拖进一张 PNG 和一张 HEIC，PNG 进来、HEIC 不进且出错的那行说格式；拖到发送按钮上、拖到输入框上面的对话里也都收（整栏都收）；去掉一张。
 - `the_limits_are_said_before_anything_is_sent`：8001 像素宽、大于 7 MiB 的都说太大；拖五张不同的进四张、说最多四张；没有任何请求。
 - `a_model_that_cannot_see_is_not_asked_and_the_agent_says_so`：DeepSeek 路线带图发送，脚本模型没被调用，对话里作者消息带一张图、Agent 回那一句，输入框清空，对话里那张小图画出来。
 - `a_local_model_that_sees_gets_the_bytes_and_one_that_does_not_is_told`：本地服务说能看图的模型收到只有图片的消息和它的字节；同一对话换成没说能看图的模型再发一张，模型没被再问。
