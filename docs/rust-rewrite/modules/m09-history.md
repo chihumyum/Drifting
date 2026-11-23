@@ -511,3 +511,5 @@ AutomaticHistory::start_with(ws, Cadence { interval, first_points, gap, quiet })
 
 - `dr-workspace`（`snapshots.rs` 的单测）：`restore_leaves_an_entry_where_it_lives_when_its_place_then_is_deleted`：章在一个分组里时存点，之后改了字、挪到书稿开头，分组进最近删除、再永久删除，两种情况各恢复一次：标题、梗概、正文回到点里的，住处和先后位置是恢复前的，一步撤销回到恢复前。`…_when_its_place_then_holds_no_entries`：同样，分组的「层级」关了；分组的开关不跟着恢复。`restore_still_refuses_a_cycle_or_a_life_where_nothing_can_hold_the_entry`：上表加粗的两种照旧拒绝，书目和清单文档的版本都不变。前两条在改之前的代码上失败，第三条改前改后都过。
 - `dr-import-v1`（`tests/history_checkpoints.rs`）：`restoring_a_point_whose_0_1_group_is_gone_keeps_the_element_where_it_lives`：导入的要素旧点（0.1 分组「未庄」已经没有了）能恢复：正文、名字、别名、梗概、事实回到那一行，住处和同级的先后不变，多一个「恢复前」的点，一步撤销回到恢复前。原来 `restoring_an_imported_point_brings_back_its_prose_and_fields_and_keeps_the_state_before` 末尾断言「拒绝、什么都没改」的那一段删掉，由这一条代替。
+
+**真窗口**：`crates/dr-cli/scenarios/import-history.json` 在章的恢复后面加了导入要素的那一种（0.1 分组已经没有了）：从悬停卡打开快照历史、预览、确认恢复，对话框显示恢复成功，字和字段是那一行的，住处不变。副屏、合成 profile，76 步全过（见 [m10 的「真窗口」](m10-import.md#真窗口)）。
