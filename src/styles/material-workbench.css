@@ -235,7 +235,7 @@
   font-family: var(--font-sans);
   font-size: 15.5px;
   line-height: 1.7;
-  color: hsl(var(--ink-1));
+  color: hsl(var(--prose-ink));
   text-wrap: pretty;
 }
 .note-prose > * + * {
@@ -299,7 +299,7 @@
 .note-prose blockquote {
   margin: 0.6em 0;
   padding: 0.1em 0 0.1em 1em;
-  color: hsl(var(--ink-2));
+  color: hsl(var(--prose-ink-2));
   border-left: 0;
   background: hsl(var(--paper-deep) / 0.5);
   border-radius: 4px;

@@ -367,14 +367,14 @@
   background: hsl(var(--external-ink) / 0.14);
 }
 ::highlight(agent-recent-ext) { color: hsl(var(--external-ink)); }
-::highlight(agent-recent-ext-1) { color: color-mix(in srgb, hsl(var(--external-ink)) 62%, hsl(var(--ink-1))); }
-::highlight(agent-recent-ext-2) { color: color-mix(in srgb, hsl(var(--external-ink)) 28%, hsl(var(--ink-1))); }
+::highlight(agent-recent-ext-1) { color: color-mix(in srgb, hsl(var(--external-ink)) 62%, hsl(var(--prose-ink))); }
+::highlight(agent-recent-ext-2) { color: color-mix(in srgb, hsl(var(--external-ink)) 28%, hsl(var(--prose-ink))); }
 ::highlight(agent-recent-new) { color: hsl(var(--agent-new-ink)); }
-::highlight(agent-recent-new-1) { color: color-mix(in srgb, hsl(var(--agent-new-ink)) 62%, hsl(var(--ink-1))); }
-::highlight(agent-recent-new-2) { color: color-mix(in srgb, hsl(var(--agent-new-ink)) 28%, hsl(var(--ink-1))); }
+::highlight(agent-recent-new-1) { color: color-mix(in srgb, hsl(var(--agent-new-ink)) 62%, hsl(var(--prose-ink))); }
+::highlight(agent-recent-new-2) { color: color-mix(in srgb, hsl(var(--agent-new-ink)) 28%, hsl(var(--prose-ink))); }
 ::highlight(agent-recent-chg) { color: hsl(var(--agent-chg-ink)); }
-::highlight(agent-recent-chg-1) { color: color-mix(in srgb, hsl(var(--agent-chg-ink)) 62%, hsl(var(--ink-1))); }
-::highlight(agent-recent-chg-2) { color: color-mix(in srgb, hsl(var(--agent-chg-ink)) 28%, hsl(var(--ink-1))); }
+::highlight(agent-recent-chg-1) { color: color-mix(in srgb, hsl(var(--agent-chg-ink)) 62%, hsl(var(--prose-ink))); }
+::highlight(agent-recent-chg-2) { color: color-mix(in srgb, hsl(var(--agent-chg-ink)) 28%, hsl(var(--prose-ink))); }
 :root[data-shell-mode] .agent-change-block,
 :root[data-shell-mode] .agent-change-block--seen {
   background-color: transparent;

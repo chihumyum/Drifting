@@ -20,6 +20,7 @@ pnpm exec vitest run src/renderer/shells/desktop/views/super-view-sand-glass.acc
 pnpm exec vitest run src/renderer/components/editor/comment-sand.acceptance.test.ts src/renderer/lib/comment-sand.test.ts src/renderer/components/editor/comment-anchor-highlight.acceptance.test.ts
 pnpm exec vitest run src/renderer/components/editor/agent-reveal-overwrite.acceptance.test.ts src/renderer/components/editor/agent-edit-animation.test.ts src/renderer/lib/agent-recent-changes.test.ts
 pnpm exec vitest run src/renderer/features/guide/guide.acceptance.test.ts src/renderer/features/guide/tour-geometry.test.ts
+pnpm exec vitest run src/renderer/components/editor/prose-dark-palette.acceptance.test.ts
 ```
 
 所有侧栏 Tab 的视图隔离契约与合成数据验收见 [sidebar-panel-isolation](../qa/sidebar-panel-isolation.md)。

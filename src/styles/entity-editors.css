@@ -4,7 +4,7 @@
   font-family: var(--font-sans);
   font-size: var(--entity-body-font-size, 16px);
   line-height: 1.7;
-  color: hsl(var(--ink-1));
+  color: hsl(var(--prose-ink));
   text-wrap: pretty;
 }
 .elem-body .ProseMirror {
@@ -20,7 +20,7 @@
 }
 .elem-body .ProseMirror em {
   font-style: italic;
-  color: hsl(var(--ink-2));
+  color: hsl(var(--prose-ink-2));
 }
 
 /* ============================================================

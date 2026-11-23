@@ -104,6 +104,12 @@
     --ink-4: 30 3% 64%;
     --ink-5: 30 4% 84%;
     --ink-6: 30 5% 89%;
+    /* Long-form prose: a chapter, an entity's body, a note. On paper it is
+       written in the first ink. The dark theme gives it a softer ink of its
+       own, because paragraphs of near-white text glare on a dark page;
+       headings and bold keep the first ink there. */
+    --prose-ink: var(--ink-1);
+    --prose-ink-2: var(--ink-2);
     --rule: 30 6% 92%;
     --rule-strong: 30 6% 84%;
 
@@ -369,6 +375,8 @@
     --ink-4: 220 4% 48%;
     --ink-5: 220 5% 28%;
     --ink-6: 220 5% 22%;
+    --prose-ink: 220 7% 85%;
+    --prose-ink-2: 220 6% 72%;
     --rule: 220 6% 22%;
     --rule-strong: 220 6% 30%;
 
@@ -786,6 +794,35 @@ html[data-entity-link-style='prose'] .entity-link--deep::after {
 /* Editor find-in-document highlights live in styles/search.css. */
 
 /* ============================================================
+   Prose palette in the dark theme
+   Tailwind Typography paints `.prose` from a palette made for a light page:
+   gray-700 body, gray-900 headings, bold, quotes, links and code. Nothing
+   swapped it in the dark theme, so headings and bold sat near-black on the
+   dark page and an entity's body was a dim slate. Every role follows the
+   theme's inks here. The light theme keeps the palette it has always had.
+   ============================================================ */
+.dark .prose {
+  --tw-prose-body: hsl(var(--prose-ink));
+  --tw-prose-headings: hsl(var(--ink-1));
+  --tw-prose-lead: hsl(var(--prose-ink-2));
+  --tw-prose-links: hsl(var(--ink-1));
+  --tw-prose-bold: hsl(var(--ink-1));
+  --tw-prose-counters: hsl(var(--ink-3));
+  --tw-prose-bullets: hsl(var(--ink-4));
+  --tw-prose-hr: hsl(var(--rule));
+  --tw-prose-quotes: hsl(var(--prose-ink));
+  --tw-prose-quote-borders: hsl(var(--ink-5));
+  --tw-prose-captions: hsl(var(--ink-3));
+  --tw-prose-kbd: hsl(var(--ink-1));
+  --tw-prose-kbd-shadows: hsl(var(--ink-1) / 0.1);
+  --tw-prose-code: hsl(var(--ink-1));
+  --tw-prose-pre-code: hsl(var(--prose-ink));
+  --tw-prose-pre-bg: hsl(var(--shadow-ink) / 0.5);
+  --tw-prose-th-borders: hsl(var(--ink-5));
+  --tw-prose-td-borders: hsl(var(--ink-6));
+}
+
+/* ============================================================
    Tiptap placeholder
    ============================================================ */
 .ProseMirror {
@@ -1144,7 +1181,7 @@ textarea.page__title {
   font-family: var(--font-content);
   font-size: var(--editor-font-size, 17.5px);
   line-height: var(--editor-line-height, 1.75);
-  color: hsl(var(--ink-1));
+  color: hsl(var(--prose-ink));
   text-wrap: var(--editor-text-wrap, stable);
   /* Pin the wrapping behaviour prosemirror-view would otherwise inject only on
      first EditorView construction — the all-chapters read-through renders prose
@@ -1182,7 +1219,7 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
 }
 .page__body .ProseMirror em {
   font-style: italic;
-  color: hsl(var(--ink-2));
+  color: hsl(var(--prose-ink-2));
 }
 .page__body .ProseMirror h1,
 .set-preview h1 {
