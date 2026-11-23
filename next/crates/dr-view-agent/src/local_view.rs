@@ -1,15 +1,18 @@
-//! 「本地模型」: the cells under the four providers, after a hairline, in the
-//! companion's 「连接模型」 and in Settings → 模型与 API (作者 2026-11-16,
-//! prototype v3 「定稿」). The four provider cells are not touched.
+//! 「自定义服务」: the cells under the four providers, after a hairline, in
+//! the companion's 「连接模型」 and in Settings → 模型与 API (作者 2026-11-16,
+//! prototype v3 「定稿」; opened to services on the internet 2026-11-24,
+//! prototype 「第五版 网上的地址」). The four provider cells are not touched.
 //!
-//! - Companion: with no server, one hollow 「本地模型」 cell; it opens the
+//! - Companion: with no server, one hollow 「自定义服务」 cell; it opens the
 //!   form below it. With servers, one cell each; a click selects it.
 //! - Settings: each server's cell, 「改地址」「加 Key」/「编辑密钥」
 //!   「测试连接」「断开」, and its models with a 「上下文」 field each; a typed
 //!   list ends with 「模型名」+「添加」. The last row adds another server.
 //! - The form: the address (Enter connects, Esc closes), 「连接」「取消」
-//!   「加 Key」; the key field only after 「加 Key」. When the server gives no
-//!   model list the form asks for a model name instead.
+//!   「加 Key」. The key field shows after 「加 Key」, or at once while the
+//!   address is on the internet (not for a server that already has a key).
+//!   When the server gives no model list, or is on the internet, the form
+//!   asks for a model name instead.
 
 use std::collections::HashMap;
 
@@ -46,7 +49,7 @@ pub fn failure_text(failure: LocalFailure, cx: &App) -> SharedString {
     t(
         cx,
         match failure {
-            LocalFailure::NotLocal => k::NOT_LOCAL,
+            LocalFailure::NeedsHttps => k::NEEDS_HTTPS,
             LocalFailure::Unreachable => k::UNREACHABLE,
             LocalFailure::InvalidKey => keys::settings::byok_provider::INVALID_KEY,
             LocalFailure::NoToolModels => k::NO_TOOL_MODELS,
@@ -67,16 +70,23 @@ pub fn divider(window: &mut Window, cx: &App) -> AnyElement {
         .into_any_element()
 }
 
-/// The server's answer was not a model list: what the form keeps while the
-/// author types a model name.
+/// The server's answer was not a model list to offer: what the form keeps
+/// while the author types a model name.
 struct Pending {
     address: LocalAddress,
     key: KeyChange,
+    software: Option<Software>,
+    /// What a service on the internet listed: a typed name found here takes
+    /// its context.
+    known: Vec<dr_agent_providers::local::LocalModel>,
 }
 
 struct Form {
     /// The server being changed (「改地址」「加 Key」「编辑密钥」).
     editing: Option<String>,
+    /// The author opened the key field (「加 Key」「编辑密钥」). Left empty,
+    /// it removes the key; the field shown by itself for an address on the
+    /// internet does not.
     key_open: bool,
     busy: bool,
     error: Option<LocalFailure>,
@@ -129,6 +139,8 @@ impl LocalConnectionView {
                 cx.subscribe_in(field, window, |view, _, event, window, cx| match event {
                     FieldEvent::Submitted(_) => view.connect(window, cx),
                     FieldEvent::Cancelled => view.close(window, cx),
+                    // The key field may show or hide with the address.
+                    FieldEvent::Changed(_) => cx.notify(),
                     _ => {}
                 }),
             );
@@ -228,6 +240,25 @@ impl LocalConnectionView {
         cx.notify();
     }
 
+    /// Whether the key field shows: opened by the author or holding a key,
+    /// or by itself while the address is on the internet (作者 2026-11-24) —
+    /// but not for a server that already has a key: its 「改地址」 keeps the
+    /// field folded and the key stored.
+    fn key_shown(&self, cx: &App) -> bool {
+        let Some(form) = &self.form else {
+            return false;
+        };
+        if form.key_open || !self.key.read(cx).text().is_empty() {
+            return true;
+        }
+        let has_key = form
+            .editing
+            .as_deref()
+            .and_then(|id| self.connections.read(cx).local_server(id))
+            .is_some_and(|server| server.has_key);
+        !has_key && dr_agent_providers::local::on_the_internet(&self.address.read(cx).text())
+    }
+
     fn connect(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(form) = &self.form else {
             return;
@@ -240,14 +271,13 @@ impl LocalConnectionView {
             window.focus(&self.address.focus_handle(cx), cx);
             return;
         }
-        let key = if form.key_open {
-            let value = self.key.read(cx).text();
-            if value.trim().is_empty() {
-                KeyChange::Clear
-            } else {
-                KeyChange::Set(value.trim().to_owned())
-            }
+        let typed = self.key.read(cx).text();
+        let key = if self.key_shown(cx) && !typed.trim().is_empty() {
+            KeyChange::Set(typed.trim().to_owned())
+        } else if form.key_open {
+            KeyChange::Clear
         } else {
+            // Folded, or shown by itself and left empty: the key stays.
             KeyChange::Keep
         };
         let editing = form.editing.clone();
@@ -280,10 +310,15 @@ impl LocalConnectionView {
                             .collect();
                         view.finish(address, discovery.software, models, false, key, window, cx);
                     }
-                    Ok((address, Probe::NoList)) => {
+                    Ok((address, Probe::AskName { software, known })) => {
                         view.set_busy(false, cx);
                         if let Some(form) = &mut view.form {
-                            form.pending = Some(Pending { address, key });
+                            form.pending = Some(Pending {
+                                address,
+                                key,
+                                software,
+                                known,
+                            });
                         }
                         window.focus(&view.model_name.focus_handle(cx), cx);
                     }
@@ -310,10 +345,16 @@ impl LocalConnectionView {
         let Some(pending) = self.form.as_mut().and_then(|form| form.pending.take()) else {
             return;
         };
+        // A name the service's list has takes the context it gave there.
+        let context = pending
+            .known
+            .iter()
+            .find(|model| model.id == name)
+            .and_then(|model| model.context_window);
         self.finish(
             pending.address,
-            None,
-            vec![LocalServerModel::new(name, None)],
+            pending.software,
+            vec![LocalServerModel::new(name, context)],
             true,
             pending.key,
             window,
@@ -443,8 +484,9 @@ impl LocalConnectionView {
                     ),
                 );
         } else {
+            let key_shown = self.key_shown(cx);
             col = col.child(self.address.clone());
-            if form.key_open {
+            if key_shown {
                 col = col.child(self.key.clone());
             }
             col = col.child(
@@ -469,7 +511,7 @@ impl LocalConnectionView {
                             .small()
                             .on_click(cx.listener(|view, _, window, cx| view.close(window, cx))),
                     )
-                    .when(!form.key_open, |row| {
+                    .when(!key_shown, |row| {
                         row.child(
                             Button::new(
                                 "local-model-add-key",
@@ -842,7 +884,10 @@ impl LocalConnectionView {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct FormState {
     pub editing: bool,
+    /// Opened with 「加 Key」 or 「编辑密钥」.
     pub key_open: bool,
+    /// The key field is there (opened, or by itself for the internet).
+    pub key_shown: bool,
     pub busy: bool,
     pub asks_model_name: bool,
     pub error: Option<LocalFailure>,
@@ -851,10 +896,11 @@ pub struct FormState {
 /// The same entry points the buttons and fields use.
 #[doc(hidden)]
 impl LocalConnectionView {
-    pub fn form_state(&self) -> Option<FormState> {
+    pub fn form_state(&self, cx: &App) -> Option<FormState> {
         self.form.as_ref().map(|form| FormState {
             editing: form.editing.is_some(),
             key_open: form.key_open,
+            key_shown: form.pending.is_none() && self.key_shown(cx),
             busy: form.busy,
             asks_model_name: form.pending.is_some(),
             error: form.error,
