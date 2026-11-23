@@ -21,6 +21,10 @@
 //! Updates ([`update`]) are checked, downloaded and installed by M42
 //! (`dr-view-update`); the app reopens itself after an update with
 //! [`relaunch`].
+//!
+//! Every HTTP client of the App, here and in the services, adds
+//! [`proxy::system`]: the proxy the system is set to use, never for this
+//! computer or the local network.
 
 pub mod cli;
 pub mod crash;
@@ -32,6 +36,7 @@ pub mod identity;
 pub mod image_codec;
 pub mod logging;
 pub mod paths;
+pub mod proxy;
 pub mod relaunch;
 pub mod sanitize;
 pub mod secrets;

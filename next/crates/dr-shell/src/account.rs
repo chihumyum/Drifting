@@ -173,7 +173,7 @@ pub fn avatar(size: f32, window: &Window, cx: &App) -> Div {
         .font_role(Role::Ui)
         .type_px(size * 0.47, size * 0.47)
         .weight(weight::MEDIUM)
-        .italic()
+        .italic_face()
         .text_color(p.paper.solid())
         .child(initial)
 }

@@ -385,6 +385,7 @@ pub fn send(
     let client = reqwest::blocking::Client::builder()
         .timeout(SEND_TIMEOUT)
         .redirect(reqwest::redirect::Policy::none())
+        .proxy(crate::proxy::system())
         .user_agent(format!("Drifting/{}", payload.app_version))
         .build()
         .map_err(|e| SendError::Network(classify(&e)))?;
@@ -742,6 +743,32 @@ mod tests {
 
         assert_eq!(send(&endpoint, None, &body), Err(SendError::Status(503)));
         assert_eq!(service.next().unwrap().header("authorization"), None);
+    }
+
+    /// The Hosted service through the system's proxy, a development one on
+    /// this computer straight there (`proxy::fake::rerun_through`).
+    #[cfg(feature = "network")]
+    #[test]
+    fn feedback_takes_the_system_proxy_except_to_this_computer() {
+        let Some(proxy) = crate::proxy::fake::rerun_through(
+            "feedback::tests::feedback_takes_the_system_proxy_except_to_this_computer",
+        ) else {
+            let body = payload(&draft(), &sender(), at(0));
+            let service = fake_service::FakeService::start(&[202]);
+            let local = Endpoint::from_base(&service.base).unwrap();
+            assert_eq!(send(&local, None, &body), Ok(()));
+            assert!(service.next().is_some());
+            let remote = Endpoint::from_base("https://hosted.drifting.invalid").unwrap();
+            assert!(matches!(
+                send(&remote, None, &body),
+                Err(SendError::Network(_))
+            ));
+            return;
+        };
+        assert_eq!(
+            proxy.request_lines(),
+            vec!["CONNECT hosted.drifting.invalid:443 HTTP/1.1".to_owned()]
+        );
     }
 
     #[cfg(feature = "network")]

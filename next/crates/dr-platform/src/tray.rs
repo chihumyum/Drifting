@@ -72,6 +72,7 @@ impl TrayLabels {
             "fr" | "fr-fr" => ("Ouvrir Drifting", "Quitter Drifting"),
             "de" | "de-de" => ("Drifting öffnen", "Drifting beenden"),
             "es" | "es-es" => ("Abrir Drifting", "Salir de Drifting"),
+            "pt-br" | "pt" => ("Abrir o Drifting", "Sair do Drifting"),
             "ru" | "ru-ru" => ("Открыть Drifting", "Выйти из Drifting"),
             _ => ("Open Drifting", "Quit Drifting"),
         };
@@ -875,16 +876,28 @@ mod tests {
         assert!(!valid_label(&"x".repeat(MAX_LABEL_CHARS + 1)));
     }
 
+    /// The nine interface languages, by `dr_i18n::Locale::code`: each has
+    /// labels of its own, none left in English but English itself.
     #[test]
     fn locale_labels_cover_all_nine_interface_languages() {
-        for locale in ["zh-CN", "zh-TW", "en", "ja", "ko", "fr", "de", "es", "ru"] {
+        let english = TrayLabels::default();
+        for locale in [
+            "zh-CN", "zh-TW", "en", "ja", "ko", "es", "de", "fr", "pt-BR",
+        ] {
             let labels = TrayLabels::for_locale(locale);
             assert!(valid_label(&labels.open), "invalid open label for {locale}");
             assert!(valid_label(&labels.quit), "invalid quit label for {locale}");
+            if locale != "en" {
+                assert_ne!(labels.open, english.open, "{locale} open left in English");
+                assert_ne!(labels.quit, english.quit, "{locale} quit left in English");
+            }
         }
         let zh = TrayLabels::for_locale("zh-CN");
         assert_eq!(zh.open, "打开 Drifting");
         assert_eq!(zh.quit, "退出 Drifting");
+        let pt = TrayLabels::for_locale("pt-BR");
+        assert_eq!(pt.open, "Abrir o Drifting");
+        assert_eq!(pt.quit, "Sair do Drifting");
     }
 
     #[test]
