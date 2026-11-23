@@ -10,7 +10,7 @@
 
 - **菜单文案校验与多语言（`TrayLabels`、`valid_label`）**：
   - 沿用旧版 `src-tauri/src/windows_tray.rs` 的规则：单行、非空、不超过 80 个字符（`MAX_LABEL_CHARS = 80`）、不含任何控制字符。
-  - `TrayLabels::for_locale` 内置全部九种界面语言的「打开 Drifting」与「退出 Drifting」默认文案（如简体中文 `打开 Drifting` / `退出 Drifting`、繁体中文 `打開 Drifting` / `結束 Drifting`、英文 `Open Drifting` / `Quit Drifting` 等），并支持在界面语言切换时通过 `TrayController::set_labels` 动态更新。
+  - `TrayLabels::for_locale` 内置全部九种界面语言的「打开 Drifting」与「退出 Drifting」默认文案（如简体中文 `打开 Drifting` / `退出 Drifting`、繁体中文 `打開 Drifting` / `結束 Drifting`、英文 `Open Drifting` / `Quit Drifting` 等；葡萄牙语 `Abrir o Drifting` / `Sair do Drifting` 到 2026-11-24 才补上，之前落到英文，测试列的「九种」里错把俄语当成了一种），并支持在界面语言切换时通过 `TrayController::set_labels` 动态更新。
 - **关窗与唤醒状态机（`TrayState`、`WindowCloseDecision`、`TrayCommand`）**：
   - 点窗口关闭，不管窗口里是一本书还是全部项目，在 Windows 下都返回 `WindowCloseDecision::HideToTray`：刷盘后把主窗口原样藏进通知区，叫回来还是藏起来时的样子，后台 Agent 任务、Hosted 同步和本地 MCP 桥接继续运行。作者 2026-11-20 定（「都按照你的推荐来」）：和 macOS 2026-11-14 起红灯直接关窗一个意思；原先「开着书时先回全部项目、再点一次才收进通知区」那一步去掉了，`WindowCloseContext` 和 `ReturnToShelf` 随之删除；
   - 没有通知区图标时（见下一条）返回 `WindowCloseDecision::QuitProcess`，经刷新屏障落盘后退出；

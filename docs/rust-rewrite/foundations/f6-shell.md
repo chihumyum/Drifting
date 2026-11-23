@@ -27,13 +27,13 @@
 - 「检查更新」：只有「更新版本写的」才有，排第一。和设置「关于」里那一行是同一套（M42 用 `library_failure::set_update_button` 登记）：平时是「检查更新」，查的时候、下载的时候按钮上是那一行的字、转圈、点不了，下好了变「重启以更新」，点了照常退出、装上、重新打开。不能更新的构建（开发构建没有测试清单和密钥时）设置里那一行没有按钮，这里也没有。
 - 「在访达中打开」（Windows「在文件资源管理器中打开」，Markdown 文件夹那颗的字）：用系统打开当前资料库的文件夹（`library/`，里面是 `library.sqlite` 和安全快照）；那个文件夹不在就打开应用的数据文件夹；连数据文件夹都没有时不出这颗。
 - 「提交反馈」：打开现成的反馈对话框（M39），正文里先写好第一行和代号，例如「没能打开资料库（schema-newer）」（中日文全角括号，其他语言半角），别的都照旧；菜单里的「提交反馈」在这一页上也是这样。不需要资料库。
-- 「退出 Drifting」：托盘菜单的字（`TrayLabels`），文字按钮，走平常的退出流程。
+- 「退出 Drifting」：托盘菜单的字（`TrayLabels`），文字按钮，走平常的退出流程。葡萄牙语原来没有这一句、显示成英文的「Quit Drifting」，2026-11-24 补成 0.1 托盘的「Sair do Drifting」（托盘的「打开」同时补成「Abrir o Drifting」）。
 
 没有「重试」（退出再打开就是），也没有从快照或备份恢复。
 
 **还欠的。** 「升级后打不开」那种的「从升级前的快照恢复」（存储层已有 `Library::recovery_receipts`、`restore_from_receipt`）要在第一个带迁移的版本发布之前加上，见 [release-handover.md](../release-handover.md)。0.2.0 的迁移 0000–0008 都是起点，新库直接建好，升级不会发生。
 
-**测试和验收。** 原因表每一行：`app/drifting/src/library.rs` 的 `each_open_failure_is_one_of_the_pages_causes`；标成更新版本写的库、不是数据库的文件，各自以对的原因和代号到壳里、窗口不出书架：同一文件的 `a_refused_library_reaches_the_shell_as_its_cause_and_code`。页面：`dr-shell/tests/library_failure.rs`（七种原因的三行字和按钮、没有书架和首次引导和导入弹窗、首次引导做没做过都一样、「提交反馈」带着那一行、「退出」走退出流程、有资料库时不出这一页）；真的反馈对话框没有资料库也能开、预填、能发：`dr-view-feedback/tests/dialog.rs`；「检查更新」一直走到「重启以更新」并装上：`dr-view-update/tests/updates.rs`。真窗口（带调试桥的开发构建、一次性 profile）里两种原因、深浅色、中英文各截了图，按钮在读屏树里都找得到。仓库里的场景格式没有改坏库文件的步骤，这次没加场景。
+**测试和验收。** 原因表每一行：`app/drifting/src/library.rs` 的 `each_open_failure_is_one_of_the_pages_causes`；标成更新版本写的库、不是数据库的文件，各自以对的原因和代号到壳里、窗口不出书架：同一文件的 `a_refused_library_reaches_the_shell_as_its_cause_and_code`。页面：`dr-shell/tests/library_failure.rs`（七种原因的三行字和按钮、没有书架和首次引导和导入弹窗、首次引导做没做过都一样、「提交反馈」带着那一行、「退出」走退出流程、有资料库时不出这一页；`every_word_on_the_page_is_in_each_of_the_nine_languages` 核对七种原因的每一行字、四颗按钮、反馈那一行在九种语言里都有，除英文外没有一句是英文）；真的反馈对话框没有资料库也能开、预填、能发：`dr-view-feedback/tests/dialog.rs`；「检查更新」一直走到「重启以更新」并装上：`dr-view-update/tests/updates.rs`。真窗口（带调试桥的开发构建、一次性 profile）里两种原因、深浅色、中英文各截了图，按钮在读屏树里都找得到。仓库里的场景格式没有改坏库文件的步骤，这次没加场景。
 
 ### 内核 v5：UP 第三版视觉打磨（2026-11-17）
 
