@@ -298,6 +298,8 @@ Drifting 的正文能在新版里编辑并落盘了：新的 AGPL crate `next/cr
 | `ParagraphIndex`、`ParagraphExtent` | SumTree 段落索引 | 可能变（F4b 要按高度查时会加维度） |
 | `text::segment::{…}` | 一段之内的字素和词 | 可能变（F4c 可能改成带缓存的版本） |
 | `ORIGIN_USER`、`ORIGIN_AGENT_PREFIX`、`ORIGIN_REPAIR` | 来源 | v0 稳定 |
+| `Fragment { paragraphs }`、`FragmentParagraph { text, marks, attrs }`、`PASTED_KEYS`；`PastePlan::new(doc, range, &fragment)`、`.edits(overrides) -> Vec<Edit>`、`.caret()`、`.text()` | 要粘贴的一段富文本，和它怎么进正文（照 ProseMirror 的放法，一次 `edit_batch` 一步撤销），见 [f4e-editor.md 的 PF 一节](f4e-editor.md#pf-从-word-和网页粘贴带格式2026-11-24)（2026-11-24） | 可能变 |
+| `html::parse(html) -> Option<Fragment>`、`html::MAX_HTML_BYTES` | 别的程序的 HTML（Word、网页、Cocoa 由 RTF 转的）读成 `Fragment`：正文有的格式留下，别的只留字；纯函数、不递归、坏 HTML 不失败（2026-11-24） | 可能变 |
 
 ### 排版层（`gpui_prose::layout`，F4b）
 
