@@ -318,9 +318,12 @@ pub(crate) fn book_changes(
 }
 
 /// Whether a persisted book-document change can affect automatic-link names
-/// (`kernel-v5.md` §16: auto-linking reads residence only, so membership
-/// edits, `primary`, and `accept` / `home` overrides never invalidate the
-/// cached name table or matcher).
+/// (`kernel-v5.md` §16: the names are the title and aliases of the live
+/// entries whose own 「自动链接」 is on, so an entry's `auto_link`, title,
+/// alias fields, template (which fields are aliases) and `deleted_at`, the
+/// tree and the templates count; memberships, `primary`, the `level`
+/// switch and every override, a level's own 「自动链接」 included, never
+/// invalidate the cached name table or matcher).
 pub(crate) fn touches_autolink_names(changes: &[ContainerChange]) -> bool {
     for c in changes {
         let root = c
@@ -336,35 +339,16 @@ pub(crate) fn touches_autolink_names(changes: &[ContainerChange]) -> bool {
                 }
                 match c.path.get(2) {
                     Some((_, Index::Key(k))) if k.as_ref() == "fields" => return true,
-                    Some((_, Index::Key(k))) if k.as_ref() == "overrides" => {
-                        if let (3, Diff::Map(m)) = (c.path.len(), &c.diff) {
-                            if m.updated.contains_key("auto_link") {
-                                return true;
-                            }
-                        } else {
-                            return true;
-                        }
-                    }
                     Some(_) => {}
                     None => match &c.diff {
                         Diff::Map(m) => {
-                            for (k, val) in &m.updated {
-                                match k.as_ref() {
-                                    "title" | "template" | "level" | "deleted_at" | "fields" => {
-                                        return true;
-                                    }
-                                    "overrides" => match val {
-                                        Some(loro::ValueOrContainer::Container(
-                                            loro::Container::Map(ov),
-                                        )) => {
-                                            if ov.get("auto_link").is_some() {
-                                                return true;
-                                            }
-                                        }
-                                        _ => return true,
-                                    },
-                                    _ => {}
-                                }
+                            if m.updated.keys().any(|k| {
+                                matches!(
+                                    k.as_ref(),
+                                    "title" | "template" | "auto_link" | "deleted_at" | "fields"
+                                )
+                            }) {
+                                return true;
                             }
                         }
                         _ => return true,

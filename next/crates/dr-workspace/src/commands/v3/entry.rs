@@ -10,7 +10,9 @@ pub(crate) fn register(r: &mut Registry) {
         .add::<EntryMove>()
         .add::<EntryTrash>()
         .add::<EntryRestore>()
-        .add::<EntrySetLevel>();
+        .add::<EntrySetLevel>()
+        .add::<EntrySetAutoLink>()
+        .add::<EntrySetBelowAutoLink>();
 }
 
 /// A new, empty entry: no fields or rows yet.
@@ -29,6 +31,7 @@ pub(super) fn new_entry(
         mark: None,
         template,
         level,
+        auto_link: false,
         overrides: None,
         fields: BTreeMap::new(),
         kv: BTreeMap::new(),
@@ -230,6 +233,11 @@ pub struct CreateIn {
     /// The new entry's switch; the template's default when omitted.
     #[serde(default)]
     pub level: Option<bool>,
+    /// The new entry's own 「自动链接」; when omitted, on only if its template
+    /// is linkable and the level it comes to live in has new entries start
+    /// linked (`kernel-v5.md` §16).
+    #[serde(default)]
+    pub auto_link: Option<bool>,
     /// Optional explicit initial text by prose module ID; omitted modules copy template prose.
     #[serde(default)]
     pub bodies: BTreeMap<String, String>,
@@ -298,6 +306,14 @@ op! {
             template.clone(),
             level,
         );
+        e.auto_link = input.auto_link.unwrap_or_else(|| {
+            m::new_entry_auto_link(
+                parent.as_ref(),
+                template.as_ref(),
+                &before.entries,
+                &before.templates,
+            )
+        });
         e.mark = input.mark;
         if let Some(t) = e.effective_template(&before.templates) {
             for module in &t.modules {
@@ -365,6 +381,7 @@ op! {
             )?;
             w.created_at(saved.created_at)?
                 .mark(saved.mark.as_deref())?
+                .auto_link(saved.auto_link)?
                 .primary(h.as_ref())?;
             for (module, fields) in &saved.fields {
                 for (field_id, value) in fields {
@@ -803,6 +820,135 @@ op! {
             id: input.id,
             level: input.level,
             trashed: trashed.iter().map(ToString::to_string).collect(),
+        })
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+pub struct SetAutoLinkIn {
+    pub book: String,
+    pub id: String,
+    /// The entry's own 「自动链接」.
+    pub auto_link: bool,
+}
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+pub struct SetAutoLinkOut {
+    pub id: String,
+    pub auto_link: bool,
+}
+op! {
+    EntrySetAutoLink = "entry.set_auto_link", Write, Book, "Turn an entry's own automatic linking (「自动链接」) on or off: whether its title and aliases link by themselves in the book's text, and whether the automatic links already pointing at it show as links. No text is rewritten: turned off, those links read as plain text and their data stays; turned back on, they show again. Links picked with @ show either way. Refused when, turned on, one of its names is already another linked entry's.",
+    fn(cx, input: SetAutoLinkIn) -> SetAutoLinkOut {
+        let slot = cx.book_v3(&input.book)?;
+        let v = slot.reader_v3.view();
+        let e = live(&v, &input.id)?;
+        if e.auto_link == input.auto_link {
+            cx.undo_nothing();
+            return Ok(SetAutoLinkOut {
+                id: input.id,
+                auto_link: input.auto_link,
+            });
+        }
+        let before = v.graph();
+        let mut after = before.clone();
+        if let Some(h) = after.entries.get_mut(&e.id) {
+            h.auto_link = input.auto_link;
+        }
+        changes_ok(&before, &after)?;
+        let id = e.id.clone();
+        let on = input.auto_link;
+        let replaced = rec(CollectionV3::Entries, &e.id).at(["auto_link"]);
+        let (_, at) = cx.write_book_v3(&slot, Replaces::records([replaced]), move |t| {
+            t.entries().entry(&id)?.auto_link(on)?;
+            Ok(())
+        })?;
+        undo(cx, &slot, &at, vec![key("entries", &e.id)]);
+        cx.effect(EffectAction::Updated, "entry", e.id.as_str(), Some(&e.title));
+        Ok(SetAutoLinkOut {
+            id: input.id,
+            auto_link: input.auto_link,
+        })
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+pub struct SetBelowAutoLinkIn {
+    pub book: String,
+    /// A live entry whose level switch is on.
+    pub id: String,
+    /// The level's 「自动链接」.
+    pub auto_link: bool,
+}
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+pub struct SetBelowAutoLinkOut {
+    pub id: String,
+    pub auto_link: bool,
+    /// The entries living below whose own switch this changed.
+    pub changed: Vec<String>,
+}
+op! {
+    EntrySetBelowAutoLink = "entry.set_below_auto_link", Write, Book, "Turn a level's automatic linking (「自动链接」) on or off: entries made to live in it from now on start with their own switch that way, and every entry living below it now (however deep, not those in Recently Deleted, not containers whose template does not follow its level) gets its own switch set the same, in one step one undo takes back. Each entry can be changed on its own afterwards. Refused when a name would then belong to two linked entries.",
+    fn(cx, input: SetBelowAutoLinkIn) -> SetBelowAutoLinkOut {
+        let slot = cx.book_v3(&input.book)?;
+        let v = slot.reader_v3.view();
+        let e = live(&v, &input.id)?;
+        if !e.is_level() {
+            return Err(WsError::invalid(
+                "only an entry whose level switch is on has entries living below it; turn it on first",
+            ));
+        }
+        let before = v.graph();
+        let on = input.auto_link;
+        let changed: Vec<EntryId> =
+            m::below_auto_link_entries(&e.id, &before.entries, &before.templates)
+                .into_iter()
+                .filter(|c| before.entries.get(c).is_some_and(|x| x.auto_link != on))
+                .collect();
+        let default_set = e.overrides.as_ref().and_then(|o| o.auto_link) == Some(on);
+        if default_set && changed.is_empty() {
+            cx.undo_nothing();
+            return Ok(SetBelowAutoLinkOut {
+                id: input.id,
+                auto_link: on,
+                changed: Vec::new(),
+            });
+        }
+        let mut after = before.clone();
+        if let Some(h) = after.entries.get_mut(&e.id) {
+            h.overrides.get_or_insert_with(Default::default).auto_link = Some(on);
+        }
+        for c in &changed {
+            if let Some(x) = after.entries.get_mut(c) {
+                x.auto_link = on;
+            }
+        }
+        changes_ok(&before, &after)?;
+        let mut replaced = vec![rec(CollectionV3::Entries, &e.id).at(["overrides", "auto_link"])];
+        replaced.extend(
+            changed
+                .iter()
+                .map(|c| rec(CollectionV3::Entries, c).at(["auto_link"])),
+        );
+        let id = e.id.clone();
+        let writes = changed.clone();
+        let (_, at) = cx.write_book_v3(&slot, Replaces::records(replaced), move |t| {
+            t.entries().entry(&id)?.below_auto_link(Some(on))?;
+            for c in &writes {
+                t.entries().entry(c)?.auto_link(on)?;
+            }
+            Ok(())
+        })?;
+        let mut keys = vec![key("entries", &e.id)];
+        keys.extend(changed.iter().map(|c| key("entries", c)));
+        undo(cx, &slot, &at, keys);
+        cx.effect(EffectAction::Updated, "entry", e.id.as_str(), Some(&e.title));
+        for c in &changed {
+            cx.effect(EffectAction::Updated, "entry", c.as_str(), None);
+        }
+        Ok(SetBelowAutoLinkOut {
+            id: input.id,
+            auto_link: on,
+            changed: changed.iter().map(ToString::to_string).collect(),
         })
     }
 }

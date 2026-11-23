@@ -148,6 +148,7 @@ pub fn map_entity_link(
         module,
         block: link.block.clone(),
         end_block: link.end_block.clone(),
+        manual: false,
     })
 }
 

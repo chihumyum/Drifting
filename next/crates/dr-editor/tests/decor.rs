@@ -342,6 +342,7 @@ fn links_suggestions_and_todo_keywords_are_found(cx: &mut TestAppContext) {
                 kind: dr_model::kind::EntityKind::Entry,
                 block: None,
                 end_block: None,
+                manual: false,
             }),
             gpui_prose::text::ORIGIN_USER,
         );
@@ -351,6 +352,74 @@ fn links_suggestions_and_todo_keywords_are_found(cx: &mut TestAppContext) {
     });
     assert!(wait_for(cx, |cx| group(&view, cx, "links") == one(12..14)));
     assert_eq!(group(&view, cx, "suggestions"), one(18..20));
+}
+
+/// `kernel-v5.md` §16: an automatic link whose entry's own 「自动链接」 is off
+/// is drawn as text, without grains, and is a link again once it is on; the
+/// author's setting does the same for every automatic one. The text and its
+/// links stay as they were throughout.
+#[gpui::test]
+fn a_link_to_an_entry_switched_off_reads_as_text_until_it_is_on_again(cx: &mut TestAppContext) {
+    let e = env();
+    let name = dr_testkit::seed::acceptance::novel_entry(
+        &e.ws,
+        &e.book,
+        "tpl-character",
+        "林岚",
+        None,
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    // The Agent's chapter: its names are linked as it writes them.
+    let id = out(
+        &e.ws,
+        &Actor::agent("s", 1, "c"),
+        "entry.create", json!({"book": e.book, "parent": dr_testkit::seed::acceptance::novel_root(&e.ws, &e.book, "tpl-manuscript"), "template": "tpl-chapter", "title": "一", "bodies": {"mod-prose": "林岚上了楼，林岚又下来。"}}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let doc = format!("body:{id}/mod-prose");
+    let stored = |e: &Env| {
+        let d = e.ws.library().load_copy(&doc).unwrap();
+        (d.get_deep_value(), d.oplog_frontiers())
+    };
+    let before = stored(&e);
+    let (view, cx) = open(cx, &e, &doc);
+    let both = vec![0..2, 6..8];
+    assert!(wait_for(cx, |cx| group(&view, cx, "links") == both));
+    let switch = |on: bool| {
+        out(
+            &e.ws,
+            &Actor::User,
+            "entry.set_auto_link",
+            json!({"book": e.book, "id": name, "auto_link": on}),
+        );
+    };
+    switch(false);
+    assert!(wait_for(cx, |cx| group(&view, cx, "links").is_empty()));
+    assert!(group(&view, cx, "suggestions").is_empty());
+    assert_eq!(stored(&e), before);
+    switch(true);
+    assert!(wait_for(cx, |cx| group(&view, cx, "links") == both));
+    // The author's setting: no links and no grains, at once.
+    e.ws.set_auto_links(false);
+    view.update(cx, |v, cx| {
+        v.set_settings(
+            EditorSettings {
+                auto_entity_links: false,
+                ..EditorSettings::default()
+            },
+            cx,
+        )
+    });
+    assert!(wait_for(cx, |cx| group(&view, cx, "links").is_empty()));
+    assert!(group(&view, cx, "suggestions").is_empty());
+    e.ws.set_auto_links(true);
+    view.update(cx, |v, cx| v.set_settings(EditorSettings::default(), cx));
+    assert!(wait_for(cx, |cx| group(&view, cx, "links") == both));
+    assert_eq!(stored(&e), before);
 }
 
 fn todos(e: &Env, doc: &str) -> usize {

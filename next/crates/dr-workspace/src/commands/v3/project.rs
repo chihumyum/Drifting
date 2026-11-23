@@ -142,6 +142,7 @@ pub(super) fn validate_project_template(
             mark: seed.mark.clone(),
             template: seed.template.clone(),
             level: seed.level,
+            auto_link: false,
             overrides: seed.overrides.clone(),
             fields: seed.fields.clone(),
             kv: BTreeMap::new(),

@@ -6,9 +6,12 @@
 //!
 //! - **Automatic links** (the setting `editor.auto_entity_links`, on by
 //!   default): half a second after the author stops typing, the paragraphs
-//!   they typed in are matched against every element name and alias and
-//!   every chapter and idea title (verbatim, leftmost-longest, a document
-//!   never links to itself). A name already linked to its target is left
+//!   they typed in are matched against the title and aliases of every entry
+//!   whose own 「自动链接」 is on (`kernel-v5.md` §16; verbatim,
+//!   leftmost-longest, a document never links to itself). A link picked
+//!   with @ is recorded as manual ([`picked_link_value`]) and never touched
+//!   by them ([`protect_v3`]). Whether a link shows is not decided here:
+//!   [`crate::links::DriftingExtension::show`]. A name already linked to its target is left
 //!   alone; a name partly linked to it is linked whole (a split link heals);
 //!   a shorter name inside it linked to someone else gives way to the
 //!   longer one. The links are part of the typing's undo step: one ⌘Z takes
@@ -213,9 +216,12 @@ impl NameIndex {
         }
     }
 
-    /// The names of `book` (elements, their aliases, chapter and idea
-    /// titles), leaving out document `exclude` (`node:<id>`, …: a document
-    /// never links to itself). Read on the book document's holder thread.
+    /// The names that link by themselves in `book` (the title and aliases of
+    /// every entry whose own 「自动链接」 is on, `kernel-v5.md` §16), leaving
+    /// out document `exclude` (`body:<entry>/<module>`, …: a document never
+    /// links to itself). Read on the book document's holder thread. The @
+    /// picker lists every live entry instead
+    /// (`dr_workspace::Workspace::book_mention_names`).
     pub fn load(ws: &Workspace, book: &str, exclude: &[&str]) -> Result<NameIndex, String> {
         use std::sync::{Mutex, OnceLock};
         type CacheKey = (u64, String);
@@ -420,13 +426,30 @@ pub fn repairs(
         .collect()
 }
 
-/// The value dr-doc stores on an entity link to `target` (no deep link).
+/// The value dr-doc stores on an automatic entity link to `target` (no deep
+/// link).
 pub fn link_value(target: &LinkTarget) -> LoroValue {
     crate::convert::entity_value(&dr_model::prose::EntityLink {
         target: target.id.clone(),
         kind: target.kind.clone(),
         block: None,
         end_block: None,
+        manual: false,
+    })
+}
+
+/// The value of a link to `target` the author picked with @: a link to an
+/// entry is marked manual ([`dr_model::prose::LINK_MANUAL`]), so it shows
+/// whatever the switches of automatic linking say and automatic linking
+/// leaves it alone ([`protect_v3`], `kernel-v5.md` §16). A file link has no
+/// switch and is stored as before.
+pub fn picked_link_value(target: &LinkTarget) -> LoroValue {
+    crate::convert::entity_value(&dr_model::prose::EntityLink {
+        target: target.id.clone(),
+        kind: target.kind.clone(),
+        block: None,
+        end_block: None,
+        manual: target.kind == EntityKind::Entry,
     })
 }
 
@@ -451,7 +474,9 @@ pub fn apply(doc: &mut ProseDoc, line_ix: usize, edits: &[LinkEdit]) {
 }
 
 /// Automatic matching and repair may only change bare v3 entry marks.
-/// Preserve module/block/material/unknown representations and overlapping runs.
+/// Preserve module/block/material/unknown representations, links picked with
+/// @ (their value carries [`dr_model::prose::LINK_MANUAL`], so it is not
+/// bare) and overlapping runs.
 pub fn protect_v3(line: &Line, edits: Vec<LinkEdit>) -> Vec<LinkEdit> {
     let protected: Vec<_>=line.spans.iter().filter(|s|s.marks.entities().any(|(_,v)| {
         !matches!(v,LoroValue::Map(m) if m.len()==1 && m.get("kind")==Some(&LoroValue::from("entry")))

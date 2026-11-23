@@ -382,3 +382,10 @@ K2 的视图名称／泳道顺序等逐字段命令仍待协调；在接口提�
 - **`entry.set_level` 写前快照与观察失效**：`checkpoints::entries` 的惰性 `Lookups` 增加 `entry.set_level`（`level: false`），写前同时为该条目与所有直接子条目（含已回收但仍挂在其下的直接子条目，不含孙条目）建立 `entry_snapshot.create_with_receipt` 完整快照，恢复父与子快照即可完整还原开关与原住处。执行产生 `moved` 后同步失效 `entry:roots`、`entry:*`、`entry:all` 及被挪动子条目的 `entry:<child>`／`level:<child>` 读取观察。
 - **结构上下文与按需读取**：`StructureContext` 输出不再包含旧模板 `kind`／`allow` 或旧层级 `about` 字段，`mod-description` 与 `mod-prose` 一样作为普通正文模块投影。`Catalog` 基础注册投影以 `OnceLock` 缓存，`AgentTools::catalog_for_book` 以 `CatalogStamp`（模板表＋按树序排列的存活 `level: true` 条目头）跨非结构写入直接复用同一份 `Arc<Catalog>`。`Catalog`、`StructureContext`、`resolve_v3` 以及 `dr-view-agent` 的系统提示刷新、主动建议上下文、关联跳转和引导检查全部改走 `Workspace::read_book_v3`／`is_v3_book` 读取内存活文档头或单节点 `entry_raw`，消除每次工具调用对大书的 `load_copy` 历史重放与全量 `entries()` 解码。
 - **验收与副屏冒烟**：新增永久回归覆盖目录退场命令排除、开关驱动的动作绑定、`CatalogStamp` 缓存复用与结构变更重算、`entry.set_level(false)` 父子快照恢复及孙条目排除、结构说明无 `kind`/`allow`/`about` 且 `mod-description` 投影为 `prose` 模块，以及 `checkpoints:<book>` 侧文档回执不阻塞长任务步骤证明。`dr-view-agent` 的 `v3-acceptance` 与 `scenarios/v3-tools.json` 扩至 30 步（0 pending），在副屏真窗口验证完整读写、批注、`entry.set_level(false)` 与父子快照恢复。Heavy 与三年陈化大书 `--release`「帮手读后改标题」前后耗时及全套门禁结果记于交回报告与 `$HOME/Drifting-autopilot-logs/v4-t3-agent/`。
+
+## AL 条目自己的「自动链接」（2026-11-24）
+
+- 新命令 `entry.set_auto_link { book, id, auto_link }`（条目自己的开关）和 `entry.set_below_auto_link { book, id, auto_link }`（按层的开关：住在下面、模板 `linkable` 的条目一起改，以后在这一层新建的默认跟着；输出 `changed` 是改了开关的条目）。两条都按 `id` 解析符号引用，写前快照照 `entry.update` 存（后者另存下面的条目）；后者读写范围是 `entry:*`。`entry.create` 多一个可选的 `auto_link`，不给时取住进去那一层的默认。`entry.get`／`entry.list` 的条目带 `auto_link`。
+- `entry.mentions` 只数显示成链接的：@ 挑的（索引里是 `Mention`）总数；自动的（`Link`）在这个条目自己的开关和作者的总开关都开着时才数。
+- 给帮手的结构说明里，模板的 `linkable` 现在只是「新建时跟不跟层的默认、按层打开时带不带」，层的 `auto_link` 是「在这一层新建的默认」。
+- 规则在 [kernel-v5.md 第 16 节「自动链接」](../kernel-v5.md#自动链接)。

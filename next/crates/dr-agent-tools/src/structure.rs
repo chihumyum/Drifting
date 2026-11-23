@@ -230,7 +230,9 @@ pub struct TemplateSummary {
     pub name: String,
     /// Whether a new entry of this template starts with its switch on.
     pub level: bool,
-    /// Whether entries of this template take part in auto-linking.
+    /// Whether a new entry of this template takes its level's 「自动链接」
+    /// default, and turning the level's switch carries it along
+    /// (`kernel-v5.md` §16). Each entry's own switch is its `auto_link`.
     pub linkable: bool,
     pub agent: TemplateAgentSummary,
     pub modules: Vec<ModuleSummary>,

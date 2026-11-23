@@ -168,7 +168,27 @@ pub struct EntityLink {
     /// A link to a range of a chapter: first and last block.
     pub block: Option<BlockId>,
     pub end_block: Option<BlockId>,
+    /// Picked with @ (stored as [`LINK_MANUAL`]` = true` in the value): it
+    /// shows whatever the switches of automatic linking say, and automatic
+    /// linking leaves it alone (`kernel-v5.md` §16). Every link without it,
+    /// written before or by automatic linking, is automatic.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub manual: bool,
 }
+
+impl EntityLink {
+    /// Whether the author made this link: picked with @ ([`Self::manual`]),
+    /// or one to a range of blocks, which automatic linking never writes
+    /// (`kernel-v5.md` §16; [`crate::v3::EntityLinkV3::picked`]).
+    pub fn picked(&self) -> bool {
+        self.manual || self.block.is_some() || self.end_block.is_some()
+    }
+}
+
+/// The key of an entity link's value saying it was picked with @
+/// (`kernel-v5.md` §16): `true`, or absent for an automatic link. A version
+/// that does not know it keeps it with the value and leaves the link alone.
+pub const LINK_MANUAL: &str = "manual";
 
 /// Inline marks of one run of text.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

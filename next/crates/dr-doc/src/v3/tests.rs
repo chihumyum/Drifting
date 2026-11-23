@@ -280,7 +280,10 @@ fn entries_tree_fields_kv_and_read_tolerances_round_trip() {
             Some(&tid(TPL_CHARACTER)),
             false,
         )?;
+        // Made in 人物, they start linked (`entry.create` takes the
+        // category's default; written here directly, the switch is set).
         c1.created_at(Some(Timestamp(100)))?
+            .auto_link(true)?
             .set_field(
                 &mid(MOD_FIELDS),
                 "aliases",
@@ -310,7 +313,7 @@ fn entries_tree_fields_kv_and_read_tolerances_round_trip() {
             Some(&tid(TPL_CHARACTER)),
             false,
         )?;
-        c2.created_at(Some(Timestamp(200)))?;
+        c2.created_at(Some(Timestamp(200)))?.auto_link(true)?;
 
         // Two chapters under 书稿.
         t.entries().create(
@@ -333,7 +336,8 @@ fn entries_tree_fields_kv_and_read_tolerances_round_trip() {
     r.unwrap();
 
     let v = doc.view();
-    // Group under 人物 inherits auto_link = true and default_template = tpl-character.
+    // Group under 人物 inherits auto_link = true (what is made there starts
+    // linked) and default_template = tpl-character.
     let grp_settings = v.level_settings(Some(&eid("grp-protagonists")));
     assert!(grp_settings.auto_link);
     assert_eq!(grp_settings.default_template, Some(tid(TPL_CHARACTER)));
@@ -620,7 +624,8 @@ fn structure_snapshot_matches_live_read_tolerances_and_order() {
                 Some(&tid(TPL_CHARACTER)),
                 false,
             )?
-            .created_at(Some(Timestamp(1)))?;
+            .created_at(Some(Timestamp(1)))?
+            .auto_link(true)?;
         t.entries()
             .create(
                 &eid("b"),
@@ -629,7 +634,8 @@ fn structure_snapshot_matches_live_read_tolerances_and_order() {
                 Some(&tid(TPL_CHARACTER)),
                 false,
             )?
-            .created_at(Some(Timestamp(2)))?;
+            .created_at(Some(Timestamp(2)))?
+            .auto_link(true)?;
         t.entries()
             .create(
                 &eid("dead"),
@@ -1803,6 +1809,7 @@ fn entry_headers_read_what_the_checks_read_like_a_full_read() {
                     false,
                 )?
                 .created_at(Some(Timestamp(if id == "p1" { 1 } else { 2 })))?
+                .auto_link(true)?
                 .set_field(
                     &fmod,
                     "aliases",
@@ -1823,8 +1830,22 @@ fn entry_headers_read_what_the_checks_read_like_a_full_read() {
     for (id, e) in &full {
         let h = &headers[id];
         assert_eq!(
-            (&h.parent, &h.title, &h.template, h.level, &h.overrides),
-            (&e.parent, &e.title, &e.template, e.level, &e.overrides),
+            (
+                &h.parent,
+                &h.title,
+                &h.template,
+                h.level,
+                h.auto_link,
+                &h.overrides
+            ),
+            (
+                &e.parent,
+                &e.title,
+                &e.template,
+                e.level,
+                e.auto_link,
+                &e.overrides
+            ),
             "{id}"
         );
         assert_eq!((h.created_at, h.deleted_at), (e.created_at, e.deleted_at));
@@ -1847,7 +1868,8 @@ fn entry_headers_read_what_the_checks_read_like_a_full_read() {
                     Some(&tid(TPL_CHARACTER)),
                     false,
                 )?
-                .created_at(Some(Timestamp(if id == "q1" { 1 } else { 2 })))?;
+                .created_at(Some(Timestamp(if id == "q1" { 1 } else { 2 })))?
+                .auto_link(true)?;
         }
         Ok(())
     });
@@ -2735,6 +2757,7 @@ fn concurrent_disjoint_linked_text_edits_keep_both_additions_and_the_entry_mark(
             start,
             end: start + 1,
             entry: eid("b"),
+            manual: false,
         }],
     };
     let write = |book: &mut BookDocV3, body: &LinkedText| {
@@ -2768,6 +2791,84 @@ fn concurrent_disjoint_linked_text_edits_keep_both_additions_and_the_entry_mark(
     }
 }
 
+/// `kernel-v5.md` §16: a link of a comment or description picked with @ is
+/// stored as such (its own mark beside the entry's) through a write, a sync,
+/// a reopen and a change back to automatic; readers drop an automatic link
+/// whose entry's own 「自动链接」 is off and keep a picked one.
+#[test]
+fn linked_text_keeps_links_picked_with_at_and_readers_follow_the_entrys_switch() {
+    let (mut a, kind, _) = relation_fixture();
+    let comment = CommentId::parse("comment").unwrap();
+    let text = |manual: bool| LinkedText {
+        text: "a b c".to_owned(),
+        links: vec![
+            EntryTextLink {
+                start: 0,
+                end: 1,
+                entry: eid("b"),
+                manual,
+            },
+            EntryTextLink {
+                start: 2,
+                end: 3,
+                entry: eid("b"),
+                manual: false,
+            },
+        ],
+    };
+    let write = |book: &mut BookDocV3, body: &LinkedText| {
+        book.edit(Origin::User, |txn| {
+            txn.comment(&comment)?.linked_body(body)?;
+            txn.relation_type(&kind)?.description(body)?;
+            Ok::<_, crate::DocError>(())
+        })
+        .0
+        .unwrap();
+    };
+    write(&mut a, &text(true));
+    let b = BookDocV3::load(bid(), 102, &[a.export_snapshot().unwrap()]).unwrap();
+    for doc in [&a, &b] {
+        assert_eq!(doc.view().comment_body_raw(&comment), Some(text(true)));
+        assert_eq!(
+            doc.view().relation_type_raw(&kind).unwrap().description,
+            text(true)
+        );
+    }
+    // The entry's switch off: the automatic link reads as text.
+    let switch = |book: &mut BookDocV3, on: bool| {
+        book.edit(Origin::User, |txn| {
+            txn.entries().entry(&eid("b"))?.auto_link(on)?;
+            Ok::<_, crate::DocError>(())
+        })
+        .0
+        .unwrap();
+    };
+    switch(&mut a, true);
+    let shown = |book: &BookDocV3| {
+        book.view()
+            .resolve_linked_text(&book.view().comment_body_raw(&comment).unwrap())
+            .links
+            .iter()
+            .map(|l| (l.start, l.manual))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(shown(&a), vec![(0, true), (2, false)]);
+    switch(&mut a, false);
+    assert_eq!(shown(&a), vec![(0, true)]);
+    assert_eq!(
+        a.view()
+            .relation_type(&kind)
+            .unwrap()
+            .description
+            .links
+            .len(),
+        1
+    );
+    // Written back as automatic, the mark goes.
+    write(&mut a, &text(false));
+    assert_eq!(a.view().comment_body_raw(&comment), Some(text(false)));
+}
+
 #[test]
 fn concurrent_projection_seeds_choose_one_linked_version_of_the_line() {
     let (mut a, _, _) = relation_fixture();
@@ -2782,6 +2883,7 @@ fn concurrent_projection_seeds_choose_one_linked_version_of_the_line() {
             start: 0,
             end: 1,
             entry: eid("b"),
+            manual: false,
         }],
     };
     let second = LinkedText::plain("second");

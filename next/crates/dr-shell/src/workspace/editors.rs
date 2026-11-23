@@ -1210,6 +1210,9 @@ impl Workspace {
             && let Some(lib) = &self.library
         {
             lib.set_auto_links(settings.auto_entity_links);
+            // Comments follow at once, as the prose does; the relations
+            // rail follows when this workspace notifies (`kernel-v5.md` §16).
+            dr_view_review::auto_links_changed(cx);
         }
         self.editor_settings = settings.clone();
         self.editor_base = base.clone();

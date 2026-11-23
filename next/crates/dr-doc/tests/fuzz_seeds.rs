@@ -34,6 +34,7 @@ fn write_fuzz_seeds() {
                         kind: EntityKind::Element,
                         block: None,
                         end_block: None,
+                        manual: false,
                     },
                 ),
                 4 => t.insert_paragraphs(end, "第二段\n第三段").map(|_| ()),

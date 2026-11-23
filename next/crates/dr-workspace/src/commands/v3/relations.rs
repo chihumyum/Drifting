@@ -234,11 +234,16 @@ fn linked_description(
     stored: Option<&LinkedText>,
     text: &LinkedTextIn,
 ) -> Result<LinkedText> {
-    let names = cx
-        .workspace()
-        .auto_links()
-        .then(|| crate::autolink::book_cache(slot).2);
-    crate::autolink::plan_book_text(&slot.reader_v3.view(), None, names.as_deref(), stored, text)
+    let auto_links = cx.workspace().auto_links();
+    let names = auto_links.then(|| crate::autolink::book_cache(slot).2);
+    crate::autolink::plan_book_text_shown(
+        &slot.reader_v3.view(),
+        None,
+        names.as_deref(),
+        stored,
+        text,
+        auto_links,
+    )
 }
 
 op! {

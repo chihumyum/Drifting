@@ -155,6 +155,7 @@ fn book(ws: &Workspace) -> Book {
                     kind: EntityKind::Entry,
                     block: None,
                     end_block: None,
+                    manual: false,
                 },
             )?;
             let quote = BlockAttrs {
@@ -1209,6 +1210,7 @@ fn chapter_with_every_format_exports_to_epub_docx_and_pdf_without_dropping_text(
                     kind: EntityKind::Entry,
                     block: None,
                     end_block: None,
+                    manual: false,
                 },
             )?;
 
@@ -1407,6 +1409,7 @@ fn chapter_with_every_format_exports_to_epub_docx_and_pdf_without_dropping_text(
                         module: None,
                         block: None,
                         end_block: None,
+                        manual: false,
                     },
                 )],
             )?;

@@ -528,7 +528,12 @@ pub(crate) fn resolve_v3(
                         *entry_val = eid.to_string().into();
                     }
                 }
-                "entry.get" | "entry.trash" | "entry.restore" | "entry.set_level"
+                "entry.get"
+                | "entry.trash"
+                | "entry.restore"
+                | "entry.set_level"
+                | "entry.set_auto_link"
+                | "entry.set_below_auto_link"
                 | "module.list" => {
                     let include_trashed =
                         matches!(name, "entry.get" | "entry.trash" | "entry.restore");
@@ -1814,10 +1819,21 @@ pub(crate) fn subjects_v3(name: &str, args: &Value) -> Vec<String> {
                 subjects.insert("entry:*".into());
             }
         }
-        "entry.update" | "entry.trash" | "entry.restore" | "entry.set_level" => {
+        "entry.update"
+        | "entry.trash"
+        | "entry.restore"
+        | "entry.set_level"
+        | "entry.set_auto_link" => {
             if let Some(id) = args.get("id").and_then(Value::as_str) {
                 subjects.insert(format!("entry:{id}"));
             }
+        }
+        // A level's 「自动链接」 sets the switch of what lives below it too.
+        "entry.set_below_auto_link" => {
+            if let Some(id) = args.get("id").and_then(Value::as_str) {
+                subjects.insert(format!("entry:{id}"));
+            }
+            subjects.insert("entry:*".into());
         }
         "entry.move" => {
             if let Some(id) = args.get("id").and_then(Value::as_str) {

@@ -169,6 +169,10 @@ pub(crate) fn decode_entity(target: &str, v: &LoroValue) -> Option<EntityLink> {
         kind,
         block: bid("block"),
         end_block: bid("end_block"),
+        manual: matches!(
+            map.get(dr_model::prose::LINK_MANUAL),
+            Some(LoroValue::Bool(true))
+        ),
     })
 }
 
@@ -179,6 +183,9 @@ pub(crate) fn encode_entity(link: &EntityLink) -> LoroValue {
     }
     if let Some(b) = &link.end_block {
         m.push(("end_block".into(), b.as_str().into()));
+    }
+    if link.manual {
+        m.push((dr_model::prose::LINK_MANUAL.into(), true.into()));
     }
     LoroValue::Map(m.into())
 }

@@ -3,14 +3,15 @@
 //! Reads the derived `reference` rows of `body:<entry>/<module>` documents in a
 //! book (`Library::entry_module_references_in_book`), scoped to live v3 entries.
 //! Two entries co-occur once for every distinct `(source_doc, source_block)`
-//! paragraph in which both appear as `Link` or `Mention` targets; references
-//! without a `source_block` contribute to mention totals only and never form a
-//! synthetic paragraph.
+//! paragraph in which both appear as links that show
+//! ([`crate::autolink::reference_counts`], `kernel-v5.md` §16: one picked with
+//! @ always, an automatic one while its entry's 「自动链接」 and the author's
+//! setting are on); references without a `source_block` contribute to mention
+//! totals only and never form a synthetic paragraph.
 
 use std::collections::{BTreeMap, HashMap};
 
 use dr_model::id::BookId;
-use dr_store::index::RefKind;
 
 use crate::error::{Result, WsError};
 use crate::workspace::Workspace;
@@ -30,11 +31,11 @@ impl Workspace {
     pub fn entry_cooccurrences(&self, book: &str) -> Result<EntryCooccurrenceGraph> {
         let book_id = BookId::parse(book).map_err(|e| WsError::Invalid(e.to_string()))?;
         let slot = self.book_slot(&book_id)?;
-        let mut live_vec: Vec<String> = slot
-            .reader_v3
-            .view()
-            .entries_raw()
-            .into_iter()
+        let headers = slot.reader_v3.view().graph().entries;
+        let states = dr_model::v3::LinkEntries::of(headers.values());
+        let auto_links = self.auto_links();
+        let mut live_vec: Vec<String> = headers
+            .values()
             .filter(|e| !e.is_trashed())
             .map(|e| e.id.to_string())
             .collect();
@@ -59,7 +60,9 @@ impl Workspace {
             if r.count == 0 {
                 continue;
             }
-            if !matches!(r.kind, RefKind::Link | RefKind::Mention) || r.target_kind != "entry" {
+            if r.target_kind != "entry"
+                || !crate::autolink::reference_counts(r.kind, states.get(&r.target_id), auto_links)
+            {
                 continue;
             }
             if r.source_entry == r.target_id {
@@ -122,7 +125,7 @@ mod tests {
     use super::*;
     use crate::{Actor, WorkspaceOptions, library_options};
     use dr_store::Library;
-    use dr_store::index::{DOC_KIND_BODY, Derived, DocIndex, RefRow, format_body_doc_id};
+    use dr_store::index::{DOC_KIND_BODY, Derived, DocIndex, RefKind, RefRow, format_body_doc_id};
     use serde_json::json;
 
     #[test]

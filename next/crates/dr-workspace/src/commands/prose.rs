@@ -290,6 +290,7 @@ fn set_links(cx: &Cx<'_>, input: &LinksIn, on: bool) -> Result<LinksChanged> {
             kind,
             block: None,
             end_block: None,
+            manual: false,
         };
         match by_doc.iter_mut().find(|(d, _)| *d == doc) {
             Some((_, v)) => v.push((link, anchors)),
@@ -336,6 +337,7 @@ fn set_links(cx: &Cx<'_>, input: &LinksIn, on: bool) -> Result<LinksChanged> {
                     module: None,
                     block: None,
                     end_block: None,
+                    manual: false,
                 },
                 None,
             )?;
@@ -388,6 +390,7 @@ fn set_links(cx: &Cx<'_>, input: &LinksIn, on: bool) -> Result<LinksChanged> {
                                     module: None,
                                     block: None,
                                     end_block: None,
+                                    manual: false,
                                 },
                             )?;
                         } else {

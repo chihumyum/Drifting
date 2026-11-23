@@ -308,6 +308,9 @@ fn real_table_grid_and_cell_text_clipboard_keep_module_and_binary_on_disk(cx: &m
     cell.update_in(cx, |p, w, cx| p.select(0, 0..0, w, cx));
     draw(cx);
     let point = cell.read_with(cx, |p, _| p.range_bounds(0, 0..1).unwrap().center());
+    // A link into a module and a block is the author's (automatic linking
+    // never writes one): it opens though the chapter's own 「自动链接」 is
+    // off, as a chapter's starts (`kernel-v5.md` §16).
     cx.simulate_click(point, gpui::Modifiers::none());
     draw(cx);
     assert_eq!(opened.borrow().len(), 1);

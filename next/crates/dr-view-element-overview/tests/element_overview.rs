@@ -342,6 +342,7 @@ fn drag_drop_onto_island_reuses_g2_prepare_drop_and_supports_undo(cx: &mut TestA
                 template: level_tpl.clone(),
                 level: None,
                 bodies: BTreeMap::new(),
+                auto_link: None,
             },
         )
         .expect("create accept category")
@@ -364,6 +365,7 @@ fn drag_drop_onto_island_reuses_g2_prepare_drop_and_supports_undo(cx: &mut TestA
                 template: level_tpl,
                 level: None,
                 bodies: BTreeMap::new(),
+                auto_link: None,
             },
         )
         .expect("create move category")
@@ -658,6 +660,7 @@ fn a_closed_overview_does_not_follow_the_book_and_catches_up_when_shown(cx: &mut
                 template,
                 level: None,
                 bodies: BTreeMap::new(),
+                auto_link: None,
             },
         )
         .expect("create an element while fill is closed")

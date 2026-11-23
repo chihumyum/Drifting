@@ -28,6 +28,7 @@ fn link(start: usize, end: usize, entry: &str) -> EntryTextLink {
         start,
         end,
         entry: eid(entry),
+        manual: false,
     }
 }
 

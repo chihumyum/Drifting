@@ -1,9 +1,8 @@
 //! Canonical v3 element islands extraction and skyline layout solver (`群岛`).
 //!
-//! Discovers island levels on `BookV3` (the organising levels under a
-//! `display == "island"` level as well as standalone organising
-//! `auto_link` non-book-root non-lane levels), shows every content entry
-//! as a card whatever its switch, keeps resident entries and accepted
+//! Discovers island levels on `BookV3` (the entries of the Tab that hold
+//! entries below them; `auto_link` plays no part), shows every content
+//! entry as a card whatever its switches, keeps resident entries and accepted
 //! memberships distinct per G2, and solves balanced top/bottom skyline
 //! placements without any book-order or chapter appearance band.
 

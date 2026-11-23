@@ -689,38 +689,60 @@ fn writes_that_change_many_entries_refuse_only_the_duplicates_they_make() {
     let people = category(&e, &b, "人物");
     let ideas = root(&e, &b, "tpl-ideas");
     let person = create(&e, &b, &people, "苏竹", "tpl-character");
-    // An idea and a group named 苏竹 claim nothing: ideas do not auto-link
-    // under the idea board, groups are not linkable.
+    // An idea and a group named 苏竹 claim nothing: their own switch is off
+    // (the idea board's new entries start off; a group's template does not
+    // follow its level, `kernel-v5.md` §16).
     let idea = create(&e, &b, &ideas, "苏竹", "tpl-idea");
     let group = create(&e, &b, &people, "苏竹", "tpl-group");
-    // Moving the idea into the category makes it claim the name.
+    let switch = |id: &str| get(&e, &b, id)["auto_link"].clone();
+    assert_eq!(
+        (switch(&idea), switch(&group)),
+        (json!(false), json!(false))
+    );
+    // The idea board's switch carries the idea along: it would claim the name.
     refused(
         &e,
-        "entry.move",
-        json!({"book":b,"id":idea,"parent":people}),
+        "entry.set_below_auto_link",
+        json!({"book":b,"id":ideas,"auto_link":true}),
         "V3-AUTOLINK-NAME-UNIQUE",
     );
-    // So does turning auto-link on for the idea board.
-    refused(
-        &e,
+    // The board's default alone changes no entry.
+    e.call(
         "entry.update",
         json!({"book":b,"id":ideas,"overrides":{"auto_link":true}}),
+    );
+    // Moving the idea into the category changes nothing either (it used to
+    // make it claim the name).
+    e.call("entry.move", json!({"book":b,"id":idea,"parent":people}));
+    assert_eq!(switch(&idea), json!(false));
+    // Turning it on does.
+    refused(
+        &e,
+        "entry.set_auto_link",
+        json!({"book":b,"id":idea,"auto_link":true}),
         "V3-AUTOLINK-NAME-UNIQUE",
     );
-    // Or making groups linkable.
+    // Making groups linkable or switching the group to a linkable template
+    // changes no switch; turning the group on claims the name.
     let mut t = template(&e, &b, "tpl-group");
     t["linkable"] = json!(true);
-    refused(
-        &e,
-        "entry_template.put",
-        json!({"book":b,"template":t}),
-        "V3-AUTOLINK-NAME-UNIQUE",
-    );
-    // Or switching the group to a linkable template.
-    refused(
-        &e,
+    e.call("entry_template.put", json!({"book":b,"template":t}));
+    e.call(
         "entry.update",
         json!({"book":b,"id":group,"template":"tpl-character"}),
+    );
+    assert_eq!(switch(&group), json!(false));
+    refused(
+        &e,
+        "entry.set_auto_link",
+        json!({"book":b,"id":group,"auto_link":true}),
+        "V3-AUTOLINK-NAME-UNIQUE",
+    );
+    // So does the category's switch, which carries both along.
+    refused(
+        &e,
+        "entry.set_below_auto_link",
+        json!({"book":b,"id":people,"auto_link":true}),
         "V3-AUTOLINK-NAME-UNIQUE",
     );
     // Restoring a trashed person of the same name, while the first lives.
@@ -744,7 +766,7 @@ fn writes_that_change_many_entries_refuse_only_the_duplicates_they_make() {
         json!({"book":b,"id":group,"title":"主要人物"}),
     );
     e.call(
-        "entry.update",
-        json!({"book":b,"id":group,"template":"tpl-character"}),
+        "entry.set_auto_link",
+        json!({"book":b,"id":group,"auto_link":true}),
     );
 }
