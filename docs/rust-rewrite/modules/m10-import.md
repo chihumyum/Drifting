@@ -1129,6 +1129,13 @@ Agent 的结算记录、读取回执、检查点、事件流、长任务状态�
 - `dr-import-v1`（第五个里程碑）：`receipt::RunStart` 加了旧库的位置，`begin_run` 把它写进 `summary_json` 的 `source`，结束时用 `json_patch` 合进去、不覆盖；新加 `receipt::unfinished`（这台设备上「还在导」、没有「已导入」的书，带旧库位置）。
 - `dr-store`（第四个里程碑，请 F2 审）：`Device` 的安装身份改成克隆共用、可以换（`Device::take_over`，`installation_id()` 改成返回 `String`），`Library::adopt_installation_id`；`check_device` 跟着改了两行。测试：`identity.rs` 一个、`tests/device.rs` 一个。
 
+## AL 导入后的「自动链接」（2026-11-24）
+
+- 0.1 里自动链接的照 0.1 自己的规则开着：每个要素（名字和别名）、每章和每条构想（标题，`entity-link-names.ts` 的书节点），在 `dr-samples` 的 `put_element`、`node_fields` 写 `auto_link`；别的条目（根、分类、要素分组、故事线、「未归属」、幕和合成的幕条目、「文本素材」和它下面的笔记与文件夹）关着。续导回放元数据时 `Entries::put` 先把开关清掉，再按种类写，结果确定。
+- 0.1 的链接全部当自动的（不带 `manual`），所以导入那一刻指向要素、章、构想的链接照旧显示；指向笔记（0.1 的文本素材）、故事线、分类的链接留在正文里，读作普通文字，打开它们的开关就回来。
+- 导入校验不再拒绝重名：0.1 允许章名和要素名、两章同名，导入后它们都开着，读的时候照合并后的规则让先建的那个配名字（`resolve_autolink_name_conflicts`）。示例书另外检查名字不重（`validate_names`），并且照写书模板关掉章和构想（`samples.rs`）。
+- 永久测试 `dr-import-v1/tests/v3_import.rs` 的 `imported_entries_keep_linking_as_0_1_linked_them`。
+
 ## 测试数据（可重复的生成步骤）
 
 全是合成数据，生成在会话的临时目录，不进仓库；**不读也不拷作者的真实库**。阶段 7 冻结测试库时，照下面再跑一遍，把五份库作为发布附件、在测试里钉住 SHA-256。

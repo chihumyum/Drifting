@@ -94,7 +94,7 @@
 | `agent` | `TemplateAgent?` | `null` | 条目模板级帮手说明 |
 | `modules` | `TemplateModuleSpec[]` | `[]` | 模块 `id` 在同一条目模板内唯一 |
 | `level` | `bool` | `false` | 用此模板新建条目时「层级」开关的初值 |
-| `linkable` | `bool` | `true` | 是否可作为自动链接与行内条目链接的目标 |
+| `linkable` | `bool` | `true` | 用这种模板新建的条目跟不跟所在层「自动链接」的默认、按层一起打开时带不带上它（2026-11-24 起只管这两样，不再否决链接；`kernel-v5.md` 第 16 节） |
 | `settings` | `TemplateLevelSettings` | `{}` | 见下表（无 `lane`） |
 | `verbs` | `TemplateVerbSpec[]` | `[]` | 动作 `id` 在同一条目模板内唯一；`name` 非空；`target_template` 存在时须指 `templates` 中的模板 |
 
@@ -104,7 +104,7 @@
 | --- | --- | --- |
 | `default_template` | 缺键 ／ `null` ／ `"<条目模板 id>"` | 三态：缺键表示不覆盖（沿住处祖先继承）；显式 `null` 表示清空默认模板；字符串须存在于 `templates` |
 | `display` | `"list"` \| `"grid"` \| `"board"` \| `"island"` | 沿住处祖先继承 |
-| `auto_link` | `bool` | 沿住处祖先继承；只看住处父链，不看挂名 |
+| `auto_link` | `bool` | 这一层「自动链接」的默认：在下面新建的条目照最近的、设过值的那一层开或关（只看住处父链，不看挂名）。条目自己的开关不在这里，模板也不带它 |
 | `accept` | `bool` | 「收别处的条目」开关，只读条目自身 `overrides.accept` 与自身模板 `settings.accept`，不沿树继承 |
 | `home` | 缺键 ／ `null` ／ `"e…"` | 「新条目住在」，不沿树继承；三态：缺键不覆盖、显式 `null` 表示落最外层、`"e…"` 须指向 `entries` 中 `level == true` 的条目 |
 | `format_shortcuts` | `"full"` \| `"notes"` \| `"plain"` | 沿住处祖先继承 |
@@ -129,7 +129,7 @@
 `relation_types` 保存项目里定义的关系。展开时为每种定义生成新的 `RelationTypeId`，初始没有行。
 
 - `name` 是非空单行文本，按 `normalize_relation_type_name` 归一化后唯一。
-- `description` 是 `{ text, links: [{ start, end, entry }] }`，省略时为空。区间使用 Unicode 标量下标，左闭右开，按起点递增且不重叠。`entry` 是模板内存在的 `e…` 代号。另存时保留指向未选条目的链接原字。展开已选条目的链接时换成新 id。
+- `description` 是 `{ text, links: [{ start, end, entry, manual? }] }`，省略时为空；`manual: true` 是 @ 挑出来的链接（2026-11-24，`kernel-v5.md` 第 16 节），不受「自动链接」开关管，缺省是自动的。区间使用 Unicode 标量下标，左闭右开，按起点递增且不重叠。`entry` 是模板内存在的 `e…` 代号。另存时保留指向未选条目的链接原字。展开已选条目的链接时换成新 id。
 - `direction` 取 `"directed"` 或 `"symmetric"`。
 
 ## 7. 条目（`entries[]`）
@@ -148,7 +148,7 @@
 | `arrangements` | `Map<ModuleId, TemplateMediaArrangement>` | `{}` | 模块须是该条目当前模板上的 `media` 模块 |
 | `prose` | `Map<ModuleId, TemplateParagraph[]>` | `{}` | 模块须是该条目当前模板上的 `prose` 模块；段落规格见第 10 节 |
 
-此外，整套 `entries`、`templates`、`memberships` 一起跑 `dr-model` 的图级不变量校验：住处在开启 `auto_link` 的有效父链下且 `linkable == true` 的条目，其标题与 `aliases_field` 别名不得重名（`V3-AUTOLINK-NAME-UNIQUE`）。
+此外，整套 `entries`、`templates`、`memberships` 一起跑 `dr-model` 的图级不变量校验：展开后「自动链接」开着的条目（照上面的默认算：模板 `linkable`，且住的那一层默认开），其标题与 `aliases_field` 别名不得重名（`V3-AUTOLINK-NAME-UNIQUE`）。条目自己的「自动链接」开关不写进模板；展开新建时每个条目照这条默认开或关（2026-11-24）。
 
 ## 8. 挂名归属（`memberships[]`）
 
@@ -184,7 +184,7 @@
   - `runs`（`TemplateRun[]`）：
     - `text`：非空字符串，不含段落结束符 `\n`、对象占位符 `\u{fffc}` 及除 `\t` 外的控制字符（段内软换行保留 `\u{2028}`）；
     - 行内样式：`bold`、`italic`、`underline`、`strike`、`code`（`bool`，`false` 省略），`link`、`highlight`（单行非空字符串，无控制字符）；
-    - `entities`（`TemplateEntityLink[]`）：`{"entry": "e…", "module"?: "<模块 id>"}`。目标条目须在 `entries` 中存在且有效 `linkable == true`；`module` 存在时须是目标条目模板上的 `prose` 模块；同一 `run` 内同一 `entry` 不重复。
+    - `entities`（`TemplateEntityLink[]`）：`{"entry": "e…", "module"?: "<模块 id>", "manual"?: true}`。目标条目须在 `entries` 中存在；`manual` 是 @ 挑出来的链接，另存和展开都照带（2026-11-24）；`module` 存在时须是目标条目模板上的 `prose` 模块；同一 `run` 内同一 `entry` 不重复。
 
 ## 11. 从项目提取（另存）与展开新建（`project.create`）
 
