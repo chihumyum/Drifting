@@ -251,7 +251,8 @@ fn every_history_row_with_a_version_is_a_checkpoint_the_history_lists_and_previe
                 && a.done == "skipped")
     );
     // The element's row put it under its 0.1 group 「未庄」, which no
-    // element keeps now: counted, and its restore refused (below).
+    // element keeps now: counted; restoring it keeps the element where it
+    // lives (`restoring_a_point_whose_0_1_group_is_gone_…`).
     assert_eq!(b.notes.0.get("history-checkpoint-place-gone"), Some(&1));
 
     let ws = workspace(&root);
@@ -443,18 +444,86 @@ fn restoring_an_imported_point_brings_back_its_prose_and_fields_and_keeps_the_st
             (json!("职业"), json!("短工"))
         ]
     );
-    // The element's older row has it under its 0.1 group 「未庄」, which
-    // the book no longer has: the restore refuses before writing anything,
-    // as it refuses any point whose place is gone.
-    let element = (entry(&ws, ELEMENT), prose(&ws, ELEMENT, "mod-prose"));
-    let listed = ids(&points(&ws, ELEMENT)).len();
-    let refused = restore(&ws, ELEMENT, "import-v1:h-3").unwrap_err();
-    assert!(refused.contains("does not exist"), "{refused}");
-    assert_eq!(
-        (entry(&ws, ELEMENT), prose(&ws, ELEMENT, "mod-prose")),
-        element
+    ws.shutdown().unwrap();
+}
+
+/// The element's older row has it under its 0.1 group 「未庄」, which the
+/// imported book no longer has. Restoring it brings back the row's text,
+/// name, aliases, summary and facts, and the element stays in the group it
+/// lives in now, in its place there (author, 2026-11-23: a place that is
+/// gone keeps the entry where it is). One undo goes back to the state before.
+#[test]
+fn restoring_a_point_whose_0_1_group_is_gone_keeps_the_element_where_it_lives() {
+    let old = fixture::build_history();
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("library");
+    import(&old, &root);
+    let ws = workspace(&root);
+    // Where it lives now, and the order of the entries living there.
+    let place = |ws: &Workspace| {
+        let parent = entry(ws, ELEMENT)["parent"].clone();
+        let siblings: Vec<Value> = call(ws, "entry.list", json!({"book":BOOK,"all":true}))
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|e| e["parent"] == parent)
+            .map(|e| e["id"].clone())
+            .collect();
+        (parent, siblings)
+    };
+    let facts = |e: &Value| -> Vec<(Value, Value)> {
+        e["kv"]["mod-kv"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|k| (k["key"].clone(), k["value"].clone()))
+            .collect()
+    };
+    // The point's place is gone: in the book version it was taken at, the
+    // element lives under an entry the book does not have now.
+    let shown = preview(&ws, ELEMENT, "import-v1:h-3");
+    let then = shown["raw_state"]["parent"].as_str().unwrap().to_owned();
+    assert!(
+        !call(
+            &ws,
+            "entry.list",
+            json!({"book":BOOK,"all":true,"trashed":true})
+        )
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|e| e["id"] == then.as_str()),
+        "the group of the row is gone"
     );
-    assert_eq!(ids(&points(&ws, ELEMENT)).len(), listed);
+    let (here, before) = (place(&ws), entry(&ws, ELEMENT));
+    let text = prose(&ws, ELEMENT, "mod-prose");
+    assert_ne!(here.0, json!(then));
+    let listed = points(&ws, ELEMENT).len();
+
+    restore(&ws, ELEMENT, "import-v1:h-3").unwrap();
+    assert_eq!(prose(&ws, ELEMENT, "mod-prose"), ["未庄的人。"]);
+    let e = entry(&ws, ELEMENT);
+    assert_eq!(e["title"], "阿Q");
+    assert_eq!(e["fields"]["mod-fields"]["summary"], "");
+    assert_eq!(e["fields"]["mod-fields"]["aliases"], json!(["阿贵"]));
+    assert_eq!(
+        facts(&e),
+        [
+            (json!("住处"), json!("破庙")),
+            (json!("绰号"), json!("阿Q"))
+        ]
+    );
+    assert_eq!(place(&ws), here, "where it lives and its place there");
+    // The state before, kept as a checkpoint of its own at the top.
+    let after = points(&ws, ELEMENT);
+    assert_eq!(after.len(), listed + 1);
+    assert_eq!(after[0].reason, "restore");
+
+    // One undo: the text, the fields and the place it had.
+    ws.undo(&Actor::User).unwrap().expect("the restore");
+    assert_eq!(prose(&ws, ELEMENT, "mod-prose"), text);
+    assert_eq!(entry(&ws, ELEMENT), before);
+    assert_eq!(place(&ws), here);
     ws.shutdown().unwrap();
 }
 

@@ -65,8 +65,8 @@ pub const UNREADABLE: &str = "history-checkpoint-unreadable";
 pub const DIFFERS: &str = "history-checkpoint-differs";
 /// A written checkpoint whose entry lived, at the row's time, under an entry
 /// the imported book no longer has (an element's 0.1 group no other element
-/// keeps): it previews, and `entry_snapshot.restore` refuses it before
-/// writing anything, as it refuses any point whose place is gone.
+/// keeps): it previews, and `entry_snapshot.restore` restores it with the
+/// entry staying where it lives now, as for any point whose place is gone.
 pub const PLACE_GONE: &str = "history-checkpoint-place-gone";
 
 /// One replayed 0.1 history row.
