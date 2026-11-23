@@ -23,7 +23,10 @@ use dr_shell::{
 use dr_ui::Appearance;
 use dr_view_page::custom::CustomModule;
 use dr_workspace::{Actor, Workspace, WorkspaceOptions, library_options};
-use gpui::{Entity, Modifiers, TestAppContext, VisualTestContext, WeakEntity, point, px, size};
+use gpui::{
+    AppContext as _, Entity, Modifiers, TestAppContext, VisualTestContext, WeakEntity, point, px,
+    size,
+};
 use loro::ExportMode;
 use serde_json::{Value, json};
 
@@ -164,6 +167,20 @@ fn until(e: &Env, cx: &mut VisualTestContext, what: &str, done: impl Fn(&Value) 
     }
 }
 
+/// The module as the entry page holds it: inside the page's 32 px margins.
+struct Paper(Entity<CustomModule>);
+
+impl gpui::Render for Paper {
+    fn render(
+        &mut self,
+        _: &mut gpui::Window,
+        _: &mut gpui::Context<Self>,
+    ) -> impl gpui::IntoElement {
+        use gpui::{ParentElement as _, Styled as _};
+        gpui::div().size_full().px(px(32.0)).child(self.0.clone())
+    }
+}
+
 fn open(cx: &mut TestAppContext, e: &Env) -> (Entity<CustomModule>, VisualTestContext) {
     cx.executor().allow_parking();
     shell_init(cx);
@@ -188,8 +205,13 @@ fn open(cx: &mut TestAppContext, e: &Env) -> (Entity<CustomModule>, VisualTestCo
         entry: e.entry.clone(),
         module,
     };
-    let window = cx.add_window(|window, cx| CustomModule::new(host, window, cx));
-    let view = window.root(cx).unwrap();
+    // On the page's paper: the module with the page's margins round it
+    // (an item's grip and 删除 stand in them).
+    let window = cx.add_window(|window, cx| {
+        let module = cx.new(|cx| CustomModule::new(host, window, cx));
+        Paper(module)
+    });
+    let view = window.root(cx).unwrap().read_with(cx, |p, _| p.0.clone());
     let mut vcx = VisualTestContext::from_window(window.into(), cx);
     vcx.update(|window, _| window.activate_window());
     vcx.simulate_resize(size(px(900.0), px(1100.0)));
@@ -892,4 +914,27 @@ fn an_entry_names_hover_card_has_the_modules_line(cx: &mut TestAppContext) {
         .debug_bounds("module-line")
         .expect("the module's line is in the card");
     assert!(drawn.size.height > px(0.0));
+}
+
+/// Words typed into one field are stored when the author presses another
+/// (the field is left by the press, not by Enter or a blur of the window).
+#[gpui::test]
+fn typed_words_are_stored_when_another_field_is_pressed(cx: &mut TestAppContext) {
+    let e = env(MAGIC);
+    let (view, mut cx) = open(cx, &e);
+    let cx = &mut cx;
+    click(cx, "custom-field-rules");
+    for c in ["只", "在", "夜", "里"] {
+        cx.simulate_keystrokes(c);
+    }
+    draw(cx);
+    let typed = view.read_with(cx, |v, cx| v.input(&[], "rules").unwrap().read(cx).text());
+    assert_eq!(typed, "只在夜里");
+    click(cx, "custom-field-price");
+    let r = until(&e, cx, "rules", |r| !values(r)["rules"].is_null());
+    assert_eq!(
+        values(&r)["rules"],
+        json!({"type": "long_text", "value": "只在夜里"})
+    );
+    settle(&view, cx);
 }

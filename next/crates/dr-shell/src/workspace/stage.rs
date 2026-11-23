@@ -247,7 +247,12 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
         }
         tab => {
             let target = tab.map(|t| t.focused().target.clone());
-            let rail = outline::rail(ws, &entity, target.as_ref(), column_w, column_h, window, cx);
+            // A module filling the column leaves no margin for the rail.
+            let rail = if module_filled {
+                None
+            } else {
+                outline::rail(ws, &entity, target.as_ref(), column_w, column_h, window, cx)
+            };
             div()
                 .relative()
                 .size_full()

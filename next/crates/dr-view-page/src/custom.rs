@@ -210,6 +210,12 @@ enum Op {
     },
 }
 
+/// An item's grip and 删除, each.
+const ITEM_TOOL: f32 = 18.0;
+/// How far an item of a list laid out downwards reaches into the margins
+/// on either side, where its grip and 删除 are.
+const ITEM_GUTTER: f32 = ITEM_TOOL + 4.0;
+
 /// An item being dragged into another place in its list.
 #[derive(Clone)]
 pub struct ItemDrag {
@@ -501,6 +507,19 @@ impl CustomModule {
                 }
             }
             FieldEvent::Blurred | FieldEvent::Submitted(_) => {
+                // What the field holds when it is left is what is stored
+                // (its committed words: a blur has dropped any composition).
+                let text = match event {
+                    FieldEvent::Submitted(text) => text.clone(),
+                    _ => area.read(cx).text(),
+                };
+                if let Some(input) = self.inputs.get_mut(key)
+                    && input.draft != text
+                    && settlement::accepts(cx)
+                {
+                    input.draft = text;
+                    input.dirty = true;
+                }
                 // A number shown as dots goes back to its dots once what was
                 // typed is a number (or nothing); otherwise the field stays,
                 // with what is wrong under the module.
@@ -1151,65 +1170,89 @@ impl Edit for Editor {
         let (drop_view, drop_path, drop_list) =
             (self.view.clone(), each.path.clone(), each.list.clone());
         let wash = p.ink(1).alpha(look::paint::WASH);
-        let tools = div()
-            .absolute()
-            .top(px(-2.0))
-            .right(px(-2.0))
+        let grip = div()
+            .id(SharedString::from(format!("{group}-grip")))
+            .debug_selector({
+                let s = format!("custom-item-grip-{item_id}");
+                move || s.clone()
+            })
+            .size(px(ITEM_TOOL))
             .flex()
-            .flex_row()
             .items_center()
-            .gap(px(2.0))
-            .px(px(2.0))
-            .rounded(px(radius::SM))
-            .bg(p.page.alpha(0.9))
-            .invisible()
-            .group_hover(group.clone(), |st| st.visible())
-            .child(
-                div()
-                    .id(SharedString::from(format!("{group}-grip")))
-                    .debug_selector({
-                        let s = format!("custom-item-grip-{item_id}");
-                        move || s.clone()
-                    })
-                    .size(px(18.0))
+            .justify_center()
+            .cursor_grab()
+            .role(gpui::Role::Button)
+            .aria_label(t(cx, keys::template_editor::REORDER))
+            .on_drag(drag, |d, _, _, cx| {
+                cx.new(|_| ItemGhost {
+                    label: d.label.clone(),
+                })
+            })
+            .child(sand::icon(Icon::Grip, 12.0, p.ink(3).solid()));
+        let remove = div()
+            .id(SharedString::from(format!("{group}-remove")))
+            .debug_selector({
+                let s = format!("custom-item-remove-{item_id}");
+                move || s.clone()
+            })
+            .size(px(ITEM_TOOL))
+            .flex()
+            .items_center()
+            .justify_center()
+            .cursor_pointer()
+            .role(gpui::Role::Button)
+            .aria_label(t(cx, keys::common::DELETE))
+            .on_click(move |_, _, cx| {
+                cx.stop_propagation();
+                let op = Op::Remove {
+                    path: path.clone(),
+                    list: list.clone(),
+                    item: remove_item.clone(),
+                };
+                remove_view.update(cx, |v, cx| v.push(op, cx)).ok();
+            })
+            .child(sand::icon(Icon::Close, 12.0, p.ink(3).solid()));
+        // Shown while the pointer is on the item. Items one under another:
+        // the grip in the margin on the left, 删除 on the right, clear of
+        // the item's words (the item reaches into both margins, so the
+        // pointer on its way to them stays on it); items side by side: both
+        // at the item's corner.
+        let shown = |el: gpui::Div| {
+            el.absolute()
+                .invisible()
+                .group_hover(group.clone(), |st| st.visible())
+        };
+        let down = each.dir == dr_model::custom_module::EachDir::Col;
+        let tools: Vec<AnyElement> = if down {
+            vec![
+                shown(div())
+                    .top(px(2.0))
+                    .left_0()
+                    .child(grip)
+                    .into_any_element(),
+                shown(div())
+                    .top(px(2.0))
+                    .right_0()
+                    .child(remove)
+                    .into_any_element(),
+            ]
+        } else {
+            vec![
+                shown(div())
+                    .top(px(-2.0))
+                    .right(px(-2.0))
                     .flex()
+                    .flex_row()
                     .items_center()
-                    .justify_center()
-                    .cursor_grab()
-                    .role(gpui::Role::Button)
-                    .aria_label(t(cx, keys::template_editor::REORDER))
-                    .on_drag(drag, |d, _, _, cx| {
-                        cx.new(|_| ItemGhost {
-                            label: d.label.clone(),
-                        })
-                    })
-                    .child(sand::icon(Icon::Grip, 12.0, p.ink(3).solid())),
-            )
-            .child(
-                div()
-                    .id(SharedString::from(format!("{group}-remove")))
-                    .debug_selector({
-                        let s = format!("custom-item-remove-{item_id}");
-                        move || s.clone()
-                    })
-                    .size(px(18.0))
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .cursor_pointer()
-                    .role(gpui::Role::Button)
-                    .aria_label(t(cx, keys::common::DELETE))
-                    .on_click(move |_, _, cx| {
-                        cx.stop_propagation();
-                        let op = Op::Remove {
-                            path: path.clone(),
-                            list: list.clone(),
-                            item: remove_item.clone(),
-                        };
-                        remove_view.update(cx, |v, cx| v.push(op, cx)).ok();
-                    })
-                    .child(sand::icon(Icon::Close, 12.0, p.ink(3).solid())),
-            );
+                    .gap(px(2.0))
+                    .px(px(2.0))
+                    .rounded(px(radius::SM))
+                    .bg(p.page.alpha(0.9))
+                    .child(grip)
+                    .child(remove)
+                    .into_any_element(),
+            ]
+        };
         div()
             .id(id)
             .debug_selector({
@@ -1221,8 +1264,9 @@ impl Edit for Editor {
             .flex()
             .flex_col()
             .min_w_0()
+            .when(down, |el| el.mx(px(-ITEM_GUTTER)).px(px(ITEM_GUTTER)))
             .child(body)
-            .child(tools)
+            .children(tools)
             .drag_over::<ItemDrag>(move |st, _, _, _| st.bg(wash))
             .on_drop(move |d: &ItemDrag, _, cx| {
                 if d.list_key != list_key || d.item.is_empty() {

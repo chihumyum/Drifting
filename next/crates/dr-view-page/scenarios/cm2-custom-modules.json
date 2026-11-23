@@ -692,10 +692,18 @@
       "save": "page"
     },
     {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}",
+        "all": true
+      },
+      "save": "entries"
+    },
+    {
       "call": "entry_template.put_module",
       "input": {
         "book": "${books.0.id}",
-        "template": "tpl-character",
+        "template": "${entries.[title=江微月].template}",
         "module": {
           "id": "cm2-arc",
           "kind": "custom",
@@ -705,21 +713,13 @@
           }
         }
       },
-      "note": "Every character gets 人物弧光: its 一行 is in a character name's hover card."
-    },
-    {
-      "call": "entry.list",
-      "input": {
-        "book": "${books.0.id}",
-        "all": true
-      },
-      "save": "entries"
+      "note": "江微月's template gets 人物弧光: its 一行 is in the hover card of her name, linked in 第1章's first line."
     },
     {
       "call": "module.set_custom_value",
       "input": {
         "book": "${books.0.id}",
-        "entry": "${entries.[template=tpl-character].id}",
+        "entry": "${entries.[title=江微月].id}",
         "module": "cm2-arc",
         "block": "want",
         "value": "找回那块怀表"
@@ -729,7 +729,7 @@
       "call": "module.set_custom_value",
       "input": {
         "book": "${books.0.id}",
-        "entry": "${entries.[template=tpl-character].id}",
+        "entry": "${entries.[title=江微月].id}",
         "module": "cm2-arc",
         "block": "need",
         "value": "原谅自己"
@@ -739,7 +739,7 @@
       "call": "module.set_custom_value",
       "input": {
         "book": "${books.0.id}",
-        "entry": "${entries.[template=tpl-character].id}",
+        "entry": "${entries.[title=江微月].id}",
         "module": "cm2-arc",
         "block": "resolve",
         "value": 3
@@ -924,6 +924,13 @@
       }
     },
     {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 800
+      }
+    },
+    {
       "call": "module.read_custom",
       "input": {
         "book": "${books.0.id}",
@@ -964,14 +971,21 @@
       "app": "input.drag",
       "params": {
         "from": [
-          "${grip.nodes.0.center.0}",
-          "${grip.nodes.0.center.1}"
+          "${grip.nodes.1.center.0}",
+          "${grip.nodes.1.center.1}"
         ],
         "to": [
           "${lines.nodes.0.center.0}",
           "${lines.nodes.0.center.1}"
         ],
         "steps": 12
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 800
       }
     },
     {
@@ -1079,18 +1093,20 @@
       "app": "input.type",
       "params": {
         "text": "只在起雾的夜里有效。"
-      }
-    },
-    {
-      "app": "ui.press",
-      "params": {
-        "label": "要付出"
-      }
+      },
+      "note": "Several lines of words: ⌘↵ stores them (the bridge's window has no key focus, so leaving a field by a press brings no blur)."
     },
     {
       "app": "input.key",
       "params": {
-        "keys": "escape"
+        "keys": "secondary-enter"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 800
       }
     },
     {
@@ -1210,6 +1226,13 @@
       }
     },
     {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 800
+      }
+    },
+    {
       "call": "module.read_custom",
       "input": {
         "book": "${books.0.id}",
@@ -1234,10 +1257,53 @@
       "png": "02-filled-in-light.png"
     },
     {
+      "app": "ui.press",
+      "params": {
+        "label": "状态"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "MenuItem",
+        "label": "提过",
+        "timeout_ms": 6000
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "02b-choice-list-light.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "MenuItem",
+        "label": "提过"
+      }
+    },
+    {
+      "app": "ui.hover",
+      "params": {
+        "label": "一句话",
+        "nth": 1
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 400
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "02c-item-tools-light.png"
+    },
+    {
       "app": "ui.hover",
       "params": {
         "label": "起止",
-        "dy": -60
+        "dy": -34
       }
     },
     {
@@ -1280,6 +1346,52 @@
     {
       "app": "ui.screenshot",
       "png": "04-after-fill-light.png"
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${entries.[title=第1章　潮声与记录].id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 2500
+      }
+    },
+    {
+      "app": "input.move",
+      "params": {
+        "x": 640,
+        "y": 20
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 400
+      }
+    },
+    {
+      "app": "input.move",
+      "params": {
+        "x": 481,
+        "y": 404
+      },
+      "note": "On 江微月 at the start of the body's first paragraph (where the seed's 第1章 draws it in a 1440 × 900 window): prose links are no accessibility nodes."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 900
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "07-hover-card-light.png"
     },
     {
       "app": "app.quit"
@@ -1365,7 +1477,7 @@
       "app": "ui.hover",
       "params": {
         "label": "起止",
-        "dy": -60
+        "dy": -34
       }
     },
     {
@@ -1391,6 +1503,44 @@
     {
       "app": "ui.screenshot",
       "png": "06-fill-dark.png"
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "escape"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 600
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "铺满",
+        "nth": 2
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "退出铺满",
+        "timeout_ms": 6000
+      }
+    },
+    {
+      "app": "input.move",
+      "params": {
+        "x": 640,
+        "y": 20
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "08-fill-magic-dark.png"
     },
     {
       "app": "input.key",

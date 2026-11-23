@@ -135,15 +135,19 @@ fn card_body(facts: &CardFacts, actions: Vec<AnyElement>) -> AnyElement {
             .lines
             .iter()
             .map(|line| {
-                dr_view_module_look::Line::new(
-                    SharedString::from(format!(
-                        "dr-editor-link-card-{}-line-{}",
-                        facts.target.id, line.module
-                    )),
-                    line.value.clone(),
-                    line.values.clone(),
-                )
-                .into_any_element()
+                // Inset as the synopsis above it.
+                div()
+                    .px(px(dr_ui::tokens::menu::HOVER_CARD_PAD))
+                    .py(px(4.0))
+                    .child(dr_view_module_look::Line::new(
+                        SharedString::from(format!(
+                            "dr-editor-link-card-{}-line-{}",
+                            facts.target.id, line.module
+                        )),
+                        line.value.clone(),
+                        line.values.clone(),
+                    ))
+                    .into_any_element()
             })
             .collect();
         body = body.section(lines);
