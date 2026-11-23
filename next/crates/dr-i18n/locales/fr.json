@@ -1623,9 +1623,9 @@
       "context": "Contexte",
       "editAddress": "Modifier l’adresse",
       "modelName": "Nom du modèle",
-      "name": "Modèle local",
+      "name": "Service personnalisé",
+      "needsHttps": "Une adresse sur Internet doit utiliser https",
       "noToolModels": "Aucun modèle de ce serveur ne peut utiliser d’outils",
-      "notLocal": "Uniquement une adresse de cet ordinateur ou du réseau local",
       "unreachable": "Impossible de joindre cette adresse"
     },
     "providerAnthropic": "Utilisé par Agent.",

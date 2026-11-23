@@ -198,7 +198,8 @@ pub static INFO_ROWS: &[InfoRow] = &[
         description: None,
         action: RowAction::Module,
     },
-    // Ollama, LM Studio, llama.cpp … on this computer or the local network.
+    // 「自定义服务」: Ollama, LM Studio, llama.cpp … on this computer or the
+    // local network, or an OpenAI-compatible service on the internet.
     InfoRow {
         id: "models.local",
         section: Section::Models,

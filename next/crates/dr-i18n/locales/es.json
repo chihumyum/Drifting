@@ -1623,9 +1623,9 @@
       "context": "Contexto",
       "editAddress": "Cambiar dirección",
       "modelName": "Nombre del modelo",
-      "name": "Modelo local",
+      "name": "Servicio personalizado",
+      "needsHttps": "Las direcciones de internet necesitan https",
       "noToolModels": "Ningún modelo de este servidor puede usar herramientas",
-      "notLocal": "Solo direcciones de este equipo o de la red local",
       "unreachable": "No se puede conectar con esta dirección"
     },
     "providerAnthropic": "Usado por Agent.",

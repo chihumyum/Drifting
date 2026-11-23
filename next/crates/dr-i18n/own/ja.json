@@ -445,9 +445,9 @@
       "context": "コンテキスト",
       "editAddress": "アドレスを変更",
       "modelName": "モデル名",
-      "name": "ローカルモデル",
+      "name": "カスタムサービス",
+      "needsHttps": "インターネット上のアドレスには https が必要です",
       "noToolModels": "このサーバーにはツールを使えるモデルがありません",
-      "notLocal": "このコンピュータかローカルネットワークのアドレスのみ入力できます",
       "unreachable": "このアドレスに接続できません"
     },
     "providerAnthropic": "Agentで使用します。",

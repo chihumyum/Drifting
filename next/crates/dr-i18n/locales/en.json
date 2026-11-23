@@ -1614,9 +1614,9 @@
       "context": "Context",
       "editAddress": "Change address",
       "modelName": "Model name",
-      "name": "Local model",
+      "name": "Custom service",
+      "needsHttps": "Addresses on the internet need https",
       "noToolModels": "No model on this server can use tools",
-      "notLocal": "Only addresses on this computer or your local network",
       "unreachable": "Can't reach this address"
     },
     "providerAnthropic": "Used by Agent.",

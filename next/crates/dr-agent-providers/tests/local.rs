@@ -215,9 +215,7 @@ fn ollama_reply(seen: &Seen) -> (u16, String) {
 async fn ollama_is_recognized_and_only_tool_models_are_offered() {
     let fake = ollama();
     let http = HttpClient::new().unwrap();
-    let found = local::discover(http.raw(), &address(&fake), None)
-        .await
-        .unwrap();
+    let found = local::discover(&http, &address(&fake), None).await.unwrap();
     assert_eq!(found.software, Some(Software::Ollama));
     let models: Vec<_> = found
         .models
@@ -262,13 +260,11 @@ async fn an_ollama_with_only_models_without_tools_has_none_to_offer() {
     }));
     let http = HttpClient::new().unwrap();
     assert_eq!(
-        local::discover(http.raw(), &address(&fake), None).await,
+        local::discover(&http, &address(&fake), None).await,
         Err(DiscoverError::NoToolModels)
     );
     assert_eq!(fake.requests("/api/show").len(), 2, "both were asked about");
-    local::check(http.raw(), &address(&fake), None)
-        .await
-        .unwrap();
+    local::check(&http, &address(&fake), None).await.unwrap();
 }
 
 #[tokio::test]
@@ -293,7 +289,7 @@ async fn lm_studio_and_llama_cpp_are_recognized_by_their_own_endpoints() {
         _ => (404, r#"{"error":"Unexpected endpoint"}"#.into()),
     }));
     let http = HttpClient::new().unwrap();
-    let found = local::discover(http.raw(), &address(&studio), None)
+    let found = local::discover(&http, &address(&studio), None)
         .await
         .unwrap();
     assert_eq!(found.software, Some(Software::LmStudio));
@@ -323,7 +319,7 @@ async fn lm_studio_and_llama_cpp_are_recognized_by_their_own_endpoints() {
         ),
         _ => (404, "{}".into()),
     }));
-    let found = local::discover(http.raw(), &address(&llama), None)
+    let found = local::discover(&http, &address(&llama), None)
         .await
         .unwrap();
     assert_eq!(found.software, Some(Software::LlamaCpp));
@@ -351,9 +347,7 @@ async fn an_unknown_server_keeps_its_address_name_and_row_context() {
         _ => (404, "{}".into()),
     }));
     let http = HttpClient::new().unwrap();
-    let found = local::discover(http.raw(), &address(&fake), None)
-        .await
-        .unwrap();
+    let found = local::discover(&http, &address(&fake), None).await.unwrap();
     assert_eq!(found.software, None);
     assert_eq!(found.models.len(), 1);
     assert_eq!(found.models[0].id, "served-model");
@@ -380,14 +374,12 @@ async fn no_list_wrong_key_and_nothing_listening_are_told_apart() {
         let reply = (status, body.clone());
         let fake = Fake::new(Box::new(move |_| reply.clone()));
         assert_eq!(
-            local::discover(http.raw(), &address(&fake), None).await,
+            local::discover(&http, &address(&fake), None).await,
             Err(error),
             "{status} {body}"
         );
         // Anything answering is up, even without a model list.
-        local::check(http.raw(), &address(&fake), None)
-            .await
-            .unwrap();
+        local::check(&http, &address(&fake), None).await.unwrap();
     }
     let fake = Fake::new(Box::new(|seen| {
         if seen.headers.contains("Bearer synthetic-local-key") {
@@ -397,18 +389,18 @@ async fn no_list_wrong_key_and_nothing_listening_are_told_apart() {
         }
     }));
     assert_eq!(
-        local::discover(http.raw(), &address(&fake), None).await,
+        local::discover(&http, &address(&fake), None).await,
         Err(DiscoverError::Unauthorized)
     );
     assert_eq!(
-        local::check(http.raw(), &address(&fake), Some("wrong")).await,
+        local::check(&http, &address(&fake), Some("wrong")).await,
         Err(DiscoverError::Unauthorized)
     );
-    let found = local::discover(http.raw(), &address(&fake), Some("synthetic-local-key"))
+    let found = local::discover(&http, &address(&fake), Some("synthetic-local-key"))
         .await
         .unwrap();
     assert_eq!(found.models[0].id, "guarded");
-    local::check(http.raw(), &address(&fake), Some("synthetic-local-key"))
+    local::check(&http, &address(&fake), Some("synthetic-local-key"))
         .await
         .unwrap();
 
@@ -418,11 +410,11 @@ async fn no_list_wrong_key_and_nothing_listening_are_told_apart() {
     };
     let closed = LocalAddress::parse(&closed).unwrap();
     assert_eq!(
-        local::discover(http.raw(), &closed, None).await,
+        local::discover(&http, &closed, None).await,
         Err(DiscoverError::Unreachable)
     );
     assert_eq!(
-        local::check(http.raw(), &closed, None).await,
+        local::check(&http, &closed, None).await,
         Err(DiscoverError::Unreachable)
     );
 }
@@ -580,15 +572,25 @@ async fn a_local_chat_goes_to_its_own_server_without_a_key_or_deepseek_fields() 
 }
 
 #[tokio::test]
-async fn a_route_off_this_network_or_without_a_server_is_refused_before_any_request() {
+async fn plain_http_to_the_internet_or_a_route_without_a_server_is_refused_before_any_request() {
+    // Addresses no request could reach anyway (documentation and unroutable
+    // ranges); `internet_tests` proves with a stand-in that nothing is sent.
     let driver = driver(Credentials::new(Arc::new(SecretStore::in_memory())));
-    for base in ["https://api.example.com", "http://8.8.8.8:11434"] {
+    for base in [
+        "http://8.8.8.8:11434",
+        "http://203.0.113.7:11434",
+        "ftp://203.0.113.7",
+        "https://user:pass@203.0.113.7",
+    ] {
         let got = events(&driver, request(base, false)).await;
-        assert!(matches!(
-            got.last(),
-            Some(Err(dr_agent::Error::Provider(failure)))
-                if failure.category == ModelErrorCategory::Unsupported
-        ));
+        assert!(
+            matches!(
+                got.last(),
+                Some(Err(dr_agent::Error::Provider(failure)))
+                    if failure.category == ModelErrorCategory::Unsupported
+            ),
+            "{base}"
+        );
     }
     let mut missing = request("http://localhost:11434", false);
     Arc::make_mut(&mut missing.config).route.local = None;
@@ -631,7 +633,7 @@ async fn what_each_server_says_about_images_is_what_counts() {
             _ => ollama_reply(seen),
         }
     }));
-    let found = local::discover(http.raw(), &address(&ollama), None)
+    let found = local::discover(&http, &address(&ollama), None)
         .await
         .unwrap();
     assert_eq!(
@@ -654,7 +656,7 @@ async fn what_each_server_says_about_images_is_what_counts() {
         ),
         _ => (404, "{}".into()),
     }));
-    let found = local::discover(http.raw(), &address(&studio), None)
+    let found = local::discover(&http, &address(&studio), None)
         .await
         .unwrap();
     assert_eq!(
@@ -689,7 +691,7 @@ async fn what_each_server_says_about_images_is_what_counts() {
             "/props" => (200, props.to_string()),
             _ => (404, "{}".into()),
         }));
-        let found = local::discover(http.raw(), &address(&llama), None)
+        let found = local::discover(&http, &address(&llama), None)
             .await
             .unwrap();
         assert_eq!(found.models[0].image_input, expected);
@@ -700,7 +702,7 @@ async fn what_each_server_says_about_images_is_what_counts() {
         "/v1/models" => (200, listed(json!([{"id":"served"}]))),
         _ => (404, "{}".into()),
     }));
-    let found = local::discover(http.raw(), &address(&unknown), None)
+    let found = local::discover(&http, &address(&unknown), None)
         .await
         .unwrap();
     assert_eq!(found.models[0].image_input, None);

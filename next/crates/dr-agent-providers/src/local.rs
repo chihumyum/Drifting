@@ -1,10 +1,13 @@
-//! Model servers on this computer or the local network: which addresses are
-//! accepted, and what a server says about its models. Chat itself goes
-//! through the shared transport with [`crate::chat`].
+//! Model servers reached over OpenAI-compatible Chat Completions (in the
+//! app 「自定义服务」): which addresses are accepted, and what a server says
+//! about its models. Chat itself goes through the shared transport with
+//! [`crate::chat`].
 //!
-//! Only this computer (`localhost`, `127.0.0.0/8`, `::1`) and the local
-//! network (`10/8`, `172.16/12`, `192.168/16`, `*.local`) are accepted, over
-//! `http` or `https`. Anything on the internet is refused before a request.
+//! This computer (`localhost`, `127.0.0.0/8`, `::1`) and the local network
+//! (`10/8`, `172.16/12`, `192.168/16`, `*.local`) are accepted over `http`
+//! or `https`. Anywhere else is a service on the internet, accepted over
+//! `https` only (作者 2026-11-23, chihumyum/Drifting#3); plain `http` to it
+//! is refused before any request.
 
 use std::collections::{HashMap, HashSet};
 use std::net::{Ipv4Addr, Ipv6Addr};
@@ -13,7 +16,7 @@ use std::time::Duration;
 use reqwest::Url;
 use serde_json::{Value, json};
 
-use crate::{ProviderError, Result};
+use crate::{HttpClient, ProviderError, Result};
 
 const MAX_LIST_BYTES: usize = 4 * 1024 * 1024;
 const MAX_MODELS: usize = 500;
@@ -33,6 +36,15 @@ const MAX_CONTEXT: u64 = 100_000_000;
 pub enum Reach {
     ThisComputer,
     LocalNetwork,
+    /// Neither: a service on the internet, `https` only.
+    Internet,
+}
+
+impl Reach {
+    /// This computer or the local network.
+    pub fn is_local(self) -> bool {
+        self != Self::Internet
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
@@ -40,9 +52,9 @@ pub enum AddressError {
     /// Not an http(s) address one can connect to.
     #[error("not an http address")]
     Invalid,
-    /// A real address, but not on this computer or the local network.
-    #[error("not on this computer or the local network")]
-    NotLocal,
+    /// An address on the internet over plain `http`.
+    #[error("an address on the internet needs https")]
+    NeedsHttps,
 }
 
 /// A parsed, accepted server address.
@@ -50,7 +62,8 @@ pub enum AddressError {
 pub struct LocalAddress {
     /// `scheme://host[:port][/path]` without a trailing `/` or `/v1`.
     pub base_url: String,
-    /// What the settings show: `host[:port]`, this computer as `localhost`.
+    /// What the settings show: `host[:port]` (a standard port left out),
+    /// this computer as `localhost`.
     pub display: String,
     pub reach: Reach,
 }
@@ -76,7 +89,10 @@ impl LocalAddress {
         {
             return Err(AddressError::Invalid);
         }
-        let reach = reach(&url).ok_or(AddressError::NotLocal)?;
+        let reach = reach(&url).ok_or(AddressError::Invalid)?;
+        if reach == Reach::Internet && url.scheme() != "https" {
+            return Err(AddressError::NeedsHttps);
+        }
         let mut path = url.path().trim_end_matches('/').to_owned();
         if let Some(stripped) = path.strip_suffix("/v1") {
             path = stripped.trim_end_matches('/').to_owned();
@@ -85,7 +101,7 @@ impl LocalAddress {
         let base_url = url.as_str().trim_end_matches('/').to_owned();
         let host = match reach {
             Reach::ThisComputer => "localhost".to_owned(),
-            Reach::LocalNetwork => url.host_str().unwrap_or_default().to_owned(),
+            Reach::LocalNetwork | Reach::Internet => url.host_str().unwrap_or_default().to_owned(),
         };
         let display = match url.port() {
             Some(port) => format!("{host}:{port}"),
@@ -103,34 +119,50 @@ impl LocalAddress {
     }
 }
 
+/// Whether what was typed names a place on the internet, `http` or `https`:
+/// the form shows the key field for it at once (作者 2026-11-24).
+pub fn on_the_internet(raw: &str) -> bool {
+    match LocalAddress::parse(raw) {
+        Ok(address) => address.reach == Reach::Internet,
+        Err(error) => error == AddressError::NeedsHttps,
+    }
+}
+
+/// Where a URL's host is. `None` only without a host. This computer and the
+/// local network are the same set `dr_platform::proxy` sends directly (no
+/// proxy); everything else is the internet.
 fn reach(url: &Url) -> Option<Reach> {
     let host = url.host_str()?;
     if let Some(v6) = host.strip_prefix('[').and_then(|h| h.strip_suffix(']')) {
-        return v6
-            .parse::<Ipv6Addr>()
-            .ok()
-            .filter(Ipv6Addr::is_loopback)
-            .map(|_| Reach::ThisComputer);
+        return Some(if v6.parse::<Ipv6Addr>().is_ok_and(|ip| ip.is_loopback()) {
+            Reach::ThisComputer
+        } else {
+            Reach::Internet
+        });
     }
     if let Ok(ip) = host.parse::<Ipv4Addr>() {
-        return if ip.is_loopback() {
-            Some(Reach::ThisComputer)
-        } else if private(ip) {
-            Some(Reach::LocalNetwork)
-        } else {
-            None
-        };
+        return Some(ipv4_reach(ip));
     }
     let domain = host.trim_end_matches('.').to_ascii_lowercase();
-    if domain == "localhost" {
-        Some(Reach::ThisComputer)
+    Some(if domain == "localhost" {
+        Reach::ThisComputer
     } else if domain.len() > ".local".len()
         && domain.ends_with(".local")
         && !domain.starts_with('.')
     {
-        Some(Reach::LocalNetwork)
+        Reach::LocalNetwork
     } else {
-        None
+        Reach::Internet
+    })
+}
+
+fn ipv4_reach(ip: Ipv4Addr) -> Reach {
+    if ip.is_loopback() {
+        Reach::ThisComputer
+    } else if private(ip) {
+        Reach::LocalNetwork
+    } else {
+        Reach::Internet
     }
 }
 
@@ -140,15 +172,19 @@ fn private(ip: Ipv4Addr) -> bool {
     a == 10 || (a == 172 && (16..=31).contains(&b)) || (a == 192 && b == 168)
 }
 
-/// The transport's check for a frozen local route: the same rule as the
-/// settings form, so a hand-edited setting cannot widen it.
+/// The transport's check for a frozen route: the same rule as the settings
+/// form, so a hand-edited setting cannot widen it.
 pub(crate) fn validate_endpoint(endpoint: &str) -> Result<()> {
     let url = Url::parse(endpoint).map_err(ProviderError::network)?;
-    if !matches!(url.scheme(), "http" | "https")
+    let refused = !matches!(url.scheme(), "http" | "https")
         || !url.username().is_empty()
         || url.password().is_some()
-        || reach(&url).is_none()
-    {
+        || match reach(&url) {
+            None => true,
+            Some(Reach::Internet) => url.scheme() != "https",
+            Some(Reach::ThisComputer | Reach::LocalNetwork) => false,
+        };
+    if refused {
         return Err(ProviderError::new(
             dr_agent::ModelErrorCategory::Unsupported,
             false,
@@ -221,8 +257,11 @@ pub fn valid_model_id(id: &str) -> bool {
     !id.is_empty() && id.len() <= 256 && !id.chars().any(char::is_control)
 }
 
-fn get(client: &reqwest::Client, url: String, key: Option<&str>) -> reqwest::RequestBuilder {
-    let request = client.get(url).header("accept", "application/json");
+fn get(http: &HttpClient, url: String, key: Option<&str>) -> reqwest::RequestBuilder {
+    let request = http
+        .raw()
+        .get(http.destination(url))
+        .header("accept", "application/json");
     match key {
         Some(key) => request.bearer_auth(key),
         None => request,
@@ -241,11 +280,11 @@ async fn json_body(response: reqwest::Response) -> Option<Value> {
 /// Is anything answering at this address with this key? Any reply but an
 /// authentication refusal counts: a server without a model list is still up.
 pub async fn check(
-    client: &reqwest::Client,
+    http: &HttpClient,
     address: &LocalAddress,
     key: Option<&str>,
 ) -> std::result::Result<(), DiscoverError> {
-    let response = get(client, address.at("/v1/models"), key)
+    let response = get(http, address.at("/v1/models"), key)
         .timeout(LIST_TIMEOUT)
         .send()
         .await
@@ -259,11 +298,11 @@ pub async fn check(
 /// Asks the server for its models (`/v1/models`), recognizes the software,
 /// and reads what it says about each model's context and tools.
 pub async fn discover(
-    client: &reqwest::Client,
+    http: &HttpClient,
     address: &LocalAddress,
     key: Option<&str>,
 ) -> std::result::Result<Discovery, DiscoverError> {
-    let response = get(client, address.at("/v1/models"), key)
+    let response = get(http, address.at("/v1/models"), key)
         .timeout(LIST_TIMEOUT)
         .send()
         .await
@@ -303,9 +342,9 @@ pub async fn discover(
         .any(|row| row.get("owned_by").and_then(Value::as_str) == Some("llamacpp"))
     {
         Some(Software::LlamaCpp)
-    } else if ollama(client, address, key).await {
+    } else if ollama(http, address, key).await {
         Some(Software::Ollama)
-    } else if let Some(models) = lm_studio(client, address, key).await {
+    } else if let Some(models) = lm_studio(http, address, key).await {
         for model in &mut found {
             if let Some(row) = models.get(&model.id) {
                 let kind = row.get("type").and_then(Value::as_str);
@@ -326,11 +365,11 @@ pub async fn discover(
     match software {
         Some(Software::Ollama) => {
             for model in found.iter_mut().take(MAX_SHOWN) {
-                show(client, address, key, model).await;
+                show(http, address, key, model).await;
             }
         }
         Some(Software::LlamaCpp) => {
-            let props = llama_props(client, address, key).await;
+            let props = llama_props(http, address, key).await;
             if let Some(context) = props.as_ref().and_then(llama_context) {
                 for model in &mut found {
                     model.context = Some(context);
@@ -403,8 +442,8 @@ fn row_context(row: &Value) -> Option<u64> {
 }
 
 /// Ollama answers `GET /api/version` with `{"version": "…"}`.
-async fn ollama(client: &reqwest::Client, address: &LocalAddress, key: Option<&str>) -> bool {
-    let Ok(response) = get(client, address.at("/api/version"), key)
+async fn ollama(http: &HttpClient, address: &LocalAddress, key: Option<&str>) -> bool {
+    let Ok(response) = get(http, address.at("/api/version"), key)
         .timeout(PROBE_TIMEOUT)
         .send()
         .await
@@ -419,11 +458,11 @@ async fn ollama(client: &reqwest::Client, address: &LocalAddress, key: Option<&s
 /// LM Studio's own `GET /api/v0/models` gives each model a `type` (`llm`,
 /// `vlm`, `embeddings`) and its `max_context_length`.
 async fn lm_studio(
-    client: &reqwest::Client,
+    http: &HttpClient,
     address: &LocalAddress,
     key: Option<&str>,
 ) -> Option<HashMap<String, Value>> {
-    let response = get(client, address.at("/api/v0/models"), key)
+    let response = get(http, address.at("/api/v0/models"), key)
         .timeout(PROBE_TIMEOUT)
         .send()
         .await
@@ -445,14 +484,10 @@ async fn lm_studio(
 
 /// Ollama's `POST /api/show`: `capabilities` (`completion`, `tools`,
 /// `embedding` …) and `model_info["<architecture>.context_length"]`.
-async fn show(
-    client: &reqwest::Client,
-    address: &LocalAddress,
-    key: Option<&str>,
-    model: &mut Found,
-) {
-    let mut request = client
-        .post(address.at("/api/show"))
+async fn show(http: &HttpClient, address: &LocalAddress, key: Option<&str>, model: &mut Found) {
+    let mut request = http
+        .raw()
+        .post(http.destination(address.at("/api/show")))
         .header("accept", "application/json")
         .json(&json!({"model": model.id}))
         .timeout(PROBE_TIMEOUT);
@@ -488,11 +523,11 @@ async fn show(
 
 /// llama.cpp's `GET /props`.
 async fn llama_props(
-    client: &reqwest::Client,
+    http: &HttpClient,
     address: &LocalAddress,
     key: Option<&str>,
 ) -> Option<Value> {
-    let response = get(client, address.at("/props"), key)
+    let response = get(http, address.at("/props"), key)
         .timeout(PROBE_TIMEOUT)
         .send()
         .await
@@ -518,8 +553,10 @@ fn llama_vision(props: &Value) -> Option<bool> {
 mod tests {
     use super::*;
 
+    /// Four groups: this computer and the local network over `http` or
+    /// `https`; the internet over `https`; the internet over `http` refused.
     #[test]
-    fn only_this_computer_and_the_local_network_are_accepted() {
+    fn the_internet_needs_https_and_this_network_takes_either() {
         for (raw, base, display, reach) in [
             (
                 "http://localhost:11434",
@@ -575,15 +612,49 @@ mod tests {
                 "gpu-box.local:11434",
                 Reach::LocalNetwork,
             ),
+            (
+                "https://api.example.com/v1",
+                "https://api.example.com",
+                "api.example.com",
+                Reach::Internet,
+            ),
+            (
+                "https://api.example.com:8443/proxy/v1/",
+                "https://api.example.com:8443/proxy",
+                "api.example.com:8443",
+                Reach::Internet,
+            ),
+            (
+                "https://API.Example.com:443",
+                "https://api.example.com",
+                "api.example.com",
+                Reach::Internet,
+            ),
+            (
+                "https://203.0.113.7",
+                "https://203.0.113.7",
+                "203.0.113.7",
+                Reach::Internet,
+            ),
+            (
+                "https://[2001:db8::1]",
+                "https://[2001:db8::1]",
+                "[2001:db8::1]",
+                Reach::Internet,
+            ),
         ] {
             let address = LocalAddress::parse(raw).unwrap_or_else(|e| panic!("{raw}: {e}"));
             assert_eq!(address.base_url, base, "{raw}");
             assert_eq!(address.display, display, "{raw}");
             assert_eq!(address.reach, reach, "{raw}");
+            assert_eq!(address.reach.is_local(), reach != Reach::Internet);
+            assert_eq!(on_the_internet(raw), reach == Reach::Internet, "{raw}");
             validate_endpoint(&format!("{}/v1/chat/completions", address.base_url)).unwrap();
         }
+        // On the internet over plain http: refused, here and in the transport.
         for raw in [
-            "https://api.example.com/v1",
+            "http://api.example.com/v1",
+            "api.example.com",
             "http://example.com:11434",
             "http://172.32.0.1",
             "http://172.15.0.1",
@@ -591,15 +662,19 @@ mod tests {
             "http://11.0.0.1",
             "http://8.8.8.8",
             "http://[fe80::1]:11434",
+            "http://[::ffff:203.0.113.7]",
+            // Only `::1` counts as this computer, as for the proxy's rule.
+            "http://[::ffff:192.168.1.20]:11434",
             "http://local",
             "http://.local",
             "http://intranet",
         ] {
             assert_eq!(
                 LocalAddress::parse(raw),
-                Err(AddressError::NotLocal),
+                Err(AddressError::NeedsHttps),
                 "{raw}"
             );
+            assert!(on_the_internet(raw), "{raw}");
             assert!(validate_endpoint(raw).is_err(), "{raw}");
         }
         for raw in [
@@ -611,14 +686,20 @@ mod tests {
             "http://localhost:11434/#top",
             "http://local host",
             "http://",
+            "https://user:pass@api.example.com/v1",
+            "https://api.example.com/v1?key=1",
+            "https://api.example.com/v1#models",
         ] {
             assert_eq!(
                 LocalAddress::parse(raw),
                 Err(AddressError::Invalid),
                 "{raw}"
             );
+            assert!(!on_the_internet(raw), "{raw}");
         }
         assert!(validate_endpoint("http://user@localhost:11434/v1").is_err());
+        assert!(validate_endpoint("https://user@api.example.com/v1").is_err());
+        assert!(validate_endpoint("ftp://api.example.com/v1").is_err());
     }
 
     #[test]
