@@ -4,7 +4,9 @@
 
 2026-11-08。实现 M28 任务书（`handoff/m28-model-providers.md`，已随过程文档清理删除，在 git 历史里），接在 [M27](m27-agent-runtime.md) 的进程内驱动接口上。没有新增运行时类型，也不经过旧版 Tauri。
 
-> 2026-11-16（LM 本地模型）：多了第五条路线 `Provider::Local`，接本机或局域网里 OpenAI 兼容的模型服务（Ollama、LM Studio、llama.cpp 这类）。界面按作者定稿（原型第 3 版）由 M31 画，见本页末「本地模型」一节；自定义 API Key（接网上的服务）作者定了不做。
+> 2026-11-16（LM 本地模型）：多了第五条路线 `Provider::Local`，接本机或局域网里 OpenAI 兼容的模型服务（Ollama、LM Studio、llama.cpp 这类）。界面按作者定稿（原型第 3 版）由 M31 画，见本页末「本地模型」一节；自定义 API Key（接网上的服务）作者当时定了不做。
+>
+> 2026-11-23：作者改了主意，接网上的第三方服务排进新版（[chihumyum/Drifting#3](https://github.com/chihumyum/Drifting/issues/3)）。代码还没动，这一页写的仍是现状：网上的地址在请求前拒绝。要作者定的几处在 [progress.md「等作者的事」第 19 条](../progress.md#等作者的事)。
 
 ## 做了什么（大白话）
 
