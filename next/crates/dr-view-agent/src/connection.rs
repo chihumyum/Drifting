@@ -1047,9 +1047,10 @@ impl Connections {
     }
 }
 
-/// Local model servers. The connection form (`local_view`) does the network
-/// step through [`ConnectionService::probe_local`]; these keep the list,
-/// the selection and the per-model settings.
+/// The servers added by address (「自定义服务」: local model servers and
+/// services on the internet). The connection form (`local_view`) does the
+/// network step through [`ConnectionService::probe_local`]; these keep the
+/// list, the selection and the per-model settings.
 impl Connections {
     pub fn service(&self) -> ConnectionService {
         self.service.clone()
@@ -1228,7 +1229,8 @@ impl Connections {
         .detach();
     }
 
-    /// A model name typed for a server without a model list.
+    /// A model name typed for a server without a model list, or for a
+    /// service on the internet.
     pub fn add_local_model(&mut self, id: &str, model: &str, cx: &mut Context<Self>) -> bool {
         let model = model.trim();
         if !dr_agent_providers::local::valid_model_id(model) {
@@ -1237,11 +1239,55 @@ impl Connections {
         let Some(server) = self.local.iter_mut().find(|server| server.id == id) else {
             return false;
         };
-        if server.model(model).is_none() {
+        let added = server.model(model).is_none();
+        if added {
             server.models.push(LocalServerModel::new(model, None));
         }
+        let look_up = (added && server.on_the_internet()).then(|| server.clone());
         self.write_local(cx);
+        if let Some(server) = look_up {
+            self.look_up_context(server, model.to_owned(), cx);
+        }
         true
+    }
+
+    /// A name typed for a service on the internet takes the context its
+    /// list gives for it, when the list has it; the list itself is not
+    /// offered (作者 2026-11-24). Without an answer it stays the default.
+    fn look_up_context(&mut self, server: LocalServer, model: String, cx: &mut Context<Self>) {
+        let service = self.service.clone();
+        let http = service.driver().http().clone();
+        let asked = server.clone();
+        let task = http.spawn(async move { service.relist_local(&asked).await });
+        cx.spawn(async move |this, cx| {
+            let Ok(Some(discovery)) = task.await else {
+                return;
+            };
+            let Some(context) = discovery
+                .models
+                .iter()
+                .find(|listed| listed.id == model)
+                .and_then(|listed| listed.context_window)
+            else {
+                return;
+            };
+            this.update(cx, |this, cx| {
+                let Some(found) = this
+                    .local
+                    .iter_mut()
+                    .find(|current| current.id == server.id && current.base_url == server.base_url)
+                    .and_then(|current| current.models.iter_mut().find(|old| old.id == model))
+                else {
+                    return;
+                };
+                if found.context.is_none() {
+                    found.context = Some(context);
+                    this.write_local(cx);
+                }
+            })
+            .ok();
+        })
+        .detach();
     }
 
     /// The × on a typed model. The last one gone takes the server with it.

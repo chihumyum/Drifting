@@ -1,5 +1,8 @@
-//! 「本地模型」 in the companion and Settings, against a synthetic routed
-//! loopback service (作者 2026-11-16 定稿). No real model server is used.
+//! 「自定义服务」 (formerly 「本地模型」) in the companion and Settings,
+//! against synthetic routed loopback services (作者 2026-11-16 定稿; services
+//! on the internet 2026-11-24). A service on the internet is a loopback
+//! stand-in for `https://api.example.com` (`HttpClient::with_stand_in`). No
+//! real model server or service is used.
 
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -217,9 +220,25 @@ fn ollama() -> Fake {
 }
 
 fn service(store: Arc<SecretStore>) -> ConnectionService {
+    service_on(store, HttpClient::new().unwrap())
+}
+
+/// What is sent to `https://api.example.com` goes to `fake` instead.
+fn internet(store: Arc<SecretStore>, fake: &Fake) -> ConnectionService {
+    service_on(
+        store,
+        HttpClient::new()
+            .unwrap()
+            .with_stand_in(INTERNET, &fake.url),
+    )
+}
+
+const INTERNET: &str = "https://api.example.com";
+
+fn service_on(store: Arc<SecretStore>, http: HttpClient) -> ConnectionService {
     let nowhere = "http://127.0.0.1:9";
     let driver = ProviderDriver::with_endpoints(
-        HttpClient::new().unwrap(),
+        http,
         Credentials::new(store),
         Endpoints {
             deepseek: nowhere.into(),
@@ -304,7 +323,7 @@ fn wait(vcx: &mut VisualTestContext, mut done: impl FnMut(&mut VisualTestContext
 }
 
 fn form(view: &Entity<LocalConnectionView>, vcx: &VisualTestContext) -> Option<FormState> {
-    view.read_with(vcx, |view, _| view.form_state())
+    view.read_with(vcx, |view, cx| view.form_state(cx))
 }
 
 /// Type an address (and optionally a key) and press 「连接」.
@@ -442,7 +461,9 @@ fn connecting_selects_the_first_tool_model_and_freezes_its_server(cx: &mut TestA
 }
 
 #[gpui::test]
-fn the_form_reports_not_local_unreachable_and_a_refused_key(cx: &mut TestAppContext) {
+fn the_form_reports_plain_http_to_the_internet_unreachable_and_a_refused_key(
+    cx: &mut TestAppContext,
+) {
     shell(cx);
     let guarded = Fake::new(Box::new(|path, headers, _| match path {
         "/v1/models" if headers.contains("Bearer synthetic-local-key") => {
@@ -453,13 +474,14 @@ fn the_form_reports_not_local_unreachable_and_a_refused_key(cx: &mut TestAppCont
     }));
     let store = Arc::new(SecretStore::in_memory());
     let (connections, view, vcx) = open(cx, store.clone(), false);
-    connect(&view, vcx, "https://api.example.com/v1", None);
+    // Refused before any request: no stand-in, nothing is reached.
+    connect(&view, vcx, "http://api.example.com/v1", None);
     wait(vcx, |vcx| {
         form(&view, vcx).is_some_and(|f| f.error.is_some())
     });
     assert_eq!(
         form(&view, vcx).unwrap().error,
-        Some(LocalFailure::NotLocal)
+        Some(LocalFailure::NeedsHttps)
     );
     let closed = {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -702,16 +724,16 @@ fn choosing_a_cloud_model_keeps_its_reasoning_level(cx: &mut TestAppContext) {
 }
 
 #[tokio::test]
-async fn the_service_probes_keys_and_refuses_the_internet_before_asking() {
+async fn the_service_probes_keys_and_refuses_plain_http_to_the_internet_before_asking() {
     let fake = ollama();
     let store = Arc::new(SecretStore::in_memory());
     let service = service(store.clone());
     assert_eq!(
         service
-            .probe_local("https://api.example.com", &KeyChange::Keep, None)
+            .probe_local("http://api.example.com", &KeyChange::Keep, None)
             .await
             .unwrap_err(),
-        LocalFailure::NotLocal
+        LocalFailure::NeedsHttps
     );
     assert_eq!(
         service
@@ -1031,4 +1053,295 @@ fn a_model_that_does_not_answer_in_time_fails_the_test(cx: &mut TestAppContext) 
         "请求失败（provider 不可用或网络问题）"
     );
     gate.open();
+}
+
+fn draw(vcx: &mut VisualTestContext) {
+    vcx.run_until_parked();
+    vcx.update(|window, cx| {
+        window.refresh();
+        window.draw(cx).clear(cx);
+    });
+}
+
+/// A service on the internet (a stand-in for `https://api.example.com`):
+/// it wants a key, lists four models (one an embedding model, two with a
+/// context), and answers 「OK」.
+fn service_listing() -> Fake {
+    Fake::new(Box::new(|path, headers, _| {
+        let keyed = headers.contains("Bearer synthetic-service-key");
+        match path {
+            "/v1/models" if keyed => (
+                200,
+                listed(json!([
+                    {"id":"example-chat-large","object":"model","context_length":131_072},
+                    {"id":"example-chat-mini","object":"model"},
+                    {"id":"example-reasoner","object":"model","context_length":65_536},
+                    {"id":"example-embed-v2","object":"model"},
+                ])),
+            ),
+            "/v1/chat/completions" if keyed => (200, says_ok()),
+            "/v1/models" | "/v1/chat/completions" => (401, r#"{"error":"unauthorized"}"#.into()),
+            _ => (404, "{}".into()),
+        }
+    }))
+}
+
+fn model_lists(fake: &Fake) -> usize {
+    fake.requests()
+        .iter()
+        .filter(|seen| seen.path == "/v1/models")
+        .count()
+}
+
+/// 作者 2026-11-24 (prototype 「第五版 网上的地址」): one cell, now
+/// 「自定义服务」; an address on the internet shows the key field under it at
+/// once, this computer and the local network keep it folded behind 「加 Key」.
+/// Nothing here connects.
+#[gpui::test]
+fn an_address_on_the_internet_shows_the_key_field_by_itself(cx: &mut TestAppContext) {
+    shell(cx);
+    cx.update(|cx| dr_shell::strings::Strings::install(dr_i18n::Locale::ZhCn, cx));
+    let store = Arc::new(SecretStore::in_memory());
+    let (_connections, view, vcx) = open(cx, store, false);
+    view.update_in(vcx, |view, window, cx| view.open_new(window, cx));
+    let [address, key, _] = view.read_with(vcx, |view, _| view.fields());
+    let shown = |vcx: &mut VisualTestContext, text: &str| {
+        address.update(vcx, |field, cx| field.set_text(text, cx));
+        draw(vcx);
+        let state = form(&view, vcx).unwrap();
+        assert!(!state.key_open, "{text}: the author did not open it");
+        // 「加 Key」 is there exactly when the key field is not.
+        assert_eq!(
+            vcx.debug_bounds("local-model-add-key").is_none(),
+            state.key_shown,
+            "{text}"
+        );
+        state.key_shown
+    };
+    assert!(!shown(vcx, ""));
+    assert!(shown(vcx, "https://api.example.com/v1"));
+    assert!(
+        shown(vcx, "http://api.example.com"),
+        "plain http too: 「连接」 then says why"
+    );
+    assert!(shown(vcx, "api.example.com"));
+    assert!(!shown(vcx, "http://localhost:11434"));
+    assert!(!shown(vcx, "https://192.168.1.20:11434"));
+    assert!(!shown(vcx, "http://gpu-box.local:11434"));
+    // Changed back to this computer, it folds again; a typed key keeps it.
+    assert!(shown(vcx, INTERNET));
+    key.update(vcx, |field, cx| field.set_text("synthetic-typed", cx));
+    assert!(shown(vcx, "http://localhost:11434"));
+    vcx.update(|_, cx| {
+        assert_eq!(
+            local_view::failure_text(LocalFailure::NeedsHttps, cx),
+            "网上的地址要用 https"
+        );
+        assert_eq!(
+            dr_shell::strings::t(cx, dr_i18n::keys::v3_settings::local_models::NAME),
+            "自定义服务"
+        );
+    });
+}
+
+/// 作者 2026-11-23/24: a service on the internet over https. Its list is
+/// asked (that is how the key is checked) but not offered: the form asks for
+/// a model name, which takes the context the list gives for it. Named by its
+/// host; no reasoning level, no hosted search; 「测试连接」 as for a local
+/// server.
+#[gpui::test]
+fn a_service_on_the_internet_asks_for_a_model_name_and_takes_its_context(cx: &mut TestAppContext) {
+    shell(cx);
+    let fake = service_listing();
+    let store = Arc::new(SecretStore::in_memory());
+    let (connections, view, vcx) = open_with(cx, internet(store.clone(), &fake), false);
+    wait(vcx, |vcx| {
+        connections.read_with(vcx, |c, _| c.usable() == Some(false))
+    });
+    // No key yet: the service refuses it.
+    connect(&view, vcx, "https://api.example.com/v1", None);
+    wait(vcx, |vcx| {
+        form(&view, vcx).is_some_and(|f| !f.busy && f.error == Some(LocalFailure::InvalidKey))
+    });
+    let state = form(&view, vcx).unwrap();
+    assert!(state.key_shown && !state.key_open);
+    // The key goes in the field that showed by itself.
+    let [_, key, name] = view.read_with(vcx, |view, _| view.fields());
+    key.update(vcx, |field, cx| field.set_text("synthetic-service-key", cx));
+    view.update_in(vcx, |view, window, cx| view.submit(window, cx));
+    wait(vcx, |vcx| {
+        form(&view, vcx).is_some_and(|f| f.asks_model_name)
+    });
+    assert!(connections.read_with(vcx, |c, _| c.local_servers().is_empty()));
+    assert!(
+        fake.requests().iter().any(|seen| seen.path == "/v1/models"
+            && seen.headers.contains("Bearer synthetic-service-key"))
+    );
+    assert!(chat_requests(&fake).is_empty(), "connecting never chats");
+    name.update(vcx, |field, cx| field.set_text("example-chat-large", cx));
+    view.update_in(vcx, |view, window, cx| view.submit_model_name(window, cx));
+    wait(vcx, |vcx| form(&view, vcx).is_none());
+
+    let server = connections.read_with(vcx, |c, _| c.local_servers()[0].clone());
+    assert_eq!(server.label, "api.example.com");
+    assert_eq!(server.display(), "api.example.com");
+    assert_eq!(server.base_url, INTERNET);
+    assert!(server.manual && server.has_key && server.on_the_internet());
+    assert_eq!(
+        server.models,
+        [LocalServerModel::new("example-chat-large", Some(131_072))],
+        "only the typed name, with the list's context"
+    );
+    assert_eq!(
+        store
+            .get(&format!("byok.local.{}", server.id))
+            .unwrap()
+            .as_deref(),
+        Some("synthetic-service-key")
+    );
+    let stored = device_list(vcx).unwrap();
+    assert_eq!(stored[0]["base_url"], INTERNET);
+    assert!(!stored.to_string().contains("synthetic-service-key"));
+    let config = connections.read_with(vcx, |c, _| c.run_config().unwrap());
+    assert_eq!(config.route.provider, Provider::Local);
+    assert_eq!(config.route.model, "example-chat-large");
+    assert_eq!(config.route.local.as_ref().unwrap().base_url, INTERNET);
+    assert_eq!(config.route.thinking, ThinkingLevel::Off);
+    assert!(!config.web_search);
+    assert_eq!(
+        config.capabilities.as_ref().unwrap().context_window,
+        Some(131_072)
+    );
+    connections.read_with(vcx, |c, _| {
+        assert!(!local_view::has_reasoning(c));
+        assert_eq!(
+            local_view::routes(c)
+                .into_iter()
+                .map(|(_, _, label)| label)
+                .collect::<Vec<_>>(),
+            ["api.example.com · example-chat-large"]
+        );
+    });
+
+    // More names in Settings: one on the list takes its context, one that
+    // is not keeps the default.
+    connections.update(vcx, |c, cx| {
+        assert!(c.add_local_model(&server.id, "typed-elsewhere", cx));
+        assert!(c.add_local_model(&server.id, "example-reasoner", cx));
+    });
+    let context = |vcx: &mut VisualTestContext, model: &str| {
+        connections.read_with(vcx, |c, _| {
+            c.local_servers()[0].model(model).and_then(|m| m.context)
+        })
+    };
+    wait(vcx, |vcx| context(vcx, "example-reasoner") == Some(65_536));
+    assert_eq!(context(vcx, "typed-elsewhere"), None);
+    // Opening the model menu does not list it either.
+    let asked = model_lists(&fake);
+    connections.update(vcx, |c, cx| c.load_local_catalogs(cx));
+    draw(vcx);
+    std::thread::sleep(Duration::from_millis(100));
+    draw(vcx);
+    assert_eq!(model_lists(&fake), asked);
+    assert_eq!(
+        connections.read_with(vcx, |c, _| c.local_servers()[0].models.len()),
+        3
+    );
+
+    // 「测试连接」: one sentence to the selected model, with the key.
+    assert_eq!(tested(&connections, vcx, &server.id), Some(Ok(())));
+    assert_eq!(
+        chat_requests(&fake).last().unwrap()["model"],
+        "example-chat-large"
+    );
+    assert!(
+        fake.requests()
+            .iter()
+            .filter(|seen| seen.path == "/v1/chat/completions")
+            .all(|seen| seen.headers.contains("Bearer synthetic-service-key"))
+    );
+}
+
+/// 「改地址」 on a service that has a key: the key field stays folded and
+/// the key stays stored (the prototype's existing rule). A service without
+/// one gets the field by itself; left empty, nothing is removed.
+#[gpui::test]
+fn changing_the_address_of_a_service_keeps_its_key(cx: &mut TestAppContext) {
+    shell(cx);
+    let fake = service_listing();
+    let open_service = Fake::new(Box::new(|path, _, _| match path {
+        "/v1/models" => (200, listed(json!([{"id":"open-model"}]))),
+        _ => (404, "{}".into()),
+    }));
+    let store = Arc::new(SecretStore::in_memory());
+    let http = HttpClient::new()
+        .unwrap()
+        .with_stand_in(INTERNET, &fake.url)
+        .with_stand_in("https://api.example.com:8443", &open_service.url);
+    let (connections, view, vcx) = open_with(cx, service_on(store.clone(), http), true);
+    let [address, key, name] = view.read_with(vcx, |view, _| view.fields());
+    let add = |vcx: &mut VisualTestContext, model: &str| {
+        wait(vcx, |vcx| {
+            form(&view, vcx).is_some_and(|f| f.asks_model_name)
+        });
+        name.update(vcx, |field, cx| field.set_text(model, cx));
+        view.update_in(vcx, |view, window, cx| view.submit_model_name(window, cx));
+        wait(vcx, |vcx| form(&view, vcx).is_none());
+    };
+    view.update_in(vcx, |view, window, cx| view.open_new(window, cx));
+    address.update(vcx, |field, cx| field.set_text(INTERNET, cx));
+    key.update(vcx, |field, cx| field.set_text("synthetic-service-key", cx));
+    view.update_in(vcx, |view, window, cx| view.submit(window, cx));
+    add(vcx, "example-chat-large");
+    let id = connections.read_with(vcx, |c, _| c.local_servers()[0].id.clone());
+
+    view.update_in(vcx, |view, window, cx| {
+        view.open_server(&id, false, window, cx)
+    });
+    draw(vcx);
+    let state = form(&view, vcx).unwrap();
+    assert!(state.editing && !state.key_shown);
+    assert!(vcx.debug_bounds("local-model-add-key").is_some());
+    let before = fake.requests().len();
+    view.update_in(vcx, |view, window, cx| view.submit(window, cx));
+    // Asked with the stored key; the list is still not offered.
+    add(vcx, "example-chat-mini");
+    assert!(
+        fake.requests()[before..]
+            .iter()
+            .any(|seen| seen.headers.contains("Bearer synthetic-service-key"))
+    );
+    let server = connections.read_with(vcx, |c, _| c.local_servers()[0].clone());
+    assert_eq!(server.id, id);
+    assert!(server.has_key);
+    assert_eq!(server.models[0].id, "example-chat-mini");
+    assert!(store.get(&format!("byok.local.{id}")).unwrap().is_some());
+
+    // A service that needs no key: connected without one, and on
+    // 「改地址」 the field shows by itself; left empty it changes nothing.
+    view.update_in(vcx, |view, window, cx| view.open_new(window, cx));
+    address.update(vcx, |field, cx| {
+        field.set_text("https://api.example.com:8443", cx)
+    });
+    view.update_in(vcx, |view, window, cx| view.submit(window, cx));
+    add(vcx, "open-model");
+    let open = connections.read_with(vcx, |c, _| c.local_servers()[1].clone());
+    assert!(!open.has_key);
+    assert_eq!(open.label, "api.example.com:8443");
+    view.update_in(vcx, |view, window, cx| {
+        view.open_server(&open.id, false, window, cx)
+    });
+    let state = form(&view, vcx).unwrap();
+    assert!(state.key_shown && !state.key_open);
+    view.update_in(vcx, |view, window, cx| view.submit(window, cx));
+    add(vcx, "open-model");
+    assert!(!connections.read_with(vcx, |c, _| c.local_servers()[1].has_key));
+    assert!(
+        open_service
+            .requests()
+            .iter()
+            .all(|seen| !seen.headers.to_ascii_lowercase().contains("authorization"))
+    );
+    // The first service's key never went to the second.
+    assert!(store.get(&format!("byok.local.{id}")).unwrap().is_some());
 }

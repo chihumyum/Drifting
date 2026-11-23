@@ -4,9 +4,9 @@
 
 2026-11-08。实现 M28 任务书（`handoff/m28-model-providers.md`，已随过程文档清理删除，在 git 历史里），接在 [M27](m27-agent-runtime.md) 的进程内驱动接口上。没有新增运行时类型，也不经过旧版 Tauri。
 
-> 2026-11-16（LM 本地模型）：多了第五条路线 `Provider::Local`，接本机或局域网里 OpenAI 兼容的模型服务（Ollama、LM Studio、llama.cpp 这类）。界面按作者定稿（原型第 3 版）由 M31 画，见本页末「本地模型」一节；自定义 API Key（接网上的服务）作者当时定了不做。
+> 2026-11-16（LM 本地模型）：多了第五条路线 `Provider::Local`，接本机或局域网里 OpenAI 兼容的模型服务（Ollama、LM Studio、llama.cpp 这类）。界面按作者定稿（原型第 3 版）由 M31 画，见本页末「自定义服务」一节；自定义 API Key（接网上的服务）作者当时定了不做。
 >
-> 2026-11-23：作者改了主意，接网上的第三方服务排进新版（[chihumyum/Drifting#3](https://github.com/chihumyum/Drifting/issues/3)）。代码还没动，这一页写的仍是现状：网上的地址在请求前拒绝。要作者定的几处在 [progress.md「等作者的事」第 19 条](../progress.md#等作者的事)。
+> 2026-11-24（CA 自定义服务地址）：作者 11-23 改了主意，11-24 在整窗原型「第五版 网上的地址」上照推荐定完（[chihumyum/Drifting#3](https://github.com/chihumyum/Drifting/issues/3)）。同一条路线也收网上的第三方服务（中转站、聚合服务），只认 `https` 和 OpenAI 兼容的 Chat Completions；界面上这一格改叫「自定义服务」。见本页末一节。
 
 ## 做了什么（大白话）
 
@@ -78,13 +78,13 @@
 - 行为标准：旧版 `runtime/drivers/`、`agent-provider-contract.ts`、`byok_models.rs`、`codex_models.rs`、`codex_oauth.rs` 和 [provider extension protocol](../../agent-runtime/provider-extension-protocol.md)。
 - Responses 的增量、完成事件和终止输出形状也核对了 [OpenAI 官方流事件文档](https://developers.openai.com/api/reference/resources/responses/streaming-events)。
 
-## 本地模型（LM，2026-11-16）
+## 自定义服务（本地模型 LM 2026-11-16；网上的服务 CA 2026-11-24）
 
-作者 2026-11-16 定稿、说「做」：Agent 能用本机或局域网里部署的模型。网上的地址（自定义 API Key）不做。交回后的七处同日定（「都按你倾向的」），本模块跟着改了两处：滤完一个不剩不再当「没有清单」，「测试连接」真发一句。
+作者 2026-11-16 定稿、说「做」：Agent 能用本机或局域网里部署的模型。交回后的七处同日定（「都按你倾向的」），本模块跟着改了两处：滤完一个不剩不再当「没有清单」，「测试连接」真发一句。2026-11-23 作者改主意、把网上的第三方服务也放进来，2026-11-24 在原型「第五版 网上的地址」上五处都照推荐定（「自定义服务地址按照你的推荐来就行。」），定了的十处在下面和 M31 同名一节。代码里的名字（`Provider::Local`、`local::*`、`byok.local.*`）没改。
 
-**大白话。** 作者在连接格里粘贴一个地址（比如 `http://localhost:11434`），App 去问这台服务有哪些模型，认出是哪种软件，把能用的模型放进模型菜单。发消息时走同一个 HTTP 客户端和 SSE 解析器，只是请求发到那台服务、用通用的 Chat Completions。
+**大白话。** 作者在连接格里粘贴一个地址：本机或局域网的（比如 `http://localhost:11434`），App 去问这台服务有哪些模型，认出是哪种软件，把能用的模型放进模型菜单；网上的（比如 `https://api.example.com/v1`），App 照样问一次清单，确认服务在、Key 对，但不把清单列出来，让作者自己填模型名。发消息时走同一个 HTTP 客户端和 SSE 解析器，只是请求发到那台服务、用通用的 Chat Completions。
 
-**能填什么地址。** 只收本机（`localhost`、`127.0.0.0/8`、`::1`）和局域网（`10/8`、`172.16/12`、`192.168/16`、`*.local`），`http` 或 `https` 都行；带用户名密码、查询串或 `#` 的不收。没写 `http://` 的当 `http://`；末尾的 `/` 和 `/v1` 去掉。规则只有一份（`local::LocalAddress::parse`），传输层发请求前用同一条规则再查一次冻结进运行的地址（`local::validate_endpoint`），手改设置文件也放不宽。四家原来的端点检查（HTTPS 或本机）不变。
+**能填什么地址。** 本机（`localhost`、`127.0.0.0/8`、`::1`）和局域网（`10/8`、`172.16/12`、`192.168/16`、`*.local`）`http` 或 `https` 都行；别处都算网上的（`Reach::Internet`），只收 `https`，`http` 是 `AddressError::NeedsHttps`。`::ffff:a.b.c.d` 按里面那个 IPv4 地址算。带用户名密码、查询串或 `#` 的不收（`Invalid`）。没写 `http://` 的当 `http://`（所以不写协议的网上地址是 `NeedsHttps`）；末尾的 `/` 和 `/v1` 去掉；标准端口（`http` 80、`https` 443）不写进 `display`。规则只有一份（`local::LocalAddress::parse`），传输层发请求前用同一条规则再查一次冻结进运行的地址（`local::validate_endpoint`：网上的不是 `https` 就拒），手改设置文件也放不宽。`local::on_the_internet` 是给表单用的：打出来的地址是不是网上的（`http` 也算），决定密钥框要不要自己出来。四家原来的端点检查（HTTPS 或本机）不变。
 
 **问模型清单（`local::discover`）。** 先 `GET {base}/v1/models`：连不上 → `Unreachable`；401／403 → `Unauthorized`；别的回答但不是清单（404、500、不是 JSON、没有 `data` 数组）→ `NoList`，界面改问模型名；给了清单、但滤完一个不剩（只有嵌入模型和确知不会用工具的，或清单是空的）→ `NoToolModels`，界面写「这台服务上没有能用工具的模型」、不连上（作者 11-16 定，乙）。认软件看各自独有的接口：`/v1/models` 的行里 `owned_by` 是 `llamacpp` 是 llama.cpp；`GET /api/version` 回 `{"version":…}` 是 Ollama；`GET /api/v0/models` 的行带 `type`（`llm`／`vlm`／`embeddings`）是 LM Studio。认不出就没有名字。
 - 上下文：Ollama 读 `POST /api/show` 的 `model_info["<架构>.context_length"]`，LM Studio 读 `max_context_length`，llama.cpp 读 `/props` 的 `default_generation_settings.n_ctx`（它实际开的大小），别的服务读行上的 `max_model_len`／`context_length`。前两种是模型上限、不是运行时实际开的大小，所以设置里能手改（M31）。
@@ -92,6 +92,7 @@
 - 服务确知不支持工具的不进清单：只有 Ollama 的 `capabilities` 是数组且没有 `tools` 时算确知。LM Studio、llama.cpp 不报，就都留着。
 - `/api/show` 最多问 64 个模型；清单最多 500 行；每个探测 5 秒、清单 10 秒超时。
 - `local::check`：问一次 `/v1/models`，除 401／403 以外的任何回答都算服务在。它是「测试连接」的第一步：连不上就是「连不上这个地址」，被拒是「密钥无效」。第二步由 M31 发一句「Return exactly OK.」给这台服务现在选的模型，模型回了话、正常结束才算「可用」（作者 11-16 定，乙）。
+- 网上的服务照样走 `discover`（认软件、读上下文的规则都一样，认出 Ollama 这类就照旧用软件名）；不把清单列出来是 M31 的事（`Probe::AskName`，清单留着给手填的模型名查上下文）。`discover`、`check` 现在收 `&HttpClient`（原来是 `&reqwest::Client`），请求地址都经 `HttpClient::destination`。
 - **等候上限 `local::MODEL_WAIT` = 5 分钟。** 本地软件第一次用某个模型要先把它读进内存，大模型常要几十秒到几分钟，第一个字节之前什么都不发。所以「测试连接」等这一句最多 5 分钟（不用四家的 90 秒），过了就是请求失败那句；本地对话也走一个读超时 5 分钟的客户端（`HttpClient` 里给本地单独建的那个，连接超时、不重定向、不自动重发和共用的一样），四家照旧 90 秒。「连接」本身只问清单，照旧快。
 
 **请求和响应（`chat.rs`）。** 形状同 DeepSeek 的 Chat Completions，但不带 DeepSeek 专有的 `thinking`、`reasoning_effort`，不发联网搜索，`tool_choice` 不写（默认 auto）；输出上限只在 `RunConfig.max_output_tokens` 明确给出时才发 `max_tokens`。以前的思考内容不发回去。响应宽松一些，但截断仍然失败：
@@ -100,9 +101,11 @@
 - 用量可以没有（记 0）；`[DONE]` 前没有 `finish_reason`、`length` 截断、参数不是 JSON 对象、断流，都照旧失败、不发布事件。
 - 不产生 `Replay`：本地模型没有要原样回放的签名或加密内容，历史一律按通用投影发送。
 
-**Key。** 钥匙串里一个服务一条，`byok.local.<服务 id>`；服务 id 是 App 自己生成的不透明 id，不是地址。没存 Key 就不带 `Authorization`（不像三家那样按 401 失败）。`Credentials::local_candidate` 只在内存里试。
+**Key。** 钥匙串里一个服务一条，`byok.local.<服务 id>`；服务 id 是 App 自己生成的不透明 id，不是地址。没存 Key 就不带 `Authorization`（不像三家那样按 401 失败）。`Credentials::local_candidate` 只在内存里试。Key 只发给存它的那一台：运行按路线里的服务 id 取 Key、发到同一条路线的地址；两个客户端都不跟重定向（`redirect::Policy::none()`），3xx 照失败处理，Key 不会跟到别的主机（`tests/local.rs` 守住）。设置里「改地址」不打开密钥框时 Key 跟着这台服务去新地址，是 M31 11-16 定的（作者的选择，原型第五版照旧）。
 
 **路线和配置。** `ModelRoute.local: Option<LocalRoute { server, base_url }>`，只有 `Provider::Local` 带它（`RunConfig::validate` 检查两边对得上）；旧的路线读出来照旧，序列化时不多写字段。地址和模型一起冻结进这次运行，运行中改设置只影响下一次。`catalog` 对 `Local` 没有内置清单（`bundled_models` 为空），本地的清单由 M31 存在本机。
+
+**网上的服务怎么测（`test-support`）。** 假服务只能起在回环地址上，又只说明文 HTTP，网上的 `https` 地址走不到它。所以 `HttpClient` 在 `test-support` 特性下多一个 `with_stand_in(origin, stand_in)`：发往 `https://api.example.com` 的请求改发到回环上的假服务，像注入了一条域名解析；地址规则、`display`、名字、`validate_endpoint` 看到的仍是 `https://api.example.com`。只改「本地」这条路线的请求（`local::*` 和 `Provider::Local` 的对话），在 `validate_endpoint` 之后才换。特性只由测试和验收例程打开（本 crate 自己的 dev-dependency、`dr-view-agent` 和 `app/drifting` 的 dev-dependency），不进任何正式构建；没打开时 `destination` 原样返回。
 
 **测试。** 全部对着本机假服务（`tests/local.rs`），不连真实服务：
 - `ollama_is_recognized_and_only_tool_models_are_offered`：认出 Ollama，gemma3（没有 tools）和嵌入模型不进清单，上下文读对，不带 Key 时没有 `Authorization`。
@@ -110,10 +113,15 @@
 - `no_list_wrong_key_and_nothing_listening_are_told_apart`：`NoList`／`NoToolModels`／`Unauthorized`／`Unreachable` 分清（空清单、只有嵌入模型是 `NoToolModels`），`check` 对没有清单的服务也算可用。
 - `an_ollama_with_only_models_without_tools_has_none_to_offer`：只装了 gemma3 和嵌入模型的 Ollama 是 `NoToolModels`，两个都问过 `/api/show`。
 - `a_local_chat_goes_to_its_own_server_without_a_key_or_deepseek_fields`：走那台服务的 `/v1/chat/completions`，不落到四家的端点；`<think>` 成思考；存了 Key 才带 Bearer；工具调用照收。
-- `a_route_off_this_network_or_without_a_server_is_refused_before_any_request`：网上地址、缺服务的路线在请求前拒绝；没人监听时按网络错误失败。
-- 单元测试：`local.rs` 的地址规则（本机、局域网、网上、坏地址各一组），`chat.rs` 的 `<think>` 逐字节分块、两种思考字段、缺用量、宽松的工具调用和各种截断，`credentials.rs` 的一服务一条 Key。
+- `plain_http_to_the_internet_or_a_route_without_a_server_is_refused_before_any_request`（CA 前叫 `a_route_off_this_network_…`）：网上的 `http`、`ftp`、带用户名密码的地址、缺服务的路线在请求前拒绝（给这些地址挂了替身，替身一个请求都没收到）；没人监听时按网络错误失败。
+- `a_service_on_the_internet_is_listed_and_chatted_with_over_https`（CA）：`https://api.example.com/v1` 是 `Reach::Internet`、`display` 是 `api.example.com`；没 Key 是 `Unauthorized`，带 Key 问到清单（嵌入模型滤掉、`context_length` 读到）；对话发到它的 `/v1/chat/completions`、带 Bearer、不带推理和搜索字段。
+- `a_key_goes_only_to_its_own_service_and_never_along_a_redirect`（CA）：网上服务对清单和对话都回 307 指向另一台假服务：对话失败、清单是 `NoList`，另一台一个请求都没收到，发出去的只有这台自己的 Key；另一台自己的路线只带它自己的 Key。
+- 单元测试：`local.rs` 的地址规则（本机、局域网、网上 `https`、网上 `http`、坏地址各一组，CA 前是「本机、局域网、网上被拒、坏地址」），`chat.rs` 的 `<think>` 逐字节分块、两种思考字段、缺用量、宽松的工具调用和各种截断，`credentials.rs` 的一服务一条 Key。
 
 **待协调。**
 1. **上下文小于约 7 万的本地模型，示例书第一句就发不出去。** 真窗口量到：示例书「慢钟」发第一句时整个请求 54,285 字节（系统指令 2,934、工具 2,664，其余是书的固定上下文和对话）。M27 `context.rs` 按一字节一单位估算，再留 8192 输出余量和一成余量，所以上下文 40960（Ollama 报给 qwen3:14b 的值）时这一句在发出前就被判成太长，面板出现现成的「继续此任务」，服务一个对话请求都没收到；131072 时正常。问不到上下文时的 32768 兜底也一样。中文一字三字节，估算比真实 token 数大不少；改估算会影响四家，本路没动，等监管会话或作者定。作者可以在设置里手填更大的上下文，但 Ollama 实际开的大小比填的小时会悄悄丢内容。
    - **2026-11-16 改了（监管会话定，PT4／LM 小修，同日又调一次）**：M27 改成按字的种类估 token（中文和别的非 ASCII 字一字 1.5 个、英文四个字母一个、数字一位一个、标点两个一个，四家和本地同一套，任何时候不超过原来的字节数），输出余量没给时是上下文的八分之一、最多 8192（40960 留 5120，32768 留 4096），见 [m27-agent-runtime.md](m27-agent-runtime.md)「请求有多长」。同一句话现在估约 2.3 万个；上下文 40960 和问不到上下文时的 32768 兜底都能发出去（`dr-view-agent/tests/local_context.rs`，真的驱动对着本机假服务；32768 那档富余约 2 100 个）。131072 和 1M 上下文只会比原来少省略。还没有的：在线服务因为超出上下文拒掉请求时，`dr-agent-providers` 没有单独的一类错误，也不会省略后重发。
 2. 真实 Ollama、LM Studio、llama.cpp 由作者自己验；自动测试只用合成的假服务。
+3. **网上的服务一家真的都没连过**（CA）：中转站、聚合服务在工具调用、流式分块、用量字段上的差别，要到真连上才知道；自动测试只对着回环上的替身。
+4. **网上的服务走不走系统代理**归 NP（联网请求跟着系统代理走）：规则是「本机和局域网直连，别的走系统代理」，网上的自定义服务属于后者。本路交回时 NP 还没进 `main`，见交回报告。
+5. 网上的服务的对话和「测试连接」沿用本地的 5 分钟读超时（`local::MODEL_WAIT`，「测试连接」等候上限照旧），没另设。

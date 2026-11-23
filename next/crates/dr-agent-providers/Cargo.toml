@@ -7,6 +7,11 @@ license.workspace = true
 publish.workspace = true
 description = "M28 model protocols, shared streaming HTTP, catalogs and subscription login"
 
+[features]
+# For tests: `HttpClient::with_stand_in`, which sends what is meant for a
+# service on the internet (`https://api.example.com`) to a loopback fake.
+test-support = []
+
 [dependencies]
 base64.workspace = true
 dr-agent.workspace = true
@@ -23,6 +28,8 @@ thiserror.workspace = true
 tokio.workspace = true
 
 [dev-dependencies]
+# This crate's own tests reach a stand-in for a service on the internet.
+dr-agent-providers = { workspace = true, features = ["test-support"] }
 dr-store.workspace = true
 dr-testkit.workspace = true
 dr-workspace.workspace = true

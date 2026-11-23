@@ -17,7 +17,7 @@ use dr_agent::{
 use dr_agent_providers::{
     Endpoints, HttpClient, ProviderDriver, RetryPolicy,
     credentials::Credentials,
-    local::{self, DiscoverError, LocalAddress, Software},
+    local::{self, DiscoverError, LocalAddress, LocalModel, Reach, Software},
     oauth::OAuthEndpoints,
 };
 use dr_model::conversation::{ConversationEntry, ConversationEntryKind};
@@ -35,7 +35,8 @@ struct Seen {
 
 type Route = Box<dyn Fn(&Seen) -> (u16, String) + Send + Sync>;
 
-/// Answers every request by method and path until dropped.
+/// Answers every request by method and path until dropped. For a 3xx
+/// status the route's text is the `Location`, and the body is empty.
 struct Fake {
     url: String,
     seen: Arc<Mutex<Vec<Seen>>>,
@@ -59,14 +60,19 @@ impl Fake {
                             continue;
                         };
                         log.lock().unwrap().push(request.clone());
-                        let (status, body) = route(&request);
+                        let (status, mut body) = route(&request);
+                        let mut location = String::new();
+                        if (300..400).contains(&status) {
+                            location = format!("Location: {body}\r\n");
+                            body.clear();
+                        }
                         let kind = if body.starts_with("data:") {
                             "text/event-stream"
                         } else {
                             "application/json"
                         };
                         let head = format!(
-                            "HTTP/1.1 {status} Test\r\nContent-Type: {kind}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                            "HTTP/1.1 {status} Test\r\n{location}Content-Type: {kind}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
                             body.len()
                         );
                         let _ = socket.write_all(head.as_bytes());
@@ -215,9 +221,7 @@ fn ollama_reply(seen: &Seen) -> (u16, String) {
 async fn ollama_is_recognized_and_only_tool_models_are_offered() {
     let fake = ollama();
     let http = HttpClient::new().unwrap();
-    let found = local::discover(http.raw(), &address(&fake), None)
-        .await
-        .unwrap();
+    let found = local::discover(&http, &address(&fake), None).await.unwrap();
     assert_eq!(found.software, Some(Software::Ollama));
     let models: Vec<_> = found
         .models
@@ -262,13 +266,11 @@ async fn an_ollama_with_only_models_without_tools_has_none_to_offer() {
     }));
     let http = HttpClient::new().unwrap();
     assert_eq!(
-        local::discover(http.raw(), &address(&fake), None).await,
+        local::discover(&http, &address(&fake), None).await,
         Err(DiscoverError::NoToolModels)
     );
     assert_eq!(fake.requests("/api/show").len(), 2, "both were asked about");
-    local::check(http.raw(), &address(&fake), None)
-        .await
-        .unwrap();
+    local::check(&http, &address(&fake), None).await.unwrap();
 }
 
 #[tokio::test]
@@ -293,7 +295,7 @@ async fn lm_studio_and_llama_cpp_are_recognized_by_their_own_endpoints() {
         _ => (404, r#"{"error":"Unexpected endpoint"}"#.into()),
     }));
     let http = HttpClient::new().unwrap();
-    let found = local::discover(http.raw(), &address(&studio), None)
+    let found = local::discover(&http, &address(&studio), None)
         .await
         .unwrap();
     assert_eq!(found.software, Some(Software::LmStudio));
@@ -323,7 +325,7 @@ async fn lm_studio_and_llama_cpp_are_recognized_by_their_own_endpoints() {
         ),
         _ => (404, "{}".into()),
     }));
-    let found = local::discover(http.raw(), &address(&llama), None)
+    let found = local::discover(&http, &address(&llama), None)
         .await
         .unwrap();
     assert_eq!(found.software, Some(Software::LlamaCpp));
@@ -351,9 +353,7 @@ async fn an_unknown_server_keeps_its_address_name_and_row_context() {
         _ => (404, "{}".into()),
     }));
     let http = HttpClient::new().unwrap();
-    let found = local::discover(http.raw(), &address(&fake), None)
-        .await
-        .unwrap();
+    let found = local::discover(&http, &address(&fake), None).await.unwrap();
     assert_eq!(found.software, None);
     assert_eq!(found.models.len(), 1);
     assert_eq!(found.models[0].id, "served-model");
@@ -380,14 +380,12 @@ async fn no_list_wrong_key_and_nothing_listening_are_told_apart() {
         let reply = (status, body.clone());
         let fake = Fake::new(Box::new(move |_| reply.clone()));
         assert_eq!(
-            local::discover(http.raw(), &address(&fake), None).await,
+            local::discover(&http, &address(&fake), None).await,
             Err(error),
             "{status} {body}"
         );
         // Anything answering is up, even without a model list.
-        local::check(http.raw(), &address(&fake), None)
-            .await
-            .unwrap();
+        local::check(&http, &address(&fake), None).await.unwrap();
     }
     let fake = Fake::new(Box::new(|seen| {
         if seen.headers.contains("Bearer synthetic-local-key") {
@@ -397,18 +395,18 @@ async fn no_list_wrong_key_and_nothing_listening_are_told_apart() {
         }
     }));
     assert_eq!(
-        local::discover(http.raw(), &address(&fake), None).await,
+        local::discover(&http, &address(&fake), None).await,
         Err(DiscoverError::Unauthorized)
     );
     assert_eq!(
-        local::check(http.raw(), &address(&fake), Some("wrong")).await,
+        local::check(&http, &address(&fake), Some("wrong")).await,
         Err(DiscoverError::Unauthorized)
     );
-    let found = local::discover(http.raw(), &address(&fake), Some("synthetic-local-key"))
+    let found = local::discover(&http, &address(&fake), Some("synthetic-local-key"))
         .await
         .unwrap();
     assert_eq!(found.models[0].id, "guarded");
-    local::check(http.raw(), &address(&fake), Some("synthetic-local-key"))
+    local::check(&http, &address(&fake), Some("synthetic-local-key"))
         .await
         .unwrap();
 
@@ -418,11 +416,11 @@ async fn no_list_wrong_key_and_nothing_listening_are_told_apart() {
     };
     let closed = LocalAddress::parse(&closed).unwrap();
     assert_eq!(
-        local::discover(http.raw(), &closed, None).await,
+        local::discover(&http, &closed, None).await,
         Err(DiscoverError::Unreachable)
     );
     assert_eq!(
-        local::check(http.raw(), &closed, None).await,
+        local::check(&http, &closed, None).await,
         Err(DiscoverError::Unreachable)
     );
 }
@@ -455,9 +453,13 @@ fn tool_call() -> String {
 }
 
 fn request(base_url: &str, tools: bool) -> DriverRequest {
+    request_on("synthetic-server", base_url, tools)
+}
+
+fn request_on(server: &str, base_url: &str, tools: bool) -> DriverRequest {
     let mut config = RunConfig::new(Provider::Local, "qwen3:14b");
     config.route.local = Some(LocalRoute {
-        server: "synthetic-server".into(),
+        server: server.into(),
         base_url: base_url.into(),
     });
     config.system_prompt = "synthetic system".into();
@@ -491,11 +493,15 @@ fn request(base_url: &str, tools: bool) -> DriverRequest {
 }
 
 fn driver(credentials: Credentials) -> ProviderDriver {
+    driver_on(HttpClient::new().unwrap(), credentials)
+}
+
+fn driver_on(http: HttpClient, credentials: Credentials) -> ProviderDriver {
     // The four providers' endpoints point nowhere: a local route must not
     // fall back to any of them.
     let nowhere = "http://127.0.0.1:9";
     ProviderDriver::with_endpoints(
-        HttpClient::new().unwrap(),
+        http,
         credentials,
         Endpoints {
             deepseek: nowhere.into(),
@@ -579,16 +585,31 @@ async fn a_local_chat_goes_to_its_own_server_without_a_key_or_deepseek_fields() 
 }
 
 #[tokio::test]
-async fn a_route_off_this_network_or_without_a_server_is_refused_before_any_request() {
-    let driver = driver(Credentials::new(Arc::new(SecretStore::in_memory())));
-    for base in ["https://api.example.com", "http://8.8.8.8:11434"] {
+async fn plain_http_to_the_internet_or_a_route_without_a_server_is_refused_before_any_request() {
+    // Were the request sent, the stand-in would see it.
+    let fake = Fake::new(Box::new(|_| (200, chat("should not be asked"))));
+    let http = HttpClient::new()
+        .unwrap()
+        .with_stand_in("http://api.example.com", &fake.url)
+        .with_stand_in("http://203.0.113.7:11434", &fake.url);
+    let driver = driver_on(http, Credentials::new(Arc::new(SecretStore::in_memory())));
+    for base in [
+        "http://api.example.com",
+        "http://203.0.113.7:11434",
+        "ftp://api.example.com",
+        "https://user:pass@api.example.com",
+    ] {
         let got = events(&driver, request(base, false)).await;
-        assert!(matches!(
-            got.last(),
-            Some(Err(dr_agent::Error::Provider(failure)))
-                if failure.category == ModelErrorCategory::Unsupported
-        ));
+        assert!(
+            matches!(
+                got.last(),
+                Some(Err(dr_agent::Error::Provider(failure)))
+                    if failure.category == ModelErrorCategory::Unsupported
+            ),
+            "{base}"
+        );
     }
+    assert!(fake.paths().is_empty(), "refused before any request");
     let mut missing = request("http://localhost:11434", false);
     Arc::make_mut(&mut missing.config).route.local = None;
     let got = events(&driver, missing).await;
@@ -608,4 +629,131 @@ async fn a_route_off_this_network_or_without_a_server_is_refused_before_any_requ
         Some(Err(dr_agent::Error::Provider(failure)))
             if failure.category == ModelErrorCategory::Network
     ));
+}
+
+fn text_of(got: &[dr_agent::Result<DriverEvent>]) -> String {
+    got.iter()
+        .filter_map(|event| match event {
+            Ok(DriverEvent::TextDelta { text, .. }) => Some(text.as_str()),
+            _ => None,
+        })
+        .collect()
+}
+
+/// A service on the internet (作者 2026-11-23, chihumyum/Drifting#3): over
+/// `https`, asked for its list and chatted with by the same code as a local
+/// server. The stand-in takes what is sent to `https://api.example.com`;
+/// nothing here reaches a real service.
+#[tokio::test]
+async fn a_service_on_the_internet_is_listed_and_chatted_with_over_https() {
+    let fake = Fake::new(Box::new(|seen| {
+        match (seen.method.as_str(), seen.path.as_str()) {
+            ("GET", "/v1/models") if seen.headers.contains("Bearer synthetic-service-key") => (
+                200,
+                listed(json!([
+                    {"id":"example-chat-large","object":"model","owned_by":"example","context_length":131_072},
+                    {"id":"example-embed-v2","object":"model","owned_by":"example"},
+                ])),
+            ),
+            ("GET", "/v1/models") => (401, r#"{"error":"unauthorized"}"#.into()),
+            ("POST", "/v1/chat/completions") => (200, chat("Answered from the service.")),
+            _ => (404, "{}".into()),
+        }
+    }));
+    let http = HttpClient::new()
+        .unwrap()
+        .with_stand_in("https://api.example.com", &fake.url);
+    let address = LocalAddress::parse("https://api.example.com/v1").unwrap();
+    assert_eq!(address.reach, Reach::Internet);
+    assert_eq!(address.display, "api.example.com");
+    assert_eq!(
+        local::discover(&http, &address, None).await,
+        Err(DiscoverError::Unauthorized)
+    );
+    let found = local::discover(&http, &address, Some("synthetic-service-key"))
+        .await
+        .unwrap();
+    assert_eq!(found.software, None, "nothing recognized");
+    assert_eq!(
+        found.models,
+        [LocalModel {
+            id: "example-chat-large".into(),
+            context_window: Some(131_072),
+        }]
+    );
+    local::check(&http, &address, Some("synthetic-service-key"))
+        .await
+        .unwrap();
+
+    let store = Arc::new(SecretStore::in_memory());
+    store
+        .set("byok.local.synthetic-server", "synthetic-service-key")
+        .unwrap();
+    let driver = driver_on(http, Credentials::new(store));
+    let got = events(&driver, request(&address.base_url, false)).await;
+    assert_eq!(text_of(&got), "Answered from the service.");
+    let sent = fake.requests("/v1/chat/completions");
+    assert_eq!(sent.len(), 1);
+    assert!(sent[0].headers.contains("Bearer synthetic-service-key"));
+    for absent in [
+        "thinking",
+        "reasoning_effort",
+        "tools",
+        "web_search_options",
+    ] {
+        assert!(sent[0].body.get(absent).is_none(), "{absent}");
+    }
+}
+
+/// A key goes to the service it was stored for and nowhere else: not to
+/// another server, and not along a redirect (the clients follow none).
+#[tokio::test]
+async fn a_key_goes_only_to_its_own_service_and_never_along_a_redirect() {
+    let other = Fake::new(Box::new(|seen| match seen.path.as_str() {
+        "/v1/chat/completions" => (200, chat("From the other server.")),
+        _ => (200, listed(json!([{"id":"other-model"}]))),
+    }));
+    let elsewhere = other.url.clone();
+    let service = Fake::new(Box::new(move |seen| {
+        (307, format!("{elsewhere}{}", seen.path))
+    }));
+    let http = HttpClient::new()
+        .unwrap()
+        .with_stand_in("https://api.example.com", &service.url);
+    let store = Arc::new(SecretStore::in_memory());
+    store.set("byok.local.server-a", "synthetic-key-a").unwrap();
+    store.set("byok.local.server-b", "synthetic-key-b").unwrap();
+    let driver = driver_on(http.clone(), Credentials::new(store));
+
+    let got = events(
+        &driver,
+        request_on("server-a", "https://api.example.com", false),
+    )
+    .await;
+    assert!(
+        matches!(got.last(), Some(Err(_))),
+        "a redirect is a failure"
+    );
+    let address = LocalAddress::parse("https://api.example.com").unwrap();
+    assert_eq!(
+        local::discover(&http, &address, Some("synthetic-key-a")).await,
+        Err(DiscoverError::NoList),
+        "the redirect is not followed"
+    );
+    assert!(other.paths().is_empty(), "nothing reached the other server");
+    let asked = service.seen.lock().unwrap().clone();
+    assert!(!asked.is_empty());
+    assert!(
+        asked
+            .iter()
+            .all(|seen| seen.headers.contains("Bearer synthetic-key-a"))
+    );
+
+    // The other server's own route carries its own key only.
+    let got = events(&driver, request_on("server-b", &other.url, false)).await;
+    assert_eq!(text_of(&got), "From the other server.");
+    let sent = other.requests("/v1/chat/completions");
+    assert_eq!(sent.len(), 1);
+    assert!(sent[0].headers.contains("Bearer synthetic-key-b"));
+    assert!(!sent[0].headers.contains("synthetic-key-a"));
 }

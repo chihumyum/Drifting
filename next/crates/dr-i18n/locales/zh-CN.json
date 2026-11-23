@@ -1589,9 +1589,9 @@
       "context": "上下文",
       "editAddress": "改地址",
       "modelName": "模型名",
-      "name": "本地模型",
+      "name": "自定义服务",
+      "needsHttps": "网上的地址要用 https",
       "noToolModels": "这台服务上没有能用工具的模型",
-      "notLocal": "只能填本机或局域网地址",
       "unreachable": "连不上这个地址"
     },
     "providerAnthropic": "供 Agent 使用。",

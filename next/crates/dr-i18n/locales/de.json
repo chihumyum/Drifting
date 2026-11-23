@@ -1603,9 +1603,9 @@
       "context": "Kontext",
       "editAddress": "Adresse ändern",
       "modelName": "Modellname",
-      "name": "Lokales Modell",
+      "name": "Eigener Dienst",
+      "needsHttps": "Adressen im Internet brauchen https",
       "noToolModels": "Kein Modell auf diesem Server kann Werkzeuge verwenden",
-      "notLocal": "Nur Adressen auf diesem Computer oder im lokalen Netzwerk",
       "unreachable": "Diese Adresse ist nicht erreichbar"
     },
     "providerAnthropic": "Von Agent verwendet.",

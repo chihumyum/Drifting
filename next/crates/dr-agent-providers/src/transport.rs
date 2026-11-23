@@ -32,6 +32,9 @@ pub struct HttpClient {
     /// Chat with a local model server: the same rules, but it may stay
     /// silent for [`crate::local::MODEL_WAIT`] while it loads a model.
     local: reqwest::Client,
+    /// Tests only: `(origin, stand-in)` pairs ([`HttpClient::with_stand_in`]).
+    #[cfg(feature = "test-support")]
+    stand_ins: std::sync::Arc<Vec<(String, String)>>,
 }
 
 impl HttpClient {
@@ -51,11 +54,41 @@ impl HttpClient {
         Ok(Self {
             shared: client(Duration::from_secs(90))?,
             local: client(crate::local::MODEL_WAIT)?,
+            #[cfg(feature = "test-support")]
+            stand_ins: Default::default(),
         })
     }
 
     pub fn raw(&self) -> &reqwest::Client {
         &self.shared
+    }
+
+    /// Tests only: what is sent to `origin` (`https://api.example.com`) goes
+    /// to `stand_in` (a loopback fake speaking plain HTTP) instead, as an
+    /// injected name resolution would. Everything else, the address rules
+    /// included, still sees `origin`. Applies to the model servers' requests
+    /// ([`crate::local`] and a [`Provider::Local`] route's chat).
+    #[cfg(feature = "test-support")]
+    #[doc(hidden)]
+    pub fn with_stand_in(mut self, origin: &str, stand_in: &str) -> Self {
+        std::sync::Arc::make_mut(&mut self.stand_ins).push((
+            origin.trim_end_matches('/').to_owned(),
+            stand_in.trim_end_matches('/').to_owned(),
+        ));
+        self
+    }
+
+    /// Where a request for `url` goes: `url` itself outside tests.
+    pub(crate) fn destination(&self, url: String) -> String {
+        #[cfg(feature = "test-support")]
+        for (origin, stand_in) in self.stand_ins.iter() {
+            if let Some(rest) = url.strip_prefix(origin.as_str())
+                && (rest.is_empty() || rest.starts_with('/'))
+            {
+                return format!("{stand_in}{rest}");
+            }
+        }
+        url
     }
 
     /// GUI callers can await this handle on their own executor. Network I/O
@@ -203,7 +236,8 @@ impl ProviderDriver {
 
     /// The configured endpoint, or a local route's own server. Both are
     /// checked before any request: HTTPS or this computer for the four
-    /// providers, this computer or the local network for a local server.
+    /// providers; for a route's own server, this computer or the local
+    /// network, or HTTPS on the internet.
     fn endpoint(&self, request: &DriverRequest) -> Result<String> {
         let route = &request.config.route;
         if route.provider == Provider::Local {
@@ -215,7 +249,7 @@ impl ProviderDriver {
                 local.base_url.trim_end_matches('/')
             );
             local::validate_endpoint(&endpoint)?;
-            return Ok(endpoint);
+            return Ok(self.http.destination(endpoint));
         }
         let endpoint = self.endpoints.get(route.provider);
         validate_endpoint(endpoint)?;
