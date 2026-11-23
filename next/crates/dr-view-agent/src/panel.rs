@@ -1366,12 +1366,14 @@ impl AgentPanel {
             .filter_map(|m| {
                 let id: dr_model::id::CustomModuleId = m["id"].as_str()?.parse().ok()?;
                 let name = m["name"].as_str().unwrap_or_default().to_owned();
-                let sel = format!("agent-module-card-{message}-{id}");
+                let element = format!("agent-module-card-{message}-{id}");
+                let sel = format!("agent-module-card-{id}");
+                let open_sel = format!("agent-open-bench-{id}");
                 let ws = self.ws.clone();
                 let target = dr_shell::nav::Target::Module(id);
                 Some(
                     div()
-                        .id(SharedString::from(sel.clone()))
+                        .id(SharedString::from(element))
                         .debug_selector(move || sel.clone())
                         .flex()
                         .flex_row()
@@ -1405,18 +1407,20 @@ impl AgentPanel {
                                 ),
                         )
                         .child(
-                            Button::new(
-                                SharedString::from(format!(
-                                    "agent-open-bench-{message}-{}",
-                                    m["id"].as_str().unwrap_or_default()
-                                )),
-                                t(cx, dr_i18n::keys::module_bench::OPEN_BENCH),
-                            )
-                            .small()
-                            .on_click(move |_, _, cx| {
-                                let target = target.clone();
-                                ws.update(cx, |ws, cx| ws.open(target, Open::KEEP, cx)).ok();
-                            }),
+                            div().debug_selector(move || open_sel.clone()).child(
+                                Button::new(
+                                    SharedString::from(format!(
+                                        "agent-open-bench-{message}-{}",
+                                        m["id"].as_str().unwrap_or_default()
+                                    )),
+                                    t(cx, dr_i18n::keys::module_bench::OPEN_BENCH),
+                                )
+                                .small()
+                                .on_click(move |_, _, cx| {
+                                    let target = target.clone();
+                                    ws.update(cx, |ws, cx| ws.open(target, Open::KEEP, cx)).ok();
+                                }),
+                            ),
                         )
                         .into_any_element(),
                 )

@@ -2520,6 +2520,7 @@ dependencies = [
  "futures",
  "gpui",
  "log",
+ "serde_json",
  "tempfile",
 ]
 

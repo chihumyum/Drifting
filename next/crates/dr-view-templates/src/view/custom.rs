@@ -92,9 +92,15 @@ impl TemplateEditor {
         let follows = self.follows(module)?;
         let mid = module.id.clone();
         let label = t(cx, if follows { mb::EDIT } else { mb::ADOPT });
-        let button = Button::new(SharedString::from(format!("k5-custom-{mid}")), label)
-            .small()
-            .text();
+        let button = Button::new(
+            SharedString::from(format!(
+                "k5-custom-{}-{mid}",
+                if follows { "edit" } else { "adopt" }
+            )),
+            label,
+        )
+        .small()
+        .text();
         Some(if follows {
             let ws = self.host.workspace.clone();
             button

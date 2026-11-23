@@ -2,7 +2,7 @@
 use std::collections::BTreeSet;
 
 use dr_workspace::{
-    Actor, RecordKey, Workspace, WritePreconditions, WsError,
+    Actor, RecordKey, RecordPrecondition, Workspace, WritePreconditions, WsError,
     commands::{
         BookIn,
         v3::{template::TemplateList, types::*},
@@ -282,11 +282,32 @@ pub fn save(
         _ => return Err(conflict()),
     };
     validate_actions(&merged, &templates)?;
+    // A `custom` module naming one of my modules the book has no copy of
+    // yet takes a copy in the same write (`custom-modules.md` §13, CM3):
+    // the copy is held to what it is now (absent), compared only where the
+    // write puts one in.
+    let modules: Vec<RecordKey> = merged
+        .modules
+        .iter()
+        .filter(|m| m.kind == "custom")
+        .filter_map(|m| m.config.module.as_deref())
+        .map(|id| RecordKey::record("modules", id))
+        .collect();
+    let copies: Vec<RecordPrecondition> = if modules.is_empty() {
+        Vec::new()
+    } else {
+        lib.observe_records(&format!("book:{book}"), &modules)?
+            .into_iter()
+            .map(|o| RecordPrecondition::from(o).if_replaced())
+            .collect()
+    };
+    let mut preconditions = WritePreconditions::from_records([stored]);
+    preconditions.records.extend(copies);
     lib.call_guarded(
         &Actor::User,
         "entry_template.put",
         json!({"book": book, "template": merged}),
-        WritePreconditions::from_records([stored]),
+        preconditions,
     )?;
     Ok(merged)
 }
