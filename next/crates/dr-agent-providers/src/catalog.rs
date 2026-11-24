@@ -43,8 +43,10 @@ pub struct ModelInfo {
     pub published_max_output_tokens: Option<u64>,
     /// Whether the model takes images, only as the provider's live list says
     /// (Anthropic's `capabilities.image_input.supported`, the subscription
-    /// catalog's `input_modalities`). `None`: the list says nothing (OpenAI's
-    /// and DeepSeek's lists, a bundled fallback), which counts as no.
+    /// catalog's `input_modalities`).
+    /// `None`: the list says nothing (OpenAI's and DeepSeek's lists, a
+    /// bundled fallback), which counts as no, except on the OpenAI API route,
+    /// whose models all count as seeing (`RunConfig::sees_images`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub image_input: Option<bool>,
 }

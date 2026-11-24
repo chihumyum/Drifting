@@ -122,15 +122,21 @@ impl RunConfig {
         Ok(())
     }
 
-    /// Whether this run's model takes images: only when its model list said
-    /// so ([`ModelCapabilities::image_input`]). DeepSeek's route never does.
+    /// Whether this run's model takes images: when its model list said so
+    /// ([`ModelCapabilities::image_input`]). By route: DeepSeek's never
+    /// does; with an OpenAI API key every model does, as in the 0.1 client
+    /// (its list has no such field; a model that cannot is refused by the
+    /// service, through the usual error path; 作者 2026-11-24, S2).
     pub fn sees_images(&self) -> bool {
-        self.route.provider != Provider::Deepseek
-            && self
+        match self.route.provider {
+            Provider::Deepseek => false,
+            Provider::Openai => true,
+            Provider::Anthropic | Provider::Chatgpt | Provider::Local => self
                 .capabilities
                 .as_ref()
                 .and_then(|c| c.image_input)
-                .unwrap_or(false)
+                .unwrap_or(false),
+        }
     }
 }
 
@@ -145,7 +151,8 @@ pub struct ModelCapabilities {
     pub supports_summary: Option<bool>,
     pub supports_verbosity: Option<bool>,
     /// Whether the model takes images (CM4a), as its provider's model list
-    /// says. `None`, the list says nothing, counts as no.
+    /// says. `None`, the list says nothing, counts as no, except on the
+    /// OpenAI API route ([`RunConfig::sees_images`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub image_input: Option<bool>,
 }
@@ -153,6 +160,30 @@ pub struct ModelCapabilities {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// CM4a, and S2 (作者 2026-11-24) for the OpenAI API route.
+    #[test]
+    fn which_runs_see_images() {
+        let said = |provider: Provider, image_input: Option<bool>| {
+            let mut config = RunConfig::new(provider, "synthetic-model");
+            config.capabilities = Some(ModelCapabilities {
+                image_input,
+                ..Default::default()
+            });
+            config.sees_images()
+        };
+        for image_input in [None, Some(false), Some(true)] {
+            assert!(said(Provider::Openai, image_input), "{image_input:?}");
+            assert!(!said(Provider::Deepseek, image_input), "{image_input:?}");
+        }
+        assert!(RunConfig::new(Provider::Openai, "synthetic-model").sees_images());
+        for provider in [Provider::Anthropic, Provider::Chatgpt, Provider::Local] {
+            assert!(said(provider, Some(true)), "{provider:?}");
+            assert!(!said(provider, Some(false)), "{provider:?}");
+            assert!(!said(provider, None), "{provider:?}");
+            assert!(!RunConfig::new(provider, "synthetic-model").sees_images());
+        }
+    }
 
     #[test]
     fn a_local_route_names_its_server_and_older_routes_still_read() {

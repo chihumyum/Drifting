@@ -710,15 +710,20 @@ async fn only_a_list_that_says_so_makes_a_model_take_images() {
             ("claude-silent".to_owned(), None, false),
         ]
     );
+    // OpenAI's and DeepSeek's lists say nothing. With an OpenAI API key
+    // every model sees images all the same (S2, 作者 2026-11-24); DeepSeek's
+    // never does.
     for provider in [Provider::Openai, Provider::Deepseek] {
         let listed = cache
             .list_with_key_at(http.raw(), provider, "synthetic", &endpoint, 0)
             .await;
         assert_eq!(listed.source, CatalogSource::Live);
+        let seeing = provider == Provider::Openai;
         assert!(
             sees(&listed.models)
                 .iter()
-                .all(|(_, said, seen)| said.is_none() && !seen)
+                .all(|(_, said, seen)| said.is_none() && *seen == seeing),
+            "{provider:?}"
         );
     }
     for provider in [Provider::Anthropic, Provider::Openai, Provider::Chatgpt] {
@@ -728,6 +733,18 @@ async fn only_a_list_that_says_so_makes_a_model_take_images() {
                 .all(|m| m.image_input.is_none())
         );
     }
+    assert!(
+        sees(&bundled_models(Provider::Openai))
+            .iter()
+            .all(|(_, _, seen)| *seen),
+        "OpenAI's bundled list too"
+    );
+    assert!(
+        sees(&bundled_models(Provider::Anthropic))
+            .iter()
+            .all(|(_, _, seen)| !seen),
+        "Anthropic without its list: no"
+    );
     let (_, credentials) = credentials();
     credentials
         .save_tokens(&StoredTokens {
