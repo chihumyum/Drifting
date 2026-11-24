@@ -117,6 +117,42 @@ impl Drop for Fixture {
     }
 }
 
+/// The structure lists a template's modules in the template's order: the
+/// order they were given in, when put without positions (CR), the same
+/// order the entry page draws them in.
+#[test]
+fn the_structure_lists_a_templates_modules_in_the_order_they_were_given() {
+    let f = Fixture::new();
+    let mut template = f.chapter();
+    let mut modules = template["modules"].as_array().unwrap().clone();
+    assert!(modules.len() >= 2, "{modules:?}");
+    modules.reverse();
+    for module in &mut modules {
+        module.as_object_mut().unwrap().remove("pos");
+    }
+    let given: Vec<String> = modules
+        .iter()
+        .map(|m| m["id"].as_str().unwrap().to_owned())
+        .collect();
+    template["modules"] = Value::Array(modules);
+    f.put(template);
+    let listed: Vec<String> = f.chapter()["modules"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|m| m["id"].as_str().unwrap().to_owned())
+        .collect();
+    assert_eq!(listed, given);
+    let context = f.context();
+    let chapter = context
+        .templates
+        .iter()
+        .find(|t| t.id == TPL_CHAPTER)
+        .unwrap();
+    let described: Vec<&str> = chapter.modules.iter().map(|m| m.id.as_str()).collect();
+    assert_eq!(described, given);
+}
+
 #[test]
 fn guidance_is_exact_book_data_and_only_effective_templates_are_loaded() {
     let f = Fixture::new();
