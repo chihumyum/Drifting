@@ -102,7 +102,14 @@ def smoke(args, profile, data):
             return command("entry.mentions", book=book, entry=entry)["links"]
 
         def open_page(target):
-            app("nav.open", target=target)
+            # An entry made a moment ago reaches the window's book shortly.
+            def opened():
+                try:
+                    app("nav.open", target=target)
+                    return True
+                except subprocess.CalledProcessError:
+                    return False
+            until(opened, f"{target} in the window's book", timeout=15)
             app("ui.wait", until="ready", timeout_ms=60000)
             time.sleep(0.8)
 
@@ -116,21 +123,27 @@ def smoke(args, profile, data):
             app("input.type", text=words)
 
         def own_switch_on(entry):
-            # A character's page (no level) has one 「自动链接」: its own.
+            # A character's page (no level) has one 「自动链接」: its own, in
+            # the switches at the page's end.
             open_page(f"entry:{entry}")
-            app("input.key", keys="secondary-down")
+            app("input.scroll", x=720, y=420, dy=6000)
+            time.sleep(0.5)
             press("Automatic links", role="CheckBox")
 
         result = {"book": book, "chapter": chapter["id"], "window": window}
+        # The bottom timeline covers the window's lower part.
+        app("action.dispatch", name="workspace::ToggleBottomTimeline")
 
+        # Synthetic names that the sample's text does not hold, so the one
+        # typed is the only one to link.
         # 1. The author's setting off: a new character's name typed links nothing.
         assert app("settings.get", keys=["editor.auto_entity_links"])["values"][
             "editor.auto_entity_links"] is False
         gui = command("entry.create", book=book, parent=people["id"], template="tpl-character",
-                      title="阿桂")["id"]
+                      title="林凯")["id"]
         assert switch(gui), "a character made in 人物 starts on"
         open_chapter()
-        type_at_end("阿桂来了。")
+        type_at_end("林凯来了。")
         time.sleep(1.5)
         screenshot("01-setting-off.png")
         # Settings: the switch on.
@@ -145,7 +158,7 @@ def smoke(args, profile, data):
         app("input.key", keys="escape")
         app("ui.wait", until="ready", state={"/layer": None}, timeout_ms=30000)
         open_chapter()
-        until(lambda: linked(gui) == 1, "阿桂 written while the setting was off, linked")
+        until(lambda: linked(gui) == 1, "林凯 written while the setting was off, linked")
         until(lambda: painted(), "links drawn")
         screenshot("03-linked-after-setting.png")
 
@@ -153,27 +166,27 @@ def smoke(args, profile, data):
         group = command("entry.create", book=book, parent=None, template="tpl-group",
                         title="验收分组", level=True)["id"]
         fu = command("entry.create", book=book, parent=group, template="tpl-character",
-                     title="阿福")["id"]
+                     title="苏棠")["id"]
         assert not switch(fu)
         open_chapter()
-        type_at_end("阿福推门进来。")
+        type_at_end("苏棠推门进来。")
         time.sleep(1.5)
         assert linked(fu) == 0, "off: not linked"
         own_switch_on(fu)
-        until(lambda: switch(fu), "阿福 on")
+        until(lambda: switch(fu), "苏棠 on")
         open_chapter()
-        until(lambda: linked(fu) == 1, "阿福 written while off, linked")
+        until(lambda: linked(fu) == 1, "苏棠 written while off, linked")
         screenshot("04-own-switch.png")
 
         # 3. The level's switch.
         group2 = command("entry.create", book=book, parent=None, template="tpl-group",
                          title="验收分组二", level=True)["id"]
         a = command("entry.create", book=book, parent=group2, template="tpl-character",
-                    title="阿贵")["id"]
+                    title="顾衡")["id"]
         b = command("entry.create", book=book, parent=group2, template="tpl-character",
-                    title="小桂")["id"]
+                    title="韩霜")["id"]
         open_chapter()
-        type_at_end("阿贵和小桂。")
+        type_at_end("顾衡和韩霜。")
         time.sleep(1.5)
         assert linked(a) == 0 and linked(b) == 0
         open_page(f"entry:{group2}")
@@ -189,28 +202,29 @@ def smoke(args, profile, data):
         twin = command("entry.create", book=book, parent=group3, template="tpl-character",
                        title="阿Q")["id"]
         own_switch_on(twin)
-        expected = "Not turned on: “阿Q” is already the name or an alias of “阿Q”."
+        # The notice at the window's bottom fades after a few seconds.
+        screenshot("06-refusal.png", settle=300)
+        result["refusal_expected"] = "Not turned on: “阿Q” is already the name or an alias of “阿Q”."
         try:
-            app("ui.find", label=expected)
+            app("ui.find", contains="is already the name or an alias of", timeout_ms=1000)
             result["refusal_found_by_label"] = True
         except subprocess.CalledProcessError:
             result["refusal_found_by_label"] = False
-        screenshot("06-refusal.png", settle=200)
         time.sleep(1.0)
         assert not switch(twin), "refused: the switch stays off"
 
         # 5. Composing in the open chapter.
         xiao = command("entry.create", book=book, parent=group3, template="tpl-character",
-                       title="小D子")["id"]
+                       title="叶舟")["id"]
         open_chapter()
-        type_at_end("小D子笑了。")
+        type_at_end("叶舟笑了。")
         time.sleep(1.5)
-        app("input.mark", text="xi")
+        app("input.mark", text="ye")
         command("entry.set_auto_link", book=book, id=xiao, auto_link=True)
         time.sleep(1.5)
         assert linked(xiao) == 0, "nothing written while composing"
         screenshot("07-composing.png")
-        app("input.type", text="嘻")
+        app("input.type", text="叶")
         until(lambda: linked(xiao) == 1, "linked once the composition ended")
         screenshot("08-composed.png")
 
