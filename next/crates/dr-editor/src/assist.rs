@@ -489,6 +489,10 @@ pub struct Assist {
     /// Relations in the prose: lines between linked names, the card's
     /// 「建关系」 and its composer ([`relate`]).
     relate: relate::Relate,
+    /// The chapter the input method is composing in, as last told to its
+    /// document's session ([`Self::follow_composition`]).
+    composing: Option<usize>,
+    _composition: Subscription,
 }
 
 /// A paragraph's links before an edit: chapter, block id, line, and
@@ -518,6 +522,7 @@ impl Assist {
             this.on_editor(event, window, cx)
         });
         let decor_events = Self::watch_decorations(&editor, window, cx);
+        let composition = cx.observe(&editor, |this, _, cx| this.follow_composition(cx));
         let undo_counts = Self::counts(&editor, cx);
         let line_counts = Self::lines(&editor, cx);
         let mut assist = Assist {
@@ -557,6 +562,8 @@ impl Assist {
             over_card: false,
             _decor_events: decor_events,
             relate: relate::Relate::new(),
+            composing: None,
+            _composition: composition,
         };
         assist.watch_relation_focus(window, cx);
         // What the book is called now: new names are told from these.
@@ -608,6 +615,10 @@ impl Assist {
             this.on_editor(event, window, cx)
         });
         self._decor_events = Self::watch_decorations(&editor, window, cx);
+        // The old editor's composition is no longer this assist's to tell.
+        let composing = self.composing.take();
+        self.tell_composing(composing, false, cx);
+        self._composition = cx.observe(&editor, |this, _, cx| this.follow_composition(cx));
         self.pointed_link = None;
         self.close_card();
         self.drop_compose();
@@ -622,6 +633,34 @@ impl Assist {
         self.dismissed = None;
         self.hide_bar();
         cx.notify();
+    }
+
+    /// Tells the document the input method is composing in that it is, and
+    /// the one it stopped composing in that it is not: the links a switch
+    /// turned on asks for wait until the composition ends (F3's
+    /// `autolink::backfill`, `ProseSession::set_composing`).
+    fn follow_composition(&mut self, cx: &mut Context<Self>) {
+        let now = self.editor.read(cx).composition().map(|c| c.chapter);
+        if now == self.composing {
+            return;
+        }
+        self.tell_composing(self.composing, false, cx);
+        self.tell_composing(now, true, cx);
+        self.composing = now;
+    }
+
+    fn tell_composing(&self, chapter: Option<usize>, on: bool, cx: &App) {
+        let Some(chapter) = chapter else { return };
+        if let Some(source) = self
+            .editor
+            .read(cx)
+            .book()
+            .chapters
+            .get(chapter)
+            .and_then(|c| c.doc.source_as::<crate::source::SessionSource>())
+        {
+            source.session().set_composing(on);
+        }
     }
 
     pub fn set_extension(&mut self, ext: Rc<crate::links::DriftingExtension>) {

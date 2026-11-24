@@ -206,12 +206,18 @@ pub(crate) fn host_still_valid(host: &PageViewHost, cx: &App) -> bool {
 }
 
 pub(crate) fn toast_save_failed(host: &PageViewHost, cx: &mut App) {
+    let text = t(cx, keys::common::SAVE_FAILED);
+    toast_failed(host, text, cx);
+}
+
+/// A refused write's own words at the bottom of the window `host` is in,
+/// while it still shows the same book of the same library.
+pub(crate) fn toast_failed(host: &PageViewHost, text: SharedString, cx: &mut App) {
     let Some(ws) = host.workspace.upgrade() else {
         return;
     };
     let book_id = host.book_id.clone();
     let ptr = host.library.library() as *const _ as usize;
-    let text = t(cx, keys::common::SAVE_FAILED);
     ws.update(cx, |ws, cx| {
         if ws.book_id == book_id
             && ws

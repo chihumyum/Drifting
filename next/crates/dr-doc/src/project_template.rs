@@ -1305,6 +1305,9 @@ where
             template,
             level: entry.level,
             overrides,
+            // The entry's own 「自动链接」 as the book has it (`kernel-v5.md`
+            // §16), so a project made from it starts the same.
+            auto_link: Some(entry.auto_link),
             mark: entry.mark.clone(),
             fields,
             kv,
@@ -1935,6 +1938,8 @@ pub fn from_seed_template(
             template: se.template.as_ref().map(ToString::to_string),
             level: se.level,
             overrides,
+            // A seed's entries start as new entries do where they live.
+            auto_link: None,
             mark: se.mark.clone(),
             fields,
             kv: BTreeMap::new(),
@@ -2051,6 +2056,9 @@ pub struct MaterializedEntry {
     pub template: Option<EntryTemplateId>,
     pub level: bool,
     pub overrides: Option<LevelSettingsOverride>,
+    /// The entry's own 「自动链接」 the template carries; `None`: what a new
+    /// entry starts with where it lives ([`start_auto_links`]).
+    pub auto_link: Option<bool>,
     pub mark: Option<String>,
     pub fields: BTreeMap<ModuleId, BTreeMap<String, FieldValue>>,
     pub kv: BTreeMap<ModuleId, Vec<KvEntry>>,
@@ -2285,6 +2293,7 @@ pub fn materialize_project_template(
             template,
             level: e.level,
             overrides,
+            auto_link: e.auto_link,
             mark: e.mark.clone(),
             fields,
             kv,
@@ -2426,8 +2435,17 @@ pub fn apply_materialized_project_template(
         if entry.primary.is_some() {
             w.primary(entry.primary.as_ref())?;
         }
+        if let Some(on) = entry.auto_link {
+            w.auto_link(on)?;
+        }
     }
-    start_auto_links(txn, mat.entries.iter().map(|e| &e.id))?;
+    start_auto_links(
+        txn,
+        mat.entries
+            .iter()
+            .filter(|e| e.auto_link.is_none())
+            .map(|e| &e.id),
+    )?;
     for m in &mat.memberships {
         txn.put_membership(&m.host, &m.member, m.pos.as_ref(), Some(created_at))?;
     }
@@ -2448,11 +2466,11 @@ pub fn apply_materialized_project_template(
     Ok(())
 }
 
-/// Give each of `created` (entries a project template just wrote) the
-/// 「自动链接」 a new entry starts with where it lives
-/// ([`dr_model::v3::new_entry_auto_link`], `kernel-v5.md` §16): a project
-/// template carries no entry's switch, only its levels' defaults. Call after
-/// every entry and its overrides are written.
+/// Give each of `created` (entries a project template just wrote that
+/// carry no switch of their own: the built-in template's, a template's
+/// written without one) the 「自动链接」 a new entry starts with where it
+/// lives ([`dr_model::v3::new_entry_auto_link`], `kernel-v5.md` §16). Call
+/// after every entry and its overrides are written.
 pub fn start_auto_links<'e>(
     txn: &mut crate::v3::BookTxnV3<'_>,
     created: impl IntoIterator<Item = &'e dr_model::id::EntryId>,

@@ -1640,7 +1640,7 @@
     "kv": "Table clé-valeur",
     "level": "Niveau",
     "level_hint": "Activé, des entrées peuvent se trouver dessous",
-    "linkable": "Inclure le nom dans les liens automatiques",
+    "linkable": "À la création, suivre les liens automatiques de ce niveau",
     "list": "Liste",
     "long_text": "Texte long",
     "mark": "Signe",
@@ -1702,6 +1702,7 @@
   "v3Levels": {
     "accept": "Accepter les entrées d’ailleurs",
     "autoLink": "Liens automatiques",
+    "autoLinkNameTaken": "Non activé : « {{name}} » est déjà le nom ou un alias de « {{other}} ».",
     "collapse": "Replier {{name}}",
     "defaultTemplate": "Modèle par défaut",
     "display": "Affichage",

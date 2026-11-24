@@ -29,10 +29,19 @@
 //! author's setting is off, reads as ordinary text and shows again when it
 //! is turned back on; a link picked with @ shows either way
 //! ([`dr_model::v3::link_show`], the one rule every reader follows).
-//! Turning a switch on links nothing already written: a name typed while it
-//! was off shows the dotted grains until the author types in its paragraph
-//! again ([`keep_added`] is there for a pass over the book, which nothing
-//! runs).
+//!
+//! **Turning a switch on links what is already written** ([`backfill`],
+//! the author 2026-11-24): an entry's own 「自动链接」 going from off to on
+//! (by itself, with its level's, by an undo or a restore), or the author's
+//! setting going on (every entry whose switch is on). Whoever turned it on,
+//! on this device; another device's switch arrives by sync and its links
+//! with the text it linked. In the background, one write per prose document
+//! and one for the book's comments and relation descriptions, never on the
+//! author's undo, never in a document whose input method is composing.
+//! The rule is [`plan_backfill`]: [`plan`]'s names and leftmost-longest
+//! matching, only the names of the entries turned on, only where no link of
+//! any kind covers a character yet, so every link already written stays as
+//! it is, byte for byte. Turning a switch off rewrites nothing.
 //!
 //! **Text other writers put in.** A command links only names lying wholly
 //! inside the text it wrote ([`link_written`]), in the same commit, so
@@ -49,7 +58,6 @@
 //! The author's setting `editor.auto_entity_links` (on by default) governs
 //! all of it: the shell passes it on with [`crate::Workspace::set_auto_links`].
 
-use std::collections::HashSet;
 use std::ops::Range;
 use std::sync::Arc;
 
@@ -61,6 +69,8 @@ use dr_text::autolink::{LinkMatcher, LinkName, LinkTarget};
 
 use crate::Actor;
 use crate::workspace::BookSlot;
+
+pub mod backfill;
 
 /// Whether text `actor` writes gets automatic links.
 pub fn links_for(actor: &Actor) -> bool {
@@ -328,32 +338,150 @@ pub fn plan(
     edits
 }
 
-/// Keeps the edits of [`plan`] that link one of `added` (`(name, target
-/// id)`; the name as `text` spells it), each with the shorter links it
-/// replaces: a new name's links only, the others the book already had are
-/// the editor's business.
-pub fn keep_added(
+/// The links a switch turned on adds to one text (`kernel-v5.md` §16): the
+/// names `names` finds in `text` (leftmost-longest, as [`plan`] finds them)
+/// whose entry `added` says, each lying on characters no link covers yet;
+/// `taken` are the character ranges of every link the text already has, of
+/// any kind (picked with @, automatic, deep, shown or not). Only
+/// [`LinkEdit::Link`]s: a link already written is never changed, so a name
+/// any link covers even part of the way, or one inside a longer name that
+/// is not turned on, is left as it is.
+pub fn plan_backfill(
     text: &str,
-    edits: Vec<LinkEdit>,
-    added: &HashSet<(String, String)>,
+    taken: &[Range<usize>],
+    names: &LinkMatcher<LinkTarget>,
+    added: &dyn Fn(&str) -> bool,
 ) -> Vec<LinkEdit> {
+    let mut edits = Vec::new();
+    for m in names.find(text) {
+        let target = names.target(&m);
+        let r = m.range.clone();
+        if !added(&target.id)
+            || taken
+                .iter()
+                .any(|t| t.start < r.end && r.start < t.end && !t.is_empty())
+        {
+            continue;
+        }
+        edits.push(LinkEdit::Link {
+            range: r,
+            target: target.clone(),
+        });
+    }
+    edits
+}
+
+/// [`plan_backfill`] for every paragraph of a prose document: the start of
+/// each paragraph that gains links, with its links (characters of the
+/// paragraph). Table cells get no automatic links (the editor links none
+/// as the author types), so they get none here either.
+pub fn plan_backfill_prose(
+    view: &dr_doc::prose::ProseView<'_>,
+    names: &LinkMatcher<LinkTarget>,
+    added: &dyn Fn(&str) -> bool,
+) -> dr_doc::Result<Vec<(usize, Vec<LinkEdit>)>> {
     let mut out = Vec::new();
-    let mut pending = Vec::new();
-    for edit in edits {
-        match &edit {
-            LinkEdit::Unlink { .. } => pending.push(edit),
-            LinkEdit::Link { range, target } => {
-                let name: String = text.chars().skip(range.start).take(range.len()).collect();
-                if added.contains(&(name, target.id.clone())) {
-                    out.append(&mut pending);
-                    out.push(edit);
-                } else {
-                    pending.clear();
-                }
-            }
+    if names.is_empty() {
+        return Ok(out);
+    }
+    // Every link mark of the body, read once (positions in the document).
+    let raw = view.copy_entity_links_v3(0..view.len())?;
+    let mut taken: Vec<Range<usize>> = raw.marks().iter().map(|(r, _, _)| r.clone()).collect();
+    taken.sort_by_key(|r| (r.start, r.end));
+    for p in view.paragraphs() {
+        let text = p.text();
+        if text.is_empty() {
+            continue;
+        }
+        let here: Vec<Range<usize>> = taken
+            .iter()
+            .skip_while(|t| t.end <= p.range.start)
+            .take_while(|t| t.start < p.range.end)
+            .filter(|t| t.end > p.range.start)
+            .map(|t| t.start.saturating_sub(p.range.start)..t.end.min(p.range.end) - p.range.start)
+            .collect();
+        let edits = plan_backfill(&text, &here, names, added);
+        if !edits.is_empty() {
+            out.push((p.range.start, edits));
         }
     }
-    out
+    Ok(out)
+}
+
+/// Write [`plan_backfill_prose`]'s links into the document `txn` writes,
+/// as automatic links. Returns how many links were written.
+pub fn backfill_prose(
+    txn: &mut ProseTxn<'_>,
+    names: &LinkMatcher<LinkTarget>,
+    added: &dyn Fn(&str) -> bool,
+) -> dr_doc::Result<usize> {
+    let todo = plan_backfill_prose(&txn.view(), names, added)?;
+    let mut linked = 0;
+    for (start, edits) in todo {
+        linked += apply(txn, start, &edits)?;
+    }
+    Ok(linked)
+}
+
+/// A comment's or a relation description's text, as stored, with the
+/// links [`plan_backfill`] adds, automatic; `None` when it adds none. A
+/// comment never links the entry it is on (`owner`), as
+/// [`plan_book_text`] does not: with `owner`'s names in the text, they are
+/// matched without them.
+pub fn backfill_linked_text(
+    stored: &dr_model::v3::LinkedText,
+    owner: Option<&dr_model::id::EntryId>,
+    names: &LinkMatcher<LinkTarget>,
+    added: &dyn Fn(&str) -> bool,
+) -> Option<dr_model::v3::LinkedText> {
+    use dr_model::id::EntryId;
+    use dr_model::v3::EntryTextLink;
+    if stored.text.is_empty() || names.is_empty() {
+        return None;
+    }
+    let own;
+    let names = match owner {
+        Some(owner)
+            if names
+                .find(&stored.text)
+                .iter()
+                .any(|m| names.target(m).id == owner.as_str()) =>
+        {
+            own = LinkMatcher::new(
+                names
+                    .names()
+                    .iter()
+                    .filter(|n| n.target.id != owner.as_str())
+                    .cloned(),
+            );
+            &own
+        }
+        _ => names,
+    };
+    let taken: Vec<Range<usize>> = stored.links.iter().map(|l| l.range()).collect();
+    let mut links = stored.links.clone();
+    for edit in plan_backfill(&stored.text, &taken, names, added) {
+        if let LinkEdit::Link { range, target } = edit
+            && let Ok(entry) = EntryId::parse(&target.id)
+        {
+            links.push(EntryTextLink {
+                start: range.start,
+                end: range.end,
+                entry,
+                manual: false,
+            });
+        }
+    }
+    if links.len() == stored.links.len() {
+        return None;
+    }
+    links.sort_by_key(|l| (l.start, l.end));
+    let out = dr_model::v3::LinkedText {
+        text: stored.text.clone(),
+        links,
+    };
+    out.validate().ok()?;
+    Some(out)
 }
 
 /// Write `edits` of the paragraph starting at `start`. Returns how many

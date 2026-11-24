@@ -12,7 +12,7 @@ pub use super::level_switch::{
 use super::{
     DisplaySurface, EntryHost, LevelHost, ModuleHost, Rendered,
     card::EntryAction,
-    level_switch::{host_still_valid, toast_save_failed},
+    level_switch::{host_still_valid, toast_failed, toast_save_failed},
 };
 use crate::{
     book::Book,
@@ -1076,8 +1076,9 @@ pub fn set_override(
 /// Turns 「自动链接」 of `id` on or off (`kernel-v5.md` §16): the entry's own
 /// (`entry.set_auto_link`), or with `below` the level's, which sets what
 /// lives below the same (`entry.set_below_auto_link`). Held to what the page
-/// showed; a refused write (a name another linked entry has) says
-/// 「未能保存」.
+/// showed. Refused because a name would then be two linked entries', it
+/// says which name and whose ([`auto_link_refusal`]); any other refusal
+/// says 「未能保存」.
 pub fn set_auto_link(host: &PageViewHost, id: &str, on: bool, below: bool, cx: &mut App) {
     if !host_still_valid(host, cx) {
         return;
@@ -1106,10 +1107,29 @@ pub fn set_auto_link(host: &PageViewHost, id: &str, on: bool, below: bool, cx: &
     cx.spawn(async move |cx| {
         if let Err(error) = job.await {
             log::warn!("automatic linking write failed: {error}");
-            cx.update(|cx| toast_save_failed(&host, cx));
+            cx.update(|cx| match auto_link_refusal(&error, cx) {
+                Some(text) => toast_failed(&host, text, cx),
+                None => toast_save_failed(&host, cx),
+            });
         }
     })
     .detach();
+}
+
+/// What a refused 「自动链接」 says when the switch would give a name to two
+/// linked entries (`V3-AUTOLINK-NAME-UNIQUE`; a level's switch says the
+/// first such name): 「没有打开：「{名字}」已经是「{另一个条目}」的名字或别名。」.
+/// `None` for any other refusal.
+pub fn auto_link_refusal(error: &dr_workspace::WsError, cx: &App) -> Option<SharedString> {
+    let dr_workspace::WsError::Violation(v) = error else {
+        return None;
+    };
+    let clash = v.clash.as_ref()?;
+    Some(tf(
+        cx,
+        keys::v3_levels::AUTO_LINK_NAME_TAKEN,
+        &[("name", &clash.name), ("other", &clash.other_title)],
+    ))
 }
 
 impl EntryPage {

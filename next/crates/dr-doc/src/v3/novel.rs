@@ -451,7 +451,7 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
             agent: Some(TemplateAgentConfig {
                 name: "要素库".into(),
                 description: "按分类组织人物、地点、道具、组织等设定要素的顶层层级。".into(),
-                instructions: "要素下按「分类」层级划分，每个分类开启自动链接并指定自己的默认要素模板。".into(),
+                instructions: "要素下按「分类」层级划分，每个分类指定默认要素模板，可一起开关自动链接。".into(),
             }),
             modules: with_description(Vec::new()),
             level: true,
@@ -481,8 +481,8 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
             color: None,
             agent: Some(TemplateAgentConfig {
                 name: "分类".into(),
-                description: "要素分类层级，开启自动链接，说明写在本条目的「说明」正文里。".into(),
-                instructions: "分类下的要素（及子分组里的要素）名字与别名在全书正文中自动链接且唯一。".into(),
+                description: "要素分类层级，新建要素默认自动链接，说明写在「说明」正文里。".into(),
+                instructions: "要素自己开着「自动链接」才在全书正文链接名字与别名，名字唯一。".into(),
             }),
             modules: with_description(vec![color_fields_module()]),
             level: true,
@@ -508,7 +508,7 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
             color: None,
             agent: Some(TemplateAgentConfig {
                 name: "分组".into(),
-                description: "通用分组层级，继承上一层的默认模板、自动链接等设置。".into(),
+                description: "通用分组层级，继承上一层的默认模板和自动链接默认。".into(),
                 instructions: "可用于书稿分卷或分类内要素分组，说明写在本条目的「说明」正文里。".into(),
             }),
             modules: with_description(vec![color_fields_module()]),

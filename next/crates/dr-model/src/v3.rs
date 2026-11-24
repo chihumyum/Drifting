@@ -1870,6 +1870,7 @@ fn fail<T>(invariant: &'static str, detail: impl Into<String>) -> Result<T, Viol
     Err(Violation {
         invariant,
         detail: detail.into(),
+        clash: None,
     })
 }
 
@@ -3088,13 +3089,38 @@ pub fn check_new_violations(before: BookGraph<'_>, after: BookGraph<'_>) -> Resu
         }
         let had = was.owners(key);
         if let Some(newcomer) = owners.iter().find(|o| !had.is_some_and(|h| h.contains(*o))) {
-            let other = owners.iter().find(|o| *o != newcomer).expect("two owners");
-            return fail(
-                "V3-AUTOLINK-NAME-UNIQUE",
-                format!(
-                    "auto-link name {key:?} of entry {newcomer} is already used by entry {other}"
+            // The one that had it before, if one did (an entry turned on
+            // meets one that was on); otherwise any other.
+            let other = owners
+                .iter()
+                .find(|o| *o != newcomer && had.is_some_and(|h| h.contains(*o)))
+                .or_else(|| owners.iter().find(|o| *o != newcomer))
+                .expect("two owners");
+            let spelled = |id: &EntryId| {
+                after.entries.get(id).and_then(|e| {
+                    std::iter::once(e.title.clone())
+                        .chain(e.aliases(after.templates))
+                        .find(|n| element_name_key(n) == *key)
+                })
+            };
+            let name = spelled(newcomer).unwrap_or_else(|| key.clone());
+            let other_title = after
+                .entries
+                .get(other)
+                .map(|e| e.title.clone())
+                .unwrap_or_default();
+            return Err(Violation {
+                invariant: "V3-AUTOLINK-NAME-UNIQUE",
+                detail: format!(
+                    "auto-link name {name:?} of entry {newcomer} is already the name or an alias of entry {other} ({other_title:?})"
                 ),
-            );
+                clash: Some(Box::new(crate::check::NameClash {
+                    name,
+                    entry: newcomer.to_string(),
+                    other: other.to_string(),
+                    other_title,
+                })),
+            });
         }
     }
     Ok(())

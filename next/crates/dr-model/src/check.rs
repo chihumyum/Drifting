@@ -13,6 +13,24 @@ use crate::shared::{Asset, PLOT_CELL_H, PLOT_CELL_W, is_sha256_hex};
 pub struct Violation {
     pub invariant: &'static str,
     pub detail: String,
+    /// The name two entries would share, when the rule is one of unique
+    /// names and the check knows them: what a surface says to the author.
+    pub clash: Option<Box<NameClash>>,
+}
+
+/// The name a write would give to two entries (`V3-AUTOLINK-NAME-UNIQUE`):
+/// which name, the entry the write gives it to and the entry that has it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NameClash {
+    /// The name as the entry the write gives it to spells it (its title or
+    /// one of its aliases).
+    pub name: String,
+    /// The entry the write gives the name to.
+    pub entry: String,
+    /// The entry that has the name already.
+    pub other: String,
+    /// The other entry's title.
+    pub other_title: String,
 }
 
 impl fmt::Display for Violation {
@@ -27,6 +45,7 @@ fn fail<T>(invariant: &'static str, detail: impl Into<String>) -> Result<T, Viol
     Err(Violation {
         invariant,
         detail: detail.into(),
+        clash: None,
     })
 }
 

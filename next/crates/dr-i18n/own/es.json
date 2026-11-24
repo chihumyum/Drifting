@@ -357,7 +357,7 @@
     "kv": "Tabla de claves y valores",
     "level": "Nivel",
     "level_hint": "Al activarlo, admite entradas debajo",
-    "linkable": "Incluir el nombre en enlaces automáticos",
+    "linkable": "Al crearse, seguir los enlaces automáticos de este nivel",
     "list": "Lista",
     "long_text": "Texto largo",
     "mark": "Marca",
@@ -396,6 +396,7 @@
   "v3Levels": {
     "accept": "Aceptar entradas de otros lugares",
     "autoLink": "Enlaces automáticos",
+    "autoLinkNameTaken": "No se activó: «{{name}}» ya es el nombre o un alias de «{{other}}».",
     "collapse": "Contraer {{name}}",
     "defaultTemplate": "Plantilla predeterminada",
     "display": "Visualización",

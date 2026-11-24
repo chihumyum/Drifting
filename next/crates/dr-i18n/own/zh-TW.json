@@ -347,7 +347,7 @@
     "kv": "鍵值表",
     "level": "層級",
     "level_hint": "開啟後下面能放條目",
-    "linkable": "名字參與自動連結",
+    "linkable": "新建時跟隨這一層的自動連結",
     "list": "清單",
     "long_text": "長文字",
     "mark": "記號",
@@ -386,6 +386,7 @@
   "v3Levels": {
     "accept": "收別處的條目",
     "autoLink": "自動連結",
+    "autoLinkNameTaken": "沒有開啟：「{{name}}」已經是「{{other}}」的名字或別名。",
     "collapse": "摺疊{{name}}",
     "defaultTemplate": "預設範本",
     "display": "顯示",

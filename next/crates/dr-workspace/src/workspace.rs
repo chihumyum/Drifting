@@ -141,6 +141,10 @@ pub(crate) struct BookSlot {
     pub handle: DocHandle,
     pub reader_v3: dr_doc::v3::BookReaderV3,
     pub link_names: std::sync::Mutex<(u64, Option<crate::autolink::SlotLinkCache>)>,
+    /// Each entry's own 「自动链接」 and liveness after the last commit
+    /// that could change one (`BookViewV3::auto_link_switches`): which
+    /// switches a commit turned on ([`crate::autolink::backfill`]).
+    pub switches: std::sync::Mutex<BTreeMap<dr_model::id::EntryId, (bool, bool)>>,
 }
 
 impl BookSlot {
@@ -221,6 +225,9 @@ pub(crate) struct Inner {
     /// ([`Inner::template_flip`]).
     /// The author's `editor.auto_entity_links` (`crate::autolink`).
     auto_links: std::sync::atomic::AtomicBool,
+    /// Linking what is written when a switch goes on
+    /// ([`crate::autolink::backfill`]).
+    pub(crate) backfill: Arc<crate::autolink::backfill::Backfill>,
     active_book: Mutex<Option<BookId>>,
     sync_controller: Mutex<Option<Arc<dyn SyncController>>>,
     /// Saves template working copies over their templates after each write
@@ -298,10 +305,12 @@ impl Workspace {
             library_gate: Arc::default(),
             subscription: Mutex::new(None),
             auto_links: std::sync::atomic::AtomicBool::new(true),
+            backfill: Arc::default(),
             active_book: Mutex::new(None),
             sync_controller: Mutex::new(None),
             saver: Arc::default(),
         });
+        inner.backfill.attach(Arc::downgrade(&inner));
         subscribe(&inner);
         Ok(Self { inner })
     }
@@ -327,10 +336,24 @@ impl Workspace {
     }
 
     /// The shell passes the author's setting on whenever it changes.
+    /// Turned on, what was written while it was off gets its links: every
+    /// book open now and every other one when it next opens
+    /// ([`crate::autolink::backfill`]).
     pub fn set_auto_links(&self, on: bool) {
-        self.inner
+        let was = self
+            .inner
             .auto_links
-            .store(on, std::sync::atomic::Ordering::Relaxed);
+            .swap(on, std::sync::atomic::Ordering::Relaxed);
+        if on && !was {
+            self.inner.backfill.request_every_book();
+        }
+    }
+
+    /// Wait until the links a switch turned on asked for are written
+    /// ([`crate::autolink::backfill`]), at most `timeout`; whether they are.
+    /// For tests and measurements: the app never waits for them.
+    pub fn wait_for_link_backfill(&self, timeout: std::time::Duration) -> bool {
+        self.inner.backfill.wait_idle(timeout)
     }
 
     pub fn library(&self) -> &Library {
@@ -358,6 +381,11 @@ impl Workspace {
     /// Close every open document and wait for their holders (the library
     /// stays open; close it with `Library::close`).
     pub fn close(&self) {
+        // Linking what is written stops at its next document; what is left
+        // waits for each book's next opening.
+        self.inner
+            .backfill
+            .pause(std::time::Duration::from_secs(5), true);
         // A working copy's last writes go over its template first.
         if let Err(e) = self.flush_working_copies() {
             log::warn!("saving working copies before closing: {e}");
@@ -413,6 +441,11 @@ impl Workspace {
     pub fn before_quit(&self) -> QuitReport {
         let started = std::time::Instant::now();
         let mut report = QuitReport::default();
+        // Linking what is written stops at its next document and carries on
+        // when the book next opens.
+        self.inner
+            .backfill
+            .pause(std::time::Duration::from_secs(2), false);
         if let Err(e) = self.flush_working_copies() {
             log::warn!("saving working copies before quitting: {e}");
         }
@@ -1603,11 +1636,13 @@ impl Workspace {
         let reader_v3 = handle
             .doc()
             .with_doc(|d| dr_doc::v3::BookReaderV3::from_loro(book.clone(), d))?;
+        let switches = reader_v3.view().auto_link_switches();
         let slot = Arc::new(BookSlot {
             book: book.clone(),
             handle,
             reader_v3,
             link_names: std::sync::Mutex::new((0, None)),
+            switches: std::sync::Mutex::new(switches),
         });
         // dr-doc's deterministic background repair, once per open.
         repair_book(&slot)?;
@@ -1621,7 +1656,28 @@ impl Workspace {
             .entry(book.clone())
             .or_insert(slot)
             .clone();
+        // Links a switch turned on asked for and this device did not finish.
+        if crate::autolink::backfill::has_row(self, book) {
+            self.inner
+                .backfill
+                .request(book.clone(), crate::autolink::backfill::Want::default());
+        }
         Ok(slot)
+    }
+
+    /// `book`'s slot if it is open, without opening it.
+    pub(crate) fn open_book_slot(&self, book: &BookId) -> Option<Arc<BookSlot>> {
+        lock(&self.inner.books).get(book).cloned()
+    }
+
+    /// The prose documents an editing session holds now.
+    pub(crate) fn prose_in_use(&self) -> std::collections::HashSet<DocId> {
+        lock(&self.inner.prose)
+            .map
+            .iter()
+            .filter(|(_, (_, s))| Arc::strong_count(s) > 1)
+            .map(|(d, _)| d.clone())
+            .collect()
     }
 
     /// Every automatic-link name of `book`, cached on its open slot until the
@@ -1987,6 +2043,38 @@ fn removed_by(slot: &BookSlot, changes: &[EntityChange]) -> Vec<RemovedEntity> {
 }
 
 impl Inner {
+    /// After a commit of `slot`'s book that can change an entry's
+    /// 「自动链接」 (on the holder thread, right after it): the switches it
+    /// turned on, of entries that were there and stay out of Recently
+    /// Deleted, ask for their names to be linked in what is written, unless
+    /// the commit came by sync or the author's setting is off
+    /// ([`crate::autolink::backfill`]).
+    fn follow_switches(&self, slot: &BookSlot, origin: &dr_store::Origin) {
+        let now = slot.reader_v3.view().auto_link_switches();
+        let turned_on: Vec<dr_model::id::EntryId> = {
+            let mut before = lock(&slot.switches);
+            let turned_on = now
+                .iter()
+                .filter(|(id, (on, live))| {
+                    *on && *live && before.get(*id).is_some_and(|(was_on, _)| !was_on)
+                })
+                .map(|(id, _)| id.clone())
+                .collect();
+            *before = now;
+            turned_on
+        };
+        if turned_on.is_empty()
+            || *origin == dr_store::Origin::Sync
+            || !self.auto_links.load(std::sync::atomic::Ordering::Relaxed)
+        {
+            return;
+        }
+        self.backfill.request(
+            slot.book.clone(),
+            crate::autolink::backfill::Want::entries(turned_on),
+        );
+    }
+
     fn on_store_event(&self, e: &StoreEvent) {
         match e {
             StoreEvent::Doc(ev) => {
@@ -1998,12 +2086,17 @@ impl Inner {
                         let slot = lock(&self.books).get(book).cloned();
                         if let Some(slot) = &slot {
                             let names_touched = events::touches_autolink_names(&ev.changes);
-                            let mut guard = lock(&slot.link_names);
+                            {
+                                let mut guard = lock(&slot.link_names);
+                                if names_touched {
+                                    guard.0 = guard.0.wrapping_add(1);
+                                    guard.1 = None;
+                                } else if let Some((cached_at, _, _)) = &mut guard.1 {
+                                    *cached_at = slot.handle.doc().oplog_frontiers();
+                                }
+                            }
                             if names_touched {
-                                guard.0 = guard.0.wrapping_add(1);
-                                guard.1 = None;
-                            } else if let Some((cached_at, _, _)) = &mut guard.1 {
-                                *cached_at = slot.handle.doc().oplog_frontiers();
+                                self.follow_switches(slot, &ev.origin);
                             }
                         }
                         let changes = slot.as_ref().map_or_else(

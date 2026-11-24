@@ -1640,7 +1640,7 @@
     "kv": "Tabela de chaves e valores",
     "level": "Nível",
     "level_hint": "Quando ativado, permite entradas abaixo",
-    "linkable": "Incluir o nome nos links automáticos",
+    "linkable": "Ao ser criado, seguir os links automáticos deste nível",
     "list": "Lista",
     "long_text": "Texto longo",
     "mark": "Marca",
@@ -1702,6 +1702,7 @@
   "v3Levels": {
     "accept": "Aceitar entradas de outros locais",
     "autoLink": "Links automáticos",
+    "autoLinkNameTaken": "Não foi ativado: “{{name}}” já é o nome ou um apelido de “{{other}}”.",
     "collapse": "Recolher {{name}}",
     "defaultTemplate": "Modelo padrão",
     "display": "Exibição",

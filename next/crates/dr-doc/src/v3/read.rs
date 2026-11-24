@@ -1136,6 +1136,44 @@ impl<'a> BookViewV3<'a> {
         self.entry_headers_with(&self.templates_map())
     }
 
+    /// Every entry's own 「自动链接」 and whether it is out of Recently
+    /// Deleted, `(auto_link, live)`, read from the entry tree's node
+    /// metadata alone (no entry is decoded): what a workspace compares
+    /// between two commits to see which switches went on (`kernel-v5.md`
+    /// §16). A node a concurrent creation copied counts once, as the copy
+    /// [`Self::entries_raw`] keeps.
+    pub fn auto_link_switches(&self) -> BTreeMap<EntryId, (bool, bool)> {
+        let tree = self.tree(book_v3::ENTRIES);
+        let mut nodes = tree.get_nodes(false);
+        nodes.sort_by_key(|n| n.id);
+        let mut out = BTreeMap::new();
+        for n in nodes {
+            let Ok(meta) = tree.get_meta(n.id) else {
+                continue;
+            };
+            let Some(loro::ValueOrContainer::Value(LoroValue::String(id))) = meta.get("id") else {
+                continue;
+            };
+            let Ok(id) = EntryId::parse(id.as_str()) else {
+                continue;
+            };
+            out.entry(id).or_insert_with(|| {
+                let on = matches!(
+                    meta.get("auto_link"),
+                    Some(loro::ValueOrContainer::Value(LoroValue::Bool(true)))
+                );
+                let trashed = matches!(
+                    meta.get("deleted_at"),
+                    Some(loro::ValueOrContainer::Value(
+                        LoroValue::I64(_) | LoroValue::Double(_)
+                    ))
+                );
+                (on, !trashed)
+            });
+        }
+        out
+    }
+
     /// What the structural invariants look at, in one read: the entry
     /// headers ([`Self::entry_headers_with`]), every template and every stored
     /// membership. Compare two with [`dr_model::v3::check_new_violations`].

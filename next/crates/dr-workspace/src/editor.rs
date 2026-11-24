@@ -36,6 +36,9 @@ pub struct ProseSession {
     slot: Arc<ProseSlot>,
     undo: Arc<Mutex<ProseUndo>>,
     workspace: Weak<Inner>,
+    /// The author's input method is composing in this document
+    /// ([`Self::set_composing`]).
+    composing: std::sync::atomic::AtomicBool,
 }
 
 impl Workspace {
@@ -57,11 +60,37 @@ impl Workspace {
             slot,
             undo: Arc::new(Mutex::new(undo)),
             workspace: Arc::downgrade(&self.inner),
+            composing: std::sync::atomic::AtomicBool::new(false),
         })
     }
 }
 
+impl Drop for ProseSession {
+    fn drop(&mut self) {
+        self.set_composing(false);
+    }
+}
+
 impl ProseSession {
+    /// Whether the author's input method is composing in this document
+    /// (marked text not yet confirmed; the editor says so). The links a
+    /// switch turned on asks for wait until it is not
+    /// ([`crate::autolink::backfill`]): nothing of anyone else's is written
+    /// into the document under the marked text.
+    pub fn set_composing(&self, on: bool) {
+        use std::sync::atomic::Ordering;
+        if self.composing.swap(on, Ordering::AcqRel) == on {
+            return;
+        }
+        if let Some(inner) = self.workspace.upgrade() {
+            inner.backfill.set_composing(&self.slot.doc, on);
+        }
+    }
+
+    pub fn is_composing(&self) -> bool {
+        self.composing.load(std::sync::atomic::Ordering::Acquire)
+    }
+
     /// Commit an author's multi-document edit without partial writes. Callers
     /// must validate their displayed versions inside `edit`, against the
     /// reserved copies. All sessions must be from one workspace and book.

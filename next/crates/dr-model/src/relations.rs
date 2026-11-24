@@ -57,6 +57,7 @@ impl LinkedText {
                 return Err(Violation {
                     invariant: "ENTRY-TEXT-LINK-RANGES",
                     detail: "link ranges must be ordered, nonempty and inside the text".into(),
+                    clash: None,
                 });
             }
             after = link.end;

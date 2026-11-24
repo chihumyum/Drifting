@@ -1630,7 +1630,7 @@
     "kv": "Key-value table",
     "level": "Level",
     "level_hint": "Allows entries below when on",
-    "linkable": "Include name in auto-links",
+    "linkable": "Follow this level’s automatic links when created",
     "list": "List",
     "long_text": "Long text",
     "mark": "Mark",
@@ -1692,6 +1692,7 @@
   "v3Levels": {
     "accept": "Accept entries from elsewhere",
     "autoLink": "Automatic links",
+    "autoLinkNameTaken": "Not turned on: “{{name}}” is already the name or an alias of “{{other}}”.",
     "collapse": "Collapse {{name}}",
     "defaultTemplate": "Default template",
     "display": "Display",

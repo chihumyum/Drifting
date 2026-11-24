@@ -347,7 +347,7 @@
     "kv": "キーと値の表",
     "level": "階層",
     "level_hint": "オンにすると下に項目を置けます",
-    "linkable": "名前を自動リンクに含める",
+    "linkable": "作成時にこの階層の自動リンクに従う",
     "list": "リスト",
     "long_text": "長文",
     "mark": "印",
@@ -386,6 +386,7 @@
   "v3Levels": {
     "accept": "ほかの場所の項目を受け入れる",
     "autoLink": "自動リンク",
+    "autoLinkNameTaken": "オンにしませんでした：「{{name}}」はすでに「{{other}}」の名前か別名です。",
     "collapse": "{{name}}を折りたたむ",
     "defaultTemplate": "既定のテンプレート",
     "display": "表示",

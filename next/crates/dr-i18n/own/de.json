@@ -355,7 +355,7 @@
     "kv": "Schlüssel-Wert-Tabelle",
     "level": "Ebene",
     "level_hint": "Aktiviert können darunter Einträge liegen",
-    "linkable": "Namen in automatische Links aufnehmen",
+    "linkable": "Beim Anlegen dem automatischen Verknüpfen dieser Ebene folgen",
     "list": "Liste",
     "long_text": "Langer Text",
     "mark": "Zeichen",
@@ -394,6 +394,7 @@
   "v3Levels": {
     "accept": "Einträge von anderswo aufnehmen",
     "autoLink": "Automatisch verknüpfen",
+    "autoLinkNameTaken": "Nicht eingeschaltet: „{{name}}“ ist schon der Name oder ein Alias von „{{other}}“.",
     "collapse": "{{name}} einklappen",
     "defaultTemplate": "Standardvorlage",
     "display": "Darstellung",

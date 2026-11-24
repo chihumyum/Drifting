@@ -17,6 +17,9 @@ fn agent() -> Actor {
     Actor::agent("s", 1, "c")
 }
 
+/// How long a test waits for the links a switch turned on asks for.
+const WAIT: std::time::Duration = std::time::Duration::from_secs(20);
+
 fn by_agent(e: &Env, name: &str, input: Value) -> Value {
     call(e.ws(), &agent(), name, input)["output"].clone()
 }
@@ -143,10 +146,18 @@ fn a_new_entry_links_only_when_its_own_switch_is_on() {
 
     let doc = chapter(&e, &b, "一", "安娜和林凯。");
     assert_eq!(links(&e, &doc), [("安娜".into(), anna.clone(), false)]);
-    // Turned on, its names link from now on; what was written stays.
+    // Turned on, its names link from now on, and what was written while it
+    // was off gets its links (in the background: `auto_link_backfill.rs`).
     set(&e, &b, &lin, true).unwrap();
     assert!(switch(&e, &b, &lin));
-    assert_eq!(links(&e, &doc), [("安娜".into(), anna.clone(), false)]);
+    assert!(e.ws().wait_for_link_backfill(WAIT));
+    assert_eq!(
+        links(&e, &doc),
+        [
+            ("安娜".into(), anna.clone(), false),
+            ("林凯".into(), lin.clone(), false)
+        ]
+    );
     let doc2 = chapter(&e, &b, "二", "林凯回来了。");
     assert_eq!(links(&e, &doc2), [("林凯".into(), lin.clone(), false)]);
     // Moving it and switching its template leave the switch alone.
@@ -182,15 +193,18 @@ fn turning_an_entry_off_hides_its_automatic_links_and_leaves_the_text_byte_for_b
     assert!(links(&e, &doc2).is_empty());
 
     set(&e, &b, &anna, true).unwrap();
+    assert!(e.ws().wait_for_link_backfill(WAIT));
     assert_eq!(stored(&e, &doc), before);
     assert_eq!(shown(&e, &b, &doc), [("安娜".into(), LinkShow::Live)]);
-    // What was written while it was off is not linked after the fact.
-    assert!(links(&e, &doc2).is_empty());
+    // What was written while it was off is linked after the fact (in the
+    // background: `auto_link_backfill.rs`); what was linked stays as it was.
+    assert_eq!(links(&e, &doc2), [("安娜".into(), anna.clone(), false)]);
 
     // The author's setting does the same for every automatic link.
     e.ws().set_auto_links(false);
     assert_eq!(shown(&e, &b, &doc), [("安娜".into(), LinkShow::Plain)]);
     e.ws().set_auto_links(true);
+    assert!(e.ws().wait_for_link_backfill(WAIT));
     assert_eq!(stored(&e, &doc), before);
 }
 
@@ -208,9 +222,12 @@ fn a_link_picked_with_at_shows_whatever_the_switches_say() {
     e.ws().set_auto_links(false);
     assert_eq!(shown(&e, &b, &doc), [("林凯".into(), LinkShow::Live)]);
     e.ws().set_auto_links(true);
-    // The automatic rule leaves it alone: an Agent writing around it with
-    // the entry on adds a link of its own and keeps the picked one.
+    // The automatic rule leaves it alone: turning the entry on links no
+    // name the picked link covers, and an Agent writing around it adds a
+    // link of its own and keeps the picked one.
     set(&e, &b, &lin, true).unwrap();
+    assert!(e.ws().wait_for_link_backfill(WAIT));
+    assert_eq!(links(&e, &doc), [("林凯".into(), lin.clone(), true)]);
     by_agent(
         &e,
         "prose.replace",

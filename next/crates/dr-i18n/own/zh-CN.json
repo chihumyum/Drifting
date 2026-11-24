@@ -345,7 +345,7 @@
     "kv": "键值表",
     "level": "层级",
     "level_hint": "打开后下面能放条目",
-    "linkable": "名字参与自动链接",
+    "linkable": "新建时跟随这一层的自动链接",
     "list": "列表",
     "long_text": "长文字",
     "mark": "记号",
@@ -384,6 +384,7 @@
   "v3Levels": {
     "accept": "收别处的条目",
     "autoLink": "自动链接",
+    "autoLinkNameTaken": "没有打开：「{{name}}」已经是「{{other}}」的名字或别名。",
     "collapse": "折叠{{name}}",
     "defaultTemplate": "默认模板",
     "display": "显示",

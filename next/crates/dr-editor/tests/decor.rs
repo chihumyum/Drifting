@@ -422,6 +422,113 @@ fn a_link_to_an_entry_switched_off_reads_as_text_until_it_is_on_again(cx: &mut T
     assert_eq!(stored(&e), before);
 }
 
+/// `kernel-v5.md` §16: turning an entry on links its names already written,
+/// in the chapter open in the editor too: the links come in at once, the
+/// selection stays where it was and the author's undo gains no step; while
+/// the input method is composing in the chapter nothing is written, and it
+/// is written once the composition ends.
+#[gpui::test]
+fn a_switch_turned_on_links_the_open_chapter_without_moving_the_selection_or_the_undo(
+    cx: &mut TestAppContext,
+) {
+    let e = env();
+    let level = out(
+        &e.ws,
+        &Actor::User,
+        "entry.create",
+        json!({"book": e.book, "template": "tpl-group", "title": "杂项"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let entry = |title: &str| {
+        out(
+            &e.ws,
+            &Actor::User,
+            "entry.create",
+            json!({"book": e.book, "parent": level, "template": "tpl-character", "title": title}),
+        )["id"]
+            .as_str()
+            .unwrap()
+            .to_owned()
+    };
+    let (lan, fu) = (entry("林岚"), entry("阿福"));
+    let switch_on = |id: &str| {
+        out(
+            &e.ws,
+            &Actor::User,
+            "entry.set_auto_link",
+            json!({"book": e.book, "id": id, "auto_link": true}),
+        );
+    };
+    // Written while 林岚 was off: no links.
+    let doc = chapter(&e, "林岚上了楼。我等林岚。");
+    let (view, cx) = open(cx, &e, &doc);
+    let editor = prose(&view, cx);
+    // The author types, then selects.
+    editor.update_in(cx, |p, w, cx| {
+        p.select(0, 11..11, w, cx);
+        p.replace_text_in_range(None, "好", w, cx);
+        p.select(0, 2..5, w, cx);
+    });
+    cx.run_until_parked();
+    let undo = |cx: &mut VisualTestContext| {
+        editor.read_with(cx, |p, _| p.book().chapters[0].doc.undo_count())
+    };
+    let (selection, undos) = (editor.read_with(cx, |p, _| p.selection()), undo(cx));
+    assert_eq!(undos, 1);
+    assert!(group(&view, cx, "links").is_empty());
+
+    switch_on(&lan);
+    assert!(e.ws.wait_for_link_backfill(Duration::from_secs(20)));
+    assert!(wait_for(cx, |cx| group(&view, cx, "links") == [0..2, 8..10]));
+    assert_eq!(editor.read_with(cx, |p, _| p.selection()), selection);
+    assert_eq!(undo(cx), undos, "the links are no step of the author's");
+    // ⌘Z takes back what the author typed; the links stay.
+    editor.update_in(cx, |p, w, cx| p.undo(w, cx));
+    assert!(wait_for(cx, |cx| {
+        editor.read_with(cx, |p, _| {
+            p.book().chapters[0].doc.lines()[0].text.to_string()
+        }) == "林岚上了楼。我等林岚。"
+    }));
+    assert_eq!(group(&view, cx, "links"), [0..2, 8..10]);
+
+    // The author types 阿福 (off) and starts composing after it.
+    editor.update_in(cx, |p, w, cx| {
+        p.select(0, 11..11, w, cx);
+        p.replace_text_in_range(None, "阿福", w, cx);
+        p.replace_and_mark_text_in_range(None, "a", None, w, cx);
+    });
+    cx.run_until_parked();
+    assert!(editor.read_with(cx, |p, _| p.composition().is_some()));
+    let stored_links = |e: &Env| {
+        let d = e.ws.library().load_copy(&doc).unwrap();
+        d.get_text(dr_doc::schema::prose::BODY)
+            .to_delta()
+            .iter()
+            .filter(|d| {
+                matches!(d, loro::TextDelta::Insert { attributes: Some(a), .. }
+                    if a.keys().any(|k| k.starts_with("entity:")))
+            })
+            .count()
+    };
+    let before = stored_links(&e);
+    switch_on(&fu);
+    std::thread::sleep(Duration::from_millis(400));
+    cx.run_until_parked();
+    assert_eq!(
+        stored_links(&e),
+        before,
+        "nothing is written while composing"
+    );
+    assert!(!e.ws.wait_for_link_backfill(Duration::from_millis(50)));
+    // The composition ends: the name is linked then.
+    editor.update_in(cx, |p, w, cx| p.replace_text_in_range(None, "啊", w, cx));
+    cx.run_until_parked();
+    assert!(e.ws.wait_for_link_backfill(Duration::from_secs(20)));
+    assert!(wait_for(cx, |cx| group(&view, cx, "links") == [0..2, 8..10, 11..13]));
+}
+
 fn todos(e: &Env, doc: &str) -> usize {
     let id = doc.trim_start_matches("body:").split('/').next().unwrap();
     out(

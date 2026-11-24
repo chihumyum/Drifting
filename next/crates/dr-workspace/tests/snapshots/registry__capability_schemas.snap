@@ -6502,7 +6502,7 @@ expression: json
       "title": "SetAutoLinkOut",
       "type": "object"
     },
-    "summary": "Turn an entry's own automatic linking (「自动链接」) on or off: whether its title and aliases link by themselves in the book's text, and whether the automatic links already pointing at it show as links. No text is rewritten: turned off, those links read as plain text and their data stays; turned back on, they show again. Links picked with @ show either way. Refused when, turned on, one of its names is already another linked entry's."
+    "summary": "Turn an entry's own automatic linking (「自动链接」) on or off: whether its title and aliases link by themselves in the book's text, and whether the automatic links already pointing at it show as links. Turned off, those links read as plain text and their data stays; turned on, they show again and its names already written get linked in the background. Links picked with @ show either way. Refused when, turned on, one of its names is already another linked entry's."
   },
   {
     "access": "write",
@@ -6556,7 +6556,7 @@ expression: json
       "title": "SetBelowAutoLinkOut",
       "type": "object"
     },
-    "summary": "Turn a level's automatic linking (「自动链接」) on or off: entries made to live in it from now on start with their own switch that way, and every entry living below it now (however deep, not those in Recently Deleted, not containers whose template does not follow its level) gets its own switch set the same, in one step one undo takes back. Each entry can be changed on its own afterwards. Refused when a name would then belong to two linked entries."
+    "summary": "Turn a level's automatic linking (「自动链接」) on or off: entries made to live in it from now on start with their own switch that way, and every entry living below it now (however deep, not those in Recently Deleted, not containers whose template does not follow its level) gets its own switch set the same, in one step one undo takes back; turned on, their names already written get linked in the background. Each entry can be changed on its own afterwards. Refused when a name would then belong to two linked entries."
   },
   {
     "access": "write",

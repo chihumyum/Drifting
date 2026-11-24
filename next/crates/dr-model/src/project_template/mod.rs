@@ -651,6 +651,12 @@ pub struct TemplateEntry {
     pub level: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub overrides: Option<TemplateLevelSettings>,
+    /// The entry's own 「自动链接」 (`kernel-v5.md` §16), as the book it was
+    /// saved from had it. Absent (a template written by hand, the built-in
+    /// one): what a new entry starts with where it lives
+    /// ([`crate::v3::new_entry_auto_link`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_link: Option<bool>,
     #[serde(default)]
     pub mark: Option<String>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
