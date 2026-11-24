@@ -444,3 +444,7 @@ DRIFTING_WINDOW_DISPLAY=secondary cargo drifting workspace scenario crates/dr-vi
 ## CM3：「打开工作台」那张卡（2026-11-24）
 
 工具结果里带着 `custom_modules`（CM4b：建、改、改名、另存一份，或者往条目模板里放进了一个之前没有的）时，那条结果下面每个模块一张卡：名字、「我的模块」、「打开工作台」（打开它的工作台药丸）。出错的结果不出卡。代码 `panel.rs` 的 `module_cards`；测试 `tests/module_card.rs`（脚本模型建一个模块，点卡开药丸）。
+
+## CW：工作台的稿纸转来的图片（2026-11-24 第二轮）
+
+工作台的稿纸收拖进、粘贴的图片，经外壳的 `Workspace::give_agent_images` 交给这个窗口「Agent」那一栏（`lib.rs` 注册 `dr_shell::pages::set_agent_images`，按 `AnyView` 找到面板），`AgentPanel::take_images` 和拖进、粘贴到输入框走同一条 `attach_paths`／`attach_bytes`：格式、大小、张数上限、三句提示都一样，不发送。输入框 ⌘V 读剪贴板的规矩搬进了 `dr_shell::pages::AgentImages::on_clipboard`（稿纸也用它），行为不变。测试 `tests/attachments.rs` 的 `images_handed_over_from_a_page_wait_in_the_windows_agent_composer`。

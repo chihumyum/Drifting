@@ -71,6 +71,8 @@ struct Views {
     panel: Entity<AgentPanel>,
     hub: Entity<AgentHub>,
     connections: Entity<Connections>,
+    /// The shell's window, whose 「Agent」 tab is a panel of its own.
+    shell: gpui::WindowHandle<ShellWorkspace>,
 }
 
 /// Models list on loopback: an Anthropic list whose first bundled model
@@ -200,6 +202,7 @@ fn open<'a>(
         panel,
         hub,
         connections,
+        shell: shell_window,
     };
     wait(cx, |cx| {
         shell.read_with(cx, |ws, _| {
@@ -426,6 +429,82 @@ fn the_limits_are_said_before_anything_is_sent(cx: &mut TestAppContext) {
         too_many.contains(&MAX_IMAGES_PER_MESSAGE.to_string()),
         "{too_many}"
     );
+    assert!(driver.requests().is_empty());
+    close(&views, &fixture, cx);
+}
+
+/// CW: images a page hands to the Agent (the module workbench's paper,
+/// through the shell) wait in the composer of that window's 「Agent」 tab,
+/// checked and limited as dropped ones, and the right column opens on it.
+#[gpui::test]
+fn images_handed_over_from_a_page_wait_in_the_windows_agent_composer(cx: &mut TestAppContext) {
+    let fixture = Fixture::new();
+    let driver = Arc::new(ScriptedDriver::new(Vec::new()));
+    let (views, cx) = open(
+        cx,
+        &fixture,
+        driver.clone(),
+        &[Provider::Deepseek],
+        "http://127.0.0.1:9/models",
+    );
+    let sketch = fixture.file("handed.png", &dr_testkit::media::png(50, 40));
+    let heic = fixture.file("handed.heic", dr_testkit::media::HEIC);
+    views
+        .shell
+        .update(cx, |ws, window, cx| {
+            ws.give_agent_images(
+                dr_shell::pages::AgentImages::Files(vec![sketch, heic]),
+                window,
+                cx,
+            )
+        })
+        .unwrap();
+    // The window's own 「Agent」 tab (not the panel this test made).
+    let tab = |cx: &mut VisualTestContext| {
+        cx.update(|_, cx| {
+            dr_view_agent::panels(cx)
+                .into_iter()
+                .find(|p| p.entity_id() != views.panel.entity_id())
+        })
+    };
+    let panel = tab(cx).expect("the shell made its 「Agent」 tab to hand them to");
+    // Read and checked off the main thread, then the line under the
+    // transcript says what could not go (the panel of a window this test
+    // does not draw may still be loading its conversations).
+    wait(cx, |cx| {
+        panel.read_with(cx, |p, _| p.attached().len() == 1 && p.error().is_some())
+    });
+    let unsupported =
+        cx.update(|_, cx| t(cx, dr_i18n::keys::agent_images::UNSUPPORTED).to_string());
+    assert_eq!(
+        panel.read_with(cx, |p, _| p.error().map(str::to_owned)),
+        Some(unsupported)
+    );
+    assert!(
+        views.shell.read_with(cx, |ws, _| ws.right.open).unwrap(),
+        "the right column opens"
+    );
+    // Pasted pictures: the per-message limit is said, as in the composer.
+    let pictures: Vec<Vec<u8>> = (0..MAX_IMAGES_PER_MESSAGE as u32)
+        .map(|n| dr_testkit::media::png(20 + n, 20))
+        .collect();
+    views
+        .shell
+        .update(cx, |ws, window, cx| {
+            ws.give_agent_images(dr_shell::pages::AgentImages::Bytes(pictures), window, cx)
+        })
+        .unwrap();
+    wait(cx, |cx| {
+        panel.read_with(cx, |p, _| p.attached().len() == MAX_IMAGES_PER_MESSAGE)
+    });
+    let too_many = panel
+        .read_with(cx, |p, _| p.error().map(str::to_owned))
+        .unwrap();
+    assert!(
+        too_many.contains(&MAX_IMAGES_PER_MESSAGE.to_string()),
+        "{too_many}"
+    );
+    // Nothing is sent.
     assert!(driver.requests().is_empty());
     close(&views, &fixture, cx);
 }

@@ -19,6 +19,9 @@
 //! - **一炷香** (`incense`): [`ToggleImmersiveWriting`]. In a split only the
 //!   right page has it, as in the 0.1 client.
 //!
+//! A page registered with [`crate::pages::add_page_without_corner_tools`]
+//! (the module workbench, CW) has none of them.
+//!
 //! The writing status and the trash go through F3's commands as the author,
 //! off the main thread; the lists change when F3's bus says the book did.
 
@@ -70,6 +73,10 @@ pub fn corner(
     // A filled panel covers the paper: the corner would stand on the
     // filled panel's own foot (the left column's 进模板结构 and 新建模板).
     if w.immersive || w.fill_covers_paper() {
+        return div().into_any_element();
+    }
+    // A page that has none (the module workbench, CW).
+    if target.is_some_and(|t| pages::without_corner_tools(t, cx)) {
         return div().into_any_element();
     }
     let key = target.map_or_else(|| "home".to_owned(), Target::key);

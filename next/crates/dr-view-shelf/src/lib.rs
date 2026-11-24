@@ -37,6 +37,7 @@ pub mod projects;
 pub mod templates;
 mod view;
 
+pub use modules::{PREVIEW_ZOOM, zoom_plan, zoom_scale};
 pub use templates::{NewProjectModal, TemplatePick};
 pub use view::{
     ExportBook, ExportModule, ExportTemplate, ImportBook, ImportLegacyLibrary, ImportModule,

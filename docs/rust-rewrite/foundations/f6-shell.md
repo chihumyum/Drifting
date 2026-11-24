@@ -1429,3 +1429,10 @@ G1 正式接线后，`#L3-L7` 按既定范围语义选择起止块，而旧 F6 �
 - 换着的时候左右栏不能铺满：整月和右栏停在统计、Agent 时一样暗着（`chrome.rs`），`enter_fill_with_motion` 也拒绝；底栏能铺满，铺满时两栏换回原来的。
 - `review_visible`、`companion_visible` 跟着改：页面的右栏在时审阅不算露着；「Agent」露着的是主窗格那个。
 - 测试：`dr-view-module-bench/tests/bench.rs` 的 `the_side_columns_follow_the_workbench_pill`。
+
+CW（2026-11-24 第二轮）又加了三个口，原有行为不变：
+
+- `pages::set_agent_images` 和 `Workspace::give_agent_images(AgentImages, window, cx)`：页面把图片交给 Agent（工作台的稿纸收拖进、粘贴的图片）。右栏收着就打开，页面的左右栏露着时停在它的「Agent」，否则停在右栏的「Agent」Tab；图片交给主窗格那个「Agent」的输入框（Agent 那一路注册的函数接，和拖进、粘贴到输入框是同一条路）。`AgentImages::on_clipboard` 是输入框读剪贴板的那条规矩（有文件收文件，没有字才收图），输入框和稿纸共用。`sidebar.rs` 的 `companion_panel` 因此改成 `pub(super)`。
+- `pages::add_page_without_corner_tools(cx, |target| -> bool)`：页面不要稿纸右下角的工具（竹子、托盘、一炷香）；`corner.rs` 先问它。只有工作台用。
+- 稿纸顶上的药丸收着时的记号：`DockMark` 多一个 `icon`（dr-ui），工作台的药丸收着时也画「线装」（`dock.rs` 的 `dock_mark`）。
+- 测试：`dr-view-module-bench/tests/bench.rs` 的 `images_dropped_or_pasted_on_the_paper_go_to_the_agent`、`the_paper_has_no_corner_tools_and_the_pill_rests_stitched`，`dr-view-agent/tests/attachments.rs` 的 `images_handed_over_from_a_page_wait_in_the_windows_agent_composer`，`dock.rs` 的单元测试。详见 [m44-custom-modules.md](../modules/m44-custom-modules.md)「工作台的几处后续（CW）」。

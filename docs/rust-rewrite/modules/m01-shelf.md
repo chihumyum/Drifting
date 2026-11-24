@@ -260,3 +260,5 @@ TS 合并树 `dc96f1662` 的全套检查通过，Rust 工作区 3,109 通过、0
 ## CM3：我的模块（2026-11-24）
 
 「我的模板」下面一节「我的模块」（`src/modules.rs`）：一个模块一行（「线装」记号），悬停卡里名字、用示例画的「一块」、编辑、导出（.driftingmodule）、删除（先问一句，照「我的模板」）；「导入模板」下面多一行「导入模块 .driftingmodule」（`ImportModule` 动作，`dr-view-transfer` 接）。「编辑」收起「全部项目」，在窗口开着的项目（没开着就开最近改过的）里打开工作台药丸。数据在 `ShelfData::modules`，听 `module:` 文档的存储事件重读。详见 [m44-custom-modules.md](m44-custom-modules.md)「工作台、我的模块、导出导入（CM3）」；测试 `tests/cm3_shelf_modules.rs`。
+
+CW（2026-11-24 第二轮）：悬停卡里的模块按原型的比例缩到 0.62（`PREVIEW_ZOOM`），不再原大折行。GPUI 不能缩放着画一整块，所以缩在交给渲染器的东西上（`zoom_plan` 缩版面里的间距、内边距、圆角、最宽、格的列宽，`zoom_scale` 缩字号表），渲染器自己定死的记号、点、轴线、发丝线不缩。测试 `the_zoom_scales_every_size_of_the_layout_and_the_type`、`the_card_draws_the_module_scaled_to_fit`。

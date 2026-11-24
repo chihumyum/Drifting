@@ -101,4 +101,37 @@ impl Workspace {
             cx.notify();
         }
     }
+
+    /// Images the page in front hands to the Agent (CW: dropped or pasted
+    /// on the module workbench's paper, `custom-modules.md` §8 入口 2): the
+    /// right column opens, if closed, on 「Agent」 (the page's own tab while
+    /// its panels show) and they wait in its composer, checked and limited
+    /// as there (CM4a, [`pages::set_agent_images`]). Nothing is sent.
+    pub fn give_agent_images(
+        &mut self,
+        images: pages::AgentImages,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(take) = pages::agent_images(cx) else {
+            return;
+        };
+        match self.nav.current().cloned() {
+            Some(target) if self.page_panels_shown() => self.show_page_tab(&target, AGENT_TAB, cx),
+            _ => {
+                self.exit_fill(window, cx);
+                self.right.panes.reveal(super::RightTab::Companion);
+            }
+        }
+        let reduce = self.reduce_motion(window, cx);
+        self.right.set_open(true, reduce);
+        // The 「Agent」 tab's panel: the primary pane's, which a page's own
+        // 「Agent」 shows too.
+        let panel =
+            super::sidebar::companion_panel(self, crate::panes::PaneId::Primary, window, cx);
+        if let Some(panel) = panel {
+            take(&panel.body, images, cx);
+        }
+        self.changed(cx);
+    }
 }

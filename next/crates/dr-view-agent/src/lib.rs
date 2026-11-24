@@ -142,4 +142,11 @@ pub fn init_with_service(
             body: body.into(),
         }
     });
+    // CW: images a page hands to the Agent (the module workbench's paper)
+    // wait in that window's panel's composer.
+    dr_shell::pages::set_agent_images(cx, |body, images, cx| {
+        if let Ok(panel) = body.clone().downcast::<AgentPanel>() {
+            panel.update(cx, |panel, cx| panel.take_images(images, cx));
+        }
+    });
 }

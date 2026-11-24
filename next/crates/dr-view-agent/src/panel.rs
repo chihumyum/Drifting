@@ -671,35 +671,30 @@ impl AgentPanel {
         }
     }
 
+    /// Images handed over from a page (CW: dropped or pasted on the module
+    /// workbench's paper, [`dr_shell::Workspace::give_agent_images`]):
+    /// attached as if dropped or pasted here.
+    pub fn take_images(&mut self, images: dr_shell::pages::AgentImages, cx: &mut Context<Self>) {
+        match images {
+            dr_shell::pages::AgentImages::Files(paths) => self.attach_paths(paths, cx),
+            dr_shell::pages::AgentImages::Bytes(items) => self.attach_bytes(items, cx),
+        }
+    }
+
     /// ⌘V in the composer: files on the clipboard, or an image without any
     /// text, are attached; anything with text is pasted as text by the field
-    /// itself. True when it was taken here.
+    /// itself ([`dr_shell::pages::AgentImages::on_clipboard`], which the
+    /// workbench's paper reads the same way). True when it was taken here.
     fn paste_images(&mut self, cx: &mut Context<Self>) -> bool {
         let Some(item) = cx.read_from_clipboard() else {
             return false;
         };
-        let mut paths = Vec::new();
-        let mut pictures = Vec::new();
-        let mut text = false;
-        for entry in item.entries() {
-            match entry {
-                gpui::ClipboardEntry::ExternalPaths(found) => {
-                    paths.extend(found.paths().iter().cloned())
-                }
-                gpui::ClipboardEntry::Image(image) => pictures.push(image.bytes().to_vec()),
-                gpui::ClipboardEntry::String(_) => text = true,
-                #[allow(unreachable_patterns)]
-                _ => {}
+        match dr_shell::pages::AgentImages::on_clipboard(&item) {
+            Some(images) => {
+                self.take_images(images, cx);
+                true
             }
-        }
-        if !paths.is_empty() {
-            self.attach_paths(paths, cx);
-            true
-        } else if !text && !pictures.is_empty() {
-            self.attach_bytes(pictures, cx);
-            true
-        } else {
-            false
+            None => false,
         }
     }
 

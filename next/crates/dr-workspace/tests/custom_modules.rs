@@ -813,3 +813,85 @@ fn an_entry_checkpoint_brings_custom_values_back() {
     e.ws().undo(&Actor::User).unwrap().unwrap();
     assert_eq!(read(&e, &book, &entry)["values"], after);
 }
+
+/// CW: what my module was before the Agent's latest changes, read back from
+/// the Agent's settlement receipts on this device and the module's history:
+/// newest first, whole, only while each is the module's latest change, not
+/// past a change of the author's, another device's, or the one that made
+/// the module.
+#[test]
+fn the_agents_changes_to_my_module_read_back_from_its_receipts() {
+    use dr_model::custom_module::ModuleValue;
+    use dr_model::id::CustomModuleId;
+    use dr_workspace::commands::v3::custom_module::agent_changes;
+
+    let e = env();
+    let id = create(&e, FORESHADOWING);
+    let mid: CustomModuleId = id.parse().unwrap();
+    let original: ModuleValue = serde_json::from_str(FORESHADOWING).unwrap();
+    let renamed = |name: &str| {
+        let mut v = original.clone();
+        v.name = name.into();
+        v
+    };
+    let agent = |turn: u32| Actor::agent("cw-receipts", turn, format!("c{turn}"));
+    let update = |actor: &Actor, value: &ModuleValue| {
+        call(
+            e.ws(),
+            actor,
+            "custom_module.update",
+            json!({"id": id, "value": serde_json::to_value(value).unwrap()}),
+        );
+    };
+    let changes = |back_to: Option<&ModuleValue>, limit| {
+        agent_changes(e.ws(), &mid, back_to, limit)
+            .unwrap()
+            .unwrap()
+    };
+    // Made by the author: nothing of the Agent's.
+    let c = changes(None, 10);
+    assert_eq!(c.now, original);
+    assert!(c.before.is_empty());
+    // Two changes of the Agent's: newest first, back to the original.
+    let (one, two) = (renamed("一"), renamed("二"));
+    update(&agent(1), &one);
+    update(&agent(2), &two);
+    let c = changes(None, 10);
+    assert_eq!(c.now, two);
+    assert_eq!(c.before, vec![one.clone(), original.clone()]);
+    assert_eq!(changes(None, 1).before, vec![one.clone()]);
+    assert_eq!(changes(Some(&one), 10).before, vec![one.clone()]);
+    assert!(changes(Some(&two), 10).before.is_empty());
+    // A change of the author's after them: nothing to take back.
+    let three = renamed("三");
+    update(&Actor::User, &three);
+    assert!(changes(None, 10).before.is_empty());
+    // The Agent again: back to the author's, not past it.
+    let four = renamed("四");
+    update(&agent(3), &four);
+    assert_eq!(changes(None, 10).before, vec![three.clone()]);
+    // A module the Agent made has nothing before it.
+    let made = e
+        .ws()
+        .call(
+            &agent(4),
+            "custom_module.create",
+            json!({"value": module(MAGIC)}),
+        )
+        .unwrap()["output"]["id"]
+        .as_str()
+        .unwrap()
+        .parse::<CustomModuleId>()
+        .unwrap();
+    let c = agent_changes(e.ws(), &made, None, 10).unwrap().unwrap();
+    assert!(c.before.is_empty());
+    // Another device has none of this device's receipts.
+    let b = env();
+    sync_kind(&e, &b, "module");
+    let c = agent_changes(b.ws(), &mid, None, 10).unwrap().unwrap();
+    assert_eq!(c.now, four);
+    assert!(c.before.is_empty());
+    // Not one of my modules.
+    e.call("custom_module.remove", json!({"id": id}));
+    assert!(agent_changes(e.ws(), &mid, None, 10).unwrap().is_none());
+}

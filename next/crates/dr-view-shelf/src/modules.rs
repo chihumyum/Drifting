@@ -11,7 +11,7 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use dr_i18n::keys::{self, module_bench as mb};
-use dr_model::custom_module::{LookSize, ModuleValue};
+use dr_model::custom_module::{Column, LookSize, ModuleValue};
 use dr_shell::strings::{t, tf};
 use dr_ui::{
     Theme,
@@ -20,8 +20,12 @@ use dr_ui::{
     glass::{self, Kind as GlassKind, Mode, Spec, Tone},
     sand::{self, Icon},
     style::DrStyled,
+    tokens::metrics::TypeScale,
 };
-use dr_view_module_look::{Blanks, Scope};
+use dr_view_module_look::{
+    AppWords, Blanks, Scope, paint,
+    plan::{self, PBox, PNode, Plan},
+};
 use dr_workspace::commands::v3::custom_module::ModuleSummary;
 use gpui::{
     AnyElement, App, ClickEvent, Context, ElementId, InteractiveElement, IntoElement, MouseButton,
@@ -148,17 +152,14 @@ fn module_card(
         summary.name.clone(),
     );
     if let Some(value) = value {
-        let look = dr_view_module_look::render(
+        let look = preview(
             ElementId::Name(format!("shelf-module-look-{mid}").into()),
             value,
-            &Scope::sample(value),
-            LookSize::Block,
-            Blanks::Dash,
-            None,
             window,
             cx,
         );
         let sel = format!("shelf-module-preview-{mid}");
+        let look_sel = format!("shelf-module-preview-look-{mid}");
         card = card.section(vec![
             div()
                 .debug_selector(move || sel.clone())
@@ -168,7 +169,7 @@ fn module_card(
                 .rounded(px(3.0))
                 .bg(p.page.solid())
                 .p(px(8.0))
-                .child(look)
+                .child(div().debug_selector(move || look_sel.clone()).child(look))
                 .into_any_element(),
         ]);
     }
@@ -241,6 +242,82 @@ fn module_card(
                 .into_any_element(),
         ]);
     card.into_any_element()
+}
+
+/// How much smaller a row's hover card draws the module than an entry page
+/// does: the prototype's `.hc-prev .zoomer { zoom: 0.62 }` (CW). The card is
+/// narrow; at full size the module's words wrapped.
+pub const PREVIEW_ZOOM: f32 = 0.62;
+
+/// The module's 一块 with its sample, [`PREVIEW_ZOOM`] times its size. GPUI
+/// draws no element scaled, so the scaling is done to what the renderer
+/// (`dr-view-module-look`, drawing as it does everywhere) is given: the
+/// layout's spacing, corners, widths and grid columns, and the interface
+/// type scale its four sizes come from. What the renderer sizes itself (the
+/// marks, a number's dots, a list's axis, hairlines) keeps its size.
+fn preview(id: ElementId, value: &ModuleValue, window: &mut Window, cx: &mut App) -> AnyElement {
+    let theme = Theme::of(window, cx);
+    let laid = plan::plan(value, &Scope::sample(value), LookSize::Block, &AppWords(cx));
+    let laid = zoom_plan(laid, PREVIEW_ZOOM);
+    let theme = Theme {
+        scale: zoom_scale(theme.scale, PREVIEW_ZOOM),
+        ..theme
+    };
+    paint::paint_with(id, &laid, Blanks::Dash, None, theme, None, window, cx)
+}
+
+/// `plan` with its sizes `z` times what they were.
+pub fn zoom_plan(mut plan: Plan, z: f32) -> Plan {
+    zoom_node(&mut plan.root, z);
+    plan
+}
+
+fn zoom_node(node: &mut PNode, z: f32) {
+    match node {
+        PNode::Box(b) => zoom_box(b, z),
+        PNode::Each(each) => {
+            each.gap *= z;
+            for item in &mut each.items {
+                zoom_box(&mut item.body, z);
+            }
+        }
+        PNode::Value(_) | PNode::Text(_) | PNode::Mark(_) => {}
+    }
+}
+
+fn zoom_box(b: &mut PBox, z: f32) {
+    b.gap *= z;
+    b.pad *= z;
+    b.radius *= z;
+    b.max = b.max.map(|max| max * z);
+    for col in &mut b.cols {
+        if let Column::Fixed(w) = col {
+            *w = (f32::from(*w) * z).round().max(1.0) as u16;
+        }
+    }
+    for kid in &mut b.kids {
+        zoom_node(kid, z);
+    }
+}
+
+/// The interface type scale `z` times what it is.
+pub fn zoom_scale(s: TypeScale, z: f32) -> TypeScale {
+    TypeScale {
+        caption: s.caption * z,
+        secondary: s.secondary * z,
+        body: s.body * z,
+        emphasis: s.emphasis * z,
+        heading: s.heading * z,
+        line_caption: s.line_caption * z,
+        line_body: s.line_body * z,
+        control_height: s.control_height * z,
+        row_height: s.row_height * z,
+        menu_row: s.menu_row * z,
+        menu_text: s.menu_text * z,
+        menu_line: s.menu_line * z,
+        dialog_title: s.dialog_title * z,
+        label: s.label * z,
+    }
 }
 
 /// The question before deleting a module of mine for good (as a saved

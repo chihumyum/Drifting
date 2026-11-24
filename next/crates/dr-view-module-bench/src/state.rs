@@ -11,6 +11,14 @@
 //! shows what is stored now and says it could not save (a whole module is
 //! never written over a change it has not seen). ⌘Z and ⇧⌘Z go back and
 //! forth through the changes made here, each written the same way.
+//!
+//! The Agent's changes are steps of ⌘Z too (CW, §7 「Agent 改的也是一步」):
+//! one made while the pill is open goes on top of the steps made here; one
+//! made before the workbench opened is its first step back, while nothing
+//! came after it. What the module was before each comes from the Agent's
+//! settlement receipts on this device
+//! (`dr_workspace::commands::v3::custom_module::agent_changes`). A change
+//! from anywhere else (another device) still clears the steps.
 
 use std::collections::BTreeMap;
 use std::rc::Rc;
@@ -28,8 +36,8 @@ use dr_shell::{
 use dr_workspace::{
     Actor, Workspace as Library, WsError,
     commands::v3::custom_module::{
-        CustomIn, CustomModuleGet, CustomModuleSaveAs, CustomModuleUpdate, CustomModuleUses,
-        CustomRead, IdIn, SaveAsIn, UpdateIn,
+        AgentChanges, CustomIn, CustomModuleSaveAs, CustomModuleUpdate, CustomModuleUses,
+        CustomRead, IdIn, SaveAsIn, UpdateIn, agent_changes,
     },
 };
 use gpui::{
@@ -233,24 +241,34 @@ impl Bench {
         }
         self.reading = true;
         let lib = self.lib.clone();
-        let id = self.id.to_string();
+        let id = self.id.clone();
+        let stored = self.stored.clone();
         let job = cx.background_spawn(async move {
-            lib.run::<CustomModuleGet>(&Actor::User, IdIn { id })
-                .map(|o| o.output.value)
+            // The first read takes the Agent's last change, if nothing came
+            // after it; a read after a change elsewhere takes every change
+            // of the Agent's back to what was stored here.
+            let limit = if stored.is_some() { UNDO_LIMIT } else { 1 };
+            agent_changes(&lib, &id, stored.as_ref(), limit)?.ok_or_else(|| gone(&id))
         });
         cx.spawn(async move |this, cx| {
             let read = job.await;
             this.update(cx, |b, cx| {
                 b.reading = false;
                 match read {
-                    Ok(value) => {
-                        if b.stored.as_ref() != Some(&value) {
-                            // Changed elsewhere: what was undone here is
-                            // no longer what it was undone from.
-                            if b.stored.is_some() {
-                                b.undo.clear();
-                                b.redo.clear();
+                    Ok(changes) => {
+                        if b.stored.as_ref() != Some(&changes.now) {
+                            match b.stored.take() {
+                                // Opened after the Agent changed the module
+                                // (and nothing since): its change is the
+                                // first step back.
+                                None => {
+                                    if let Some(was) = changes.before.first() {
+                                        b.push_undo(was.clone());
+                                    }
+                                }
+                                Some(old) => b.changed_elsewhere(&old, &changes.before),
                             }
+                            let value = changes.now;
                             b.stored = Some(value.clone());
                             b.value = Some(value);
                             b.keep_selection();
@@ -269,6 +287,42 @@ impl Bench {
             .ok();
         })
         .detach();
+    }
+
+    /// A step back for ⌘Z, the oldest dropped past the limit; the same
+    /// module twice in a row is one step.
+    fn push_undo(&mut self, was: ModuleValue) {
+        if self.undo.last() == Some(&was) {
+            return;
+        }
+        self.undo.push(was);
+        if self.undo.len() > UNDO_LIMIT {
+            self.undo.remove(0);
+        }
+    }
+
+    /// My module went from `old` (last stored here) to what is stored now
+    /// without this workbench. `before` is what it was before each of the
+    /// Agent's changes leading to now, newest first: when they lead back
+    /// to `old`, each is a step on top of ⌘Z's (`custom-modules.md` §7
+    /// 「Agent 改的也是一步」), the newest on top. Otherwise (another device,
+    /// or a change of the Agent's on top of one) what was undone here is no
+    /// longer what it was undone from.
+    fn changed_elsewhere(&mut self, old: &ModuleValue, before: &[ModuleValue]) {
+        self.redo.clear();
+        match before.iter().position(|was| was == old) {
+            Some(last) => {
+                for was in before[..=last].iter().rev() {
+                    self.push_undo(was.clone());
+                }
+            }
+            None => self.undo.clear(),
+        }
+    }
+
+    /// What ⌘Z goes back to next, if anything (tests, the bridge).
+    pub fn undo_top(&self) -> Option<&ModuleValue> {
+        self.undo.last()
     }
 
     /// How many projects use it.
@@ -393,19 +447,24 @@ impl Bench {
         };
         self.writing = true;
         let lib = self.lib.clone();
-        let id = self.id.to_string();
+        let id = self.id.clone();
         let written = want.clone();
+        let held = base.clone();
         let job = cx.background_spawn(async move {
-            let now = lib
-                .run::<CustomModuleGet>(&Actor::User, IdIn { id: id.clone() })?
-                .output
-                .value;
-            if now != base {
-                return Err(Write::Changed(Box::new(now)));
+            let changes =
+                agent_changes(&lib, &id, Some(&base), UNDO_LIMIT)?.ok_or_else(|| gone(&id))?;
+            if changes.now != base {
+                return Err(Write::Changed(Box::new(changes)));
             }
             let value =
                 serde_json::to_value(&want).map_err(|e| WsError::Internal(e.to_string()))?;
-            lib.run::<CustomModuleUpdate>(&Actor::User, UpdateIn { id, value })?;
+            lib.run::<CustomModuleUpdate>(
+                &Actor::User,
+                UpdateIn {
+                    id: id.to_string(),
+                    value,
+                },
+            )?;
             Ok(())
         });
         cx.spawn(async move |this, cx| {
@@ -414,11 +473,15 @@ impl Bench {
                 b.writing = false;
                 match result {
                     Ok(()) => b.stored = Some(written),
-                    Err(Write::Changed(now)) => {
-                        let now = *now;
+                    Err(Write::Changed(changes)) => {
+                        // The changes made here that were not written are
+                        // gone, and the steps back to them; what changed
+                        // it elsewhere is the Agent's to take back, if it
+                        // was the Agent's alone.
+                        let AgentChanges { now, before } = *changes;
                         b.queue = None;
                         b.undo.clear();
-                        b.redo.clear();
+                        b.changed_elsewhere(&held, &before);
                         b.stored = Some(now.clone());
                         b.value = Some(now);
                         b.keep_selection();
@@ -679,8 +742,16 @@ impl Bench {
 /// A write that did not go: the module changed since it was last stored
 /// here, or the command refused.
 enum Write {
-    Changed(Box<ModuleValue>),
+    Changed(Box<AgentChanges>),
     Failed(WsError),
+}
+
+/// My modules do not have `id` (any more).
+fn gone(id: &CustomModuleId) -> WsError {
+    WsError::NotFound {
+        what: "module",
+        id: id.to_string(),
+    }
 }
 
 impl From<WsError> for Write {
