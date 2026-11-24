@@ -1326,6 +1326,9 @@ fn exclusion_v3(spec: &Spec) -> Option<&'static str> {
     if spec.name == "comment.restore_body" {
         return Some("scoped comment text undo is internal until K6 provides a guarded facade");
     }
+    if spec.name == "prose.restore_links" {
+        return Some("scoped prose link undo is internal until K6 provides a guarded facade");
+    }
 
     if spec.name == "module.prose_document" {
         return Some("storage, editor, or derived-state maintenance");

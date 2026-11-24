@@ -395,3 +395,13 @@ K2 的视图名称／泳道顺序等逐字段命令仍待协调；在接口提�
 - 两条开关工具的说明多半句：打开时，已经写下的名字在后台补成链接（目录快照跟着改）。补链接写正文和书目，Agent 这一轮读过的正文、批注被补过以后算变了，照现有的守卫要重读。
 - 打开一个和别的开着的条目重名的条目，错误照旧是 `invariant:V3-AUTOLINK-NAME-UNIQUE`，文字里带上撞的名字（照这个条目自己写的）、对方的 id 和标题，例如 `auto-link name "安娜" of entry <id> is already the name or an alias of entry <对方 id> ("安娜")`。
 - 内置写书模板写给 Agent 的几句改成新规则、不比原来长（要素、分类的说明和分类、分组的描述）：条目自己开着「自动链接」才链，分类的开关管一起开关和新建默认。`cargo test -p dr-view-agent --test local_context` 的余量照旧。
+
+## AP `prose.link` 加的链接记成手动的（2026-11-24）
+
+- **`prose.link`** 链到条目的链接和作者 @ 的同一种值（`manual: true`），条目自己的开关、作者的总开关关着都照样是链接，自动链接的规则不动它；链到素材库文件的照编辑器的写法，不带 `manual`。目录里它的说明多一句：「Links to entries count as the author's own: shown even where automatic linking is off.」（`prose.link`、`prose.unlink` 的说明同时去掉了「the undo of automatic links」那半句，输入里 `target` 的说明也换了，两条工具加起来只多十来个字符）。那几处原来没有链接、是自动的或手动的链接都能加；带 `module`、`block` 或这一版不认识的数据的链接照旧整条拒绝，什么也不写（输入结构里 `target` 的说明照这个改了）。
+- **`prose.unlink`** 摘自动的、手动的链接都行；遇到带更多数据的链接同样整条拒绝。
+- **输出 `ranges`** 只数真变了的那几段：已经是手动链接的地方再加一遍是 0，结果里的 `undo` 是空的。
+- **撤销**：两条命令结果里的 `undo` 现在是 `prose.restore_links { links: [{ doc, target, spans: [{ anchor, expected, value }] }] }`（以前互为撤销：`prose.link` 的撤销是 `prose.unlink`，反过来也一样）。每一段变了的字一条：`anchor` 是那段字的锚点，`expected` 是这次写完留下的值，`value` 是原来的值（`null` 是没有链接），值是正文里那个记号的原样（JSON）。跑的时候先把每一段都查一遍再写：那段字现在是 `expected` 就放回 `value`；已经是 `value` 的跳过（所以同一个逆操作跑两遍，第二遍什么也不做）；是第三种样子（后来别人改了）就整条拒绝（`conflict`），什么也不写；字整个删掉了的跳过；要放回的链接的目标已经永久删除时 `not_found`（撤销日志里这一步作废，和以前一样）。它自己的撤销是同一条命令、两个值对调，所以撤销、重做都逐字节回到原样。
+- **`prose.restore_links`** 只给工作区的撤销／重做和重放结果里记下的逆操作用，不进 Agent 的目录，也就不进入站 MCP（排除理由「scoped prose link undo is internal until K6 provides a guarded facade」，和 `comment.restore_body` 一样）。
+- 读写一个链接在一段字上逐段的原值、原样放回：`dr-doc` 新加的 `ProseView::entity_link_values` 和 `ProseTxn::put_entity_link_value`（只加，没改原有接口）。
+- 测试：`dr-workspace/tests/prose_links.rs`（三种原值各自撤销、重做、一次跨三种；摘链接和它的撤销；结果里的逆操作原样重放；带 `module` 的拒绝；后来被别人改过的几种情况；`prose.restore_links` 拒绝放不回原样的输入），`dr-agent-tools/tests/prose_links.rs`（经 Agent 外观调用、把结果里的 `undo` 当 JSON 文字存下再重放、目录里没有这条），`dr-doc` 的 `link_values_read_run_by_run_and_go_back_as_they_were`。

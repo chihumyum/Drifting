@@ -16112,7 +16112,7 @@ expression: json
             },
             "target": {
               "$ref": "#/$defs/Target",
-              "description": "A canonical entry. This inverse represents bare links;\nricher existing marks must use the versioned prose edit protocol."
+              "description": "A canonical entry or asset-library file. Refused where a link to it\nthere carries a module, blocks or unknown data."
             }
           },
           "required": [
@@ -16179,7 +16179,7 @@ expression: json
       "title": "LinksChanged",
       "type": "object"
     },
-    "summary": "Link anchored ranges of prose documents to entities (anchors, not positions: the undo of automatic links that were taken off)."
+    "summary": "Link anchored ranges of prose documents to entities (anchors, not positions). Links to entries count as the author's own: shown even where automatic linking is off."
   },
   {
     "access": "read",
@@ -16400,6 +16400,113 @@ expression: json
     "summary": "Restore a prose document to an earlier version, as a new change (history stays)."
   },
   {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "AnchorBytes": {
+          "description": "A comment's anchor as stored: the two Loro cursors dr-doc writes\n(`Cursor::encode()`, the start on the first anchored character, the end\non the last), each in base64 (standard alphabet, padded). The editor\nmoves these bytes between the book and the prose document unchanged.",
+          "properties": {
+            "end": {
+              "type": "string"
+            },
+            "start": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "start",
+            "end"
+          ],
+          "type": "object"
+        },
+        "LinkSpan": {
+          "description": "One run of a target's link on an anchored span: what the recorded write\nleft there and what to put back.",
+          "properties": {
+            "anchor": {
+              "$ref": "#/$defs/AnchorBytes",
+              "description": "The span, as an anchor (two cursors), so typing since moves nothing."
+            },
+            "expected": {
+              "default": null,
+              "description": "The link's stored value there as the recorded write left it (`null`:\nno link)."
+            },
+            "value": {
+              "default": null,
+              "description": "The stored value to put back (`null`: no link)."
+            }
+          },
+          "required": [
+            "anchor"
+          ],
+          "type": "object"
+        },
+        "LinkValues": {
+          "description": "One target's link on spans of one document.",
+          "properties": {
+            "doc": {
+              "type": "string"
+            },
+            "spans": {
+              "items": {
+                "$ref": "#/$defs/LinkSpan"
+              },
+              "type": "array"
+            },
+            "target": {
+              "description": "The target's id (an entry's or a file's): the link is the text's\nmark `entity:<target>`.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "doc",
+            "target",
+            "spans"
+          ],
+          "type": "object"
+        }
+      },
+      "properties": {
+        "links": {
+          "items": {
+            "$ref": "#/$defs/LinkValues"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "links"
+      ],
+      "title": "LinkValuesIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "prose.restore_links",
+    "output": {
+      "properties": {
+        "docs": {
+          "description": "Documents written.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "ranges": {
+          "description": "Ranges whose link changed (an anchor whose text is gone counts for\nnothing).",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "ranges",
+        "docs"
+      ],
+      "title": "LinksChanged",
+      "type": "object"
+    },
+    "summary": "Undo or redo a change of entity links on anchored spans of prose documents: on each span put back `value` while the link there still reads `expected` (a span already reading `value` is left alone). A link changed otherwise since refuses the whole call before anything is written."
+  },
+  {
     "access": "read",
     "concurrency": "shared",
     "input": {
@@ -16524,7 +16631,7 @@ expression: json
             },
             "target": {
               "$ref": "#/$defs/Target",
-              "description": "A canonical entry. This inverse represents bare links;\nricher existing marks must use the versioned prose edit protocol."
+              "description": "A canonical entry or asset-library file. Refused where a link to it\nthere carries a module, blocks or unknown data."
             }
           },
           "required": [
@@ -16591,7 +16698,7 @@ expression: json
       "title": "LinksChanged",
       "type": "object"
     },
-    "summary": "Take links to entities off anchored ranges of prose documents (anchors, not positions: the undo of automatic links)."
+    "summary": "Take links to entities off anchored ranges of prose documents (anchors, not positions)."
   },
   {
     "access": "read",

@@ -435,9 +435,11 @@ fn checklist_and_marker_comments_copy_entry_links_from_the_prose() {
             .iter()
             .find(|c| c["origin"] == origin)
             .unwrap();
+        // `prose.link` links the author's way (`manual`), and the comment
+        // keeps it so.
         assert_eq!(
             comment["body"],
-            json!({"text":"小竹","links":[{"start":0,"end":2,"entry":f.b}]})
+            json!({"text":"小竹","links":[{"start":0,"end":2,"entry":f.b,"manual":true}]})
         );
     }
 }

@@ -1018,8 +1018,9 @@ fn current_tracks_entry_links_from_the_pages_prose(cx: &mut TestAppContext) {
     };
     let a = body.entry().to_string();
     let refs = e.ws.library().references_from_entry(&a).unwrap();
-    // `prose.link` writes an automatic link: it shows while its entry's own
-    // 「自动链接」 is on (`kernel-v5.md` §16), so `b` is one that is.
+    // `prose.link` links the author's way (`manual`): the link counts
+    // whatever its entry's own 「自动链接」 says (`kernel-v5.md` §16), so
+    // `b` is one whose switch is off.
     let on =
         |id: &str| call(&e.ws, "entry.get", json!({"book": e.book, "id": id}))["auto_link"] == true;
     let others: Vec<_> = e
@@ -1028,7 +1029,7 @@ fn current_tracks_entry_links_from_the_pages_prose(cx: &mut TestAppContext) {
         .filter(|(id, _)| id != &a && !refs.iter().any(|r| &r.target_id == id))
         .map(|(id, _)| id.clone())
         .collect();
-    let b = others.iter().find(|id| on(id)).unwrap();
+    let b = others.iter().find(|id| !on(id)).unwrap();
     let c = others.iter().find(|id| *id != b).unwrap();
     pair(&e, b, c, "RL 正文链接", "directed");
     let (rail, mut cx, _) = open(cx, &e);

@@ -185,6 +185,96 @@ fn a_manual_link_keeps_its_mark_through_sync_copy_paste_snapshot_and_older_write
     assert_eq!(runs, vec![true, false]);
 }
 
+/// What a link edit records and what its undo puts back (`prose.link`,
+/// `prose.unlink` and `prose.restore_links`, `kernel-v5.md` §16): the stored
+/// value of one target's link on every run of a range, raw, newlines
+/// included, and each run written back exactly as it was.
+#[test]
+fn link_values_read_run_by_run_and_go_back_as_they_were() {
+    let mut a = doc("body:entry-source/prose", 1);
+    let auto = link("entry-a", None);
+    let picked = EntityLinkV3 {
+        manual: true,
+        ..link("entry-a", None)
+    };
+    user(&mut a, |t| {
+        t.insert_paragraphs(0, "甲乙丙丁\n戊己")?;
+        t.link_entity_v3(0..2, &auto)?;
+        t.link_entity_v3(2..3, &picked)?;
+        t.link_entity_v3(0..7, &other_entry())?;
+        // Another mark splitting a run does not split its value.
+        t.set_style(1..2, &InlineStyle::Bold)
+    });
+    // Data a newer version wrote, across a newline.
+    a.inner
+        .text
+        .mark(3..6, "entity:entry-a", raw("tail", "one"))
+        .unwrap();
+    a.inner.core.doc.commit();
+    let before = a.inner.text.to_delta();
+    let values = a.view().entity_link_values(0..7, "entry-a").unwrap();
+    assert_eq!(
+        values,
+        vec![
+            (0..2, Some(encode_entity_link(&auto, None).unwrap())),
+            (2..3, Some(encode_entity_link(&picked, None).unwrap())),
+            (3..6, Some(raw("tail", "one"))),
+            (6..7, None),
+        ]
+    );
+    assert_eq!(
+        a.view().entity_link_values(1..7, "entry-c").unwrap(),
+        vec![(1..7, None)]
+    );
+    assert!(
+        a.view()
+            .entity_link_values(2..2, "entry-a")
+            .unwrap()
+            .is_empty()
+    );
+    assert!(a.view().entity_link_values(0..100, "entry-a").is_err());
+
+    // Taken off, then put back run by run: as it was, other links and
+    // styles untouched.
+    user(&mut a, |t| t.unlink_entity(0..7, "entry-a"));
+    assert_ne!(a.inner.text.to_delta(), before);
+    user(&mut a, |t| {
+        for (range, value) in &values {
+            t.put_entity_link_value(range.clone(), "entry-a", value.as_ref())?;
+        }
+        Ok(())
+    });
+    assert_eq!(a.inner.text.to_delta(), before);
+    // A run put back over another value replaces it whole.
+    user(&mut a, |t| {
+        t.put_entity_link_value(0..3, "entry-a", values[0].1.as_ref())
+    });
+    assert_eq!(
+        a.view().entity_link_values(0..3, "entry-a").unwrap(),
+        vec![(0..3, values[0].1.clone())]
+    );
+
+    // Refused before anything is written: not a link's map, no target, a
+    // range past the end.
+    let version = a.version();
+    for (range, target, value) in [
+        (0..2, "entry-a", Some(LoroValue::from("future-encoding"))),
+        (0..2, "", None),
+        (0..100, "entry-a", None),
+    ] {
+        assert!(
+            a.edit(Origin::User, |t| t.put_entity_link_value(
+                range,
+                target,
+                value.as_ref()
+            ))
+            .0
+            .is_err()
+        );
+    }
+    assert_eq!(a.version(), version);
+}
+
 #[test]
 fn updating_a_link_preserves_segment_metadata_and_rejects_all_invalid_input_before_writing() {
     let mut a = doc("body:entry-source/prose", 1);
