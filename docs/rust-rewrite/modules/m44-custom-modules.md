@@ -539,7 +539,7 @@ Bench::undo_top() -> Option<&ModuleValue>;                        // ⌘Z 下一
 | 稿纸角上没有工具、条目页有；药丸收着时是「线装」 | `dr-view-module-bench/tests/bench.rs`：`the_paper_has_no_corner_tools_and_the_pill_rests_stitched`；`dr-ui` 的 `a_mark_can_be_a_brush_icon_in_its_kinds_place`；`dr-shell` 的 `a_workbench_rests_as_its_stitched_mark_and_pages_as_their_kind` |
 | 悬停卡的缩放：版面的每个尺寸、字号表乘 0.62，别的不变；卡里的模块是同宽原大画出来的 0.62 左右、比原大放进卡里矮 | `dr-view-shelf/tests/cm3_shelf_modules.rs`：`the_zoom_scales_every_size_of_the_layout_and_the_type`、`the_card_draws_the_module_scaled_to_fit` |
 
-真窗口：`cm3-module-bench.json` 加了这五处的步骤（Agent 用调试桥的 `actor: agent:…` 改名、⌘Z、核对我的模块和书里的抄本；关着 App 时由 Agent 改名，重开后 ⌘Z；书里自带的合成图片拖到稿纸上，输入框里出现一张；工作台上找不到「沉浸写作」「显示目录」「隐藏目录」、条目页上有「沉浸写作」；收着的药丸和悬停卡截图）。粘贴不在真窗口里验（不碰系统剪贴板）。
+真窗口：`cm3-module-bench.json` 加了这五处的步骤（Agent 用调试桥的 `actor: agent:…` 改名、⌘Z、核对我的模块和书里的抄本；关着 App 时由 Agent 改名，重开后 ⌘Z；书里自带的合成图片拖到稿纸上，输入框里出现一张；工作台上找不到「沉浸写作」「显示目录」「隐藏目录」、条目页上有「沉浸写作」；收着的药丸和悬停卡截图）。粘贴不在真窗口里验（不碰系统剪贴板）。悬停卡里的「编辑」改成按名字和角色点（`编辑`、MenuItem）：卡里的模块缩小以后，原来按「那一行往下 175」点会落到「删除」上。2026-11-24 晚在副屏跑过：161 步全过。
 
 ### 待协调
 
