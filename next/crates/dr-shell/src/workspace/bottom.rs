@@ -131,11 +131,14 @@ fn bounds(pane_min: f32, column_h: f32) -> (f32, f32) {
 }
 
 impl Workspace {
-    /// What the Bottom Panel shows now, if anything.
+    /// What the Bottom Panel shows now, if anything. A side panel's fill and
+    /// a module filling the middle column (CM2) put it away; it slides away
+    /// and back with their structural motion.
     pub fn bottom_pane(&self, cx: &App) -> Option<BottomPane> {
         if self.immersive
             || self.book_id.is_empty()
             || matches!(self.filled(), Some(FillPlace::Left | FillPlace::Right))
+            || self.filled_module().is_some()
         {
             return None;
         }

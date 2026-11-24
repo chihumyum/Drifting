@@ -36,7 +36,7 @@
     "trashSub": "Los proyectos se guardan aquí 30 días y después se eliminan definitivamente."
   },
   "customModule": {
-    "countOf": "{{count}} {{name}}"
+    "countOf": "{{name}}: {{count}}"
   },
   "entrySnapshot": {
     "empty": "Aún no hay instantáneas",

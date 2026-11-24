@@ -17,6 +17,35 @@ pub struct PutIn {
     pub book: String,
     pub template: types::EntryTemplate,
 }
+
+/// Gives every module without a position one between its neighbours in
+/// `modules`, so a template keeps the order its modules were given in (CR):
+/// the book keeps a template's modules by id, in the order of their
+/// positions (`dr_model::v3::sort_modules`), and without positions they
+/// would read back in the order of their ids. A position given is kept;
+/// where given positions disagree with the order given, they win.
+pub(crate) fn place_modules(modules: &mut [m::ModuleSpec]) {
+    let mut last: Option<dr_model::pos::PosKey> = None;
+    for i in 0..modules.len() {
+        if let Some(pos) = &modules[i].pos {
+            if last.as_ref().is_none_or(|l| pos > l) {
+                last = Some(pos.clone());
+            }
+            continue;
+        }
+        // Up to the next module that has a position, when it lies after.
+        let next = modules[i + 1..]
+            .iter()
+            .find_map(|m| m.pos.as_ref())
+            .filter(|next| last.as_ref().is_none_or(|l| *next > l));
+        let pos = dr_model::pos::PosKey::between(last.as_ref(), next)
+            .or_else(|_| dr_model::pos::PosKey::between(last.as_ref(), None))
+            .expect("a key after any valid key");
+        last = Some(pos.clone());
+        modules[i].pos = Some(pos);
+    }
+}
+
 /// `module`: the one module definition a call replaces or removes; `None`
 /// when it replaces the template.
 fn put(
@@ -26,6 +55,7 @@ fn put(
     module: Option<&str>,
     draft: bool,
 ) -> Result<Done> {
+    place_modules(&mut t.modules);
     let slot = cx.book_v3(book)?;
     let v = slot.reader_v3.view();
     let before = v.graph();
@@ -264,7 +294,9 @@ impl crate::Workspace {
             .get("entry_template.put")
             .expect("entry template put is registered");
         let cx = Cx::new(self, &crate::Actor::User, spec);
-        let draft: m::EntryTemplate = convert(draft)?;
+        let mut draft: m::EntryTemplate = convert(draft)?;
+        // As stored, so closing an unchanged draft finds it unchanged.
+        place_modules(&mut draft.modules);
         put(&cx, book, draft.clone(), None, true)?;
         Ok(EntryTemplateDraft {
             book: book.to_owned(),
@@ -342,10 +374,19 @@ op! {
     ModulePut="entry_template.put_module",Write,Book,"Add or update a module definition of any kind on a template.",fn(cx,input:ModulePutIn)->Done {
         let s = cx.book_v3(&input.book)?;
         let mut t = template_of(&s.reader_v3.view(), &input.template)?;
-        let module: m::ModuleSpec = convert(input.module)?;
+        let mut module: m::ModuleSpec = convert(input.module)?;
         let id = module.id.clone();
-        t.modules.retain(|m| m.id != module.id);
-        t.modules.push(module);
+        // A module put again keeps its place unless a position is given; a
+        // new one goes last (CR).
+        match t.modules.iter().position(|m| m.id == module.id) {
+            Some(ix) => {
+                if module.pos.is_none() {
+                    module.pos = t.modules[ix].pos.clone();
+                }
+                t.modules[ix] = module;
+            }
+            None => t.modules.push(module),
+        }
         put(cx, &input.book, t, Some(id.as_str()), false)
     }
 }

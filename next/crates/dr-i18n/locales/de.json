@@ -238,7 +238,7 @@
     "wordsCount": "{{count}} Wörter"
   },
   "customModule": {
-    "countOf": "{{count}} {{name}}"
+    "countOf": "{{name}}: {{count}}"
   },
   "dashboard": {
     "today": {

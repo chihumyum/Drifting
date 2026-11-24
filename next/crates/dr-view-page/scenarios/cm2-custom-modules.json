@@ -1,5 +1,5 @@
 {
-  "about": "CM2 条目模块自定义：副屏 lite 真窗口。一个条目模板放伏笔追踪、魔法规则卡、世界观年表三个样本模块，人物模板放人物弧光；条目页上就地填几种积木、加一项、拖动挪一项、串里套串、铺满再 Esc 退出，浅深色各截图。",
+  "about": "CM2 条目模块自定义：副屏 lite 真窗口。一个条目模板放伏笔追踪、魔法规则卡、世界观年表三个样本模块，人物模板放人物弧光；条目页上就地填几种积木、加一项、拖动挪一项、串里套串、铺满再 Esc 退出，浅深色各截图。CR：条目页上的模块照模板里给的先后（伏笔追踪、魔法规则卡、世界观年表、正文），不按 id；铺满开合和栏的一样走 420 ms，底栏跟着收起、放回（开到一半、收到一半各截一张）。",
   "steps": [
     {
       "seed": "lite"
@@ -820,6 +820,19 @@
       "note": "The 「＋ 伏笔」 row under 伏笔追踪: the module is drawn."
     },
     {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/v3Page/sections/0/id": "cm2-fore",
+          "/v3Page/sections/1/id": "cm2-magic",
+          "/v3Page/sections/2/id": "cm2-chrono",
+          "/v3Page/sections/3/id": "cm2-text"
+        },
+        "timeout_ms": 6000
+      },
+      "note": "CR: the modules in the order the template gave them, not by id (which would be 世界观年表, 伏笔追踪, 魔法规则卡)."
+    },
+    {
       "app": "input.move",
       "params": {
         "x": 640,
@@ -1300,6 +1313,29 @@
       "png": "02c-item-tools-light.png"
     },
     {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ToggleBottomTimeline"
+      },
+      "note": "CR: the timeline back under the paper, to see it slide away and back with the module's fill."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/bottom/pane": "timeline"
+        },
+        "timeout_ms": 6000
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 600
+      }
+    },
+    {
       "app": "ui.hover",
       "params": {
         "label": "起止",
@@ -1309,8 +1345,18 @@
     {
       "app": "ui.press",
       "params": {
-        "label": "铺满"
-      }
+        "label": "铺满",
+        "nth": 2
+      },
+      "note": "世界观年表's: the third module on the page (CR's order)."
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "03a-fill-opening-light.png",
+      "params": {
+        "settle_ms": 150
+      },
+      "note": "CR: part of the way through the 420 ms opening (the paper widening, the timeline sliding away)."
     },
     {
       "app": "ui.find",
@@ -1318,6 +1364,17 @@
         "label": "退出铺满",
         "timeout_ms": 6000
       }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/layer": "fill",
+          "/bottom/pane": null
+        },
+        "timeout_ms": 6000
+      },
+      "note": "CR: the bottom panel is put away while the module fills."
     },
     {
       "app": "input.move",
@@ -1337,6 +1394,14 @@
       }
     },
     {
+      "app": "ui.screenshot",
+      "png": "04a-fill-closing-light.png",
+      "params": {
+        "settle_ms": 150
+      },
+      "note": "CR: part of the way through the 420 ms closing (the paper narrowing, the timeline sliding back)."
+    },
+    {
       "app": "ui.wait",
       "params": {
         "until": "time",
@@ -1344,8 +1409,31 @@
       }
     },
     {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/layer": null,
+          "/bottom/pane": "timeline"
+        },
+        "timeout_ms": 6000
+      }
+    },
+    {
       "app": "ui.screenshot",
       "png": "04-after-fill-light.png"
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ToggleBottomTimeline"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 600
+      }
     },
     {
       "app": "nav.open",
@@ -1483,8 +1571,10 @@
     {
       "app": "ui.press",
       "params": {
-        "label": "铺满"
-      }
+        "label": "铺满",
+        "nth": 2
+      },
+      "note": "世界观年表's (CR's order: the third module)."
     },
     {
       "app": "ui.find",
@@ -1521,8 +1611,9 @@
       "app": "ui.press",
       "params": {
         "label": "铺满",
-        "nth": 2
-      }
+        "nth": 1
+      },
+      "note": "魔法规则卡's (CR's order: the second module)."
     },
     {
       "app": "ui.find",

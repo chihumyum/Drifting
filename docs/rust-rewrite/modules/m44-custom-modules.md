@@ -2,7 +2,7 @@
 
 2026-11-24，任务书 [handoff/resume-1123.md](../handoff/resume-1123.md) 的 CM1。设计是 [custom-modules.md](../custom-modules.md)（作者 2026-11-20 定稿，2026-11-23「现在就迁」）。这一路只做数据：格式和校验器、我的模块、书里的抄本和值、自动换、命令、项目模板带模块、`.driftingmodule` 文件。没有任何界面，也没有 Agent 的工具（CM2 渲染、CM3 工作台、CM4b Agent 照这一页的接口接）。
 
-同一天的 CM2（画出来、能填）写在本页末尾 [「渲染（CM2）」](#渲染cm2)：盒子树画成界面、条目页上能填、铺满、悬停卡里的一行、坏了的抄本。CM3（工作台、我的模块、导出导入）在它后面 [「工作台、我的模块、导出导入（CM3）」](#工作台我的模块导出导入cm3)。
+同一天的 CM2（画出来、能填）写在本页末尾 [「渲染（CM2）」](#渲染cm2)：盒子树画成界面、条目页上能填、铺满、悬停卡里的一行、坏了的抄本；它的三处后续（铺满的开合、英文等语言的个数写法、条目页上模块的先后）在 [「渲染的后续（CR）」](#渲染的后续cr)。CM3（工作台、我的模块、导出导入）在它后面 [「工作台、我的模块、导出导入（CM3）」](#工作台我的模块导出导入cm3)。
 
 ## 做了什么（大白话）
 
@@ -296,8 +296,8 @@ blocks   每块积木：id、type、name、options、list（住在哪一串）�
 
 1. **盒子树画成界面。** 一个模块的「长什么样」加一份值，画成一块界面。五种节点（盒子、每一项、值、字、记号）和第 4 节清单里的每个属性都有对应，档位都落到 `dr-ui` 现成的东西上：三种字体是 App 的三种字（衬线是正文的、无衬线是界面的、等宽是索引的），四档大小是界面字号，四档墨色是调色板的墨，边是发丝线、静止的玻璃线或者静止的砂笔框，底是稿纸或一层淡墨，弧线是一道砂笔，记号是记号选择器的那七个砂笔记号；单选显示成记号时第一个选项空心、最后一个实心、中间半实，数字显示成点数是五个砂笔点。没有别的颜色，深浅模式跟着主题自己换。
 2. **条目页上能看到、能填。** 条目模板里放了自定义模块的条目，条目页上按模板的顺序画出这个模块的「一块」，就地填：一行字、一段字、数字、日期直接在原处打字（无边框的输入框，字体字号墨色就是这个值自己的，离开时存，一行的回车存，Esc 放回原来的字）；单选、多选、条目、图片按一下弹出和「字段」模块下拉框一样的选项列表（「未设置」在最前面）；勾选按一下就翻；显示成点数的数字按一下变成输入框，存了以后回到点数。一串的每一项指上去出拖动把手和删除（竖着排的一串，把手在左边的页边、删除在右边的页边，不压住这一项的字；横着排的在这一项右上角），拖到另一项上就挪到那里；最后一项下面是一行「＋ 串的名字」，按了加一项。串里套串一样。每一次改动是一条命令、一步撤销，不拿读到的整份去替换。
-3. **铺满。** 模块标题行右边的铺满按钮（指着标题行时出现，铺满时一直在），按了这个模块铺满中间一列：稿纸撑到这一列最宽，只剩条目的头和这个模块，底栏收起；画的是「铺满」那棵树（没单独摆就是「一块」撑满）。Esc 或再按一次退出。和左右栏、底栏的铺满一样一次只有一处：铺左栏会退掉模块的铺满，反过来也一样；换页、关项目以后不记。
-4. **悬停卡里一行。** 指着正文里一个条目的名字，悬停卡在梗概下面给这个条目的每个自定义模块各画一行（模块单独摆了「一行」就画它，没摆就是前三块积木的值连成一行，一串显示成「3 个伏笔」这样的个数，图片和一组跳过）。
+3. **铺满。** 模块标题行右边的铺满按钮（指着标题行时出现，铺满时一直在），按了这个模块铺满中间一列：稿纸撑到这一列最宽，只剩条目的头和这个模块，底栏收起；画的是「铺满」那棵树（没单独摆就是「一块」撑满）。Esc 或再按一次退出。和左右栏、底栏的铺满一样一次只有一处：铺左栏会退掉模块的铺满，反过来也一样；换页、关项目以后不记。开合和栏的铺满一样走 420 ms（CR 补的，见下面「渲染的后续（CR）」）。
+4. **悬停卡里一行。** 指着正文里一个条目的名字，悬停卡在梗概下面给这个条目的每个自定义模块各画一行（模块单独摆了「一行」就画它，没摆就是前三块积木的值连成一行，一串显示成个数——中文「3 个伏笔」，英文等「伏笔: 3」——图片和一组跳过）。
 5. **坏了的抄本**（更新的 App 存的模块拿到这里）画一块空的占位，只写模块的名字，不能填，值一个字节都不动。书里没有这份抄本时也一样。
 6. **抄本被自动换掉时**，开着的条目页当场跟着变（新积木当场出现），值都在；正在打字的那一格不丢字，离开时照常存。
 7. **批注**只落到整个模块：条目页给每个模块的标题行页边按钮照旧，没有为自定义模块加别的。
@@ -311,8 +311,8 @@ blocks   每块积木：id、type、name、options、list（住在哪一串）�
 - 一串加一项的那一行写的是串自己的名字（作者起的），前面一个加号；删除和拖动把手的读屏名字借现成的「删除」「拖动排序」。
 - 工作台的「空」预览里每一串画一项、不带值（`Scope::blank`，原型的空预览就是这样）；条目页上一串没有项时什么都不画，只有「＋」那一行。
 - 能打字的格子空着时，淡字写的是积木的名字（输入框的占位字）；不能打字的值（单选、条目……）空着时画「—」。
-- 自动一行的「3 个伏笔」是新加的一句文案 `customModule.countOf`，九种语言。
-- 铺满时稿纸离这一列左右各 8 px（原型的 `midW - 16`）；没有开合动画（直接铺开、直接收回）。
+- 自动一行的「3 个伏笔」是新加的一句文案 `customModule.countOf`，九种语言（CR 改了英文等五种的写法，见下面）。
+- 铺满时稿纸离这一列左右各 8 px（原型的 `midW - 16`）；CM2 时没有开合动画，CR 补上了。
 
 ### 接口
 
@@ -369,7 +369,7 @@ trait Edit { fn value(..) -> AnyElement; fn item(..) -> AnyElement; fn after_ite
 ### 待协调
 
 - **CM3**（已做）：工作台的预览直接用 `dr_view_module_look::render`（「示例」`Scope::sample`、「空」`Scope::blank` + `Blanks::Names`、「借一个真实条目」读 `module.read_custom` 的 `values` 后 `Scope::read`）；点预览选节点要的是值节点和盒子到盒子树节点的对应，现在 `Plan` 里没有记节点在树里的路径，到时候在 `plan` 里加一个字段（只加）。
-- 铺满的开合动画没做（左右栏、底栏的是 420 ms 结构性开合）；要的话在 `FillState` 里给模块加一条和别的一样的 tween。
+- 铺满的开合动画：CR 做了（`FillState` 里给模块加了一条和栏一样的 tween）。
 - 模块铺满是全局状态（`FilledModule`），两个窗口开着两本书时会互相看见；现在 App 只有一个工作区窗口。
 
 ### 代码位置
@@ -379,6 +379,58 @@ trait Edit { fn value(..) -> AnyElement; fn item(..) -> AnyElement; fn after_ite
 - 铺满：`next/crates/dr-shell/src/workspace/fill.rs`（`ModuleFill` 一段）、`stage.rs`、`mod.rs`（`top_layer`、`changed`）、`v3/page.rs`。
 - 悬停卡：`next/crates/dr-editor/src/link_card.rs`。
 - 文案：`next/crates/dr-i18n/own/*.json` 的 `customModule.countOf`。
+
+## 渲染的后续（CR）
+
+2026-11-24，任务书 [handoff/resume-1123.md](../handoff/resume-1123.md) 的 CR：CM2 交回时留给作者的三处（progress.md「等作者的事」第 21 条「模块数据层和渲染（CM1、CM2）」(b)(c)(e)），作者答「都按照你的推荐来。」
+
+### 做了什么（大白话）
+
+1. **模块铺满有了开合。** 和左右栏、底栏的铺满一样走 420 ms 的结构性开合：按铺满，稿纸从原来的宽度慢慢撑到这一列最宽，底栏同时往下收走；Esc 或再按一次，稿纸慢慢收回原来的宽度，底栏同时升回来。页面上的内容（只剩头和这个模块，或者回到全部模块）在按下的那一刻就换，和左栏铺满时一样；大纲栏等稿纸完全收回以后才出来（不压在稿纸上）。系统开了「减弱动态效果」时一下子到位，和栏一样。
+2. **悬停卡里那一行的个数换了写法。** 英文、德文、西班牙文、葡萄牙文（巴西）改成「伏笔: 3」（名字、冒号、数），法文照法文的标点是「伏笔 : 3」；简体中文「3 个伏笔」、繁体中文「3 個伏笔」、日文「伏笔 3 件」、韩文「伏笔 3개」照旧。没有 App 文案时（只在测试里）的写法也改成「伏笔: 3」。只影响模块没单独摆「一行」、自动取前几块时一串的个数；作者自己在「一行」里写的后缀（「3 处伏笔」）不变。
+3. **条目页上模块的先后照模板里给的。** 查下来：模板里有顺序——每个模块带一个位置键（`pos`），读出来按位置键排，位置键一样或没有的按模块 id 排（`dr_model::v3::sort_modules`）；条目页本来就照这个顺序画。问题出在写进去的时候：`entry_template.put` 的 `modules` 是一个有先后的数组，但书里按模块 id 存、先后只记在位置键里，数组里没带位置键的模块（场景、Agent、MCP、命令这么写；模板编辑器自己会补）存进去就没有位置键，读出来就按 id 排了——CM2 场景里给的是伏笔追踪、魔法规则卡、世界观年表、正文，看到的是世界观年表、伏笔追踪、魔法规则卡、正文。另外 `entry_template.put_module` 改一个已有的模块时不带位置键，会把它原来的位置键删掉，它就跑到最后。不改格式就能修：写的时候补位置键。现在 `entry_template.put` 里没带位置键的模块按数组里的先后补上（在前后两个已有位置键之间，没有就接在后面）；带了的照旧，和数组先后对不上时位置键说了算；`put_module` 改已有的模块不带位置键就留在原处，新加的放最后；去掉一个模块时其余的不动。内置模块和自定义模块一起排。书目格式、位置键的写法都没变，读的一边一行没改。
+
+### 哪些地方跟着这个顺序
+
+画条目模块的地方都读同一份 `template.modules`（书目读出来时已经按位置键排好），所以写对了以后都跟着变，没有哪一处自己另排：
+
+| 地方 | 怎么读 | 跟着变 |
+| --- | --- | --- |
+| 条目页（`dr-shell/src/v3/page.rs` 的 `sync_parts`） | 按 `template.modules` 挨个放 | 是（测试 `the_entry_page_draws_modules_in_the_order_the_template_gives`） |
+| 页边大纲 | 按页上的段落 | 是 |
+| 铺满 | 只画铺满的那一个模块 | 不涉及先后 |
+| 悬停卡里的一行（`dr-editor/src/link_card.rs` 的 `module_lines`） | 按 `t.modules` 挨个取自定义模块 | 是（同一条测试） |
+| Agent 的结构说明（`dr-agent-tools/src/structure.rs` 的 `summarize_template`） | 按 `tpl.modules` 挨个列 | 是（测试 `the_structure_lists_a_templates_modules_in_the_order_they_were_given`）；示例书和种子的模板由内置写书模板直接写出、本来就带位置键，不经过这一处改动，它们的结构说明不变，`local_context` 的余量测试照旧过 |
+| Markdown 文件夹的文件头（`dr-mirror/src/file.rs` 的 `Header::for_entry`） | 按 `template.modules` 里字段模块的字段 | 是；自定义模块不写进文件夹（§16 第 2、3 条） |
+| 模板编辑器 | `entry_template.list` 的顺序 | 是（它自己加、挪模块时本来就补位置键，`dr-view-templates/src/model.rs` 的 `ensure_positions`） |
+| 成书导出里 `in_book` 正文的先后 | `template.modules` | 是 |
+| 素材库里的模块（`dr-view-material/src/library_data.rs`） | 自己再按 `sort_modules` 排一次，同一个规则 | 是 |
+
+没动的：`dr-view-review/src/composer.rs` 直接在书目里给模板加一篇正文（不走命令，没带位置键，照旧排在最后，本来就是想要的位置）。
+
+### 接口（只加）
+
+- `dr_shell::workspace::Workspace::module_fill_progress() -> f32`：模块铺满开到几成（0 原宽，1 最宽）。
+- `Workspace::bottom_pane` 在模块铺满时也是 `None`（底栏借它原来的开合收走、放回；以前铺满时干脆不画底栏）。
+- `dr_workspace::commands::v3::template::place_modules`（crate 内）：给没位置键的模块补位置键。`entry_template.put`、`put_module`、`remove_module` 和模板编辑器的新建草稿都经过它。
+
+### 测试
+
+| 要守的 | 测试 |
+| --- | --- |
+| 铺满开到一半稿纸在两个宽度之间、底栏正往下收，420 ms 到最宽、底栏收走；Esc 后同样收回、底栏升回原处 | `dr-view-page/tests/v5_custom_modules.rs`：`the_module_fill_opens_and_closes_over_the_panels_motion`（钟停在几个时刻上看） |
+| 减弱动态效果时一下子到位 | 同一文件 `the_module_fills_the_middle_column_and_esc_leaves`（加了两句：按下当时就开足，Esc 当时就回到原宽） |
+| 九种语言的个数写法 | `an_automatic_lines_count_is_said_name_then_number_where_needed`；没有 App 文案时：`dr-view-module-look/tests/paint.rs` 的 `a_line_draws_without_the_apps_words` |
+| 模板里给的先后：整份写、再写一个、新加、带位置键、不带位置键、去掉一个 | `dr-workspace/tests/custom_modules.rs`：`a_templates_modules_keep_the_order_they_were_given_in` |
+| 条目页、悬停卡、Agent 的结构说明是同一个先后 | `the_entry_page_draws_modules_in_the_order_the_template_gives`；`dr-agent-tools/tests/structure.rs` 的 `the_structure_lists_a_templates_modules_in_the_order_they_were_given` |
+
+真窗口：`dr-view-page/scenarios/cm2-custom-modules.json` 加了三处：打开条目页后核对页上模块的先后（伏笔追踪、魔法规则卡、世界观年表、正文）；浅色铺满前先把底栏打开，开到一半、收到一半各截一张（`settle_ms` 150），开足时核对底栏收走、Esc 后核对底栏回来，再收起底栏；按「铺满」的第几个跟着新的先后改了（世界观年表是第三个、魔法规则卡是第二个）。
+
+### 代码位置
+
+- 铺满的开合：`next/crates/dr-shell/src/workspace/fill.rs`（`FillState.module`、`set_module_fill`）、`stage.rs`（稿纸宽度、大纲栏）、`bottom.rs`（`bottom_pane`）。
+- 个数写法：`next/crates/dr-i18n/own/{en,de,es,fr,pt-BR}.json` 的 `customModule.countOf`；没有文案时：`dr-view-module-look/src/lib.rs` 的 `AppWords`。
+- 先后：`next/crates/dr-workspace/src/commands/v3/template.rs`（`place_modules`、`put`、`ModulePut`、`create_entry_template_draft`）。
 
 ## 工作台、我的模块、导出导入（CM3）
 

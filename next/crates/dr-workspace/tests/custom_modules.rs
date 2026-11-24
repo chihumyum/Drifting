@@ -813,3 +813,103 @@ fn an_entry_checkpoint_brings_custom_values_back() {
     e.ws().undo(&Actor::User).unwrap().unwrap();
     assert_eq!(read(&e, &book, &entry)["values"], after);
 }
+
+/// The ids of template `tpl`'s modules, in the template's order (the order
+/// every place that draws an entry's modules reads them in).
+fn module_order(e: &Env, book: &str, tpl: &str) -> Vec<String> {
+    e.out("entry_template.list", json!({"book": book}))
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|t| t["id"] == tpl)
+        .unwrap()["modules"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|m| m["id"].as_str().unwrap().to_owned())
+        .collect()
+}
+
+/// A template's modules keep the order they were given in (CR), built-in
+/// and custom ones alike: the book keeps them in the order of their
+/// positions, and a module given without a position gets one where it was
+/// given (before, they read back in the order of their ids). A module put
+/// again keeps its place; a new one goes last; positions given win.
+#[test]
+fn a_templates_modules_keep_the_order_they_were_given_in() {
+    let e = env();
+    let book = e.book();
+    let fore = create(&e, FORESHADOWING);
+    let magic = create(&e, MAGIC);
+    let chrono = create(&e, CHRONOLOGY);
+    e.call(
+        "entry_template.put",
+        json!({"book": book, "template": {
+            "id": "tpl-order", "name": "排序", "modules": [
+                {"id": "z-fore", "kind": "custom", "name": "伏笔追踪", "config": {"module": fore}},
+                {"id": "m-text", "kind": "prose", "name": "正文"},
+                {"id": "b-magic", "kind": "custom", "name": "魔法规则卡", "config": {"module": magic}},
+                {"id": "a-facts", "kind": "fields", "name": "字段"}
+            ]
+        }}),
+    );
+    assert_eq!(
+        module_order(&e, &book, "tpl-order"),
+        ["z-fore", "m-text", "b-magic", "a-facts"]
+    );
+    // Put again (renamed), a module keeps its place; a new one goes last.
+    e.call(
+        "entry_template.put_module",
+        json!({"book": book, "template": "tpl-order",
+            "module": {"id": "m-text", "kind": "prose", "name": "正文二"}}),
+    );
+    e.call(
+        "entry_template.put_module",
+        json!({"book": book, "template": "tpl-order",
+            "module": {"id": "aa-chrono", "kind": "custom", "name": "世界观年表",
+                "config": {"module": chrono}}}),
+    );
+    assert_eq!(
+        module_order(&e, &book, "tpl-order"),
+        ["z-fore", "m-text", "b-magic", "a-facts", "aa-chrono"]
+    );
+    // Given in another order with their positions, the positions win;
+    // without them, the order given.
+    let listed = e.out("entry_template.list", json!({"book": book}));
+    let mut template = listed
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|t| t["id"] == "tpl-order")
+        .unwrap()
+        .clone();
+    template["modules"].as_array_mut().unwrap().reverse();
+    e.call(
+        "entry_template.put",
+        json!({"book": book, "template": template.clone()}),
+    );
+    assert_eq!(
+        module_order(&e, &book, "tpl-order"),
+        ["z-fore", "m-text", "b-magic", "a-facts", "aa-chrono"]
+    );
+    for module in template["modules"].as_array_mut().unwrap() {
+        module.as_object_mut().unwrap().remove("pos");
+    }
+    e.call(
+        "entry_template.put",
+        json!({"book": book, "template": template}),
+    );
+    assert_eq!(
+        module_order(&e, &book, "tpl-order"),
+        ["aa-chrono", "a-facts", "b-magic", "m-text", "z-fore"]
+    );
+    // Taking one away leaves the others where they are.
+    e.call(
+        "entry_template.remove_module",
+        json!({"book": book, "template": "tpl-order", "module": "b-magic"}),
+    );
+    assert_eq!(
+        module_order(&e, &book, "tpl-order"),
+        ["aa-chrono", "a-facts", "m-text", "z-fore"]
+    );
+}
