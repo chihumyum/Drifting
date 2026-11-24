@@ -102,12 +102,12 @@ project.update [write] Update the project definition: Agent instructions, whethe
 project_template.get [read] Read a saved project template and its validated value.
 project_template.list [read] List saved project templates in this library.
 project_template.save [write] Save a project's structure and selected sample items as a project template, or a template's working copy over that template. It saves the current project. A new template needs `name`; with `replace` (a template read in this turn with project_template.list or project_template.get) it keeps that template's name and description unless they are given. `agent` is the words for the Agent the template carries: left out, the project's; null, none; given, these, in the template only (the project keeps its own). A template's working copy saves only over the template it edits, which has to be read first too; there `name`, `description` and `agent` are refused, since the template takes them from the copy's own project: change those with project.update (`name`, `summary`, `agent`).
-prose.link [write] Link anchored ranges of prose documents to entities (anchors, not positions: the undo of automatic links that were taken off). Link targets may be entries or asset-library files (kind = "asset"). Read the full prose document first.
+prose.link [write] Link anchored ranges of prose documents to entities (anchors, not positions). Links to entries count as the author's own: shown even where automatic linking is off. Link targets may be entries or asset-library files (kind = "asset"). Read the full prose document first.
 prose.read [read] Read paragraphs of a prose document (text, block id, heading level; a list item's kind and level, a checklist item's tick).
 prose.replace [write] Replace one exact passage of prose with new text (it must occur exactly once, in one paragraph).
 prose.restore [write] Restore a prose document to an earlier version, as a new change (history stays).
 prose.shape [read] Shape of a prose document: paragraphs, sentences, the share of dialogue, its checklist, the files it embeds and the files it links to (with those in Recently Deleted).
-prose.unlink [write] Take links to entities off anchored ranges of prose documents (anchors, not positions: the undo of automatic links). Link targets may be entries or asset-library files (kind = "asset"). Read the full prose document first.
+prose.unlink [write] Take links to entities off anchored ranges of prose documents (anchors, not positions). Link targets may be entries or asset-library files (kind = "asset"). Read the full prose document first.
 recent.list [read] List this device's live pages, retaining each entry's selected module.
 relation_row.add_entry [write] Add a live entry to one side of a row. Every new pair must be unique within the relation.
 relation_row.create_group [write] Create one exact relation row from two nonempty disjoint live-entry sets, in one undo step. Refuse stale direction or any pair already in another row.
@@ -220,12 +220,12 @@ project.update book d4f01e518616ece6d14245d4a738c4706da5b44ec0338a3862c4c4d034f4
 project_template.get shared d1d3c95c35ddd3b76dfb328394c458c3eb6f6849d757ad94c48a8143a61bbb51
 project_template.list shared 885f0943988d7a06cebf2ac97e5ba230a1d04b3a72df71b006371fa97550c1a8
 project_template.save library 43649bf9f068c447ebf0867e7d5e886cd0dcab99d2377559580d59fcb911b390
-prose.link book d6250d088f904f941347692230b5424cc026a80592844914910a86b107686df6
+prose.link book df3a90179c8553459b918a33f688b844ef0a10609c818529b5f3f3d8b5a486db
 prose.read shared 1e6fde6b01a9c6e9889dc9194c89f93669df269eb331cde732f98d8130ae7848
 prose.replace book b0591c896fc08245ca4e332124d791755507388cceb727caae65f527fbfe068f
 prose.restore book 74a6b009a098de0e87f1c44b27f65c1a1c111286e8aba3e56ab7cbe39b62efd1
 prose.shape shared 05387f9196c7c9346e7d57241e24f4648686980238fcd7030d508724784b9b74
-prose.unlink book 2647f19489c612a2909a603328f14636ad6e6b870a1334359ceea5798256f3fd
+prose.unlink book b71dd5d4f4ff9e70e8269534fe5ba5b2d86789813588c2b71bd42491b9536bd7
 recent.list shared bc76196f15de079012bdd643cac937fc642bb0303bc43e622f34d7d7ac85cdee
 relation_row.add_entry book 9768857751c01fdb8f58f2a04efb14adb257336415b6eda5b480c15e54d7484d
 relation_row.create_group book 1be96244a1422816f6da3fe8a28ed5c5a2df057943d7461c5143fbf5cad6f9e0
@@ -289,6 +289,7 @@ project_template.import: a project template reaches the Agent through list, get 
 project_template.remove: a project template reaches the Agent through list, get and save only; importing, exporting, editing and the community are the author's
 project_template.update: a project template reaches the Agent through list, get and save only; importing, exporting, editing and the community are the author's
 project_template.working_copies: a project template reaches the Agent through list, get and save only; importing, exporting, editing and the community are the author's
+prose.restore_links: scoped prose link undo is internal until K6 provides a guarded facade
 recent.touch: storage, editor, or derived-state maintenance
 relation_type.restore: scoped relation undo is internal until K6 provides a guarded facade
 timeline_view.add_lane: local timeline edits need exact lane, placement, and pin read coverage

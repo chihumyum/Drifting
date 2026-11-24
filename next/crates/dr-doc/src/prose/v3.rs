@@ -237,6 +237,49 @@ impl ProseView<'_> {
         let cell = cell(self, table, row, col)?;
         EntityLinkMarksV3::read(&cell, range)
     }
+
+    /// The stored value of the link to `target` over `range` of the body,
+    /// run by run, in order: maximal runs of one value, `None` where there
+    /// is no link to it, newlines included, values raw (unknown fields
+    /// kept). What a link edit records to put back exactly what was there
+    /// ([`ProseTxn::put_entity_link_value`]).
+    pub fn entity_link_values(
+        &self,
+        range: Range<usize>,
+        target: &str,
+    ) -> Result<Vec<(Range<usize>, Option<LoroValue>)>> {
+        check_range(self.text, &range)?;
+        let mut runs: Vec<(Range<usize>, Option<LoroValue>)> = Vec::new();
+        if range.is_empty() {
+            return Ok(runs);
+        }
+        let key = inline::entity_key(target);
+        let delta =
+            self.text
+                .slice_delta(range.start, range.end, loro::cursor::PosType::Unicode)?;
+        let mut at = range.start;
+        for delta in delta {
+            let TextDelta::Insert { insert, attributes } = delta else {
+                continue;
+            };
+            let end = at + insert.chars().count();
+            let span = at..end.min(range.end);
+            at = end;
+            if span.start >= span.end {
+                continue;
+            }
+            let value = attributes
+                .as_ref()
+                .and_then(|a| a.get(key.as_str()))
+                .filter(|v| !v.is_null())
+                .cloned();
+            match runs.last_mut() {
+                Some((run, was)) if run.end == span.start && *was == value => run.end = span.end,
+                _ => runs.push((span, value)),
+            }
+        }
+        Ok(runs)
+    }
 }
 
 impl ProseTxn<'_> {
@@ -357,6 +400,32 @@ impl ProseTxn<'_> {
     /// not touch surrounding links, styles, text, or any other document.
     pub fn apply_entity_links_v3(&mut self, at: usize, marks: &EntityLinkMarksV3) -> Result<()> {
         marks.apply(self.view.text, at)
+    }
+
+    /// Put `value` as the link to `target` on exactly `range` of the body,
+    /// raw, newlines included; `None` takes the link to `target` off. The
+    /// undo of a link edit putting back a run
+    /// [`ProseView::entity_link_values`] read: the value is written as it
+    /// was, unknown fields and all. A value is an entity link's map.
+    pub fn put_entity_link_value(
+        &mut self,
+        range: Range<usize>,
+        target: &str,
+        value: Option<&LoroValue>,
+    ) -> Result<()> {
+        check_range(self.view.text, &range)?;
+        if target.is_empty() || value.is_some_and(|v| !matches!(v, LoroValue::Map(_))) {
+            return Err(invalid());
+        }
+        if range.is_empty() {
+            return Ok(());
+        }
+        let key = inline::entity_key(target);
+        match value {
+            Some(value) => self.view.text.mark(range, &key, value.clone())?,
+            None => self.view.text.unmark(range, &key)?,
+        }
+        Ok(())
     }
 }
 

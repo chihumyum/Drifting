@@ -1,12 +1,14 @@
 //! The minimal prose interface: read paragraphs, replace an exact passage,
-//! restore a version, put entity links on or off anchored ranges (the undo
-//! of automatic links, `crate::autolink`). Editing proper is the editor's
+//! restore a version, put entity links on or off anchored ranges (and put
+//! back what a change of links found there). Editing proper is the editor's
 //! (F4); the Agent's projection of prose into editable text is M29.
 
 use dr_model::DocId;
-use dr_model::kind::ListKind;
+use dr_model::kind::{EntityKind, ListKind};
+use dr_model::v3::EntityLinkV3;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use super::*;
 use crate::cx::{EffectAction, Invocation};
@@ -19,6 +21,7 @@ pub(crate) fn register(r: &mut Registry) {
         .add::<ProseRestore>()
         .add::<ProseLink>()
         .add::<ProseUnlink>()
+        .add::<ProseRestoreLinks>()
         .add::<ProseShapeOp>();
 }
 
@@ -236,8 +239,8 @@ op! {
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct LinkIn {
     pub doc: String,
-    /// A canonical entry. This inverse represents bare links;
-    /// richer existing marks must use the versioned prose edit protocol.
+    /// A canonical entry or asset-library file. Refused where a link to it
+    /// there carries a module, blocks or unknown data.
     pub target: crate::dto::Target,
     /// The ranges, as anchors (two cursors each, as comments keep them), so
     /// typing since moves nothing.
@@ -260,18 +263,112 @@ pub struct LinksChanged {
 }
 
 /// One document's links of a [`LinksIn`]: each target with its anchors.
-type DocLinks = Vec<(dr_model::prose::EntityLink, Vec<dr_doc::anchor::Anchor>)>;
+type DocLinks = Vec<(EntityLinkV3, Vec<dr_doc::anchor::Anchor>)>;
+
+/// Whether `value`, the stored link to a target of `kind` on some run, is one
+/// `prose.link` and `prose.unlink` may change: none, an automatic link
+/// (`{kind}`), or one made by hand (`{kind, manual: true}`, `kernel-v5.md`
+/// §16). A link into a module or blocks, or one with data this version does
+/// not know, is left as it is.
+fn plain_link(value: Option<&loro::LoroValue>, kind: &EntityKind) -> bool {
+    use loro::LoroValue;
+    let Some(value) = value else {
+        return true;
+    };
+    let LoroValue::Map(map) = value else {
+        return false;
+    };
+    matches!(map.get("kind"), Some(LoroValue::String(k)) if k.as_str() == kind.as_str())
+        && map.iter().all(|(key, v)| match key.as_str() {
+            "kind" => true,
+            dr_model::prose::LINK_MANUAL => matches!(v, LoroValue::Bool(_)),
+            _ => false,
+        })
+}
+
+fn refused_link() -> WsError {
+    WsError::invalid(
+        "a link there carries more than its target (a module, blocks or data this version does not know); it is left as it is",
+    )
+}
+
+/// `range` of `target`'s link, before and after a write: the runs whose
+/// value changed, each with the value before and the value after.
+type Changed = Vec<(
+    std::ops::Range<usize>,
+    Option<loro::LoroValue>,
+    Option<loro::LoroValue>,
+)>;
+
+fn changed_runs(
+    before: &[(std::ops::Range<usize>, Option<loro::LoroValue>)],
+    after: &[(std::ops::Range<usize>, Option<loro::LoroValue>)],
+) -> Changed {
+    let value_at = |runs: &[(std::ops::Range<usize>, Option<loro::LoroValue>)], at: usize| {
+        runs.iter()
+            .find(|(r, _)| r.contains(&at))
+            .and_then(|(_, v)| v.clone())
+    };
+    let mut cuts: Vec<usize> = before
+        .iter()
+        .chain(after)
+        .flat_map(|(r, _)| [r.start, r.end])
+        .collect();
+    cuts.sort_unstable();
+    cuts.dedup();
+    let mut out: Changed = Vec::new();
+    for w in cuts.windows(2) {
+        let (was, now) = (value_at(before, w[0]), value_at(after, w[0]));
+        if was == now {
+            continue;
+        }
+        match out.last_mut() {
+            Some((r, b, a)) if r.end == w[0] && *b == was && *a == now => r.end = w[1],
+            _ => out.push((w[0]..w[1], was, now)),
+        }
+    }
+    out
+}
+
+/// A run's value as the undo carries it: JSON (an entity link's value is a
+/// map of strings and booleans, which JSON keeps exactly).
+fn json_value(v: Option<loro::LoroValue>) -> Option<Value> {
+    v.map(Value::from)
+}
+
+/// The value of [`LinkSpan`] back as stored: a map that converts both ways
+/// unchanged, or nothing.
+fn stored_value(v: Option<&Value>) -> Result<Option<loro::LoroValue>> {
+    match v {
+        None | Some(Value::Null) => Ok(None),
+        Some(json @ Value::Object(_)) => {
+            let value = loro::LoroValue::from(json.clone());
+            if Value::from(value.clone()) != *json {
+                return Err(WsError::invalid("a link value it cannot put back exactly"));
+            }
+            Ok(Some(value))
+        }
+        Some(_) => Err(WsError::invalid("a link value is an object or null")),
+    }
+}
 
 /// Put the links of `input` on (`on`) or off. Documents are opened and
 /// written a few at a time (an automatic backfill's undo touches hundreds).
+///
+/// A link put on is the author's kind of link (`kernel-v5.md` §16): to an
+/// entry it is recorded as made by hand (`manual`, the value a pick with @
+/// writes), so it shows whatever the entry's 「自动链接」 and the author's
+/// setting say, and automatic linking leaves it alone; a link to a file has
+/// no switch and is written as the editor writes it. The undo
+/// (`prose.restore_links`) puts back on each changed run the value that was
+/// there: no link, an automatic one or one made by hand.
 fn set_links(cx: &Cx<'_>, input: &LinksIn, on: bool) -> Result<LinksChanged> {
-    use dr_model::prose::EntityLink;
     // Validate everything before writing anything.
     let mut by_doc: Vec<(DocId, DocLinks)> = Vec::new();
     for l in &input.links {
         let doc = doc_id(&l.doc)?;
-        let kind = dr_model::kind::EntityKind::parse(&l.target.kind);
-        if !kind.may_be_linked_v3() && kind != dr_model::kind::EntityKind::Asset {
+        let kind = EntityKind::parse(&l.target.kind);
+        if !kind.may_be_linked_v3() && kind != EntityKind::Asset {
             return Err(WsError::invalid(format!(
                 "{:?} cannot be linked",
                 l.target.kind
@@ -285,12 +382,13 @@ fn set_links(cx: &Cx<'_>, input: &LinksIn, on: bool) -> Result<LinksChanged> {
             .iter()
             .map(super::comment_shared::decode_anchor)
             .collect::<Result<Vec<_>>>()?;
-        let link = EntityLink {
+        let link = EntityLinkV3 {
             target: l.target.id.clone(),
+            manual: kind == EntityKind::Entry,
             kind,
+            module: None,
             block: None,
             end_block: None,
-            manual: false,
         };
         match by_doc.iter_mut().find(|(d, _)| *d == doc) {
             Some((_, v)) => v.push((link, anchors)),
@@ -321,50 +419,23 @@ fn set_links(cx: &Cx<'_>, input: &LinksIn, on: bool) -> Result<LinksChanged> {
     let ws = cx.workspace();
     // Each anchor must be of its document before anything is written: an
     // open document's own version, a closed one's stored head (no load).
+    // And every run the call would change must be a plain link (or none):
+    // the whole request is refused before the first write rather than
+    // change a link it does not understand.
     for (doc, links) in &by_doc {
         let slot = ws.prose_slot(doc)?;
         let document = slot.handle.doc().with_doc(Clone::clone);
-        let reader = dr_doc::prose::BorrowedProse::new(&document, doc)?;
-        let view = reader.view();
-        // This shared inverse cannot describe module/block/unknown metadata.
-        // Refuse the whole request before the first write rather than erase
-        // data that an undo could not reconstruct.
-        for (link, anchors) in links {
-            let expected = dr_doc::prose::v3::encode_entity_link(
-                &dr_model::v3::EntityLinkV3 {
-                    target: link.target.clone(),
-                    kind: link.kind.clone(),
-                    module: None,
-                    block: None,
-                    end_block: None,
-                    manual: false,
-                },
-                None,
-            )?;
-            for range in anchors
-                .iter()
-                .filter_map(|a| view.resolve(a))
-                .filter(|r| !r.collapsed)
-                .map(|r| r.range)
-            {
-                for (_, key, value) in view.copy_entity_links_v3(range)?.marks() {
-                    if key == &format!("entity:{}", link.target) && value != &expected {
-                        return Err(WsError::invalid(
-                            "anchored link metadata requires the versioned prose edit protocol",
-                        ));
-                    }
-                }
-            }
-        }
         let vv = document.oplog_vv();
         for (_, anchors) in links {
             for a in anchors {
                 super::comment_shared::anchor_known_in(&vv, doc, a)?;
             }
         }
+        let reader = dr_doc::prose::BorrowedProse::new(&document, doc)?;
+        check_plain(&reader.view(), links)?;
     }
     // Then a few documents at a time, each opened, written and let go.
-    let counts = by_doc
+    let written = by_doc
         .iter()
         .map(|(doc, links)| {
             let ps = ws.prose_slot(doc)?;
@@ -372,59 +443,139 @@ fn set_links(cx: &Cx<'_>, input: &LinksIn, on: bool) -> Result<LinksChanged> {
             cx.write_prose_raw(&ps, move |d| {
                 let b = dr_doc::prose::BorrowedProse::new(d, &doc)?;
                 let mut txn = b.txn();
+                // Checked again on the state the edit applies to.
+                let found = check_plain(&txn.view(), &links)?;
+                // What each target's link was on everything this call
+                // touches, before anything is written.
+                let mut touched: Vec<(String, Vec<std::ops::Range<usize>>)> = Vec::new();
+                for ((link, _), ranges) in links.iter().zip(&found) {
+                    match touched.iter_mut().find(|(t, _)| *t == link.target) {
+                        Some((_, all)) => all.extend(ranges.iter().cloned()),
+                        None => touched.push((link.target.clone(), ranges.clone())),
+                    }
+                }
+                let mut before = Vec::new();
+                for (target, ranges) in &touched {
+                    for range in merged(ranges.clone()) {
+                        let was = txn.view().entity_link_values(range.clone(), target)?;
+                        before.push((target.clone(), range, was));
+                    }
+                }
                 let mut n = 0;
-                for (link, anchors) in &links {
-                    let found: Vec<std::ops::Range<usize>> = anchors
-                        .iter()
-                        .filter_map(|a| txn.view().resolve(a))
-                        .filter(|r| !r.collapsed)
-                        .map(|r| r.range)
-                        .collect();
-                    for r in &found {
+                for ((link, _), ranges) in links.iter().zip(&found) {
+                    for r in ranges {
+                        let was = txn.view().entity_link_values(r.clone(), &link.target)?;
                         if on {
-                            txn.link_entity_v3(
-                                r.clone(),
-                                &dr_model::v3::EntityLinkV3 {
-                                    target: link.target.clone(),
-                                    kind: link.kind.clone(),
-                                    module: None,
-                                    block: None,
-                                    end_block: None,
-                                    manual: false,
-                                },
-                            )?;
+                            txn.link_entity_v3(r.clone(), link)?;
                         } else {
                             txn.unlink_entity(r.clone(), &link.target)?;
                         }
+                        if txn.view().entity_link_values(r.clone(), &link.target)? != was {
+                            n += 1;
+                        }
                     }
-                    n += found.len();
                 }
-                Ok(n)
+                // The undo: on every run that changed, the value it had.
+                let mut back: Vec<LinkValues> = Vec::new();
+                for (target, range, was) in before {
+                    let now = txn.view().entity_link_values(range, &target)?;
+                    let spans = changed_runs(&was, &now)
+                        .into_iter()
+                        .map(|(run, was, now)| {
+                            let anchor = txn.view().anchor(run).ok_or_else(|| {
+                                WsError::Internal("a changed run has no anchor".into())
+                            })?;
+                            Ok(LinkSpan {
+                                anchor: crate::dto::AnchorBytes::from(&anchor.encode()),
+                                expected: json_value(now),
+                                value: json_value(was),
+                            })
+                        })
+                        .collect::<Result<Vec<_>>>()?;
+                    push_spans(&mut back, &doc, &target, spans);
+                }
+                Ok((n, back))
             })
         })
         .collect::<Result<Vec<_>>>()?;
     let mut out = LinksChanged { ranges: 0, docs: 0 };
-    for ((doc, _), n) in by_doc.iter().zip(&counts) {
-        if *n > 0 {
+    let mut back = Vec::new();
+    for ((doc, _), (n, spans)) in by_doc.iter().zip(written) {
+        if n > 0 {
             out.ranges += n;
             out.docs += 1;
             cx.effect(EffectAction::Updated, "prose", doc.to_string(), None);
         }
+        back.extend(spans);
     }
-    if out.ranges > 0 {
-        cx.undo_with(Invocation::new(
-            if on { "prose.unlink" } else { "prose.link" },
-            input.clone(),
-        ));
-    } else {
+    if back.is_empty() {
         cx.undo_nothing();
+    } else {
+        cx.undo_with(Invocation::new(
+            "prose.restore_links",
+            LinkValuesIn { links: back },
+        ));
     }
     Ok(out)
 }
 
+/// The ranges each link of `links` is to change now (anchors whose text is
+/// gone left out), once every run in them is a [`plain_link`] to its target.
+fn check_plain(
+    view: &dr_doc::prose::ProseView<'_>,
+    links: &DocLinks,
+) -> Result<Vec<Vec<std::ops::Range<usize>>>> {
+    let mut found = Vec::new();
+    for (link, anchors) in links {
+        let ranges: Vec<std::ops::Range<usize>> = anchors
+            .iter()
+            .filter_map(|a| view.resolve(a))
+            .filter(|r| !r.collapsed)
+            .map(|r| r.range)
+            .collect();
+        for r in &ranges {
+            for (_, value) in view.entity_link_values(r.clone(), &link.target)? {
+                if !plain_link(value.as_ref(), &link.kind) {
+                    return Err(refused_link());
+                }
+            }
+        }
+        found.push(ranges);
+    }
+    Ok(found)
+}
+
+/// `ranges` sorted, overlapping and touching ones joined.
+fn merged(mut ranges: Vec<std::ops::Range<usize>>) -> Vec<std::ops::Range<usize>> {
+    ranges.sort_by_key(|r| (r.start, r.end));
+    let mut out: Vec<std::ops::Range<usize>> = Vec::new();
+    for r in ranges {
+        match out.last_mut() {
+            Some(last) if r.start <= last.end => last.end = last.end.max(r.end),
+            _ => out.push(r),
+        }
+    }
+    out
+}
+
+fn push_spans(back: &mut Vec<LinkValues>, doc: &DocId, target: &str, spans: Vec<LinkSpan>) {
+    if spans.is_empty() {
+        return;
+    }
+    let doc = doc.to_string();
+    match back.iter_mut().find(|l| l.doc == doc && l.target == target) {
+        Some(l) => l.spans.extend(spans),
+        None => back.push(LinkValues {
+            doc,
+            target: target.to_owned(),
+            spans,
+        }),
+    }
+}
+
 op! {
     ProseLink = "prose.link", Write, Book,
-    "Link anchored ranges of prose documents to entities (anchors, not positions: the undo of automatic links that were taken off).",
+    "Link anchored ranges of prose documents to entities (anchors, not positions). Links to entries count as the author's own: shown even where automatic linking is off.",
     fn(cx, input: LinksIn) -> LinksChanged {
         set_links(cx, &input, true)
     }
@@ -432,9 +583,221 @@ op! {
 
 op! {
     ProseUnlink = "prose.unlink", Write, Book,
-    "Take links to entities off anchored ranges of prose documents (anchors, not positions: the undo of automatic links).",
+    "Take links to entities off anchored ranges of prose documents (anchors, not positions).",
     fn(cx, input: LinksIn) -> LinksChanged {
         set_links(cx, &input, false)
+    }
+}
+
+/// One run of a target's link on an anchored span: what the recorded write
+/// left there and what to put back.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+pub struct LinkSpan {
+    /// The span, as an anchor (two cursors), so typing since moves nothing.
+    pub anchor: crate::dto::AnchorBytes,
+    /// The link's stored value there as the recorded write left it (`null`:
+    /// no link).
+    #[serde(default)]
+    pub expected: Option<Value>,
+    /// The stored value to put back (`null`: no link).
+    #[serde(default)]
+    pub value: Option<Value>,
+}
+
+/// One target's link on spans of one document.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+pub struct LinkValues {
+    pub doc: String,
+    /// The target's id (an entry's or a file's): the link is the text's
+    /// mark `entity:<target>`.
+    pub target: String,
+    pub spans: Vec<LinkSpan>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+pub struct LinkValuesIn {
+    pub links: Vec<LinkValues>,
+}
+
+/// One span of a [`LinkValues`], decoded.
+#[derive(Clone)]
+struct Restore {
+    anchor: dr_doc::anchor::Anchor,
+    expected: Option<loro::LoroValue>,
+    value: Option<loro::LoroValue>,
+}
+
+/// One document's spans of a [`LinkValuesIn`]: each target with its spans.
+type DocRestores = Vec<(String, Vec<Restore>)>;
+
+/// The runs to write now, each `(target, run, value, expected)`: where a span
+/// still reads `expected`; a run that reads `value` already is left alone,
+/// and one that reads anything else refuses the whole call.
+type Planned = Vec<(
+    String,
+    std::ops::Range<usize>,
+    Option<loro::LoroValue>,
+    Option<loro::LoroValue>,
+)>;
+
+fn plan_restore(view: &dr_doc::prose::ProseView<'_>, links: &DocRestores) -> Result<Planned> {
+    let mut out = Vec::new();
+    for (target, spans) in links {
+        for s in spans {
+            let Some(r) = view.resolve(&s.anchor).filter(|r| !r.collapsed) else {
+                continue;
+            };
+            for (run, now) in view.entity_link_values(r.range, target)? {
+                if now == s.value {
+                    continue;
+                }
+                if now != s.expected {
+                    return Err(WsError::Conflict(
+                        "a link changed after the recorded write".into(),
+                    ));
+                }
+                out.push((target.clone(), run, s.value.clone(), s.expected.clone()));
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// The kind of entity a stored link value points at, when it says.
+fn value_kind(value: &loro::LoroValue) -> Option<EntityKind> {
+    match value {
+        loro::LoroValue::Map(m) => match m.get("kind") {
+            Some(loro::LoroValue::String(k)) => Some(EntityKind::parse(k)),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+/// Undo or redo a change of links (`prose.link`, `prose.unlink`, and its own
+/// undo): every span is checked before anything is written, so a link
+/// another writer changed since refuses the whole call.
+fn restore_links(cx: &Cx<'_>, input: &LinkValuesIn) -> Result<LinksChanged> {
+    let mut by_doc: Vec<(DocId, DocRestores)> = Vec::new();
+    for l in &input.links {
+        let doc = doc_id(&l.doc)?;
+        if dr_model::id::EntryId::parse(&l.target).is_err()
+            && dr_model::id::AssetId::parse(&l.target).is_err()
+        {
+            return Err(WsError::invalid(format!(
+                "{:?} is not a link target",
+                l.target
+            )));
+        }
+        let spans = l
+            .spans
+            .iter()
+            .map(|s| {
+                Ok(Restore {
+                    anchor: super::comment_shared::decode_anchor(&s.anchor)?,
+                    expected: stored_value(s.expected.as_ref())?,
+                    value: stored_value(s.value.as_ref())?,
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+        match by_doc.iter_mut().find(|(d, _)| *d == doc) {
+            Some((_, v)) => v.push((l.target.clone(), spans)),
+            None => by_doc.push((doc, vec![(l.target.clone(), spans)])),
+        }
+    }
+    let lib = cx.workspace().library();
+    for (doc, links) in &by_doc {
+        let info = lib
+            .doc_info(&doc.to_string())?
+            .ok_or_else(|| WsError::not_found("document", doc.to_string()))?;
+        if let Some(b) = info.book_id {
+            let slot = cx.book_v3(&b)?;
+            // A link put back needs its target: one deleted for good since
+            // retires the step (`NotFound`).
+            for (target, spans) in links {
+                for kind in spans
+                    .iter()
+                    .filter_map(|s| s.value.as_ref())
+                    .filter_map(value_kind)
+                {
+                    if !slot
+                        .reader_v3
+                        .view()
+                        .entity_exists(&dr_model::shared::EntityRef::new(kind, target))
+                    {
+                        return Err(WsError::not_found("link target", target));
+                    }
+                }
+            }
+        }
+    }
+    let ws = cx.workspace();
+    for (doc, links) in &by_doc {
+        let slot = ws.prose_slot(doc)?;
+        let document = slot.handle.doc().with_doc(Clone::clone);
+        let vv = document.oplog_vv();
+        for (_, spans) in links {
+            for s in spans {
+                super::comment_shared::anchor_known_in(&vv, doc, &s.anchor)?;
+            }
+        }
+        let reader = dr_doc::prose::BorrowedProse::new(&document, doc)?;
+        plan_restore(&reader.view(), links)?;
+    }
+    let written = by_doc
+        .iter()
+        .map(|(doc, links)| {
+            let ps = ws.prose_slot(doc)?;
+            let (doc, links) = (doc.clone(), links.clone());
+            cx.write_prose_raw(&ps, move |d| {
+                let b = dr_doc::prose::BorrowedProse::new(d, &doc)?;
+                let mut txn = b.txn();
+                let planned = plan_restore(&txn.view(), &links)?;
+                let mut back: Vec<LinkValues> = Vec::new();
+                let n = planned.len();
+                for (target, run, value, expected) in planned {
+                    txn.put_entity_link_value(run.clone(), &target, value.as_ref())?;
+                    let anchor = txn
+                        .view()
+                        .anchor(run)
+                        .ok_or_else(|| WsError::Internal("a restored run has no anchor".into()))?;
+                    let span = LinkSpan {
+                        anchor: crate::dto::AnchorBytes::from(&anchor.encode()),
+                        expected: json_value(value),
+                        value: json_value(expected),
+                    };
+                    push_spans(&mut back, &doc, &target, vec![span]);
+                }
+                Ok((n, back))
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let mut out = LinksChanged { ranges: 0, docs: 0 };
+    let mut back = Vec::new();
+    for ((doc, _), (n, spans)) in by_doc.iter().zip(written) {
+        if n > 0 {
+            out.ranges += n;
+            out.docs += 1;
+            cx.effect(EffectAction::Updated, "prose", doc.to_string(), None);
+        }
+        back.extend(spans);
+    }
+    if back.is_empty() {
+        cx.undo_nothing();
+    } else {
+        cx.undo_with(Invocation::new(
+            "prose.restore_links",
+            LinkValuesIn { links: back },
+        ));
+    }
+    Ok(out)
+}
+
+op! {
+    ProseRestoreLinks = "prose.restore_links", Write, Book,
+    "Undo or redo a change of entity links on anchored spans of prose documents: on each span put back `value` while the link there still reads `expected` (a span already reading `value` is left alone). A link changed otherwise since refuses the whole call before anything is written.",
+    fn(cx, input: LinkValuesIn) -> LinksChanged {
+        restore_links(cx, &input)
     }
 }
 
