@@ -789,6 +789,35 @@ async fn the_service_probes_keys_and_refuses_plain_http_to_the_internet_before_a
     );
 }
 
+/// S2 (作者 2026-11-24): the form's address without a scheme reaches a
+/// service on the internet over `https`, and a server on this computer over
+/// `http` as before.
+#[tokio::test]
+async fn an_address_without_a_scheme_is_https_on_the_internet_and_http_here() {
+    let fake = service_listing();
+    let service = internet(Arc::new(SecretStore::in_memory()), &fake);
+    let (address, probe) = service
+        .probe_local(
+            "api.example.com/v1",
+            &KeyChange::Set("synthetic-service-key".into()),
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(address.base_url, INTERNET);
+    assert!(matches!(probe, Probe::AskName { .. }));
+    assert_eq!(model_lists(&fake), 1);
+
+    let here = ollama();
+    let bare = here.url.strip_prefix("http://").unwrap();
+    let (address, probe) = service
+        .probe_local(bare, &KeyChange::Keep, None)
+        .await
+        .unwrap();
+    assert_eq!(address.base_url, here.url);
+    assert!(matches!(probe, Probe::Listed(found) if found.models.len() == 2));
+}
+
 #[test]
 fn the_account_keeps_local_as_a_provider_and_nothing_else() {
     let mut file = SettingsFile::in_memory();
