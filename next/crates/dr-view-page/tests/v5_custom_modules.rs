@@ -749,6 +749,29 @@ fn workspace<'a>(
     cx: &'a mut TestAppContext,
     e: &Env,
 ) -> (Entity<dr_shell::Workspace>, &'a mut VisualTestContext) {
+    workspace_with(cx, e, true)
+}
+
+/// A bottom panel with nothing in it (the timeline's place).
+struct Blank;
+
+impl gpui::Render for Blank {
+    fn render(
+        &mut self,
+        _: &mut gpui::Window,
+        _: &mut gpui::Context<Self>,
+    ) -> impl gpui::IntoElement {
+        gpui::div()
+    }
+}
+
+/// The shell's workspace on `e`'s book, with a blank timeline under the
+/// paper; `reduce`: the reduced-motion setting (transitions land at once).
+fn workspace_with<'a>(
+    cx: &'a mut TestAppContext,
+    e: &Env,
+    reduce: bool,
+) -> (Entity<dr_shell::Workspace>, &'a mut VisualTestContext) {
     cx.executor().allow_parking();
     let lib = e.ws.clone();
     cx.update(|cx| {
@@ -771,7 +794,12 @@ fn workspace<'a>(
             cx,
         );
         dr_view_page::init(cx);
-        dr_shell::Settings::update(cx, |f| f.set(registry::REDUCE_MOTION, json!(true), None))
+        dr_shell::pages::add_v3_bottom_panel(
+            cx,
+            dr_shell::pages::BottomPane::Timeline,
+            |_, _, cx| Some(dr_shell::pages::BottomPanel::new(cx.new(|_| Blank))),
+        );
+        dr_shell::Settings::update(cx, |f| f.set(registry::REDUCE_MOTION, json!(reduce), None))
             .unwrap();
     });
     let (view, cx) = cx.add_window_view(dr_shell::Workspace::new);
@@ -823,6 +851,8 @@ fn the_module_fills_the_middle_column_and_esc_leaves(cx: &mut TestAppContext) {
             module: "mod-c".into()
         })
     );
+    // Under reduced motion the paper lands at once (CR).
+    assert_eq!(view.read_with(cx, |ws, _| ws.module_fill_progress()), 1.0);
     draw(cx);
     assert!(
         cx.debug_bounds("v3-section-mod-text").is_none(),
@@ -840,6 +870,8 @@ fn the_module_fills_the_middle_column_and_esc_leaves(cx: &mut TestAppContext) {
         view.read_with(cx, |ws, _| ws.filled_module().cloned()),
         None
     );
+    assert_eq!(view.read_with(cx, |ws, _| ws.module_fill_progress()), 0.0);
+    assert_eq!(paper(cx), narrow, "back at the page's width at once");
     assert!(cx.debug_bounds("v3-section-mod-text").is_some());
     // So does the button, pressed again; and a panel's fill takes over.
     hover_title(cx, "mod-c");
@@ -854,6 +886,234 @@ fn the_module_fills_the_middle_column_and_esc_leaves(cx: &mut TestAppContext) {
         assert!(ws.filled_module().is_none(), "one fill at a time");
     });
     let _ = point(px(0.0), px(0.0));
+}
+
+/// The module's fill opens and closes as a panel's does (CR, the shell's
+/// `motion::STRUCTURAL`, 420 ms): the paper widens over it and narrows back
+/// over it as the module leaves, the bottom panel put away while it fills.
+/// The clock is held still at each moment looked at.
+#[gpui::test]
+fn the_module_fill_opens_and_closes_over_the_panels_motion(cx: &mut TestAppContext) {
+    let e = env(CHRONOLOGY);
+    let (view, cx) = workspace_with(cx, &e, false);
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while view.read_with(cx, |ws, _| ws.book.v3().is_none()) {
+        assert!(Instant::now() < deadline, "the book did not open");
+        draw(cx);
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let target = Target::Entry {
+        id: e.entry.parse().unwrap(),
+        module: None,
+    };
+    view.update(cx, |ws, cx| ws.open(target.clone(), Open::KEEP, cx));
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        draw(cx);
+        if cx.debug_bounds("custom-module").is_some()
+            && cx.debug_bounds("v3-section-mod-text").is_some()
+        {
+            break;
+        }
+        assert!(Instant::now() < deadline, "the entry page did not show");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while view.read_with(cx, |ws, cx| ws.bottom_pane(cx))
+        != Some(dr_shell::pages::BottomPane::Timeline)
+        || cx.debug_bounds("bottom-panel-grip").is_none()
+    {
+        assert!(Instant::now() < deadline, "the timeline did not show");
+        draw(cx);
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    // The page turned in (180 ms) and the panel slid up before the clock
+    // is held.
+    std::thread::sleep(Duration::from_millis(600));
+    draw(cx);
+    let paper = |cx: &mut VisualTestContext| {
+        cx.debug_bounds("custom-module")
+            .map(|b| f32::from(b.size.width))
+            .expect("the module is drawn")
+    };
+    // The bottom panel's top edge (its grip), while it shows.
+    let panel_top = |cx: &mut VisualTestContext| {
+        cx.debug_bounds("bottom-panel-grip")
+            .map(|b| f32::from(b.top()))
+    };
+    let progress =
+        |cx: &mut VisualTestContext| view.read_with(cx, |ws, _| ws.module_fill_progress());
+    let narrow = paper(cx);
+    let resting = panel_top(cx).expect("the timeline shows");
+    let at = |t: Instant, ms: u64| t + Duration::from_millis(ms);
+
+    let opened = Instant::now();
+    dr_ui::anim::freeze(Some(opened));
+    hover_title(cx, "mod-c");
+    click(cx, "custom-module-fill");
+    assert!(view.read_with(cx, |ws, _| ws.filled_module().is_some()));
+    assert_eq!(progress(cx), 0.0, "the fill starts from the page's width");
+    assert!(
+        view.read_with(cx, |ws, cx| ws.bottom_pane(cx)).is_none(),
+        "the bottom panel is put away while the module fills"
+    );
+    dr_ui::anim::freeze(Some(at(opened, 210)));
+    draw(cx);
+    let half_open = paper(cx);
+    let t = progress(cx);
+    assert!(t > 0.0 && t < 1.0, "half-way through the motion: {t}");
+    assert!(half_open > narrow, "{narrow} → {half_open}");
+    let sliding = panel_top(cx).expect("the timeline is sliding away");
+    assert!(
+        sliding > resting,
+        "the timeline slides down: {resting} → {sliding}"
+    );
+    dr_ui::anim::freeze(Some(at(opened, 420)));
+    draw(cx);
+    let wide = paper(cx);
+    assert_eq!(progress(cx), 1.0, "open after 420 ms");
+    assert!(wide > half_open, "{half_open} → {wide}");
+    assert!(wide > narrow + 100.0, "{narrow} → {wide}");
+    assert!(panel_top(cx).is_none(), "the timeline is away");
+    assert!(
+        cx.debug_bounds("v3-section-mod-text").is_none(),
+        "filled, the page is the module alone"
+    );
+
+    // Esc: the page has all its modules again at once, in a paper that
+    // narrows back over the same motion, and the timeline slides back.
+    let closed = at(opened, 1000);
+    dr_ui::anim::freeze(Some(closed));
+    draw(cx);
+    cx.simulate_keystrokes("escape");
+    draw(cx);
+    assert!(view.read_with(cx, |ws, _| ws.filled_module().is_none()));
+    assert_eq!(progress(cx), 1.0, "the close starts from the widest");
+    assert!(cx.debug_bounds("v3-section-mod-text").is_some());
+    dr_ui::anim::freeze(Some(at(closed, 210)));
+    draw(cx);
+    let half_closed = paper(cx);
+    let t = progress(cx);
+    assert!(t > 0.0 && t < 1.0, "half-way back: {t}");
+    assert!(
+        half_closed > narrow && half_closed < wide,
+        "{wide} → {half_closed} → {narrow}"
+    );
+    let rising = panel_top(cx).expect("the timeline is sliding back");
+    assert!(
+        rising > resting,
+        "not up yet: {rising} (rests at {resting})"
+    );
+    dr_ui::anim::freeze(Some(at(closed, 420)));
+    draw(cx);
+    assert_eq!(progress(cx), 0.0, "closed after 420 ms");
+    assert_eq!(paper(cx), narrow, "back at the page's width");
+    assert_eq!(panel_top(cx), Some(resting), "the timeline is back");
+    dr_ui::anim::freeze(None);
+}
+
+/// An entry's modules on its page and in its name's hover card come in the
+/// template's order, the order they were given in, built-in and custom
+/// together (CR): not in the order of their ids.
+#[gpui::test]
+fn the_entry_page_draws_modules_in_the_order_the_template_gives(cx: &mut TestAppContext) {
+    let base = env(FORESHADOWING);
+    let magic = call(
+        &base.ws,
+        "custom_module.create",
+        json!({"value": serde_json::from_str::<Value>(MAGIC).unwrap()}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    call(
+        &base.ws,
+        "entry_template.put",
+        json!({"book": base.book, "template": {
+            "id": "tpl-order", "name": "排序", "modules": [
+                {"id": "z-fore", "kind": "custom", "name": "伏笔追踪", "config": {"module": base.module}},
+                {"id": "m-text", "kind": "prose", "name": "正文"},
+                {"id": "b-magic", "kind": "custom", "name": "魔法规则卡", "config": {"module": magic}},
+                {"id": "a-facts", "kind": "fields", "name": "字段"}
+            ]
+        }}),
+    );
+    let entry = call(
+        &base.ws,
+        "entry.create",
+        json!({"book": base.book, "title": "排序", "template": "tpl-order"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let e = Env { entry, ..base };
+    let given = ["z-fore", "m-text", "b-magic", "a-facts"];
+
+    let link = dr_text::autolink::LinkTarget {
+        kind: dr_model::kind::EntityKind::Entry,
+        id: e.entry.clone(),
+    };
+    let facts = dr_editor::link_card::card_facts(&e.ws, &e.book, &link).expect("a card");
+    let lines: Vec<&str> = facts.lines.iter().map(|l| l.module.as_str()).collect();
+    assert_eq!(lines, ["z-fore", "b-magic"], "the hover card's lines");
+
+    let (view, cx) = workspace(cx, &e);
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while view.read_with(cx, |ws, _| ws.book.v3().is_none()) {
+        assert!(Instant::now() < deadline, "the book did not open");
+        draw(cx);
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    view.update(cx, |ws, cx| {
+        ws.open(
+            Target::Entry {
+                id: e.entry.parse().unwrap(),
+                module: None,
+            },
+            Open::KEEP,
+            cx,
+        )
+    });
+    let sections = |cx: &mut VisualTestContext| -> Vec<String> {
+        view.read_with(cx, |ws, cx| {
+            let page = ws
+                .nav
+                .current()
+                .and_then(|t| ws.editors.get(&t.key()))
+                .and_then(|p| p.v3.as_ref())
+                .map(|p| p.read(cx).state());
+            page.map(|state| {
+                state["sections"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .filter_map(|s| s["id"].as_str())
+                    .filter(|id| given.contains(id))
+                    .map(str::to_owned)
+                    .collect()
+            })
+            .unwrap_or_default()
+        })
+    };
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while sections(cx).len() < given.len() {
+        assert!(Instant::now() < deadline, "the entry page did not show");
+        draw(cx);
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert_eq!(sections(cx), given, "the page's modules");
+    // Drawn top to bottom in that order.
+    let tops: Vec<f32> = given
+        .iter()
+        .map(|id| {
+            f32::from(
+                bounds(cx, &format!("v3-section-{id}"))
+                    .unwrap_or_else(|| panic!("the section of {id} is drawn"))
+                    .top(),
+            )
+        })
+        .collect();
+    assert!(tops.windows(2).all(|w| w[0] < w[1]), "{tops:?}");
 }
 
 /// An entry name's hover card: under the synopsis, one 一行 for each custom
@@ -914,6 +1174,34 @@ fn an_entry_names_hover_card_has_the_modules_line(cx: &mut TestAppContext) {
         .debug_bounds("module-line")
         .expect("the module's line is in the card");
     assert!(drawn.size.height > px(0.0));
+}
+
+/// An automatic 一行's count in the App's nine languages (CR): where the
+/// author's name cannot follow the number (English and the like) it is
+/// 「伏笔: 3」; Chinese, Japanese and Korean say it as before.
+#[gpui::test]
+fn an_automatic_lines_count_is_said_name_then_number_where_needed(cx: &mut TestAppContext) {
+    use dr_i18n::Locale;
+    use dr_view_module_look::{AppWords, Words as _};
+    shell_init(cx);
+    let said = [
+        (Locale::ZhCn, "3 个伏笔"),
+        (Locale::ZhTw, "3 個伏笔"),
+        (Locale::Ja, "伏笔 3 件"),
+        (Locale::Ko, "伏笔 3개"),
+        (Locale::En, "伏笔: 3"),
+        (Locale::De, "伏笔: 3"),
+        (Locale::Es, "伏笔: 3"),
+        (Locale::PtBr, "伏笔: 3"),
+        (Locale::Fr, "伏笔 : 3"),
+    ];
+    assert_eq!(said.len(), Locale::ALL.len(), "every language is looked at");
+    for (locale, words) in said {
+        cx.update(|cx| {
+            dr_shell::strings::Strings::install(locale, cx);
+            assert_eq!(AppWords(cx).count_of(3, "伏笔"), words, "{}", locale.code());
+        });
+    }
 }
 
 /// Words typed into one field are stored when the author presses another
