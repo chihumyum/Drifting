@@ -447,4 +447,4 @@ DRIFTING_WINDOW_DISPLAY=secondary cargo drifting workspace scenario crates/dr-vi
 
 ## CW：工作台的稿纸转来的图片（2026-11-24 第二轮）
 
-工作台的稿纸收拖进、粘贴的图片，经外壳的 `Workspace::give_agent_images` 交给这个窗口「Agent」那一栏（`lib.rs` 注册 `dr_shell::pages::set_agent_images`，按 `AnyView` 找到面板），`AgentPanel::take_images` 和拖进、粘贴到输入框走同一条 `attach_paths`／`attach_bytes`：格式、大小、张数上限、三句提示都一样，不发送。输入框 ⌘V 读剪贴板的规矩搬进了 `dr_shell::pages::AgentImages::on_clipboard`（稿纸也用它），行为不变。测试 `tests/attachments.rs` 的 `images_handed_over_from_a_page_wait_in_the_windows_agent_composer`。
+工作台的稿纸收拖进、粘贴的图片，经外壳的 `Workspace::give_agent_images` 交给这个窗口「Agent」那一栏（`lib.rs` 注册 `dr_shell::pages::set_agent_images`，按 `AnyView` 找到面板），`AgentPanel::take_images` 和拖进、粘贴到输入框走同一条 `attach_paths`／`attach_bytes`：格式、大小、张数上限、三句提示都一样，不发送。输入框 ⌘V 读剪贴板的规矩搬进了 `dr_shell::pages::AgentImages::on_clipboard`（稿纸也用它），行为不变。面板刚做出来、还没跟上窗口的书时（跟上那一下会清空输入框），转来的图片先存着，跟上以后再放进去（`followed`、`handed`），`is_settled` 也等它们。测试 `tests/attachments.rs` 的 `images_handed_over_from_a_page_wait_in_the_windows_agent_composer`。

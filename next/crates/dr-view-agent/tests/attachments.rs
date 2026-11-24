@@ -436,6 +436,8 @@ fn the_limits_are_said_before_anything_is_sent(cx: &mut TestAppContext) {
 /// CW: images a page hands to the Agent (the module workbench's paper,
 /// through the shell) wait in the composer of that window's 「Agent」 tab,
 /// checked and limited as dropped ones, and the right column opens on it.
+/// The tab is made to take them here: following the window's book (which
+/// empties the composer) does not lose them.
 #[gpui::test]
 fn images_handed_over_from_a_page_wait_in_the_windows_agent_composer(cx: &mut TestAppContext) {
     let fixture = Fixture::new();

@@ -113,6 +113,11 @@ pub struct AgentPanel {
     /// new book or conversation empties it).
     attaching: usize,
     tray_generation: u64,
+    /// CW: images handed over before the panel first followed its window's
+    /// book (it was made to take them): following the book empties the
+    /// composer, so they are taken after it.
+    followed: bool,
+    handed: Vec<dr_shell::pages::AgentImages>,
 }
 
 impl AgentPanel {
@@ -165,6 +170,8 @@ impl AgentPanel {
             thumbs: HashMap::new(),
             attaching: 0,
             tray_generation: 0,
+            followed: false,
+            handed: Vec::new(),
         };
         panel._subs.push(
             cx.subscribe_in(&composer, window, |panel, _, event, _, cx| {
@@ -214,14 +221,19 @@ impl AgentPanel {
     }
 
     fn follow(&mut self, cx: &mut Context<Self>) {
-        let Some(ws) = self.ws.upgrade() else {
-            return;
-        };
-        self.follow_book(&ws, cx);
-        self._subs
-            .push(cx.observe(&ws, |panel, ws, cx| panel.follow_book(&ws, cx)));
-        self.bind_controller(cx);
-        self.consume_pending_review_open(cx);
+        if let Some(ws) = self.ws.upgrade() {
+            self.follow_book(&ws, cx);
+            self._subs
+                .push(cx.observe(&ws, |panel, ws, cx| panel.follow_book(&ws, cx)));
+            self.bind_controller(cx);
+            self.consume_pending_review_open(cx);
+        }
+        // Images handed over before now (CW): the book is followed, the
+        // composer is the book's.
+        self.followed = true;
+        for images in std::mem::take(&mut self.handed) {
+            self.take_images(images, cx);
+        }
     }
 
     fn follow_book(&mut self, ws: &Entity<Workspace>, cx: &mut Context<Self>) {
@@ -573,6 +585,7 @@ impl AgentPanel {
             && self.active().is_none()
             && self.old.settled()
             && self.attaching == 0
+            && self.handed.is_empty()
             && !self
                 .thumbs
                 .values()
@@ -673,8 +686,14 @@ impl AgentPanel {
 
     /// Images handed over from a page (CW: dropped or pasted on the module
     /// workbench's paper, [`dr_shell::Workspace::give_agent_images`]):
-    /// attached as if dropped or pasted here.
+    /// attached as if dropped or pasted here. A panel made to take them
+    /// takes them once it has followed its window's book (which empties the
+    /// composer).
     pub fn take_images(&mut self, images: dr_shell::pages::AgentImages, cx: &mut Context<Self>) {
+        if !self.followed {
+            self.handed.push(images);
+            return;
+        }
         match images {
             dr_shell::pages::AgentImages::Files(paths) => self.attach_paths(paths, cx),
             dr_shell::pages::AgentImages::Bytes(items) => self.attach_bytes(items, cx),
