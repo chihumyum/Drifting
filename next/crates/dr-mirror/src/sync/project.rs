@@ -334,7 +334,7 @@ pub(super) fn import(
                 return Ok(Imported::Composing);
             }
             #[cfg(test)]
-            seam::before_commit();
+            seam::before_commit(&id);
             let result = live.import(&update)?;
             if result.pending.is_some() {
                 return Err(SyncError::Invalid(
@@ -356,15 +356,27 @@ pub(super) fn import(
 pub(crate) mod seam {
     use std::sync::Mutex;
 
+    use dr_model::id::BodyDocId;
+
     type Hook = Box<dyn FnMut() + Send>;
 
-    pub static BEFORE_COMMIT: Mutex<Option<Hook>> = Mutex::new(None);
+    /// The hook and the body it is for. Tests share one process and run in
+    /// parallel, and the commit runs on the store's thread, so the slot is
+    /// global: a commit of any other test's body has to pass through.
+    pub static BEFORE_COMMIT: Mutex<Option<(BodyDocId, Hook)>> = Mutex::new(None);
 
-    pub(super) fn before_commit() {
-        let hook = BEFORE_COMMIT.lock().unwrap().take();
-        if let Some(mut hook) = hook {
+    pub(super) fn before_commit(id: &BodyDocId) {
+        let hook = {
+            let mut slot = BEFORE_COMMIT.lock().unwrap();
+            if slot.as_ref().is_some_and(|(body, _)| body == id) {
+                slot.take()
+            } else {
+                None
+            }
+        };
+        if let Some((body, mut hook)) = hook {
             hook();
-            *BEFORE_COMMIT.lock().unwrap() = Some(hook);
+            *BEFORE_COMMIT.lock().unwrap() = Some((body, hook));
         }
     }
 }
