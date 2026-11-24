@@ -2040,12 +2040,28 @@ impl<'a> BookTxnV3<'a> {
     /// templates, other entries or timeline views. The caller validates tree
     /// placement and record ownership first; parent/order remain its plan.
     pub fn restore_entry_owned_at(&mut self, id: &EntryId, old: &BookViewV3<'_>) -> Result<()> {
+        self.restore_entry_owned_at_except(id, old, &Default::default(), false)
+    }
+
+    /// [`Self::restore_entry_owned_at`], leaving some of it as it is now:
+    /// the owned records `keep` names (by collection and key; neither side's
+    /// value is written) and, with `keep_primary`, the entry's `primary`.
+    /// For a point whose memberships or primary host name an entry the book
+    /// no longer has at all (S2, 作者 2026-11-24).
+    pub fn restore_entry_owned_at_except(
+        &mut self,
+        id: &EntryId,
+        old: &BookViewV3<'_>,
+        keep: &std::collections::BTreeSet<(CollectionV3, String)>,
+        keep_primary: bool,
+    ) -> Result<()> {
         use loro::{
             ContainerTrait, ValueOrContainer,
             event::{Diff, DiffBatch},
         };
         use std::collections::{BTreeMap, BTreeSet, HashSet};
         let mut ancestors = HashSet::new();
+        let mut metadata = HashSet::new();
         let mut selected: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
         for view in [self.view, *old] {
             let node = view
@@ -2056,9 +2072,14 @@ impl<'a> BookTxnV3<'a> {
                     collection: book_v3::ENTRIES,
                     id: id.to_string(),
                 })?;
-            ancestors.insert(view.doc.get_tree(book_v3::ENTRIES).get_meta(node)?.id());
+            let meta = view.doc.get_tree(book_v3::ENTRIES).get_meta(node)?.id();
+            ancestors.insert(meta.clone());
+            metadata.insert(meta);
             for (collection, rows) in view.entry_owned_records(id) {
                 for key in rows.keys() {
+                    if keep.contains(&(collection, key.clone())) {
+                        continue;
+                    }
                     selected
                         .entry(collection.root().to_owned())
                         .or_default()
@@ -2108,8 +2129,19 @@ impl<'a> BookTxnV3<'a> {
                         "history contains an unsupported CRDT container",
                     ));
                 }
+                let mut change = change.clone();
+                if keep_primary
+                    && metadata.contains(cid)
+                    && let Diff::Map(map) = &mut change
+                {
+                    map.updated
+                        .retain(|key, _| AsRef::<str>::as_ref(key) != "primary");
+                    if map.updated.is_empty() {
+                        continue;
+                    }
+                }
                 scoped
-                    .push(cid.clone(), change.clone())
+                    .push(cid.clone(), change)
                     .expect("unique diff container");
             }
         }
