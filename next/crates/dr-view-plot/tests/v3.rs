@@ -177,7 +177,7 @@ fn concurrent_windows_never_lose_a_successful_cell_write() {
                 Err(dr_workspace::WsError::Conflict(_)) => {
                     v3::write(&ws, &book, &entry, "mod-plot-grid", writes[n].clone()).unwrap();
                 }
-                Err(e) => panic!("unexpected grid error: {e}"),
+                Err(e) => panic!("unexpected grid error in round {round}: {e}"),
             }
         }
         let current = v3::read(&ws, &book, &entry, "mod-plot-grid").unwrap();
