@@ -281,6 +281,35 @@ async fn plain_http_to_the_internet_is_refused_before_any_request() {
     assert!(fake.seen().is_empty(), "refused before any request");
 }
 
+/// S2 (作者 2026-11-24): an address on the internet written without a scheme
+/// is `https`, and its list is asked of the service over it.
+#[tokio::test]
+async fn an_address_without_a_scheme_reaches_a_service_on_the_internet_over_https() {
+    let fake = Fake::new(Box::new(|seen| {
+        match (seen.method.as_str(), seen.path.as_str()) {
+            ("GET", "/v1/models") => (
+                200,
+                listed(json!([
+                    {"id":"example-chat-large","object":"model","context_length":131_072},
+                ])),
+            ),
+            _ => (404, "{}".into()),
+        }
+    }));
+    let http = HttpClient::new()
+        .unwrap()
+        .with_stand_in("https://api.example.com", &fake.url);
+    let address = LocalAddress::parse("api.example.com/v1").unwrap();
+    assert_eq!(address.base_url, "https://api.example.com");
+    assert_eq!(
+        (address.reach, address.display.as_str()),
+        (Reach::Internet, "api.example.com")
+    );
+    let found = local::discover(&http, &address, None).await.unwrap();
+    assert_eq!(found.models.len(), 1);
+    assert_eq!(fake.requests("/v1/models").len(), 1);
+}
+
 #[tokio::test]
 async fn a_service_on_the_internet_is_listed_and_chatted_with_over_https() {
     let fake = Fake::new(Box::new(|seen| {

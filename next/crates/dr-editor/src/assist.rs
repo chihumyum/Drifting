@@ -2729,6 +2729,7 @@ fn wrap_at(
     let copy = assist.clone();
     let cut = assist.clone();
     let paste = assist.clone();
+    let plain = assist.clone();
     // Where the editor is, for the relation lines and their composer.
     let viewport = {
         let probe = assist.clone();
@@ -2763,6 +2764,14 @@ fn wrap_at(
             if crate::clipboard::paste(&editor, window, cx)
                 || crate::clipboard::paste_html(&editor, window, cx)
             {
+                cx.stop_propagation();
+            }
+        })
+        // ⇧⌘V: only the text, past every formatted paste above and the
+        // tables, images and files of the host's own ⌘V.
+        .capture_action(move |_: &crate::clipboard::PasteAsPlainText, window, cx| {
+            let editor = plain.read(cx).editor.clone();
+            if crate::clipboard::paste_plain_text(&editor, window, cx) {
                 cx.stop_propagation();
             }
         })

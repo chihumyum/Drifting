@@ -674,6 +674,8 @@ async fn only_a_list_that_says_so_makes_a_model_take_images() {
                 {"slug":"codex-sees","visibility":"list","input_modalities":["text","image"]},
                 {"slug":"codex-text","visibility":"list","input_modalities":["text"]},
                 {"slug":"codex-silent","visibility":"list"},
+                {"slug":"codex-odd","visibility":"list","input_modalities":"image"},
+                {"slug":"codex-null","visibility":"list","input_modalities":null},
             ]}),
         ),
     ]);
@@ -710,15 +712,20 @@ async fn only_a_list_that_says_so_makes_a_model_take_images() {
             ("claude-silent".to_owned(), None, false),
         ]
     );
+    // OpenAI's and DeepSeek's lists say nothing. With an OpenAI API key
+    // every model sees images all the same (S2, 作者 2026-11-24); DeepSeek's
+    // never does.
     for provider in [Provider::Openai, Provider::Deepseek] {
         let listed = cache
             .list_with_key_at(http.raw(), provider, "synthetic", &endpoint, 0)
             .await;
         assert_eq!(listed.source, CatalogSource::Live);
+        let seeing = provider == Provider::Openai;
         assert!(
             sees(&listed.models)
                 .iter()
-                .all(|(_, said, seen)| said.is_none() && !seen)
+                .all(|(_, said, seen)| said.is_none() && *seen == seeing),
+            "{provider:?}"
         );
     }
     for provider in [Provider::Anthropic, Provider::Openai, Provider::Chatgpt] {
@@ -728,6 +735,18 @@ async fn only_a_list_that_says_so_makes_a_model_take_images() {
                 .all(|m| m.image_input.is_none())
         );
     }
+    assert!(
+        sees(&bundled_models(Provider::Openai))
+            .iter()
+            .all(|(_, _, seen)| *seen),
+        "OpenAI's bundled list too"
+    );
+    assert!(
+        sees(&bundled_models(Provider::Anthropic))
+            .iter()
+            .all(|(_, _, seen)| !seen),
+        "Anthropic without its list: no"
+    );
     let (_, credentials) = credentials();
     credentials
         .save_tokens(&StoredTokens {
@@ -747,12 +766,18 @@ async fn only_a_list_that_says_so_makes_a_model_take_images() {
             Some(&endpoint),
         )
         .await;
+    // A row without `input_modalities` takes text and images, as Codex's
+    // own client reads it (S2, 作者 2026-11-24); a row that writes the field
+    // is taken at its word, and one that writes something other than a
+    // list says nothing.
     assert_eq!(
         sees(&c.models),
         [
             ("codex-sees".to_owned(), Some(true), true),
             ("codex-text".to_owned(), Some(false), false),
-            ("codex-silent".to_owned(), None, false),
+            ("codex-silent".to_owned(), Some(true), true),
+            ("codex-odd".to_owned(), None, false),
+            ("codex-null".to_owned(), None, false),
         ]
     );
 }

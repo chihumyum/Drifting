@@ -489,16 +489,15 @@ AutomaticHistory::start_with(ws, Cadence { interval, first_points, gap, quiet })
 | 预览以后书或正文变了，或调用方的守卫不符；预览以后点被修剪或改了 | `entry changed since preview` / `checkpoint was removed or changed since preview` | `Restore` |
 | 点里的正文文档现在没了；正文的历史没法不换容器身份地还原；后来加的正文清不空 | `checkpoint body is missing` / `body history cannot be restored …` / `later body cannot be cleared …` | `Restore` |
 | 点里没有这个条目；条目已经永久删除 | 找不到 | `restore_book` |
-| **原来住的地方还在、还能放条目，但现在住在这个条目下面**（搬回去会成环） | `V3-TREE-NO-CYCLE … would create a cycle` | `restore_book`（`check_entry_move`） |
 | **条目现在在最近删除里，点是它进去以前的**（恢复会让它回来），而原来住的地方和现在住的地方都放不了它（比如和住处一起进了最近删除） | `V3-LEAF-NO-CHILDREN … does not exist or is trashed`（或 `switch off`） | `restore_book`（`check_parent_is_level`） |
 | 点里这个条目的「层级」关着，而现在它下面住着活的条目 | `restoration would leave entries under an entry whose switch is off` | `restore_book` |
 | 点里它名下的记录现在属于别的条目 | `record now belongs to another entry` | `restore_book` |
 | 恢复以后它的名字或别名和别的自动链接条目撞了 | `V3-AUTOLINK-NAME-UNIQUE` | `restore_book`（`changes_ok`） |
 | 元数据或名下记录没法不换容器身份地还原（含不认识的 CRDT 容器） | `entry history cannot be restored …` / `unsupported CRDT container` | `restore_book`、`dr-doc` 的 `restore_entry_owned_at` |
 
-加粗的两行和「住在哪」有关：成环是原来的地方还在，不算「没了」，照旧拒绝；第二行是「留在现在的地方」也站不住的那一种，照旧拒绝（任务书没说到，按最保守的做法，等作者看）。照 kernel-v5 第 16 节，最近删除里的条目不能点开、悬停卡上只有「恢复」「永久删除」，平常从界面走不到第二行（没在真窗口里核对过）。
+加粗的一行和「住在哪」有关：是「留在现在的地方」也站不住的那一种，照旧拒绝（任务书没说到，按最保守的做法；作者 2026-11-24 答「都按照你的推荐来。」，推荐是照旧拒绝）。原来住的地方还在、但现在住在这个条目下面（搬回去会成环）的，原来也在这张表里，2026-11-24 起不再拒绝，见下一节。照 kernel-v5 第 16 节，最近删除里的条目不能点开、悬停卡上只有「恢复」「永久删除」，平常从界面走不到这一行（没在真窗口里核对过）。
 
-**挂在哪（这一轮没改，查清的）**：恢复把点里这个条目名下的挂名记录（它挂在别处的、别处挂在它上面的）和主归属原样写回，不看挂的目标现在怎样，也不因此拒绝。目标现在：
+**挂在哪（这一轮没改，查清的；已永久删除的那一种 2026-11-24 改了，见下一节）**：恢复把点里这个条目名下的挂名记录（它挂在别处的、别处挂在它上面的）和主归属原样写回，不看挂的目标现在怎样，也不因此拒绝。目标现在：
 
 - 在最近删除里：记录写回，读作没挂（`membership.list` 不列）；目标恢复以后又挂上。
 - 关了「收别处的条目」：记录写回，读作没挂；再打开又挂上。
@@ -509,7 +508,28 @@ AutomaticHistory::start_with(ws, Cadence { interval, first_points, gap, quiet })
 
 **测试：**
 
-- `dr-workspace`（`snapshots.rs` 的单测）：`restore_leaves_an_entry_where_it_lives_when_its_place_then_is_deleted`：章在一个分组里时存点，之后改了字、挪到书稿开头，分组进最近删除、再永久删除，两种情况各恢复一次：标题、梗概、正文回到点里的，住处和先后位置是恢复前的，一步撤销回到恢复前。`…_when_its_place_then_holds_no_entries`：同样，分组的「层级」关了；分组的开关不跟着恢复。`restore_still_refuses_a_cycle_or_a_life_where_nothing_can_hold_the_entry`：上表加粗的两种照旧拒绝，书目和清单文档的版本都不变。前两条在改之前的代码上失败，第三条改前改后都过。
+- `dr-workspace`（`snapshots.rs` 的单测）：`restore_leaves_an_entry_where_it_lives_when_its_place_then_is_deleted`：章在一个分组里时存点，之后改了字、挪到书稿开头，分组进最近删除、再永久删除，两种情况各恢复一次：标题、梗概、正文回到点里的，住处和先后位置是恢复前的，一步撤销回到恢复前。`…_when_its_place_then_holds_no_entries`：同样，分组的「层级」关了；分组的开关不跟着恢复。`restore_still_refuses_a_cycle_or_a_life_where_nothing_can_hold_the_entry`：上表加粗的两种照旧拒绝，书目和清单文档的版本都不变（2026-11-24 成环的那一半挪进下一节的新测试，这一条改名 `restore_still_refuses_a_life_where_nothing_can_hold_the_entry`）。前两条在改之前的代码上失败，第三条改前改后都过。
 - `dr-import-v1`（`tests/history_checkpoints.rs`）：`restoring_a_point_whose_0_1_group_is_gone_keeps_the_element_where_it_lives`：导入的要素旧点（0.1 分组「未庄」已经没有了）能恢复：正文、名字、别名、梗概、事实回到那一行，住处和同级的先后不变，多一个「恢复前」的点，一步撤销回到恢复前。原来 `restoring_an_imported_point_brings_back_its_prose_and_fields_and_keeps_the_state_before` 末尾断言「拒绝、什么都没改」的那一段删掉，由这一条代替。
 
 **真窗口**：`crates/dr-cli/scenarios/import-history.json` 在章的恢复后面加了导入要素的那一种（0.1 分组已经没有了）：从悬停卡打开快照历史、预览、确认恢复，对话框显示恢复成功，字和字段是那一行的，住处不变。副屏、合成 profile，76 步全过（见 [m10 的「真窗口」](m10-import.md#真窗口)）。
+
+## 恢复时成环也留在原地；挂着的目标已经永久删除时跳过（2026-11-24，S2）
+
+**依据**：SR 交回时留下的两件事（[progress.md](../progress.md)「等作者的事」第 21 条 SR (a)(b)），作者 2026-11-24 答「都按照你的推荐来。」（任务书 [handoff/resume-1123.md](../handoff/resume-1123.md) 的 S2 第 5 处）。
+
+**做了什么（大白话）：**
+
+- **成环也留在原地。** 点里记的住处还在、还能放条目，但它现在住在这个条目下面（比如「上卷」当时住在「下卷」里，后来把「下卷」挪进了「上卷」）：搬回去会让条目住到自己下面。以前整个恢复拒绝；现在和「原来住的地方没了」同一个规矩：正文、标题、字段、名下的记录回到那个点，条目留在现在住的地方、现在的先后位置，住在它下面的也都不动。恢复前照旧存一个点，一步能撤。
+- **挂着的目标已经永久删除时跳过。** 点里记着这个条目挂在哪些条目上、哪些条目挂在它上面（挂名记录），还有它的主归属。恢复时，另一端已经永久删除（或者这本书里本来就没有）的挂名记录不写回，主归属指着这样一个条目的也不写回：这两样都保持恢复前的样子（永久删除时它们已经被一起去掉了）。另一端在最近删除里、或者关了「收别处的条目」的，照旧写回（它们还能回来，回来以后又挂上）；另一端还在、还收的照旧挂回去。这样恢复以后书里不会有指着不存在条目的记录。
+- 别的拒绝原因照旧（上一节的表）。界面没改；命令的入参、出参和摘要都没变。
+
+**代码：**
+
+- `dr-workspace/src/commands/v3/snapshots.rs` 的 `restore_book`：点里的住处现在放不了它（`check_parent_is_level`）**或者**搬回去会成环（`check_entry_move`）都算「留在原地」。在第一次写之前算出要跳过的：点里这个条目名下的挂名记录，按记录的键（`宿主|成员`）看两端，除它自己以外有一端不在现在的书里（最近删除里的还算在）的；条目 id 是不透明的字符串，所以只要键是 `宿主|成员` 的写法，另一端不管长什么样（比如测试里的 `missing-host`），书里没有就跳过；键不是这种写法的记录读不出两端，照旧原样写回；点里的主归属不在现在的书里时，主归属也跳过。写完以后比对「恢复后的原始状态和点里的一样」时，跳过的这几样按恢复前的值比。
+- `dr-doc` 只加不改：`BookTxnV3::restore_entry_owned_at_except(id, old, keep, keep_primary)`，`keep` 里点名的名下记录（集合和键）两边的值都不碰，`keep_primary` 时元数据里的 `primary` 不碰；原来的 `restore_entry_owned_at` 等于什么都不跳过的它。
+
+**测试**（除注明的以外是 `snapshots.rs` 的单测）：
+
+- `restore_leaves_an_entry_where_it_lives_when_its_place_then_lies_below_it`：「上卷」住在「下卷」里时存点，之后改名、挪到书稿开头、再把「下卷」挪进「上卷」；恢复：标题回到点里的，两个条目的住处和那里的先后都不变，多一个「恢复前」的点；一步撤销回到恢复前。它代替了原来 `restore_still_refuses_a_cycle_or_a_life_where_nothing_can_hold_the_entry` 里断言「成环拒绝、什么都没写」的那一半（那条改名 `restore_still_refuses_a_life_where_nothing_can_hold_the_entry`，剩下的「最近删除里、两个住处都放不了」照旧拒绝）。
+- `dr-workspace` `tests/entry_snapshots.rs` 的 `future_container_types_rich_marks_hidden_memberships_and_shared_templates_roundtrip_exactly`（改了期望）：原来点里有一条宿主是书里没有的 `missing-host` 的挂名记录，带一个不认识的字段，断言恢复以后它原样回来。现在这条按新规矩不写回，期望里去掉它；另加一条宿主在书里、但不收别处条目的挂名记录（同样读作没挂、带不认识的字段），断言它原样回来，「看不见的挂名和不认识的字段原样往返」照旧守着。
+- `restore_skips_memberships_and_a_primary_host_deleted_for_good`：章 b 挂在三个条目上（主归属是第一个），它自己也收了两章；存点以后改字、摘掉几处挂名，第一个宿主和它收的一章永久删除，第二个宿主进最近删除，第三个宿主关了「收别处的条目」。恢复：标题回到点里的；挂名记录写回了第二、第三个宿主和还在的那一章的，两条另一端永久删除的没写回；主归属仍是空的；书里所有挂名记录的两端、所有条目的主归属都是书里有的条目；一步撤销回到恢复前（挂名、主归属、字和住处）。

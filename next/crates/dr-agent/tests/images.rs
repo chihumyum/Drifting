@@ -63,9 +63,10 @@ fn seeing() -> RunConfig {
     config
 }
 
-/// A model whose list says nothing about images.
+/// A model whose list says nothing about images (on the OpenAI API route
+/// every model sees them: `an_openai_api_model_gets_the_bytes_whatever_its_list_says`).
 fn blind() -> RunConfig {
-    let mut config = RunConfig::new(Provider::Openai, "synthetic-blind");
+    let mut config = RunConfig::new(Provider::Anthropic, "synthetic-blind");
     config.capabilities = Some(ModelCapabilities {
         context_window: Some(200_000),
         ..Default::default()
@@ -244,6 +245,50 @@ fn a_model_that_cannot_see_is_not_asked_and_the_agent_says_so() {
         .unwrap();
     assert_eq!(run.join().unwrap(), State::Completed);
     assert!(driver.requests().is_empty());
+    drop(runtime);
+    ws.shutdown().unwrap();
+}
+
+/// S2 (作者 2026-11-24): with an OpenAI API key every model takes images, as
+/// in the 0.1 client: OpenAI's model list says nothing either way, and a
+/// model that cannot is refused by the service, through the usual error
+/// path. The model is asked, with the bytes; the Agent does not say it
+/// cannot see.
+#[test]
+fn an_openai_api_model_gets_the_bytes_whatever_its_list_says() {
+    let (_dir, ws, book) = setup();
+    let driver = Arc::new(ScriptedDriver::new(vec![reply("一张图"), reply("两张图")]));
+    let runtime = Runtime::new(
+        ws.clone(),
+        driver.clone(),
+        Arc::new(NoTools),
+        Options::default(),
+    )
+    .unwrap();
+    let conversation = ConversationId::new_v7();
+    let map = dr_testkit::media::png(64, 48);
+    let silent = RunConfig::new(Provider::Openai, "synthetic-openai");
+    let mut listed = silent.clone();
+    listed.capabilities = Some(ModelCapabilities {
+        context_window: Some(200_000),
+        ..Default::default()
+    });
+    for config in [silent, listed] {
+        assert!(config.sees_images());
+        let run = runtime
+            .start_with_images(start(&book, &conversation, config, "看"), attach(&[&map]))
+            .unwrap();
+        assert_eq!(run.join().unwrap(), State::Completed);
+    }
+    let requests = driver.requests();
+    assert_eq!(requests.len(), 2, "the model was asked each time");
+    assert_eq!(requests[1].images.len(), 2);
+    let transcript = conversation_entries(&ws, &conversation);
+    assert!(
+        !transcript
+            .iter()
+            .any(|e| e.payload.to_string().contains("这个模型看不了图片"))
+    );
     drop(runtime);
     ws.shutdown().unwrap();
 }

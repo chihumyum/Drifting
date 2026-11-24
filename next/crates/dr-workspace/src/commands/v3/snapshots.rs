@@ -1241,14 +1241,15 @@ fn restore_book(now: &LoroDoc, old: &LoroDoc, book: &BookId, entry: &str) -> Res
     let before = current.graph();
     let mut entries = before.entries.clone();
     // Where the entry lived then can no longer hold it: gone from the book,
-    // in Recently Deleted, or with its level switch off. It then stays where
-    // it lives now, in its current place among its siblings, and the rest of
-    // the point is restored (author, 2026-11-23). Only a place that is still
-    // there can make the move back a cycle; that is still refused.
-    let stays = e
-        .parent
-        .as_ref()
-        .is_some_and(|p| m::check_parent_is_level(Some(p), &entries).is_err());
+    // in Recently Deleted, or with its level switch off (author, 2026-11-23);
+    // or it is still there but lives below the entry now, so moving back
+    // would make a cycle (author, 2026-11-24, S2). It then stays where it
+    // lives now, in its current place among its siblings, and the rest of
+    // the point is restored.
+    let stays = e.parent.as_ref().is_some_and(|p| {
+        m::check_parent_is_level(Some(p), &entries).is_err()
+            || m::check_entry_move(&entries, &id, Some(p)).is_err()
+    });
     let parent = if stays {
         let here = entries
             .get(&id)
@@ -1281,17 +1282,41 @@ fn restore_book(now: &LoroDoc, old: &LoroDoc, book: &BookId, entry: &str) -> Res
     }
     let want = ov.entry_owned_records(&id);
     let have = current.entry_owned_records(&id);
+    // What the point names that the book no longer has at all (deleted for
+    // good, or never in it): a membership with such an entry at its other
+    // end is not written back, nor a primary host that is one; both stay as
+    // they are now (author, 2026-11-24, S2). An entry in Recently Deleted,
+    // or one that takes no entries from elsewhere now, can come back, and
+    // what names it is written back as before.
+    let gone = |x: &EntryId| !entries.contains_key(x);
+    let kept: BTreeSet<(CollectionV3, String)> = want
+        .get(&CollectionV3::Memberships)
+        .into_iter()
+        .flat_map(|rows| rows.keys())
+        .filter(|key| {
+            m::Membership::parse_key(key)
+                .is_some_and(|(host, member)| [host, member].iter().any(|x| *x != id && gone(x)))
+        })
+        .map(|key| (CollectionV3::Memberships, key.clone()))
+        .collect();
+    let keep_primary = e.primary.as_ref().is_some_and(gone);
     for (c, rows) in &want {
         for key in rows.keys() {
-            if !have[c].contains_key(key) && current.map_snapshot(*c, key).is_some() {
+            if !kept.contains(&(*c, key.clone()))
+                && !have[c].contains_key(key)
+                && current.map_snapshot(*c, key).is_some()
+            {
                 return Err(WsError::Conflict(format!(
                     "record now belongs to another entry: {key}"
                 )));
             }
         }
     }
+    // The kept parts as they are now, for the check after the writes.
+    let kept_now = (!kept.is_empty() || keep_primary)
+        .then(|| current.entry_owned_raw_state(&id).expect("current entry"));
     let mut txn = b.txn();
-    txn.restore_entry_owned_at(&id, &ov)?;
+    txn.restore_entry_owned_at_except(&id, &ov, &kept, keep_primary)?;
     // An entry that stays is not moved: its tree node keeps its parent and
     // its own position key (restoring owned content never touches the tree).
     if !stays {
@@ -1330,8 +1355,29 @@ fn restore_book(now: &LoroDoc, old: &LoroDoc, book: &BookId, entry: &str) -> Res
     want.as_object_mut().expect("raw object").remove("siblings");
     got.as_object_mut().expect("raw object").remove("siblings");
     // Where it lives is the plan above: the historical place, or where it
-    // lives now when that place is gone. Everything else is the point's.
+    // lives now when that place is gone. The memberships and primary host
+    // kept above are as they are now. Everything else is the point's.
     want["parent"] = serde_json::to_value(&parent).map_err(|e| WsError::Internal(e.to_string()))?;
+    if let Some(kept_now) = &kept_now {
+        let mut keep = |path: [&str; 3]| {
+            let [group, root, key] = path;
+            let slot = &mut want[group][root];
+            match kept_now[group][root].get(key) {
+                Some(value) => slot[key] = value.clone(),
+                None => {
+                    if let Some(map) = slot.as_object_mut() {
+                        map.remove(key);
+                    }
+                }
+            }
+        };
+        for (c, key) in &kept {
+            keep(["records", c.root(), key.as_str()]);
+        }
+        if keep_primary {
+            keep(["metadata", "map", "primary"]);
+        }
+    }
     if want != got {
         return Err(WsError::invalid(
             "entry history cannot be restored without changing retained container identities",
@@ -1790,13 +1836,170 @@ mod tests {
         assert_eq!(folder["level"], false);
     }
 
-    /// The other refusals stay. A place still there that now lies below the
-    /// entry: moving back would put the entry under itself. And an entry in
-    /// Recently Deleted with the place it lived in: a point from before would
-    /// bring it back to life where it lives now, which cannot hold it either.
-    /// Both refused before any write, as before.
+    /// The place an entry lived in at a point is still there, but lives
+    /// below the entry now: moving back would put the entry under itself.
+    /// The same as a place that is gone (author, 2026-11-24, S2): the rest
+    /// of the point comes back, the entry and what lives below it stay where
+    /// they are. One undo goes back to the state before the restore.
     #[test]
-    fn restore_still_refuses_a_cycle_or_a_life_where_nothing_can_hold_the_entry() {
+    fn restore_leaves_an_entry_where_it_lives_when_its_place_then_lies_below_it() {
+        let s = shelf();
+        // `mover` lived in `home` at the point; `home` lives in `mover` now.
+        let (mover, home) = (s.folder("上卷"), s.folder("下卷"));
+        s.out(
+            "entry.move",
+            json!({"book":s.book,"id":mover,"parent":home}),
+        );
+        let point = s.checkpoint(&mover);
+        s.out(
+            "entry.update",
+            json!({"book":s.book,"id":mover,"title":"中卷"}),
+        );
+        s.out(
+            "entry.move",
+            json!({"book":s.book,"id":mover,"parent":s.manuscript,"index":0}),
+        );
+        s.out(
+            "entry.move",
+            json!({"book":s.book,"id":home,"parent":mover}),
+        );
+        let entry = |id: &str| s.out("entry.get", json!({"book":s.book,"id":id}));
+        // Where `id` lives, and every entry there in order.
+        let place = |id: &str| {
+            let parent = entry(id)["parent"].clone();
+            let there: Vec<Value> = s
+                .out("entry.list", json!({"book":s.book,"parent":parent}))
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|e| e["id"].clone())
+                .collect();
+            (parent, there)
+        };
+        let now = (place(&mover), place(&home));
+        assert_eq!(now.0.0, json!(s.manuscript));
+        assert_eq!(now.1.0, json!(mover));
+        let points = s.points(&mover);
+        s.try_restore(&mover, &point).unwrap();
+        assert_eq!(entry(&mover)["title"], "上卷", "the point's title");
+        assert_eq!((place(&mover), place(&home)), now, "nothing moved");
+        assert_eq!(s.points(&mover), points + 1, "the point before it");
+        s.ws.undo(&Actor::User).unwrap().expect("the restore");
+        assert_eq!(entry(&mover)["title"], "中卷");
+        assert_eq!((place(&mover), place(&home)), now);
+    }
+
+    /// What a point names that the book no longer has at all (author,
+    /// 2026-11-24, S2): a membership whose other end is deleted for good is
+    /// not written back, either way round, nor a primary host deleted for
+    /// good; both stay as they are now. A host in Recently Deleted, or one
+    /// taking no entries from elsewhere now, can come back: its membership
+    /// is written back as before. Afterwards nothing in the book names an
+    /// entry it does not have, and one undo goes back.
+    #[test]
+    fn restore_skips_memberships_and_a_primary_host_deleted_for_good() {
+        let s = shelf();
+        let accept = |id: &str, on: bool| {
+            s.out(
+                "entry.update",
+                json!({"book":s.book,"id":id,"overrides":{"accept":on}}),
+            );
+        };
+        let hang = |host: &str, member: &str, on: bool| {
+            s.out(
+                if on {
+                    "membership.add"
+                } else {
+                    "membership.remove"
+                },
+                json!({"book":s.book,"host":host,"member":member}),
+            );
+        };
+        let (b, c) = (s.id("b").to_owned(), s.id("c").to_owned());
+        let (purged, trashed, closed) = (s.folder("线一"), s.folder("线二"), s.folder("线三"));
+        let doomed = s.chapter("e");
+        for host in [&purged, &trashed, &closed] {
+            accept(host, true);
+            hang(host, &b, true);
+        }
+        s.out(
+            "membership.primary",
+            json!({"book":s.book,"member":b,"host":purged}),
+        );
+        // `b` takes entries from elsewhere too: `c` and `doomed` hang on it.
+        accept(&b, true);
+        for member in [&c, &doomed] {
+            hang(&b, member, true);
+        }
+        s.write("b", "旧");
+        let point = s.checkpoint(&b);
+        s.write("b", "新");
+        hang(&trashed, &b, false);
+        hang(&closed, &b, false);
+        hang(&b, &c, false);
+        for gone in [&purged, &doomed] {
+            s.out("entry.trash", json!({"book":s.book,"id":gone}));
+            s.out("entry.purge", json!({"book":s.book,"id":gone}));
+        }
+        s.out("entry.trash", json!({"book":s.book,"id":trashed}));
+        accept(&closed, false);
+
+        let stored = || -> BTreeSet<String> {
+            let doc = s.ws.library().load_copy(&book_doc(&s.book)).unwrap();
+            match doc.get_map("memberships").get_deep_value() {
+                loro::LoroValue::Map(rows) => rows.keys().cloned().collect(),
+                _ => BTreeSet::new(),
+            }
+        };
+        let primary = || s.out("entry.get", json!({"book":s.book,"id":b}))["primary"].clone();
+        let now = (stored(), primary(), s.state("b"));
+        assert_eq!(now.0, BTreeSet::new(), "nothing hangs now");
+        assert_eq!(now.1, Value::Null, "the purge took the primary host away");
+
+        s.restore("b", &point);
+        let key = |host: &str, member: &str| {
+            m::Membership::key(
+                &EntryId::parse(host).unwrap(),
+                &EntryId::parse(member).unwrap(),
+            )
+        };
+        assert_eq!(
+            stored(),
+            BTreeSet::from([key(&trashed, &b), key(&closed, &b), key(&b, &c)]),
+            "written back but for the two deleted for good"
+        );
+        assert_eq!(primary(), Value::Null, "not written back");
+        assert_eq!(s.state("b")["title"], "旧", "the rest of the point");
+        // Nothing names an entry the book does not have.
+        let all = s.out(
+            "entry.list",
+            json!({"book":s.book,"all":true,"trashed":true}),
+        );
+        let ids: BTreeSet<&str> = all
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|e| e["id"].as_str().unwrap())
+            .collect();
+        for row in stored() {
+            let (host, member) = row.split_once('|').unwrap();
+            assert!(ids.contains(host) && ids.contains(member), "{row}");
+        }
+        for e in all.as_array().unwrap() {
+            if let Some(host) = e["primary"].as_str() {
+                assert!(ids.contains(host), "{e}");
+            }
+        }
+        s.ws.undo(&Actor::User).unwrap().expect("the restore");
+        assert_eq!((stored(), primary(), s.state("b")), now);
+    }
+
+    /// The other refusal about where the entry lives stays: an entry in
+    /// Recently Deleted with the place it lived in, whose point from before
+    /// would bring it back to life where it lives now, which cannot hold it
+    /// either. Refused before any write, as before.
+    #[test]
+    fn restore_still_refuses_a_life_where_nothing_can_hold_the_entry() {
         let s = shelf();
         // The book and the checkpoints beside it: a write, or a point saved
         // before one, would show here.
@@ -1806,30 +2009,6 @@ mod tests {
                 s.ws.observe(&book_doc(&s.book)).unwrap().version,
             )
         };
-
-        // `mover` lived in `home` at the point; `home` lives in `mover` now.
-        let (mover, home) = (s.folder("上卷"), s.folder("下卷"));
-        s.out(
-            "entry.move",
-            json!({"book":s.book,"id":mover,"parent":home}),
-        );
-        let point = s.checkpoint(&mover);
-        s.out(
-            "entry.move",
-            json!({"book":s.book,"id":mover,"parent":s.manuscript}),
-        );
-        s.out(
-            "entry.move",
-            json!({"book":s.book,"id":home,"parent":mover}),
-        );
-        let before = versions();
-        let refused = s.try_restore(&mover, &point).unwrap_err();
-        assert!(
-            refused.to_string().contains("would create a cycle"),
-            "{refused}"
-        );
-        assert_eq!(versions(), before, "a cycle");
-
         let folder = s.folder("卷");
         s.move_to("b", Some(&folder), 0);
         let point = s.checkpoint(s.id("b"));

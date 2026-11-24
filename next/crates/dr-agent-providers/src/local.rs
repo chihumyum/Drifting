@@ -7,7 +7,8 @@
 //! (`10/8`, `172.16/12`, `192.168/16`, `*.local`) are accepted over `http`
 //! or `https`. Anywhere else is a service on the internet, accepted over
 //! `https` only (作者 2026-11-23, chihumyum/Drifting#3); plain `http` to it
-//! is refused before any request.
+//! is refused before any request. An address written without a scheme is
+//! `http` here and `https` on the internet (作者 2026-11-24).
 
 use std::collections::{HashMap, HashSet};
 use std::net::{Ipv4Addr, Ipv6Addr};
@@ -69,18 +70,21 @@ pub struct LocalAddress {
 }
 
 impl LocalAddress {
-    /// What the author pasted. A missing scheme means `http://`.
+    /// What the author pasted. A missing scheme means `http://` on this
+    /// computer and the local network, `https://` on the internet (作者
+    /// 2026-11-24, S2); a written `http://` to the internet is still refused.
     pub fn parse(raw: &str) -> std::result::Result<Self, AddressError> {
         let raw = raw.trim();
         if raw.is_empty() || raw.chars().any(char::is_whitespace) {
             return Err(AddressError::Invalid);
         }
-        let with_scheme = if raw.contains("://") {
-            raw.to_owned()
-        } else {
-            format!("http://{raw}")
-        };
-        let mut url = Url::parse(&with_scheme).map_err(|_| AddressError::Invalid)?;
+        if !raw.contains("://") {
+            return match Self::parse(&format!("http://{raw}")) {
+                Err(AddressError::NeedsHttps) => Self::parse(&format!("https://{raw}")),
+                local => local,
+            };
+        }
+        let mut url = Url::parse(raw).map_err(|_| AddressError::Invalid)?;
         if !matches!(url.scheme(), "http" | "https")
             || !url.username().is_empty()
             || url.password().is_some()
@@ -642,6 +646,57 @@ mod tests {
                 "[2001:db8::1]",
                 Reach::Internet,
             ),
+            // Without a scheme (S2, 作者 2026-11-24): `https` on the
+            // internet, `http` here (`localhost:1234`, `10.0.0.5:8000/…`
+            // above).
+            (
+                "api.example.com",
+                "https://api.example.com",
+                "api.example.com",
+                Reach::Internet,
+            ),
+            (
+                " API.Example.com:8443/proxy/v1/ ",
+                "https://api.example.com:8443/proxy",
+                "api.example.com:8443",
+                Reach::Internet,
+            ),
+            (
+                "203.0.113.7/v1",
+                "https://203.0.113.7",
+                "203.0.113.7",
+                Reach::Internet,
+            ),
+            (
+                "[2001:db8::1]:8443",
+                "https://[2001:db8::1]:8443",
+                "[2001:db8::1]:8443",
+                Reach::Internet,
+            ),
+            (
+                "intranet:8080",
+                "https://intranet:8080",
+                "intranet:8080",
+                Reach::Internet,
+            ),
+            (
+                "[::1]:11434",
+                "http://[::1]:11434",
+                "localhost:11434",
+                Reach::ThisComputer,
+            ),
+            (
+                "gpu-box.local:11434/v1",
+                "http://gpu-box.local:11434",
+                "gpu-box.local:11434",
+                Reach::LocalNetwork,
+            ),
+            (
+                "192.168.1.20:1234",
+                "http://192.168.1.20:1234",
+                "192.168.1.20:1234",
+                Reach::LocalNetwork,
+            ),
         ] {
             let address = LocalAddress::parse(raw).unwrap_or_else(|e| panic!("{raw}: {e}"));
             assert_eq!(address.base_url, base, "{raw}");
@@ -651,10 +706,11 @@ mod tests {
             assert_eq!(on_the_internet(raw), reach == Reach::Internet, "{raw}");
             validate_endpoint(&format!("{}/v1/chat/completions", address.base_url)).unwrap();
         }
-        // On the internet over plain http: refused, here and in the transport.
+        // On the internet over a written plain http: refused, here and in
+        // the transport.
         for raw in [
             "http://api.example.com/v1",
-            "api.example.com",
+            " HTTP://api.example.com ",
             "http://example.com:11434",
             "http://172.32.0.1",
             "http://172.15.0.1",
@@ -689,6 +745,9 @@ mod tests {
             "https://user:pass@api.example.com/v1",
             "https://api.example.com/v1?key=1",
             "https://api.example.com/v1#models",
+            "user:pass@api.example.com/v1",
+            "api.example.com/v1?key=1",
+            "api.example.com/v1#models",
         ] {
             assert_eq!(
                 LocalAddress::parse(raw),

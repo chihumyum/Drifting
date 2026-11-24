@@ -666,6 +666,148 @@ fn a_table_cell_takes_only_the_text(cx: &mut TestAppContext) {
     );
 }
 
+/// S2 (作者 2026-11-24): ⇧⌘V in a body takes only the clipboard's text,
+/// whatever came with it: another program's HTML, Drifting's own marks, a
+/// tab-separated grid; an image alone pastes nothing. Each paste is one undo
+/// step, as ⌘V of plain text is.
+#[gpui::test]
+fn shift_paste_takes_only_the_text_into_a_body(cx: &mut TestAppContext) {
+    let e = env();
+    let (_view, editor, cx) = open(cx, &e, &e.doc);
+    editor.update_in(cx, |p, w, cx| {
+        p.select(0, 5..5, w, cx);
+        p.press_enter(w, cx);
+    });
+    draw(cx);
+    let (before_text, before_links) = durable(&e);
+
+    // Another program's formatting: paragraphs, no heading, list or marks.
+    other_program(cx, "标题\n有粗体和链接\n一\n二", FORMATTED);
+    cx.dispatch_action(PasteAsPlainText);
+    draw(cx);
+    assert_eq!(
+        stored(&e, &e.doc),
+        [
+            ("前α😀後末".into(), None, None),
+            ("标题".into(), None, None),
+            ("有粗体和链接".into(), None, None),
+            ("一".into(), None, None),
+            ("二".into(), None, None),
+        ]
+    );
+    assert_eq!(durable(&e).1.marks(), before_links.marks());
+    editor.read_with(cx, |p, _| {
+        let doc = &p.book().chapters[0].doc;
+        for line in 1..doc.visible_lines() {
+            assert!(
+                doc.line(line).spans.iter().all(|s| s.marks.is_empty()),
+                "line {line}: {:?}",
+                doc.line(line).spans
+            );
+        }
+        assert_eq!(p.selection().head, doc.line_start(4) + 1);
+    });
+    cx.dispatch_action(gpui_prose::input::actions::Undo);
+    draw(cx);
+    assert_eq!(durable(&e), (before_text.clone(), before_links.clone()));
+
+    // Drifting's own copy: the words without their entity links (⌘V keeps
+    // them: `unicode_body_os_clipboard_retains_raw_module_range_and_durable_neighbors`).
+    editor.update_in(cx, |p, w, cx| p.select(0, 1..4, w, cx));
+    cx.update(|w, cx| assert!(copy(&editor, false, w, cx)));
+    assert!(
+        cx.read_from_clipboard()
+            .and_then(|i| metadata(&i))
+            .is_some()
+    );
+    editor.update_in(cx, |p, w, cx| p.select(0, 5..5, w, cx));
+    cx.dispatch_action(PasteAsPlainText);
+    draw(cx);
+    let (text, links) = durable(&e);
+    assert_eq!(text, "前α😀後末α😀後\n\n");
+    assert_eq!(links.marks(), before_links.marks(), "no link comes with it");
+    assert_eq!(editor.read_with(cx, |p, _| p.selection().head), 8);
+    cx.dispatch_action(gpui_prose::input::actions::Undo);
+    draw(cx);
+    assert_eq!(durable(&e), (before_text, before_links));
+
+    // An image alone: nothing is written.
+    let version = e.ws.observe(&e.doc).unwrap().version;
+    cx.write_to_clipboard(ClipboardItem::new_image(&gpui::Image::from_bytes(
+        gpui::ImageFormat::Png,
+        dr_testkit::media::png(8, 8),
+    )));
+    cx.dispatch_action(PasteAsPlainText);
+    draw(cx);
+    assert_eq!(e.ws.observe(&e.doc).unwrap().version, version);
+}
+
+/// ⇧⌘V with a spreadsheet's copy in a note: its text, tabs and all, never a
+/// table (⌘V makes one: `another_programs_table_keeps_its_cells_formats`).
+#[gpui::test]
+fn shift_paste_makes_no_table_of_a_grid(cx: &mut TestAppContext) {
+    let e = env();
+    let doc = note_doc(&e, "Synthetic plain grid");
+    let (view, _body, cx) = open(cx, &e, &doc);
+    let embeds = view.read_with(cx, |v, _| v.note_embeds().unwrap().clone());
+    other_program(
+        cx,
+        "名字\t年龄\n安\t30",
+        r#"<table><tr><td><b>名字</b></td><td>年龄</td></tr><tr><td>安</td><td>30</td></tr></table>"#,
+    );
+    cx.dispatch_action(PasteAsPlainText);
+    draw(cx);
+    assert!(embeds.tables().is_empty());
+    assert_eq!(
+        stored(&e, &doc),
+        [
+            ("名字\t年龄".into(), None, None),
+            ("安\t30".into(), None, None)
+        ]
+    );
+}
+
+/// ⇧⌘V in a table's cell: Drifting's own marks stay behind there too.
+#[gpui::test]
+fn shift_paste_in_a_cell_takes_only_the_text(cx: &mut TestAppContext) {
+    let e = env();
+    let doc = note_doc(&e, "Synthetic plain cell");
+    let (view, _body, cx) = open(cx, &e, &doc);
+    let embeds = view.read_with(cx, |v, _| v.note_embeds().unwrap().clone());
+    let cells = vec![vec!["".to_owned(), "".to_owned()]];
+    cx.update(|w, cx| crate::embeds::insert_table(&embeds, 0, cells, Vec::new(), w, cx));
+    draw(cx);
+    let table = embeds.tables()[0].clone();
+    let id = table.read_with(cx, |t, _| t.embed().to_string());
+    let bold: Vec<CellMark> = vec![(0, 1, "bold".into(), LoroValue::Bool(true))];
+    let rich = || {
+        ClipboardItem::new_string_with_json_metadata(
+            "粗".into(),
+            json!({KEY:{"version":1,"text":"粗","marks":encode_marks(&bold).unwrap()}}),
+        )
+    };
+    // ⌘V in the first cell keeps the bold; ⇧⌘V in the second does not.
+    for (col, plain) in [(0, false), (1, true)] {
+        let cell = table.read_with(cx, |t, _| t.cell_editor(0, col).unwrap().clone());
+        cell.update_in(cx, |p, w, cx| p.focus_at(0, 0, w, cx));
+        draw(cx);
+        cx.write_to_clipboard(rich());
+        if plain {
+            cx.dispatch_action(PasteAsPlainText);
+        } else {
+            cx.dispatch_action(gpui_prose::input::actions::Paste);
+        }
+        draw(cx);
+    }
+    assert_eq!(embeds.table_cells(&id).unwrap()[0], ["粗", "粗"]);
+    let (_, marks) = embeds.table_grid(&id).unwrap();
+    assert_eq!(
+        crate::table::clip::marks_at(&marks, 0, 0),
+        [(0, 1, "bold".to_owned(), LoroValue::Bool(true))]
+    );
+    assert!(crate::table::clip::marks_at(&marks, 0, 1).is_empty());
+}
+
 fn selected_cells_peer_case(cx: &mut TestAppContext, after_input: bool) {
     use gpui::EntityInputHandler as _;
     let e = env();

@@ -881,12 +881,26 @@ fn future_container_types_rich_marks_hidden_memberships_and_shared_templates_rou
         .as_str()
         .unwrap()
         .to_owned();
+    // A host that is there but takes no entries from elsewhere: the entry's
+    // membership of it is hidden, and its unknown field comes back.
+    let host = e.out(
+        "entry.create",
+        json!({"book":b,"title":"Hidden host","template":"tpl-chapter"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let hidden = format!("{host}|{id}");
+    // A host the book does not have (S2, 作者 2026-11-24): what names it is
+    // not written back, so restoring leaves no record of an entry not there.
+    let missing = format!("missing-host|{id}");
     let h = e
         .ws()
         .library()
         .open_doc(&format!("book:{b}"), dr_store::OpenDoc::Existing)
         .unwrap();
     let (entry, patch_id) = (id.clone(), patch.clone());
+    let rows = [hidden.clone(), missing.clone()];
     h.write(dr_store::Origin::User, move |d| {
         let future = raw_entry(d, &entry).ensure_mergeable_map("future").unwrap();
         let rich = future
@@ -930,12 +944,11 @@ fn future_container_types_rich_marks_hidden_memberships_and_shared_templates_rou
         if let Some(loro::ValueOrContainer::Container(loro::Container::Text(t))) = p.get("body") {
             t.mark(0..6, "italic", true).unwrap();
         }
-        let membership = d
-            .get_map("memberships")
-            .ensure_mergeable_map(&format!("missing-host|{entry}"))
-            .unwrap();
-        membership.insert("member", entry.as_str()).unwrap();
-        membership.insert("future", "hidden author value").unwrap();
+        for row in &rows {
+            let membership = d.get_map("memberships").ensure_mergeable_map(row).unwrap();
+            membership.insert("member", entry.as_str()).unwrap();
+            membership.insert("future", "hidden author value").unwrap();
+        }
     })
     .unwrap();
     let p = capture(&e, &b, &id);
@@ -949,9 +962,17 @@ fn future_container_types_rich_marks_hidden_memberships_and_shared_templates_rou
             .entry_owned_raw_state(&eid)
             .unwrap()
     };
-    let expected = raw(&e);
+    let captured = raw(&e);
+    assert!(captured["records"]["memberships"].get(&missing).is_some());
+    let mut expected = captured.clone();
+    expected["records"]["memberships"]
+        .as_object_mut()
+        .unwrap()
+        .remove(&missing);
+    assert!(expected["records"]["memberships"].get(&hidden).is_some());
     let entry = id.clone();
     let patch_id = patch.clone();
+    let rows = [hidden.clone(), missing.clone()];
     h.write(dr_store::Origin::User, move |d| {
         let future = raw_entry(d, &entry).ensure_mergeable_map("future").unwrap();
         // The same deep JSON string must not disguise loss of a text container
@@ -964,9 +985,9 @@ fn future_container_types_rich_marks_hidden_memberships_and_shared_templates_rou
         future
             .insert("values", loro::LoroValue::from(vec!["first", "second"]))
             .unwrap();
-        d.get_map("memberships")
-            .delete(&format!("missing-host|{entry}"))
-            .unwrap();
+        for row in &rows {
+            d.get_map("memberships").delete(row).unwrap();
+        }
         if let Some(loro::ValueOrContainer::Container(loro::Container::Text(t))) = d
             .get_map("patches")
             .ensure_mergeable_map(&patch_id)
@@ -982,6 +1003,7 @@ fn future_container_types_rich_marks_hidden_memberships_and_shared_templates_rou
             .unwrap();
     })
     .unwrap();
+    assert_ne!(raw(&e), captured);
     assert_ne!(raw(&e), expected);
     e.call("entry_snapshot.restore", input(&e, &b, &id, &p));
     assert_eq!(raw(&e), expected);

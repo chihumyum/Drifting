@@ -93,22 +93,22 @@
 
 没随请求走的图片（模型看不了图，或这台设备没有字节、超了一次请求的上限）在作者的字后面各成一行英文给模型：`[The author attached an image (PNG, 640×400 px) here. The current model cannot view images, so it was not sent.]` 或 `… It is not included in this request.]`，让模型知道那里有过一张图。
 
-**哪些模型算看得了图**：只按各家模型清单接口给的能力字段认，清单没说的当看不了（`ModelInfo.image_input`、`LocalModel.image_input`，`None` 即否；冻结进 `RunConfig.capabilities.image_input`）：
+**哪些模型算看得了图**：按各家模型清单接口给的能力字段认，清单没说的当看不了（`ModelInfo.image_input`、`LocalModel.image_input`，`None` 即否；冻结进 `RunConfig.capabilities.image_input`）；只有 OpenAI API Key 这条路线按路线认（`RunConfig::sees_images`）：
 
 | 路线 | 怎么认 | 现在的结果 |
 | --- | --- | --- |
 | Anthropic | 清单每行 `capabilities.image_input.supported` | 清单说能的能；清单没取到（只有内置清单）时不能，所以带图发送前界面先取一次清单（M31） |
-| OpenAI API Key | `/v1/models` 每行只有 `id`、`created`、`object`、`owned_by`、`shutdown_date`，没有能力字段 | **一律看不了**（照「没这个字段按最保守的认」）；要不要按 0.1 的做法认，见「等作者的事」 |
-| ChatGPT 订阅 | 订阅清单每行 `input_modalities` 里有 `image` | 有的能；没有这个字段的不能（Codex 自己的客户端把没有字段当能看图，这里没跟） |
+| OpenAI API Key | `/v1/models` 每行只有 `id`、`created`、`object`、`owned_by`、`shutdown_date`，没有能力字段 | **一律能**（作者 2026-11-24「都按照你的推荐来。」，S2；和 0.1 一样）：`RunConfig::sees_images` 对 OpenAI 路线恒为是，不看清单、内置清单还是冻结的值。模型真收不了图时服务会报错，照现有的报错路径显示 |
+| ChatGPT 订阅 | 订阅清单每行 `input_modalities` 里有 `image` | 写了的照写的：有 `image` 的能、没有的不能；**行上没有这个字段的能**（作者 2026-11-24「都按照你的推荐来。」，S2；和 OpenAI 开源的 Codex 客户端一样，它的缺省是文字和图片）；字段写成别的（不是列表、`null`）当没说、不能。清单没取到（只有内置清单）时照旧不能 |
 | DeepSeek | 清单没有能力字段；对话接口也不收图片 | 一律看不了（`RunConfig::sees_images` 对 DeepSeek 路线恒为否） |
 | 本地：Ollama | `POST /api/show` 的 `capabilities` 里有 `vision` | 有的能，问过但没有的不能；只问前 64 个模型（照旧），其余不能 |
 | 本地：LM Studio | `/api/v0/models` 每行 `type` 是 `vlm` | `vlm` 能、`llm` 不能 |
 | 本地：llama.cpp | `/v1/models` 每行 `architecture.input_modalities` 里有 `image`；较旧的服务没有这个字段时看 `/props` 的 `modalities.vision` | 照它说的 |
 | 本地：认不出的服务 | 行上有 `architecture.input_modalities` 就照它 | 没有就不能 |
 
-内置清单（0.1 的那份，取清单失败时的兜底）一律不说能看图。设置里存的本地服务清单（`LocalServerModel.image_input`）只有这次改动以后问过的才有这个值，以前存的要等下一次重问清单（打开模型菜单时）。
+内置清单（0.1 的那份，取清单失败时的兜底）一律不说能看图（OpenAI 路线照上表还是能）。设置里存的本地服务清单（`LocalServerModel.image_input`）只有这次改动以后问过的才有这个值，以前存的要等下一次重问清单（打开模型菜单时）。
 
-**测试**（对着本机假服务，不连真服务）：`tests/transport.rs` 的 `each_protocol_writes_images_its_own_way`（Anthropic 看得了图有字、只有图、看不了图三种，OpenAI、ChatGPT 订阅、DeepSeek 各一种；对上面那张表逐字核对，base64 和发出去的字节一致，看不了图时请求里没有字节）；`tests/local.rs` 的 `what_each_server_says_about_images_is_what_counts`（Ollama 的 `vision`、LM Studio 的 `vlm`/`llm`、llama.cpp 的 `input_modalities` 和 `/props` 四种组合、认不出的服务）和 `a_local_model_that_sees_gets_image_url_parts`；`tests/auth_catalog.rs` 的 `only_a_list_that_says_so_makes_a_model_take_images`（Anthropic 说能、说不能、`capabilities: null`；OpenAI、DeepSeek 的清单和内置清单都不说；订阅清单 `input_modalities` 三种），各自冻结进运行配置后 `sees_images` 对得上。**没调过任何真实模型**：三家和订阅、本地软件的真实服务都没验过。
+**测试**（对着本机假服务，不连真服务）：`tests/transport.rs` 的 `each_protocol_writes_images_its_own_way`（Anthropic 看得了图有字、只有图、看不了图三种，OpenAI、ChatGPT 订阅、DeepSeek 各一种；对上面那张表逐字核对，base64 和发出去的字节一致，看不了图时请求里没有字节）；`tests/local.rs` 的 `what_each_server_says_about_images_is_what_counts`（Ollama 的 `vision`、LM Studio 的 `vlm`/`llm`、llama.cpp 的 `input_modalities` 和 `/props` 四种组合、认不出的服务）和 `a_local_model_that_sees_gets_image_url_parts`；`tests/auth_catalog.rs` 的 `only_a_list_that_says_so_makes_a_model_take_images`（Anthropic 说能、说不能、`capabilities: null`；OpenAI、DeepSeek 的清单和内置清单都不说，冻结以后 OpenAI 的都看得了、DeepSeek 的都看不了，Anthropic 的内置清单看不了；订阅清单 `input_modalities` 写了有图、写了没图、没写、写成字符串、写成 `null` 五种，没写的能看图），各自冻结进运行配置后 `sees_images` 对得上；`dr-agent` 的 `config::tests::which_runs_see_images`（五条路线、清单说能／说不能／没说）。**没调过任何真实模型**：三家和订阅、本地软件的真实服务都没验过。
 
 ## 自定义服务（本地模型 LM 2026-11-16；网上的服务 CA 2026-11-24）
 
@@ -116,7 +116,7 @@
 
 **大白话。** 作者在连接格里粘贴一个地址：本机或局域网的（比如 `http://localhost:11434`），App 去问这台服务有哪些模型，认出是哪种软件，把能用的模型放进模型菜单；网上的（比如 `https://api.example.com/v1`），App 照样问一次清单，确认服务在、Key 对，但不把清单列出来，让作者自己填模型名。发消息时走同一个 HTTP 客户端和 SSE 解析器，只是请求发到那台服务、用通用的 Chat Completions。
 
-**能填什么地址。** 本机（`localhost`、`127.0.0.0/8`、`::1`）和局域网（`10/8`、`172.16/12`、`192.168/16`、`*.local`）`http` 或 `https` 都行；别处都算网上的（`Reach::Internet`），只收 `https`，`http` 是 `AddressError::NeedsHttps`。本机和局域网这一组除了 `*.localhost`（见待协调第 4 条）和 NP 的直连规则（`dr_platform::proxy::reach`）认的一样，所以网上的服务走系统代理、这一组直连。带用户名密码、查询串或 `#` 的不收（`Invalid`）。没写 `http://` 的当 `http://`（所以不写协议的网上地址是 `NeedsHttps`）；末尾的 `/` 和 `/v1` 去掉；标准端口（`http` 80、`https` 443）不写进 `display`。规则只有一份（`local::LocalAddress::parse`），传输层发请求前用同一条规则再查一次冻结进运行的地址（`local::validate_endpoint`：网上的不是 `https` 就拒），手改设置文件也放不宽。`local::on_the_internet` 是给表单用的：打出来的地址是不是网上的（`http` 也算），决定密钥框要不要自己出来。四家原来的端点检查（HTTPS 或本机）不变。
+**能填什么地址。** 本机（`localhost`、`127.0.0.0/8`、`::1`）和局域网（`10/8`、`172.16/12`、`192.168/16`、`*.local`）`http` 或 `https` 都行；别处都算网上的（`Reach::Internet`），只收 `https`，`http` 是 `AddressError::NeedsHttps`。本机和局域网这一组除了 `*.localhost`（见待协调第 4 条）和 NP 的直连规则（`dr_platform::proxy::reach`）认的一样，所以网上的服务走系统代理、这一组直连。带用户名密码、查询串或 `#` 的不收（`Invalid`）。没写协议的：本机和局域网的当 `http://`，网上的当 `https://`（作者 2026-11-24「都按照你的推荐来。」，S2；以前一律当 `http://`，只填 `api.example.com` 就被说「网上的地址要用 https」）；写了 `http://` 的网上地址照旧是 `NeedsHttps`；末尾的 `/` 和 `/v1` 去掉；标准端口（`http` 80、`https` 443）不写进 `display`。规则只有一份（`local::LocalAddress::parse`），传输层发请求前用同一条规则再查一次冻结进运行的地址（`local::validate_endpoint`：网上的不是 `https` 就拒），手改设置文件也放不宽。`local::on_the_internet` 是给表单用的：打出来的地址是不是网上的（`http` 也算），决定密钥框要不要自己出来。四家原来的端点检查（HTTPS 或本机）不变。
 
 **问模型清单（`local::discover`）。** 先 `GET {base}/v1/models`：连不上 → `Unreachable`；401／403 → `Unauthorized`；别的回答但不是清单（404、500、不是 JSON、没有 `data` 数组）→ `NoList`，界面改问模型名；给了清单、但滤完一个不剩（只有嵌入模型和确知不会用工具的，或清单是空的）→ `NoToolModels`，界面写「这台服务上没有能用工具的模型」、不连上（作者 11-16 定，乙）。认软件看各自独有的接口：`/v1/models` 的行里 `owned_by` 是 `llamacpp` 是 llama.cpp；`GET /api/version` 回 `{"version":…}` 是 Ollama；`GET /api/v0/models` 的行带 `type`（`llm`／`vlm`／`embeddings`）是 LM Studio。认不出就没有名字。
 - 上下文：Ollama 读 `POST /api/show` 的 `model_info["<架构>.context_length"]`，LM Studio 读 `max_context_length`，llama.cpp 读 `/props` 的 `default_generation_settings.n_ctx`（它实际开的大小），别的服务读行上的 `max_model_len`／`context_length`。前两种是模型上限、不是运行时实际开的大小，所以设置里能手改（M31）。
@@ -147,10 +147,11 @@
 - `a_local_chat_goes_to_its_own_server_without_a_key_or_deepseek_fields`：走那台服务的 `/v1/chat/completions`，不落到四家的端点；`<think>` 成思考；存了 Key 才带 Bearer；工具调用照收。
 - `plain_http_to_the_internet_or_a_route_without_a_server_is_refused_before_any_request`（CA 前叫 `a_route_off_this_network_…`，原来拒的是 `https://api.example.com` 和 `http://8.8.8.8:11434`；`https://api.example.com` 现在收了，换成不会有人应答的地址 `http://203.0.113.7:11434`、`ftp://…`、带用户名密码的）：缺服务的路线也在请求前拒绝；没人监听时按网络错误失败。
 - `src/internet_tests.rs`（CA，单元测试，用替身）：`plain_http_to_the_internet_is_refused_before_any_request`：网上的 `http`、`ftp`、带用户名密码的地址在请求前拒绝，挂在这些地址上的替身一个请求都没收到。
+- `an_address_without_a_scheme_reaches_a_service_on_the_internet_over_https`（S2，同一文件）：只填 `api.example.com/v1` 是 `https://api.example.com`、`Reach::Internet`，清单经替身问到。
 - `a_service_on_the_internet_is_listed_and_chatted_with_over_https`（CA，同一文件）：`https://api.example.com/v1` 是 `Reach::Internet`、`display` 是 `api.example.com`；没 Key 是 `Unauthorized`，带 Key 问到清单（嵌入模型滤掉、`context_length` 读到）；对话发到它的 `/v1/chat/completions`、带 Bearer、不带推理和搜索字段。
 - `a_key_goes_only_to_its_own_service_and_never_along_a_redirect`（CA，同一文件）：网上服务对清单和对话都回 307 指向另一台假服务：对话失败、清单是 `NoList`，另一台一个请求都没收到，发出去的只有这台自己的 Key；另一台自己的路线只带它自己的 Key。
 - `tests/system_proxy.rs` 的 `providers_take_the_system_proxy_and_a_local_model_server_never_does`（NP 写的，CA 并进来以后加了一段）：假代理当系统代理重跑一遍，本机的模型服务直连；网上的自定义服务的清单（共用客户端）和对话（5 分钟那个客户端）都只到假代理（两条 `CONNECT api.example.com:443`），假代理自己拒掉，什么都没出这台机器。
-- 单元测试：`local.rs` 的地址规则（本机、局域网、网上 `https`、网上 `http`、坏地址各一组，CA 前是「本机、局域网、网上被拒、坏地址」），`chat.rs` 的 `<think>` 逐字节分块、两种思考字段、缺用量、宽松的工具调用和各种截断，`credentials.rs` 的一服务一条 Key。
+- 单元测试：`local.rs` 的地址规则（本机、局域网、网上 `https`、网上 `http`、坏地址各一组，CA 前是「本机、局域网、网上被拒、坏地址」；S2 起不写协议的 `api.example.com`、带端口和路径的、IP、IPv6、单标签主机名补成 `https`，本机、局域网、`*.local` 补成 `http`，`api.example.com` 从「网上 `http`」那组挪到收下的那组，写了 `HTTP://` 的照旧拒；不写协议但带用户名密码、查询串、`#` 的照旧不收），`chat.rs` 的 `<think>` 逐字节分块、两种思考字段、缺用量、宽松的工具调用和各种截断，`credentials.rs` 的一服务一条 Key。
 
 **待协调。**
 1. **上下文小于约 7 万的本地模型，示例书第一句就发不出去。** 真窗口量到：示例书「慢钟」发第一句时整个请求 54,285 字节（系统指令 2,934、工具 2,664，其余是书的固定上下文和对话）。M27 `context.rs` 按一字节一单位估算，再留 8192 输出余量和一成余量，所以上下文 40960（Ollama 报给 qwen3:14b 的值）时这一句在发出前就被判成太长，面板出现现成的「继续此任务」，服务一个对话请求都没收到；131072 时正常。问不到上下文时的 32768 兜底也一样。中文一字三字节，估算比真实 token 数大不少；改估算会影响四家，本路没动，等监管会话或作者定。作者可以在设置里手填更大的上下文，但 Ollama 实际开的大小比填的小时会悄悄丢内容。
