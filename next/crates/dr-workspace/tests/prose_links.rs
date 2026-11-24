@@ -521,14 +521,24 @@ fn restore_links_refuses_what_it_cannot_put_back() {
         );
         assert_eq!(stored(&e, &doc), before, "{bad}");
     }
-    // A link to an entry deleted for good is not put back: not found.
+    // A link to an entry in Recently Deleted is put back (it reads as gone
+    // until the entry is back); one to an entry deleted for good is not:
+    // not found.
     let gone = quiet_character(&e, &b, "老钟");
-    let mut purged = span(Value::Null, Value::from(encode(&gone, true)));
-    purged["links"][0]["target"] = json!(gone);
+    let mut to_gone = span(Value::Null, Value::from(encode(&gone, true)));
+    to_gone["links"][0]["target"] = json!(gone);
     e.call("entry.trash", json!({"book": b, "id": gone}));
+    let out = e.call("prose.restore_links", to_gone.clone());
+    assert_eq!(out["output"]["ranges"], 1);
+    assert_eq!(
+        shown(&e, &b, &doc).last(),
+        Some(&("安娜".into(), LinkShow::Gone))
+    );
+    e.ws().undo(&Actor::User).unwrap().unwrap();
+    assert_eq!(stored(&e, &doc), before);
     e.call("entry.purge", json!({"book": b, "id": gone}));
     assert!(matches!(
-        e.try_call("prose.restore_links", purged),
+        e.try_call("prose.restore_links", to_gone),
         Err(dr_workspace::WsError::NotFound { .. })
     ));
     assert_eq!(stored(&e, &doc), before);
