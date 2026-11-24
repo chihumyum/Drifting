@@ -674,6 +674,8 @@ async fn only_a_list_that_says_so_makes_a_model_take_images() {
                 {"slug":"codex-sees","visibility":"list","input_modalities":["text","image"]},
                 {"slug":"codex-text","visibility":"list","input_modalities":["text"]},
                 {"slug":"codex-silent","visibility":"list"},
+                {"slug":"codex-odd","visibility":"list","input_modalities":"image"},
+                {"slug":"codex-null","visibility":"list","input_modalities":null},
             ]}),
         ),
     ]);
@@ -764,12 +766,18 @@ async fn only_a_list_that_says_so_makes_a_model_take_images() {
             Some(&endpoint),
         )
         .await;
+    // A row without `input_modalities` takes text and images, as Codex's
+    // own client reads it (S2, 作者 2026-11-24); a row that writes the field
+    // is taken at its word, and one that writes something other than a
+    // list says nothing.
     assert_eq!(
         sees(&c.models),
         [
             ("codex-sees".to_owned(), Some(true), true),
             ("codex-text".to_owned(), Some(false), false),
-            ("codex-silent".to_owned(), None, false),
+            ("codex-silent".to_owned(), Some(true), true),
+            ("codex-odd".to_owned(), None, false),
+            ("codex-null".to_owned(), None, false),
         ]
     );
 }

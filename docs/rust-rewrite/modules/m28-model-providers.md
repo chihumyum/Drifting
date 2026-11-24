@@ -99,7 +99,7 @@
 | --- | --- | --- |
 | Anthropic | 清单每行 `capabilities.image_input.supported` | 清单说能的能；清单没取到（只有内置清单）时不能，所以带图发送前界面先取一次清单（M31） |
 | OpenAI API Key | `/v1/models` 每行只有 `id`、`created`、`object`、`owned_by`、`shutdown_date`，没有能力字段 | **一律能**（作者 2026-11-24「都按照你的推荐来。」，S2；和 0.1 一样）：`RunConfig::sees_images` 对 OpenAI 路线恒为是，不看清单、内置清单还是冻结的值。模型真收不了图时服务会报错，照现有的报错路径显示 |
-| ChatGPT 订阅 | 订阅清单每行 `input_modalities` 里有 `image` | 有的能；没有这个字段的不能（Codex 自己的客户端把没有字段当能看图，这里没跟） |
+| ChatGPT 订阅 | 订阅清单每行 `input_modalities` 里有 `image` | 写了的照写的：有 `image` 的能、没有的不能；**行上没有这个字段的能**（作者 2026-11-24「都按照你的推荐来。」，S2；和 OpenAI 开源的 Codex 客户端一样，它的缺省是文字和图片）；字段写成别的（不是列表、`null`）当没说、不能。清单没取到（只有内置清单）时照旧不能 |
 | DeepSeek | 清单没有能力字段；对话接口也不收图片 | 一律看不了（`RunConfig::sees_images` 对 DeepSeek 路线恒为否） |
 | 本地：Ollama | `POST /api/show` 的 `capabilities` 里有 `vision` | 有的能，问过但没有的不能；只问前 64 个模型（照旧），其余不能 |
 | 本地：LM Studio | `/api/v0/models` 每行 `type` 是 `vlm` | `vlm` 能、`llm` 不能 |
@@ -108,7 +108,7 @@
 
 内置清单（0.1 的那份，取清单失败时的兜底）一律不说能看图（OpenAI 路线照上表还是能）。设置里存的本地服务清单（`LocalServerModel.image_input`）只有这次改动以后问过的才有这个值，以前存的要等下一次重问清单（打开模型菜单时）。
 
-**测试**（对着本机假服务，不连真服务）：`tests/transport.rs` 的 `each_protocol_writes_images_its_own_way`（Anthropic 看得了图有字、只有图、看不了图三种，OpenAI、ChatGPT 订阅、DeepSeek 各一种；对上面那张表逐字核对，base64 和发出去的字节一致，看不了图时请求里没有字节）；`tests/local.rs` 的 `what_each_server_says_about_images_is_what_counts`（Ollama 的 `vision`、LM Studio 的 `vlm`/`llm`、llama.cpp 的 `input_modalities` 和 `/props` 四种组合、认不出的服务）和 `a_local_model_that_sees_gets_image_url_parts`；`tests/auth_catalog.rs` 的 `only_a_list_that_says_so_makes_a_model_take_images`（Anthropic 说能、说不能、`capabilities: null`；OpenAI、DeepSeek 的清单和内置清单都不说，冻结以后 OpenAI 的都看得了、DeepSeek 的都看不了，Anthropic 的内置清单看不了；订阅清单 `input_modalities` 三种），各自冻结进运行配置后 `sees_images` 对得上；`dr-agent` 的 `config::tests::which_runs_see_images`（五条路线、清单说能／说不能／没说）。**没调过任何真实模型**：三家和订阅、本地软件的真实服务都没验过。
+**测试**（对着本机假服务，不连真服务）：`tests/transport.rs` 的 `each_protocol_writes_images_its_own_way`（Anthropic 看得了图有字、只有图、看不了图三种，OpenAI、ChatGPT 订阅、DeepSeek 各一种；对上面那张表逐字核对，base64 和发出去的字节一致，看不了图时请求里没有字节）；`tests/local.rs` 的 `what_each_server_says_about_images_is_what_counts`（Ollama 的 `vision`、LM Studio 的 `vlm`/`llm`、llama.cpp 的 `input_modalities` 和 `/props` 四种组合、认不出的服务）和 `a_local_model_that_sees_gets_image_url_parts`；`tests/auth_catalog.rs` 的 `only_a_list_that_says_so_makes_a_model_take_images`（Anthropic 说能、说不能、`capabilities: null`；OpenAI、DeepSeek 的清单和内置清单都不说，冻结以后 OpenAI 的都看得了、DeepSeek 的都看不了，Anthropic 的内置清单看不了；订阅清单 `input_modalities` 写了有图、写了没图、没写、写成字符串、写成 `null` 五种，没写的能看图），各自冻结进运行配置后 `sees_images` 对得上；`dr-agent` 的 `config::tests::which_runs_see_images`（五条路线、清单说能／说不能／没说）。**没调过任何真实模型**：三家和订阅、本地软件的真实服务都没验过。
 
 ## 自定义服务（本地模型 LM 2026-11-16；网上的服务 CA 2026-11-24）
 

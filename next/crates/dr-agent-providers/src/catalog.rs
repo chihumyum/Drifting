@@ -43,7 +43,8 @@ pub struct ModelInfo {
     pub published_max_output_tokens: Option<u64>,
     /// Whether the model takes images, only as the provider's live list says
     /// (Anthropic's `capabilities.image_input.supported`, the subscription
-    /// catalog's `input_modalities`).
+    /// catalog's `input_modalities`, whose absence from a row means text
+    /// and images).
     /// `None`: the list says nothing (OpenAI's and DeepSeek's lists, a
     /// bundled fallback), which counts as no, except on the OpenAI API route,
     /// whose models all count as seeing (`RunConfig::sees_images`).
@@ -910,12 +911,15 @@ fn project_codex(value: &Value) -> Result<Vec<ModelInfo>> {
             .get("support_verbosity")
             .and_then(Value::as_bool)
             .unwrap_or(false);
-        // `input_modalities` (`text`, `image`, …). Codex's own client takes
-        // a row without it as text and images; here it counts as no.
-        model.image_input = row
-            .get("input_modalities")
-            .and_then(Value::as_array)
-            .map(|kinds| kinds.iter().any(|kind| kind.as_str() == Some("image")));
+        // `input_modalities` (`text`, `image`, …). A row without it takes
+        // text and images, as Codex's own client reads it (作者 2026-11-24,
+        // S2); one that says something other than a list says nothing.
+        model.image_input = match row.get("input_modalities") {
+            None => Some(true),
+            Some(kinds) => kinds
+                .as_array()
+                .map(|kinds| kinds.iter().any(|kind| kind.as_str() == Some("image"))),
+        };
         result.push(model);
     }
     Ok(result)
