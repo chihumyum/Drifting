@@ -50,7 +50,6 @@
   - 相对地址和 `ftp`、`sms` 等别的协议的链接：0.1 留，新版只留字。
   - 同一列表项里的几段：0.1 是一项里的几段；新版解析时用段内换行连成一项，粘进列表时各成一项。
   - 写在链接字上的下划线、`font-weight: 500` 的粗体：0.1 留，新版不留（见上）。
-  - ⇧⌘V「粘贴为纯文本」：0.1 的 ProseMirror 自带，新版没有这个快捷键，作者要纯文字只能先粘再撤销（见交回报告的「等作者的事」）。
 - **新版多做的**：Word 的假列表成真列表（0.1 是带符号文字的普通段落）；Word 的隐藏文字、`display: none`、注音的读音不再混进正文；非 HTML 的 RTF（Pages、TextEdit）在 macOS 上也带格式；0.1 的稿纸档里列表、代码粘进来变普通段落，新版正文所有格式都开放（kernel-v5 第 6 节），列表就是列表。
 - **一样的**：`h4`–`h6` 成正文、图片不进来、两端对齐不留、只有一种高亮、代码块认 `language-` 类名、提示框和缩进认 0.1 自己的写法。
 
@@ -60,6 +59,12 @@
 - `gpui-prose` `text::fragment::tests`：上面每条放置规矩各一例（对拍 ProseMirror 的结果），每例核对光标、块 ID 不重复、一步撤销还原。
 - `dr-platform` `clipboard`：编码（UTF-8、BOM、UTF-16、Windows-1252）、CF_HTML 头对与不对；macOS 用私有的独立剪贴板（`pasteboardWithUniqueName`，不碰系统剪贴板）验 HTML 优先、RTF 转 HTML、没有格式、超上限。
 - `dr-editor` `clipboard::tests`：正文里经真实的 ⌘V 动作链粘一段带标题、粗体、链接、列表的 HTML，落盘的段落、标记、光标、一步撤销；没设读取器、代码行、表格格子只进字；表格的格子带上 HTML 里的粗体和链接。`tests/v3_book_links.rs`：整书视图跨章选区的带格式粘贴和一步撤销。
+
+**⇧⌘V 粘贴为纯文本（S2，2026-11-24）**：作者 2026-11-24 答「都按照你的推荐来。」，推荐是加回 0.1 的 ⇧⌘V（Windows 是 Ctrl+Shift+V），不加菜单项和界面文字。
+
+- 在正文里（章、素材笔记、条目页上的正文模块、整书视图）和正文里表格的格子里，⇧⌘V 只粘剪贴板上的纯文字：别的程序的格式（上面这一套）、Drifting 自己复制带的标记和链接、制表符网格变表格、图片和文件都不要。字走 `gpui-prose` 自己的纯文字粘贴，和剪贴板上只有字时的 ⌘V 一样：换行分段、一步撤销、人名照常自动链上；跨章选区照旧一章一步。剪贴板上没有字（只有一张图）时什么也不做。0.1 的 ProseMirror 按住 Shift 粘贴也是这样只取 `text/plain`。
+- 动作是 `dr_editor::PasteAsPlainText`，键在外壳的键位表里（`dr-shell` 的 `keymap.rs`，`secondary-shift-v`，只在编辑器的键上下文 `ProseEditor` 里），不在设置的快捷键列表里，也不进编辑菜单。接住它的是正文的 Assist 包装（`assist.rs`）和格子的包装（`clipboard::wrap`），各自先看自己的编辑器有没有键盘（`clipboard::paste_plain_text`）。别的输入框（标题、字段、Agent 栏等）里这个键照旧什么都不做。
+- 测试：`dr-editor` 的 `clipboard::tests` 三条：`shift_paste_takes_only_the_text_into_a_body`（别的程序的 HTML 只进字、不成标题列表、没有标记；Drifting 自己复制的字不带人物链接；只有图片时一个字节不写；每次一步撤销）、`shift_paste_makes_no_table_of_a_grid`（表格软件的复制只进带制表符的两段，不成表格）、`shift_paste_in_a_cell_takes_only_the_text`（格子里 ⌘V 带粗体、⇧⌘V 不带）；`dr-shell` 的 `keymap` 单测 `shift_paste_is_the_editors_plain_text_paste_on_both_systems`（macOS 是 ⌘⇧V、Windows 是 Ctrl+Shift+V，只在编辑器上下文，键位表里没有别的绑定占这个键，不在设置里）和 `tests/v3_editors.rs` 的 `shift_paste_through_the_keymap_takes_only_the_text`（经应用自己的键位表按 ⇧⌘V 进正文只进字，⌘V 照旧带格式）。剪贴板都是 GPUI 测试平台的，HTML 由测试替身给，不碰系统剪贴板。
 
 ## 内核 v5 · T5 正文里的图片与 PDF、斜杠挑文件与文件链接（2026-11-15）
 

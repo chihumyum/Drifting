@@ -5,7 +5,8 @@
 //! What other programs copy with formatting (HTML, or RTF the platform
 //! turns into HTML) pastes into a body with the formats a body has
 //! ([`paste_html`]); a table's cell, a title or a field still takes only
-//! the text.
+//! the text. ⇧⌘V ([`PasteAsPlainText`]) takes only the text anywhere in a
+//! body ([`paste_plain_text`]).
 use crate::table::clip::{CellMark, GridMarks};
 use gpui::{App, ClipboardItem, Entity, Focusable, Window};
 use gpui_prose::{
@@ -447,6 +448,31 @@ pub(crate) fn paste(editor: &Entity<ProseEditor>, window: &mut Window, cx: &mut 
     true
 }
 
+gpui::actions!(dr_editor, [PasteAsPlainText]);
+
+/// ⇧⌘V (Ctrl+Shift+V off macOS; the shell's key registry binds it in the
+/// editor's key context, with no menu item): only the clipboard's plain
+/// text, as the 0.1 client's ProseMirror pasted it with Shift held. No
+/// formats from another program ([`paste_html`]), none from Drifting's own
+/// copy ([`paste`]), no table from a copied table or a tab-separated grid,
+/// no image or file: the text goes through gpui-prose's plain paste, as ⌘V
+/// with only text on the clipboard does (line breaks make paragraphs, one
+/// undo step, automatic links as for typed text). Nothing happens when the
+/// clipboard holds no text. Returns whether `editor` has the keyboard.
+pub(crate) fn paste_plain_text(
+    editor: &Entity<ProseEditor>,
+    window: &mut Window,
+    cx: &mut App,
+) -> bool {
+    if !editor.read(cx).focus_handle(cx).is_focused(window) {
+        return false;
+    }
+    if let Some(text) = cx.read_from_clipboard().and_then(|item| item.text()) {
+        editor.update(cx, |e, cx| e.paste_text(&text, window, cx));
+    }
+    true
+}
+
 /// How the editor reads the HTML on the system clipboard: the app's is
 /// `dr_platform::clipboard::read_html`. Unset (tests, examples), ⌘V never
 /// looks for formatting from other programs.
@@ -610,6 +636,7 @@ pub(crate) fn wrap(
     let c = editor.clone();
     let x = editor.clone();
     let p = editor.clone();
+    let plain = editor.clone();
     gpui::div()
         .size_full()
         .capture_action(move |_: &Copy, w, cx| {
@@ -624,6 +651,11 @@ pub(crate) fn wrap(
         })
         .capture_action(move |_: &Paste, w, cx| {
             if paste(&p, w, cx) {
+                cx.stop_propagation();
+            }
+        })
+        .capture_action(move |_: &PasteAsPlainText, w, cx| {
+            if paste_plain_text(&plain, w, cx) {
                 cx.stop_propagation();
             }
         })

@@ -356,6 +356,49 @@ fn focused_module_drives_find_composer_preferences_and_immersive(cx: &mut TestAp
     assert!(second.read_with(cx, |e, cx| e.editor().read(cx).paragraph_focus()));
 }
 
+/// S2 (作者 2026-11-24): ⇧⌘V (Ctrl+Shift+V off macOS) through the app's own
+/// keymap reaches the body and pastes only the text; ⌘V beside it still
+/// brings another program's formatting. The clipboard is the test
+/// platform's, the HTML reader a stand-in: nothing touches the system's.
+#[gpui::test]
+fn shift_paste_through_the_keymap_takes_only_the_text(cx: &mut TestAppContext) {
+    let (_dir, lib, book, entry) = fixture();
+    let (view, _, cx) = setup(cx, &lib, &book, None);
+    let chapter = open(&view, cx, &target(&entry, Some("mod-prose")));
+    let prose = chapter.read_with(cx, |c, _| c.editor().clone());
+    cx.update(|window, cx| prose.focus_handle(cx).focus(window, cx));
+    // A new paragraph at the end of the chapter, for each paste.
+    let new_paragraph = |cx: &mut VisualTestContext| {
+        prose.update_in(cx, |p, window, cx| {
+            let end = p.book().chapters[0].doc.max_cursor();
+            p.select(0, end..end, window, cx);
+            p.press_enter(window, cx);
+        });
+        draw(cx);
+    };
+    cx.write_to_clipboard(gpui::ClipboardItem::new_string("粗体".into()));
+    cx.update(|_, cx| dr_editor::set_clipboard_html(cx, || Some("<h1><b>粗体</b></h1>".into())));
+    let last = |cx: &mut VisualTestContext| {
+        prose.read_with(cx, |p, _| {
+            let doc = &p.book().chapters[0].doc;
+            let line = doc.line(doc.visible_lines() - 1);
+            (
+                line.text.to_string(),
+                line.block.get(gpui_prose::schema::block::HEADING).is_some(),
+                line.spans.iter().any(|s| s.marks.bold()),
+            )
+        })
+    };
+    new_paragraph(cx);
+    cx.simulate_keystrokes("secondary-shift-v");
+    draw(cx);
+    assert_eq!(last(cx), ("粗体".to_owned(), false, false));
+    new_paragraph(cx);
+    cx.simulate_keystrokes("secondary-v");
+    draw(cx);
+    assert_eq!(last(cx), ("粗体".to_owned(), true, true));
+}
+
 #[gpui::test]
 fn identical_book_ids_in_another_library_cannot_register_into_this_page(cx: &mut TestAppContext) {
     let (_dir, lib, book, entry) = fixture();

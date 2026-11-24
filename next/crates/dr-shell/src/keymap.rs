@@ -219,6 +219,15 @@ pub static REGISTRY: &[Shortcut] = &[
     fixed("edit::Cut", &["secondary-x"], None, Only::All),
     fixed("edit::Copy", &["secondary-c"], None, Only::All),
     fixed("edit::Paste", &["secondary-v"], None, Only::All),
+    // ⇧⌘V / Ctrl+Shift+V: only the text, in a body (the 0.1 client's
+    // ProseMirror pasted so with Shift held). No menu item: the editor's
+    // own key, not the edit menu's.
+    fixed(
+        "dr_editor::PasteAsPlainText",
+        &["secondary-shift-v"],
+        Some(EDITOR),
+        Only::All,
+    ),
     fixed("edit::SelectAll", &["secondary-a"], None, Only::All),
     // The editor's formatting keys, by name (F4's `bind_keys` had them).
     fixed(
@@ -545,6 +554,43 @@ mod tests {
             "Ctrl+Shift+L"
         );
         assert!(find("closeProject").is_none());
+    }
+
+    /// S2 (作者 2026-11-24): ⇧⌘V, Ctrl+Shift+V off macOS, pastes only the
+    /// text in the editor; nothing else has the key, and it is not one the
+    /// author rebinds (no line in Settings, no menu item).
+    #[test]
+    fn shift_paste_is_the_editors_plain_text_paste_on_both_systems() {
+        let none = Map::new();
+        for (os, shown) in [
+            (OperatingSystem::Mac, "⌘⇧V"),
+            (OperatingSystem::Windows, "Ctrl+Shift+V"),
+        ] {
+            let all = bindings(os, &none);
+            let plain: Vec<_> = all
+                .iter()
+                .filter(|(action, ..)| *action == "dr_editor::PasteAsPlainText")
+                .collect();
+            assert_eq!(plain.len(), 1, "{os:?}");
+            let (_, keys, context) = plain[0];
+            assert_eq!(
+                (keys.as_str(), *context),
+                ("secondary-shift-v", Some(EDITOR))
+            );
+            assert_eq!(display(keys, os), shown);
+            let wanted = Keystroke::parse_with_os(keys, os).unwrap();
+            for (action, keys, _) in &all {
+                if *action != "dr_editor::PasteAsPlainText" {
+                    let other = Keystroke::parse_with_os(keys, os).unwrap();
+                    assert!(
+                        other.modifiers != wanted.modifiers || other.key != wanted.key,
+                        "{action} {keys} on {os:?}"
+                    );
+                }
+            }
+        }
+        let shortcut = find("dr_editor::PasteAsPlainText").unwrap();
+        assert!(shortcut.listed.is_none());
     }
 
     #[test]

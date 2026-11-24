@@ -46,7 +46,7 @@ pub mod view;
 pub use book::{
     BookEditor, BookEditorEvent, BookSection, PreparedBook, ReadingPosition, SectionHeading,
 };
-pub use clipboard::{ClipboardHtml, set_clipboard_html};
+pub use clipboard::{ClipboardHtml, PasteAsPlainText, set_clipboard_html};
 pub use embeds::{NoteEmbeds, NoteEvent};
 pub use links::{DriftingExtension, LinkTargets};
 pub use page::{PageChrome, PageInfo, PageKind};
