@@ -48,7 +48,10 @@ impl FillPlace {
 /// its title row, Esc or the button again to leave. One fill at a time:
 /// filling a panel leaves it, filling it leaves a panel's. The page shows
 /// only its head and that module, at the paper's widest, with the bottom
-/// panel put away. Never kept: like a panel's fill.
+/// panel put away. Never kept: like a panel's fill. It opens and closes as
+/// a panel's fill does (CR): the paper widens and narrows, and the bottom
+/// panel slides away and back, over `motion::STRUCTURAL` (420 ms), at once
+/// under reduced motion.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ModuleFill {
     pub entry: String,
@@ -97,6 +100,9 @@ pub struct FillState {
     left: anim::Tween,
     right: anim::Tween,
     bottom: anim::Tween,
+    /// How far a module filling the middle column has widened the paper
+    /// (0 its page's width, 1 the column's widest).
+    module: anim::Tween,
 }
 
 impl Default for FillState {
@@ -108,6 +114,7 @@ impl Default for FillState {
             left: anim::Tween::still(0.0),
             right: anim::Tween::still(0.0),
             bottom: anim::Tween::still(0.0),
+            module: anim::Tween::still(0.0),
         }
     }
 }
@@ -138,9 +145,28 @@ impl FillState {
         }
     }
 
+    /// How far a module filling the middle column has opened, 0–1.
+    pub fn module_progress(&self) -> f32 {
+        self.module.value(anim::now())
+    }
+
     pub fn animating(&self) -> bool {
         let now = anim::now();
-        !self.left.settled(now) || !self.right.settled(now) || !self.bottom.settled(now)
+        !self.left.settled(now)
+            || !self.right.settled(now)
+            || !self.bottom.settled(now)
+            || !self.module.settled(now)
+    }
+
+    /// A module starts filling the middle column (`on`), or stops: the
+    /// paper heads for its widest or back, as a panel's fill does.
+    fn set_module(&mut self, on: bool, reduce: bool) {
+        self.module.retarget_motion(
+            if on { 1.0 } else { 0.0 },
+            anim::now(),
+            motion::STRUCTURAL,
+            reduce,
+        );
     }
 
     pub fn reset(&mut self) {
@@ -319,7 +345,7 @@ impl Workspace {
             return false;
         }
         // One fill at a time: a module filling the column gives way.
-        self.set_module_fill(None, cx);
+        self.set_module_fill(None, reduce, cx);
         if self.fill.active() == Some(place) {
             return true;
         }
@@ -412,7 +438,7 @@ impl Workspace {
 
     pub fn exit_fill_with_motion(&mut self, reduce: bool, cx: &mut Context<Self>) -> bool {
         let module = self.module_fill.is_some();
-        self.set_module_fill(None, cx);
+        self.set_module_fill(None, reduce, cx);
         let Some(prev) = self.fill.active() else {
             if module {
                 cx.notify();
@@ -528,11 +554,13 @@ impl Workspace {
         }
         self.exit_fill(window, cx);
         self.set_immersive(false, cx);
+        let reduce = self.reduce_motion(window, cx);
         self.set_module_fill(
             Some(ModuleFill {
                 entry: entry.to_owned(),
                 module: module.to_owned(),
             }),
+            reduce,
             cx,
         );
         cx.notify();
@@ -557,10 +585,24 @@ impl Workspace {
         }
     }
 
-    pub(super) fn set_module_fill(&mut self, fill: Option<ModuleFill>, cx: &mut Context<Self>) {
+    /// How far a module filling the middle column has opened, 0–1: it
+    /// widens the paper and puts the bottom panel away over the panels'
+    /// structural motion, and back as it leaves.
+    pub fn module_fill_progress(&self) -> f32 {
+        self.fill.module_progress()
+    }
+
+    /// `reduce`: the system's reduced motion (the paper lands at once).
+    pub(super) fn set_module_fill(
+        &mut self,
+        fill: Option<ModuleFill>,
+        reduce: bool,
+        cx: &mut Context<Self>,
+    ) {
         if self.module_fill == fill {
             return;
         }
+        self.fill.set_module(fill.is_some(), reduce);
         self.module_fill = fill.clone();
         cx.set_global(FilledModule(fill));
     }
@@ -569,7 +611,7 @@ impl Workspace {
     /// kept).
     pub(super) fn prune_module_fill(&mut self, cx: &mut Context<Self>) {
         if self.module_fill.is_some() && self.filled_module().is_none() {
-            self.set_module_fill(None, cx);
+            self.set_module_fill(None, self.editor_reduce, cx);
         }
     }
 

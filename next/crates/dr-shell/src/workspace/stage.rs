@@ -10,7 +10,7 @@
 
 use dr_i18n::keys;
 use dr_ui::{
-    Theme,
+    Theme, anim,
     fonts::Role,
     glass::{self, Ground},
     style::DrStyled,
@@ -114,25 +114,29 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
         })
     .max(0.0);
     // A module filling the middle column (CM2): the paper at the column's
-    // widest, the bottom panel put away.
+    // widest, the bottom panel put away ([`Workspace::bottom_pane`]). It
+    // opens and closes as a panel's fill does (CR): the paper widens and
+    // narrows over the structural motion while the panel slides.
     ws.prune_module_fill(cx);
-    let module_filled = ws.filled_module().is_some();
-    let look = if module_filled {
+    let module_t = ws.fill.module_progress();
+    anim::keep_going(ws.fill.animating(), window);
+    let look = if module_t > 0.0 {
+        let widest = look
+            .page_width
+            .max(column_w - 2.0 * super::fill::MODULE_FILL_INSET);
         EditorLook {
-            page_width: look
-                .page_width
-                .max(column_w - 2.0 * super::fill::MODULE_FILL_INSET),
+            page_width: if module_t >= 1.0 {
+                widest
+            } else {
+                (look.page_width + (widest - look.page_width) * module_t).round()
+            },
             ..look
         }
     } else {
         look
     };
     // The Bottom Panel takes the column's foot; the pages have the rest.
-    let panel = if module_filled {
-        None
-    } else {
-        bottom::panel(ws, f32::from(viewport.height), window, cx)
-    };
+    let panel = bottom::panel(ws, f32::from(viewport.height), window, cx);
     let fill_header = TITLEBAR_HEIGHT
         * ws.fill
             .progress(FillPlace::Left)
@@ -178,24 +182,33 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
             };
             let left_target = split.side(PageSide::Left).target.clone();
             let right_target = split.side(PageSide::Right).target.clone();
-            let left_rail = outline::rail(
-                ws,
-                &entity,
-                Some(&left_target),
-                column_w * ratio,
-                column_h,
-                window,
-                cx,
-            );
-            let right_rail = outline::rail(
-                ws,
-                &entity,
-                Some(&right_target),
-                column_w * (1.0 - ratio),
-                column_h,
-                window,
-                cx,
-            );
+            // No rail while a module's fill closes (the papers still wide).
+            let left_rail = (module_t <= 0.0)
+                .then(|| {
+                    outline::rail(
+                        ws,
+                        &entity,
+                        Some(&left_target),
+                        column_w * ratio,
+                        column_h,
+                        window,
+                        cx,
+                    )
+                })
+                .flatten();
+            let right_rail = (module_t <= 0.0)
+                .then(|| {
+                    outline::rail(
+                        ws,
+                        &entity,
+                        Some(&right_target),
+                        column_w * (1.0 - ratio),
+                        column_h,
+                        window,
+                        cx,
+                    )
+                })
+                .flatten();
             let left = side(PageSide::Left, cx)
                 .children(left_rail)
                 .child(crate::sync::paper_corner(
@@ -247,8 +260,9 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
         }
         tab => {
             let target = tab.map(|t| t.focused().target.clone());
-            // A module filling the column leaves no margin for the rail.
-            let rail = if module_filled {
+            // A module filling the column leaves no margin for the rail,
+            // until the paper is back at its width.
+            let rail = if module_t > 0.0 {
                 None
             } else {
                 outline::rail(ws, &entity, target.as_ref(), column_w, column_h, window, cx)
