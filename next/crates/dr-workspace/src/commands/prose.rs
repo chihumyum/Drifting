@@ -712,19 +712,25 @@ fn restore_links(cx: &Cx<'_>, input: &LinkValuesIn) -> Result<LinksChanged> {
             .ok_or_else(|| WsError::not_found("document", doc.to_string()))?;
         if let Some(b) = info.book_id {
             let slot = cx.book_v3(&b)?;
-            // A link put back needs its target: one deleted for good since
-            // retires the step (`NotFound`).
+            // A link put back needs its target still in the book: one in
+            // Recently Deleted is (the link reads as gone until it is
+            // back); one deleted for good since retires the step
+            // (`NotFound`).
+            let view = slot.reader_v3.view();
             for (target, spans) in links {
                 for kind in spans
                     .iter()
                     .filter_map(|s| s.value.as_ref())
                     .filter_map(value_kind)
                 {
-                    if !slot
-                        .reader_v3
-                        .view()
-                        .entity_exists(&dr_model::shared::EntityRef::new(kind, target))
-                    {
+                    let stored = match kind {
+                        EntityKind::Entry => dr_model::id::EntryId::parse(target)
+                            .is_ok_and(|id| view.entry_raw(&id).is_some()),
+                        EntityKind::Asset => dr_model::id::AssetId::parse(target)
+                            .is_ok_and(|id| view.asset_raw(&id).is_some()),
+                        _ => false,
+                    };
+                    if !stored {
                         return Err(WsError::not_found("link target", target));
                     }
                 }
