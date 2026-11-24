@@ -2,13 +2,16 @@
 //! renamed), what it is (「我的模块 · 用在 N 个项目」, 「另存一份」), the four
 //! rows that set the preview (大小、内容、宽窄、深浅) and the preview, drawn
 //! by the renderer every entry page uses (`dr_view_module_look`). A press on
-//! a node of the preview picks it in 「长什么样」.
+//! a node of the preview picks it in 「长什么样」. Images dropped or pasted on
+//! the paper go to the Agent's composer (CW). The paper has none of the
+//! tools in its corner (the prototype has none).
 
 use std::rc::Rc;
 
 use dr_i18n::keys::module_bench as k;
 use dr_model::custom_module::LookSize;
 use dr_shell::{
+    pages::AgentImages,
     strings::{t, tf, tp},
     workspace::TITLEBAR_HEIGHT,
 };
@@ -23,9 +26,10 @@ use dr_ui::{
 };
 use dr_view_module_look::{AppWords, Blanks, Picking, Scope, paint, plan};
 use gpui::{
-    AnyElement, App, AppContext as _, Context, Entity, FocusHandle, Focusable, InteractiveElement,
-    IntoElement, ParentElement, Render, SharedString, StatefulInteractiveElement as _, Styled,
-    Subscription, Window, div, prelude::FluentBuilder as _, px,
+    AnyElement, App, AppContext as _, Context, Entity, ExternalPaths, FocusHandle, Focusable,
+    InteractiveElement, IntoElement, ParentElement, Render, SharedString,
+    StatefulInteractiveElement as _, Styled, Subscription, Window, div,
+    prelude::FluentBuilder as _, px,
 };
 
 use crate::state::{Bench, Breadth, Content};
@@ -85,6 +89,15 @@ impl BenchPage {
         let text = text.to_owned();
         self.bench
             .update(cx, |b, cx| b.change(|v| crate::edit::rename(v, &text), cx));
+    }
+
+    /// Images dropped or pasted on the paper go to the Agent (CW, §8 入口 2
+    /// 「拖进草图或截图」): they wait in its composer, the right column open
+    /// on it. Nothing is sent.
+    fn give(&self, images: AgentImages, window: &mut Window, cx: &mut Context<Self>) {
+        let ws = self.bench.read(cx).ws.clone();
+        ws.update(cx, |ws, cx| ws.give_agent_images(images, window, cx))
+            .ok();
     }
 }
 
@@ -187,6 +200,26 @@ impl Render for BenchPage {
                     this.bench.update(cx, |b, cx| b.redo(cx));
                 }),
             )
+            // ⌘V: images or files on the clipboard go to the Agent, read
+            // as its composer reads them (text alone stays where it is).
+            .on_action(
+                cx.listener(|this, _: &dr_shell::actions::Paste, window, cx| {
+                    let images = (!typing(window))
+                        .then(|| cx.read_from_clipboard())
+                        .flatten()
+                        .and_then(|item| AgentImages::on_clipboard(&item));
+                    match images {
+                        Some(images) => this.give(images, window, cx),
+                        None => cx.propagate(),
+                    }
+                }),
+            )
+            // Files dropped anywhere on the paper (the Agent column's wash
+            // while they are over it).
+            .drag_over::<ExternalPaths>(move |style, _, _, _| style.bg(p.ink(1).alpha(0.05)))
+            .on_drop(cx.listener(|this, paths: &ExternalPaths, window, cx| {
+                this.give(AgentImages::Files(paths.paths().to_vec()), window, cx)
+            }))
             .size_full()
             .overflow_y_scroll()
             .pt(px(TITLEBAR_HEIGHT + 28.0))

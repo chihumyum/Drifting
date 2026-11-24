@@ -52,6 +52,10 @@ pub struct DockMark {
     pub color: Option<Rgb>,
     /// A preview: hollow.
     pub hollow: bool,
+    /// A brush icon drawn in the kind's mark's place (a module's workbench:
+    /// 「线装」, the one mark every module has), in the ink a pill's icon
+    /// takes; the dock still groups the tab by `kind`'s family.
+    pub icon: Option<sand::Icon>,
 }
 
 impl DockMark {
@@ -60,11 +64,18 @@ impl DockMark {
             kind,
             color,
             hollow: false,
+            icon: None,
         }
     }
 
     pub fn hollow(mut self, hollow: bool) -> DockMark {
         self.hollow = hollow;
+        self
+    }
+
+    /// Drawn as `icon` instead of the kind's mark.
+    pub fn icon(mut self, icon: sand::Icon) -> DockMark {
+        self.icon = Some(icon);
         self
     }
 }
@@ -374,12 +385,35 @@ fn marks_row(
             let focused = is_active && j == tab.focused;
             let loading = tab.pill.loading && j == tab.focused;
             let mid = child_id(&child_id(id, "mark"), format!("{key}-{j}"));
-            let mark = KindMark::new(mid.clone(), m.kind)
-                .hollow(m.hollow)
-                .scale(if focused { ACTIVE_SCALE } else { 1.0 });
-            let mark = match m.color {
-                Some(c) => mark.color(c),
-                None => mark,
+            let scale = if focused { ACTIVE_SCALE } else { 1.0 };
+            let mark = match m.icon {
+                Some(icon) => div()
+                    .id(mid.clone())
+                    .debug_selector({
+                        let key = key.clone();
+                        move || format!("dock-icon-{key}")
+                    })
+                    .size(px(sand::MARK_SLOT * scale))
+                    .flex_none()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .child(sand::icon(
+                        icon,
+                        sand::MARK_SLOT * scale,
+                        theme.palette.ink(2).solid(),
+                    ))
+                    .into_any_element(),
+                None => {
+                    let mark = KindMark::new(mid.clone(), m.kind)
+                        .hollow(m.hollow)
+                        .scale(scale);
+                    match m.color {
+                        Some(c) => mark.color(c),
+                        None => mark,
+                    }
+                    .into_any_element()
+                }
             };
             let ring = loading.then(|| {
                 let ring = glass::use_state(
@@ -445,6 +479,16 @@ mod tests {
         );
         assert_eq!(split.marks.len(), 2);
         assert_eq!(split.focused, 1);
+    }
+
+    #[test]
+    fn a_mark_can_be_a_brush_icon_in_its_kinds_place() {
+        let plain = DockMark::new(sand::Kind::Element, None);
+        assert!(plain.icon.is_none());
+        let stitched = plain.icon(sand::Icon::Stitched);
+        assert!(matches!(stitched.icon, Some(sand::Icon::Stitched)));
+        // Its kind still says where the dock groups it.
+        assert_eq!(kind_family(stitched.kind), kind_family(sand::Kind::Element));
     }
 
     #[test]

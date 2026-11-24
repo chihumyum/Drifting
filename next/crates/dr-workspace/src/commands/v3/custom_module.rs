@@ -130,6 +130,85 @@ fn need_my_module(ws: &Workspace, id: &CustomModuleId) -> Result<(ModuleInfo, Mo
     my_module(ws, id)?.ok_or_else(|| WsError::not_found("module", id.as_str()))
 }
 
+/// One of my modules as stored now, and the Agent's latest changes to it
+/// ([`agent_changes`]).
+#[derive(Clone, Debug, PartialEq)]
+pub struct AgentChanges {
+    /// The module as stored now.
+    pub now: ModuleValue,
+    /// What it was before each of the Agent's latest changes, newest first:
+    /// `before[0]` is what the Agent's last change replaced.
+    pub before: Vec<ModuleValue>,
+}
+
+/// Module `id` of mine as stored now, with what it was before the Agent's
+/// latest changes to it on this device (CW: the workbench's ⌘Z takes them
+/// back, `custom-modules.md` §7 「Agent 改的也是一步」). Read only.
+///
+/// Every Agent write leaves a settlement receipt in this device's library
+/// (`agent_settlement`, written in the same transaction as the update): the
+/// document's version before and after it. History is never trimmed
+/// (`dr_store::history`), so the version before reads back the whole
+/// module. From the version stored now this walks back from receipt to
+/// receipt: a change counts only while its `after` is where the walk
+/// stands, so the walk stops at the first version no Agent write on this
+/// device led to (the author, another device, an import), at a change that
+/// made the module (nothing before it), once what it was is `back_to`
+/// (included), or after `limit` changes. `None` when my modules do not
+/// have `id`.
+pub fn agent_changes(
+    ws: &Workspace,
+    id: &CustomModuleId,
+    back_to: Option<&ModuleValue>,
+    limit: usize,
+) -> Result<Option<AgentChanges>> {
+    let doc = doc_id(id);
+    let lib = ws.library();
+    if lib.doc_info(&doc)?.is_none() {
+        return Ok(None);
+    }
+    let raw = lib.load_copy(&doc)?;
+    let now = {
+        let borrowed = BorrowedModuleDoc::new(&raw, id)?;
+        let view = borrowed.view();
+        if view.info().is_none() {
+            return Ok(None);
+        }
+        view.value().map_err(|e| WsError::invalid(e.to_string()))?
+    };
+    let mut before = Vec::new();
+    if back_to == Some(&now) {
+        return Ok(Some(AgentChanges { now, before }));
+    }
+    let receipts = lib.settlements(None, Some(&doc))?;
+    let mut at = raw.oplog_frontiers();
+    while before.len() < limit {
+        let Some(receipt) = receipts
+            .iter()
+            .rev()
+            .find(|r| r.after == at && r.before != r.after)
+        else {
+            break;
+        };
+        let copy = lib.load_copy_at(&doc, &receipt.before)?;
+        let borrowed = BorrowedModuleDoc::new(&copy, id)?;
+        let view = borrowed.view();
+        if view.info().is_none() {
+            break;
+        }
+        let Ok(was) = view.value() else {
+            break;
+        };
+        let reached = back_to == Some(&was);
+        before.push(was);
+        if reached {
+            break;
+        }
+        at = receipt.before.clone();
+    }
+    Ok(Some(AgentChanges { now, before }))
+}
+
 /// Whether my modules have `id`: a book's copy with this id follows them.
 pub fn in_my_modules(ws: &Workspace, id: &CustomModuleId) -> Result<bool> {
     Ok(ws.library().doc_info(&doc_id(id))?.is_some())

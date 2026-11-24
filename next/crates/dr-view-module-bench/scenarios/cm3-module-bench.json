@@ -1,5 +1,5 @@
 {
-  "about": "CM3 条目模块自定义：工作台、我的模块、导出导入。副屏 lite 真窗口，浅深色截图：工作台药丸和它带来的左右栏（装什么、长什么样、写给 Agent、Agent），预览四排切换，换到别的药丸两栏换回，条目页上当场是新的模块；模板编辑器的添加模块菜单；全部项目页的我的模块、悬停卡、拖进 .driftingmodule 导入、删除先问、编辑开工作台。系统存文件窗口点不了，导出用 custom_module.export 命令写文件。",
+  "about": "CM3 条目模块自定义：工作台、我的模块、导出导入。副屏 lite 真窗口，浅深色截图：工作台药丸和它带来的左右栏（装什么、长什么样、写给 Agent、Agent），预览四排切换，换到别的药丸两栏换回，条目页上当场是新的模块；模板编辑器的添加模块菜单；全部项目页的我的模块、悬停卡、拖进 .driftingmodule 导入、删除先问、编辑开工作台。系统存文件窗口点不了，导出用 custom_module.export 命令写文件。CW（2026-11-24）：Agent 改了我的模块以后 ⌘Z 能撤回（工作台开着时改、关着时改各一次，书里的抄本跟着换回）；图片拖到稿纸上进右栏 Agent 的输入框（粘贴图片不在真窗口里验，不碰系统剪贴板）；工作台稿纸角上没有工具、条目页有；药丸收着时是「线装」记号（截图）；全部项目页悬停卡里的模块等比缩小（截图）。",
   "steps": [
     {
       "seed": "lite"
@@ -540,6 +540,50 @@
       "png": "01-bench-light.png"
     },
     {
+      "app": "ui.find",
+      "params": {
+        "label": "沉浸写作",
+        "role": "Button",
+        "absent": true
+      },
+      "note": "CW 3: the workbench's paper has no tools in its corner (no incense, no outline, no bamboo)."
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "显示目录",
+        "role": "Button",
+        "absent": true
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "隐藏目录",
+        "role": "Button",
+        "absent": true
+      }
+    },
+    {
+      "app": "input.move",
+      "params": {
+        "x": 900,
+        "y": 700
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 900
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "cw-04-dock-at-rest-light.png",
+      "note": "CW 4: the dock at rest (the pointer off it): the workbench's mark is 「线装」."
+    },
+    {
       "app": "ui.press",
       "params": {
         "label": "伏笔",
@@ -568,6 +612,82 @@
       "expect": {
         "/value/blocks/0/blocks/3/type": "number"
       }
+    },
+    {
+      "call": "custom_module.rename",
+      "actor": "agent:cw-scenario/1",
+      "input": {
+        "id": "${fore.id}",
+        "name": "伏笔追踪（Agent 改的）"
+      },
+      "note": "CW 1: the Agent renames my module while its workbench is open (a settlement receipt is written with it)."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 1500
+      }
+    },
+    {
+      "app": "input.move",
+      "params": {
+        "x": 640,
+        "y": 20
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "cw-01-agent-changed-light.png"
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-z"
+      },
+      "note": "⌘Z on the workbench (it has the keyboard back since 「数字」 was pressed)."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 1500
+      }
+    },
+    {
+      "call": "custom_module.get",
+      "input": {
+        "id": "${fore.id}"
+      },
+      "expect": {
+        "/value/name": "伏笔追踪",
+        "/value/blocks/0/blocks/3/type": "number"
+      },
+      "note": "The Agent's change taken back, whole; the number added here before it is still there."
+    },
+    {
+      "call": "module.read_custom",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${page.id}",
+        "module": "cm3-fore"
+      },
+      "expect": {
+        "/value/name": "伏笔追踪",
+        "/value/blocks/0/blocks/3/type": "number"
+      },
+      "note": "The book's copy followed."
+    },
+    {
+      "app": "input.move",
+      "params": {
+        "x": 640,
+        "y": 20
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "cw-01-undone-light.png"
     },
     {
       "app": "ui.press",
@@ -723,6 +843,55 @@
       "png": "06-guide-light.png"
     },
     {
+      "call": "asset.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "assets"
+    },
+    {
+      "app": "library.info",
+      "save": "libcw"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "另存一份",
+        "role": "Button",
+        "timeout_ms": 8000
+      },
+      "save": "saveas"
+    },
+    {
+      "app": "input.drop",
+      "params": {
+        "paths": [
+          "${libcw.root}/assets/${books.0.id}/${assets.0.id}/source.png"
+        ],
+        "x": "${saveas.nodes.0.center.0}",
+        "y": "${saveas.nodes.0.center.1}"
+      },
+      "note": "CW 2: the book's synthetic picture (参考图, 320×200) dropped on the workbench's paper."
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "图片",
+        "role": "Image",
+        "count": 1,
+        "timeout_ms": 8000
+      },
+      "note": "It waits in the Agent's composer; the right column shows 「Agent」. Nothing is sent."
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "移除图片",
+        "role": "Button",
+        "count": 1
+      }
+    },
+    {
       "app": "ui.press",
       "params": {
         "role": "RadioButton",
@@ -777,6 +946,15 @@
     {
       "app": "ui.screenshot",
       "png": "08-entry-after-change-light.png"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "沉浸写作",
+        "role": "Button",
+        "count": 1
+      },
+      "note": "CW 3: an entry page keeps the corner's tools."
     },
     {
       "app": "nav.open",
@@ -980,14 +1158,22 @@
       "png": "12b-card-before-edit-light.png"
     },
     {
+      "app": "ui.find",
+      "params": {
+        "label": "编辑",
+        "role": "MenuItem",
+        "count": 1,
+        "timeout_ms": 8000
+      },
+      "note": "Only the open hover card's 编辑 is a menu item (a book card's 编辑 is a button)."
+    },
+    {
       "app": "ui.press",
       "params": {
-        "label": "伏笔追踪",
-        "role": "Group",
-        "dx": 160,
-        "dy": 175
+        "label": "编辑",
+        "role": "MenuItem"
       },
-      "note": "The card's 编辑, below its title and the module drawn 120 high (a book card's 编辑 has the same name, so not by name)."
+      "note": "The module card's 编辑, by name (its module is drawn 0.62 of its size since CW, so an offset under the row would move)."
     },
     {
       "app": "ui.wait",
@@ -1028,6 +1214,15 @@
     },
     {
       "app": "app.quit"
+    },
+    {
+      "call": "custom_module.rename",
+      "actor": "agent:cw-scenario/2",
+      "input": {
+        "id": "${fore.id}",
+        "name": "伏笔追踪（Agent 又改了）"
+      },
+      "note": "CW 1: the Agent renames my module while the app (and the workbench) is closed."
     },
     {
       "launch": {
@@ -1119,6 +1314,52 @@
       "params": {
         "until": "time",
         "ms": 800
+      }
+    },
+    {
+      "app": "input.move",
+      "params": {
+        "x": 640,
+        "y": 20
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "cw-01b-opened-after-agent-dark.png"
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-z"
+      },
+      "note": "⌘Z: the first step back is what the Agent's change replaced."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 1500
+      }
+    },
+    {
+      "call": "custom_module.get",
+      "input": {
+        "id": "${fore.id}"
+      },
+      "expect": {
+        "/value/name": "伏笔追踪",
+        "/value/blocks/0/blocks/3/type": "number"
+      }
+    },
+    {
+      "call": "module.read_custom",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${page.id}",
+        "module": "cm3-fore"
+      },
+      "expect": {
+        "/value/name": "伏笔追踪"
       }
     },
     {

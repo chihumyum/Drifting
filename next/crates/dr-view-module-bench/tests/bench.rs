@@ -19,7 +19,7 @@ use dr_shell::{
 use dr_ui::Appearance;
 use dr_view_module_bench::{Bench, Breadth, Content, LOOK_TAB};
 use dr_workspace::{Actor, Workspace, WorkspaceOptions, library_options};
-use gpui::{Entity, Modifiers, TestAppContext, VisualTestContext, px, size};
+use gpui::{AppContext as _, Entity, Modifiers, TestAppContext, VisualTestContext, px, size};
 use serde_json::{Value, json};
 
 const FORESHADOWING: &str =
@@ -101,6 +101,49 @@ fn env() -> Env {
 fn mine(e: &Env) -> ModuleValue {
     let v = call(&e.ws, "custom_module.get", json!({"id": e.module}))["value"].clone();
     serde_json::from_value(v).unwrap()
+}
+
+/// The book's copy of my module, as the entry's template draws it.
+fn copy_of(e: &Env) -> ModuleValue {
+    let r = call(
+        &e.ws,
+        "module.read_custom",
+        json!({"book": e.book, "entry": e.entry, "module": "mod-c"}),
+    );
+    serde_json::from_value(r["value"].clone()).unwrap()
+}
+
+/// The Agent replaces my module with `value` (`custom_module.update` as the
+/// Agent: its settlement receipt is written with it).
+fn agent_writes(e: &Env, turn: u32, value: &ModuleValue) {
+    e.ws.call(
+        &Actor::agent("cw-session", turn, format!("call-{turn}")),
+        "custom_module.update",
+        json!({"id": e.module, "value": serde_json::to_value(value).unwrap()}),
+    )
+    .unwrap();
+}
+
+/// Waits until the book's copy is `want` (the copy follows my module).
+fn copy_becomes(e: &Env, cx: &mut VisualTestContext, want: &ModuleValue) {
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while copy_of(e) != *want {
+        assert!(Instant::now() < deadline, "the book's copy follows");
+        draw(cx);
+    }
+}
+
+fn undo_in_bench(bench: &Entity<Bench>, cx: &mut VisualTestContext, redo: bool) {
+    cx.update(|window, cx| {
+        let focus = bench.read(cx).focus.clone();
+        focus.focus(window, cx);
+    });
+    if redo {
+        cx.dispatch_action(dr_shell::actions::Redo);
+    } else {
+        cx.dispatch_action(dr_shell::actions::Undo);
+    }
+    settle(bench, cx);
 }
 
 fn line_value(e: &Env) -> Value {
@@ -532,4 +575,247 @@ fn a_change_made_elsewhere_shows_and_is_never_written_over(cx: &mut TestAppConte
         view.read_with(cx, |ws, _| ws.toast.is_some()),
         "the author hears it was not saved"
     );
+}
+
+/// CW 1, the workbench open: the Agent's change to my module goes on top
+/// of the steps made here; ⌘Z takes it back (the whole module, the book's
+/// copy with it), the author's own steps are still under it, and ⇧⌘Z
+/// brings the Agent's change back.
+#[gpui::test]
+fn the_agents_change_while_the_workbench_is_open_is_a_step_of_undo(cx: &mut TestAppContext) {
+    let e = env();
+    let original = mine(&e);
+    let (view, cx) = workspace(cx, &e);
+    let bench = open_bench(&view, &e, cx);
+    // A step of the author's here: a number into 「伏笔」.
+    bench.update(cx, |b, cx| b.pick_block("items", cx));
+    bench.update(cx, |b, cx| {
+        b.add_block(dr_model::custom_module::BlockKind::Number, cx)
+    });
+    settle(&bench, cx);
+    let authors = mine(&e);
+    assert_ne!(authors, original);
+    copy_becomes(&e, cx, &authors);
+    // The Agent renames it and takes a block away, while it is open.
+    let mut agents = dr_view_module_bench::edit::rename(&authors, "伏笔（Agent 改的）").unwrap();
+    agents = dr_view_module_bench::edit::remove_block(&agents, "line").unwrap();
+    agent_writes(&e, 1, &agents);
+    let (b, want) = (bench.clone(), agents.clone());
+    until(cx, "the Agent's change shown", move |cx| {
+        b.read_with(cx, |b, _| b.value.as_ref() == Some(&want) && b.is_settled())
+    });
+    assert!(bench.read_with(cx, |b, _| b.can_undo()));
+    assert!(!bench.read_with(cx, |b, _| b.can_redo()));
+    assert_eq!(
+        bench.read_with(cx, |b, _| b.undo_top().cloned()),
+        Some(authors.clone()),
+        "the step back is what the Agent changed"
+    );
+    // ⌘Z: the Agent's change taken back, whole; the book's copy follows.
+    undo_in_bench(&bench, cx, false);
+    assert_eq!(mine(&e), authors);
+    copy_becomes(&e, cx, &authors);
+    // ⌘Z again: the author's own step under it.
+    undo_in_bench(&bench, cx, false);
+    assert_eq!(mine(&e), original);
+    copy_becomes(&e, cx, &original);
+    // ⇧⌘Z twice: the author's step, then the Agent's change again.
+    undo_in_bench(&bench, cx, true);
+    undo_in_bench(&bench, cx, true);
+    assert_eq!(mine(&e), agents);
+    copy_becomes(&e, cx, &agents);
+}
+
+/// CW 1, the workbench closed: the Agent's latest change is the first step
+/// back when it opens (from the Agent's receipt); ⌘Z puts the module before
+/// it back, the book's copy with it. A change that is not the Agent's, made
+/// while it is open, clears the Agent's steps.
+#[gpui::test]
+fn the_agents_change_made_before_the_workbench_opens_is_its_first_step_back(
+    cx: &mut TestAppContext,
+) {
+    let e = env();
+    let original = mine(&e);
+    // Two changes of the Agent's: the later one is the step back.
+    let first = dr_view_module_bench::edit::rename(&original, "伏笔（第一次）").unwrap();
+    agent_writes(&e, 1, &first);
+    let second = dr_view_module_bench::edit::remove_block(&first, "line").unwrap();
+    agent_writes(&e, 2, &second);
+    let (view, cx) = workspace(cx, &e);
+    copy_becomes(&e, cx, &second);
+    let bench = open_bench(&view, &e, cx);
+    assert_eq!(bench.read_with(cx, |b, _| b.value.clone()), Some(second));
+    assert_eq!(
+        bench.read_with(cx, |b, _| b.undo_top().cloned()),
+        Some(first.clone()),
+        "what the Agent's last change replaced"
+    );
+    undo_in_bench(&bench, cx, false);
+    assert_eq!(mine(&e), first);
+    copy_becomes(&e, cx, &first);
+    assert!(
+        !bench.read_with(cx, |b, _| b.can_undo()),
+        "only the latest change of the Agent's"
+    );
+    // The Agent changes it while it is open, then a change that is not the
+    // Agent's (another window, another device): the steps are cleared.
+    let third = dr_view_module_bench::edit::rename(&first, "伏笔（第三次）").unwrap();
+    agent_writes(&e, 3, &third);
+    let b = bench.clone();
+    until(cx, "the Agent's step", move |cx| {
+        b.read_with(cx, |b, _| b.can_undo() && b.is_settled())
+    });
+    let fourth = dr_view_module_bench::edit::rename(&third, "伏笔（别处）").unwrap();
+    call(
+        &e.ws,
+        "custom_module.update",
+        json!({"id": e.module, "value": serde_json::to_value(&fourth).unwrap()}),
+    );
+    let (b, want) = (bench.clone(), fourth.clone());
+    until(cx, "the change made elsewhere", move |cx| {
+        b.read_with(cx, |b, _| b.value.as_ref() == Some(&want) && b.is_settled())
+    });
+    assert!(!bench.read_with(cx, |b, _| b.can_undo()));
+}
+
+/// CW 1: a change that is not the Agent's after the Agent's last one (the
+/// author's elsewhere, another device): the workbench opens with nothing to
+/// take back.
+#[gpui::test]
+fn a_change_after_the_agents_leaves_no_step_when_the_workbench_opens(cx: &mut TestAppContext) {
+    let e = env();
+    let original = mine(&e);
+    let agents = dr_view_module_bench::edit::rename(&original, "伏笔（Agent）").unwrap();
+    agent_writes(&e, 1, &agents);
+    let authors = dr_view_module_bench::edit::rename(&agents, "伏笔（作者）").unwrap();
+    call(
+        &e.ws,
+        "custom_module.update",
+        json!({"id": e.module, "value": serde_json::to_value(&authors).unwrap()}),
+    );
+    let (view, cx) = workspace(cx, &e);
+    let bench = open_bench(&view, &e, cx);
+    assert_eq!(bench.read_with(cx, |b, _| b.value.clone()), Some(authors));
+    assert!(!bench.read_with(cx, |b, _| b.can_undo()));
+}
+
+/// CW 2: images dropped or pasted on the paper go to the Agent (the shell's
+/// 「Agent」 tab, its composer: here a stand-in records them); the right
+/// column opens on 「Agent」. Text on the clipboard is not taken.
+#[gpui::test]
+fn images_dropped_or_pasted_on_the_paper_go_to_the_agent(cx: &mut TestAppContext) {
+    let e = env();
+    let taken: std::rc::Rc<std::cell::RefCell<Vec<dr_shell::pages::AgentImages>>> =
+        Default::default();
+    let (view, cx) = workspace(cx, &e);
+    let seen = taken.clone();
+    cx.update(|_, cx| {
+        dr_shell::pages::set_companion(cx, |_, _, cx| dr_shell::pages::LeftPanel {
+            head: cx.new(|_| Blank).into(),
+            body: cx.new(|_| Blank).into(),
+        });
+        dr_shell::pages::set_agent_images(cx, move |_, images, _| seen.borrow_mut().push(images));
+    });
+    let bench = open_bench(&view, &e, cx);
+    until(cx, "the paper", |cx| shown(cx, "module-bench"));
+    // The right column closed first.
+    view.update_in(cx, |ws, window, cx| ws.toggle_right(window, cx));
+    until(cx, "the right column closed", |cx| {
+        !shown(cx, "right-page-tab-row")
+    });
+    assert!(!view.read_with(cx, |ws, _| ws.right.open));
+    // A sketch dropped on the paper.
+    let sketch = e._dir.path().join("sketch.png");
+    std::fs::write(&sketch, dr_testkit::media::png(64, 40)).unwrap();
+    let at = bounds(cx, "module-bench").unwrap().center();
+    cx.update(|window, cx| {
+        window.dispatch_event(
+            gpui::PlatformInput::FileDrop(gpui::FileDropEvent::Entered {
+                position: at,
+                paths: gpui::ExternalPaths([sketch.clone()].into_iter().collect()),
+            }),
+            cx,
+        );
+        window.dispatch_event(
+            gpui::PlatformInput::FileDrop(gpui::FileDropEvent::Submit { position: at }),
+            cx,
+        );
+        window.dispatch_event(
+            gpui::PlatformInput::FileDrop(gpui::FileDropEvent::Ended),
+            cx,
+        );
+    });
+    draw(cx);
+    assert_eq!(
+        taken.borrow().as_slice(),
+        [dr_shell::pages::AgentImages::Files(vec![sketch])]
+    );
+    assert!(
+        view.read_with(cx, |ws, _| ws.right.open),
+        "the column opens"
+    );
+    assert_eq!(
+        view.read_with(cx, |ws, _| ws.page_tab()).as_deref(),
+        Some("agent")
+    );
+    // A picture pasted (the test platform's clipboard).
+    let png = dr_testkit::media::png(30, 20);
+    cx.update(|_, cx| {
+        cx.write_to_clipboard(gpui::ClipboardItem::new_image(&gpui::Image::from_bytes(
+            gpui::ImageFormat::Png,
+            png.clone(),
+        )))
+    });
+    cx.update(|window, cx| {
+        let focus = bench.read(cx).focus.clone();
+        focus.focus(window, cx);
+    });
+    cx.dispatch_action(dr_shell::actions::Paste);
+    draw(cx);
+    assert_eq!(taken.borrow().len(), 2);
+    assert_eq!(
+        taken.borrow()[1],
+        dr_shell::pages::AgentImages::Bytes(vec![png])
+    );
+    // Words on the clipboard are not the Agent's.
+    cx.update(|_, cx| cx.write_to_clipboard(gpui::ClipboardItem::new_string("潮声".into())));
+    cx.dispatch_action(dr_shell::actions::Paste);
+    draw(cx);
+    assert_eq!(taken.borrow().len(), 2);
+}
+
+/// A view that draws nothing (the stand-in 「Agent」 tab).
+struct Blank;
+
+impl gpui::Render for Blank {
+    fn render(
+        &mut self,
+        _: &mut gpui::Window,
+        _: &mut gpui::Context<Self>,
+    ) -> impl gpui::IntoElement {
+        gpui::div()
+    }
+}
+
+/// CW 3 and 4: the workbench's paper has no tools in its corner (an entry
+/// page keeps them), and its pill rests as 「线装」 in the dock.
+#[gpui::test]
+fn the_paper_has_no_corner_tools_and_the_pill_rests_stitched(cx: &mut TestAppContext) {
+    let e = env();
+    let (view, cx) = workspace(cx, &e);
+    let entry = Target::Entry {
+        id: e.entry.parse().unwrap(),
+        module: None,
+    };
+    view.update(cx, |ws, cx| ws.open(entry, Open::KEEP, cx));
+    until(cx, "an entry page's corner", |cx| shown(cx, "paper-corner"));
+    let _bench = open_bench(&view, &e, cx);
+    until(cx, "the paper", |cx| shown(cx, "module-bench"));
+    assert!(!shown(cx, "paper-corner"), "no tools in the paper's corner");
+    // The dock at rest: the workbench's mark is 「线装」.
+    cx.simulate_mouse_move(gpui::point(px(700.0), px(600.0)), None, Modifiers::none());
+    let icon = format!("dock-icon-{}", module_target(&e).key());
+    let entry_icon = format!("dock-icon-entry:{}", e.entry);
+    until(cx, "the resting dock", move |cx| shown(cx, &icon));
+    assert!(!shown(cx, &entry_icon), "an entry rests as its own mark");
 }

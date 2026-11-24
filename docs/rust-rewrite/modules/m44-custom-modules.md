@@ -2,7 +2,7 @@
 
 2026-11-24，任务书 [handoff/resume-1123.md](../handoff/resume-1123.md) 的 CM1。设计是 [custom-modules.md](../custom-modules.md)（作者 2026-11-20 定稿，2026-11-23「现在就迁」）。这一路只做数据：格式和校验器、我的模块、书里的抄本和值、自动换、命令、项目模板带模块、`.driftingmodule` 文件。没有任何界面，也没有 Agent 的工具（CM2 渲染、CM3 工作台、CM4b Agent 照这一页的接口接）。
 
-同一天的 CM2（画出来、能填）写在本页末尾 [「渲染（CM2）」](#渲染cm2)：盒子树画成界面、条目页上能填、铺满、悬停卡里的一行、坏了的抄本；它的三处后续（铺满的开合、英文等语言的个数写法、条目页上模块的先后）在 [「渲染的后续（CR）」](#渲染的后续cr)。CM3（工作台、我的模块、导出导入）在它后面 [「工作台、我的模块、导出导入（CM3）」](#工作台我的模块导出导入cm3)。
+同一天的 CM2（画出来、能填）写在本页末尾 [「渲染（CM2）」](#渲染cm2)：盒子树画成界面、条目页上能填、铺满、悬停卡里的一行、坏了的抄本；它的三处后续（铺满的开合、英文等语言的个数写法、条目页上模块的先后）在 [「渲染的后续（CR）」](#渲染的后续cr)。CM3（工作台、我的模块、导出导入）在它后面 [「工作台、我的模块、导出导入（CM3）」](#工作台我的模块导出导入cm3)，第二轮 CW（Agent 的改动能撤回、稿纸收图片、角上没有工具、药丸收着的记号、悬停卡的比例）在最后 [「工作台的几处后续（CW）」](#工作台的几处后续cw)。
 
 ## 做了什么（大白话）
 
@@ -443,7 +443,7 @@ trait Edit { fn value(..) -> AnyElement; fn item(..) -> AnyElement; fn after_ite
 3. **左栏「装什么」**：积木一块一行（套在一组、一串里的缩进），每行名字、种类，指上去出删除；点一行选中它，选中的那一行下面出「名字」和（单选、多选的）「选项」，离开或回车时存；拖一行放到另一行上：放到一组、一串上是放进去，放到别的积木上是挪到它前面，放到列表下面空白处是挪到最外层最后。最下面「积木」一排是全部十一种，点一个就加进去（选中的是一组、一串就加进它里面），新的一组、一串会被选中。
 4. **右栏「长什么样」**：上面写着现在看的是哪种大小，一行、铺满时有「跟着一块 / 单独摆」；下面是这种大小那棵盒子树，一个节点一行；选中的节点下面是它的属性，只有设计稿第 4 节那张清单里的档位（盒子：排法、间距、内边距、对齐、宽、边、底、圆角、装饰；每一项：排法、间距、分隔、连接；值：显示（数字、单选才有）、字体、大小、墨色；字：文字、字体、大小、墨色；记号：七个砂笔记号）。没有颜色、没有数值输入。跟着一块时只有一句「取前几样连成一行」或「和一块一样，撑满」。
 5. **右栏「写给 Agent」**：名字、说明、注意事项（和条目模板那一栏同样的三样），下面「每一样」每块积木一句。
-6. **随改随存、⌘Z**：每一次改动就是一次 `custom_module.update`，没有保存键；⌘Z、⇧⌘Z 在工作台改过的步骤之间来回。别处（Agent、另一台设备）改了这个模块，工作台当场换成新的；在工作台改的时候要是别处刚改过、工作台还没看到，这一笔不写，换成别处那一版，窗口底下说「未能保存」——不会拿一整份旧的盖掉别人的改动。
+6. **随改随存、⌘Z**：每一次改动就是一次 `custom_module.update`，没有保存键；⌘Z、⇧⌘Z 在工作台改过的步骤之间来回。别处（Agent、另一台设备）改了这个模块，工作台当场换成新的；在工作台改的时候要是别处刚改过、工作台还没看到，这一笔不写，换成别处那一版，窗口底下说「未能保存」——不会拿一整份旧的盖掉别人的改动。（CW 起，Agent 的改动也是 ⌘Z 的一步，见本页最后一节。）
 7. **三个入口**：模板编辑器「添加模块」菜单最下面「新建模块…」（建一个空模块、加进模板的草稿、打开它的工作台）；模板编辑器里模块那一行的「改」；Agent 建好、改了、放进模板以后，对话里那条工具结果下面一张卡（名字、「我的模块」、「打开工作台」）。另外「全部项目」页悬停卡里的「编辑」。
 8. **「添加模块」菜单**：自带的那一串照旧，一道线，「我的模块」一节（这个模板还没放的我的模块，一个一行），一道线，「新建模块…」。「社区」是第二期，这一期没有。放进去的那一行写「我的模块」和「改」；跟着别人的模板或书来的写「模块」和「存进我的模块」（没存进去之前没有「改」），点了以后那一行换成「我的模块」和「改」。
 9. **「全部项目」页**：左栏「我的模板」下面一节「我的模块」，一个模块一行（「线装」记号）；悬停卡里是名字、用示例画的「一块」、一道线，编辑、导出（.driftingmodule），一道线，删除。删除先问一句「删除模块「…」？」（取消 / 删除，照「我的模板」），删了以后用着它的项目留着抄本照常能用。「导入模板」下面多一行「导入模块 .driftingmodule」，`.driftingmodule` 文件也能拖到「全部项目」上；导入不问、总是新加一份，失败照导入模板的说法（把「模板」换成「模块」）。导出直接弹系统的存文件窗口，署名是账号的显示名。
@@ -463,7 +463,7 @@ trait Edit { fn value(..) -> AnyElement; fn item(..) -> AnyElement; fn after_ite
 - 盒子树里不能加、删节点（原型没有）；节点只能随积木加删。盒子的「格」给两列「填满」，列宽、不换行、最宽这三样不在右栏（原型没有）。
 - 「新建模块…」在新建模板的对话框里不出现（对话框盖着窗口，工作台是项目里的药丸）。
 - 「全部项目」页点「编辑」：「全部项目」收起，回到窗口开着的项目（没开着的就开最近改过的那个），工作台作为药丸打开；一个项目都没有时什么都不做（记一行日志）。
-- 撤销是工作台自己的：每一次 ⌘Z 写回上一个整份（也是一次 `custom_module.update`）；工作区的「撤销书的命令」管不到书库一级的命令。别处改了模块以后，工作台的撤销记录清空。
+- 撤销是工作台自己的：每一次 ⌘Z 写回上一个整份（也是一次 `custom_module.update`）；工作区的「撤销书的命令」管不到书库一级的命令。别处改了模块以后，工作台的撤销记录清空（CW 起 Agent 在这台设备上的改动除外：接在撤销串上，见最后一节）。
 
 ### 接口（只加不改）
 
@@ -514,7 +514,7 @@ dr_view_transfer::{module, ExportModuleById};               // module::{import, 
 - 工作台的撤销是它自己的一串整份；要是以后工作区有了按对象撤销书库一级命令的口，可以换过去。
 - 「借真实条目」只借第一个；要能挑别的条目，等作者定。
 - 盒子树里加、删节点、格的列宽、不换行、最宽、值的最多几行和宽，右栏都还没有（原型没有）；Agent 能写，校验器认。
-- 拖草图进 Agent 栏（入口 2）用的是 CM4a 的收图片和 CM4b 的工具，工作台这边只接那张卡。
+- 拖草图进 Agent 栏（入口 2）用的是 CM4a 的收图片和 CM4b 的工具，工作台这边只接那张卡。CW 起工作台的稿纸也收图片（拖进、粘贴），转给右栏 Agent 的输入框。
 
 ### 代码位置
 
@@ -526,3 +526,84 @@ dr_view_transfer::{module, ExportModuleById};               // module::{import, 
 - 导出导入：`next/crates/dr-view-transfer/src/module.rs`。
 - Agent 的卡：`next/crates/dr-view-agent/src/panel.rs`（`module_cards`）。
 - 文案：`next/crates/dr-i18n/own/*.json` 的 `moduleBench.*`。
+
+## 工作台的几处后续（CW）
+
+2026-11-24 第二轮，任务书 [handoff/resume-1123.md](../handoff/resume-1123.md) 的 CW。依据是 progress.md「等作者的事」第 21 条里 CM4b 的 (a) 和 CM3 的 (a)(d)(e)(f)，作者答「都按照你的推荐来。」长相对着原型（`.hc-prev .zoomer { zoom: 0.62 }` 那一处是从原型的样式表里读的）。没有加界面文字。
+
+### 做了什么（大白话）
+
+1. **Agent 改了「我的模块」以后作者能撤回。** 工作台开着时 Agent 改了它：这一步接在工作台的撤销串上面，⌘Z 先撤 Agent 这一次（整份换回改之前的样子），再往下才是作者自己在工作台改的；⇧⌘Z 能再改回来。工作台没开着时 Agent 改的：之后打开工作台，撤销串里第一步就是 Agent 最近那一次改之前的样子，⌘Z 回到那一版——只在那以后再没有别的改动时才有这一步（作者自己后来改过、别的设备改过，就没有）。撤回照旧是一次 `custom_module.update`，用着它的项目里的抄本跟着换（开着的当场换，关着的下次打开换）。没有按钮、没有字。
+2. **稿纸收图片，转给 Agent。** 图片拖到工作台的稿纸上、或者在稿纸上 ⌘V 粘贴图片，等于放进右栏 Agent 的输入框：右栏收着就打开，停在「Agent」，图片排在输入框上方，格式、大小、张数上限和那三句提示都是 CM4a 的（走的是同一个收图片的函数）。不自动发送。拖着文件经过稿纸时稿纸底色稍深（和 Agent 那一栏一样，墨色 5%）。剪贴板上有字时 ⌘V 不收图（和输入框一样）。
+3. **工作台的稿纸角上没有工具**：时间线的竹子、装着目录按钮的托盘、沉浸写作的一炷香都不画（原型没有）。条目页和别的页照旧。
+4. **药丸收着时也是「线装」记号**（原来收着时是通用的小方块，展开时才是「线装」）。
+5. **「全部项目」页悬停卡里的模块等比缩小**到原型的 0.62，卡里不再原大折行。
+
+### 定下的事（任务书和原型没说到、照最保守做的，交回报告「等作者的事」逐条列了）
+
+- **撤回从哪来**：Agent 的每一次写入都在这台设备的书库里留一条结算回执（`agent_settlement`：会话、轮次、文档在写之前和之后的版本），和这次写入同一个事务；文档的历史从不裁剪，所以「写之前的版本」能整份读回来。工作台从现在的版本往回走：回执的「之后」正好是现在这一版，这一步就是 Agent 的，读出它「之前」那一版；接着往回走，走到一个不是 Agent 写出来的版本（作者、别的设备、导入）就停。没有另造一套历史。Agent 回合里工具结果的 `undo` 和工作区命令日志（`ws_journal`，每个 Agent 会话留最新 1000 行）里也记着同一个逆操作（`custom_module.update {id, value: 改之前的整份}`），也够还原整份，但它们不说「之后」是哪一版，判断不了 Agent 那一次是不是最新的改动，所以没用它们。
+- **只认这台设备的回执。** Agent 在别的设备上改的，同步过来以后这台设备没有回执，撤销串照旧清空（和别的设备改的一样）。回执随书库，不同步、不清（模块文档不属于任何书，`purge` 只在整本书清除时清那本书的回执）。
+- 工作台开着时 Agent 连着改了几次、工作台只读到最后一版：每一次都是一步（按回执一步一步往回走，直到工作台上次存下的那一版）。中间夹着一次不是 Agent 的改动：照旧清空。
+- 作者正在工作台改、还没写进去时 Agent 改了：这一笔照旧不写、照旧说「未能保存」，撤销串换成「撤回 Agent 这几次」（作者没写进去的那几步本来就没了）。
+- 工作台没开着时只放 Agent **最近那一次**（任务书原话），Agent 之前的几次不放。
+- 撤回 Agent 的改动以后，Agent 那一轮读过的东西照它自己的规矩作废（模块变了，它要重读才能再改）。
+- 「Agent」那一栏还没打开过时，转图片的这一下先把它做出来；它做出来以后要先跟上窗口的书（这一步会清空输入框），所以图片等它跟上了再放进去，不会丢（测试里查出来的：一开始是丢的）。
+- **稿纸收的是任何文件**，交给 Agent 栏去分辨（不是图片的照 CM4a 说「只能发送 PNG、JPEG 或 WebP 图片。」）；拖进来时右栏总会打开。
+- 收着的「线装」记号用墨色 2（和展开的药丸里那个一样），在一排记号里的分组照旧算条目那一组；没有沙子落下来的出场动画（图标不是砂笔记号）。
+- 角上的工具在分栏时：工作台在右半边时，竹子和一炷香本来只画在右半边，所以这时整个窗口都没有它们（⌘J、⌘⇧↩ 照常有用）。
+- **悬停卡的缩放**：GPUI 不能把一整块界面缩放着画，所以缩放做在交给渲染器的东西上：排好的版面里的间距、内边距、圆角、最宽、格的列宽乘 0.62，界面字号表（四档字号从它来）乘 0.62；渲染器自己定死的大小（记号 13、点数的点 10、一串的轴线、图片高 64、发丝线）不缩。原型的 `zoom` 是整块缩，所以这几样在卡里相对显得大一点。`dr-view-module-look` 的画法一行没改。
+
+### 接口（只加不改）
+
+```rust
+// dr-workspace：读 Agent 的回执，只读
+dr_workspace::commands::v3::custom_module::{agent_changes, AgentChanges};
+agent_changes(ws, &CustomModuleId, back_to: Option<&ModuleValue>, limit: usize)
+    -> Result<Option<AgentChanges>>;          // None：我的模块里没有
+AgentChanges { now: ModuleValue, before: Vec<ModuleValue> /* 新的在前 */ };
+// dr-shell
+dr_shell::pages::{AgentImages /* Files(Vec<PathBuf>) | Bytes(Vec<Vec<u8>>) */, set_agent_images,
+    add_page_without_corner_tools, without_corner_tools};
+AgentImages::on_clipboard(&ClipboardItem) -> Option<AgentImages>; // 输入框的规矩：有文件收文件，没字才收图
+Workspace::give_agent_images(images, window, cx);                // 右栏开到「Agent」，交给它的输入框
+// dr-ui
+DockMark { icon: Option<sand::Icon>, .. }; DockMark::icon(Icon);  // 收着时画这个图标代替种类的记号
+// dr-view-agent
+AgentPanel::take_images(AgentImages, cx);                         // 和拖进、粘贴到输入框同一条路
+// dr-view-shelf
+dr_view_shelf::{PREVIEW_ZOOM, zoom_plan, zoom_scale};
+// dr-view-module-bench
+Bench::undo_top() -> Option<&ModuleValue>;                        // ⌘Z 下一步回到哪一版（测试、调试桥）
+```
+
+`sidebar.rs` 的 `companion_panel` 从私有改成 `pub(super)`（`give_agent_images` 要先把「Agent」那一栏做出来）。`AgentPanel` 原来的 ⌘V 判断搬进了 `AgentImages::on_clipboard`，行为不变。
+
+### 测试
+
+| 要守的 | 测试 |
+| --- | --- |
+| 回执往回读：新的在前、整份、只在是最新的改动时、停在作者的改动、停在建模块那一次、别的设备没有、不在我的模块里是 None | `dr-workspace/tests/custom_modules.rs`：`the_agents_changes_to_my_module_read_back_from_its_receipts` |
+| 工作台开着时 Agent 改了：接在撤销串上，⌘Z 整份撤回、抄本跟着换，作者自己的步骤还在下面，⇧⌘Z 改回来 | `dr-view-module-bench/tests/bench.rs`：`the_agents_change_while_the_workbench_is_open_is_a_step_of_undo` |
+| 工作台没开着时 Agent 改了：打开后第一步是最近那一次之前的样子（只放这一次）、抄本跟着换；开着时不是 Agent 的改动照旧清空 | `the_agents_change_made_before_the_workbench_opens_is_its_first_step_back` |
+| Agent 改完以后又有别的改动：打开工作台时没有这一步 | `a_change_after_the_agents_leaves_no_step_when_the_workbench_opens` |
+| 稿纸收拖进的文件和粘贴的图片（测试平台的剪贴板），右栏开到「Agent」；剪贴板上是字时不收 | `images_dropped_or_pasted_on_the_paper_go_to_the_agent` |
+| 转来的图片进那个窗口「Agent」栏的输入框，格式和张数上限照 CM4a 说，不发送 | `dr-view-agent/tests/attachments.rs`：`images_handed_over_from_a_page_wait_in_the_windows_agent_composer` |
+| 稿纸角上没有工具、条目页有；药丸收着时是「线装」 | `dr-view-module-bench/tests/bench.rs`：`the_paper_has_no_corner_tools_and_the_pill_rests_stitched`；`dr-ui` 的 `a_mark_can_be_a_brush_icon_in_its_kinds_place`；`dr-shell` 的 `a_workbench_rests_as_its_stitched_mark_and_pages_as_their_kind` |
+| 悬停卡的缩放：版面的每个尺寸、字号表乘 0.62，别的不变；卡里的模块是同宽原大画出来的 0.62 左右、比原大放进卡里矮 | `dr-view-shelf/tests/cm3_shelf_modules.rs`：`the_zoom_scales_every_size_of_the_layout_and_the_type`、`the_card_draws_the_module_scaled_to_fit` |
+
+真窗口：`cm3-module-bench.json` 加了这五处的步骤（Agent 用调试桥的 `actor: agent:…` 改名、⌘Z、核对我的模块和书里的抄本；关着 App 时由 Agent 改名，重开后 ⌘Z；书里自带的合成图片拖到稿纸上，输入框里出现一张；工作台上找不到「沉浸写作」「显示目录」「隐藏目录」、条目页上有「沉浸写作」；收着的药丸和悬停卡截图）。粘贴不在真窗口里验（不碰系统剪贴板）。悬停卡里的「编辑」改成按名字和角色点（`编辑`、MenuItem）：卡里的模块缩小以后，原来按「那一行往下 175」点会落到「删除」上。2026-11-24 晚在副屏跑过：161 步全过。
+
+### 待协调
+
+- 悬停卡要和原型一模一样的整块缩放，得在 `dr-view-module-look` 的画法里加一个缩放系数（让它自己定死的记号、点、轴线也跟着缩）；那是 CR 那一路的 crate，这一路没动。
+- 测试窗口里关掉工作台的药丸以后，它的 `Bench` 没有释放（`bench_of` 等了 10 秒还拿得到），没查清是谁还拿着它（CM3 起就这样，不是这一路加的）。后果：药丸关了以后 Agent 改的，那个还活着的工作台照「开着时改的」接到撤销串上，再打开时用的还是它，作者看到的结果一样；另外每开关过一个模块的工作台，就留着一个听书库事件的监听。
+- GPUI v1.29.3 照旧：最后一次输入是键盘时，拖进窗口的文件被忽略（`div.rs` 的 drop 监听用 `hitbox.is_hovered`，键盘模式下恒为否；`FileDrop` 事件不把输入方式改回鼠标）。稿纸也一样，要动一下鼠标再拖。没改 GPUI。
+
+### 代码位置
+
+- 回执：`next/crates/dr-workspace/src/commands/v3/custom_module.rs`（`agent_changes`）。
+- 工作台的撤销：`next/crates/dr-view-module-bench/src/state.rs`（`load`、`pump`、`changed_elsewhere`、`push_undo`）；稿纸收图片：`page.rs`（`give`）；不要角上工具：`lib.rs`。
+- 外壳：`next/crates/dr-shell/src/pages.rs`（`AgentImages`、`set_agent_images`、`add_page_without_corner_tools`）、`workspace/page_panels.rs`（`give_agent_images`）、`workspace/corner.rs`、`workspace/dock.rs`（`dock_mark`）、`workspace/sidebar.rs`。
+- 收着的记号：`next/crates/dr-ui/src/components/dock.rs`。
+- Agent 栏：`next/crates/dr-view-agent/src/panel.rs`（`take_images`）、`lib.rs`。
+- 悬停卡：`next/crates/dr-view-shelf/src/modules.rs`（`preview`、`zoom_plan`、`zoom_scale`）。

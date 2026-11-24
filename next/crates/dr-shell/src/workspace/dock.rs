@@ -47,6 +47,27 @@ pub struct DockDrag {
     pub from: usize,
 }
 
+/// A module's workbench (CM3): its pill and its mark at rest are 「线装」.
+fn is_workbench(target: &crate::nav::Target) -> bool {
+    matches!(target, crate::nav::Target::Module(_))
+}
+
+/// A page's mark at rest: its kind's, or 「线装」 for a module's workbench
+/// (CW; the pill shows the same).
+fn dock_mark(
+    target: &crate::nav::Target,
+    kind: sand::Kind,
+    color: Option<Rgb>,
+    hollow: bool,
+) -> DockMark {
+    let mark = DockMark::new(kind, color).hollow(hollow);
+    if is_workbench(target) {
+        mark.icon(Icon::Stitched)
+    } else {
+        mark
+    }
+}
+
 fn mark(id: SharedString, (kind, color): (sand::Kind, Option<Rgb>), hollow: bool) -> KindMark {
     let mark = KindMark::new(ElementId::Name(id), kind).hollow(hollow);
     match color {
@@ -65,12 +86,20 @@ pub fn dock(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>
         .map(|tab| {
             let pill = pill(tab, ws, &book, cx);
             match tab {
-                Tab::Leaf(_) => DockTab::new(pill),
+                Tab::Leaf(leaf) => {
+                    let tab = DockTab::new(pill);
+                    if is_workbench(&leaf.target) {
+                        let (kind, color) = book.mark(&leaf.target);
+                        tab.marks([dock_mark(&leaf.target, kind, color, leaf.preview)], 0)
+                    } else {
+                        tab
+                    }
+                }
                 Tab::Split(split) => {
                     let marks = [PageSide::Left, PageSide::Right].map(|side| {
                         let leaf = split.side(side);
                         let (kind, color) = book.mark(&leaf.target);
-                        DockMark::new(kind, color).hollow(leaf.preview)
+                        dock_mark(&leaf.target, kind, color, leaf.preview)
                     });
                     let focused = match split.focused {
                         PageSide::Left => 0,
@@ -280,7 +309,7 @@ fn pill(tab: &Tab, ws: &Workspace, book: &Book, cx: &mut Context<Workspace>) -> 
     let group: SharedString = format!("pill-{key}").into();
     let half = |leaf: &Leaf, side: Option<PageSide>| Half {
         preview: leaf.preview,
-        stitched: matches!(leaf.target, crate::nav::Target::Module(_)),
+        stitched: is_workbench(&leaf.target),
         mark: book.mark(&leaf.target),
         name: super::title_of(book, &leaf.target, cx),
         side,
@@ -374,4 +403,24 @@ fn pill(tab: &Tab, ws: &Workspace, book: &Book, cx: &mut Context<Workspace>) -> 
             }
             row.into_any_element()
         })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::nav::Target;
+
+    #[test]
+    fn a_workbench_rests_as_its_stitched_mark_and_pages_as_their_kind() {
+        let module = Target::Module(dr_model::id::CustomModuleId::new_v7());
+        let mark = dock_mark(&module, sand::Kind::Element, None, false);
+        assert!(matches!(mark.icon, Some(Icon::Stitched)));
+        let entry = Target::Entry {
+            id: dr_model::id::EntryId::new_v7(),
+            module: None,
+        };
+        let mark = dock_mark(&entry, sand::Kind::Element, None, true);
+        assert!(mark.icon.is_none());
+        assert!(mark.hollow);
+    }
 }

@@ -89,6 +89,11 @@ pub fn init(cx: &mut App) {
             ],
         })
     });
+    // The prototype's paper has no timeline, outline or incense in its
+    // corner (CW).
+    dr_shell::pages::add_page_without_corner_tools(cx, |target| {
+        matches!(target, Target::Module(_))
+    });
     dr_shell::pages::add_page_title(cx, |target, cx| {
         let Target::Module(id) = target else {
             return None;

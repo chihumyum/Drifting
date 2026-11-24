@@ -50,6 +50,10 @@
 //! ([`set_first_run`]) and the workspace tour ([`set_guide`], the controls
 //! marked with [`anchor`] under the ids in [`anchors`]).
 //!
+//! And, for the module workbench (CW), images a page hands to the Agent
+//! ([`set_agent_images`], [`AgentImages`]) and pages drawn without the
+//! tools in the paper's corner ([`add_page_without_corner_tools`]).
+//!
 //! And what fills the Bottom Panel under the paper ([`add_bottom_panel`]):
 //! the timeline (M14) and the chapter in front's plot planner (M15), one
 //! at a time. The shell keeps the panel (its height, its top edge, the
@@ -374,6 +378,49 @@ pub const AGENT_TAB: &str = "agent";
 type MakePanels = Rc<dyn Fn(&Target, PageViewHost, &mut Window, &mut App) -> Option<PagePanels>>;
 type PageTitle = Rc<dyn Fn(&Target, &App) -> Option<SharedString>>;
 
+/// Images a page hands to the Agent (CW: the module workbench's paper takes
+/// what the Agent column takes, `custom-modules.md` §8 入口 2): files
+/// dropped on it, or images pasted. The Agent's module checks them as it
+/// checks its own (CM4a).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum AgentImages {
+    Files(Vec<std::path::PathBuf>),
+    Bytes(Vec<Vec<u8>>),
+}
+
+impl AgentImages {
+    /// What ⌘V on the clipboard `item` hands the Agent, as its composer
+    /// takes it (CM4a): the files on it; else its images when it has no
+    /// text (with text, a paste is text: some programs put an image beside
+    /// copied words). `None`: nothing for the Agent.
+    pub fn on_clipboard(item: &gpui::ClipboardItem) -> Option<AgentImages> {
+        let mut files = Vec::new();
+        let mut pictures = Vec::new();
+        let mut text = false;
+        for entry in item.entries() {
+            match entry {
+                gpui::ClipboardEntry::ExternalPaths(found) => {
+                    files.extend(found.paths().iter().cloned())
+                }
+                gpui::ClipboardEntry::Image(image) => pictures.push(image.bytes().to_vec()),
+                gpui::ClipboardEntry::String(_) => text = true,
+                #[allow(unreachable_patterns)]
+                _ => {}
+            }
+        }
+        if !files.is_empty() {
+            Some(AgentImages::Files(files))
+        } else if !text && !pictures.is_empty() {
+            Some(AgentImages::Bytes(pictures))
+        } else {
+            None
+        }
+    }
+}
+
+/// Hands images to the 「Agent」 tab's body (the [`set_companion`] panel).
+type TakeImages = Rc<dyn Fn(&AnyView, AgentImages, &mut App)>;
+
 type LocateAsset = Rc<dyn Fn(&WeakEntity<Workspace>, &str, &mut Window, &mut App)>;
 type CanDropFiles = Rc<dyn Fn(&[std::path::PathBuf], &App) -> bool>;
 type OnDropFiles = Rc<dyn Fn(&[std::path::PathBuf], &mut Window, &mut App)>;
@@ -399,7 +446,12 @@ struct Pages {
     file_drop: Option<(CanDropFiles, OnDropFiles)>,
     panels: Vec<MakePanels>,
     titles: Vec<PageTitle>,
+    agent_images: Option<TakeImages>,
+    bare_corners: Vec<BareCorner>,
 }
+
+/// Whether a page draws without the tools in the paper's corner.
+type BareCorner = Rc<dyn Fn(&Target) -> bool>;
 
 /// Ephemeral sand-frame highlight triggered when jumping from a file's 「用在」
 /// row to an entry module, prose block, image field, or relation row, or when
@@ -738,6 +790,35 @@ pub(crate) fn relations_for(
 ) -> Option<LeftPanel> {
     let make = cx.try_global::<Pages>()?.relations.clone()?;
     Some(make(ws, window, cx))
+}
+
+/// Registers what takes images a page hands to the Agent
+/// ([`crate::Workspace::give_agent_images`]): given the 「Agent」 tab's body
+/// (the view [`set_companion`] made), it puts them in that panel's composer
+/// as if they were dropped or pasted there (M31, CM4a).
+pub fn set_agent_images(cx: &mut App, take: impl Fn(&AnyView, AgentImages, &mut App) + 'static) {
+    cx.default_global::<Pages>().agent_images = Some(Rc::new(take));
+}
+
+pub(crate) fn agent_images(cx: &App) -> Option<TakeImages> {
+    cx.try_global::<Pages>()?.agent_images.clone()
+}
+
+/// Registers pages drawn without the tools in the paper's corner (the
+/// timeline's bamboo, the tray with the outline's button, the incense
+/// stick): `bare` answers for the targets it knows. Only the module
+/// workbench (CW; its prototype has none) asks for it.
+pub fn add_page_without_corner_tools(cx: &mut App, bare: impl Fn(&Target) -> bool + 'static) {
+    cx.default_global::<Pages>()
+        .bare_corners
+        .push(Rc::new(bare));
+}
+
+/// Whether `target`'s page is drawn without the corner's tools
+/// ([`add_page_without_corner_tools`]).
+pub fn without_corner_tools(target: &Target, cx: &App) -> bool {
+    cx.try_global::<Pages>()
+        .is_some_and(|p| p.bare_corners.iter().any(|bare| bare(target)))
 }
 
 /// Registers the sea under every window (M24).

@@ -851,8 +851,9 @@ fn meta(text: SharedString, theme: &Theme) -> gpui::Div {
 }
 
 /// The 帮手 tab a module draws for `pane` ([`crate::pages::set_companion`]),
-/// made the first time the pane shows it, then kept.
-fn companion_panel(
+/// made the first time the pane shows it (or images are handed to it,
+/// [`Workspace::give_agent_images`]), then kept.
+pub(super) fn companion_panel(
     ws: &Workspace,
     pane: PaneId,
     window: &mut Window,
