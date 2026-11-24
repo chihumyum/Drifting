@@ -400,7 +400,7 @@ trait Edit { fn value(..) -> AnyElement; fn item(..) -> AnyElement; fn after_ite
 | 页边大纲 | 按页上的段落 | 是 |
 | 铺满 | 只画铺满的那一个模块 | 不涉及先后 |
 | 悬停卡里的一行（`dr-editor/src/link_card.rs` 的 `module_lines`） | 按 `t.modules` 挨个取自定义模块 | 是（同一条测试） |
-| Agent 的结构说明（`dr-agent-tools/src/structure.rs` 的 `summarize_template`） | 按 `tpl.modules` 挨个列 | 是（测试 `the_structure_lists_a_templates_modules_in_the_order_they_were_given`）；内置写书模板和种子本来就带位置键，示例书的结构说明一个字没变，`local_context` 的余量照旧 |
+| Agent 的结构说明（`dr-agent-tools/src/structure.rs` 的 `summarize_template`） | 按 `tpl.modules` 挨个列 | 是（测试 `the_structure_lists_a_templates_modules_in_the_order_they_were_given`）；示例书和种子的模板由内置写书模板直接写出、本来就带位置键，不经过这一处改动，它们的结构说明不变，`local_context` 的余量测试照旧过 |
 | Markdown 文件夹的文件头（`dr-mirror/src/file.rs` 的 `Header::for_entry`） | 按 `template.modules` 里字段模块的字段 | 是；自定义模块不写进文件夹（§16 第 2、3 条） |
 | 模板编辑器 | `entry_template.list` 的顺序 | 是（它自己加、挪模块时本来就补位置键，`dr-view-templates/src/model.rs` 的 `ensure_positions`） |
 | 成书导出里 `in_book` 正文的先后 | `template.modules` | 是 |
