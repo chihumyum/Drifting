@@ -114,12 +114,13 @@ fn prepare_from(
 ) -> Result<PreparedWrite, WsError> {
     // Observe before reading: any intervening change to this grid invalidates
     // the whole-grid replacement. Never retry a failed guarded command here.
-    let stored = lib
-        .observe_records(
-            &format!("book:{book}"),
-            &[RecordKey::plot_grid(entry, module)],
-        )?
-        .remove(0);
+    let key = [RecordKey::plot_grid(entry, module)];
+    let observe = || -> Result<_, WsError> {
+        Ok(lib
+            .observe_records(&format!("book:{book}"), &key)?
+            .remove(0))
+    };
+    let stored = observe()?;
     let mut grid = Grid::from_info(&read(lib, book, entry, module)?);
     if base.is_some_and(|base| *base != grid) {
         return Err(WsError::Conflict("plot grid changed while editing".into()));
@@ -129,7 +130,16 @@ fn prepare_from(
             Write::Cell { row, col, text } => {
                 if grid.index(Axis::Row, &row).is_none() || grid.index(Axis::Column, &col).is_none()
                 {
-                    return Err(WsError::Invalid("plot cell was removed".into()));
+                    // `read` sees the open document from this thread, where
+                    // a write queued on the holder can be half applied: a
+                    // grid's first write stores the grid before its lines.
+                    // Observations run between writes, so a second one tells
+                    // that write from a line that is really gone.
+                    return Err(if observe()?.digest == stored.digest {
+                        WsError::Invalid("plot cell was removed".into())
+                    } else {
+                        WsError::Conflict("plot grid changed while editing".into())
+                    });
                 }
                 grid.set_cell(&row, &col, &text);
             }
