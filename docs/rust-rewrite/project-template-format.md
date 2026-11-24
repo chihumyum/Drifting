@@ -107,7 +107,7 @@
 | --- | --- | --- |
 | `default_template` | 缺键 ／ `null` ／ `"<条目模板 id>"` | 三态：缺键表示不覆盖（沿住处祖先继承）；显式 `null` 表示清空默认模板；字符串须存在于 `templates` |
 | `display` | `"list"` \| `"grid"` \| `"board"` \| `"island"` | 沿住处祖先继承 |
-| `auto_link` | `bool` | 这一层「自动链接」的默认：在下面新建的条目照最近的、设过值的那一层开或关（只看住处父链，不看挂名）。条目自己的开关不在这里，模板也不带它 |
+| `auto_link` | `bool` | 这一层「自动链接」的默认：在下面新建的条目照最近的、设过值的那一层开或关（只看住处父链，不看挂名）。条目自己的开关不在这里，在条目的 `auto_link`（第 7 节） |
 | `accept` | `bool` | 「收别处的条目」开关，只读条目自身 `overrides.accept` 与自身模板 `settings.accept`，不沿树继承 |
 | `home` | 缺键 ／ `null` ／ `"e…"` | 「新条目住在」，不沿树继承；三态：缺键不覆盖、显式 `null` 表示落最外层、`"e…"` 须指向 `entries` 中 `level == true` 的条目 |
 | `format_shortcuts` | `"full"` \| `"notes"` \| `"plain"` | 沿住处祖先继承 |
@@ -146,13 +146,14 @@
 | `template` | `string?` | `null` | 非空时须存在于 `templates` |
 | `level` | `bool` | `false` | 条目自身的「层级」开关 |
 | `overrides` | `TemplateLevelSettings?` | `null` | 条目自身的设置覆盖 |
+| `auto_link` | `bool?` | 缺键 | 条目自己的「自动链接」（2026-11-24 AB）：另存时照书里的写；展开时写了的照写的，缺键的照所在层的默认算（模板 `linkable`，且住的那一层默认开）。内置写书模板不写 |
 | `mark` | `string?` | `null` | 存在时须通过 `is_valid_mark` |
 | `fields` | `Map<ModuleId, Map<FieldId, FieldValue>>` | `{}` | 模块须是该条目当前模板上的 `fields` 模块，字段须在 `defs` 中定义且值类型匹配；`entity_ref` 存代号 `"e…"`；第一期 `image` 字段不带值 |
 | `kv` | `Map<ModuleId, TemplateKvRow[]>` | `{}` | 模块须是该条目当前模板上的 `kv` 模块，每行 `key` 非空 |
 | `arrangements` | `Map<ModuleId, TemplateMediaArrangement>` | `{}` | 模块须是该条目当前模板上的 `media` 模块 |
 | `prose` | `Map<ModuleId, TemplateParagraph[]>` | `{}` | 模块须是该条目当前模板上的 `prose` 模块；段落规格见第 10 节 |
 
-此外，整套 `entries`、`templates`、`memberships` 一起跑 `dr-model` 的图级不变量校验：展开后「自动链接」开着的条目（照上面的默认算：模板 `linkable`，且住的那一层默认开），其标题与 `aliases_field` 别名不得重名（`V3-AUTOLINK-NAME-UNIQUE`）。条目自己的「自动链接」开关不写进模板；展开新建时每个条目照这条默认开或关（2026-11-24）。
+此外，整套 `entries`、`templates`、`memberships` 一起跑 `dr-model` 的图级不变量校验：展开后「自动链接」开着的条目（写了 `auto_link` 的照写的；缺键的照上面的默认算：模板 `linkable`，且住的那一层默认开），其标题与 `aliases_field` 别名不得重名（`V3-AUTOLINK-NAME-UNIQUE`）。条目自己的「自动链接」开关从 2026-11-24 AB 起写进模板（之前的模板文件没有这一项，照默认算；新版没发布，不做旧文件的过渡）。
 
 ## 8. 挂名归属（`memberships[]`）
 

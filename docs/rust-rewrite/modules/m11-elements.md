@@ -574,6 +574,6 @@ G3 待公共载荷进 main 后消费接收端；性能／heavy／截图目检和
 
 ## AL 悬停卡里的「自动链接」（2026-11-24）
 
-- 左栏条目卡（`menu.rs` 的 `add_entry_card_rows`）在「层级」下面一行「自动链接」：借「钩」图标，开着时带一圈，和「层级」那一行一样（`checked`），按下去是 `entry.set_auto_link`，出错「未能保存」（`dr_shell::v3::page::set_auto_link`）。
+- 左栏条目卡（`menu.rs` 的 `add_entry_card_rows`）在「层级」下面一行「自动链接」：借「钩」图标，开着时带一圈，和「层级」那一行一样（`checked`），按下去是 `entry.set_auto_link`，出错走 `dr_shell::v3::page::set_auto_link`：重名时说清哪个名字、和哪个条目撞了，别的「未能保存」（2026-11-24 AB）。
 - 「设置」那一块照旧只有「默认模板」「显示」「格式快捷输入」；按层的「自动链接」在条目页「下面的条目」块里，条目自己的在页最下面（[m03-page.md](m03-page.md)）。
 - 规则在 [kernel-v5.md 第 16 节「自动链接」](../kernel-v5.md#自动链接)。

@@ -95,7 +95,7 @@
    - 类目、故事线彻底删除时，模板文档和别的页面的正文一样留着：删除能撤销（恢复书目里的实体），没有主人的正文由存储清掉（F1 的 `owns_prose` 已经认模板的主人）。
 3. **F4 要的自动链人物三件事**（`f4e-editor.md` 第四批待协调）：
    - **规则补了一条**：指向别人、恰好盖住这个名字的链接不让出去。这种情况是名字后来被别的对象拿走了，原文指的还是原来那个人。现在 `link_written` 和编辑器一样。
-   - **公开了只算不写的规划**：`dr_workspace::autolink::plan(段落文字, 段落里的链接, 匹配器, 范围)` 返回这一段要加哪些链接、要去哪些链接（`LinkEdit`），一处写明规则；`link_runs` 从 dr-doc 的段落读出链接，`keep_added` 只留新名字的，`apply` 写进事务。编辑器可以直接用，不用自己留一份同样的规则。
+   - **公开了只算不写的规划**：`dr_workspace::autolink::plan(段落文字, 段落里的链接, 匹配器, 范围)` 返回这一段要加哪些链接、要去哪些链接（`LinkEdit`），一处写明规则；`link_runs` 从 dr-doc 的段落读出链接，`keep_added` 只留新名字的（2026-11-24 删了，没人调用；打开开关时的补链用 `plan_backfill`，见文末「AB」），`apply` 写进事务。编辑器可以直接用，不用自己留一份同样的规则。
    - **补链挪进命令**：书里多了名字，已经写好的正文也链上：新建要素（名字和别名）、改名、加别名，新建章节或构想、改它们的标题。
      - 只看活着的章节、构想、要素正文、故事线和分类的说明，不碰素材笔记（旧版也不碰），不碰自己的正文；只链新名字。哪些文档要看：dr-store 的段落索引里搜得到这个名字的，加上这台设备上开着的（它最新的字可能还没进索引）。
      - 每篇一次提交，来源是命令自己的（作者是 `user:command`），不进任何编辑器的撤销栈，开着的编辑器的撤销也不受影响；撤销进日志：新命令 `prose.unlink` 去掉这次加的链接、`prose.link` 放回这次让出去的短链接，都按锚点（两个光标）找位置，作者之后打的字不会让它们找错。
@@ -755,7 +755,7 @@ F8 的 `bench workspace`，heavy 种子（100 章，正文共约 360 万字，30
 - **第八轮：匹配器不用自己建了**：`Workspace::link_matcher(&doc) -> Result<Option<Arc<LinkMatcher<LinkTarget>>>>` 给出这篇正文要用的匹配器（书里所有名字，去掉它自己），按书缓存，有名字变了才重建；heavy 种子上自己建一次是 40–50 ms（大头是读名字）。`entity_links.rs` 里调 `dr_workspace::autolink::matcher(&view, &id)` 的地方、`decor/mod.rs` 里自己调 `book_link_names` 的地方可以换成它（装饰要的是不去掉自己的全表时，告诉我，加一个）。
 - **第八轮：补链的撤销改成一条**：`prose.unlink` / `prose.link` 的输入是 `{ links: [{ doc, target, anchors }] }`。编辑器不调它们，只是知会。
 - **第七轮：自动链人物（`f4e-editor.md` 第四批待协调）**
-  - 规则一处写明：`dr_workspace::autolink::plan(段落文字, 链接, 匹配器, 范围)` → `Vec<LinkEdit>`。`LinkRun { range, target }` 和编辑器的 `LinkRun` 一样（段内字符位置，目标 id），`LinkEdit::Unlink` 带的是目标 id（编辑器自己换成 `entity_key`）。范围给 `0..段长` 就是整段。`keep_added(文字, 规划, 新名字集合)` 和编辑器的 `only_added` 一样。编辑器的 `autolink()` 可以换成它，规则就只有一份（包括这一轮补的「恰好盖住名字的别人的链接不让」）。
+  - 规则一处写明：`dr_workspace::autolink::plan(段落文字, 链接, 匹配器, 范围)` → `Vec<LinkEdit>`。`LinkRun { range, target }` 和编辑器的 `LinkRun` 一样（段内字符位置，目标 id），`LinkEdit::Unlink` 带的是目标 id（编辑器自己换成 `entity_key`）。范围给 `0..段长` 就是整段。`keep_added(文字, 规划, 新名字集合)` 和编辑器的 `only_added` 一样（2026-11-24 删了，见文末「AB」）。编辑器的 `autolink()` 可以换成它，规则就只有一份（包括这一轮补的「恰好盖住名字的别人的链接不让」）。
   - 补链由命令做了：`element.create`、`element.update`（改名、加别名）、`chapter.create` / `chapter.update`、`idea.create` / `idea.update`（标题）在命令里把新名字链进已有的正文，来源是命令自己的（作者是 `user:command`），编辑器的撤销栈里没有它，开着的文档也照写（编辑器会像收到别人的改动一样看到）。对象级撤销用 `prose.unlink` / `prose.link` 按锚点撤。所以 `entity_links.rs` 的 `backfill_closed`、`claim_backfill` 和开着的文档的补链都可以删；作者打字时的自动链接（只链作者打的段）照旧。
   - 匹配范围和旧版一样：章节、构想、要素正文、故事线和分类的说明，不含素材笔记。
 - **第三轮的三样怎么接：**
@@ -1190,3 +1190,15 @@ place 沿用 first／last／before／after。若缺失或相同排序键让单�
 未知富文本／列表、同深值但容器身份改变、离线 peer 对删除记录的更新，修改前整次拒绝。
 独立名称、泳道元数据、时间钉和其他位置不阻塞局部逆操作。帮手目录暂排除上述五个命令，
 K6 正式消费时再开放；G3 的控件和副屏真窗口消费由 G3／整合方完成。
+
+## AB 打开开关时把全书补一遍（2026-11-24）
+
+规则在 [kernel-v5.md 第 16 节「自动链接」](../kernel-v5.md#自动链接)「打开时把全书补一遍」。这里是接口和挂接点。
+
+- **什么时候补**：书目的每次提交，只要可能改了条目的开关（`events::touches_autolink_names` 为真），在 holder 线程上紧接着比一次各条目的开关（`BookViewV3::auto_link_switches`，只读树节点的元数据，不解码条目；比的是开着的 `BookSlot::switches`）。原来就在、提交后还活着、开关从关变开的条目，在提交不是同步来的、总开关开着时，交给后台（`Inner::follow_switches`）。所以单个打开、按层一起打开、撤销或恢复把开关开回来都算，谁发的命令都一样；新建时就开着的、从最近删除恢复的不算。`Workspace::set_auto_links` 从关到开时交一份「全库每本书、所有开着的条目」，没开着的书只记下待办。
+- **补什么**：`autolink::plan_backfill(文字, 已有链接的范围, 匹配器, 要补的条目)` 只返回 `LinkEdit::Link`：名字表和最长匹配照 `plan`，只要这次打开的条目的名字，只要还没有任何链接（任何种类、看不看得见）盖着的字。`plan_backfill_prose`（每段一次，整篇的链接标记只读一遍）、`backfill_prose`（写进事务）、`backfill_linked_text`（批注、关系描述；批注不链它挂着的条目）。`keep_added` 删了。
+- **怎么写**（`autolink/backfill.rs`）：每个工作区一个后台线程，有活时起、队列空了就退，只在干活时持有工作区。每本书：先存待办（`local_state`，范围 `ws-autolink-backfill`，键是书 id，值 `{"all"?: true, "entries"?: [...]}`，带 `book_id`，书彻底删除时跟着删），再按活条目的正文一篇一篇来（编辑器开着的先来）：先用只读的副本看一眼有没有要补的，有才打开这篇写一次，写的时候在 holder 线程上照当时的字重新算。来源是 `Origin::Repair`：编辑器的撤销、命令日志、写作日、历史的定时标签、签到的变化都不算它。最后在书的门（`book_gate`）里给批注（投影来的除外）和关系描述写一次书目。全做完删掉待办；做的时候又来了新的，待办换成新的、书再排一次。
+- **组字**：`ProseSession::set_composing(bool)`（编辑器的 `Assist` 观察编辑器，组字的那一章告诉它的会话；会话丢掉时自动撤销）。写那一篇的 holder 任务里先看这篇是不是在组字，是就跳过，整本做完后每 100 ms 再试，最多等两分钟，还在组字就留给下次打开。
+- **停**：`Workspace::close` 和 `before_quit` 让后台在下一篇之前停下（`close` 之后不再起）；待办留着。`book_slot_with` 打开一本书时有待办就接着补。
+- **测试和测量**：`Workspace::wait_for_link_backfill(超时)` 等后台空闲，App 从不等它。测试在 `dr-workspace/tests/auto_link_backfill.rs`（单个、按层、总开关、最长匹配、组字、退出后接着补、Agent 要重读、同步来的不补、改名不补、重名提示、项目模板带开关）和 `dr-editor/tests/decor.rs` 的 `a_switch_turned_on_links_the_open_chapter_without_moving_the_selection_or_the_undo`。
+- **重名的错误**：`dr_model::check::Violation` 加了 `clash: Option<Box<NameClash>>`（名字照打开的那个条目写的、它的 id、对方的 id 和标题），`V3-AUTOLINK-NAME-UNIQUE` 填它，别的规则留空；错误文字里也有这两个名字和对方的 id。

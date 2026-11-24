@@ -4,8 +4,9 @@
 
 - 条目页最下面那一组开关（「下面的条目」「挂在这里的条目」两块的块头）后面多一行「自动链接」：条目自己的开关，开着时名字黑、关着时灰，和块头同一个样子（`dr-shell/src/v3/page.rs` 的 `own_auto_link_row`，画在「挂在这里的条目」那一项里，所以页里各节的序号不变）。按下去是 `entry.set_auto_link`；精简设置页（`render_settings`）里同样排在两个块的开关后面。
 - 「下面的条目」块里那一行「自动链接」是按层的开关：按下去是 `entry.set_below_auto_link`（住在下面的条目一起打开或关上，以后在这一层新建的默认跟着），不再改 `overrides` 了事。所以层级页上有两个「自动链接」。
-- 被拒绝（重名）时照别的设置只出「未能保存」（`set_auto_link`）。
-- 正文名字卡的「自动链接」行由页的宿主写（`dr-view-page` 的 `bind_links` 接 `AssistEvent::AutoLink`），出错同样「未能保存」。
+- 被拒绝（重名）时说清是哪个名字、和哪个条目撞了：「没有打开：「{名字}」已经是「{另一个条目}」的名字或别名。」（`v3Levels.autoLinkNameTaken`，九种语言；按层时说第一处撞的；`set_auto_link` 读错误里的 `clash`，`auto_link_refusal`）。别的拒绝照旧「未能保存」（2026-11-24 AB）。
+- 正文名字卡的「自动链接」行由页的宿主写（`dr-view-page` 的 `bind_links` 接 `AssistEvent::AutoLink`），出错同样走 `set_auto_link`。
+- 打开以后，关着那阵子写下的名字在后台补成链接（AB，`kernel-v5.md` 第 16 节「打开时把全书补一遍」）：页上不加东西，开着的正文当场看到链接出来。
 - 规则在 [kernel-v5.md 第 16 节「自动链接」](../kernel-v5.md#自动链接)。
 
 ## 内核 v5 DW：不编号，页头不看进不进成书（2026-11-15 夜里）
