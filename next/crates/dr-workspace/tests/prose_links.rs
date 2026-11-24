@@ -127,9 +127,15 @@ fn anchor(e: &Env, doc: &str, range: Range<usize>) -> Value {
     serde_json::to_value(AnchorBytes::from(&a.encode())).unwrap()
 }
 
-fn on(e: &Env, doc: &str, kind: &str, target: &str, ranges: &[Range<usize>]) -> Value {
-    let anchors: Vec<Value> = ranges.iter().map(|r| anchor(e, doc, r.clone())).collect();
+/// The input of `prose.link` or `prose.unlink` for `ranges` of `doc`.
+fn on_all(e: &Env, doc: &str, kind: &str, target: &str, ranges: Vec<Range<usize>>) -> Value {
+    let anchors: Vec<Value> = ranges.into_iter().map(|r| anchor(e, doc, r)).collect();
     json!({"links": [{"doc": doc, "target": {"kind": kind, "id": target}, "anchors": anchors}]})
+}
+
+/// [`on_all`] for one range.
+fn on(e: &Env, doc: &str, kind: &str, target: &str, range: Range<usize>) -> Value {
+    on_all(e, doc, kind, target, vec![range])
 }
 
 /// A link written the way the editor writes one picked with @, or (with a
@@ -180,7 +186,7 @@ fn a_link_put_on_an_entry_is_the_authors_and_shows_whatever_the_switches_say() {
     let doc = chapter(&e, &b, "一", "林凯来了。");
     assert!(links(&e, &doc).is_empty());
 
-    let out = by_agent(&e, "prose.link", on(&e, &doc, "entry", &lin, &[0..2]));
+    let out = by_agent(&e, "prose.link", on(&e, &doc, "entry", &lin, 0..2));
     assert_eq!(out["output"], json!({"ranges": 1, "docs": 1}));
     assert_eq!(links(&e, &doc), [("林凯".into(), lin.clone(), true)]);
     // Its entry's switch is off, and the author's setting may be off: it
@@ -258,7 +264,7 @@ fn a_link_to_a_file_is_written_as_the_editor_writes_it() {
     by_agent(
         &e,
         "prose.link",
-        on(&e, &doc, "asset", "asset-ap-map", &[2..4]),
+        on(&e, &doc, "asset", "asset-ap-map", 2..4),
     );
     let file = loro::LoroValue::Map(vec![("kind".to_owned(), "asset".into())].into());
     assert_eq!(
@@ -282,7 +288,7 @@ fn the_undo_of_a_link_puts_back_no_link_an_automatic_one_or_one_made_by_hand() {
         let out = by_agent(
             &e,
             "prose.link",
-            on(&e, &doc, "entry", &anna, &[range.clone()]),
+            on(&e, &doc, "entry", &anna, range.clone()),
         );
         assert_eq!(out["output"]["ranges"], changed, "{range:?}");
         // Wherever it ran, the link is the one made by hand now.
@@ -323,7 +329,7 @@ fn unlinking_takes_off_automatic_and_hand_made_links_and_its_undo_puts_them_back
     let b = e.book();
     let (anna, doc) = three_ways(&e, &b);
     let before = stored(&e, &doc);
-    let out = by_agent(&e, "prose.unlink", on(&e, &doc, "entry", &anna, &[0..12]));
+    let out = by_agent(&e, "prose.unlink", on(&e, &doc, "entry", &anna, 0..12));
     assert_eq!(out["output"], json!({"ranges": 1, "docs": 1}));
     assert!(links(&e, &doc).is_empty());
     let after = stored(&e, &doc);
@@ -339,7 +345,7 @@ fn unlinking_takes_off_automatic_and_hand_made_links_and_its_undo_puts_them_back
     e.ws().redo(&agent()).unwrap().unwrap();
     assert_eq!(stored(&e, &doc), after);
     // A range with no link to it changes nothing.
-    let out = by_agent(&e, "prose.unlink", on(&e, &doc, "entry", &anna, &[0..2]));
+    let out = by_agent(&e, "prose.unlink", on(&e, &doc, "entry", &anna, 0..2));
     assert_eq!(out["output"]["ranges"], 0);
     assert_eq!(out["undo"], json!([]));
 }
@@ -353,7 +359,7 @@ fn the_undo_in_the_result_replays_as_it_stands() {
     let b = e.book();
     let (anna, doc) = three_ways(&e, &b);
     let before = stored(&e, &doc);
-    let out = by_agent(&e, "prose.link", on(&e, &doc, "entry", &anna, &[0..12]));
+    let out = by_agent(&e, "prose.link", on(&e, &doc, "entry", &anna, 0..12));
     let after = stored(&e, &doc);
     let replay = |undo: &Value| -> Value {
         let calls = undo.as_array().unwrap();
@@ -394,7 +400,7 @@ fn a_link_into_a_module_is_left_as_it_is() {
     for command in ["prose.link", "prose.unlink"] {
         let refused = e
             .ws()
-            .call(&agent(), command, on(&e, &doc, "entry", &anna, &[0..4]));
+            .call(&agent(), command, on(&e, &doc, "entry", &anna, 0..4));
         assert!(refused.is_err(), "{command}");
         assert_eq!(stored(&e, &doc), before, "{command}");
     }
@@ -412,7 +418,7 @@ fn the_undo_leaves_what_another_writer_changed_since() {
 
     // The author takes part of the new link off again: the undo puts back
     // the rest.
-    by_agent(&e, "prose.link", on(&e, &doc, "entry", &anna, &[10..12]));
+    by_agent(&e, "prose.link", on(&e, &doc, "entry", &anna, 10..12));
     e.ws()
         .prose_session(&doc)
         .unwrap()
@@ -426,7 +432,7 @@ fn the_undo_leaves_what_another_writer_changed_since() {
 
     // The author makes it a link into a module: the undo is refused and
     // changes nothing.
-    by_agent(&e, "prose.link", on(&e, &doc, "entry", &anna, &[10..12]));
+    by_agent(&e, "prose.link", on(&e, &doc, "entry", &anna, 10..12));
     pick(&e, &doc, 10..12, &anna, Some("mod-prose"));
     let changed = stored(&e, &doc);
     let refused = e.ws().undo(&agent());
@@ -443,7 +449,7 @@ fn the_undo_leaves_what_another_writer_changed_since() {
     by_agent(
         &e,
         "prose.link",
-        on(&e, &doc, "entry", &anna, &[0..2, 10..12]),
+        on_all(&e, &doc, "entry", &anna, vec![0..2, 10..12]),
     );
     e.ws()
         .prose_session(&doc)
