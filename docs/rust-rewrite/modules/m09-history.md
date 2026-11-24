@@ -525,10 +525,11 @@ AutomaticHistory::start_with(ws, Cadence { interval, first_points, gap, quiet })
 
 **代码：**
 
-- `dr-workspace/src/commands/v3/snapshots.rs` 的 `restore_book`：点里的住处现在放不了它（`check_parent_is_level`）**或者**搬回去会成环（`check_entry_move`）都算「留在原地」。在第一次写之前算出要跳过的：点里这个条目名下的挂名记录，按记录的键（`宿主|成员`）看两端，除它自己以外有一端不在现在的书里（最近删除里的还算在）的；键读不出两个条目 id 的记录（不是现在的格式写的，`entry_snapshots.rs` 的 `future_container_types_…` 守着它原样往返）照旧原样写回；点里的主归属不在现在的书里时，主归属也跳过。写完以后比对「恢复后的原始状态和点里的一样」时，跳过的这几样按恢复前的值比。
+- `dr-workspace/src/commands/v3/snapshots.rs` 的 `restore_book`：点里的住处现在放不了它（`check_parent_is_level`）**或者**搬回去会成环（`check_entry_move`）都算「留在原地」。在第一次写之前算出要跳过的：点里这个条目名下的挂名记录，按记录的键（`宿主|成员`）看两端，除它自己以外有一端不在现在的书里（最近删除里的还算在）的；条目 id 是不透明的字符串，所以只要键是 `宿主|成员` 的写法，另一端不管长什么样（比如测试里的 `missing-host`），书里没有就跳过；键不是这种写法的记录读不出两端，照旧原样写回；点里的主归属不在现在的书里时，主归属也跳过。写完以后比对「恢复后的原始状态和点里的一样」时，跳过的这几样按恢复前的值比。
 - `dr-doc` 只加不改：`BookTxnV3::restore_entry_owned_at_except(id, old, keep, keep_primary)`，`keep` 里点名的名下记录（集合和键）两边的值都不碰，`keep_primary` 时元数据里的 `primary` 不碰；原来的 `restore_entry_owned_at` 等于什么都不跳过的它。
 
-**测试（`snapshots.rs` 的单测）：**
+**测试**（除注明的以外是 `snapshots.rs` 的单测）：
 
 - `restore_leaves_an_entry_where_it_lives_when_its_place_then_lies_below_it`：「上卷」住在「下卷」里时存点，之后改名、挪到书稿开头、再把「下卷」挪进「上卷」；恢复：标题回到点里的，两个条目的住处和那里的先后都不变，多一个「恢复前」的点；一步撤销回到恢复前。它代替了原来 `restore_still_refuses_a_cycle_or_a_life_where_nothing_can_hold_the_entry` 里断言「成环拒绝、什么都没写」的那一半（那条改名 `restore_still_refuses_a_life_where_nothing_can_hold_the_entry`，剩下的「最近删除里、两个住处都放不了」照旧拒绝）。
+- `dr-workspace` `tests/entry_snapshots.rs` 的 `future_container_types_rich_marks_hidden_memberships_and_shared_templates_roundtrip_exactly`（改了期望）：原来点里有一条宿主是书里没有的 `missing-host` 的挂名记录，带一个不认识的字段，断言恢复以后它原样回来。现在这条按新规矩不写回，期望里去掉它；另加一条宿主在书里、但不收别处条目的挂名记录（同样读作没挂、带不认识的字段），断言它原样回来，「看不见的挂名和不认识的字段原样往返」照旧守着。
 - `restore_skips_memberships_and_a_primary_host_deleted_for_good`：章 b 挂在三个条目上（主归属是第一个），它自己也收了两章；存点以后改字、摘掉几处挂名，第一个宿主和它收的一章永久删除，第二个宿主进最近删除，第三个宿主关了「收别处的条目」。恢复：标题回到点里的；挂名记录写回了第二、第三个宿主和还在的那一章的，两条另一端永久删除的没写回；主归属仍是空的；书里所有挂名记录的两端、所有条目的主归属都是书里有的条目；一步撤销回到恢复前（挂名、主归属、字和住处）。
