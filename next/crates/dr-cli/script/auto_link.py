@@ -93,6 +93,8 @@ def smoke(args, profile, data):
         app("book.open", name="阿Q正传（示例）")
         app("ui.wait", until="ready", state={"/shelf": False}, timeout_ms=60000)
         book = app("state.get")["book"]["id"]
+        # The bottom timeline covers the window's lower part.
+        app("action.dispatch", name="workspace::ToggleBottomTimeline")
         chapter = next(e for e in command("entry.list", book=book, all=True)
                        if e["title"] == "第三章 续优胜记略")
         doc = f"body:{chapter['id']}/mod-prose"
@@ -104,9 +106,21 @@ def smoke(args, profile, data):
             return command("prose.read", doc=doc)
 
         def open_page(target):
-            app("nav.open", target=target)
+            # An entry made a moment ago reaches the window's book shortly.
+            def opened():
+                try:
+                    app("nav.open", target=target)
+                    return True
+                except subprocess.CalledProcessError:
+                    return False
+            until(opened, f"{target} in the window's book", timeout=15)
             app("ui.wait", until="ready", timeout_ms=60000)
             time.sleep(0.8)
+
+        def to_page_end():
+            # The entry's own switches are at the page's end.
+            app("input.scroll", x=720, y=420, dy=6000)
+            time.sleep(0.5)
 
         def open_chapter():
             app("nav.open", target=f"entry:{chapter['id']}/mod-prose")
@@ -140,7 +154,7 @@ def smoke(args, profile, data):
 
         # ... the row on its own page turns it back on.
         open_page(f"entry:{target}")
-        app("input.key", keys="secondary-down")
+        to_page_end()
         app("ui.find", role="CheckBox", label="Automatic links")
         screenshot("04-own-row.png")
         press("Automatic links", role="CheckBox")
@@ -164,7 +178,7 @@ def smoke(args, profile, data):
         assert command("entry.mentions", book=book, entry=fu)["links"] == 0, "off: not linked"
         screenshot("06-typed-off.png")
         open_page(f"entry:{fu}")
-        app("input.key", keys="secondary-down")
+        to_page_end()
         press("Automatic links", role="CheckBox")
         until(lambda: switches()[fu], "阿福 on")
         # Turned on, the name written while it was off is linked (AB).
