@@ -68,9 +68,14 @@ def smoke(args, profile, data):
         return {"x": box["x"] + box["width"] / 2,
                 "y": box["y"] + box["height"] / 2}
 
+    def shown():
+        # Every link the page shows as one, laid out now or not.
+        return [d for d in app("page.relations")["links"] if d["id"].startswith("l")]
+
     def painted():
-        return [d for d in app("page.relations")["links"]
-                if d["id"].startswith("l") and d["boxes"]]
+        # Those laid out now: how many depends on how much of the page is,
+        # so counts of these are never compared across moments.
+        return [d for d in shown() if d["boxes"]]
 
     cli("workspace", "scenario", "seed:showcase", "--library", data / "library", "--yes")
     (data / "settings.json").write_text(json.dumps({
@@ -134,6 +139,7 @@ def smoke(args, profile, data):
         open_chapter()
         before_text = text()
         links = until(painted, "painted entry names")
+        total = len(shown())
         screenshot("01-chapter.png")
 
         # 1. The name card's row turns the character under the pointer off.
@@ -147,7 +153,7 @@ def smoke(args, profile, data):
         changed = [i for i in was if was[i] != now.get(i)]
         assert len(changed) == 1 and not now[changed[0]], changed
         target = changed[0]
-        off = until(lambda: (p if len(p := painted()) < len(links) else None), "fewer links drawn")
+        off = until(lambda: (painted() if len(shown()) < total else None), "fewer links shown")
         assert text() == before_text, "turning it off rewrites nothing"
         assert command("entry.mentions", book=book, entry=target)["total"] == 0
         screenshot("03-off.png")
@@ -160,7 +166,8 @@ def smoke(args, profile, data):
         press("Automatic links", role="CheckBox")
         until(lambda: switches()[target], "the switch on")
         open_chapter()
-        until(lambda: len(painted()) == len(links), "the links back")
+        until(lambda: len(shown()) == total
+              and {l["id"] for l in links} <= {d["id"] for d in painted()}, "the links back")
         assert text() == before_text
         screenshot("05-back.png")
 
@@ -202,14 +209,14 @@ def smoke(args, profile, data):
 
         # 4. @ lists 阿贵 though it is off; the picked link counts.
         open_chapter()
-        drawn = len(painted())
+        shown_before = len(shown())
         type_at_end("@阿贵")
         app("ui.find", role="MenuItem", label="阿贵")
         screenshot("10-at.png")
         press("阿贵", role="MenuItem")
         until(lambda: command("entry.mentions", book=book, entry=gui)["total"] == 1,
               "the picked link counts while off")
-        until(lambda: len(painted()) == drawn + 1, "the picked link drawn")
+        until(lambda: len(shown()) == shown_before + 1, "the picked link shown")
         assert not switches()[gui]
         screenshot("11-picked.png")
         result = {"book": book, "chapter": chapter["id"], "window": window,
