@@ -265,25 +265,31 @@ impl Backfill {
 
     fn work(self: Arc<Self>, inner: Weak<Inner>) {
         loop {
-            let job = {
+            let next = {
                 let mut st = lock(&self.state);
-                let next = if st.pause || st.closed {
+                if st.pause || st.closed {
                     None
                 } else {
                     st.queue.pop_front()
-                };
-                match next {
-                    Some(job) => job,
-                    None => {
-                        st.running = false;
-                        drop(st);
-                        self.stopped.notify_all();
-                        // What waits is stored for later.
-                        if let Some(inner) = inner.upgrade() {
-                            self.save_waiting(&Workspace { inner });
-                        }
-                        return;
+                }
+            };
+            let job = match next {
+                Some(job) => job,
+                None => {
+                    // What waits is stored for later, before the worker
+                    // says it stopped (a closing workspace waits for that).
+                    if let Some(inner) = inner.upgrade() {
+                        self.save_waiting(&Workspace { inner });
                     }
+                    let mut st = lock(&self.state);
+                    if !st.queue.is_empty() && !st.pause && !st.closed {
+                        // Asked for while it was storing: carry on.
+                        continue;
+                    }
+                    st.running = false;
+                    drop(st);
+                    self.stopped.notify_all();
+                    return;
                 }
             };
             let Some(inner) = inner.upgrade() else {

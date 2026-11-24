@@ -135,7 +135,7 @@
     {
       "app": "ui.press",
       "params": {
-        "label": "Include name in auto-links",
+        "label": "Follow this level’s automatic links when created",
         "role": "CheckBox"
       }
     },

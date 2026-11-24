@@ -12,7 +12,8 @@ switches and the text, and the painted frame says what is drawn as a link.
    text is untouched; the row on its own page turns it back on and they
    come back.
 2. A new character in a level the author made starts off: typing its name
-   links nothing; turned on from its page, typing it links.
+   links nothing; turned on from its page, what was typed is linked (AB)
+   and typing it links.
 3. The level's switch turns what lives below it on, and off again.
 4. @ lists a character whose switch is off; the picked link counts and is
    drawn as a link while it stays off.
@@ -160,15 +161,18 @@ def smoke(args, profile, data):
         open_chapter()
         type_at_end("阿福推门进来。")
         time.sleep(1.2)
-        assert command("entry.mentions", book=book, entry=fu)["total"] == 0, "off: not linked"
+        assert command("entry.mentions", book=book, entry=fu)["links"] == 0, "off: not linked"
         screenshot("06-typed-off.png")
         open_page(f"entry:{fu}")
         app("input.key", keys="secondary-down")
         press("Automatic links", role="CheckBox")
         until(lambda: switches()[fu], "阿福 on")
+        # Turned on, the name written while it was off is linked (AB).
+        until(lambda: command("entry.mentions", book=book, entry=fu)["links"] == 1,
+              "阿福 written while off, linked")
         open_chapter()
         type_at_end("阿福又来了。")
-        until(lambda: command("entry.mentions", book=book, entry=fu)["total"] == 1, "阿福 linked")
+        until(lambda: command("entry.mentions", book=book, entry=fu)["links"] == 2, "阿福 linked")
         screenshot("07-typed-on.png")
 
         # 3. The level's switch (the first 「自动链接」 on a level's page).
