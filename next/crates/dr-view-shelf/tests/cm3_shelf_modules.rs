@@ -379,7 +379,7 @@ fn full_height(vcx: &mut VisualTestContext, value: &Value, width: f32) -> f32 {
     other.run_until_parked();
     other.update(|window, cx| window.draw(cx).clear(cx));
     let height = f32::from(other.debug_bounds("full-look").unwrap().size.height);
-    let _ = other.update(|window, _| window.remove_window());
+    other.update(|window, _| window.remove_window());
     height
 }
 
