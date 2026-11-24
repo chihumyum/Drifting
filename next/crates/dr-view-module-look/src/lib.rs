@@ -39,7 +39,7 @@ use gpui::{
 /// the host that has the App's strings, `dr-view-page`).
 struct WordsHost(Rc<CountOf>);
 
-/// How a list's count is said (「3 个伏笔」).
+/// How a list's count is said (「3 个伏笔」, 「伏笔: 3」).
 type CountOf = dyn Fn(usize, &str, &App) -> String;
 
 impl Global for WordsHost {}
@@ -49,15 +49,15 @@ pub fn set_words(cx: &mut App, count_of: impl Fn(usize, &str, &App) -> String + 
     cx.set_global(WordsHost(Rc::new(count_of)));
 }
 
-/// The App's words ([`set_words`]); without them, a count and the list's
-/// name.
+/// The App's words ([`set_words`]); without them, the list's name and its
+/// count the way English says it (「伏笔: 3」).
 pub struct AppWords<'a>(pub &'a App);
 
 impl Words for AppWords<'_> {
     fn count_of(&self, count: usize, list: &str) -> String {
         match self.0.try_global::<WordsHost>() {
             Some(host) => (host.0)(count, list, self.0),
-            None => format!("{count} {list}"),
+            None => format!("{list}: {count}"),
         }
     }
 }

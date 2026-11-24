@@ -26,7 +26,9 @@ pub const AUTO_LINE_BLOCKS: usize = 3;
 
 /// Words the layout itself writes, in the reader's language.
 pub trait Words {
-    /// A list's item count in an automatic 一行 (「3 个伏笔」).
+    /// A list's item count in an automatic 一行: 「3 个伏笔」, or 「伏笔: 3」
+    /// in a language that cannot put the author's name straight after the
+    /// number (CR).
     fn count_of(&self, count: usize, list: &str) -> String;
 }
 

@@ -36,7 +36,7 @@
     "trashSub": "Os projetos ficam aqui por 30 dias e depois são excluídos permanentemente."
   },
   "customModule": {
-    "countOf": "{{count}} {{name}}"
+    "countOf": "{{name}}: {{count}}"
   },
   "entrySnapshot": {
     "empty": "Ainda não há instantâneos",

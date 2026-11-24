@@ -34,7 +34,7 @@
     "trashSub": "Projects stay here for 30 days and are then permanently deleted."
   },
   "customModule": {
-    "countOf": "{{count}} {{name}}"
+    "countOf": "{{name}}: {{count}}"
   },
   "entrySnapshot": {
     "empty": "No snapshots yet",

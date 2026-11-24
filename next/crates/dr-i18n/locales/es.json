@@ -240,7 +240,7 @@
     "wordsCount": "{{count}} palabras"
   },
   "customModule": {
-    "countOf": "{{count}} {{name}}"
+    "countOf": "{{name}}: {{count}}"
   },
   "dashboard": {
     "today": {

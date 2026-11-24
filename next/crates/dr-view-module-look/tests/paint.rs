@@ -129,6 +129,12 @@ impl Render for LineHost {
 #[gpui::test]
 fn a_line_draws_without_the_apps_words(cx: &mut TestAppContext) {
     init(cx, Appearance::Dark);
+    // Without the App's words a count is said the English way (CR): the
+    // list's name, then the number.
+    cx.update(|cx| {
+        use dr_view_module_look::{AppWords, Words as _};
+        assert_eq!(AppWords(cx).count_of(3, "伏笔"), "伏笔: 3");
+    });
     for module in dr_testkit::samples::modules() {
         let values = Arc::new(Scope::sample(&module));
         let module = Arc::new(module);
