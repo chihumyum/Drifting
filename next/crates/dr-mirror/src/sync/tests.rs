@@ -291,10 +291,13 @@ fn book_commands_and_remote_imports_cannot_cross_a_live_body_commit() {
                 .unwrap();
         let (at_commit, reached) = mpsc::channel();
         let (release, proceed) = mpsc::channel();
-        *project::seam::BEFORE_COMMIT.lock().unwrap() = Some(Box::new(move || {
-            at_commit.send(()).unwrap();
-            proceed.recv_timeout(Duration::from_secs(5)).unwrap();
-        }));
+        *project::seam::BEFORE_COMMIT.lock().unwrap() = Some((
+            f.id.clone(),
+            Box::new(move || {
+                at_commit.send(()).unwrap();
+                proceed.recv_timeout(Duration::from_secs(5)).unwrap();
+            }),
+        ));
         let ws = f.ws.clone();
         let options = f.options.clone();
         let merge = std::thread::spawn(move || Pass::new(&ws, &options).run());
