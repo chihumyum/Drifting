@@ -669,9 +669,15 @@
     "originTask": "체크리스트",
     "regionPlace": "영역",
     "regionPlacePaged": "{{page}}쪽",
+    "retarget": "대상 변경…",
+    "sortNewest": "최신순",
+    "sortOldest": "오래된순",
+    "sortPosition": "위치순",
     "statusOpen": "미해결",
     "statusResolved": "해결됨",
+    "unbindTarget": "연결 해제",
     "unlocated": "원래 위치를 찾을 수 없음",
+    "viewOriginal": "원문 보기",
     "wholeFile": "파일 전체",
     "writeComment": "메모 작성"
   },
@@ -794,9 +800,11 @@
     "alignRight": "오른쪽",
     "allFolders": "전체",
     "clearField": "지우기",
+    "collapseAll": "모두 접기",
     "currentSection": "현재",
     "empty": "파일 없음",
     "empty_trash": "비우기",
+    "expandAll": "모두 펼치기",
     "fileCount_other": "파일 {{count}}개",
     "findFile": "파일 찾기",
     "itemCount_other": "{{count}}개",
@@ -886,6 +894,16 @@
     "direction": "방향",
     "otherEntry": "다른 항목",
     "relation": "관계"
+  },
+  "v5Stats": {
+    "childrenAggregate": "하위 요약",
+    "entryCoordinates": "항목 좌표",
+    "groupRhythm": "그룹 리듬",
+    "inboundLinks": "역참조",
+    "outboundLinks": "참조 항목",
+    "projectOverview": "프로젝트 개요",
+    "templatesTotal": "템플릿 수",
+    "unreferencedNote": "본문에서 아직 참조되지 않음"
   },
   "v5Tour": {
     "agent": {

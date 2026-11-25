@@ -177,6 +177,27 @@ pub fn is_book(ws: &Workspace, book: &str) -> Result<bool> {
         .map_err(invalid)
 }
 
+fn is_entry_discarded(
+    entry: &ModelEntry,
+    templates: &BTreeMap<EntryTemplateId, EntryTemplate>,
+) -> bool {
+    let Some(tpl) = entry.effective_template(templates) else {
+        return false;
+    };
+    for m in &tpl.modules {
+        if m.kind == ModuleKind::Fields
+            && let Some(status_field) = m.config.status_field.as_deref()
+            && let Some(FieldValue::Text(status)) = entry
+                .fields
+                .get(&m.id)
+                .and_then(|vals| vals.get(status_field))
+        {
+            return status == "discarded";
+        }
+    }
+    false
+}
+
 pub fn outline(ws: &Workspace, book: &str) -> Result<Outline> {
     let id = BookId::parse(book).map_err(invalid)?;
     ws.library()
@@ -200,7 +221,7 @@ pub fn outline(ws: &Workspace, book: &str) -> Result<Outline> {
             let entries: Vec<Entry> = structure
                 .book_sequence()
                 .into_iter()
-                .filter(|e| !e.prose.is_empty())
+                .filter(|e| !e.prose.is_empty() && !is_entry_discarded(e.entry, templates))
                 .map(|e| Entry {
                     id: e.entry.id.to_string(),
                     title: e.entry.title.clone(),
@@ -799,10 +820,11 @@ pub fn read_manuscript(
                     if !has_book {
                         return Err(ExportError::NoChapters);
                     }
+                    let templates = structure.templates_map();
                     let seq: Vec<SectionPlan> = structure
                         .book_sequence()
                         .into_iter()
-                        .filter(|e| !e.prose.is_empty())
+                        .filter(|e| !e.prose.is_empty() && !is_entry_discarded(e.entry, templates))
                         .map(|e| SectionPlan {
                             title: entry_display_title(&e.entry.title, &labels_for_doc),
                             depth: None,

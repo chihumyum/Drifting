@@ -677,9 +677,15 @@
     "originTask": "Checkliste",
     "regionPlace": "Bereich",
     "regionPlacePaged": "Seite {{page}}",
+    "retarget": "Ziel ändern…",
+    "sortNewest": "Neueste zuerst",
+    "sortOldest": "Älteste zuerst",
+    "sortPosition": "Nach Position",
     "statusOpen": "Offen",
     "statusResolved": "Gelöst",
+    "unbindTarget": "Verknüpfung lösen",
     "unlocated": "Ursprungsort fehlt",
+    "viewOriginal": "Original anzeigen",
     "wholeFile": "Ganze Datei",
     "writeComment": "Kommentar schreiben"
   },
@@ -803,9 +809,11 @@
     "alignRight": "Rechts",
     "allFolders": "Alle",
     "clearField": "Leeren",
+    "collapseAll": "Alle einklappen",
     "currentSection": "Aktuell",
     "empty": "Keine Dateien",
     "empty_trash": "Leeren",
+    "expandAll": "Alle ausklappen",
     "fileCount_one": "{{count}} Datei",
     "fileCount_other": "{{count}} Dateien",
     "findFile": "Datei suchen",
@@ -905,6 +913,16 @@
     "direction": "Richtung",
     "otherEntry": "Anderer Eintrag",
     "relation": "Beziehung"
+  },
+  "v5Stats": {
+    "childrenAggregate": "Untereinträge",
+    "entryCoordinates": "Eintragsposition",
+    "groupRhythm": "Gruppenrhythmus",
+    "inboundLinks": "Verwiesen von",
+    "outboundLinks": "Verweise",
+    "projectOverview": "Projektübersicht",
+    "templatesTotal": "Vorlagen",
+    "unreferencedNote": "Im Text noch nicht verlinkt"
   },
   "v5Tour": {
     "agent": {

@@ -826,6 +826,66 @@ pub(crate) fn render(
             }
 
             let tree_disabled = running || m.only_book_prose;
+            if !m.only_book_prose {
+                let count = m.chapters().len() + m.hung().len();
+                let all_btn = this.clone();
+                let none_btn = this.clone();
+                scope = scope.child(
+                    div()
+                        .flex()
+                        .flex_row()
+                        .items_center()
+                        .justify_between()
+                        .gap(px(space::S2))
+                        .child(
+                            div()
+                                .id("export-selected-count")
+                                .font_role(Role::Index)
+                                .type_px(s.caption, s.line_caption)
+                                .text_color(p.muted().solid())
+                                .child(SharedString::from(i18n.plural(
+                                    keys::k4_book::ENTRY_COUNT,
+                                    count as u64,
+                                    &[("count", &count)],
+                                ))),
+                        )
+                        .child(
+                            div()
+                                .flex()
+                                .flex_row()
+                                .items_center()
+                                .gap(px(space::S1))
+                                .child(
+                                    Button::new("export-select-all", t(mx::SELECT_ALL))
+                                        .text()
+                                        .small()
+                                        .disabled(running)
+                                        .on_click(move |_, _, cx| {
+                                            all_btn.update(cx, |d, cx| {
+                                                if let Some(m) = d.manuscript_mut() {
+                                                    m.select_all(true);
+                                                }
+                                                cx.notify();
+                                            })
+                                        }),
+                                )
+                                .child(
+                                    Button::new("export-select-none", t(mx::SELECT_NONE))
+                                        .text()
+                                        .small()
+                                        .disabled(running)
+                                        .on_click(move |_, _, cx| {
+                                            none_btn.update(cx, |d, cx| {
+                                                if let Some(m) = d.manuscript_mut() {
+                                                    m.select_all(false);
+                                                }
+                                                cx.notify();
+                                            })
+                                        }),
+                                ),
+                        ),
+                );
+            }
             let mut rows = Vec::new();
             flatten_visible(&outline.tree, 0, m, &mut rows);
             let mut tree = div()

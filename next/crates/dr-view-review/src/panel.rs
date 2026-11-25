@@ -24,7 +24,7 @@
 //!   finished, cross-fades over `0.6s` to a solid pinwheel until viewed, and
 //!   opens the conversation on click (`‹ 回审阅` in the Agent header).
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
@@ -34,7 +34,8 @@ use dr_i18n::{I18n, Locale, Platform, keys};
 use dr_ui::Theme;
 use dr_ui::anim::{self, Tween};
 use dr_ui::components::{
-    Button, CardAction, CardBody, EmptyState, HoverCard, ScopeToggle, Segmented,
+    Button, CardAction, CardBody, Dialog, EmptyState, HoverCard, PanelIconButton, ScopeToggle,
+    Segmented,
     menu::{float_shadow, slab_edge},
     overlay::{self, Layer, Place as OverlayPlace},
 };
@@ -44,19 +45,21 @@ use dr_ui::input::{FieldEvent, TextArea};
 use dr_ui::linked::{LinkedArea, LinkedEvent};
 use dr_ui::sand::{self, Icon, KindMark};
 use dr_ui::style::DrStyled;
-use dr_ui::tokens::{Easing, menu as menu_tokens, motion, radius};
-use dr_workspace::commands::comment::CommentUpdateIn;
-use dr_workspace::dto::CommentInfo;
+use dr_ui::tokens::{Easing, Rgb, menu as menu_tokens, motion, radius};
+use dr_workspace::commands::comment::{CommentCreateIn, CommentUpdateIn};
+use dr_workspace::dto::{CommentInfo, LinkedTextIn, Target as WsTarget};
 use dr_workspace::{Actor, Workspace};
 use gpui::{
-    AnyElement, AppContext, Bounds, ClickEvent, Context, ElementId, Entity, Focusable as _,
-    InteractiveElement, IntoElement, ParentElement, Pixels, Render, ScrollHandle, SharedString,
-    StatefulInteractiveElement, Styled, Subscription, Task, Window, canvas, div, point,
-    prelude::FluentBuilder, px,
+    AnyElement, AppContext, Bounds, ClickEvent, Context, ElementId, Entity, FocusHandle,
+    Focusable as _, InteractiveElement, IntoElement, KeyDownEvent, ParentElement, Pixels, Render,
+    ScrollHandle, SharedString, StatefulInteractiveElement, Styled, Subscription, Task, Window,
+    canvas, div, point, prelude::FluentBuilder, px,
 };
 
 use crate::agent_bridge::{self, CommentAgentRequest, CompanionFocusRequest, ConversationPinwheel};
-use crate::model::{Filter, Group, Listing, OriginFilter, Place, StatusFilter};
+use crate::model::{
+    Filter, Group, GroupMode, Listing, OriginFilter, Place, SortOrder, StatusFilter,
+};
 use crate::v3::PartWhere;
 
 /// Side sub-flyout (`写给 Agent…`) opened when resting on `交给 Agent ›`.
@@ -94,13 +97,25 @@ pub struct ReviewView {
     filter: Filter,
     status_filter: StatusFilter,
     origin_filter: OriginFilter,
+    sort_order: SortOrder,
+    group_mode: GroupMode,
     current_only: bool,
     columns: usize,
     expanded_tasks: HashSet<String>,
+    collapsed_groups: HashSet<String>,
     reveal: Option<Reveal>,
     reveal_serial: u64,
     scroll: ScrollHandle,
+    focus: FocusHandle,
+    selected_id: Option<String>,
+    auto_scroll_id: Option<String>,
+    last_prose_focus: Vec<String>,
     editing: Option<(String, Entity<LinkedArea>, Subscription)>,
+    floating_composer: Option<(Entity<TextArea>, Subscription)>,
+    retarget_for: Option<String>,
+    snapshot_modal: Option<String>,
+    toolbar_menu_open: bool,
+    panel_width: Cell<f32>,
     agent_flyout: Option<AgentSubFlyout>,
     writing: HashSet<String>,
     in_flight: Vec<futures::future::Shared<futures::channel::oneshot::Receiver<()>>>,
@@ -118,6 +133,9 @@ pub struct ReviewView {
     asking: HashSet<String>,
 }
 
+const PREFS_SCOPE: &str = "review_prefs";
+const PREFS_KEY: &str = "global";
+
 /// How long a source card trusts the passage it read.
 const ORIGINAL_FRESH: Duration = Duration::from_secs(2);
 
@@ -129,7 +147,55 @@ struct Reveal {
 }
 
 impl ReviewView {
-    pub(crate) fn new(id: SharedString, lib: Option<Workspace>) -> ReviewView {
+    pub(crate) fn new(
+        id: SharedString,
+        lib: Option<Workspace>,
+        cx: &mut Context<Self>,
+    ) -> ReviewView {
+        let mut status_filter = StatusFilter::Open;
+        let mut origin_filter = OriginFilter::All;
+        let mut sort_order = SortOrder::Position;
+        let mut group_mode = GroupMode::ByTarget;
+        let mut current_only = false;
+        if let Some(ws) = &lib
+            && let Ok(Some(raw)) = ws.library().local_get(PREFS_SCOPE, PREFS_KEY)
+            && let Ok(val) = serde_json::from_str::<serde_json::Value>(&raw)
+        {
+            if let Some(s) = val.get("status").and_then(|v| v.as_str()) {
+                status_filter = match s {
+                    "resolved" => StatusFilter::Resolved,
+                    "all" => StatusFilter::All,
+                    _ => StatusFilter::Open,
+                };
+            }
+            if let Some(o) = val.get("origin").and_then(|v| v.as_str()) {
+                origin_filter = match o {
+                    "manual" => OriginFilter::Manual,
+                    "marker" => OriginFilter::Marker,
+                    "task" => OriginFilter::Task,
+                    "agent" => OriginFilter::Agent,
+                    "reader" => OriginFilter::Reader,
+                    _ => OriginFilter::All,
+                };
+            }
+            if let Some(s) = val
+                .get("sort")
+                .and_then(|v| v.as_str())
+                .and_then(SortOrder::parse)
+            {
+                sort_order = s;
+            }
+            if let Some(g) = val
+                .get("group")
+                .and_then(|v| v.as_str())
+                .and_then(GroupMode::parse)
+            {
+                group_mode = g;
+            }
+            if let Some(c) = val.get("current_only").and_then(|v| v.as_bool()) {
+                current_only = c;
+            }
+        }
         ReviewView {
             id,
             lib,
@@ -141,21 +207,34 @@ impl ReviewView {
                 open: Rc::new(|_, _, _| {}),
                 open_agent: None,
                 marks: Rc::new(|_| None),
+                mark_colors: None,
             }),
             v3_load: 0,
             data_rev: 0,
             i18n: I18n::new(Locale::default(), Platform::current()),
             items: Vec::new(),
             filter: Filter::All,
-            status_filter: StatusFilter::Open,
-            origin_filter: OriginFilter::All,
-            current_only: false,
+            status_filter,
+            origin_filter,
+            sort_order,
+            group_mode,
+            current_only,
             columns: 1,
             expanded_tasks: HashSet::new(),
+            collapsed_groups: HashSet::new(),
             reveal: None,
             reveal_serial: 0,
             scroll: ScrollHandle::new(),
+            focus: cx.focus_handle(),
+            selected_id: None,
+            auto_scroll_id: None,
+            last_prose_focus: Vec::new(),
             editing: None,
+            floating_composer: None,
+            retarget_for: None,
+            snapshot_modal: None,
+            toolbar_menu_open: false,
+            panel_width: Cell::new(320.0),
             agent_flyout: None,
             writing: HashSet::new(),
             in_flight: Vec::new(),
@@ -169,6 +248,43 @@ impl ReviewView {
             originals: HashMap::new(),
             asking: HashSet::new(),
         }
+    }
+
+    fn save_prefs(&self) {
+        let Some(ws) = &self.lib else { return };
+        let status = match self.status_filter {
+            StatusFilter::Open => "open",
+            StatusFilter::Resolved => "resolved",
+            StatusFilter::All => "all",
+        };
+        let origin = match self.origin_filter {
+            OriginFilter::All => "all",
+            OriginFilter::Manual => "manual",
+            OriginFilter::Marker => "marker",
+            OriginFilter::Task => "task",
+            OriginFilter::Agent => "agent",
+            OriginFilter::Reader => "reader",
+        };
+        let raw = serde_json::json!({
+            "status": status,
+            "origin": origin,
+            "sort": self.sort_order.as_str(),
+            "group": self.group_mode.as_str(),
+            "current_only": self.current_only,
+        })
+        .to_string();
+        let _ = ws.library().local_set(PREFS_SCOPE, PREFS_KEY, &raw, None);
+    }
+
+    pub(crate) fn sync_prose_focus(&mut self, cx: &mut Context<Self>) {
+        let prose = ReviewFocus::get(cx).prose.clone();
+        if prose != self.last_prose_focus {
+            if let Some(first) = prose.first() {
+                self.auto_scroll_id = Some(first.clone());
+            }
+            self.last_prose_focus = prose;
+        }
+        cx.notify();
     }
 
     pub(crate) fn is_v3(&self) -> bool {
@@ -205,12 +321,14 @@ impl ReviewView {
             self.reveal = None;
             self.loaded = false;
             let prev_open_agent = self.v3.as_ref().and_then(|s| s.open_agent.clone());
+            let prev_mark_colors = self.v3.as_ref().and_then(|s| s.mark_colors.clone());
             self.v3 = Some(crate::v3_panel::State {
                 scope: target.clone(),
                 snapshot: crate::v3::Snapshot::default(),
                 open: open.clone(),
                 open_agent: prev_open_agent,
                 marks: marks.clone(),
+                mark_colors: prev_mark_colors,
             });
         }
         let state = self.v3.as_mut().expect("v3 state");
@@ -241,6 +359,12 @@ impl ReviewView {
     pub(crate) fn set_open_agent(&mut self, open_agent: Option<crate::v3_panel::OpenAgent>) {
         if let Some(state) = &mut self.v3 {
             state.open_agent = open_agent;
+        }
+    }
+
+    pub(crate) fn set_mark_colors(&mut self, mark_colors: Option<crate::v3_panel::MarkColors>) {
+        if let Some(state) = &mut self.v3 {
+            state.mark_colors = mark_colors;
         }
     }
 
@@ -521,15 +645,16 @@ impl ReviewView {
         self.card(item, resolved, window, cx)
     }
 
-    /// What is listed now (filtered by `origin_filter`, legacy `filter`, and `current_only`).
+    /// What is listed now (filtered by `origin_filter`, legacy `filter`, `current_only`, and sorted by `sort_order`).
     pub fn listing(&self) -> Listing {
         self.v3
             .as_ref()
             .map(|state| {
-                state.snapshot.cards_filtered(
+                state.snapshot.cards_sorted(
                     self.origin_filter,
                     self.filter,
                     self.current_only.then_some(state.scope.as_ref()).flatten(),
+                    self.sort_order,
                 )
             })
             .unwrap_or_default()
@@ -546,6 +671,7 @@ impl ReviewView {
 
     pub fn set_status_filter(&mut self, status: StatusFilter, cx: &mut Context<Self>) {
         self.status_filter = status;
+        self.save_prefs();
         cx.notify();
     }
 
@@ -555,6 +681,7 @@ impl ReviewView {
 
     pub fn set_origin_filter(&mut self, origin: OriginFilter, cx: &mut Context<Self>) {
         self.origin_filter = origin;
+        self.save_prefs();
         cx.notify();
     }
 
@@ -564,7 +691,149 @@ impl ReviewView {
 
     pub fn set_current_only(&mut self, on: bool, cx: &mut Context<Self>) {
         self.current_only = on;
+        self.save_prefs();
         cx.notify();
+    }
+
+    pub fn sort_order(&self) -> SortOrder {
+        self.sort_order
+    }
+
+    pub fn set_sort_order(&mut self, order: SortOrder, cx: &mut Context<Self>) {
+        self.sort_order = order;
+        self.save_prefs();
+        cx.notify();
+    }
+
+    pub fn group_mode(&self) -> GroupMode {
+        self.group_mode
+    }
+
+    pub fn set_group_mode(&mut self, mode: GroupMode, cx: &mut Context<Self>) {
+        self.group_mode = mode;
+        self.save_prefs();
+        cx.notify();
+    }
+
+    pub fn toggle_group_collapse(&mut self, group_key: &str, cx: &mut Context<Self>) {
+        if !self.collapsed_groups.remove(group_key) {
+            self.collapsed_groups.insert(group_key.to_owned());
+        }
+        cx.notify();
+    }
+
+    pub fn open_floating_composer(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.floating_composer.is_some() {
+            return;
+        }
+        let ph = self
+            .i18n
+            .t(keys::review_panel::COMMENT_PLACEHOLDER)
+            .to_owned();
+        let field_id = ElementId::Name(format!("{}-floating-new", self.id).into());
+        let field = cx.new(|cx| TextArea::new(field_id, window, cx).placeholder(ph));
+        let sub = cx.subscribe_in(&field, window, |this, f, ev: &FieldEvent, _, cx| match ev {
+            FieldEvent::Submitted(text) => this.submit_floating_comment(text.clone(), cx),
+            FieldEvent::Cancelled => {
+                this.floating_composer = None;
+                cx.notify();
+            }
+            FieldEvent::Changed(_) => {
+                let _ = f;
+                cx.notify();
+            }
+            _ => {}
+        });
+        let handle = field.read(cx).focus_handle(cx);
+        window.focus(&handle, cx);
+        self.floating_composer = Some((field, sub));
+        cx.notify();
+    }
+
+    pub fn submit_floating_comment(&mut self, text: String, cx: &mut Context<Self>) {
+        let trimmed = text.trim();
+        if trimmed.is_empty() || self.book.is_empty() {
+            return;
+        }
+        let Some(lib) = self.lib.clone() else { return };
+        let input = CommentCreateIn {
+            book: self.book.clone(),
+            module: None,
+            part: None,
+            origin: Some("manual".into()),
+            target: None,
+            block_id: None,
+            range: None,
+            anchor: None,
+            body: LinkedTextIn::Plain(trimmed.to_owned()),
+            author_name: None,
+        };
+        self.floating_composer = None;
+        let book = self.book.clone();
+        let book_epoch = self.book_epoch;
+        cx.spawn(async move |this, cx| {
+            let res = cx
+                .background_executor()
+                .spawn(async move {
+                    lib.call(
+                        &Actor::User,
+                        "comment.create",
+                        serde_json::to_value(input).expect("serializable comment create"),
+                    )
+                })
+                .await;
+            this.update(cx, |v, cx| {
+                if v.book == book && v.book_epoch == book_epoch {
+                    if let Err(err) = res {
+                        log::warn!("review: create floating comment: {err}");
+                    } else {
+                        v.reload(cx);
+                    }
+                    cx.notify();
+                }
+            })
+            .ok();
+        })
+        .detach();
+        cx.notify();
+    }
+
+    pub fn retarget_comment(&mut self, id: &str, entry_id: Option<String>, cx: &mut Context<Self>) {
+        self.retarget_for = None;
+        let mut input = self.update_in(id);
+        input.target = Some(entry_id.map(|eid| WsTarget {
+            kind: "entry".into(),
+            id: eid,
+        }));
+        self.update_comment(input, cx);
+    }
+
+    pub fn open_snapshot_modal(&mut self, id: &str, cx: &mut Context<Self>) {
+        self.want_original(id, cx);
+        self.snapshot_modal = Some(id.to_owned());
+        cx.notify();
+    }
+
+    fn jump_to_group(
+        &mut self,
+        target: crate::v3::Target,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if let Some(state) = &self.v3 {
+            (state.open)(target, window, cx);
+        }
+    }
+
+    fn group_color(&self, group: &Group) -> Option<Rgb> {
+        match &group.place {
+            Place::V3(target) => self
+                .v3
+                .as_ref()
+                .and_then(|s| s.mark_colors.as_ref())
+                .and_then(|f| f(target)),
+            Place::Gone | Place::Floating => None,
+        }
     }
 
     pub fn is_task_fold_open(&self, group_key: &str) -> bool {
@@ -660,6 +929,7 @@ impl ReviewView {
             body: None,
             status: None,
             agent_conversation: None,
+            target: None,
         }
     }
 
@@ -687,7 +957,7 @@ impl ReviewView {
         let Some(item) = self.items.iter().find(|i| i.id == id) else {
             return;
         };
-        if matches!(item.origin.as_str(), "task" | "marker") {
+        if item.origin == "task" {
             return;
         }
         let body = crate::linked::draft(&item.body);
@@ -1305,7 +1575,9 @@ impl ReviewView {
         let (p, s) = (theme.palette, theme.scale);
         let is_task = item.origin == "task";
         let focus = ReviewFocus::get(cx);
-        let lit = focus.prose.contains(&item.id) || focus.cards.contains(&item.id);
+        let lit = focus.prose.contains(&item.id)
+            || focus.cards.contains(&item.id)
+            || self.selected_id.as_deref() == Some(item.id.as_str());
         let id = |part: &str| ElementId::Name(format!("{}-{part}-{}", self.id, item.id).into());
         let entity = cx.entity();
         let comment = item.id.clone();
@@ -1407,6 +1679,32 @@ impl ReviewView {
                         .child(self.i18n.t(keys::v3_review::UNLOCATED).to_owned()),
                 );
             }
+            let has_snapshots = v3_item.is_some_and(|i| !i.comment.snapshots.is_empty());
+            let orig_changed = self
+                .original_of(&item.id)
+                .is_some_and(|o| o.changed == Some(true));
+            if orig_changed || (has_snapshots && item.origin != "marker") {
+                let modal_entity = entity.clone();
+                let modal_cid = comment.clone();
+                let modal_label: SharedString = if orig_changed {
+                    self.i18n.t(keys::comment_rail::original::CHANGED).into()
+                } else {
+                    self.i18n.t(keys::v3_review::VIEW_ORIGINAL).into()
+                };
+                q_col = q_col.child(
+                    div()
+                        .id(id("view-orig"))
+                        .cursor_pointer()
+                        .font_role(Role::Index)
+                        .type_px(s.caption, s.line_caption)
+                        .text_color(p.accent.solid())
+                        .child(modal_label)
+                        .on_click(move |_, _, cx| {
+                            modal_entity
+                                .update(cx, |this, cx| this.open_snapshot_modal(&modal_cid, cx));
+                        }),
+                );
+            }
             body = body.child(q_col);
         }
 
@@ -1448,12 +1746,17 @@ impl ReviewView {
                             Button::new(id("save"), self.i18n.t(keys::common::SAVE).to_owned())
                                 .primary()
                                 .small()
-                                .disabled(self.writing.contains(&item.id))
+                                .disabled(
+                                    self.writing.contains(&item.id)
+                                        || f.read(cx).text().trim().is_empty(),
+                                )
                                 .on_click(move |_, _, cx| {
                                     let text = f.read(cx).text();
-                                    save.update(cx, |this, cx| {
-                                        this.finish_edit(&c2, Some(text), cx)
-                                    });
+                                    if !text.trim().is_empty() {
+                                        save.update(cx, |this, cx| {
+                                            this.finish_edit(&c2, Some(text), cx)
+                                        });
+                                    }
                                 }),
                         ),
                 );
@@ -1465,6 +1768,7 @@ impl ReviewView {
                     item.body.text.clone().into()
                 };
                 let (entity, comment) = (entity.clone(), comment.clone());
+                let is_marker = item.origin == "marker";
                 body = body.child(
                     div()
                         .id(id("body"))
@@ -1477,10 +1781,21 @@ impl ReviewView {
                         // The writing rules for a line's start and end (「：」
                         // and 「。」 never open a line), as everywhere else.
                         .child(self.linked_body(item, id("linked-body"), text))
-                        .when(!is_task && item.origin != "marker", |d| {
+                        .when(!is_task, |d| {
                             d.on_click(move |e: &ClickEvent, window, cx| {
                                 if e.click_count() >= 2 {
-                                    entity.update(cx, |this, cx| this.edit(&comment, window, cx));
+                                    entity.update(cx, |this, cx| {
+                                        if is_marker && e.modifiers().alt {
+                                            this.jump(&comment, window, cx);
+                                        } else {
+                                            this.edit(&comment, window, cx);
+                                        }
+                                    });
+                                } else {
+                                    entity.update(cx, |this, cx| {
+                                        this.selected_id = Some(comment.clone());
+                                        cx.notify();
+                                    });
                                 }
                             })
                         }),
@@ -1602,7 +1917,9 @@ impl ReviewView {
         let theme = Theme::of(window, cx);
         let (p, s) = (theme.palette, theme.scale);
         let focus = ReviewFocus::get(cx);
-        let lit = focus.prose.contains(&item.id) || focus.cards.contains(&item.id);
+        let lit = focus.prose.contains(&item.id)
+            || focus.cards.contains(&item.id)
+            || self.selected_id.as_deref() == Some(item.id.as_str());
         let id =
             |part: &str| ElementId::Name(format!("{}-task-{part}-{}", self.id, item.id).into());
         let entity = cx.entity();
@@ -1791,6 +2108,12 @@ impl ReviewView {
         let card_quote = item.quote.clone();
         let is_marker = item.origin == "marker";
         let has_conversation = item.agent_conversation.is_some();
+        let has_target = item.target.is_some();
+        let has_snapshots = self
+            .v3
+            .as_ref()
+            .and_then(|st| st.snapshot.item(&item.id))
+            .is_some_and(|i| !i.comment.snapshots.is_empty());
         let readonly = self.writing.contains(&item.id);
         move |window: &mut Window, cx: &mut gpui::App| {
             let (view, id) = (entity.clone(), card_comment.clone());
@@ -1833,6 +2156,9 @@ impl ReviewView {
                         .t(keys::comment_rail::snapshot::CHANGED)
                         .to_owned()
                         .into(),
+                    retarget: rv.i18n.t(keys::v3_review::RETARGET).to_owned().into(),
+                    unbind_target: rv.i18n.t(keys::v3_review::UNBIND_TARGET).to_owned().into(),
+                    view_original: rv.i18n.t(keys::v3_review::VIEW_ORIGINAL).to_owned().into(),
                 };
                 let original = (!is_marker)
                     .then(|| rv.original_of(&card_comment).cloned())
@@ -1865,6 +2191,8 @@ impl ReviewView {
                 card_comment.clone(),
                 is_task,
                 is_marker,
+                has_target,
+                has_snapshots,
                 done,
                 has_conversation,
                 readonly,
@@ -2048,7 +2376,83 @@ impl Render for ReviewView {
                 });
             })
         };
-        let toolbar = div()
+        let sort_label: SharedString = match self.sort_order {
+            SortOrder::Position => self.i18n.t(keys::v3_review::SORT_POSITION).into(),
+            SortOrder::Newest => self.i18n.t(keys::v3_review::SORT_NEWEST).into(),
+            SortOrder::Oldest => self.i18n.t(keys::v3_review::SORT_OLDEST).into(),
+        };
+        let group_label: SharedString = match self.group_mode {
+            GroupMode::ByTarget => self.i18n.t(keys::review_panel::group_by::TARGET).into(),
+            GroupMode::Flat => self.i18n.t(keys::review_panel::group_by::FLAT).into(),
+        };
+        let narrow = self.panel_width.get() < 260.0;
+        let sort_btn = {
+            let entity = entity.clone();
+            Button::new(
+                ElementId::Name(format!("{}-sort", self.id).into()),
+                sort_label.clone(),
+            )
+            .text()
+            .small()
+            .on_click(move |_, _, cx| {
+                entity.update(cx, |this, cx| {
+                    this.set_sort_order(this.sort_order.next(), cx)
+                });
+            })
+        };
+        let group_btn = {
+            let entity = entity.clone();
+            Button::new(
+                ElementId::Name(format!("{}-group-mode", self.id).into()),
+                group_label.clone(),
+            )
+            .text()
+            .small()
+            .on_click(move |_, _, cx| {
+                entity.update(cx, |this, cx| {
+                    let next = match this.group_mode {
+                        GroupMode::ByTarget => GroupMode::Flat,
+                        GroupMode::Flat => GroupMode::ByTarget,
+                    };
+                    this.set_group_mode(next, cx);
+                });
+            })
+        };
+        let new_comment_btn = {
+            let entity = entity.clone();
+            PanelIconButton::new(
+                ElementId::Name(format!("{}-new-floating", self.id).into()),
+                Icon::Plus,
+            )
+            .label(self.i18n.t(keys::review_panel::NEW_COMMENT))
+            .on_click(move |_, window, cx| {
+                entity.update(cx, |this, cx| this.open_floating_composer(window, cx));
+            })
+        };
+        let mut row1_right = div()
+            .flex()
+            .flex_row()
+            .items_center()
+            .gap(px(4.0))
+            .child(scope)
+            .child(new_comment_btn);
+        if narrow {
+            let entity = entity.clone();
+            row1_right = row1_right.child(
+                PanelIconButton::new(
+                    ElementId::Name(format!("{}-more-ctrl", self.id).into()),
+                    Icon::More,
+                )
+                .label(sort_label.clone())
+                .on_click(move |_, _, cx| {
+                    entity.update(cx, |this, cx| {
+                        this.toolbar_menu_open = !this.toolbar_menu_open;
+                        cx.notify();
+                    });
+                }),
+            );
+        }
+        let mut toolbar = div()
             .flex()
             .flex_col()
             .gap(px(6.0))
@@ -2060,9 +2464,9 @@ impl Render for ReviewView {
                     .flex_row()
                     .items_center()
                     .justify_between()
-                    .gap(px(8.0))
+                    .gap(px(6.0))
                     .child(status_seg)
-                    .child(scope),
+                    .child(row1_right),
             )
             .child(
                 div()
@@ -2071,9 +2475,52 @@ impl Render for ReviewView {
                     .flex()
                     .flex_row()
                     .items_center()
+                    .gap(px(6.0))
                     .overflow_x_scroll()
-                    .child(origin_seg),
+                    .child(origin_seg)
+                    .when(!narrow, |el| {
+                        el.child(div().flex_1()).child(sort_btn).child(group_btn)
+                    }),
             );
+        if narrow && self.toolbar_menu_open {
+            let e_sort = entity.clone();
+            let e_grp = entity.clone();
+            toolbar = toolbar.child(
+                div()
+                    .flex()
+                    .flex_row()
+                    .items_center()
+                    .gap(px(6.0))
+                    .child(
+                        Button::new(
+                            ElementId::Name(format!("{}-narrow-sort", self.id).into()),
+                            sort_label,
+                        )
+                        .small()
+                        .on_click(move |_, _, cx| {
+                            e_sort.update(cx, |this, cx| {
+                                this.set_sort_order(this.sort_order.next(), cx);
+                            });
+                        }),
+                    )
+                    .child(
+                        Button::new(
+                            ElementId::Name(format!("{}-narrow-group", self.id).into()),
+                            group_label,
+                        )
+                        .small()
+                        .on_click(move |_, _, cx| {
+                            e_grp.update(cx, |this, cx| {
+                                let next = match this.group_mode {
+                                    GroupMode::ByTarget => GroupMode::Flat,
+                                    GroupMode::Flat => GroupMode::ByTarget,
+                                };
+                                this.set_group_mode(next, cx);
+                            });
+                        }),
+                    ),
+            );
+        }
 
         let visible_groups: Vec<Group> = match self.status_filter {
             StatusFilter::Open => {
@@ -2094,7 +2541,74 @@ impl Render for ReviewView {
         };
 
         let mut rows: Vec<AnyElement> = Vec::new();
+        let mut visible_ids: Vec<String> = Vec::new();
         let mut reveal_index = None;
+        let auto_scroll = self.auto_scroll_id.take();
+        let mut auto_scroll_index = None;
+
+        if let Some((field, _)) = &self.floating_composer {
+            let f_save = field.clone();
+            let e_save = entity.clone();
+            let e_cancel = entity.clone();
+            let is_empty = field.read(cx).text().trim().is_empty();
+            rows.push(
+                div()
+                    .flex_none()
+                    .p(px(10.0))
+                    .rounded(px(radius::MD))
+                    .bg(p.page.solid())
+                    .border_1()
+                    .border_color(p.hairline())
+                    .flex()
+                    .flex_col()
+                    .gap(px(8.0))
+                    .child(
+                        div()
+                            .font_role(Role::Index)
+                            .type_px(s.caption, s.line_caption)
+                            .text_color(p.muted().solid())
+                            .child(self.i18n.t(keys::review_panel::NEW_COMMENT).to_owned()),
+                    )
+                    .child(field.clone())
+                    .child(
+                        div()
+                            .flex()
+                            .flex_row()
+                            .justify_end()
+                            .gap(px(6.0))
+                            .child(
+                                Button::new(
+                                    ElementId::Name(format!("{}-float-cancel", self.id).into()),
+                                    self.i18n.t(keys::common::CANCEL).to_owned(),
+                                )
+                                .text()
+                                .small()
+                                .on_click(move |_, _, cx| {
+                                    e_cancel.update(cx, |this, cx| {
+                                        this.floating_composer = None;
+                                        cx.notify();
+                                    });
+                                }),
+                            )
+                            .child(
+                                Button::new(
+                                    ElementId::Name(format!("{}-float-save", self.id).into()),
+                                    self.i18n.t(keys::common::SAVE).to_owned(),
+                                )
+                                .primary()
+                                .small()
+                                .disabled(is_empty)
+                                .on_click(move |_, _, cx| {
+                                    let text = f_save.read(cx).text();
+                                    e_save.update(cx, |this, cx| {
+                                        this.submit_floating_comment(text, cx);
+                                    });
+                                }),
+                            ),
+                    )
+                    .into_any_element(),
+            );
+        }
         if self.v3.is_some()
             && let Some((editing, _, _)) = &self.editing
             && !visible_groups
@@ -2103,6 +2617,7 @@ impl Render for ReviewView {
                 .any(|item| &item.id == editing)
             && let Some(card) = self.items.iter().find(|item| &item.id == editing).cloned()
         {
+            visible_ids.push(card.id.clone());
             rows.push(
                 div()
                     .flex_none()
@@ -2123,47 +2638,15 @@ impl Render for ReviewView {
         let fold_tasks = self.origin_filter != OriginFilter::Task;
         let mut tiles = Vec::new();
         let mut reveal_tile = None;
-        for group in &visible_groups {
-            let start = rows.len();
-            let group_key = group.key();
-            if !(self.current_only && visible_groups.len() == 1) {
-                let (mark, title, _) = self.group_header(group);
-                rows.push(
-                    div()
-                        .flex_none()
-                        .pt(px(4.0))
-                        .flex()
-                        .flex_row()
-                        .items_center()
-                        .gap(px(6.0))
-                        .when_some(mark, |el, kind| {
-                            el.child(KindMark::new(
-                                ElementId::Name(format!("{}-gmark-{group_key}", self.id).into()),
-                                kind,
-                            ))
-                        })
-                        .child(
-                            div()
-                                .font_role(Role::Structure)
-                                .type_px(s.secondary, s.line_body)
-                                .text_color(p.ink(2).solid())
-                                .child(title),
-                        )
-                        .into_any_element(),
-                );
-            }
-
-            let mut regular = Vec::new();
-            let mut tasks = Vec::new();
-            for item in &group.items {
-                if fold_tasks && item.origin == "task" {
-                    tasks.push(item);
-                } else {
-                    regular.push(item);
-                }
-            }
-
-            for item in regular {
+        if self.group_mode == GroupMode::Flat {
+            let mut flat_items: Vec<&CommentInfo> =
+                visible_groups.iter().flat_map(|g| g.items.iter()).collect();
+            flat_items.sort_by(|a, b| match self.sort_order {
+                SortOrder::Position => b.created_at.cmp(&a.created_at).then(b.id.cmp(&a.id)),
+                SortOrder::Newest => b.created_at.cmp(&a.created_at).then(b.id.cmp(&a.id)),
+                SortOrder::Oldest => a.created_at.cmp(&b.created_at).then(a.id.cmp(&b.id)),
+            });
+            for item in flat_items {
                 if self
                     .reveal
                     .as_ref()
@@ -2171,6 +2654,10 @@ impl Render for ReviewView {
                 {
                     reveal_index = Some(rows.len());
                 }
+                if auto_scroll.as_deref() == Some(item.id.as_str()) {
+                    auto_scroll_index = Some(rows.len());
+                }
+                visible_ids.push(item.id.clone());
                 let is_resolved = item.status == "resolved";
                 let el = if item.origin == "task" {
                     self.task_row(item, is_resolved, window, cx)
@@ -2179,85 +2666,222 @@ impl Render for ReviewView {
                 };
                 rows.push(div().flex_none().child(el).into_any_element());
             }
-
-            if !tasks.is_empty() {
-                let open = self.expanded_tasks.contains(&group_key);
-                let toggle = entity.clone();
-                let gk = group_key.clone();
-                let fold_label: SharedString = self
-                    .i18n
-                    .fmt(keys::v3_review::CHECKLIST_FOLD, &[("count", &tasks.len())])
-                    .into();
-                rows.push(
-                    div()
-                        .id(ElementId::Name(
-                            format!("{}-tasks-{group_key}", self.id).into(),
-                        ))
-                        .role(gpui::Role::Button)
-                        .aria_label(fold_label.clone())
-                        .aria_expanded(open)
+        } else {
+            for group in &visible_groups {
+                let start = rows.len();
+                let group_key = group.key();
+                let group_collapsed = self.collapsed_groups.contains(&group_key);
+                if !(self.current_only && visible_groups.len() == 1) {
+                    let (mark, title, jump_target) = self.group_header(group);
+                    let mark_color = self.group_color(group);
+                    let count = group.items.len();
+                    let fold_entity = entity.clone();
+                    let fold_gk = group_key.clone();
+                    let jump_entity = entity.clone();
+                    let mut header_row = div()
                         .flex_none()
+                        .pt(px(4.0))
+                        .flex()
+                        .flex_row()
+                        .items_center()
+                        .gap(px(5.0))
+                        .child(
+                            div()
+                                .id(ElementId::Name(
+                                    format!("{}-gfold-{group_key}", self.id).into(),
+                                ))
+                                .size(px(16.0))
+                                .flex_none()
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .cursor_pointer()
+                                .child(sand::icon(
+                                    if group_collapsed {
+                                        Icon::ChevronRight
+                                    } else {
+                                        Icon::ChevronDown
+                                    },
+                                    11.0,
+                                    p.ink(3).solid(),
+                                ))
+                                .on_click(move |_, _, cx| {
+                                    fold_entity.update(cx, |this, cx| {
+                                        this.toggle_group_collapse(&fold_gk, cx)
+                                    });
+                                }),
+                        );
+                    let mut title_box = div()
+                        .id(ElementId::Name(
+                            format!("{}-gjump-{group_key}", self.id).into(),
+                        ))
+                        .flex_1()
+                        .min_w_0()
                         .flex()
                         .flex_row()
                         .items_center()
                         .gap(px(6.0))
-                        .py(px(2.0))
-                        .cursor_pointer()
-                        .child(sand::icon(
-                            if open {
-                                Icon::ChevronDown
-                            } else {
-                                Icon::ChevronRight
-                            },
-                            11.0,
-                            p.ink(3).solid(),
-                        ))
+                        .when_some(mark, |el, kind| {
+                            let km = KindMark::new(
+                                ElementId::Name(format!("{}-gmark-{group_key}", self.id).into()),
+                                kind,
+                            );
+                            el.child(match mark_color {
+                                Some(c) => km.color(c),
+                                None => km,
+                            })
+                        })
                         .child(
                             div()
-                                .font_role(Role::Index)
-                                .type_px(s.caption, s.line_caption)
-                                .text_color(p.ink(3).solid())
-                                .child(fold_label),
-                        )
-                        .on_click(move |_, _, cx| {
-                            toggle.update(cx, |this, cx| this.toggle_task_fold(&gk, cx));
-                        })
-                        .into_any_element(),
-                );
-                if open {
-                    for item in tasks {
-                        if self
-                            .reveal
-                            .as_ref()
-                            .is_some_and(|request| request.ready && request.id == item.id)
-                        {
-                            reveal_index = Some(rows.len());
-                        }
-                        let is_resolved = item.status == "resolved";
-                        rows.push(
-                            div()
-                                .flex_none()
-                                .pl(px(6.0))
-                                .child(self.task_row(item, is_resolved, window, cx))
-                                .into_any_element(),
+                                .min_w_0()
+                                .truncate()
+                                .font_role(Role::Structure)
+                                .type_px(s.secondary, s.line_body)
+                                .text_color(p.ink(2).solid())
+                                .child(title),
                         );
+                    if let Some(target) = jump_target {
+                        title_box = title_box
+                            .cursor_pointer()
+                            .hover(move |st| st.text_color(p.ink(1).solid()))
+                            .on_click(move |_, window, cx| {
+                                jump_entity.update(cx, |this, cx| {
+                                    this.jump_to_group(target.clone(), window, cx)
+                                });
+                            });
+                    }
+                    header_row = header_row.child(title_box).child(
+                        div()
+                            .flex_none()
+                            .px(px(5.0))
+                            .rounded(px(8.0))
+                            .bg(p.ink(1).alpha(0.06))
+                            .font_role(Role::Index)
+                            .type_px(10.0, 14.0)
+                            .text_color(p.muted().solid())
+                            .child(count.to_string()),
+                    );
+                    rows.push(header_row.into_any_element());
+                }
+
+                if group_collapsed {
+                    continue;
+                }
+
+                let mut regular = Vec::new();
+                let mut tasks = Vec::new();
+                for item in &group.items {
+                    if fold_tasks && item.origin == "task" {
+                        tasks.push(item);
+                    } else {
+                        regular.push(item);
                     }
                 }
-            }
-            if self.columns > 1 {
-                if reveal_index.take().is_some() {
-                    reveal_tile = Some(start + tiles.len() / self.columns);
+
+                for item in regular {
+                    if self
+                        .reveal
+                        .as_ref()
+                        .is_some_and(|request| request.ready && request.id == item.id)
+                    {
+                        reveal_index = Some(rows.len());
+                    }
+                    if auto_scroll.as_deref() == Some(item.id.as_str()) {
+                        auto_scroll_index = Some(rows.len());
+                    }
+                    visible_ids.push(item.id.clone());
+                    let is_resolved = item.status == "resolved";
+                    let el = if item.origin == "task" {
+                        self.task_row(item, is_resolved, window, cx)
+                    } else {
+                        self.card(item, is_resolved, window, cx)
+                    };
+                    rows.push(div().flex_none().child(el).into_any_element());
                 }
-                let group_rows = rows.split_off(start);
-                tiles.push(
-                    div()
-                        .flex_1()
-                        .min_w_0()
-                        .flex()
-                        .flex_col()
-                        .gap_2()
-                        .children(group_rows),
-                );
+
+                if !tasks.is_empty() {
+                    let open = self.expanded_tasks.contains(&group_key);
+                    let toggle = entity.clone();
+                    let gk = group_key.clone();
+                    let fold_label: SharedString = self
+                        .i18n
+                        .fmt(keys::v3_review::CHECKLIST_FOLD, &[("count", &tasks.len())])
+                        .into();
+                    rows.push(
+                        div()
+                            .id(ElementId::Name(
+                                format!("{}-tasks-{group_key}", self.id).into(),
+                            ))
+                            .role(gpui::Role::Button)
+                            .aria_label(fold_label.clone())
+                            .aria_expanded(open)
+                            .flex_none()
+                            .flex()
+                            .flex_row()
+                            .items_center()
+                            .gap(px(6.0))
+                            .py(px(2.0))
+                            .cursor_pointer()
+                            .child(sand::icon(
+                                if open {
+                                    Icon::ChevronDown
+                                } else {
+                                    Icon::ChevronRight
+                                },
+                                11.0,
+                                p.ink(3).solid(),
+                            ))
+                            .child(
+                                div()
+                                    .font_role(Role::Index)
+                                    .type_px(s.caption, s.line_caption)
+                                    .text_color(p.ink(3).solid())
+                                    .child(fold_label),
+                            )
+                            .on_click(move |_, _, cx| {
+                                toggle.update(cx, |this, cx| this.toggle_task_fold(&gk, cx));
+                            })
+                            .into_any_element(),
+                    );
+                    if open {
+                        for item in tasks {
+                            if self
+                                .reveal
+                                .as_ref()
+                                .is_some_and(|request| request.ready && request.id == item.id)
+                            {
+                                reveal_index = Some(rows.len());
+                            }
+                            if auto_scroll.as_deref() == Some(item.id.as_str()) {
+                                auto_scroll_index = Some(rows.len());
+                            }
+                            visible_ids.push(item.id.clone());
+                            let is_resolved = item.status == "resolved";
+                            rows.push(
+                                div()
+                                    .flex_none()
+                                    .pl(px(6.0))
+                                    .child(self.task_row(item, is_resolved, window, cx))
+                                    .into_any_element(),
+                            );
+                        }
+                    }
+                }
+                if self.columns > 1 {
+                    if reveal_index.take().is_some() {
+                        reveal_tile = Some(start + tiles.len() / self.columns);
+                    }
+                    let group_rows = rows.split_off(start);
+                    tiles.push(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .flex()
+                            .flex_col()
+                            .gap_2()
+                            .children(group_rows),
+                    );
+                }
             }
         }
         if self.columns > 1 {
@@ -2279,23 +2903,283 @@ impl Render for ReviewView {
                 );
             }
         }
-        if let Some(index) = reveal_index.or(reveal_tile) {
+        if let Some(index) = reveal_index.or(reveal_tile).or(auto_scroll_index) {
             self.scroll.scroll_to_item(index);
         }
-        div().size_full().flex().flex_col().child(toolbar).child(
-            div()
-                .id(ElementId::Name(format!("{}-list", self.id).into()))
-                .flex_1()
-                .min_h_0()
+
+        let retarget_dialog = self.retarget_for.clone().and_then(|cid| {
+            let entries = self.v3.as_ref()?.snapshot.live_entries.clone();
+            let e_close = entity.clone();
+            let e_unbind = entity.clone();
+            let cid_unbind = cid.clone();
+            let mut list_box = div()
+                .id(ElementId::Name(format!("{}-retarget-list", self.id).into()))
+                .max_h(px(260.0))
+                .overflow_y_scroll()
                 .flex()
                 .flex_col()
-                .gap(px(10.0))
-                .px(px(12.0))
-                .pb(px(16.0))
+                .gap(px(4.0));
+            for (eid, etitle) in entries {
+                let e_pick = entity.clone();
+                let cid_pick = cid.clone();
+                let label = if etitle.trim().is_empty() {
+                    self.i18n.t(keys::k4_book::UNTITLED_ENTRY).to_owned()
+                } else {
+                    etitle
+                };
+                list_box = list_box.child(
+                    div()
+                        .id(ElementId::Name(
+                            format!("{}-retarget-{eid}", self.id).into(),
+                        ))
+                        .px(px(8.0))
+                        .py(px(5.0))
+                        .rounded(px(radius::SM))
+                        .cursor_pointer()
+                        .hover(move |st| st.bg(p.ink(1).alpha(0.06)))
+                        .font_role(Role::Ui)
+                        .type_px(s.secondary, s.line_body)
+                        .text_color(p.ink(1).solid())
+                        .child(label)
+                        .on_click(move |_, _, cx| {
+                            e_pick.update(cx, |this, cx| {
+                                this.retarget_comment(&cid_pick, Some(eid.clone()), cx);
+                            });
+                        }),
+                );
+            }
+            Some(
+                Dialog::new(
+                    ElementId::Name(format!("{}-retarget-dlg", self.id).into()),
+                    self.i18n.t(keys::v3_review::RETARGET).to_owned(),
+                )
+                .width(340.0)
+                .body(list_box)
+                .action(
+                    Button::new(
+                        ElementId::Name(format!("{}-retarget-unbind", self.id).into()),
+                        self.i18n.t(keys::v3_review::UNBIND_TARGET).to_owned(),
+                    )
+                    .text()
+                    .small()
+                    .on_click(move |_, _, cx| {
+                        e_unbind.update(cx, |this, cx| {
+                            this.retarget_comment(&cid_unbind, None, cx);
+                        });
+                    }),
+                )
+                .action(
+                    Button::new(
+                        ElementId::Name(format!("{}-retarget-close", self.id).into()),
+                        self.i18n.t(keys::common::CANCEL).to_owned(),
+                    )
+                    .small()
+                    .on_click(move |_, _, cx| {
+                        e_close.update(cx, |this, cx| {
+                            this.retarget_for = None;
+                            cx.notify();
+                        });
+                    }),
+                )
+                .on_close({
+                    let e = entity.clone();
+                    move |_, cx| {
+                        e.update(cx, |this, cx| {
+                            this.retarget_for = None;
+                            cx.notify();
+                        });
+                    }
+                })
+                .into_any_element(),
+            )
+        });
+
+        let snapshot_dialog = self.snapshot_modal.clone().and_then(|cid| {
+            let item = self.v3.as_ref()?.snapshot.item(&cid)?;
+            let snaps = item.comment.snapshots.clone();
+            let orig = self.original_of(&cid).cloned();
+            let count = snaps.len().max(usize::from(orig.is_some()));
+            let title = self
+                .i18n
+                .fmt(keys::comment_rail::snapshot::TITLE, &[("count", &count)]);
+            let empty_blk = self
+                .i18n
+                .t(keys::comment_rail::snapshot::EMPTY_BLOCK)
+                .to_owned();
+            let mut body_col = div()
+                .id(ElementId::Name(format!("{}-snap-scroll", self.id).into()))
+                .max_h(px(320.0))
                 .overflow_y_scroll()
-                .track_scroll(&self.scroll)
-                .children(rows),
-        )
+                .flex()
+                .flex_col()
+                .gap(px(8.0));
+            if snaps.is_empty() {
+                if let Some(o) = orig {
+                    body_col = body_col.child(
+                        div()
+                            .font_role(Role::Prose)
+                            .type_px(s.secondary, s.line_body)
+                            .text_color(p.ink(1).solid())
+                            .child(dr_ui::text::wrapped(o.text)),
+                    );
+                }
+            } else {
+                for snap in snaps {
+                    let txt = if snap.text.trim().is_empty() {
+                        empty_blk.clone()
+                    } else {
+                        snap.text
+                    };
+                    body_col = body_col.child(
+                        div()
+                            .p(px(8.0))
+                            .rounded(px(radius::SM))
+                            .bg(p.page.solid())
+                            .border_1()
+                            .border_color(p.hairline())
+                            .font_role(Role::Prose)
+                            .type_px(s.secondary, s.line_body)
+                            .text_color(p.ink(1).solid())
+                            .child(dr_ui::text::wrapped(txt)),
+                    );
+                }
+            }
+            let e_close = entity.clone();
+            let e_dismiss = entity.clone();
+            Some(
+                Dialog::new(
+                    ElementId::Name(format!("{}-snap-dlg", self.id).into()),
+                    title,
+                )
+                .width(440.0)
+                .body(body_col)
+                .action(
+                    Button::new(
+                        ElementId::Name(format!("{}-snap-close", self.id).into()),
+                        self.i18n.t(keys::comment_rail::actions::CLOSE).to_owned(),
+                    )
+                    .primary()
+                    .small()
+                    .on_click(move |_, _, cx| {
+                        e_close.update(cx, |this, cx| {
+                            this.snapshot_modal = None;
+                            cx.notify();
+                        });
+                    }),
+                )
+                .on_close(move |_, cx| {
+                    e_dismiss.update(cx, |this, cx| {
+                        this.snapshot_modal = None;
+                        cx.notify();
+                    });
+                })
+                .into_any_element(),
+            )
+        });
+
+        let width_probe_view = cx.weak_entity();
+        let nav_ids = visible_ids;
+        div()
+            .relative()
+            .track_focus(&self.focus)
+            .size_full()
+            .flex()
+            .flex_col()
+            .on_key_down(cx.listener(move |this, e: &KeyDownEvent, window, cx| {
+                match e.keystroke.key.as_str() {
+                    "escape" => {
+                        if this.snapshot_modal.take().is_some()
+                            || this.retarget_for.take().is_some()
+                            || this.floating_composer.take().is_some()
+                            || this.toolbar_menu_open
+                            || this.selected_id.take().is_some()
+                        {
+                            this.toolbar_menu_open = false;
+                            cx.stop_propagation();
+                            cx.notify();
+                        }
+                    }
+                    "down" if !nav_ids.is_empty() => {
+                        let next = match this
+                            .selected_id
+                            .as_deref()
+                            .and_then(|cur| nav_ids.iter().position(|id| id == cur))
+                        {
+                            Some(i) => (i + 1).min(nav_ids.len() - 1),
+                            None => 0,
+                        };
+                        let next_id = nav_ids[next].clone();
+                        this.selected_id = Some(next_id.clone());
+                        this.auto_scroll_id = Some(next_id);
+                        cx.stop_propagation();
+                        cx.notify();
+                    }
+                    "up" if !nav_ids.is_empty() => {
+                        let prev = match this
+                            .selected_id
+                            .as_deref()
+                            .and_then(|cur| nav_ids.iter().position(|id| id == cur))
+                        {
+                            Some(i) => i.saturating_sub(1),
+                            None => nav_ids.len() - 1,
+                        };
+                        let prev_id = nav_ids[prev].clone();
+                        this.selected_id = Some(prev_id.clone());
+                        this.auto_scroll_id = Some(prev_id);
+                        cx.stop_propagation();
+                        cx.notify();
+                    }
+                    "enter" => {
+                        if let Some(cur) = this.selected_id.clone() {
+                            this.jump(&cur, window, cx);
+                            cx.stop_propagation();
+                        }
+                    }
+                    _ => {}
+                }
+            }))
+            .child(
+                canvas(
+                    move |bounds, _, cx| {
+                        let w = f32::from(bounds.size.width);
+                        if w > 0.0
+                            && let Some(v) = width_probe_view.upgrade()
+                        {
+                            let prev = v.read(cx).panel_width.get();
+                            if (prev - w).abs() > 4.0 {
+                                v.read(cx).panel_width.set(w);
+                                let crossed = (prev < 260.0) != (w < 260.0);
+                                if crossed {
+                                    cx.defer(move |cx| {
+                                        v.update(cx, |_, cx| cx.notify());
+                                    });
+                                }
+                            }
+                        }
+                    },
+                    |_, _, _, _| {},
+                )
+                .absolute()
+                .inset_0()
+                .size_full(),
+            )
+            .child(toolbar)
+            .child(
+                div()
+                    .id(ElementId::Name(format!("{}-list", self.id).into()))
+                    .flex_1()
+                    .min_h_0()
+                    .flex()
+                    .flex_col()
+                    .gap(px(10.0))
+                    .px(px(12.0))
+                    .pb(px(16.0))
+                    .overflow_y_scroll()
+                    .track_scroll(&self.scroll)
+                    .children(rows),
+            )
+            .children(retarget_dialog)
+            .children(snapshot_dialog)
     }
 }
 
@@ -2367,6 +3251,9 @@ struct Labels {
     open_conversation: SharedString,
     delete: SharedString,
     changed: SharedString,
+    retarget: SharedString,
+    unbind_target: SharedString,
+    view_original: SharedString,
 }
 
 type SubFlyoutState = (
@@ -2388,6 +3275,8 @@ fn source_card(
     comment: String,
     is_task: bool,
     is_marker: bool,
+    has_target: bool,
+    has_snapshots: bool,
     done: bool,
     has_conversation: bool,
     readonly: bool,
@@ -2420,13 +3309,52 @@ fn source_card(
     let p = theme.palette;
     let s = theme.scale;
 
-    if !is_task && !is_marker {
+    let mut top_actions: Vec<AnyElement> = Vec::new();
+    if !is_task {
         let (v1, c1) = (view.clone(), comment.clone());
-        body = body.section(vec![
+        top_actions.push(
             CardAction::new(rid("edit"), Icon::Edit, labels.edit.clone())
                 .on_click(move |_, window, cx| v1.update(cx, |v, cx| v.edit(&c1, window, cx)))
                 .into_any_element(),
-        ]);
+        );
+    }
+    if !is_marker && (has_snapshots || original.is_some()) {
+        let (vo, co) = (view.clone(), comment.clone());
+        top_actions.push(
+            CardAction::new(
+                rid("view-orig"),
+                Icon::OpenBook,
+                labels.view_original.clone(),
+            )
+            .on_click(move |_, _, cx| vo.update(cx, |v, cx| v.open_snapshot_modal(&co, cx)))
+            .into_any_element(),
+        );
+    }
+    if !is_task {
+        let (vr, cr) = (view.clone(), comment.clone());
+        top_actions.push(
+            CardAction::new(rid("retarget"), Icon::KnotLinks, labels.retarget.clone())
+                .on_click(move |_, _, cx| {
+                    vr.update(cx, |v, cx| {
+                        v.retarget_for = Some(cr.clone());
+                        cx.notify();
+                    })
+                })
+                .into_any_element(),
+        );
+        if has_target {
+            let (vu, cu) = (view.clone(), comment.clone());
+            top_actions.push(
+                CardAction::new(rid("unbind"), Icon::Close, labels.unbind_target.clone())
+                    .on_click(move |_, _, cx| {
+                        vu.update(cx, |v, cx| v.retarget_comment(&cu, None, cx))
+                    })
+                    .into_any_element(),
+            );
+        }
+    }
+    if !top_actions.is_empty() {
+        body = body.section(top_actions);
     }
 
     let (v2, c2) = (view.clone(), comment.clone());
@@ -3254,7 +4182,7 @@ mod v3_write_tests {
             .as_str()
             .unwrap()
             .to_owned();
-        let view = cx.new(|_| ReviewView::new("v3-writes".into(), Some(lib.clone())));
+        let view = cx.new(|cx| ReviewView::new("v3-writes".into(), Some(lib.clone()), cx));
         let (_, cx) = cx.add_window_view(|_, _| Frame(view.clone()));
         view.update(cx, |v, cx| {
             v.show_v3(
@@ -3385,7 +4313,7 @@ mod v3_write_tests {
             .unwrap()
             .to_owned();
         call(&lib, "entry.trash", json!({"book":book,"id":trashed}));
-        let view = cx.new(|_| ReviewView::new("v3-links".into(), Some(lib.clone())));
+        let view = cx.new(|cx| ReviewView::new("v3-links".into(), Some(lib.clone()), cx));
         let (_, cx) = cx.add_window_view(|_, _| Frame(view.clone()));
         view.update(cx, |v, cx| {
             v.show_v3(

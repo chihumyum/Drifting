@@ -210,14 +210,20 @@
   },
   "commentRail": {
     "actions": {
+      "close": "Close",
       "reopen": "Reopen",
       "resolve": "Resolve"
     },
     "card": {
       "emptyComment": "Empty comment"
     },
+    "original": {
+      "changed": "Prose changed · view original"
+    },
     "snapshot": {
-      "changed": "Deleted/changed"
+      "changed": "Deleted/changed",
+      "emptyBlock": "(empty paragraph)",
+      "title": "Linked source · creation snapshot · {{count}} paragraphs"
     }
   },
   "common": {
@@ -610,6 +616,8 @@
     "retry": "Retry",
     "saved": "Exported",
     "scope": "Scope",
+    "selectAll": "Select all",
+    "selectNone": "Select none",
     "title": "Export manuscript",
     "untitledAct": "Untitled act"
   },
@@ -652,6 +660,9 @@
       "addSnippetBody": "Write in this note…"
     },
     "error": {
+      "codecStore": "Get it in the Microsoft Store",
+      "codecUnavailable": "This PC lacks the codec for {{format}} images. Install it from the Microsoft Store, then import again.",
+      "fileTooLarge": "This file is larger than the {{maxSizeMiB}} MiB material limit, so Drifting cannot copy it into the local material library.",
       "openFile": "Could not open file: {{error}}",
       "pickFailed": "Could not import file: {{error}}"
     },
@@ -1125,10 +1136,15 @@
     "filters": {
       "all": "Both"
     },
+    "groupBy": {
+      "flat": "None",
+      "target": "By location"
+    },
     "groups": {
       "deleted": "Deleted",
       "floating": "Not attached"
     },
+    "newComment": "New comment",
     "scopes": {
       "current": "Current"
     },
@@ -1145,17 +1161,37 @@
       }
     },
     "stats": {
+      "averagePerChapter": "Average per chapter",
+      "bookOverview": "Book overview",
+      "chapterLengthRhythm": "Chapter length rhythm",
+      "completion": "Completion",
+      "created": "Created",
       "dialogueRatio": "Dialogue ratio",
+      "dimensions": "Dimensions",
+      "discardedParen": " (discarded {{count}})",
+      "embeddedMaterials": "Embedded materials",
+      "fileSize": "Size",
+      "fileType": "Type",
+      "longestWithWords": "Longest · {{title}} ({{words}} words)",
+      "materialCoordinates": "Material",
+      "materialFile": "File",
       "name": "Name",
+      "openComments": "Open comments & TODOs",
       "paragraphSentence": "Paragraphs / sentences",
       "paragraphSentenceValue": "{{paragraphs}} paragraphs · {{sentences}} sentences",
       "recent": "Recent",
+      "references": "References",
+      "shortestWithWords": "Shortest · {{title}} ({{words}} words)",
       "snapshotButton": "History snapshots…",
+      "statusCount": "{{status}} {{count}} chapters",
       "storyline": "Storyline",
+      "thisChapterElements": "Elements in this chapter",
+      "unappearedElements": "Unappeared elements",
       "updated": "Updated",
       "wordRhythm": "Words · rhythm",
       "wordsValue": "{{count}} words",
-      "writingProgress": "Writing progress"
+      "writingProgress": "Writing progress",
+      "writtenTarget": "Written / target"
     },
     "status": {
       "draft": "Draft"
@@ -1586,8 +1622,14 @@
         "allProjects": "All projects",
         "allProjectsUnset": "All projects · No location chosen",
         "choose": "Choose folder",
+        "copied": "Path copied",
+        "copy": "Copy path",
+        "error": "Update failed",
         "offHint": "Off: projects no longer write Markdown and outside edits no longer merge back. Existing files stay where they are.",
         "offTitle": "Turn off the Markdown folder?",
+        "pending": "Updating",
+        "ready": "Up to date",
+        "refresh": "Update now",
         "reveal": "Show in Finder",
         "title": "Markdown folder",
         "turnOff": "Turn off Markdown folder",
@@ -1886,9 +1928,15 @@
     "originTask": "Checklist",
     "regionPlace": "Region",
     "regionPlacePaged": "Page {{page}}",
+    "retarget": "Retarget…",
+    "sortNewest": "Newest first",
+    "sortOldest": "Oldest first",
+    "sortPosition": "By position",
     "statusOpen": "Open",
     "statusResolved": "Resolved",
+    "unbindTarget": "Unbind target",
     "unlocated": "Original place missing",
+    "viewOriginal": "View original",
     "wholeFile": "Whole file",
     "writeComment": "Write comment"
   },
@@ -2012,9 +2060,11 @@
     "alignRight": "Right",
     "allFolders": "All",
     "clearField": "Clear",
+    "collapseAll": "Collapse all",
     "currentSection": "Current",
     "empty": "No files",
     "empty_trash": "Empty",
+    "expandAll": "Expand all",
     "fileCount_one": "{{count}} file",
     "fileCount_other": "{{count}} files",
     "findFile": "Find file",
@@ -2114,6 +2164,16 @@
     "direction": "Direction",
     "otherEntry": "Other entry",
     "relation": "Relation"
+  },
+  "v5Stats": {
+    "childrenAggregate": "Subtree summary",
+    "entryCoordinates": "Entry coordinates",
+    "groupRhythm": "Group rhythm",
+    "inboundLinks": "Referenced by",
+    "outboundLinks": "References",
+    "projectOverview": "Project overview",
+    "templatesTotal": "Templates",
+    "unreferencedNote": "Not yet referenced in prose"
   },
   "v5Tour": {
     "agent": {

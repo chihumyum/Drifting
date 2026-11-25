@@ -210,14 +210,20 @@
   },
   "commentRail": {
     "actions": {
+      "close": "Schließen",
       "reopen": "Erneut öffnen",
       "resolve": "Erledigen"
     },
     "card": {
       "emptyComment": "Leerer Kommentar"
     },
+    "original": {
+      "changed": "Text geändert · Original anzeigen"
+    },
     "snapshot": {
-      "changed": "Gelöscht/geändert"
+      "changed": "Gelöscht/geändert",
+      "emptyBlock": "(leerer Absatz)",
+      "title": "Verknüpfte Quelle · Snapshot bei Erstellung · {{count}} Absätze"
     }
   },
   "common": {
@@ -610,6 +616,8 @@
     "retry": "Erneut versuchen",
     "saved": "Exportiert",
     "scope": "Umfang",
+    "selectAll": "Alles auswählen",
+    "selectNone": "Auswahl aufheben",
     "title": "Manuskript exportieren",
     "untitledAct": "Unbenannter Akt"
   },
@@ -652,6 +660,9 @@
       "addSnippetBody": "In diese Notiz schreiben…"
     },
     "error": {
+      "codecStore": "Im Microsoft Store holen",
+      "codecUnavailable": "Diesem PC fehlt der Codec für {{format}}-Bilder. Installiere ihn aus dem Microsoft Store und importiere erneut.",
+      "fileTooLarge": "Die Datei überschreitet die Grenze von {{maxSizeMiB}} MiB und kann nicht in die lokale Materialsammlung kopiert werden.",
       "openFile": "Datei konnte nicht geöffnet werden: {{error}}",
       "pickFailed": "Datei konnte nicht importiert werden: {{error}}"
     },
@@ -1125,10 +1136,15 @@
     "filters": {
       "all": "Beides"
     },
+    "groupBy": {
+      "flat": "Keine",
+      "target": "Nach Position"
+    },
     "groups": {
       "deleted": "Gelöscht",
       "floating": "Nicht angehängt"
     },
+    "newComment": "Neuer Kommentar",
     "scopes": {
       "current": "Aktuell"
     },
@@ -1145,17 +1161,37 @@
       }
     },
     "stats": {
+      "averagePerChapter": "Durchschnitt pro Kapitel",
+      "bookOverview": "Buchübersicht",
+      "chapterLengthRhythm": "Rhythmus der Kapitellängen",
+      "completion": "Fertigstellung",
+      "created": "Erstellt",
       "dialogueRatio": "Dialoganteil",
+      "dimensions": "Abmessungen",
+      "discardedParen": " (verworfen {{count}})",
+      "embeddedMaterials": "Eingebettete Materialien",
+      "fileSize": "Größe",
+      "fileType": "Typ",
+      "longestWithWords": "Längstes · {{title}} ({{words}} Wörter)",
+      "materialCoordinates": "Material",
+      "materialFile": "Datei",
       "name": "Name",
+      "openComments": "Offene Kommentare und Aufgaben",
       "paragraphSentence": "Absätze / Sätze",
       "paragraphSentenceValue": "{{paragraphs}} Absätze · {{sentences}} Sätze",
       "recent": "Zuletzt",
+      "references": "Referenzen",
+      "shortestWithWords": "Kürzestes · {{title}} ({{words}} Wörter)",
       "snapshotButton": "Verlaufsschnappschüsse…",
+      "statusCount": "{{status}} {{count}} Kapitel",
       "storyline": "Handlungsstrang",
+      "thisChapterElements": "Elemente in diesem Kapitel",
+      "unappearedElements": "Noch nicht aufgetretene Elemente",
       "updated": "Aktualisiert",
       "wordRhythm": "Wörter · Rhythmus",
       "wordsValue": "{{count}} Wörter",
-      "writingProgress": "Schreibfortschritt"
+      "writingProgress": "Schreibfortschritt",
+      "writtenTarget": "Geschrieben / Ziel"
     },
     "status": {
       "draft": "Entwurf"
@@ -1586,8 +1622,14 @@
         "allProjects": "Alle Projekte",
         "allProjectsUnset": "Alle Projekte · Kein Speicherort gewählt",
         "choose": "Ordner auswählen",
+        "copied": "Pfad kopiert",
+        "copy": "Pfad kopieren",
+        "error": "Aktualisierung fehlgeschlagen",
         "offHint": "Deaktiviert: kein Markdown-Export und keine Übernahme externer Änderungen. Vorhandene Dateien bleiben erhalten.",
         "offTitle": "Markdown-Ordner deaktivieren?",
+        "pending": "Wird aktualisiert",
+        "ready": "Aktuell",
+        "refresh": "Jetzt aktualisieren",
         "reveal": "Im Finder anzeigen",
         "title": "Markdown-Ordner",
         "turnOff": "Markdown-Ordner deaktivieren",
@@ -1886,9 +1928,15 @@
     "originTask": "Checkliste",
     "regionPlace": "Bereich",
     "regionPlacePaged": "Seite {{page}}",
+    "retarget": "Ziel ändern…",
+    "sortNewest": "Neueste zuerst",
+    "sortOldest": "Älteste zuerst",
+    "sortPosition": "Nach Position",
     "statusOpen": "Offen",
     "statusResolved": "Gelöst",
+    "unbindTarget": "Verknüpfung lösen",
     "unlocated": "Ursprungsort fehlt",
+    "viewOriginal": "Original anzeigen",
     "wholeFile": "Ganze Datei",
     "writeComment": "Kommentar schreiben"
   },
@@ -2012,9 +2060,11 @@
     "alignRight": "Rechts",
     "allFolders": "Alle",
     "clearField": "Leeren",
+    "collapseAll": "Alle einklappen",
     "currentSection": "Aktuell",
     "empty": "Keine Dateien",
     "empty_trash": "Leeren",
+    "expandAll": "Alle ausklappen",
     "fileCount_one": "{{count}} Datei",
     "fileCount_other": "{{count}} Dateien",
     "findFile": "Datei suchen",
@@ -2114,6 +2164,16 @@
     "direction": "Richtung",
     "otherEntry": "Anderer Eintrag",
     "relation": "Beziehung"
+  },
+  "v5Stats": {
+    "childrenAggregate": "Untereinträge",
+    "entryCoordinates": "Eintragsposition",
+    "groupRhythm": "Gruppenrhythmus",
+    "inboundLinks": "Verwiesen von",
+    "outboundLinks": "Verweise",
+    "projectOverview": "Projektübersicht",
+    "templatesTotal": "Vorlagen",
+    "unreferencedNote": "Im Text noch nicht verlinkt"
   },
   "v5Tour": {
     "agent": {

@@ -680,9 +680,15 @@
     "originTask": "Liste",
     "regionPlace": "Zone",
     "regionPlacePaged": "Page {{page}}",
+    "retarget": "Changer la cible…",
+    "sortNewest": "Plus récents",
+    "sortOldest": "Plus anciens",
+    "sortPosition": "Par position",
     "statusOpen": "Ouverts",
     "statusResolved": "Résolus",
+    "unbindTarget": "Détacher la cible",
     "unlocated": "Emplacement introuvable",
+    "viewOriginal": "Voir l'original",
     "wholeFile": "Fichier entier",
     "writeComment": "Écrire un commentaire"
   },
@@ -806,9 +812,11 @@
     "alignRight": "Droite",
     "allFolders": "Tout",
     "clearField": "Effacer",
+    "collapseAll": "Tout replier",
     "currentSection": "Actuel",
     "empty": "Aucun fichier",
     "empty_trash": "Vider",
+    "expandAll": "Tout déplier",
     "fileCount_one": "{{count}} fichier",
     "fileCount_other": "{{count}} fichiers",
     "findFile": "Chercher un fichier",
@@ -908,6 +916,16 @@
     "direction": "Sens",
     "otherEntry": "Autre entrée",
     "relation": "Relation"
+  },
+  "v5Stats": {
+    "childrenAggregate": "Résumé des enfants",
+    "entryCoordinates": "Coordonnées",
+    "groupRhythm": "Rythme par groupe",
+    "inboundLinks": "Référencé par",
+    "outboundLinks": "Références",
+    "projectOverview": "Aperçu du projet",
+    "templatesTotal": "Modèles",
+    "unreferencedNote": "Pas encore mentionné dans le texte"
   },
   "v5Tour": {
     "agent": {

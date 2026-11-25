@@ -1825,6 +1825,7 @@ dependencies = [
  "base64 0.22.1",
  "dr-doc",
  "dr-model",
+ "dr-platform",
  "dr-store",
  "dr-testkit",
  "dr-workspace",

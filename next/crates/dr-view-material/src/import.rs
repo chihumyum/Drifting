@@ -374,6 +374,9 @@ pub fn import_path(
         // The asset library takes no image without its size (`asset.put`):
         // a damaged file, or a HEIC or AVIF this system cannot decode, is
         // skipped before its bytes are copied in, not after.
+        if let Some(sys_fmt) = system_format_of(path) {
+            return Err(format!("codec:{}", sys_fmt.ext().to_ascii_uppercase()));
+        }
         return Err("the image's size cannot be read".into());
     }
     let asset = dr_model::id::new_uuid_v7();

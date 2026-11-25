@@ -669,9 +669,15 @@
     "originTask": "清單",
     "regionPlace": "框選",
     "regionPlacePaged": "第 {{page}} 頁",
+    "retarget": "重新綁定目標…",
+    "sortNewest": "最新優先",
+    "sortOldest": "最早優先",
+    "sortPosition": "按位置",
     "statusOpen": "未解決",
     "statusResolved": "已解決",
+    "unbindTarget": "解除綁定",
     "unlocated": "找不到原處",
+    "viewOriginal": "查看原文",
     "wholeFile": "整個檔案",
     "writeComment": "寫批註"
   },
@@ -794,9 +800,11 @@
     "alignRight": "靠右",
     "allFolders": "全部",
     "clearField": "清除",
+    "collapseAll": "全部收起",
     "currentSection": "當前",
     "empty": "無檔案",
     "empty_trash": "清空",
+    "expandAll": "全部展開",
     "fileCount_other": "{{count}} 個檔案",
     "findFile": "找檔案",
     "itemCount_other": "{{count}} 個",
@@ -886,6 +894,16 @@
     "direction": "方向",
     "otherEntry": "另一個條目",
     "relation": "關係"
+  },
+  "v5Stats": {
+    "childrenAggregate": "下級彙總",
+    "entryCoordinates": "條目座標",
+    "groupRhythm": "分組節奏",
+    "inboundLinks": "被引用",
+    "outboundLinks": "引用其他",
+    "projectOverview": "專案概況",
+    "templatesTotal": "範本數",
+    "unreferencedNote": "正文尚未引用"
   },
   "v5Tour": {
     "agent": {

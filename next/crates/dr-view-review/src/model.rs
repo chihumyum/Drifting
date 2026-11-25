@@ -56,6 +56,61 @@ impl OriginFilter {
         }
     }
 }
+/// Sort order for review items inside each group (or flat list).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum SortOrder {
+    #[default]
+    Position,
+    Newest,
+    Oldest,
+}
+impl SortOrder {
+    pub const ALL: [Self; 3] = [Self::Position, Self::Newest, Self::Oldest];
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Position => "position",
+            Self::Newest => "newest",
+            Self::Oldest => "oldest",
+        }
+    }
+    pub fn parse(raw: &str) -> Option<Self> {
+        match raw {
+            "position" => Some(Self::Position),
+            "newest" => Some(Self::Newest),
+            "oldest" => Some(Self::Oldest),
+            _ => None,
+        }
+    }
+    pub fn next(self) -> Self {
+        match self {
+            Self::Position => Self::Newest,
+            Self::Newest => Self::Oldest,
+            Self::Oldest => Self::Position,
+        }
+    }
+}
+/// Whether review items are grouped by target or shown as a single flat list.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum GroupMode {
+    #[default]
+    ByTarget,
+    Flat,
+}
+impl GroupMode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::ByTarget => "target",
+            Self::Flat => "flat",
+        }
+    }
+    pub fn parse(raw: &str) -> Option<Self> {
+        match raw {
+            "target" => Some(Self::ByTarget),
+            "flat" => Some(Self::Flat),
+            _ => None,
+        }
+    }
+}
 /// Where a group's items are.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Place {

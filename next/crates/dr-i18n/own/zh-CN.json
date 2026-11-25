@@ -666,9 +666,15 @@
     "originTask": "清单",
     "regionPlace": "框选",
     "regionPlacePaged": "第 {{page}} 页",
+    "retarget": "改绑目标…",
+    "sortNewest": "最新优先",
+    "sortOldest": "最早优先",
+    "sortPosition": "按位置",
     "statusOpen": "未解决",
     "statusResolved": "已解决",
+    "unbindTarget": "解除绑定",
     "unlocated": "找不到原处",
+    "viewOriginal": "查看原文",
     "wholeFile": "整个文件",
     "writeComment": "写批注"
   },
@@ -791,9 +797,11 @@
     "alignRight": "靠右",
     "allFolders": "全部",
     "clearField": "清除",
+    "collapseAll": "全部收起",
     "currentSection": "当前",
     "empty": "无文件",
     "empty_trash": "清空",
+    "expandAll": "全部展开",
     "fileCount_other": "{{count}} 个文件",
     "findFile": "找文件",
     "itemCount_other": "{{count}} 个",
@@ -883,6 +891,16 @@
     "direction": "方向",
     "otherEntry": "另一个条目",
     "relation": "关系"
+  },
+  "v5Stats": {
+    "childrenAggregate": "下级聚合",
+    "entryCoordinates": "条目坐标",
+    "groupRhythm": "分组节奏",
+    "inboundLinks": "被引用",
+    "outboundLinks": "引用其他",
+    "projectOverview": "项目概况",
+    "templatesTotal": "模板数",
+    "unreferencedNote": "正文尚未引用"
   },
   "v5Tour": {
     "agent": {

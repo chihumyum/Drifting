@@ -210,14 +210,20 @@
   },
   "commentRail": {
     "actions": {
+      "close": "閉じる",
       "reopen": "開き直す",
       "resolve": "解決済みにする"
     },
     "card": {
       "emptyComment": "空のコメント"
     },
+    "original": {
+      "changed": "本文は変更済み · 原文を表示"
+    },
     "snapshot": {
-      "changed": "削除／変更済み"
+      "changed": "削除／変更済み",
+      "emptyBlock": "（空の段落）",
+      "title": "リンク先の出典 · 作成時のスナップショット · {{count}}段落"
     }
   },
   "common": {
@@ -602,6 +608,8 @@
     "retry": "再試行",
     "saved": "エクスポートしました",
     "scope": "対象範囲",
+    "selectAll": "すべて選択",
+    "selectNone": "選択をすべて解除",
     "title": "原稿をエクスポート",
     "untitledAct": "無題の幕"
   },
@@ -644,6 +652,9 @@
       "addSnippetBody": "このメモに書く…"
     },
     "error": {
+      "codecStore": "Microsoft Store で入手",
+      "codecUnavailable": "この PC には {{format}} 画像のコーデックがありません。Microsoft Store から入手してから、もう一度読み込んでください。",
+      "fileTooLarge": "ファイルが上限の{{maxSizeMiB}} MiBを超えており、ローカル資料庫にコピーできません。",
       "openFile": "ファイルを開けません：{{error}}",
       "pickFailed": "ファイルをインポートできません：{{error}}"
     },
@@ -1117,10 +1128,15 @@
     "filters": {
       "all": "両方"
     },
+    "groupBy": {
+      "flat": "なし",
+      "target": "場所別"
+    },
     "groups": {
       "deleted": "削除済み",
       "floating": "未添付"
     },
+    "newComment": "新しいコメント",
     "scopes": {
       "current": "現在"
     },
@@ -1137,17 +1153,37 @@
       }
     },
     "stats": {
+      "averagePerChapter": "1章の平均",
+      "bookOverview": "全編一覧",
+      "chapterLengthRhythm": "章の長さのリズム",
+      "completion": "完成度",
+      "created": "作成済み",
       "dialogueRatio": "会話の割合",
+      "dimensions": "寸法",
+      "discardedParen": "（不採用{{count}}）",
+      "embeddedMaterials": "埋め込み資料",
+      "fileSize": "サイズ",
+      "fileType": "種類",
+      "longestWithWords": "最長・{{title}}（{{words}}文字）",
+      "materialCoordinates": "資料",
+      "materialFile": "ファイル",
       "name": "名前",
+      "openComments": "未解決コメントとTODO",
       "paragraphSentence": "段落／文",
       "paragraphSentenceValue": "{{paragraphs}}段落・{{sentences}}文",
       "recent": "最近",
+      "references": "参照",
+      "shortestWithWords": "最短・{{title}}（{{words}}文字）",
       "snapshotButton": "履歴スナップショット…",
+      "statusCount": "{{status}} {{count}}章",
       "storyline": "ストーリーライン",
+      "thisChapterElements": "この章の要素",
+      "unappearedElements": "未登場の要素",
       "updated": "更新済み",
       "wordRhythm": "文字数・リズム",
       "wordsValue": "{{count}}文字",
-      "writingProgress": "執筆の進捗"
+      "writingProgress": "執筆の進捗",
+      "writtenTarget": "執筆済み／目標"
     },
     "status": {
       "draft": "下書き"
@@ -1578,8 +1614,14 @@
         "allProjects": "全作品",
         "allProjectsUnset": "全作品・場所が未選択",
         "choose": "フォルダを選択",
+        "copied": "パスをコピーしました",
+        "copy": "パスをコピー",
+        "error": "更新失敗",
         "offHint": "無効：Markdownを出力せず、外部編集も統合しません。既存ファイルは元の場所に残ります。",
         "offTitle": "Markdownフォルダを無効にしますか？",
+        "pending": "更新中",
+        "ready": "最新です",
+        "refresh": "今すぐ更新",
         "reveal": "Finderで表示",
         "title": "Markdownフォルダ",
         "turnOff": "Markdownフォルダを無効化",
@@ -1878,9 +1920,15 @@
     "originTask": "チェックリスト",
     "regionPlace": "選択範囲",
     "regionPlacePaged": "{{page}} ページ",
+    "retarget": "紐付け先を変更…",
+    "sortNewest": "新しい順",
+    "sortOldest": "古い順",
+    "sortPosition": "位置順",
     "statusOpen": "未解決",
     "statusResolved": "解決済み",
+    "unbindTarget": "紐付けを解除",
     "unlocated": "元の場所が見つかりません",
+    "viewOriginal": "原文を表示",
     "wholeFile": "ファイル全体",
     "writeComment": "コメントを書く"
   },
@@ -2003,9 +2051,11 @@
     "alignRight": "右寄せ",
     "allFolders": "すべて",
     "clearField": "クリア",
+    "collapseAll": "すべて折りたたむ",
     "currentSection": "現在",
     "empty": "ファイルなし",
     "empty_trash": "空にする",
+    "expandAll": "すべて展開",
     "fileCount_other": "{{count}} 件のファイル",
     "findFile": "ファイルを検索",
     "itemCount_other": "{{count}} 件",
@@ -2095,6 +2145,16 @@
     "direction": "方向",
     "otherEntry": "相手の項目",
     "relation": "関係"
+  },
+  "v5Stats": {
+    "childrenAggregate": "配下の集計",
+    "entryCoordinates": "項目の位置",
+    "groupRhythm": "グループ構成",
+    "inboundLinks": "被参照",
+    "outboundLinks": "参照先",
+    "projectOverview": "プロジェクト概要",
+    "templatesTotal": "テンプレート数",
+    "unreferencedNote": "本文ではまだ参照されていません"
   },
   "v5Tour": {
     "agent": {

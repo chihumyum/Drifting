@@ -677,9 +677,15 @@
     "originTask": "Checklist",
     "regionPlace": "Region",
     "regionPlacePaged": "Page {{page}}",
+    "retarget": "Retarget…",
+    "sortNewest": "Newest first",
+    "sortOldest": "Oldest first",
+    "sortPosition": "By position",
     "statusOpen": "Open",
     "statusResolved": "Resolved",
+    "unbindTarget": "Unbind target",
     "unlocated": "Original place missing",
+    "viewOriginal": "View original",
     "wholeFile": "Whole file",
     "writeComment": "Write comment"
   },
@@ -803,9 +809,11 @@
     "alignRight": "Right",
     "allFolders": "All",
     "clearField": "Clear",
+    "collapseAll": "Collapse all",
     "currentSection": "Current",
     "empty": "No files",
     "empty_trash": "Empty",
+    "expandAll": "Expand all",
     "fileCount_one": "{{count}} file",
     "fileCount_other": "{{count}} files",
     "findFile": "Find file",
@@ -905,6 +913,16 @@
     "direction": "Direction",
     "otherEntry": "Other entry",
     "relation": "Relation"
+  },
+  "v5Stats": {
+    "childrenAggregate": "Subtree summary",
+    "entryCoordinates": "Entry coordinates",
+    "groupRhythm": "Group rhythm",
+    "inboundLinks": "Referenced by",
+    "outboundLinks": "References",
+    "projectOverview": "Project overview",
+    "templatesTotal": "Templates",
+    "unreferencedNote": "Not yet referenced in prose"
   },
   "v5Tour": {
     "agent": {

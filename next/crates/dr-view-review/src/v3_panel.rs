@@ -11,6 +11,7 @@ use crate::v3::{Snapshot, Target};
 pub type Open = Rc<dyn Fn(Target, &mut Window, &mut App)>;
 pub type OpenAgent = Rc<dyn Fn(CompanionFocusRequest, &mut Window, &mut App)>;
 pub type Marks = Rc<dyn Fn(&Target) -> Option<dr_ui::sand::Kind>>;
+pub type MarkColors = Rc<dyn Fn(&Target) -> Option<dr_ui::tokens::Rgb>>;
 
 pub(crate) struct State {
     pub scope: Option<Target>,
@@ -18,6 +19,14 @@ pub(crate) struct State {
     pub open: Open,
     pub open_agent: Option<OpenAgent>,
     pub marks: Marks,
+    pub mark_colors: Option<MarkColors>,
+}
+
+/// Wires entry/material color lookup for group header `KindMark`s.
+pub fn set_mark_colors(id: &str, mark_colors: Option<MarkColors>, cx: &mut App) {
+    if let Some(view) = crate::ensure_view(id, cx) {
+        view.update(cx, |v, _| v.set_mark_colors(mark_colors));
+    }
 }
 
 /// Wires the host callback that switches a pane from Review to Agent for a comment's conversation.

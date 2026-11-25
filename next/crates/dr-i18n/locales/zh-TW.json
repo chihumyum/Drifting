@@ -210,14 +210,20 @@
   },
   "commentRail": {
     "actions": {
+      "close": "關閉",
       "reopen": "重新開啟",
       "resolve": "標為已解決"
     },
     "card": {
       "emptyComment": "空白註解"
     },
+    "original": {
+      "changed": "正文已變更 · 檢視原文"
+    },
     "snapshot": {
-      "changed": "已刪除／變更"
+      "changed": "已刪除／變更",
+      "emptyBlock": "（空白段落）",
+      "title": "連結來源 · 建立時的快照 · {{count}} 段"
     }
   },
   "common": {
@@ -602,6 +608,8 @@
     "retry": "重試",
     "saved": "已匯出",
     "scope": "範圍",
+    "selectAll": "全選",
+    "selectNone": "全部取消選取",
     "title": "匯出書稿",
     "untitledAct": "未命名幕"
   },
@@ -644,6 +652,9 @@
       "addSnippetBody": "在此筆記中寫作…"
     },
     "error": {
+      "codecStore": "在 Microsoft Store 取得",
+      "codecUnavailable": "這台電腦缺少 {{format}} 圖片的解碼延伸模組，可從 Microsoft Store 安裝後再匯入。",
+      "fileTooLarge": "此檔案超過素材上限 {{maxSizeMiB}} MiB，Drifting 無法將其複製至本機素材庫。",
       "openFile": "無法開啟檔案：{{error}}",
       "pickFailed": "無法匯入檔案：{{error}}"
     },
@@ -1117,10 +1128,15 @@
     "filters": {
       "all": "兩者皆用"
     },
+    "groupBy": {
+      "flat": "無",
+      "target": "依位置"
+    },
     "groups": {
       "deleted": "已刪除",
       "floating": "未附加"
     },
+    "newComment": "新增註解",
     "scopes": {
       "current": "目前"
     },
@@ -1137,17 +1153,37 @@
       }
     },
     "stats": {
+      "averagePerChapter": "平均每章",
+      "bookOverview": "全書總覽",
+      "chapterLengthRhythm": "章節篇幅節奏",
+      "completion": "完成度",
+      "created": "已建立",
       "dialogueRatio": "對話比例",
+      "dimensions": "尺寸",
+      "discardedParen": "（已棄用 {{count}}）",
+      "embeddedMaterials": "嵌入素材",
+      "fileSize": "大小",
+      "fileType": "類型",
+      "longestWithWords": "最長 · {{title}}（{{words}} 字）",
+      "materialCoordinates": "素材",
+      "materialFile": "檔案",
       "name": "名稱",
+      "openComments": "未解決批註與待辦",
       "paragraphSentence": "段落／句子",
       "paragraphSentenceValue": "{{paragraphs}} 段 · {{sentences}} 句",
       "recent": "近期",
+      "references": "引用",
+      "shortestWithWords": "最短 · {{title}}（{{words}} 字）",
       "snapshotButton": "歷史快照…",
+      "statusCount": "{{status}} {{count}} 章",
       "storyline": "故事線",
+      "thisChapterElements": "此章中的要素",
+      "unappearedElements": "尚未登場的要素",
       "updated": "已更新",
       "wordRhythm": "字數 · 節奏",
       "wordsValue": "{{count}} 字",
-      "writingProgress": "寫作進度"
+      "writingProgress": "寫作進度",
+      "writtenTarget": "已寫／目標"
     },
     "status": {
       "draft": "草稿"
@@ -1578,8 +1614,14 @@
         "allProjects": "所有作品",
         "allProjectsUnset": "所有作品 · 未選擇位置",
         "choose": "選擇資料夾",
+        "copied": "已複製路徑",
+        "copy": "複製路徑",
+        "error": "更新失敗",
         "offHint": "已關閉：作品不再寫入 Markdown，外部修改也不再合併回來。現有檔案保留原處。",
         "offTitle": "要關閉 Markdown 資料夾嗎？",
+        "pending": "更新中",
+        "ready": "已是最新",
+        "refresh": "立即更新",
         "reveal": "在 Finder 中顯示",
         "title": "Markdown 資料夾",
         "turnOff": "關閉 Markdown 資料夾",
@@ -1878,9 +1920,15 @@
     "originTask": "清單",
     "regionPlace": "框選",
     "regionPlacePaged": "第 {{page}} 頁",
+    "retarget": "重新綁定目標…",
+    "sortNewest": "最新優先",
+    "sortOldest": "最早優先",
+    "sortPosition": "按位置",
     "statusOpen": "未解決",
     "statusResolved": "已解決",
+    "unbindTarget": "解除綁定",
     "unlocated": "找不到原處",
+    "viewOriginal": "查看原文",
     "wholeFile": "整個檔案",
     "writeComment": "寫批註"
   },
@@ -2003,9 +2051,11 @@
     "alignRight": "靠右",
     "allFolders": "全部",
     "clearField": "清除",
+    "collapseAll": "全部收起",
     "currentSection": "當前",
     "empty": "無檔案",
     "empty_trash": "清空",
+    "expandAll": "全部展開",
     "fileCount_other": "{{count}} 個檔案",
     "findFile": "找檔案",
     "itemCount_other": "{{count}} 個",
@@ -2095,6 +2145,16 @@
     "direction": "方向",
     "otherEntry": "另一個條目",
     "relation": "關係"
+  },
+  "v5Stats": {
+    "childrenAggregate": "下級彙總",
+    "entryCoordinates": "條目座標",
+    "groupRhythm": "分組節奏",
+    "inboundLinks": "被引用",
+    "outboundLinks": "引用其他",
+    "projectOverview": "專案概況",
+    "templatesTotal": "範本數",
+    "unreferencedNote": "正文尚未引用"
   },
   "v5Tour": {
     "agent": {

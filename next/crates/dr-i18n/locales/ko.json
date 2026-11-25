@@ -210,14 +210,20 @@
   },
   "commentRail": {
     "actions": {
+      "close": "닫기",
       "reopen": "다시 열기",
       "resolve": "해결 처리"
     },
     "card": {
       "emptyComment": "빈 댓글"
     },
+    "original": {
+      "changed": "본문 변경됨 · 원문 보기"
+    },
     "snapshot": {
-      "changed": "삭제됨/변경됨"
+      "changed": "삭제됨/변경됨",
+      "emptyBlock": "(빈 문단)",
+      "title": "연결된 출처 · 생성 시점 스냅샷 · 문단 {{count}}개"
     }
   },
   "common": {
@@ -602,6 +608,8 @@
     "retry": "다시 시도",
     "saved": "내보냈습니다",
     "scope": "범위",
+    "selectAll": "모두 선택",
+    "selectNone": "모두 선택 해제",
     "title": "원고 내보내기",
     "untitledAct": "제목 없는 막"
   },
@@ -644,6 +652,9 @@
       "addSnippetBody": "이 메모에 쓰기…"
     },
     "error": {
+      "codecStore": "Microsoft Store에서 받기",
+      "codecUnavailable": "이 PC에는 {{format}} 이미지 코덱이 없습니다. Microsoft Store에서 설치한 뒤 다시 가져오세요.",
+      "fileTooLarge": "파일이 자료 제한인 {{maxSizeMiB}} MiB를 초과하여 로컬 자료실에 복사할 수 없습니다.",
       "openFile": "파일을 열 수 없음: {{error}}",
       "pickFailed": "파일을 가져올 수 없음: {{error}}"
     },
@@ -1117,10 +1128,15 @@
     "filters": {
       "all": "둘 다"
     },
+    "groupBy": {
+      "flat": "없음",
+      "target": "위치별"
+    },
     "groups": {
       "deleted": "삭제됨",
       "floating": "연결되지 않음"
     },
+    "newComment": "새 댓글",
     "scopes": {
       "current": "현재"
     },
@@ -1137,17 +1153,37 @@
       }
     },
     "stats": {
+      "averagePerChapter": "장별 평균",
+      "bookOverview": "작품 전체 보기",
+      "chapterLengthRhythm": "장 길이 리듬",
+      "completion": "완성도",
+      "created": "생성됨",
       "dialogueRatio": "대화 비율",
+      "dimensions": "규격",
+      "discardedParen": " (폐기 {{count}})",
+      "embeddedMaterials": "삽입된 자료",
+      "fileSize": "크기",
+      "fileType": "유형",
+      "longestWithWords": "가장 긴 장 · {{title}}({{words}}자)",
+      "materialCoordinates": "자료",
+      "materialFile": "파일",
       "name": "이름",
+      "openComments": "미해결 댓글 및 할 일",
       "paragraphSentence": "문단 / 문장",
       "paragraphSentenceValue": "{{paragraphs}}문단 · {{sentences}}문장",
       "recent": "최근",
+      "references": "참조",
+      "shortestWithWords": "가장 짧은 장 · {{title}}({{words}}자)",
       "snapshotButton": "기록 스냅샷…",
+      "statusCount": "{{status}} {{count}}장",
       "storyline": "스토리라인",
+      "thisChapterElements": "이 장의 요소",
+      "unappearedElements": "미등장 요소",
       "updated": "업데이트됨",
       "wordRhythm": "글자 수 · 리듬",
       "wordsValue": "{{count}}자",
-      "writingProgress": "집필 진행률"
+      "writingProgress": "집필 진행률",
+      "writtenTarget": "작성 / 목표"
     },
     "status": {
       "draft": "초안"
@@ -1578,8 +1614,14 @@
         "allProjects": "모든 작품",
         "allProjectsUnset": "모든 작품 · 위치를 선택하지 않음",
         "choose": "폴더 선택",
+        "copied": "경로를 복사했습니다",
+        "copy": "경로 복사",
+        "error": "업데이트 실패",
         "offHint": "꺼짐: Markdown을 기록하지 않고 외부 수정도 병합하지 않습니다. 기존 파일은 그대로 남습니다.",
         "offTitle": "Markdown 폴더를 끌까요?",
+        "pending": "업데이트 중",
+        "ready": "최신 상태",
+        "refresh": "지금 업데이트",
         "reveal": "Finder에서 보기",
         "title": "Markdown 폴더",
         "turnOff": "Markdown 폴더 끄기",
@@ -1878,9 +1920,15 @@
     "originTask": "체크리스트",
     "regionPlace": "영역",
     "regionPlacePaged": "{{page}}쪽",
+    "retarget": "대상 변경…",
+    "sortNewest": "최신순",
+    "sortOldest": "오래된순",
+    "sortPosition": "위치순",
     "statusOpen": "미해결",
     "statusResolved": "해결됨",
+    "unbindTarget": "연결 해제",
     "unlocated": "원래 위치를 찾을 수 없음",
+    "viewOriginal": "원문 보기",
     "wholeFile": "파일 전체",
     "writeComment": "메모 작성"
   },
@@ -2003,9 +2051,11 @@
     "alignRight": "오른쪽",
     "allFolders": "전체",
     "clearField": "지우기",
+    "collapseAll": "모두 접기",
     "currentSection": "현재",
     "empty": "파일 없음",
     "empty_trash": "비우기",
+    "expandAll": "모두 펼치기",
     "fileCount_other": "파일 {{count}}개",
     "findFile": "파일 찾기",
     "itemCount_other": "{{count}}개",
@@ -2095,6 +2145,16 @@
     "direction": "방향",
     "otherEntry": "다른 항목",
     "relation": "관계"
+  },
+  "v5Stats": {
+    "childrenAggregate": "하위 요약",
+    "entryCoordinates": "항목 좌표",
+    "groupRhythm": "그룹 리듬",
+    "inboundLinks": "역참조",
+    "outboundLinks": "참조 항목",
+    "projectOverview": "프로젝트 개요",
+    "templatesTotal": "템플릿 수",
+    "unreferencedNote": "본문에서 아직 참조되지 않음"
   },
   "v5Tour": {
     "agent": {

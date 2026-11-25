@@ -212,14 +212,20 @@
   },
   "commentRail": {
     "actions": {
+      "close": "Fechar",
       "reopen": "Reabrir",
       "resolve": "Resolver"
     },
     "card": {
       "emptyComment": "Comentário vazio"
     },
+    "original": {
+      "changed": "Texto alterado · ver original"
+    },
     "snapshot": {
-      "changed": "Excluído/alterado"
+      "changed": "Excluído/alterado",
+      "emptyBlock": "(parágrafo vazio)",
+      "title": "Origem vinculada · instantâneo da criação · {{count}} parágrafos"
     }
   },
   "common": {
@@ -613,6 +619,8 @@
     "retry": "Tentar novamente",
     "saved": "Exportado",
     "scope": "Escopo",
+    "selectAll": "Selecionar tudo",
+    "selectNone": "Desmarcar tudo",
     "title": "Exportar manuscrito",
     "untitledAct": "Ato sem título"
   },
@@ -655,6 +663,9 @@
       "addSnippetBody": "Escreva nesta nota…"
     },
     "error": {
+      "codecStore": "Obter na Microsoft Store",
+      "codecUnavailable": "Este PC não tem o codec para imagens {{format}}. Instale-o pela Microsoft Store e importe de novo.",
+      "fileTooLarge": "O arquivo excede o limite de {{maxSizeMiB}} MiB; o Drifting não pode copiá-lo para a biblioteca local.",
       "openFile": "Não foi possível abrir o arquivo: {{error}}",
       "pickFailed": "Não foi possível importar o arquivo: {{error}}"
     },
@@ -1135,10 +1146,15 @@
     "filters": {
       "all": "Ambos"
     },
+    "groupBy": {
+      "flat": "Nenhum",
+      "target": "Por localização"
+    },
     "groups": {
       "deleted": "Excluídos",
       "floating": "Não vinculados"
     },
+    "newComment": "Novo comentário",
     "scopes": {
       "current": "Atual"
     },
@@ -1155,17 +1171,37 @@
       }
     },
     "stats": {
+      "averagePerChapter": "Média por capítulo",
+      "bookOverview": "Visão do livro",
+      "chapterLengthRhythm": "Ritmo da extensão dos capítulos",
+      "completion": "Conclusão",
+      "created": "Criado",
       "dialogueRatio": "Proporção de diálogo",
+      "dimensions": "Dimensões",
+      "discardedParen": " (descartados {{count}})",
+      "embeddedMaterials": "Materiais incorporados",
+      "fileSize": "Tamanho",
+      "fileType": "Tipo",
+      "longestWithWords": "Mais longo · {{title}} ({{words}} palavras)",
+      "materialCoordinates": "Material",
+      "materialFile": "Arquivo",
       "name": "Nome",
+      "openComments": "Comentários e tarefas pendentes",
       "paragraphSentence": "Parágrafos / frases",
       "paragraphSentenceValue": "{{paragraphs}} parágrafos · {{sentences}} frases",
       "recent": "Recente",
+      "references": "Referências",
+      "shortestWithWords": "Mais curto · {{title}} ({{words}} palavras)",
       "snapshotButton": "Snapshots do histórico…",
+      "statusCount": "{{status}} {{count}} capítulos",
       "storyline": "Linha narrativa",
+      "thisChapterElements": "Elementos deste capítulo",
+      "unappearedElements": "Elementos sem aparições",
       "updated": "Atualizado",
       "wordRhythm": "Palavras · ritmo",
       "wordsValue": "{{count}} palavras",
-      "writingProgress": "Progresso da escrita"
+      "writingProgress": "Progresso da escrita",
+      "writtenTarget": "Escrito / meta"
     },
     "status": {
       "draft": "Rascunho"
@@ -1596,8 +1632,14 @@
         "allProjects": "Todos os projetos",
         "allProjectsUnset": "Todos os projetos · Nenhum local escolhido",
         "choose": "Escolher pasta",
+        "copied": "Caminho copiado",
+        "copy": "Copiar caminho",
+        "error": "Falha na atualização",
         "offHint": "Desativada: não grava Markdown nem mescla edições externas. Os arquivos existentes permanecem.",
         "offTitle": "Desativar a pasta Markdown?",
+        "pending": "Atualizando",
+        "ready": "Atualizado",
+        "refresh": "Atualizar agora",
         "reveal": "Mostrar no Finder",
         "title": "Pasta Markdown",
         "turnOff": "Desativar pasta Markdown",
@@ -1896,9 +1938,15 @@
     "originTask": "Lista",
     "regionPlace": "Área",
     "regionPlacePaged": "Página {{page}}",
+    "retarget": "Alterar destino…",
+    "sortNewest": "Mais recentes",
+    "sortOldest": "Mais antigos",
+    "sortPosition": "Por posição",
     "statusOpen": "Abertos",
     "statusResolved": "Resolvidos",
+    "unbindTarget": "Desvincular destino",
     "unlocated": "Local original não encontrado",
+    "viewOriginal": "Ver original",
     "wholeFile": "Arquivo inteiro",
     "writeComment": "Escrever comentário"
   },
@@ -2022,9 +2070,11 @@
     "alignRight": "Direita",
     "allFolders": "Tudo",
     "clearField": "Limpar",
+    "collapseAll": "Recolher tudo",
     "currentSection": "Atual",
     "empty": "Sem arquivos",
     "empty_trash": "Esvaziar",
+    "expandAll": "Expandir tudo",
     "fileCount_one": "{{count}} arquivo",
     "fileCount_other": "{{count}} arquivos",
     "findFile": "Buscar arquivo",
@@ -2124,6 +2174,16 @@
     "direction": "Direção",
     "otherEntry": "Outra entrada",
     "relation": "Relação"
+  },
+  "v5Stats": {
+    "childrenAggregate": "Resumo dos itens",
+    "entryCoordinates": "Coordenadas",
+    "groupRhythm": "Ritmo por grupo",
+    "inboundLinks": "Referenciado por",
+    "outboundLinks": "Referências",
+    "projectOverview": "Visão geral do projeto",
+    "templatesTotal": "Modelos",
+    "unreferencedNote": "Ainda não mencionado no texto"
   },
   "v5Tour": {
     "agent": {

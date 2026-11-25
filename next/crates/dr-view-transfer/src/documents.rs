@@ -311,6 +311,14 @@ impl DocumentsDialog {
         }
     }
 
+    pub fn remove(&mut self, index: usize, cx: &mut Context<Self>) {
+        if !self.running && index < self.items.len() {
+            self.items.remove(index);
+            self.summary = None;
+            cx.notify();
+        }
+    }
+
     fn target(&self) -> Option<ImportTarget> {
         self.levels
             .get(self.level)
@@ -528,13 +536,19 @@ impl Render for DocumentsDialog {
             .flex()
             .flex_col()
             .gap(px(space::S2));
-        for item in &self.items {
-            let (status, color) = match &item.status {
-                Status::Parsing => (t(k::status::PARSING), p.muted()),
-                Status::Ready => (t(k::status::READY), p.ink(2)),
-                Status::Committed => (t(k::status::COMMITTED), p.ink(1)),
-                Status::Error(_) => (t(k::status::ERROR), p.danger),
+        for (idx, item) in self.items.iter().enumerate() {
+            let (status, status_icon, color) = match &item.status {
+                Status::Parsing => (t(k::status::PARSING), Icon::Loader, p.muted()),
+                Status::Ready => (t(k::status::READY), Icon::FileText, p.ink(2)),
+                Status::Committed => (t(k::status::COMMITTED), Icon::Check, p.accent),
+                Status::Error(_) => (t(k::status::ERROR), Icon::StatusWarning, p.danger),
             };
+            let ext_badge = item
+                .path
+                .extension()
+                .and_then(|e| e.to_str())
+                .map(|e| format!(".{}", e.to_ascii_lowercase()))
+                .unwrap_or_default();
             // A failure is said by its translated status; the reason in
             // English only goes to the log.
             let detail = match &item.status {
@@ -542,6 +556,7 @@ impl Render for DocumentsDialog {
                 _ if !item.warnings.is_empty() => Some((item.warnings.join(" "), p.muted())),
                 _ => None,
             };
+            let rm_this = this.clone();
             list = list.child(
                 div()
                     .flex()
@@ -552,17 +567,50 @@ impl Render for DocumentsDialog {
                             .flex()
                             .flex_row()
                             .items_center()
-                            .gap(px(space::S3))
+                            .gap(px(space::S2))
+                            .child(
+                                div()
+                                    .flex_none()
+                                    .px(px(5.0))
+                                    .py(px(1.0))
+                                    .rounded(px(3.0))
+                                    .bg(p.ink(1).alpha(0.06))
+                                    .font_role(Role::Index)
+                                    .type_px(10.0, 14.0)
+                                    .text_color(p.ink(2).solid())
+                                    .child(ext_badge),
+                            )
                             .child(
                                 label(item.filename.clone().into())
                                     .flex_none()
-                                    .w(px(150.0))
+                                    .w(px(120.0))
                                     .overflow_hidden()
                                     .whitespace_nowrap()
                                     .text_ellipsis(),
                             )
                             .child(div().flex_1().min_w_0().child(item.title.clone()))
-                            .child(label(status).flex_none().text_color(color.solid())),
+                            .child(
+                                div()
+                                    .flex_none()
+                                    .flex()
+                                    .items_center()
+                                    .gap(px(4.0))
+                                    .child(sand::icon(status_icon, 12.0, color.solid()))
+                                    .child(label(status).text_color(color.solid())),
+                            )
+                            .child(
+                                Button::new(
+                                    gpui::ElementId::Name(format!("import-rm-{idx}").into()),
+                                    "",
+                                )
+                                .icon(Icon::Close)
+                                .text()
+                                .small()
+                                .disabled(running)
+                                .on_click(move |_, _, cx| {
+                                    rm_this.update(cx, |d, cx| d.remove(idx, cx));
+                                }),
+                            ),
                     )
                     .children(
                         detail.map(|(text, color)| label(text.into()).text_color(color.solid())),

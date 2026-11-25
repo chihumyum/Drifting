@@ -15,7 +15,7 @@ use dr_model::{
 use dr_store::OpenDoc;
 use dr_workspace::{Result, Workspace, WsError};
 
-use crate::{Filter, OriginFilter};
+use crate::{Filter, OriginFilter, SortOrder};
 
 /// The host maps this directly to the shell's versioned Target.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -85,6 +85,8 @@ pub struct Item {
     pub part_where: PartWhere,
     pub part_quote: Option<String>,
     pub place: Place,
+    /// Paragraph ordinal inside the target prose document (for `SortOrder::Position`).
+    pub prose_order: Option<usize>,
 }
 
 impl Item {
@@ -140,6 +142,8 @@ pub struct Listing {
 pub struct Snapshot {
     pub book_name: String,
     pub items: Vec<Item>,
+    /// Live entries `(id, title)` in this book, for retargeting comments.
+    pub live_entries: Vec<(String, String)>,
     by_id: HashMap<String, usize>,
     by_place: HashMap<Target, usize>,
 }
@@ -247,7 +251,7 @@ pub fn load(ws: &Workspace, book: &str) -> Result<Snapshot> {
         embeds.insert((e, module), set);
     }
 
-    let (book_name, mut items, pending_retained) = ws
+    let (book_name, live_entries, mut items, pending_retained) = ws
         .library()
         .open_doc(&format!("book:{book}"), OpenDoc::Existing)?
         .read(move |doc| {
@@ -270,14 +274,6 @@ pub fn load(ws: &Workspace, book: &str) -> Result<Snapshot> {
                     node_live.insert(eid.to_string());
                 }
             }
-            let entry_sets = (node_live, node_all);
-            let comments = v.comments_with_embeds(Some(&entry_sets), &mut |e, module| {
-                embeds.get(&(e.clone(), module.clone())).cloned().flatten()
-            });
-            if comments.is_empty() {
-                return Ok((book_name, Vec::new(), Vec::new()));
-            }
-            let templates = v.templates_map();
             let live_ids: HashSet<String> = entries
                 .values()
                 .filter(|e| {
@@ -288,6 +284,20 @@ pub fn load(ws: &Workspace, book: &str) -> Result<Snapshot> {
                 })
                 .map(|e| e.id.to_string())
                 .collect();
+            let mut live_entries: Vec<(String, String)> = entries
+                .values()
+                .filter(|e| live_ids.contains(e.id.as_str()))
+                .map(|e| (e.id.to_string(), e.title.clone()))
+                .collect();
+            live_entries.sort_by(|a, b| a.1.cmp(&b.1).then_with(|| a.0.cmp(&b.0)));
+            let entry_sets = (node_live, node_all);
+            let comments = v.comments_with_embeds(Some(&entry_sets), &mut |e, module| {
+                embeds.get(&(e.clone(), module.clone())).cloned().flatten()
+            });
+            if comments.is_empty() {
+                return Ok((book_name, live_entries, Vec::new(), Vec::new()));
+            }
+            let templates = v.templates_map();
 
             let mut full_entries: HashMap<m::EntryId, Option<m::Entry>> = HashMap::new();
             let mut patches_cache: HashMap<(m::EntryId, m::ModuleId), Vec<m::PatchV3>> =
@@ -314,6 +324,7 @@ pub fn load(ws: &Workspace, book: &str) -> Result<Snapshot> {
                             part_where: PartWhere::Floating,
                             part_quote: None,
                             place: Place::Floating,
+                            prose_order: None,
                         };
                     };
 
@@ -350,6 +361,7 @@ pub fn load(ws: &Workspace, book: &str) -> Result<Snapshot> {
                                 part_where: PartWhere::StandaloneAsset { region },
                                 part_quote: None,
                                 place: Place::On(mat_target),
+                                prose_order: None,
                             }
                         }
                         EntityKind::Entry => {
@@ -381,6 +393,7 @@ pub fn load(ws: &Workspace, book: &str) -> Result<Snapshot> {
                                     part_where: PartWhere::WholeEntry,
                                     part_quote: None,
                                     place,
+                                    prose_order: None,
                                 };
                             };
 
@@ -424,6 +437,7 @@ pub fn load(ws: &Workspace, book: &str) -> Result<Snapshot> {
                                         part_where,
                                         part_quote: None,
                                         place,
+                                        prose_order: None,
                                     };
                                 }
                                 pending_retained.push((
@@ -443,6 +457,7 @@ pub fn load(ws: &Workspace, book: &str) -> Result<Snapshot> {
                                     part_where,
                                     part_quote: None,
                                     place,
+                                    prose_order: None,
                                 };
                             }
 
@@ -486,6 +501,7 @@ pub fn load(ws: &Workspace, book: &str) -> Result<Snapshot> {
                                         part_where: PartWhere::NamedPart(label),
                                         part_quote: val,
                                         place,
+                                        prose_order: None,
                                     }
                                 }
                                 m::CommentPart::KvRow { row } => {
@@ -513,6 +529,7 @@ pub fn load(ws: &Workspace, book: &str) -> Result<Snapshot> {
                                         part_where: PartWhere::NamedPart(label),
                                         part_quote: val,
                                         place,
+                                        prose_order: None,
                                     }
                                 }
                                 m::CommentPart::PlotCell { row, col } => {
@@ -550,6 +567,7 @@ pub fn load(ws: &Workspace, book: &str) -> Result<Snapshot> {
                                         part_where: PartWhere::NamedPart(label),
                                         part_quote: val,
                                         place,
+                                        prose_order: None,
                                     }
                                 }
                                 m::CommentPart::Patch { patch } => {
@@ -585,6 +603,7 @@ pub fn load(ws: &Workspace, book: &str) -> Result<Snapshot> {
                                         part_where: PartWhere::NamedPart(label),
                                         part_quote: val,
                                         place,
+                                        prose_order: None,
                                     }
                                 }
                                 m::CommentPart::Media { asset, region } => {
@@ -624,6 +643,7 @@ pub fn load(ws: &Workspace, book: &str) -> Result<Snapshot> {
                                         },
                                         part_quote: None,
                                         place,
+                                        prose_order: None,
                                     }
                                 }
                                 m::CommentPart::Embed { embed, region } => {
@@ -656,6 +676,7 @@ pub fn load(ws: &Workspace, book: &str) -> Result<Snapshot> {
                                         },
                                         part_quote: None,
                                         place,
+                                        prose_order: None,
                                     }
                                 }
                                 m::CommentPart::Region { region } => {
@@ -673,6 +694,7 @@ pub fn load(ws: &Workspace, book: &str) -> Result<Snapshot> {
                                         },
                                         part_quote: None,
                                         place,
+                                        prose_order: None,
                                     }
                                 }
                             }
@@ -701,6 +723,7 @@ pub fn load(ws: &Workspace, book: &str) -> Result<Snapshot> {
                                     part_where: PartWhere::StandaloneAsset { region: None },
                                     part_quote: None,
                                     place: Place::On(mat),
+                                    prose_order: None,
                                 }
                             } else {
                                 gone_item(comment)
@@ -710,8 +733,74 @@ pub fn load(ws: &Workspace, book: &str) -> Result<Snapshot> {
                     }
                 })
                 .collect();
-            Ok((book_name, items, pending_retained))
+            Ok((book_name, live_entries, items, pending_retained))
         })??;
+
+    // Resolve prose paragraph order per referenced body doc for `SortOrder::Position`.
+    let mut prose_docs: HashMap<DocId, Vec<usize>> = HashMap::new();
+    for (idx, item) in items.iter().enumerate() {
+        if (item.comment.target_block.is_some() || item.comment.anchor.is_some())
+            && let Some(doc) = prose_doc(&item.comment)
+        {
+            prose_docs.entry(doc).or_default().push(idx);
+        }
+    }
+    for (doc_id, idxs) in prose_docs {
+        let Ok(handle) = ws
+            .library()
+            .open_doc(&doc_id.to_string(), OpenDoc::Existing)
+        else {
+            continue;
+        };
+        let doc_for_read = doc_id.clone();
+        let queries: Vec<_> = idxs
+            .iter()
+            .map(|&idx| {
+                let c = &items[idx].comment;
+                (idx, c.target_block.clone(), c.anchor.clone())
+            })
+            .collect();
+        if let Ok(resolved) = handle.read(move |doc| {
+            let mut out = Vec::with_capacity(queries.len());
+            if let Ok(prose) = BorrowedProse::new(doc, &doc_for_read) {
+                let pv = prose.view();
+                let mut block_ord: HashMap<String, usize> = HashMap::new();
+                let mut para_starts: Vec<(usize, usize)> = Vec::new();
+                for (ord, p) in pv.paragraphs().enumerate() {
+                    if let Some(bid) = &p.id {
+                        block_ord.insert(bid.to_string(), ord);
+                    }
+                    para_starts.push((p.range.start, ord));
+                }
+                for (idx, block, anchor) in queries {
+                    let pos = anchor
+                        .as_ref()
+                        .and_then(dr_editor::anchors::decode)
+                        .and_then(|a| a.resolve(doc))
+                        .map(|r| {
+                            para_starts
+                                .iter()
+                                .rev()
+                                .find(|(start, _)| *start <= r.range.start)
+                                .map_or(0, |(_, ord)| *ord)
+                        })
+                        .or_else(|| {
+                            block
+                                .as_ref()
+                                .and_then(|b| block_ord.get(b.as_str()).copied())
+                        });
+                    out.push((idx, pos));
+                }
+            }
+            out
+        }) {
+            for (idx, ord) in resolved {
+                if let Some(item) = items.get_mut(idx) {
+                    item.prose_order = ord;
+                }
+            }
+        }
+    }
 
     if !pending_retained.is_empty() {
         let stored: HashSet<String> = ws
@@ -757,6 +846,7 @@ pub fn load(ws: &Workspace, book: &str) -> Result<Snapshot> {
     Ok(Snapshot {
         book_name,
         items,
+        live_entries,
         by_id,
         by_place,
     })
@@ -784,6 +874,7 @@ fn gone_item(comment: CommentV3) -> Item {
         part_where: PartWhere::Floating,
         part_quote: None,
         place: Place::Gone,
+        prose_order: None,
     }
 }
 
@@ -808,7 +899,17 @@ impl Snapshot {
         legacy_filter: Filter,
         scope: Option<&Target>,
     ) -> crate::Listing {
-        let listing = self.listing_filtered(origin_filter, legacy_filter, scope);
+        self.cards_sorted(origin_filter, legacy_filter, scope, SortOrder::Newest)
+    }
+
+    pub(crate) fn cards_sorted(
+        &self,
+        origin_filter: OriginFilter,
+        legacy_filter: Filter,
+        scope: Option<&Target>,
+        sort: SortOrder,
+    ) -> crate::Listing {
+        let listing = self.listing_sorted(origin_filter, legacy_filter, scope, sort);
         let groups = |groups: Vec<Group>| {
             groups
                 .into_iter()
@@ -840,6 +941,16 @@ impl Snapshot {
         legacy_filter: Filter,
         scope: Option<&Target>,
     ) -> Listing {
+        self.listing_sorted(origin_filter, legacy_filter, scope, SortOrder::Newest)
+    }
+
+    pub fn listing_sorted(
+        &self,
+        origin_filter: OriginFilter,
+        legacy_filter: Filter,
+        scope: Option<&Target>,
+        sort: SortOrder,
+    ) -> Listing {
         let mut chosen: Vec<_> = self
             .items
             .iter()
@@ -860,11 +971,23 @@ impl Snapshot {
             })
             .cloned()
             .collect();
-        chosen.sort_by(|a, b| {
-            b.comment
+        chosen.sort_by(|a, b| match sort {
+            SortOrder::Position => a
+                .prose_order
+                .unwrap_or(usize::MAX)
+                .cmp(&b.prose_order.unwrap_or(usize::MAX))
+                .then_with(|| b.comment.created_at.cmp(&a.comment.created_at))
+                .then_with(|| b.comment.id.cmp(&a.comment.id)),
+            SortOrder::Newest => b
+                .comment
                 .created_at
                 .cmp(&a.comment.created_at)
-                .then(b.comment.id.cmp(&a.comment.id))
+                .then(b.comment.id.cmp(&a.comment.id)),
+            SortOrder::Oldest => a
+                .comment
+                .created_at
+                .cmp(&b.comment.created_at)
+                .then(a.comment.id.cmp(&b.comment.id)),
         });
         let group = |done| {
             let mut groups: Vec<Group> = Vec::new();

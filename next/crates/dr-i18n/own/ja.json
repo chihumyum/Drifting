@@ -669,9 +669,15 @@
     "originTask": "チェックリスト",
     "regionPlace": "選択範囲",
     "regionPlacePaged": "{{page}} ページ",
+    "retarget": "紐付け先を変更…",
+    "sortNewest": "新しい順",
+    "sortOldest": "古い順",
+    "sortPosition": "位置順",
     "statusOpen": "未解決",
     "statusResolved": "解決済み",
+    "unbindTarget": "紐付けを解除",
     "unlocated": "元の場所が見つかりません",
+    "viewOriginal": "原文を表示",
     "wholeFile": "ファイル全体",
     "writeComment": "コメントを書く"
   },
@@ -794,9 +800,11 @@
     "alignRight": "右寄せ",
     "allFolders": "すべて",
     "clearField": "クリア",
+    "collapseAll": "すべて折りたたむ",
     "currentSection": "現在",
     "empty": "ファイルなし",
     "empty_trash": "空にする",
+    "expandAll": "すべて展開",
     "fileCount_other": "{{count}} 件のファイル",
     "findFile": "ファイルを検索",
     "itemCount_other": "{{count}} 件",
@@ -886,6 +894,16 @@
     "direction": "方向",
     "otherEntry": "相手の項目",
     "relation": "関係"
+  },
+  "v5Stats": {
+    "childrenAggregate": "配下の集計",
+    "entryCoordinates": "項目の位置",
+    "groupRhythm": "グループ構成",
+    "inboundLinks": "被参照",
+    "outboundLinks": "参照先",
+    "projectOverview": "プロジェクト概要",
+    "templatesTotal": "テンプレート数",
+    "unreferencedNote": "本文ではまだ参照されていません"
   },
   "v5Tour": {
     "agent": {

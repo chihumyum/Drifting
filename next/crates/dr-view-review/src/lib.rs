@@ -31,7 +31,7 @@ use gpui::{App, AppContext, Entity, Global, KeyBinding, SharedString, actions};
 
 pub use composer::{Anchor, CommentComposer, ComposerEvent};
 pub use dr_editor::decor::ReviewFocus;
-pub use model::{Filter, Group, Listing, OriginFilter, Place, StatusFilter};
+pub use model::{Filter, Group, GroupMode, Listing, OriginFilter, Place, SortOrder, StatusFilter};
 pub use panel::ReviewView;
 
 actions!(
@@ -165,12 +165,12 @@ fn ensure_view(id: &str, cx: &mut App) -> Option<Entity<ReviewView>> {
         Some(v) => v,
         None => {
             let tracker = agent_bridge::ensure_tracker(cx);
-            let v = cx.new(|_| ReviewView::new(id.clone(), lib));
+            let v = cx.new(|cx| ReviewView::new(id.clone(), lib, cx));
             let observed = v.downgrade();
-            // Pointing at sand in the prose lights its card.
+            // Pointing at sand in the prose lights its card and scrolls it into view.
             cx.observe_global::<dr_editor::decor::ReviewFocus>(move |cx| {
                 if let Some(v) = observed.upgrade() {
-                    v.update(cx, |_, cx| cx.notify());
+                    v.update(cx, |view, cx| view.sync_prose_focus(cx));
                 }
             })
             .detach();

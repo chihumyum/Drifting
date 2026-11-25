@@ -45,9 +45,17 @@ enum Inner {
 /// The dialog over the workspace.
 pub struct ExportDialog {
     inner: Inner,
+    focus: gpui::FocusHandle,
+    focused_once: bool,
 }
 
 impl EventEmitter<ExportEvent> for ExportDialog {}
+
+impl gpui::Focusable for ExportDialog {
+    fn focus_handle(&self, _: &gpui::App) -> gpui::FocusHandle {
+        self.focus.clone()
+    }
+}
 
 impl ExportDialog {
     pub fn new(
@@ -65,7 +73,11 @@ impl ExportDialog {
                 Inner::Manuscript(ManuscriptState::new(lib, book, i18n, window, cx))
             }
         };
-        ExportDialog { inner }
+        ExportDialog {
+            inner,
+            focus: cx.focus_handle(),
+            focused_once: false,
+        }
     }
 
     /// The manuscript side, when that is what is open.
@@ -101,10 +113,22 @@ impl ExportDialog {
 
 impl Render for ExportDialog {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if !self.focused_once {
+            self.focused_once = true;
+            window.focus(&self.focus, cx);
+        }
         let body = match &mut self.inner {
             Inner::Manuscript(_) => manuscript::render(self, window, cx),
         };
-        div().child(body)
+        div()
+            .track_focus(&self.focus)
+            .on_key_down(cx.listener(|this, e: &gpui::KeyDownEvent, _, cx| {
+                if e.keystroke.key == "escape" {
+                    cx.stop_propagation();
+                    this.close(cx);
+                }
+            }))
+            .child(body)
     }
 }
 

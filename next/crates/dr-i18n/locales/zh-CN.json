@@ -208,14 +208,20 @@
   },
   "commentRail": {
     "actions": {
+      "close": "关闭",
       "reopen": "未解决",
       "resolve": "解决"
     },
     "card": {
       "emptyComment": "空批注"
     },
+    "original": {
+      "changed": "正文已改动 · 查看原文"
+    },
     "snapshot": {
-      "changed": "已删除/改动"
+      "changed": "已删除/改动",
+      "emptyBlock": "（空段）",
+      "title": "关联原文 · 创建时快照 · {{count}} 段"
     }
   },
   "common": {
@@ -600,6 +606,8 @@
     "retry": "重试",
     "saved": "已导出",
     "scope": "范围",
+    "selectAll": "全选",
+    "selectNone": "全不选",
     "title": "导出成稿",
     "untitledAct": "未命名卷"
   },
@@ -642,6 +650,9 @@
       "addSnippetBody": "写点什么…"
     },
     "error": {
+      "codecStore": "在微软商店获取",
+      "codecUnavailable": "这台电脑缺少 {{format}} 图片的解码扩展，可以从微软商店安装后再导入。",
+      "fileTooLarge": "该文件超过 {{maxSizeMiB}} MiB 素材上限，无法复制到本地素材库。",
       "openFile": "无法打开文件：{{error}}",
       "pickFailed": "无法导入文件：{{error}}"
     },
@@ -1110,10 +1121,15 @@
     "filters": {
       "all": "全部"
     },
+    "groupBy": {
+      "flat": "不分组",
+      "target": "按位置"
+    },
     "groups": {
       "deleted": "已删除",
       "floating": "未挂载"
     },
+    "newComment": "新建批注",
     "scopes": {
       "current": "当前"
     },
@@ -1130,17 +1146,37 @@
       }
     },
     "stats": {
+      "averagePerChapter": "平均每章",
+      "bookOverview": "全书概览",
+      "chapterLengthRhythm": "章节长度节奏",
+      "completion": "完成度",
+      "created": "创建",
       "dialogueRatio": "对白比",
+      "dimensions": "尺寸",
+      "discardedParen": "（弃用 {{count}}）",
+      "embeddedMaterials": "嵌入的素材",
+      "fileSize": "大小",
+      "fileType": "格式",
+      "longestWithWords": "最长 · {{title}}（{{words}}字）",
+      "materialCoordinates": "素材坐标",
+      "materialFile": "文件",
       "name": "名称",
+      "openComments": "未解决的批注与 TODO",
       "paragraphSentence": "段落 / 句",
       "paragraphSentenceValue": "{{paragraphs}} 段 · {{sentences}} 句",
       "recent": "最近",
+      "references": "引用",
+      "shortestWithWords": "最短 · {{title}}（{{words}}字）",
       "snapshotButton": "历史快照…",
+      "statusCount": "{{status}} {{count}} 章",
       "storyline": "故事线",
+      "thisChapterElements": "本章要素",
+      "unappearedElements": "未出场要素",
       "updated": "更新",
       "wordRhythm": "字数 · 节奏",
       "wordsValue": "{{count}} 字",
-      "writingProgress": "写作进度"
+      "writingProgress": "写作进度",
+      "writtenTarget": "已写 / 目标"
     },
     "status": {
       "draft": "草稿"
@@ -1571,8 +1607,14 @@
         "allProjects": "所有项目",
         "allProjectsUnset": "所有项目 · 未选择位置",
         "choose": "选择文件夹",
+        "copied": "已复制路径",
+        "copy": "复制路径",
+        "error": "更新失败",
         "offHint": "已关闭：项目不再写出 Markdown，外部修改也不再合并回来。已有文件留在原处。",
         "offTitle": "关闭 Markdown 文件夹？",
+        "pending": "正在更新",
+        "ready": "已更新",
+        "refresh": "立即更新",
         "reveal": "在访达中打开",
         "title": "Markdown 文件夹",
         "turnOff": "关闭 Markdown 文件夹",
@@ -1871,9 +1913,15 @@
     "originTask": "清单",
     "regionPlace": "框选",
     "regionPlacePaged": "第 {{page}} 页",
+    "retarget": "改绑目标…",
+    "sortNewest": "最新优先",
+    "sortOldest": "最早优先",
+    "sortPosition": "按位置",
     "statusOpen": "未解决",
     "statusResolved": "已解决",
+    "unbindTarget": "解除绑定",
     "unlocated": "找不到原处",
+    "viewOriginal": "查看原文",
     "wholeFile": "整个文件",
     "writeComment": "写批注"
   },
@@ -1996,9 +2044,11 @@
     "alignRight": "靠右",
     "allFolders": "全部",
     "clearField": "清除",
+    "collapseAll": "全部收起",
     "currentSection": "当前",
     "empty": "无文件",
     "empty_trash": "清空",
+    "expandAll": "全部展开",
     "fileCount_other": "{{count}} 个文件",
     "findFile": "找文件",
     "itemCount_other": "{{count}} 个",
@@ -2088,6 +2138,16 @@
     "direction": "方向",
     "otherEntry": "另一个条目",
     "relation": "关系"
+  },
+  "v5Stats": {
+    "childrenAggregate": "下级聚合",
+    "entryCoordinates": "条目坐标",
+    "groupRhythm": "分组节奏",
+    "inboundLinks": "被引用",
+    "outboundLinks": "引用其他",
+    "projectOverview": "项目概况",
+    "templatesTotal": "模板数",
+    "unreferencedNote": "正文尚未引用"
   },
   "v5Tour": {
     "agent": {

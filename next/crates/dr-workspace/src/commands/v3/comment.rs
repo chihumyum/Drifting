@@ -675,8 +675,29 @@ op! {
             }
             _ => None,
         };
+        let next_target = match &input.target {
+            None => None,
+            Some(None) => {
+                if checklist {
+                    return Err(WsError::invalid(
+                        "a checklist item's comment cannot be detached from its prose",
+                    ));
+                }
+                Some(None)
+            }
+            Some(Some(t)) => {
+                if checklist {
+                    return Err(WsError::invalid(
+                        "a checklist item's comment cannot be retargeted",
+                    ));
+                }
+                require_live(&slot, EntityKind::from(t.kind.as_str()), &t.id)?;
+                Some(Some(t.to_ref()))
+            }
+        };
         let (id, i) = (old.id.clone(), input.clone());
-        let (texts, _) = cx.write_book_v3(&slot, Replaces::record(CollectionV3::Comments, &id), move |txn| {
+        let target_changed = next_target.is_some();
+        let ((was, written), before) = cx.write_book_v3(&slot, Replaces::record(CollectionV3::Comments, &id), move |txn| {
             let was = txn.view().comment_body_raw(&id).unwrap_or_default();
             let w = txn.comment(&id)?;
             if let Some(b) = &body { w.linked_body(b)?; }
@@ -685,6 +706,13 @@ op! {
             }
             if let Some(meta) = &task_meta { w.metadata(Some(meta))?; }
             if let Some(a) = &i.agent_conversation { w.agent_conversation(a.as_deref())?; }
+            if let Some(ref next_t) = next_target {
+                w.target(next_t.as_ref())?
+                    .module(None)?
+                    .part(None)?
+                    .target_block(None)?
+                    .anchor(None)?;
+            }
             w.updated_at(Some(now()))?;
             let written = txn.view().comment_body_raw(&id).unwrap_or_default();
             Ok((was, written))
@@ -694,22 +722,26 @@ op! {
         // reads as written here: a later resolve, conversation or other text
         // stays (`comment.restore_body`). Status and conversation go back
         // the way they came, as before.
-        let (was, written) = texts;
         let text_changed = editing_text && was != written;
-        if text_changed {
-            cx.undo_with(Invocation::new("comment.restore_body", CommentRestoreBodyIn {
-                book: input.book.clone(), id: input.id.clone(), expected: written, body: was,
-            }));
-        }
-        if input.status.is_some() || input.agent_conversation.is_some() {
-            cx.undo_with(Invocation::new("comment.update", CommentUpdateIn {
-                book: input.book.clone(), id: input.id.clone(),
-                body: None,
-                status: input.status.as_ref().map(|_| old.status.as_str().to_string()),
-                agent_conversation: input.agent_conversation.as_ref().map(|_| old.agent_conversation.clone()),
-            }));
-        } else if !text_changed {
-            cx.undo_nothing();
+        if target_changed {
+            undo(cx, &slot, &before, vec![key("comments", &old.id)]);
+        } else {
+            if text_changed {
+                cx.undo_with(Invocation::new("comment.restore_body", CommentRestoreBodyIn {
+                    book: input.book.clone(), id: input.id.clone(), expected: written, body: was,
+                }));
+            }
+            if input.status.is_some() || input.agent_conversation.is_some() {
+                cx.undo_with(Invocation::new("comment.update", CommentUpdateIn {
+                    book: input.book.clone(), id: input.id.clone(),
+                    body: None,
+                    status: input.status.as_ref().map(|_| old.status.as_str().to_string()),
+                    agent_conversation: input.agent_conversation.as_ref().map(|_| old.agent_conversation.clone()),
+                    target: None,
+                }));
+            } else if !text_changed {
+                cx.undo_nothing();
+            }
         }
         Ok(Done { id: input.id })
     }

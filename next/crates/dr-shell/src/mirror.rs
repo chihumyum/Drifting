@@ -47,6 +47,12 @@ struct State {
     pending: Option<Drain>,
     _pump: Option<Task<()>>,
     told: HashMap<IssueKey, u64>,
+    active_issues: Vec<Issue>,
+    last_synced: Option<chrono::DateTime<chrono::Local>>,
+    syncing: bool,
+    last_error: Option<String>,
+    copied_until: Option<Instant>,
+    preserved_count: usize,
     composing: Arc<AtomicUsize>,
 }
 
@@ -299,6 +305,9 @@ fn start(cx: &mut App) {
     });
     let state = cx.default_global::<State>();
     state.running = Some(mirror);
+    state.last_synced = Some(chrono::Local::now());
+    state.last_error = None;
+    state.active_issues.clear();
     state._pump = Some(pump);
 }
 
@@ -306,6 +315,7 @@ fn tell(heard: Heard, cx: &mut App) {
     match heard {
         Heard::Kept(0) => {}
         Heard::Kept(count) => {
+            cx.default_global::<State>().preserved_count += count;
             let text = tp(
                 cx,
                 keys::notifications::markdown_folder::PRESERVED,
@@ -313,8 +323,11 @@ fn tell(heard: Heard, cx: &mut App) {
                 &[],
             );
             Notifications::post(Source::MarkdownFolder, text, cx);
+            cx.refresh_windows();
         }
         Heard::Issues(issues) => {
+            cx.default_global::<State>().active_issues = issues.clone();
+            cx.default_global::<State>().last_synced = Some(chrono::Local::now());
             let mut before = std::mem::take(&mut cx.default_global::<State>().told);
             let active: HashSet<_> = issues.iter().map(issue_key).collect();
             // Free resolved notices before adding new ones: the notification
@@ -393,13 +406,81 @@ fn problem_key(problem: Problem) -> Key {
     }
 }
 
+fn active_project_folder(root: &std::path::Path, cx: &App) -> PathBuf {
+    if let Some(ws_entity) = crate::workspace::active_workspace(cx)
+        && let Ok(ws) = ws_entity.read(cx)
+    {
+        let book_name = ws.book.name.trim();
+        if !book_name.is_empty() {
+            let sub = root.join(book_name);
+            if sub.is_dir() {
+                return sub;
+            }
+        }
+    }
+    root.to_path_buf()
+}
+
+pub fn sync_now(cx: &mut App) {
+    let state = cx.default_global::<State>();
+    if state.syncing || state.pending.is_some() {
+        return;
+    }
+    if state.running.is_none() {
+        return;
+    }
+    state.syncing = true;
+    state.last_error = None;
+    cx.refresh_windows();
+    let pending = drain(cx);
+    cx.default_global::<State>().pending = Some(pending.clone());
+    cx.spawn(async move |cx| {
+        let result = pending.await;
+        cx.update(|cx| {
+            let st = cx.default_global::<State>();
+            st.pending = None;
+            st.syncing = false;
+            match result {
+                Ok(()) => {
+                    st.last_synced = Some(chrono::Local::now());
+                    st.last_error = None;
+                }
+                Err(err) => {
+                    st.last_error = Some(err);
+                }
+            }
+            start(cx);
+            cx.refresh_windows();
+        });
+    })
+    .detach();
+}
+
 fn setting(window: &mut Window, cx: &mut App) -> gpui::AnyElement {
+    use dr_ui::style::DrStyled as _;
     use keys::settings::sync::projection as k;
     let theme = Theme::of(window, cx);
+    let p = theme.palette;
+    let s = theme.scale;
     let folder = folder(cx);
     let on = is_on(cx);
-    let busy = cx.default_global::<State>().pending.is_some();
-    let reveal = folder.clone();
+    let (busy, syncing, last_synced, last_error, active_issues, copied_until, preserved_count) = {
+        let st = cx.default_global::<State>();
+        (
+            st.pending.is_some(),
+            st.syncing,
+            st.last_synced,
+            st.last_error.clone(),
+            st.active_issues.clone(),
+            st.copied_until,
+            st.preserved_count,
+        )
+    };
+    let reveal_target = folder
+        .as_deref()
+        .map(|root| active_project_folder(root, cx));
+    let copy_path = reveal_target.clone();
+    let copied_recently = copied_until.is_some_and(|until| Instant::now() < until);
     let top = settings::row(
         "local.markdown_folder",
         t(cx, k::TITLE),
@@ -409,14 +490,44 @@ fn setting(window: &mut Window, cx: &mut App) -> gpui::AnyElement {
             t(cx, k::OFF_HINT)
         }),
         if on {
-            Button::new("markdown-reveal", t(cx, k::REVEAL))
-                .small()
-                .disabled(folder.is_none())
-                .on_click(move |_, _, cx| {
-                    if let Some(path) = &reveal {
-                        cx.open_with_system(path);
-                    }
-                })
+            div()
+                .flex()
+                .items_center()
+                .gap(px(6.0))
+                .child(
+                    Button::new("markdown-refresh", t(cx, k::REFRESH))
+                        .small()
+                        .disabled(folder.is_none() || busy || syncing)
+                        .on_click(|_, _, cx| sync_now(cx)),
+                )
+                .child(
+                    Button::new(
+                        "markdown-copy-path",
+                        t(cx, if copied_recently { k::COPIED } else { k::COPY }),
+                    )
+                    .small()
+                    .disabled(copy_path.is_none())
+                    .on_click(move |_, _, cx| {
+                        if let Some(path) = &copy_path {
+                            cx.write_to_clipboard(gpui::ClipboardItem::new_string(
+                                path.display().to_string(),
+                            ));
+                            cx.default_global::<State>().copied_until =
+                                Some(Instant::now() + Duration::from_secs(2));
+                            cx.refresh_windows();
+                        }
+                    }),
+                )
+                .child(
+                    Button::new("markdown-reveal", t(cx, k::REVEAL))
+                        .small()
+                        .disabled(reveal_target.is_none())
+                        .on_click(move |_, _, cx| {
+                            if let Some(path) = &reveal_target {
+                                cx.open_with_system(path);
+                            }
+                        }),
+                )
                 .into_any_element()
         } else {
             Button::new("markdown-on", t(cx, k::TURN_ON))
@@ -451,6 +562,18 @@ fn setting(window: &mut Window, cx: &mut App) -> gpui::AnyElement {
                     .disabled(busy)
                     .on_click(|_, _, cx| ask_turn_off_then(cx, |_| {})),
             );
+        let status_summary: Option<gpui::SharedString> = folder.as_ref().map(|path| {
+            let status_text = if syncing || busy {
+                t(cx, k::PENDING).to_string()
+            } else if last_error.is_some() {
+                t(cx, k::ERROR).to_string()
+            } else if let Some(ts) = last_synced {
+                format!("{} · {}", t(cx, k::READY), ts.format("%H:%M"))
+            } else {
+                t(cx, k::READY).to_string()
+            };
+            format!("{} — {}", path.display(), status_text).into()
+        });
         settings::row(
             "local.markdown_location",
             t(
@@ -461,23 +584,82 @@ fn setting(window: &mut Window, cx: &mut App) -> gpui::AnyElement {
                     k::ALL_PROJECTS_UNSET
                 },
             ),
-            folder.map(|p| p.display().to_string().into()),
+            status_summary,
             controls.into_any_element(),
             &theme,
         )
     }) else {
         return top;
     };
-    div()
-        .flex()
-        .flex_col()
-        .child(top)
-        .child(location)
-        .into_any_element()
+    let mut out = div().flex().flex_col().child(top).child(location);
+    if on && preserved_count > 0 {
+        out = out.child(
+            div()
+                .px(px(16.0))
+                .py(px(4.0))
+                .font_role(dr_ui::fonts::Role::Index)
+                .type_px(s.caption, s.line_caption)
+                .text_color(p.ink(3).solid())
+                .child(tp(
+                    cx,
+                    keys::notifications::markdown_folder::PRESERVED,
+                    preserved_count as u64,
+                    &[],
+                )),
+        );
+    }
+    if on && !active_issues.is_empty() {
+        let mut issues_box = div()
+            .px(px(16.0))
+            .py(px(6.0))
+            .flex()
+            .flex_col()
+            .gap(px(4.0));
+        for (idx, issue) in active_issues.into_iter().enumerate() {
+            let can_ack = cx
+                .default_global::<State>()
+                .running
+                .as_ref()
+                .is_some_and(|mirror| mirror.can_acknowledge(&issue));
+            let line = format!(
+                "{}: {}",
+                issue.path.display(),
+                t(cx, problem_key(issue.problem))
+            );
+            let mut row_el = div()
+                .flex()
+                .items_center()
+                .justify_between()
+                .gap(px(8.0))
+                .font_role(dr_ui::fonts::Role::Ui)
+                .type_px(s.caption, s.line_caption)
+                .text_color(p.danger.solid())
+                .child(div().flex_1().min_w_0().child(line));
+            if can_ack {
+                row_el = row_el.child(
+                    Button::new(
+                        gpui::ElementId::Name(format!("markdown-ack-{idx}").into()),
+                        t(cx, keys::mirror_v5::ACKNOWLEDGE_PRESERVED),
+                    )
+                    .text()
+                    .small()
+                    .on_click(move |_, _, cx| {
+                        if let Some(mirror) = &cx.default_global::<State>().running {
+                            mirror.acknowledge(issue.clone());
+                        }
+                    }),
+                );
+            }
+            issues_box = issues_box.child(row_el);
+        }
+        out = out.child(issues_box);
+    }
+    out.into_any_element()
 }
 
 struct TurnOff {
     focus: FocusHandle,
+    focused_once: bool,
     after: Rc<dyn Fn(&mut App)>,
 }
 
@@ -488,35 +670,52 @@ impl Focusable for TurnOff {
 }
 
 impl Render for TurnOff {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        use gpui::InteractiveElement as _;
         use keys::settings::sync::projection as k;
+        if !self.focused_once {
+            self.focused_once = true;
+            window.focus(&self.focus, cx);
+        }
         let me = cx.entity_id();
         let after = self.after.clone();
-        Dialog::new("markdown-off", t(cx, k::OFF_TITLE))
-            .body(div().child(t(cx, keys::mirror_v5::OFF_WARNING)))
-            .action(
-                Button::new("markdown-off-cancel", t(cx, keys::common::CANCEL))
-                    .on_click(move |_, _, cx| crate::dialogs::hide(cx, me)),
+        div()
+            .track_focus(&self.focus)
+            .on_key_down(move |e: &gpui::KeyDownEvent, _, cx| {
+                if e.keystroke.key == "escape" {
+                    cx.stop_propagation();
+                    crate::dialogs::hide(cx, me);
+                }
+            })
+            .child(
+                Dialog::new("markdown-off", t(cx, k::OFF_TITLE))
+                    .body(div().child(t(cx, keys::mirror_v5::OFF_WARNING)))
+                    .action(
+                        Button::new("markdown-off-cancel", t(cx, keys::common::CANCEL))
+                            .primary()
+                            .on_click(move |_, _, cx| crate::dialogs::hide(cx, me)),
+                    )
+                    .action(
+                        Button::new("markdown-off-confirm", t(cx, k::TURN_OFF))
+                            .danger()
+                            .on_click(move |_, _, cx| {
+                                let after = after.clone();
+                                crate::dialogs::hide(cx, me);
+                                reconfigure(cx, move |cx| {
+                                    Settings::set_device_memory(cx, OFF_KEY, Some(true.into()));
+                                    after(cx);
+                                });
+                            }),
+                    )
+                    .on_close(move |_, cx| crate::dialogs::hide(cx, me)),
             )
-            .action(
-                Button::new("markdown-off-confirm", t(cx, k::TURN_OFF))
-                    .danger()
-                    .on_click(move |_, _, cx| {
-                        let after = after.clone();
-                        crate::dialogs::hide(cx, me);
-                        reconfigure(cx, move |cx| {
-                            Settings::set_device_memory(cx, OFF_KEY, Some(true.into()));
-                            after(cx);
-                        });
-                    }),
-            )
-            .on_close(move |_, cx| crate::dialogs::hide(cx, me))
     }
 }
 
 pub fn ask_turn_off_then(cx: &mut App, after: impl Fn(&mut App) + 'static) {
     let view = cx.new(|cx| TurnOff {
         focus: cx.focus_handle(),
+        focused_once: false,
         after: Rc::new(after),
     });
     crate::dialogs::show(cx, view.into());
