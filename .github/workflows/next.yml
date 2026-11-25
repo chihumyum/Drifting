@@ -49,7 +49,7 @@ jobs:
           - platform: macos
             runner: macos-26
             target: aarch64-apple-darwin
-            minutes: 90
+            minutes: 150
           - platform: windows-x64
             runner: windows-latest
             target: x86_64-pc-windows-msvc
@@ -63,7 +63,9 @@ jobs:
     # runners are far slower: at a35c2222a the test binaries alone took 45
     # minutes to build, the 0.1 import tests ran 18 minutes in one binary,
     # and both jobs were cancelled at 90 minutes after 72 of some 335 test
-    # binaries, none of them failing.
+    # binaries, none of them failing. macOS with a cold cache (after a GPUI
+    # upgrade) ran every step in 89 minutes at 65c788972 and was cancelled at
+    # 90 while saving the cache, so the next run would have been cold again.
     timeout-minutes: ${{ matrix.minutes }}
     defaults:
       run:
