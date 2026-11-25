@@ -4,7 +4,8 @@ use dr_shell::{book::color_of, workspace::FillPlace};
 use dr_ui::{
     Theme,
     components::{
-        Layer, Menu, MenuItem, PanelIconButton, SandCell,
+        CardAction, CardBody, HoverCard, Layer, Menu, MenuItem, PanelIconButton, SandCell,
+        menu::{section_label, separator},
         overlay::{self, Place},
     },
     fonts::Role as FontRole,
@@ -24,7 +25,11 @@ impl Timeline {
             .gap_1()
             .px_2()
             .bg(theme.palette.desk.solid());
-        if let Some(edit) = &self.editing {
+        if let Some(edit) = self
+            .editing
+            .as_ref()
+            .filter(|e| matches!(e.kind, EditKind::View { .. }))
+        {
             row = row.child(
                 div()
                     .id("v3-timeline-editor")
@@ -64,24 +69,52 @@ impl Timeline {
             .upgrade()
             .is_some_and(|ws| ws.read(cx).is_filled(FillPlace::Bottom));
         let workspace = self.ws.clone();
-        row.child(
+        let has_view = self.view().is_some();
+        let has_placed = self.has_placed_entries();
+        let has_active_placed = self.active_entry_id(cx).is_some();
+        row.when(has_view, |el| {
+            el.child(
+                PanelIconButton::new("v3-timeline-view-actions", Icon::More)
+                    .label(t(cx, keys::v3_timeline::VIEW_ACTIONS))
+                    .on_click(cx.listener(|this, e: &ClickEvent, _, cx| {
+                        this.popup = Some(Popup::new(MenuOf::ViewActions, e.position()));
+                        cx.notify();
+                    })),
+            )
+        })
+        .child(
             PanelIconButton::new("v3-timeline-new", Icon::Plus)
                 .label(t(cx, keys::v3_timeline::NEW_VIEW))
                 .on_click(cx.listener(|this, _, w, cx| this.rename(true, w, cx))),
         )
         .child(div().flex_1())
-        .when(!self.lanes().is_empty(), |el| {
+        .when(has_view, |el| {
+            let book_view_label = t(cx, keys::v3_shell::BOOK_VIEW);
+            let book_view_tip = if has_placed {
+                book_view_label.clone()
+            } else {
+                t(cx, keys::v3_timeline::EMPTY_BOOK_VIEW)
+            };
             el.child(
-                PanelIconButton::new("v3-place-entry", Icon::FileText)
-                    .label(t(cx, keys::v3_timeline::PLACE_ENTRY))
-                    .on_click(cx.listener(|this, e: &ClickEvent, _, cx| {
-                        this.popup = Some(Popup::new(MenuOf::PickLane, e.position()));
-                        cx.notify();
-                    })),
+                PanelIconButton::new("v3-view-open-book", Icon::OpenBook)
+                    .label(book_view_label)
+                    .tooltip(book_view_tip)
+                    .disabled(!has_placed)
+                    .on_click(cx.listener(|this, _, _, cx| this.open_book_view(cx))),
             )
-        })
-        .when(self.view().is_some(), |el| {
-            el.child(
+            .child(
+                PanelIconButton::new("v3-timeline-spread", Icon::LanesStagger)
+                    .label(t(cx, keys::story_graph::SPREAD))
+                    .disabled(!has_placed)
+                    .on_click(cx.listener(|this, _, _, cx| this.spread_overlaps(cx))),
+            )
+            .child(
+                PanelIconButton::new("v3-timeline-locate", Icon::Locate)
+                    .label(t(cx, keys::v3_timeline::LOCATE_CURRENT))
+                    .disabled(!has_active_placed)
+                    .on_click(cx.listener(|this, _, _, cx| this.locate_current_entry(cx))),
+            )
+            .child(
                 div().debug_selector(|| "v3-timeline-lanes".into()).child(
                     PanelIconButton::new("v3-timeline-lanes", Icon::Layers)
                         .label(t(cx, keys::v3_timeline::ADD_LANE))
@@ -117,9 +150,10 @@ impl Timeline {
         .into_any_element()
     }
 
-    fn popup(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+    fn popup(&self, window: &mut Window, cx: &mut Context<Self>) -> Option<AnyElement> {
         let popup = self.popup.as_ref()?;
         let book = self.book.v3()?;
+        let theme = Theme::of(window, cx);
         let mut menu = div().flex().flex_col().flex_none();
         match &popup.of {
             MenuOf::Views => {
@@ -139,16 +173,9 @@ impl Timeline {
                         .on_click(cx.listener(move |this, _, _, cx| this.select(id.clone(), cx))),
                     );
                 }
+            }
+            MenuOf::ViewActions => {
                 menu = menu
-                    .child(
-                        MenuItem::new(
-                            "v3-view-open-book",
-                            Icon::OpenBook,
-                            t(cx, keys::v3_shell::BOOK_VIEW),
-                        )
-                        .disabled(self.view().is_none())
-                        .on_click(cx.listener(|this, _, _, cx| this.open_book_view(cx))),
-                    )
                     .child(
                         MenuItem::new(
                             "v3-view-rename",
@@ -170,30 +197,6 @@ impl Timeline {
                         .disabled(self.view().is_none())
                         .on_click(cx.listener(|this, _, _, cx| this.delete_view(cx))),
                     );
-            }
-            MenuOf::PickLane => {
-                for lane in self.lanes() {
-                    let id = lane.id.clone();
-                    let icon = if lane.act_track {
-                        Icon::LanesStagger
-                    } else {
-                        Icon::Branch
-                    };
-                    menu = menu.child(
-                        MenuItem::new(
-                            SharedString::from(format!("v3-pick-lane-{id}")),
-                            icon,
-                            lane.title,
-                        )
-                        .on_click(cx.listener(
-                            move |this, e: &ClickEvent, _, cx| {
-                                this.popup =
-                                    Some(Popup::new(MenuOf::Entries(id.clone()), e.position()));
-                                cx.notify();
-                            },
-                        )),
-                    );
-                }
             }
             MenuOf::Entries(lane) | MenuOf::Bind(lane) => {
                 let bind = matches!(&popup.of, MenuOf::Bind(_));
@@ -337,6 +340,9 @@ impl Timeline {
                         })),
                     );
                 }
+                menu = menu
+                    .child(separator(theme.palette))
+                    .child(section_label(t(cx, keys::v3_timeline::PIN_COLOR), &theme));
                 let mut colors = div().flex().gap_1().px_3().py_2();
                 for hex in ["#b46a62", "#738f9a", "#9a8567", "#8b9472", "#8b7f9b"] {
                     let pin_id = id.clone();
@@ -410,6 +416,25 @@ impl Timeline {
                 // Every lane takes entries from elsewhere (DV, 2026-11-16):
                 // what goes on it is hung on it, a new entry or one picked.
                 let target_lane = lane_id.clone();
+                let lane_row = self
+                    .view()
+                    .and_then(|v| v.lanes.iter().find(|l| &l.entry == lane_id));
+                let is_act = lane_row.is_some_and(|l| l.act_track == Some(true));
+                let lane_title = book
+                    .entry(lane_id)
+                    .map(|e| e.title.clone())
+                    .unwrap_or_default();
+                let toggle_label = dr_shell::strings::tf(
+                    cx,
+                    if is_act {
+                        keys::v3_timeline::UNSET_ACT_TRACK
+                    } else {
+                        keys::v3_timeline::SET_ACT_TRACK
+                    },
+                    &[("name", &lane_title)],
+                );
+                let toggle_id = lane_id.clone();
+                let toggle_scope = self.view_scope();
                 menu = menu
                     .child(
                         MenuItem::new(
@@ -437,7 +462,24 @@ impl Timeline {
                         .on_click(cx.listener(move |this, _, _, cx| {
                             this.open_lane_book_view(target_lane.clone(), cx)
                         }))
-                    });
+                    })
+                    .child(separator(theme.palette))
+                    .child(
+                        MenuItem::new(
+                            SharedString::from(format!("v3-lane-act-{lane_id}")),
+                            Icon::LanesStagger,
+                            toggle_label,
+                        )
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            if let Some(shown) = &toggle_scope {
+                                this.edit_view_at(
+                                    shown.clone(),
+                                    write::ViewEdit::SetActTrack(toggle_id.clone(), !is_act),
+                                    cx,
+                                );
+                            }
+                        })),
+                    );
             }
             MenuOf::Lanes => {
                 let templates = model::lane_templates(book);
@@ -475,12 +517,26 @@ impl Timeline {
                         cx.notify();
                     }));
                 }
-                menu = menu.child(new_lane).child(new_act);
+                menu = menu
+                    .child(section_label(
+                        t(cx, keys::v3_timeline::SECTION_CREATE),
+                        &theme,
+                    ))
+                    .child(new_lane)
+                    .child(new_act);
                 let shown = self.view_scope();
+                let mut has_existing = false;
                 for e in &book.entries {
                     // A lane takes entries from elsewhere (DV, 2026-11-16).
                     if e.deleted_at.is_some() || !book.accepts_members(&e.id) {
                         continue;
+                    }
+                    if !has_existing {
+                        menu = menu.child(separator(theme.palette)).child(section_label(
+                            t(cx, keys::v3_timeline::SECTION_EXISTING),
+                            &theme,
+                        ));
+                        has_existing = true;
                     }
                     let in_view = self
                         .view()
@@ -506,41 +562,6 @@ impl Timeline {
                             }
                         })),
                     );
-                    if let Some(lane_row) = in_view {
-                        let is_act = lane_row.act_track == Some(true);
-                        let toggle_label = dr_shell::strings::tf(
-                            cx,
-                            if is_act {
-                                keys::v3_timeline::UNSET_ACT_TRACK
-                            } else {
-                                keys::v3_timeline::SET_ACT_TRACK
-                            },
-                            &[("name", &e.title)],
-                        );
-                        let toggle_id = e.id.clone();
-                        let toggle_scope = shown.clone();
-                        menu = menu.child(
-                            MenuItem::new(
-                                SharedString::from(format!("v3-lane-act-{}", e.id)),
-                                Icon::LanesStagger,
-                                toggle_label,
-                            )
-                            .on_click(cx.listener(
-                                move |this, _, _, cx| {
-                                    if let Some(shown) = &toggle_scope {
-                                        this.edit_view_at(
-                                            shown.clone(),
-                                            write::ViewEdit::SetActTrack(
-                                                toggle_id.clone(),
-                                                !is_act,
-                                            ),
-                                            cx,
-                                        );
-                                    }
-                                },
-                            )),
-                        );
-                    }
                 }
             }
         }
@@ -548,8 +569,9 @@ impl Timeline {
             cx,
             match &popup.of {
                 MenuOf::Views => keys::v3_timeline::VIEWS,
+                MenuOf::ViewActions => keys::v3_timeline::VIEW_ACTIONS,
                 MenuOf::Bind(_) => keys::v3_timeline::BIND_ENTRY,
-                MenuOf::PickLane => keys::v3_timeline::SELECT_LANE,
+                MenuOf::Lanes => keys::v3_timeline::SELECT_LANE,
                 MenuOf::LaneTemplates => keys::v3_timeline::NEW_LANE,
                 MenuOf::ActTrackTemplates => keys::v3_timeline::NEW_ACT_TRACK,
                 MenuOf::LaneActions(_) => keys::v3_timeline::LANE_ACTIONS,
@@ -637,6 +659,72 @@ impl Timeline {
             // `W9Bottom` draws the column as the lane's mark and name only
             // (the count only once filled); the lane's buttons come over
             // the name's end under the hand.
+            let lane_words: u64 = self
+                .book
+                .v3()
+                .map(|b| lane.clips.iter().map(|c| b.entry_words(&c.entry)).sum())
+                .unwrap_or(0);
+            let lane_cell = SandCell::new(
+                SharedString::from(format!("v3-lane-name-{id}")),
+                lane.title.clone(),
+            )
+            .mark(mark)
+            .color_opt(color)
+            .italic(true)
+            .on_click(cx.listener({
+                let id = id.clone();
+                move |this, e, _, cx| this.open(&id, e, cx)
+            }));
+            let weak_lane = cx.weak_entity();
+            let card_lane_id = id.clone();
+            let card_lane_title = lane.title.clone();
+            let card_lane_count = count.clone();
+            let lane_cell_hover = HoverCard::new(
+                SharedString::from(format!("v3-lane-hc-{id}")),
+                lane_cell,
+                move |_, cx| {
+                    let mut body = CardBody::new(
+                        SharedString::from(format!("v3-lane-hc-body-{card_lane_id}")),
+                        card_lane_title.clone(),
+                    )
+                    .mark(mark, color)
+                    .meta(card_lane_count.clone());
+                    if lane_words > 0 {
+                        body = body.count(dr_shell::strings::tf(
+                            cx,
+                            keys::shell_ui::WORDS_SHORT,
+                            &[("count", &lane_words)],
+                        ));
+                    }
+                    let open_weak = weak_lane.clone();
+                    let open_id = card_lane_id.clone();
+                    let book_weak = weak_lane.clone();
+                    let book_id = card_lane_id.clone();
+                    body.section(vec![
+                        CardAction::new(
+                            SharedString::from(format!("v3-lane-hc-open-{card_lane_id}")),
+                            Icon::ArrowIn,
+                            t(cx, keys::v3_shell::OPEN),
+                        )
+                        .on_click(move |e, _, cx| {
+                            let _ = open_weak.update(cx, |this, cx| this.open(&open_id, e, cx));
+                        })
+                        .into_any_element(),
+                        CardAction::new(
+                            SharedString::from(format!("v3-lane-hc-book-{card_lane_id}")),
+                            Icon::OpenBook,
+                            t(cx, keys::v3_shell::BOOK_VIEW),
+                        )
+                        .on_click(move |_, _, cx| {
+                            let _ = book_weak.update(cx, |this, cx| {
+                                this.open_lane_book_view(book_id.clone(), cx)
+                            });
+                        })
+                        .into_any_element(),
+                    ])
+                    .into_any_element()
+                },
+            );
             let group: SharedString = format!("v3-lane-row-{id}").into();
             let row = div()
                 .id(SharedString::from(format!("v3-lane-row-{id}")))
@@ -646,18 +734,7 @@ impl Timeline {
                 .flex_none()
                 .flex()
                 .items_center()
-                .child(
-                    div().flex_1().min_w_0().child(
-                        SandCell::new(
-                            SharedString::from(format!("v3-lane-name-{id}")),
-                            lane.title.clone(),
-                        )
-                        .mark(mark)
-                        .color_opt(color)
-                        .italic(true)
-                        .on_click(cx.listener(move |this, e, _, cx| this.open(&id, e, cx))),
-                    ),
-                )
+                .child(div().flex_1().min_w_0().child(lane_cell_hover))
                 .child(
                     div()
                         .id(SharedString::from(format!("v3-lane-count-{}", lane.id)))
@@ -678,7 +755,7 @@ impl Timeline {
                 .bg(theme.palette.desk.solid())
                 .opacity(0.0)
                 .group_hover(group, |st| st.opacity(1.0));
-            if lane.act_track {
+            {
                 let id = lane.id.clone();
                 actions = actions.child(
                     PanelIconButton::new(
@@ -808,6 +885,7 @@ impl Timeline {
                 }
             }))
             .on_drop::<PinDrag>(cx.listener(|this, drag: &PinDrag, w, cx| {
+                this.pin_drag_x = None;
                 if drag.book == this.book.id
                     && this.view().is_some_and(|v| v.id == drag.view)
                     && let Some(at) = this.order_at(w.mouse_position().x - px(drag.grab.get()))
@@ -815,30 +893,15 @@ impl Timeline {
                     this.edit_pin(drag.pin.clone(), PinEdit::At(at), cx);
                 }
             }));
-        // A label on every tick (one `格`); pinched in so far that labels
-        // would run into each other, on every other one and so on.
-        let every = model::TICK
-            * f64::from(
-                (MIN_LABEL_GAP / (unit * model::TICK as f32))
-                    .ceil()
-                    .max(1.0),
-            );
-        let first = ((min + f64::from(left / unit)) / every).floor() * every;
-        for step in 0..(f64::from(visible / unit) / every).ceil() as usize + 2 {
-            let tick = first + step as f64 * every;
+        if let Some(guide_x) = self.pin_drag_x {
             ruler = ruler.child(
                 div()
                     .absolute()
-                    .left(px((tick - min) as f32 * unit))
-                    .id(SharedString::from(format!("v3-tick-{tick}")))
-                    .role(gpui::Role::Label)
-                    .aria_label(tick.to_string())
-                    .w(px(40.))
-                    .top(px(22.))
-                    .whitespace_nowrap()
-                    .text_xs()
-                    .text_color(palette.muted().solid())
-                    .child(tick.to_string()),
+                    .left(px(guide_x))
+                    .top_0()
+                    .bottom_0()
+                    .w(px(1.5))
+                    .bg(palette.accent.solid()),
             );
         }
         // A label gives way to the next pin's: it is cut with an ellipsis
@@ -852,8 +915,33 @@ impl Timeline {
             .filter(|at| at.is_finite())
             .collect();
         pin_starts.sort_by(f64::total_cmp);
+        let editing_pin_id = self
+            .editing
+            .as_ref()
+            .filter(|e| matches!(e.kind, EditKind::PinLabel | EditKind::PinColor))
+            .map(|e| e.id.clone());
+        let mut rendered_pin_editor = false;
         for pin in &view.pins {
             let x = (pin.at - min) as f32 * unit;
+            if editing_pin_id.as_deref() == Some(pin.id.as_str())
+                && let Some(edit) = &self.editing
+            {
+                rendered_pin_editor = true;
+                let editor_x = x.clamp(left + 4.0, (left + visible - 188.0).max(left + 4.0));
+                ruler = ruler.child(
+                    div()
+                        .id("v3-timeline-editor")
+                        .absolute()
+                        .left(px(editor_x))
+                        .top(px(4.0))
+                        .w(px(180.0))
+                        .role(gpui::Role::Group)
+                        .aria_label(edit.field.read(cx).text())
+                        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                        .child(edit.field.clone()),
+                );
+                continue;
+            }
             if x < left - 200. || x > left + visible {
                 continue;
             }
@@ -862,6 +950,16 @@ impl Timeline {
                 .find(|at| **at > pin.at)
                 .map(|next| ((next - pin.at) as f32 * unit - PIN_LABEL_GAP).max(PIN_LABEL_MIN));
             let id = pin.id.clone();
+            let bound_entry = pin.entry.clone();
+            let bound_title = bound_entry
+                .as_deref()
+                .and_then(|eid| self.book.v3().and_then(|b| b.entry(eid)))
+                .map(|e| e.title.clone());
+            let pin_color = pin
+                .color
+                .as_deref()
+                .and_then(color_of)
+                .unwrap_or(palette.accent);
             let drag = PinDrag {
                 book: self.book.id.clone(),
                 view: view.id.clone(),
@@ -870,44 +968,128 @@ impl Timeline {
                 grab: Rc::default(),
             };
             let pin_selector = format!("v3-pin-{id}");
-            ruler = ruler.child(
-                div()
-                    .id(SharedString::from(format!("v3-pin-{id}")))
-                    .debug_selector(move || pin_selector)
-                    .absolute()
-                    .left(px(x))
-                    .top_0()
-                    .h(px(20.))
-                    .px_2()
-                    .truncate()
-                    .when_some(room, |el, room| el.max_w(px(room)))
-                    .text_xs()
-                    .text_color(
-                        pin.color
-                            .as_deref()
-                            .and_then(color_of)
-                            .unwrap_or(palette.accent)
-                            .solid(),
-                    )
-                    .role(gpui::Role::Button)
-                    .aria_label(pin.label.clone())
-                    .cursor_grab()
-                    .child(pin.label.clone())
-                    .on_click(cx.listener(move |this, e: &ClickEvent, w, cx| {
+            let weak_pin = cx.weak_entity();
+            let hc_pin_id = id.clone();
+            let hc_pin_label = pin.label.clone();
+            let hc_bound_entry = bound_entry.clone();
+            let hc_bound_title = bound_title.clone();
+            let pin_btn = div()
+                .id(SharedString::from(format!("v3-pin-{id}")))
+                .debug_selector(move || pin_selector)
+                .h(px(20.))
+                .px_2()
+                .truncate()
+                .when_some(room, |el, room| el.max_w(px(room)))
+                .text_xs()
+                .text_color(pin_color.solid())
+                .role(gpui::Role::Button)
+                .aria_label(pin.label.clone())
+                .cursor_grab()
+                .child(pin.label.clone())
+                .on_click(cx.listener({
+                    let id = id.clone();
+                    let bound_entry = bound_entry.clone();
+                    move |this, e: &ClickEvent, w, cx| {
                         cx.stop_propagation();
-                        if e.click_count() > 1 {
+                        if (e.modifiers().platform || e.modifiers().control)
+                            && let Some(entry) = &bound_entry
+                        {
+                            this.open(entry, e, cx);
+                        } else if e.click_count() > 1 {
                             this.rename_pin(id.clone(), w, cx);
                         } else {
                             this.popup = Some(Popup::new(MenuOf::Pin(id.clone()), e.position()));
                             cx.notify();
                         }
-                    }))
-                    .on_drag(drag, |drag, offset, _, cx| {
-                        drag.grab.set(f32::from(offset.x));
-                        cx.new(|_| Ghost {
-                            title: drag.title.clone(),
+                    }
+                }))
+                .on_drag(drag, |drag, offset, _, cx| {
+                    drag.grab.set(f32::from(offset.x));
+                    cx.new(|_| Ghost {
+                        title: drag.title.clone(),
+                    })
+                });
+            let pin_hover = HoverCard::new(
+                SharedString::from(format!("v3-pin-hc-{id}")),
+                pin_btn,
+                move |_, cx| {
+                    let mut body = CardBody::new(
+                        SharedString::from(format!("v3-pin-hc-body-{hc_pin_id}")),
+                        hc_pin_label.clone(),
+                    )
+                    .mark(sand::Kind::Storyline, Some(pin_color));
+                    if let Some(bt) = &hc_bound_title {
+                        body = body.meta(bt.clone());
+                    }
+                    let mut rows = Vec::new();
+                    if let Some(be) = &hc_bound_entry {
+                        let w_open = weak_pin.clone();
+                        let be = be.clone();
+                        rows.push(
+                            CardAction::new(
+                                SharedString::from(format!("v3-pin-hc-open-{hc_pin_id}")),
+                                Icon::ArrowIn,
+                                t(cx, keys::v3_shell::OPEN),
+                            )
+                            .on_click(move |e, _, cx| {
+                                let _ = w_open.update(cx, |this, cx| this.open(&be, e, cx));
+                            })
+                            .into_any_element(),
+                        );
+                    }
+                    let w_ren = weak_pin.clone();
+                    let rid = hc_pin_id.clone();
+                    rows.push(
+                        CardAction::new(
+                            SharedString::from(format!("v3-pin-hc-ren-{hc_pin_id}")),
+                            Icon::Edit,
+                            t(cx, keys::v3_timeline::RENAME_PIN),
+                        )
+                        .on_click(move |_, w, cx| {
+                            let _ =
+                                w_ren.update(cx, |this, cx| this.rename_pin(rid.clone(), w, cx));
                         })
-                    }),
+                        .into_any_element(),
+                    );
+                    let w_del = weak_pin.clone();
+                    let did = hc_pin_id.clone();
+                    body.section(rows)
+                        .section(vec![
+                            CardAction::new(
+                                SharedString::from(format!("v3-pin-hc-del-{hc_pin_id}")),
+                                Icon::Trash,
+                                t(cx, keys::common::DELETE),
+                            )
+                            .danger()
+                            .on_click(move |_, _, cx| {
+                                let _ =
+                                    w_del.update(cx, |this, cx| this.delete_pin(did.clone(), cx));
+                            })
+                            .into_any_element(),
+                        ])
+                        .into_any_element()
+                },
+            );
+            ruler = ruler.child(div().absolute().left(px(x)).top(px(10.0)).child(pin_hover));
+        }
+        // Fallback if editing a brand-new pin not yet in the snapshot.
+        if !rendered_pin_editor
+            && let Some(edit) = self
+                .editing
+                .as_ref()
+                .filter(|e| matches!(e.kind, EditKind::PinLabel | EditKind::PinColor))
+        {
+            ruler = ruler.child(
+                div()
+                    .id("v3-timeline-editor")
+                    .absolute()
+                    .left(px(left + 12.0))
+                    .top(px(4.0))
+                    .w(px(180.0))
+                    .role(gpui::Role::Group)
+                    .aria_label(edit.field.read(cx).text())
+                    .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                    .child(edit.field.clone()),
             );
         }
         let content = div().w(px(width)).h_full().flex().flex_col().child(ruler);
@@ -946,12 +1128,17 @@ impl Timeline {
                     ),
             );
         }
+        self.lane_rows.borrow_mut().clear();
+        let active_entry = self.active_entry_id(cx);
         for lane in lanes {
             let color = lane
                 .color
                 .as_deref()
                 .and_then(color_of)
                 .unwrap_or(palette.accent);
+            let lane_rows_ref = self.lane_rows.clone();
+            let probe_lane_id = lane.id.clone();
+            let dbl_lane = lane.id.clone();
             let mut row = div()
                 .id(SharedString::from(format!("v3-track-{}", lane.id)))
                 .debug_selector({
@@ -964,7 +1151,34 @@ impl Timeline {
                 .rounded(px(5.))
                 .bg(palette.paper.solid())
                 .border_b_1()
-                .border_color(palette.desk.solid());
+                .border_color(palette.desk.solid())
+                .child(
+                    canvas(
+                        move |b, _, _| {
+                            let mut rows = lane_rows_ref.borrow_mut();
+                            let top = f32::from(b.origin.y);
+                            let h = f32::from(b.size.height);
+                            if let Some(slot) =
+                                rows.iter_mut().find(|(id, _, _)| id == &probe_lane_id)
+                            {
+                                slot.1 = top;
+                                slot.2 = h;
+                            } else {
+                                rows.push((probe_lane_id.clone(), top, h));
+                            }
+                        },
+                        |_, _, _, _| {},
+                    )
+                    .absolute()
+                    .inset_0(),
+                )
+                .on_click(cx.listener(move |this, e: &ClickEvent, _, cx| {
+                    if e.click_count() == 2
+                        && let Some(at) = this.order_at(e.position().x)
+                    {
+                        this.create_entry_in_lane_at(dbl_lane.clone(), Some(at), cx);
+                    }
+                }));
             let lane_id = lane.id.clone();
             let can_drop_lane = lane.id.clone();
             let page = self.page_host();
@@ -990,6 +1204,17 @@ impl Timeline {
                 .on_drop::<EntryDrag>(cx.listener(move |this, drag, w, cx| {
                     this.dropped_entry(drag, lane_id.clone(), w, cx)
                 }));
+            if let Some(guide_x) = self.pin_drag_x {
+                row = row.child(
+                    div()
+                        .absolute()
+                        .left(px(guide_x))
+                        .top_0()
+                        .bottom_0()
+                        .w(px(1.5))
+                        .bg(palette.accent.alpha(0.7)),
+                );
+            }
             for pin in &view.pins {
                 let x = (pin.at - min) as f32 * unit;
                 if x >= left && x <= left + visible {
@@ -1042,13 +1267,33 @@ impl Timeline {
                         window,
                     ))
                 };
+                let full_summary = self
+                    .book
+                    .v3()
+                    .and_then(|b| model::entry_summary(b, &clip.entry));
                 let summary = (w >= 104. && lane_h >= 68.)
-                    .then(|| {
-                        self.book
-                            .v3()
-                            .and_then(|b| model::entry_summary(b, &clip.entry))
-                    })
+                    .then(|| full_summary.clone())
                     .flatten();
+                let entry_words = self
+                    .book
+                    .v3()
+                    .map(|b| b.entry_words(&clip.entry))
+                    .unwrap_or(0);
+                let entry_status = self
+                    .book
+                    .v3()
+                    .and_then(|b| b.entry_status(&clip.entry))
+                    .map(str::to_owned);
+                let muted_clip = self
+                    .book
+                    .v3()
+                    .is_some_and(|b| b.is_resting_or_discarded(&clip.entry));
+                let finished_clip = entry_status.as_deref() == Some("finished");
+                let is_active = active_entry.as_deref() == Some(clip.entry.as_str());
+                let is_dragging_self = self
+                    .clip_drag
+                    .as_ref()
+                    .is_some_and(|d| d.entry == clip.entry && d.source_lane == lane.id);
                 let id = clip.entry.clone();
                 // A preview can arrive before its hang is in the book.
                 // Wait for the committed placement before editing it again.
@@ -1096,7 +1341,7 @@ impl Timeline {
                 let can_drop_clip_lane = lane.id.clone();
                 let page = self.page_host();
                 let clip_selector = format!("v3-clip-{}-{id}", lane.id);
-                let narrow_card = w < NARROW_CARD;
+                let narrow_card = short_segment || w < NARROW_CARD;
                 let pad_x = if narrow_card { NARROW_PAD } else { 8.0 };
                 let title_font_px = if narrow_card {
                     narrow_font(&theme)
@@ -1104,32 +1349,30 @@ impl Timeline {
                     theme.scale.secondary
                 };
                 let avail_title_w = (w - pad_x * 2.0 - if show_more { 20.0 } else { 0.0 }).max(0.0);
-                let shown_title = if short_segment {
-                    String::new()
-                } else {
-                    model::slice_whole_chars(
-                        &title,
-                        avail_title_w,
-                        px(title_font_px),
-                        dr_ui::fonts::Role::Ui.font(dr_ui::fonts::weight::REGULAR),
-                        window,
-                    )
-                };
+                let shown_title = model::slice_whole_chars(
+                    &title,
+                    avail_title_w,
+                    px(title_font_px),
+                    dr_ui::fonts::Role::Ui.font(dr_ui::fonts::weight::REGULAR),
+                    window,
+                );
+                let spring_entity = cx.entity();
+                let spring_lane = lane.id.clone();
+                let spring_entry = id.clone();
+                let spring_title = SharedString::from(title.clone());
+                let spring_h = (lane_h - 6.0).max(16.0);
                 let clip_body = glass::glass_box(
                     SharedString::from(clip_selector.clone()),
                     Kind::Rest,
                     Mode::default(),
-                    false,
+                    is_active,
                     Spec::new(Tone::Color(color), 5.),
                     window,
                     cx,
                 )
                 .debug_selector(move || clip_selector.clone())
-                .absolute()
-                .left_0()
-                .right_0()
-                .top_0()
-                .bottom_0()
+                .w(px(w))
+                .h(px(spring_h))
                 .flex()
                 .when(summary.is_some(), |b| {
                     b.flex_col().justify_center().items_start()
@@ -1140,36 +1383,43 @@ impl Timeline {
                 .role(gpui::Role::Button)
                 .aria_label(title.clone())
                 .when(can_edit_placement, |body| body.cursor_grab())
-                .when(!short_segment, |body| {
+                .px(px(pad_x))
+                .child({
                     let title_id = format!("v3-clip-title-{}-{id}", lane.id);
-                    body.px(px(pad_x))
-                        .child(
-                            div()
-                                .id(SharedString::from(title_id.clone()))
-                                .debug_selector(move || title_id)
-                                .w_full()
-                                .min_w_0()
-                                .overflow_hidden()
-                                .whitespace_nowrap()
-                                .type_px(title_font_px, theme.scale.line_caption)
-                                .child(shown_title),
-                        )
-                        .when_some(summary, |body, sum| {
-                            body.child(
-                                div()
-                                    .w_full()
-                                    .min_w_0()
-                                    .overflow_hidden()
-                                    .line_clamp(2)
-                                    .type_px(theme.scale.caption, theme.scale.line_caption)
-                                    .text_color(palette.ink(3).solid())
-                                    .child(sum),
-                            )
+                    div()
+                        .id(SharedString::from(title_id.clone()))
+                        .debug_selector(move || title_id)
+                        .w_full()
+                        .min_w_0()
+                        .overflow_hidden()
+                        .whitespace_nowrap()
+                        .flex()
+                        .items_center()
+                        .gap(px(3.0))
+                        .type_px(title_font_px, theme.scale.line_caption)
+                        .when(finished_clip && w >= 36., |el| {
+                            el.child(sand::icon(Icon::Check, 10., color.solid()))
                         })
+                        .child(shown_title)
                 })
-                .on_click(cx.listener(move |this, e, _, cx| {
-                    cx.stop_propagation();
-                    this.open(&id, e, cx);
+                .when_some(summary, |body, sum| {
+                    body.child(
+                        div()
+                            .w_full()
+                            .min_w_0()
+                            .overflow_hidden()
+                            .line_clamp(2)
+                            .type_px(theme.scale.caption, theme.scale.line_caption)
+                            .text_color(palette.ink(3).solid())
+                            .child(sum),
+                    )
+                })
+                .on_click(cx.listener({
+                    let id = id.clone();
+                    move |this, e, _, cx| {
+                        cx.stop_propagation();
+                        this.open(&id, e, cx);
+                    }
                 }))
                 .can_drop(move |value, _, _| {
                     value.downcast_ref::<EntryDrag>().is_some_and(|drag| {
@@ -1187,17 +1437,45 @@ impl Timeline {
                     this.dropped_entry(drag, drop_lane.clone(), w, cx)
                 }))
                 .when_some(drag, |body, drag| {
-                    body.on_drag(drag, |drag, offset, _, cx| {
+                    body.on_drag(drag, move |drag, offset, window, cx| {
                         drag.set_grab(f32::from(offset.x));
+                        let ptr = window.mouse_position();
+                        let grab = (f32::from(offset.x), f32::from(offset.y));
+                        spring_entity.update(cx, |this, cx| {
+                            this.start_clip_spring_drag(
+                                spring_entry.clone(),
+                                spring_lane.clone(),
+                                spring_title.clone(),
+                                color,
+                                w,
+                                spring_h,
+                                grab,
+                                ptr,
+                                cx,
+                            );
+                        });
                         cx.new(|_| Ghost {
                             title: drag.title.clone(),
                         })
                     })
                 });
                 let resize_selector = format!("v3-resize-{}-{}", lane.id, clip.entry);
+                let resize_focus = window
+                    .use_keyed_state(
+                        SharedString::from(format!("v3-resize-focus-{}-{}", lane.id, clip.entry)),
+                        cx,
+                        |_, cx| cx.focus_handle(),
+                    )
+                    .read(cx)
+                    .clone();
+                let nudge_entry = id.clone();
+                let nudge_at = clip.at;
+                let nudge_cur_span = effective_span;
                 let handle = div()
                     .id(SharedString::from(resize_selector.clone()))
                     .debug_selector(move || resize_selector.clone())
+                    .track_focus(&resize_focus)
+                    .tab_index(0)
                     .absolute()
                     .right_0()
                     .top_0()
@@ -1213,7 +1491,96 @@ impl Timeline {
                             cx.stop_propagation();
                             cx.notify();
                         }),
+                    )
+                    .on_key_down(cx.listener(move |this, e: &KeyDownEvent, _, cx| {
+                        let step = if e.keystroke.modifiers.shift {
+                            2.0
+                        } else {
+                            0.5
+                        };
+                        let delta = match e.keystroke.key.as_str() {
+                            "left" => -step,
+                            "right" => step,
+                            _ => return,
+                        };
+                        cx.stop_propagation();
+                        this.nudge_span(
+                            nudge_entry.clone(),
+                            nudge_at,
+                            (nudge_cur_span + delta).max(0.25),
+                            cx,
+                        );
+                    }));
+                let weak_clip = cx.weak_entity();
+                let hc_entry = id.clone();
+                let hc_lane = lane.id.clone();
+                let hc_title = title.clone();
+                let hc_summary = full_summary.clone();
+                let hc_status = entry_status.clone();
+                let hc_mark = self
+                    .book
+                    .v3()
+                    .and_then(|b| b.appearance(&clip.entry))
+                    .map_or_else(
+                        || sand::Kind::Chapter(dr_shell::book::seal_of(&clip.entry)),
+                        |a| a.sand,
                     );
+                let clip_hover = HoverCard::new(
+                    SharedString::from(format!("v3-clip-hc-{}-{id}", lane.id)),
+                    div().w(px(w)).h(px(spring_h)).child(clip_body),
+                    move |_, cx| {
+                        let mut body = CardBody::new(
+                            SharedString::from(format!("v3-clip-hc-body-{hc_lane}-{hc_entry}")),
+                            hc_title.clone(),
+                        )
+                        .mark(hc_mark, Some(color));
+                        if entry_words > 0 {
+                            body = body.count(dr_shell::strings::tf(
+                                cx,
+                                keys::shell_ui::WORDS_SHORT,
+                                &[("count", &entry_words)],
+                            ));
+                        }
+                        if let Some(st) = &hc_status {
+                            body = body.meta(st.clone());
+                        }
+                        if let Some(sum) = &hc_summary {
+                            body = body.summary(sum.clone());
+                        }
+                        let mut rows = vec![{
+                            let w_open = weak_clip.clone();
+                            let eid = hc_entry.clone();
+                            CardAction::new(
+                                SharedString::from(format!("v3-clip-hc-open-{hc_entry}")),
+                                Icon::ArrowIn,
+                                t(cx, keys::v3_shell::OPEN),
+                            )
+                            .on_click(move |e, _, cx| {
+                                let _ = w_open.update(cx, |this, cx| this.open(&eid, e, cx));
+                            })
+                            .into_any_element()
+                        }];
+                        if can_edit_placement {
+                            let w_rm = weak_clip.clone();
+                            let eid = hc_entry.clone();
+                            let lid = hc_lane.clone();
+                            rows.push(
+                                CardAction::new(
+                                    SharedString::from(format!("v3-clip-hc-rm-{hc_entry}")),
+                                    Icon::Minus,
+                                    t(cx, keys::v3_timeline::REMOVE_ENTRY),
+                                )
+                                .on_click(move |_, _, cx| {
+                                    let _ = w_rm.update(cx, |this, cx| {
+                                        this.remove_entry(eid.clone(), lid.clone(), cx)
+                                    });
+                                })
+                                .into_any_element(),
+                            );
+                        }
+                        body.section(rows).into_any_element()
+                    },
+                );
                 let mut slab = div()
                     .id(SharedString::from(format!(
                         "v3-placement-{}-{}",
@@ -1224,9 +1591,11 @@ impl Timeline {
                     .top(px(3.))
                     .bottom(px(3.))
                     .w(px(w))
+                    .when(is_dragging_self, |el| el.opacity(0.25))
+                    .when(!is_dragging_self && muted_clip, |el| el.opacity(0.55))
                     .role(gpui::Role::Group)
                     .aria_label(title)
-                    .child(clip_body);
+                    .child(div().relative().size_full().child(clip_hover));
                 if show_more {
                     slab = slab.child(
                         div()
@@ -1257,8 +1626,6 @@ impl Timeline {
     }
 }
 
-/// Ruler labels stay at least this far apart.
-const MIN_LABEL_GAP: f32 = 24.0;
 /// Air between the end of a pin's label and the next pin.
 const PIN_LABEL_GAP: f32 = 2.0;
 /// A pin's label is never cut narrower than its own padding, so there is
@@ -1289,6 +1656,38 @@ impl Render for Timeline {
             .font_role(FontRole::Ui)
             .type_px(theme.scale.secondary, theme.scale.line_body)
             .child(self.header(window, cx));
+        let spring_overlay = if let Some(drag) = &mut self.clip_drag {
+            let now = drag.started.elapsed().as_secs_f32();
+            let moving = drag.spring.step(now);
+            if moving {
+                dr_ui::anim::keep_going(true, window);
+            }
+            self.bounds.get().map(|b| {
+                let lx = drag.spring.x - f32::from(b.origin.x);
+                let ly = drag.spring.y - f32::from(b.origin.y);
+                let color = drag.color;
+                div()
+                    .absolute()
+                    .left(px(lx))
+                    .top(px(ly))
+                    .w(px(drag.width))
+                    .h(px(drag.height))
+                    .px_2()
+                    .rounded(px(5.0))
+                    .bg(color.alpha(0.22))
+                    .border_1()
+                    .border_color(color.solid())
+                    .flex()
+                    .items_center()
+                    .overflow_hidden()
+                    .text_color(color.solid())
+                    .type_px(theme.scale.secondary, theme.scale.line_caption)
+                    .child(drag.title.clone())
+                    .into_any_element()
+            })
+        } else {
+            None
+        };
         if let Some(view) = self.view() {
             let lane_h = self.scale().band.round();
             panel = panel.child(
@@ -1297,8 +1696,13 @@ impl Render for Timeline {
                     .flex_1()
                     .min_h_0()
                     .flex()
+                    .on_drag_move::<EntryDrag>(cx.listener(Self::clip_drag_moved))
+                    .on_drag_move::<PinDrag>(cx.listener(|this, e, _, cx| {
+                        this.pin_drag_moved(e, cx);
+                    }))
                     .child(self.rails(&lanes, lane_h, window, cx))
                     .child(self.tracks(view, &lanes, lane_h, window, cx))
+                    .children(spring_overlay)
                     .child(
                         canvas(
                             move |b, _, _| body.set(Some(b)),
@@ -1338,6 +1742,23 @@ impl Render for Timeline {
                                                 }
                                             })
                                             .ok();
+                                    } else if phase == DispatchPhase::Bubble
+                                        && event.button == MouseButton::Left
+                                    {
+                                        ended
+                                            .update(cx, |this, cx| {
+                                                let mut changed = false;
+                                                if this.clip_drag.take().is_some() {
+                                                    changed = true;
+                                                }
+                                                if this.pin_drag_x.take().is_some() {
+                                                    changed = true;
+                                                }
+                                                if changed {
+                                                    cx.notify();
+                                                }
+                                            })
+                                            .ok();
                                     }
                                 });
                             },
@@ -1349,7 +1770,7 @@ impl Render for Timeline {
                     ),
             );
         }
-        panel.children(self.popup(cx))
+        panel.children(self.popup(window, cx))
     }
 }
 

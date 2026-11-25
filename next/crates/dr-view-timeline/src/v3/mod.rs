@@ -18,16 +18,19 @@ use dr_shell::{
 use dr_ui::input::field::{FieldEvent, TextField};
 use dr_workspace::{Workspace as Library, WritePreconditions, commands::v3::types::TimelineView};
 use gpui::{prelude::*, *};
-use std::{cell::Cell, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+};
 
 #[derive(Clone)]
 enum MenuOf {
     Views,
+    ViewActions,
     Lanes,
     LaneTemplates,
     ActTrackTemplates,
     LaneActions(String),
-    PickLane,
     Entries(String),
     Clip { entry: String, lane: String },
     Pin(String),
@@ -84,9 +87,12 @@ pub struct Timeline {
     submitting: Option<Editing>,
     latest_edit: Option<EntityId>,
     bounds: Rc<Cell<Option<Bounds<Pixels>>>>,
+    lane_rows: Rc<RefCell<Vec<(String, f32, f32)>>>,
     writer: Option<futures::channel::mpsc::UnboundedSender<write::Job>>,
     pending: std::collections::BTreeMap<String, interaction::Pending>,
     resize: Option<interaction::Resizing>,
+    clip_drag: Option<interaction::ClipSpringDrag>,
+    pin_drag_x: Option<f32>,
 }
 
 pub fn init(cx: &mut App) {
@@ -125,9 +131,12 @@ impl Timeline {
             submitting: None,
             latest_edit: None,
             bounds: Rc::default(),
+            lane_rows: Rc::default(),
             writer: None,
             pending: Default::default(),
             resize: None,
+            clip_drag: None,
+            pin_drag_x: None,
         }
     }
     pub fn refresh(&mut self, host: &BottomHost, cx: &mut Context<Self>) {
@@ -138,6 +147,8 @@ impl Timeline {
             self.submitting = None;
             self.latest_edit = None;
             self.popup = None;
+            self.clip_drag = None;
+            self.pin_drag_x = None;
         }
         self.book = host.book.clone();
         self.reconcile_pending();
@@ -368,6 +379,114 @@ impl Timeline {
                 })
                 .ok();
         }
+    }
+    pub fn has_placed_entries(&self) -> bool {
+        self.lanes().iter().any(|l| !l.clips.is_empty())
+    }
+    pub(super) fn active_entry_id(&self, cx: &App) -> Option<String> {
+        let ws = self.ws.upgrade()?;
+        let nav = &ws.read(cx).nav;
+        let view = self.view()?;
+        for placement in &view.placements {
+            if let Ok(id) = placement.entry.parse()
+                && nav.is_selected(&Target::Entry { id, module: None })
+            {
+                return Some(placement.entry.clone());
+            }
+        }
+        None
+    }
+    pub fn locate_current_entry(&mut self, cx: &mut Context<Self>) {
+        let Some(entry_id) = self.active_entry_id(cx) else {
+            return;
+        };
+        let Some(view) = self.view() else {
+            return;
+        };
+        let Some(placement) = view.placements.iter().find(|p| p.entry == entry_id) else {
+            return;
+        };
+        let (min, _) = model::extent(view);
+        let unit = self.scale().unit();
+        let x = (placement.at - min) as f32 * unit;
+        let visible = self.bounds.get().map_or(800.0, |b| {
+            (f32::from(b.size.width) - self.rail_width()).max(200.0)
+        });
+        let target_left = (x - visible * 0.35).max(0.0);
+        self.scroll.set_offset(point(px(-target_left), px(0.0)));
+        self.remember(cx);
+        cx.notify();
+    }
+    pub fn spread_overlaps(&mut self, cx: &mut Context<Self>) {
+        let Some(book) = self.book.v3() else {
+            return;
+        };
+        let guard = book.guard();
+        let lanes = self.lanes();
+        let mut updates: std::collections::BTreeMap<String, (f64, Option<f64>)> =
+            std::collections::BTreeMap::new();
+        const GAP: f64 = 0.5;
+        for lane in &lanes {
+            let mut clips = lane.clips.clone();
+            clips.sort_by(|a, b| a.at.total_cmp(&b.at).then_with(|| a.entry.cmp(&b.entry)));
+            let mut cursor: Option<f64> = None;
+            for clip in clips {
+                let effective_at = updates
+                    .get(&clip.entry)
+                    .map(|(at, _)| *at)
+                    .unwrap_or(clip.at);
+                let span = clip.span.unwrap_or(if lane.act_track {
+                    model::SHORT_ACT_SPAN
+                } else {
+                    model::DEFAULT_SPAN
+                });
+                let next_at = match cursor {
+                    Some(end) if effective_at < end + GAP => end + GAP,
+                    _ => effective_at,
+                };
+                if (next_at - clip.at).abs() > 1e-4 {
+                    updates
+                        .entry(clip.entry.clone())
+                        .and_modify(|(at, _)| *at = at.max(next_at))
+                        .or_insert((next_at, clip.span));
+                }
+                cursor = Some(next_at + span);
+            }
+        }
+        if updates.is_empty() {
+            return;
+        }
+        let Some(view_id) = self.view().map(|v| v.id.clone()) else {
+            return;
+        };
+        self.popup = None;
+        self.write(cx, move |lib, book| {
+            let mut first = true;
+            for (entry, (at, span)) in updates {
+                let payload = serde_json::json!({
+                    "book": book,
+                    "view": view_id,
+                    "entry": entry,
+                    "lane": serde_json::Value::Null,
+                    "from_host": serde_json::Value::Null,
+                    "at": at,
+                    "span": span,
+                });
+                if first {
+                    lib.call_guarded(
+                        &dr_workspace::Actor::User,
+                        "timeline_view.place",
+                        payload,
+                        guard.clone(),
+                    )?;
+                    first = false;
+                } else {
+                    lib.call(&dr_workspace::Actor::User, "timeline_view.place", payload)?;
+                }
+            }
+            Ok(())
+        });
+        cx.notify();
     }
     pub fn open_book_view(&mut self, cx: &mut Context<Self>) {
         self.popup = None;

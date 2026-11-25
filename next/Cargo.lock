@@ -2322,6 +2322,7 @@ dependencies = [
  "dr-model",
  "dr-store",
  "dr-testkit",
+ "dr-text",
  "dr-ui",
  "dr-workspace",
  "gpui",

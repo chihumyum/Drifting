@@ -39,7 +39,9 @@ use crate::{
 use dr_i18n::keys;
 use dr_ui::{
     Theme, anim,
-    components::{Button, DraggedPill, IconButton, Pill, SandCell, Segmented, overlay},
+    components::{
+        Button, DraggedPill, IconButton, PanelIconButton, Pill, SandCell, Segmented, overlay,
+    },
     fonts::Role,
     sand::{self, Icon},
     style::DrStyled,
@@ -196,13 +198,23 @@ impl Sidebar {
         }
     }
 
-    /// Esc: closes the structure's floating panel. Whether one was open.
+    /// Esc: closes the structure's floating panel or an active filled canvas's
+    /// inner overlay (relation mode / sheet / peek). Returns whether one was open.
     pub fn close_structure_panel(&mut self, cx: &mut Context<Self>) -> bool {
-        self.in_structure
-            && self
+        if self.in_structure {
+            return self
                 .template_structure
                 .as_ref()
-                .is_some_and(|structure| structure.update(cx, |view, cx| view.close_panel(cx)))
+                .is_some_and(|structure| structure.update(cx, |view, cx| view.close_panel(cx)));
+        }
+        if self.filled
+            && let Some(id) = self.selected.as_deref()
+            && let Some((_, _, part, _)) = self.filled_displays.get(id)
+            && let Some(close) = &part.close_panel
+        {
+            return close(cx);
+        }
+        false
     }
 
     pub fn leave_fill(&mut self, cx: &mut Context<Self>) {
@@ -1608,11 +1620,84 @@ impl Render for Sidebar {
         } else if self.browsing_templates {
             self.template_list_body(window, cx)
         } else {
-            selected.map_or_else(
+            selected.as_ref().map_or_else(
                 || div().into_any_element(),
-                |tab| self.body(&tab, window, cx),
+                |tab| self.body(tab, window, cx),
             )
         };
+        // Per-tab count summary, unread Activity dot, and Collapse-All / Expand-All
+        // utility strip when browsing entries in the regular sidebar.
+        let utility_strip = (!self.filled && !self.in_structure && !self.browsing_templates)
+            .then(|| {
+                let tab = selected.as_ref()?;
+                let v = self.host.book.v3()?;
+                if tabs::is_gone(v, &tab.mount) {
+                    return None;
+                }
+                let count = match &tab.mount {
+                    TabMount::Root => v.entries.len(),
+                    TabMount::Entry { entry } => {
+                        let mut seen = std::collections::HashSet::new();
+                        let mut stack = vec![entry.as_str()];
+                        while let Some(cur) = stack.pop() {
+                            if let Some(level) = v.levels.get(cur) {
+                                for c in &level.children {
+                                    if seen.insert(c.as_str()) {
+                                        stack.push(c.as_str());
+                                    }
+                                }
+                                for m in &level.members {
+                                    seen.insert(m.as_str());
+                                }
+                            }
+                        }
+                        seen.len()
+                    }
+                    TabMount::Book => v.book_entries().len(),
+                    TabMount::View { .. } => 0,
+                };
+                let badges = super::unread_badges(&self.host.library, cx);
+                let has_unread = super::tab_has_unread(v, &tab.mount, &badges);
+                let toggle_all = self
+                    .displays
+                    .get(&tab.id)
+                    .and_then(|(_, part)| part.toggle_collapse_all.clone());
+                let p = Theme::of(window, cx).palette;
+                let s = Theme::of(window, cx).scale;
+                Some(
+                    div()
+                        .flex_shrink_0()
+                        .px(px(12.0))
+                        .pt(px(2.0))
+                        .flex()
+                        .flex_row()
+                        .items_center()
+                        .gap(px(6.0))
+                        .child(
+                            div()
+                                .font_role(Role::Index)
+                                .type_px(s.caption, s.line_caption)
+                                .text_color(p.ink(4).solid())
+                                .child(tf(cx, keys::v3_shell::ENTRY_COUNT, &[("count", &count)])),
+                        )
+                        .when(has_unread, |el| {
+                            el.child(div().size(px(6.0)).rounded_full().bg(p.accent.solid()))
+                        })
+                        .child(div().flex_1())
+                        .when_some(toggle_all, |el, toggle| {
+                            el.child(
+                                PanelIconButton::new(self.id_of("v3-collapse-all"), Icon::ViewList)
+                                    .label(t(cx, keys::left_sidebar::actions::COLLAPSE_ALL))
+                                    .on_click(move |_, _, cx| toggle(cx)),
+                            )
+                        })
+                        .into_any_element(),
+                )
+            })
+            .flatten();
+        if let Some(strip) = utility_strip {
+            content = content.child(strip);
+        }
         // The keyboard asked for (⌘⇧L, ↓ on the Tab row, a click on a Tab
         // from the tree): the Tab's tree is made by now.
         if std::mem::take(&mut self.want_tree_keys) && !self.filled && !self.in_structure {

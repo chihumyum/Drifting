@@ -176,6 +176,9 @@ pub struct BookV3 {
     /// same read.
     #[serde(skip)]
     colors: BTreeMap<String, String>,
+    /// Indexed prose word count summed across each entry's body documents.
+    #[serde(skip)]
+    pub entry_words: BTreeMap<String, u64>,
     /// The digest of every record this snapshot shows, from the same read.
     #[serde(skip)]
     shown: Vec<RecordPrecondition>,
@@ -491,6 +494,98 @@ impl BookV3 {
             .iter()
             .filter(|v| v.deleted_at.is_none())
             .any(|v| v.lanes.iter().any(|l| l.entry == id))
+    }
+
+    /// Total indexed prose words for `id` across its body documents.
+    pub fn entry_words(&self, id: &str) -> u64 {
+        self.entry_words.get(id).copied().unwrap_or(0)
+    }
+
+    /// The value of the entry's configured `status_field`, if any.
+    pub fn entry_status(&self, id: &str) -> Option<&str> {
+        let entry = self.entry(id)?;
+        let tpl = self.template_of(id)?;
+        for m in &tpl.modules {
+            if let Some(fid) = m.config.status_field.as_deref()
+                && let Some(types::FieldValue::Text(s)) =
+                    entry.fields.get(&m.id).and_then(|f| f.get(fid))
+                && !s.trim().is_empty()
+            {
+                return Some(s.as_str());
+            }
+        }
+        None
+    }
+
+    /// Whether the entry's status is `resting` or `discarded`.
+    pub fn is_resting_or_discarded(&self, id: &str) -> bool {
+        matches!(self.entry_status(id), Some("resting" | "discarded"))
+    }
+
+    /// The value of the entry's configured `summary_field`, if any.
+    pub fn entry_summary(&self, id: &str) -> Option<&str> {
+        let entry = self.entry(id)?;
+        let tpl = self.template_of(id)?;
+        for m in &tpl.modules {
+            if let Some(fid) = m.config.summary_field.as_deref()
+                && let Some(types::FieldValue::Text(s)) =
+                    entry.fields.get(&m.id).and_then(|f| f.get(fid))
+                && !s.trim().is_empty()
+            {
+                return Some(s.as_str());
+            }
+        }
+        None
+    }
+
+    /// Aliases from the entry's template `aliases_field` or `aliases` typed fields.
+    pub fn entry_aliases(&self, id: &str) -> Vec<String> {
+        let Some(entry) = self.entry(id) else {
+            return Vec::new();
+        };
+        let Some(tpl) = self.template_of(id) else {
+            return Vec::new();
+        };
+        let mut out = Vec::new();
+        for m in &tpl.modules {
+            let Some(vals) = entry.fields.get(&m.id) else {
+                continue;
+            };
+            let mut ids: Vec<&str> = m
+                .config
+                .defs
+                .iter()
+                .filter(|d| d.field_type == "aliases")
+                .map(|d| d.id.as_str())
+                .collect();
+            if let Some(af) = m.config.aliases_field.as_deref()
+                && !ids.contains(&af)
+            {
+                ids.push(af);
+            }
+            for fid in ids {
+                if let Some(val) = vals.get(fid) {
+                    match val {
+                        types::FieldValue::List(xs) => {
+                            for s in xs {
+                                let t = s.trim();
+                                if !t.is_empty() && !out.iter().any(|x| x == t) {
+                                    out.push(t.to_owned());
+                                }
+                            }
+                        }
+                        types::FieldValue::Text(s) => {
+                            let t = s.trim();
+                            if !t.is_empty() && !out.iter().any(|x| x == t) {
+                                out.push(t.to_owned());
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+        out
     }
 }
 
@@ -1007,6 +1102,19 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
     v3.layouts = parse_layout_positions(lib.layout_positions(id)?);
     v3.stored_tab = lib.stored_tab(id)?;
     v3.project = std::mem::take(&mut v3.project).with_selected_tab(v3.stored_tab.clone());
+    if let Ok(docs) = lib.library().docs(Some(id), None) {
+        let mut entry_words: BTreeMap<String, u64> = BTreeMap::new();
+        for info in docs {
+            if let Some(rest) = info.doc_id.strip_prefix("body:")
+                && let Some((eid, _)) = rest.split_once('/')
+                && let Ok(Some(stats)) = lib.library().doc_stats(&info.doc_id)
+                && stats.words > 0
+            {
+                *entry_words.entry(eid.to_owned()).or_insert(0) += stats.words;
+            }
+        }
+        v3.entry_words = entry_words;
+    }
     v3.entry_index = v3
         .entries
         .iter()

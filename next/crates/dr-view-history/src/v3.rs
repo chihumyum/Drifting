@@ -19,6 +19,7 @@ pub struct EntryHistoryDialog {
     title: String,
     strings: I18n,
     points: Option<Vec<api::Point>>,
+    summaries: std::collections::BTreeMap<String, (u64, String)>,
     preview: Option<api::PreviewOut>,
     selected: Option<String>,
     confirming: bool,
@@ -95,6 +96,7 @@ impl EntryHistoryDialog {
             title,
             strings: I18n::new(locale, platform),
             points: None,
+            summaries: std::collections::BTreeMap::new(),
             preview: None,
             selected: None,
             confirming: false,
@@ -123,7 +125,7 @@ impl EntryHistoryDialog {
         self.reads += 1;
         self.busy = true;
         self.task = Some(cx.spawn(async move |this, cx| {
-            let (seq, result) = cx
+            let (seq, result, summaries) = cx
                 .background_executor()
                 .spawn(async move {
                     let seq = lib
@@ -132,10 +134,24 @@ impl EntryHistoryDialog {
                         .ok()
                         .flatten()
                         .map_or(0, |h| h.seq);
-                    (
-                        seq,
-                        lib.run::<api::List>(&Actor::User, target).map(|o| o.output),
-                    )
+                    let list = lib
+                        .run::<api::List>(&Actor::User, target.clone())
+                        .map(|o| o.output);
+                    let mut summaries = std::collections::BTreeMap::new();
+                    if let Ok(points) = &list {
+                        for pt in points.iter().take(30) {
+                            if let Ok(prev) = lib.run::<api::Preview>(
+                                &Actor::User,
+                                api::PointIn {
+                                    target: target.clone(),
+                                    point: pt.id.clone(),
+                                },
+                            ) {
+                                summaries.insert(pt.id.clone(), point_summary(&prev.output));
+                            }
+                        }
+                    }
+                    (seq, list, summaries)
                 })
                 .await;
             this.update(cx, |d, cx| {
@@ -152,6 +168,7 @@ impl EntryHistoryDialog {
                             d.confirming = false;
                         }
                         d.points = Some(p);
+                        d.summaries = summaries;
                     }
                     Err(e) => d.error = Some(e.to_string()),
                 }
@@ -327,19 +344,44 @@ impl Render for EntryHistoryDialog {
             for (i, point) in points.iter().enumerate() {
                 let select = entity.clone();
                 let id = point.id.clone();
-                list = list.child(
+                let summary = self.summaries.get(&point.id);
+                let header = match summary {
+                    Some((words, _)) if *words > 0 => format!(
+                        "{} · {} · {}",
+                        model::stamp(point.ts, model::now_ms()),
+                        point.title,
+                        self.strings
+                            .fmt(keys::shell_ui::WORDS_SHORT, &[("count", words)]),
+                    ),
+                    _ => format!(
+                        "{} · {}",
+                        model::stamp(point.ts, model::now_ms()),
+                        point.title
+                    ),
+                };
+                let excerpt = summary
+                    .map(|(_, ex)| ex.as_str())
+                    .filter(|ex| !ex.is_empty());
+                let mut row = div().flex().flex_col().gap(px(2.0)).child(
                     Button::new(
                         ElementId::Name(format!("entry-history-point-{i}").into()),
-                        format!(
-                            "{} · {}",
-                            model::stamp(point.ts, model::now_ms()),
-                            point.title
-                        ),
+                        header,
                     )
                     .text()
                     .disabled(self.busy)
                     .on_click(move |_, _, cx| select.update(cx, |d, cx| d.select(id.clone(), cx))),
                 );
+                if let Some(ex) = excerpt {
+                    row = row.child(
+                        div()
+                            .pl(px(10.0))
+                            .text_xs()
+                            .text_color(p.ink(3).solid())
+                            .truncate()
+                            .child(ex.to_owned()),
+                    );
+                }
+                list = list.child(row);
                 if let Some(preview) = self.preview.as_ref().filter(|v| v.point.id == point.id) {
                     let mut detail = div()
                         .id(ElementId::Name(format!("entry-history-preview-{i}").into()))
@@ -468,13 +510,17 @@ pub(crate) fn preview_sections(p: &api::PreviewOut) -> Vec<(String, String)> {
         for (module, values) in fields {
             if let Some(values) = values.as_object() {
                 for (id, value) in values {
+                    let rendered = format_field_value(value);
+                    if rendered.trim().is_empty() {
+                        continue;
+                    }
                     let label = modules
                         .iter()
                         .find(|m| &m.id == module)
                         .and_then(|m| m.config.defs.iter().find(|d| &d.id == id))
                         .map(|d| d.name.clone())
                         .unwrap_or_else(|| id.clone());
-                    out.push((label, text(value)));
+                    out.push((label, rendered));
                 }
             }
         }
@@ -482,13 +528,14 @@ pub(crate) fn preview_sections(p: &api::PreviewOut) -> Vec<(String, String)> {
     for (key, rows) in p.metadata.iter().filter(|(k, _)| k.starts_with("kv:")) {
         if let Some(rows) = rows.as_object() {
             for value in rows.values() {
-                out.push((
-                    value
-                        .get("key")
-                        .map(&text)
-                        .unwrap_or_else(|| name(&key[3..])),
-                    value.get("value").map(&text).unwrap_or_default(),
-                ));
+                let k_str = value
+                    .get("key")
+                    .map(&text)
+                    .unwrap_or_else(|| name(&key[3..]));
+                let v_str = value.get("value").map(&text).unwrap_or_default();
+                if !k_str.trim().is_empty() || !v_str.trim().is_empty() {
+                    out.push((k_str, v_str));
+                }
             }
         }
     }
@@ -503,43 +550,52 @@ pub(crate) fn preview_sections(p: &api::PreviewOut) -> Vec<(String, String)> {
     if let Some(grids) = p.records.get("plot_grids") {
         for (id, row) in grids {
             if let Some(cells) = row.get("cells").and_then(|v| v.as_object()) {
-                out.push((
-                    name(id.rsplit('/').next().unwrap_or_default()),
-                    cells.values().map(&text).collect::<Vec<_>>().join("\n"),
-                ));
+                let joined = cells
+                    .values()
+                    .map(&text)
+                    .filter(|s| !s.trim().is_empty())
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                if !joined.is_empty() {
+                    out.push((name(id.rsplit('/').next().unwrap_or_default()), joined));
+                }
             }
         }
     }
-    // Raw sections keep hidden/future fields, memberships and relationships
-    // inspectable too. They are author data, never filtered by today's DTOs.
-    for (key, value) in &p.metadata {
-        out.push((
-            key.clone(),
-            serde_json::to_string_pretty(value).unwrap_or_default(),
-        ));
+    out
+}
+
+fn format_field_value(v: &serde_json::Value) -> String {
+    match v {
+        serde_json::Value::Null => String::new(),
+        serde_json::Value::String(s) => s.clone(),
+        serde_json::Value::Array(items) => items
+            .iter()
+            .filter_map(|x| x.as_str())
+            .collect::<Vec<_>>()
+            .join(" · "),
+        serde_json::Value::Bool(b) => if *b { "✓" } else { "—" }.into(),
+        serde_json::Value::Number(n) => n.to_string(),
+        other => other.to_string(),
     }
-    for (collection, rows) in &p.records {
-        for (id, row) in rows {
-            out.push((
-                format!("{collection} · {id}"),
-                serde_json::to_string_pretty(row).unwrap_or_default(),
-            ));
+}
+
+fn point_summary(p: &api::PreviewOut) -> (u64, String) {
+    let mut words = 0u64;
+    let mut excerpt = String::new();
+    for b in &p.bodies {
+        words += dr_text::count_words(&b.text);
+        if excerpt.is_empty() {
+            let clean: String = b.text.split_whitespace().collect::<Vec<_>>().join(" ");
+            if !clean.is_empty() {
+                let chars: Vec<char> = clean.chars().collect();
+                if chars.len() > 120 {
+                    excerpt = chars[..120].iter().collect::<String>() + "…";
+                } else {
+                    excerpt = clean;
+                }
+            }
         }
     }
-    if let Some(template) = &p.template_metadata {
-        let name = p
-            .template
-            .as_ref()
-            .map(|t| t.name.clone())
-            .unwrap_or_default();
-        out.push((
-            name,
-            serde_json::to_string_pretty(template).unwrap_or_default(),
-        ));
-    }
-    out.push((
-        p.point.title.clone(),
-        serde_json::to_string_pretty(&p.raw_state).unwrap_or_default(),
-    ));
-    out
+    (words, excerpt)
 }

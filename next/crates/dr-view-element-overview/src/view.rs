@@ -27,7 +27,7 @@ use dr_shell::v3::{
 };
 use dr_shell::workspace::FillPlace;
 use dr_ui::Theme;
-use dr_ui::components::Button;
+use dr_ui::components::{Button, CardBody, HoverCard};
 use dr_ui::input::field::{FieldEvent, TextField};
 use dr_ui::sand::{Icon, KindMark};
 use dr_ui::tokens::{Rgb, radius};
@@ -41,22 +41,23 @@ use gpui::prelude::FluentBuilder as _;
 use gpui::{
     AnyElement, AppContext as _, Bounds, Canvas, Context, DragMoveEvent, ElementId, Entity,
     InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, PathBuilder,
-    Pixels, Point, Render, ScrollDelta, ScrollEvent, SharedString, StatefulInteractiveElement,
-    Styled, Subscription, Task, WeakEntity, Window, canvas, div, point, px, size,
+    PinchEvent, Pixels, Point, Render, ScrollDelta, ScrollEvent, SharedString,
+    StatefulInteractiveElement, Styled, Subscription, Task, WeakEntity, Window, canvas, div, point,
+    px, size,
 };
 use serde_json::json;
 
 use crate::isles::{
     CELL_H, CELL_W, ElementCenter, ISLAND_GAP_X, IslandItem, IslandModel, IslePair, IslesLod,
-    LayoutBounds, LayoutInput, LayoutPlacement, ZOOM_MAX, ZOOM_MIN, card_col_step,
+    LayoutBounds, LayoutInput, LayoutPlacement, PinnedGrid, ZOOM_MAX, ZOOM_MIN, card_col_step,
     compute_element_centers, extract_v3_islands, isle_mark_weight, isle_neighbours, isle_pairs,
     isles_lod, major_element_ids, solve_super_element_layout,
 };
 use crate::relate::{
     ElementLayoutMode, MEMORY_KEY, OverviewMemory, RELATE_DRAG_ALPHA, RELATE_MOVE_MS,
-    RelateNodeInput, RelatePoint, RelateSimulationInput, RelateSpring, SpringKind,
-    create_relate_simulation, parse_overview_memory, relate_bounds, relate_ease, relate_positions,
-    relate_spring_signature, serialize_overview_memory, settle_relate,
+    RelateNodeInput, RelatePoint, RelateSimulation, RelateSimulationInput, RelateSpring,
+    SpringKind, create_relate_simulation, parse_overview_memory, relate_bounds, relate_ease,
+    relate_positions, relate_spring_signature, serialize_overview_memory, settle_relate,
 };
 
 pub use compose::{PairDirection, RelationDraft};
@@ -101,6 +102,44 @@ impl Render for ElementCarryDrag {
                     .text_size(px(12.0))
                     .text_color(p.ink(1).solid())
                     .child(SharedString::from(self.element_name.clone())),
+            )
+    }
+}
+
+#[derive(Clone)]
+pub struct IslandCarryDrag {
+    pub island_id: String,
+    pub title: String,
+    pub color: Option<Rgb>,
+    pub start_grid: PinnedGrid,
+    pub start_world: RelatePoint,
+}
+
+impl Render for IslandCarryDrag {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let p = Theme::of(window, cx).palette;
+        let mark_color = self.color.unwrap_or_else(|| p.ink(2));
+        div()
+            .px(px(10.0))
+            .py(px(5.0))
+            .rounded(px(radius::SM))
+            .bg(p.paper.solid())
+            .border_1()
+            .border_color(mark_color.alpha(0.6))
+            .flex()
+            .flex_row()
+            .items_center()
+            .gap(px(6.0))
+            .child(
+                KindMark::new("se-island-drag-mark", dr_ui::sand::Kind::Category)
+                    .color(mark_color)
+                    .scale(12.0 / 14.0),
+            )
+            .child(
+                div()
+                    .text_size(px(12.0))
+                    .text_color(p.ink(1).solid())
+                    .child(SharedString::from(self.title.clone())),
             )
     }
 }
@@ -260,6 +299,8 @@ pub struct ElementOverview {
     pub(crate) layout_bounds: LayoutBounds,
     pub(crate) element_centers: HashMap<String, ElementCenter>,
     pub(crate) drop_island_id: Option<String>,
+    pub(crate) pinned_islands: BTreeMap<String, PinnedGrid>,
+    pub(crate) hovered_element: Option<String>,
 
     // True v3 mentions & shared-paragraph co-occurrence sand lines
     pub(crate) loaded_lib_ptr: usize,
@@ -280,6 +321,7 @@ pub struct ElementOverview {
     pub(crate) relate_signature: Option<String>,
     pub(crate) relate_moving: bool,
     pub(crate) _tween_task: Option<Task<()>>,
+    active_drag_sim: Option<RelateSimulation>,
 
     // Focus & floating island (`SuperElementIsland`)
     pub(crate) isle_focus: Option<String>,
@@ -340,6 +382,8 @@ impl ElementOverview {
             },
             element_centers: HashMap::new(),
             drop_island_id: None,
+            pinned_islands: BTreeMap::new(),
+            hovered_element: None,
             loaded_lib_ptr: 0,
             cooccurrences: EntryCooccurrenceGraph::default(),
             lines_on: true,
@@ -356,6 +400,7 @@ impl ElementOverview {
             relate_signature: None,
             relate_moving: false,
             _tween_task: None,
+            active_drag_sim: None,
             isle_focus: None,
             isle_island: None,
             isolated: false,
@@ -410,6 +455,8 @@ impl ElementOverview {
     pub(crate) fn drop_library_handles(&mut self, cx: &mut Context<Self>) {
         self.cancel_relation(cx);
         self._tween_task = None;
+        self.active_drag_sim = None;
+        self.hovered_element = None;
         self.island_sheet = None;
         self.lib = None;
         self.loaded_lib_ptr = 0;
@@ -477,6 +524,9 @@ impl ElementOverview {
             self.book_id = book_id;
             self.book = book;
             self.memory_loaded_for = None;
+            self.pinned_islands.clear();
+            self.hovered_element = None;
+            self.active_drag_sim = None;
             self.close_island(cx);
             self.reload_all_headless(cx);
             self.reset_view(cx);
@@ -494,6 +544,32 @@ impl ElementOverview {
         if mem_ready && self.memory_loaded_for.as_deref() != Some(self.book_id.as_str()) {
             self.memory_loaded_for = Some(self.book_id.clone());
             let parsed = parse_overview_memory(raw_mem.as_ref());
+            if let Some(on) = parsed.lines_on {
+                self.lines_on = on;
+            }
+            if let Some(thresh) = parsed.line_threshold {
+                self.line_threshold = thresh;
+            }
+            if !parsed.hidden_relation_types.is_empty() {
+                self.hidden_relation_type_ids = parsed.hidden_relation_types.into_iter().collect();
+            }
+            if !parsed.pinned_islands.is_empty() {
+                self.pinned_islands = parsed
+                    .pinned_islands
+                    .into_iter()
+                    .map(|(id, [gx, gy])| {
+                        (
+                            id,
+                            PinnedGrid {
+                                grid_x: gx,
+                                grid_y: gy,
+                            },
+                        )
+                    })
+                    .collect();
+                self.recompute_isles_layout();
+            }
+            self.rebuild_derived_caches();
             let pins = self.author_pins();
             let had_positions = parsed.positions.is_some();
             if let Some(mut stored_pos) = parsed.positions {
@@ -505,7 +581,10 @@ impl ElementOverview {
                     self.relate_rest = Some(stored_pos);
                 }
             }
-            if had_positions {
+            if let (Some([px, py]), Some(z)) = (parsed.pan, parsed.zoom) {
+                self.pan = point(px, py);
+                self.zoom = z.clamp(ZOOM_MIN, ZOOM_MAX);
+            } else if had_positions {
                 self.reset_view(cx);
             }
         }
@@ -592,20 +671,7 @@ impl ElementOverview {
             self.elements.clear();
         }
 
-        let inputs: Vec<LayoutInput> = self
-            .island_models
-            .iter()
-            .map(|m| LayoutInput {
-                id: m.island_id.clone(),
-                width_cells: m.width_cells,
-                height_cells: m.height_cells,
-                pinned: None,
-            })
-            .collect();
-        let solved = solve_super_element_layout(&inputs, 1);
-        self.placements = solved.placements;
-        self.layout_bounds = solved.bounds;
-        self.element_centers = compute_element_centers(&self.island_models, &self.placements);
+        self.recompute_isles_layout();
 
         // Drop focus if focused subject was trashed
         if let Some(eid) = &self.isle_focus
@@ -622,6 +688,43 @@ impl ElementOverview {
         self.measure_relate_names(cx);
         self.reload_relations_and_cooccurrences();
         self.ensure_relate_settled(false, cx);
+    }
+
+    pub(crate) fn recompute_isles_layout(&mut self) {
+        let inputs: Vec<LayoutInput> = self
+            .island_models
+            .iter()
+            .map(|m| LayoutInput {
+                id: m.island_id.clone(),
+                width_cells: m.width_cells,
+                height_cells: m.height_cells,
+                pinned: self.pinned_islands.get(&m.island_id).cloned(),
+            })
+            .collect();
+        let solved = solve_super_element_layout(&inputs, 1);
+        self.placements = solved.placements;
+        self.layout_bounds = solved.bounds;
+        self.element_centers = compute_element_centers(&self.island_models, &self.placements);
+    }
+
+    pub fn pin_island(&mut self, island_id: &str, grid: PinnedGrid, cx: &mut Context<Self>) {
+        if !self.island_models.iter().any(|m| m.island_id == island_id) {
+            return;
+        }
+        self.pinned_islands.insert(island_id.to_owned(), grid);
+        self.recompute_isles_layout();
+        self.rebuild_derived_caches();
+        self.persist_overview_memory(cx);
+        cx.notify();
+    }
+
+    pub fn unpin_island(&mut self, island_id: &str, cx: &mut Context<Self>) {
+        if self.pinned_islands.remove(island_id).is_some() {
+            self.recompute_isles_layout();
+            self.rebuild_derived_caches();
+            self.persist_overview_memory(cx);
+            cx.notify();
+        }
     }
 
     pub(crate) fn reload_relations_and_cooccurrences(&mut self) {
@@ -841,10 +944,27 @@ impl ElementOverview {
         let Some(ws) = self.ws.upgrade() else {
             return;
         };
+        let mut hidden_relation_types: Vec<String> =
+            self.hidden_relation_type_ids.iter().cloned().collect();
+        hidden_relation_types.sort();
+        let pinned_islands = self
+            .pinned_islands
+            .iter()
+            .map(|(id, p)| (id.clone(), [p.grid_x, p.grid_y]))
+            .collect();
         let record = OverviewMemory {
             mode: self.layout_mode,
             positions: self.relate_rest.clone(),
             signature: self.relate_signature.clone(),
+            pan: Some([
+                (self.pan.x * 10.0).round() / 10.0,
+                (self.pan.y * 10.0).round() / 10.0,
+            ]),
+            zoom: Some((self.zoom * 1000.0).round() / 1000.0),
+            lines_on: Some(self.lines_on),
+            line_threshold: Some(self.line_threshold),
+            hidden_relation_types,
+            pinned_islands,
         };
         let value = serialize_overview_memory(&record);
         ws.update(cx, |w, cx| {
@@ -1138,7 +1258,90 @@ impl ElementOverview {
                 );
             }
         }
+        self.persist_overview_memory(cx);
         cx.notify();
+    }
+
+    pub(crate) fn reveal_beside_island(&mut self) {
+        if self.island_mode != IslandMode::Sheet {
+            return;
+        }
+        let Some(bounds) = self.viewport_bounds else {
+            return;
+        };
+        let vw = f32::from(bounds.size.width).max(320.0);
+        let sheet_w = vw * self.island_width_ratio + 24.0;
+        let visible_right = (vw - sheet_w).max(160.0);
+        let world_x = if let Some(eid) = &self.isle_focus {
+            match self.layout_mode {
+                ElementLayoutMode::Relate => self
+                    .relate_live
+                    .get(eid)
+                    .map(|p| p.x_f32())
+                    .or_else(|| self.element_centers.get(eid).map(|c| c.x)),
+                ElementLayoutMode::Isles => self.element_centers.get(eid).map(|c| c.x),
+            }
+        } else if let Some(iid) = &self.isle_island {
+            self.placements
+                .iter()
+                .find(|p| &p.id == iid)
+                .map(|p| p.grid_x as f32 * CELL_W)
+        } else {
+            None
+        };
+        if let Some(wx) = world_x {
+            let sx = wx * self.zoom + self.pan.x;
+            if sx > visible_right - 40.0 {
+                let target_x = (visible_right * 0.55).max(80.0);
+                self.pan.x += target_x - sx;
+            }
+        }
+    }
+
+    pub fn zoom_at(&mut self, factor: f32, anchor: Point<Pixels>, cx: &mut Context<Self>) {
+        let old_zoom = self.zoom;
+        let new_zoom = (old_zoom * factor).clamp(ZOOM_MIN, ZOOM_MAX);
+        if (new_zoom - old_zoom).abs() <= f32::EPSILON {
+            return;
+        }
+        if let Some(bounds) = self.viewport_bounds {
+            let lx = f32::from(anchor.x - bounds.origin.x);
+            let ly = f32::from(anchor.y - bounds.origin.y);
+            let wx = (lx - self.pan.x) / old_zoom;
+            let wy = (ly - self.pan.y) / old_zoom;
+            self.pan = point(lx - wx * new_zoom, ly - wy * new_zoom);
+        }
+        self.zoom = new_zoom;
+        self.persist_overview_memory(cx);
+        cx.notify();
+    }
+
+    pub fn start_relation_from(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) {
+        if crate::is_frozen(cx) {
+            return;
+        }
+        self.cancel_relation(cx);
+        self.relation_source = Some(id.to_owned());
+        self.isle_focus = Some(id.to_owned());
+        self.isle_island = None;
+        window.focus(&self.relation_focus, cx);
+        cx.notify();
+    }
+
+    pub fn dismiss_one_layer(&mut self, cx: &mut Context<Self>) -> bool {
+        if self.relation_source.is_some() || self.relation_draft.is_some() {
+            self.cancel_relation(cx);
+            return true;
+        }
+        if self.island_mode == IslandMode::Sheet {
+            self.collapse_island(cx);
+            return true;
+        }
+        if self.isle_focus.is_some() || self.isle_island.is_some() {
+            self.close_island(cx);
+            return true;
+        }
+        false
     }
 
     pub(crate) fn make_page_host(&self) -> Option<PageViewHost> {
@@ -1168,6 +1371,7 @@ impl ElementOverview {
             && let Some(host) = self.make_page_host()
         {
             self.island_sheet = IslandEditorSheet::new(eid, host, cx);
+            self.reveal_beside_island();
         }
         cx.notify();
     }
@@ -1218,6 +1422,7 @@ impl ElementOverview {
         if let Some(sheet) = IslandEditorSheet::new(entry_id, host, cx) {
             self.island_mode = IslandMode::Sheet;
             self.island_sheet = Some(sheet);
+            self.reveal_beside_island();
             cx.notify();
         }
     }
@@ -1367,6 +1572,7 @@ impl ElementOverview {
     pub fn toggle_sand_lines(&mut self, cx: &mut Context<Self>) {
         self.lines_on = !self.lines_on;
         self.ensure_relate_settled(false, cx);
+        self.persist_overview_memory(cx);
         cx.notify();
     }
 
@@ -1377,11 +1583,13 @@ impl ElementOverview {
             self.rebuild_derived_caches();
         }
         self.ensure_relate_settled(false, cx);
+        self.persist_overview_memory(cx);
         cx.notify();
     }
 
     pub fn set_zoom(&mut self, zoom: f32, cx: &mut Context<Self>) {
         self.zoom = zoom.clamp(ZOOM_MIN, ZOOM_MAX);
+        self.persist_overview_memory(cx);
         cx.notify();
     }
 
@@ -1399,6 +1607,7 @@ impl ElementOverview {
             self.hidden_relation_type_ids.insert(type_id.to_owned());
         }
         self.ensure_relate_settled(false, cx);
+        self.persist_overview_memory(cx);
         cx.notify();
     }
 
@@ -1411,7 +1620,7 @@ impl ElementOverview {
         cx: &mut Context<Self>,
     ) {
         if kind == "entry" && self.elements.iter().any(|e| e.id == id) {
-            if shift && self.layout_mode == ElementLayoutMode::Relate {
+            if shift || self.relation_source.is_some() {
                 self.pick_relation_endpoint(id, window, cx);
                 return;
             }
@@ -1455,7 +1664,10 @@ impl ElementOverview {
     }
 
     pub(crate) fn neighbourhood(&self) -> Option<HashSet<String>> {
-        let focus_id = self.isle_focus.as_deref()?;
+        let focus_id = self
+            .isle_focus
+            .as_deref()
+            .or(self.hovered_element.as_deref())?;
         let present = self.present_element_ids();
         let pairs = self.active_sand_pairs();
         let rel_pairs: Vec<(String, String)> = self
@@ -1520,10 +1732,67 @@ impl ElementOverview {
             }
             ElementLayoutMode::Relate => {
                 let pt = RelatePoint::new(f64::from(world_x), f64::from(world_y));
-                self.relate_live.insert(drag.element_id, pt);
+                self.relate_live.insert(drag.element_id.clone(), pt);
+                if self.active_drag_sim.is_none() {
+                    let mut pins = self.author_pins();
+                    pins.insert(drag.element_id.clone(), pt);
+                    let (nodes, springs) = self.relate_nodes_and_springs();
+                    self.active_drag_sim = Some(create_relate_simulation(RelateSimulationInput {
+                        nodes: &nodes,
+                        springs: &springs,
+                        start: &self.relate_live,
+                        pins: &pins,
+                        aspect: self.aspect_ratio(),
+                        alpha: RELATE_DRAG_ALPHA,
+                    }));
+                }
+                if let Some(sim) = &mut self.active_drag_sim {
+                    for node in sim.nodes_mut() {
+                        if node.id == drag.element_id {
+                            node.fx = Some(pt.x);
+                            node.fy = Some(pt.y);
+                            node.x = pt.x;
+                            node.y = pt.y;
+                        }
+                    }
+                    sim.set_alpha(sim.alpha().max(0.18));
+                    for _ in 0..3 {
+                        sim.tick();
+                    }
+                    self.relate_live = relate_positions(sim);
+                }
                 cx.notify();
             }
         }
+    }
+
+    fn on_island_drop(
+        &mut self,
+        drag: &IslandCarryDrag,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(bounds) = self.viewport_bounds else {
+            return;
+        };
+        let pos = window.mouse_position();
+        let local_x = f32::from(pos.x - bounds.origin.x);
+        let local_y = f32::from(pos.y - bounds.origin.y);
+        let world_x = (local_x - self.pan.x) / self.zoom.max(0.1);
+        let world_y = (local_y - self.pan.y) / self.zoom.max(0.1);
+        let dx_cells = ((world_x - drag.start_world.x_f32()) / CELL_W).round() as i32;
+        let dy_cells = ((world_y - drag.start_world.y_f32()) / CELL_H).round() as i32;
+        if dx_cells == 0 && dy_cells == 0 {
+            return;
+        }
+        self.pin_island(
+            &drag.island_id,
+            PinnedGrid {
+                grid_x: drag.start_grid.grid_x + dx_cells,
+                grid_y: drag.start_grid.grid_y + dy_cells,
+            },
+            cx,
+        );
     }
 
     fn on_sheet_resize_move(
@@ -1541,6 +1810,7 @@ impl ElementOverview {
         let ratio = (desired_w / vw).clamp(0.26, 0.62);
         if (self.island_width_ratio - ratio).abs() > 0.002 {
             self.island_width_ratio = ratio;
+            self.reveal_beside_island();
             cx.notify();
         }
     }
@@ -1593,6 +1863,21 @@ impl ElementOverview {
             let create_level_opt = model.creation_level_id.clone().filter(|lid| {
                 !model.is_uncategorized && g2_data::creation(&self.book, lid).is_some()
             });
+            let is_island_pinned = self.pinned_islands.contains_key(&isl_id);
+            let unpin_isl_id = isl_id.clone();
+            let island_drag = IslandCarryDrag {
+                island_id: isl_id.clone(),
+                title: isl_name.to_string(),
+                color: Some(isl_color),
+                start_grid: PinnedGrid {
+                    grid_x: placement.grid_x,
+                    grid_y: placement.grid_y,
+                },
+                start_world: RelatePoint::new(
+                    f64::from(placement.grid_x as f32 * CELL_W),
+                    f64::from(placement.grid_y as f32 * CELL_H),
+                ),
+            };
             let legend = div()
                 .id(ElementId::Name(format!("se-cat-legend-{isl_id}").into()))
                 .px(px(6.0))
@@ -1601,7 +1886,8 @@ impl ElementOverview {
                 .flex_row()
                 .items_center()
                 .gap(px(5.0))
-                .cursor_pointer()
+                .cursor_grab()
+                .on_drag(island_drag, |drag, _, _, cx| cx.new(|_| drag.clone()))
                 .on_click(cx.listener(move |this, _, window, cx| {
                     cx.stop_propagation();
                     let next = if this.isle_island.as_deref() == Some(isl_id_click.as_str())
@@ -1626,7 +1912,7 @@ impl ElementOverview {
                         .text_size(px(11.5))
                         .font_weight(gpui::FontWeight::MEDIUM)
                         .text_color(p.ink(1).solid())
-                        .child(isl_name),
+                        .child(isl_name.clone()),
                 )
                 .child(
                     div()
@@ -1634,6 +1920,25 @@ impl ElementOverview {
                         .text_color(p.ink(3).solid())
                         .child(SharedString::from(model.total_elements.to_string())),
                 )
+                .when(is_island_pinned, |el| {
+                    let unpin_tip = t(cx, keys::shell_ui::UNPIN_ISLAND);
+                    el.child(
+                        div()
+                            .id(ElementId::Name(format!("se-cat-unpin-{isl_id}").into()))
+                            .px(px(4.0))
+                            .rounded(px(radius::SM))
+                            .text_size(px(10.0))
+                            .text_color(p.accent.solid())
+                            .cursor_pointer()
+                            .aria_label(unpin_tip.clone())
+                            .tooltip(dr_ui::components::tooltip::tooltip(unpin_tip))
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                cx.stop_propagation();
+                                this.unpin_island(&unpin_isl_id, cx);
+                            }))
+                            .child("×"),
+                    )
+                })
                 .when_some(create_level_opt, |el, level_id| {
                     el.child(
                         div()
@@ -1709,7 +2014,10 @@ impl ElementOverview {
                         origin_world: RelatePoint::default(),
                     };
 
-                    let border_c = if is_focused {
+                    let is_origin = self.relation_source.as_deref() == Some(element.id.as_str());
+                    let border_c = if is_origin {
+                        p.accent.solid()
+                    } else if is_focused {
                         card_color.solid()
                     } else if is_neighbour {
                         card_color.alpha(0.55)
@@ -1721,40 +2029,23 @@ impl ElementOverview {
                     // cards never collide with resident cards on another island.
                     let card_dom_id = format!("se-isles-card-{isl_id}-{g_idx}-{el_id}");
                     let card_mark_id = format!("se-isles-mark-{isl_id}-{g_idx}-{el_id}");
-                    let card = div()
-                        .id(ElementId::Name(card_dom_id.into()))
-                        .role(gpui::Role::Button)
-                        .aria_label(SharedString::from(el_name.clone()))
-                        .absolute()
-                        .left(px(cell_left))
-                        .top(px(cell_top))
-                        .w(px(cell_w))
-                        .h(px(cell_h))
-                        .px(px(5.0))
-                        .py(px(3.0))
-                        .rounded(px(radius::SM))
-                        .border_1()
-                        .border_color(border_c)
-                        .when(is_focused, |d| d.bg(card_color.alpha(0.12)))
-                        .when(is_dim, |d| d.opacity(0.32))
-                        .cursor_pointer()
+                    let hover_id = el_id.clone();
+                    let hover_title = el_name.clone();
+                    let hover_cat = isl_name.clone();
+                    let hover_summary = el_summary.clone();
+                    let hover_kind = element.sand_kind;
+                    let hover_mentions = self
+                        .cooccurrences
+                        .mentions
+                        .get(&el_id)
+                        .copied()
+                        .unwrap_or(0);
+                    let card_inner = div()
+                        .size_full()
                         .overflow_hidden()
                         .flex()
                         .flex_col()
                         .justify_center()
-                        .on_drag(drag_payload, |drag, _, _, cx| cx.new(|_| drag.clone()))
-                        .on_click(
-                            cx.listener(move |this, event: &gpui::ClickEvent, window, cx| {
-                                cx.stop_propagation();
-                                this.click_entity(
-                                    "entry",
-                                    &el_id,
-                                    event.modifiers().shift,
-                                    window,
-                                    cx,
-                                );
-                            }),
-                        )
                         .child(
                             div()
                                 .flex()
@@ -1791,7 +2082,74 @@ impl ElementOverview {
                                         .child(SharedString::from(el_summary)),
                                 )
                             },
+                        );
+                    let card_hover = HoverCard::new(
+                        ElementId::Name(format!("se-isles-hc-{isl_id}-{g_idx}-{el_id}").into()),
+                        card_inner,
+                        move |_, cx| {
+                            let mut body = CardBody::new(
+                                ElementId::Name(format!("se-hc-body-{hover_title}").into()),
+                                hover_title.clone(),
+                            )
+                            .mark(hover_kind, Some(card_color))
+                            .meta(hover_cat.clone());
+                            if hover_mentions > 0 {
+                                body = body.count(tf(
+                                    cx,
+                                    keys::super_element::isles::island::MENTIONS,
+                                    &[("count", &hover_mentions)],
+                                ));
+                            }
+                            if !hover_summary.trim().is_empty() {
+                                body = body.summary(hover_summary.clone());
+                            }
+                            body.into_any_element()
+                        },
+                    );
+                    let card = div()
+                        .id(ElementId::Name(card_dom_id.into()))
+                        .role(gpui::Role::Button)
+                        .aria_label(SharedString::from(element.name.clone()))
+                        .absolute()
+                        .left(px(cell_left))
+                        .top(px(cell_top))
+                        .w(px(cell_w))
+                        .h(px(cell_h))
+                        .px(px(5.0))
+                        .py(px(3.0))
+                        .rounded(px(radius::SM))
+                        .when(is_origin, |d| d.border_2())
+                        .when(!is_origin, |d| d.border_1())
+                        .border_color(border_c)
+                        .when(is_focused || is_origin, |d| d.bg(card_color.alpha(0.12)))
+                        .when(is_dim, |d| d.opacity(0.32))
+                        .cursor_pointer()
+                        .overflow_hidden()
+                        .on_hover(cx.listener(move |this, over: &bool, _, cx| {
+                            if *over {
+                                if this.hovered_element.as_deref() != Some(hover_id.as_str()) {
+                                    this.hovered_element = Some(hover_id.clone());
+                                    cx.notify();
+                                }
+                            } else if this.hovered_element.as_deref() == Some(hover_id.as_str()) {
+                                this.hovered_element = None;
+                                cx.notify();
+                            }
+                        }))
+                        .on_drag(drag_payload, |drag, _, _, cx| cx.new(|_| drag.clone()))
+                        .on_click(
+                            cx.listener(move |this, event: &gpui::ClickEvent, window, cx| {
+                                cx.stop_propagation();
+                                this.click_entity(
+                                    "entry",
+                                    &el_id,
+                                    event.modifiers().shift,
+                                    window,
+                                    cx,
+                                );
+                            }),
                         )
+                        .child(card_hover)
                         .into_any_element();
                     children.push(card);
                 }
@@ -1916,7 +2274,10 @@ impl ElementOverview {
                 origin_world: pos,
             };
 
-            let border_c = if is_focused {
+            let is_origin = self.relation_source.as_deref() == Some(element.id.as_str());
+            let border_c = if is_origin {
+                p.accent.solid()
+            } else if is_focused {
                 cat_color.solid()
             } else if is_pinned || is_neighbour {
                 cat_color.alpha(0.65)
@@ -1925,42 +2286,29 @@ impl ElementOverview {
             };
 
             let mark_id = format!("se-relate-mark-{el_id}");
-            let cell = div()
-                .id(ElementId::Name(format!("se-relate-card-{el_id}").into()))
-                .debug_selector({
-                    let id = el_id.clone();
-                    move || format!("se-relate-card-{id}")
-                })
-                .role(gpui::Role::Button)
-                .aria_label(SharedString::from(el_name.clone()))
-                .absolute()
-                .left(card.origin.x)
-                .top(card.origin.y)
-                .w(card.size.width)
-                .h(card.size.height)
-                .px(px(6.0))
-                .rounded(px(radius::SM))
-                .border_1()
-                .border_color(border_c)
-                .bg(if is_focused {
-                    cat_color.alpha(0.16)
-                } else {
-                    p.paper.alpha(0.90)
-                })
-                .when(is_dim, |d| d.opacity(0.32))
-                .cursor_pointer()
+            let hover_id = el_id.clone();
+            let hover_title = el_name.clone();
+            let hover_summary = element.summary.clone();
+            let hover_kind = element.sand_kind;
+            let hover_mentions = self
+                .cooccurrences
+                .mentions
+                .get(&el_id)
+                .copied()
+                .unwrap_or(0);
+            let hover_cat: SharedString = self
+                .island_models
+                .iter()
+                .find(|m| m.island_id == element.home_island_id && !m.is_uncategorized)
+                .map(|m| SharedString::from(m.title.clone()))
+                .unwrap_or_else(|| t(cx, k_se::UNCATEGORIZED));
+            let cell_inner = div()
+                .size_full()
                 .flex()
                 .flex_row()
                 .items_center()
                 .justify_center()
                 .gap(px(4.0))
-                .on_drag(drag_payload, |drag, _, _, cx| cx.new(|_| drag.clone()))
-                .on_click(
-                    cx.listener(move |this, event: &gpui::ClickEvent, window, cx| {
-                        cx.stop_propagation();
-                        this.click_entity("entry", &el_id, event.modifiers().shift, window, cx);
-                    }),
-                )
                 .child(
                     KindMark::new(ElementId::Name(mark_id.into()), element.sand_kind)
                         .color(cat_color)
@@ -1978,9 +2326,76 @@ impl ElementOverview {
                             .text_size(px(11.5))
                             .text_color(p.ink(1).solid())
                             .truncate()
-                            .child(SharedString::from(el_name)),
+                            .child(SharedString::from(el_name.clone())),
                     )
+                });
+            let cell_hover = HoverCard::new(
+                ElementId::Name(format!("se-relate-hc-{el_id}").into()),
+                cell_inner,
+                move |_, cx| {
+                    let mut body = CardBody::new(
+                        ElementId::Name(format!("se-relate-hc-body-{hover_title}").into()),
+                        hover_title.clone(),
+                    )
+                    .mark(hover_kind, Some(cat_color))
+                    .meta(hover_cat.clone());
+                    if hover_mentions > 0 {
+                        body = body.count(tf(
+                            cx,
+                            keys::super_element::isles::island::MENTIONS,
+                            &[("count", &hover_mentions)],
+                        ));
+                    }
+                    if !hover_summary.trim().is_empty() {
+                        body = body.summary(hover_summary.clone());
+                    }
+                    body.into_any_element()
+                },
+            );
+            let cell = div()
+                .id(ElementId::Name(format!("se-relate-card-{el_id}").into()))
+                .debug_selector({
+                    let id = el_id.clone();
+                    move || format!("se-relate-card-{id}")
                 })
+                .role(gpui::Role::Button)
+                .aria_label(SharedString::from(el_name))
+                .absolute()
+                .left(card.origin.x)
+                .top(card.origin.y)
+                .w(card.size.width)
+                .h(card.size.height)
+                .px(px(6.0))
+                .rounded(px(radius::SM))
+                .when(is_origin, |d| d.border_2())
+                .when(!is_origin, |d| d.border_1())
+                .border_color(border_c)
+                .bg(if is_focused || is_origin {
+                    cat_color.alpha(0.16)
+                } else {
+                    p.paper.alpha(0.90)
+                })
+                .when(is_dim, |d| d.opacity(0.32))
+                .cursor_pointer()
+                .on_hover(cx.listener(move |this, over: &bool, _, cx| {
+                    if *over {
+                        if this.hovered_element.as_deref() != Some(hover_id.as_str()) {
+                            this.hovered_element = Some(hover_id.clone());
+                            cx.notify();
+                        }
+                    } else if this.hovered_element.as_deref() == Some(hover_id.as_str()) {
+                        this.hovered_element = None;
+                        cx.notify();
+                    }
+                }))
+                .on_drag(drag_payload, |drag, _, _, cx| cx.new(|_| drag.clone()))
+                .on_click(
+                    cx.listener(move |this, event: &gpui::ClickEvent, window, cx| {
+                        cx.stop_propagation();
+                        this.click_entity("entry", &el_id, event.modifiers().shift, window, cx);
+                    }),
+                )
+                .child(cell_hover)
                 .into_any_element();
             out.push(cell);
         }
@@ -2014,7 +2429,10 @@ impl ElementOverview {
                 .map(|(id, pt)| (id.clone(), (pt.x_f32(), pt.y_f32())))
                 .collect(),
         };
-        let active_id = self.isle_focus.clone();
+        let active_id = self
+            .isle_focus
+            .clone()
+            .or_else(|| self.hovered_element.clone());
         let selected_edge_id = self.selected_edge_id.clone();
         let hovered_edge_id = self.hovered_relation_edge.clone();
         let painted_arrows = self.painted_relation_arrows.clone();
@@ -2234,13 +2652,58 @@ impl Render for ElementOverview {
         )
         .size_full();
 
+        let relation_banner = self
+            .relation_source
+            .as_ref()
+            .filter(|_| self.relation_draft.is_none())
+            .map(|src_id| {
+                let src_name = self
+                    .elements
+                    .iter()
+                    .find(|e| &e.id == src_id)
+                    .map(|e| e.name.clone())
+                    .unwrap_or_default();
+                let banner_text = format!(
+                    "{src_name} — {}",
+                    t(cx, keys::shell_ui::PICK_RELATION_TARGET)
+                );
+                div()
+                    .id("se-relation-source-banner")
+                    .absolute()
+                    .top(px(14.0))
+                    .left(px(16.0))
+                    .px(px(12.0))
+                    .py(px(6.0))
+                    .rounded(px(radius::MD))
+                    .bg(p.paper.solid())
+                    .border_1()
+                    .border_color(p.accent.alpha(0.55))
+                    .flex()
+                    .flex_row()
+                    .items_center()
+                    .gap(px(8.0))
+                    .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                    .child(
+                        div()
+                            .text_size(px(12.0))
+                            .text_color(p.ink(1).solid())
+                            .child(SharedString::from(banner_text)),
+                    )
+                    .child(
+                        Button::new("se-relation-banner-cancel", t(cx, keys::common::CANCEL))
+                            .text()
+                            .small()
+                            .on_click(cx.listener(|this, _, _, cx| this.cancel_relation(cx))),
+                    )
+                    .into_any_element()
+            });
+
         div()
             .id("se-viewport")
             .debug_selector(|| "se-viewport".into())
             .track_focus(&self.relation_focus)
             .on_action(cx.listener(|this, _: &dr_shell::actions::Dismiss, _, cx| {
-                if this.relation_source.is_some() || this.relation_draft.is_some() {
-                    this.cancel_relation(cx);
+                if this.dismiss_one_layer(cx) {
                     cx.stop_propagation();
                 } else {
                     cx.propagate();
@@ -2252,8 +2715,12 @@ impl Render for ElementOverview {
             .bg(p.paper.solid())
             .on_drag_move::<ElementCarryDrag>(cx.listener(Self::on_drag_move))
             .on_drag_move::<SheetResizeDrag>(cx.listener(Self::on_sheet_resize_move))
+            .on_drop(cx.listener(|this, drag: &IslandCarryDrag, window, cx| {
+                this.on_island_drop(drag, window, cx);
+            }))
             .on_drop(cx.listener(|this, drag: &ElementCarryDrag, _window, cx| {
                 this.drop_island_id = None;
+                this.active_drag_sim = None;
                 if drag.mode == ElementLayoutMode::Relate
                     && let Some(pos) = this.relate_live.get(&drag.element_id).copied()
                 {
@@ -2278,6 +2745,7 @@ impl Render for ElementOverview {
                             cx.notify();
                         } else {
                             this.pan_drag = None;
+                            this.persist_overview_memory(cx);
                         }
                     }
                     if this.layout_mode == ElementLayoutMode::Relate {
@@ -2286,16 +2754,32 @@ impl Render for ElementOverview {
                 }),
             )
             .on_hover(cx.listener(|this, over: &bool, _, cx| {
-                if !*over && this.hovered_relation_edge.take().is_some() {
-                    cx.notify();
+                if !*over {
+                    let mut changed = false;
+                    if this.hovered_relation_edge.take().is_some() {
+                        changed = true;
+                    }
+                    if this.hovered_element.take().is_some() {
+                        changed = true;
+                    }
+                    if changed {
+                        cx.notify();
+                    }
                 }
             }))
             .on_mouse_up(
                 MouseButton::Left,
-                cx.listener(|this, _, _window, _cx| {
-                    this.pan_drag = None;
+                cx.listener(|this, _, _window, cx| {
+                    if this.pan_drag.take().is_some() {
+                        this.persist_overview_memory(cx);
+                    }
                 }),
             )
+            .on_pinch(cx.listener(|this, event: &PinchEvent, _window, cx| {
+                let factor = (1.0 + event.delta).clamp(0.7, 1.4);
+                this.zoom_at(factor, event.position, cx);
+                cx.stop_propagation();
+            }))
             .on_scroll(cx.listener(|this, event: &ScrollEvent, _window, cx| {
                 let delta = match event.delta {
                     ScrollDelta::Pixels(p) => point(f32::from(p.x), f32::from(p.y)),
@@ -2303,11 +2787,12 @@ impl Render for ElementOverview {
                 };
                 if event.modifiers.platform || event.modifiers.control {
                     let factor = (1.0 - delta.y * 0.003).clamp(0.8, 1.25);
-                    this.zoom = (this.zoom * factor).clamp(ZOOM_MIN, ZOOM_MAX);
+                    this.zoom_at(factor, event.position, cx);
                 } else {
                     this.pan = point(this.pan.x + delta.x, this.pan.y + delta.y);
+                    this.persist_overview_memory(cx);
+                    cx.notify();
                 }
-                cx.notify();
             }))
             .child(div().absolute().inset_0().child(bounds_probe))
             .child(div().absolute().inset_0().child(lines_canvas))
@@ -2327,6 +2812,7 @@ impl Render for ElementOverview {
                 )
             })
             .child(legend)
+            .children(relation_banner)
             .children(island)
             .children(relation_composer)
     }

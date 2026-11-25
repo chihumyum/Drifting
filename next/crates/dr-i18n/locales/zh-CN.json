@@ -290,6 +290,11 @@
     "table_delete_col": "删除列",
     "table_delete_row": "删除行"
   },
+  "elementEditor": {
+    "alerts": {
+      "aliasConflict": "无法添加别名：“{{name}}” 已被要素「{{conflicting}}」使用。"
+    }
+  },
   "entrySnapshot": {
     "empty": "暂无快照",
     "save": "保存快照",
@@ -548,6 +553,9 @@
     "valuePlaceholder": "内容"
   },
   "leftSidebar": {
+    "actions": {
+      "collapseAll": "展开／折叠全部"
+    },
     "groups": {
       "driftCount_one": "{{count}} 条构想",
       "driftCount_other": "{{count}} 条构想"
@@ -1625,6 +1633,7 @@
     "menu_zoom": "缩放",
     "new_entry_plain": "新建条目",
     "open_whole_book": "通览全书",
+    "pick_relation_target": "正在从「{{name}}」连线 — 点击目标条目（按 Esc 取消）",
     "preparing_samples": "正在准备示例项目…",
     "project_facts": "作品设定",
     "search_hint": "输入关键词搜索整个项目",
@@ -1633,7 +1642,9 @@
     "templates_plain": "模板",
     "toggle_comment_marks": "显示批注砂痕",
     "toggle_entity_links": "启用条目链接",
-    "unsplit": "关闭分栏"
+    "unpin_island": "取消固定位置",
+    "unsplit": "关闭分栏",
+    "words_short": "{{count}} 字"
   },
   "sidebarLayout": {
     "split": "恢复双栏"
@@ -1659,7 +1670,8 @@
     "edge": {
       "hideKind": "隐藏「{{label}}」",
       "showKind": "显示「{{label}}」"
-    }
+    },
+    "spread": "打散"
   },
   "storylineEditor": {
     "filters": {
@@ -1709,6 +1721,7 @@
       "relayout": "重新排布"
     },
     "reset": "重置",
+    "startEdgeFromElement": "从此要素新建关联",
     "uncategorized": "未分类",
     "unnamedCategory": "未命名分类"
   },
@@ -1727,7 +1740,10 @@
     "color": "颜色",
     "conflict": "模板已在别处更改",
     "date": "日期",
+    "default_prose": "默认正文样板",
+    "default_prose_hint": "从此模板新建条目时自动填入的初始正文",
     "default_template": "默认模板",
+    "default_value": "默认值",
     "description": "说明",
     "display": "显示",
     "entity_ref": "条目引用",
@@ -1882,6 +1898,9 @@
     "railAgent": "Agent"
   },
   "v3Shell": {
+    "agent_unread": "Agent 未读改动",
+    "aliases_add": "添加别名…",
+    "aliases_remove": "移除别名",
     "attachedEntries": "挂在这里的条目",
     "belongTo": "归属到",
     "board": "看板",
@@ -1892,7 +1911,9 @@
     "editTemplate": "编辑模板",
     "entries": "条目",
     "entryUntemplated": "条目",
+    "entry_count": "{{count}} 条",
     "expandTimeline": "展开故事线时间线",
+    "external_unread": "外部未读改动",
     "grid": "网格",
     "hideOutline": "隐藏目录",
     "islands": "岛屿",
@@ -1935,8 +1956,10 @@
     "colorValue": "颜色值",
     "deleteView": "删除视图",
     "detachEntry": "解除条目",
+    "empty_book_view": "请先在当前视图中放置条目",
     "laneActions": "泳道操作",
     "laneTrack": "泳道 {{name}}",
+    "locate_current": "定位到当前条目",
     "members": "{{count}} 个成员",
     "moveDown": "下移",
     "moveUp": "上移",
@@ -1944,6 +1967,7 @@
     "newEntryInLane": "新建条目",
     "newLane": "新建泳道",
     "newView": "新建视图",
+    "pin_color": "颜色",
     "placeEntry": "放入条目",
     "placementActions": "摆放操作",
     "removeEntry": "移出泳道",
@@ -1952,9 +1976,12 @@
     "renameView": "重命名视图",
     "resize": "调整长度",
     "ruler": "刻度标尺",
+    "section_create": "新建",
+    "section_existing": "加入已有条目",
     "selectLane": "选择泳道",
     "setActTrack": "设为幕轨道 · {{name}}",
     "unsetActTrack": "取消幕轨道 · {{name}}",
+    "view_actions": "视图操作",
     "views": "视图"
   },
   "v3Transfer": {
@@ -1971,6 +1998,7 @@
     "clearField": "清除",
     "currentSection": "当前",
     "empty": "无文件",
+    "empty_trash": "清空",
     "fileCount_other": "{{count}} 个文件",
     "findFile": "找文件",
     "itemCount_other": "{{count}} 个",

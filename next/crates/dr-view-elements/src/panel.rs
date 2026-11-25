@@ -16,12 +16,16 @@ pub mod v3 {
         book::Book,
         nav::{Open, Target},
         strings::t,
-        v3::{DisplaySurface, EntryDrag, LevelHost, ROOT_LEVEL, Rendered, entry_target},
+        v3::{
+            DisplaySurface, EntryDrag, LevelHost, ROOT_LEVEL, Rendered, UnreadBadge,
+            card::EntryAction, entry_action, entry_or_subtree_badge, entry_target,
+            format_short_words, unread_badges,
+        },
     };
     use dr_ui::{
         Theme,
         components::{
-            CardKeys, DraggedPill, Pill, SandCell, Segmented,
+            CardKeys, DraggedPill, PanelIconButton, Pill, SandCell, Segmented,
             cell::{RING_RIM, ring_tone},
             hover_card, overlay,
         },
@@ -672,9 +676,14 @@ pub mod v3 {
             (this.walks(), this.focus.clone())
         };
         let refresh = weak.clone();
-        let part = Rendered::new(view).on_refresh(move |book, cx| {
-            let _ = refresh.update(cx, |this, cx| this.refresh(book, cx));
-        });
+        let collapse_all = weak.clone();
+        let part = Rendered::new(view)
+            .on_refresh(move |book, cx| {
+                let _ = refresh.update(cx, |this, cx| this.refresh(book, cx));
+            })
+            .on_toggle_collapse_all(move |cx| {
+                let _ = collapse_all.update(cx, |this, cx| this.collapse_or_expand_all(cx));
+            });
         match focus.filter(|_| walks) {
             // A left-column Tab's list or grid: the keyboard walks it (KB).
             Some(focus) => {
@@ -1043,6 +1052,45 @@ pub mod v3 {
         pub fn toggle(&mut self, id: &str, cx: &mut Context<Self>) {
             if !self.folded.remove(id) {
                 self.folded.insert(id.into());
+            }
+            self.rebuild();
+            cx.notify();
+        }
+
+        /// Collapses every foldable level inside this tab if any is currently
+        /// expanded; otherwise expands them all.
+        pub fn collapse_or_expand_all(&mut self, cx: &mut Context<Self>) {
+            let Some(v) = self.host.page.book.v3() else {
+                return;
+            };
+            let mut foldable: Vec<String> = Vec::new();
+            let mut stack: Vec<String> = match below(v, &self.host.level) {
+                Some((children, members)) => children.into_iter().chain(members).collect(),
+                None => Vec::new(),
+            };
+            let mut visited = BTreeSet::new();
+            while let Some(id) = stack.pop() {
+                if !visited.insert(id.clone()) {
+                    continue;
+                }
+                if let Some(level) = v.levels.get(&id)
+                    && (!level.children.is_empty() || !level.members.is_empty())
+                {
+                    foldable.push(id);
+                    stack.extend(level.children.iter().cloned());
+                    stack.extend(level.members.iter().cloned());
+                }
+            }
+            if foldable.is_empty() {
+                return;
+            }
+            let any_open = foldable.iter().any(|id| !self.folded.contains(id));
+            if any_open {
+                self.folded.extend(foldable);
+            } else {
+                for id in foldable {
+                    self.folded.remove(&id);
+                }
             }
             self.rebuild();
             cx.notify();
@@ -1937,7 +1985,95 @@ pub mod v3 {
                     .into_any_element()
             } else {
                 let theme = Theme::of(window, cx);
-                SandCell::new(cell_id, entry.title.clone())
+                let p = theme.palette;
+                let s = theme.scale;
+                let (words, muted_row, unread_badge, updated_tag) = self
+                    .host
+                    .page
+                    .book
+                    .v3()
+                    .map(|v| {
+                        let w = v.entry_words(id);
+                        let muted = v.is_resting_or_discarded(id);
+                        let badges = unread_badges(&self.host.page.library, cx);
+                        let unread = if self.folded.contains(id) {
+                            entry_or_subtree_badge(v, id, &badges)
+                        } else {
+                            badges.get(id).copied()
+                        };
+                        let updated = (self.sort == SortOrder::Updated)
+                            .then(|| {
+                                self.updated.get(id).map(|(ms, _)| *ms).or_else(|| {
+                                    v.entry(id)
+                                        .and_then(|e| e.updated_at.or(e.created_at))
+                                        .map(|s| s.saturating_mul(1000))
+                                })
+                            })
+                            .flatten()
+                            .filter(|&ms| ms > 0)
+                            .and_then(|ms| {
+                                let dt = chrono::DateTime::from_timestamp_millis(ms)?;
+                                Some(dt.with_timezone(&chrono::Local).format("%m/%d").to_string())
+                            });
+                        (w, muted, unread, updated)
+                    })
+                    .unwrap_or((0, false, None, None));
+                let trailing_meta = (self.host.surface.is_sidebar()
+                    && (words > 0 || unread_badge.is_some() || updated_tag.is_some()))
+                .then(|| {
+                    div()
+                        .flex_none()
+                        .flex()
+                        .items_center()
+                        .gap(px(4.0))
+                        .when_some(unread_badge, |el, kind| {
+                            let (glyph, tint, label_key) = match kind {
+                                UnreadBadge::Agent => ("A", p.accent, keys::v3_shell::AGENT_UNREAD),
+                                UnreadBadge::External => (
+                                    "M",
+                                    dr_ui::tokens::Rgb::hex(0x3b82f6),
+                                    keys::v3_shell::EXTERNAL_UNREAD,
+                                ),
+                            };
+                            let badge_label = t(cx, label_key);
+                            el.child(
+                                div()
+                                    .id(SharedString::from(format!(
+                                        "g2-unread-{}-{scope}-{id}",
+                                        self.host.level
+                                    )))
+                                    .role(gpui::Role::Label)
+                                    .aria_label(badge_label.clone())
+                                    .tooltip(dr_ui::components::tooltip::tooltip(badge_label))
+                                    .px(px(4.0))
+                                    .rounded(px(3.0))
+                                    .bg(tint.alpha(0.16))
+                                    .text_color(tint.solid())
+                                    .font_role(Role::Index)
+                                    .type_px(10.0, 13.0)
+                                    .child(glyph),
+                            )
+                        })
+                        .when(words > 0, |el| {
+                            el.child(
+                                div()
+                                    .font_role(Role::Index)
+                                    .type_px(s.caption, s.line_caption)
+                                    .text_color(p.ink(4).solid())
+                                    .child(format_short_words(words)),
+                            )
+                        })
+                        .when_some(updated_tag, |el, tag| {
+                            el.child(
+                                div()
+                                    .font_role(Role::Index)
+                                    .type_px(s.caption, s.line_caption)
+                                    .text_color(p.ink(4).solid())
+                                    .child(tag),
+                            )
+                        })
+                });
+                let cell = SandCell::new(cell_id, entry.title.clone())
                     .mark(mark)
                     .color_opt(color)
                     .selected(selected)
@@ -1963,7 +2099,12 @@ pub mod v3 {
                             )
                         },
                     )
-                    .into_any_element()
+                    .when_some(trailing_meta, |cell, meta| cell.child(meta));
+                if muted_row {
+                    div().w_full().opacity(0.62).child(cell).into_any_element()
+                } else {
+                    cell.into_any_element()
+                }
             };
             let card_id = format!("g2-card-{}-{scope}-{id}", self.host.level);
             let cell = match card_ws {
@@ -2271,14 +2412,21 @@ pub mod v3 {
                         Row::Member { host, .. } => Some(host.as_str()),
                         _ => None,
                     };
-                    let mut row = div().flex().items_center().min_w_0().w_full();
-                    if self
+                    let is_level_row = self
                         .host
                         .page
                         .book
                         .v3()
-                        .is_some_and(|v| v.levels.contains_key(id))
-                    {
+                        .is_some_and(|v| v.levels.contains_key(id));
+                    let row_group: SharedString = format!("g2-row-grp-{scope}-{id}").into();
+                    let mut row = div()
+                        .id(row_group.clone())
+                        .group(row_group.clone())
+                        .flex()
+                        .items_center()
+                        .min_w_0()
+                        .w_full();
+                    if is_level_row {
                         let weak = entity.downgrade();
                         let id = id.clone();
                         let folded = self.folded.contains(&id);
@@ -2330,6 +2478,37 @@ pub mod v3 {
                                 }),
                         );
                     }
+                    let quick_add = (self.host.surface.is_sidebar() && is_level_row)
+                        .then(|| {
+                            let target = entry_target(id)?;
+                            let ws = self.host.page.workspace.upgrade()?;
+                            let menu_host = dr_shell::pages::PageMenuHost::of(&ws, cx);
+                            let run = entry_action(EntryAction::New, &target, &menu_host, cx)?;
+                            Some(
+                                div()
+                                    .flex_none()
+                                    .opacity(0.0)
+                                    .group_hover(row_group, |st| st.opacity(1.0))
+                                    .on_mouse_down(MouseButton::Left, |_, window, cx| {
+                                        window.prevent_default();
+                                        cx.stop_propagation();
+                                    })
+                                    .child(
+                                        PanelIconButton::new(
+                                            SharedString::from(format!("g2-add-{scope}-{id}")),
+                                            Icon::Plus,
+                                        )
+                                        .label(t(cx, keys::v3_shell::NEW_ENTRY))
+                                        .on_click(
+                                            move |_, window, cx| {
+                                                cx.stop_propagation();
+                                                run(window, cx);
+                                            },
+                                        ),
+                                    ),
+                            )
+                        })
+                        .flatten();
                     let key = list_row.and_then(|i| self.stop_of(i, id));
                     row.child(div().flex_1().min_w_0().child(self.entry_at(
                         id,
@@ -2342,6 +2521,7 @@ pub mod v3 {
                         window,
                         cx,
                     )))
+                    .children(quick_add)
                     .into_any_element()
                 }
                 Row::Tiles { ids, depth } => {
@@ -2442,13 +2622,20 @@ pub mod v3 {
                 }
                 Row::TrashHead { count } => {
                     let weak = entity.downgrade();
-                    let head = dr_shell::v3::trash::head(
+                    let empty_action = self.trash_mount().map(|mount| {
+                        let host = self.host.page.clone();
+                        Rc::new(move |_: &mut Window, cx: &mut App| {
+                            dr_shell::v3::trash::purge_mount(&host, &mount, cx);
+                        }) as Rc<dyn Fn(&mut Window, &mut App)>
+                    });
+                    let head = dr_shell::v3::trash::head_with_empty(
                         self.trash_scope(),
                         *count,
                         self.trash_open,
                         move |_, cx| {
                             let _ = weak.update(cx, |this, cx| this.toggle_trash(cx));
                         },
+                        empty_action,
                         window,
                         cx,
                     );

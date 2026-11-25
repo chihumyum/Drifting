@@ -4,6 +4,7 @@ use dr_model::id::AssetFolderId;
 use dr_shell::{
     book::Book,
     pages::UsageFlash,
+    strings::tf,
     t,
     v3::{ModuleHost, Rendered},
 };
@@ -11,7 +12,7 @@ use dr_ui::{
     Theme,
     components::{Button, Select, select::Choice},
     fonts::Role,
-    input::{FieldEvent, TextArea},
+    input::{FieldEvent, TextArea, TextField},
     sand::{self, Icon, SandFrame},
     style::DrStyled,
     tokens::radius,
@@ -122,11 +123,13 @@ struct TrashedImageMeta {
 pub struct TypedFields {
     host: ModuleHost,
     inputs: BTreeMap<String, Input>,
+    alias_inputs: BTreeMap<String, (Entity<TextField>, Subscription)>,
     desired: BTreeMap<String, FieldValue>,
     writing: BTreeSet<String>,
     bases: BTreeMap<String, FieldValue>,
     stale_revisions: BTreeSet<String>,
     errors: BTreeMap<String, dr_i18n::Key>,
+    error_messages: BTreeMap<String, SharedString>,
     images: Vec<(String, String)>,
     raw_images: BTreeMap<String, TrashedImageMeta>,
     images_loaded: bool,
@@ -162,11 +165,13 @@ impl TypedFields {
         let mut this = Self {
             host,
             inputs: BTreeMap::new(),
+            alias_inputs: BTreeMap::new(),
             desired: BTreeMap::new(),
             writing: BTreeSet::new(),
             bases: BTreeMap::new(),
             stale_revisions: BTreeSet::new(),
             errors: BTreeMap::new(),
+            error_messages: BTreeMap::new(),
             images: Vec::new(),
             raw_images: BTreeMap::new(),
             images_loaded: false,
@@ -386,9 +391,47 @@ impl TypedFields {
     }
     fn sync(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         for def in self.host.module.config.defs.clone() {
+            if def.field_type == "aliases" {
+                if !self.alias_inputs.contains_key(&def.id) {
+                    let ph = t(cx, keys::v3_shell::ALIASES_ADD);
+                    let field = cx.new(|cx| {
+                        TextField::new(
+                            SharedString::from(format!(
+                                "v3-alias-input-{}-{}",
+                                self.host.module.id, def.id
+                            )),
+                            window,
+                            cx,
+                        )
+                        .small()
+                        .placeholder(ph)
+                    });
+                    let fid = def.id.clone();
+                    let sub =
+                        cx.subscribe_in(
+                            &field,
+                            window,
+                            move |v, field, event, _, cx| match event {
+                                FieldEvent::Submitted(raw) => {
+                                    let trimmed = raw.trim().to_owned();
+                                    if !trimmed.is_empty() {
+                                        v.add_aliases(&fid, &trimmed, cx);
+                                        field.update(cx, |f, cx| f.set_text("", cx));
+                                    }
+                                }
+                                FieldEvent::Cancelled => {
+                                    field.update(cx, |f, cx| f.set_text("", cx));
+                                }
+                                FieldEvent::Changed(_) | FieldEvent::Blurred => {}
+                            },
+                        );
+                    self.alias_inputs.insert(def.id, (field, sub));
+                }
+                continue;
+            }
             if !matches!(
                 def.field_type.as_str(),
-                "text" | "long_text" | "number" | "date" | "aliases"
+                "text" | "long_text" | "number" | "date"
             ) {
                 continue;
             }
@@ -509,6 +552,7 @@ impl TypedFields {
             return;
         }
         self.errors.remove(id);
+        self.error_messages.remove(id);
         if value == base && !self.writing.contains(id) && !retry {
             self.desired.remove(id);
             self.bases.remove(id);
@@ -520,6 +564,50 @@ impl TypedFields {
         }
         cx.notify();
     }
+    fn add_aliases(&mut self, id: &str, raw: &str, cx: &mut Context<Self>) {
+        let base = self.current_field_value(id);
+        let mut xs = match &base {
+            FieldValue::List(list) => list.clone(),
+            FieldValue::Text(s) if !s.trim().is_empty() => vec![s.trim().to_owned()],
+            _ => Vec::new(),
+        };
+        let mut changed = false;
+        for part in raw.split(['\n', ',', '，', '、']) {
+            let trimmed = part.trim();
+            if !trimmed.is_empty() && !xs.iter().any(|x| x == trimmed) {
+                xs.push(trimmed.to_owned());
+                changed = true;
+            }
+        }
+        if changed {
+            let next = if xs.is_empty() {
+                FieldValue::Null
+            } else {
+                FieldValue::List(xs)
+            };
+            self.set_from(id, next, base, false, cx);
+        }
+    }
+
+    fn remove_alias(&mut self, id: &str, alias: &str, cx: &mut Context<Self>) {
+        let base = self.current_field_value(id);
+        let mut xs = match &base {
+            FieldValue::List(list) => list.clone(),
+            FieldValue::Text(s) if !s.trim().is_empty() => vec![s.trim().to_owned()],
+            _ => Vec::new(),
+        };
+        let before = xs.len();
+        xs.retain(|x| x != alias);
+        if xs.len() != before {
+            let next = if xs.is_empty() {
+                FieldValue::Null
+            } else {
+                FieldValue::List(xs)
+            };
+            self.set_from(id, next, base, false, cx);
+        }
+    }
+
     fn retry(&mut self, id: &str, cx: &mut Context<Self>) {
         if !settlement::accepts(cx) {
             return;
@@ -566,9 +654,19 @@ impl TypedFields {
         let lib = self.host.page.library.clone();
         let worker = lib.clone();
         let field_id = field.clone();
+        let clash_slot = std::sync::Arc::new(std::sync::Mutex::new(None::<(String, String)>));
+        let clash_worker = clash_slot.clone();
         let (job, ticket) = settlement::write(&lib, cx, async move {
             let book = target.book.clone();
-            settlement::field(&worker, target, field_id, base, value, retry)?;
+            if let Err(err) = settlement::field(&worker, target, field_id, base, value, retry) {
+                if let dr_workspace::WsError::Violation(ref viol) = err
+                    && let Some(ref clash) = viol.clash
+                {
+                    *clash_worker.lock().unwrap_or_else(|e| e.into_inner()) =
+                        Some((clash.name.clone(), clash.other_title.clone()));
+                }
+                return Err(err);
+            }
             Book::load(&worker, &book)
         });
         cx.spawn(async move |this, cx| {
@@ -601,7 +699,21 @@ impl TypedFields {
                         }
                         Err(error) => {
                             log::warn!("v3 field: {error}");
-                            v.errors.insert(field, dr_i18n::keys::k4_pages::SAVE_FAILED);
+                            let clash = clash_slot.lock().unwrap_or_else(|e| e.into_inner()).take();
+                            if let Some((name, other_title)) = clash {
+                                let msg = tf(
+                                    cx,
+                                    keys::element_editor::alerts::ALIAS_CONFLICT,
+                                    &[("name", &name), ("conflicting", &other_title)],
+                                );
+                                v.desired.remove(&field);
+                                v.bases.remove(&field);
+                                v.errors.remove(&field);
+                                v.error_messages.insert(field, msg);
+                            } else {
+                                v.error_messages.remove(&field);
+                                v.errors.insert(field, dr_i18n::keys::k4_pages::SAVE_FAILED);
+                            }
                         }
                     }
                     cx.notify();
@@ -655,7 +767,69 @@ impl Render for TypedFields {
                 .unwrap_or_else(|| self.stored(&def.id));
             let weak = cx.weak_entity();
             let id = def.id.clone();
-            let field = if let Some(input) = self.inputs.get(&id) {
+            let field = if def.field_type == "aliases" {
+                let aliases: Vec<String> = match &value {
+                    FieldValue::List(xs) => xs.clone(),
+                    FieldValue::Text(s) if !s.trim().is_empty() => vec![s.trim().to_owned()],
+                    _ => Vec::new(),
+                };
+                let mut pills = div()
+                    .flex()
+                    .flex_row()
+                    .flex_wrap()
+                    .items_center()
+                    .gap(px(6.0));
+                for (ix, alias) in aliases.into_iter().enumerate() {
+                    let remove_id = id.clone();
+                    let remove_alias = alias.clone();
+                    let weak_rm = weak.clone();
+                    let rm_label = t(cx, keys::v3_shell::ALIASES_REMOVE);
+                    pills = pills.child(
+                        div()
+                            .id(SharedString::from(format!(
+                                "v3-alias-pill-{}-{}-{ix}",
+                                self.host.module.id, id
+                            )))
+                            .px(px(8.0))
+                            .py(px(2.0))
+                            .rounded_full()
+                            .bg(p.accent.alpha(0.10))
+                            .border_1()
+                            .border_color(p.accent.alpha(0.24))
+                            .flex()
+                            .items_center()
+                            .gap(px(4.0))
+                            .font_role(Role::Ui)
+                            .type_px(12.0, 16.0)
+                            .text_color(p.ink(1).solid())
+                            .child(alias)
+                            .child(
+                                div()
+                                    .id(SharedString::from(format!(
+                                        "v3-alias-rm-{}-{}-{ix}",
+                                        self.host.module.id, id
+                                    )))
+                                    .role(gpui::Role::Button)
+                                    .aria_label(rm_label)
+                                    .cursor_pointer()
+                                    .text_color(p.ink(3).solid())
+                                    .hover(|st| st.text_color(p.danger.solid()))
+                                    .on_click(move |_, _, cx| {
+                                        cx.stop_propagation();
+                                        let _ = weak_rm.update(cx, |v, cx| {
+                                            v.remove_alias(&remove_id, &remove_alias, cx);
+                                        });
+                                    })
+                                    .child("×"),
+                            ),
+                    );
+                }
+                if let Some((input, _)) = self.alias_inputs.get(&id) {
+                    pills =
+                        pills.child(div().min_w(px(120.0)).max_w(px(200.0)).child(input.clone()));
+                }
+                pills.into_any_element()
+            } else if let Some(input) = self.inputs.get(&id) {
                 input.area.clone().into_any_element()
             } else if matches!(def.field_type.as_str(), "multi_select" | "toggle") {
                 let options = if def.field_type == "toggle" {
@@ -1015,6 +1189,14 @@ impl Render for TypedFields {
                             .min_w_0()
                             .child(field)
                             .children(field_ul)
+                            .children(self.error_messages.get(&def.id).map(|msg| {
+                                div()
+                                    .mt(px(4.0))
+                                    .font_role(Role::Ui)
+                                    .type_px(12.0, 16.0)
+                                    .text_color(p.danger.solid())
+                                    .child(msg.clone())
+                            }))
                             .children(self.errors.get(&def.id).map(|k| div().child(t(cx, *k))))
                             .children(
                                 (self.errors.get(&def.id)

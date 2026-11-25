@@ -294,6 +294,11 @@
     "table_delete_col": "Eliminar columna",
     "table_delete_row": "Eliminar fila"
   },
+  "elementEditor": {
+    "alerts": {
+      "aliasConflict": "No se puede añadir el alias: «{{name}}» ya lo usa el elemento «{{conflicting}}»."
+    }
+  },
   "entrySnapshot": {
     "empty": "Aún no hay instantáneas",
     "save": "Guardar instantánea",
@@ -560,6 +565,9 @@
     "valuePlaceholder": "Contenido"
   },
   "leftSidebar": {
+    "actions": {
+      "collapseAll": "Expandir o contraer todo"
+    },
     "groups": {
       "driftCount_many": "{{count}} ideas",
       "driftCount_one": "{{count}} idea",
@@ -1650,6 +1658,7 @@
     "menu_zoom": "Zoom",
     "new_entry_plain": "Nueva entrada",
     "open_whole_book": "Leer libro completo",
+    "pick_relation_target": "Conectando desde «{{name}}» — haz clic en otra entrada (Esc para cancelar)",
     "preparing_samples": "Preparando proyectos de ejemplo…",
     "project_facts": "Datos del proyecto",
     "search_hint": "Escribe para buscar en todo el proyecto",
@@ -1658,7 +1667,9 @@
     "templates_plain": "Plantillas",
     "toggle_comment_marks": "Mostrar marcas de comentario",
     "toggle_entity_links": "Enlaces de entradas interactivos",
-    "unsplit": "Cerrar división"
+    "unpin_island": "Desfijar posición",
+    "unsplit": "Cerrar división",
+    "words_short": "{{count}} p."
   },
   "sidebarLayout": {
     "split": "Restaurar dos columnas"
@@ -1684,7 +1695,8 @@
     "edge": {
       "hideKind": "Ocultar «{{label}}»",
       "showKind": "Mostrar «{{label}}»"
-    }
+    },
+    "spread": "Distribuir"
   },
   "storylineEditor": {
     "filters": {
@@ -1734,6 +1746,7 @@
       "relayout": "Reorganizar"
     },
     "reset": "Restablecer",
+    "startEdgeFromElement": "Crear relación desde este elemento",
     "uncategorized": "Sin categoría",
     "unnamedCategory": "Categoría sin título"
   },
@@ -1752,7 +1765,10 @@
     "color": "Color",
     "conflict": "La plantilla cambió en otro lugar",
     "date": "Fecha",
+    "default_prose": "Plantilla de texto predeterminada",
+    "default_prose_hint": "Se copia en las nuevas entradas creadas desde esta plantilla",
     "default_template": "Plantilla predeterminada",
+    "default_value": "Valor predeterminado",
     "description": "Descripción",
     "display": "Visualización",
     "entity_ref": "Referencia a entrada",
@@ -1907,6 +1923,9 @@
     "railAgent": "Agent"
   },
   "v3Shell": {
+    "agent_unread": "Cambios de Agent sin leer",
+    "aliases_add": "Añadir alias…",
+    "aliases_remove": "Quitar alias",
     "attachedEntries": "Vinculadas aquí",
     "belongTo": "Asignar a",
     "board": "Tablero",
@@ -1917,7 +1936,9 @@
     "editTemplate": "Editar plantilla",
     "entries": "Entradas",
     "entryUntemplated": "Entrada",
+    "entry_count": "{{count}} entradas",
     "expandTimeline": "Expandir cronología de tramas",
+    "external_unread": "Cambios externos sin leer",
     "grid": "Cuadrícula",
     "hideOutline": "Ocultar índice",
     "islands": "Islas",
@@ -1961,8 +1982,10 @@
     "colorValue": "Valor del color",
     "deleteView": "Eliminar vista",
     "detachEntry": "Desvincular entrada",
+    "empty_book_view": "Coloca al menos una entrada en esta vista primero",
     "laneActions": "Acciones del carril",
     "laneTrack": "Carril {{name}}",
+    "locate_current": "Ubicar entrada actual",
     "members": "{{count}} miembros",
     "moveDown": "Bajar",
     "moveUp": "Subir",
@@ -1970,6 +1993,7 @@
     "newEntryInLane": "Nueva entrada",
     "newLane": "Nuevo carril",
     "newView": "Nueva vista",
+    "pin_color": "Color",
     "placeEntry": "Colocar entrada",
     "placementActions": "Acciones de colocación",
     "removeEntry": "Quitar del carril",
@@ -1978,9 +2002,12 @@
     "renameView": "Renombrar vista",
     "resize": "Ajustar longitud",
     "ruler": "Regla de escala",
+    "section_create": "Crear",
+    "section_existing": "Añadir entradas existentes",
     "selectLane": "Elegir carril",
     "setActTrack": "Usar como pista de actos · {{name}}",
     "unsetActTrack": "Volver a carril normal · {{name}}",
+    "view_actions": "Acciones de vista",
     "views": "Vistas"
   },
   "v3Transfer": {
@@ -1997,6 +2024,7 @@
     "clearField": "Limpiar",
     "currentSection": "Actual",
     "empty": "Sin archivos",
+    "empty_trash": "Vaciar",
     "fileCount_one": "{{count}} archivo",
     "fileCount_other": "{{count}} archivos",
     "findFile": "Buscar archivo",

@@ -178,6 +178,56 @@ fn entry_row(
                 .child(lead),
         );
     }
+    let words = v.entry_words(id);
+    let badges = super::unread_badges(&host.library, cx);
+    let unread = super::entry_or_subtree_badge(v, id, &badges);
+    if words > 0 || unread.is_some() {
+        let theme = Theme::of(window, cx);
+        let p = theme.palette;
+        let s = theme.scale;
+        cell = cell.child(
+            div()
+                .flex_none()
+                .flex()
+                .items_center()
+                .gap(px(4.0))
+                .when_some(unread, |el, kind| {
+                    let (glyph, tint, label_key) = match kind {
+                        super::UnreadBadge::Agent => ("A", p.accent, keys::v3_shell::AGENT_UNREAD),
+                        super::UnreadBadge::External => (
+                            "M",
+                            dr_ui::tokens::Rgb::hex(0x3b82f6),
+                            keys::v3_shell::EXTERNAL_UNREAD,
+                        ),
+                    };
+                    let badge_label = t(cx, label_key);
+                    el.child(
+                        div()
+                            .id(SharedString::from(format!("v3-tab-{scope}-unread-{id}")))
+                            .role(gpui::Role::Label)
+                            .aria_label(badge_label.clone())
+                            .tooltip(dr_ui::components::tooltip::tooltip(badge_label))
+                            .px(px(4.0))
+                            .rounded(px(3.0))
+                            .bg(tint.alpha(0.16))
+                            .text_color(tint.solid())
+                            .font_role(Role::Index)
+                            .type_px(10.0, 13.0)
+                            .child(glyph),
+                    )
+                })
+                .when(words > 0, |el| {
+                    el.child(
+                        div()
+                            .font_role(Role::Index)
+                            .type_px(s.caption, s.line_caption)
+                            .text_color(p.ink(4).solid())
+                            .child(super::format_short_words(words)),
+                    )
+                }),
+        );
+    }
+    let muted_row = v.is_resting_or_discarded(id);
     let cell = match workspace {
         Some(ws) => crate::workspace::sidebar_page_hover_card(
             format!("v3-tab-{scope}-card-{id}"),
@@ -210,6 +260,7 @@ fn entry_row(
         .id(SharedString::from(format!("v3-tab-{scope}-row-{id}")))
         .relative()
         .w_full()
+        .when(muted_row, |el| el.opacity(0.60))
         .pl(px(depth.min(20) as f32 * 14.0))
         .on_drag(
             EntryDrag::new(page.clone(), id, title),
@@ -395,7 +446,8 @@ pub fn book_list(host: &PageViewHost, window: &mut Window, cx: &mut App) -> AnyE
     };
     if let Some((count, rows)) = super::trash::section(v, &TabMount::Book, &unfolded) {
         let toggle = fold.clone();
-        list = list.child(super::trash::head(
+        let empty_host = host.clone();
+        list = list.child(super::trash::head_with_empty(
             "book",
             count,
             open,
@@ -405,6 +457,9 @@ pub fn book_list(host: &PageViewHost, window: &mut Window, cx: &mut App) -> AnyE
                     cx.notify();
                 })
             },
+            Some(Rc::new(move |_, cx| {
+                super::trash::purge_mount(&empty_host, &TabMount::Book, cx);
+            })),
             window,
             cx,
         ));

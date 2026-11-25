@@ -1174,6 +1174,22 @@ impl<'a> BookViewV3<'a> {
         out
     }
 
+    /// Snapshot of every entry's auto-link switch, liveness, title, and aliases.
+    /// Used by the workspace to detect switches turned on as well as newly
+    /// created, restored, renamed, or newly aliased auto-linked entries.
+    pub fn auto_link_tracks(&self) -> BTreeMap<EntryId, (bool, bool, String, Vec<String>)> {
+        let templates = self.templates_map();
+        let mut out = BTreeMap::new();
+        for e in self.entries_raw() {
+            let aliases: Vec<String> = e.aliases(&templates).into_iter().collect();
+            out.insert(
+                e.id.clone(),
+                (e.auto_link, !e.is_trashed(), e.title.clone(), aliases),
+            );
+        }
+        out
+    }
+
     /// What the structural invariants look at, in one read: the entry
     /// headers ([`Self::entry_headers_with`]), every template and every stored
     /// membership. Compare two with [`dr_model::v3::check_new_violations`].

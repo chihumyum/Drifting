@@ -292,6 +292,11 @@
     "table_delete_col": "列を削除",
     "table_delete_row": "行を削除"
   },
+  "elementEditor": {
+    "alerts": {
+      "aliasConflict": "別名を追加できません。「{{name}}」は要素「{{conflicting}}」で使用されています。"
+    }
+  },
   "entrySnapshot": {
     "empty": "スナップショットはまだありません",
     "save": "スナップショットを保存",
@@ -550,6 +555,9 @@
     "valuePlaceholder": "内容"
   },
   "leftSidebar": {
+    "actions": {
+      "collapseAll": "すべて展開・折りたたみ"
+    },
     "groups": {
       "driftCount_one": "{{count}}件のアイデア",
       "driftCount_other": "{{count}}件のアイデア"
@@ -1632,6 +1640,7 @@
     "menu_zoom": "拡大/縮小",
     "new_entry_plain": "新規項目",
     "open_whole_book": "全体を通読",
+    "pick_relation_target": "「{{name}}」から接続中 — 別の項目をクリック（Esc でキャンセル）",
     "preparing_samples": "サンプルプロジェクトを準備中…",
     "project_facts": "作品情報",
     "search_hint": "キーワードを入力してプロジェクト全体を検索",
@@ -1640,7 +1649,9 @@
     "templates_plain": "テンプレート",
     "toggle_comment_marks": "注釈マークを表示",
     "toggle_entity_links": "項目リンクを有効化",
-    "unsplit": "分割を閉じる"
+    "unpin_island": "固定を解除",
+    "unsplit": "分割を閉じる",
+    "words_short": "{{count}} 字"
   },
   "sidebarLayout": {
     "split": "2列表示に戻す"
@@ -1666,7 +1677,8 @@
     "edge": {
       "hideKind": "「{{label}}」を非表示",
       "showKind": "「{{label}}」を表示"
-    }
+    },
+    "spread": "分散"
   },
   "storylineEditor": {
     "filters": {
@@ -1716,6 +1728,7 @@
       "relayout": "再配置"
     },
     "reset": "リセット",
+    "startEdgeFromElement": "この要素から関係を作成",
     "uncategorized": "未分類",
     "unnamedCategory": "無題のカテゴリ"
   },
@@ -1734,7 +1747,10 @@
     "color": "色",
     "conflict": "テンプレートが別の場所で変更されました",
     "date": "日付",
+    "default_prose": "既定の本文テンプレート",
+    "default_prose_hint": "このテンプレートから新規項目を作成するときに自動で入ります",
     "default_template": "既定のテンプレート",
+    "default_value": "既定値",
     "description": "説明",
     "display": "表示",
     "entity_ref": "項目参照",
@@ -1889,6 +1905,9 @@
     "railAgent": "Agent"
   },
   "v3Shell": {
+    "agent_unread": "未読の Agent 編集",
+    "aliases_add": "別名を追加…",
+    "aliases_remove": "別名を削除",
     "attachedEntries": "ここに掛けた項目",
     "belongTo": "所属先",
     "board": "ボード",
@@ -1899,7 +1918,9 @@
     "editTemplate": "テンプレートを編集",
     "entries": "項目",
     "entryUntemplated": "項目",
+    "entry_count": "{{count}} 件",
     "expandTimeline": "ストーリーラインのタイムラインを展開",
+    "external_unread": "未読の外部編集",
     "grid": "グリッド",
     "hideOutline": "目次を非表示",
     "islands": "アイランド",
@@ -1942,8 +1963,10 @@
     "colorValue": "色の値",
     "deleteView": "ビューを削除",
     "detachEntry": "項目の関連付けを解除",
+    "empty_book_view": "先にこのビューへ項目を配置してください",
     "laneActions": "レーンの操作",
     "laneTrack": "レーン {{name}}",
+    "locate_current": "現在の項目へ移動",
     "members": "メンバー {{count}} 件",
     "moveDown": "下へ移動",
     "moveUp": "上へ移動",
@@ -1951,6 +1974,7 @@
     "newEntryInLane": "項目を作成",
     "newLane": "レーンを作成",
     "newView": "ビューを作成",
+    "pin_color": "色",
     "placeEntry": "項目を配置",
     "placementActions": "配置の操作",
     "removeEntry": "レーンから外す",
@@ -1959,9 +1983,12 @@
     "renameView": "ビューの名前を変更",
     "resize": "長さを調整",
     "ruler": "目盛り",
+    "section_create": "新規作成",
+    "section_existing": "既存の項目を追加",
     "selectLane": "レーンを選択",
     "setActTrack": "幕トラックにする · {{name}}",
     "unsetActTrack": "通常のレーンに戻す · {{name}}",
+    "view_actions": "ビュー操作",
     "views": "ビュー"
   },
   "v3Transfer": {
@@ -1978,6 +2005,7 @@
     "clearField": "クリア",
     "currentSection": "現在",
     "empty": "ファイルなし",
+    "empty_trash": "空にする",
     "fileCount_other": "{{count}} 件のファイル",
     "findFile": "ファイルを検索",
     "itemCount_other": "{{count}} 件",

@@ -866,3 +866,7 @@ settings.sync.import_files_desc
 settings.sync.select_file
 settings.privacy.fullPolicy
 settings.about.fonts
+elementEditor.alerts.aliasConflict
+leftSidebar.actions.collapseAll
+storyGraph.spread
+superElement.startEdgeFromElement

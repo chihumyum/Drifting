@@ -67,20 +67,31 @@ impl crate::Workspace {
             entry,
         };
         let previous_focus = window.focused(cx);
+        let clear_lib = lib.clone();
         let dialog = cx.new(|cx| {
             dr_view_history::EntryHistoryDialog::new(lib, target, title, locale, platform, cx)
         });
         gpui::Focusable::focus_handle(dialog.read(cx), cx).focus(window, cx);
-        cx.subscribe_in(&dialog, window, move |ws, _, event, window, cx| {
-            if *event == dr_view_history::HistoryEvent::Close {
-                ws.dialog = None;
-                previous_focus
-                    .as_ref()
-                    .unwrap_or(ws.focus_handle())
-                    .focus(window, cx);
-                cx.notify();
-            }
-        })
+        cx.subscribe_in(
+            &dialog,
+            window,
+            move |ws, _, event, window, cx| match event {
+                dr_view_history::HistoryEvent::Close => {
+                    ws.dialog = None;
+                    previous_focus
+                        .as_ref()
+                        .unwrap_or(ws.focus_handle())
+                        .focus(window, cx);
+                    cx.notify();
+                }
+                dr_view_history::HistoryEvent::Restored { doc } => {
+                    if let Some(entry_id) = doc.strip_prefix("entry:") {
+                        let marks = dr_editor::decor::AgentMarks::of(&clear_lib, cx);
+                        marks.update(cx, |m, cx| m.clear_entry(entry_id, cx));
+                    }
+                }
+            },
+        )
         .detach();
         self.dialog = Some(dialog.into());
         cx.notify();

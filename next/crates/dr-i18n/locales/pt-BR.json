@@ -294,6 +294,11 @@
     "table_delete_col": "Excluir coluna",
     "table_delete_row": "Excluir linha"
   },
+  "elementEditor": {
+    "alerts": {
+      "aliasConflict": "Não é possível adicionar o apelido: “{{name}}” já é usado pelo elemento “{{conflicting}}”."
+    }
+  },
   "entrySnapshot": {
     "empty": "Ainda não há instantâneos",
     "save": "Salvar instantâneo",
@@ -560,6 +565,9 @@
     "valuePlaceholder": "Conteúdo"
   },
   "leftSidebar": {
+    "actions": {
+      "collapseAll": "Expandir ou recolher tudo"
+    },
     "groups": {
       "driftCount_many": "{{count}} ideias",
       "driftCount_one": "{{count}} ideia",
@@ -1650,6 +1658,7 @@
     "menu_zoom": "Ampliar/Reduzir",
     "new_entry_plain": "Nova entrada",
     "open_whole_book": "Ler livro completo",
+    "pick_relation_target": "Conectando de “{{name}}” — clique em outra entrada (Esc para cancelar)",
     "preparing_samples": "Preparando projetos de exemplo…",
     "project_facts": "Dados do projeto",
     "search_hint": "Digite para pesquisar em todo o projeto",
@@ -1658,7 +1667,9 @@
     "templates_plain": "Modelos",
     "toggle_comment_marks": "Mostrar marcas de comentário",
     "toggle_entity_links": "Links de entradas interativos",
-    "unsplit": "Fechar divisão"
+    "unpin_island": "Desafixar posição",
+    "unsplit": "Fechar divisão",
+    "words_short": "{{count}} p."
   },
   "sidebarLayout": {
     "split": "Restaurar duas colunas"
@@ -1684,7 +1695,8 @@
     "edge": {
       "hideKind": "Ocultar “{{label}}”",
       "showKind": "Mostrar “{{label}}”"
-    }
+    },
+    "spread": "Distribuir"
   },
   "storylineEditor": {
     "filters": {
@@ -1734,6 +1746,7 @@
       "relayout": "Reorganizar"
     },
     "reset": "Redefinir",
+    "startEdgeFromElement": "Criar relação a partir deste elemento",
     "uncategorized": "Sem categoria",
     "unnamedCategory": "Categoria sem título"
   },
@@ -1752,7 +1765,10 @@
     "color": "Cor",
     "conflict": "O modelo foi alterado em outro lugar",
     "date": "Data",
+    "default_prose": "Modelo de texto padrão",
+    "default_prose_hint": "Copiado para novas entradas criadas a partir deste modelo",
     "default_template": "Modelo padrão",
+    "default_value": "Valor padrão",
     "description": "Descrição",
     "display": "Exibição",
     "entity_ref": "Referência a entrada",
@@ -1907,6 +1923,9 @@
     "railAgent": "Agent"
   },
   "v3Shell": {
+    "agent_unread": "Alterações não lidas do Agent",
+    "aliases_add": "Adicionar apelido…",
+    "aliases_remove": "Remover apelido",
     "attachedEntries": "Vinculadas aqui",
     "belongTo": "Associar a",
     "board": "Quadro",
@@ -1917,7 +1936,9 @@
     "editTemplate": "Editar modelo",
     "entries": "Entradas",
     "entryUntemplated": "Entrada",
+    "entry_count": "{{count}} entradas",
     "expandTimeline": "Expandir linha do tempo narrativa",
+    "external_unread": "Alterações externas não lidas",
     "grid": "Grade",
     "hideOutline": "Ocultar sumário",
     "islands": "Ilhas",
@@ -1961,8 +1982,10 @@
     "colorValue": "Valor da cor",
     "deleteView": "Excluir visualização",
     "detachEntry": "Desvincular entrada",
+    "empty_book_view": "Coloque ao menos uma entrada nesta visualização primeiro",
     "laneActions": "Ações da faixa",
     "laneTrack": "Faixa {{name}}",
+    "locate_current": "Localizar entrada atual",
     "members": "{{count}} membros",
     "moveDown": "Mover para baixo",
     "moveUp": "Mover para cima",
@@ -1970,6 +1993,7 @@
     "newEntryInLane": "Nova entrada",
     "newLane": "Nova faixa",
     "newView": "Nova visualização",
+    "pin_color": "Cor",
     "placeEntry": "Posicionar entrada",
     "placementActions": "Ações de posicionamento",
     "removeEntry": "Remover da faixa",
@@ -1978,9 +2002,12 @@
     "renameView": "Renomear visualização",
     "resize": "Ajustar comprimento",
     "ruler": "Régua de escala",
+    "section_create": "Criar",
+    "section_existing": "Adicionar entradas existentes",
     "selectLane": "Selecionar faixa",
     "setActTrack": "Usar como faixa de atos · {{name}}",
     "unsetActTrack": "Voltar para faixa normal · {{name}}",
+    "view_actions": "Ações da visualização",
     "views": "Visualizações"
   },
   "v3Transfer": {
@@ -1997,6 +2024,7 @@
     "clearField": "Limpar",
     "currentSection": "Atual",
     "empty": "Sem arquivos",
+    "empty_trash": "Esvaziar",
     "fileCount_one": "{{count}} arquivo",
     "fileCount_other": "{{count}} arquivos",
     "findFile": "Buscar arquivo",

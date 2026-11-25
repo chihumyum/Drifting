@@ -292,6 +292,11 @@
     "table_delete_col": "Spalte löschen",
     "table_delete_row": "Zeile löschen"
   },
+  "elementEditor": {
+    "alerts": {
+      "aliasConflict": "Alias kann nicht hinzugefügt werden: „{{name}}“ wird bereits vom Element „{{conflicting}}“ verwendet."
+    }
+  },
   "entrySnapshot": {
     "empty": "Noch keine Momentaufnahmen",
     "save": "Momentaufnahme speichern",
@@ -558,6 +563,9 @@
     "valuePlaceholder": "Inhalt"
   },
   "leftSidebar": {
+    "actions": {
+      "collapseAll": "Alle auf- oder einklappen"
+    },
     "groups": {
       "driftCount_one": "{{count}} Idee",
       "driftCount_other": "{{count}} Ideen"
@@ -1640,6 +1648,7 @@
     "menu_zoom": "Zoomen",
     "new_entry_plain": "Neuer Eintrag",
     "open_whole_book": "Ganzes Buch lesen",
+    "pick_relation_target": "Verbinde von „{{name}}“ — anderen Eintrag anklicken (Esc zum Abbrechen)",
     "preparing_samples": "Beispielprojekte werden vorbereitet…",
     "project_facts": "Projektangaben",
     "search_hint": "Suchbegriff für das gesamte Projekt eingeben",
@@ -1648,7 +1657,9 @@
     "templates_plain": "Vorlagen",
     "toggle_comment_marks": "Kommentarmarkierungen anzeigen",
     "toggle_entity_links": "Interaktive Eintragslinks",
-    "unsplit": "Teilung schließen"
+    "unpin_island": "Position lösen",
+    "unsplit": "Teilung schließen",
+    "words_short": "{{count}} W."
   },
   "sidebarLayout": {
     "split": "Zwei Spalten wiederherstellen"
@@ -1674,7 +1685,8 @@
     "edge": {
       "hideKind": "„{{label}}“ ausblenden",
       "showKind": "„{{label}}“ anzeigen"
-    }
+    },
+    "spread": "Verteilen"
   },
   "storylineEditor": {
     "filters": {
@@ -1724,6 +1736,7 @@
       "relayout": "Neu anordnen"
     },
     "reset": "Zurücksetzen",
+    "startEdgeFromElement": "Beziehung von diesem Element erstellen",
     "uncategorized": "Ohne Kategorie",
     "unnamedCategory": "Unbenannte Kategorie"
   },
@@ -1742,7 +1755,10 @@
     "color": "Farbe",
     "conflict": "Vorlage wurde andernorts geändert",
     "date": "Datum",
+    "default_prose": "Standard-Textvorlage",
+    "default_prose_hint": "Wird in neue Einträge aus dieser Vorlage übernommen",
     "default_template": "Standardvorlage",
+    "default_value": "Standardwert",
     "description": "Beschreibung",
     "display": "Darstellung",
     "entity_ref": "Eintragsverweis",
@@ -1897,6 +1913,9 @@
     "railAgent": "Agent"
   },
   "v3Shell": {
+    "agent_unread": "Ungelesene Agent-Änderungen",
+    "aliases_add": "Alias hinzufügen…",
+    "aliases_remove": "Alias entfernen",
     "attachedEntries": "Hier zugeordnet",
     "belongTo": "Zuordnen",
     "board": "Pinnwand",
@@ -1907,7 +1926,9 @@
     "editTemplate": "Vorlage bearbeiten",
     "entries": "Einträge",
     "entryUntemplated": "Eintrag",
+    "entry_count": "{{count}} Einträge",
     "expandTimeline": "Handlungsstrang-Zeitleiste aufklappen",
+    "external_unread": "Ungelesene externe Änderungen",
     "grid": "Raster",
     "hideOutline": "Inhaltsverzeichnis ausblenden",
     "islands": "Inseln",
@@ -1951,8 +1972,10 @@
     "colorValue": "Farbwert",
     "deleteView": "Ansicht löschen",
     "detachEntry": "Eintrag lösen",
+    "empty_book_view": "Platziere zuerst mindestens einen Eintrag in dieser Ansicht",
     "laneActions": "Spuraktionen",
     "laneTrack": "Spur {{name}}",
+    "locate_current": "Aktuellen Eintrag finden",
     "members": "{{count}} Mitglieder",
     "moveDown": "Nach unten",
     "moveUp": "Nach oben",
@@ -1960,6 +1983,7 @@
     "newEntryInLane": "Neuer Eintrag",
     "newLane": "Neue Spur",
     "newView": "Neue Ansicht",
+    "pin_color": "Farbe",
     "placeEntry": "Eintrag platzieren",
     "placementActions": "Platzierungsaktionen",
     "removeEntry": "Aus Spur entfernen",
@@ -1968,9 +1992,12 @@
     "renameView": "Ansicht umbenennen",
     "resize": "Länge anpassen",
     "ruler": "Skalenlineal",
+    "section_create": "Erstellen",
+    "section_existing": "Vorhandene Einträge hinzufügen",
     "selectLane": "Spur auswählen",
     "setActTrack": "Als Aktspur verwenden · {{name}}",
     "unsetActTrack": "Als normale Spur verwenden · {{name}}",
+    "view_actions": "Ansichtsaktionen",
     "views": "Ansichten"
   },
   "v3Transfer": {
@@ -1987,6 +2014,7 @@
     "clearField": "Leeren",
     "currentSection": "Aktuell",
     "empty": "Keine Dateien",
+    "empty_trash": "Leeren",
     "fileCount_one": "{{count}} Datei",
     "fileCount_other": "{{count}} Dateien",
     "findFile": "Datei suchen",

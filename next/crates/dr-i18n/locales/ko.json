@@ -292,6 +292,11 @@
     "table_delete_col": "열 삭제",
     "table_delete_row": "행 삭제"
   },
+  "elementEditor": {
+    "alerts": {
+      "aliasConflict": "별칭을 추가할 수 없습니다. “{{name}}”은(는) 요소 “{{conflicting}}”에서 이미 사용 중입니다."
+    }
+  },
   "entrySnapshot": {
     "empty": "아직 스냅샷이 없습니다",
     "save": "스냅샷 저장",
@@ -550,6 +555,9 @@
     "valuePlaceholder": "내용"
   },
   "leftSidebar": {
+    "actions": {
+      "collapseAll": "모두 펼치기 또는 접기"
+    },
     "groups": {
       "driftCount_one": "아이디어 {{count}}개",
       "driftCount_other": "아이디어 {{count}}개"
@@ -1632,6 +1640,7 @@
     "menu_zoom": "확대/축소",
     "new_entry_plain": "새 항목",
     "open_whole_book": "전체 읽기",
+    "pick_relation_target": "“{{name}}”에서 연결 중 — 대상 항목 클릭 (Esc로 취소)",
     "preparing_samples": "샘플 프로젝트 준비 중…",
     "project_facts": "작품 정보",
     "search_hint": "프로젝트 전체를 검색할 키워드를 입력하세요",
@@ -1640,7 +1649,9 @@
     "templates_plain": "템플릿",
     "toggle_comment_marks": "주석 표시 보이기",
     "toggle_entity_links": "항목 링크 활성화",
-    "unsplit": "분할 닫기"
+    "unpin_island": "위치 고정 해제",
+    "unsplit": "분할 닫기",
+    "words_short": "{{count}}자"
   },
   "sidebarLayout": {
     "split": "두 열로 복원"
@@ -1666,7 +1677,8 @@
     "edge": {
       "hideKind": "“{{label}}” 숨기기",
       "showKind": "“{{label}}” 표시"
-    }
+    },
+    "spread": "분산"
   },
   "storylineEditor": {
     "filters": {
@@ -1716,6 +1728,7 @@
       "relayout": "재배치"
     },
     "reset": "초기화",
+    "startEdgeFromElement": "이 요소에서 관계 만들기",
     "uncategorized": "미분류",
     "unnamedCategory": "이름 없는 분류"
   },
@@ -1734,7 +1747,10 @@
     "color": "색상",
     "conflict": "다른 곳에서 템플릿이 변경되었습니다",
     "date": "날짜",
+    "default_prose": "기본 본문 템플릿",
+    "default_prose_hint": "이 템플릿으로 새 항목을 만들 때 자동으로 채워집니다",
     "default_template": "기본 템플릿",
+    "default_value": "기본값",
     "description": "설명",
     "display": "표시",
     "entity_ref": "항목 참조",
@@ -1889,6 +1905,9 @@
     "railAgent": "Agent"
   },
   "v3Shell": {
+    "agent_unread": "읽지 않은 Agent 편집",
+    "aliases_add": "별칭 추가…",
+    "aliases_remove": "별칭 제거",
     "attachedEntries": "여기에 걸린 항목",
     "belongTo": "소속 지정",
     "board": "보드",
@@ -1899,7 +1918,9 @@
     "editTemplate": "템플릿 편집",
     "entries": "항목",
     "entryUntemplated": "항목",
+    "entry_count": "{{count}}개",
     "expandTimeline": "스토리라인 타임라인 펼치기",
+    "external_unread": "읽지 않은 외부 편집",
     "grid": "그리드",
     "hideOutline": "목차 숨기기",
     "islands": "섬",
@@ -1942,8 +1963,10 @@
     "colorValue": "색상 값",
     "deleteView": "보기 삭제",
     "detachEntry": "항목 연결 해제",
+    "empty_book_view": "먼저 이 보기에 항목을 배치하세요",
     "laneActions": "레인 작업",
     "laneTrack": "레인 {{name}}",
+    "locate_current": "현재 항목으로 이동",
     "members": "구성원 {{count}}개",
     "moveDown": "아래로 이동",
     "moveUp": "위로 이동",
@@ -1951,6 +1974,7 @@
     "newEntryInLane": "새 항목",
     "newLane": "새 레인",
     "newView": "새 보기",
+    "pin_color": "색상",
     "placeEntry": "항목 배치",
     "placementActions": "배치 작업",
     "removeEntry": "레인에서 제거",
@@ -1959,9 +1983,12 @@
     "renameView": "보기 이름 변경",
     "resize": "길이 조절",
     "ruler": "눈금자",
+    "section_create": "새로 만들기",
+    "section_existing": "기존 항목 추가",
     "selectLane": "레인 선택",
     "setActTrack": "막 트랙으로 사용 · {{name}}",
     "unsetActTrack": "일반 레인으로 전환 · {{name}}",
+    "view_actions": "보기 작업",
     "views": "보기"
   },
   "v3Transfer": {
@@ -1978,6 +2005,7 @@
     "clearField": "지우기",
     "currentSection": "현재",
     "empty": "파일 없음",
+    "empty_trash": "비우기",
     "fileCount_other": "파일 {{count}}개",
     "findFile": "파일 찾기",
     "itemCount_other": "{{count}}개",

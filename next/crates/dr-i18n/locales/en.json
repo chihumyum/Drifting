@@ -292,6 +292,11 @@
     "table_delete_col": "Delete column",
     "table_delete_row": "Delete row"
   },
+  "elementEditor": {
+    "alerts": {
+      "aliasConflict": "Cannot add alias: \"{{name}}\" is already used by element \"{{conflicting}}\"."
+    }
+  },
   "entrySnapshot": {
     "empty": "No snapshots yet",
     "save": "Save snapshot",
@@ -558,6 +563,9 @@
     "valuePlaceholder": "Content"
   },
   "leftSidebar": {
+    "actions": {
+      "collapseAll": "Expand or collapse all"
+    },
     "groups": {
       "driftCount_one": "{{count}} idea",
       "driftCount_other": "{{count}} ideas"
@@ -1640,6 +1648,7 @@
     "menu_zoom": "Zoom",
     "new_entry_plain": "New Entry",
     "open_whole_book": "Read whole book",
+    "pick_relation_target": "Connecting from “{{name}}” — click another entry (Esc to cancel)",
     "preparing_samples": "Preparing sample projects…",
     "project_facts": "Project facts",
     "search_hint": "Type to search across this project",
@@ -1648,7 +1657,9 @@
     "templates_plain": "Templates",
     "toggle_comment_marks": "Show comment marks",
     "toggle_entity_links": "Interactive entity links",
-    "unsplit": "Close split pane"
+    "unpin_island": "Unpin island",
+    "unsplit": "Close split pane",
+    "words_short": "{{count}} w"
   },
   "sidebarLayout": {
     "split": "Restore two columns"
@@ -1674,7 +1685,8 @@
     "edge": {
       "hideKind": "Hide \"{{label}}\"",
       "showKind": "Show \"{{label}}\""
-    }
+    },
+    "spread": "Spread"
   },
   "storylineEditor": {
     "filters": {
@@ -1724,6 +1736,7 @@
       "relayout": "Re-arrange"
     },
     "reset": "Reset",
+    "startEdgeFromElement": "Create relation from this element",
     "uncategorized": "Uncategorized",
     "unnamedCategory": "Untitled category"
   },
@@ -1742,7 +1755,10 @@
     "color": "Color",
     "conflict": "Template changed elsewhere",
     "date": "Date",
+    "default_prose": "Default prose template",
+    "default_prose_hint": "Copied into new entries created from this template",
     "default_template": "Default template",
+    "default_value": "Default value",
     "description": "Description",
     "display": "Display",
     "entity_ref": "Entry reference",
@@ -1897,6 +1913,9 @@
     "railAgent": "Agent"
   },
   "v3Shell": {
+    "agent_unread": "Unread Agent edits",
+    "aliases_add": "Add alias…",
+    "aliases_remove": "Remove alias",
     "attachedEntries": "Attached here",
     "belongTo": "Assign to",
     "board": "Board",
@@ -1907,7 +1926,9 @@
     "editTemplate": "Edit template",
     "entries": "Entries",
     "entryUntemplated": "Entry",
+    "entry_count": "{{count}} entries",
     "expandTimeline": "Expand Storyline Timeline",
+    "external_unread": "Unread external edits",
     "grid": "Grid",
     "hideOutline": "Hide TOC",
     "islands": "Islands",
@@ -1951,8 +1972,10 @@
     "colorValue": "Color value",
     "deleteView": "Delete view",
     "detachEntry": "Detach entry",
+    "empty_book_view": "Place at least one entry in this view first",
     "laneActions": "Lane actions",
     "laneTrack": "Lane {{name}}",
+    "locate_current": "Locate current entry",
     "members": "{{count}} members",
     "moveDown": "Move down",
     "moveUp": "Move up",
@@ -1960,6 +1983,7 @@
     "newEntryInLane": "New entry",
     "newLane": "New lane",
     "newView": "New view",
+    "pin_color": "Color",
     "placeEntry": "Place entry",
     "placementActions": "Placement actions",
     "removeEntry": "Remove from lane",
@@ -1968,9 +1992,12 @@
     "renameView": "Rename view",
     "resize": "Adjust length",
     "ruler": "Scale ruler",
+    "section_create": "Create",
+    "section_existing": "Add existing entries",
     "selectLane": "Select lane",
     "setActTrack": "Use as act track · {{name}}",
     "unsetActTrack": "Use as regular lane · {{name}}",
+    "view_actions": "View actions",
     "views": "Views"
   },
   "v3Transfer": {
@@ -1987,6 +2014,7 @@
     "clearField": "Clear",
     "currentSection": "Current",
     "empty": "No files",
+    "empty_trash": "Empty",
     "fileCount_one": "{{count}} file",
     "fileCount_other": "{{count}} files",
     "findFile": "Find file",

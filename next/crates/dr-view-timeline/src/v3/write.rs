@@ -433,6 +433,14 @@ impl Timeline {
         });
     }
     pub fn create_entry_in_lane(&mut self, lane: String, cx: &mut Context<Self>) {
+        self.create_entry_in_lane_at(lane, None, cx);
+    }
+    pub fn create_entry_in_lane_at(
+        &mut self,
+        lane: String,
+        at_override: Option<f64>,
+        cx: &mut Context<Self>,
+    ) {
         let Some(view_id) = self.view().map(|v| v.id.clone()) else {
             return;
         };
@@ -487,7 +495,21 @@ impl Timeline {
                     .iter()
                     .find(|l| l.entry == lane)
                     .is_some_and(|l| l.act_track == Some(true));
-                if is_act {
+                if let Some(at) = at_override.filter(|a| a.is_finite()) {
+                    let span = is_act.then_some(model::DEFAULT_SPAN);
+                    lib.call(
+                        &Actor::User,
+                        "timeline_view.place",
+                        serde_json::json!({
+                            "book": book,
+                            "view": view_id,
+                            "entry": entry_id,
+                            "lane": lane,
+                            "at": at,
+                            "span": span,
+                        }),
+                    )?;
+                } else if is_act {
                     let lane_end = v
                         .placements
                         .iter()

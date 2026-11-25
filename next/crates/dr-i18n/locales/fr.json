@@ -294,6 +294,11 @@
     "table_delete_col": "Supprimer la colonne",
     "table_delete_row": "Supprimer la ligne"
   },
+  "elementEditor": {
+    "alerts": {
+      "aliasConflict": "Impossible d’ajouter l’alias : « {{name}} » est déjà utilisé par l’élément « {{conflicting}} »."
+    }
+  },
   "entrySnapshot": {
     "empty": "Aucun instantané pour le moment",
     "save": "Enregistrer un instantané",
@@ -560,6 +565,9 @@
     "valuePlaceholder": "Contenu"
   },
   "leftSidebar": {
+    "actions": {
+      "collapseAll": "Tout développer ou réduire"
+    },
     "groups": {
       "driftCount_many": "{{count}} idées",
       "driftCount_one": "{{count}} idée",
@@ -1650,6 +1658,7 @@
     "menu_zoom": "Réduire/agrandir",
     "new_entry_plain": "Nouvelle entrée",
     "open_whole_book": "Lire tout le livre",
+    "pick_relation_target": "Connexion depuis « {{name}} » — cliquez sur une autre entrée (Échap pour annuler)",
     "preparing_samples": "Préparation des projets d'exemple…",
     "project_facts": "Informations du projet",
     "search_hint": "Saisissez un mot-clé pour rechercher dans tout le projet",
@@ -1658,7 +1667,9 @@
     "templates_plain": "Modèles",
     "toggle_comment_marks": "Afficher les marques de commentaire",
     "toggle_entity_links": "Liens d'entrées interactifs",
-    "unsplit": "Fermer la division"
+    "unpin_island": "Détacher la position",
+    "unsplit": "Fermer la division",
+    "words_short": "{{count}} m"
   },
   "sidebarLayout": {
     "split": "Rétablir deux colonnes"
@@ -1684,7 +1695,8 @@
     "edge": {
       "hideKind": "Masquer « {{label}} »",
       "showKind": "Afficher « {{label}} »"
-    }
+    },
+    "spread": "Répartir"
   },
   "storylineEditor": {
     "filters": {
@@ -1734,6 +1746,7 @@
       "relayout": "Réorganiser"
     },
     "reset": "Réinitialiser",
+    "startEdgeFromElement": "Créer une relation depuis cet élément",
     "uncategorized": "Sans catégorie",
     "unnamedCategory": "Catégorie sans titre"
   },
@@ -1752,7 +1765,10 @@
     "color": "Couleur",
     "conflict": "Le modèle a été modifié ailleurs",
     "date": "Date",
+    "default_prose": "Modèle de texte par défaut",
+    "default_prose_hint": "Copié dans les nouvelles entrées créées à partir de ce modèle",
     "default_template": "Modèle par défaut",
+    "default_value": "Valeur par défaut",
     "description": "Description",
     "display": "Affichage",
     "entity_ref": "Référence à une entrée",
@@ -1907,6 +1923,9 @@
     "railAgent": "Agent"
   },
   "v3Shell": {
+    "agent_unread": "Modifications Agent non lues",
+    "aliases_add": "Ajouter un alias…",
+    "aliases_remove": "Supprimer l’alias",
     "attachedEntries": "Rattachées ici",
     "belongTo": "Rattacher à",
     "board": "Tableau",
@@ -1917,7 +1936,9 @@
     "editTemplate": "Modifier le modèle",
     "entries": "Entrées",
     "entryUntemplated": "Entrée",
+    "entry_count": "{{count}} entrées",
     "expandTimeline": "Développer la chronologie des intrigues",
+    "external_unread": "Modifications externes non lues",
     "grid": "Grille",
     "hideOutline": "Masquer la table des matières",
     "islands": "Îles",
@@ -1961,8 +1982,10 @@
     "colorValue": "Valeur de couleur",
     "deleteView": "Supprimer la vue",
     "detachEntry": "Dissocier l’entrée",
+    "empty_book_view": "Placez d’abord au moins une entrée dans cette vue",
     "laneActions": "Actions de piste",
     "laneTrack": "Piste {{name}}",
+    "locate_current": "Localiser l’entrée actuelle",
     "members": "{{count}} membres",
     "moveDown": "Descendre",
     "moveUp": "Monter",
@@ -1970,6 +1993,7 @@
     "newEntryInLane": "Nouvelle entrée",
     "newLane": "Nouvelle piste",
     "newView": "Nouvelle vue",
+    "pin_color": "Couleur",
     "placeEntry": "Placer une entrée",
     "placementActions": "Actions de placement",
     "removeEntry": "Retirer de la piste",
@@ -1978,9 +2002,12 @@
     "renameView": "Renommer la vue",
     "resize": "Ajuster la longueur",
     "ruler": "Règle d’échelle",
+    "section_create": "Créer",
+    "section_existing": "Ajouter des entrées existantes",
     "selectLane": "Choisir une piste",
     "setActTrack": "Utiliser comme piste d’actes · {{name}}",
     "unsetActTrack": "Revenir à une piste normale · {{name}}",
+    "view_actions": "Actions de vue",
     "views": "Vues"
   },
   "v3Transfer": {
@@ -1997,6 +2024,7 @@
     "clearField": "Effacer",
     "currentSection": "Actuel",
     "empty": "Aucun fichier",
+    "empty_trash": "Vider",
     "fileCount_one": "{{count}} fichier",
     "fileCount_other": "{{count}} fichiers",
     "findFile": "Chercher un fichier",
