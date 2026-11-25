@@ -53,6 +53,7 @@ use crate::{
 
 mod continuity;
 mod old;
+mod rewind;
 
 pub use old::{EYEBROW, Results as HistoryResults};
 
@@ -125,6 +126,8 @@ pub struct AgentPanel {
     renaming: Option<(ConversationId, Entity<TextField>, Subscription)>,
     /// Pagination window for long transcripts (number of tail items rendered).
     visible_limit: usize,
+    /// Current Fill width when the right sidebar fills the workspace (`None` when narrow).
+    fill_width: Option<f32>,
 }
 
 impl AgentPanel {
@@ -182,6 +185,7 @@ impl AgentPanel {
             show_context_modal: false,
             renaming: None,
             visible_limit: 40,
+            fill_width: None,
         };
         panel._subs.push(
             cx.subscribe_in(&composer, window, |panel, _, event, _, cx| {
@@ -722,6 +726,18 @@ impl AgentPanel {
             });
         }
         cx.notify();
+    }
+
+    pub fn set_fill_width(&mut self, width: Option<f32>, cx: &mut Context<Self>) {
+        if self.fill_width == width {
+            return;
+        }
+        self.fill_width = width;
+        cx.notify();
+    }
+
+    pub fn fill_width(&self) -> Option<f32> {
+        self.fill_width
     }
 
     pub fn snapshot(&self) -> Option<&ChatSnapshot> {
@@ -2774,43 +2790,76 @@ impl Render for AgentPanel {
             && self.continuity.shown.is_none()
             && self.scroll.max_offset().y + self.scroll.offset().y > px(80.);
         let context_modal = self.context_modal(window, cx);
-        root.child(
-            div()
-                .relative()
+        let transcript_area = div()
+            .relative()
+            .flex_1()
+            .min_h_0()
+            .child(
+                div()
+                    .id("agent-transcript")
+                    .size_full()
+                    .overflow_y_scroll()
+                    .track_scroll(&self.scroll)
+                    .p(px(14.))
+                    .child(content),
+            )
+            .when(scrolled_up, |el| {
+                el.child(
+                    div().absolute().bottom(px(10.)).right(px(14.)).child(
+                        Button::new("agent-jump-latest", t(cx, k::JUMP_LATEST))
+                            .small()
+                            .on_click(cx.listener(|panel, _, _, cx| {
+                                panel.scroll.scroll_to_bottom();
+                                cx.notify();
+                            })),
+                    ),
+                )
+            });
+
+        if self.fill_width.is_some_and(|w| w >= 640.0) && self.continuity.shown.is_none() {
+            let rewind_col = self.render_rewind_column(window, cx);
+            let chat_col = div()
                 .flex_1()
+                .min_w_0()
                 .min_h_0()
+                .h_full()
+                .flex()
+                .flex_col()
+                .child(transcript_area)
+                .when_some(error, |el, error| {
+                    el.child(
+                        div()
+                            .px(px(12.))
+                            .text_color(p.danger.solid())
+                            .child(text::wrapped(error)),
+                    )
+                })
+                .child(footer);
+            return root
                 .child(
                     div()
-                        .id("agent-transcript")
-                        .size_full()
-                        .overflow_y_scroll()
-                        .track_scroll(&self.scroll)
-                        .p(px(14.))
-                        .child(content),
+                        .flex_1()
+                        .min_h_0()
+                        .w_full()
+                        .flex()
+                        .flex_row()
+                        .child(rewind_col)
+                        .child(chat_col),
                 )
-                .when(scrolled_up, |el| {
-                    el.child(
-                        div().absolute().bottom(px(10.)).right(px(14.)).child(
-                            Button::new("agent-jump-latest", t(cx, k::JUMP_LATEST))
-                                .small()
-                                .on_click(cx.listener(|panel, _, _, cx| {
-                                    panel.scroll.scroll_to_bottom();
-                                    cx.notify();
-                                })),
-                        ),
-                    )
-                }),
-        )
-        .when_some(error, |el, error| {
-            el.child(
-                div()
-                    .px(px(12.))
-                    .text_color(p.danger.solid())
-                    .child(text::wrapped(error)),
-            )
-        })
-        .child(footer)
-        .children(context_modal)
+                .children(context_modal);
+        }
+
+        root.child(transcript_area)
+            .when_some(error, |el, error| {
+                el.child(
+                    div()
+                        .px(px(12.))
+                        .text_color(p.danger.solid())
+                        .child(text::wrapped(error)),
+                )
+            })
+            .child(footer)
+            .children(context_modal)
     }
 }
 

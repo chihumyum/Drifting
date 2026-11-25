@@ -150,4 +150,10 @@ pub fn init_with_service(
             panel.update(cx, |panel, cx| panel.take_images(images, cx));
         }
     });
+    // Agent Fill mode ("Agent Rewind"): notify panel when the right pane fills.
+    dr_shell::pages::set_companion_fill_width(cx, |body, width, cx| {
+        if let Ok(panel) = body.clone().downcast::<AgentPanel>() {
+            panel.update(cx, |panel, cx| panel.set_fill_width(width, cx));
+        }
+    });
 }

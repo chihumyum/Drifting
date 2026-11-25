@@ -110,8 +110,12 @@ impl Render for RelationsRail {
         let theme = Theme::of(window, cx);
         let p = theme.palette;
         self.row_bounds.borrow_mut().clear();
-        let cards: Vec<AnyElement> = self
-            .cards()
+        let cards_data = self.cards();
+        let graph_fill = self
+            .fill_width
+            .is_some_and(|w| w >= 620.0)
+            .then(|| self.render_graph_fill(&cards_data, window, cx));
+        let cards: Vec<AnyElement> = cards_data
             .into_iter()
             .map(|card| self.card(card, window, cx))
             .collect();
@@ -129,6 +133,50 @@ impl Render for RelationsRail {
         )
         .w_full()
         .h(px(0.0));
+        let filter_bar = div()
+            .flex_none()
+            .px(px(12.0))
+            .pt(px(6.0))
+            .pb(px(4.0))
+            .child(self.filter_field.clone());
+        let list = div()
+            .id("relations-list")
+            .flex_1()
+            .min_h_0()
+            .w_full()
+            .overflow_y_scroll()
+            .track_scroll(&self.scroll)
+            .px(px(12.0))
+            .pt(px(4.0))
+            .pb(px(16.0))
+            .flex()
+            .flex_col()
+            .gap(px(10.0))
+            .text_color(p.ink(1).solid())
+            .children(cards)
+            .child(reveal_probe);
+        let cards_column = div()
+            .h_full()
+            .min_h_0()
+            .flex()
+            .flex_col()
+            .child(filter_bar)
+            .child(list);
+
+        let body = if let Some(graph) = graph_fill {
+            div()
+                .size_full()
+                .flex()
+                .flex_row()
+                .min_h_0()
+                .child(graph)
+                .child(div().w(px(1.0)).h_full().flex_none().bg(p.hairline()))
+                .child(cards_column.w(px(320.0)).flex_none())
+                .into_any_element()
+        } else {
+            cards_column.size_full().into_any_element()
+        };
+
         div()
             .id("relations-rail")
             .track_focus(&self.focus)
@@ -136,22 +184,7 @@ impl Render for RelationsRail {
             .relative()
             .role(gpui::Role::Group)
             .aria_label(t(cx, keys::v5_relations::TAB))
-            .child(
-                div()
-                    .id("relations-list")
-                    .size_full()
-                    .overflow_y_scroll()
-                    .track_scroll(&self.scroll)
-                    .px(px(12.0))
-                    .pt(px(4.0))
-                    .pb(px(16.0))
-                    .flex()
-                    .flex_col()
-                    .gap(px(10.0))
-                    .text_color(p.ink(1).solid())
-                    .children(cards)
-                    .child(reveal_probe),
-            )
+            .child(body)
             .children(picker)
     }
 }
@@ -334,6 +367,18 @@ impl RelationsRail {
             )
             .child(div().flex_1());
         if hovered && relation.is_some() {
+            if card.rows.is_empty() && card.drafts.is_empty() {
+                let del_target = rel_id.clone();
+                head = head.child(
+                    PanelIconButton::new(id("delete-card"), Icon::Trash)
+                        .label(t(cx, keys::common::DELETE))
+                        .on_click(cx.listener(move |rail, _, _, cx| {
+                            if let Some(id) = &del_target {
+                                rail.delete_relation(id, cx);
+                            }
+                        })),
+                );
+            }
             head = head.child(
                 PanelIconButton::new(id("add-row"), Icon::Plus)
                     .label(t(cx, keys::v5_relations::ADD_ROW))
@@ -528,6 +573,11 @@ impl RelationsRail {
         let right_el = side(right, RelationSide::Right, window, cx);
         let hover_key = key.clone();
         let delete_key = key.clone();
+        let swap_key = key.clone();
+        let can_swap = show
+            && direction == RelationDirection::Directed
+            && !left.is_empty()
+            && !right.is_empty();
         let mut row = div()
             .id(id("row"))
             .relative()
@@ -536,7 +586,7 @@ impl RelationsRail {
             .items_start()
             .gap(px(6.0))
             .pl(px(6.0))
-            .pr(px(22.0))
+            .pr(px(if can_swap { 44.0 } else { 22.0 }))
             .py(px(4.0))
             .mx(px(-6.0))
             .rounded(px(3.0))
@@ -563,6 +613,28 @@ impl RelationsRail {
                     .child(glyph(direction))
             })
             .child(right_el);
+        if can_swap {
+            row = row.child(
+                div()
+                    .id(id("swap"))
+                    .absolute()
+                    .right(px(22.0))
+                    .top(px(6.0))
+                    .size(px(20.0))
+                    .rounded_full()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .cursor_pointer()
+                    .hover(|s| s.bg(p.ink(1).alpha(0.06)))
+                    .role(gpui::Role::Button)
+                    .aria_label(t(cx, keys::v5_relations::DIRECTION))
+                    .child(sand::icon(Icon::Swap, 11.0, p.ink(4).solid()))
+                    .on_click(cx.listener(move |rail, _, _, cx| {
+                        rail.swap_row(&swap_key, cx);
+                    })),
+            );
+        }
         if show {
             row = row.child(
                 div()

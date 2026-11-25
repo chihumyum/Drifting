@@ -13,8 +13,7 @@ use dr_shell::pages::{self, BottomPane, BottomPanel, PageViewHost};
 use dr_shell::panes::PaneId;
 use dr_shell::settings::registry;
 use dr_shell::workspace::{
-    DOCK_NEW, DOCK_ROW, FillPlace, LEADING_INSET, MOON_DIM, MOON_DISABLED_DIM, MoonLook, RightTab,
-    Side, moon_look,
+    DOCK_NEW, DOCK_ROW, FillPlace, LEADING_INSET, MOON_DIM, MoonLook, RightTab, Side, moon_look,
 };
 use dr_shell::{Services, Settings, SettingsFile, ShellInfo, Workspace};
 use dr_ui::sand::Icon;
@@ -340,30 +339,33 @@ fn the_moon_pairs_look_and_answer_every_cell_of_their_state_machine(cx: &mut Tes
         assert_eq!(state(&view, cx, side), (false, None));
     }
 
-    // Stats (and Agent): the right full moon is dim and does nothing.
+    // Stats, Relations, and Companion (Agent) all support Fill mode now:
+    // the right full moon stays enabled, fills when clicked, and switching
+    // between right tabs while filled keeps Fill active.
     click(cx, "toggle-right");
-    view.update(cx, |ws, cx| {
-        ws.right.panes.reveal(RightTab::Stats);
-        cx.notify();
-    });
-    rest_pointer(cx);
-    let dim = MoonLook {
-        crescent_in_front: true,
-        front: Icon::MoonRight,
-        back: Icon::MoonHollowfullRight,
-        back_opacity: MOON_DISABLED_DIM,
-        can_fill: false,
-    };
-    assert_eq!(look(&view, cx, Side::Right), dim);
-    click(cx, "fill-right");
-    assert_eq!(state(&view, cx, Side::Right), (true, None));
-    hover(cx, "fill-right");
-    assert_eq!(
-        look(&view, cx, Side::Right),
-        dim,
-        "pointing does not wake it"
-    );
-    // Filled on Review, then switched to Stats: back to open.
+    for tab in [RightTab::Stats, RightTab::Relations, RightTab::Companion] {
+        view.update(cx, |ws, cx| {
+            ws.right.panes.reveal(tab);
+            cx.notify();
+        });
+        rest_pointer(cx);
+        let ready = MoonLook {
+            crescent_in_front: true,
+            front: Icon::MoonRight,
+            back: Icon::MoonHollowfullRight,
+            back_opacity: MOON_DIM,
+            can_fill: true,
+        };
+        assert_eq!(look(&view, cx, Side::Right), ready);
+        click(cx, "fill-right");
+        assert_eq!(
+            state(&view, cx, Side::Right),
+            (true, Some(FillPlace::Right))
+        );
+        click(cx, "fill-right");
+        assert_eq!(state(&view, cx, Side::Right), (true, None));
+    }
+    // Filled on Review, then switched to Stats and Companion: stays filled.
     view.update(cx, |ws, cx| {
         ws.right.panes.reveal(RightTab::Review);
         cx.notify();
@@ -378,7 +380,19 @@ fn the_moon_pairs_look_and_answer_every_cell_of_their_state_machine(cx: &mut Tes
         cx.notify();
     });
     draw(cx);
-    assert_eq!(state(&view, cx, Side::Right), (true, None));
+    assert_eq!(
+        state(&view, cx, Side::Right),
+        (true, Some(FillPlace::Right))
+    );
+    view.update(cx, |ws, cx| {
+        ws.right.panes.click(PaneId::Primary, RightTab::Companion);
+        cx.notify();
+    });
+    draw(cx);
+    assert_eq!(
+        state(&view, cx, Side::Right),
+        (true, Some(FillPlace::Right))
+    );
 }
 
 /// `W11Right`: above a filled panel the open documents are the same row of

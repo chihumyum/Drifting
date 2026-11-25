@@ -287,9 +287,11 @@ impl Workspace {
             .map_or_else(|| self.right.panes.focused_tab(), |p| p.tab)
     }
 
-    /// Right sidebar can fill when its inner/filling pane supports Fill.
+    /// Every right-sidebar tab supports Fill (`铺满`): Review, Relations
+    /// (interactive force-directed graph), Library, Stats (whole-project
+    /// charts dashboard), and Agent (Agent Rewind timeline + chat).
     pub fn right_can_fill(&self) -> bool {
-        matches!(self.right_fill_tab(), RightTab::Review | RightTab::Library)
+        true
     }
 
     /// Maximum width a filled `side` sidebar occupies when un-narrowed: the

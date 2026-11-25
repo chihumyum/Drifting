@@ -1406,3 +1406,72 @@ fn removing_a_member_refuses_unseen_remote_pairs(cx: &mut TestAppContext) {
     settle(&rail, cx);
     assert_eq!(relation(&e, "RL 移出并发").unwrap()["pair_count"], 2);
 }
+
+#[gpui::test]
+fn search_filter_matches_relations_and_entries_and_swap_preserves_sole_directed_type(
+    cx: &mut TestAppContext,
+) {
+    let e = env();
+    let [(a, a_title), (b, _), (c, _)] = [&e.entries[0], &e.entries[1], &e.entries[2]];
+    let row = pair(&e, a, b, "RL 追捕", "directed")["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    pair(&e, b, c, "RL 同行", "symmetric");
+    let (rail, mut cx, _) = open(cx, &e);
+    let cx = &mut cx;
+
+    // Filter by relation name.
+    rail.update(cx, |r, cx| r.set_filter_query("追捕", cx));
+    let names: Vec<String> = rail.read_with(cx, |r, _| {
+        r.cards()
+            .iter()
+            .filter_map(|c| c.relation.as_ref().map(|x| x.name.clone()))
+            .collect()
+    });
+    assert_eq!(names, vec!["RL 追捕".to_owned()]);
+
+    // Filter by entry title.
+    rail.update(cx, |r, cx| r.set_filter_query(a_title.as_str(), cx));
+    assert!(rail.read_with(cx, |r, _| {
+        r.cards()
+            .iter()
+            .any(|c| c.relation.as_ref().is_some_and(|x| x.name == "RL 追捕"))
+    }));
+    rail.update(cx, |r, cx| r.set_filter_query("", cx));
+
+    // Swapping the sole directed row swaps left <-> right without deleting the relation type.
+    rail.update(cx, |r, cx| r.swap_row(&RowKey::Stored(row), cx));
+    settle(&rail, cx);
+    let swapped = relation(&e, "RL 追捕").expect("relation type stays alive after sole-row swap");
+    assert_eq!(swapped["rows"].as_array().unwrap().len(), 1);
+    assert_eq!(swapped["rows"][0]["left"], json!([b]));
+    assert_eq!(swapped["rows"][0]["right"], json!([a]));
+}
+
+#[gpui::test]
+fn fill_mode_renders_interactive_force_directed_graph_alongside_cards(cx: &mut TestAppContext) {
+    let e = env();
+    let [a, b, c] = [&e.entries[0].0, &e.entries[1].0, &e.entries[2].0];
+    pair(&e, a, b, "RL 图谱甲", "directed");
+    pair(&e, b, c, "RL 图谱乙", "symmetric");
+    let (rail, mut cx, _) = open(cx, &e);
+    let cx = &mut cx;
+    cx.simulate_resize(size(px(980.), px(700.)));
+    rail.update(cx, |r, cx| r.set_fill_width(Some(980.0), cx));
+    draw(cx);
+    assert!(
+        cx.debug_bounds("relations-graph-fill").is_some(),
+        "Fill mode mounts the force-directed graph panel"
+    );
+    assert!(
+        cx.debug_bounds("relations-graph-viewport").is_some(),
+        "Fill mode mounts the interactive graph viewport"
+    );
+    rail.update(cx, |r, cx| r.set_fill_width(None, cx));
+    draw(cx);
+    assert!(
+        cx.debug_bounds("relations-graph-fill").is_none(),
+        "Exiting Fill mode returns to narrow cards rail"
+    );
+}

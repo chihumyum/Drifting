@@ -1,5 +1,6 @@
 //! The relation graph's legend (shared by the canvases that draw
 //! relations) and the right sidebar's 「关系」 (RL, `kernel-v5.md` §19).
+mod graph_fill;
 pub mod legend;
 mod look;
 pub mod rail;
@@ -11,4 +12,9 @@ pub use rail_view::RailHead;
 /// Registers the right sidebar's 「关系」 with the shell.
 pub fn init(cx: &mut gpui::App) {
     dr_shell::pages::set_relations(cx, rail::make);
+    dr_shell::pages::set_relations_fill_width(cx, |body, width, cx| {
+        if let Ok(rail) = body.clone().downcast::<RelationsRail>() {
+            rail.update(cx, |rail, cx| rail.set_fill_width(width, cx));
+        }
+    });
 }

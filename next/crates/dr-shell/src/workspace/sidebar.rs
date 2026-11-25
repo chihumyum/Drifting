@@ -1807,6 +1807,20 @@ fn v3_review_open_agent(
     }))
 }
 
+fn right_pane_fill_width(ws: &Workspace, pane: PaneId, window: &Window) -> Option<f32> {
+    (ws.is_filled(FillPlace::Right) && pane == ws.right_fill_pane_id()).then(|| {
+        let total = ws.target_fill_width(Side::Right, f32::from(window.viewport_size().width));
+        if ws.right.panes.is_split() {
+            let outer = (ws.right.width * (1.0 - ws.right.panes.ratio))
+                .round()
+                .max(180.0);
+            (total - outer).max(240.0)
+        } else {
+            total
+        }
+    })
+}
+
 fn right_body(
     tab: RightTab,
     ws: &Workspace,
@@ -1814,15 +1828,22 @@ fn right_body(
     window: &mut Window,
     cx: &mut Context<Workspace>,
 ) -> AnyElement {
+    let fill_width = right_pane_fill_width(ws, pane, window);
     match tab {
         // M31: the 帮手 panel, when the app has one.
         RightTab::Companion => match companion_panel(ws, pane, window, cx) {
-            Some(panel) => div().size_full().child(panel.body).into_any_element(),
+            Some(panel) => {
+                crate::pages::notify_companion_fill_width(&panel.body, fill_width, cx);
+                div().size_full().child(panel.body).into_any_element()
+            }
             None => div().size_full().into_any_element(),
         },
         // RL: the module's panel, when the app has one.
         RightTab::Relations => match relations_panel(ws, pane, window, cx) {
-            Some(panel) => div().size_full().child(panel.body).into_any_element(),
+            Some(panel) => {
+                crate::pages::notify_relations_fill_width(&panel.body, fill_width, cx);
+                div().size_full().child(panel.body).into_any_element()
+            }
             None => div().size_full().into_any_element(),
         },
         // M19: the module's panel, when the app has one.
@@ -1897,19 +1918,6 @@ fn right_body(
                 open,
                 cx,
             );
-            let fill_width = (ws.is_filled(FillPlace::Right) && pane == ws.right_fill_pane_id())
-                .then(|| {
-                    let total =
-                        ws.target_fill_width(Side::Right, f32::from(window.viewport_size().width));
-                    if ws.right.panes.is_split() {
-                        let outer = (ws.right.width * (1.0 - ws.right.panes.ratio))
-                            .round()
-                            .max(180.0);
-                        (total - outer).max(240.0)
-                    } else {
-                        total
-                    }
-                });
             dr_view_stats::v3_panel::set_open_history(&stats_id, open_history, cx);
             dr_view_stats::v3_panel::set_fill_width(&stats_id, fill_width, cx);
             div()
@@ -1957,19 +1965,6 @@ fn right_body(
                 marks,
                 cx,
             );
-            let fill_width = (ws.is_filled(FillPlace::Right) && pane == ws.right_fill_pane_id())
-                .then(|| {
-                    let total =
-                        ws.target_fill_width(Side::Right, f32::from(window.viewport_size().width));
-                    if ws.right.panes.is_split() {
-                        let outer = (ws.right.width * (1.0 - ws.right.panes.ratio))
-                            .round()
-                            .max(180.0);
-                        (total - outer).max(240.0)
-                    } else {
-                        total
-                    }
-                });
             let book_for_colors = ws.book.clone();
             let mark_colors = Rc::new(move |target: &dr_view_review::v3::Target| {
                 v3_review_target(target.clone()).and_then(|t| book_for_colors.mark(&t).1)
