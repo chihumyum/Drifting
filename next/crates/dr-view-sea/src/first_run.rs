@@ -378,6 +378,8 @@ pub fn arriving(cx: &App) -> bool {
 
 #[derive(Debug, Default)]
 struct SampleShelf {
+    /// True while built-in samples are being written on a background thread.
+    preparing: bool,
     /// The samples this launch wrote.
     created: Vec<String>,
     /// The landing ring is spent; a shelf drawn later shows it in place.
@@ -387,6 +389,11 @@ struct SampleShelf {
 }
 
 impl Global for SampleShelf {}
+
+/// Whether built-in sample books are currently being seeded into a new library.
+pub fn is_preparing_samples(cx: &App) -> bool {
+    cx.try_global::<SampleShelf>().is_some_and(|s| s.preparing)
+}
 
 /// How the shelf shows a book this launch may have written as a sample.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -416,24 +423,31 @@ pub fn sample_on_shelf(book: &str, cx: &App) -> SampleOnShelf {
 /// open and before the shelf opens a book; not for an account library,
 /// which starts from its cloud copy.
 pub fn write_samples(library: dr_workspace::Workspace, cx: &mut App) -> Task<dr_samples::Outcome> {
+    cx.default_global::<SampleShelf>().preparing = true;
+    cx.refresh_windows();
     cx.spawn(async move |cx| {
         let outcome = cx
             .background_executor()
             .spawn(async move { dr_samples::ensure_built_in(&library) })
             .await;
-        match &outcome {
-            dr_samples::Outcome::Pending { items } => {
-                log::info!("built-in samples await explicit v3 mapping: {items:?}");
+        cx.update(|cx| {
+            cx.default_global::<SampleShelf>().preparing = false;
+            match &outcome {
+                dr_samples::Outcome::Pending { items } => {
+                    log::info!("built-in samples await explicit v3 mapping: {items:?}");
+                }
+                dr_samples::Outcome::Created { books } => {
+                    note_samples_created(books.clone(), cx);
+                }
+                dr_samples::Outcome::Failed { error, attempts } => {
+                    log::warn!(
+                        "the built-in samples were not written (attempt {attempts}): {error}"
+                    );
+                }
+                dr_samples::Outcome::AlreadyDone | dr_samples::Outcome::Skipped { .. } => {}
             }
-            dr_samples::Outcome::Created { books } => {
-                let books = books.clone();
-                cx.update(|cx| note_samples_created(books, cx));
-            }
-            dr_samples::Outcome::Failed { error, attempts } => {
-                log::warn!("the built-in samples were not written (attempt {attempts}): {error}")
-            }
-            dr_samples::Outcome::AlreadyDone | dr_samples::Outcome::Skipped { .. } => {}
-        }
+            cx.refresh_windows();
+        });
         outcome
     })
 }

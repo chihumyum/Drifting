@@ -766,15 +766,20 @@ impl MediaPage {
         self.set_viewport(v, cx);
     }
 
-    /// Turns to page `page` (from 1) of a PDF.
+    /// Turns to page `page` (from 1) of a PDF, preserving the author's zoom level.
     pub fn turn_to(&mut self, page: u32, cx: &mut Context<Self>) {
         let count = self.page_count();
         if let Media::Pdf { page: shown, .. } = &mut self.media {
             let to = (page.max(1) as usize - 1).min(count.saturating_sub(1));
             if to != *shown {
                 *shown = to;
-                self.viewport = Viewport::FIT;
+                let kept_zoom = Viewport {
+                    pan_x: 0.0,
+                    pan_y: 0.0,
+                    ..self.viewport
+                };
                 self.gesture = None;
+                self.set_viewport(kept_zoom, cx);
                 cx.notify();
             }
         }
@@ -898,6 +903,7 @@ impl MediaPage {
         }
         if let Some(id) = self.region_at(e.position).map(|l| l.item.id.clone()) {
             self.select(&id, cx);
+            dr_shell::ReviewFocus::point_prose(vec![id], cx);
             return;
         }
         if self.viewport.zoomed() {
@@ -1081,7 +1087,8 @@ impl MediaPage {
 
     fn point(&mut self, id: Option<String>, cx: &mut Context<Self>) {
         if self.pointed != id {
-            self.pointed = id;
+            self.pointed = id.clone();
+            dr_shell::ReviewFocus::point_prose(id.into_iter().collect(), cx);
             cx.notify();
         }
     }
@@ -1367,7 +1374,9 @@ impl MediaPage {
             GlassKind::Surface,
             Mode::default(),
             false,
-            Spec::new(Tone::Clear, (g::PILL_HEIGHT + 2.0 * g::TRAY_PADDING) / 2.0).filled(p.page),
+            Spec::new(Tone::Clear, (g::PILL_HEIGHT + 2.0 * g::TRAY_PADDING) / 2.0)
+                .filled(p.page)
+                .ground(glass::Ground::Uneven),
             window,
             cx,
         )
@@ -1450,7 +1459,9 @@ impl MediaPage {
             GlassKind::Surface,
             Mode::default(),
             false,
-            Spec::new(Tone::Clear, (g::PILL_HEIGHT + 2.0 * g::TRAY_PADDING) / 2.0).filled(p.page),
+            Spec::new(Tone::Clear, (g::PILL_HEIGHT + 2.0 * g::TRAY_PADDING) / 2.0)
+                .filled(p.page)
+                .ground(glass::Ground::Uneven),
             window,
             cx,
         )

@@ -1201,9 +1201,16 @@ pub(crate) fn resolve_v3(
                         resolve_tab_place(&cx.view, place_val)?;
                     }
                 }
-                "asset.get" | "asset.rename" | "asset.move" | "asset.trash" | "asset.restore" => {
-                    let include_trashed =
-                        matches!(name, "asset.get" | "asset.trash" | "asset.restore");
+                "asset.get"
+                | "asset.read_content"
+                | "asset.rename"
+                | "asset.move"
+                | "asset.trash"
+                | "asset.restore" => {
+                    let include_trashed = matches!(
+                        name,
+                        "asset.get" | "asset.read_content" | "asset.trash" | "asset.restore"
+                    );
                     if let Some(id_val) = obj.get_mut("id") {
                         let aid = resolve_asset_id(&cx.view, id_val, include_trashed)?;
                         *id_val = aid.to_string().into();

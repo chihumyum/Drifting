@@ -297,7 +297,7 @@ impl RenderOnce for Range {
                     centre - gpui::point(px(HALO / 2.0), px(HALO / 2.0)),
                     gpui::size(px(HALO), px(HALO)),
                 );
-                let spec = Spec::new(Tone::Clear, HALO / 2.0);
+                let spec = Spec::new(Tone::Clear, HALO / 2.0).ground(glass::Ground::Uneven);
                 let h = paint_halo.read(cx);
                 let look = spec.look(h, now, p);
                 let ground = spec.resolve_ground(p);

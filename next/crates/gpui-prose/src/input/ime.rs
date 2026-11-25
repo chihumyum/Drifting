@@ -238,16 +238,47 @@ impl ProseEditor {
                     let shift = open.len();
                     let marked = start + inner.start - shift..start + inner.end - shift;
                     doc.mark(marked.clone(), &key, value, ORIGIN_USER);
-                    *sel = Selection::caret(sel.chapter, marked.end);
-                    clear = Some(key);
+                    if open.is_empty() && close.is_empty() {
+                        // In-place auto-link (e.g. URL followed by space): keep caret where typed.
+                        *sel = Selection::caret(sel.chapter, caret);
+                    } else {
+                        *sel = Selection::caret(sel.chapter, marked.end);
+                        clear = Some(key);
+                    }
                 }
                 InputRule::Block { prefix, key, value } => {
                     if prefix.end > inner_len(&before) {
                         return;
                     }
                     doc.delete(start + prefix.start..start + prefix.end, ORIGIN_USER);
-                    doc.set_block_attr(line_ix, key, Some(value), ORIGIN_USER);
-                    *sel = Selection::caret(sel.chapter, caret - prefix.len());
+                    if key == crate::schema::block::RULE {
+                        for k in [
+                            crate::schema::block::HEADING,
+                            crate::schema::block::QUOTE,
+                            crate::schema::block::LIST,
+                            crate::schema::block::LIST_LEVEL,
+                            crate::schema::block::CHECKED,
+                            crate::schema::block::TODO,
+                            crate::schema::block::CODE_BLOCK,
+                            crate::schema::block::CALLOUT,
+                        ] {
+                            doc.set_block_attr(line_ix, k, None, ORIGIN_USER);
+                        }
+                        doc.set_block_attr(line_ix, key, Some(value), ORIGIN_USER);
+                        let end = doc.line_start(line_ix) + doc.line(line_ix).chars;
+                        let next_caret = doc.split(end, ORIGIN_USER);
+                        let next_line = doc.line_of(next_caret);
+                        doc.set_block_attr(
+                            next_line,
+                            crate::schema::block::RULE,
+                            None,
+                            ORIGIN_USER,
+                        );
+                        *sel = Selection::caret(sel.chapter, next_caret);
+                    } else {
+                        doc.set_block_attr(line_ix, key, Some(value), ORIGIN_USER);
+                        *sel = Selection::caret(sel.chapter, caret - prefix.len());
+                    }
                 }
             }
         });
@@ -461,9 +492,10 @@ impl EntityInputHandler for ProseEditor {
             }
             return;
         }
-        // Typing with an embed selected types after it (`objects.rs`).
+        // Typing with an embed selected or on a horizontal rule types after it.
         let mut range16 = range16;
         self.leave_embed_for_text(&mut range16, window, cx);
+        self.leave_rule_for_text(window, cx);
         if self.composition.is_none() && self.selection.spans_chapters() {
             // Typing over a selection across chapters replaces all of it
             // (the input method only sees the caret's chapter, so a range it
@@ -517,9 +549,9 @@ impl EntityInputHandler for ProseEditor {
         }
         let mut range16 = range16;
         if self.composition.is_none() {
-            // Composing with an embed selected composes after it
-            // (`objects.rs`).
+            // Composing with an embed selected or on a horizontal rule composes after it.
             self.leave_embed_for_text(&mut range16, window, cx);
+            self.leave_rule_for_text(window, cx);
             // Losing focus from here on must also clear the system's marked
             // text (input/system_ime.rs).
             self.ensure_system_ime(window);

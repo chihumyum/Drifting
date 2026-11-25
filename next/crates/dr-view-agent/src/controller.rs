@@ -35,6 +35,26 @@ pub use long_tasks::TaskView;
 type Completion = Shared<BoxFuture<'static, Result<(), String>>>;
 type Listener = Arc<dyn Fn() + Send + Sync>;
 
+const TITLE_SCOPE: &str = "agent.conversation_title";
+const DELETED_SCOPE: &str = "agent.conversation_deleted";
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct UsageTotals {
+    pub input_tokens: u64,
+    pub cached_input_tokens: u64,
+    pub cache_write_tokens: u64,
+    pub output_tokens: u64,
+    pub total_tokens: u64,
+    pub conversations: usize,
+    pub turns: usize,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct BookAgentUsage {
+    pub month: UsageTotals,
+    pub all: UsageTotals,
+}
+
 #[derive(Clone)]
 pub struct AgentController {
     inner: Arc<Inner>,
@@ -215,10 +235,15 @@ impl AgentController {
             resources._subscription = Some(resources.workspace.library().subscribe(move |event| {
                 let relevant = match event {
                     StoreEvent::Doc(event) => event.doc_id.starts_with("conversation:"),
-                    StoreEvent::Local(change) => matches!(
-                        change.table.as_str(),
-                        dr_store::agent::SESSION_TABLE | dr_store::agent::EVENT_TABLE
-                    ),
+                    StoreEvent::Local(change) => {
+                        matches!(
+                            change.table.as_str(),
+                            dr_store::agent::SESSION_TABLE | dr_store::agent::EVENT_TABLE
+                        ) || (change.table == "local_state"
+                            && (change.key.starts_with(TITLE_SCOPE)
+                                || change.key.starts_with(DELETED_SCOPE)
+                                || change.key.starts_with("agent.context")))
+                    }
                 };
                 if relevant && let Some(inner) = weak.upgrade() {
                     inner.notify();
@@ -392,6 +417,19 @@ impl AgentController {
         let lease = self.read_lease()?;
         let resources = lease.resources();
         let lib = resources.workspace.library();
+        let deleted: HashSet<String> = lib
+            .local_entries(DELETED_SCOPE, Some(book.as_str()))
+            .map_err(string)?
+            .into_iter()
+            .map(|entry| entry.key)
+            .collect();
+        let custom_titles: HashMap<String, String> = lib
+            .local_entries(TITLE_SCOPE, Some(book.as_str()))
+            .map_err(string)?
+            .into_iter()
+            .filter(|entry| !entry.value.trim().is_empty())
+            .map(|entry| (entry.key, entry.value))
+            .collect();
         let sessions = lib.agent_sessions(Some(book.as_str())).map_err(string)?;
         let mut ids = BTreeMap::new();
         for doc in lib
@@ -399,32 +437,39 @@ impl AgentController {
             .map_err(string)?
         {
             let id = conversation_id(&doc.doc_id)?;
-            ids.insert(id, 0_i64);
+            if !deleted.contains(id.as_str()) {
+                ids.insert(id, 0_i64);
+            }
         }
         for session in &sessions {
             let id = conversation_id(&session.conversation)?;
+            if deleted.contains(id.as_str()) {
+                continue;
+            }
             let time = ids.entry(id).or_default();
             *time = (*time).max(session.created_ms);
         }
         let mut summaries = Vec::with_capacity(ids.len());
         for (id, last_created_ms) in ids {
             let snapshot = read_snapshot(resources, book, &id)?;
-            let title = snapshot
-                .messages
-                .iter()
-                .find_map(|message| {
-                    if let crate::state::MessageContent::User { text, .. } = &message.content {
-                        Some(
-                            text.lines()
-                                .next()
-                                .unwrap_or_default()
-                                .chars()
-                                .take(80)
-                                .collect(),
-                        )
-                    } else {
-                        None
-                    }
+            let title = custom_titles
+                .get(id.as_str())
+                .cloned()
+                .or_else(|| {
+                    snapshot.messages.iter().find_map(|message| {
+                        if let crate::state::MessageContent::User { text, .. } = &message.content {
+                            Some(
+                                text.lines()
+                                    .next()
+                                    .unwrap_or_default()
+                                    .chars()
+                                    .take(80)
+                                    .collect(),
+                            )
+                        } else {
+                            None
+                        }
+                    })
                 })
                 .unwrap_or_default();
             let active = self
@@ -456,6 +501,122 @@ impl AgentController {
                 .then_with(|| b.id.cmp(&a.id))
         });
         Ok(summaries)
+    }
+
+    pub fn rename_conversation(
+        &self,
+        book: &BookId,
+        id: &ConversationId,
+        title: &str,
+    ) -> Result<(), String> {
+        let lease = self.read_lease()?;
+        let lib = lease.resources().workspace.library();
+        let trimmed = title.trim();
+        let capped: String = trimmed.chars().take(120).collect();
+        lib.local_set(TITLE_SCOPE, id.as_str(), &capped, Some(book.as_str()))
+            .map_err(string)?;
+        self.inner.notify();
+        Ok(())
+    }
+
+    pub fn delete_conversation(&self, book: &BookId, id: &ConversationId) -> Result<(), String> {
+        drop(self.stop_conversation(id));
+        let lease = self.read_lease()?;
+        let lib = lease.resources().workspace.library();
+        lib.local_set(DELETED_SCOPE, id.as_str(), "1", Some(book.as_str()))
+            .map_err(string)?;
+        self.inner.notify();
+        Ok(())
+    }
+
+    pub fn clear_history(&self, book: &BookId) -> Result<usize, String> {
+        let items = self.list(book)?;
+        let count = items.len();
+        if count == 0 {
+            return Ok(0);
+        }
+        for item in &items {
+            drop(self.stop_conversation(&item.id));
+        }
+        let lease = self.read_lease()?;
+        let lib = lease.resources().workspace.library();
+        lib.local_write(|tx| {
+            for item in &items {
+                tx.set_state(DELETED_SCOPE, item.id.as_str(), "1", Some(book.as_str()))?;
+            }
+            Ok(())
+        })
+        .map_err(string)?;
+        self.inner.notify();
+        Ok(count)
+    }
+
+    pub fn usage_stats(&self, book: &BookId) -> Result<BookAgentUsage, String> {
+        use chrono::{Datelike as _, Local, TimeZone as _};
+        let lease = self.read_lease()?;
+        let lib = lease.resources().workspace.library();
+        let sessions = lib.agent_sessions(Some(book.as_str())).map_err(string)?;
+        let now = Local::now();
+        let month_start_ms = Local
+            .with_ymd_and_hms(now.year(), now.month(), 1, 0, 0, 0)
+            .single()
+            .map(|dt| dt.timestamp_millis())
+            .unwrap_or(0);
+        let mut usage = BookAgentUsage::default();
+        let mut all_convs: HashSet<String> = HashSet::new();
+        let mut month_convs: HashSet<String> = HashSet::new();
+        for session in sessions {
+            let in_month = session.created_ms >= month_start_ms;
+            all_convs.insert(session.conversation.clone());
+            if in_month {
+                month_convs.insert(session.conversation.clone());
+            }
+            let Ok(log) = dr_agent::events(lib, &session.session, 0) else {
+                continue;
+            };
+            let mut anthropic = false;
+            let mut session_turns: HashSet<u32> = HashSet::new();
+            for row in log {
+                match row.event {
+                    dr_agent::Event::Configured { config } => {
+                        anthropic = config.route.provider == dr_agent::Provider::Anthropic;
+                    }
+                    dr_agent::Event::AssistantMessage { message } => {
+                        session_turns.insert(row.turn);
+                        let u = message.usage;
+                        let input = u.input_tokens.saturating_add(if anthropic {
+                            u.cached_input_tokens.saturating_add(u.cache_write_tokens)
+                        } else {
+                            0
+                        });
+                        let total = input.saturating_add(u.output_tokens);
+                        let add = |dst: &mut UsageTotals| {
+                            dst.input_tokens = dst.input_tokens.saturating_add(input);
+                            dst.cached_input_tokens = dst
+                                .cached_input_tokens
+                                .saturating_add(u.cached_input_tokens);
+                            dst.cache_write_tokens =
+                                dst.cache_write_tokens.saturating_add(u.cache_write_tokens);
+                            dst.output_tokens = dst.output_tokens.saturating_add(u.output_tokens);
+                            dst.total_tokens = dst.total_tokens.saturating_add(total);
+                        };
+                        add(&mut usage.all);
+                        if in_month {
+                            add(&mut usage.month);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            let turns = session_turns.len().max(1);
+            usage.all.turns += turns;
+            if in_month {
+                usage.month.turns += turns;
+            }
+        }
+        usage.all.conversations = all_convs.len();
+        usage.month.conversations = month_convs.len();
+        Ok(usage)
     }
 
     /// The book is mandatory: a stale pane cannot read another book's chat.
@@ -709,8 +870,10 @@ fn read_snapshot(
         .filter(|session| session.conversation == doc)
     {
         let mut state = ChatState::new(&session.session);
-        for row in dr_agent::events(lib, &session.session, 0).map_err(string)? {
-            state.apply(&row)?;
+        for (row, ts) in
+            dr_agent::events_with_timestamps(lib, &session.session, 0).map_err(string)?
+        {
+            state.apply_with_ts(&row, ts)?;
         }
         // Journal commits precede Loro projection. Fill a read racing that
         // projection by immutable source id, preserving the shared list order.
@@ -725,6 +888,11 @@ fn read_snapshot(
         }
         runs.push(state.snapshot());
     }
+    let context = runs.last().and_then(|run| {
+        let store = dr_agent::long_task::Store::new(lib.clone());
+        let chain = store.chain_for_session(&run.session).ok()??;
+        dr_agent::context::load_checkpoint(lib, &chain).ok()?
+    });
     let messages = entries
         .iter()
         .filter(|e| {
@@ -742,6 +910,7 @@ fn read_snapshot(
         entries,
         messages,
         runs,
+        context,
     })
 }
 

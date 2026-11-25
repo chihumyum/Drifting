@@ -34,12 +34,13 @@ use dr_ui::{
     },
     glass::{self, Kind, Mode, Spec, Tone},
     sand::Icon,
+    style::DrStyled as _,
     tokens::glass as g,
 };
 use dr_workspace::Actor;
 use gpui::{
     AnyElement, App, AppContext as _, Context, Entity, InteractiveElement, IntoElement,
-    ParentElement, Styled, Window, div, px,
+    ParentElement, Styled, Window, div, prelude::FluentBuilder as _, px,
 };
 
 use super::Workspace;
@@ -57,6 +58,35 @@ pub const STATUSES: [(&str, Icon); 3] = [
     ("finished", Icon::BrushLaid),
     ("discarded", Icon::BrushBroken),
 ];
+
+/// How many open comments are anchored to `target` (for the corner badge).
+fn count_open_comments(book: &crate::book::Book, target: Option<&Target>) -> usize {
+    let Some(v3) = book.v3() else {
+        return 0;
+    };
+    match target {
+        Some(Target::Entry { id, .. }) => {
+            use crate::book::v3::OpenSpotKind as K;
+            v3.open_comments
+                .iter()
+                .filter(|c| match &c.spot {
+                    K::EntryTitle { entry }
+                    | K::ModuleHeader { entry, .. }
+                    | K::Field { entry, .. }
+                    | K::KvRow { entry, .. }
+                    | K::PlotCell { entry, .. }
+                    | K::Patch { entry, .. }
+                    | K::Media { entry, .. }
+                    | K::Embed { entry, .. } => entry == id.as_str(),
+                    K::Asset { .. } => false,
+                })
+                .count()
+        }
+        Some(Target::Material(id)) => v3.any_asset_comments(id.as_str()).len(),
+        Some(t) if t.is_book() => v3.open_comments.len(),
+        _ => 0,
+    }
+}
 
 /// The corner of the page showing `target`; `trailing`: the right page of a
 /// split, or the only one.
@@ -138,11 +168,86 @@ pub fn corner(
             .into_any_element(),
         );
     }
-    // Every prose or entry page has a ⋯ menu (`page_actions`). Manuscript
-    // export lives in the workspace avatar menu (`account.rs`).
+    // Every prose, entry, or flattened book page has page toggles and a ⋯ menu.
     let doc_page = target.and_then(crate::book::doc_of).is_some()
-        || matches!(target, Some(Target::Entry { .. }));
+        || matches!(target, Some(Target::Entry { .. }))
+        || target.is_some_and(Target::is_book);
     if doc_page {
+        let links_on =
+            crate::Settings::read(cx).bool(crate::settings::registry::ENTITY_LINK_INTERACTIVE);
+        tools.push(
+            IconButton::new(
+                gpui::ElementId::Name(format!("corner-entity-links-{key}").into()),
+                Icon::KnotLinks,
+            )
+            .in_tray()
+            .selected(links_on)
+            .label(t(cx, keys::shell_ui::TOGGLE_ENTITY_LINKS))
+            .on_click(move |_, _, cx| {
+                let next = !crate::Settings::read(cx)
+                    .bool(crate::settings::registry::ENTITY_LINK_INTERACTIVE);
+                crate::Settings::update(cx, |file| {
+                    let _ = file.set(
+                        crate::settings::registry::ENTITY_LINK_INTERACTIVE,
+                        next.into(),
+                        None,
+                    );
+                });
+            })
+            .into_any_element(),
+        );
+        let comments_on =
+            crate::Settings::read(cx).bool(crate::settings::registry::COMMENT_MARKS_VISIBLE);
+        let open_comments = count_open_comments(&w.book, target);
+        let comment_btn = div()
+            .relative()
+            .child(
+                IconButton::new(
+                    gpui::ElementId::Name(format!("corner-comments-{key}").into()),
+                    Icon::Comment,
+                )
+                .in_tray()
+                .selected(comments_on)
+                .label(t(cx, keys::shell_ui::TOGGLE_COMMENT_MARKS))
+                .on_click(move |_, _, cx| {
+                    let next = !crate::Settings::read(cx)
+                        .bool(crate::settings::registry::COMMENT_MARKS_VISIBLE);
+                    crate::Settings::update(cx, |file| {
+                        let _ = file.set(
+                            crate::settings::registry::COMMENT_MARKS_VISIBLE,
+                            next.into(),
+                            None,
+                        );
+                    });
+                }),
+            )
+            .when(open_comments > 0, |el| {
+                let text = if open_comments > 99 {
+                    "99+".to_owned()
+                } else {
+                    open_comments.to_string()
+                };
+                el.child(
+                    div()
+                        .absolute()
+                        .top(px(-2.0))
+                        .right(px(-2.0))
+                        .min_w(px(14.0))
+                        .h(px(14.0))
+                        .px(px(3.0))
+                        .rounded_full()
+                        .bg(p.accent.solid())
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .font_role(dr_ui::fonts::Role::Index)
+                        .type_px(9.0, 9.0)
+                        .text_color(p.page.solid())
+                        .child(text),
+                )
+            });
+        tools.push(comment_btn.into_any_element());
+
         let opener = ws.clone();
         let page = key.clone();
         tools.push(
@@ -346,8 +451,12 @@ impl Workspace {
         let strings = crate::Strings::get(cx);
         let (locale, platform) = (strings.locale(), strings.platform());
         let (lib, book) = (self.library.clone(), self.book_id.clone());
+        let preferred_font = crate::settings::fonts::resolved_prose_family(cx);
         let dialog = cx.new(|cx| {
-            dr_view_export::ExportDialog::new(lib, book, request, locale, platform, window, cx)
+            let mut d =
+                dr_view_export::ExportDialog::new(lib, book, request, locale, platform, window, cx);
+            d.set_preferred_font(preferred_font);
+            d
         });
         cx.subscribe_in(&dialog, window, |ws, _, event, window, cx| {
             if *event == dr_view_export::ExportEvent::Close {

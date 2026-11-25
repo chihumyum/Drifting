@@ -5,6 +5,7 @@
 //! the change takes effect (theme, text size, reduced motion, language,
 //! crash reports, the keymap), every window repaints, and the file is written 300 ms later.
 
+pub mod fonts;
 pub mod panel;
 pub(crate) use panel::row;
 pub mod registry;
@@ -134,9 +135,10 @@ pub(crate) fn take_requested_section(window: &Window, cx: &mut App) -> Option<re
 }
 
 /// The update row of 关于 (M42, `dr-view-update`): the words under its
-/// label (what the last check found) and its button.
+/// label (what the last check found), optional release notes, and its button.
 pub struct UpdatesRow {
     pub description: Option<SharedString>,
+    pub notes: Option<SharedString>,
     pub control: Option<AnyElement>,
 }
 
@@ -173,6 +175,8 @@ impl Global for Settings {}
 #[derive(Clone, Default, PartialEq)]
 struct Applied {
     theme: Option<String>,
+    accent: Option<String>,
+    caret: Option<String>,
     text_size: Option<String>,
     reduce_motion: Option<bool>,
     locale: Option<Locale>,
@@ -252,6 +256,7 @@ pub(crate) fn install(file: SettingsFile, cx: &mut App) {
         save: None,
         applied: Applied::default(),
     });
+    fonts::load_persisted_custom_font(cx);
     apply(cx);
 }
 
@@ -260,6 +265,8 @@ fn apply(cx: &mut App) {
     let file = Settings::read(cx);
     let now = Applied {
         theme: file.str(registry::THEME),
+        accent: file.str(registry::ACCENT_COLOR),
+        caret: file.str(registry::CARET_COLOR),
         text_size: file.str(registry::TEXT_SIZE),
         reduce_motion: Some(file.bool(registry::REDUCE_MOTION)),
         locale: Some(Settings::locale(cx)),
@@ -276,6 +283,20 @@ fn apply(cx: &mut App) {
             .or_else(|| now.theme.as_deref().and_then(appearance::from_setting));
         appearance::apply(forced, cx);
     }
+    if now.accent != before.accent {
+        let rgb = now
+            .accent
+            .as_deref()
+            .and_then(dr_ui::components::color::parse_hex);
+        dr_ui::theme::set_accent_color(rgb, cx);
+    }
+    if now.caret != before.caret {
+        let rgb = now
+            .caret
+            .as_deref()
+            .and_then(dr_ui::components::color::parse_hex);
+        dr_ui::theme::set_caret_color(rgb, cx);
+    }
     if now.text_size != before.text_size {
         dr_ui::theme::set_text_size(text_size(now.text_size.as_deref()), cx);
     }
@@ -288,6 +309,7 @@ fn apply(cx: &mut App) {
     {
         Strings::install(locale, cx);
         crate::tray::sync_locale(locale, cx);
+        cx.set_menus(crate::menus::app_menus(cx));
     }
     if now.crash_reports != before.crash_reports
         && before.crash_reports.is_some()

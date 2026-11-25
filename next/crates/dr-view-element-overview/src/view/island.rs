@@ -442,6 +442,16 @@ impl ElementOverview {
                     .flex()
                     .flex_wrap()
                     .gap(px(6.0))
+                    .child({
+                        let eid = element_id.to_owned();
+                        Button::new("se-detail-start-edge", t(cx, k_se::START_EDGE_FROM_ELEMENT))
+                            .text()
+                            .small()
+                            .icon(Icon::KnotLinks)
+                            .on_click(cx.listener(move |this, _, window, cx| {
+                                this.start_relation_from(&eid, window, cx);
+                            }))
+                    })
                     .child(
                         Button::new("se-detail-isolate", isolate_label)
                             .text()
@@ -571,6 +581,8 @@ impl ElementOverview {
                 && dr_view_elements::data::v3::creation(&self.book, lid).is_some()
         });
         let can_open_entry = model.creation_level_id.is_some();
+        let is_island_pinned = self.pinned_islands.contains_key(island_id);
+        let unpin_island_id = island_id.to_owned();
 
         div()
             .id("se-island-category-peek")
@@ -647,46 +659,64 @@ impl ElementOverview {
                         .children(member_rows),
                 )
             })
-            .when(create_level_opt.is_some() || can_open_entry, |d| {
-                d.child(
-                    div()
-                        .pt(px(6.0))
-                        .border_t_1()
-                        .border_color(p.hairline())
-                        .flex()
-                        .flex_wrap()
-                        .gap(px(6.0))
-                        .when_some(create_level_opt, |bar, level_id| {
-                            bar.child(
-                                Button::new("se-cat-new-element", t(cx, k_isles::NEW_ELEMENT))
+            .when(
+                create_level_opt.is_some() || can_open_entry || is_island_pinned,
+                |d| {
+                    d.child(
+                        div()
+                            .pt(px(6.0))
+                            .border_t_1()
+                            .border_color(p.hairline())
+                            .flex()
+                            .flex_wrap()
+                            .gap(px(6.0))
+                            .when(is_island_pinned, |bar| {
+                                bar.child(
+                                    Button::new(
+                                        "se-cat-unpin-island",
+                                        t(cx, dr_i18n::keys::shell_ui::UNPIN_ISLAND),
+                                    )
                                     .text()
                                     .small()
-                                    .on_click(cx.listener(move |this, _, window, cx| {
-                                        this.create_element(&level_id, window, cx);
-                                    })),
-                            )
-                        })
-                        .when(can_open_entry, |bar| {
-                            bar.child(
-                                Button::new("se-cat-open-tab", t(cx, k_island::OPEN_IN_TAB))
-                                    .text()
-                                    .small()
-                                    .on_click(cx.listener(|this, _, window, cx| {
-                                        this.open_island_in_tab(window, cx);
-                                    })),
-                            )
-                            .child(
-                                Button::new("se-cat-edit", t(cx, k_detail::EDIT))
-                                    .text()
-                                    .small()
-                                    .icon(Icon::Edit)
-                                    .on_click(cx.listener(|this, _, window, cx| {
-                                        this.grow_island(window, cx);
-                                    })),
-                            )
-                        }),
-                )
-            })
+                                    .on_click(cx.listener(
+                                        move |this, _, _, cx| {
+                                            this.unpin_island(&unpin_island_id, cx);
+                                        },
+                                    )),
+                                )
+                            })
+                            .when_some(create_level_opt, |bar, level_id| {
+                                bar.child(
+                                    Button::new("se-cat-new-element", t(cx, k_isles::NEW_ELEMENT))
+                                        .text()
+                                        .small()
+                                        .on_click(cx.listener(move |this, _, window, cx| {
+                                            this.create_element(&level_id, window, cx);
+                                        })),
+                                )
+                            })
+                            .when(can_open_entry, |bar| {
+                                bar.child(
+                                    Button::new("se-cat-open-tab", t(cx, k_island::OPEN_IN_TAB))
+                                        .text()
+                                        .small()
+                                        .on_click(cx.listener(|this, _, window, cx| {
+                                            this.open_island_in_tab(window, cx);
+                                        })),
+                                )
+                                .child(
+                                    Button::new("se-cat-edit", t(cx, k_detail::EDIT))
+                                        .text()
+                                        .small()
+                                        .icon(Icon::Edit)
+                                        .on_click(cx.listener(|this, _, window, cx| {
+                                            this.grow_island(window, cx);
+                                        })),
+                                )
+                            }),
+                    )
+                },
+            )
             .into_any_element()
     }
 
@@ -733,6 +763,72 @@ impl ElementOverview {
                     c,
                 )
             }
+        };
+
+        let quick_switch: Vec<AnyElement> = match subject {
+            IslandSubject::Element(eid) => {
+                let present = self.present_element_ids();
+                let mut ids: Vec<String> =
+                    isle_companions(eid, &self.cooccurrences.pairs, present, 6)
+                        .into_iter()
+                        .map(|(cid, _)| cid)
+                        .collect();
+                if ids.len() < 6
+                    && let Some(cur) = self.elements.iter().find(|e| &e.id == eid)
+                {
+                    for el in &self.elements {
+                        if el.home_island_id == cur.home_island_id
+                            && el.id != *eid
+                            && !ids.contains(&el.id)
+                        {
+                            ids.push(el.id.clone());
+                            if ids.len() >= 6 {
+                                break;
+                            }
+                        }
+                    }
+                }
+                ids.into_iter()
+                    .filter_map(|cid| {
+                        let other = self.elements.iter().find(|e| e.id == cid)?;
+                        let c = self.element_color(other).unwrap_or_else(|| p.ink(2));
+                        let target_id = cid.clone();
+                        Some(
+                            div()
+                                .id(ElementId::Name(format!("se-sheet-switch-{cid}").into()))
+                                .px(px(6.0))
+                                .py(px(2.0))
+                                .rounded(px(radius::SM))
+                                .border_1()
+                                .border_color(c.alpha(0.28))
+                                .cursor_pointer()
+                                .hover(|s| s.bg(p.ink(4).alpha(0.12)))
+                                .flex()
+                                .items_center()
+                                .gap(px(4.0))
+                                .on_click(cx.listener(move |this, _, window, cx| {
+                                    this.focus_element(Some(target_id.clone()), window, cx);
+                                }))
+                                .child(
+                                    KindMark::new(
+                                        ElementId::Name(format!("se-sheet-sw-m-{cid}").into()),
+                                        other.sand_kind,
+                                    )
+                                    .color(c)
+                                    .scale(9.0 / 14.0),
+                                )
+                                .child(
+                                    div()
+                                        .text_size(px(11.0))
+                                        .text_color(p.ink(2).solid())
+                                        .child(SharedString::from(other.name.clone())),
+                                )
+                                .into_any_element(),
+                        )
+                    })
+                    .collect()
+            }
+            IslandSubject::Island(_) => Vec::new(),
         };
 
         let editor_view = self
@@ -830,6 +926,21 @@ impl ElementOverview {
                                     })),
                             ),
                     )
+                    .when(!quick_switch.is_empty(), |col| {
+                        col.child(
+                            div()
+                                .px(px(12.0))
+                                .py(px(6.0))
+                                .border_b_1()
+                                .border_color(p.hairline())
+                                .flex()
+                                .flex_row()
+                                .flex_wrap()
+                                .items_center()
+                                .gap(px(4.0))
+                                .children(quick_switch),
+                        )
+                    })
                     .child(
                         div()
                             .id("se-sheet-editor-scroll")

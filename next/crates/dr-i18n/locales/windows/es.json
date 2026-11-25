@@ -4,6 +4,11 @@
       "saveFailed": "No se pudo guardar la clave en el Administrador de credenciales de Windows."
     }
   },
+  "auth": {
+    "signOut": {
+      "pending": "Hay {{count}} cambios de este PC que la nube no tiene. Si sales ahora, quedarán aquí y se subirán cuando vuelvas a esta cuenta."
+    }
+  },
   "settings": {
     "agent": {
       "extensions": {
@@ -14,6 +19,10 @@
       "failure": {
         "storage_failed": "No se pudo guardar la sesión en el Administrador de credenciales de Windows."
       }
+    },
+    "hosted": {
+      "disconnect_description": "Sube los cambios exclusivos de este PC y después desconecta. Conserva proyectos locales y copias en la nube.",
+      "disconnect_unuploaded": "Hay {{count}} cambios sin subir. Al desconectar quedarán solo en este PC."
     },
     "sync": {
       "projection": {

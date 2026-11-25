@@ -1850,7 +1850,9 @@ impl MediaModule {
             GlassKind::Surface,
             Mode::default(),
             false,
-            Spec::new(Tone::Clear, (g::PILL_HEIGHT + 2.0 * g::TRAY_PADDING) / 2.0).filled(p.page),
+            Spec::new(Tone::Clear, (g::PILL_HEIGHT + 2.0 * g::TRAY_PADDING) / 2.0)
+                .filled(p.page)
+                .ground(glass::Ground::Uneven),
             window,
             cx,
         )

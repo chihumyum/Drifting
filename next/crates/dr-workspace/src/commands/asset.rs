@@ -30,6 +30,7 @@ pub(crate) fn register(r: &mut Registry) {
         .add::<AssetPurge>()
         .add::<AssetMove>()
         .add::<AssetGet>()
+        .add::<AssetReadContent>()
         .add::<AssetList>()
         .add::<AssetFolderCreate>()
         .add::<AssetFolderRename>()
@@ -1103,5 +1104,352 @@ op! {
             .iter()
             .map(|a| AssetInfo::from_asset(a, usages.remove(&a.id).unwrap_or_default()))
             .collect())
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+pub struct AssetReadContentIn {
+    pub book: String,
+    pub id: String,
+    /// Character offset into extracted PDF text (0-based).
+    #[serde(default)]
+    pub offset: usize,
+    /// Maximum extracted characters to return (default 8000, max 32000).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub limit: Option<usize>,
+    /// For images up to 512 KiB, include a base64 `data:` URI when true.
+    #[serde(default)]
+    pub include_data: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, JsonSchema)]
+pub struct AssetContent {
+    pub id: String,
+    pub name: String,
+    pub kind: String,
+    pub mime: String,
+    pub size: i64,
+    pub width: Option<i64>,
+    pub height: Option<i64>,
+    pub available_locally: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text_total_chars: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next_offset: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pages: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub data_url: Option<String>,
+}
+
+op! {
+    AssetReadContent = "asset.read_content", Read, Shared,
+    "Read the content of an asset-library file (extracted text for PDFs with pagination, or metadata and optional bounded data URI for images).",
+    fn(cx, input: AssetReadContentIn) -> AssetContent {
+        use base64::Engine as _;
+        let slot = cx.book(&input.book)?;
+        let id: AssetId = pid("asset", &input.id)?;
+        let a = slot
+            .reader_v3
+            .view()
+            .asset_raw(&id)
+            .ok_or_else(|| WsError::not_found("asset", input.id.clone()))?;
+        let library = cx.workspace().library();
+        let source = library
+            .asset(a.id.as_str(), dr_store::asset::Variant::Source)?
+            .filter(|r| r.book_id == slot.book.as_str());
+        let display = library
+            .asset(a.id.as_str(), dr_store::asset::Variant::Display)?
+            .filter(|r| r.book_id == slot.book.as_str());
+        let available_locally = source.as_ref().is_some_and(|r| r.path.is_file())
+            || display.as_ref().is_some_and(|r| r.path.is_file());
+        let mut content = AssetContent {
+            id: a.id.to_string(),
+            name: a.name.clone(),
+            kind: a.kind.as_str().to_owned(),
+            mime: a.mime.clone(),
+            size: a.size,
+            width: a.width,
+            height: a.height,
+            available_locally,
+            text: None,
+            text_total_chars: None,
+            next_offset: None,
+            pages: None,
+            data_url: None,
+        };
+        match a.kind {
+            AssetKind::Pdf => {
+                if let Some(rec) = source
+                    && rec.size <= 64 * 1024 * 1024
+                    && let Ok(bytes) = std::fs::read(&rec.path)
+                {
+                    let (extracted, pages) = extract_pdf_text(&bytes);
+                    let limit = input.limit.unwrap_or(8_000).clamp(1, 32_000);
+                    let total = extracted.chars().count();
+                    let slice: String = extracted
+                        .chars()
+                        .skip(input.offset)
+                        .take(limit)
+                        .collect();
+                    let next = input.offset.saturating_add(slice.chars().count());
+                    content.text = Some(slice);
+                    content.text_total_chars = Some(total);
+                    content.next_offset = (next < total).then_some(next);
+                    content.pages = pages;
+                }
+            }
+            AssetKind::Image => {
+                if input.include_data {
+                    const MAX_INLINE_BYTES: u64 = 512 * 1024;
+                    let candidate = display
+                        .as_ref()
+                        .filter(|r| r.size <= MAX_INLINE_BYTES && r.path.is_file())
+                        .or_else(|| {
+                            source
+                                .as_ref()
+                                .filter(|r| r.size <= MAX_INLINE_BYTES && r.path.is_file())
+                        });
+                    if let Some(rec) = candidate
+                        && let Ok(bytes) = std::fs::read(&rec.path)
+                    {
+                        let encoded = base64::engine::general_purpose::STANDARD.encode(bytes);
+                        content.data_url = Some(format!("data:{};base64,{encoded}", rec.mime));
+                    }
+                }
+            }
+            AssetKind::Other(_) => {}
+        }
+        Ok(content)
+    }
+}
+
+/// Lightweight PDF text extractor handling uncompressed and FlateDecode content streams.
+fn extract_pdf_text(bytes: &[u8]) -> (String, Option<usize>) {
+    use std::io::Read as _;
+    let mut pages = 0usize;
+    let mut i = 0;
+    while i + 10 < bytes.len() {
+        if &bytes[i..i + 5] == b"/Type" {
+            let mut j = i + 5;
+            while j < bytes.len() && bytes[j].is_ascii_whitespace() {
+                j += 1;
+            }
+            if bytes[j..].starts_with(b"/Page")
+                && bytes.get(j + 5).is_none_or(|b| !b.is_ascii_alphabetic())
+            {
+                pages += 1;
+            }
+        }
+        i += 1;
+    }
+    let mut out = String::new();
+    let mut pos = 0;
+    while let Some(rel) = find_subslice(&bytes[pos..], b"stream") {
+        let stream_kw = pos + rel;
+        let dict_start = stream_kw.saturating_sub(512);
+        let dict = &bytes[dict_start..stream_kw];
+        let mut data_start = stream_kw + 6;
+        if bytes.get(data_start) == Some(&b'\r') {
+            data_start += 1;
+        }
+        if bytes.get(data_start) == Some(&b'\n') {
+            data_start += 1;
+        } else {
+            pos = data_start;
+            continue;
+        }
+        let Some(end_rel) = find_subslice(&bytes[data_start..], b"endstream") else {
+            break;
+        };
+        let raw_stream = &bytes[data_start..data_start + end_rel];
+        pos = data_start + end_rel + 9;
+        let is_flate = find_subslice(dict, b"FlateDecode").is_some();
+        let decoded_buf;
+        let stream_bytes: &[u8] = if is_flate {
+            let decoder = flate2::read::ZlibDecoder::new(raw_stream);
+            let mut buf = Vec::new();
+            if decoder.take(4 * 1024 * 1024).read_to_end(&mut buf).is_ok() {
+                decoded_buf = buf;
+                &decoded_buf
+            } else {
+                continue;
+            }
+        } else {
+            raw_stream
+        };
+        extract_pdf_stream_operators(stream_bytes, &mut out);
+        if out.len() >= 256 * 1024 {
+            break;
+        }
+    }
+    (out.trim().to_owned(), (pages > 0).then_some(pages))
+}
+
+fn find_subslice(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    haystack.windows(needle.len()).position(|w| w == needle)
+}
+
+fn extract_pdf_stream_operators(stream: &[u8], out: &mut String) {
+    let mut i = 0;
+    let mut in_text = false;
+    let mut buf = String::new();
+    while i < stream.len() {
+        let b = stream[i];
+        if b == b'B'
+            && stream.get(i + 1) == Some(&b'T')
+            && (i == 0 || stream[i - 1].is_ascii_whitespace())
+            && stream.get(i + 2).is_none_or(u8::is_ascii_whitespace)
+        {
+            in_text = true;
+            i += 2;
+            continue;
+        }
+        if b == b'E'
+            && stream.get(i + 1) == Some(&b'T')
+            && (i == 0 || stream[i - 1].is_ascii_whitespace())
+            && stream.get(i + 2).is_none_or(u8::is_ascii_whitespace)
+        {
+            if !buf.trim().is_empty() {
+                if !out.is_empty() && !out.ends_with('\n') {
+                    out.push('\n');
+                }
+                out.push_str(buf.trim());
+            }
+            buf.clear();
+            in_text = false;
+            i += 2;
+            continue;
+        }
+        if !in_text {
+            i += 1;
+            continue;
+        }
+        if b == b'(' {
+            i += 1;
+            let mut depth = 1usize;
+            let mut raw = Vec::new();
+            while i < stream.len() && depth > 0 {
+                let c = stream[i];
+                if c == b'\\' && i + 1 < stream.len() {
+                    i += 1;
+                    match stream[i] {
+                        b'n' => raw.push(b'\n'),
+                        b'r' => raw.push(b'\r'),
+                        b't' => raw.push(b'\t'),
+                        b'(' => raw.push(b'('),
+                        b')' => raw.push(b')'),
+                        b'\\' => raw.push(b'\\'),
+                        d @ b'0'..=b'7' => {
+                            let mut val = (d - b'0') as u32;
+                            for _ in 0..2 {
+                                if let Some(&nd @ b'0'..=b'7') = stream.get(i + 1) {
+                                    i += 1;
+                                    val = val * 8 + (nd - b'0') as u32;
+                                } else {
+                                    break;
+                                }
+                            }
+                            raw.push((val & 0xff) as u8);
+                        }
+                        other => raw.push(other),
+                    }
+                    i += 1;
+                } else if c == b'(' {
+                    depth += 1;
+                    raw.push(c);
+                    i += 1;
+                } else if c == b')' {
+                    depth -= 1;
+                    if depth > 0 {
+                        raw.push(c);
+                    }
+                    i += 1;
+                } else {
+                    raw.push(c);
+                    i += 1;
+                }
+            }
+            decode_pdf_bytes(&raw, &mut buf);
+        } else if b == b'<' && stream.get(i + 1) != Some(&b'<') {
+            i += 1;
+            let mut hex = Vec::new();
+            while i < stream.len() && stream[i] != b'>' {
+                if !stream[i].is_ascii_whitespace() {
+                    hex.push(stream[i]);
+                }
+                i += 1;
+            }
+            if i < stream.len() {
+                i += 1;
+            }
+            let mut raw = Vec::with_capacity(hex.len().div_ceil(2));
+            let mut j = 0;
+            while j < hex.len() {
+                let hi = hex_nibble(hex[j]);
+                let lo = hex.get(j + 1).copied().and_then(hex_nibble).unwrap_or(0);
+                if let Some(h) = hi {
+                    raw.push((h << 4) | lo);
+                }
+                j += 2;
+            }
+            decode_pdf_bytes(&raw, &mut buf);
+        } else if b == b'T'
+            && matches!(stream.get(i + 1), Some(b'd' | b'D' | b'*'))
+            && !buf.ends_with('\n')
+            && !buf.is_empty()
+        {
+            buf.push('\n');
+            i += 2;
+        } else {
+            i += 1;
+        }
+    }
+    if !buf.trim().is_empty() {
+        if !out.is_empty() && !out.ends_with('\n') {
+            out.push('\n');
+        }
+        out.push_str(buf.trim());
+    }
+}
+
+fn hex_nibble(b: u8) -> Option<u8> {
+    match b {
+        b'0'..=b'9' => Some(b - b'0'),
+        b'a'..=b'f' => Some(b - b'a' + 10),
+        b'A'..=b'F' => Some(b - b'A' + 10),
+        _ => None,
+    }
+}
+
+fn decode_pdf_bytes(raw: &[u8], out: &mut String) {
+    if raw.len() >= 2 && raw[0] == 0xFE && raw[1] == 0xFF {
+        let units: Vec<u16> = raw[2..]
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|&c| u16::from_be_bytes(c))
+            .collect();
+        for ch in std::char::decode_utf16(units).flatten() {
+            if !ch.is_control() || matches!(ch, '\n' | '\t' | ' ') {
+                out.push(ch);
+            }
+        }
+        return;
+    }
+    if let Ok(s) = std::str::from_utf8(raw) {
+        for ch in s.chars() {
+            if !ch.is_control() || matches!(ch, '\n' | '\t' | ' ') {
+                out.push(ch);
+            }
+        }
+    } else {
+        for &b in raw {
+            if b.is_ascii_graphic() || matches!(b, b' ' | b'\n' | b'\t') {
+                out.push(b as char);
+            }
+        }
     }
 }

@@ -41,7 +41,7 @@ use dr_workspace::dto::GroupInfo;
 use gpui::{
     AnyElement, App, AppContext as _, Context, DragMoveEvent, ElementId, InteractiveElement,
     IntoElement, ParentElement, Render, SharedString, StatefulInteractiveElement, Styled, TextRun,
-    Window, div, prelude::FluentBuilder as _, px, uniform_list,
+    Window, div, prelude::FluentBuilder as _, px, relative, uniform_list,
 };
 use serde::{Deserialize, Serialize};
 
@@ -113,6 +113,38 @@ pub enum Side {
 /// What a sidebar's resize handle drags.
 #[derive(Clone, Copy, Debug)]
 pub struct ResizeDrag(pub Side);
+
+/// What the divider between two panes inside a split sidebar drags.
+#[derive(Clone, Copy, Debug)]
+pub struct SidebarSplitDrag(pub Side);
+
+pub fn on_split_drag(
+    ws: &mut Workspace,
+    e: &DragMoveEvent<SidebarSplitDrag>,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) {
+    let x = f32::from(e.event.position.x);
+    let window_w = f32::from(window.viewport_size().width);
+    match e.drag(cx).0 {
+        Side::Left => {
+            if ws.is_filled(FillPlace::Left) {
+                return;
+            }
+            let w = ws.left.width.max(1.0);
+            ws.left.panes.set_ratio(x / w);
+        }
+        Side::Right => {
+            if ws.is_filled(FillPlace::Right) {
+                return;
+            }
+            let w = ws.right.width.max(1.0);
+            let left_edge = window_w - w;
+            ws.right.panes.set_ratio((x - left_edge) / w);
+        }
+    }
+    ws.changed(cx);
+}
 
 /// The drag preview of a resize: nothing follows the pointer.
 pub struct NoPreview;
@@ -239,33 +271,122 @@ pub fn left(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>
             book_id: ws.book_id.clone(),
             book: ws.book.clone(),
         };
-        let panel = ws
+        let primary = ws
             .v3_sidebar
             .get_or_insert_with(|| cx.new(|cx| crate::v3::sidebar::Sidebar::new(host.clone(), cx)))
             .clone();
+        let is_split = ws.left.panes.is_split();
+        let left_filled = ws.is_filled(FillPlace::Left);
         let want_struct = std::mem::take(&mut ws.want_template_structure);
         let new_template = std::mem::take(&mut ws.want_new_template);
         let want_keyboard = ws.take_left_keyboard_wish();
-        panel.update(cx, |panel, cx| {
-            panel.sync(host, cx);
-            panel.sync_fill(ws.is_filled(FillPlace::Left), &ws.tab_fill_layouts, cx);
-            if want_struct {
-                panel.enter_structure(window, cx);
-            }
-            if new_template {
-                panel.new_structure_template(window, cx);
-            }
-            // ⌘⇧L (KB): the Tab's tree or the Tab row takes the keyboard.
-            if want_keyboard {
-                panel.take_keyboard(window, cx);
-            }
-        });
-        div()
-            .size_full()
-            .flex()
-            .flex_col()
-            .pt(px(TITLEBAR_HEIGHT))
-            .child(div().flex_1().min_h_0().child(panel))
+        let theme = Theme::of(window, cx);
+        let p = theme.palette;
+        if is_split {
+            let secondary = ws
+                .v3_sidebar_secondary
+                .get_or_insert_with(|| {
+                    cx.new(|cx| crate::v3::sidebar::Sidebar::new_secondary(host.clone(), cx))
+                })
+                .clone();
+            // Dual-pane Fill rule: when left sidebar is split and enters Fill,
+            // only the inner (middle-adjacent) pane expands while the outer
+            // (window-edge) pane stays intact at its pre-fill width.
+            primary.update(cx, |panel, cx| {
+                panel.sync(host.clone(), cx);
+                panel.sync_fill(false, &ws.tab_fill_layouts, cx);
+                panel.set_pane_controls(false, true, cx);
+                if want_keyboard {
+                    panel.take_keyboard(window, cx);
+                }
+            });
+            secondary.update(cx, |panel, cx| {
+                panel.sync(host, cx);
+                panel.sync_fill(left_filled, &ws.tab_fill_layouts, cx);
+                panel.set_pane_controls(false, true, cx);
+                if want_struct {
+                    panel.enter_structure(window, cx);
+                }
+                if new_template {
+                    panel.new_structure_template(window, cx);
+                }
+            });
+            let outer_w = (ws.left.width * ws.left.panes.ratio).round().max(180.0);
+            let outer_pane = div()
+                .h_full()
+                .min_w_0()
+                .overflow_hidden()
+                .when(left_filled, |el| el.flex_none().w(px(outer_w)))
+                .when(!left_filled, |el| el.w(relative(ws.left.panes.ratio)))
+                .child(primary);
+            let divider = if left_filled {
+                div()
+                    .flex_none()
+                    .w(px(0.5))
+                    .h_full()
+                    .bg(p.local_hairline())
+                    .into_any_element()
+            } else {
+                div()
+                    .id("left-split-divider")
+                    .flex_none()
+                    .w(px(5.0))
+                    .mx(px(-2.0))
+                    .h_full()
+                    .cursor_col_resize()
+                    .flex()
+                    .justify_center()
+                    .on_drag(SidebarSplitDrag(Side::Left), |_, _, _, cx| {
+                        cx.new(|_| NoPreview)
+                    })
+                    .child(div().w(px(0.5)).h_full().bg(p.local_hairline()))
+                    .into_any_element()
+            };
+            let inner_pane = div()
+                .flex_1()
+                .min_w_0()
+                .h_full()
+                .overflow_hidden()
+                .child(secondary);
+            div()
+                .size_full()
+                .flex()
+                .flex_col()
+                .pt(px(TITLEBAR_HEIGHT))
+                .child(
+                    div()
+                        .flex_1()
+                        .min_h_0()
+                        .flex()
+                        .flex_row()
+                        .child(outer_pane)
+                        .child(divider)
+                        .child(inner_pane),
+                )
+        } else {
+            let can_split = !left_filled && ws.left.panes.can_split && ws.left.panes.keep_single;
+            primary.update(cx, |panel, cx| {
+                panel.sync(host, cx);
+                panel.sync_fill(left_filled, &ws.tab_fill_layouts, cx);
+                panel.set_pane_controls(can_split, false, cx);
+                if want_struct {
+                    panel.enter_structure(window, cx);
+                }
+                if new_template {
+                    panel.new_structure_template(window, cx);
+                }
+                // ⌘⇧L (KB): the Tab's tree or the Tab row takes the keyboard.
+                if want_keyboard {
+                    panel.take_keyboard(window, cx);
+                }
+            });
+            div()
+                .size_full()
+                .flex()
+                .flex_col()
+                .pt(px(TITLEBAR_HEIGHT))
+                .child(div().flex_1().min_h_0().child(primary))
+        }
     } else {
         div().size_full().flex().flex_col()
     };
@@ -304,24 +425,9 @@ pub fn right(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace
             cx,
         );
     }
-    let fill_t = ws.fill.progress(FillPlace::Right);
-    let panes = if ws.is_filled(FillPlace::Right) || fill_t > 0.0 {
-        let focused = ws.right.panes.focused_tab();
-        let id = ws.right.panes.focused;
-        Panes {
-            panes: vec![crate::panes::Pane { id, tab: focused }],
-            focused: id,
-            can_split: false,
-            split_edge: ws.right.panes.split_edge,
-            keep_single: true,
-        }
-    } else {
-        ws.right.panes.clone()
-    };
-    let body = panes_row(ws, Side::Right, &panes, fill_t > 0.0, window, cx)
-        .when(fill_t > 0.0, |el| {
-            el.pt(px((TITLEBAR_HEIGHT * fill_t).round()))
-        });
+    let filled = ws.is_filled(FillPlace::Right) || ws.fill.progress(FillPlace::Right) > 0.0;
+    let panes = ws.right.panes.clone();
+    let body = panes_row(ws, Side::Right, &panes, filled, window, cx);
     column(
         Side::Right,
         inner_w,
@@ -544,7 +650,7 @@ fn panes_row<T>(
     ws: &mut Workspace,
     side: Side,
     panes: &Panes<T>,
-    below_titlebar: bool,
+    filled: bool,
     window: &mut Window,
     cx: &mut Context<Workspace>,
 ) -> gpui::Div
@@ -555,25 +661,77 @@ where
     let p = theme.palette;
     let n = panes.panes.len();
     let mut row = div().flex_1().min_h_0().flex().flex_row();
+    let outer_fixed_w = if n == 2 && filled {
+        match side {
+            Side::Left => (ws.left.width * panes.ratio).round().max(180.0),
+            Side::Right => (ws.right.width * (1.0 - panes.ratio)).round().max(180.0),
+        }
+    } else {
+        0.0
+    };
     for (i, pane) in panes.panes.iter().enumerate() {
-        let outer = !below_titlebar
+        let outer = match side {
+            Side::Left => i == 0,
+            Side::Right => i == n - 1,
+        };
+        let is_filling = filled
             && match side {
-                Side::Left => i == 0,
-                Side::Right => i == n - 1,
+                Side::Left => i == n - 1,
+                Side::Right => i == 0,
             };
         let split_button =
-            (n == 1 && panes.can_split && panes.keep_single).then_some(panes.split_edge);
-        let el = pane_view(ws, side, pane.id, pane.tab, outer, split_button, window, cx);
-        row = row.child(
+            (!filled && n == 1 && panes.can_split && panes.keep_single).then_some(panes.split_edge);
+        let el = pane_view(
+            ws,
+            side,
+            pane.id,
+            pane.tab,
+            outer,
+            is_filling,
+            split_button,
+            window,
+            cx,
+        );
+        if i == 1 {
+            if filled {
+                row = row.child(div().flex_none().w(px(0.5)).h_full().bg(p.local_hairline()));
+            } else {
+                let id = match side {
+                    Side::Left => "left-panes-divider",
+                    Side::Right => "right-panes-divider",
+                };
+                row = row.child(
+                    div()
+                        .id(id)
+                        .flex_none()
+                        .w(px(5.0))
+                        .mx(px(-2.0))
+                        .h_full()
+                        .cursor_col_resize()
+                        .flex()
+                        .justify_center()
+                        .on_drag(SidebarSplitDrag(side), |_, _, _, cx| cx.new(|_| NoPreview))
+                        .child(div().w(px(0.5)).h_full().bg(p.local_hairline())),
+                );
+            }
+        }
+        let cell = if n == 2 && filled && !is_filling {
             div()
-                .flex_1()
+                .flex_none()
+                .w(px(outer_fixed_w))
                 .min_w_0()
                 .h_full()
-                .when(i > 0, |el| {
-                    el.border_l(px(0.5)).border_color(p.local_hairline())
-                })
-                .child(el),
-        );
+                .overflow_hidden()
+        } else if n == 2 && !filled && i == 0 {
+            div()
+                .w(relative(panes.ratio))
+                .min_w_0()
+                .h_full()
+                .overflow_hidden()
+        } else {
+            div().flex_1().min_w_0().h_full().overflow_hidden()
+        };
+        row = row.child(cell.child(el));
     }
     div().size_full().flex().flex_col().child(row)
 }
@@ -597,7 +755,7 @@ pub trait PanelTab: Sized + 'static {
         pane: PaneId,
         window: &mut Window,
         cx: &mut Context<Workspace>,
-    ) -> AnyElement;
+    ) -> Option<AnyElement>;
     fn body(
         self,
         ws: &Workspace,
@@ -629,7 +787,8 @@ impl PanelTab for RightTab {
         cx: &mut Context<Workspace>,
     ) {
         let filled = ws.is_filled(FillPlace::Right);
-        if filled && ws.right.panes.focused_tab() == tab {
+        let is_fill_pane = pane == ws.right_fill_pane_id();
+        if filled && is_fill_pane && ws.right_fill_tab() == tab {
             return;
         }
         if !ws.right.panes.click(pane, tab) {
@@ -651,7 +810,7 @@ impl PanelTab for RightTab {
         pane: PaneId,
         window: &mut Window,
         cx: &mut Context<Workspace>,
-    ) -> AnyElement {
+    ) -> Option<AnyElement> {
         right_header(self, ws, pane, window, cx)
     }
     fn body(
@@ -687,7 +846,6 @@ impl Workspace {
                 .panes
                 .iter()
                 .any(|shown| shown.id == pane && shown.tab == RightTab::Review)
-            && (!self.is_filled(FillPlace::Right) || self.right.panes.focused == pane)
     }
 
     /// Whether this cached companion body is still shown in its own pane.
@@ -707,7 +865,6 @@ impl Workspace {
         }
         self.right.panes.panes.iter().any(|pane| {
             pane.tab == RightTab::Companion
-                && (!self.is_filled(FillPlace::Right) || self.right.panes.focused == pane.id)
                 && panels
                     .get(pane_slug(pane.id))
                     .and_then(Option::as_ref)
@@ -723,6 +880,7 @@ fn pane_view<T>(
     pane: PaneId,
     tab: T,
     outer: bool,
+    is_filling: bool,
     split_button: Option<crate::panes::Edge>,
     window: &mut Window,
     cx: &mut Context<Workspace>,
@@ -796,23 +954,31 @@ where
             None => tabs.into_any_element(),
         }
     };
-    tab_row = tab_row.child(tabs).child(div().flex_1());
+    // Smoke #8/#10: when the right panel fills the center column, right-align
+    // its tabs beside the right moon pair instead of running into the left cluster.
+    if side == Side::Right && is_filling {
+        tab_row = tab_row.child(div().flex_1()).child(tabs);
+    } else {
+        tab_row = tab_row.child(tabs).child(div().flex_1());
+    }
     if let Some(button) = split {
         tab_row = tab_row.child(button);
     }
     let tab_row = chrome::drag_region(tab_row, cx);
     let header_h = (theme.scale.row_height * 1.25).max(40.0);
-    let header = div()
-        .flex_none()
-        .h(px(header_h))
-        .pl(px(12.0))
-        .pr(px(10.0))
-        .border_t(px(0.5))
-        .border_color(p.local_hairline())
-        .flex()
-        .flex_row()
-        .items_center()
-        .child(tab.header(ws, pane, window, cx));
+    let header = tab.header(ws, pane, window, cx).map(|head| {
+        div()
+            .flex_none()
+            .h(px(header_h))
+            .pl(px(12.0))
+            .pr(px(10.0))
+            .border_t(px(0.5))
+            .border_color(p.local_hairline())
+            .flex()
+            .flex_row()
+            .items_center()
+            .child(head)
+    });
     let index = selected;
     let ws_handle = cx.entity();
     let body = Push::new(
@@ -828,13 +994,22 @@ where
             ws_handle.update(cx, |ws, cx| tab.body(ws, pane, window, cx))
         },
     );
+    let has_header = header.is_some();
     div()
         .size_full()
         .flex()
         .flex_col()
         .child(tab_row)
-        .child(header)
-        .child(div().flex_1().min_h_0().child(body))
+        .children(header)
+        .child(
+            div()
+                .flex_1()
+                .min_h_0()
+                .when(!has_header, |el| {
+                    el.border_t(px(0.5)).border_color(p.local_hairline())
+                })
+                .child(body),
+        )
         .into_any_element()
 }
 
@@ -908,24 +1083,24 @@ fn right_header(
     pane: PaneId,
     window: &mut Window,
     cx: &mut Context<Workspace>,
-) -> AnyElement {
+) -> Option<AnyElement> {
     let theme = Theme::of(window, cx);
     let row = div().size_full().flex().items_center();
     match tab {
-        RightTab::Review => row
-            .child(meta(t(cx, keys::right_sidebar::kickers::REVIEW), &theme))
-            .into_any_element(),
+        // Smoke #14: Review owns its own compact filter bar; drop the redundant 40px strip.
+        RightTab::Review => None,
         RightTab::Relations => match relations_panel(ws, pane, window, cx) {
             // RL: the module's head row.
-            Some(panel) => div().size_full().child(panel.head).into_any_element(),
-            None => row.into_any_element(),
+            Some(panel) => Some(div().size_full().child(panel.head).into_any_element()),
+            None => None,
         },
         RightTab::Library => match library_panel(ws, pane, window, cx) {
             // M19: the module's head row.
-            Some(panel) => div().size_full().child(panel.head).into_any_element(),
-            None => row
-                .child(meta(t(cx, keys::right_sidebar::kickers::LIBRARY), &theme))
-                .into_any_element(),
+            Some(panel) => Some(div().size_full().child(panel.head).into_any_element()),
+            None => Some(
+                row.child(meta(t(cx, keys::right_sidebar::kickers::LIBRARY), &theme))
+                    .into_any_element(),
+            ),
         },
         RightTab::Stats => {
             use keys::right_sidebar::kickers::stats as k;
@@ -938,11 +1113,11 @@ fn right_header(
                 Some(Target::Entry { .. } | Target::Template(_)) => keys::v3_shell::ENTRIES,
                 Some(_) => keys::v3_shell::BOOK_VIEW,
             };
-            row.child(meta(t(cx, key), &theme)).into_any_element()
+            Some(row.child(meta(t(cx, key), &theme)).into_any_element())
         }
         RightTab::Companion => match companion_panel(ws, pane, window, cx) {
-            Some(panel) => div().size_full().child(panel.head).into_any_element(),
-            None => row.into_any_element(),
+            Some(panel) => Some(div().size_full().child(panel.head).into_any_element()),
+            None => None,
         },
     }
 }
@@ -1577,6 +1752,23 @@ fn v3_stats_open(
     }))
 }
 
+fn v3_stats_open_history(
+    ws: &Workspace,
+    cx: &mut Context<Workspace>,
+) -> Option<dr_view_stats::v3_panel::OpenHistory> {
+    let owner = V3PanelOwner::of(ws)?;
+    let shell = cx.weak_entity();
+    Some(Rc::new(move |doc, name, window, cx| {
+        shell
+            .update(cx, |ws, cx| {
+                if owner.matches(ws) {
+                    ws.open_history(doc.clone(), &name, window, cx);
+                }
+            })
+            .ok();
+    }))
+}
+
 fn v3_review_open(
     ws: &Workspace,
     cx: &mut Context<Workspace>,
@@ -1615,6 +1807,20 @@ fn v3_review_open_agent(
     }))
 }
 
+fn right_pane_fill_width(ws: &Workspace, pane: PaneId, window: &Window) -> Option<f32> {
+    (ws.is_filled(FillPlace::Right) && pane == ws.right_fill_pane_id()).then(|| {
+        let total = ws.target_fill_width(Side::Right, f32::from(window.viewport_size().width));
+        if ws.right.panes.is_split() {
+            let outer = (ws.right.width * (1.0 - ws.right.panes.ratio))
+                .round()
+                .max(180.0);
+            (total - outer).max(240.0)
+        } else {
+            total
+        }
+    })
+}
+
 fn right_body(
     tab: RightTab,
     ws: &Workspace,
@@ -1622,15 +1828,22 @@ fn right_body(
     window: &mut Window,
     cx: &mut Context<Workspace>,
 ) -> AnyElement {
+    let fill_width = right_pane_fill_width(ws, pane, window);
     match tab {
         // M31: the 帮手 panel, when the app has one.
         RightTab::Companion => match companion_panel(ws, pane, window, cx) {
-            Some(panel) => div().size_full().child(panel.body).into_any_element(),
+            Some(panel) => {
+                crate::pages::notify_companion_fill_width(&panel.body, fill_width, cx);
+                div().size_full().child(panel.body).into_any_element()
+            }
             None => div().size_full().into_any_element(),
         },
         // RL: the module's panel, when the app has one.
         RightTab::Relations => match relations_panel(ws, pane, window, cx) {
-            Some(panel) => div().size_full().child(panel.body).into_any_element(),
+            Some(panel) => {
+                crate::pages::notify_relations_fill_width(&panel.body, fill_width, cx);
+                div().size_full().child(panel.body).into_any_element()
+            }
             None => div().size_full().into_any_element(),
         },
         // M19: the module's panel, when the app has one.
@@ -1689,11 +1902,24 @@ fn right_body(
                 return div().into_any_element();
             };
             let open = v3_stats_open(ws, cx);
+            let open_history = v3_stats_open_history(ws, cx);
+            let stats_id = format!("stats-{}", pane_slug(pane));
             let scope_label = match &scope {
                 dr_view_stats::v3::Scope::Book => keys::workspace_word_tally::BOOK,
                 dr_view_stats::v3::Scope::Entry { .. } => keys::k4_book::ENTRY_WORDS,
                 dr_view_stats::v3::Scope::Material(_) => keys::k4_book::MATERIAL_WORDS,
             };
+            let panel = dr_view_stats::v3_panel::panel(
+                &stats_id,
+                &ws.book_id,
+                scope,
+                locale,
+                platform,
+                open,
+                cx,
+            );
+            dr_view_stats::v3_panel::set_open_history(&stats_id, open_history, cx);
+            dr_view_stats::v3_panel::set_fill_width(&stats_id, fill_width, cx);
             div()
                 .id(SharedString::from(format!("v3-stats-{}", pane_slug(pane))))
                 .size_full()
@@ -1708,15 +1934,7 @@ fn right_body(
                         .size_full()
                         .role(gpui::Role::Group)
                         .aria_label(t(cx, scope_label))
-                        .child(dr_view_stats::v3_panel::panel(
-                            &format!("stats-{}", pane_slug(pane)),
-                            &ws.book_id,
-                            scope,
-                            locale,
-                            platform,
-                            open,
-                            cx,
-                        )),
+                        .child(panel),
                 )
                 .into_any_element()
         }
@@ -1747,11 +1965,13 @@ fn right_body(
                 marks,
                 cx,
             );
-            let fill_width = ws.is_filled(FillPlace::Right).then(|| {
-                ws.target_fill_width(Side::Right, f32::from(window.viewport_size().width))
+            let book_for_colors = ws.book.clone();
+            let mark_colors = Rc::new(move |target: &dr_view_review::v3::Target| {
+                v3_review_target(target.clone()).and_then(|t| book_for_colors.mark(&t).1)
             });
             dr_view_review::v3_panel::set_fill_width(&review_id, fill_width, cx);
             dr_view_review::v3_panel::set_open_agent(&review_id, open_agent, cx);
+            dr_view_review::v3_panel::set_mark_colors(&review_id, Some(mark_colors), cx);
             div()
                 .id(SharedString::from(format!("v3-review-{}", pane_slug(pane))))
                 .size_full()
@@ -1856,10 +2076,14 @@ pub fn notification_center(
                             div()
                                 .flex()
                                 .flex_row()
+                                .items_center()
                                 .gap(px(6.0))
                                 .font_role(Role::Index)
                                 .type_px(s.caption, s.line_caption)
                                 .text_color(p.muted().solid())
+                                .when(notice.running, |el| {
+                                    el.child(sand::icon(Icon::Rotate, 11.0, p.accent.solid()))
+                                })
                                 .child(t(cx, notice.source.label()))
                                 .child(notifications::ago(notice.at, now, cx)),
                         )
@@ -1870,6 +2094,17 @@ pub fn notification_center(
                                 .text_color(p.ink(1).solid())
                                 .child(notice.text.clone()),
                         )
+                        .when_some(notice.progress, |el, value| {
+                            el.child(
+                                div().pt(px(4.0)).child(
+                                    sand::Readout::new(
+                                        SharedString::from(format!("notice-progress-{id}")),
+                                        value,
+                                    )
+                                    .color(p.accent),
+                                ),
+                            )
+                        })
                         .when_some(notice.action.clone(), |el, action| {
                             let run = action.run.clone();
                             el.child(
@@ -1892,7 +2127,7 @@ pub fn notification_center(
                             )
                         }),
                 )
-                .when(!notice.pinned, |el| {
+                .when(!notice.pinned && !notice.running, |el| {
                     el.child(
                         PanelIconButton::new(
                             SharedString::from(format!("notice-{id}")),
@@ -1923,6 +2158,7 @@ pub fn notification_center(
             Button::new("notifications-clear", t(cx, keys::notifications::CLEAR))
                 .text()
                 .small()
+                .disabled(!Notifications::has_clearable(cx))
                 .on_click(|_, _, cx| Notifications::clear(cx)),
         );
     let panel = div()
@@ -1953,6 +2189,70 @@ pub fn notification_center(
         place,
         FloatLayer::Popover,
         glass::surface(Ground::flat(p.desk), panel),
+    )
+}
+
+/// Brief arrival pill shown under the bell for a few seconds when a new notice
+/// lands while the notification center is closed.
+pub fn arrival_flash(
+    ws: &Workspace,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) -> Option<AnyElement> {
+    if ws.notifications_open || ws.immersive {
+        return None;
+    }
+    let text = Notifications::arrival_flash(cx)?.text.clone();
+    let theme = Theme::of(window, cx);
+    let p = theme.palette;
+    let s = theme.scale;
+    let entity = cx.entity();
+    let rect = (*overlay::use_bounds("bell-bounds", window, cx).read(cx))?;
+    let place = Place::Rect {
+        rect,
+        align: dr_ui::components::Align::Start,
+        gap: m::HOVER_CARD_GAP,
+    };
+    let card = div()
+        .id("notification-arrival-flash")
+        .occlude()
+        .cursor_pointer()
+        .max_w(px(300.0))
+        .px(px(12.0))
+        .py(px(8.0))
+        .rounded(px(radius::SHEET))
+        .bg(p.desk.solid())
+        .shadow(float_shadow(p))
+        .child(slab_edge(p, radius::SHEET))
+        .flex()
+        .flex_row()
+        .items_center()
+        .gap(px(8.0))
+        .on_click(move |_, _, cx| {
+            entity.update(cx, |ws, cx| {
+                ws.notifications_open = true;
+                Notifications::mark_read(cx);
+                cx.notify();
+            });
+        })
+        .child(sand::icon(Icon::Furin, 13.0, p.accent.solid()))
+        .child(
+            div()
+                .flex_1()
+                .min_w_0()
+                .truncate()
+                .font_role(Role::Ui)
+                .type_px(s.secondary, s.line_body)
+                .text_color(p.ink(1).solid())
+                .child(text),
+        );
+    Some(
+        overlay::float(
+            place,
+            FloatLayer::Popover,
+            glass::surface(Ground::flat(p.desk), card),
+        )
+        .into_any_element(),
     )
 }
 

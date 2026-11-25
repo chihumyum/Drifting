@@ -29,7 +29,37 @@
       "modelUnavailable": "선택한 모델이 현재 목록에 없습니다. 다른 모델을 선택하세요."
     },
     "context": {
-      "tokens": "{{count}} 토큰"
+      "allocation": {
+        "free": "남은 공간",
+        "input": "현재 입력",
+        "output": "출력 예약",
+        "safety": "안전 여유",
+        "title": "창 할당"
+      },
+      "breakdownTitle": "현재 입력 내용",
+      "categories": {
+        "assistant_messages": "Agent 메시지",
+        "compaction_summaries": "압축 요약",
+        "provider_overhead": "제공업체 프레이밍",
+        "system_prompt": "시스템 프롬프트",
+        "task_constraints": "작업 제약",
+        "task_plan": "작업 계획",
+        "thinking": "사고",
+        "tool_calls": "도구 호출",
+        "tool_definitions": "도구 정의",
+        "tool_results": "도구 결과",
+        "user_messages": "사용자 메시지"
+      },
+      "compaction": "컨텍스트 압축",
+      "compactionDetail": "{{saved}} 절약 · {{stages}} · 요약 {{count}}개",
+      "compactionNone": "이번 호출은 압축이 필요하지 않았습니다",
+      "description": "모델에 실제 보낸 최신 검증된 컨텍스트 계획 기준입니다. 대화 전체의 누적 토큰 사용량이 아닙니다.",
+      "progressAria": "현재 Agent 컨텍스트 사용량",
+      "sources": "{{count}}개 출처",
+      "summary": "{{used}} / {{limit}}({{percent}}%)",
+      "title": "컨텍스트 사용량",
+      "tokens": "{{count}} 토큰",
+      "tooltip": "{{used}} / {{limit}} 토큰({{percent}}%)\n출력 예약: {{output}} · 안전 여유: {{safety}}"
     },
     "control": {
       "allow": {
@@ -44,9 +74,13 @@
       "start": "Agent에게 메시지를 보내 시작하세요. 이 작품의 장·요소·관계를 읽고 쓸 수 있습니다."
     },
     "history": {
+      "delete": "대화 삭제",
       "empty": "아직 대화 기록이 없습니다",
+      "loadEarlier": "이전 메시지 불러오기",
+      "rename": "이름 바꾸기",
       "untitled": "제목 없음"
     },
+    "jumpLatest": "최신으로 이동",
     "newConversation": "새 대화",
     "onboarding": {
       "connect": "모델 연결",
@@ -58,7 +92,8 @@
     "pending": {
       "cancelling": "중지 중…",
       "committing": "저장 중…",
-      "now": "생각 중…"
+      "now": "생각 중…",
+      "withSeconds": "생각 중 · {{seconds}}초"
     },
     "setup": {
       "openSettings": "설정 열기"
@@ -70,17 +105,31 @@
       "done": "사고 기록",
       "streaming": "생각 중…"
     },
+    "todos": {
+      "plan": "요금제"
+    },
     "tool": {
       "result": "결과"
     },
     "toolbar": {
-      "history": "기록"
+      "history": "기록",
+      "historyTitle": "대화 기록",
+      "newTitle": "새 대화 시작",
+      "renameTitle": "현재 대화 이름 바꾸기"
     },
     "turnChanges": "턴 변경 사항",
     "unavailable": "Agent를 사용할 수 없습니다.",
+    "usage": {
+      "inputDetail": "입력 {{input}}(캐시 읽기 {{cacheRead}} · 쓰기 {{cacheWrite}} · 순수 {{net}})",
+      "outputTurns": "출력 {{output}} · 턴 {{turns}}",
+      "session": "세션",
+      "toolsCount": "{{count}}개 도구",
+      "workedFor": "Agent 작업 시간 {{duration}}"
+    },
     "workingMemory": {
       "agent": "Agent",
       "author": "작가",
+      "budgetTitle": "제한 없음. 20k·40k 토큰 초과 시 한 번씩, 80k 초과 후에는 매 턴 정리하도록 요청합니다",
       "clear": "지우기",
       "clearConfirm": "작업 메모리를 지울까요? 원고·장기 규칙·대화 기록은 삭제되지 않습니다.",
       "cleared": "작업 메모리를 지웠습니다.",
@@ -170,6 +219,8 @@
     "forgotPassword": "비밀번호를 잊으셨나요?",
     "hasAccount": "이미 계정이 있나요?",
     "legal": {
+      "agree": "가입하면 다음에 동의합니다:",
+      "and": "및",
       "consent": "계속하면 {{terms}}에 동의하는 것으로 봅니다",
       "consentTerms": "관련 약관",
       "privacy": "개인정보 처리방침",
@@ -183,6 +234,12 @@
     "resend": "코드 다시 보내기",
     "sendCode": "코드 보내기",
     "signIn": "로그인",
+    "signOut": {
+      "now": "지금 로그아웃",
+      "pending": "이 Mac에 클라우드에 없는 변경이 {{count}}개 있습니다. 지금 로그아웃하면 이 Mac에 남고 같은 계정에 다시 로그인하면 업로드됩니다.",
+      "title": "로그아웃",
+      "uploadFirst": "업로드 후 로그아웃"
+    },
     "signUp": "가입",
     "signingIn": "로그인 중…",
     "social": {
@@ -210,14 +267,20 @@
   },
   "commentRail": {
     "actions": {
+      "close": "닫기",
       "reopen": "다시 열기",
       "resolve": "해결 처리"
     },
     "card": {
       "emptyComment": "빈 댓글"
     },
+    "original": {
+      "changed": "본문 변경됨 · 원문 보기"
+    },
     "snapshot": {
-      "changed": "삭제됨/변경됨"
+      "changed": "삭제됨/변경됨",
+      "emptyBlock": "(빈 문단)",
+      "title": "연결된 출처 · 생성 시점 스냅샷 · 문단 {{count}}개"
     }
   },
   "common": {
@@ -264,6 +327,37 @@
       "drifting": "떠다니는 중",
       "finished": "완료",
       "resting": "정박 중"
+    }
+  },
+  "editor_ui": {
+    "bar_add_comment": "주석 추가",
+    "fmt_bold": "굵게",
+    "fmt_highlight": "강조",
+    "fmt_inline_code": "인라인 코드",
+    "fmt_italic": "기울임꼴",
+    "fmt_strike": "취소선",
+    "fmt_underline": "밑줄",
+    "mention_create_entry_prefix": "항목 「",
+    "mention_create_entry_suffix": "」 만들기",
+    "slash_bullet_list": "글머리 기호 목록",
+    "slash_callout": "콜아웃",
+    "slash_code_block": "코드 블록",
+    "slash_comment": "주석",
+    "slash_entry_link": "항목 링크",
+    "slash_ordered_list": "번호 매기기 목록",
+    "slash_position_link": "위치 링크",
+    "slash_table": "표",
+    "slash_task_list": "체크리스트",
+    "slash_todo": "할 일",
+    "table_add_col": "열 추가",
+    "table_add_row": "행 추가",
+    "table_delete": "표 삭제",
+    "table_delete_col": "열 삭제",
+    "table_delete_row": "행 삭제"
+  },
+  "elementEditor": {
+    "alerts": {
+      "aliasConflict": "별칭을 추가할 수 없습니다. “{{name}}”은(는) 요소 “{{conflicting}}”에서 이미 사용 중입니다."
     }
   },
   "entrySnapshot": {
@@ -524,6 +618,9 @@
     "valuePlaceholder": "내용"
   },
   "leftSidebar": {
+    "actions": {
+      "collapseAll": "모두 펼치기 또는 접기"
+    },
     "groups": {
       "driftCount_one": "아이디어 {{count}}개",
       "driftCount_other": "아이디어 {{count}}개"
@@ -568,6 +665,8 @@
     "retry": "다시 시도",
     "saved": "내보냈습니다",
     "scope": "범위",
+    "selectAll": "모두 선택",
+    "selectNone": "모두 선택 해제",
     "title": "원고 내보내기",
     "untitledAct": "제목 없는 막"
   },
@@ -610,6 +709,9 @@
       "addSnippetBody": "이 메모에 쓰기…"
     },
     "error": {
+      "codecStore": "Microsoft Store에서 받기",
+      "codecUnavailable": "이 PC에는 {{format}} 이미지 코덱이 없습니다. Microsoft Store에서 설치한 뒤 다시 가져오세요.",
+      "fileTooLarge": "파일이 자료 제한인 {{maxSizeMiB}} MiB를 초과하여 로컬 자료실에 복사할 수 없습니다.",
       "openFile": "파일을 열 수 없음: {{error}}",
       "pickFailed": "파일을 가져올 수 없음: {{error}}"
     },
@@ -806,7 +908,8 @@
     },
     "clear": "지우기",
     "cloudSync": {
-      "source": "클라우드 동기화"
+      "source": "클라우드 동기화",
+      "syncing": "동기화 중…"
     },
     "crashFollowUp": {
       "source": "Drifting"
@@ -840,6 +943,21 @@
       "minutesAgo": "{{count}}분 전"
     },
     "title": "알림"
+  },
+  "paperSync": {
+    "failing": "클라우드 동기화 실패",
+    "notStarted": "동기화를 시작할 수 없습니다",
+    "notStartedDetail": "원고는 이 기기에 저장되어 있습니다.",
+    "offline": "오프라인",
+    "offlineDetail": "로컬에서 계속 집필할 수 있습니다.",
+    "openSettings": "설정 열기",
+    "quota": "Hosted 저장 공간 가득 참",
+    "reauth": "세션 만료",
+    "reauthDetail": "같은 계정으로 다시 로그인하세요.",
+    "retry": "다시 시도",
+    "retrying": "동기화가 끝나지 않았습니다",
+    "retryingDetail": "원고는 이 기기에 저장되어 있습니다. 자동으로 다시 시도합니다.",
+    "signIn": "다시 로그인"
   },
   "plotGrid": {
     "addColumnShort": "열",
@@ -1083,10 +1201,15 @@
     "filters": {
       "all": "둘 다"
     },
+    "groupBy": {
+      "flat": "없음",
+      "target": "위치별"
+    },
     "groups": {
       "deleted": "삭제됨",
       "floating": "연결되지 않음"
     },
+    "newComment": "새 댓글",
     "scopes": {
       "current": "현재"
     },
@@ -1095,7 +1218,6 @@
   "rightSidebar": {
     "kickers": {
       "library": "작품 · 자료실",
-      "review": "작품 · 검토",
       "stats": {
         "element": "이 요소 · 상세 통계",
         "material": "이 자료 · 상세",
@@ -1104,17 +1226,37 @@
       }
     },
     "stats": {
+      "averagePerChapter": "장별 평균",
+      "bookOverview": "작품 전체 보기",
+      "chapterLengthRhythm": "장 길이 리듬",
+      "completion": "완성도",
+      "created": "생성됨",
       "dialogueRatio": "대화 비율",
+      "dimensions": "규격",
+      "discardedParen": " (폐기 {{count}})",
+      "embeddedMaterials": "삽입된 자료",
+      "fileSize": "크기",
+      "fileType": "유형",
+      "longestWithWords": "가장 긴 장 · {{title}}({{words}}자)",
+      "materialCoordinates": "자료",
+      "materialFile": "파일",
       "name": "이름",
+      "openComments": "미해결 댓글 및 할 일",
       "paragraphSentence": "문단 / 문장",
       "paragraphSentenceValue": "{{paragraphs}}문단 · {{sentences}}문장",
       "recent": "최근",
+      "references": "참조",
+      "shortestWithWords": "가장 짧은 장 · {{title}}({{words}}자)",
       "snapshotButton": "기록 스냅샷…",
+      "statusCount": "{{status}} {{count}}장",
       "storyline": "스토리라인",
+      "thisChapterElements": "이 장의 요소",
+      "unappearedElements": "미등장 요소",
       "updated": "업데이트됨",
       "wordRhythm": "글자 수 · 리듬",
       "wordsValue": "{{count}}자",
-      "writingProgress": "집필 진행률"
+      "writingProgress": "집필 진행률",
+      "writtenTarget": "작성 / 목표"
     },
     "status": {
       "draft": "초안"
@@ -1138,6 +1280,7 @@
       "emailTeam": "팀에 이메일 보내기",
       "engine": "엔진",
       "feedback": "피드백…",
+      "fonts": "글꼴",
       "knownIssues": "알려진 문제",
       "knownIssuesDesc": "현재 Alpha 버전의 알려진 제한",
       "license": "클라이언트 라이선스",
@@ -1158,6 +1301,14 @@
       "viewSource": "소스 보기",
       "writeEmail": "이메일 작성"
     },
+    "account": {
+      "export_all": "관계형 Markdown 내보내기",
+      "export_all_btn": "Markdown ZIP 내보내기",
+      "export_all_desc": "이 로컬 라이브러리의 모든 작품을 장, 아이디어, 요소, 댓글, 자료 메모와 양방향 위키 링크를 포함해 내보냅니다. 이미지와 PDF 파일은 포함되지 않으며, 이 Markdown 압축 파일은 Drifting에 다시 가져올 수 없습니다.",
+      "export_done": "Markdown 문서 {{count}}개를 내보냈습니다.",
+      "export_failed": "내보내기 실패: {{error}}",
+      "exporting": "내보내는 중…"
+    },
     "agent": {
       "chatConfigDesc": "오른쪽 Agent 입력창의 설정 메뉴에서 제공업체·모델·추론 강도를 선택합니다. 키와 ChatGPT 구독은 ‘모델 및 API’에서 관리합니다.",
       "effortOptions": {
@@ -1175,6 +1326,7 @@
         "args": "인수(한 줄에 하나)",
         "command": "실행 파일 절대 경로",
         "cwd": "작업 폴더 절대 경로(선택)",
+        "deleteConfirm": "MCP 서버 “{{name}}”을 삭제할까요? 지속 권한도 취소됩니다.",
         "disable": "사용 안 함",
         "editTitle": "MCP 서버 편집",
         "empty": "이 작품에는 MCP 서버가 없습니다.",
@@ -1184,6 +1336,7 @@
         "noProject": "작품을 열어 MCP를 설정하세요.",
         "notChecked": "아직 연결하지 않음",
         "policy": {
+          "askWrite": "쓰기 · 확인",
           "disabled": "사용 안 함"
         },
         "publicEnv": "공개 환경 변수(한 줄에 NAME=value)",
@@ -1226,7 +1379,34 @@
       "unlimited": "무제한",
       "unlimitedHint": "무제한은 모델 호출 횟수에 상한을 두지 않습니다. 턴을 수동으로 중지할 수 있습니다."
     },
+    "agentMemory": {
+      "title": "작품 메모리"
+    },
+    "agentUsage": {
+      "all": "전체 기간",
+      "clearConfirm": "모든 대화 기록을 지울까요? 이 작품의 Agent 대화 {{count}}개가 제거됩니다.",
+      "clearHistory": "기록 지우기",
+      "conversationsTurns": "대화 / 턴",
+      "deleteConversation": "이 대화 삭제",
+      "history": "대화 기록",
+      "historyDesc": "이 작품의 모든 Agent 대화입니다. 삭제는 임시 삭제이며 오른쪽 기록과 동기화되고 다른 작품에는 영향을 주지 않습니다.",
+      "month": "이번 달",
+      "noHistory": "아직 대화가 없습니다. Agent에게 메시지를 보내 시작하세요.",
+      "noProjectHistory": "작품을 열어 대화 기록을 관리하세요.",
+      "noProjectUsage": "작품을 열어 Agent 사용량을 확인하세요.",
+      "tokenCard": "{{scope}} 토큰",
+      "untitled": "제목 없음",
+      "usage": "사용량",
+      "usageDesc": "각 턴의 반환값을 바탕으로 Agent의 작품 내 토큰 사용량을 기록합니다. 입력에는 캐시 읽기가 포함됩니다. 이번 달 또는 전체 기간을 볼 수 있습니다."
+    },
     "appearance": {
+      "accent": "강조색",
+      "accent_color": "인터페이스 강조색",
+      "accent_color_desc": "버튼, 초점, 활성 상태에 적용됩니다. 편집기 커서 색은 바뀌지 않습니다.",
+      "accent_reset": "기본값 복원",
+      "agent_edit_reveal": "변경 내용 표시 애니메이션",
+      "agent_edit_reveal_desc": "Agent의 본문·필드 수정과 외부 편집기에서 수정한 장·아이디어를 한 글자씩 표시합니다. 끄면 결과를 즉시 표시하며, 읽지 않은 변경 표시는 유지됩니다.",
+      "animations": "애니메이션 및 전환",
       "dark": "어둡게",
       "guides": "가이드",
       "interface_text_large": "크게",
@@ -1284,9 +1464,51 @@
       "auto_element_link_desc": "입력 중 기존 요소 이름을 인식하여 해당 페이지로 연결합니다.",
       "auto_immersive": "입력하면 몰입 쓰기",
       "auto_immersive_desc": "본문을 쓰기 시작하면 사이드바와 도구를 접습니다. Esc를 누르거나 본문 바깥을 클릭하면 돌아옵니다.",
+      "caret_color": "텍스트 커서 색",
+      "caret_color_desc": "본문 입력 커서 색을 선택합니다.",
+      "entity_link_band_style": "개체 링크 색 띠 스타일",
+      "entity_link_band_style_desc": "부드럽고 연속적인 색 띠 또는 글자 아래에 말줄임표 같은 작은 점들을 표시합니다.",
+      "entity_link_band_style_dots": "작은 점",
+      "entity_link_band_style_wash": "연속 색 띠",
+      "entity_link_highlight": "개체 링크 강조 방식",
+      "entity_link_highlight_band": "색 띠",
+      "entity_link_highlight_both": "둘 다",
+      "entity_link_highlight_desc": "색 띠, 글자색 또는 둘 다로 개체 링크를 강조합니다. 마우스를 올릴 때도 적용됩니다.",
+      "entity_link_highlight_text": "글자색",
+      "entity_link_kind_category": "분류",
+      "entity_link_kind_chapter": "장",
+      "entity_link_kind_drift": "아이디어",
+      "entity_link_kind_element": "요소",
+      "entity_link_kind_patch": "변화 기록",
+      "entity_link_kind_storyline": "스토리라인",
+      "entity_link_style": "개체 링크 강조",
+      "entity_link_style_contextual": "소속별",
+      "entity_link_style_desc": "소속 대상 색, 유형별 사용자 색, 마우스를 올릴 때만 소속 색, 또는 본문색과 색 띠를 사용합니다.",
+      "entity_link_style_hover": "마우스를 올릴 때만",
+      "entity_link_style_kind": "유형별",
+      "entity_link_style_prose": "본문",
       "flow": "집필 흐름",
+      "font_error_empty": "이 글꼴 파일은 비어 있습니다.",
+      "font_error_format": "TTF, OTF, WOFF, WOFF2 글꼴 파일만 지원합니다.",
+      "font_error_invalid": "이 파일을 해독할 수 없습니다. 유효한 일반 또는 가변 글꼴을 선택하세요.",
+      "font_error_size": "글꼴 파일은 64 MB를 초과할 수 없습니다.",
+      "font_import": "글꼴 가져오기",
+      "font_import_done": "글꼴을 이 기기에 저장하고 집필 내용에 적용했습니다.",
+      "font_import_help": "TTF, OTF, WOFF, WOFF2의 일반 또는 가변 글꼴을 지원합니다. 최대 64 MB입니다.",
+      "font_remove": "제거",
+      "font_remove_done": "앱에 저장된 글꼴 사본을 제거했습니다.",
+      "font_replace": "교체",
+      "font_scope_desc": "장 본문, 개체 제목·요약·긴 글, 필드 값, 변화 기록, 참조 내용, 조판 미리보기에 적용됩니다. 인터페이스·사이드바·대화상자·노드 카드는 공통 산세리프 글꼴을 사용합니다. 글꼴 선택은 기기별로 저장되며 집필 내용의 SyncEngine 동기화 범위에 포함되지 않습니다.",
       "font_size": "글자 크기",
       "font_size_desc": "편집기 화면에만 적용되며 내보내기에는 영향을 주지 않습니다.",
+      "font_source": "본문 글꼴",
+      "font_system_custom": "시스템 글꼴",
+      "font_system_manual_placeholder": "예: Charter",
+      "font_system_mono": "시스템 고정폭",
+      "font_system_placeholder": "시스템 글꼴 선택",
+      "font_system_sans": "시스템 산세리프",
+      "font_system_serif": "시스템 세리프",
+      "font_use": "사용",
       "indent": "문단 들여쓰기",
       "indent_desc": "편집기 화면에만 적용됩니다. 내보내기는 별도 설정을 사용합니다.",
       "indent_none": "없음",
@@ -1303,6 +1525,12 @@
       "preview_p1": "침묵이 돌 위로 밀려드는 바닷물처럼 두 사람 사이에 번졌다. 마침내 그녀가 입을 열었다. 바람에 날아갈 듯한 목소리가 그가 겨우 들을 수 있는 곳에 내려앉았다.",
       "preview_p2": "“돌아올 거야?” 그는 바로 대답하지 않았다. 바다로 지는 해를 바라보다가 한참 뒤에 고개를 끄덕였다. 그것이 약속인지 연민인지 그조차 알 수 없었다.",
       "reset_style": "권장 스타일 복원",
+      "tab_indent": "Tab 들여쓰기",
+      "tab_indent_desc": "Tab을 누를 때 적용되는 문단 들여쓰기 한 단계의 너비입니다. Shift+Tab으로 내어씁니다.",
+      "text_wrap": "줄 바꿈",
+      "text_wrap_desc": "‘안정적’은 각 줄을 채우며 뒷부분을 편집해도 앞의 줄 바꿈을 유지합니다. ‘균형 있게’는 문단 전체의 줄 바꿈을 조정합니다. 즉시 적용되어 이 기기에 저장됩니다.",
+      "text_wrap_pretty": "균형 있게",
+      "text_wrap_stable": "안정적",
       "typesetting": "조판",
       "typewriter_mode": "타자기 모드",
       "typewriter_mode_desc": "입력하거나 커서를 이동할 때 현재 본문 줄을 화면의 일정한 위치에 유지합니다. 편집기 화면에만 적용됩니다.",
@@ -1338,19 +1566,37 @@
       "connect_errors": {
         "cancelled": "취소했습니다."
       },
+      "crop_confirm": "이 사진 사용",
+      "crop_description": "이미지를 끌거나 방향키로 위치를 정한 뒤 확대 비율을 조절하세요.",
+      "crop_title": "프로필 사진 조정",
+      "crop_zoom": "확대/축소",
       "current_password": "현재 비밀번호",
       "description": "원고는 먼저 이 기기에 저장됩니다. 계정을 연결하면 기기 간에 작품을 동기화할 수 있습니다.",
+      "disconnect": "동기화 연결 해제",
+      "disconnect_anyway": "그래도 연결 해제",
+      "disconnect_description": "이 Mac에만 있는 변경을 업로드한 뒤 연결을 해제합니다. 로컬 작품과 클라우드 사본은 유지됩니다.",
+      "disconnect_now": "지금 연결 해제",
+      "disconnect_unuploaded": "변경 {{count}}개가 업로드되지 않았습니다. 해제하면 이 Mac에만 남습니다.",
       "display_name": "표시 이름",
+      "enabled": "Hosted 동기화 연결됨",
+      "last_synced": "마지막 동기화 완료: {{time}}",
       "library_switch_failed": "라이브러리를 전환하지 못했습니다",
       "new_password": "새 비밀번호",
       "no_account": "로그인 안 됨",
+      "not_started": "동기화를 시작할 수 없습니다. 원고는 이 기기에 저장되어 있습니다. Drifting을 다시 열어 시도하세요.",
       "password_description": "8~128자.",
       "password_saved": "비밀번호가 변경되었습니다. 다른 기기에서 다시 로그인해야 합니다.",
       "password_sessions": "비밀번호를 변경하면 다른 기기에서 로그아웃됩니다. 이 기기는 로그인 상태를 유지합니다.",
       "password_title": "비밀번호",
+      "pause": "일시정지",
+      "paused": "동기화 일시정지됨",
+      "pending": "동기화 중이거나 완료를 기다리는 중입니다.",
       "profile_saved": "프로필을 저장했습니다.",
       "profile_title": "프로필",
+      "quota_blocked": "Hosted 저장 공간이 가득 차 첨부를 업로드할 수 없어 작품 동기화가 멈췄습니다. 필요 없는 첨부나 작품을 삭제하면 재개됩니다. 로컬 내용은 영향을 받지 않습니다.",
       "remove_avatar": "제거",
+      "resume": "다시 시작",
+      "retrying": "동기화가 끝나지 않았습니다. 원고는 로컬에 저장되어 있으며 자동 재시도 중입니다.",
       "save_profile": "프로필 저장",
       "session": {
         "checking": "계정 확인 중…",
@@ -1361,6 +1607,10 @@
       },
       "sign_in": "로그인 / 가입",
       "sign_out": "로그아웃",
+      "storage": "Hosted 저장 공간",
+      "storage_description": "{{quota}} 중 {{used}} 사용. 첨부 파일은 용량에 포함되며 원고와 구조는 제한이 없습니다.",
+      "sync_now": "지금 동기화",
+      "sync_title": "Hosted 동기화",
       "title": "계정 및 Hosted 동기화",
       "working": "작업 중…"
     },
@@ -1434,6 +1684,7 @@
       "diagnosticsCopied": "민감 정보를 제거한 진단 요약을 복사했습니다.",
       "diagnosticsCopyFailed": "클립보드에 쓸 수 없습니다. 클립보드 권한이 없을 수 있습니다.",
       "diagnosticsDesc": "버전·플랫폼·기능 가용성·동기화 수와 오류 유형·업데이트 상태를 복사합니다. 원고·인증 정보·작품 식별자·절대 경로는 포함되지 않으며 자동 업로드하지 않습니다.",
+      "fullPolicy": "개인정보 처리방침 전체 보기",
       "noteLocal": "이 빌드는 Drifting 서버에 접속하지 않으며 작품은 이 기기에 남습니다. AI와 음성 전사 요청은 기기에서 선택한 제공업체로 직접 전송되고 해당 업체의 데이터·학습 약관이 적용됩니다. 추가한 원격 MCP 확장 기능도 네트워크를 사용합니다."
     },
     "rail": {
@@ -1471,6 +1722,8 @@
         "restoring": "복원 중…",
         "summary": "작품 {{projects}}개, 자료 파일 {{assets}}개, {{size}}."
       },
+      "import_files": "가져오기",
+      "import_files_desc": "Word(.docx), Markdown 또는 일반 텍스트에서 가져옵니다.",
       "local_data": "로컬 데이터",
       "local_sub": "Drifting 계정이나 호스팅 클라우드를 사용하지 않습니다. 언제든 읽을 수 있는 사본을 내보낼 수 있습니다.",
       "local_title": "작품은 이 기기에 보관됩니다.",
@@ -1478,13 +1731,20 @@
         "allProjects": "모든 작품",
         "allProjectsUnset": "모든 작품 · 위치를 선택하지 않음",
         "choose": "폴더 선택",
+        "copied": "경로를 복사했습니다",
+        "copy": "경로 복사",
+        "error": "업데이트 실패",
         "offHint": "꺼짐: Markdown을 기록하지 않고 외부 수정도 병합하지 않습니다. 기존 파일은 그대로 남습니다.",
         "offTitle": "Markdown 폴더를 끌까요?",
+        "pending": "업데이트 중",
+        "ready": "최신 상태",
+        "refresh": "지금 업데이트",
         "reveal": "Finder에서 보기",
         "title": "Markdown 폴더",
         "turnOff": "Markdown 폴더 끄기",
         "turnOn": "켜기"
-      }
+      },
+      "select_file": "파일 선택…"
     },
     "update": {
       "channel_desc": "Apple Silicon · macOS 13 이상",
@@ -1508,6 +1768,49 @@
       "server_error": "업데이트 서비스에 지금 문제가 있습니다. 나중에 다시 시도해 주세요. 현재 버전은 계속 사용할 수 있습니다.",
       "unavailable": "이 빌드에는 업데이터 서명 키가 없어 업데이트를 확인할 수 없습니다. GitHub에서 받은 배포판에서는 사용할 수 있습니다."
     }
+  },
+  "shell_ui": {
+    "add_fact": "항목 추가",
+    "back_plain": "뒤로",
+    "empty_book_hint": "항목을 만들고 본문을 작성하면 여기에서 전체를 읽을 수 있습니다.",
+    "empty_book_title": "아직 본문이 없습니다",
+    "fact_key_placeholder": "이름(예: 부제, 장르)",
+    "fact_value_placeholder": "내용",
+    "find_results": "일치 항목",
+    "hosted_purge_note": "이 기기와 동기화된 모든 클라우드 기기에서 영구 삭제되며 되돌릴 수 없습니다.",
+    "hosted_trash_note": "이 기기와 클라우드에서 제거되며 30일 동안 최근 삭제에서 복원할 수 있습니다.",
+    "menu_about": "{{app}} 정보",
+    "menu_bring_all_to_front": "모두 앞으로 가져오기",
+    "menu_close_window": "윈도우 닫기",
+    "menu_copy": "복사",
+    "menu_cut": "오려두기",
+    "menu_edit": "편집",
+    "menu_hide": "{{app}} 가리기",
+    "menu_hide_others": "기타 가리기",
+    "menu_minimize": "최소화",
+    "menu_paste": "붙여넣기",
+    "menu_quit": "{{app}} 종료",
+    "menu_redo": "실행 복귀",
+    "menu_select_all": "전체 선택",
+    "menu_services": "서비스",
+    "menu_settings": "설정…",
+    "menu_show_all": "모두 보기",
+    "menu_undo": "실행 취소",
+    "menu_zoom": "확대/축소",
+    "new_entry_plain": "새 항목",
+    "open_whole_book": "전체 읽기",
+    "pick_relation_target": "“{{name}}”에서 연결 중 — 대상 항목 클릭 (Esc로 취소)",
+    "preparing_samples": "샘플 프로젝트 준비 중…",
+    "project_facts": "작품 정보",
+    "search_hint": "프로젝트 전체를 검색할 키워드를 입력하세요",
+    "search_placeholder": "제목, 본문, 필드 및 자료 검색…",
+    "swap_split": "좌우 분할 바꾸기",
+    "templates_plain": "템플릿",
+    "toggle_comment_marks": "주석 표시 보이기",
+    "toggle_entity_links": "항목 링크 활성화",
+    "unpin_island": "위치 고정 해제",
+    "unsplit": "분할 닫기",
+    "words_short": "{{count}}자"
   },
   "sidebarLayout": {
     "split": "두 열로 복원"
@@ -1533,7 +1836,8 @@
     "edge": {
       "hideKind": "“{{label}}” 숨기기",
       "showKind": "“{{label}}” 표시"
-    }
+    },
+    "spread": "분산"
   },
   "storylineEditor": {
     "filters": {
@@ -1583,6 +1887,7 @@
       "relayout": "재배치"
     },
     "reset": "초기화",
+    "startEdgeFromElement": "이 요소에서 관계 만들기",
     "uncategorized": "미분류",
     "unnamedCategory": "이름 없는 분류"
   },
@@ -1601,7 +1906,10 @@
     "color": "색상",
     "conflict": "다른 곳에서 템플릿이 변경되었습니다",
     "date": "날짜",
+    "default_prose": "기본 본문 템플릿",
+    "default_prose_hint": "이 템플릿으로 새 항목을 만들 때 자동으로 채워집니다",
     "default_template": "기본 템플릿",
+    "default_value": "기본값",
     "description": "설명",
     "display": "표시",
     "entity_ref": "항목 참조",
@@ -1729,9 +2037,15 @@
     "originTask": "체크리스트",
     "regionPlace": "영역",
     "regionPlacePaged": "{{page}}쪽",
+    "retarget": "대상 변경…",
+    "sortNewest": "최신순",
+    "sortOldest": "오래된순",
+    "sortPosition": "위치순",
     "statusOpen": "미해결",
     "statusResolved": "해결됨",
+    "unbindTarget": "연결 해제",
     "unlocated": "원래 위치를 찾을 수 없음",
+    "viewOriginal": "원문 보기",
     "wholeFile": "파일 전체",
     "writeComment": "메모 작성"
   },
@@ -1756,6 +2070,9 @@
     "railAgent": "Agent"
   },
   "v3Shell": {
+    "agent_unread": "읽지 않은 Agent 편집",
+    "aliases_add": "별칭 추가…",
+    "aliases_remove": "별칭 제거",
     "attachedEntries": "여기에 걸린 항목",
     "belongTo": "소속 지정",
     "board": "보드",
@@ -1766,7 +2083,9 @@
     "editTemplate": "템플릿 편집",
     "entries": "항목",
     "entryUntemplated": "항목",
+    "entry_count": "{{count}}개",
     "expandTimeline": "스토리라인 타임라인 펼치기",
+    "external_unread": "읽지 않은 외부 편집",
     "grid": "그리드",
     "hideOutline": "목차 숨기기",
     "islands": "섬",
@@ -1809,8 +2128,10 @@
     "colorValue": "색상 값",
     "deleteView": "보기 삭제",
     "detachEntry": "항목 연결 해제",
+    "empty_book_view": "먼저 이 보기에 항목을 배치하세요",
     "laneActions": "레인 작업",
     "laneTrack": "레인 {{name}}",
+    "locate_current": "현재 항목으로 이동",
     "members": "구성원 {{count}}개",
     "moveDown": "아래로 이동",
     "moveUp": "위로 이동",
@@ -1818,6 +2139,7 @@
     "newEntryInLane": "새 항목",
     "newLane": "새 레인",
     "newView": "새 보기",
+    "pin_color": "색상",
     "placeEntry": "항목 배치",
     "placementActions": "배치 작업",
     "removeEntry": "레인에서 제거",
@@ -1826,9 +2148,12 @@
     "renameView": "보기 이름 변경",
     "resize": "길이 조절",
     "ruler": "눈금자",
+    "section_create": "새로 만들기",
+    "section_existing": "기존 항목 추가",
     "selectLane": "레인 선택",
     "setActTrack": "막 트랙으로 사용 · {{name}}",
     "unsetActTrack": "일반 레인으로 전환 · {{name}}",
+    "view_actions": "보기 작업",
     "views": "보기"
   },
   "v3Transfer": {
@@ -1843,8 +2168,11 @@
     "alignRight": "오른쪽",
     "allFolders": "전체",
     "clearField": "지우기",
+    "collapseAll": "모두 접기",
     "currentSection": "현재",
     "empty": "파일 없음",
+    "empty_trash": "비우기",
+    "expandAll": "모두 펼치기",
     "fileCount_other": "파일 {{count}}개",
     "findFile": "파일 찾기",
     "itemCount_other": "{{count}}개",
@@ -1934,6 +2262,16 @@
     "direction": "방향",
     "otherEntry": "다른 항목",
     "relation": "관계"
+  },
+  "v5Stats": {
+    "childrenAggregate": "하위 요약",
+    "entryCoordinates": "항목 좌표",
+    "groupRhythm": "그룹 리듬",
+    "inboundLinks": "역참조",
+    "outboundLinks": "참조 항목",
+    "projectOverview": "프로젝트 개요",
+    "templatesTotal": "템플릿 수",
+    "unreferencedNote": "본문에서 아직 참조되지 않음"
   },
   "v5Tour": {
     "agent": {

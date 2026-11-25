@@ -60,6 +60,8 @@ pub struct Button {
     busy: bool,
     full_width: bool,
     truncate: bool,
+    tooltip: Option<SharedString>,
+    shortcut: Option<SharedString>,
     on_click: Option<OnClick>,
 }
 
@@ -75,6 +77,8 @@ impl Button {
             busy: false,
             full_width: false,
             truncate: false,
+            tooltip: None,
+            shortcut: None,
             on_click: None,
         }
     }
@@ -130,6 +134,22 @@ impl Button {
     /// running past the row.
     pub fn truncate(mut self) -> Self {
         self.truncate = true;
+        self
+    }
+
+    pub fn tooltip(mut self, text: impl Into<SharedString>) -> Self {
+        let text = text.into();
+        if !text.is_empty() {
+            self.tooltip = Some(text);
+        }
+        self
+    }
+
+    pub fn shortcut(mut self, shortcut: impl Into<SharedString>) -> Self {
+        let s = shortcut.into();
+        if !s.is_empty() {
+            self.shortcut = Some(s);
+        }
         self
     }
 
@@ -242,10 +262,16 @@ impl RenderOnce for Button {
             content(el, window)
         };
         let selector = self.id.clone();
+        let tip = self.tooltip;
+        let tip_shortcut = self.shortcut;
         el.role(gpui::Role::Button)
             // Where it was drawn, by its id, for tests (as the select's).
             .debug_selector(move || selector.to_string())
             .aria_label(self.label.clone())
+            .when_some(tip, |el, text| match tip_shortcut {
+                Some(shortcut) => el.tooltip(super::tooltip::tooltip_with_shortcut(text, shortcut)),
+                None => el.tooltip(super::tooltip::tooltip(text)),
+            })
             .when(interactive, |el| el.cursor_pointer())
             .when_some(self.on_click.filter(|_| interactive), |el, f| {
                 el.on_click(move |e, w, cx| f(e, w, cx))
@@ -275,6 +301,9 @@ pub struct IconButton {
     disabled: bool,
     tone: Tone,
     label: Option<SharedString>,
+    tooltip: Option<SharedString>,
+    shortcut: Option<SharedString>,
+    suppress_tooltip: bool,
     on_click: Option<OnClick>,
 }
 
@@ -288,15 +317,24 @@ impl IconButton {
             disabled: false,
             tone: Tone::Clear,
             label: None,
+            tooltip: None,
+            shortcut: None,
+            suppress_tooltip: false,
             on_click: None,
         }
     }
 
-    /// What the button does, in words, for screen readers (it is a button
-    /// named `label` in the accessibility tree). Never drawn: a round
-    /// button shows only its icon.
+    /// What the button does, in words, for screen readers and hover tooltips
+    /// (unless overridden by [`Self::tooltip`] or disabled via
+    /// [`Self::no_tooltip`]).
     pub fn label(mut self, label: impl Into<SharedString>) -> Self {
         self.label = Some(label.into());
+        self
+    }
+
+    /// Suppress the automatic hover tooltip (e.g. when wrapped in a [`super::HoverCard`]).
+    pub fn no_tooltip(mut self) -> Self {
+        self.suppress_tooltip = true;
         self
     }
 
@@ -330,24 +368,32 @@ impl IconButton {
         self
     }
 
+    pub fn tooltip(mut self, text: impl Into<SharedString>) -> Self {
+        let text = text.into();
+        if !text.is_empty() {
+            self.tooltip = Some(text);
+        }
+        self
+    }
+
+    pub fn shortcut(mut self, shortcut: impl Into<SharedString>) -> Self {
+        let s = shortcut.into();
+        if !s.is_empty() {
+            self.shortcut = Some(s);
+        }
+        self
+    }
+
     pub fn on_click(mut self, f: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static) -> Self {
         self.on_click = Some(Rc::new(f));
         self
     }
 }
 
-/// A round button's glass. What lies under a floating one is not known (the
-/// desk, the paper, both): it is round with nothing round its corners, a
-/// paper disc in a uniform line, the same wherever it floats. Filled, its
-/// corners were covered with the desk's colour and showed as a grey square
-/// on the paper (UP, kernel-v5 §15 item 50).
-fn round_spec(seat: Seat, tone: Tone) -> Spec {
-    let spec = Spec::new(tone, g::ROUND / 2.0);
-    if seat == Seat::Floating {
-        spec.ground(glass::Ground::Uneven)
-    } else {
-        spec
-    }
+/// A round button's glass: always drawn as `Ground::Uneven` (`paint_flat`) so
+/// circular controls never paint square cover corners over any surface.
+fn round_spec(_seat: Seat, tone: Tone) -> Spec {
+    Spec::new(tone, g::ROUND / 2.0).ground(glass::Ground::Uneven)
 }
 
 impl RenderOnce for IconButton {
@@ -375,6 +421,14 @@ impl RenderOnce for IconButton {
         };
         let interactive = !self.disabled;
         let selector = self.id.clone();
+        let tip = if self.suppress_tooltip {
+            None
+        } else {
+            self.tooltip
+                .or_else(|| self.label.clone())
+                .filter(|s| !s.is_empty())
+        };
+        let tip_shortcut = self.shortcut;
         glass::glass_box(self.id, kind, mode, self.selected, spec, window, cx)
             .debug_selector(move || selector.to_string())
             .size(px(g::ROUND))
@@ -387,6 +441,10 @@ impl RenderOnce for IconButton {
             .child(sand::icon(self.icon, g::ROUND_ICON, ink))
             .when_some(self.label, |el, label| {
                 el.role(gpui::Role::Button).aria_label(label)
+            })
+            .when_some(tip, |el, text| match tip_shortcut {
+                Some(shortcut) => el.tooltip(super::tooltip::tooltip_with_shortcut(text, shortcut)),
+                None => el.tooltip(super::tooltip::tooltip(text)),
             })
             .when(interactive, |el| el.cursor_pointer())
             .when_some(self.on_click.filter(|_| interactive), |el, f| {
@@ -403,6 +461,9 @@ pub struct PanelIconButton {
     danger: bool,
     disabled: bool,
     label: Option<SharedString>,
+    tooltip: Option<SharedString>,
+    shortcut: Option<SharedString>,
+    suppress_tooltip: bool,
     on_click: Option<OnClick>,
 }
 
@@ -415,13 +476,21 @@ impl PanelIconButton {
             danger: false,
             disabled: false,
             label: None,
+            tooltip: None,
+            shortcut: None,
+            suppress_tooltip: false,
             on_click: None,
         }
     }
 
-    /// What the button does, for screen readers; never drawn.
+    /// What the button does, for screen readers and hover tooltips.
     pub fn label(mut self, label: impl Into<SharedString>) -> Self {
         self.label = Some(label.into());
+        self
+    }
+
+    pub fn no_tooltip(mut self) -> Self {
+        self.suppress_tooltip = true;
         self
     }
 
@@ -440,6 +509,22 @@ impl PanelIconButton {
 
     pub fn disabled(mut self, disabled: bool) -> Self {
         self.disabled = disabled;
+        self
+    }
+
+    pub fn tooltip(mut self, text: impl Into<SharedString>) -> Self {
+        let text = text.into();
+        if !text.is_empty() {
+            self.tooltip = Some(text);
+        }
+        self
+    }
+
+    pub fn shortcut(mut self, shortcut: impl Into<SharedString>) -> Self {
+        let s = shortcut.into();
+        if !s.is_empty() {
+            self.shortcut = Some(s);
+        }
         self
     }
 
@@ -470,6 +555,14 @@ impl RenderOnce for PanelIconButton {
         let icon = self.icon;
         let id = self.id.clone();
         let group = SharedString::from(format!("panel-icon-{id:?}"));
+        let tip = if self.suppress_tooltip {
+            None
+        } else {
+            self.tooltip
+                .or_else(|| self.label.clone())
+                .filter(|s| !s.is_empty())
+        };
+        let tip_shortcut = self.shortcut;
         div()
             .id(self.id)
             .size(px(24.0))
@@ -493,6 +586,10 @@ impl RenderOnce for PanelIconButton {
             .when_some(self.label, |el, label| {
                 el.role(gpui::Role::Button).aria_label(label)
             })
+            .when_some(tip, |el, text| match tip_shortcut {
+                Some(shortcut) => el.tooltip(super::tooltip::tooltip_with_shortcut(text, shortcut)),
+                None => el.tooltip(super::tooltip::tooltip(text)),
+            })
             .when_some(self.on_click.filter(|_| !self.disabled), |el, f| {
                 el.on_click(move |e, w, cx| f(e, w, cx))
             })
@@ -505,17 +602,15 @@ mod round_tests {
     use crate::tokens::Palette;
 
     #[test]
-    fn a_floating_round_button_paints_nothing_round_its_corners() {
+    fn round_buttons_paint_nothing_round_their_corners() {
         for palette in [&Palette::LIGHT, &Palette::DARK] {
-            assert_eq!(
-                round_spec(Seat::Floating, Tone::Clear).resolve_ground(palette),
-                glass::Ground::Uneven,
-                "a floating button's corners took a colour"
-            );
-            assert!(matches!(
-                round_spec(Seat::Alone, Tone::Clear).resolve_ground(palette),
-                glass::Ground::Flat { .. }
-            ));
+            for seat in [Seat::Alone, Seat::Tray, Seat::Floating] {
+                assert_eq!(
+                    round_spec(seat, Tone::Clear).resolve_ground(palette),
+                    glass::Ground::Uneven,
+                    "a round button ({seat:?}) painted square cover corners"
+                );
+            }
         }
     }
 }

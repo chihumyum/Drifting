@@ -252,12 +252,46 @@ impl Workspace {
         self.fill.custom_width()
     }
 
-    /// Right sidebar can only fill when its focused pane is `Review` or `Library`.
+    /// The left sidebar pane that expands when Fill (`铺满`) is active:
+    /// when split into two panes, only the inner (middle-adjacent) pane fills
+    /// while the outer (window-edge) pane stays intact.
+    pub(super) fn left_fill_sidebar(&self) -> Option<gpui::Entity<crate::v3::sidebar::Sidebar>> {
+        if self.left.panes.panes.len() > 1 {
+            self.v3_sidebar_secondary
+                .clone()
+                .or_else(|| self.v3_sidebar.clone())
+        } else {
+            self.v3_sidebar.clone()
+        }
+    }
+
+    /// The right sidebar pane that expands when Fill (`铺满`) is active:
+    /// when split into two panes, `panes[0]` is the inner (middle-adjacent)
+    /// pane while `panes[1]` stays fixed at the window edge.
+    pub fn right_fill_pane_id(&self) -> crate::panes::PaneId {
+        if self.right.panes.panes.len() > 1 {
+            self.right.panes.panes[0].id
+        } else {
+            self.right.panes.focused
+        }
+    }
+
+    /// The tab of the right pane that would fill (`right_fill_pane_id`).
+    pub fn right_fill_tab(&self) -> RightTab {
+        let id = self.right_fill_pane_id();
+        self.right
+            .panes
+            .panes
+            .iter()
+            .find(|p| p.id == id)
+            .map_or_else(|| self.right.panes.focused_tab(), |p| p.tab)
+    }
+
+    /// Every right-sidebar tab supports Fill (`铺满`): Review, Relations
+    /// (interactive force-directed graph), Library, Stats (whole-project
+    /// charts dashboard), and Agent (Agent Rewind timeline + chat).
     pub fn right_can_fill(&self) -> bool {
-        matches!(
-            self.right.panes.focused_tab(),
-            RightTab::Review | RightTab::Library
-        )
+        true
     }
 
     /// Maximum width a filled `side` sidebar occupies when un-narrowed: the
@@ -359,7 +393,10 @@ impl Workspace {
                         layout_changed = true;
                     }
                     self.want_template_structure = false;
-                    if let Some(sb) = &self.v3_sidebar {
+                    for sb in [&self.v3_sidebar, &self.v3_sidebar_secondary]
+                        .into_iter()
+                        .flatten()
+                    {
                         sb.update(cx, |s, cx| s.leave_fill(cx));
                     }
                 }
@@ -379,6 +416,12 @@ impl Workspace {
                 if !was {
                     self.left.set_open(true, reduce);
                     layout_changed = true;
+                }
+                if self
+                    .left_fill_sidebar()
+                    .is_some_and(|sb| sb.read(cx).is_browsing_templates())
+                {
+                    self.want_template_structure = true;
                 }
                 was
             }
@@ -422,8 +465,7 @@ impl Workspace {
         let reduce = self.reduce_motion(window, cx);
         let stranded = self.is_filled(FillPlace::Left)
             && self
-                .v3_sidebar
-                .as_ref()
+                .left_fill_sidebar()
                 .is_some_and(|sidebar| sidebar.read(cx).fill_has_keyboard(window, cx));
         let exited = self.exit_fill_with_motion(reduce, cx);
         if exited && stranded {
@@ -448,7 +490,10 @@ impl Workspace {
         if prev == FillPlace::Left {
             self.want_template_structure = false;
             self.want_new_template = false;
-            if let Some(sb) = &self.v3_sidebar {
+            for sb in [&self.v3_sidebar, &self.v3_sidebar_secondary]
+                .into_iter()
+                .flatten()
+            {
                 sb.update(cx, |s, cx| s.leave_fill(cx));
             }
         }
@@ -483,7 +528,10 @@ impl Workspace {
                     }
                     if self.is_filled(FillPlace::Left) {
                         self.want_template_structure = false;
-                        if let Some(sb) = &self.v3_sidebar {
+                        for sb in [&self.v3_sidebar, &self.v3_sidebar_secondary]
+                            .into_iter()
+                            .flatten()
+                        {
                             sb.update(cx, |s, cx| s.leave_fill(cx));
                         }
                         self.fill.set_place(None, reduce);
@@ -620,7 +668,7 @@ impl Workspace {
         if !self.enter_fill(FillPlace::Left, window, cx) {
             return;
         }
-        if let Some(sb) = self.v3_sidebar.clone() {
+        if let Some(sb) = self.left_fill_sidebar() {
             sb.update(cx, |s, cx| s.enter_structure(window, cx));
         } else {
             self.want_template_structure = true;
@@ -635,7 +683,7 @@ impl Workspace {
         if !self.is_filled(FillPlace::Left) {
             return;
         }
-        if let Some(sb) = self.v3_sidebar.clone() {
+        if let Some(sb) = self.left_fill_sidebar() {
             sb.update(cx, |s, cx| {
                 s.enter_structure(window, cx);
                 s.new_structure_template(window, cx);
@@ -652,8 +700,7 @@ impl Workspace {
     pub(super) fn close_fill_panel(&mut self, cx: &mut Context<Self>) -> bool {
         self.is_filled(FillPlace::Left)
             && self
-                .v3_sidebar
-                .clone()
+                .left_fill_sidebar()
                 .is_some_and(|sb| sb.update(cx, |s, cx| s.close_structure_panel(cx)))
     }
 

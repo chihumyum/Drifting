@@ -269,6 +269,7 @@ pub struct Layers {
     editing: Option<(usize, String)>,
     dirty_editing: bool,
     focused: bool,
+    comment_marks_visible: bool,
     remote_origin: Arc<Mutex<HashMap<String, bool>>>,
     links_task: Option<Task<()>>,
     _subs: Vec<Subscription>,
@@ -360,6 +361,7 @@ impl Layers {
             editing: None,
             dirty_editing: false,
             focused: false,
+            comment_marks_visible: true,
             remote_origin,
             links_task: None,
             _subs: subs,
@@ -615,10 +617,30 @@ impl Layers {
         });
     }
 
+    /// Shows or hides comment sand highlights and comment scrollbar ticks.
+    pub fn set_comment_marks_visible(&mut self, visible: bool, cx: &mut Context<Layers>) {
+        if self.comment_marks_visible == visible {
+            return;
+        }
+        self.comment_marks_visible = visible;
+        for chapter in 0..self.parts.len() {
+            self.submit_comments(chapter, cx);
+        }
+    }
+
     fn submit_comments(&mut self, chapter: usize, cx: &mut Context<Layers>) {
         let (Some(looks), Some(editor)) = (self.looks.clone(), self.editor.upgrade()) else {
             return;
         };
+        if !self.comment_marks_visible {
+            if self.parts[chapter].had_comments {
+                self.parts[chapter].had_comments = false;
+                editor.update(cx, |e, cx| {
+                    e.set_decorations(chapter, "comments", Vec::new(), cx)
+                });
+            }
+            return;
+        }
         if self.parts[chapter].comments.is_empty() && !self.parts[chapter].had_comments {
             return;
         }
@@ -966,11 +988,12 @@ impl Layers {
             };
             self.parts[chapter].links_dirty = false;
             let mut badges = Vec::new();
+            let appearance = self.extension.appearance();
             let links = found
                 .links
                 .into_iter()
                 .enumerate()
-                .map(|(ix, (range, alive, file_pdf))| {
+                .map(|(ix, (range, alive, file_pdf, color))| {
                     let id: gpui::SharedString = if let Some(is_pdf) = file_pdf {
                         let id = gpui::SharedString::from(format!("f{ix}"));
                         badges.push((id.clone(), is_pdf));
@@ -978,8 +1001,12 @@ impl Layers {
                     } else {
                         gpui::SharedString::from(format!("l{ix}"))
                     };
-                    Decoration::new(id, range, Look::Underline(looks.entity_underline(alive)))
-                        .touch(Touch::HOVER)
+                    let ul = looks.entity_underline_for(
+                        color.unwrap_or(looks.entity),
+                        alive,
+                        &appearance,
+                    );
+                    Decoration::new(id, range, Look::Underline(ul)).touch(Touch::HOVER)
                 })
                 .collect();
             self.extension.set_file_link_badges(chapter, badges);
@@ -1424,12 +1451,16 @@ fn link_names(
     ws.book_link_matcher(book, own).map_err(|e| e.to_string())
 }
 
+/// One discovered entity-linked run: `(range, target_alive, file_is_pdf, custom_color)`.
+pub(crate) type FoundLinkRun = (Range<usize>, bool, Option<bool>, Option<gpui::Hsla>);
+
 /// What the text says about links, suggestions and TODO keywords.
 #[derive(Debug, Default, PartialEq)]
 pub(crate) struct FoundLinks {
-    /// Entity-linked runs, whether their target is alive, and `Some(is_pdf)`
-    /// when the run points to a live file (`Asset` / `Material`).
-    pub links: Vec<(Range<usize>, bool, Option<bool>)>,
+    /// Entity-linked runs, whether their target is alive, `Some(is_pdf)`
+    /// when the run points to a live file (`Asset` / `Material`), and optional
+    /// resolved per-kind colour.
+    pub links: Vec<FoundLinkRun>,
     /// Names not linked yet.
     pub suggestions: Vec<Range<usize>>,
     /// TODO keywords.
@@ -1444,6 +1475,7 @@ pub(crate) fn find_links(
     names: Option<&LinkMatcher<LinkTarget>>,
 ) -> FoundLinks {
     let doc = &editor.book().chapters[chapter].doc;
+    let default_link = editor.style().link;
     let mut found = FoundLinks::default();
     let mut start = 0;
     type ShowKey = (dr_model::kind::EntityKind, String, bool);
@@ -1457,6 +1489,7 @@ pub(crate) fn find_links(
         for span in line.spans.iter() {
             let mut target = None;
             let mut file_link: Option<(String, bool)> = None;
+            let mut resolved_color: Option<gpui::Hsla> = None;
             let mut marked = false;
             for (key, value) in span.marks.iter() {
                 if let Some(id) = inline::entity_target(key) {
@@ -1473,6 +1506,10 @@ pub(crate) fn find_links(
                         .or_insert_with(|| extension.show(&kind, id, value));
                     if show == dr_model::v3::LinkShow::Plain {
                         continue;
+                    }
+                    if show == dr_model::v3::LinkShow::Live {
+                        resolved_color =
+                            Some(extension.resolve_link_color(&kind, id, default_link));
                     }
                     if matches!(
                         kind,
@@ -1496,16 +1533,16 @@ pub(crate) fn find_links(
                 let abs = start + range.start..start + range.end;
                 if let Some((fid, is_pdf)) = file_link {
                     if prev_file_id.as_deref() == Some(fid.as_str())
-                        && let Some((last_range, _, Some(_))) = found.links.last_mut()
+                        && let Some((last_range, _, Some(_), _)) = found.links.last_mut()
                         && last_range.end == abs.start
                     {
                         last_range.end = abs.end;
                     } else {
-                        found.links.push((abs, true, Some(is_pdf)));
+                        found.links.push((abs, true, Some(is_pdf), resolved_color));
                     }
                     prev_file_id = Some(fid);
                 } else {
-                    found.links.push((abs, alive, None));
+                    found.links.push((abs, alive, None, resolved_color));
                     prev_file_id = None;
                 }
                 linked.push(range);

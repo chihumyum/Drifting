@@ -61,9 +61,14 @@ pub(crate) struct Want {
     /// went on).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     all: bool,
-    /// The names of these entries (their own switch went on).
+    /// The names of these entries (their own switch went on): links prose,
+    /// comments, and relation descriptions.
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
     entries: BTreeSet<String>,
+    /// Entries whose name or aliases changed while already on (created,
+    /// restored, renamed, or aliased): links prose documents only.
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    prose_entries: BTreeSet<String>,
     /// Only if the book is open already; otherwise it is kept for its next
     /// opening (the author's setting asks this of every book).
     #[serde(skip)]
@@ -78,6 +83,13 @@ impl Want {
         }
     }
 
+    pub(crate) fn prose_entries(ids: impl IntoIterator<Item = EntryId>) -> Self {
+        Self {
+            prose_entries: ids.into_iter().map(|id| id.to_string()).collect(),
+            ..Self::default()
+        }
+    }
+
     fn every_name_when_open() -> Self {
         Self {
             all: true,
@@ -87,7 +99,7 @@ impl Want {
     }
 
     fn is_empty(&self) -> bool {
-        !self.all && self.entries.is_empty()
+        !self.all && self.entries.is_empty() && self.prose_entries.is_empty()
     }
 
     fn merge(&mut self, other: Want) {
@@ -95,8 +107,10 @@ impl Want {
         self.all |= other.all;
         if self.all {
             self.entries.clear();
+            self.prose_entries.clear();
         } else {
             self.entries.extend(other.entries);
+            self.prose_entries.extend(other.prose_entries);
         }
     }
 }
@@ -410,14 +424,23 @@ impl Backfill {
             return Fill::Done;
         }
         let (_, names, _) = super::book_cache(&slot);
-        let targets: Arc<HashSet<String>> = Arc::new(
+        let prose_targets: Arc<HashSet<String>> = Arc::new(
+            names
+                .iter()
+                .map(|n| n.target.id.clone())
+                .filter(|id| {
+                    want.all || want.entries.contains(id) || want.prose_entries.contains(id)
+                })
+                .collect(),
+        );
+        let book_text_targets: Arc<HashSet<String>> = Arc::new(
             names
                 .iter()
                 .map(|n| n.target.id.clone())
                 .filter(|id| want.all || want.entries.contains(id))
                 .collect(),
         );
-        if targets.is_empty() {
+        if prose_targets.is_empty() {
             return Fill::Done;
         }
         let started = Instant::now();
@@ -428,13 +451,15 @@ impl Backfill {
                 return Fill::Kept;
             }
             self.save_waiting(ws);
-            match self.fill_doc(ws, &slot, &doc, &targets) {
+            match self.fill_doc(ws, &slot, &doc, &prose_targets) {
                 Ok((DocFill::Composing, _)) => later.push(doc),
                 Ok((DocFill::Linked, n)) => linked += n,
                 Err(e) => log::warn!("automatic links: {doc} not linked: {e}"),
             }
         }
-        if let Err(e) = self.fill_book_texts(ws, &slot, &targets) {
+        if !book_text_targets.is_empty()
+            && let Err(e) = self.fill_book_texts(ws, &slot, &book_text_targets)
+        {
             log::warn!("automatic links: comments of {book} not linked: {e}");
         }
         let waited = Instant::now();
@@ -449,7 +474,7 @@ impl Backfill {
             std::thread::sleep(COMPOSING_RETRY);
             let mut still = Vec::new();
             for doc in later {
-                match self.fill_doc(ws, &slot, &doc, &targets) {
+                match self.fill_doc(ws, &slot, &doc, &prose_targets) {
                     Ok((DocFill::Composing, _)) => still.push(doc),
                     Ok((DocFill::Linked, n)) => linked += n,
                     Err(e) => log::warn!("automatic links: {doc} not linked: {e}"),

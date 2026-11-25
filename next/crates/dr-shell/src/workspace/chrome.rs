@@ -571,7 +571,7 @@ fn account_button(
 ) -> AnyElement {
     let p = Theme::of(window, cx).palette;
     let floating = !ws.left.open;
-    let mut spec = Spec::new(Tone::Clear, g::ROUND / 2.0);
+    let mut spec = Spec::new(Tone::Clear, g::ROUND / 2.0).ground(glass::Ground::Uneven);
     if floating {
         spec = spec.filled(p.page);
     }
@@ -651,7 +651,7 @@ pub fn windows_caption(window: &mut Window, cx: &mut App) -> impl IntoElement {
         Kind::Surface,
         Mode::default(),
         false,
-        Spec::new(Tone::Clear, g::ROUND / 2.0 + g::TRAY_PADDING),
+        Spec::new(Tone::Clear, g::ROUND / 2.0 + g::TRAY_PADDING).ground(glass::Ground::Uneven),
         window,
         cx,
     );

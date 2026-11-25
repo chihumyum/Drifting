@@ -83,7 +83,7 @@ pub fn coverage(name: &str, args: &Value, output: &Value) -> Vec<String> {
                 }
             }
         }
-    } else if verb == "get"
+    } else if matches!(verb, "get" | "read_content")
         && let Some(id) = output["id"].as_str()
     {
         read.insert(format!("{domain}:{id}"));

@@ -790,23 +790,16 @@ fn switching_language_from_shelf_account_menu_updates_locale_and_repaints(cx: &m
         dr_i18n::Locale::ZhCn
     );
 
-    // Open the shelf's account menu.
-    let account_btn = cx
-        .debug_bounds("shelf-account")
-        .expect("shelf account button");
-    cx.simulate_click(account_btn.center(), Modifiers::none());
-    cx.run_until_parked();
-    cx.update(|window, cx| window.draw(cx).clear(cx));
     // Draw a second frame so overlay::probe populates Select's trigger bounds.
     cx.update(|window, cx| {
         window.refresh();
         window.draw(cx).clear(cx);
     });
 
-    // Open the language Select inside the account menu.
+    // Open the standalone language Select in the shelf rail (Smoke #2).
     let lang_select = cx
-        .debug_bounds("shelf-account-language")
-        .expect("language select in shelf account menu");
+        .debug_bounds("shelf-language")
+        .expect("language select in shelf rail");
     cx.simulate_click(lang_select.center(), Modifiers::none());
     cx.run_until_parked();
     cx.update(|window, cx| window.draw(cx).clear(cx));
@@ -815,11 +808,9 @@ fn switching_language_from_shelf_account_menu_updates_locale_and_repaints(cx: &m
         window.draw(cx).clear(cx);
     });
 
-    // Locale::ALL[2] is English; its floating choice row sits outside the
-    // account menu's own card rect and previously dismissed the menu on
-    // mouse-down before the choice click could fire.
+    // Locale::ALL[2] is English.
     let choice_sel: &'static str = Box::leak(
-        dr_ui::style::child_id(&"shelf-account-language".into(), "choice-2")
+        dr_ui::style::child_id(&"shelf-language".into(), "choice-2")
             .to_string()
             .into_boxed_str(),
     );

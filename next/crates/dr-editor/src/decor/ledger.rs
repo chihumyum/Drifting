@@ -111,6 +111,15 @@ enum Notice {
 const FILE: &str = "agent-marks.json";
 
 impl AgentMarks {
+    /// Non-mutating lookup of an already-opened ledger for `ws`'s library.
+    pub fn peek(ws: &Workspace, cx: &App) -> Option<Entity<AgentMarks>> {
+        let root = &ws.library().paths().root;
+        cx.try_global::<Ledgers>()?
+            .0
+            .get(root)
+            .and_then(WeakEntity::upgrade)
+    }
+
     /// The ledger of `ws`'s library: one per library, made on first use.
     pub fn of(ws: &Workspace, cx: &mut App) -> Entity<AgentMarks> {
         let root = ws.library().paths().root.clone();
@@ -181,6 +190,74 @@ impl AgentMarks {
     /// The marks on prose document `doc`.
     pub fn marks(&self, doc: &str) -> &[Mark] {
         self.docs.get(doc).map(Vec::as_slice).unwrap_or_default()
+    }
+
+    /// Highest-priority unread mark kind for an entry across all its prose
+    /// body documents (`External` takes precedence over `Changed`/`New`,
+    /// returning `None` when the entry has no unread marks).
+    pub fn entry_unread_kind(&self, entry_id: &str) -> Option<MarkKind> {
+        let prefix = format!("body:{entry_id}/");
+        let mut found: Option<MarkKind> = None;
+        for (doc, marks) in &self.docs {
+            if !doc.starts_with(&prefix) || marks.is_empty() {
+                continue;
+            }
+            for m in marks {
+                match (found, m.kind) {
+                    (_, MarkKind::External) => return Some(MarkKind::External),
+                    (None, k) | (Some(MarkKind::New), k @ MarkKind::Changed) => found = Some(k),
+                    _ => {}
+                }
+            }
+        }
+        found
+    }
+
+    /// Map of every entry ID with unread marks to its dominant [`MarkKind`].
+    pub fn all_unread_entries(&self) -> BTreeMap<String, MarkKind> {
+        let mut out: BTreeMap<String, MarkKind> = BTreeMap::new();
+        for (doc, marks) in &self.docs {
+            if marks.is_empty() {
+                continue;
+            }
+            let Some(rest) = doc.strip_prefix("body:") else {
+                continue;
+            };
+            let Some((entry_id, _)) = rest.split_once('/') else {
+                continue;
+            };
+            for m in marks {
+                let slot = out.entry(entry_id.to_owned()).or_insert(m.kind);
+                if m.kind == MarkKind::External
+                    || (*slot == MarkKind::New && m.kind == MarkKind::Changed)
+                {
+                    *slot = m.kind;
+                }
+            }
+        }
+        out
+    }
+
+    /// Drops every mark belonging to `entry_id` (e.g. after restoring a
+    /// snapshot so stale Agent ink highlights disappear from open editors).
+    pub fn clear_entry(&mut self, entry_id: &str, cx: &mut Context<Self>) {
+        let prefix = format!("body:{entry_id}/");
+        let docs: Vec<String> = self
+            .docs
+            .keys()
+            .filter(|doc| doc.starts_with(&prefix))
+            .cloned()
+            .collect();
+        if docs.is_empty() {
+            return;
+        }
+        for doc in &docs {
+            self.docs.remove(doc);
+        }
+        self.save();
+        for doc in docs {
+            cx.emit(MarksChanged { doc });
+        }
     }
 
     /// Drops marks (touched by the pointer, or their words edited away).

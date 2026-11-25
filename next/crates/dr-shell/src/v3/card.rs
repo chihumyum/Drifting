@@ -3,13 +3,18 @@
 use crate::{
     nav::{Open, Target},
     pages::{CardRows, PageMenuHost, PageMenuItem, RunRow},
-    strings::t,
+    strings::{t, tf},
 };
 use dr_i18n::keys;
 use dr_ui::{
+    Theme,
     components::{CardAction, CardBody, CardKeys, menu::RowIcon},
+    fonts::Role,
     sand::Icon,
+    style::DrStyled as _,
+    tokens::menu as menu_tok,
 };
+use dr_workspace::commands::v3::types::FieldValue;
 use gpui::{prelude::*, *};
 use std::rc::Rc;
 
@@ -193,6 +198,50 @@ pub fn body_keyed(
         host.book.title(target).unwrap_or_default().to_owned(),
     )
     .mark(mark, color);
+    if let Target::Entry { id: entry_id, .. } = target
+        && let Some(v) = host.book.v3()
+        && v.entry(entry_id.as_str()).is_some()
+    {
+        let eid = entry_id.as_str();
+        let words = v.entry_words(eid);
+        let below_count = v
+            .levels
+            .get(eid)
+            .map_or(0, |lvl| lvl.children.len() + lvl.members.len());
+        if words > 0 {
+            body = body.count(tf(cx, keys::shell_ui::WORDS_SHORT, &[("count", &words)]));
+        } else if below_count > 0 {
+            body = body.count(tf(
+                cx,
+                keys::v3_shell::ENTRY_COUNT,
+                &[("count", &below_count)],
+            ));
+        }
+        let mut meta_parts: Vec<String> = Vec::new();
+        if let Some(tpl) = v.template_of(eid)
+            && !tpl.name.trim().is_empty()
+        {
+            meta_parts.push(tpl.name.clone());
+        }
+        if let Some(status) = v.entry_status(eid) {
+            let status_label = match status {
+                "draft" => t(cx, keys::editor_top_bar::status::DRAFT).to_string(),
+                "finished" => t(cx, keys::editor_top_bar::status::FINISHED).to_string(),
+                "discarded" => t(cx, keys::editor_top_bar::status::DISCARDED).to_string(),
+                "drifting" => t(cx, keys::editor_top_bar::status::DRIFTING).to_string(),
+                "resting" => t(cx, keys::editor_top_bar::status::RESTING).to_string(),
+                other => other.to_owned(),
+            };
+            meta_parts.push(status_label);
+        }
+        let aliases = v.entry_aliases(eid);
+        if !aliases.is_empty() {
+            meta_parts.push(aliases.join(" / "));
+        }
+        if !meta_parts.is_empty() {
+            body = body.meta(meta_parts.join(" · "));
+        }
+    }
     let all = rows(target, host, extra, cx);
     if let Some(keys) = keys {
         let rows = all
@@ -201,9 +250,8 @@ pub fn body_keyed(
             .collect();
         keys.update(cx, |k, _| k.set_rows(rows));
     }
-    for danger in [false, true] {
-        let section: Vec<_> = all
-            .iter()
+    let build_section = |danger: bool| -> Vec<AnyElement> {
+        all.iter()
             .enumerate()
             .filter(|(_, r)| r.danger == danger)
             .map(|(index, row)| {
@@ -228,10 +276,111 @@ pub fn body_keyed(
                     div().opacity(0.4).child(action).into_any_element()
                 }
             })
-            .collect();
-        if !section.is_empty() {
-            body = body.section(section);
+            .collect()
+    };
+    let primary_actions = build_section(false);
+    if !primary_actions.is_empty() {
+        body = body.section(primary_actions);
+    }
+    if let Target::Entry { id: entry_id, .. } = target
+        && let Some(v) = host.book.v3()
+        && let Some(entry) = v.entry(entry_id.as_str())
+    {
+        let eid = entry_id.as_str();
+        let theme = Theme::of(window, cx);
+        let p = theme.palette;
+        let s = theme.scale;
+        let mut info_els: Vec<AnyElement> = Vec::new();
+        if let Some(summary) = v.entry_summary(eid) {
+            info_els.push(
+                div()
+                    .px(px(menu_tok::HOVER_CARD_PAD))
+                    .py(px(2.0))
+                    .font_role(Role::Ui)
+                    .type_px(s.caption, s.line_caption)
+                    .text_color(p.ink(2).solid())
+                    .line_clamp(3)
+                    .child(summary.to_owned())
+                    .into_any_element(),
+            );
         }
+        let mut preview_rows: Vec<(String, String)> = Vec::new();
+        if let Some(tpl) = v.template_of(eid) {
+            for m in &tpl.modules {
+                if m.kind == "fields"
+                    && let Some(vals) = entry.fields.get(&m.id)
+                {
+                    for def in &m.config.defs {
+                        if preview_rows.len() >= 4 {
+                            break;
+                        }
+                        if matches!(def.field_type.as_str(), "aliases" | "image")
+                            || m.config.summary_field.as_deref() == Some(def.id.as_str())
+                            || m.config.status_field.as_deref() == Some(def.id.as_str())
+                            || m.config.color_field.as_deref() == Some(def.id.as_str())
+                        {
+                            continue;
+                        }
+                        let Some(val) = vals.get(&def.id) else {
+                            continue;
+                        };
+                        let rendered = match val {
+                            FieldValue::Text(t) if !t.trim().is_empty() => t.trim().to_owned(),
+                            FieldValue::Number(n) => n.to_string(),
+                            FieldValue::Bool(b) => if *b { "✓" } else { "—" }.to_owned(),
+                            FieldValue::List(xs) if !xs.is_empty() => xs.join(" · "),
+                            _ => continue,
+                        };
+                        preview_rows.push((def.name.clone(), rendered));
+                    }
+                } else if m.kind == "kv"
+                    && let Some(rows) = entry.kv.get(&m.id)
+                {
+                    for row in rows {
+                        if preview_rows.len() >= 4 {
+                            break;
+                        }
+                        if !row.key.trim().is_empty() && !row.value.trim().is_empty() {
+                            preview_rows.push((row.key.clone(), row.value.clone()));
+                        }
+                    }
+                }
+            }
+        }
+        for (k, val) in preview_rows {
+            info_els.push(
+                div()
+                    .px(px(menu_tok::HOVER_CARD_PAD))
+                    .py(px(2.0))
+                    .flex()
+                    .items_baseline()
+                    .gap(px(6.0))
+                    .font_role(Role::Ui)
+                    .type_px(s.caption, s.line_caption)
+                    .child(
+                        div()
+                            .flex_none()
+                            .text_color(p.ink(3).solid())
+                            .child(format!("{k}:")),
+                    )
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .truncate()
+                            .text_color(p.ink(2).solid())
+                            .child(val),
+                    )
+                    .into_any_element(),
+            );
+        }
+        if !info_els.is_empty() {
+            body = body.section(info_els);
+        }
+    }
+    let danger_actions = build_section(true);
+    if !danger_actions.is_empty() {
+        body = body.section(danger_actions);
     }
     let _ = window;
     body.into_any_element()

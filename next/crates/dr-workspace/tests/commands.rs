@@ -2240,3 +2240,91 @@ fn comments_on_a_whole_entry_and_a_whole_module_persist() {
     );
     assert_eq!(module["unlocated"], false);
 }
+
+#[test]
+fn asset_read_content_extracts_pdf_text_and_image_data_uri() {
+    use dr_store::asset::SourceImport;
+    let e = env();
+    let b = e.out("project.create", json!({"name": "AssetRead"}))["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let scratch = tempfile::tempdir().unwrap();
+    let pdf_path = scratch.path().join("brief.pdf");
+    let pdf_bytes = b"%PDF-1.4\n1 0 obj << /Type /Page >> endobj\n2 0 obj << /Length 34 >>\nstream\nBT (Hello Drifting PDF) Tj ET\nendstream\nendobj\n";
+    std::fs::write(&pdf_path, pdf_bytes).unwrap();
+    let pdf_stored = e
+        .ws()
+        .library()
+        .import_asset(&SourceImport {
+            book_id: &b,
+            asset_id: "asset-pdf-read",
+            source: &pdf_path,
+            mime: "application/pdf",
+            ext: "pdf",
+            dimensions: None,
+            limit: 1024 * 1024,
+        })
+        .unwrap();
+    e.call(
+        "asset.put",
+        json!({
+            "book": b,
+            "id": "asset-pdf-read",
+            "name": "brief.pdf",
+            "kind": "pdf",
+            "mime": pdf_stored.mime,
+            "size": pdf_stored.size,
+            "sha256": pdf_stored.sha256
+        }),
+    );
+    let read_pdf = e.out(
+        "asset.read_content",
+        json!({"book": b, "id": "asset-pdf-read", "offset": 0, "limit": 10}),
+    );
+    assert_eq!(read_pdf["available_locally"], true);
+    assert_eq!(read_pdf["pages"], 1);
+    assert_eq!(read_pdf["text"], "Hello Drif");
+    assert_eq!(read_pdf["next_offset"], 10);
+
+    let img_path = scratch.path().join("sketch.png");
+    let img_bytes = b"\x89PNG\r\n\x1a\nfake";
+    std::fs::write(&img_path, img_bytes).unwrap();
+    let img_stored = e
+        .ws()
+        .library()
+        .import_asset(&SourceImport {
+            book_id: &b,
+            asset_id: "asset-img-read",
+            source: &img_path,
+            mime: "image/png",
+            ext: "png",
+            dimensions: Some((64, 64)),
+            limit: 1024 * 1024,
+        })
+        .unwrap();
+    e.call(
+        "asset.put",
+        json!({
+            "book": b,
+            "id": "asset-img-read",
+            "name": "sketch.png",
+            "kind": "image",
+            "mime": img_stored.mime,
+            "size": img_stored.size,
+            "sha256": img_stored.sha256,
+            "width": 64,
+            "height": 64
+        }),
+    );
+    let read_img = e.out(
+        "asset.read_content",
+        json!({"book": b, "id": "asset-img-read", "include_data": true}),
+    );
+    assert_eq!(read_img["available_locally"], true);
+    assert!(
+        read_img["data_url"]
+            .as_str()
+            .is_some_and(|u| u.starts_with("data:image/png;base64,"))
+    );
+}

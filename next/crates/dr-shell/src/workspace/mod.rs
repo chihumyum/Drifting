@@ -384,6 +384,8 @@ fn memory_prefix(book: &str) -> String {
 /// What the Escape key closes, topmost first.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Layer {
+    AccountMenu,
+    CornerMenu,
     Notifications,
     /// 全部项目's row of projects, dropped from the top.
     Projects,
@@ -402,6 +404,8 @@ pub struct Workspace {
     pub book_id: String,
     pub book: Rc<Book>,
     pub v3_sidebar: Option<Entity<crate::v3::sidebar::Sidebar>>,
+    /// Second pane of the left sidebar when split (independent selected Tab).
+    pub v3_sidebar_secondary: Option<Entity<crate::v3::sidebar::Sidebar>>,
     book_task: Option<Task<()>>,
     /// The book changed while it was being read: read it again after.
     book_stale: bool,
@@ -543,6 +547,8 @@ pub struct Workspace {
     pub projects: Option<AnyView>,
     /// The row of projects lies over the top of the workspace.
     pub projects_open: bool,
+    /// Smooth open/close reveal for the row of projects (Smoke #19).
+    projects_reveal: Tween,
     /// How many times the row of projects has dropped (it starts afresh
     /// each time).
     pub projects_dropped: u64,
@@ -645,6 +651,7 @@ impl Workspace {
             book_id,
             book: Rc::new(Book::default()),
             v3_sidebar: None,
+            v3_sidebar_secondary: None,
             book_task: None,
             book_stale: false,
             book_reads: 0,
@@ -713,6 +720,7 @@ impl Workspace {
             shelf_open: false,
             projects: None,
             projects_open: false,
+            projects_reveal: Tween::still(0.0),
             projects_dropped: 0,
             shelf_if_unread: has_shelf && !shelf_first && named.is_none() && !failed,
             shelf_wanted: false,
@@ -791,6 +799,7 @@ impl Workspace {
         self.book_positions = positions;
         self.editors.clear();
         self.v3_sidebar = None;
+        self.v3_sidebar_secondary = None;
         self.focused_editor = None;
         self.touched = None;
         self.title_first = None;
@@ -1224,7 +1233,7 @@ impl Workspace {
         self.release_words(cx);
         self.focused_editor = None;
         self.set_immersive(false, cx);
-        self.projects_open = false;
+        self.set_projects_open(false, window, cx);
         self.shelf_open = true;
         self.guide_layer(true, window, cx);
         self.exit_fill(window, cx);
@@ -1236,13 +1245,27 @@ impl Workspace {
         true
     }
 
+    pub fn set_projects_open(&mut self, open: bool, window: &Window, cx: &mut Context<Self>) {
+        if self.projects_open == open {
+            return;
+        }
+        let reduce = self.reduce_motion(window, cx);
+        self.projects_open = open;
+        self.projects_reveal.retarget_motion(
+            if open { 1.0 } else { 0.0 },
+            dr_ui::anim::now(),
+            motion::STRUCTURAL,
+            reduce,
+        );
+        cx.notify();
+    }
+
     /// Drops 全部项目's row of projects from the top of the workspace, or puts
     /// it away. Without one registered, 全部项目 itself shows.
     pub fn toggle_projects(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.exit_fill(window, cx);
         if self.projects_open {
-            self.projects_open = false;
-            cx.notify();
+            self.set_projects_open(false, window, cx);
             return;
         }
         if self.projects.is_none() {
@@ -1252,11 +1275,10 @@ impl Workspace {
             self.show_shelf(window, cx);
             return;
         }
-        self.projects_open = true;
         self.projects_dropped += 1;
         self.notifications_open = false;
         self.account_open = false;
-        cx.notify();
+        self.set_projects_open(true, window, cx);
     }
 
     /// Opens `book` from the bookshelf: its saved tabs and sidebars come
@@ -1277,7 +1299,7 @@ impl Workspace {
         let changed_book = book != self.book_id;
         self.sea_guide_opening(window, cx);
         self.shelf_open = false;
-        self.projects_open = false;
+        self.set_projects_open(false, window, cx);
         self.notifications_open = false;
         self.exit_fill(window, cx);
         self.focus.focus(window, cx);
@@ -1345,6 +1367,7 @@ impl Workspace {
         self.touched = None;
         self.editors.clear();
         self.v3_sidebar = None;
+        self.v3_sidebar_secondary = None;
         self.release_words(cx);
         self.focused_editor = None;
         self.gave_focus = None;
@@ -1802,7 +1825,11 @@ impl Workspace {
 
     /// The topmost open layer.
     pub fn top_layer(&self) -> Option<Layer> {
-        if self.notifications_open {
+        if self.account_open {
+            Some(Layer::AccountMenu)
+        } else if self.corner_menu.is_some() {
+            Some(Layer::CornerMenu)
+        } else if self.notifications_open {
             Some(Layer::Notifications)
         } else if self.projects_open {
             Some(Layer::Projects)
@@ -1822,11 +1849,14 @@ impl Workspace {
     pub fn dismiss(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
         if self.top_layer().is_none() && self.immersive {
             self.set_immersive(false, cx);
+            self.refocus(window, cx);
             return true;
         }
         match self.top_layer() {
+            Some(Layer::AccountMenu) => self.account_open = false,
+            Some(Layer::CornerMenu) => self.corner_menu = None,
             Some(Layer::Notifications) => self.notifications_open = false,
-            Some(Layer::Projects) => self.projects_open = false,
+            Some(Layer::Projects) => self.set_projects_open(false, window, cx),
             Some(Layer::Search) => {
                 self.search = None;
                 self.refocus(window, cx);
@@ -1933,8 +1963,20 @@ impl Workspace {
         }))
         .on_action(cx.listener(|ws, _: &NewEntity, window, cx| {
             ws.exit_fill(window, cx);
-            if ws.nav.go_home() {
-                ws.changed(cx);
+            if ws.nav.current().is_some() {
+                if ws.nav.go_home() {
+                    ws.changed(cx);
+                }
+            } else {
+                // Already on Project Home: open the left sidebar if closed so
+                // create controls are immediately visible.
+                if !ws.left.open {
+                    let reduce = ws.reduce_motion(window, cx);
+                    ws.left.set_open(true, reduce);
+                    ws.changed(cx);
+                } else {
+                    cx.notify();
+                }
             }
         }))
         .on_action(cx.listener(|ws, _: &ShowProjectHome, window, cx| {
@@ -1959,12 +2001,17 @@ impl Workspace {
         }))
         // ⌘J: the timeline in the Bottom Panel (`bottom.rs`).
         .on_action(cx.listener(|ws, _: &ToggleBottomTimeline, _, cx| ws.toggle_timeline(cx)))
-        .on_action(
-            cx.listener(|ws, _: &ToggleImmersiveWriting, _, cx| {
-                ws.set_immersive(!ws.immersive, cx)
-            }),
-        )
-        .on_action(cx.listener(|ws, _: &FindInEditor, window, cx| ws.open_find(window, cx)))
+        .on_action(cx.listener(|ws, _: &ToggleImmersiveWriting, window, cx| {
+            ws.set_immersive(!ws.immersive, cx);
+            ws.refocus(window, cx);
+        }))
+        .on_action(cx.listener(|ws, _: &FindInEditor, window, cx| {
+            if let Some(settings) = ws.settings.clone() {
+                settings.update(cx, |panel, cx| panel.focus(window, cx));
+            } else {
+                ws.open_find(window, cx);
+            }
+        }))
         .on_action(cx.listener(|ws, _: &ReplaceInEditor, window, cx| ws.open_replace(window, cx)))
         .on_action(cx.listener(Self::on_new_comment))
         .on_action(cx.listener(|ws, _: &GlobalSearch, window, cx| ws.toggle_search(window, cx)))
@@ -2068,6 +2115,8 @@ impl Render for Workspace {
             .bg(p.desk.solid())
             .text_color(p.ink(1).solid())
             .on_drag_move::<sidebar::ResizeDrag>(cx.listener(sidebar::on_resize))
+            .on_drag_move::<sidebar::SidebarSplitDrag>(cx.listener(sidebar::on_split_drag))
+            .on_drag_move::<stage::SplitResizeDrag>(cx.listener(stage::on_split_resize))
             .on_drag_move::<BottomResize>(cx.listener(bottom::on_resize))
             // M26: a press off the paper leaves what typing began; the top
             // band brings the traffic lights and tab dots back.
@@ -2104,6 +2153,7 @@ impl Render for Workspace {
             .when(self.notifications_open, |el| {
                 el.child(sidebar::notification_center(self, window, cx))
             })
+            .children(sidebar::arrival_flash(self, window, cx))
             .when(self.account_open && !self.immersive, |el| {
                 el.child(sidebar::account_menu(self, window, cx))
             })
@@ -2123,28 +2173,42 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Option<gpui::AnyElement> {
-        if !self.projects_open || self.immersive {
+        let now = dr_ui::anim::now();
+        let reveal = self.projects_reveal.value(now);
+        dr_ui::anim::keep_going(!self.projects_reveal.settled(now), window);
+        if (!self.projects_open && reveal <= 0.001) || self.immersive {
             return None;
         }
         let view = self.projects.clone()?;
-        let _ = window;
-        let away = cx.listener(|ws, _: &gpui::MouseDownEvent, _, cx| {
-            ws.projects_open = false;
-            cx.notify();
+        let open = self.projects_open;
+        let away = cx.listener(|ws, _: &gpui::MouseDownEvent, window, cx| {
+            ws.set_projects_open(false, window, cx);
         });
+        let sheet_h = (326.0 * reveal).round();
         Some(
             div()
                 .absolute()
                 .inset_0()
+                .when(open, |el| {
+                    el.child(
+                        div()
+                            .id("projects-away")
+                            .absolute()
+                            .inset_0()
+                            .occlude()
+                            .on_mouse_down(gpui::MouseButton::Left, away),
+                    )
+                })
                 .child(
                     div()
-                        .id("projects-away")
                         .absolute()
-                        .inset_0()
-                        .occlude()
-                        .on_mouse_down(gpui::MouseButton::Left, away),
+                        .top_0()
+                        .left_0()
+                        .right_0()
+                        .h(px(sheet_h))
+                        .overflow_hidden()
+                        .child(view),
                 )
-                .child(div().absolute().top_0().left_0().right_0().child(view))
                 .into_any_element(),
         )
     }

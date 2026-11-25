@@ -196,6 +196,7 @@ impl ChapterEditor {
     ) -> ChapterEditor {
         let base_style = ProseStyle::default();
         let extension = Rc::new(Self::extension(&ws, book));
+        extension.set_appearance(settings.link_appearance());
         let (editor, editor_events, embeds) = Self::editor_on(
             &ws,
             book,
@@ -213,6 +214,11 @@ impl ChapterEditor {
         );
         let decor =
             crate::decor::Decor::new(&ws, book, doc_id, &editor, extension.clone(), window, cx);
+        if !settings.comment_marks_visible {
+            decor
+                .layers()
+                .update(cx, |l, cx| l.set_comment_marks_visible(false, cx));
+        }
         let mut this = ChapterEditor {
             ws,
             book: book.to_owned(),
@@ -264,6 +270,7 @@ impl ChapterEditor {
                 cx,
             );
             a.set_auto_links(settings.auto_entity_links);
+            a.set_entity_link_interactive(settings.entity_link_interactive);
             a.set_note(note);
             a.set_extension(ext);
             a
@@ -624,6 +631,11 @@ impl ChapterEditor {
         });
         self.decor
             .rebind(&self.ws, &self.book, doc_id, &self.editor, window, cx);
+        if !self.settings.comment_marks_visible {
+            self.decor_layers()
+                .clone()
+                .update(cx, |l, cx| l.set_comment_marks_visible(false, cx));
+        }
         self.todos = self.find_todos(cx);
         self.tasks = self.find_tasks(cx);
         cx.emit(ChapterEditorEvent::TodoMarkers(self.todos.clone()));
@@ -631,24 +643,41 @@ impl ChapterEditor {
         Ok(())
     }
 
-    /// Applies new settings (sizes, spacing, paper width).
+    /// Applies new settings (sizes, spacing, paper width, link appearance, etc.).
     pub fn set_settings(&mut self, settings: EditorSettings, cx: &mut Context<Self>) {
         if settings == self.settings {
             return;
         }
         let auto_changed = settings.auto_entity_links != self.settings.auto_entity_links;
+        let appearance_changed = settings.link_appearance() != self.settings.link_appearance();
+        let comments_changed =
+            settings.comment_marks_visible != self.settings.comment_marks_visible;
         self.settings = settings;
         let style = self.settings.style_for(&self.base_style, self.immersive);
         if let Some(embeds) = &self.embeds {
             embeds.restyle(style.clone(), cx);
         }
+        if appearance_changed {
+            self.extension
+                .set_appearance(self.settings.link_appearance());
+        }
         self.editor.update(cx, |e, cx| e.set_style(style, cx));
         let auto = self.settings.auto_entity_links;
-        self.assist.update(cx, |a, _| a.set_auto_links(auto));
-        if auto_changed {
+        let interactive = self.settings.entity_link_interactive;
+        self.assist.update(cx, |a, _| {
+            a.set_auto_links(auto);
+            a.set_entity_link_interactive(interactive);
+        });
+        if auto_changed || appearance_changed {
             self.decor_layers()
                 .clone()
                 .update(cx, |l, cx| l.refresh_links(cx));
+        }
+        if comments_changed {
+            let visible = self.settings.comment_marks_visible;
+            self.decor_layers()
+                .clone()
+                .update(cx, |l, cx| l.set_comment_marks_visible(visible, cx));
         }
         cx.notify();
     }

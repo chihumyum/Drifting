@@ -37,6 +37,8 @@ enum Binding {
     ModuleName(String),
     FieldName(String, String),
     Options(String, String),
+    DefaultValue(String, String),
+    ProseBoilerplate(String),
     AgentName,
     AgentDescription,
     AgentInstructions,
@@ -78,19 +80,24 @@ impl Binding {
                 .find(|m| &m.id == id)
                 .map(|m| m.name.clone())
                 .unwrap_or_default(),
-            Self::FieldName(m, f) | Self::Options(m, f) => t
+            Self::FieldName(m, f) | Self::Options(m, f) | Self::DefaultValue(m, f) => t
                 .modules
                 .iter()
                 .find(|x| &x.id == m)
                 .and_then(|m| m.config.defs.iter().find(|x| &x.id == f))
-                .map(|f| {
-                    if matches!(self, Self::Options(..)) {
-                        f.options.join("\n")
-                    } else {
-                        f.name.clone()
-                    }
+                .map(|f| match self {
+                    Self::Options(..) => f.options.join("\n"),
+                    Self::DefaultValue(..) => match f.default_value.as_ref() {
+                        Some(FieldValue::Text(s)) => s.clone(),
+                        Some(FieldValue::Number(n)) => n.to_string(),
+                        Some(FieldValue::Bool(b)) => b.to_string(),
+                        Some(FieldValue::List(xs)) => xs.join("\n"),
+                        _ => String::new(),
+                    },
+                    _ => f.name.clone(),
                 })
                 .unwrap_or_default(),
+            Self::ProseBoilerplate(_) => String::new(),
         }
     }
     fn set(&self, t: &mut EntryTemplate, value: String) {
@@ -127,25 +134,43 @@ impl Binding {
                     }
                 }
             }
-            Self::FieldName(m, f) | Self::Options(m, f) => {
+            Self::FieldName(m, f) | Self::Options(m, f) | Self::DefaultValue(m, f) => {
                 if let Some(f) = t
                     .modules
                     .iter_mut()
                     .find(|x| &x.id == m)
                     .and_then(|m| m.config.defs.iter_mut().find(|x| &x.id == f))
                 {
-                    if matches!(self, Self::Options(..)) {
-                        f.options = value
-                            .lines()
-                            .map(str::trim)
-                            .filter(|s| !s.is_empty())
-                            .map(str::to_owned)
-                            .collect();
-                    } else {
-                        f.name = value;
+                    match self {
+                        Self::Options(..) => {
+                            f.options = value
+                                .lines()
+                                .map(str::trim)
+                                .filter(|s| !s.is_empty())
+                                .map(str::to_owned)
+                                .collect();
+                        }
+                        Self::DefaultValue(..) => {
+                            let trimmed = value.trim();
+                            f.default_value = if trimmed.is_empty() {
+                                None
+                            } else if f.field_type == "number" {
+                                trimmed
+                                    .parse::<f64>()
+                                    .ok()
+                                    .filter(|n| n.is_finite())
+                                    .map(FieldValue::Number)
+                            } else {
+                                Some(FieldValue::Text(value))
+                            };
+                        }
+                        _ => {
+                            f.name = value;
+                        }
                     }
                 }
             }
+            Self::ProseBoilerplate(_) => {}
         }
     }
 }
@@ -200,6 +225,9 @@ pub struct TemplateEditor {
     /// My modules (`custom_module.list`, CM3): the 「添加模块」 menu's
     /// section, and which of the template's modules follow them.
     my_modules: Option<Vec<dr_workspace::commands::v3::custom_module::ModuleSummary>>,
+    /// Template prose boilerplate per prose module (`template:<book>/<tpl>/<mod>`).
+    base_prose: BTreeMap<String, String>,
+    draft_prose: BTreeMap<String, String>,
     _my_modules: Option<dr_store::LibrarySubscription>,
     _book: Option<Subscription>,
 }
@@ -266,10 +294,15 @@ impl TemplateEditor {
             preview_cache: crate::preview::Cache::default(),
             preview_task: None,
             my_modules: None,
+            base_prose: BTreeMap::new(),
+            draft_prose: BTreeMap::new(),
             _my_modules: None,
             _book: None,
         };
         this.listen_my_modules(cx);
+        if !this.creating {
+            this.load_prose_templates(cx);
+        }
         if let Some(workspace) = this.host.workspace.upgrade() {
             this._book = Some(
                 cx.observe_in(&workspace, window, |this, workspace, window, cx| {
@@ -379,7 +412,79 @@ impl TemplateEditor {
         self.saving
     }
     pub fn dirty(&self) -> bool {
-        self.base.as_ref() != Some(&self.draft)
+        self.base.as_ref() != Some(&self.draft) || self.prose_dirty()
+    }
+
+    fn prose_dirty(&self) -> bool {
+        self.draft
+            .modules
+            .iter()
+            .filter(|m| m.kind == "prose")
+            .any(|m| {
+                let d = self
+                    .draft_prose
+                    .get(&m.id)
+                    .map(String::as_str)
+                    .unwrap_or("");
+                let b = self.base_prose.get(&m.id).map(String::as_str).unwrap_or("");
+                d != b
+            })
+    }
+
+    fn load_prose_templates(&mut self, cx: &mut Context<Self>) {
+        let lib = self.host.library.clone();
+        let book = self.host.book_id.clone();
+        let owner = self.draft.id.clone();
+        let mods: Vec<String> = self
+            .draft
+            .modules
+            .iter()
+            .filter(|m| m.kind == "prose")
+            .map(|m| m.id.clone())
+            .collect();
+        if mods.is_empty() {
+            return;
+        }
+        let task = cx.background_spawn(async move {
+            let mut out = BTreeMap::new();
+            for mid in mods {
+                if let Ok(resp) = lib.call(
+                    &dr_workspace::Actor::User,
+                    "module.read_prose",
+                    serde_json::json!({
+                        "book": book,
+                        "owner": owner,
+                        "module": mid,
+                        "template": true,
+                    }),
+                ) && let Some(paras) = resp["output"]["paragraphs"].as_array()
+                {
+                    let text: String = paras
+                        .iter()
+                        .filter_map(|p| p["text"].as_str())
+                        .collect::<Vec<_>>()
+                        .join("\n");
+                    if !text.is_empty() {
+                        out.insert(mid, text);
+                    }
+                }
+            }
+            out
+        });
+        cx.spawn(async move |this, cx| {
+            let loaded = task.await;
+            let _ = this.update(cx, |this, cx| {
+                for (mid, text) in loaded {
+                    let untouched = this.draft_prose.get(&mid) == this.base_prose.get(&mid);
+                    this.base_prose.insert(mid.clone(), text.clone());
+                    if untouched {
+                        this.draft_prose.insert(mid, text);
+                    }
+                }
+                cx.notify();
+            });
+        })
+        .detach();
     }
 
     pub fn follow(&mut self, book: Rc<Book>, window: &Window, cx: &mut Context<Self>) {
@@ -481,7 +586,12 @@ impl TemplateEditor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let value = binding.value(&self.draft);
+        let value = match &binding {
+            Binding::ProseBoilerplate(mid) => {
+                self.draft_prose.get(mid).cloned().unwrap_or_default()
+            }
+            _ => binding.value(&self.draft),
+        };
         if !self.inputs.contains_key(&binding) {
             let id: SharedString = format!("k5-{:?}", binding).into();
             let which = binding.clone();
@@ -496,7 +606,11 @@ impl TemplateEditor {
                     window,
                     move |this, _, event: &FieldEvent, window, cx| match event {
                         FieldEvent::Changed(value) => {
-                            which.set(&mut this.draft, value.clone());
+                            if let Binding::ProseBoilerplate(mid) = &which {
+                                this.draft_prose.insert(mid.clone(), value.clone());
+                            } else {
+                                which.set(&mut this.draft, value.clone());
+                            }
                             cx.notify();
                         }
                         FieldEvent::Cancelled => this.cancel_field(&which, window, cx),
@@ -515,7 +629,11 @@ impl TemplateEditor {
                     window,
                     move |this, _, event: &FieldEvent, window, cx| match event {
                         FieldEvent::Changed(value) => {
-                            which.set(&mut this.draft, value.clone());
+                            if let Binding::ProseBoilerplate(mid) = &which {
+                                this.draft_prose.insert(mid.clone(), value.clone());
+                            } else {
+                                which.set(&mut this.draft, value.clone());
+                            }
                             cx.notify();
                         }
                         FieldEvent::Cancelled => this.cancel_field(&which, window, cx),
@@ -590,8 +708,46 @@ impl TemplateEditor {
         if let Some(id) = &template_id {
             let _ = workspace.update(cx, |ws, cx| ws.template_saving(id, true, cx));
         }
-        let task =
-            cx.background_spawn(async move { model::save(&lib, &book, base.as_ref(), &draft) });
+        let prose_writes: Vec<(String, String)> = self
+            .draft
+            .modules
+            .iter()
+            .filter(|m| m.kind == "prose")
+            .filter_map(|m| {
+                let d = self
+                    .draft_prose
+                    .get(&m.id)
+                    .map(String::as_str)
+                    .unwrap_or("");
+                let b = self.base_prose.get(&m.id).map(String::as_str).unwrap_or("");
+                (d != b).then(|| (m.id.clone(), d.to_owned()))
+            })
+            .collect();
+        let submitted_prose = prose_writes.clone();
+        let task = cx.background_spawn(async move {
+            let saved = model::save(&lib, &book, base.as_ref(), &draft)?;
+            for (mid, text) in &prose_writes {
+                let paragraphs: Vec<serde_json::Value> = if text.is_empty() {
+                    Vec::new()
+                } else {
+                    text.lines()
+                        .map(|line| serde_json::json!({ "text": line }))
+                        .collect()
+                };
+                lib.call(
+                    &dr_workspace::Actor::User,
+                    "module.set_prose",
+                    serde_json::json!({
+                        "book": book,
+                        "owner": saved.id,
+                        "module": mid,
+                        "template": true,
+                        "paragraphs": paragraphs,
+                    }),
+                )?;
+            }
+            Ok::<_, dr_workspace::WsError>(saved)
+        });
         cx.spawn(async move |this, cx| {
             let result = task.await;
             if let Some(id) = &template_id {
@@ -603,6 +759,9 @@ impl TemplateEditor {
                     this.saving = false;
                     match result {
                         Ok(saved) => {
+                            for (mid, text) in &submitted_prose {
+                                this.base_prose.insert(mid.clone(), text.clone());
+                            }
                             match model::reconcile(&submitted, &this.draft, &saved) {
                                 Ok(draft) => this.draft = draft,
                                 Err(_) => this.error = Some(true),
@@ -755,6 +914,7 @@ impl TemplateEditor {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let theme = Theme::of(window, cx);
+        let p = theme.palette;
         let mid = module.id.clone();
         let owner = cx.entity_id();
         let label: SharedString = module.name.clone().into();
@@ -867,6 +1027,38 @@ impl TemplateEditor {
                     )
                     .child(switch_label),
             );
+            if self.compact.is_none() {
+                let bp = self.field(
+                    Binding::ProseBoilerplate(mid.clone()),
+                    t(cx, k::DEFAULT_PROSE),
+                    true,
+                    window,
+                    cx,
+                );
+                row = row.child(
+                    div()
+                        .pl(px(22.))
+                        .pt(px(4.))
+                        .flex()
+                        .flex_col()
+                        .gap(px(4.))
+                        .child(
+                            div()
+                                .font_role(Role::Ui)
+                                .type_px(theme.scale.caption, theme.scale.line_caption)
+                                .text_color(p.ink(3).solid())
+                                .child(t(cx, k::DEFAULT_PROSE)),
+                        )
+                        .child(
+                            div()
+                                .font_role(Role::Ui)
+                                .type_px(theme.scale.caption, theme.scale.line_caption)
+                                .text_color(p.ink(4).solid())
+                                .child(t(cx, k::DEFAULT_PROSE_HINT)),
+                        )
+                        .child(bp),
+                );
+            }
         }
         for field in &module.config.defs {
             let fid = field.id.clone();
@@ -926,13 +1118,43 @@ impl TemplateEditor {
             );
             if matches!(field.field_type.as_str(), "select" | "multi_select") {
                 let input = self.field(
-                    Binding::Options(mid.clone(), fid),
+                    Binding::Options(mid.clone(), fid.clone()),
                     t(cx, k::OPTIONS),
                     true,
                     window,
                     cx,
                 );
                 row = row.child(div().pl(px(22.)).child(t(cx, k::OPTIONS)).child(input));
+            }
+            if self.compact.is_none()
+                && matches!(
+                    field.field_type.as_str(),
+                    "text" | "long_text" | "number" | "date" | "select"
+                )
+            {
+                let def_input = self.field(
+                    Binding::DefaultValue(mid.clone(), fid),
+                    t(cx, k::DEFAULT_VALUE),
+                    field.field_type == "long_text",
+                    window,
+                    cx,
+                );
+                row = row.child(
+                    div()
+                        .pl(px(22.))
+                        .flex()
+                        .items_center()
+                        .gap(px(8.))
+                        .child(
+                            div()
+                                .flex_none()
+                                .font_role(Role::Ui)
+                                .type_px(theme.scale.caption, theme.scale.line_caption)
+                                .text_color(p.ink(3).solid())
+                                .child(t(cx, k::DEFAULT_VALUE)),
+                        )
+                        .child(def_input),
+                );
             }
         }
         row.into_any_element()

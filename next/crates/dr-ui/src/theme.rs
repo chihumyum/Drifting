@@ -5,9 +5,12 @@
 //! size and reduced motion. [`Theme::of`] resolves it against the window's
 //! own appearance, so a forced switch never touches the system setting.
 
-use gpui::{App, Global, Window, WindowAppearance};
+use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
 
-use crate::tokens::{Palette, TextSize, TypeScale};
+use gpui::{App, Global, Hsla, Window, WindowAppearance};
+
+use crate::tokens::{Palette, Rgb, TextSize, TypeScale};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum Appearance {
@@ -40,7 +43,7 @@ impl Appearance {
 }
 
 /// How the app wants to look, independent of any one window.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct ThemeSettings {
     /// `None` follows the window (the system); `Some` forces one appearance.
     pub forced: Option<Appearance>,
@@ -48,9 +51,37 @@ pub struct ThemeSettings {
     /// Skip every movement straight to where it ends. `None` follows the
     /// platform (GPUI's `reduce_motion`).
     pub reduce_motion: Option<bool>,
+    /// Optional custom interface accent colour override (M08 `accentColor`).
+    pub accent: Option<Rgb>,
+    /// Optional custom caret colour override (M08 `caretColor`).
+    pub caret: Option<Rgb>,
 }
 
 impl Global for ThemeSettings {}
+
+type AccentPaletteCache = Mutex<HashMap<(Appearance, [u8; 3]), &'static Palette>>;
+
+fn palette_with_accent(appearance: Appearance, accent: Option<Rgb>) -> &'static Palette {
+    let Some(rgb) = accent else {
+        return appearance.palette();
+    };
+    static CACHE: OnceLock<AccentPaletteCache> = OnceLock::new();
+    let key = (appearance, rgb.to_u8());
+    let mut map = CACHE
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
+    map.entry(key).or_insert_with(|| {
+        let mut custom = *appearance.palette();
+        custom.accent = rgb;
+        custom.accent_ink = if rgb.luminance() > 0.36 {
+            Rgb::hsl(30.0, 6.0, 12.0)
+        } else {
+            Rgb::WHITE
+        };
+        Box::leak(Box::new(custom))
+    })
+}
 
 /// What a view paints with right now.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -59,6 +90,7 @@ pub struct Theme {
     pub palette: &'static Palette,
     pub scale: TypeScale,
     pub reduce_motion: bool,
+    pub caret: Option<Rgb>,
 }
 
 impl Theme {
@@ -72,9 +104,10 @@ impl Theme {
             .unwrap_or_else(|| Appearance::from_window(window.appearance()));
         Theme {
             appearance,
-            palette: appearance.palette(),
+            palette: palette_with_accent(appearance, settings.accent),
             scale: settings.text_size.scale(),
             reduce_motion: settings.reduce_motion.unwrap_or_else(|| cx.reduce_motion()),
+            caret: settings.caret,
         }
     }
 
@@ -85,11 +118,17 @@ impl Theme {
             palette: appearance.palette(),
             scale: TypeScale::STANDARD,
             reduce_motion: false,
+            caret: None,
         }
     }
 
     pub fn dark(&self) -> bool {
         self.palette.dark
+    }
+
+    /// Caret colour for text inputs and editors (custom override or palette accent).
+    pub fn caret_color(&self) -> Hsla {
+        self.caret.unwrap_or(self.palette.accent).solid()
     }
 }
 
@@ -123,6 +162,28 @@ pub fn set_text_size(size: TextSize, cx: &mut App) {
         .copied()
         .unwrap_or_default();
     settings.text_size = size;
+    cx.set_global(settings);
+    cx.refresh_windows();
+}
+
+/// Sets a custom interface accent colour (`None` restores the theme default) and repaints.
+pub fn set_accent_color(accent: Option<Rgb>, cx: &mut App) {
+    let mut settings = cx
+        .try_global::<ThemeSettings>()
+        .copied()
+        .unwrap_or_default();
+    settings.accent = accent;
+    cx.set_global(settings);
+    cx.refresh_windows();
+}
+
+/// Sets a custom caret colour (`None` restores the theme accent) and repaints.
+pub fn set_caret_color(caret: Option<Rgb>, cx: &mut App) {
+    let mut settings = cx
+        .try_global::<ThemeSettings>()
+        .copied()
+        .unwrap_or_default();
+    settings.caret = caret;
     cx.set_global(settings);
     cx.refresh_windows();
 }

@@ -441,6 +441,7 @@ impl BookEditor {
             book: book.to_owned(),
         }) as Box<dyn LinkTargets>);
         let extension = Rc::new(DriftingExtension::new(targets));
+        extension.set_appearance(settings.link_appearance());
         let (chapters, editor, events, embeds) =
             Self::install(&ws, prepared, &style, &extension, window, cx);
         let pages: crate::page::Pages = Default::default();
@@ -459,6 +460,7 @@ impl BookEditor {
             let mut a =
                 crate::assist::Assist::new(ws.clone(), book, editor.clone(), docs, window, cx);
             a.set_auto_links(settings.auto_entity_links);
+            a.set_entity_link_interactive(settings.entity_link_interactive);
             // The small file mark after a link to a file, as in a chapter editor.
             a.set_extension(ext);
             // Each chapter's slash menu as its chapter editor has it.
@@ -522,6 +524,11 @@ impl BookEditor {
             window,
             cx,
         );
+        if !settings.comment_marks_visible {
+            decor
+                .layers()
+                .update(cx, |l, cx| l.set_comment_marks_visible(false, cx));
+        }
         let mut this = BookEditor {
             ws,
             book: book_id,
@@ -910,6 +917,11 @@ impl BookEditor {
         let docs = self.chapters.iter().map(|c| c.doc.clone()).collect();
         self.decor
             .rebind_book(&self.ws, &self.book, docs, &self.editor, window, cx);
+        if !self.settings.comment_marks_visible {
+            self.decor_layers()
+                .clone()
+                .update(cx, |l, cx| l.set_comment_marks_visible(false, cx));
+        }
 
         if let (Some(anchor), Some(head)) = (
             selected_docs.0.as_deref().and_then(|d| self.chapter_of(d)),
@@ -1326,19 +1338,36 @@ impl BookEditor {
             return;
         }
         let auto_changed = settings.auto_entity_links != self.settings.auto_entity_links;
+        let appearance_changed = settings.link_appearance() != self.settings.link_appearance();
+        let comments_changed =
+            settings.comment_marks_visible != self.settings.comment_marks_visible;
         self.settings = settings;
         let style = self.settings.style_for(&self.base_style, self.immersive);
         for embeds in self.embeds.iter().flatten() {
             embeds.restyle(style.clone(), cx);
         }
+        if appearance_changed {
+            self.extension
+                .set_appearance(self.settings.link_appearance());
+        }
         self.pages.set_style(style.clone(), &self.editor, cx);
         self.editor.update(cx, |e, cx| e.set_style(style, cx));
         let auto = self.settings.auto_entity_links;
-        self.assist.update(cx, |a, _| a.set_auto_links(auto));
-        if auto_changed {
+        let interactive = self.settings.entity_link_interactive;
+        self.assist.update(cx, |a, _| {
+            a.set_auto_links(auto);
+            a.set_entity_link_interactive(interactive);
+        });
+        if auto_changed || appearance_changed {
             self.decor_layers()
                 .clone()
                 .update(cx, |l, cx| l.refresh_links(cx));
+        }
+        if comments_changed {
+            let visible = self.settings.comment_marks_visible;
+            self.decor_layers()
+                .clone()
+                .update(cx, |l, cx| l.set_comment_marks_visible(visible, cx));
         }
         cx.notify();
     }

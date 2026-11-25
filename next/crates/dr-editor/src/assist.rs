@@ -181,7 +181,7 @@ impl SlashAction {
 
     pub fn label(self) -> &'static str {
         match self {
-            SlashAction::Mention => "人物链接",
+            SlashAction::Mention => "条目链接",
             SlashAction::Todo => "待办",
             SlashAction::Comment => "批注",
             SlashAction::PositionLink => "位置链接",
@@ -190,7 +190,9 @@ impl SlashAction {
 
     fn words(self) -> &'static [&'static str] {
         match self {
-            SlashAction::Mention => &["@", "mention", "link", "人物", "要素", "链接"],
+            SlashAction::Mention => &[
+                "@", "mention", "link", "entry", "条目", "人物", "要素", "链接",
+            ],
             SlashAction::Todo => &["todo", "task", "待办"],
             SlashAction::Comment => &["comment", "note", "批注"],
             SlashAction::PositionLink => &["location", "link", "位置"],
@@ -305,7 +307,8 @@ pub enum MenuRow {
         target: LinkTarget,
         group: entity_links::NameGroup,
     },
-    /// 「创建要素「name」」.
+    /// 「创建条目「name」」.
+    CreateEntry(String),
     Block(BlockChoice),
     Action(SlashAction),
     /// A material note's own entry.
@@ -443,6 +446,7 @@ pub struct Assist {
     /// tests).
     pub names_dropped: usize,
     auto_links: bool,
+    entity_link_interactive: bool,
     /// Paragraphs typed in since the last automatic-link pass: chapter, block
     /// id, and the line index when it has none.
     pending: Vec<(usize, Option<String>, usize)>,
@@ -539,6 +543,7 @@ impl Assist {
             material_list_calls: 0,
             names_dropped: 0,
             auto_links: true,
+            entity_link_interactive: true,
             pending: Vec::new(),
             link_task: None,
             undo_counts,
@@ -686,6 +691,14 @@ impl Assist {
         if !on {
             self.pending.clear();
             self.link_task = None;
+        }
+    }
+
+    /// The setting `editor.entity_link_interactive`.
+    pub fn set_entity_link_interactive(&mut self, on: bool) {
+        self.entity_link_interactive = on;
+        if !on {
+            self.close_card();
         }
     }
 
@@ -1158,6 +1171,15 @@ impl Assist {
                         group: entity_links::NameGroup::Asset,
                     }));
                 }
+                let trimmed = query.trim();
+                if !trimmed.is_empty() {
+                    let exact = rows.iter().any(|r| {
+                        matches!(r, MenuRow::Link { name, .. } if name.eq_ignore_ascii_case(trimmed))
+                    });
+                    if !exact {
+                        rows.push(MenuRow::CreateEntry(trimmed.to_owned()));
+                    }
+                }
                 rows
             }
         }
@@ -1240,6 +1262,9 @@ impl Assist {
         match row {
             MenuRow::Link { name, target, .. } => {
                 self.insert_link(chapter, at..caret, &name, &target, window, cx);
+            }
+            MenuRow::CreateEntry(name) => {
+                self.create_and_insert_link(chapter, at..caret, &name, window, cx);
             }
 
             MenuRow::Block(choice) => self.apply_block(chapter, at..caret, choice, window, cx),
@@ -1622,6 +1647,75 @@ impl Assist {
         });
     }
 
+    /// Creates a new linkable entry from `@query` and inserts a manual link to it.
+    fn create_and_insert_link(
+        &mut self,
+        chapter: usize,
+        range: Range<usize>,
+        name: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        // Pick a linkable non-level template from the book without recognizing
+        // any built-in template id; prefer a container whose default child
+        // template matches it.
+        let picked = crate::v3::read(&self.ws, &self.book, |v| {
+            let entries = v.entries_map();
+            let templates = v.templates_map();
+            let live_templates: Vec<_> = templates
+                .values()
+                .filter(|t| t.deleted_at.is_none())
+                .collect();
+            let tpl = live_templates
+                .iter()
+                .find(|t| t.linkable && !t.level && t.settings.accept != Some(true))
+                .or_else(|| live_templates.iter().find(|t| t.linkable && !t.level))
+                .or_else(|| live_templates.iter().find(|t| !t.level))
+                .or_else(|| live_templates.first())
+                .map(|t| t.id.to_string());
+            let parent = tpl.as_ref().and_then(|tid| {
+                entries
+                    .values()
+                    .find(|e| {
+                        e.deleted_at.is_none()
+                            && e.level
+                            && dr_model::v3::resolve_level_settings(
+                                Some(&e.id),
+                                &entries,
+                                &templates,
+                            )
+                            .default_template
+                            .as_ref()
+                            .is_some_and(|c| c.as_str() == tid)
+                    })
+                    .map(|e| e.id.to_string())
+            });
+            (tpl, parent)
+        })
+        .ok();
+        let (template, parent) = match picked {
+            Some((Some(t), p)) => (t, p),
+            _ => return,
+        };
+        let mut payload = serde_json::json!({
+            "book": self.book,
+            "template": template,
+            "title": name,
+        });
+        if let Some(p) = parent {
+            payload["parent"] = serde_json::Value::String(p);
+        }
+        let Ok(out) = crate::v3::call(&self.ws, "entry.create", payload) else {
+            return;
+        };
+        let Some(id) = out["id"].as_str() else {
+            return;
+        };
+        let target = LinkTarget::new(dr_model::kind::EntityKind::Entry, id);
+        self.invalidate_names(cx);
+        self.insert_link(chapter, range, name, &target, window, cx);
+    }
+
     /// Drifting's own slash entries: `/query` goes, then the action.
     fn apply_action(
         &mut self,
@@ -1820,8 +1914,8 @@ impl Assist {
         let DecorationEvent::Pointed { ids } = event else {
             return;
         };
-        // While a relation is being made a name is picked, not carded.
-        if self.relate.composing() {
+        // While a relation is being made or link interaction is off, a name is not carded.
+        if self.relate.composing() || !self.entity_link_interactive {
             self.pointed_link = None;
             return;
         }
@@ -1907,13 +2001,14 @@ impl Assist {
         }
     }
 
-    /// A plain click on a live link: the host opens its target.
-    pub fn link_clicked(&mut self, cx: &mut Context<Self>) {
-        if self.relate.composing() {
-            return;
+    /// A plain click on a live link: the host opens its target. Returns whether
+    /// an entity link was handled.
+    pub fn link_clicked(&mut self, cx: &mut Context<Self>) -> bool {
+        if self.relate.composing() || !self.entity_link_interactive {
+            return false;
         }
         let Some((chapter, id)) = self.pointed_link.clone() else {
-            return;
+            return false;
         };
         {
             let link = self
@@ -1937,8 +2032,38 @@ impl Assist {
             self.close_card();
             if let Some(link) = link {
                 self.open_entity_link_v3(link, cx);
+                return true;
             }
         }
+        false
+    }
+
+    /// Opens an external `http://` or `https://` URL link under the caret, if any.
+    pub fn url_link_clicked(&mut self, cx: &mut Context<Self>) -> bool {
+        let url = self.editor.update(cx, |e, _| {
+            let sel = e.selection();
+            if !sel.is_empty() {
+                return None;
+            }
+            let doc = &e.book().chapters.get(sel.chapter)?.doc;
+            let max = doc.max_cursor();
+            let candidate = if sel.head < max {
+                doc.marks_before(sel.head + 1).link().map(str::to_owned)
+            } else {
+                None
+            }
+            .or_else(|| {
+                (sel.head > 0)
+                    .then(|| doc.marks_before(sel.head).link().map(str::to_owned))
+                    .flatten()
+            });
+            candidate.filter(|u| u.starts_with("https://") || u.starts_with("http://"))
+        });
+        if let Some(url) = url {
+            cx.open_url(&url);
+            return true;
+        }
+        false
     }
 
     /// Body and table clicks share the versioned endpoint and raw mark reader.
@@ -2101,8 +2226,9 @@ impl Assist {
         let theme = Theme::of(window, cx);
         let mut list = Menu::new("dr-editor-picker").width(MenuWidth::Wide);
         let mut section: Option<NameGroup> = None;
+        let strings = crate::file_host::strings(cx);
         for (ix, row) in menu.rows.iter().enumerate() {
-            // Each group under its heading; 创建要素 after a hairline.
+            // Each group under its heading; 创建条目 after a hairline.
             match row {
                 MenuRow::Link { group, .. } if section != Some(*group) => {
                     if section.is_some() {
@@ -2117,6 +2243,9 @@ impl Assist {
                         list = list.section(label, &theme);
                     }
                     section = Some(*group);
+                }
+                MenuRow::CreateEntry(_) if ix > 0 => {
+                    list = list.separator(&theme);
                 }
 
                 // The slash menu: the formats, the rule, Drifting's own.
@@ -2168,14 +2297,37 @@ impl Assist {
                         (RowIcon::Mark(kind, None), name.clone().into(), None)
                     }
                 }
+                MenuRow::CreateEntry(name) => (
+                    Icon::Plus.into(),
+                    format!(
+                        "{}{name}{}",
+                        strings.mention_create_entry_prefix, strings.mention_create_entry_suffix
+                    )
+                    .into(),
+                    None,
+                ),
 
                 MenuRow::Block(choice) => (choice.icon().into(), self.block_label(*choice), None),
-                MenuRow::Action(action) => (action.icon().into(), action.label().into(), None),
+                MenuRow::Action(action) => {
+                    let label = match action {
+                        SlashAction::Mention => strings.slash_entry_link.clone(),
+                        SlashAction::Todo => strings.slash_todo.clone(),
+                        SlashAction::Comment => strings.slash_comment.clone(),
+                        SlashAction::PositionLink => strings.slash_position_link.clone(),
+                    };
+                    (action.icon().into(), label, None)
+                }
                 MenuRow::Note(choice) => {
-                    let label = if *choice == NoteChoice::Material {
-                        crate::file_host::strings(cx).slash_image_or_pdf
-                    } else {
-                        choice.label().into()
+                    let label = match choice {
+                        NoteChoice::Bullet => strings.slash_bullet_list.clone(),
+                        NoteChoice::Ordered => strings.slash_ordered_list.clone(),
+                        NoteChoice::Task => strings.slash_task_list.clone(),
+                        NoteChoice::Table => strings.slash_table.clone(),
+                        NoteChoice::Code => strings.slash_code_block.clone(),
+                        NoteChoice::InlineCode => strings.fmt_inline_code.clone(),
+                        NoteChoice::Callout => strings.slash_callout.clone(),
+                        NoteChoice::Highlight => strings.fmt_highlight.clone(),
+                        NoteChoice::Material => strings.slash_image_or_pdf.clone(),
                     };
                     (choice.icon().into(), label, None)
                 }
@@ -2184,7 +2336,7 @@ impl Assist {
                     title.clone().into(),
                     Some(if *pdf { "PDF" } else { "" }),
                 ),
-                MenuRow::Nothing(text) => (Icon::ImagePlus.into(), (*text).into(), None),
+                MenuRow::Nothing(_) => (Icon::ImagePlus.into(), strings.empty.clone(), None),
             };
             let this = this.clone();
             let mut item = MenuItem::new(("dr-editor-picker-row", ix), icon, label)
@@ -2417,9 +2569,10 @@ impl Assist {
     fn bar_element(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::of(window, cx);
         let p = theme.palette;
+        let strings = crate::file_host::strings(cx);
         let this = cx.entity();
-        let active: Vec<bool> = self.editor.update(cx, |e, _| {
-            [
+        let (active, active_blocks): (Vec<bool>, [bool; 5]) = self.editor.update(cx, |e, _| {
+            let marks = [
                 inline::BOLD,
                 inline::ITALIC,
                 inline::UNDERLINE,
@@ -2429,55 +2582,148 @@ impl Assist {
             ]
             .iter()
             .map(|k| e.mark_active(k))
-            .collect()
+            .collect();
+            let sel = e.selection();
+            let parts = if sel.spans_chapters() {
+                e.book().split_range(sel.book_range())
+            } else {
+                vec![(sel.chapter, sel.range())]
+            };
+            let mut any_line = false;
+            let mut all_body = true;
+            let mut all_h1 = true;
+            let mut all_h2 = true;
+            let mut all_h3 = true;
+            let mut all_quote = true;
+            for (chapter, range) in parts {
+                let Some(ch) = e.book().chapters.get(chapter) else {
+                    continue;
+                };
+                let doc = &ch.doc;
+                let (first, _) = doc.locate(range.start);
+                let (mut last, inner) = doc.locate(range.end);
+                if !range.is_empty() && inner == 0 && last > first {
+                    last -= 1;
+                }
+                for ix in first..=last.min(doc.visible_lines().saturating_sub(1)) {
+                    any_line = true;
+                    let line = doc.line(ix);
+                    let quoted = line.block.get(block::QUOTE).is_some();
+                    let special = quoted
+                        || line.block.get(block::LIST).is_some()
+                        || line.block.get(block::CODE_BLOCK).is_some()
+                        || line.block.get(block::CALLOUT).is_some()
+                        || line.block.get(block::RULE).is_some();
+                    all_body &= line.kind == BlockKind::Body && !special;
+                    all_h1 &= line.kind == BlockKind::H1;
+                    all_h2 &= line.kind == BlockKind::H2;
+                    all_h3 &= line.kind == BlockKind::H3;
+                    all_quote &= quoted;
+                }
+            }
+            let blocks = if any_line {
+                [all_body, all_h1, all_h2, all_h3, all_quote]
+            } else {
+                [false; 5]
+            };
+            (marks, blocks)
         });
+        let mac = cfg!(target_os = "macos");
+        let block_shortcut = |choice: BlockChoice| -> Option<&'static str> {
+            match (choice, mac) {
+                (BlockChoice::Body, true) => Some("⌘0"),
+                (BlockChoice::Body, false) => Some("Ctrl+0"),
+                (BlockChoice::H1, true) => Some("⌘1"),
+                (BlockChoice::H1, false) => Some("Ctrl+1"),
+                (BlockChoice::H2, true) => Some("⌘2"),
+                (BlockChoice::H2, false) => Some("Ctrl+2"),
+                (BlockChoice::H3, true) => Some("⌘3"),
+                (BlockChoice::H3, false) => Some("Ctrl+3"),
+                _ => None,
+            }
+        };
         let across = self.bar_across;
-        let block_button = |choice: BlockChoice, this: Entity<Assist>| {
-            IconButton::new(("dr-editor-bar-block", choice as usize), choice.icon())
+        let block_button = |choice: BlockChoice, selected: bool, this: Entity<Assist>| {
+            let mut btn = IconButton::new(("dr-editor-bar-block", choice as usize), choice.icon())
                 .label(self.block_label(choice))
                 .in_tray()
+                .selected(selected)
                 .disabled(across && choice == BlockChoice::Quote)
                 .on_click(move |_, window, cx| {
                     this.update(cx, |a, cx| a.bar_block(choice, window, cx))
-                })
+                });
+            if let Some(sc) = block_shortcut(choice) {
+                btn = btn.shortcut(sc);
+            }
+            btn
         };
-        let marks = [
-            (inline::BOLD, Icon::FmtBold, "粗体"),
-            (inline::ITALIC, Icon::FmtItalic, "斜体"),
-            (inline::UNDERLINE, Icon::FmtUnderline, "下划线"),
-            (inline::STRIKE, Icon::FmtStrike, "删除线"),
-            (inline::CODE, Icon::Code, "行内代码"),
-            (crate::highlight::KEY, Icon::Highlight, "高亮"),
+        let marks: [(&'static str, Icon, SharedString, Option<&'static str>); 6] = [
+            (
+                inline::BOLD,
+                Icon::FmtBold,
+                strings.fmt_bold,
+                Some(if mac { "⌘B" } else { "Ctrl+B" }),
+            ),
+            (
+                inline::ITALIC,
+                Icon::FmtItalic,
+                strings.fmt_italic,
+                Some(if mac { "⌘I" } else { "Ctrl+I" }),
+            ),
+            (
+                inline::UNDERLINE,
+                Icon::FmtUnderline,
+                strings.fmt_underline,
+                Some(if mac { "⌘U" } else { "Ctrl+U" }),
+            ),
+            (
+                inline::STRIKE,
+                Icon::FmtStrike,
+                strings.fmt_strike,
+                Some(if mac { "⇧⌘X" } else { "Ctrl+Shift+X" }),
+            ),
+            (inline::CODE, Icon::Code, strings.fmt_inline_code, None),
+            (
+                crate::highlight::KEY,
+                Icon::Highlight,
+                strings.fmt_highlight,
+                None,
+            ),
         ];
         let rule = || div().w(px(0.5)).h(px(18.)).mx(px(2.)).bg(p.hairline());
         let mut row = div().flex().flex_row().items_center().p(px(BAR_PAD));
-        for choice in [
+        for (idx, choice) in [
             BlockChoice::Body,
             BlockChoice::H1,
             BlockChoice::H2,
             BlockChoice::H3,
             BlockChoice::Quote,
-        ] {
-            row = row.child(block_button(choice, this.clone()));
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            row = row.child(block_button(choice, active_blocks[idx], this.clone()));
         }
         row = row.child(rule());
-        for (ix, (key, icon, label)) in marks.into_iter().enumerate() {
+        for (ix, (key, icon, label, shortcut)) in marks.into_iter().enumerate() {
             let this = this.clone();
-            row = row.child(
-                IconButton::new(("dr-editor-bar-mark", ix), icon)
-                    .label(label)
-                    .in_tray()
-                    .selected(active[ix])
-                    .on_click(move |_, window, cx| {
-                        this.update(cx, |a, cx| a.bar_mark(key, window, cx))
-                    }),
-            );
+            let mut btn = IconButton::new(("dr-editor-bar-mark", ix), icon)
+                .label(label)
+                .in_tray()
+                .selected(active[ix])
+                .on_click(move |_, window, cx| {
+                    this.update(cx, |a, cx| a.bar_mark(key, window, cx))
+                });
+            if let Some(sc) = shortcut {
+                btn = btn.shortcut(sc);
+            }
+            row = row.child(btn);
         }
         row = row.child(rule());
         let comment = this.clone();
         row = row.child(
             IconButton::new("dr-editor-bar-comment", Icon::CommentPlus)
-                .label("添加批注")
+                .label(strings.bar_add_comment)
                 .in_tray()
                 .disabled(across)
                 .on_click(move |_, _, cx| comment.update(cx, |a, cx| a.bar_comment(cx))),
@@ -2862,11 +3108,17 @@ fn wrap_at(
         .on_mouse_up(gpui::MouseButton::Left, {
             let assist = assist.clone();
             move |event: &gpui::MouseUpEvent, _, cx| {
-                // A plain click (no drag, no modifier) on a link.
-                if event.click_count == 1 && !event.modifiers.modified() {
+                // A plain click on an entity link, or a plain/Cmd/Ctrl click on a URL link.
+                let cmd_or_plain = !event.modifiers.modified()
+                    || (event.modifiers.platform && !event.modifiers.shift && !event.modifiers.alt)
+                    || (event.modifiers.control && !event.modifiers.shift && !event.modifiers.alt);
+                if event.click_count == 1 && cmd_or_plain {
                     assist.update(cx, |a, cx| {
                         if a.editor.read(cx).selection().is_empty() {
-                            a.link_clicked(cx);
+                            if !event.modifiers.modified() && a.link_clicked(cx) {
+                                return;
+                            }
+                            let _ = a.url_link_clicked(cx);
                         }
                     });
                 }

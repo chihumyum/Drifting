@@ -11,6 +11,7 @@ description = "Export (M41): the finished manuscript as EPUB, Word or PDF, Markd
 base64.workspace = true
 dr-doc.workspace = true
 dr-model.workspace = true
+dr-platform.workspace = true
 # `.driftingproject`: documents and asset files are read and written below F3.
 dr-store.workspace = true
 dr-workspace.workspace = true

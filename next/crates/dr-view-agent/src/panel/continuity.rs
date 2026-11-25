@@ -137,6 +137,135 @@ impl AgentPanel {
         row.into_any_element()
     }
 
+    pub(super) fn plan_card(&self, window: &Window, cx: &mut Context<Self>) -> Option<AnyElement> {
+        let plan = self.continuity.task.as_ref()?.snapshot.plan.as_ref()?;
+        if plan.steps.is_empty() {
+            return None;
+        }
+        let theme = Theme::of(window, cx);
+        let (p, s) = (theme.palette, theme.scale);
+        let completed = plan
+            .steps
+            .iter()
+            .filter(|st| st.status == dr_agent::long_task::StepStatus::Completed)
+            .count();
+        let total = plan.steps.len();
+        let mut card = div()
+            .id("agent-plan-card")
+            .debug_selector(|| "agent-plan-card".into())
+            .flex()
+            .flex_col()
+            .gap(px(6.0))
+            .p(px(10.0))
+            .rounded(px(10.0))
+            .bg(p.paper.solid())
+            .border(px(0.5))
+            .border_color(p.hairline())
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .justify_between()
+                    .gap(px(8.0))
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap(px(6.0))
+                            .min_w_0()
+                            .child(
+                                div()
+                                    .font_role(Role::Index)
+                                    .type_px(s.caption, s.line_caption)
+                                    .text_color(p.accent.solid())
+                                    .child(t(cx, k::todos::PLAN)),
+                            )
+                            .child(
+                                div()
+                                    .min_w_0()
+                                    .truncate()
+                                    .font_role(Role::Ui)
+                                    .type_px(s.caption, s.line_caption)
+                                    .text_color(p.ink(1).solid())
+                                    .child(plan.objective.clone()),
+                            ),
+                    )
+                    .child(
+                        div()
+                            .flex_none()
+                            .font_role(Role::Index)
+                            .type_px(s.caption, s.line_caption)
+                            .text_color(p.ink(3).solid())
+                            .child(format!("{completed} / {total}")),
+                    ),
+            );
+        for step in &plan.steps {
+            let (icon, color) = match step.status {
+                dr_agent::long_task::StepStatus::Completed => {
+                    (sand::Icon::TaskDone, p.accent.solid())
+                }
+                dr_agent::long_task::StepStatus::InProgress => {
+                    (sand::Icon::TaskDoing, p.accent.solid())
+                }
+                dr_agent::long_task::StepStatus::Pending => {
+                    (sand::Icon::TaskTodo, p.ink(4).solid())
+                }
+                dr_agent::long_task::StepStatus::Blocked
+                | dr_agent::long_task::StepStatus::Failed
+                | dr_agent::long_task::StepStatus::Retired => {
+                    (sand::Icon::StatusWarning, p.ink(3).solid())
+                }
+            };
+            let note = step
+                .note
+                .as_deref()
+                .map(str::trim)
+                .filter(|n| !n.is_empty());
+            card = card.child(
+                div()
+                    .flex()
+                    .items_start()
+                    .gap(px(6.0))
+                    .min_w_0()
+                    .child(
+                        div()
+                            .pt(px(2.0))
+                            .flex_none()
+                            .child(sand::icon(icon, 13.0, color)),
+                    )
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .flex()
+                            .flex_col()
+                            .child(
+                                div()
+                                    .type_px(s.caption, s.line_caption)
+                                    .text_color(
+                                        if step.status == dr_agent::long_task::StepStatus::Completed
+                                        {
+                                            p.ink(3).solid()
+                                        } else {
+                                            p.ink(1).solid()
+                                        },
+                                    )
+                                    .child(step.target.name.clone()),
+                            )
+                            .when_some(note, |el, n| {
+                                el.child(
+                                    div()
+                                        .type_px((s.caption - 0.5).max(11.0), s.line_caption)
+                                        .text_color(p.ink(4).solid())
+                                        .child(n.to_owned()),
+                                )
+                            }),
+                    ),
+            );
+        }
+        Some(card.into_any_element())
+    }
+
     pub(super) fn continuation_card(&self, cx: &mut Context<Self>) -> AnyElement {
         let mut row = div().flex().flex_col().gap(px(5.));
         let resumable = self.active().is_none()

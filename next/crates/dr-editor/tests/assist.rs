@@ -355,13 +355,14 @@ fn the_at_picker_inserts_a_link(cx: &mut TestAppContext) {
     assert_eq!((kind, query.as_str()), (MenuKind::Mention, "约"));
     let names: Vec<String> = rows
         .iter()
-        .map(|r| match r {
-            MenuRow::Link { name, .. } => name.clone(),
-            _ => String::new(),
+        .filter_map(|r| match r {
+            MenuRow::Link { name, .. } => Some(name.clone()),
+            _ => None,
         })
         .collect();
-    // Pinyin order (lǎo before yuē), then 创建要素.
+    // Pinyin order (lǎo before yuē), followed by inline entry creation.
     assert_eq!(names, ["老约", "约格"]);
+    assert_eq!(rows.last(), Some(&MenuRow::CreateEntry("约".into())));
     // Enter chooses the current row.
     o.action(Newline);
     assert_eq!(o.text(), "见老约 \n");
@@ -588,4 +589,22 @@ fn the_selection_bar_shows_once_the_selection_settles(cx: &mut TestAppContext) {
     assert!(assist.read_with(o.cx, |a, _| a.bar().is_some()));
     o.type_text("夜");
     assert!(assist.read_with(o.cx, |a, _| a.bar().is_none()));
+}
+
+#[gpui::test]
+fn the_at_picker_creates_a_new_entry_when_no_exact_match(cx: &mut TestAppContext) {
+    let e = env();
+    let doc = chapter(&e, "一", "");
+    let mut o = open(cx, &e, &doc);
+    o.caret(0);
+    o.type_text("@新人物");
+    let (kind, query, rows) = o.menu().expect("the picker is open");
+    assert_eq!((kind, query.as_str()), (MenuKind::Mention, "新人物"));
+    assert_eq!(rows, [MenuRow::CreateEntry("新人物".into())]);
+    o.action(Newline);
+    assert_eq!(o.text(), "新人物 \n");
+    let has_entity = o
+        .editor
+        .update(o.cx, |e, _| e.marks_at(0, 0).entities().next().is_some());
+    assert!(has_entity, "created entry should be linked in prose");
 }

@@ -35,6 +35,52 @@ pub fn read_html() -> Option<String> {
     }
 }
 
+/// Appends `html` (`public.html` on macOS, `HTML Format` / CF_HTML on Windows)
+/// to the system clipboard alongside what GPUI just wrote (plain text and
+/// custom metadata), so pasting into Word, Pages, browsers, or Notion preserves
+/// formatting while Drifting's own paste still reads GPUI's metadata.
+pub fn write_html(html: &str) {
+    if html.is_empty() || html.len() > MAX_BYTES {
+        return;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        mac::write_html(html);
+    }
+    #[cfg(windows)]
+    {
+        win::write_html(html);
+    }
+    #[cfg(not(any(target_os = "macos", windows)))]
+    {
+        let _ = html;
+    }
+}
+
+/// Wraps an HTML fragment in a Windows `CF_HTML` (`HTML Format`) payload
+/// (UTF-8, NUL-terminated).
+pub fn encode_cf_html(fragment: &str) -> Vec<u8> {
+    const PREFIX: &str = "<html>\r\n<body>\r\n<!--StartFragment-->";
+    const SUFFIX: &str = "<!--EndFragment-->\r\n</body>\r\n</html>";
+    let header = |start_html: usize, end_html: usize, start_frag: usize, end_frag: usize| {
+        format!(
+            "Version:0.9\r\nStartHTML:{start_html:010}\r\nEndHTML:{end_html:010}\r\nStartFragment:{start_frag:010}\r\nEndFragment:{end_frag:010}\r\n"
+        )
+    };
+    let hlen = header(0, 0, 0, 0).len();
+    let start_html = hlen;
+    let start_frag = start_html + PREFIX.len();
+    let end_frag = start_frag + fragment.len();
+    let end_html = end_frag + SUFFIX.len();
+    let mut out = String::with_capacity(end_html + 1);
+    out.push_str(&header(start_html, end_html, start_frag, end_frag));
+    out.push_str(PREFIX);
+    out.push_str(fragment);
+    out.push_str(SUFFIX);
+    out.push('\0');
+    out.into_bytes()
+}
+
 /// HTML bytes as text: UTF-8 (its byte-order mark dropped), UTF-16 with a
 /// byte-order mark, else (bytes that are not UTF-8, from an old program)
 /// Windows-1252.
@@ -117,12 +163,27 @@ mod mac {
         NSDocumentTypeDocumentAttribute, NSHTMLTextDocumentType, NSPasteboard,
         NSPasteboardTypeHTML, NSPasteboardTypeRTF,
     };
-    use objc2_foundation::{NSAttributedString, NSData, NSDictionary, NSRange};
+    use objc2_foundation::{NSArray, NSAttributedString, NSData, NSDictionary, NSRange};
 
     use super::{MAX_BYTES, decode_html};
 
     pub(super) fn read_html() -> Option<String> {
         read_from(&NSPasteboard::generalPasteboard())
+    }
+
+    pub(super) fn write_html(html: &str) {
+        append_to(&NSPasteboard::generalPasteboard(), html);
+    }
+
+    /// Appends `public.html` to `pasteboard` without clearing existing types.
+    pub(super) fn append_to(pasteboard: &NSPasteboard, html: &str) {
+        // SAFETY: AppKit's constant pasteboard type; `addTypes:owner:` adds the
+        // type to the current pasteboard item without discarding existing data.
+        let kind = unsafe { NSPasteboardTypeHTML };
+        unsafe {
+            pasteboard.addTypes_owner(&NSArray::from_slice(&[kind]), None);
+        }
+        let _ = pasteboard.setData_forType(Some(&NSData::with_bytes(html.as_bytes())), kind);
     }
 
     /// The HTML of `pasteboard` (tests read their own, never the general
@@ -244,6 +305,24 @@ mod mac {
             let big = vec![b'a'; super::MAX_BYTES + 1];
             with_pasteboard(&[(html, &big)], |p| assert_eq!(read_from(p), None));
         }
+
+        #[test]
+        fn append_html_preserves_existing_types() {
+            let plain = objc2_foundation::NSString::from_str("public.utf8-plain-text");
+            let custom = objc2_foundation::NSString::from_str("cc.drifting.test.meta");
+            with_pasteboard(&[(&plain, b"hello"), (&custom, b"{\"v\":1}")], |p| {
+                super::append_to(p, "<p><b>hello</b></p>");
+                assert_eq!(read_from(p).as_deref(), Some("<p><b>hello</b></p>"));
+                assert_eq!(
+                    p.dataForType(&plain).map(|d| d.to_vec()),
+                    Some(b"hello".to_vec())
+                );
+                assert_eq!(
+                    p.dataForType(&custom).map(|d| d.to_vec()),
+                    Some(b"{\"v\":1}".to_vec())
+                );
+            });
+        }
     }
 }
 
@@ -251,19 +330,45 @@ mod mac {
 mod win {
     use windows::{
         Win32::{
-            Foundation::HGLOBAL,
+            Foundation::{GlobalFree, HANDLE, HGLOBAL},
             System::{
                 DataExchange::{
                     CloseClipboard, GetClipboardData, IsClipboardFormatAvailable, OpenClipboard,
-                    RegisterClipboardFormatW,
+                    RegisterClipboardFormatW, SetClipboardData,
                 },
-                Memory::{GlobalLock, GlobalSize, GlobalUnlock},
+                Memory::{GMEM_MOVEABLE, GlobalAlloc, GlobalLock, GlobalSize, GlobalUnlock},
             },
         },
         core::w,
     };
 
-    use super::{MAX_BYTES, cf_html};
+    use super::{MAX_BYTES, cf_html, encode_cf_html};
+
+    pub(super) fn write_html(html: &str) {
+        let bytes = encode_cf_html(html);
+        // SAFETY: registers the standard CF_HTML format and appends it to the
+        // currently open clipboard without calling `EmptyClipboard`, preserving
+        // GPUI's plain text and metadata.
+        unsafe {
+            let format = RegisterClipboardFormatW(w!("HTML Format"));
+            if format == 0 || OpenClipboard(None).is_err() {
+                return;
+            }
+            if let Ok(global) = GlobalAlloc(GMEM_MOVEABLE, bytes.len()) {
+                let ptr = GlobalLock(global) as *mut u8;
+                if !ptr.is_null() {
+                    std::ptr::copy_nonoverlapping(bytes.as_ptr(), ptr, bytes.len());
+                    let _ = GlobalUnlock(global);
+                    if SetClipboardData(format, Some(HANDLE(global.0))).is_err() {
+                        let _ = GlobalFree(Some(global));
+                    }
+                } else {
+                    let _ = GlobalFree(Some(global));
+                }
+            }
+            let _ = CloseClipboard();
+        }
+    }
 
     pub(super) fn read_html() -> Option<String> {
         // SAFETY: registering a format name is idempotent and has no other

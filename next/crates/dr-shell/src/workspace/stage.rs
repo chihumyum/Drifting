@@ -8,30 +8,60 @@
 //! (`dr-editor`, see [`super::editors`]): one prose document's, or the
 //! whole book's (M05).
 
-use dr_i18n::keys;
+use dr_i18n::{keys, number::compact};
 use dr_ui::{
     Theme, anim,
+    components::IconButton,
     fonts::Role,
-    glass::{self, Ground},
+    glass::{self, Ground, Kind as GlassKind, Mode, Spec, Tone},
+    sand::{Icon, Readout},
     style::DrStyled,
-    tokens::surface,
+    tokens::{glass as g, surface},
     transitions::PageTurn,
 };
 use gpui::{
-    AnyElement, App, BoxShadow, Context, ElementId, Entity, InteractiveElement, IntoElement,
-    MouseButton, ParentElement, SharedString, Styled, Window, div, point,
-    prelude::FluentBuilder as _, px, relative,
+    AnyElement, App, AppContext as _, BoxShadow, Context, DragMoveEvent, ElementId, Entity,
+    InteractiveElement, IntoElement, MouseButton, ParentElement, SharedString,
+    StatefulInteractiveElement as _, Styled, Window, div, point, prelude::FluentBuilder as _, px,
+    relative,
 };
 
 use super::chrome::{self, TITLEBAR_HEIGHT};
 use super::dock::DockDrag;
 use super::fill::FillPlace;
-use super::sidebar::Side;
+use super::sidebar::{NoPreview, RightTab, Side};
 use super::{PageSide, Workspace, bottom, corner, outline};
 use crate::Settings;
 use crate::nav::{Tab, Target};
 use crate::settings::registry as r;
 use crate::strings::t;
+
+/// What a split-editor divider drags.
+#[derive(Clone, Copy, Debug)]
+pub struct SplitResizeDrag(pub usize);
+
+pub fn on_split_resize(
+    ws: &mut Workspace,
+    e: &DragMoveEvent<SplitResizeDrag>,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) {
+    let window_w = f32::from(window.viewport_size().width);
+    let left_w = if ws.immersive {
+        0.0
+    } else {
+        ws.sidebar_drawn_widths(Side::Left, window_w).1
+    };
+    let right_w = if ws.immersive {
+        0.0
+    } else {
+        ws.sidebar_drawn_widths(Side::Right, window_w).1
+    };
+    let column_w = (window_w - left_w - right_w).max(1.0);
+    let ratio = ((f32::from(e.event.position.x) - left_w) / column_w).clamp(0.2, 0.8);
+    ws.nav.set_ratio(e.drag(cx).0, ratio);
+    ws.changed(cx);
+}
 
 /// The editor settings the paper itself follows (its width).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -137,17 +167,14 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
     };
     // The Bottom Panel takes the column's foot; the pages have the rest.
     let panel = bottom::panel(ws, f32::from(viewport.height), window, cx);
-    let fill_header = TITLEBAR_HEIGHT
-        * ws.fill
-            .progress(FillPlace::Left)
-            .max(ws.fill.progress(FillPlace::Right));
-    let column_h =
-        f32::from(viewport.height) - panel.as_ref().map_or(0.0, |(_, h)| *h) - fill_header;
+    let column_h = f32::from(viewport.height) - panel.as_ref().map_or(0.0, |(_, h)| *h);
     let active = ws.nav.active_index();
     let pages: AnyElement = match ws.nav.active_tab().cloned() {
         Some(Tab::Split(split)) => {
             let index = active.unwrap_or(0);
             let ratio = split.ratio;
+            let theme = Theme::of(window, cx);
+            let accent = theme.palette.accent;
             let side = |which: PageSide, cx: &mut Context<Workspace>| {
                 let leaf = split.side(which).clone();
                 let focused = split.focused == which;
@@ -161,6 +188,7 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
                     .when(which == PageSide::Left, |el| el.w(relative(ratio)))
                     .when(which == PageSide::Right, |el| el.flex_1())
                     .min_w_0()
+                    .overflow_hidden()
                     .on_mouse_down(MouseButton::Left, move |_, _, cx| {
                         if !focused {
                             focus.update(cx, |ws, cx| {
@@ -179,6 +207,17 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
                         &entity,
                         look,
                     ))
+                    .when(focused, |el| {
+                        el.child(
+                            div()
+                                .absolute()
+                                .top_0()
+                                .left_0()
+                                .right_0()
+                                .h(px(2.0))
+                                .bg(accent.alpha(0.65)),
+                        )
+                    })
             };
             let left_target = split.side(PageSide::Left).target.clone();
             let right_target = split.side(PageSide::Right).target.clone();
@@ -243,18 +282,86 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
                     window,
                     cx,
                 ));
-            let theme = Theme::of(window, cx);
-            div()
-                .size_full()
+            let p = theme.palette;
+            let swap_entity = entity.clone();
+            let close_entity = entity.clone();
+            let focused_side = split.focused;
+            let grip = glass::glass_box(
+                "split-seam-controls",
+                GlassKind::Surface,
+                Mode::default(),
+                false,
+                Spec::new(Tone::Clear, (g::PILL_HEIGHT + 4.0) / 2.0)
+                    .rim(8.0)
+                    .ground(Ground::Uneven),
+                window,
+                cx,
+            )
+            .rounded_full()
+            .bg(p.page.solid())
+            .p(px(2.0))
+            .flex()
+            .flex_col()
+            .gap(px(2.0))
+            .child(
+                IconButton::new("split-swap", Icon::Swap)
+                    .in_tray()
+                    .label(t(cx, keys::shell_ui::SWAP_SPLIT))
+                    .on_click(move |_, _, cx| {
+                        cx.stop_propagation();
+                        swap_entity.update(cx, |ws, cx| {
+                            if ws.nav.swap_split(index) {
+                                ws.changed(cx);
+                            }
+                        });
+                    }),
+            )
+            .child(
+                IconButton::new("split-unsplit", Icon::Close)
+                    .in_tray()
+                    .label(t(cx, keys::shell_ui::UNSPLIT))
+                    .on_click(move |_, _, cx| {
+                        cx.stop_propagation();
+                        close_entity.update(cx, |ws, cx| {
+                            if ws.nav.close_side(index, focused_side) {
+                                ws.changed(cx);
+                            }
+                        });
+                    }),
+            );
+            let seam = div()
+                .id("split-divider")
+                .group("split-divider")
+                .relative()
+                .flex_none()
+                .w(px(7.0))
+                .mx(px(-3.0))
+                .h_full()
+                .cursor_col_resize()
                 .flex()
-                .flex_row()
-                .child(left)
+                .items_center()
+                .justify_center()
+                .on_drag(SplitResizeDrag(index), |_, _, _, cx| cx.new(|_| NoPreview))
                 .child(
                     div()
                         .w(px(surface::HAIRLINE))
                         .h_full()
-                        .bg(theme.palette.local_hairline()),
+                        .bg(p.local_hairline()),
                 )
+                .child(
+                    div()
+                        .absolute()
+                        .invisible()
+                        .group_hover("split-divider", |st| st.visible())
+                        .child(grip),
+                );
+            div()
+                .size_full()
+                .flex()
+                .flex_row()
+                .overflow_hidden()
+                .child(left)
+                .child(seam)
                 .child(right)
                 .into_any_element()
         }
@@ -307,12 +414,13 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
     let dragging = cx.has_active_drag() && ws.nav.active_index().is_some();
     let bottom_fill_t = ws.fill.progress(FillPlace::Bottom);
     let desk = Theme::of(window, cx).palette.desk.solid();
+    let tally = word_tally(ws, window, cx);
     let pages = div()
         .relative()
         .flex_1()
         .min_h_0()
         .w_full()
-        .pt(px(fill_header))
+        .overflow_hidden()
         // KB: a press on the paper gives it the keyboard back from the left
         // column, caret and selection as they were (`left_keys.rs`).
         .capture_any_mouse_down(
@@ -323,6 +431,7 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
             cx.listener(|ws, _: &gpui::MouseDownEvent, window, cx| ws.pressed_paper(window, cx)),
         )
         .child(pages)
+        .children(tally)
         .when(bottom_fill_t > 0.0, |el| {
             el.child(div().absolute().inset_0().bg(desk).opacity(bottom_fill_t))
         })
@@ -332,6 +441,7 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
         .flex_1()
         .min_w_0()
         .h_full()
+        .overflow_hidden()
         .flex()
         .flex_col()
         .child(pages)
@@ -340,6 +450,110 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
         .children(find)
         .children(leave)
         .into_any_element()
+}
+
+/// Persistent subtle bottom-left word tally pill on the paper; clicking opens
+/// the Stats panel in the right sidebar.
+fn word_tally(
+    ws: &Workspace,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) -> Option<AnyElement> {
+    if ws.immersive || ws.fill_covers_paper() || ws.book.is_empty() {
+        return None;
+    }
+    let v3 = ws.book.v3()?;
+    let pb = v3.project.book.as_ref()?;
+    let live = dr_view_stats::LiveWords::read(cx);
+    let locale = Settings::locale(cx);
+    let current_doc = ws
+        .nav
+        .current()
+        .and_then(|t| ws.page_of(t))
+        .and_then(|p| p.doc.as_deref());
+    let (label, count) = if let Some(sel) = live.selection {
+        (t(cx, keys::workspace_word_tally::SELECTION), sel)
+    } else if let Some(doc) = current_doc
+        && let Some(m) = live.docs.get(doc)
+    {
+        (t(cx, keys::k4_book::ENTRY_WORDS), m.words)
+    } else {
+        return None;
+    };
+    let today = dr_view_stats::today_live(&ws.book_id, cx).unwrap_or(0);
+    let goal = pb.daily_word_target.unwrap_or(0);
+    let progress = (goal > 0).then(|| (today.max(0) as f32 / goal as f32).clamp(0.0, 1.0));
+    let theme = Theme::of(window, cx);
+    let p = theme.palette;
+    let s = theme.scale;
+    let entity = cx.entity();
+    let mut pill = glass::glass_box(
+        "workspace-word-tally",
+        GlassKind::Surface,
+        Mode::default(),
+        false,
+        Spec::new(Tone::Clear, g::PILL_HEIGHT / 2.0)
+            .rim(10.0)
+            .ground(Ground::Uneven),
+        window,
+        cx,
+    )
+    .rounded_full()
+    .bg(p.page.solid())
+    .px(px(10.0))
+    .py(px(4.0))
+    .flex()
+    .flex_row()
+    .items_center()
+    .gap(px(8.0))
+    .cursor_pointer()
+    .role(gpui::Role::Button)
+    .aria_label(t(cx, keys::right_sidebar::tabs::STATS))
+    .on_click(move |_, window, cx| {
+        entity.update(cx, |ws, cx| {
+            let reduce = Theme::of(window, cx).reduce_motion;
+            if !ws.right.open {
+                ws.right.set_open(true, reduce);
+            }
+            let pane = ws.right.panes.focused;
+            let current = ws.right.panes.focused_tab();
+            if current != RightTab::Stats {
+                ws.right.panes.click(pane, RightTab::Stats);
+            }
+            ws.changed(cx);
+        });
+    })
+    .child(
+        div()
+            .font_role(Role::Index)
+            .type_px(s.caption, s.line_caption)
+            .text_color(p.ink(2).solid())
+            .child(format!("{label} {}", compact(count, locale))),
+    );
+    if today > 0 {
+        pill = pill.child(
+            div()
+                .font_role(Role::Index)
+                .type_px(s.caption, s.line_caption)
+                .text_color(p.ink(3).solid())
+                .child(format!("+{}", compact(today as u64, locale))),
+        );
+    }
+    if let Some(value) = progress {
+        pill = pill.child(
+            div()
+                .w(px(36.0))
+                .child(Readout::new("workspace-word-tally-bar", value).color(p.accent)),
+        );
+    }
+    Some(
+        div()
+            .absolute()
+            .left(px(corner::CORNER_INSET))
+            .bottom(px(corner::CORNER_INSET))
+            .child(pill)
+            .into_any_element(),
+    )
 }
 
 /// While a pill is in the hand: the paper's halves, to split onto.
@@ -442,6 +656,7 @@ fn paper(
         .h_full()
         .w(px(look.page_width))
         .max_w(relative(1.0))
+        .overflow_hidden()
         .bg(p.page.solid())
         .rounded(px(surface::PAGE_RADIUS))
         .shadow(shadow)

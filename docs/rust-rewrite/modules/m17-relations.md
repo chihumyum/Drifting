@@ -4,6 +4,8 @@
 
 **2026-11-17，RL 已合进本地 main，未推送。** 正文悬停连线和就地建、右栏关系卡、描述/批注的链接与 @、关系图都已接通。右栏一行草稿用监管补的 `relation_row.create_group` 一次提交明确左右集合，失败保留草稿，一次撤销；[接口与守卫](../kernel-v5.md#rl-监管补口右栏的一行草稿2026-11-17)见第 18 节。最终合树证据与未覆盖范围见本文末尾。
 
+**2026-11-26，右栏补强与关系铺满力导向图谱。** 右栏「关系」新增顶部搜索过滤框（按关系名、说明或关联条目标题实时筛选，`RevealRelationRow` 自动清筛选）、有向单行左右反转按钮（`RelationsRail::swap_row`，先新建反转行再删旧行，避免唯一行被删时连带删除关系类型）、空关系卡直接删除入口，以及右栏铺满时的分栏力导向关系图谱（`dr-view-relations/src/graph_fill.rs`：确定性 Fruchterman-Reingold 排布、按关系类型切换显示、拖拽平移与滚轮缩放、重排布、悬停高亮邻接节点与边、点击节点直达条目）。回归见 `dr-view-relations/tests/rail.rs`。
+
 数据回归见 `dr-workspace/tests/relations_v5.rs`、`dr-doc/src/v3/tests.rs`，覆盖选行、方向、最近删除、清除、撤销、正文标记投影及并发追加。以下是切换前的历史记录。
 
 2026-11-08，第一个里程碑；同日第二个里程碑：挂到要素页上，用调试桥在真窗口里点了一遍。计划见 [modules.md 的 M17](../modules.md#阶段-3故事工坊)。界面在 `next/crates/dr-view-relations/`，数据全走 F3 的 `relation.*`（列出、建立、删除）和 `relation_type.*`（列出、新建、修改、删除），在 `next/crates/dr-workspace/src/commands/relation.rs`。对照的旧版是桌面端 `src/renderer/components/editor/ReferencesPanel.tsx` 的「关联」一节、`components/ui/RelationTypeField.tsx`、`components/ui/RelationKindMenu.tsx`（类型管理和 `RelationTypeEditor`）、`src/styles/entity-editors.css` 和 [docs/relation-types.md](../../relation-types.md)。截图在 [m17/](m17/)。

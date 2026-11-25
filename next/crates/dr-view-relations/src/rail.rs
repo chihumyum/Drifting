@@ -171,6 +171,13 @@ pub struct RelationsRail {
     bus_task: Option<Task<()>>,
     /// The author's 「自动要素链接」 the shown relations were read under.
     auto_links: bool,
+    /// Quick search/filter over relation names, descriptions, and linked entries.
+    pub(crate) filter_field: Entity<TextField>,
+    pub(crate) filter_query: String,
+    /// Current Fill width when the right sidebar fills the workspace (`None` when narrow).
+    pub(crate) fill_width: Option<f32>,
+    /// Interactive force-directed graph state for Fill mode.
+    pub(crate) graph: crate::graph_fill::GraphState,
     _subs: Vec<Subscription>,
 }
 
@@ -214,7 +221,7 @@ impl RelationsRail {
         shell: WeakEntity<Workspace>,
         lib: Option<Library>,
         book: Rc<Book>,
-        _window: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) -> RelationsRail {
         let mut subs = vec![cx.on_release(|rail, cx| {
@@ -222,6 +229,32 @@ impl RelationsRail {
                 shell_rel::set_rail_hover(None, cx);
             }
         })];
+        let filter_field = cx.new(|cx| {
+            TextField::new("relations-filter", window, cx)
+                .small()
+                .icon(sand::Icon::Search)
+                .placeholder(t(cx, keys::super_element::isles::FIND))
+        });
+        subs.push(cx.subscribe_in(
+            &filter_field,
+            window,
+            |rail, field, event: &FieldEvent, _, cx| match event {
+                FieldEvent::Changed(text) => {
+                    if rail.filter_query != *text {
+                        rail.filter_query = text.clone();
+                        cx.notify();
+                    }
+                }
+                FieldEvent::Cancelled => {
+                    if !rail.filter_query.is_empty() {
+                        rail.filter_query.clear();
+                        field.update(cx, |f, cx| f.set_text("", cx));
+                        cx.notify();
+                    }
+                }
+                FieldEvent::Submitted(_) | FieldEvent::Blurred => {}
+            },
+        ));
         if let Some(ws) = shell.upgrade() {
             subs.push(cx.observe(&ws, |rail, ws, cx| {
                 let (book, front) = {
@@ -315,6 +348,10 @@ impl RelationsRail {
             bus: None,
             bus_task: None,
             auto_links,
+            filter_field,
+            filter_query: String::new(),
+            fill_width: None,
+            graph: crate::graph_fill::GraphState::new(),
             _subs: subs,
         };
         if !book.id.is_empty() {
@@ -375,6 +412,28 @@ impl RelationsRail {
         self.current
     }
 
+    pub fn set_fill_width(&mut self, width: Option<f32>, cx: &mut Context<Self>) {
+        if self.fill_width == width {
+            return;
+        }
+        self.fill_width = width;
+        cx.notify();
+    }
+
+    pub fn fill_width(&self) -> Option<f32> {
+        self.fill_width
+    }
+
+    pub fn set_filter_query(&mut self, query: impl Into<String>, cx: &mut Context<Self>) {
+        let next = query.into();
+        if self.filter_query == next {
+            return;
+        }
+        self.filter_query = next.clone();
+        self.filter_field.update(cx, |f, cx| f.set_text(next, cx));
+        cx.notify();
+    }
+
     /// Shows another book (the shell's, or a test's).
     pub fn set_book(&mut self, book: Rc<Book>, cx: &mut Context<Self>) {
         if self.book.id != book.id {
@@ -394,6 +453,9 @@ impl RelationsRail {
             self.hover_card = None;
             self.flash = None;
             self.page = None;
+            self.filter_query.clear();
+            self.filter_field.update(cx, |f, cx| f.set_text("", cx));
+            self.graph.reset();
             self.book = book;
             self.watch(cx);
             self.reload(cx);
@@ -797,7 +859,12 @@ impl RelationsRail {
                     .collect(),
             });
         }
+        let query = self.filter_query.trim().to_lowercase();
+        let has_query = !query.is_empty();
         for relation in relations {
+            let card_matches_query = !has_query
+                || relation.name.to_lowercase().contains(&query)
+                || relation.description.text.to_lowercase().contains(&query);
             let rows: Vec<_> = relation
                 .rows
                 .iter()
@@ -805,6 +872,13 @@ impl RelationsRail {
                     page.as_ref().is_none_or(|page| {
                         row.left.iter().chain(&row.right).any(|e| page.contains(e))
                     })
+                })
+                .filter(|row| {
+                    card_matches_query
+                        || row.left.iter().chain(&row.right).any(|id| {
+                            self.entry_look(id)
+                                .is_some_and(|look| look.title.to_lowercase().contains(&query))
+                        })
                 })
                 .cloned()
                 .collect();
@@ -822,6 +896,14 @@ impl RelationsRail {
                     .describe
                     .as_ref()
                     .is_some_and(|d| d.relation == relation.id);
+            if (page.is_some() || has_query)
+                && !card_matches_query
+                && rows.is_empty()
+                && drafts.is_empty()
+                && !editing
+            {
+                continue;
+            }
             if page.is_some() && rows.is_empty() && drafts.is_empty() && !editing {
                 continue;
             }
@@ -1562,6 +1644,95 @@ impl RelationsRail {
         }
     }
 
+    /// Deletes an entire relation type card (used on empty orphaned cards).
+    pub fn delete_relation(&mut self, relation_id: &str, cx: &mut Context<Self>) {
+        let id = relation_id.to_owned();
+        let guard = self.shown.clone();
+        self.drafts
+            .retain(|d| d.relation.as_deref() != Some(relation_id));
+        self.write(
+            cx,
+            move |lib, book| {
+                lib.call_guarded(
+                    &Actor::User,
+                    "relation_type.delete",
+                    json!({"book": book, "id": id}),
+                    guard,
+                )
+            },
+            |_, _, _| {},
+        );
+    }
+
+    /// Swaps the left and right sides of a directed relation row.
+    ///
+    /// Creates the swapped row BEFORE deleting the original row so that swapping
+    /// the sole row of a relation type never deletes the relation type itself,
+    /// and a colliding reverse pair safely aborts without losing the original.
+    pub fn swap_row(&mut self, row: &RowKey, cx: &mut Context<Self>) {
+        if self.draft_pending(row) {
+            return;
+        }
+        match row {
+            RowKey::Draft(key) => {
+                let mut to_write = None;
+                if let Some(d) = self.drafts.iter_mut().find(|d| d.key == *key) {
+                    std::mem::swap(&mut d.left, &mut d.right);
+                    d.failed = false;
+                    d.duplicate = None;
+                    if !d.left.is_empty() && !d.right.is_empty() {
+                        to_write = Some(d.clone());
+                    }
+                }
+                if let Some(d) = to_write {
+                    self.write_draft(d, cx);
+                } else {
+                    cx.notify();
+                }
+            }
+            RowKey::Stored(id) => {
+                let Some((relation_id, new_left, new_right)) =
+                    self.relations.iter().find_map(|r| {
+                        if r.direction != RelationDirection::Directed {
+                            return None;
+                        }
+                        r.rows.iter().find(|row| &row.id == id).and_then(|row| {
+                            (!row.left.is_empty() && !row.right.is_empty())
+                                .then(|| (r.id.clone(), row.right.clone(), row.left.clone()))
+                        })
+                    })
+                else {
+                    return;
+                };
+                if self.hover.as_ref() == Some(row) {
+                    self.set_hover(None, cx);
+                }
+                let old_id = id.clone();
+                self.write(
+                    cx,
+                    move |lib, book| {
+                        lib.run::<CreateGroup>(
+                            &Actor::User,
+                            GroupIn {
+                                book: book.clone(),
+                                relation_type: relation_id,
+                                expected_direction: RelationDirection::Directed,
+                                left: new_left,
+                                right: new_right,
+                            },
+                        )?;
+                        lib.call(
+                            &Actor::User,
+                            "relation_row.delete",
+                            json!({"book": book, "id": old_id}),
+                        )
+                    },
+                    |_, _, _| {},
+                );
+            }
+        }
+    }
+
     /// The pointer came onto a row (or left them all): the prose draws it.
     pub fn set_hover(&mut self, row: Option<RowKey>, cx: &mut Context<Self>) {
         if self.hover == row {
@@ -1620,9 +1791,13 @@ impl RelationsRail {
                 // the write that made it is about to trigger.
                 return;
             }
-            if self.current {
-                // A row 「当前」 leaves out: show them all.
+            if self.current || !self.filter_query.is_empty() {
+                // A row 「当前」 or search filter leaves out: show them all.
                 self.current = false;
+                if !self.filter_query.is_empty() {
+                    self.filter_query.clear();
+                    self.filter_field.update(cx, |f, cx| f.set_text("", cx));
+                }
                 cx.notify();
             }
             return;

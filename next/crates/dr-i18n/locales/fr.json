@@ -29,7 +29,37 @@
       "modelUnavailable": "Le modèle sélectionné ne figure pas au catalogue actuel. Choisissez-en un autre."
     },
     "context": {
-      "tokens": "{{count}} tokens"
+      "allocation": {
+        "free": "Espace libre",
+        "input": "Entrée actuelle",
+        "output": "Réserve de sortie",
+        "safety": "Marge de sécurité",
+        "title": "Répartition de la fenêtre"
+      },
+      "breakdownTitle": "Contenu de l’entrée actuelle",
+      "categories": {
+        "assistant_messages": "Messages d’Agent",
+        "compaction_summaries": "Résumés de condensation",
+        "provider_overhead": "Habillage du fournisseur",
+        "system_prompt": "Instructions système",
+        "task_constraints": "Contraintes de tâche",
+        "task_plan": "Plan de tâche",
+        "thinking": "Raisonnement",
+        "tool_calls": "Appels d’outils",
+        "tool_definitions": "Définitions d’outils",
+        "tool_results": "Résultats d’outils",
+        "user_messages": "Messages utilisateur"
+      },
+      "compaction": "Condensation",
+      "compactionDetail": "{{saved}} économisés · {{stages}} · {{count}} résumés",
+      "compactionNone": "Cet appel ne nécessitait pas de condensation",
+      "description": "Basé sur le dernier plan de contexte vérifié réellement envoyé au modèle, pas sur le total cumulé de la conversation.",
+      "progressAria": "Utilisation actuelle du contexte d’Agent",
+      "sources": "{{count}} sources",
+      "summary": "{{used}} / {{limit}} ({{percent}} %)",
+      "title": "Utilisation du contexte",
+      "tokens": "{{count}} tokens",
+      "tooltip": "{{used}} / {{limit}} tokens ({{percent}} %)\nRéserve de sortie : {{output}} · Marge de sécurité : {{safety}}"
     },
     "control": {
       "allow": {
@@ -44,9 +74,13 @@
       "start": "Envoyez un message à Agent pour commencer. Il peut lire et modifier les chapitres, éléments et relations du projet."
     },
     "history": {
+      "delete": "Supprimer la conversation",
       "empty": "Aucun historique pour le moment",
+      "loadEarlier": "Charger les messages précédents",
+      "rename": "Renommer",
       "untitled": "Sans titre"
     },
+    "jumpLatest": "Aller au plus récent",
     "newConversation": "Nouvelle conversation",
     "onboarding": {
       "connect": "Connecter un modèle",
@@ -58,7 +92,8 @@
     "pending": {
       "cancelling": "Arrêt en cours…",
       "committing": "Enregistrement…",
-      "now": "Réflexion…"
+      "now": "Réflexion…",
+      "withSeconds": "Réflexion · {{seconds}} s"
     },
     "setup": {
       "openSettings": "Ouvrir les réglages"
@@ -70,17 +105,31 @@
       "done": "Trace du raisonnement",
       "streaming": "Réflexion…"
     },
+    "todos": {
+      "plan": "Forfait"
+    },
     "tool": {
       "result": "Résultat"
     },
     "toolbar": {
-      "history": "Historique"
+      "history": "Historique",
+      "historyTitle": "Historique des conversations",
+      "newTitle": "Démarrer une conversation",
+      "renameTitle": "Renommer la conversation actuelle"
     },
     "turnChanges": "Modifications du tour",
     "unavailable": "Agent est indisponible.",
+    "usage": {
+      "inputDetail": "Entrée {{input}} (cache lu {{cacheRead}} · écrit {{cacheWrite}} · net {{net}})",
+      "outputTurns": "Sortie {{output}} · tours {{turns}}",
+      "session": "Session",
+      "toolsCount": "{{count}} outils",
+      "workedFor": "Agent a travaillé {{duration}}"
+    },
     "workingMemory": {
       "agent": "Agent",
       "author": "auteur",
+      "budgetTitle": "Sans limite ; consolidation demandée après 20k et 40k tokens, puis à chaque tour au-delà de 80k",
       "clear": "Effacer",
       "clearConfirm": "Effacer la mémoire de travail ? Le manuscrit, les règles à long terme et l’historique ne seront pas supprimés.",
       "cleared": "Mémoire de travail effacée.",
@@ -172,6 +221,8 @@
     "forgotPassword": "Mot de passe oublié ?",
     "hasAccount": "Déjà un compte ?",
     "legal": {
+      "agree": "En vous inscrivant, vous acceptez les",
+      "and": "et",
       "consent": "En continuant, vous acceptez {{terms}}.",
       "consentTerms": "les conditions",
       "privacy": "Politique de confidentialité",
@@ -185,6 +236,12 @@
     "resend": "Renvoyer le code",
     "sendCode": "Envoyer le code",
     "signIn": "Se connecter",
+    "signOut": {
+      "now": "Se déconnecter maintenant",
+      "pending": "{{count}} modifications de ce Mac manquent dans le cloud. En vous déconnectant, elles restent ici et seront envoyées à votre retour sur ce compte.",
+      "title": "Se déconnecter",
+      "uploadFirst": "Envoyer puis se déconnecter"
+    },
     "signUp": "S’inscrire",
     "signingIn": "Connexion…",
     "social": {
@@ -212,14 +269,20 @@
   },
   "commentRail": {
     "actions": {
+      "close": "Fermer",
       "reopen": "Rouvrir",
       "resolve": "Résoudre"
     },
     "card": {
       "emptyComment": "Commentaire vide"
     },
+    "original": {
+      "changed": "Texte modifié · voir l’original"
+    },
     "snapshot": {
-      "changed": "Supprimé/modifié"
+      "changed": "Supprimé/modifié",
+      "emptyBlock": "(paragraphe vide)",
+      "title": "Source liée · instantané à la création · {{count}} paragraphes"
     }
   },
   "common": {
@@ -266,6 +329,37 @@
       "drifting": "À la dérive",
       "finished": "Terminé",
       "resting": "Au repos"
+    }
+  },
+  "editor_ui": {
+    "bar_add_comment": "Ajouter un commentaire",
+    "fmt_bold": "Gras",
+    "fmt_highlight": "Surligner",
+    "fmt_inline_code": "Code en ligne",
+    "fmt_italic": "Italique",
+    "fmt_strike": "Barré",
+    "fmt_underline": "Souligné",
+    "mention_create_entry_prefix": "Créer l’entrée « ",
+    "mention_create_entry_suffix": " »",
+    "slash_bullet_list": "Liste à puces",
+    "slash_callout": "Encadré",
+    "slash_code_block": "Bloc de code",
+    "slash_comment": "Commentaire",
+    "slash_entry_link": "Lien d’entrée",
+    "slash_ordered_list": "Liste numérotée",
+    "slash_position_link": "Lien de position",
+    "slash_table": "Tableau",
+    "slash_task_list": "Liste de tâches",
+    "slash_todo": "À faire",
+    "table_add_col": "Ajouter une colonne",
+    "table_add_row": "Ajouter une ligne",
+    "table_delete": "Supprimer le tableau",
+    "table_delete_col": "Supprimer la colonne",
+    "table_delete_row": "Supprimer la ligne"
+  },
+  "elementEditor": {
+    "alerts": {
+      "aliasConflict": "Impossible d’ajouter l’alias : « {{name}} » est déjà utilisé par l’élément « {{conflicting}} »."
     }
   },
   "entrySnapshot": {
@@ -534,6 +628,9 @@
     "valuePlaceholder": "Contenu"
   },
   "leftSidebar": {
+    "actions": {
+      "collapseAll": "Tout développer ou réduire"
+    },
     "groups": {
       "driftCount_many": "{{count}} idées",
       "driftCount_one": "{{count}} idée",
@@ -579,6 +676,8 @@
     "retry": "Réessayer",
     "saved": "Exporté",
     "scope": "Portée",
+    "selectAll": "Tout sélectionner",
+    "selectNone": "Tout désélectionner",
     "title": "Exporter le manuscrit",
     "untitledAct": "Acte sans titre"
   },
@@ -621,6 +720,9 @@
       "addSnippetBody": "Écrivez dans cette note…"
     },
     "error": {
+      "codecStore": "Obtenir dans le Microsoft Store",
+      "codecUnavailable": "Il manque à ce PC le codec des images {{format}}. Installez-le depuis le Microsoft Store, puis importez à nouveau.",
+      "fileTooLarge": "Le fichier dépasse la limite de {{maxSizeMiB}} Mio ; Drifting ne peut pas le copier dans la documentation locale.",
       "openFile": "Impossible d’ouvrir le fichier : {{error}}",
       "pickFailed": "Impossible d’importer le fichier : {{error}}"
     },
@@ -818,7 +920,8 @@
     },
     "clear": "Effacer",
     "cloudSync": {
-      "source": "Synchronisation cloud"
+      "source": "Synchronisation cloud",
+      "syncing": "Synchronisation…"
     },
     "crashFollowUp": {
       "source": "Drifting"
@@ -853,6 +956,21 @@
       "minutesAgo": "il y a {{count}} min"
     },
     "title": "Notifications"
+  },
+  "paperSync": {
+    "failing": "Échec de synchronisation cloud",
+    "notStarted": "Impossible de démarrer la synchronisation",
+    "notStartedDetail": "Vos écrits restent enregistrés sur cet appareil.",
+    "offline": "Hors ligne",
+    "offlineDetail": "Vous pouvez continuer à écrire en local.",
+    "openSettings": "Ouvrir les réglages",
+    "quota": "Stockage Hosted plein",
+    "reauth": "Session expirée",
+    "reauthDetail": "Reconnectez-vous au même compte.",
+    "retry": "Réessayer",
+    "retrying": "Synchronisation inachevée",
+    "retryingDetail": "Vos écrits sont enregistrés sur cet appareil. Nouvelle tentative automatique.",
+    "signIn": "Se reconnecter"
   },
   "plotGrid": {
     "addColumnShort": "Colonne",
@@ -1101,10 +1219,15 @@
     "filters": {
       "all": "Les deux"
     },
+    "groupBy": {
+      "flat": "Aucun",
+      "target": "Par emplacement"
+    },
     "groups": {
       "deleted": "Supprimés",
       "floating": "Non rattachés"
     },
+    "newComment": "Nouveau commentaire",
     "scopes": {
       "current": "Actuel"
     },
@@ -1113,7 +1236,6 @@
   "rightSidebar": {
     "kickers": {
       "library": "Projet · Documentation",
-      "review": "Projet · Relecture",
       "stats": {
         "element": "Cet élément · statistiques détaillées",
         "material": "Cette ressource · Détails",
@@ -1122,17 +1244,37 @@
       }
     },
     "stats": {
+      "averagePerChapter": "Moyenne par chapitre",
+      "bookOverview": "Vue du livre",
+      "chapterLengthRhythm": "Rythme de longueur des chapitres",
+      "completion": "Achèvement",
+      "created": "Créé",
       "dialogueRatio": "Part de dialogue",
+      "dimensions": "Dimensions",
+      "discardedParen": " (écartés {{count}})",
+      "embeddedMaterials": "Ressources intégrées",
+      "fileSize": "Taille",
+      "fileType": "Type",
+      "longestWithWords": "Le plus long · {{title}} ({{words}} mots)",
+      "materialCoordinates": "Ressource",
+      "materialFile": "Fichier",
       "name": "Nom",
+      "openComments": "Commentaires et tâches ouverts",
       "paragraphSentence": "Paragraphes / phrases",
       "paragraphSentenceValue": "{{paragraphs}} paragraphes · {{sentences}} phrases",
       "recent": "Récent",
+      "references": "Références",
+      "shortestWithWords": "Le plus court · {{title}} ({{words}} mots)",
       "snapshotButton": "Instantanés historiques…",
+      "statusCount": "{{status}} {{count}} chapitres",
       "storyline": "Intrigue",
+      "thisChapterElements": "Éléments de ce chapitre",
+      "unappearedElements": "Éléments non apparus",
       "updated": "Mis à jour",
       "wordRhythm": "Mots · rythme",
       "wordsValue": "{{count}} mots",
-      "writingProgress": "Progression d’écriture"
+      "writingProgress": "Progression d’écriture",
+      "writtenTarget": "Écrit / objectif"
     },
     "status": {
       "draft": "Brouillon"
@@ -1156,6 +1298,7 @@
       "emailTeam": "Écrire à l’équipe",
       "engine": "Moteur",
       "feedback": "Votre avis…",
+      "fonts": "Polices",
       "knownIssues": "Problèmes connus",
       "knownIssuesDesc": "Limites connues de la version Alpha actuelle",
       "license": "Licence du client",
@@ -1176,6 +1319,14 @@
       "viewSource": "Voir le code source",
       "writeEmail": "Rédiger un e-mail"
     },
+    "account": {
+      "export_all": "Exporter le Markdown avec relations",
+      "export_all_btn": "Exporter un ZIP Markdown",
+      "export_all_desc": "Exporte tous les projets de cette bibliothèque locale avec chapitres, idées, éléments, commentaires, notes de documentation et liens wiki bidirectionnels. Images et PDF exclus. Cette archive Markdown ne peut pas être réimportée dans Drifting.",
+      "export_done": "{{count}} documents Markdown exportés.",
+      "export_failed": "Échec de l’exportation : {{error}}",
+      "exporting": "Exportation…"
+    },
     "agent": {
       "chatConfigDesc": "Choisissez fournisseur, modèle et effort de raisonnement dans le menu de la saisie Agent à droite. Les clés et l’abonnement ChatGPT se gèrent dans Modèles et API.",
       "effortOptions": {
@@ -1193,6 +1344,7 @@
         "args": "Arguments (un par ligne)",
         "command": "Chemin absolu de l’exécutable",
         "cwd": "Répertoire de travail absolu (facultatif)",
+        "deleteConfirm": "Supprimer le serveur MCP « {{name}} » ? Ses autorisations persistantes seront aussi révoquées.",
         "disable": "Désactiver",
         "editTitle": "Modifier le serveur MCP",
         "empty": "Ce projet n’a aucun serveur MCP.",
@@ -1202,6 +1354,7 @@
         "noProject": "Ouvrez un projet pour configurer MCP.",
         "notChecked": "Pas encore connecté",
         "policy": {
+          "askWrite": "Écriture · demander",
           "disabled": "Désactivé"
         },
         "publicEnv": "Variables publiques (NAME=value par ligne)",
@@ -1244,7 +1397,34 @@
       "unlimited": "Illimité",
       "unlimitedHint": "Sans limite ne fixe aucun maximum d’appels au modèle. Vous pouvez arrêter le tour manuellement."
     },
+    "agentMemory": {
+      "title": "Mémoire du projet"
+    },
+    "agentUsage": {
+      "all": "Toute la période",
+      "clearConfirm": "Effacer tout l’historique ? {{count}} conversations d’Agent de ce projet seront supprimées.",
+      "clearHistory": "Effacer l’historique",
+      "conversationsTurns": "Conversations / tours",
+      "deleteConversation": "Supprimer cette conversation",
+      "history": "Historique des conversations",
+      "historyDesc": "Toutes les conversations d’Agent du projet. La suppression est réversible et reflétée dans l’historique à droite, sans affecter les autres projets.",
+      "month": "Ce mois-ci",
+      "noHistory": "Aucune conversation. Envoyez un message à Agent pour commencer.",
+      "noProjectHistory": "Ouvrez un projet pour gérer l’historique des conversations.",
+      "noProjectUsage": "Ouvrez un projet pour voir l’utilisation d’Agent.",
+      "tokenCard": "Tokens · {{scope}}",
+      "untitled": "Sans titre",
+      "usage": "Utilisation",
+      "usageDesc": "Tokens utilisés par Agent dans ce projet, relevés à chaque tour retourné ; l’entrée inclut les lectures du cache. Affichez ce mois ou toute la période."
+    },
     "appearance": {
+      "accent": "Couleur d’accent",
+      "accent_color": "Accent de l’interface",
+      "accent_color_desc": "Utilisé pour les boutons, le focus et les états actifs, sans modifier le curseur de l’éditeur.",
+      "accent_reset": "Rétablir les valeurs par défaut",
+      "agent_edit_reveal": "Animation des modifications",
+      "agent_edit_reveal_desc": "Affiche caractère par caractère les modifications d’Agent et celles des chapitres et idées édités ailleurs. Désactivez pour afficher immédiatement le résultat ; les repères de changements non lus restent disponibles.",
+      "animations": "Animations et transitions",
       "dark": "Sombre",
       "guides": "Guides",
       "interface_text_large": "Grand",
@@ -1302,9 +1482,51 @@
       "auto_element_link_desc": "Reconnaît les noms d’éléments existants lors de la saisie et crée un lien vers leur page.",
       "auto_immersive": "Écriture immersive dès la saisie",
       "auto_immersive_desc": "Dès que vous écrivez dans le texte, les barres latérales et les outils se retirent ; Échap ou un clic hors du texte les fait revenir.",
+      "caret_color": "Couleur du curseur",
+      "caret_color_desc": "Choisissez la couleur du curseur de saisie.",
+      "entity_link_band_style": "Style de bande des liens",
+      "entity_link_band_style_desc": "Utilise une bande douce continue ou une fine rangée de points sous le texte.",
+      "entity_link_band_style_dots": "Points fins",
+      "entity_link_band_style_wash": "Bande continue",
+      "entity_link_highlight": "Traitement des liens d’entités",
+      "entity_link_highlight_band": "Bande colorée",
+      "entity_link_highlight_both": "Les deux",
+      "entity_link_highlight_desc": "Soulignez les liens par une bande, du texte coloré ou les deux. S’applique aussi au survol.",
+      "entity_link_highlight_text": "Couleur du texte",
+      "entity_link_kind_category": "Catégorie",
+      "entity_link_kind_chapter": "Chapitre",
+      "entity_link_kind_drift": "Idée",
+      "entity_link_kind_element": "Élément",
+      "entity_link_kind_patch": "Évolution",
+      "entity_link_kind_storyline": "Intrigue",
+      "entity_link_style": "Mise en évidence des liens d’entités",
+      "entity_link_style_contextual": "Par appartenance",
+      "entity_link_style_desc": "Utilisez les couleurs d’appartenance, une couleur par type d’entité, les couleurs d’appartenance au survol uniquement ou la couleur du texte avec une bande.",
+      "entity_link_style_hover": "Au survol uniquement",
+      "entity_link_style_kind": "Par type",
+      "entity_link_style_prose": "Texte",
       "flow": "Rythme d’écriture",
+      "font_error_empty": "Ce fichier de police est vide.",
+      "font_error_format": "Seuls les fichiers TTF, OTF, WOFF et WOFF2 sont acceptés.",
+      "font_error_invalid": "Ce fichier n’a pas pu être décodé. Choisissez une police normale ou variable valide.",
+      "font_error_size": "Le fichier de police ne doit pas dépasser 64 Mo.",
+      "font_import": "Importer une police",
+      "font_import_done": "La police est enregistrée sur cet appareil et appliquée au contenu rédigé.",
+      "font_import_help": "Prend en charge les polices normales ou variables TTF, OTF, WOFF et WOFF2, jusqu’à 64 Mo.",
+      "font_remove": "Retirer",
+      "font_remove_done": "La copie de police enregistrée par l’application a été retirée.",
+      "font_replace": "Remplacer",
+      "font_scope_desc": "S’applique aux textes, titres, résumés, textes longs des entités, champs, évolutions, références et aperçu typographique. L’interface, les barres latérales, dialogues et cartes utilisent la police sans empattement commune. Ce choix est local, hors du contenu synchronisé par SyncEngine.",
       "font_size": "Taille de police",
       "font_size_desc": "Uniquement dans l’éditeur ; l’exportation n’est pas affectée.",
+      "font_source": "Police du contenu",
+      "font_system_custom": "Police système",
+      "font_system_manual_placeholder": "Par exemple : Charter",
+      "font_system_mono": "Police système à chasse fixe",
+      "font_system_placeholder": "Choisir une police système",
+      "font_system_sans": "Police système sans empattement",
+      "font_system_serif": "Police système avec empattements",
+      "font_use": "Utiliser",
       "indent": "Retrait de paragraphe",
       "indent_desc": "Uniquement dans l’éditeur. L’exportation a ses propres réglages.",
       "indent_none": "Aucun",
@@ -1321,6 +1543,12 @@
       "preview_p1": "Le silence s’étendait entre eux comme la marée sur la pierre. Enfin elle parla, d’une voix que le vent emportait presque et qu’il entendait à peine.",
       "preview_p2": "« Tu reviendras ? » Il ne répondit pas aussitôt. Il regarda le soleil sombrer dans la mer, puis hocha la tête longtemps après, sans savoir lui-même s’il s’agissait d’une promesse ou de pitié.",
       "reset_style": "Rétablir le style recommandé",
+      "tab_indent": "Retrait avec Tab",
+      "tab_indent_desc": "Largeur d’un niveau de retrait avec Tab ; Maj+Tab réduit le retrait.",
+      "text_wrap": "Retour à la ligne",
+      "text_wrap_desc": "Stable remplit chaque ligne et conserve les retours précédents lors d’éditions ultérieures. Équilibré ajuste tout le paragraphe. Application immédiate, enregistrée sur cet appareil.",
+      "text_wrap_pretty": "Équilibré",
+      "text_wrap_stable": "Stable",
       "typesetting": "Composition",
       "typewriter_mode": "Mode machine à écrire",
       "typewriter_mode_desc": "Maintient la ligne active à une position stable lors de la saisie ou du déplacement du curseur. Uniquement dans l’éditeur.",
@@ -1356,19 +1584,37 @@
       "connect_errors": {
         "cancelled": "Annulé."
       },
+      "crop_confirm": "Utiliser cet avatar",
+      "crop_description": "Faites glisser l’image ou utilisez les flèches, puis réglez le zoom.",
+      "crop_title": "Ajuster l’avatar",
+      "crop_zoom": "Zoom",
       "current_password": "Mot de passe actuel",
       "description": "Vos textes sont d’abord enregistrés sur cet appareil. Connectez un compte pour synchroniser vos projets entre vos appareils.",
+      "disconnect": "Déconnecter la synchronisation",
+      "disconnect_anyway": "Déconnecter quand même",
+      "disconnect_description": "Téléverse les modifications présentes uniquement sur ce Mac, puis déconnecte. Les projets locaux et copies cloud sont conservés.",
+      "disconnect_now": "Déconnecter maintenant",
+      "disconnect_unuploaded": "{{count}} modifications non téléversées. Après déconnexion, elles resteront uniquement sur ce Mac.",
       "display_name": "Nom affiché",
+      "enabled": "Synchronisation Hosted connectée",
+      "last_synced": "Dernière synchronisation complète : {{time}}",
       "library_switch_failed": "Impossible de changer de bibliothèque",
       "new_password": "Nouveau mot de passe",
       "no_account": "Non connecté",
+      "not_started": "Impossible de démarrer la synchronisation. Vos écrits restent sur l’appareil ; rouvrez Drifting.",
       "password_description": "8 à 128 caractères.",
       "password_saved": "Mot de passe modifié. Les autres appareils doivent se reconnecter.",
       "password_sessions": "Changer le mot de passe déconnecte les autres appareils. Celui-ci reste connecté.",
       "password_title": "Mot de passe",
+      "pause": "Mettre en pause",
+      "paused": "Synchronisation en pause",
+      "pending": "Synchronisation en cours ou en attente de fin.",
       "profile_saved": "Profil enregistré.",
       "profile_title": "Profil",
+      "quota_blocked": "Hosted est plein ; une pièce jointe n’a pas pu être envoyée, bloquant la suite de la synchronisation. Supprimez les pièces jointes ou projets inutiles pour reprendre. Le contenu local est préservé.",
       "remove_avatar": "Retirer",
+      "resume": "Reprendre",
+      "retrying": "Synchronisation inachevée. Vos textes sont enregistrés en local ; nouvelle tentative automatique.",
       "save_profile": "Enregistrer le profil",
       "session": {
         "checking": "Vérification du compte…",
@@ -1379,6 +1625,10 @@
       },
       "sign_in": "Se connecter / S’inscrire",
       "sign_out": "Se déconnecter",
+      "storage": "Stockage Hosted",
+      "storage_description": "{{used}} utilisés sur {{quota}}. Les pièces jointes comptent ; texte et structure sans limite.",
+      "sync_now": "Synchroniser maintenant",
+      "sync_title": "Synchronisation Hosted",
       "title": "Compte et synchronisation Hosted",
       "working": "En cours…"
     },
@@ -1452,6 +1702,7 @@
       "diagnosticsCopied": "Résumé de diagnostic expurgé copié.",
       "diagnosticsCopyFailed": "Impossible d’écrire dans le presse-papiers. L’autorisation est peut-être indisponible.",
       "diagnosticsDesc": "Copie la version, plateforme, disponibilité des fonctions, compteurs et catégories d’erreur de synchronisation, et état des mises à jour. Sans manuscrit, identifiants secrets, identifiant de projet ni chemin absolu. Jamais téléversé automatiquement.",
+      "fullPolicy": "Voir la politique de confidentialité complète",
       "noteLocal": "Cette version ne contacte jamais un serveur Drifting ; vos écrits restent sur l’appareil. L’IA et la transcription vont directement au fournisseur choisi, selon ses conditions de données et d’entraînement. Les extensions MCP distantes ajoutées utilisent aussi le réseau."
     },
     "rail": {
@@ -1489,6 +1740,8 @@
         "restoring": "Restauration…",
         "summary": "{{projects}} projets, {{assets}} fichiers de ressources, {{size}}."
       },
+      "import_files": "Importer",
+      "import_files_desc": "Depuis Word (.docx), Markdown ou du texte brut.",
       "local_data": "Données locales",
       "local_sub": "Sans compte Drifting ni cloud hébergé. Exportez une copie lisible quand vous voulez.",
       "local_title": "Votre travail reste sur cet appareil.",
@@ -1496,13 +1749,20 @@
         "allProjects": "Tous les projets",
         "allProjectsUnset": "Tous les projets · Aucun emplacement choisi",
         "choose": "Choisir un dossier",
+        "copied": "Chemin copié",
+        "copy": "Copier le chemin",
+        "error": "Échec de la mise à jour",
         "offHint": "Désactivé : plus d’écriture Markdown ni d’intégration des éditions externes. Les fichiers existants restent en place.",
         "offTitle": "Désactiver le dossier Markdown ?",
+        "pending": "Mise à jour",
+        "ready": "À jour",
+        "refresh": "Mettre à jour maintenant",
         "reveal": "Afficher dans le Finder",
         "title": "Dossier Markdown",
         "turnOff": "Désactiver le dossier Markdown",
         "turnOn": "Activer"
-      }
+      },
+      "select_file": "Choisir un fichier…"
     },
     "update": {
       "channel_desc": "Apple Silicon · macOS 13 ou ultérieur",
@@ -1526,6 +1786,49 @@
       "server_error": "Le service de mise à jour rencontre un problème. Réessayez plus tard ; cette version reste utilisable.",
       "unavailable": "Cette version n’a pas de clé de signature de mise à jour et ne peut pas en rechercher. Les versions téléchargées depuis GitHub le permettent."
     }
+  },
+  "shell_ui": {
+    "add_fact": "Ajouter un champ",
+    "back_plain": "Retour",
+    "empty_book_hint": "Créez une entrée et rédigez du texte pour lire le livre complet ici.",
+    "empty_book_title": "Aucun texte pour l'instant",
+    "fact_key_placeholder": "Nom (ex. Sous-titre, Genre)",
+    "fact_value_placeholder": "Valeur",
+    "find_results": "Résultats",
+    "hosted_purge_note": "Suppression définitive sur cet appareil et tous les appareils synchronisés dans le cloud.",
+    "hosted_trash_note": "Supprimé localement et dans le cloud ; récupérable pendant 30 jours.",
+    "menu_about": "À propos de {{app}}",
+    "menu_bring_all_to_front": "Tout ramener au premier plan",
+    "menu_close_window": "Fermer la fenêtre",
+    "menu_copy": "Copier",
+    "menu_cut": "Couper",
+    "menu_edit": "Édition",
+    "menu_hide": "Masquer {{app}}",
+    "menu_hide_others": "Masquer les autres",
+    "menu_minimize": "Placer dans le Dock",
+    "menu_paste": "Coller",
+    "menu_quit": "Quitter {{app}}",
+    "menu_redo": "Rétablir",
+    "menu_select_all": "Tout sélectionner",
+    "menu_services": "Services",
+    "menu_settings": "Réglages…",
+    "menu_show_all": "Tout afficher",
+    "menu_undo": "Annuler",
+    "menu_zoom": "Réduire/agrandir",
+    "new_entry_plain": "Nouvelle entrée",
+    "open_whole_book": "Lire tout le livre",
+    "pick_relation_target": "Connexion depuis « {{name}} » — cliquez sur une autre entrée (Échap pour annuler)",
+    "preparing_samples": "Préparation des projets d'exemple…",
+    "project_facts": "Informations du projet",
+    "search_hint": "Saisissez un mot-clé pour rechercher dans tout le projet",
+    "search_placeholder": "Rechercher titres, textes, champs et fichiers…",
+    "swap_split": "Inverser les volets",
+    "templates_plain": "Modèles",
+    "toggle_comment_marks": "Afficher les marques de commentaire",
+    "toggle_entity_links": "Liens d'entrées interactifs",
+    "unpin_island": "Détacher la position",
+    "unsplit": "Fermer la division",
+    "words_short": "{{count}} m"
   },
   "sidebarLayout": {
     "split": "Rétablir deux colonnes"
@@ -1551,7 +1854,8 @@
     "edge": {
       "hideKind": "Masquer « {{label}} »",
       "showKind": "Afficher « {{label}} »"
-    }
+    },
+    "spread": "Répartir"
   },
   "storylineEditor": {
     "filters": {
@@ -1601,6 +1905,7 @@
       "relayout": "Réorganiser"
     },
     "reset": "Réinitialiser",
+    "startEdgeFromElement": "Créer une relation depuis cet élément",
     "uncategorized": "Sans catégorie",
     "unnamedCategory": "Catégorie sans titre"
   },
@@ -1619,7 +1924,10 @@
     "color": "Couleur",
     "conflict": "Le modèle a été modifié ailleurs",
     "date": "Date",
+    "default_prose": "Modèle de texte par défaut",
+    "default_prose_hint": "Copié dans les nouvelles entrées créées à partir de ce modèle",
     "default_template": "Modèle par défaut",
+    "default_value": "Valeur par défaut",
     "description": "Description",
     "display": "Affichage",
     "entity_ref": "Référence à une entrée",
@@ -1747,9 +2055,15 @@
     "originTask": "Liste",
     "regionPlace": "Zone",
     "regionPlacePaged": "Page {{page}}",
+    "retarget": "Changer la cible…",
+    "sortNewest": "Plus récents",
+    "sortOldest": "Plus anciens",
+    "sortPosition": "Par position",
     "statusOpen": "Ouverts",
     "statusResolved": "Résolus",
+    "unbindTarget": "Détacher la cible",
     "unlocated": "Emplacement introuvable",
+    "viewOriginal": "Voir l'original",
     "wholeFile": "Fichier entier",
     "writeComment": "Écrire un commentaire"
   },
@@ -1774,6 +2088,9 @@
     "railAgent": "Agent"
   },
   "v3Shell": {
+    "agent_unread": "Modifications Agent non lues",
+    "aliases_add": "Ajouter un alias…",
+    "aliases_remove": "Supprimer l’alias",
     "attachedEntries": "Rattachées ici",
     "belongTo": "Rattacher à",
     "board": "Tableau",
@@ -1784,7 +2101,9 @@
     "editTemplate": "Modifier le modèle",
     "entries": "Entrées",
     "entryUntemplated": "Entrée",
+    "entry_count": "{{count}} entrées",
     "expandTimeline": "Développer la chronologie des intrigues",
+    "external_unread": "Modifications externes non lues",
     "grid": "Grille",
     "hideOutline": "Masquer la table des matières",
     "islands": "Îles",
@@ -1828,8 +2147,10 @@
     "colorValue": "Valeur de couleur",
     "deleteView": "Supprimer la vue",
     "detachEntry": "Dissocier l’entrée",
+    "empty_book_view": "Placez d’abord au moins une entrée dans cette vue",
     "laneActions": "Actions de piste",
     "laneTrack": "Piste {{name}}",
+    "locate_current": "Localiser l’entrée actuelle",
     "members": "{{count}} membres",
     "moveDown": "Descendre",
     "moveUp": "Monter",
@@ -1837,6 +2158,7 @@
     "newEntryInLane": "Nouvelle entrée",
     "newLane": "Nouvelle piste",
     "newView": "Nouvelle vue",
+    "pin_color": "Couleur",
     "placeEntry": "Placer une entrée",
     "placementActions": "Actions de placement",
     "removeEntry": "Retirer de la piste",
@@ -1845,9 +2167,12 @@
     "renameView": "Renommer la vue",
     "resize": "Ajuster la longueur",
     "ruler": "Règle d’échelle",
+    "section_create": "Créer",
+    "section_existing": "Ajouter des entrées existantes",
     "selectLane": "Choisir une piste",
     "setActTrack": "Utiliser comme piste d’actes · {{name}}",
     "unsetActTrack": "Revenir à une piste normale · {{name}}",
+    "view_actions": "Actions de vue",
     "views": "Vues"
   },
   "v3Transfer": {
@@ -1862,8 +2187,11 @@
     "alignRight": "Droite",
     "allFolders": "Tout",
     "clearField": "Effacer",
+    "collapseAll": "Tout replier",
     "currentSection": "Actuel",
     "empty": "Aucun fichier",
+    "empty_trash": "Vider",
+    "expandAll": "Tout déplier",
     "fileCount_one": "{{count}} fichier",
     "fileCount_other": "{{count}} fichiers",
     "findFile": "Chercher un fichier",
@@ -1963,6 +2291,16 @@
     "direction": "Sens",
     "otherEntry": "Autre entrée",
     "relation": "Relation"
+  },
+  "v5Stats": {
+    "childrenAggregate": "Résumé des enfants",
+    "entryCoordinates": "Coordonnées",
+    "groupRhythm": "Rythme par groupe",
+    "inboundLinks": "Référencé par",
+    "outboundLinks": "Références",
+    "projectOverview": "Aperçu du projet",
+    "templatesTotal": "Modèles",
+    "unreferencedNote": "Pas encore mentionné dans le texte"
   },
   "v5Tour": {
     "agent": {

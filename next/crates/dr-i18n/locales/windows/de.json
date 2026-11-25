@@ -4,6 +4,11 @@
       "saveFailed": "Schlüssel konnte nicht in der Windows-Anmeldeinformationsverwaltung gespeichert werden."
     }
   },
+  "auth": {
+    "signOut": {
+      "pending": "{{count}} Änderungen dieses PCs fehlen noch in der Cloud. Beim Abmelden bleiben sie hier und werden beim erneuten Anmelden in dieses Konto hochgeladen."
+    }
+  },
   "settings": {
     "agent": {
       "extensions": {
@@ -14,6 +19,10 @@
       "failure": {
         "storage_failed": "Die Anmeldung konnte nicht in der Windows-Anmeldeinformationsverwaltung gespeichert werden."
       }
+    },
+    "hosted": {
+      "disconnect_description": "Lädt nur auf diesem PC vorhandene Änderungen hoch und trennt dann. Lokale Projekte und Cloudkopien bleiben erhalten.",
+      "disconnect_unuploaded": "{{count}} Änderungen wurden nicht hochgeladen. Nach dem Trennen liegen sie nur auf diesem PC."
     },
     "sync": {
       "projection": {

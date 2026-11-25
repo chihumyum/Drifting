@@ -24,6 +24,7 @@ use gpui_prose::{InputRule, ProseExtension, Typed};
 use loro::LoroValue;
 
 use crate::rules::markdown_rule;
+use crate::settings::{EntityLinkColorMode, LinkAppearance, parse_hex_hsla};
 
 /// Bulk link targets for one book state: every entry of the book with its
 /// state (Recently Deleted too), and the live files.
@@ -60,6 +61,12 @@ pub trait LinkTargets {
     fn pdf_assets(&self) -> HashSet<String> {
         HashSet::new()
     }
+
+    /// Entry colours and effective template names (`id -> (hex_color, template_name)`),
+    /// for `EntityLinkColorMode::Kind`.
+    fn entry_colors(&self) -> HashMap<String, (Option<String>, Option<String>)> {
+        HashMap::new()
+    }
 }
 
 /// Whether an entity mark's value says the author made the link: picked
@@ -89,6 +96,9 @@ pub fn link_kind(value: &LoroValue) -> EntityKind {
     }
 }
 
+/// Cached `entry_id -> (entry_hex_color, template_name)` for `Kind` colour mode.
+type EntryColorMap = HashMap<String, (Option<String>, Option<String>)>;
+
 /// gpui-prose's extension for Drifting: entity link looks and Markdown
 /// input rules.
 pub struct DriftingExtension {
@@ -112,12 +122,71 @@ pub struct DriftingExtension {
     /// Painted `"links"` decoration ids that point to live files (`(id, is_pdf)`),
     /// per chapter, so `Assist` draws their trailing file badge.
     file_link_badges: RefCell<HashMap<usize, Vec<(gpui::SharedString, bool)>>>,
+    /// Visual appearance settings for entity links (`color_mode`, `highlight_mode`,
+    /// `band_style`, `kind_colors`).
+    appearance: RefCell<LinkAppearance>,
+    /// Cached `entry_id -> (entry_hex_color, template_name)` for `Kind` colour mode.
+    entry_colors: RefCell<Option<EntryColorMap>>,
 }
 
 impl DriftingExtension {
     /// Rules of a material note too (`==highlight==`); set per document.
     pub fn set_note(&self, note: bool) {
         self.note.set(note);
+    }
+
+    /// Updates entity link visual appearance settings.
+    pub fn set_appearance(&self, appearance: LinkAppearance) {
+        *self.appearance.borrow_mut() = appearance;
+    }
+
+    /// Current entity link visual appearance settings.
+    pub fn appearance(&self) -> LinkAppearance {
+        self.appearance.borrow().clone()
+    }
+
+    /// Resolves the colour to paint a live entity link to `(kind, id)` under
+    /// the current [`LinkAppearance`], falling back to `default_link`.
+    pub fn resolve_link_color(
+        &self,
+        kind: &EntityKind,
+        id: &str,
+        default_link: gpui::Hsla,
+    ) -> gpui::Hsla {
+        let appearance = self.appearance.borrow();
+        if appearance.color_mode != EntityLinkColorMode::Kind {
+            return default_link;
+        }
+        // Check explicit kind override first (by kind string, e.g. "entry", "asset",
+        // or by the entry's template name).
+        if let Some(hex) = appearance.kind_colors.get(kind.as_str())
+            && let Some(c) = parse_hex_hsla(hex)
+        {
+            return c;
+        }
+        if *kind == EntityKind::Entry {
+            if self.entry_colors.borrow().is_none()
+                && let Some(targets) = &self.targets
+            {
+                *self.entry_colors.borrow_mut() = Some(targets.entry_colors());
+            }
+            if let Some(map) = self.entry_colors.borrow().as_ref()
+                && let Some((hex, tpl)) = map.get(id)
+            {
+                if let Some(tpl_name) = tpl
+                    && let Some(override_hex) = appearance.kind_colors.get(tpl_name)
+                    && let Some(c) = parse_hex_hsla(override_hex)
+                {
+                    return c;
+                }
+                if let Some(hex) = hex
+                    && let Some(c) = parse_hex_hsla(hex)
+                {
+                    return c;
+                }
+            }
+        }
+        default_link
     }
 
     /// `targets`: where to look link targets up (`None`: every link alive).
@@ -134,6 +203,8 @@ impl DriftingExtension {
             dry_underline: std::cell::Cell::new(false),
             todos: RefCell::default(),
             file_link_badges: RefCell::default(),
+            appearance: RefCell::default(),
+            entry_colors: RefCell::new(None),
         }
     }
 
@@ -151,6 +222,7 @@ impl DriftingExtension {
         self.entries.borrow_mut().clear();
         self.auto_links.set(None);
         *self.pdf_assets.borrow_mut() = None;
+        *self.entry_colors.borrow_mut() = None;
     }
 
     /// The author's setting `editor.auto_entity_links` (cached until
@@ -288,33 +360,59 @@ impl DriftingExtension {
 
 impl ProseExtension for DriftingExtension {
     fn style_run(&self, marks: &Marks, run: &mut RunStyle, style: &ProseStyle) {
-        let mut linked = None;
+        let mut linked: Option<(bool, Option<gpui::Hsla>)> = None;
         for (key, value) in marks.iter() {
             if let Some(id) = inline::entity_target(key) {
+                let kind = link_kind(value);
                 // Format 5 (`v5-tracks.md` §T5): a link to a trashed file
                 // reads like ordinary prose text until the file is restored;
                 // so does an automatic link whose entry's 「自动链接」 is off
                 // (`kernel-v5.md` §16).
-                match self.show(&link_kind(value), id, value) {
-                    LinkShow::Live => linked = Some(true),
-                    LinkShow::Gone => linked = Some(linked.unwrap_or(false)),
+                match self.show(&kind, id, value) {
+                    LinkShow::Live => {
+                        let color = self.resolve_link_color(&kind, id, style.link);
+                        linked = Some((true, Some(color)));
+                    }
+                    LinkShow::Gone => {
+                        if linked.is_none() {
+                            linked = Some((false, None));
+                        }
+                    }
                     LinkShow::Plain => {}
                 }
             }
         }
+        let appearance = self.appearance.borrow();
         match linked {
-            Some(true) => {
-                run.color = style.link;
-                run.underline = Some(style.link.opacity(0.45));
+            Some((true, color)) => {
+                let color = color.unwrap_or(style.link);
+                let show_text = appearance.highlight_mode.styles_text()
+                    && !matches!(
+                        appearance.color_mode,
+                        EntityLinkColorMode::Prose | EntityLinkColorMode::Hover
+                    );
+                if show_text {
+                    run.color = color;
+                }
+                if !self.dry_underline.get()
+                    && appearance.highlight_mode.styles_band()
+                    && !matches!(
+                        appearance.color_mode,
+                        EntityLinkColorMode::Prose | EntityLinkColorMode::Hover
+                    )
+                {
+                    run.underline = Some(color.opacity(0.45));
+                }
             }
-            Some(false) => {
-                run.color = style.muted;
-                run.underline = Some(style.muted.opacity(0.6));
+            Some((false, _)) if appearance.color_mode != EntityLinkColorMode::Prose => {
+                if appearance.highlight_mode.styles_text() {
+                    run.color = style.muted;
+                }
+                if !self.dry_underline.get() && appearance.highlight_mode.styles_band() {
+                    run.underline = Some(style.muted.opacity(0.6));
+                }
             }
-            None => {}
-        }
-        if linked.is_some() && self.dry_underline.get() {
-            run.underline = None;
+            Some((false, _)) | None => {}
         }
     }
 

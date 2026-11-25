@@ -12,14 +12,15 @@ use dr_shell::{
 };
 use dr_ui::{
     Theme,
-    components::{Button, Dialog},
+    components::{Button, Dialog, PanelIconButton},
     fonts::Role,
     input::{
         TextArea,
         field::{FieldEvent, TextField},
     },
-    sand::KindMark,
+    sand::{Icon, KindMark, Readout},
     style::DrStyled,
+    tokens::radius,
 };
 use dr_view_stats::{
     LiveWords,
@@ -27,7 +28,7 @@ use dr_view_stats::{
 };
 use dr_workspace::{
     Actor, RecordKey, Workspace as Library, WritePreconditions, WsError,
-    commands::v3::entry::CreateIn,
+    commands::v3::entry::CreateIn, dto::FieldInfo,
 };
 use gpui::{
     AppContext as _, Context, ElementId, Entity, Focusable, IntoElement, ParentElement, Render,
@@ -198,6 +199,9 @@ pub struct Home {
     pub(crate) source: Option<Rc<Book>>,
     pub loaded: Option<Loaded>,
     recent: Vec<RecentPage>,
+    facts: Vec<FieldInfo>,
+    fact_key: Entity<TextField>,
+    fact_value: Entity<TextField>,
     task: Option<Task<()>>,
     generation: u64,
     stale: bool,
@@ -282,12 +286,32 @@ impl Home {
                 }));
             }
         });
+        let fact_key_ph = t(cx, keys::shell_ui::FACT_KEY_PLACEHOLDER);
+        let fact_val_ph = t(cx, keys::shell_ui::FACT_VALUE_PLACEHOLDER);
+        let fact_key = cx.new(|cx| {
+            TextField::new("v3-home-fact-key", window, cx)
+                .placeholder(fact_key_ph)
+                .small()
+        });
+        let fact_value = cx.new(|cx| {
+            TextField::new("v3-home-fact-value", window, cx)
+                .placeholder(fact_val_ph)
+                .small()
+        });
+        live.push(cx.subscribe_in(&fact_value, window, |h, _, ev, _, cx| {
+            if matches!(ev, FieldEvent::Submitted(_)) {
+                h.add_fact(cx);
+            }
+        }));
         let mut this = Self {
             ws,
             lib,
             source: None,
             loaded: None,
             recent: Vec::new(),
+            facts: Vec::new(),
+            fact_key,
+            fact_value,
             task: None,
             generation: 0,
             stale: false,
@@ -354,6 +378,7 @@ impl Home {
         if self.source.as_ref().is_none_or(|old| old.id != book.id) {
             self.loaded = None;
             self.recent.clear();
+            self.facts.clear();
             dr_view_stats::track_book(&book.id, cx);
         }
         self.source = Some(book.clone());
@@ -372,7 +397,24 @@ impl Home {
                 .spawn(async move {
                     let data = dr_view_stats::v3::load_at(&lib, &id, Scope::Book, &today)?;
                     let book = Book::load(&lib, &id)?;
-                    Ok::<_, WsError>((data, recent(&lib, &book)?))
+                    let facts: Vec<FieldInfo> = lib
+                        .call(&Actor::User, "fact.list", serde_json::json!({"book": &id}))
+                        .ok()
+                        .and_then(|v| v["output"].as_array().cloned())
+                        .map(|arr| {
+                            arr.into_iter()
+                                .filter_map(|item| {
+                                    Some(FieldInfo {
+                                        id: item["id"].as_str()?.to_owned(),
+                                        key: item["key"].as_str()?.to_owned(),
+                                        value: item["value"].as_str().unwrap_or("").to_owned(),
+                                        pos: item["pos"].as_str().map(str::to_owned),
+                                    })
+                                })
+                                .collect()
+                        })
+                        .unwrap_or_default();
+                    Ok::<_, WsError>((data, recent(&lib, &book)?, facts))
                 })
                 .await;
             this.update(cx, |h, cx| {
@@ -381,9 +423,10 @@ impl Home {
                 }
                 h.task = None;
                 match loaded {
-                    Ok((loaded, recent)) => {
+                    Ok((loaded, recent, facts)) => {
                         h.loaded = Some(loaded);
                         h.recent = recent;
+                        h.facts = facts;
                         h.sync_synopsis(cx);
                     }
                     Err(error) => {
@@ -396,6 +439,74 @@ impl Home {
             })
             .ok();
         }));
+    }
+
+    fn add_fact(&mut self, cx: &mut Context<Self>) {
+        let Some(lib) = self.lib.clone() else {
+            return;
+        };
+        let Some(book) = self.source.as_ref().map(|b| b.id.clone()) else {
+            return;
+        };
+        let key = self.fact_key.read(cx).text().trim().to_owned();
+        let value = self.fact_value.read(cx).text().trim().to_owned();
+        if key.is_empty() {
+            return;
+        }
+        self.fact_key.update(cx, |f, cx| f.set_text("", cx));
+        self.fact_value.update(cx, |f, cx| f.set_text("", cx));
+        cx.spawn(async move |this, cx| {
+            let res = cx
+                .background_executor()
+                .spawn(async move {
+                    lib.call(
+                        &Actor::User,
+                        "fact.put",
+                        serde_json::json!({ "book": book, "key": key, "value": value }),
+                    )
+                })
+                .await;
+            if let Err(err) = res {
+                log::warn!("fact.put failed: {err}");
+            } else {
+                let _ = this.update(cx, |h, cx| {
+                    h.stale = true;
+                    cx.notify();
+                });
+            }
+        })
+        .detach();
+    }
+
+    fn remove_fact(&mut self, id: String, cx: &mut Context<Self>) {
+        let Some(lib) = self.lib.clone() else {
+            return;
+        };
+        let Some(book) = self.source.as_ref().map(|b| b.id.clone()) else {
+            return;
+        };
+        self.facts.retain(|f| f.id != id);
+        cx.notify();
+        cx.spawn(async move |this, cx| {
+            let res = cx
+                .background_executor()
+                .spawn(async move {
+                    lib.call(
+                        &Actor::User,
+                        "fact.remove",
+                        serde_json::json!({ "book": book, "id": id }),
+                    )
+                })
+                .await;
+            if let Err(err) = res {
+                log::warn!("fact.remove failed: {err}");
+                let _ = this.update(cx, |h, cx| {
+                    h.stale = true;
+                    cx.notify();
+                });
+            }
+        })
+        .detach();
     }
 
     pub fn ask_create(
@@ -468,17 +579,19 @@ impl Render for Home {
                 .and_then(|s| s.daily_word_target)
                 .filter(|n| *n > 0)
         };
-        let words = self
+        let book_words_count = self
             .loaded
             .as_ref()
             .and_then(|s| s.book_words(LiveWords::read(cx)))
-            .map(|m| {
+            .map(|m| m.words);
+        let words = book_words_count
+            .map(|total| {
                 if let Some(target) = effective_word_target {
                     return dr_shell::strings::tf(
                         cx,
                         keys::project_home::WORDS_OF_TARGET,
                         &[
-                            ("words", &compact(m.words, locale)),
+                            ("words", &compact(total, locale)),
                             ("target", &compact(target as u64, locale)),
                         ],
                     );
@@ -486,10 +599,14 @@ impl Render for Home {
                 dr_shell::strings::tf(
                     cx,
                     keys::project_home::WORDS,
-                    &[("words", &compact(m.words, locale))],
+                    &[("words", &compact(total, locale))],
                 )
             })
             .unwrap_or_else(|| t(cx, keys::common::COUNTING));
+        let book_progress = book_words_count
+            .zip(effective_word_target)
+            .filter(|&(_, target)| target > 0)
+            .map(|(total, target)| (total as f32 / target as f32).clamp(0.0, 1.0));
         // The title field is named for the project; without a name, as the
         // placeholder it shows (an entry's title shows only that).
         let title_label: gpui::SharedString = match book.name.trim() {
@@ -542,14 +659,22 @@ impl Render for Home {
             )
             .children(synopsis_failed);
         if !self.error && word_lines {
-            column = column.child(
+            let mut word_card = div().flex().flex_col().gap(px(6.0)).max_w(px(460.0)).child(
                 div()
                     .id("v3-home-words")
                     .debug_selector(|| "v3-home-words".into())
                     .role(gpui::Role::Label)
                     .aria_label(words.clone())
+                    .font_role(Role::Index)
+                    .type_px(14.0, 20.0)
+                    .text_color(p.ink(2).solid())
                     .child(words),
             );
+            if let Some(value) = book_progress {
+                word_card =
+                    word_card.child(Readout::new("v3-home-words-bar", value).color(p.ink(2)));
+            }
+            column = column.child(word_card);
         }
         if self.error {
             let home = cx.weak_entity();
@@ -576,6 +701,9 @@ impl Render for Home {
                 } else {
                     0
                 };
+                let today_progress = effective_daily_target
+                    .filter(|&g| g > 0)
+                    .map(|g| (today.max(0) as f32 / g as f32).clamp(0.0, 1.0));
                 let today_text = if let Some(goal) = effective_daily_target {
                     dr_shell::strings::tf(
                         cx,
@@ -602,14 +730,22 @@ impl Render for Home {
                         ],
                     )
                 };
-                column = column.child(
+                let mut today_block = div().flex().flex_col().gap(px(6.0)).max_w(px(460.0)).child(
                     div()
                         .id("v3-home-today")
                         .debug_selector(|| "v3-home-today".into())
                         .role(gpui::Role::Label)
                         .aria_label(today_text.clone())
+                        .font_role(Role::Index)
+                        .type_px(13.0, 18.0)
+                        .text_color(p.ink(3).solid())
                         .child(today_text),
                 );
+                if let Some(value) = today_progress {
+                    today_block =
+                        today_block.child(Readout::new("v3-home-today-bar", value).color(p.accent));
+                }
+                column = column.child(today_block);
             }
             let mut pages = self.recent.clone();
             if pages.is_empty() {
@@ -660,44 +796,100 @@ impl Render for Home {
                 }
             }
             if !pages.is_empty() {
-                column = column.child(
+                let whole_btn = (has_book)
+                    .then(|| book.v3()?.roots.first().cloned())
+                    .flatten()
+                    .and_then(|root| root.parse::<dr_model::id::EntryId>().ok())
+                    .map(|root_id| {
+                        let ws = self.ws.clone();
+                        let expected_book = book.id.clone();
+                        Button::new(
+                            "v3-home-open-whole-book",
+                            t(cx, keys::shell_ui::OPEN_WHOLE_BOOK),
+                        )
+                        .text()
+                        .small()
+                        .icon(Icon::OpenBook)
+                        .on_click(move |_, _, cx| {
+                            ws.update(cx, |ws, cx| {
+                                if ws.book_id == expected_book {
+                                    ws.open(Target::Book(root_id.clone()), Open::KEEP, cx);
+                                }
+                            })
+                            .ok();
+                        })
+                    });
+                let mut continue_card = div().flex().flex_col().items_start().gap(px(4.0)).child(
                     div()
-                        .font_role(Role::Structure)
-                        .child(t(cx, keys::project_home::continue_::TITLE)),
+                        .w_full()
+                        .pb(px(4.0))
+                        .border_b(px(0.5))
+                        .border_color(p.subtle_hairline())
+                        .flex()
+                        .flex_row()
+                        .items_center()
+                        .justify_between()
+                        .child(
+                            div()
+                                .font_role(Role::Structure)
+                                .type_px(14.0, 20.0)
+                                .text_color(p.ink(2).solid())
+                                .child(t(cx, keys::project_home::continue_::TITLE)),
+                        )
+                        .children(whole_btn),
                 );
-            }
-            for (i, page) in pages.into_iter().enumerate() {
-                let ws = self.ws.clone();
-                let expected_book = book.id.clone();
-                // A row of its own so the button keeps its width: a column's
-                // child is stretched, and the stretched text button centred
-                // the page's name in the middle of the sheet. A long name
-                // gives way at the column's edge and ends in 「…」.
-                let row_selector = format!("v3-home-continue-{i}-row");
-                column = column.child(
-                    div().flex().min_w_0().child(
+                for (i, page) in pages.into_iter().enumerate() {
+                    let ws = self.ws.clone();
+                    let expected_book = book.id.clone();
+                    let (mark, color) = book.mark(&page.target);
+                    let mut km = KindMark::new(
+                        ElementId::Name(format!("v3-home-continue-mark-{i}").into()),
+                        mark,
+                    );
+                    if let Some(c) = color {
+                        km = km.color(c);
+                    }
+                    let row_selector = format!("v3-home-continue-{i}-row");
+                    let btn_selector = format!("v3-home-continue-{i}");
+                    continue_card = continue_card.child(
                         div()
-                            .flex()
-                            .min_w_0()
+                            .id(ElementId::Name(format!("v3-home-continue-{i}").into()))
                             .debug_selector(move || row_selector)
+                            .max_w_full()
+                            .min_w_0()
+                            .py(px(4.0))
+                            .pr(px(8.0))
+                            .rounded(px(radius::SM))
+                            .cursor_pointer()
+                            .hover(|st| st.bg(p.desk.alpha(0.55)))
+                            .flex()
+                            .flex_row()
+                            .items_center()
+                            .gap(px(6.0))
+                            .on_click(move |_, _, cx| {
+                                ws.update(cx, |ws, cx| {
+                                    if ws.book_id == expected_book {
+                                        ws.open(page.target.clone(), Open::KEEP, cx);
+                                    }
+                                })
+                                .ok();
+                            })
+                            .child(km)
                             .child(
-                                Button::new(
-                                    ElementId::Name(format!("v3-home-continue-{i}").into()),
-                                    page.title,
-                                )
-                                .text()
-                                .truncate()
-                                .on_click(move |_, _, cx| {
-                                    ws.update(cx, |ws, cx| {
-                                        if ws.book_id == expected_book {
-                                            ws.open(page.target.clone(), Open::KEEP, cx);
-                                        }
-                                    })
-                                    .ok();
-                                }),
+                                div()
+                                    .debug_selector(move || btn_selector)
+                                    .min_w_0()
+                                    .overflow_hidden()
+                                    .whitespace_nowrap()
+                                    .text_ellipsis()
+                                    .font_role(Role::Ui)
+                                    .type_px(14.0, 20.0)
+                                    .text_color(p.ink(1).solid())
+                                    .child(page.title),
                             ),
-                    ),
-                );
+                    );
+                }
+                column = column.child(continue_card);
             }
         }
         // HC: the Agent's suggestion cards, below 继续写 (`agent_cards.rs`).
@@ -741,6 +933,7 @@ impl Render for Home {
                     .child(t(cx, keys::project_home::book::TITLE)),
             );
         if let Some(v3) = book.v3() {
+            let mut overview = div().flex().flex_row().flex_wrap().gap(px(10.0));
             for id in &v3.roots {
                 let Some(entry) = v3.entry(id) else {
                     continue;
@@ -750,19 +943,29 @@ impl Render for Home {
                     module: None,
                 };
                 let ws = self.ws.clone();
-                let mark = v3
-                    .appearance(id)
-                    .map(|a| a.sand)
-                    .unwrap_or(dr_ui::sand::Kind::Element);
-                column = column.child(
+                let (mark, color) = book.mark(&target);
+                let mut km =
+                    KindMark::new(ElementId::Name(format!("v3-home-mark-{id}").into()), mark);
+                if let Some(c) = color {
+                    km = km.color(c);
+                }
+                let child_count = v3
+                    .levels
+                    .get(id)
+                    .map_or(0, |l| l.children.len() + l.members.len());
+                overview = overview.child(
                     div()
+                        .min_w(px(180.0))
+                        .rounded(px(radius::MD))
+                        .bg(p.desk.alpha(0.35))
+                        .border(px(0.5))
+                        .border_color(p.subtle_hairline())
+                        .px(px(12.0))
+                        .py(px(8.0))
                         .flex()
                         .items_center()
                         .gap(px(8.0))
-                        .child(KindMark::new(
-                            ElementId::Name(format!("v3-home-mark-{id}").into()),
-                            mark,
-                        ))
+                        .child(km)
                         .child(
                             Button::new(
                                 ElementId::Name(format!("v3-home-entry-{id}").into()),
@@ -773,9 +976,96 @@ impl Render for Home {
                                 ws.update(cx, |ws, cx| ws.open(target.clone(), Open::KEEP, cx))
                                     .ok();
                             }),
+                        )
+                        .when(child_count > 0, |el| {
+                            el.child(
+                                div()
+                                    .ml_auto()
+                                    .font_role(Role::Index)
+                                    .type_px(12.0, 16.0)
+                                    .text_color(p.muted().solid())
+                                    .child(child_count.to_string()),
+                            )
+                        }),
+                );
+            }
+            column = column.child(overview);
+        }
+        // Project Facts (`项目设定`, backed by `fact.list` / `fact.put` / `fact.remove`).
+        if !self.inline.template_copy && !book.id.is_empty() {
+            let mut facts_card = div()
+                .id("v3-home-facts")
+                .rounded(px(radius::MD))
+                .bg(p.desk.alpha(0.35))
+                .border(px(0.5))
+                .border_color(p.subtle_hairline())
+                .p(px(14.0))
+                .flex()
+                .flex_col()
+                .gap(px(8.0))
+                .child(
+                    div()
+                        .font_role(Role::Structure)
+                        .type_px(14.0, 20.0)
+                        .text_color(p.ink(2).solid())
+                        .child(t(cx, keys::shell_ui::PROJECT_FACTS)),
+                );
+            for fact in self.facts.clone() {
+                let fid = fact.id.clone();
+                facts_card = facts_card.child(
+                    div()
+                        .flex()
+                        .flex_row()
+                        .items_baseline()
+                        .gap(px(10.0))
+                        .py(px(2.0))
+                        .child(
+                            div()
+                                .w(px(120.0))
+                                .flex_none()
+                                .font_role(Role::Index)
+                                .type_px(13.0, 18.0)
+                                .text_color(p.ink(3).solid())
+                                .truncate()
+                                .child(fact.key),
+                        )
+                        .child(
+                            div()
+                                .flex_1()
+                                .min_w_0()
+                                .font_role(Role::Ui)
+                                .type_px(14.0, 20.0)
+                                .text_color(p.ink(1).solid())
+                                .child(fact.value),
+                        )
+                        .child(
+                            PanelIconButton::new(
+                                ElementId::Name(format!("v3-home-fact-del-{}", fact.id).into()),
+                                Icon::Close,
+                            )
+                            .label(t(cx, keys::common::DELETE))
+                            .on_click(
+                                cx.listener(move |h, _, _, cx| h.remove_fact(fid.clone(), cx)),
+                            ),
                         ),
                 );
             }
+            facts_card = facts_card.child(
+                div()
+                    .pt(px(4.0))
+                    .flex()
+                    .flex_row()
+                    .items_center()
+                    .gap(px(8.0))
+                    .child(div().w(px(132.0)).flex_none().child(self.fact_key.clone()))
+                    .child(div().flex_1().min_w_0().child(self.fact_value.clone()))
+                    .child(
+                        Button::new("v3-home-fact-add", t(cx, keys::shell_ui::ADD_FACT))
+                            .small()
+                            .on_click(cx.listener(|h, _, _, cx| h.add_fact(cx))),
+                    ),
+            );
+            column = column.child(facts_card);
         }
         column = column.child(self.render_project_template_block(&book, has_book, window, cx));
         div()

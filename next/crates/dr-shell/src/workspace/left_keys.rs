@@ -55,10 +55,10 @@ impl Workspace {
     /// Tab row, a row's card, or the column itself while managing.
     pub fn keyboard_in_left(&self, window: &Window, cx: &gpui::App) -> bool {
         self.left.open
-            && self
-                .v3_sidebar
-                .as_ref()
-                .is_some_and(|sidebar| sidebar.read(cx).has_keyboard(window, cx))
+            && ([&self.v3_sidebar, &self.v3_sidebar_secondary]
+                .into_iter()
+                .flatten()
+                .any(|sidebar| sidebar.read(cx).has_keyboard(window, cx)))
     }
 
     /// Whether ⌘⇧L asked for the keyboard in the left column, which it then

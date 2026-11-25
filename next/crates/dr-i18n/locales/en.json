@@ -29,7 +29,37 @@
       "modelUnavailable": "The selected model is absent from the current catalog. Choose another model."
     },
     "context": {
-      "tokens": "{{count}} tokens"
+      "allocation": {
+        "free": "Free space",
+        "input": "Current input",
+        "output": "Output reserve",
+        "safety": "Safety margin",
+        "title": "Window allocation"
+      },
+      "breakdownTitle": "What the current input contains",
+      "categories": {
+        "assistant_messages": "Agent messages",
+        "compaction_summaries": "Compaction summaries",
+        "provider_overhead": "Provider framing",
+        "system_prompt": "System prompt",
+        "task_constraints": "Task constraints",
+        "task_plan": "Task plan",
+        "thinking": "Thinking",
+        "tool_calls": "Tool calls",
+        "tool_definitions": "Tool definitions",
+        "tool_results": "Tool results",
+        "user_messages": "User messages"
+      },
+      "compaction": "Compaction",
+      "compactionDetail": "Saved {{saved}} · {{stages}} · {{count}} summaries",
+      "compactionNone": "Compaction was not needed for this call",
+      "description": "Based on the latest verified context plan actually sent to the model, not cumulative token usage for the whole chat.",
+      "progressAria": "Current Agent context usage",
+      "sources": "{{count}} sources",
+      "summary": "{{used}} / {{limit}} ({{percent}}%)",
+      "title": "Context usage",
+      "tokens": "{{count}} tokens",
+      "tooltip": "{{used}} / {{limit}} tokens ({{percent}}%)\nOutput reserve: {{output}} · safety margin: {{safety}}"
     },
     "control": {
       "allow": {
@@ -44,9 +74,13 @@
       "start": "Send Agent a message to start. It can read and write this project's chapters, elements, and relations."
     },
     "history": {
+      "delete": "Delete chat",
       "empty": "No chat history yet",
+      "loadEarlier": "Load earlier messages",
+      "rename": "Rename",
       "untitled": "Untitled"
     },
+    "jumpLatest": "Jump to latest",
     "newConversation": "New chat",
     "onboarding": {
       "connect": "Connect a model",
@@ -58,7 +92,8 @@
     "pending": {
       "cancelling": "Stopping…",
       "committing": "Saving…",
-      "now": "Thinking…"
+      "now": "Thinking…",
+      "withSeconds": "Thinking · {{seconds}}s"
     },
     "setup": {
       "openSettings": "Open settings"
@@ -70,17 +105,31 @@
       "done": "Thinking trace",
       "streaming": "Thinking…"
     },
+    "todos": {
+      "plan": "Plan"
+    },
     "tool": {
       "result": "Result"
     },
     "toolbar": {
-      "history": "History"
+      "history": "History",
+      "historyTitle": "Chat history",
+      "newTitle": "Start a new chat",
+      "renameTitle": "Rename the current chat"
     },
     "turnChanges": "Turn changes",
     "unavailable": "Agent is unavailable.",
+    "usage": {
+      "inputDetail": "Input {{input}} (cache read {{cacheRead}} · cache write {{cacheWrite}} · net {{net}})",
+      "outputTurns": "Output {{output}} · turns {{turns}}",
+      "session": "Session",
+      "toolsCount": "{{count}} tools",
+      "workedFor": "Agent worked {{duration}}"
+    },
     "workingMemory": {
       "agent": "Agent",
       "author": "author",
+      "budgetTitle": "No limit; the Agent is asked to consolidate once past 20k and 40k tokens, and on every turn past 80k",
       "clear": "Clear",
       "clearConfirm": "Clear Working Memory? This does not delete manuscript content, long-term rules, or chat history.",
       "cleared": "Working memory cleared.",
@@ -170,6 +219,8 @@
     "forgotPassword": "Forgot password?",
     "hasAccount": "Already have an account?",
     "legal": {
+      "agree": "By signing up, you agree to the",
+      "and": "and",
       "consent": "By continuing, you agree to {{terms}}.",
       "consentTerms": "the terms",
       "privacy": "Privacy Policy",
@@ -183,6 +234,12 @@
     "resend": "Resend code",
     "sendCode": "Send code",
     "signIn": "Sign in",
+    "signOut": {
+      "now": "Sign out now",
+      "pending": "Changes on this Mac the cloud doesn't have yet: {{count}}. If you sign out now, they stay on this Mac and upload when you sign back in to this account.",
+      "title": "Sign out",
+      "uploadFirst": "Upload, then sign out"
+    },
     "signUp": "Sign up",
     "signingIn": "Signing in…",
     "social": {
@@ -210,14 +267,20 @@
   },
   "commentRail": {
     "actions": {
+      "close": "Close",
       "reopen": "Reopen",
       "resolve": "Resolve"
     },
     "card": {
       "emptyComment": "Empty comment"
     },
+    "original": {
+      "changed": "Prose changed · view original"
+    },
     "snapshot": {
-      "changed": "Deleted/changed"
+      "changed": "Deleted/changed",
+      "emptyBlock": "(empty paragraph)",
+      "title": "Linked source · creation snapshot · {{count}} paragraphs"
     }
   },
   "common": {
@@ -264,6 +327,37 @@
       "drifting": "Floating",
       "finished": "Finished",
       "resting": "Resting"
+    }
+  },
+  "editor_ui": {
+    "bar_add_comment": "Add comment",
+    "fmt_bold": "Bold",
+    "fmt_highlight": "Highlight",
+    "fmt_inline_code": "Inline code",
+    "fmt_italic": "Italic",
+    "fmt_strike": "Strikethrough",
+    "fmt_underline": "Underline",
+    "mention_create_entry_prefix": "Create entry “",
+    "mention_create_entry_suffix": "”",
+    "slash_bullet_list": "Bulleted list",
+    "slash_callout": "Callout",
+    "slash_code_block": "Code block",
+    "slash_comment": "Comment",
+    "slash_entry_link": "Entry link",
+    "slash_ordered_list": "Numbered list",
+    "slash_position_link": "Position link",
+    "slash_table": "Table",
+    "slash_task_list": "Checklist",
+    "slash_todo": "To-do",
+    "table_add_col": "Add column",
+    "table_add_row": "Add row",
+    "table_delete": "Delete table",
+    "table_delete_col": "Delete column",
+    "table_delete_row": "Delete row"
+  },
+  "elementEditor": {
+    "alerts": {
+      "aliasConflict": "Cannot add alias: \"{{name}}\" is already used by element \"{{conflicting}}\"."
     }
   },
   "entrySnapshot": {
@@ -532,6 +626,9 @@
     "valuePlaceholder": "Content"
   },
   "leftSidebar": {
+    "actions": {
+      "collapseAll": "Expand or collapse all"
+    },
     "groups": {
       "driftCount_one": "{{count}} idea",
       "driftCount_other": "{{count}} ideas"
@@ -576,6 +673,8 @@
     "retry": "Retry",
     "saved": "Exported",
     "scope": "Scope",
+    "selectAll": "Select all",
+    "selectNone": "Select none",
     "title": "Export manuscript",
     "untitledAct": "Untitled act"
   },
@@ -618,6 +717,9 @@
       "addSnippetBody": "Write in this note…"
     },
     "error": {
+      "codecStore": "Get it in the Microsoft Store",
+      "codecUnavailable": "This PC lacks the codec for {{format}} images. Install it from the Microsoft Store, then import again.",
+      "fileTooLarge": "This file is larger than the {{maxSizeMiB}} MiB material limit, so Drifting cannot copy it into the local material library.",
       "openFile": "Could not open file: {{error}}",
       "pickFailed": "Could not import file: {{error}}"
     },
@@ -814,7 +916,8 @@
     },
     "clear": "Clear",
     "cloudSync": {
-      "source": "Cloud sync"
+      "source": "Cloud sync",
+      "syncing": "Syncing…"
     },
     "crashFollowUp": {
       "source": "Drifting"
@@ -848,6 +951,21 @@
       "minutesAgo": "{{count}} min ago"
     },
     "title": "Notifications"
+  },
+  "paperSync": {
+    "failing": "Cloud sync failed",
+    "notStarted": "Sync could not start",
+    "notStartedDetail": "Your writing stays saved on this device.",
+    "offline": "Offline",
+    "offlineDetail": "You can keep writing locally.",
+    "openSettings": "Open Settings",
+    "quota": "Hosted storage is full",
+    "reauth": "Session expired",
+    "reauthDetail": "Sign in to the same account again.",
+    "retry": "Retry",
+    "retrying": "Sync could not finish",
+    "retryingDetail": "Your writing is saved on this device. Retrying automatically.",
+    "signIn": "Sign in again"
   },
   "plotGrid": {
     "addColumnShort": "Column",
@@ -1091,10 +1209,15 @@
     "filters": {
       "all": "Both"
     },
+    "groupBy": {
+      "flat": "None",
+      "target": "By location"
+    },
     "groups": {
       "deleted": "Deleted",
       "floating": "Not attached"
     },
+    "newComment": "New comment",
     "scopes": {
       "current": "Current"
     },
@@ -1103,7 +1226,6 @@
   "rightSidebar": {
     "kickers": {
       "library": "Project · Library",
-      "review": "Project · Review",
       "stats": {
         "element": "This element · detailed stats",
         "material": "This material · Details",
@@ -1112,17 +1234,37 @@
       }
     },
     "stats": {
+      "averagePerChapter": "Average per chapter",
+      "bookOverview": "Book overview",
+      "chapterLengthRhythm": "Chapter length rhythm",
+      "completion": "Completion",
+      "created": "Created",
       "dialogueRatio": "Dialogue ratio",
+      "dimensions": "Dimensions",
+      "discardedParen": " (discarded {{count}})",
+      "embeddedMaterials": "Embedded materials",
+      "fileSize": "Size",
+      "fileType": "Type",
+      "longestWithWords": "Longest · {{title}} ({{words}} words)",
+      "materialCoordinates": "Material",
+      "materialFile": "File",
       "name": "Name",
+      "openComments": "Open comments & TODOs",
       "paragraphSentence": "Paragraphs / sentences",
       "paragraphSentenceValue": "{{paragraphs}} paragraphs · {{sentences}} sentences",
       "recent": "Recent",
+      "references": "References",
+      "shortestWithWords": "Shortest · {{title}} ({{words}} words)",
       "snapshotButton": "History snapshots…",
+      "statusCount": "{{status}} {{count}} chapters",
       "storyline": "Storyline",
+      "thisChapterElements": "Elements in this chapter",
+      "unappearedElements": "Unappeared elements",
       "updated": "Updated",
       "wordRhythm": "Words · rhythm",
       "wordsValue": "{{count}} words",
-      "writingProgress": "Writing progress"
+      "writingProgress": "Writing progress",
+      "writtenTarget": "Written / target"
     },
     "status": {
       "draft": "Draft"
@@ -1146,6 +1288,7 @@
       "emailTeam": "Email the team",
       "engine": "Engine",
       "feedback": "Feedback…",
+      "fonts": "Fonts",
       "knownIssues": "Known issues",
       "knownIssuesDesc": "Known limitations of the current Alpha",
       "license": "Client license",
@@ -1166,6 +1309,14 @@
       "viewSource": "View source",
       "writeEmail": "Write email"
     },
+    "account": {
+      "export_all": "Export relational Markdown",
+      "export_all_btn": "Export Markdown ZIP",
+      "export_all_desc": "Export every project in this local library, including chapters, ideas, elements, comments, and library notes, with bidirectional wiki links. Image and PDF files are not included, and the Markdown archive cannot be imported back into Drifting.",
+      "export_done": "Exported {{count}} Markdown documents.",
+      "export_failed": "Export failed: {{error}}",
+      "exporting": "Exporting…"
+    },
     "agent": {
       "chatConfigDesc": "Choose the provider, model and reasoning effort from the configuration menu in the Agent composer in the right rail. Keys and the ChatGPT subscription are managed under Models & API.",
       "effortOptions": {
@@ -1183,6 +1334,7 @@
         "args": "Arguments (one per line)",
         "command": "Absolute executable path",
         "cwd": "Absolute working directory (optional)",
+        "deleteConfirm": "Delete MCP server “{{name}}”? Its durable grants will also be revoked.",
         "disable": "Disable",
         "editTitle": "Edit MCP server",
         "empty": "This project has no MCP servers.",
@@ -1192,6 +1344,7 @@
         "noProject": "Open a project to configure MCP.",
         "notChecked": "Not connected yet",
         "policy": {
+          "askWrite": "Write · ask",
           "disabled": "Disabled"
         },
         "publicEnv": "Public environment (NAME=value per line)",
@@ -1234,7 +1387,34 @@
       "unlimited": "Unlimited",
       "unlimitedHint": "Unlimited sets no model-call limit. You can stop the turn manually."
     },
+    "agentMemory": {
+      "title": "Project memory"
+    },
+    "agentUsage": {
+      "all": "All time",
+      "clearConfirm": "Clear all conversation history? This will remove {{count}} Agent conversations from this project.",
+      "clearHistory": "Clear history",
+      "conversationsTurns": "Conversations / turns",
+      "deleteConversation": "Delete this conversation",
+      "history": "Conversation history",
+      "historyDesc": "All Agent conversations in this project. Delete is soft delete and syncs with the right rail History without affecting other projects.",
+      "month": "This month",
+      "noHistory": "No conversations yet. Send Agent a message to start.",
+      "noProjectHistory": "Open a project to manage conversation history.",
+      "noProjectUsage": "Open a project to view Agent usage.",
+      "tokenCard": "{{scope}} Token",
+      "untitled": "Untitled",
+      "usage": "Usage",
+      "usageDesc": "How many tokens Agent used in this project, recorded from each returned turn (input includes cached reads). View by this month or all time."
+    },
     "appearance": {
+      "accent": "Accent color",
+      "accent_color": "Interface accent",
+      "accent_color_desc": "Used for buttons, focus, and active states without changing the editor caret.",
+      "accent_reset": "Restore default",
+      "agent_edit_reveal": "Change reveal animation",
+      "agent_edit_reveal_desc": "Reveal Agent edits to prose and fields, and chapters and ideas edited in another editor, character by character. Turn off to show results immediately; unread change markers remain available.",
+      "animations": "Animations & transitions",
       "dark": "Dark",
       "guides": "Guides",
       "interface_text_large": "Larger",
@@ -1292,9 +1472,51 @@
       "auto_element_link_desc": "Recognize existing element names while typing and link them to their pages.",
       "auto_immersive": "Immersive writing as you type",
       "auto_immersive_desc": "Writing in the paper tucks away the sidebars and tools; press Esc or click outside the text to bring them back.",
+      "caret_color": "Caret color",
+      "caret_color_desc": "Choose the prose insertion caret color.",
+      "entity_link_band_style": "Entity Link band style",
+      "entity_link_band_style_desc": "Use a soft continuous band or a fine row of ellipsis-like dots below the text.",
+      "entity_link_band_style_dots": "Fine dots",
+      "entity_link_band_style_wash": "Continuous band",
+      "entity_link_highlight": "Entity Link highlight treatment",
+      "entity_link_highlight_band": "Color band",
+      "entity_link_highlight_both": "Both",
+      "entity_link_highlight_desc": "Highlight entity links with a color band, colored text, or both. This also applies to hover highlights.",
+      "entity_link_highlight_text": "Text color",
+      "entity_link_kind_category": "Category",
+      "entity_link_kind_chapter": "Chapter",
+      "entity_link_kind_drift": "Idea",
+      "entity_link_kind_element": "Element",
+      "entity_link_kind_patch": "Patch",
+      "entity_link_kind_storyline": "Storyline",
+      "entity_link_style": "Entity Link highlight",
+      "entity_link_style_contextual": "By owner",
+      "entity_link_style_desc": "Use owner colors, one custom color per entity type, reveal owner colors only on hover, or keep prose-colored text with a band.",
+      "entity_link_style_hover": "Hover only",
+      "entity_link_style_kind": "By type",
+      "entity_link_style_prose": "Prose",
       "flow": "Flow",
+      "font_error_empty": "This font file is empty.",
+      "font_error_format": "Only TTF, OTF, WOFF, and WOFF2 font files are supported.",
+      "font_error_invalid": "This file could not be decoded. Choose a valid Regular or Variable font.",
+      "font_error_size": "The font file must be no larger than 64 MB.",
+      "font_import": "Import font",
+      "font_import_done": "The font is stored on this device and applied to authored content.",
+      "font_import_help": "Supports TTF, OTF, WOFF, and WOFF2 Regular or Variable fonts, up to 64 MB.",
+      "font_remove": "Remove",
+      "font_remove_done": "Removed the font copy stored by the app.",
+      "font_replace": "Replace",
+      "font_scope_desc": "Applies to chapter prose, entity titles and summaries, entity long-form text, field values, patches and reference content, plus the typesetting preview. UI, sidebars, dialogs, and node cards always use the unified sans-serif face. Font choices are device-local and excluded from the authored SyncEngine domain.",
       "font_size": "Font size",
       "font_size_desc": "Editor view only; export is unaffected.",
+      "font_source": "Content font",
+      "font_system_custom": "System font",
+      "font_system_manual_placeholder": "For example: Charter",
+      "font_system_mono": "System monospace",
+      "font_system_placeholder": "Choose a system font",
+      "font_system_sans": "System sans-serif",
+      "font_system_serif": "System serif",
+      "font_use": "Use",
       "indent": "Paragraph indent",
       "indent_desc": "Editor view only. Export uses its own settings.",
       "indent_none": "None",
@@ -1311,6 +1533,12 @@
       "preview_p1": "Silence spread between them like tidewater over stone. At last she spoke, her voice almost carried away by the wind, landing somewhere he could barely hear.",
       "preview_p2": "“Will you come back?” He did not answer at once. He watched the sun sink into the sea, then nodded after a long while, though even he could not tell whether it was a promise or mercy.",
       "reset_style": "Restore recommended style",
+      "tab_indent": "Tab indent",
+      "tab_indent_desc": "Width of one paragraph indent level when pressing Tab; Shift+Tab outdents.",
+      "text_wrap": "Line wrapping",
+      "text_wrap_desc": "Stable fills each line and keeps earlier line breaks when editing later text. Pretty adjusts wrapping across the paragraph. Applies immediately and is saved on this device.",
+      "text_wrap_pretty": "Pretty",
+      "text_wrap_stable": "Stable",
       "typesetting": "Typesetting",
       "typewriter_mode": "Typewriter mode",
       "typewriter_mode_desc": "Keeps the active prose line at a stable viewport position while typing or moving the caret. Editor view only.",
@@ -1346,19 +1574,37 @@
       "connect_errors": {
         "cancelled": "Cancelled."
       },
+      "crop_confirm": "Use this avatar",
+      "crop_description": "Drag the image or use arrow keys to position it, then adjust the zoom.",
+      "crop_title": "Adjust avatar",
+      "crop_zoom": "Zoom",
       "current_password": "Current password",
       "description": "Writing is saved on this device first. Connect an account to sync projects between your devices.",
+      "disconnect": "Disconnect sync",
+      "disconnect_anyway": "Disconnect anyway",
+      "disconnect_description": "Uploads the changes only this Mac has, then disconnects. Local projects and cloud copies are retained.",
+      "disconnect_now": "Disconnect now",
+      "disconnect_unuploaded": "{{count}} changes have not been uploaded. After disconnecting they stay on this Mac only.",
       "display_name": "Display name",
+      "enabled": "Hosted sync connected",
+      "last_synced": "Last completed sync: {{time}}",
       "library_switch_failed": "Couldn't switch libraries",
       "new_password": "New password",
       "no_account": "Not signed in",
+      "not_started": "Sync could not start. Your writing stays saved on this device; reopen Drifting to try again.",
       "password_description": "8–128 characters.",
       "password_saved": "Password changed. Other devices need to sign in again.",
       "password_sessions": "Changing your password signs out other devices. This device stays signed in.",
       "password_title": "Password",
+      "pause": "Pause",
+      "paused": "Sync paused",
+      "pending": "Syncing or waiting for sync to finish.",
       "profile_saved": "Profile saved.",
       "profile_title": "Profile",
+      "quota_blocked": "Hosted storage is full and an attachment could not be uploaded, so this project cannot sync further for now. Deleting attachments or projects you no longer need resumes it; local content is unaffected.",
       "remove_avatar": "Remove",
+      "resume": "Resume",
+      "retrying": "Sync could not finish. Writing remains saved locally; retrying automatically.",
       "save_profile": "Save profile",
       "session": {
         "checking": "Checking account…",
@@ -1369,6 +1615,10 @@
       },
       "sign_in": "Sign in / Register",
       "sign_out": "Sign out",
+      "storage": "Hosted storage",
+      "storage_description": "{{used}} of {{quota}} used. Attachments count toward it; writing and structure are not limited.",
+      "sync_now": "Sync now",
+      "sync_title": "Hosted sync",
       "title": "Account and hosted sync",
       "working": "Working…"
     },
@@ -1442,6 +1692,7 @@
       "diagnosticsCopied": "Sanitized diagnostic summary copied.",
       "diagnosticsCopyFailed": "Could not write to the clipboard. Clipboard permission may be unavailable.",
       "diagnosticsDesc": "Copy version, platform, feature availability, sync counts/error categories, and update state. It contains no manuscript, credential, project identifier, or absolute path and is never uploaded automatically.",
+      "fullPolicy": "View full privacy policy",
       "noteLocal": "This build never contacts a Drifting server; your work stays on this device. AI and voice-transcription requests go straight from this device to the provider you chose, under that provider's data and training terms; remote MCP extensions you add also use the network."
     },
     "rail": {
@@ -1479,6 +1730,8 @@
         "restoring": "Restoring…",
         "summary": "{{projects}} projects, {{assets}} asset files, {{size}}."
       },
+      "import_files": "Import",
+      "import_files_desc": "From Word (.docx), Markdown or plain text.",
       "local_data": "Local data",
       "local_sub": "No Drifting account or hosted cloud is used. Export a readable copy whenever you want.",
       "local_title": "Your work stays on this device.",
@@ -1486,13 +1739,20 @@
         "allProjects": "All projects",
         "allProjectsUnset": "All projects · No location chosen",
         "choose": "Choose folder",
+        "copied": "Path copied",
+        "copy": "Copy path",
+        "error": "Update failed",
         "offHint": "Off: projects no longer write Markdown and outside edits no longer merge back. Existing files stay where they are.",
         "offTitle": "Turn off the Markdown folder?",
+        "pending": "Updating",
+        "ready": "Up to date",
+        "refresh": "Update now",
         "reveal": "Show in Finder",
         "title": "Markdown folder",
         "turnOff": "Turn off Markdown folder",
         "turnOn": "Turn on"
-      }
+      },
+      "select_file": "Choose file…"
     },
     "update": {
       "channel_desc": "Apple Silicon · macOS 13+",
@@ -1516,6 +1776,49 @@
       "server_error": "The update service has a problem right now. Try again later; this version keeps working.",
       "unavailable": "This build has no updater signing key, so it cannot check for updates. Releases downloaded from GitHub can."
     }
+  },
+  "shell_ui": {
+    "add_fact": "Add fact",
+    "back_plain": "Back",
+    "empty_book_hint": "Create an entry and write prose to read the whole book here.",
+    "empty_book_title": "No manuscript prose yet",
+    "fact_key_placeholder": "Key (e.g. Subtitle, Genre)",
+    "fact_value_placeholder": "Value",
+    "find_results": "Matches",
+    "hosted_purge_note": "Permanently deletes from this device and all synced cloud devices. This cannot be undone.",
+    "hosted_trash_note": "Removes from this device and cloud; recoverable from Recently Deleted for 30 days.",
+    "menu_about": "About {{app}}",
+    "menu_bring_all_to_front": "Bring All to Front",
+    "menu_close_window": "Close Window",
+    "menu_copy": "Copy",
+    "menu_cut": "Cut",
+    "menu_edit": "Edit",
+    "menu_hide": "Hide {{app}}",
+    "menu_hide_others": "Hide Others",
+    "menu_minimize": "Minimize",
+    "menu_paste": "Paste",
+    "menu_quit": "Quit {{app}}",
+    "menu_redo": "Redo",
+    "menu_select_all": "Select All",
+    "menu_services": "Services",
+    "menu_settings": "Settings…",
+    "menu_show_all": "Show All",
+    "menu_undo": "Undo",
+    "menu_zoom": "Zoom",
+    "new_entry_plain": "New Entry",
+    "open_whole_book": "Read whole book",
+    "pick_relation_target": "Connecting from “{{name}}” — click another entry (Esc to cancel)",
+    "preparing_samples": "Preparing sample projects…",
+    "project_facts": "Project facts",
+    "search_hint": "Type to search across this project",
+    "search_placeholder": "Search titles, prose, fields, and files…",
+    "swap_split": "Swap split panes",
+    "templates_plain": "Templates",
+    "toggle_comment_marks": "Show comment marks",
+    "toggle_entity_links": "Interactive entity links",
+    "unpin_island": "Unpin island",
+    "unsplit": "Close split pane",
+    "words_short": "{{count}} w"
   },
   "sidebarLayout": {
     "split": "Restore two columns"
@@ -1541,7 +1844,8 @@
     "edge": {
       "hideKind": "Hide \"{{label}}\"",
       "showKind": "Show \"{{label}}\""
-    }
+    },
+    "spread": "Spread"
   },
   "storylineEditor": {
     "filters": {
@@ -1591,6 +1895,7 @@
       "relayout": "Re-arrange"
     },
     "reset": "Reset",
+    "startEdgeFromElement": "Create relation from this element",
     "uncategorized": "Uncategorized",
     "unnamedCategory": "Untitled category"
   },
@@ -1609,7 +1914,10 @@
     "color": "Color",
     "conflict": "Template changed elsewhere",
     "date": "Date",
+    "default_prose": "Default prose template",
+    "default_prose_hint": "Copied into new entries created from this template",
     "default_template": "Default template",
+    "default_value": "Default value",
     "description": "Description",
     "display": "Display",
     "entity_ref": "Entry reference",
@@ -1737,9 +2045,15 @@
     "originTask": "Checklist",
     "regionPlace": "Region",
     "regionPlacePaged": "Page {{page}}",
+    "retarget": "Retarget…",
+    "sortNewest": "Newest first",
+    "sortOldest": "Oldest first",
+    "sortPosition": "By position",
     "statusOpen": "Open",
     "statusResolved": "Resolved",
+    "unbindTarget": "Unbind target",
     "unlocated": "Original place missing",
+    "viewOriginal": "View original",
     "wholeFile": "Whole file",
     "writeComment": "Write comment"
   },
@@ -1764,6 +2078,9 @@
     "railAgent": "Agent"
   },
   "v3Shell": {
+    "agent_unread": "Unread Agent edits",
+    "aliases_add": "Add alias…",
+    "aliases_remove": "Remove alias",
     "attachedEntries": "Attached here",
     "belongTo": "Assign to",
     "board": "Board",
@@ -1774,7 +2091,9 @@
     "editTemplate": "Edit template",
     "entries": "Entries",
     "entryUntemplated": "Entry",
+    "entry_count": "{{count}} entries",
     "expandTimeline": "Expand Storyline Timeline",
+    "external_unread": "Unread external edits",
     "grid": "Grid",
     "hideOutline": "Hide TOC",
     "islands": "Islands",
@@ -1818,8 +2137,10 @@
     "colorValue": "Color value",
     "deleteView": "Delete view",
     "detachEntry": "Detach entry",
+    "empty_book_view": "Place at least one entry in this view first",
     "laneActions": "Lane actions",
     "laneTrack": "Lane {{name}}",
+    "locate_current": "Locate current entry",
     "members": "{{count}} members",
     "moveDown": "Move down",
     "moveUp": "Move up",
@@ -1827,6 +2148,7 @@
     "newEntryInLane": "New entry",
     "newLane": "New lane",
     "newView": "New view",
+    "pin_color": "Color",
     "placeEntry": "Place entry",
     "placementActions": "Placement actions",
     "removeEntry": "Remove from lane",
@@ -1835,9 +2157,12 @@
     "renameView": "Rename view",
     "resize": "Adjust length",
     "ruler": "Scale ruler",
+    "section_create": "Create",
+    "section_existing": "Add existing entries",
     "selectLane": "Select lane",
     "setActTrack": "Use as act track · {{name}}",
     "unsetActTrack": "Use as regular lane · {{name}}",
+    "view_actions": "View actions",
     "views": "Views"
   },
   "v3Transfer": {
@@ -1852,8 +2177,11 @@
     "alignRight": "Right",
     "allFolders": "All",
     "clearField": "Clear",
+    "collapseAll": "Collapse all",
     "currentSection": "Current",
     "empty": "No files",
+    "empty_trash": "Empty",
+    "expandAll": "Expand all",
     "fileCount_one": "{{count}} file",
     "fileCount_other": "{{count}} files",
     "findFile": "Find file",
@@ -1953,6 +2281,16 @@
     "direction": "Direction",
     "otherEntry": "Other entry",
     "relation": "Relation"
+  },
+  "v5Stats": {
+    "childrenAggregate": "Subtree summary",
+    "entryCoordinates": "Entry coordinates",
+    "groupRhythm": "Group rhythm",
+    "inboundLinks": "Referenced by",
+    "outboundLinks": "References",
+    "projectOverview": "Project overview",
+    "templatesTotal": "Templates",
+    "unreferencedNote": "Not yet referenced in prose"
   },
   "v5Tour": {
     "agent": {

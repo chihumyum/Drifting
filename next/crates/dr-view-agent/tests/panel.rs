@@ -424,3 +424,45 @@ fn a_delayed_start_acknowledgement_preserves_new_composer_text(cx: &mut TestAppC
     assert_eq!(text(&views.panel, cx), next_draft);
     close(&views, &fixture, cx);
 }
+
+#[gpui::test]
+fn fill_mode_renders_agent_rewind_timeline_alongside_chat(cx: &mut TestAppContext) {
+    let fixture = Fixture::new();
+    let driver = Arc::new(ScriptedDriver::new(vec![vec![
+        Step::Event(DriverEvent::TextDelta {
+            index: 0,
+            text: "Rewind summary reply".into(),
+        }),
+        Step::Event(DriverEvent::Finish(FinishReason::Complete)),
+    ]]));
+    let (views, cx) = open(cx, &fixture, driver);
+    send(&views.panel, &fixture.text[0], cx);
+    wait(cx, |cx| {
+        views.panel.read_with(cx, |panel, _| panel.is_settled())
+            && snapshot(&views.panel, cx).is_some_and(|s| !s.runs.is_empty())
+    });
+
+    cx.simulate_resize(gpui::size(gpui::px(980.), gpui::px(700.)));
+    views
+        .panel
+        .update(cx, |panel, cx| panel.set_fill_width(Some(980.0), cx));
+    draw(cx);
+    assert!(
+        cx.debug_bounds("agent-rewind-column").is_some(),
+        "Fill mode mounts the Agent Rewind timeline column"
+    );
+    assert!(
+        cx.debug_bounds("agent-rewind-timeline").is_some(),
+        "Fill mode mounts the Agent Rewind timeline list"
+    );
+
+    views
+        .panel
+        .update(cx, |panel, cx| panel.set_fill_width(None, cx));
+    draw(cx);
+    assert!(
+        cx.debug_bounds("agent-rewind-column").is_none(),
+        "Exiting Fill mode returns to narrow single-column chat"
+    );
+    close(&views, &fixture, cx);
+}

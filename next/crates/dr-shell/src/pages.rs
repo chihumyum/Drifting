@@ -319,6 +319,9 @@ pub struct Guide {
     pub layer: LayerFn,
     /// Settings' 重新显示.
     pub reset: InApp,
+    /// Whether this device has already seen at least one guide (used to disable
+    /// 「重新显示」 when nothing has been dismissed yet).
+    pub has_seen: Rc<dyn Fn(&App) -> bool>,
 }
 
 /// The ids of the controls the workspace tour points at (`dr-view-sea`'s
@@ -420,6 +423,8 @@ impl AgentImages {
 
 /// Hands images to the 「Agent」 tab's body (the [`set_companion`] panel).
 type TakeImages = Rc<dyn Fn(&AnyView, AgentImages, &mut App)>;
+/// Notifies a right-sidebar panel body of its current Fill width (`None` when narrow).
+type SetFillWidth = Rc<dyn Fn(&AnyView, Option<f32>, &mut App)>;
 
 type LocateAsset = Rc<dyn Fn(&WeakEntity<Workspace>, &str, &mut Window, &mut App)>;
 type CanDropFiles = Rc<dyn Fn(&[std::path::PathBuf], &App) -> bool>;
@@ -439,8 +444,10 @@ struct Pages {
     after_first_run: Vec<InWindow>,
     guide: Option<Guide>,
     companion: Option<MakeCompanion>,
+    companion_fill_width: Option<SetFillWidth>,
     library: Option<MakeCompanion>,
     relations: Option<MakeCompanion>,
+    relations_fill_width: Option<SetFillWidth>,
     locate_asset: Option<LocateAsset>,
     pending_locate_asset: Option<String>,
     file_drop: Option<(CanDropFiles, OnDropFiles)>,
@@ -790,6 +797,40 @@ pub(crate) fn relations_for(
 ) -> Option<LeftPanel> {
     let make = cx.try_global::<Pages>()?.relations.clone()?;
     Some(make(ws, window, cx))
+}
+
+/// Registers a Fill-width listener for the 「关系」 tab's body.
+pub fn set_relations_fill_width(
+    cx: &mut App,
+    notify: impl Fn(&AnyView, Option<f32>, &mut App) + 'static,
+) {
+    cx.default_global::<Pages>().relations_fill_width = Some(Rc::new(notify));
+}
+
+pub(crate) fn notify_relations_fill_width(body: &AnyView, width: Option<f32>, cx: &mut App) {
+    if let Some(cb) = cx
+        .try_global::<Pages>()
+        .and_then(|p| p.relations_fill_width.clone())
+    {
+        cb(body, width, cx);
+    }
+}
+
+/// Registers a Fill-width listener for the 「Agent」 tab's body.
+pub fn set_companion_fill_width(
+    cx: &mut App,
+    notify: impl Fn(&AnyView, Option<f32>, &mut App) + 'static,
+) {
+    cx.default_global::<Pages>().companion_fill_width = Some(Rc::new(notify));
+}
+
+pub(crate) fn notify_companion_fill_width(body: &AnyView, width: Option<f32>, cx: &mut App) {
+    if let Some(cb) = cx
+        .try_global::<Pages>()
+        .and_then(|p| p.companion_fill_width.clone())
+    {
+        cb(body, width, cx);
+    }
 }
 
 /// Registers what takes images a page hands to the Agent

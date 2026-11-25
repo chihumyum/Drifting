@@ -27,10 +27,15 @@ const COVER_QUALITY: u8 = 90;
 const MAX_DIMENSION: u32 = 16_384;
 const MAX_ALLOC: u64 = 256 * 1024 * 1024;
 
-/// The file extensions the picker offers (0.1's list).
-pub const COVER_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "gif", "webp", "bmp", "tif", "tiff"];
+/// The file extensions the picker offers (0.1's list plus HEIC/HEIF/AVIF).
+pub const COVER_EXTENSIONS: &[&str] = &[
+    "png", "jpg", "jpeg", "gif", "webp", "bmp", "tif", "tiff", "heic", "heif", "avif",
+];
 
-fn decode_upright_bounded(path: &Path) -> Result<(DynamicImage, Option<ImageFormat>), String> {
+fn decode_upright_bounded(
+    path: &Path,
+    allow_system_codec: bool,
+) -> Result<(DynamicImage, Option<ImageFormat>), String> {
     let metadata = fs::metadata(path).map_err(|_| "could not inspect image file".to_string())?;
     if !metadata.is_file() {
         return Err("path is not a file".into());
@@ -43,7 +48,26 @@ fn decode_upright_bounded(path: &Path) -> Result<(DynamicImage, Option<ImageForm
         .and_then(|mut f| f.read(&mut signature))
         .map_err(|_| "could not open image file".to_string())?;
     if needs_system_codec(&signature[..read]) {
-        return Err("HEIC, HEIF and AVIF images cannot be used as a cover yet".into());
+        if !allow_system_codec {
+            return Err("HEIC, HEIF and AVIF images require a display copy".into());
+        }
+        let raw = fs::read(path).map_err(|_| "could not read HEIC/HEIF/AVIF image".to_string())?;
+        let decoded = dr_platform::image_codec::decode(&raw, COVER_LONG_EDGE)
+            .map_err(|e| format!("could not decode HEIC, HEIF or AVIF image: {e}"))?;
+        let rgba = image::RgbaImage::from_raw(decoded.width, decoded.height, decoded.rgba)
+            .ok_or_else(|| "decoded HEIC, HEIF or AVIF image is incomplete".to_string())?;
+        let has_alpha = rgba.pixels().any(|p| p[3] < 255);
+        let mut image = if has_alpha {
+            DynamicImage::ImageRgba8(rgba)
+        } else {
+            DynamicImage::ImageRgb8(DynamicImage::ImageRgba8(rgba).to_rgb8())
+        };
+        let (width, height) = bounded(image.width(), image.height(), COVER_LONG_EDGE);
+        if (width, height) != image.dimensions() {
+            image = image.resize_exact(width, height, FilterType::Lanczos3);
+        }
+        let format = (!has_alpha).then_some(ImageFormat::Jpeg);
+        return Ok((image, format));
     }
     let file = File::open(path).map_err(|_| "could not open image file".to_string())?;
     let mut reader = ImageReader::new(BufReader::new(file))
@@ -87,7 +111,7 @@ fn flatten_on_white(image: &DynamicImage) -> DynamicImage {
 
 /// Reads `path` as a cover. Errors are short English sentences.
 pub fn cover_from_path(path: &Path) -> Result<Cover, String> {
-    let (image, _) = decode_upright_bounded(path)?;
+    let (image, _) = decode_upright_bounded(path, true)?;
     let (width, height) = image.dimensions();
     // JPEG has no alpha: a transparent cover is laid on white.
     let rgb = flatten_on_white(&image);
@@ -106,7 +130,7 @@ pub fn cover_from_path(path: &Path) -> Result<Cover, String> {
 /// Reads `path` as an inline prose image (PNG for alpha or lossless sources
 /// within 12 MiB; JPEG otherwise).
 pub(crate) fn inline_image_from_path(path: &Path) -> Result<Cover, String> {
-    let (image, format) = decode_upright_bounded(path)?;
+    let (image, format) = decode_upright_bounded(path, false)?;
     let (width, height) = image.dimensions();
     let prefer_png = image.color().has_alpha() || format != Some(ImageFormat::Jpeg);
     if prefer_png {

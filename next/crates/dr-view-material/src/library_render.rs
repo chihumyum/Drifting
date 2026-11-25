@@ -1165,6 +1165,20 @@ impl LibraryPanel {
                 t(cx, keys::v5_files::NEW_SUBFOLDER),
                 Rc::new(move |p, _, cx| p.new_folder(Some(f_sub.clone()), cx)),
             );
+            let f_exp = folder_id.to_owned();
+            let expand_all = action(
+                "expand-all",
+                Icon::ChevronDown,
+                t(cx, keys::v5_files::EXPAND_ALL),
+                Rc::new(move |p, _, cx| p.set_open_all(&f_exp, true, cx)),
+            );
+            let f_col = folder_id.to_owned();
+            let collapse_all = action(
+                "collapse-all",
+                Icon::ChevronRight,
+                t(cx, keys::v5_files::COLLAPSE_ALL),
+                Rc::new(move |p, _, cx| p.set_open_all(&f_col, false, cx)),
+            );
             return CardBody::new(id("body"), title)
                 .meta(tp(
                     cx,
@@ -1172,7 +1186,7 @@ impl LibraryPanel {
                     total as u64,
                     &[("count", &total)],
                 ))
-                .section(vec![open_action, rename, new_sub])
+                .section(vec![open_action, rename, new_sub, expand_all, collapse_all])
                 .section(moves)
                 .section(vec![delete])
                 .into_any_element();

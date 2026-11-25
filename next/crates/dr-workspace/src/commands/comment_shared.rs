@@ -1,5 +1,5 @@
 //! Shared comment DTOs and anchor validation for canonical v3 commands.
-use crate::dto::{AnchorBytes, LinkedTextIn};
+use crate::dto::{AnchorBytes, LinkedTextIn, Target};
 use crate::{Result, WsError};
 use dr_doc::anchor::Anchor;
 use dr_model::DocId;
@@ -23,6 +23,14 @@ pub struct CommentUpdateIn {
         deserialize_with = "crate::commands::double_option"
     )]
     pub agent_conversation: Option<Option<String>>,
+    /// Re-target a non-checklist comment to another live entity, or `null` to
+    /// unbind it into a floating comment (clearing module/part/anchor/block).
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::commands::double_option"
+    )]
+    pub target: Option<Option<Target>>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct CommentReanchorIn {

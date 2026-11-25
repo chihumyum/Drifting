@@ -40,14 +40,15 @@ use gpui::{
     relative, size,
 };
 use gpui_ime::{Change, LineComposer};
-use unicode_segmentation::UnicodeSegmentation as _;
 
 use super::{
     field::{
-        Backspace, Cancel, Copy, Cut, Delete, End, FieldEvent, Home, Left, Paste, Right, SelectAll,
-        SelectLeft, SelectRight, Submit,
+        Backspace, Cancel, Copy, Cut, Delete, DeleteToLineEnd, DeleteToLineStart,
+        DeleteWordBackward, DeleteWordForward, End, FieldEvent, Home, Left, MoveWordLeft,
+        MoveWordRight, Paste, Redo, Right, SelectAll, SelectEnd, SelectHome, SelectLeft,
+        SelectRight, SelectWordLeft, SelectWordRight, Submit, Undo,
     },
-    ime::{self, Graphemes},
+    ime::{self, EditHistory, EditKind, EditSnapshot, Graphemes},
 };
 use crate::{
     fonts::Role,
@@ -60,7 +61,17 @@ use crate::{
 
 actions!(
     dr_text_area,
-    [Up, Down, SelectUp, SelectDown, TextStart, TextEnd, Newline]
+    [
+        Up,
+        Down,
+        SelectUp,
+        SelectDown,
+        TextStart,
+        TextEnd,
+        SelectTextStart,
+        SelectTextEnd,
+        Newline
+    ]
 );
 
 pub const KEY_CONTEXT: &str = "DrTextArea";
@@ -70,24 +81,35 @@ pub fn bindings() -> Vec<KeyBinding> {
     let c = Some(KEY_CONTEXT);
     let mac = cfg!(target_os = "macos");
     let k = |mac_key: &'static str, other: &'static str| if mac { mac_key } else { other };
-    vec![
+    let mut keys = vec![
         KeyBinding::new("backspace", Backspace, c),
+        KeyBinding::new("shift-backspace", Backspace, c),
         KeyBinding::new("delete", Delete, c),
+        KeyBinding::new(k("alt-backspace", "ctrl-backspace"), DeleteWordBackward, c),
+        KeyBinding::new(k("alt-delete", "ctrl-delete"), DeleteWordForward, c),
         KeyBinding::new("left", Left, c),
         KeyBinding::new("right", Right, c),
         KeyBinding::new("up", Up, c),
         KeyBinding::new("down", Down, c),
+        KeyBinding::new(k("alt-left", "ctrl-left"), MoveWordLeft, c),
+        KeyBinding::new(k("alt-right", "ctrl-right"), MoveWordRight, c),
         KeyBinding::new("shift-left", SelectLeft, c),
         KeyBinding::new("shift-right", SelectRight, c),
         KeyBinding::new("shift-up", SelectUp, c),
         KeyBinding::new("shift-down", SelectDown, c),
+        KeyBinding::new(k("alt-shift-left", "ctrl-shift-left"), SelectWordLeft, c),
+        KeyBinding::new(k("alt-shift-right", "ctrl-shift-right"), SelectWordRight, c),
         KeyBinding::new(k("cmd-a", "ctrl-a"), SelectAll, c),
         KeyBinding::new("home", Home, c),
         KeyBinding::new("end", End, c),
-        KeyBinding::new(k("cmd-left", "home"), Home, c),
-        KeyBinding::new(k("cmd-right", "end"), End, c),
+        KeyBinding::new("shift-home", SelectHome, c),
+        KeyBinding::new("shift-end", SelectEnd, c),
         KeyBinding::new(k("cmd-up", "ctrl-home"), TextStart, c),
         KeyBinding::new(k("cmd-down", "ctrl-end"), TextEnd, c),
+        KeyBinding::new(k("cmd-shift-up", "ctrl-shift-home"), SelectTextStart, c),
+        KeyBinding::new(k("cmd-shift-down", "ctrl-shift-end"), SelectTextEnd, c),
+        KeyBinding::new(k("cmd-z", "ctrl-z"), Undo, c),
+        KeyBinding::new(k("cmd-shift-z", "ctrl-shift-z"), Redo, c),
         KeyBinding::new(k("cmd-v", "ctrl-v"), Paste, c),
         KeyBinding::new(k("cmd-c", "ctrl-c"), Copy, c),
         KeyBinding::new(k("cmd-x", "ctrl-x"), Cut, c),
@@ -95,7 +117,33 @@ pub fn bindings() -> Vec<KeyBinding> {
         KeyBinding::new("shift-enter", Newline, c),
         KeyBinding::new(k("cmd-enter", "ctrl-enter"), Submit, c),
         KeyBinding::new("escape", Cancel, c),
-    ]
+    ];
+    if mac {
+        keys.extend([
+            KeyBinding::new("cmd-left", Home, c),
+            KeyBinding::new("cmd-right", End, c),
+            KeyBinding::new("cmd-shift-left", SelectHome, c),
+            KeyBinding::new("cmd-shift-right", SelectEnd, c),
+            KeyBinding::new("cmd-backspace", DeleteToLineStart, c),
+            KeyBinding::new("cmd-delete", DeleteToLineEnd, c),
+            KeyBinding::new("ctrl-k", DeleteToLineEnd, c),
+            KeyBinding::new("ctrl-a", Home, c),
+            KeyBinding::new("ctrl-e", End, c),
+            KeyBinding::new("ctrl-h", Backspace, c),
+            KeyBinding::new("ctrl-d", Delete, c),
+            KeyBinding::new("ctrl-b", Left, c),
+            KeyBinding::new("ctrl-f", Right, c),
+            KeyBinding::new("ctrl-p", Up, c),
+            KeyBinding::new("ctrl-n", Down, c),
+        ]);
+    } else {
+        keys.extend([
+            KeyBinding::new("ctrl-y", Redo, c),
+            KeyBinding::new("ctrl-shift-backspace", DeleteToLineStart, c),
+            KeyBinding::new("ctrl-shift-delete", DeleteToLineEnd, c),
+        ]);
+    }
+    keys
 }
 
 /// What the multi-line input says besides [`FieldEvent`].
@@ -110,6 +158,7 @@ pub enum AreaEvent {
 pub struct TextArea {
     focus: FocusHandle,
     composer: LineComposer,
+    history: EditHistory,
     placeholder: SharedString,
     disabled: bool,
     submit_on_enter: bool,
@@ -159,6 +208,7 @@ impl TextArea {
         TextArea {
             focus,
             composer: LineComposer::default(),
+            history: EditHistory::default(),
             placeholder: SharedString::default(),
             disabled: false,
             submit_on_enter: false,
@@ -219,6 +269,7 @@ impl TextArea {
     pub fn set_text(&mut self, text: impl Into<String>, cx: &mut Context<Self>) {
         let text = self.clean(&text.into());
         self.composer.set_text(text);
+        self.history.clear();
         self.upstream = false;
         self.goal_x = None;
         cx.notify();
@@ -288,9 +339,13 @@ impl TextArea {
         if self.composer.is_composing() || range.end > len || range.start > range.end {
             return;
         }
+        let before = self.snapshot();
         self.composer.move_to(range.start);
         self.composer.select_to(range.end);
         let change = self.composer.insert(&self.clean(text));
+        if change == Change::Committed {
+            self.record_commit(before, EditKind::Other, true);
+        }
         self.report(change, window, cx);
     }
 
@@ -342,8 +397,19 @@ impl TextArea {
         if !keep_goal {
             self.goal_x = None;
         }
+        self.history.break_coalesce();
         window.notify_text_selection_changed(&self.focus);
         cx.notify();
+    }
+
+    fn snapshot(&self) -> EditSnapshot {
+        EditSnapshot::from_composer(&self.composer)
+    }
+
+    fn record_commit(&mut self, before: EditSnapshot, kind: EditKind, break_coalesce: bool) {
+        if before.text != self.composer.committed() {
+            self.history.record(before, kind, break_coalesce);
+        }
     }
 
     fn moved(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -405,12 +471,150 @@ impl TextArea {
     // ----- keys ------------------------------------------------------------------------
 
     fn backspace(&mut self, _: &Backspace, window: &mut Window, cx: &mut Context<Self>) {
+        let before = self.snapshot();
+        let had_sel = !self.composer.selection().is_empty();
         let change = self.composer.backspace(&Graphemes);
+        if change == Change::Committed {
+            self.record_commit(before, EditKind::Delete, had_sel);
+        }
         self.report(change, window, cx);
     }
 
     fn delete(&mut self, _: &Delete, window: &mut Window, cx: &mut Context<Self>) {
+        let before = self.snapshot();
+        let had_sel = !self.composer.selection().is_empty();
         let change = self.composer.delete(&Graphemes);
+        if change == Change::Committed {
+            self.record_commit(before, EditKind::Delete, had_sel);
+        }
+        self.report(change, window, cx);
+    }
+
+    fn delete_word_backward(
+        &mut self,
+        _: &DeleteWordBackward,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.composer.is_composing() {
+            return;
+        }
+        let before = self.snapshot();
+        if self.composer.selection().is_empty() {
+            let target = ime::prev_word_start(self.composer.text(), self.composer.cursor());
+            if target == self.composer.cursor() {
+                return;
+            }
+            self.composer.select_to(target);
+        }
+        let change = self.composer.replace(None, "");
+        if change == Change::Committed {
+            self.record_commit(before, EditKind::Other, true);
+        }
+        self.report(change, window, cx);
+    }
+
+    fn delete_word_forward(
+        &mut self,
+        _: &DeleteWordForward,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.composer.is_composing() {
+            return;
+        }
+        let before = self.snapshot();
+        if self.composer.selection().is_empty() {
+            let target = ime::next_word_end(self.composer.text(), self.composer.cursor());
+            if target == self.composer.cursor() {
+                return;
+            }
+            self.composer.select_to(target);
+        }
+        let change = self.composer.replace(None, "");
+        if change == Change::Committed {
+            self.record_commit(before, EditKind::Other, true);
+        }
+        self.report(change, window, cx);
+    }
+
+    fn row_start_offset(&self) -> usize {
+        match self.layout.as_ref() {
+            Some(l) => l.rows[l.row_index(self.composer.cursor(), self.upstream)].start,
+            None => paragraph_at(self.composer.text(), self.composer.cursor()).start,
+        }
+    }
+
+    fn row_end_offset(&self) -> (usize, bool) {
+        match self.layout.as_ref() {
+            Some(l) => {
+                let ix = l.row_index(self.composer.cursor(), self.upstream);
+                (l.rows[ix].end, !l.last_of_paragraph(ix))
+            }
+            None => (
+                paragraph_at(self.composer.text(), self.composer.cursor()).end,
+                false,
+            ),
+        }
+    }
+
+    fn delete_to_line_start(
+        &mut self,
+        _: &DeleteToLineStart,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.composer.is_composing() {
+            return;
+        }
+        let before = self.snapshot();
+        if self.composer.selection().is_empty() {
+            let cursor = self.composer.cursor();
+            let row_start = self.row_start_offset();
+            let target = if row_start < cursor {
+                row_start
+            } else {
+                self.composer.previous_boundary(cursor, &Graphemes)
+            };
+            if target == cursor {
+                return;
+            }
+            self.composer.select_to(target);
+        }
+        let change = self.composer.replace(None, "");
+        if change == Change::Committed {
+            self.record_commit(before, EditKind::Other, true);
+        }
+        self.report(change, window, cx);
+    }
+
+    fn delete_to_line_end(
+        &mut self,
+        _: &DeleteToLineEnd,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.composer.is_composing() {
+            return;
+        }
+        let before = self.snapshot();
+        if self.composer.selection().is_empty() {
+            let cursor = self.composer.cursor();
+            let (row_end, _) = self.row_end_offset();
+            let target = if row_end > cursor {
+                row_end
+            } else {
+                self.composer.next_boundary(cursor, &Graphemes)
+            };
+            if target == cursor {
+                return;
+            }
+            self.composer.select_to(target);
+        }
+        let change = self.composer.replace(None, "");
+        if change == Change::Committed {
+            self.record_commit(before, EditKind::Other, true);
+        }
         self.report(change, window, cx);
     }
 
@@ -424,6 +628,28 @@ impl TextArea {
         self.moved(window, cx);
     }
 
+    fn move_word_left(&mut self, _: &MoveWordLeft, window: &mut Window, cx: &mut Context<Self>) {
+        let from = if self.composer.selection().is_empty() {
+            self.composer.cursor()
+        } else {
+            self.composer.selection().start
+        };
+        let to = ime::prev_word_start(self.composer.text(), from);
+        self.composer.move_to(to);
+        self.moved(window, cx);
+    }
+
+    fn move_word_right(&mut self, _: &MoveWordRight, window: &mut Window, cx: &mut Context<Self>) {
+        let from = if self.composer.selection().is_empty() {
+            self.composer.cursor()
+        } else {
+            self.composer.selection().end
+        };
+        let to = ime::next_word_end(self.composer.text(), from);
+        self.composer.move_to(to);
+        self.moved(window, cx);
+    }
+
     fn select_left(&mut self, _: &SelectLeft, window: &mut Window, cx: &mut Context<Self>) {
         self.composer.select_left(&Graphemes);
         self.moved(window, cx);
@@ -431,6 +657,28 @@ impl TextArea {
 
     fn select_right(&mut self, _: &SelectRight, window: &mut Window, cx: &mut Context<Self>) {
         self.composer.select_right(&Graphemes);
+        self.moved(window, cx);
+    }
+
+    fn select_word_left(
+        &mut self,
+        _: &SelectWordLeft,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let to = ime::prev_word_start(self.composer.text(), self.composer.cursor());
+        self.composer.select_to(to);
+        self.moved(window, cx);
+    }
+
+    fn select_word_right(
+        &mut self,
+        _: &SelectWordRight,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let to = ime::next_word_end(self.composer.text(), self.composer.cursor());
+        self.composer.select_to(to);
         self.moved(window, cx);
     }
 
@@ -513,6 +761,18 @@ impl TextArea {
         self.moved_to(upstream, false, window, cx);
     }
 
+    fn select_home(&mut self, _: &SelectHome, window: &mut Window, cx: &mut Context<Self>) {
+        let start = self.row_start_offset();
+        self.composer.select_to(start);
+        self.moved(window, cx);
+    }
+
+    fn select_end(&mut self, _: &SelectEnd, window: &mut Window, cx: &mut Context<Self>) {
+        let (end, upstream) = self.row_end_offset();
+        self.composer.select_to(end);
+        self.moved_to(upstream, false, window, cx);
+    }
+
     fn text_start(&mut self, _: &TextStart, window: &mut Window, cx: &mut Context<Self>) {
         self.composer.home();
         self.moved(window, cx);
@@ -523,12 +783,53 @@ impl TextArea {
         self.moved(window, cx);
     }
 
+    fn select_text_start(
+        &mut self,
+        _: &SelectTextStart,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.composer.select_to(0);
+        self.moved(window, cx);
+    }
+
+    fn select_text_end(&mut self, _: &SelectTextEnd, window: &mut Window, cx: &mut Context<Self>) {
+        self.composer.select_to(self.composer.text().len());
+        self.moved(window, cx);
+    }
+
+    fn undo(&mut self, _: &Undo, window: &mut Window, cx: &mut Context<Self>) {
+        if self.composer.is_composing() {
+            return;
+        }
+        let current = self.snapshot();
+        if let Some(prev) = self.history.undo(current) {
+            prev.restore_into(&mut self.composer);
+            self.report(Change::Committed, window, cx);
+        }
+    }
+
+    fn redo(&mut self, _: &Redo, window: &mut Window, cx: &mut Context<Self>) {
+        if self.composer.is_composing() {
+            return;
+        }
+        let current = self.snapshot();
+        if let Some(next) = self.history.redo(current) {
+            next.restore_into(&mut self.composer);
+            self.report(Change::Committed, window, cx);
+        }
+    }
+
     fn paste(&mut self, _: &Paste, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(text) = cx.read_from_clipboard().and_then(|item| item.text()) {
             // `LineComposer::insert` flattens newlines (it is one line's);
             // this field keeps them unless it is a title.
+            let before = self.snapshot();
             let text = self.clean(&text);
             let change = self.composer.replace(None, &text);
+            if change == Change::Committed {
+                self.record_commit(before, EditKind::Other, true);
+            }
             self.report(change, window, cx);
         }
     }
@@ -544,7 +845,11 @@ impl TextArea {
         let text = self.composer.selected_text().to_string();
         if !text.is_empty() {
             cx.write_to_clipboard(ClipboardItem::new_string(text));
+            let before = self.snapshot();
             let change = self.composer.replace(None, "");
+            if change == Change::Committed {
+                self.record_commit(before, EditKind::Other, true);
+            }
             self.report(change, window, cx);
         }
     }
@@ -558,7 +863,11 @@ impl TextArea {
         if self.submit_on_enter {
             cx.emit(FieldEvent::Submitted(self.composer.committed()));
         } else {
+            let before = self.snapshot();
             let change = self.composer.replace(None, "\n");
+            if change == Change::Committed {
+                self.record_commit(before, EditKind::Other, true);
+            }
             self.report(change, window, cx);
         }
     }
@@ -731,12 +1040,9 @@ impl TextArea {
     }
 }
 
-/// The word (by Unicode word bounds; every CJK ideograph is one) at `at`.
+/// The word (by ICU4X dictionary word segmentation for CJK + Latin) at `at`.
 fn word_at(text: &str, at: usize) -> Range<usize> {
-    text.split_word_bound_indices()
-        .map(|(i, w)| i..i + w.len())
-        .find(|r| r.contains(&at) || r.end == at && at == text.len())
-        .unwrap_or(at..at)
+    ime::word_range(text, at)
 }
 
 /// The paragraph (between newlines) holding `at`.
@@ -779,7 +1085,11 @@ impl EntityInputHandler for TextArea {
         if self.input_is_late(window, cx) || !self.takes_input(window) {
             return;
         }
+        let before = self.snapshot();
         let change = self.composer.unmark();
+        if change == Change::Committed {
+            self.record_commit(before, EditKind::Insert, true);
+        }
         self.report(change, window, cx);
     }
 
@@ -803,8 +1113,21 @@ impl EntityInputHandler for TextArea {
             }
             return;
         }
+        let before = self.snapshot();
+        let was_composing = self.composer.is_composing();
+        let had_sel = !self.composer.selection().is_empty();
         let text = self.clean(text);
         let change = self.composer.replace(range16, &text);
+        if change == Change::Committed {
+            let kind = if text.is_empty() {
+                EditKind::Delete
+            } else {
+                EditKind::Insert
+            };
+            let break_coalesce =
+                was_composing || had_sel || text.chars().count() > 1 || text.contains([' ', '\n']);
+            self.record_commit(before, kind, break_coalesce);
+        }
         self.report(change, window, cx);
     }
 
@@ -819,7 +1142,11 @@ impl EntityInputHandler for TextArea {
         if self.input_is_late(window, cx) || !self.takes_input(window) {
             return;
         }
+        let before = self.snapshot();
         let change = self.composer.replace_and_mark(range16, text, selected16);
+        if change == Change::Committed {
+            self.record_commit(before, EditKind::Other, true);
+        }
         self.report(change, window, cx);
     }
 
@@ -907,19 +1234,33 @@ impl Render for TextArea {
             .cursor(CursorStyle::IBeam)
             .on_action(cx.listener(Self::backspace))
             .on_action(cx.listener(Self::delete))
+            .on_action(cx.listener(Self::delete_word_backward))
+            .on_action(cx.listener(Self::delete_word_forward))
+            .on_action(cx.listener(Self::delete_to_line_start))
+            .on_action(cx.listener(Self::delete_to_line_end))
             .on_action(cx.listener(Self::left))
             .on_action(cx.listener(Self::right))
             .on_action(cx.listener(Self::up))
             .on_action(cx.listener(Self::down))
+            .on_action(cx.listener(Self::move_word_left))
+            .on_action(cx.listener(Self::move_word_right))
             .on_action(cx.listener(Self::select_left))
             .on_action(cx.listener(Self::select_right))
             .on_action(cx.listener(Self::select_up))
             .on_action(cx.listener(Self::select_down))
+            .on_action(cx.listener(Self::select_word_left))
+            .on_action(cx.listener(Self::select_word_right))
             .on_action(cx.listener(Self::select_all))
             .on_action(cx.listener(Self::home))
             .on_action(cx.listener(Self::end))
+            .on_action(cx.listener(Self::select_home))
+            .on_action(cx.listener(Self::select_end))
             .on_action(cx.listener(Self::text_start))
             .on_action(cx.listener(Self::text_end))
+            .on_action(cx.listener(Self::select_text_start))
+            .on_action(cx.listener(Self::select_text_end))
+            .on_action(cx.listener(Self::undo))
+            .on_action(cx.listener(Self::redo))
             .on_action(cx.listener(Self::paste))
             .on_action(cx.listener(Self::copy))
             .on_action(cx.listener(Self::cut))
@@ -1207,7 +1548,8 @@ impl gpui::Element for AreaElement {
         window: &mut Window,
         cx: &mut App,
     ) -> AreaPrepaint {
-        let p = Theme::of(window, cx).palette;
+        let theme = Theme::of(window, cx);
+        let p = theme.palette;
         let area = self.area.read(cx);
         let (text, runs, placeholder) = area.shaping(&window.text_style(), p);
         let (font_size, line_height) = metrics(window);
@@ -1234,7 +1576,7 @@ impl gpui::Element for AreaElement {
                     let at = layout.point_of(composer.cursor(), area.upstream);
                     fill(
                         Bounds::new(bounds.origin + at, size(px(1.5), line_height)),
-                        p.accent.solid(),
+                        theme.caret_color(),
                     )
                 });
         // Under each link, gpui-prose's entity stroke: 7 px high, its middle
@@ -1321,11 +1663,14 @@ mod tests {
 
     #[test]
     fn a_word_or_a_paragraph_under_the_pointer() {
-        let text = "雾港 the lighthouse\n第二段";
-        assert_eq!(&text[word_at(text, 0)], "雾");
-        assert_eq!(&text["雾港 ".len()..][..3], "the");
-        assert_eq!(&text[word_at(text, "雾港 t".len())], "the");
-        assert_eq!(&text[paragraph_at(text, 3)], "雾港 the lighthouse");
+        let text = "我们今天去公园 the lighthouse\n第二段";
+        assert_eq!(&text[word_at(text, 0)], "我们");
+        assert_eq!(&text[word_at(text, 7)], "今天");
+        assert_eq!(&text[word_at(text, "我们今天去公园 t".len())], "the");
+        assert_eq!(
+            &text[paragraph_at(text, 3)],
+            "我们今天去公园 the lighthouse"
+        );
         assert_eq!(&text[paragraph_at(text, text.len())], "第二段");
         assert_eq!(word_at("", 0), 0..0);
     }

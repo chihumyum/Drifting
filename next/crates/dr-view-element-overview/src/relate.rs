@@ -871,6 +871,12 @@ pub struct OverviewMemory {
     pub mode: ElementLayoutMode,
     pub positions: Option<BTreeMap<String, RelatePoint>>,
     pub signature: Option<String>,
+    pub pan: Option<[f32; 2]>,
+    pub zoom: Option<f32>,
+    pub lines_on: Option<bool>,
+    pub line_threshold: Option<u32>,
+    pub hidden_relation_types: Vec<String>,
+    pub pinned_islands: BTreeMap<String, [i32; 2]>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -883,6 +889,18 @@ struct StoredOverviewMemory {
     positions: Option<BTreeMap<String, [f64; 2]>>,
     #[serde(default)]
     signature: Option<String>,
+    #[serde(default)]
+    pan: Option<[f32; 2]>,
+    #[serde(default)]
+    zoom: Option<f32>,
+    #[serde(default)]
+    lines_on: Option<bool>,
+    #[serde(default)]
+    line_threshold: Option<u32>,
+    #[serde(default)]
+    hidden_relation_types: Vec<String>,
+    #[serde(default)]
+    pinned_islands: BTreeMap<String, [i32; 2]>,
 }
 
 fn unpack_points(map: BTreeMap<String, [f64; 2]>) -> BTreeMap<String, RelatePoint> {
@@ -926,22 +944,37 @@ pub fn parse_overview_memory(raw: Option<&Value>) -> OverviewMemory {
         .positions
         .map(unpack_points)
         .filter(|m| !m.is_empty());
+    let pan = parsed.pan.filter(|p| p[0].is_finite() && p[1].is_finite());
+    let zoom = parsed.zoom.filter(|z| z.is_finite() && *z > 0.0);
+    let line_threshold = parsed.line_threshold.filter(|t| *t >= 1);
     OverviewMemory {
         mode,
         positions,
         signature: parsed.signature,
+        pan,
+        zoom,
+        lines_on: parsed.lines_on,
+        line_threshold,
+        hidden_relation_types: parsed.hidden_relation_types,
+        pinned_islands: parsed.pinned_islands,
     }
 }
 
 pub fn serialize_overview_memory(record: &OverviewMemory) -> Value {
     let stored = StoredOverviewMemory {
-        v: 1,
+        v: 2,
         mode: Some(match record.mode {
             ElementLayoutMode::Isles => "isles".to_owned(),
             ElementLayoutMode::Relate => "relate".to_owned(),
         }),
         positions: record.positions.as_ref().map(pack_points),
         signature: record.signature.clone(),
+        pan: record.pan,
+        zoom: record.zoom,
+        lines_on: record.lines_on,
+        line_threshold: record.line_threshold,
+        hidden_relation_types: record.hidden_relation_types.clone(),
+        pinned_islands: record.pinned_islands.clone(),
     };
     serde_json::to_value(stored).unwrap_or(Value::Null)
 }
@@ -1149,10 +1182,18 @@ mod tests {
 
         let mut positions = BTreeMap::new();
         positions.insert("el-1".into(), RelatePoint::new(12.3, -45.6));
+        let mut pinned_islands = BTreeMap::new();
+        pinned_islands.insert("isl-1".into(), [2, -1]);
         let rec = OverviewMemory {
             mode: ElementLayoutMode::Isles,
             positions: Some(positions),
             signature: Some("abc12345".into()),
+            pan: Some([120.0, 80.0]),
+            zoom: Some(1.15),
+            lines_on: Some(false),
+            line_threshold: Some(3),
+            hidden_relation_types: vec!["rel-1".into()],
+            pinned_islands,
         };
         let val = serialize_overview_memory(&rec);
         let parsed = parse_overview_memory(Some(&val));

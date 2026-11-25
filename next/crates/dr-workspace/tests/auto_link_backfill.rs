@@ -363,16 +363,14 @@ fn a_document_being_composed_in_waits_and_what_a_quit_left_is_finished_at_the_ne
     assert!(!s.can_undo());
 }
 
-/// What this track left as it is (the task book's 「改名、加别名」): an
-/// entry already on, renamed or given an alias, links nothing already
-/// written under the new name; only a switch going on does.
+/// Creating an auto-linked entry, renaming it, adding an alias, or restoring
+/// it from Recently Deleted backfills existing prose in the background.
 #[test]
-fn a_rename_or_a_new_alias_links_nothing_already_written() {
+fn a_rename_new_alias_create_or_restore_backfills_existing_prose() {
     let e = env();
     let b = e.book();
     let anna = character(&e, &b, "安娜");
-    let doc = chapter(&e, &b, "一", "小安和安妮来了。");
-    let before = stored(&e, &doc);
+    let doc = chapter(&e, &b, "一", "小安和安妮来了，阿青也来了。");
     e.call(
         "entry.update",
         json!({"book": b, "id": anna, "title": "安妮"}),
@@ -381,9 +379,25 @@ fn a_rename_or_a_new_alias_links_nothing_already_written() {
         "module.set_field",
         json!({"book": b, "entry": anna, "module": "mod-fields", "field": "aliases", "value": ["小安"]}),
     );
+    let qing = character(&e, &b, "阿青");
     settle(&e);
-    assert_eq!(stored(&e, &doc), before);
+    assert_eq!(
+        links(&e, &doc),
+        [
+            ("小安".into(), anna.clone(), false),
+            ("安妮".into(), anna.clone(), false),
+            ("阿青".into(), qing.clone(), false),
+        ]
+    );
     assert_eq!(row(&e, &b), None);
+
+    // Restoring a trashed auto-linked entry backfills prose written while it was trashed.
+    e.call("entry.trash", json!({"book": b, "id": qing}));
+    let doc2 = chapter(&e, &b, "二", "阿青回来了。");
+    assert!(links(&e, &doc2).is_empty());
+    e.call("entry.restore", json!({"book": b, "id": qing}));
+    settle(&e);
+    assert_eq!(links(&e, &doc2), [("阿青".into(), qing, false)]);
 }
 
 #[test]

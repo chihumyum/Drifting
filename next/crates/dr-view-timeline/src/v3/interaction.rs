@@ -20,6 +20,19 @@ pub(super) struct Resizing {
     pub at: f64,
     pub end: f64,
 }
+pub(super) struct ClipSpringDrag {
+    pub entry: String,
+    pub source_lane: String,
+    pub title: SharedString,
+    pub color: dr_ui::tokens::Rgb,
+    pub width: f32,
+    pub height: f32,
+    pub grab: (f32, f32),
+    pub start_y: f32,
+    pub started: std::time::Instant,
+    pub spring: crate::spring::SlabSpring,
+    pub target_lane: Option<usize>,
+}
 #[derive(Clone)]
 pub(super) struct PinDrag {
     pub book: String,
@@ -290,6 +303,7 @@ impl Timeline {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.clip_drag = None;
         let Some(page) = self.page_host() else {
             return;
         };
@@ -335,7 +349,113 @@ impl Timeline {
             );
         }
     }
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn start_clip_spring_drag(
+        &mut self,
+        entry: String,
+        source_lane: String,
+        title: SharedString,
+        color: dr_ui::tokens::Rgb,
+        width: f32,
+        height: f32,
+        grab: (f32, f32),
+        pointer: Point<Pixels>,
+        cx: &mut Context<Self>,
+    ) {
+        let px_x = f32::from(pointer.x);
+        let px_y = f32::from(pointer.y);
+        self.clip_drag = Some(ClipSpringDrag {
+            entry,
+            source_lane,
+            title,
+            color,
+            width,
+            height,
+            grab,
+            start_y: px_y,
+            started: std::time::Instant::now(),
+            spring: crate::spring::SlabSpring::new(px_x - grab.0, px_y - grab.1),
+            target_lane: None,
+        });
+        cx.notify();
+    }
+    pub(super) fn clip_drag_moved(
+        &mut self,
+        event: &DragMoveEvent<EntryDrag>,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.auto_scroll_edge(event.event.position.x, cx);
+        let rows: Vec<crate::spring::Row> = self
+            .lane_rows
+            .borrow()
+            .iter()
+            .map(|(_, top, height)| crate::spring::Row {
+                top: *top,
+                height: *height,
+            })
+            .collect();
+        let Some(drag) = &mut self.clip_drag else {
+            return;
+        };
+        let now = drag.started.elapsed().as_secs_f32();
+        let ptr = (
+            f32::from(event.event.position.x),
+            f32::from(event.event.position.y),
+        );
+        drag.target_lane = drag.spring.aim(ptr, drag.grab, &rows, drag.start_y, now);
+        drag.spring.step(now);
+        cx.notify();
+    }
+    pub(super) fn pin_drag_moved(
+        &mut self,
+        event: &DragMoveEvent<PinDrag>,
+        cx: &mut Context<Self>,
+    ) {
+        self.auto_scroll_edge(event.event.position.x, cx);
+        if let Some(bounds) = self.bounds.get() {
+            let drag = event.drag(cx);
+            let track_x = f32::from(event.event.position.x - bounds.origin.x)
+                - self.rail_width()
+                - drag.grab.get()
+                - f32::from(self.scroll.offset().x);
+            self.pin_drag_x = Some(track_x.max(0.0));
+            cx.notify();
+        }
+    }
+    pub(super) fn auto_scroll_edge(&mut self, pointer_x: Pixels, cx: &mut Context<Self>) {
+        let Some(bounds) = self.bounds.get() else {
+            return;
+        };
+        let track_left = f32::from(bounds.origin.x) + self.rail_width();
+        let track_right = f32::from(bounds.right());
+        let px_x = f32::from(pointer_x);
+        const EDGE: f32 = 36.0;
+        const STEP: f32 = 16.0;
+        let cur = -f32::from(self.scroll.offset().x);
+        let next = if px_x < track_left + EDGE && px_x >= track_left - 24.0 {
+            let ratio = ((track_left + EDGE - px_x) / EDGE).clamp(0.2, 1.0);
+            (cur - STEP * ratio).max(0.0)
+        } else if px_x > track_right - EDGE && px_x <= track_right + 24.0 {
+            let ratio = ((px_x - (track_right - EDGE)) / EDGE).clamp(0.2, 1.0);
+            cur + STEP * ratio
+        } else {
+            return;
+        };
+        if (next - cur).abs() > 0.5 {
+            self.scroll.set_offset(point(px(-next), px(0.0)));
+            cx.notify();
+        }
+    }
+    pub(super) fn nudge_span(&mut self, entry: String, at: f64, span: f64, cx: &mut Context<Self>) {
+        let Some(book) = self.book.v3() else {
+            return;
+        };
+        let guard = book.guard();
+        self.place_at(entry, None, None, at, Some(span.max(0.25)), guard, cx);
+    }
     pub(super) fn resize_moved(&mut self, position: Point<Pixels>, cx: &mut Context<Self>) {
+        self.auto_scroll_edge(position.x, cx);
         let Some(end) = self.order_at(position.x) else {
             return;
         };

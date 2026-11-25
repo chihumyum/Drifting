@@ -112,8 +112,16 @@ pub fn import_path(lib: Workspace, path: PathBuf, cx: &mut App) -> Entity<Transf
     dialog
 }
 
+#[derive(Default)]
+struct Exporting(std::collections::HashSet<String>);
+
+impl gpui::Global for Exporting {}
+
 /// The card's export icon: the save panel, then [`export_path`].
 pub fn export(book: String, cx: &mut App) {
+    if cx.default_global::<Exporting>().0.contains(&book) {
+        return;
+    }
     dr_shell::workspace::with_workspace(cx, move |ws, _, cx| {
         let Some(lib) = ws.library.clone() else {
             return;
@@ -129,33 +137,52 @@ pub fn export(book: String, cx: &mut App) {
     });
 }
 
-/// Writes book `book` of `lib` to `path` (whole or not at all); a failure
-/// opens a dialog that says so.
+/// Writes book `book` of `lib` to `path` (whole or not at all); shows progress
+/// in a transfer dialog and reports any failure.
 pub fn export_path(lib: Workspace, book: String, path: PathBuf, cx: &mut App) {
-    let job = cx
-        .background_executor()
-        .spawn(async move { book_file::export_book(&lib, &book, &path, &|_| {}) });
+    if !cx.default_global::<Exporting>().0.insert(book.clone()) {
+        return;
+    }
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let dialog = TransferDialog::show(
+        State::Working {
+            title: keys::manuscript_export::EXPORTING,
+            name,
+            progress: Some(0.0),
+        },
+        cx,
+    );
+    let (tx, mut rx) = futures::channel::mpsc::unbounded::<book_file::Progress>();
+    let book_key = book.clone();
+    let job = cx.background_executor().spawn(async move {
+        book_file::export_book(&lib, &book, &path, &move |p| {
+            let _ = tx.unbounded_send(p);
+        })
+    });
+    let shown = dialog.clone();
     cx.spawn(async move |cx| {
-        if let Err(e) = job.await {
-            cx.update(|cx| {
-                let d = TransferDialog::show(
-                    State::Working {
-                        title: reason::EXPORT_FAILED_TITLE,
-                        name: String::new(),
-                        progress: None,
-                    },
-                    cx,
-                );
-                d.update(cx, |d, cx| {
-                    d.fail(
-                        reason::EXPORT_FAILED_TITLE,
-                        project::EXPORT_FAILED,
-                        e.to_string(),
-                        cx,
-                    )
-                });
-            });
+        while let Some(p) = rx.next().await {
+            shown.update(cx, |d, cx| d.progress(p.done, p.total, cx));
         }
+    })
+    .detach();
+    cx.spawn(async move |cx| {
+        let result = job.await;
+        cx.update(|cx| {
+            cx.default_global::<Exporting>().0.remove(&book_key);
+            dialog.update(cx, |d, cx| match result {
+                Ok(_) => d.done(cx),
+                Err(e) => d.fail(
+                    reason::EXPORT_FAILED_TITLE,
+                    project::EXPORT_FAILED,
+                    e.to_string(),
+                    cx,
+                ),
+            });
+        });
     })
     .detach();
 }

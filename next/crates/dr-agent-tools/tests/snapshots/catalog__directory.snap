@@ -5,6 +5,7 @@ expression: table
 asset.get [read] Read an asset's metadata and live usages in the book (`usages: false` reads the record alone).
 asset.list [read] List assets in the project's built-in asset library (sorted by asset id), each with its folder, its place in it and its live usages (media modules, prose embeds and links, image fields). Set `trashed: true` to include Recently Deleted.
 asset.move [write] Put a file of the asset library into another folder (or the top) and/or at another place among that folder's files (manual order).
+asset.read_content [read] Read the content of an asset-library file (extracted text for PDFs with pagination, or metadata and optional bounded data URI for images).
 asset.rename [write] Rename a live asset in the built-in asset library.
 asset.restore [write] Restore a trashed asset from Recently Deleted back into the asset library (to the top when its folder is in Recently Deleted).
 asset.trash [write] Move an asset in the built-in asset library to Recently Deleted; places referencing it read as placeholders while its bytes remain.
@@ -136,6 +137,7 @@ Schema and facade revisions:
 asset.get shared 753183dca7980c49458030e59c539b50ab548a5b1f22cc881230f41883330233
 asset.list shared c51dd10757874aadb26f790f635c3867ab3efaf913ec37c8bc6457fd217deaa3
 asset.move book 917ce4fd0e2aa2b57e0a99a423c3a98747ad3519c17d8a0c9e83924e48651c2f
+asset.read_content shared c76a18ad0629a1180ea28e9b951c3fdf3d426f97a318d36b9e6e6bd6776375cd
 asset.rename book ea3ee0da64dbeb8bfb529ec2aeda15731ba5b4f4956f14a0cabb19814f6131a6
 asset.restore book b21a02b4edde7a744e324b912a97bd5a640caec6db07766001eaed72a7dc3c06
 asset.trash book 24b5c3517f5ab9fb1c0fcf95f5de6b26d8439c11f4b7510594228cdec68d4312
@@ -153,7 +155,7 @@ comment.anchors shared 4d752a111e8d3be9cb0410c15a60d9e5a77f243816761fb8131e70074
 comment.create book 60feec8435df908ad4a59f03a6851806806e3e67eedb66bb72dffe505eb523f7
 comment.list shared c90688172e415c2bfa0e3d60cb7f31b82482f1cdc49f0cde6a820d41ee141e7d
 comment.reanchor book 36dca406adcb7a59134614d8da3b51f525078313f8df175f640a59a5222d038c
-comment.update book 5d22a9624ab15e1b2fadf113d779d1dbf907f7d50afe5da616d6bef43cf9750c
+comment.update book d8a62df4f941554151b31e9a080c07f8487797043855a0e1842982d2c3e59aac
 custom_module.create library 8bda0799f373af2afb4e2bbe402088d120b67e7918521630143103519ce40f7b
 custom_module.get shared 14a72f539ff4d38194f29d7f6fa2775e9a6feff08912c0e3a7144f364b84f48c
 custom_module.list shared 7c23c031bc96471e9aade71a62b8187598521bcb6f1d4f609f68b36a7e8f271d
@@ -205,7 +207,7 @@ module.put_media book 7d112c0ee4f89a3af5b1acae34b8d9bea7392af0c6050abfdfab5442fc
 module.put_patch book 2adb9486ec20672e8f8785afd910e0eb64ee09aa876068ac93fa4e8cdc59c10b
 module.read shared c9ae8d8a83bc26f3843b43257e8605791d10371ce9eb25cf0205fe79c84cdfce
 module.read_custom shared 947826c97c97154a7f0c0505d7b7961471bb66f94fcbd7fe6652248ae40d70b3
-module.read_prose shared b6facfa8753e1c3f85fcae373219161e5d5e38367cd147040c03b8ccc22ca59b
+module.read_prose shared 4c1875b470fb8913a0c20a33317a4231e8d7a8c8ef4a9b29432718ecdc1f610c
 module.remove_custom_item book 3265c49b67148e79f48ac83fe4797bf64eae9ac1b3d2b04f50aeff4405bb2c22
 module.remove_kv book d85284a551f9faa1004a8f07b511e376679db66f8d114ae12299b8d574d9fc34
 module.remove_media book e70478beaf21b8854bd7983706a8665b47cb920498b771ea4a9a31286a4f8df7
@@ -221,7 +223,7 @@ project_template.get shared d1d3c95c35ddd3b76dfb328394c458c3eb6f6849d757ad94c48a
 project_template.list shared 885f0943988d7a06cebf2ac97e5ba230a1d04b3a72df71b006371fa97550c1a8
 project_template.save library 43649bf9f068c447ebf0867e7d5e886cd0dcab99d2377559580d59fcb911b390
 prose.link book df3a90179c8553459b918a33f688b844ef0a10609c818529b5f3f3d8b5a486db
-prose.read shared 1e6fde6b01a9c6e9889dc9194c89f93669df269eb331cde732f98d8130ae7848
+prose.read shared d82ac957a49c1f4cab389d9e0d46acc34e118ddc693954d56efc2faf3f340662
 prose.replace book b0591c896fc08245ca4e332124d791755507388cceb727caae65f527fbfe068f
 prose.restore book 74a6b009a098de0e87f1c44b27f65c1a1c111286e8aba3e56ab7cbe39b62efd1
 prose.shape shared 05387f9196c7c9346e7d57241e24f4648686980238fcd7030d508724784b9b74

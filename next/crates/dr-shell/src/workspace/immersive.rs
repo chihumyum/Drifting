@@ -28,7 +28,7 @@ use std::rc::Rc;
 use dr_ui::{Theme, components::IconButton, fonts::Role, sand, style::DrStyled};
 use gpui::{
     AnyElement, App, Bounds, Context, InteractiveElement as _, IntoElement as _,
-    ParentElement as _, Pixels, Styled as _, Task, Window, div, px,
+    ParentElement as _, Pixels, Styled as _, Task, Window, div, prelude::FluentBuilder as _, px,
 };
 
 use super::Workspace;
@@ -52,6 +52,9 @@ pub struct Immersion {
     pub typed: bool,
     /// The pointer is in the top band.
     pub top: bool,
+    /// Typing hid the bottom-right exit zone even if the pointer rests over it;
+    /// moving the pointer reveals it again.
+    pub exit_concealed: bool,
     /// Today's words of the book when it began.
     from_words: Option<i64>,
     /// The book's daily goal, once read.
@@ -83,6 +86,7 @@ impl Workspace {
         self.immersive = on;
         self.immersion.typed = on && typed;
         self.immersion.top = false;
+        self.immersion.exit_concealed = on;
         self.immersion.goal_read = None;
         if on {
             self.exit_fill_in_cx(cx);
@@ -178,14 +182,17 @@ impl Workspace {
         }
     }
 
-    /// The pointer moved: the top band shows the traffic lights and dots.
+    /// The pointer moved: the top band shows the traffic lights and dots, and
+    /// any typing-concealed exit zone can reveal again on hover.
     pub(super) fn pointer_while_immersed(&mut self, y: f32, cx: &mut Context<Self>) {
         if !self.immersive {
             return;
         }
         let top = y < REVEAL_TOP;
-        if top != self.immersion.top {
-            self.immersion.top = top;
+        let changed = top != self.immersion.top || self.immersion.exit_concealed;
+        self.immersion.top = top;
+        self.immersion.exit_concealed = false;
+        if changed {
             cx.notify();
         }
     }
@@ -193,8 +200,12 @@ impl Workspace {
     /// A key without modifiers, or the pointer out of the window: the
     /// reveal goes.
     pub(super) fn conceal(&mut self, cx: &mut Context<Self>) {
-        if self.immersion.top {
-            self.immersion.top = false;
+        let changed = self.immersion.top || !self.immersion.exit_concealed;
+        self.immersion.top = false;
+        if self.immersive {
+            self.immersion.exit_concealed = true;
+        }
+        if changed {
             cx.notify();
         }
     }
@@ -265,7 +276,9 @@ pub fn exit(ws: &Workspace, window: &mut Window, cx: &mut App) -> AnyElement {
                 .items_center()
                 .gap(px(10.0))
                 .opacity(0.0)
-                .group_hover("immersive-leave", |st| st.opacity(1.0))
+                .when(!ws.immersion.exit_concealed, |el| {
+                    el.group_hover("immersive-leave", |st| st.opacity(1.0))
+                })
                 .children(readout)
                 .child(
                     IconButton::new("immersive-leave", dr_ui::sand::Icon::Incense)

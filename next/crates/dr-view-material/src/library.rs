@@ -327,11 +327,29 @@ impl LibraryPanel {
             self.renaming = None;
             self.rename_when_shown = None;
             self.current_folder = None;
+            self.expanded.clear();
             self.masonry_folder = None;
             self.move_open_for = None;
             self.importing = 0;
             self.picker.clear();
             self.snapshot = None;
+            if let Some(ws) = self.shell.upgrade() {
+                let ws_ref = ws.read(cx);
+                if ws_ref.book_id == book.id {
+                    if let Some(arr) = ws_ref
+                        .book_memory("material.expanded")
+                        .and_then(|v| v.as_array())
+                    {
+                        self.expanded = arr
+                            .iter()
+                            .filter_map(|v| v.as_str().map(str::to_owned))
+                            .collect();
+                    }
+                    self.current_folder = ws_ref
+                        .book_memory("material.current_folder")
+                        .and_then(|v| v.as_str().map(str::to_owned));
+                }
+            }
             self.watch_book(&book.id, cx);
         }
         self.book = book;
@@ -579,12 +597,30 @@ impl LibraryPanel {
         self.expanded.contains(folder)
     }
 
+    fn save_folder_memory(&self, cx: &mut Context<Self>) {
+        let Some(ws) = self.shell.upgrade() else {
+            return;
+        };
+        let mut sorted: Vec<String> = self.expanded.iter().cloned().collect();
+        sorted.sort();
+        let current = self.current_folder.clone();
+        ws.update(cx, |ws, cx| {
+            ws.set_book_memory("material.expanded", json!(sorted), cx);
+            ws.set_book_memory(
+                "material.current_folder",
+                current.map_or(serde_json::Value::Null, |f| json!(f)),
+                cx,
+            );
+        });
+    }
+
     pub fn set_open(&mut self, folder: &str, open: bool, cx: &mut Context<Self>) {
         if open {
             self.expanded.insert(folder.to_owned());
         } else {
             self.expanded.remove(folder);
         }
+        self.save_folder_memory(cx);
         cx.notify();
     }
 
@@ -599,6 +635,7 @@ impl LibraryPanel {
                 self.expanded.remove(&id);
             }
         }
+        self.save_folder_memory(cx);
         cx.notify();
     }
 
@@ -629,6 +666,7 @@ impl LibraryPanel {
             self.current_folder = Some(id.to_owned());
             if self.view_mode == ViewMode::Masonry {
                 self.masonry_folder = Some(id.to_owned());
+                self.save_folder_memory(cx);
             } else {
                 let open = !self.is_open(id);
                 self.set_open(id, open, cx);
@@ -640,6 +678,7 @@ impl LibraryPanel {
                 .find(|m| m.id == id)
                 .and_then(|m| m.folder.clone())
                 .filter(|f| self.live_folders().iter().any(|x| &x.id == f));
+            self.save_folder_memory(cx);
             let how = if e.click_count() > 1 {
                 Open::KEEP
             } else {
@@ -1145,18 +1184,49 @@ impl LibraryPanel {
         if skipped.is_empty() {
             return;
         }
-        let names: Vec<String> = skipped
-            .iter()
-            .map(|(p, _)| {
-                p.file_name()
-                    .map(|n| n.to_string_lossy().into_owned())
-                    .unwrap_or_default()
-            })
-            .collect();
+        let max_mib = dr_store::asset::MAX_COPY_BYTES / (1024 * 1024);
+        let mut details: Vec<String> = Vec::with_capacity(skipped.len());
+        for (path, reason) in skipped {
+            let name = path
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            let lower = reason.to_ascii_lowercase();
+            let msg = if let Some(fmt) = reason.strip_prefix("codec:") {
+                format!(
+                    "{name}: {} ({})",
+                    tf(
+                        cx,
+                        keys::memo_material::error::CODEC_UNAVAILABLE,
+                        &[("format", &fmt)],
+                    ),
+                    t(cx, keys::memo_material::error::CODEC_STORE)
+                )
+            } else if lower.contains("too large")
+                || lower.contains("exceeds")
+                || lower.contains("limit")
+            {
+                format!(
+                    "{name}: {}",
+                    tf(
+                        cx,
+                        keys::memo_material::error::FILE_TOO_LARGE,
+                        &[("maxSizeMiB", &max_mib)],
+                    )
+                )
+            } else if reason.is_empty() {
+                name
+            } else if name.is_empty() {
+                reason.clone()
+            } else {
+                format!("{name} ({reason})")
+            };
+            details.push(msg);
+        }
         let text = tf(
             cx,
             keys::memo_material::error::PICK_FAILED,
-            &[("error", &names.join("、"))],
+            &[("error", &details.join("；"))],
         );
         if let Some(ws) = self.shell.upgrade() {
             ws.update(cx, |ws, cx| ws.toast_error(text, cx));
@@ -1256,11 +1326,34 @@ impl LibraryPanel {
             .find(|m| m.id == material)
             .and_then(|m| m.asset.clone())
             .unwrap_or_else(|| material.to_owned());
-        if let Ok(Some(record)) = lib
+        match lib
             .library()
             .asset(&asset, dr_store::asset::Variant::Source)
         {
-            cx.open_with_system(&record.path);
+            Ok(Some(record)) if record.path.exists() => {
+                cx.open_with_system(&record.path);
+            }
+            Ok(_) => {
+                let text = tf(
+                    cx,
+                    keys::memo_material::error::OPEN_FILE,
+                    &[("error", &"source file missing")],
+                );
+                if let Some(ws) = self.shell.upgrade() {
+                    ws.update(cx, |ws, cx| ws.toast_error(text, cx));
+                }
+            }
+            Err(err) => {
+                let err_str = err.to_string();
+                let text = tf(
+                    cx,
+                    keys::memo_material::error::OPEN_FILE,
+                    &[("error", &err_str)],
+                );
+                if let Some(ws) = self.shell.upgrade() {
+                    ws.update(cx, |ws, cx| ws.toast_error(text, cx));
+                }
+            }
         }
     }
 }

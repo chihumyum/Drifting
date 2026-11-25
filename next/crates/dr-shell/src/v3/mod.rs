@@ -28,6 +28,104 @@ pub use drag::{EntryDrag, TimelineClipDrag};
 pub use editor::{register_editor, register_editor_status};
 pub(crate) use editor::{registered_editor, registered_editor_status};
 
+/// Unread prose edit badge kind surfaced on sidebar rows, folded levels, and tabs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum UnreadBadge {
+    Agent,
+    External,
+}
+
+/// Reads unread Agent / External prose edit badges for every entry in `lib`'s
+/// open `AgentMarks` ledger without mutating state.
+pub fn unread_badges(lib: &dr_workspace::Workspace, cx: &App) -> BTreeMap<String, UnreadBadge> {
+    let Some(ledger) = dr_editor::decor::AgentMarks::peek(lib, cx) else {
+        return BTreeMap::new();
+    };
+    ledger
+        .read(cx)
+        .all_unread_entries()
+        .into_iter()
+        .map(|(id, kind)| {
+            let badge = match kind {
+                dr_editor::decor::MarkKind::External => UnreadBadge::External,
+                dr_editor::decor::MarkKind::New | dr_editor::decor::MarkKind::Changed => {
+                    UnreadBadge::Agent
+                }
+            };
+            (id, badge)
+        })
+        .collect()
+}
+
+/// Returns the dominant unread badge for `entry` or any live descendant/member
+/// living beneath it (used for sidebar group rollups).
+pub fn entry_or_subtree_badge(
+    v: &crate::book::v3::BookV3,
+    entry: &str,
+    badges: &BTreeMap<String, UnreadBadge>,
+) -> Option<UnreadBadge> {
+    if badges.is_empty() {
+        return None;
+    }
+    let mut best: Option<UnreadBadge> = None;
+    let mut stack = vec![entry];
+    let mut visited = std::collections::HashSet::new();
+    while let Some(cur) = stack.pop() {
+        if !visited.insert(cur) {
+            continue;
+        }
+        if let Some(&b) = badges.get(cur) {
+            if b == UnreadBadge::External {
+                return Some(UnreadBadge::External);
+            }
+            best = Some(UnreadBadge::Agent);
+        }
+        if let Some(level) = v.levels.get(cur) {
+            for child in &level.children {
+                stack.push(child.as_str());
+            }
+            for member in &level.members {
+                stack.push(member.as_str());
+            }
+        }
+    }
+    best
+}
+
+/// Returns whether a left-sidebar Tab's mount contains any unread Agent/External edits.
+pub fn tab_has_unread(
+    v: &crate::book::v3::BookV3,
+    mount: &dr_workspace::commands::v3::types::TabMount,
+    badges: &BTreeMap<String, UnreadBadge>,
+) -> bool {
+    if badges.is_empty() {
+        return false;
+    }
+    match mount {
+        dr_workspace::commands::v3::types::TabMount::Root => {
+            v.entries.iter().any(|e| badges.contains_key(&e.id))
+        }
+        dr_workspace::commands::v3::types::TabMount::Entry { entry } => {
+            entry_or_subtree_badge(v, entry, badges).is_some()
+        }
+        dr_workspace::commands::v3::types::TabMount::Book => {
+            v.book_entries().iter().any(|id| badges.contains_key(id))
+        }
+        dr_workspace::commands::v3::types::TabMount::View { .. } => false,
+    }
+}
+
+/// Compact word count formatter for narrow sidebar rows (`342`, `1.2k`, `12k`).
+pub fn format_short_words(words: u64) -> String {
+    if words >= 10_000 {
+        format!("{}k", words / 1_000)
+    } else if words >= 1_000 {
+        format!("{:.1}k", words as f64 / 1_000.0)
+    } else {
+        words.to_string()
+    }
+}
+
 #[derive(Clone)]
 pub struct ModuleHost {
     pub page: PageViewHost,
@@ -103,9 +201,20 @@ pub struct Rendered {
     /// page (the key-value table's 「新增字段」), instead of a second title
     /// row of its own (UP, kernel-v5 §15 item 50).
     pub head_action: Option<HeadAction>,
+    /// Optional scrollbar tick strip (find/comment/Agent marks) pinned on the
+    /// right edge of the EntryPage scroll viewport when the module flows in page.
+    pub tick_strip: Option<TickStrip>,
+    /// Optional Collapse-All / Expand-All handler for sidebar tree displays.
+    pub toggle_collapse_all: Option<ToggleCollapseAll>,
+    /// Optional layered Escape dismissal hook for filled canvases (returns
+    /// `true` if an inner overlay/sheet/mode was dismissed, keeping Fill open).
+    pub close_panel: Option<ClosePanel>,
 }
+pub type ToggleCollapseAll = Rc<dyn Fn(&mut App)>;
+pub type ClosePanel = Rc<dyn Fn(&mut App) -> bool>;
 pub type Leave = Rc<dyn Fn(&mut App)>;
 pub type HeadAction = Rc<dyn Fn(&Window, &App) -> AnyElement>;
+pub type TickStrip = Rc<dyn Fn(&mut Window, &mut App) -> Option<AnyElement>>;
 pub type Land = Rc<dyn Fn(&mut Window, &mut App)>;
 pub type KeyboardState = Rc<dyn Fn(&Window, &App) -> serde_json::Value>;
 impl Rendered {
@@ -120,7 +229,28 @@ impl Rendered {
             land: None,
             keyboard_state: None,
             head_action: None,
+            tick_strip: None,
+            toggle_collapse_all: None,
+            close_panel: None,
         }
+    }
+    /// Registers a Collapse-All / Expand-All handler for sidebar tree displays.
+    pub fn on_toggle_collapse_all(mut self, f: impl Fn(&mut App) + 'static) -> Self {
+        self.toggle_collapse_all = Some(Rc::new(f));
+        self
+    }
+    /// Registers an Escape handler for inner floating panels inside a filled canvas.
+    pub fn on_close_panel(mut self, f: impl Fn(&mut App) -> bool + 'static) -> Self {
+        self.close_panel = Some(Rc::new(f));
+        self
+    }
+    /// Optional tick strip rendered along the right edge of EntryPage.
+    pub fn on_tick_strip(
+        mut self,
+        f: impl Fn(&mut Window, &mut App) -> Option<AnyElement> + 'static,
+    ) -> Self {
+        self.tick_strip = Some(Rc::new(f));
+        self
     }
     /// Something at the right end of the module's title row
     /// ([`Rendered::head_action`]).

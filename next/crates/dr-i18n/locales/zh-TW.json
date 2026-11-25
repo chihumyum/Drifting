@@ -29,7 +29,37 @@
       "modelUnavailable": "目前目錄中沒有選取的模型，請選擇其他模型。"
     },
     "context": {
-      "tokens": "{{count}} 個 token"
+      "allocation": {
+        "free": "可用空間",
+        "input": "目前輸入",
+        "output": "輸出預留",
+        "safety": "安全餘量",
+        "title": "視窗配置"
+      },
+      "breakdownTitle": "目前輸入包含的內容",
+      "categories": {
+        "assistant_messages": "Agent 訊息",
+        "compaction_summaries": "壓縮摘要",
+        "provider_overhead": "服務商封裝",
+        "system_prompt": "系統提示詞",
+        "task_constraints": "任務限制",
+        "task_plan": "任務計畫",
+        "thinking": "思考",
+        "tool_calls": "工具呼叫",
+        "tool_definitions": "工具定義",
+        "tool_results": "工具結果",
+        "user_messages": "使用者訊息"
+      },
+      "compaction": "上下文壓縮",
+      "compactionDetail": "已節省 {{saved}} · {{stages}} · {{count}} 份摘要",
+      "compactionNone": "這次呼叫不需要壓縮",
+      "description": "以實際傳送給模型的最新已驗證上下文計畫為準，不是整段對話的累計 token 用量。",
+      "progressAria": "目前 Agent 上下文用量",
+      "sources": "{{count}} 個來源",
+      "summary": "{{used}}／{{limit}}（{{percent}}%）",
+      "title": "上下文用量",
+      "tokens": "{{count}} 個 token",
+      "tooltip": "{{used}}／{{limit}} token（{{percent}}%）\n輸出預留：{{output}} · 安全餘量：{{safety}}"
     },
     "control": {
       "allow": {
@@ -44,9 +74,13 @@
       "start": "傳送訊息給 Agent 即可開始，它能讀寫此作品的章節、要素與關係。"
     },
     "history": {
+      "delete": "刪除對話",
       "empty": "尚無對話歷史",
+      "loadEarlier": "載入更早的訊息",
+      "rename": "重新命名",
       "untitled": "未命名"
     },
+    "jumpLatest": "跳至最新訊息",
     "newConversation": "新增對話",
     "onboarding": {
       "connect": "連接模型",
@@ -58,7 +92,8 @@
     "pending": {
       "cancelling": "正在停止…",
       "committing": "正在儲存…",
-      "now": "思考中…"
+      "now": "思考中…",
+      "withSeconds": "思考中 · {{seconds}} 秒"
     },
     "setup": {
       "openSettings": "開啟設定"
@@ -70,17 +105,31 @@
       "done": "思考過程",
       "streaming": "思考中…"
     },
+    "todos": {
+      "plan": "方案"
+    },
     "tool": {
       "result": "結果"
     },
     "toolbar": {
-      "history": "歷史"
+      "history": "歷史",
+      "historyTitle": "對話歷史",
+      "newTitle": "開始新對話",
+      "renameTitle": "重新命名目前對話"
     },
     "turnChanges": "本回合變更",
     "unavailable": "Agent 目前無法使用。",
+    "usage": {
+      "inputDetail": "輸入 {{input}}（快取讀取 {{cacheRead}} · 快取寫入 {{cacheWrite}} · 淨量 {{net}}）",
+      "outputTurns": "輸出 {{output}} · 回合 {{turns}}",
+      "session": "工作階段",
+      "toolsCount": "{{count}} 個工具",
+      "workedFor": "Agent 工作了 {{duration}}"
+    },
     "workingMemory": {
       "agent": "Agent",
       "author": "作者",
+      "budgetTitle": "無上限；超過 20k、40k token 時請 Agent 整理一次，超過 80k 後每回合都請它整理",
       "clear": "清除",
       "clearConfirm": "清除工作記憶？這不會刪除書稿、長期規則或對話歷史。",
       "cleared": "工作記憶已清除。",
@@ -170,6 +219,8 @@
     "forgotPassword": "忘記密碼？",
     "hasAccount": "已經有帳號？",
     "legal": {
+      "agree": "註冊即表示同意",
+      "and": "與",
       "consent": "繼續即視為同意{{terms}}",
       "consentTerms": "相關條款",
       "privacy": "隱私權政策",
@@ -183,6 +234,12 @@
     "resend": "重寄驗證碼",
     "sendCode": "傳送驗證碼",
     "signIn": "登入",
+    "signOut": {
+      "now": "立即登出",
+      "pending": "此 Mac 尚有 {{count}} 項變更未傳至雲端。現在登出會保留在此 Mac，重新登入此帳號後上傳。",
+      "title": "登出",
+      "uploadFirst": "上傳後登出"
+    },
     "signUp": "註冊",
     "signingIn": "正在登入…",
     "social": {
@@ -210,14 +267,20 @@
   },
   "commentRail": {
     "actions": {
+      "close": "關閉",
       "reopen": "重新開啟",
       "resolve": "標為已解決"
     },
     "card": {
       "emptyComment": "空白註解"
     },
+    "original": {
+      "changed": "正文已變更 · 檢視原文"
+    },
     "snapshot": {
-      "changed": "已刪除／變更"
+      "changed": "已刪除／變更",
+      "emptyBlock": "（空白段落）",
+      "title": "連結來源 · 建立時的快照 · {{count}} 段"
     }
   },
   "common": {
@@ -264,6 +327,37 @@
       "drifting": "漂流中",
       "finished": "已完成",
       "resting": "停泊中"
+    }
+  },
+  "editor_ui": {
+    "bar_add_comment": "新增批註",
+    "fmt_bold": "粗體",
+    "fmt_highlight": "標記",
+    "fmt_inline_code": "行內程式碼",
+    "fmt_italic": "斜體",
+    "fmt_strike": "刪除線",
+    "fmt_underline": "底線",
+    "mention_create_entry_prefix": "建立條目「",
+    "mention_create_entry_suffix": "」",
+    "slash_bullet_list": "項目符號清單",
+    "slash_callout": "提示區塊",
+    "slash_code_block": "程式碼區塊",
+    "slash_comment": "批註",
+    "slash_entry_link": "條目連結",
+    "slash_ordered_list": "編號清單",
+    "slash_position_link": "位置連結",
+    "slash_table": "表格",
+    "slash_task_list": "待辦清單",
+    "slash_todo": "待辦",
+    "table_add_col": "加一欄",
+    "table_add_row": "加一列",
+    "table_delete": "刪除表格",
+    "table_delete_col": "刪除欄",
+    "table_delete_row": "刪除列"
+  },
+  "elementEditor": {
+    "alerts": {
+      "aliasConflict": "無法新增別名：「{{name}}」已被要素「{{conflicting}}」使用。"
     }
   },
   "entrySnapshot": {
@@ -524,6 +618,9 @@
     "valuePlaceholder": "內容"
   },
   "leftSidebar": {
+    "actions": {
+      "collapseAll": "全部展開或收合"
+    },
     "groups": {
       "driftCount_one": "{{count}} 個構想",
       "driftCount_other": "{{count}} 個構想"
@@ -568,6 +665,8 @@
     "retry": "重試",
     "saved": "已匯出",
     "scope": "範圍",
+    "selectAll": "全選",
+    "selectNone": "全部取消選取",
     "title": "匯出書稿",
     "untitledAct": "未命名幕"
   },
@@ -610,6 +709,9 @@
       "addSnippetBody": "在此筆記中寫作…"
     },
     "error": {
+      "codecStore": "在 Microsoft Store 取得",
+      "codecUnavailable": "這台電腦缺少 {{format}} 圖片的解碼延伸模組，可從 Microsoft Store 安裝後再匯入。",
+      "fileTooLarge": "此檔案超過素材上限 {{maxSizeMiB}} MiB，Drifting 無法將其複製至本機素材庫。",
       "openFile": "無法開啟檔案：{{error}}",
       "pickFailed": "無法匯入檔案：{{error}}"
     },
@@ -806,7 +908,8 @@
     },
     "clear": "清除",
     "cloudSync": {
-      "source": "雲端同步"
+      "source": "雲端同步",
+      "syncing": "同步中…"
     },
     "crashFollowUp": {
       "source": "Drifting"
@@ -840,6 +943,21 @@
       "minutesAgo": "{{count}} 分鐘前"
     },
     "title": "通知"
+  },
+  "paperSync": {
+    "failing": "雲端同步失敗",
+    "notStarted": "無法啟動同步",
+    "notStartedDetail": "書稿仍儲存在這部裝置上。",
+    "offline": "離線",
+    "offlineDetail": "仍可在本機繼續寫作。",
+    "openSettings": "開啟設定",
+    "quota": "Hosted 儲存空間已滿",
+    "reauth": "登入已過期",
+    "reauthDetail": "請重新登入同一帳號。",
+    "retry": "重試",
+    "retrying": "同步未完成",
+    "retryingDetail": "書稿已存於此裝置，正在自動重試。",
+    "signIn": "重新登入"
   },
   "plotGrid": {
     "addColumnShort": "欄",
@@ -1083,10 +1201,15 @@
     "filters": {
       "all": "兩者皆用"
     },
+    "groupBy": {
+      "flat": "無",
+      "target": "依位置"
+    },
     "groups": {
       "deleted": "已刪除",
       "floating": "未附加"
     },
+    "newComment": "新增註解",
     "scopes": {
       "current": "目前"
     },
@@ -1095,7 +1218,6 @@
   "rightSidebar": {
     "kickers": {
       "library": "作品 · 素材庫",
-      "review": "作品 · 審閱",
       "stats": {
         "element": "此要素 · 詳細統計",
         "material": "此素材 · 詳情",
@@ -1104,17 +1226,37 @@
       }
     },
     "stats": {
+      "averagePerChapter": "平均每章",
+      "bookOverview": "全書總覽",
+      "chapterLengthRhythm": "章節篇幅節奏",
+      "completion": "完成度",
+      "created": "已建立",
       "dialogueRatio": "對話比例",
+      "dimensions": "尺寸",
+      "discardedParen": "（已棄用 {{count}}）",
+      "embeddedMaterials": "嵌入素材",
+      "fileSize": "大小",
+      "fileType": "類型",
+      "longestWithWords": "最長 · {{title}}（{{words}} 字）",
+      "materialCoordinates": "素材",
+      "materialFile": "檔案",
       "name": "名稱",
+      "openComments": "未解決批註與待辦",
       "paragraphSentence": "段落／句子",
       "paragraphSentenceValue": "{{paragraphs}} 段 · {{sentences}} 句",
       "recent": "近期",
+      "references": "引用",
+      "shortestWithWords": "最短 · {{title}}（{{words}} 字）",
       "snapshotButton": "歷史快照…",
+      "statusCount": "{{status}} {{count}} 章",
       "storyline": "故事線",
+      "thisChapterElements": "此章中的要素",
+      "unappearedElements": "尚未登場的要素",
       "updated": "已更新",
       "wordRhythm": "字數 · 節奏",
       "wordsValue": "{{count}} 字",
-      "writingProgress": "寫作進度"
+      "writingProgress": "寫作進度",
+      "writtenTarget": "已寫／目標"
     },
     "status": {
       "draft": "草稿"
@@ -1138,6 +1280,7 @@
       "emailTeam": "寄電子郵件給團隊",
       "engine": "引擎",
       "feedback": "意見回饋…",
+      "fonts": "字型",
       "knownIssues": "已知問題",
       "knownIssuesDesc": "目前 Alpha 版的已知限制",
       "license": "用戶端授權",
@@ -1158,6 +1301,14 @@
       "viewSource": "檢視原始碼",
       "writeEmail": "撰寫電子郵件"
     },
+    "account": {
+      "export_all": "匯出含關聯的 Markdown",
+      "export_all_btn": "匯出 Markdown ZIP",
+      "export_all_desc": "匯出此本機資料庫的所有作品，包含章節、構想、要素、批註及素材筆記，並保留雙向 Wiki 連結。不包含圖片與 PDF 檔案；此 Markdown 封存檔無法重新匯入 Drifting。",
+      "export_done": "已匯出 {{count}} 份 Markdown 文件。",
+      "export_failed": "匯出失敗：{{error}}",
+      "exporting": "正在匯出…"
+    },
     "agent": {
       "chatConfigDesc": "在右側 Agent 輸入框的設定選單中選擇服務商、模型和推理強度。金鑰與 ChatGPT 訂閱在「模型與 API」管理。",
       "effortOptions": {
@@ -1175,6 +1326,7 @@
         "args": "參數（每行一個）",
         "command": "執行檔絕對路徑",
         "cwd": "工作目錄絕對路徑（選填）",
+        "deleteConfirm": "刪除 MCP 伺服器「{{name}}」？相關持續授權也會撤銷。",
         "disable": "停用",
         "editTitle": "編輯 MCP 伺服器",
         "empty": "此作品尚無 MCP 伺服器。",
@@ -1184,6 +1336,7 @@
         "noProject": "開啟作品以設定 MCP。",
         "notChecked": "尚未連接",
         "policy": {
+          "askWrite": "寫入 · 詢問",
           "disabled": "已停用"
         },
         "publicEnv": "公開環境變數（每行 NAME=value）",
@@ -1226,7 +1379,34 @@
       "unlimited": "無上限",
       "unlimitedHint": "「無上限」不設模型呼叫次數上限，你可以手動停止本輪。"
     },
+    "agentMemory": {
+      "title": "作品記憶"
+    },
+    "agentUsage": {
+      "all": "全部期間",
+      "clearConfirm": "清除所有對話歷史？此作品的 {{count}} 個 Agent 對話將被移除。",
+      "clearHistory": "清除歷史記錄",
+      "conversationsTurns": "對話／回合",
+      "deleteConversation": "刪除此對話",
+      "history": "對話歷史",
+      "historyDesc": "此作品的所有 Agent 對話。刪除為暫時刪除，與右側歷史記錄同步，不影響其他作品。",
+      "month": "本月",
+      "noHistory": "尚無對話，傳送訊息給 Agent 即可開始。",
+      "noProjectHistory": "開啟作品以管理對話歷史。",
+      "noProjectUsage": "開啟作品以查看 Agent 用量。",
+      "tokenCard": "{{scope}} Token",
+      "untitled": "未命名",
+      "usage": "用量",
+      "usageDesc": "依每回合回傳資料記錄 Agent 在此作品使用的 token，輸入量包含快取讀取。可查看本月或全部期間。"
+    },
     "appearance": {
+      "accent": "強調色",
+      "accent_color": "介面強調色",
+      "accent_color_desc": "用於按鈕、焦點及啟用狀態，不影響編輯器游標。",
+      "accent_reset": "還原預設值",
+      "agent_edit_reveal": "變更顯示動畫",
+      "agent_edit_reveal_desc": "逐字顯示 Agent 對正文與欄位的修改，以及外部編輯器對章節和構想的修改。關閉後立即顯示結果，未讀變更標記仍會保留。",
+      "animations": "動畫與轉場",
       "dark": "深色",
       "guides": "導覽",
       "interface_text_large": "較大",
@@ -1284,9 +1464,51 @@
       "auto_element_link_desc": "輸入時辨識現有要素名稱，並連結至其頁面。",
       "auto_immersive": "打字時自動沉浸",
       "auto_immersive_desc": "開始寫正文就收起側欄與工具；按 Esc 或點正文以外的地方回來。",
+      "caret_color": "文字游標顏色",
+      "caret_color_desc": "選擇正文輸入游標的顏色。",
+      "entity_link_band_style": "實體連結色帶樣式",
+      "entity_link_band_style_desc": "使用柔和連續的色帶，或文字下方細緻、近似刪節號的點列。",
+      "entity_link_band_style_dots": "細點",
+      "entity_link_band_style_wash": "連續色帶",
+      "entity_link_highlight": "實體連結標示方式",
+      "entity_link_highlight_band": "色帶",
+      "entity_link_highlight_both": "兩者皆用",
+      "entity_link_highlight_desc": "以色帶、文字色或兩者標示實體連結，游標停留時也使用相同設定。",
+      "entity_link_highlight_text": "文字色",
+      "entity_link_kind_category": "類目",
+      "entity_link_kind_chapter": "章節",
+      "entity_link_kind_drift": "構想",
+      "entity_link_kind_element": "要素",
+      "entity_link_kind_patch": "演化記錄",
+      "entity_link_kind_storyline": "故事線",
+      "entity_link_style": "實體連結醒目標示",
+      "entity_link_style_contextual": "依歸屬",
+      "entity_link_style_desc": "使用歸屬對象的顏色、依實體類型自訂單一顏色、僅在游標停留時顯示歸屬色，或保留正文色搭配色帶。",
+      "entity_link_style_hover": "僅游標停留時",
+      "entity_link_style_kind": "依類型",
+      "entity_link_style_prose": "正文",
       "flow": "寫作節奏",
+      "font_error_empty": "這個字型檔案是空的。",
+      "font_error_format": "僅支援 TTF、OTF、WOFF、WOFF2 字型檔案。",
+      "font_error_invalid": "無法解碼此檔案，請選擇有效的標準或可變字型。",
+      "font_error_size": "字型檔案不得超過 64 MB。",
+      "font_import": "匯入字型",
+      "font_import_done": "字型已儲存於此裝置，並套用至作者內容。",
+      "font_import_help": "支援 TTF、OTF、WOFF、WOFF2 的標準或可變字型，上限 64 MB。",
+      "font_remove": "移除",
+      "font_remove_done": "已移除應用程式儲存的字型副本。",
+      "font_replace": "取代",
+      "font_scope_desc": "套用於章節正文、實體標題與摘要、實體長文、欄位值、演化記錄、引用內容及排版預覽。介面、側欄、對話框與節點卡片固定使用統一的無襯線字型。字型選擇僅存於本機，不納入作者內容的 SyncEngine 同步範圍。",
       "font_size": "字級",
       "font_size_desc": "僅影響編輯器畫面，不影響匯出。",
+      "font_source": "內容字型",
+      "font_system_custom": "系統字型",
+      "font_system_manual_placeholder": "例如：Charter",
+      "font_system_mono": "系統等寬字型",
+      "font_system_placeholder": "選擇系統字型",
+      "font_system_sans": "系統無襯線字型",
+      "font_system_serif": "系統襯線字型",
+      "font_use": "使用",
       "indent": "段落縮排",
       "indent_desc": "僅用於編輯器畫面；匯出使用獨立設定。",
       "indent_none": "無",
@@ -1303,6 +1525,12 @@
       "preview_p1": "沉默像潮水漫過石頭般在兩人之間鋪開。終於，她開口了，聲音幾乎被風吹散，落在他勉強聽得見的地方。",
       "preview_p2": "「你會回來嗎？」他沒有立刻回答。他望著太陽沉入海裡，過了很久才點頭，連他自己也分不清那是承諾還是憐憫。",
       "reset_style": "還原建議樣式",
+      "tab_indent": "Tab 縮排",
+      "tab_indent_desc": "按 Tab 時每一層段落縮排的寬度；Shift+Tab 可減少縮排。",
+      "text_wrap": "換行方式",
+      "text_wrap_desc": "「穩定」填滿每行，編輯後文時保留前面的換行；「美觀」會調整整段的換行。立即生效並儲存於此裝置。",
+      "text_wrap_pretty": "美觀",
+      "text_wrap_stable": "穩定",
       "typesetting": "排版",
       "typewriter_mode": "打字機模式",
       "typewriter_mode_desc": "輸入或移動游標時，將目前正文行維持在畫面的固定位置；僅影響編輯器畫面。",
@@ -1338,19 +1566,37 @@
       "connect_errors": {
         "cancelled": "已取消。"
       },
+      "crop_confirm": "使用此頭像",
+      "crop_description": "拖曳圖片或用方向鍵定位，再調整縮放。",
+      "crop_title": "調整頭像",
+      "crop_zoom": "縮放",
       "current_password": "目前密碼",
       "description": "書稿會先存於此裝置，連接帳號後可在你的裝置間同步作品。",
+      "disconnect": "中斷同步",
+      "disconnect_anyway": "仍要中斷",
+      "disconnect_description": "先上傳僅存於這部 Mac 的變更，再中斷連線。本機作品與雲端副本都會保留。",
+      "disconnect_now": "立即中斷",
+      "disconnect_unuploaded": "尚有 {{count}} 項變更未上傳；中斷後僅留在此 Mac。",
       "display_name": "顯示名稱",
+      "enabled": "已連接 Hosted 同步",
+      "last_synced": "上次完成同步：{{time}}",
       "library_switch_failed": "沒能切換書庫",
       "new_password": "新密碼",
       "no_account": "尚未登入",
+      "not_started": "無法啟動同步。書稿仍存於此裝置，請重新開啟 Drifting 再試。",
       "password_description": "8–128 個字元。",
       "password_saved": "密碼已變更，其他裝置需要重新登入。",
       "password_sessions": "變更密碼會登出其他裝置，此裝置維持登入。",
       "password_title": "密碼",
+      "pause": "暫停",
+      "paused": "同步已暫停",
+      "pending": "正在同步或等待同步完成。",
       "profile_saved": "已儲存個人資料。",
       "profile_title": "個人資料",
+      "quota_blocked": "Hosted 儲存空間已滿，附件無法上傳，此作品暫時無法繼續同步。刪除不需要的附件或作品後即可恢復，本機內容不受影響。",
       "remove_avatar": "移除",
+      "resume": "繼續",
+      "retrying": "同步未完成。書稿仍已存於本機，正在自動重試。",
       "save_profile": "儲存個人資料",
       "session": {
         "checking": "正在檢查帳號…",
@@ -1361,6 +1607,10 @@
       },
       "sign_in": "登入／註冊",
       "sign_out": "登出",
+      "storage": "Hosted 儲存空間",
+      "storage_description": "已用 {{used}}，共 {{quota}}。附件計入用量，書稿與結構不設限。",
+      "sync_now": "立即同步",
+      "sync_title": "Hosted 同步",
       "title": "帳號與 Hosted 同步",
       "working": "處理中…"
     },
@@ -1434,6 +1684,7 @@
       "diagnosticsCopied": "已複製去除敏感資訊的診斷摘要。",
       "diagnosticsCopyFailed": "無法寫入剪貼簿，可能未取得剪貼簿權限。",
       "diagnosticsDesc": "複製版本、平台、功能可用狀態、同步計數與錯誤類型，以及更新狀態。不含書稿、憑證、作品識別碼或絕對路徑，也不會自動上傳。",
+      "fullPolicy": "檢視完整隱私權政策",
       "noteLocal": "此版本不會連接 Drifting 伺服器，作品留在這部裝置上。AI 與語音轉錄請求直接從本裝置送往所選服務商，並適用其資料與訓練條款；你新增的遠端 MCP 擴充功能也會使用網路。"
     },
     "rail": {
@@ -1471,6 +1722,8 @@
         "restoring": "正在還原…",
         "summary": "{{projects}} 部作品、{{assets}} 個素材檔案，共 {{size}}。"
       },
+      "import_files": "匯入",
+      "import_files_desc": "從 Word（.docx）、Markdown 或純文字匯入。",
       "local_data": "本機資料",
       "local_sub": "不使用 Drifting 帳號或託管雲端，隨時可匯出可讀副本。",
       "local_title": "作品留在這部裝置上。",
@@ -1478,13 +1731,20 @@
         "allProjects": "所有作品",
         "allProjectsUnset": "所有作品 · 未選擇位置",
         "choose": "選擇資料夾",
+        "copied": "已複製路徑",
+        "copy": "複製路徑",
+        "error": "更新失敗",
         "offHint": "已關閉：作品不再寫入 Markdown，外部修改也不再合併回來。現有檔案保留原處。",
         "offTitle": "要關閉 Markdown 資料夾嗎？",
+        "pending": "更新中",
+        "ready": "已是最新",
+        "refresh": "立即更新",
         "reveal": "在 Finder 中顯示",
         "title": "Markdown 資料夾",
         "turnOff": "關閉 Markdown 資料夾",
         "turnOn": "開啟"
-      }
+      },
+      "select_file": "選擇檔案…"
     },
     "update": {
       "channel_desc": "Apple Silicon · macOS 13 以上",
@@ -1508,6 +1768,49 @@
       "server_error": "更新服務暫時出了問題，請稍後重試。目前版本仍可繼續使用。",
       "unavailable": "此版本沒有更新簽署金鑰，無法檢查更新。從 GitHub 下載的發行版可使用更新功能。"
     }
+  },
+  "shell_ui": {
+    "add_fact": "新增欄位",
+    "back_plain": "返回",
+    "empty_book_hint": "新建一個條目並寫下正文，即可在這裡通覽全書。",
+    "empty_book_title": "這裡還沒有正文內容",
+    "fact_key_placeholder": "名稱（如：副標題、體裁）",
+    "fact_value_placeholder": "內容",
+    "find_results": "尋找結果",
+    "hosted_purge_note": "永久刪除將同步清除本機與所有雲端裝置上的副本，無法復原。",
+    "hosted_trash_note": "將同時從本機與雲端移除，30 天內可在「最近刪除」中還原。",
+    "menu_about": "關於 {{app}}",
+    "menu_bring_all_to_front": "將所有視窗移至最前",
+    "menu_close_window": "關閉視窗",
+    "menu_copy": "拷貝",
+    "menu_cut": "剪下",
+    "menu_edit": "編輯",
+    "menu_hide": "隱藏 {{app}}",
+    "menu_hide_others": "隱藏其他",
+    "menu_minimize": "最小化",
+    "menu_paste": "貼上",
+    "menu_quit": "結束 {{app}}",
+    "menu_redo": "重做",
+    "menu_select_all": "全選",
+    "menu_services": "服務",
+    "menu_settings": "設定…",
+    "menu_show_all": "全部顯示",
+    "menu_undo": "還原",
+    "menu_zoom": "縮放",
+    "new_entry_plain": "新建條目",
+    "open_whole_book": "通覽全書",
+    "pick_relation_target": "正在從「{{name}}」連線 — 點擊目標條目（按 Esc 取消）",
+    "preparing_samples": "正在準備範例專案…",
+    "project_facts": "作品設定",
+    "search_hint": "輸入關鍵字搜尋整個專案",
+    "search_placeholder": "搜尋標題、正文、欄位與素材…",
+    "swap_split": "互換左右分欄",
+    "templates_plain": "範本",
+    "toggle_comment_marks": "顯示批註砂痕",
+    "toggle_entity_links": "啟用條目連結",
+    "unpin_island": "取消固定位置",
+    "unsplit": "關閉分欄",
+    "words_short": "{{count}} 字"
   },
   "sidebarLayout": {
     "split": "恢復雙欄"
@@ -1533,7 +1836,8 @@
     "edge": {
       "hideKind": "隱藏「{{label}}」",
       "showKind": "顯示「{{label}}」"
-    }
+    },
+    "spread": "分散排列"
   },
   "storylineEditor": {
     "filters": {
@@ -1583,6 +1887,7 @@
       "relayout": "重新排列"
     },
     "reset": "重設",
+    "startEdgeFromElement": "從此要素建立關係",
     "uncategorized": "未分類",
     "unnamedCategory": "未命名類目"
   },
@@ -1601,7 +1906,10 @@
     "color": "顏色",
     "conflict": "範本已在別處變更",
     "date": "日期",
+    "default_prose": "預設正文範本",
+    "default_prose_hint": "從此範本新建條目時自動填入的初始正文",
     "default_template": "預設範本",
+    "default_value": "預設值",
     "description": "說明",
     "display": "顯示",
     "entity_ref": "條目引用",
@@ -1729,9 +2037,15 @@
     "originTask": "清單",
     "regionPlace": "框選",
     "regionPlacePaged": "第 {{page}} 頁",
+    "retarget": "重新綁定目標…",
+    "sortNewest": "最新優先",
+    "sortOldest": "最早優先",
+    "sortPosition": "按位置",
     "statusOpen": "未解決",
     "statusResolved": "已解決",
+    "unbindTarget": "解除綁定",
     "unlocated": "找不到原處",
+    "viewOriginal": "查看原文",
     "wholeFile": "整個檔案",
     "writeComment": "寫批註"
   },
@@ -1756,6 +2070,9 @@
     "railAgent": "Agent"
   },
   "v3Shell": {
+    "agent_unread": "Agent 未讀變更",
+    "aliases_add": "新增別名…",
+    "aliases_remove": "移除別名",
     "attachedEntries": "掛在這裡的條目",
     "belongTo": "歸屬至",
     "board": "看板",
@@ -1766,7 +2083,9 @@
     "editTemplate": "編輯範本",
     "entries": "條目",
     "entryUntemplated": "條目",
+    "entry_count": "{{count}} 項",
     "expandTimeline": "展開故事線時間線",
+    "external_unread": "外部未讀變更",
     "grid": "網格",
     "hideOutline": "隱藏目錄",
     "islands": "島嶼",
@@ -1809,8 +2128,10 @@
     "colorValue": "顏色值",
     "deleteView": "刪除視圖",
     "detachEntry": "解除條目",
+    "empty_book_view": "請先在目前檢視中放置條目",
     "laneActions": "泳道操作",
     "laneTrack": "泳道 {{name}}",
+    "locate_current": "定位到目前條目",
     "members": "{{count}} 個成員",
     "moveDown": "下移",
     "moveUp": "上移",
@@ -1818,6 +2139,7 @@
     "newEntryInLane": "新增條目",
     "newLane": "新增泳道",
     "newView": "新增視圖",
+    "pin_color": "顏色",
     "placeEntry": "放入條目",
     "placementActions": "擺放操作",
     "removeEntry": "移出泳道",
@@ -1826,9 +2148,12 @@
     "renameView": "重新命名視圖",
     "resize": "調整長度",
     "ruler": "刻度標尺",
+    "section_create": "新建",
+    "section_existing": "加入已有條目",
     "selectLane": "選擇泳道",
     "setActTrack": "設為幕軌道 · {{name}}",
     "unsetActTrack": "取消幕軌道 · {{name}}",
+    "view_actions": "檢視操作",
     "views": "視圖"
   },
   "v3Transfer": {
@@ -1843,8 +2168,11 @@
     "alignRight": "靠右",
     "allFolders": "全部",
     "clearField": "清除",
+    "collapseAll": "全部收起",
     "currentSection": "當前",
     "empty": "無檔案",
+    "empty_trash": "清空",
+    "expandAll": "全部展開",
     "fileCount_other": "{{count}} 個檔案",
     "findFile": "找檔案",
     "itemCount_other": "{{count}} 個",
@@ -1934,6 +2262,16 @@
     "direction": "方向",
     "otherEntry": "另一個條目",
     "relation": "關係"
+  },
+  "v5Stats": {
+    "childrenAggregate": "下級彙總",
+    "entryCoordinates": "條目座標",
+    "groupRhythm": "分組節奏",
+    "inboundLinks": "被引用",
+    "outboundLinks": "引用其他",
+    "projectOverview": "專案概況",
+    "templatesTotal": "範本數",
+    "unreferencedNote": "正文尚未引用"
   },
   "v5Tour": {
     "agent": {

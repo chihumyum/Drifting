@@ -141,10 +141,13 @@ pub(crate) struct BookSlot {
     pub handle: DocHandle,
     pub reader_v3: dr_doc::v3::BookReaderV3,
     pub link_names: std::sync::Mutex<(u64, Option<crate::autolink::SlotLinkCache>)>,
-    /// Each entry's own 「自动链接」 and liveness after the last commit
-    /// that could change one (`BookViewV3::auto_link_switches`): which
-    /// switches a commit turned on ([`crate::autolink::backfill`]).
-    pub switches: std::sync::Mutex<BTreeMap<dr_model::id::EntryId, (bool, bool)>>,
+    /// Each entry's own 「自动链接」, liveness, title, and aliases after the
+    /// last commit that could change one (`BookViewV3::auto_link_tracks`):
+    /// tracks switches turned on and newly created/restored/renamed/aliased
+    /// auto-linked entries ([`crate::autolink::backfill`]).
+    #[allow(clippy::type_complexity)]
+    pub switches:
+        std::sync::Mutex<BTreeMap<dr_model::id::EntryId, (bool, bool, String, Vec<String>)>>,
 }
 
 impl BookSlot {
@@ -1636,7 +1639,7 @@ impl Workspace {
         let reader_v3 = handle
             .doc()
             .with_doc(|d| dr_doc::v3::BookReaderV3::from_loro(book.clone(), d))?;
-        let switches = reader_v3.view().auto_link_switches();
+        let switches = reader_v3.view().auto_link_tracks();
         let slot = Arc::new(BookSlot {
             book: book.clone(),
             handle,
@@ -2050,29 +2053,53 @@ impl Inner {
     /// the commit came by sync or the author's setting is off
     /// ([`crate::autolink::backfill`]).
     fn follow_switches(&self, slot: &BookSlot, origin: &dr_store::Origin) {
-        let now = slot.reader_v3.view().auto_link_switches();
-        let turned_on: Vec<dr_model::id::EntryId> = {
+        let now = slot.reader_v3.view().auto_link_tracks();
+        let (turned_on, name_updated): (Vec<dr_model::id::EntryId>, Vec<dr_model::id::EntryId>) = {
             let mut before = lock(&slot.switches);
-            let turned_on = now
-                .iter()
-                .filter(|(id, (on, live))| {
-                    *on && *live && before.get(*id).is_some_and(|(was_on, _)| !was_on)
-                })
-                .map(|(id, _)| id.clone())
-                .collect();
+            let mut turned_on = Vec::new();
+            let mut name_updated = Vec::new();
+            for (id, (on, live, title, aliases)) in &now {
+                if !*on || !*live {
+                    continue;
+                }
+                match before.get(id) {
+                    Some((was_on, _, _, _)) if !*was_on => {
+                        turned_on.push(id.clone());
+                    }
+                    Some((_, was_live, was_title, was_aliases)) => {
+                        if !*was_live
+                            || was_title != title
+                            || aliases.iter().any(|a| !was_aliases.contains(a))
+                        {
+                            name_updated.push(id.clone());
+                        }
+                    }
+                    None => {
+                        name_updated.push(id.clone());
+                    }
+                }
+            }
             *before = now;
-            turned_on
+            (turned_on, name_updated)
         };
-        if turned_on.is_empty()
+        if (turned_on.is_empty() && name_updated.is_empty())
             || *origin == dr_store::Origin::Sync
             || !self.auto_links.load(std::sync::atomic::Ordering::Relaxed)
         {
             return;
         }
-        self.backfill.request(
-            slot.book.clone(),
-            crate::autolink::backfill::Want::entries(turned_on),
-        );
+        if !turned_on.is_empty() {
+            self.backfill.request(
+                slot.book.clone(),
+                crate::autolink::backfill::Want::entries(turned_on),
+            );
+        }
+        if !name_updated.is_empty() {
+            self.backfill.request(
+                slot.book.clone(),
+                crate::autolink::backfill::Want::prose_entries(name_updated),
+            );
+        }
     }
 
     fn on_store_event(&self, e: &StoreEvent) {

@@ -102,10 +102,17 @@ pub fn init(cx: &mut App) {
         let overview = cx.new(|cx| ElementOverview::new(host, window, cx));
         let header = cx.new(|cx| OverviewHeadEnd::new(overview.downgrade(), window, cx));
         let weak = overview.downgrade();
+        let close_weak = overview.downgrade();
         let view = cx.new(|_| TabCanvas { overview, header });
-        Rendered::new(view).on_refresh(move |book, cx| {
-            let _ = weak.update(cx, |view, cx| view.refresh_snapshot(book, cx));
-        })
+        Rendered::new(view)
+            .on_refresh(move |book, cx| {
+                let _ = weak.update(cx, |view, cx| view.refresh_snapshot(book, cx));
+            })
+            .on_close_panel(move |cx| {
+                close_weak
+                    .update(cx, |view, cx| view.dismiss_one_layer(cx))
+                    .unwrap_or(false)
+            })
     });
 }
 

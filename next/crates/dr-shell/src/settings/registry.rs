@@ -117,6 +117,13 @@ pub enum RowAction {
     /// beside it, 「打开恢复前副本」 opens the folder the copies saved
     /// before each restore are kept in (as the 0.1 client did).
     Restore,
+    /// Exports every live project as a relational Markdown ZIP archive
+    /// ([`crate::actions::ExportAllRelationalMarkdown`]).
+    ExportAllMarkdown,
+    /// Opens document import into the active project ([`crate::actions::ImportDocuments`]).
+    ImportFiles,
+    /// Displays the bundled and user font credits in About.
+    FontsCredit,
     /// 重新显示 the workspace tour (M24); only when the app has one.
     ReplayGuides,
     /// A registered module owns the control; metadata remains in this registry.
@@ -217,6 +224,30 @@ pub static INFO_ROWS: &[InfoRow] = &[
         action: RowAction::Module,
     },
     InfoRow {
+        id: "agent.usage",
+        section: Section::Agent,
+        group: None,
+        label: keys::settings::agent_usage::USAGE,
+        description: Some(keys::settings::agent_usage::USAGE_DESC),
+        action: RowAction::Module,
+    },
+    InfoRow {
+        id: "agent.history",
+        section: Section::Agent,
+        group: None,
+        label: keys::settings::agent_usage::HISTORY,
+        description: Some(keys::settings::agent_usage::HISTORY_DESC),
+        action: RowAction::Module,
+    },
+    InfoRow {
+        id: "agent.memory",
+        section: Section::Agent,
+        group: None,
+        label: keys::settings::agent_memory::TITLE,
+        description: Some(keys::project_memory::DESC),
+        action: RowAction::Module,
+    },
+    InfoRow {
         id: "agent.mcpAccess",
         section: Section::Agent,
         group: None,
@@ -258,12 +289,39 @@ pub static INFO_ROWS: &[InfoRow] = &[
         action: RowAction::Module,
     },
     InfoRow {
+        id: "local.export_all_markdown",
+        section: Section::LocalData,
+        group: None,
+        label: keys::settings::account::EXPORT_ALL,
+        description: Some(keys::settings::account::EXPORT_ALL_DESC),
+        action: RowAction::ExportAllMarkdown,
+    },
+    InfoRow {
+        id: "local.import_files",
+        section: Section::LocalData,
+        group: None,
+        label: keys::settings::sync::IMPORT_FILES,
+        description: Some(keys::settings::sync::IMPORT_FILES_DESC),
+        action: RowAction::ImportFiles,
+    },
+    InfoRow {
         id: "local.diagnostics",
         section: Section::LocalData,
         group: Some(keys::settings::privacy::DATA_USAGE),
         label: keys::settings::privacy::DIAGNOSTICS,
         description: Some(keys::settings::privacy::DIAGNOSTICS_DESC),
         action: RowAction::CopyDiagnostics,
+    },
+    InfoRow {
+        id: "local.privacy_policy",
+        section: Section::LocalData,
+        group: Some(keys::settings::privacy::DATA_USAGE),
+        label: keys::settings::privacy::FULL_POLICY,
+        description: None,
+        action: RowAction::Open {
+            url: "https://github.com/chihumyum/Drifting/blob/main/PRIVACY.md",
+            button: keys::settings::common::OPEN_IN_BROWSER,
+        },
     },
     InfoRow {
         id: "appearance.replay_guides",
@@ -288,6 +346,14 @@ pub static INFO_ROWS: &[InfoRow] = &[
         label: keys::settings::update::CHECK,
         description: None,
         action: RowAction::Updates,
+    },
+    InfoRow {
+        id: "about.fonts",
+        section: Section::About,
+        group: Some(keys::settings::about::CREDITS),
+        label: keys::settings::about::FONTS,
+        description: None,
+        action: RowAction::FontsCredit,
     },
     InfoRow {
         id: "about.open_source",
@@ -396,6 +462,12 @@ pub enum Kind {
         step: f64,
         unit: &'static str,
     },
+    /// Optional `#rrggbb` hex colour (`Null` = theme default).
+    OptionalColor,
+    /// Free-form string (empty allowed; e.g. system/custom font family name).
+    Text { max_bytes: usize },
+    /// Map of entity link kind keys to `#rrggbb` colours.
+    ColorMap(&'static [(&'static str, &'static str)]),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -411,6 +483,8 @@ pub enum Initial {
     Unsigned(u32),
     Str(&'static str),
     Num(f64),
+    Null,
+    ColorMap(&'static [(&'static str, &'static str)]),
     /// Decided at run time (the interface language follows the system).
     Computed,
 }
@@ -458,6 +532,32 @@ impl SettingDef {
                 let n = n.as_f64()?;
                 n.is_finite().then(|| Value::from(n.clamp(min, max)))
             }
+            (Kind::OptionalColor, Value::Null) => Some(Value::Null),
+            (Kind::OptionalColor, Value::String(s)) => {
+                let trimmed = s.trim();
+                if trimmed.is_empty() {
+                    Some(Value::Null)
+                } else {
+                    dr_ui::components::color::parse_hex(trimmed)
+                        .map(|rgb| Value::from(dr_ui::components::color::hex(rgb)))
+                }
+            }
+            (Kind::Text { max_bytes }, Value::String(s)) => {
+                (s.len() <= max_bytes).then(|| Value::String(s.clone()))
+            }
+            (Kind::ColorMap(defaults), Value::Object(map)) => {
+                let mut out = serde_json::Map::new();
+                for (k, def_hex) in defaults {
+                    let chosen = map
+                        .get(*k)
+                        .and_then(Value::as_str)
+                        .and_then(dr_ui::components::color::parse_hex)
+                        .map(dr_ui::components::color::hex)
+                        .unwrap_or_else(|| (*def_hex).to_owned());
+                    out.insert((*k).to_owned(), Value::String(chosen));
+                }
+                Some(Value::Object(out))
+            }
             _ => None,
         }
     }
@@ -469,12 +569,21 @@ impl SettingDef {
             Initial::Bool(b) => Value::Bool(b),
             Initial::Str(s) => Value::from(s),
             Initial::Num(n) => Value::from(n),
-            Initial::Computed => Value::Null,
+            Initial::Null | Initial::Computed => Value::Null,
+            Initial::ColorMap(pairs) => {
+                let mut map = serde_json::Map::new();
+                for (k, v) in pairs {
+                    map.insert((*k).to_owned(), Value::from(*v));
+                }
+                Value::Object(map)
+            }
         }
     }
 }
 
 pub const THEME: &str = "appearance.theme";
+pub const ACCENT_COLOR: &str = "appearance.accent_color";
+pub const AGENT_EDIT_REVEAL_ANIMATION: &str = "appearance.agent_edit_reveal_animation";
 pub const AGENT_PROVIDER: &str = "agent.provider";
 pub const AGENT_MODEL: &str = "agent.model";
 pub const AGENT_THINKING: &str = "agent.thinking";
@@ -487,17 +596,116 @@ pub const TEXT_SIZE: &str = "appearance.interface_text_size";
 /// system's 减少动态效果 decides.
 pub const REDUCE_MOTION: &str = "appearance.reduce_motion";
 pub const UI_LOCALE: &str = "language.ui_locale";
+pub const FONT_SOURCE: &str = "editor.font_source";
+pub const FONT_FAMILY: &str = "editor.font_family";
 pub const FONT_SIZE: &str = "editor.font_size";
 pub const LINE_HEIGHT: &str = "editor.line_height";
+pub const TEXT_WRAP: &str = "editor.text_wrap";
 pub const PARAGRAPH_SPACING: &str = "editor.paragraph_spacing";
 pub const PAGE_WIDTH: &str = "editor.page_width";
 pub const PARAGRAPH_INDENT: &str = "editor.paragraph_indent";
+pub const TAB_INDENT_WIDTH: &str = "editor.tab_indent_width";
 pub const AUTO_IMMERSIVE: &str = "editor.auto_immersive";
 pub const TYPEWRITER: &str = "editor.typewriter_mode";
 pub const TYPEWRITER_POSITION: &str = "editor.typewriter_position";
+pub const CARET_COLOR: &str = "editor.caret_color";
 pub const JUSTIFY: &str = "editor.justify";
 pub const AUTO_ENTITY_LINKS: &str = "editor.auto_entity_links";
+pub const ENTITY_LINK_INTERACTIVE: &str = "editor.entity_link_interactive";
+pub const COMMENT_MARKS_VISIBLE: &str = "editor.comment_marks_visible";
+pub const ENTITY_LINK_COLOR_MODE: &str = "editor.entity_link_color_mode";
+pub const ENTITY_LINK_HIGHLIGHT_MODE: &str = "editor.entity_link_highlight_mode";
+pub const ENTITY_LINK_BAND_STYLE: &str = "editor.entity_link_band_style";
+pub const ENTITY_LINK_KIND_COLORS: &str = "editor.entity_link_kind_colors";
 pub const CRASH_REPORTS: &str = "privacy.crash_reports";
+
+pub const DEFAULT_LINK_KIND_COLORS: &[(&str, &str)] = &[
+    ("element", "#8b72c6"),
+    ("chapter", "#5b93c7"),
+    ("drift", "#9b6baa"),
+    ("patch", "#c28b43"),
+    ("category", "#5f9b73"),
+    ("storyline", "#4f9497"),
+];
+
+const FONT_SOURCES: &[Opt] = &[
+    Opt {
+        value: "system-serif",
+        label: keys::settings::editor::FONT_SYSTEM_SERIF,
+    },
+    Opt {
+        value: "system-sans",
+        label: keys::settings::editor::FONT_SYSTEM_SANS,
+    },
+    Opt {
+        value: "system-mono",
+        label: keys::settings::editor::FONT_SYSTEM_MONO,
+    },
+    Opt {
+        value: "system",
+        label: keys::settings::editor::FONT_SYSTEM_CUSTOM,
+    },
+    Opt {
+        value: "custom",
+        label: keys::settings::editor::FONT_IMPORT,
+    },
+];
+
+const TEXT_WRAPS: &[Opt] = &[
+    Opt {
+        value: "stable",
+        label: keys::settings::editor::TEXT_WRAP_STABLE,
+    },
+    Opt {
+        value: "pretty",
+        label: keys::settings::editor::TEXT_WRAP_PRETTY,
+    },
+];
+
+const LINK_COLOR_MODES: &[Opt] = &[
+    Opt {
+        value: "contextual",
+        label: keys::settings::editor::ENTITY_LINK_STYLE_CONTEXTUAL,
+    },
+    Opt {
+        value: "kind",
+        label: keys::settings::editor::ENTITY_LINK_STYLE_KIND,
+    },
+    Opt {
+        value: "hover",
+        label: keys::settings::editor::ENTITY_LINK_STYLE_HOVER,
+    },
+    Opt {
+        value: "prose",
+        label: keys::settings::editor::ENTITY_LINK_STYLE_PROSE,
+    },
+];
+
+const LINK_HIGHLIGHT_MODES: &[Opt] = &[
+    Opt {
+        value: "both",
+        label: keys::settings::editor::ENTITY_LINK_HIGHLIGHT_BOTH,
+    },
+    Opt {
+        value: "band",
+        label: keys::settings::editor::ENTITY_LINK_HIGHLIGHT_BAND,
+    },
+    Opt {
+        value: "text",
+        label: keys::settings::editor::ENTITY_LINK_HIGHLIGHT_TEXT,
+    },
+];
+
+const LINK_BAND_STYLES: &[Opt] = &[
+    Opt {
+        value: "wash",
+        label: keys::settings::editor::ENTITY_LINK_BAND_STYLE_WASH,
+    },
+    Opt {
+        value: "dots",
+        label: keys::settings::editor::ENTITY_LINK_BAND_STYLE_DOTS,
+    },
+];
 
 const THEMES: &[Opt] = &[
     Opt {
@@ -632,6 +840,17 @@ pub static REGISTRY: &[SettingDef] = &[
         search: &["dark mode", "light", "theme", "深色", "浅色", "夜间"],
     },
     SettingDef {
+        key: ACCENT_COLOR,
+        kind: Kind::OptionalColor,
+        default: Initial::Null,
+        scope: Scope::Account,
+        section: Section::Appearance,
+        group: Some(keys::settings::appearance::ACCENT),
+        label: keys::settings::appearance::ACCENT_COLOR,
+        description: Some(keys::settings::appearance::ACCENT_COLOR_DESC),
+        search: &["accent", "color", "colour", "强调色", "主题色"],
+    },
+    SettingDef {
         key: TEXT_SIZE,
         kind: Kind::Choice(TEXT_SIZES),
         default: Initial::Str("standard"),
@@ -648,7 +867,7 @@ pub static REGISTRY: &[SettingDef] = &[
         default: Initial::Bool(false),
         scope: Scope::Device,
         section: Section::Appearance,
-        group: None,
+        group: Some(keys::settings::appearance::ANIMATIONS),
         label: keys::settings::appearance::REDUCE_MOTION,
         description: None,
         search: &[
@@ -661,6 +880,17 @@ pub static REGISTRY: &[SettingDef] = &[
         ],
     },
     SettingDef {
+        key: AGENT_EDIT_REVEAL_ANIMATION,
+        kind: Kind::Switch,
+        default: Initial::Bool(true),
+        scope: Scope::Account,
+        section: Section::Appearance,
+        group: Some(keys::settings::appearance::ANIMATIONS),
+        label: keys::settings::appearance::AGENT_EDIT_REVEAL,
+        description: Some(keys::settings::appearance::AGENT_EDIT_REVEAL_DESC),
+        search: &["agent", "reveal", "animation", "显现", "动画"],
+    },
+    SettingDef {
         key: UI_LOCALE,
         kind: Kind::Locale,
         default: Initial::Computed,
@@ -670,6 +900,35 @@ pub static REGISTRY: &[SettingDef] = &[
         label: keys::settings::language::UI_LOCALE,
         description: Some(keys::settings::language::UI_LOCALE_DESC),
         search: &["language", "locale", "语言", "語言"],
+    },
+    SettingDef {
+        key: FONT_SOURCE,
+        kind: Kind::Choice(FONT_SOURCES),
+        default: Initial::Str("system-serif"),
+        scope: Scope::Device,
+        section: Section::Editor,
+        group: Some(keys::settings::editor::TYPESETTING),
+        label: keys::settings::editor::FONT_SOURCE,
+        description: Some(keys::settings::editor::FONT_SCOPE_DESC),
+        search: &["font", "typeface", "serif", "sans", "custom", "字体"],
+    },
+    SettingDef {
+        key: FONT_FAMILY,
+        kind: Kind::Text { max_bytes: 256 },
+        default: Initial::Str(""),
+        scope: Scope::Device,
+        section: Section::Editor,
+        group: Some(keys::settings::editor::TYPESETTING),
+        label: keys::settings::editor::FONT_SYSTEM_CUSTOM,
+        description: None,
+        search: &[
+            "font family",
+            "system font",
+            "ttf",
+            "otf",
+            "woff2",
+            "系统字体",
+        ],
     },
     SettingDef {
         key: FONT_SIZE,
@@ -747,6 +1006,33 @@ pub static REGISTRY: &[SettingDef] = &[
         search: &["indent", "首行缩进"],
     },
     SettingDef {
+        key: TAB_INDENT_WIDTH,
+        kind: Kind::Number {
+            min: 1.0,
+            max: 4.0,
+            step: 1.0,
+            unit: "",
+        },
+        default: Initial::Num(2.0),
+        scope: Scope::Account,
+        section: Section::Editor,
+        group: Some(keys::settings::editor::TYPESETTING),
+        label: keys::settings::editor::TAB_INDENT,
+        description: Some(keys::settings::editor::TAB_INDENT_DESC),
+        search: &["tab", "indent", "缩进"],
+    },
+    SettingDef {
+        key: TEXT_WRAP,
+        kind: Kind::Choice(TEXT_WRAPS),
+        default: Initial::Str("stable"),
+        scope: Scope::Device,
+        section: Section::Editor,
+        group: Some(keys::settings::editor::TYPESETTING),
+        label: keys::settings::editor::TEXT_WRAP,
+        description: Some(keys::settings::editor::TEXT_WRAP_DESC),
+        search: &["wrap", "line break", "pretty", "换行", "排版"],
+    },
+    SettingDef {
         key: JUSTIFY,
         kind: Kind::Switch,
         default: Initial::Bool(false),
@@ -796,6 +1082,17 @@ pub static REGISTRY: &[SettingDef] = &[
         search: &["typewriter", "caret line"],
     },
     SettingDef {
+        key: CARET_COLOR,
+        kind: Kind::OptionalColor,
+        default: Initial::Null,
+        scope: Scope::Account,
+        section: Section::Editor,
+        group: Some(keys::settings::editor::FLOW),
+        label: keys::settings::editor::CARET_COLOR,
+        description: Some(keys::settings::editor::CARET_COLOR_DESC),
+        search: &["caret", "cursor", "color", "光标", "颜色"],
+    },
+    SettingDef {
         key: AUTO_ENTITY_LINKS,
         kind: Kind::Switch,
         default: Initial::Bool(true),
@@ -805,6 +1102,78 @@ pub static REGISTRY: &[SettingDef] = &[
         label: keys::settings::editor::AUTO_ELEMENT_LINK,
         description: Some(keys::settings::editor::AUTO_ELEMENT_LINK_DESC),
         search: &["link", "entity", "element", "链接"],
+    },
+    SettingDef {
+        key: ENTITY_LINK_INTERACTIVE,
+        kind: Kind::Switch,
+        default: Initial::Bool(true),
+        scope: Scope::Account,
+        section: Section::Editor,
+        group: Some(keys::settings::editor::FLOW),
+        label: keys::shell_ui::TOGGLE_ENTITY_LINKS,
+        description: None,
+        search: &["link", "interactive", "hover", "要素链接", "链接"],
+    },
+    SettingDef {
+        key: COMMENT_MARKS_VISIBLE,
+        kind: Kind::Switch,
+        default: Initial::Bool(true),
+        scope: Scope::Account,
+        section: Section::Editor,
+        group: Some(keys::settings::editor::FLOW),
+        label: keys::shell_ui::TOGGLE_COMMENT_MARKS,
+        description: None,
+        search: &["comment", "review", "marks", "批注", "审阅"],
+    },
+    SettingDef {
+        key: ENTITY_LINK_COLOR_MODE,
+        kind: Kind::Choice(LINK_COLOR_MODES),
+        default: Initial::Str("contextual"),
+        scope: Scope::Account,
+        section: Section::Editor,
+        group: Some(keys::settings::editor::FLOW),
+        label: keys::settings::editor::ENTITY_LINK_STYLE,
+        description: Some(keys::settings::editor::ENTITY_LINK_STYLE_DESC),
+        search: &[
+            "entity link",
+            "color mode",
+            "contextual",
+            "kind",
+            "链接颜色",
+        ],
+    },
+    SettingDef {
+        key: ENTITY_LINK_HIGHLIGHT_MODE,
+        kind: Kind::Choice(LINK_HIGHLIGHT_MODES),
+        default: Initial::Str("both"),
+        scope: Scope::Account,
+        section: Section::Editor,
+        group: Some(keys::settings::editor::FLOW),
+        label: keys::settings::editor::ENTITY_LINK_HIGHLIGHT,
+        description: Some(keys::settings::editor::ENTITY_LINK_HIGHLIGHT_DESC),
+        search: &["entity link", "highlight", "band", "text", "高亮"],
+    },
+    SettingDef {
+        key: ENTITY_LINK_BAND_STYLE,
+        kind: Kind::Choice(LINK_BAND_STYLES),
+        default: Initial::Str("wash"),
+        scope: Scope::Account,
+        section: Section::Editor,
+        group: Some(keys::settings::editor::FLOW),
+        label: keys::settings::editor::ENTITY_LINK_BAND_STYLE,
+        description: Some(keys::settings::editor::ENTITY_LINK_BAND_STYLE_DESC),
+        search: &["entity link", "band", "wash", "dots", "色带", "细点"],
+    },
+    SettingDef {
+        key: ENTITY_LINK_KIND_COLORS,
+        kind: Kind::ColorMap(DEFAULT_LINK_KIND_COLORS),
+        default: Initial::ColorMap(DEFAULT_LINK_KIND_COLORS),
+        scope: Scope::Account,
+        section: Section::Editor,
+        group: Some(keys::settings::editor::FLOW),
+        label: keys::settings::editor::ENTITY_LINK_STYLE_KIND,
+        description: None,
+        search: &["entity link", "kind colors", "palette", "类型配色"],
     },
     SettingDef {
         key: CRASH_REPORTS,

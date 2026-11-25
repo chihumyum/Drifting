@@ -4,6 +4,11 @@
       "saveFailed": "Could not save the key to Windows Credential Manager."
     }
   },
+  "auth": {
+    "signOut": {
+      "pending": "Changes on this PC the cloud doesn't have yet: {{count}}. If you sign out now, they stay on this PC and upload when you sign back in to this account."
+    }
+  },
   "settings": {
     "agent": {
       "extensions": {
@@ -14,6 +19,10 @@
       "failure": {
         "storage_failed": "The sign-in could not be saved to Windows Credential Manager."
       }
+    },
+    "hosted": {
+      "disconnect_description": "Uploads the changes only this PC has, then disconnects. Local projects and cloud copies are retained.",
+      "disconnect_unuploaded": "{{count}} changes have not been uploaded. After disconnecting they stay on this PC only."
     },
     "sync": {
       "projection": {

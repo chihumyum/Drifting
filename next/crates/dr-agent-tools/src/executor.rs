@@ -1994,7 +1994,7 @@ impl ToolExecutor for AgentTools {
                                     &lease,
                                 )?;
                                 evidence::capture(&context, &resolved, &value)?;
-                                Ok(value)
+                                Ok(bound_tool_output(&resolved.name, value))
                             }
                             _ => Err(Error::Invalid("unknown tool envelope".into())),
                         }
@@ -2013,6 +2013,36 @@ impl ToolExecutor for AgentTools {
         }
         .boxed()
     }
+}
+
+/// Cap oversized non-prose tool results so a single unbounded list/read cannot
+/// saturate the model's context window while keeping `effects` intact.
+fn bound_tool_output(name: &str, value: Value) -> Value {
+    const MAX_BYTES: usize = 256 * 1024;
+    const PREVIEW_BYTES: usize = 240 * 1024;
+    if matches!(name, "prose.read" | "module.read_prose") {
+        return value;
+    }
+    let Ok(serialized) = serde_json::to_string(&value) else {
+        return value;
+    };
+    if serialized.len() <= MAX_BYTES {
+        return value;
+    }
+    let mut cut = PREVIEW_BYTES.min(serialized.len());
+    while cut > 0 && !serialized.is_char_boundary(cut) {
+        cut -= 1;
+    }
+    let effects = value.get("effects").cloned().unwrap_or_else(|| json!([]));
+    json!({
+        "output": {
+            "truncated": true,
+            "original_bytes": serialized.len(),
+            "preview": &serialized[..cut],
+            "hint": "Tool output exceeded the size budget; use filters, narrower queries, or pagination parameters (offset/limit) to read specific items."
+        },
+        "effects": effects
+    })
 }
 
 fn turn_key(book: &BookId, actor: &Actor) -> TurnKey {

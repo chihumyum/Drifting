@@ -22,7 +22,7 @@ pub use config::{LocalRoute, ModelCapabilities, ModelRoute, Provider, RunConfig,
 pub use control::{Cancellation, Control, RunHandle};
 pub use driver::{Driver, DriverEvent, DriverRequest, FinishReason, RequestPurpose};
 pub use images::{ImageAttachments, ImageError, ImageRef, RequestImages};
-pub use journal::{JournalEvent, conversation, events};
+pub use journal::{JournalEvent, conversation, events, events_with_timestamps};
 pub use protocol::*;
 pub use runtime::{ContinuationStart, Options, RecoveredRun, ResumeStart, Runtime, Start};
 pub use runtime::{

@@ -13,6 +13,7 @@
 //! Windows has no menu bar: GPUI keeps the menus as data and the key bindings
 //! still work.
 
+use dr_i18n::{Key, keys};
 use gpui::{App, Menu, MenuItem, OsAction, SystemMenuType};
 
 use crate::ShellInfo;
@@ -24,40 +25,77 @@ use crate::actions::{
 /// See the module comment.
 pub const WINDOW_MENU: &str = "Window";
 
+fn label(cx: &App, key: Key, fallback: &str) -> String {
+    if cx.has_global::<crate::Strings>() {
+        crate::strings::t(cx, key).to_string()
+    } else {
+        fallback.to_owned()
+    }
+}
+
+fn label_with_app(cx: &App, key: Key, fallback: String, app: &str) -> String {
+    if cx.has_global::<crate::Strings>() {
+        crate::strings::tf(cx, key, &[("app", &app)]).to_string()
+    } else {
+        fallback
+    }
+}
+
 pub fn app_menus(cx: &App) -> Vec<Menu> {
+    use keys::shell_ui as k;
     let name = cx
         .try_global::<ShellInfo>()
         .map_or("Drifting", |info| info.app_name);
     vec![
         Menu::new(name).items([
-            MenuItem::action(format!("About {name}"), About),
+            MenuItem::action(
+                label_with_app(cx, k::MENU_ABOUT, format!("About {name}"), name),
+                About,
+            ),
             MenuItem::separator(),
-            MenuItem::action("Settings…", OpenSettings),
+            MenuItem::action(label(cx, k::MENU_SETTINGS, "Settings…"), OpenSettings),
             MenuItem::separator(),
-            MenuItem::os_submenu("Services", SystemMenuType::Services),
+            MenuItem::os_submenu(
+                label(cx, k::MENU_SERVICES, "Services"),
+                SystemMenuType::Services,
+            ),
             MenuItem::separator(),
-            MenuItem::action(format!("Hide {name}"), Hide),
-            MenuItem::action("Hide Others", HideOthers),
-            MenuItem::action("Show All", ShowAll),
+            MenuItem::action(
+                label_with_app(cx, k::MENU_HIDE, format!("Hide {name}"), name),
+                Hide,
+            ),
+            MenuItem::action(label(cx, k::MENU_HIDE_OTHERS, "Hide Others"), HideOthers),
+            MenuItem::action(label(cx, k::MENU_SHOW_ALL, "Show All"), ShowAll),
             MenuItem::separator(),
-            MenuItem::action(format!("Quit {name}"), Quit),
+            MenuItem::action(
+                label_with_app(cx, k::MENU_QUIT, format!("Quit {name}"), name),
+                Quit,
+            ),
         ]),
-        Menu::new("Edit").items([
-            MenuItem::os_action("Undo", Undo, OsAction::Undo),
-            MenuItem::os_action("Redo", Redo, OsAction::Redo),
+        Menu::new(label(cx, k::MENU_EDIT, "Edit")).items([
+            MenuItem::os_action(label(cx, k::MENU_UNDO, "Undo"), Undo, OsAction::Undo),
+            MenuItem::os_action(label(cx, k::MENU_REDO, "Redo"), Redo, OsAction::Redo),
             MenuItem::separator(),
-            MenuItem::os_action("Cut", Cut, OsAction::Cut),
-            MenuItem::os_action("Copy", Copy, OsAction::Copy),
-            MenuItem::os_action("Paste", Paste, OsAction::Paste),
-            MenuItem::os_action("Select All", SelectAll, OsAction::SelectAll),
+            MenuItem::os_action(label(cx, k::MENU_CUT, "Cut"), Cut, OsAction::Cut),
+            MenuItem::os_action(label(cx, k::MENU_COPY, "Copy"), Copy, OsAction::Copy),
+            MenuItem::os_action(label(cx, k::MENU_PASTE, "Paste"), Paste, OsAction::Paste),
+            MenuItem::os_action(
+                label(cx, k::MENU_SELECT_ALL, "Select All"),
+                SelectAll,
+                OsAction::SelectAll,
+            ),
         ]),
+        // Keep `WINDOW_MENU` untranslated so macOS preserves the native Window list.
         Menu::new(WINDOW_MENU).items([
-            MenuItem::action("Minimize", Minimize),
-            MenuItem::action("Zoom", Zoom),
+            MenuItem::action(label(cx, k::MENU_MINIMIZE, "Minimize"), Minimize),
+            MenuItem::action(label(cx, k::MENU_ZOOM, "Zoom"), Zoom),
             MenuItem::separator(),
-            MenuItem::action("Close Window", CloseWindow),
+            MenuItem::action(label(cx, k::MENU_CLOSE_WINDOW, "Close Window"), CloseWindow),
             MenuItem::separator(),
-            MenuItem::action("Bring All to Front", BringAllToFront),
+            MenuItem::action(
+                label(cx, k::MENU_BRING_ALL_TO_FRONT, "Bring All to Front"),
+                BringAllToFront,
+            ),
         ]),
     ]
 }

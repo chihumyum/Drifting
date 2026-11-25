@@ -107,6 +107,21 @@ impl ProseEditor {
         };
     }
 
+    /// Whether any decoration in this editor currently carries a scrollbar tick.
+    pub fn has_ticks(&self) -> bool {
+        self.paint
+            .chapters
+            .iter()
+            .any(|l| l.live.iter().any(|live| live.deco.tick.is_some()))
+    }
+
+    /// Public wrapper around [`Self::scroll_ticks`] so a host scrolling a flow
+    /// editor (such as an entry page) can mount the tick strip on the viewport's
+    /// right edge.
+    pub fn tick_strip(&mut self, cx: &mut Context<Self>) -> AnyElement {
+        self.scroll_ticks(cx)
+    }
+
     /// The tick strip, laid over the editor's right edge (under the thumb).
     pub(crate) fn scroll_ticks(&mut self, cx: &mut Context<Self>) -> AnyElement {
         if self.paint.chapters.iter().all(|l| l.live.is_empty()) {
@@ -248,15 +263,23 @@ impl ProseEditor {
                 .line_of(start)
                 .min(self.book.listed[chapter].saturating_sub(1));
             let item = self.book.line_item(chapter, line);
-            let view = f64::from(f32::from(self.list.viewport_bounds().size.height));
-            let mut heights = self.heights.borrow_mut();
-            let y = (heights.top(item) - view / 3.).max(0.);
-            let (item_ix, offset) = heights.item_at(y);
-            drop(heights);
-            self.list.scroll_to(ListOffset {
-                item_ix,
-                offset_in_item: px(offset as f32),
-            });
+            if self.is_flow() {
+                let y = self.flow_doc_top(item);
+                let mut flow = self.flow.borrow_mut();
+                if !flow.scroll_doc_to(y, 1. / 3.) {
+                    flow.reveal = Some(item);
+                }
+            } else {
+                let view = f64::from(f32::from(self.list.viewport_bounds().size.height));
+                let mut heights = self.heights.borrow_mut();
+                let y = (heights.top(item) - view / 3.).max(0.);
+                let (item_ix, offset) = heights.item_at(y);
+                drop(heights);
+                self.list.scroll_to(ListOffset {
+                    item_ix,
+                    offset_in_item: px(offset as f32),
+                });
+            }
         }
         cx.emit(DecorationEvent::TickClicked { chapter, key });
         cx.notify();

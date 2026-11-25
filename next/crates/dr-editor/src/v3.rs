@@ -437,4 +437,24 @@ impl crate::links::LinkTargets for LinkTargets {
         })
         .unwrap_or_default()
     }
+
+    fn entry_colors(&self) -> std::collections::HashMap<String, (Option<String>, Option<String>)> {
+        read(&self.workspace, &self.book, |v| {
+            let structure = v.structure_snapshot();
+            let entries = structure.entries_map();
+            let templates = structure.templates_map();
+            let memberships = structure.memberships();
+            let views: Vec<_> = structure.timeline_views().cloned().collect();
+            entries
+                .values()
+                .map(|e| {
+                    let color =
+                        dr_model::v3::entry_color(e, entries, templates, memberships, &views);
+                    let tpl = e.effective_template(templates).map(|t| t.name.clone());
+                    (e.id.to_string(), (color, tpl))
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+    }
 }

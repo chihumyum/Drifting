@@ -22,19 +22,21 @@ use dr_shell::{
     Services, Settings,
     account::{AccountMenuAction, AccountViewInfo},
     settings::registry::{self, Section},
+    strings::tf,
     t,
 };
 use dr_ui::{
     Theme,
-    components::Button,
+    components::{Button, Dialog},
     fonts::{Role, weight},
     style::DrStyled,
     tokens::space,
 };
 use dr_view_sea::first_run::{self, Done, Step};
 use gpui::{
-    AnyElement, App, AppContext as _, BorrowAppContext as _, Global, IntoElement, ParentElement,
-    RenderImage, SharedString, Styled, Window, div, px,
+    AnyElement, App, AppContext as _, BorrowAppContext as _, Context, Global, IntoElement,
+    ParentElement, Render, RenderImage, SharedString, Styled, Window, div,
+    prelude::FluentBuilder as _, px,
 };
 use image::{Frame, RgbaImage};
 use smallvec::SmallVec;
@@ -54,6 +56,16 @@ pub const FIRST_RUN_ACCOUNT_SEEN_KEY: &str = "account.first_run_seen";
 /// Debounce delay before pushing local preference edits to Hosted.
 pub const PREFERENCE_SYNC_DEBOUNCE: Duration = Duration::from_secs(1);
 
+/// Periodic background preference pull interval while connected (matches 0.1's 5m poll).
+pub const PREFERENCE_PULL_INTERVAL: Duration = Duration::from_secs(300);
+
+const PREFERENCE_RETRY_BACKOFFS: [Duration; 4] = [
+    Duration::from_secs(5),
+    Duration::from_secs(15),
+    Duration::from_secs(45),
+    Duration::from_secs(120),
+];
+
 /// Global state for `dr-view-account`.
 pub struct Service {
     pub inner: Arc<AccountService>,
@@ -66,11 +78,16 @@ pub struct Service {
     /// Otherwise they show `state` ([`shown_account_state`]).
     held: Option<(AccountState, Option<Arc<RenderImage>>)>,
     preference_sync_task: Option<gpui::Task<()>>,
+    preference_pull_task: Option<gpui::Task<()>>,
+    preference_retry_task: Option<gpui::Task<()>>,
+    preference_retry_failures: u32,
     /// How many times [`schedule_preference_sync`] queued a round.
     preference_sync_scheduled_count: usize,
     /// A sync round is writing what the server answered into the settings:
     /// that is not the author changing a setting, and schedules nothing.
     applying_remote_preferences: bool,
+    /// Recording per-key offline edit timestamps into device memory.
+    recording_preference_timestamps: bool,
     /// The account-scoped settings as they were when last looked at, to tell
     /// a change to one of them from a change to a device-only setting.
     last_observed_synced: BTreeMap<String, Option<serde_json::Value>>,
@@ -116,8 +133,12 @@ impl Service {
             avatar_cache,
             signing_out: false,
             preference_sync_task: None,
+            preference_pull_task: None,
+            preference_retry_task: None,
+            preference_retry_failures: 0,
             preference_sync_scheduled_count: 0,
             applying_remote_preferences: false,
+            recording_preference_timestamps: false,
             last_observed_synced: BTreeMap::new(),
         }
     }
@@ -251,20 +272,46 @@ pub fn init(mut service: Service, cx: &mut App) {
     // the account once its library is open.
     dr_shell::release::after_release(cx, reconcile_shown_account);
 
-    // M37: changing a setting that goes with the account schedules a
-    // debounced preference sync; device-only settings, BYOK, layout and what
-    // a sync round itself writes back do not.
+    // M37: changing a setting that goes with the account records its true
+    // edit timestamp (even while offline) and schedules a debounced preference
+    // sync when connected; device-only settings, BYOK, layout and what a sync
+    // round itself writes back do not.
     dr_shell::settings::on_changed(cx, |cx| {
         if !cx.has_global::<Service>() || !cx.has_global::<Settings>() {
             return;
         }
         let next = explicit_synced_snapshot(Settings::read(cx));
-        let should_schedule = cx.update_global::<Service, _>(|svc, _| {
-            let changed = svc.last_observed_synced != next;
+        let changed_keys: Vec<String> = cx.update_global::<Service, _>(|svc, _| {
+            if svc.recording_preference_timestamps {
+                return Vec::new();
+            }
+            let diff: Vec<String> = next
+                .iter()
+                .filter(|(k, v)| svc.last_observed_synced.get(*k) != Some(*v))
+                .map(|(k, _)| k.clone())
+                .collect();
             svc.last_observed_synced = next;
-            changed && !svc.applying_remote_preferences
+            if svc.applying_remote_preferences {
+                Vec::new()
+            } else {
+                diff
+            }
         });
-        if should_schedule {
+        if !changed_keys.is_empty() {
+            let now_iso = current_iso_timestamp();
+            cx.update_global::<Service, _>(|svc, _| {
+                svc.recording_preference_timestamps = true;
+            });
+            Settings::update(cx, |file| {
+                let mut stored = load_stored_preference_state(file);
+                for key in &changed_keys {
+                    stored.local_changed_at.insert(key.clone(), now_iso.clone());
+                }
+                save_stored_preference_state(file, &stored);
+            });
+            cx.update_global::<Service, _>(|svc, _| {
+                svc.recording_preference_timestamps = false;
+            });
             schedule_preference_sync(cx);
         }
     });
@@ -323,7 +370,7 @@ pub fn init(mut service: Service, cx: &mut App) {
             Some(AccountMenuAction {
                 label,
                 disabled: busy,
-                on_click: Rc::new(|_, cx| sign_out(cx)),
+                on_click: Rc::new(request_sign_out),
             })
         } else {
             Some(AccountMenuAction {
@@ -387,10 +434,116 @@ pub fn open_auth_dialog(window: &mut Window, cx: &mut App) {
     dr_shell::dialogs::show_in(handle, cx, view.into());
 }
 
+/// Opens the [`AuthDialog`] modal and immediately initiates Google PKCE OAuth.
+pub fn open_auth_dialog_google(window: &mut Window, cx: &mut App) {
+    let handle = window.window_handle();
+    let slot: Rc<std::cell::Cell<Option<gpui::EntityId>>> = Rc::new(std::cell::Cell::new(None));
+    let slot_close = slot.clone();
+    let close: dr_shell::dialogs::Close = Rc::new(move |_, cx| {
+        if let Some(id) = slot_close.get() {
+            dr_shell::dialogs::hide(cx, id);
+        }
+    });
+    let view = cx.new(|cx| {
+        let mut dialog = AuthDialog::new(close, window, cx);
+        dialog.start_google(cx);
+        dialog
+    });
+    slot.set(Some(view.entity_id()));
+    dr_shell::dialogs::show_in(handle, cx, view.into());
+}
+
+/// Requests sign-out from UI entry points. If local unuploaded changes exist,
+/// opens a confirmation dialog letting the author choose between uploading
+/// first or signing out immediately; otherwise signs out directly.
+pub fn request_sign_out(window: &mut Window, cx: &mut App) {
+    let pending = dr_shell::sync::pending_count(cx);
+    if pending == 0 {
+        sign_out(cx);
+        return;
+    }
+    let handle = window.window_handle();
+    let slot: Rc<std::cell::Cell<Option<gpui::EntityId>>> = Rc::new(std::cell::Cell::new(None));
+    let slot_close = slot.clone();
+    let close: dr_shell::dialogs::Close = Rc::new(move |_, cx| {
+        if let Some(id) = slot_close.get() {
+            dr_shell::dialogs::hide(cx, id);
+        }
+    });
+    let view = cx.new(|_| SignOutDialog { pending, close });
+    slot.set(Some(view.entity_id()));
+    dr_shell::dialogs::show_in(handle, cx, view.into());
+}
+
+struct SignOutDialog {
+    pending: usize,
+    close: dr_shell::dialogs::Close,
+}
+
+impl Render for SignOutDialog {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        use keys::auth::sign_out as so;
+        let theme = Theme::of(window, cx);
+        let p = theme.palette;
+        let s = theme.scale;
+        let close_cancel = self.close.clone();
+        let close_now = self.close.clone();
+        let close_upload = self.close.clone();
+        let close_x = self.close.clone();
+
+        let body = div()
+            .font_role(Role::Ui)
+            .type_px(s.secondary, s.line_body)
+            .text_color(p.ink(2).solid())
+            .child(dr_ui::text::wrapped(tf(
+                cx,
+                so::PENDING,
+                &[("count", &self.pending)],
+            )));
+
+        div().child(
+            Dialog::new("sign-out-confirm-dialog", t(cx, so::TITLE))
+                .width(420.0)
+                .on_close(move |window, cx| close_x(window, cx))
+                .body(body)
+                .action(
+                    Button::new("sign-out-cancel", t(cx, keys::common::CANCEL))
+                        .text()
+                        .on_click(move |_, window, cx| close_cancel(window, cx)),
+                )
+                .action(Button::new("sign-out-now", t(cx, so::NOW)).on_click(
+                    move |_, window, cx| {
+                        close_now(window, cx);
+                        sign_out_immediate(cx);
+                    },
+                ))
+                .action(
+                    Button::new("sign-out-upload-first", t(cx, so::UPLOAD_FIRST))
+                        .primary()
+                        .on_click(move |_, window, cx| {
+                            close_upload(window, cx);
+                            sign_out(cx);
+                        }),
+                ),
+        )
+    }
+}
+
 /// Drains pending Hosted sync uploads (via [`dr_shell::sync::run_before_sign_out`])
 /// while the session token is still valid, then signs out of the current Hosted
 /// account in the background and switches back to the local library.
 pub fn sign_out(cx: &mut App) {
+    sign_out_with_drain(true, cx);
+}
+
+/// Signs out of the current Hosted account immediately without waiting for
+/// pending uploads to drain (local changes remain in the account's library on
+/// this device until the next sign-in).
+pub fn sign_out_immediate(cx: &mut App) {
+    sign_out_with_drain(false, cx);
+}
+
+fn sign_out_with_drain(drain: bool, cx: &mut App) {
     let Some(inner) = cx
         .try_global::<Service>()
         .filter(|s| !s.signing_out)
@@ -402,7 +555,11 @@ pub fn sign_out(cx: &mut App) {
         svc.signing_out = true;
     });
     cx.refresh_windows();
-    let pre_drain = dr_shell::sync::run_before_sign_out(cx);
+    let pre_drain = if drain {
+        dr_shell::sync::run_before_sign_out(cx)
+    } else {
+        None
+    };
     cx.spawn(async move |cx| {
         if let Some(drain_fut) = pre_drain {
             drain_fut.await;
@@ -509,9 +666,73 @@ pub fn apply_account_state(state: AccountState, cx: &mut App) {
     });
     if is_connected {
         sync_preferences_now(cx);
+        ensure_periodic_preference_pull(cx);
+    } else {
+        cx.update_global::<Service, _>(|svc, _| {
+            svc.preference_pull_task = None;
+            svc.preference_retry_task = None;
+            svc.preference_retry_failures = 0;
+        });
     }
     notices::account_changed(cx);
     cx.refresh_windows();
+}
+
+fn ensure_periodic_preference_pull(cx: &mut App) {
+    let already_running = cx
+        .try_global::<Service>()
+        .is_some_and(|svc| svc.preference_pull_task.is_some());
+    if already_running {
+        return;
+    }
+    let task = cx.spawn(async move |cx| {
+        loop {
+            cx.background_executor()
+                .timer(PREFERENCE_PULL_INTERVAL)
+                .await;
+            let keep_going = cx.update(|cx| {
+                let connected = cx
+                    .try_global::<Service>()
+                    .is_some_and(|svc| svc.state.status == SessionStatus::Connected);
+                if connected {
+                    sync_preferences_now(cx);
+                }
+                connected
+            });
+            if !keep_going {
+                break;
+            }
+        }
+    });
+    if cx.has_global::<Service>() {
+        cx.global_mut::<Service>().preference_pull_task = Some(task);
+    }
+}
+
+fn schedule_preference_retry(cx: &mut App) {
+    let Some(delay) = cx.try_global::<Service>().and_then(|svc| {
+        if svc.state.status != SessionStatus::Connected {
+            return None;
+        }
+        let idx = (svc.preference_retry_failures as usize)
+            .min(PREFERENCE_RETRY_BACKOFFS.len().saturating_sub(1));
+        Some(PREFERENCE_RETRY_BACKOFFS[idx])
+    }) else {
+        return;
+    };
+    let task = cx.spawn(async move |cx| {
+        cx.background_executor().timer(delay).await;
+        cx.update(|cx| {
+            if cx.has_global::<Service>() {
+                cx.global_mut::<Service>().preference_retry_task = None;
+            }
+            sync_preferences_now(cx);
+        });
+    });
+    cx.update_global::<Service, _>(|svc, _| {
+        svc.preference_retry_failures = svc.preference_retry_failures.saturating_add(1);
+        svc.preference_retry_task = Some(task);
+    });
 }
 
 /// Schedules a debounced (1s) M37 preference sync round when connected.
@@ -543,6 +764,8 @@ struct StoredPreferenceState {
     ledger: PreferenceLedger,
     #[serde(default)]
     baseline: BTreeMap<String, serde_json::Value>,
+    #[serde(default)]
+    local_changed_at: BTreeMap<String, String>,
 }
 
 /// Whether `key` is an account-synced preference (M37).
@@ -716,28 +939,43 @@ pub fn sync_preferences_now(cx: &mut App) {
                 inner.sync_preferences_adopting(&keys, &local_values, &ledger, &adopt_from_v1)
             })
             .await;
-        cx.update(|cx| {
-            if let Ok(outcome) = res
-                && outcome.supported
-                && cx.has_global::<Settings>()
-            {
+        cx.update(|cx| match res {
+            Ok(outcome) => {
                 if cx.has_global::<Service>() {
                     cx.update_global::<Service, _>(|svc, _| {
-                        svc.applying_remote_preferences = true;
+                        svc.preference_retry_failures = 0;
+                        svc.preference_retry_task = None;
                     });
                 }
-                Settings::update(cx, |file| {
-                    apply_preference_sync_outcome(file, &outcome);
-                });
-                if cx.has_global::<Service>() {
-                    let observed = explicit_synced_snapshot(Settings::read(cx));
-                    cx.update_global::<Service, _>(|svc, _| {
-                        svc.applying_remote_preferences = false;
-                        svc.last_observed_synced = observed;
+                if outcome.supported && cx.has_global::<Settings>() {
+                    if cx.has_global::<Service>() {
+                        cx.update_global::<Service, _>(|svc, _| {
+                            svc.applying_remote_preferences = true;
+                        });
+                    }
+                    Settings::update(cx, |file| {
+                        apply_preference_sync_outcome(file, &outcome);
                     });
+                    if cx.has_global::<Service>() {
+                        let observed = explicit_synced_snapshot(Settings::read(cx));
+                        cx.update_global::<Service, _>(|svc, _| {
+                            svc.applying_remote_preferences = false;
+                            svc.last_observed_synced = observed;
+                        });
+                    }
+                    let bindings = Settings::read(cx).key_bindings();
+                    dr_shell::keymap::apply(&bindings, cx);
                 }
-                let bindings = Settings::read(cx).key_bindings();
-                dr_shell::keymap::apply(&bindings, cx);
+            }
+            Err(err) => {
+                if matches!(
+                    err.code,
+                    dr_account::AccountErrorCode::Network
+                        | dr_account::AccountErrorCode::RateLimited
+                        | dr_account::AccountErrorCode::Unknown
+                ) {
+                    schedule_preference_retry(cx);
+                }
             }
         });
     });
@@ -782,7 +1020,11 @@ fn snapshot_synced_preferences(
         if cur != base {
             let entry = ledger.entries.entry(key.to_owned()).or_default();
             if !entry.pending || entry.changed_at.is_empty() {
-                entry.changed_at = now_iso.clone();
+                entry.changed_at = stored
+                    .local_changed_at
+                    .get(key)
+                    .cloned()
+                    .unwrap_or_else(|| now_iso.clone());
                 entry.pending = true;
             }
         }
@@ -806,6 +1048,7 @@ fn apply_preference_sync_outcome(
     let state = StoredPreferenceState {
         ledger: outcome.ledger.clone(),
         baseline,
+        local_changed_at: BTreeMap::new(),
     };
     save_stored_preference_state(file, &state);
 }
@@ -913,6 +1156,10 @@ impl Step for WelcomeStep {
         let theme = Theme::of(window, cx);
         let p = theme.palette;
         let s = theme.scale;
+        let google_enabled = cx
+            .try_global::<Service>()
+            .is_some_and(|svc| svc.state.providers.google);
+        let done_google = done.clone();
         let done_email = done.clone();
         let done_local = done;
 
@@ -929,6 +1176,27 @@ impl Step for WelcomeStep {
                     .text_color(p.ink(1).solid())
                     .child(t(cx, keys::pre_alpha_guide::TITLE)),
             )
+            .when(google_enabled, |el| {
+                el.child(
+                    Button::new(
+                        "first-run-google",
+                        tf(
+                            cx,
+                            keys::auth::social::CONTINUE_WITH,
+                            &[("provider", &"Google")],
+                        ),
+                    )
+                    .on_click(move |_, window, cx| {
+                        Settings::set_device_memory(
+                            cx,
+                            FIRST_RUN_ACCOUNT_SEEN_KEY,
+                            Some(true.into()),
+                        );
+                        done_google(window, cx);
+                        open_auth_dialog_google(window, cx);
+                    }),
+                )
+            })
             .child(
                 div()
                     .flex()

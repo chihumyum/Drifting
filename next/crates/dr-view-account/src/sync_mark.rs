@@ -7,7 +7,7 @@
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
-use dr_i18n::Locale;
+use dr_i18n::{I18n, Locale, Platform, keys};
 use dr_shell::notifications::{NoticeAction, Notifications, Source};
 use dr_shell::settings::{self, registry::Section};
 use dr_shell::strings::Strings;
@@ -46,106 +46,52 @@ pub struct SyncStatusCopy {
 
 /// Resolve localized title and detail copy for a [`SyncCornerState`].
 pub fn sync_status_copy(state: SyncCornerState, locale: Locale) -> SyncStatusCopy {
-    let zh = matches!(locale, Locale::ZhCn);
+    use keys::notifications::cloud_sync as cs;
+    use keys::paper_sync as ps;
+    use keys::settings::hosted as h;
+
+    let i18n = I18n::new(locale, Platform::current());
     match state {
         SyncCornerState::Syncing => SyncStatusCopy {
-            title: if zh { "正在同步" } else { "Syncing" }.into(),
-            detail: if zh {
-                "正在与云端同步改动，本地编辑不受影响。"
-            } else {
-                "Syncing your changes with the cloud. Local edits continue normally."
-            }
-            .into(),
+            title: i18n.t(cs::SYNCING).into(),
+            detail: i18n.t(h::PENDING).into(),
         },
         SyncCornerState::Retrying => SyncStatusCopy {
-            title: if zh {
-                "同步正在重试"
-            } else {
-                "Retrying sync"
-            }
-            .into(),
-            detail: if zh {
-                "后台正在自动重试，本地改动已安全保存。"
-            } else {
-                "Retrying automatically in the background. Local changes are safely saved."
-            }
-            .into(),
+            title: i18n.t(ps::RETRYING).into(),
+            detail: i18n.t(ps::RETRYING_DETAIL).into(),
         },
         SyncCornerState::Offline => SyncStatusCopy {
-            title: if zh { "当前离线" } else { "Offline" }.into(),
-            detail: if zh {
-                "网络恢复后将自动继续同步。"
-            } else {
-                "Sync will resume automatically once your connection returns."
-            }
-            .into(),
+            title: i18n.t(ps::OFFLINE).into(),
+            detail: i18n.t(ps::OFFLINE_DETAIL).into(),
         },
         SyncCornerState::Problem(SyncProblem::NotStarted) => SyncStatusCopy {
-            title: if zh {
-                "同步没能启动"
-            } else {
-                "Sync couldn't start"
-            }
-            .into(),
-            detail: if zh {
-                "云同步未能启动，请点击重试。"
-            } else {
-                "Cloud sync could not start. Click Retry to try again."
-            }
-            .into(),
+            title: i18n.t(ps::NOT_STARTED).into(),
+            detail: i18n.t(ps::NOT_STARTED_DETAIL).into(),
         },
         SyncCornerState::Problem(SyncProblem::Reauth) => SyncStatusCopy {
-            title: if zh {
-                "需要重新登录"
-            } else {
-                "Sign in again to keep syncing"
-            }
-            .into(),
-            detail: if zh {
-                "登录凭证已过期，重新登录后继续同步。"
-            } else {
-                "Your session has expired. Sign in again to resume syncing."
-            }
-            .into(),
+            title: i18n.t(ps::REAUTH).into(),
+            detail: i18n.t(ps::REAUTH_DETAIL).into(),
         },
         SyncCornerState::Problem(SyncProblem::Quota) => SyncStatusCopy {
-            title: if zh {
-                "云空间已满，同步已暂停"
-            } else {
-                "Cloud storage is full — sync is paused"
-            }
-            .into(),
-            detail: if zh {
-                "已达到云端存储上限，清理空间或查看设置后可继续同步。"
-            } else {
-                "Cloud storage has reached its quota. Free up space or check Settings to continue."
-            }
-            .into(),
+            title: i18n.t(ps::QUOTA).into(),
+            detail: i18n.t(h::QUOTA_BLOCKED).into(),
         },
         SyncCornerState::Problem(SyncProblem::Failing) => SyncStatusCopy {
-            title: if zh {
-                "同步暂时连不上"
-            } else {
-                "Sync can't reach the cloud right now"
-            }
-            .into(),
-            detail: if zh {
-                "已连续多次同步失败，本地改动均已保存，可随时重试。"
-            } else {
-                "Sync has failed several times in a row. Your local edits are safe; retry anytime."
-            }
-            .into(),
+            title: i18n.t(ps::FAILING).into(),
+            detail: i18n.t(h::RETRYING).into(),
         },
     }
 }
 
 /// Localized label for a [`SyncStatusAction`] button.
 pub fn sync_action_label(action: SyncStatusAction, locale: Locale) -> SharedString {
-    let zh = matches!(locale, Locale::ZhCn);
+    use keys::paper_sync as ps;
+
+    let i18n = I18n::new(locale, Platform::current());
     match action {
-        SyncStatusAction::Retry => if zh { "重试" } else { "Retry" }.into(),
-        SyncStatusAction::SignIn => if zh { "重新登录" } else { "Sign in" }.into(),
-        SyncStatusAction::OpenSettings => if zh { "打开设置" } else { "Open Settings" }.into(),
+        SyncStatusAction::Retry => i18n.t(ps::RETRY).into(),
+        SyncStatusAction::SignIn => i18n.t(ps::SIGN_IN).into(),
+        SyncStatusAction::OpenSettings => i18n.t(ps::OPEN_SETTINGS).into(),
     }
 }
 
@@ -188,6 +134,11 @@ pub fn reconcile_sync_problem_notifications(
         }
     }
 
+    let active_book_name = dr_shell::workspace::active_workspace(cx)
+        .and_then(|weak| weak.read(cx).ok())
+        .map(|ws| ws.book.name.trim().to_owned())
+        .filter(|name| !name.is_empty());
+
     // Post notices for newly active severe problems.
     for problem in active {
         if cx
@@ -198,7 +149,12 @@ pub fn reconcile_sync_problem_notifications(
             continue;
         }
         let copy = sync_status_copy(SyncCornerState::Problem(problem), locale);
-        let text: SharedString = format!("{} — {}", copy.title, copy.detail).into();
+        let text: SharedString = match (problem, &active_book_name) {
+            (SyncProblem::Quota | SyncProblem::Failing, Some(book)) => {
+                format!("{book} · {} — {}", copy.title, copy.detail).into()
+            }
+            _ => format!("{} — {}", copy.title, copy.detail).into(),
+        };
         let action = match problem {
             SyncProblem::Reauth => Some(NoticeAction {
                 label: sync_action_label(SyncStatusAction::SignIn, locale),

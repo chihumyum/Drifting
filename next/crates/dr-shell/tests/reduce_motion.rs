@@ -63,7 +63,7 @@ fn the_switch_forces_motion_off_or_hands_it_back_to_the_system() {
 fn the_search_finds_the_switch_by_its_name_and_its_other_words() {
     let zh = I18n::new(Locale::ZhCn, Platform::Mac);
     assert_eq!(zh.t(def_label()), "关闭动态效果");
-    for query in ["动态效果", "动画", "reduce motion"] {
+    for query in ["动态效果", "reduce motion"] {
         assert_eq!(
             panel::search(query, &zh),
             vec![(
@@ -73,6 +73,17 @@ fn the_search_finds_the_switch_by_its_name_and_its_other_words() {
             "{query}"
         );
     }
+    assert_eq!(
+        panel::search("动画", &zh),
+        vec![(
+            registry::Section::Appearance,
+            Some(vec![
+                registry::REDUCE_MOTION,
+                registry::AGENT_EDIT_REVEAL_ANIMATION,
+            ])
+        )],
+        "动画 matches both reduce_motion and agent_edit_reveal_animation"
+    );
     let en = I18n::new(Locale::En, Platform::Mac);
     assert_eq!(en.t(def_label()), "Turn off animations");
 }

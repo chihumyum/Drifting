@@ -145,6 +145,7 @@ pub(crate) fn install(
                         body: None,
                         status: None,
                         agent_conversation: Some(Some(conv_link)),
+                        target: None,
                     };
                     let link_res = controller
                         .workspace_job(move |ws| {

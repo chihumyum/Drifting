@@ -115,10 +115,52 @@ pub fn head(
     window: &mut Window,
     cx: &mut App,
 ) -> AnyElement {
+    head_with_empty(scope, count, open, on_toggle, None, window, cx)
+}
+
+/// Callback invoked when the author clicks 「清空」 on a Recently Deleted section.
+pub type OnEmpty = Rc<dyn Fn(&mut Window, &mut App)>;
+
+/// Like [`head`], with an optional bulk 「清空」 action that purges every
+/// deleted root in the section.
+#[allow(clippy::too_many_arguments)]
+pub fn head_with_empty(
+    scope: &str,
+    count: usize,
+    open: bool,
+    on_toggle: impl Fn(&mut Window, &mut App) + 'static,
+    on_empty: Option<OnEmpty>,
+    window: &mut Window,
+    cx: &mut App,
+) -> AnyElement {
     let theme = Theme::of(window, cx);
     let (p, s) = (theme.palette, theme.scale);
     let title = t(cx, keys::v5_files::TRASH_SECTION);
     let selector = format!("v5-trash-head-{scope}");
+    let empty_btn = (count > 0).then_some(on_empty).flatten().map(|run| {
+        let label = t(cx, keys::v5_files::EMPTY_TRASH);
+        div()
+            .id(SharedString::from(format!("v5-trash-empty-{scope}")))
+            .px(px(5.0))
+            .py(px(1.0))
+            .rounded(px(radius::SM))
+            .cursor_pointer()
+            .font_role(Role::Ui)
+            .type_px(s.caption, s.line_caption)
+            .text_color(p.danger.alpha(0.85))
+            .hover(move |st| st.bg(p.danger.alpha(0.10)).text_color(p.danger.solid()))
+            .role(gpui::Role::Button)
+            .aria_label(label.clone())
+            .child(label)
+            .on_mouse_down(MouseButton::Left, |_, window, cx| {
+                window.prevent_default();
+                cx.stop_propagation();
+            })
+            .on_click(move |_, window, cx| {
+                cx.stop_propagation();
+                run(window, cx);
+            })
+    });
     div()
         .pt(px(10.0))
         .w_full()
@@ -154,6 +196,7 @@ pub fn head(
                         .child(count.to_string()),
                 )
                 .child(div().flex_1())
+                .children(empty_btn)
                 .child(sand::icon(
                     if open {
                         Icon::ChevronDown
@@ -349,6 +392,29 @@ pub fn restore_entry(host: &PageViewHost, id: &str, restored: RowHook, cx: &mut 
 /// (`entry.purge`), without a question, as the material library's files.
 pub fn purge_entry(host: &PageViewHost, id: &str, cx: &mut App) {
     super::tabs::write(host, "entry.purge", json!({ "id": id }), |_, _| {}, cx);
+}
+
+/// Bulk 「清空」: permanently purges every root entry currently trashed in
+/// `mount` (each `entry.purge` also purges everything folded under that root).
+pub fn purge_mount(host: &PageViewHost, mount: &TabMount, cx: &mut App) {
+    let Some(v) = host.book.v3() else {
+        return;
+    };
+    let roots: Vec<String> = v
+        .trash_roots
+        .iter()
+        .filter_map(|id| v.trash.get(id))
+        .filter(|row| match mount {
+            TabMount::Root => true,
+            TabMount::Entry { entry } => row.places.contains(entry),
+            TabMount::Book => row.in_book,
+            TabMount::View { .. } => false,
+        })
+        .map(|row| row.id.clone())
+        .collect();
+    for id in roots {
+        purge_entry(host, &id, cx);
+    }
 }
 
 /// The flash a tree row of `entry` shows when it has just come back.

@@ -29,7 +29,37 @@
       "modelUnavailable": "当前目录中没有已选模型，请选择其他模型。"
     },
     "context": {
-      "tokens": "{{count}} tokens"
+      "allocation": {
+        "free": "空闲空间",
+        "input": "当前输入",
+        "output": "输出预留",
+        "safety": "安全余量",
+        "title": "窗口分配"
+      },
+      "breakdownTitle": "当前输入由什么组成",
+      "categories": {
+        "assistant_messages": "Agent 消息",
+        "compaction_summaries": "Compaction 摘要",
+        "provider_overhead": "Provider framing",
+        "system_prompt": "System prompt",
+        "task_constraints": "任务约束",
+        "task_plan": "任务计划",
+        "thinking": "思考内容",
+        "tool_calls": "工具调用",
+        "tool_definitions": "工具定义",
+        "tool_results": "工具结果",
+        "user_messages": "用户消息"
+      },
+      "compaction": "Compaction",
+      "compactionDetail": "节省 {{saved}} · {{stages}} · {{count}} 份摘要",
+      "compactionNone": "本次未触发 compaction",
+      "description": "基于最近一次实际提交给模型的已验证 context 规划快照；不是整场会话的累计 token 用量。",
+      "progressAria": "当前 Agent context 占用",
+      "sources": "{{count}} 项来源",
+      "summary": "{{used}} / {{limit}}（{{percent}}%）",
+      "title": "Context 占用",
+      "tokens": "{{count}} tokens",
+      "tooltip": "{{used}} / {{limit}} tokens（{{percent}}%）\n输出预留：{{output}} · 安全余量：{{safety}}"
     },
     "control": {
       "allow": {
@@ -44,9 +74,13 @@
       "start": "给 Agent 发条消息开始。它可以读写本项目的章节、要素与关系。"
     },
     "history": {
+      "delete": "删除对话",
       "empty": "暂无历史对话",
+      "loadEarlier": "载入更早的消息",
+      "rename": "重命名",
       "untitled": "未命名"
     },
+    "jumpLatest": "回到最新",
     "newConversation": "新对话",
     "onboarding": {
       "connect": "连接模型",
@@ -58,7 +92,8 @@
     "pending": {
       "cancelling": "正在停止…",
       "committing": "正在保存…",
-      "now": "思考中…"
+      "now": "思考中…",
+      "withSeconds": "思考中 · {{seconds}}s"
     },
     "setup": {
       "openSettings": "前往设置"
@@ -70,17 +105,31 @@
       "done": "思考过程",
       "streaming": "思考中…"
     },
+    "todos": {
+      "plan": "计划"
+    },
     "tool": {
       "result": "结果"
     },
     "toolbar": {
-      "history": "历史"
+      "history": "历史",
+      "historyTitle": "历史对话",
+      "newTitle": "开始新对话",
+      "renameTitle": "点击重命名当前对话"
     },
     "turnChanges": "本轮改动",
     "unavailable": "Agent 不可用。",
+    "usage": {
+      "inputDetail": "输入 {{input}}（缓存读 {{cacheRead}} · 缓存写 {{cacheWrite}} · 净算 {{net}}）",
+      "outputTurns": "输出 {{output}} · 轮次 {{turns}}",
+      "session": "本会话",
+      "toolsCount": "{{count}} 次工具",
+      "workedFor": "Agent 工作 {{duration}}"
+    },
     "workingMemory": {
       "agent": "Agent",
       "author": "用户",
+      "budgetTitle": "没有上限；超过 2 万、4 万 tokens 时各提示 Agent 整理一次，超过 8 万后每轮都提示",
       "clear": "清空",
       "clearConfirm": "清空工作记忆？这不会删除作品内容、长期规则或对话记录。",
       "cleared": "工作记忆已清空。",
@@ -168,6 +217,8 @@
     "forgotPassword": "忘记密码？",
     "hasAccount": "已经有账号？",
     "legal": {
+      "agree": "注册即表示同意",
+      "and": "与",
       "consent": "继续即视为同意{{terms}}",
       "consentTerms": "相关条款",
       "privacy": "隐私政策",
@@ -181,6 +232,12 @@
     "resend": "重新发送",
     "sendCode": "发送验证码",
     "signIn": "登录",
+    "signOut": {
+      "now": "直接登出",
+      "pending": "这台 Mac 上还有 {{count}} 条改动没传上去。直接登出的话，它们留在这台 Mac 上，下次登录同一个账号时接着传。",
+      "title": "登出",
+      "uploadFirst": "传完再登出"
+    },
     "signUp": "注册",
     "signingIn": "登录中…",
     "social": {
@@ -208,14 +265,20 @@
   },
   "commentRail": {
     "actions": {
+      "close": "关闭",
       "reopen": "未解决",
       "resolve": "解决"
     },
     "card": {
       "emptyComment": "空批注"
     },
+    "original": {
+      "changed": "正文已改动 · 查看原文"
+    },
     "snapshot": {
-      "changed": "已删除/改动"
+      "changed": "已删除/改动",
+      "emptyBlock": "（空段）",
+      "title": "关联原文 · 创建时快照 · {{count}} 段"
     }
   },
   "common": {
@@ -262,6 +325,37 @@
       "drifting": "漂浮中",
       "finished": "已完成",
       "resting": "休眠"
+    }
+  },
+  "editor_ui": {
+    "bar_add_comment": "添加批注",
+    "fmt_bold": "粗体",
+    "fmt_highlight": "高亮",
+    "fmt_inline_code": "行内代码",
+    "fmt_italic": "斜体",
+    "fmt_strike": "删除线",
+    "fmt_underline": "下划线",
+    "mention_create_entry_prefix": "创建条目「",
+    "mention_create_entry_suffix": "」",
+    "slash_bullet_list": "无序列表",
+    "slash_callout": "提示块",
+    "slash_code_block": "代码块",
+    "slash_comment": "批注",
+    "slash_entry_link": "条目链接",
+    "slash_ordered_list": "有序列表",
+    "slash_position_link": "位置链接",
+    "slash_table": "表格",
+    "slash_task_list": "待办清单",
+    "slash_todo": "待办",
+    "table_add_col": "加一列",
+    "table_add_row": "加一行",
+    "table_delete": "删除表格",
+    "table_delete_col": "删除列",
+    "table_delete_row": "删除行"
+  },
+  "elementEditor": {
+    "alerts": {
+      "aliasConflict": "无法添加别名：“{{name}}” 已被要素「{{conflicting}}」使用。"
     }
   },
   "entrySnapshot": {
@@ -522,6 +616,9 @@
     "valuePlaceholder": "内容"
   },
   "leftSidebar": {
+    "actions": {
+      "collapseAll": "展开／折叠全部"
+    },
     "groups": {
       "driftCount_one": "{{count}} 条构想",
       "driftCount_other": "{{count}} 条构想"
@@ -566,6 +663,8 @@
     "retry": "重试",
     "saved": "已导出",
     "scope": "范围",
+    "selectAll": "全选",
+    "selectNone": "全不选",
     "title": "导出成稿",
     "untitledAct": "未命名卷"
   },
@@ -608,6 +707,9 @@
       "addSnippetBody": "写点什么…"
     },
     "error": {
+      "codecStore": "在微软商店获取",
+      "codecUnavailable": "这台电脑缺少 {{format}} 图片的解码扩展，可以从微软商店安装后再导入。",
+      "fileTooLarge": "该文件超过 {{maxSizeMiB}} MiB 素材上限，无法复制到本地素材库。",
       "openFile": "无法打开文件：{{error}}",
       "pickFailed": "无法导入文件：{{error}}"
     },
@@ -803,7 +905,8 @@
     },
     "clear": "清空",
     "cloudSync": {
-      "source": "云同步"
+      "source": "云同步",
+      "syncing": "正在同步…"
     },
     "crashFollowUp": {
       "source": "Drifting"
@@ -837,6 +940,21 @@
       "minutesAgo": "{{count}} 分钟前"
     },
     "title": "通知"
+  },
+  "paperSync": {
+    "failing": "云同步失败",
+    "notStarted": "同步没能启动",
+    "notStartedDetail": "正文仍保存在本机。",
+    "offline": "网络暂不可用",
+    "offlineDetail": "你可以继续在本地写作。",
+    "openSettings": "打开设置",
+    "quota": "Hosted 存储已满",
+    "reauth": "登录已过期",
+    "reauthDetail": "请重新登录同一账号。",
+    "retry": "重试",
+    "retrying": "暂时未能完成同步",
+    "retryingDetail": "正文已保存在本机，会自动重试。",
+    "signIn": "重新登录"
   },
   "plotGrid": {
     "addColumnShort": "列",
@@ -1076,10 +1194,15 @@
     "filters": {
       "all": "全部"
     },
+    "groupBy": {
+      "flat": "不分组",
+      "target": "按位置"
+    },
     "groups": {
       "deleted": "已删除",
       "floating": "未挂载"
     },
+    "newComment": "新建批注",
     "scopes": {
       "current": "当前"
     },
@@ -1088,7 +1211,6 @@
   "rightSidebar": {
     "kickers": {
       "library": "全项目 · 素材库",
-      "review": "全项目 · 审阅",
       "stats": {
         "element": "本要素 · 详细统计",
         "material": "这份素材 · 详细统计",
@@ -1097,17 +1219,37 @@
       }
     },
     "stats": {
+      "averagePerChapter": "平均每章",
+      "bookOverview": "全书概览",
+      "chapterLengthRhythm": "章节长度节奏",
+      "completion": "完成度",
+      "created": "创建",
       "dialogueRatio": "对白比",
+      "dimensions": "尺寸",
+      "discardedParen": "（弃用 {{count}}）",
+      "embeddedMaterials": "嵌入的素材",
+      "fileSize": "大小",
+      "fileType": "格式",
+      "longestWithWords": "最长 · {{title}}（{{words}}字）",
+      "materialCoordinates": "素材坐标",
+      "materialFile": "文件",
       "name": "名称",
+      "openComments": "未解决的批注与 TODO",
       "paragraphSentence": "段落 / 句",
       "paragraphSentenceValue": "{{paragraphs}} 段 · {{sentences}} 句",
       "recent": "最近",
+      "references": "引用",
+      "shortestWithWords": "最短 · {{title}}（{{words}}字）",
       "snapshotButton": "历史快照…",
+      "statusCount": "{{status}} {{count}} 章",
       "storyline": "故事线",
+      "thisChapterElements": "本章要素",
+      "unappearedElements": "未出场要素",
       "updated": "更新",
       "wordRhythm": "字数 · 节奏",
       "wordsValue": "{{count}} 字",
-      "writingProgress": "写作进度"
+      "writingProgress": "写作进度",
+      "writtenTarget": "已写 / 目标"
     },
     "status": {
       "draft": "草稿"
@@ -1131,6 +1273,7 @@
       "emailTeam": "写信给团队",
       "engine": "引擎",
       "feedback": "反馈…",
+      "fonts": "字体",
       "knownIssues": "已知问题",
       "knownIssuesDesc": "当前 Alpha 的已知限制",
       "license": "客户端许可证",
@@ -1151,6 +1294,14 @@
       "viewSource": "查看源码",
       "writeEmail": "写邮件"
     },
+    "account": {
+      "export_all": "导出关系型 Markdown",
+      "export_all_btn": "导出 Markdown ZIP",
+      "export_all_desc": "导出本机书库中的所有项目及其中的章节、构想、要素、注释和资料笔记；使用双向 Wiki 链接保留关系。不包含图片和 PDF 文件，也不能重新导入 Drifting。",
+      "export_done": "已导出 {{count}} 个 Markdown 文档。",
+      "export_failed": "导出失败：{{error}}",
+      "exporting": "正在导出…"
+    },
     "agent": {
       "chatConfigDesc": "服务商、模型与推理强度在右栏 Agent 输入框的配置菜单里选；密钥和 ChatGPT 订阅在「模型与 API」里管理。",
       "effortOptions": {
@@ -1168,6 +1319,7 @@
         "args": "参数（每行一个）",
         "command": "可执行文件绝对路径",
         "cwd": "工作目录绝对路径（可选）",
+        "deleteConfirm": "删除 MCP 服务器“{{name}}”？它的持续授权也会被撤销。",
         "disable": "停用",
         "editTitle": "编辑 MCP 服务器",
         "empty": "当前项目还没有 MCP 服务器。",
@@ -1177,6 +1329,7 @@
         "noProject": "打开一个项目后配置 MCP。",
         "notChecked": "尚未连接",
         "policy": {
+          "askWrite": "写入 · 询问",
           "disabled": "禁用"
         },
         "publicEnv": "公开环境变量（每行 NAME=value）",
@@ -1219,7 +1372,34 @@
       "unlimited": "无限制",
       "unlimitedHint": "「无限制」不设模型调用次数上限，你可以手动停止本轮。"
     },
+    "agentMemory": {
+      "title": "项目记忆"
+    },
+    "agentUsage": {
+      "all": "累计",
+      "clearConfirm": "清空全部对话历史？将移除本项目的 {{count}} 条 Agent 对话。",
+      "clearHistory": "清空历史",
+      "conversationsTurns": "对话 / 轮次",
+      "deleteConversation": "删除这条对话",
+      "history": "对话历史",
+      "historyDesc": "本项目的所有 Agent 对话。删除为软删除，会与右栏「历史」同步移除，不影响其它项目。",
+      "month": "本月",
+      "noHistory": "还没有对话 — 给 Agent 发一条消息试试。",
+      "noProjectHistory": "打开一个项目后管理其对话历史。",
+      "noProjectUsage": "打开一个项目后查看其 Agent 用量。",
+      "tokenCard": "{{scope}} Token",
+      "untitled": "未命名",
+      "usage": "用量",
+      "usageDesc": "本项目里 Agent 用了多少 token。统计自每轮返回的用量（输入含缓存读取），按本月 / 累计两个口径查看。"
+    },
     "appearance": {
+      "accent": "强调色",
+      "accent_color": "界面强调色",
+      "accent_color_desc": "用于按钮、焦点与活动状态，不影响编辑器光标颜色。",
+      "accent_reset": "恢复默认",
+      "agent_edit_reveal": "改动 reveal 动画",
+      "agent_edit_reveal_desc": "逐字展示 Agent 对正文和字段的修改，以及在其他编辑器里改过的章节和构想。关闭后直接显示结果，未读改动标记保留到看过或点击标记后。",
+      "animations": "动效与过渡",
       "dark": "深色",
       "guides": "引导",
       "interface_text_large": "较大",
@@ -1277,9 +1457,51 @@
       "auto_element_link_desc": "输入时自动识别已存在的要素名称（如人物、地点），并链接到对应页面。",
       "auto_immersive": "打字时自动沉浸",
       "auto_immersive_desc": "开始写正文就收起侧栏与工具；按 Esc 或点正文以外的地方回来。",
+      "caret_color": "光标颜色",
+      "caret_color_desc": "选择正文输入光标的颜色。",
+      "entity_link_band_style": "Entity Link 色带样式",
+      "entity_link_band_style_desc": "使用连续的淡色色带，或文字下方一行类似省略号的细点。",
+      "entity_link_band_style_dots": "细点",
+      "entity_link_band_style_wash": "连续色带",
+      "entity_link_highlight": "Entity Link 高亮方式",
+      "entity_link_highlight_band": "色带",
+      "entity_link_highlight_both": "两者都有",
+      "entity_link_highlight_desc": "选择用色带、文字变色，或两者同时标记实体链接；也适用于悬停时的高亮。",
+      "entity_link_highlight_text": "变色",
+      "entity_link_kind_category": "类目",
+      "entity_link_kind_chapter": "章节",
+      "entity_link_kind_drift": "构想",
+      "entity_link_kind_element": "要素",
+      "entity_link_kind_patch": "补丁",
+      "entity_link_kind_storyline": "故事线",
+      "entity_link_style": "Entity Link 高亮",
+      "entity_link_style_contextual": "随归属",
+      "entity_link_style_desc": "选择正文实体链接使用归属色、按实体类型统一配色、仅悬停时显示归属色，或保持正文文字颜色并显示色带。",
+      "entity_link_style_hover": "仅 Hover",
+      "entity_link_style_kind": "按类型",
+      "entity_link_style_prose": "正文",
       "flow": "书写体验",
+      "font_error_empty": "这个字体文件是空的。",
+      "font_error_format": "仅支持 TTF、OTF、WOFF 或 WOFF2 字体文件。",
+      "font_error_invalid": "无法解析这个字体文件，请确认它是有效的 Regular 或 Variable Font。",
+      "font_error_size": "字体文件不能超过 64 MB。",
+      "font_import": "导入字体",
+      "font_import_done": "字体已保存在本机并应用到创作内容。",
+      "font_import_help": "支持 TTF、OTF、WOFF、WOFF2；可导入 Regular 或 Variable Font，最大 64 MB。",
+      "font_remove": "移除",
+      "font_remove_done": "已移除应用内保存的字体副本。",
+      "font_replace": "替换",
+      "font_scope_desc": "作用于章节正文、实体标题与摘要、实体长文、字段值、补丁和引用内容，以及排版预览。UI、侧栏、弹窗与节点卡片始终使用统一无衬线字体；字体选择只保存在本机，不属于作品同步数据。",
       "font_size": "字号",
       "font_size_desc": "编辑视图字号；导出稿件不受影响。",
+      "font_source": "创作内容字体",
+      "font_system_custom": "系统字体",
+      "font_system_manual_placeholder": "例如：霞鹜文楷",
+      "font_system_mono": "系统等宽",
+      "font_system_placeholder": "选择系统字体",
+      "font_system_sans": "系统无衬线",
+      "font_system_serif": "系统衬线",
+      "font_use": "使用",
       "indent": "段首缩进",
       "indent_desc": "仅编辑视图。导出时按稿件格式独立设定。",
       "indent_none": "无",
@@ -1296,6 +1518,12 @@
       "preview_p1": "沉默在两人之间蔓延，像潮水漫过礁石。她终于开口，声音轻得几乎被海风吹散，落在他听不真切的地方。海面上最后一缕光正缓缓收拢，把两人的影子拉得很长。",
       "preview_p2": "“你还会回来吗？”他没有立刻回答，只是望着那轮渐渐沉入海平线的夕阳，许久才轻轻点头。可那点头里有太多迟疑，连他自己也分不清是承诺，还是不忍。",
       "reset_style": "还原推荐样式",
+      "tab_indent": "Tab 缩进",
+      "tab_indent_desc": "按 Tab 给段落整体左缩进一级的宽度；Shift+Tab 退回。",
+      "text_wrap": "换行方式",
+      "text_wrap_desc": "稳定换行尽量填满每行，编辑后文时保持前文断行；优化排版会调整整段的断行位置。立即生效并保存在本机。",
+      "text_wrap_pretty": "优化排版",
+      "text_wrap_stable": "稳定换行",
       "typesetting": "排版",
       "typewriter_mode": "打字机模式",
       "typewriter_mode_desc": "输入或移动光标时，让当前正文行稳定停在视口中的固定位置；只影响编辑视图。",
@@ -1331,19 +1559,37 @@
       "connect_errors": {
         "cancelled": "已取消。"
       },
+      "crop_confirm": "使用此头像",
+      "crop_description": "拖动图片或使用方向键调整位置，再调整缩放。",
+      "crop_title": "调整头像",
+      "crop_zoom": "缩放",
       "current_password": "当前密码",
       "description": "正文始终先保存在本机。连接账号后，在你的设备之间同步项目。",
+      "disconnect": "断开同步",
+      "disconnect_anyway": "仍然断开",
+      "disconnect_description": "先把本机还没上传的改动传完，再断开。本地项目和云端副本都会保留。",
+      "disconnect_now": "不等了，直接断开",
+      "disconnect_unuploaded": "本机还有 {{count}} 条改动没传上去，断开后它们只留在这台 Mac 上。",
       "display_name": "昵称",
+      "enabled": "已连接托管同步",
+      "last_synced": "上次完成同步：{{time}}",
       "library_switch_failed": "没能切换书库",
       "new_password": "新密码",
       "no_account": "尚未登录",
+      "not_started": "同步没能启动；正文仍保存在本机，重新打开 Drifting 会再试一次。",
       "password_description": "8–128 个字符。",
       "password_saved": "密码已修改，其他设备需要重新登录。",
       "password_sessions": "修改密码后，其他设备需要重新登录，本机保持登录。",
       "password_title": "密码",
+      "pause": "暂停",
+      "paused": "同步已暂停",
+      "pending": "正在同步或等待同步完成。",
       "profile_saved": "资料已保存。",
       "profile_title": "个人资料",
+      "quota_blocked": "Hosted 存储已满，有附件无法上传，这个项目暂时无法继续同步。删除不需要的附件或项目后会自动恢复；本地内容不受影响。",
       "remove_avatar": "移除",
+      "resume": "继续同步",
+      "retrying": "暂时未能完成同步；正文已保存在本机，会自动重试。",
       "save_profile": "保存资料",
       "session": {
         "checking": "正在检查账号连接…",
@@ -1354,6 +1600,10 @@
       },
       "sign_in": "登录 / 注册",
       "sign_out": "退出账号",
+      "storage": "Hosted 存储",
+      "storage_description": "已用 {{used}} / {{quota}}。附件计入用量，正文和结构不受限制。",
+      "sync_now": "立即同步",
+      "sync_title": "托管同步",
       "title": "账号与托管同步",
       "working": "正在处理…"
     },
@@ -1427,6 +1677,7 @@
       "diagnosticsCopied": "已复制脱敏诊断摘要。",
       "diagnosticsCopyFailed": "无法写入剪贴板，可能没有剪贴板权限。",
       "diagnosticsDesc": "复制版本、平台、功能可用性、同步计数/错误类别与更新状态；不含稿件、凭据、项目标识或绝对路径，也不会自动上传。",
+      "fullPolicy": "查看完整隐私政策",
       "noteLocal": "这个构建不连接 Drifting 服务端，作品只保存在这台设备上。AI 与语音转写请求从本机直接发往你选择的服务商，适用该服务商的数据与训练条款；你添加的远程 MCP 扩展也会访问网络。"
     },
     "rail": {
@@ -1464,6 +1715,8 @@
         "restoring": "正在恢复…",
         "summary": "共 {{projects}} 个项目、{{assets}} 个素材文件，{{size}}。"
       },
+      "import_files": "导入",
+      "import_files_desc": "从 Word（.docx）、Markdown 或纯文本导入。",
       "local_data": "本地数据",
       "local_sub": "无需 Drifting 账号，也不连接托管云服务；你可以随时导出一份可阅读的副本。",
       "local_title": "作品只保存在这台设备上。",
@@ -1471,13 +1724,20 @@
         "allProjects": "所有项目",
         "allProjectsUnset": "所有项目 · 未选择位置",
         "choose": "选择文件夹",
+        "copied": "已复制路径",
+        "copy": "复制路径",
+        "error": "更新失败",
         "offHint": "已关闭：项目不再写出 Markdown，外部修改也不再合并回来。已有文件留在原处。",
         "offTitle": "关闭 Markdown 文件夹？",
+        "pending": "正在更新",
+        "ready": "已更新",
+        "refresh": "立即更新",
         "reveal": "在访达中打开",
         "title": "Markdown 文件夹",
         "turnOff": "关闭 Markdown 文件夹",
         "turnOn": "开启"
-      }
+      },
+      "select_file": "选择文件…"
     },
     "update": {
       "channel_desc": "Apple Silicon · macOS 13+",
@@ -1501,6 +1761,49 @@
       "server_error": "更新服务暂时出了问题，稍后再试。当前版本照常可用。",
       "unavailable": "这个构建没有内置更新签名公钥，不能检查更新。从 GitHub Releases 下载的正式版可以。"
     }
+  },
+  "shell_ui": {
+    "add_fact": "添加字段",
+    "back_plain": "返回",
+    "empty_book_hint": "新建一个条目并写下正文，即可在这里通览全书。",
+    "empty_book_title": "这里还没有正文内容",
+    "fact_key_placeholder": "名称（如：副标题、体裁）",
+    "fact_value_placeholder": "内容",
+    "find_results": "查找结果",
+    "hosted_purge_note": "永久删除将同步清除本机与所有云端设备上的副本，无法撤销。",
+    "hosted_trash_note": "将同时从本机与云端移除，30 天内可在「最近删除」中恢复。",
+    "menu_about": "关于 {{app}}",
+    "menu_bring_all_to_front": "前置全部窗口",
+    "menu_close_window": "关闭窗口",
+    "menu_copy": "拷贝",
+    "menu_cut": "剪切",
+    "menu_edit": "编辑",
+    "menu_hide": "隐藏 {{app}}",
+    "menu_hide_others": "隐藏其他",
+    "menu_minimize": "最小化",
+    "menu_paste": "粘贴",
+    "menu_quit": "退出 {{app}}",
+    "menu_redo": "重做",
+    "menu_select_all": "全选",
+    "menu_services": "服务",
+    "menu_settings": "设置…",
+    "menu_show_all": "全部显示",
+    "menu_undo": "撤销",
+    "menu_zoom": "缩放",
+    "new_entry_plain": "新建条目",
+    "open_whole_book": "通览全书",
+    "pick_relation_target": "正在从「{{name}}」连线 — 点击目标条目（按 Esc 取消）",
+    "preparing_samples": "正在准备示例项目…",
+    "project_facts": "作品设定",
+    "search_hint": "输入关键词搜索整个项目",
+    "search_placeholder": "搜索标题、正文、字段与素材…",
+    "swap_split": "互换左右分栏",
+    "templates_plain": "模板",
+    "toggle_comment_marks": "显示批注砂痕",
+    "toggle_entity_links": "启用条目链接",
+    "unpin_island": "取消固定位置",
+    "unsplit": "关闭分栏",
+    "words_short": "{{count}} 字"
   },
   "sidebarLayout": {
     "split": "恢复双栏"
@@ -1526,7 +1829,8 @@
     "edge": {
       "hideKind": "隐藏「{{label}}」",
       "showKind": "显示「{{label}}」"
-    }
+    },
+    "spread": "打散"
   },
   "storylineEditor": {
     "filters": {
@@ -1576,6 +1880,7 @@
       "relayout": "重新排布"
     },
     "reset": "重置",
+    "startEdgeFromElement": "从此要素新建关联",
     "uncategorized": "未分类",
     "unnamedCategory": "未命名分类"
   },
@@ -1594,7 +1899,10 @@
     "color": "颜色",
     "conflict": "模板已在别处更改",
     "date": "日期",
+    "default_prose": "默认正文样板",
+    "default_prose_hint": "从此模板新建条目时自动填入的初始正文",
     "default_template": "默认模板",
+    "default_value": "默认值",
     "description": "说明",
     "display": "显示",
     "entity_ref": "条目引用",
@@ -1722,9 +2030,15 @@
     "originTask": "清单",
     "regionPlace": "框选",
     "regionPlacePaged": "第 {{page}} 页",
+    "retarget": "改绑目标…",
+    "sortNewest": "最新优先",
+    "sortOldest": "最早优先",
+    "sortPosition": "按位置",
     "statusOpen": "未解决",
     "statusResolved": "已解决",
+    "unbindTarget": "解除绑定",
     "unlocated": "找不到原处",
+    "viewOriginal": "查看原文",
     "wholeFile": "整个文件",
     "writeComment": "写批注"
   },
@@ -1749,6 +2063,9 @@
     "railAgent": "Agent"
   },
   "v3Shell": {
+    "agent_unread": "Agent 未读改动",
+    "aliases_add": "添加别名…",
+    "aliases_remove": "移除别名",
     "attachedEntries": "挂在这里的条目",
     "belongTo": "归属到",
     "board": "看板",
@@ -1759,7 +2076,9 @@
     "editTemplate": "编辑模板",
     "entries": "条目",
     "entryUntemplated": "条目",
+    "entry_count": "{{count}} 条",
     "expandTimeline": "展开故事线时间线",
+    "external_unread": "外部未读改动",
     "grid": "网格",
     "hideOutline": "隐藏目录",
     "islands": "岛屿",
@@ -1802,8 +2121,10 @@
     "colorValue": "颜色值",
     "deleteView": "删除视图",
     "detachEntry": "解除条目",
+    "empty_book_view": "请先在当前视图中放置条目",
     "laneActions": "泳道操作",
     "laneTrack": "泳道 {{name}}",
+    "locate_current": "定位到当前条目",
     "members": "{{count}} 个成员",
     "moveDown": "下移",
     "moveUp": "上移",
@@ -1811,6 +2132,7 @@
     "newEntryInLane": "新建条目",
     "newLane": "新建泳道",
     "newView": "新建视图",
+    "pin_color": "颜色",
     "placeEntry": "放入条目",
     "placementActions": "摆放操作",
     "removeEntry": "移出泳道",
@@ -1819,9 +2141,12 @@
     "renameView": "重命名视图",
     "resize": "调整长度",
     "ruler": "刻度标尺",
+    "section_create": "新建",
+    "section_existing": "加入已有条目",
     "selectLane": "选择泳道",
     "setActTrack": "设为幕轨道 · {{name}}",
     "unsetActTrack": "取消幕轨道 · {{name}}",
+    "view_actions": "视图操作",
     "views": "视图"
   },
   "v3Transfer": {
@@ -1836,8 +2161,11 @@
     "alignRight": "靠右",
     "allFolders": "全部",
     "clearField": "清除",
+    "collapseAll": "全部收起",
     "currentSection": "当前",
     "empty": "无文件",
+    "empty_trash": "清空",
+    "expandAll": "全部展开",
     "fileCount_other": "{{count}} 个文件",
     "findFile": "找文件",
     "itemCount_other": "{{count}} 个",
@@ -1927,6 +2255,16 @@
     "direction": "方向",
     "otherEntry": "另一个条目",
     "relation": "关系"
+  },
+  "v5Stats": {
+    "childrenAggregate": "下级聚合",
+    "entryCoordinates": "条目坐标",
+    "groupRhythm": "分组节奏",
+    "inboundLinks": "被引用",
+    "outboundLinks": "引用其他",
+    "projectOverview": "项目概况",
+    "templatesTotal": "模板数",
+    "unreferencedNote": "正文尚未引用"
   },
   "v5Tour": {
     "agent": {

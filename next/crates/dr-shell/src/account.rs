@@ -107,6 +107,18 @@ pub fn display_name(cx: &App) -> SharedString {
         .unwrap_or_else(|| t(cx, keys::common::LOCAL))
 }
 
+/// Whether the user is currently signed into a Hosted account.
+pub fn is_signed_in(cx: &App) -> bool {
+    current_info(cx).signed_in
+}
+
+/// Optional live status line contributed by `dr-view-account` (e.g. cloud sync state).
+pub fn status_line(cx: &App) -> Option<SharedString> {
+    current_info(cx)
+        .status_line
+        .filter(|s| !s.trim().is_empty())
+}
+
 /// Explicit profile name of the signed-in account (`None` when signed out or
 /// when the account has no profile name set and [`display_name`] falls back to
 /// the email `@` prefix).
@@ -312,17 +324,20 @@ pub fn menu(
             let value = modes[i.min(2)];
             Settings::update(cx, |f| f.set(registry::THEME, value.into(), None).ok());
         });
-    let languages = Select::new(
-        child("language"),
-        Locale::ALL
-            .iter()
-            .map(|l| Choice::new(Icon::Wen, l.native_name()))
-            .collect(),
-        locale_index,
-    )
-    .on_change(|i, _, cx| {
-        let code = Locale::ALL[i.min(Locale::ALL.len() - 1)].code();
-        Settings::update(cx, |f| f.set(registry::UI_LOCALE, code.into(), None).ok());
+    let show_language = id != "shelf-account";
+    let languages = show_language.then(|| {
+        Select::new(
+            child("language"),
+            Locale::ALL
+                .iter()
+                .map(|l| Choice::plain(l.native_name()))
+                .collect(),
+            locale_index,
+        )
+        .on_change(|i, _, cx| {
+            let code = Locale::ALL[i.min(Locale::ALL.len() - 1)].code();
+            Settings::update(cx, |f| f.set(registry::UI_LOCALE, code.into(), None).ok());
+        })
     });
     let to_feedback = close.clone();
     let feedback = glass::glass_box(
@@ -399,7 +414,28 @@ pub fn menu(
         })
         .child(row(Icon::ArrowOut, label, None))
     });
+    let to_keys = close.clone();
+    let shortcuts = glass::glass_box(
+        child("shortcuts"),
+        GlassKind::Hidden,
+        Mode::default(),
+        false,
+        Spec::new(Tone::Clear, radius::MENU_ROW),
+        window,
+        cx,
+    )
+    .cursor_pointer()
+    .on_click(move |_, window, cx| {
+        to_keys(window, cx);
+        crate::settings::open_section(registry::Section::Keys, window, cx);
+    })
+    .child(row(Icon::Zi, t(cx, keys::settings::rail::KEYS), None));
     let to_settings = close.clone();
+    let settings_hint = if cfg!(target_os = "macos") {
+        "⌘,"
+    } else {
+        "Ctrl+,"
+    };
     let settings = glass::glass_box(
         child("settings"),
         GlassKind::Hidden,
@@ -417,7 +453,15 @@ pub fn menu(
     .child(row(
         Icon::DharmaWheel,
         t(cx, keys::v3_shell::SETTINGS),
-        None,
+        Some(
+            div()
+                .flex_none()
+                .font_role(Role::Index)
+                .type_px(s.caption, s.line_caption)
+                .text_color(p.muted().solid())
+                .child(settings_hint)
+                .into_any_element(),
+        ),
     ));
     let account_action = info.action.map(|act| {
         let to_act = close.clone();
@@ -440,15 +484,8 @@ pub fn menu(
         })
         .child(row(Icon::Torii, act.label, None))
     });
-    let menu = Menu::new(child("menu"))
-        .exactly(theme_width.ceil().max(MenuWidth::Wide.px()))
-        .child(header)
-        .child(row(
-            theme_icon,
-            theme_label,
-            Some(themes.into_any_element()),
-        ))
-        .child(row(
+    let language_row = languages.map(|languages| {
+        row(
             Icon::Wen,
             t(cx, keys::user_menu::LANGUAGE),
             Some(
@@ -458,10 +495,21 @@ pub fn menu(
                     .child(languages)
                     .into_any_element(),
             ),
+        )
+    });
+    let menu = Menu::new(child("menu"))
+        .exactly(theme_width.ceil().max(MenuWidth::Wide.px()))
+        .child(header)
+        .child(row(
+            theme_icon,
+            theme_label,
+            Some(themes.into_any_element()),
         ))
+        .children(language_row)
         .children(import)
         .children(export)
         .child(feedback)
+        .child(shortcuts)
         .child(settings)
         .children(account_action);
     let place = match anchor {

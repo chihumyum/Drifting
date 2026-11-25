@@ -46,6 +46,7 @@ pub fn register(cx: &mut App) {
         let refresh = view.downgrade();
         let reveal = view.downgrade();
         let scroll = view.downgrade();
+        let ticks = view.downgrade();
         Rendered::new(view)
             .focus(focus)
             .on_refresh(move |book, cx| {
@@ -66,6 +67,15 @@ pub fn register(cx: &mut App) {
                         v.set_page_scroll(page, cx);
                     })
                     .ok();
+            })
+            .on_tick_strip(move |_, cx| {
+                let module = ticks.upgrade()?;
+                let editor = module.read(cx).editor()?;
+                let prose = editor.read(cx).editor().clone();
+                if !prose.read(cx).has_ticks() {
+                    return None;
+                }
+                Some(prose.update(cx, |p, cx| p.tick_strip(cx)))
             })
     });
 }

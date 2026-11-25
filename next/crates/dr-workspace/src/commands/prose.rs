@@ -63,10 +63,89 @@ pub struct ParagraphInfo {
     /// resolved.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub checked: Option<bool>,
+    /// Rich Markdown rendering of the paragraph when it contains inline marks
+    /// (bold/italic/code/strike/links), block formatting (quote/callout/code block),
+    /// or embeds; omitted for plain text paragraphs to save tokens.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub markdown: Option<String>,
 }
 
 fn is_zero(n: &u32) -> bool {
     *n == 0
+}
+
+fn paragraph_markdown(p: &dr_doc::prose::Paragraph) -> Option<String> {
+    let has_rich_block =
+        p.attrs.quote || p.attrs.rule || p.attrs.code_block.is_some() || p.attrs.callout.is_some();
+    let has_rich_inline = p.runs.iter().any(|r| {
+        r.marks.bold
+            || r.marks.italic
+            || r.marks.strike
+            || r.marks.code
+            || r.marks.link.is_some()
+            || r.marks.embed.is_some()
+    });
+    if !has_rich_block && !has_rich_inline {
+        return None;
+    }
+    if p.attrs.rule {
+        return Some("---".to_owned());
+    }
+    let mut inline = String::new();
+    for run in &p.runs {
+        if let Some(embed) = &run.marks.embed {
+            inline.push_str(&format!("[embed:{embed}]"));
+            continue;
+        }
+        let mut piece = run.text.clone();
+        if piece.is_empty() {
+            continue;
+        }
+        if run.marks.code {
+            piece = format!("`{piece}`");
+        }
+        if run.marks.bold {
+            piece = format!("**{piece}**");
+        }
+        if run.marks.italic {
+            piece = format!("*{piece}*");
+        }
+        if run.marks.strike {
+            piece = format!("~~{piece}~~");
+        }
+        if let Some(url) = &run.marks.link {
+            piece = format!("[{piece}]({url})");
+        }
+        inline.push_str(&piece);
+    }
+    if let Some(lang) = &p.attrs.code_block {
+        return Some(format!("```{lang}\n{inline}\n```"));
+    }
+    let mut prefix = String::new();
+    if let Some(callout) = &p.attrs.callout {
+        prefix.push_str(&format!("> [!{}] ", callout.to_uppercase()));
+    } else if p.attrs.quote {
+        prefix.push_str("> ");
+    }
+    if let Some(heading) = p.attrs.heading {
+        for _ in 0..heading.level() {
+            prefix.push('#');
+        }
+        prefix.push(' ');
+    } else if let Some(list) = &p.attrs.list {
+        for _ in 0..p.attrs.list_level {
+            prefix.push_str("  ");
+        }
+        match list {
+            ListKind::Bullet => prefix.push_str("- "),
+            ListKind::Ordered => prefix.push_str("1. "),
+            ListKind::Task => {
+                prefix.push_str(if p.attrs.checked { "- [x] " } else { "- [ ] " });
+            }
+            ListKind::Other(_) => prefix.push_str("- "),
+        }
+    }
+    Some(format!("{prefix}{inline}"))
 }
 
 impl ParagraphInfo {
@@ -84,6 +163,7 @@ impl ParagraphInfo {
                 0
             },
             checked: (list == Some(&ListKind::Task)).then_some(p.attrs.checked),
+            markdown: paragraph_markdown(p),
         }
     }
 }

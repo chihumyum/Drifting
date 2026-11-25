@@ -23,6 +23,7 @@ pub mod range;
 pub mod reorder;
 pub mod select;
 pub mod toggles;
+pub mod tooltip;
 
 pub use button::{Button, IconButton, PanelIconButton, Seat, Variant};
 pub use cell::SandCell;
@@ -36,3 +37,4 @@ pub use overlay::{Align, Dialog, Layer, Place, float, place};
 pub use range::{NumberField, Range};
 pub use select::{Choice, Select};
 pub use toggles::{Chip, ScopeToggle, Switch};
+pub use tooltip::{Tooltip, tooltip, tooltip_with_shortcut};

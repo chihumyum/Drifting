@@ -56,6 +56,9 @@ actions!(
         /// Settings → 本地数据 「选择备份…」: replaces the library with a
         /// backup (M41, `dr-view-transfer` takes it).
         RestoreLibrary,
+        /// Settings → 本地数据 「导出 Markdown ZIP」: exports every live project
+        /// as a relational Markdown archive with Wiki links (`dr-view-transfer` takes it).
+        ExportAllRelationalMarkdown,
         /// Esc: closes the topmost layer (a popover, Settings, a panel fill).
         Dismiss,
     ]

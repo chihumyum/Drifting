@@ -34,12 +34,14 @@ use super::{
 use crate::{
     actions::left,
     pages::PageViewHost,
-    strings::{t, tf, tp},
+    strings::{t, tf},
 };
 use dr_i18n::keys;
 use dr_ui::{
     Theme, anim,
-    components::{Button, DraggedPill, IconButton, Pill, Segmented, overlay},
+    components::{
+        Button, DraggedPill, IconButton, PanelIconButton, Pill, SandCell, Segmented, overlay,
+    },
     fonts::Role,
     sand::{self, Icon},
     style::DrStyled,
@@ -65,12 +67,20 @@ struct TabDrag {
 
 pub struct Sidebar {
     host: PageViewHost,
+    /// Second pane in a dual-pane left sidebar: independent tab selection and
+    /// distinct element-ID prefix so GPUI never sees colliding IDs.
+    secondary: bool,
     selected: Option<String>,
     /// The selection the project remembers has been taken (once a book is
     /// open).
     restored: bool,
     /// Managing the Tabs, since when (the jiggle's clock).
     managing: Option<Instant>,
+    /// Browsing templates inline inside the left sidebar (Smoke #11/#12).
+    browsing_templates: bool,
+    /// Whether the workspace offers a split button / close-pane button here.
+    can_split: bool,
+    is_split: bool,
     /// Where something dragged over the row would land (an index into the
     /// Tabs), and the Tab being dragged.
     slot: Option<usize>,
@@ -101,13 +111,25 @@ pub struct Sidebar {
 
 impl Sidebar {
     pub fn new(host: PageViewHost, cx: &mut Context<Self>) -> Self {
+        Self::new_with_role(host, false, cx)
+    }
+
+    pub fn new_secondary(host: PageViewHost, cx: &mut Context<Self>) -> Self {
+        Self::new_with_role(host, true, cx)
+    }
+
+    fn new_with_role(host: PageViewHost, secondary: bool, cx: &mut Context<Self>) -> Self {
         let owner = cx.entity_id();
         let structure = cx.new(|_| Structure::new(host.clone(), owner));
         Self {
             host,
+            secondary,
             selected: None,
             restored: false,
             managing: None,
+            browsing_templates: false,
+            can_split: false,
+            is_split: false,
             slot: None,
             dragging: None,
             focus: cx.focus_handle(),
@@ -122,6 +144,26 @@ impl Sidebar {
             filled_displays: BTreeMap::new(),
 
             displays: BTreeMap::new(),
+        }
+    }
+
+    fn id_of(&self, base: &str) -> SharedString {
+        if self.secondary {
+            SharedString::from(format!("sec-{base}"))
+        } else {
+            SharedString::from(base.to_owned())
+        }
+    }
+
+    pub fn is_browsing_templates(&self) -> bool {
+        self.browsing_templates
+    }
+
+    pub fn set_pane_controls(&mut self, can_split: bool, is_split: bool, cx: &mut Context<Self>) {
+        if self.can_split != can_split || self.is_split != is_split {
+            self.can_split = can_split;
+            self.is_split = is_split;
+            cx.notify();
         }
     }
 
@@ -156,13 +198,23 @@ impl Sidebar {
         }
     }
 
-    /// Esc: closes the structure's floating panel. Whether one was open.
+    /// Esc: closes the structure's floating panel or an active filled canvas's
+    /// inner overlay (relation mode / sheet / peek). Returns whether one was open.
     pub fn close_structure_panel(&mut self, cx: &mut Context<Self>) -> bool {
-        self.in_structure
-            && self
+        if self.in_structure {
+            return self
                 .template_structure
                 .as_ref()
-                .is_some_and(|structure| structure.update(cx, |view, cx| view.close_panel(cx)))
+                .is_some_and(|structure| structure.update(cx, |view, cx| view.close_panel(cx)));
+        }
+        if self.filled
+            && let Some(id) = self.selected.as_deref()
+            && let Some((_, _, part, _)) = self.filled_displays.get(id)
+            && let Some(close) = &part.close_panel
+        {
+            return close(cx);
+        }
+        false
     }
 
     pub fn leave_fill(&mut self, cx: &mut Context<Self>) {
@@ -247,14 +299,25 @@ impl Sidebar {
         if !self.restored
             && let Some(v) = self.host.book.v3()
         {
-            // Where the project was left (on any device); a Tab that is
-            // gone since goes to the first Tab, never having chosen one to
-            // 「全部」 (Tab prototype, 2026-11-15).
-            self.selected = match v.stored_tab.clone() {
-                Some(id) if tabs.contains(&id) => Some(id),
-                Some(_) => tabs.first().cloned(),
-                None => self.root_tab(),
-            };
+            if self.secondary {
+                // Secondary pane defaults to the next tab after the stored one
+                // so two panes immediately display distinct views.
+                let primary = v.stored_tab.as_deref();
+                self.selected = tabs
+                    .iter()
+                    .find(|id| Some(id.as_str()) != primary)
+                    .or_else(|| tabs.first())
+                    .cloned();
+            } else {
+                // Where the project was left (on any device); a Tab that is
+                // gone since goes to the first Tab, never having chosen one to
+                // 「全部」 (Tab prototype, 2026-11-15).
+                self.selected = match v.stored_tab.clone() {
+                    Some(id) if tabs.contains(&id) => Some(id),
+                    Some(_) => tabs.first().cloned(),
+                    None => self.root_tab(),
+                };
+            }
             self.restored = true;
         }
         if !self.selected.as_ref().is_some_and(|id| tabs.contains(id)) {
@@ -319,15 +382,18 @@ impl Sidebar {
             return;
         }
         self.selected = Some(id.into());
+        self.browsing_templates = false;
         self.leave_fill(cx);
         self.restored = true;
-        let stored = self
-            .host
-            .book
-            .v3()
-            .and_then(|v| v.project.selected_tab.clone());
-        if stored.as_deref() != Some(id) {
-            tabs::write(&self.host, "tab.select", json!({ "id": id }), |_, _| {}, cx);
+        if !self.secondary {
+            let stored = self
+                .host
+                .book
+                .v3()
+                .and_then(|v| v.project.selected_tab.clone());
+            if stored.as_deref() != Some(id) {
+                tabs::write(&self.host, "tab.select", json!({ "id": id }), |_, _| {}, cx);
+            }
         }
         cx.notify();
     }
@@ -658,7 +724,7 @@ impl Sidebar {
 
     /// The manage button at the row's end, pressed while managing.
     fn manage_button(&self, cx: &mut Context<Self>) -> AnyElement {
-        IconButton::new("v3-tab-manage", Icon::Bridges)
+        IconButton::new(self.id_of("v3-tab-manage"), Icon::Bridges)
             .label(t(cx, keys::v3_tabs::MANAGE))
             .selected(self.managing.is_some())
             .on_click(cx.listener(|this, _, window, cx| {
@@ -679,12 +745,14 @@ impl Sidebar {
         let Some(v) = self.host.book.v3() else {
             return div().into_any_element();
         };
+        let theme = Theme::of(window, cx);
+        let p = theme.palette;
         // The keyboard walks the row only in the column as it usually is.
         let keyed = !self.filled && !self.in_structure;
         let on_row = keyed && self.tab_focus.is_focused(window);
         let tabs = v.project.tabs.clone();
         let labels: Vec<SharedString> = tabs.iter().map(|t| self.name(t, cx)).collect();
-        let selected = if self.in_structure {
+        let selected = if self.in_structure || self.browsing_templates {
             tabs.len()
         } else {
             self.selected
@@ -700,9 +768,38 @@ impl Sidebar {
             .collect();
         let ids: Vec<String> = tabs.iter().map(|t| t.id.clone()).collect();
         let weak = cx.entity().downgrade();
+        let split_btn = (self.can_split && !self.filled && !self.secondary).then(|| {
+            let ws = self.host.workspace.clone();
+            Button::new(
+                self.id_of("v3-left-split"),
+                t(cx, keys::sidebar_layout::SPLIT),
+            )
+            .text()
+            .small()
+            .on_click(move |_, _, cx| {
+                let _ = ws.update(cx, |ws, cx| {
+                    ws.left.panes.split(&crate::workspace::LeftTab::ORDER);
+                    cx.notify();
+                });
+            })
+        });
+        let close_pane_btn = (self.is_split && !self.filled && self.secondary).then(|| {
+            let ws = self.host.workspace.clone();
+            IconButton::new(self.id_of("v3-left-close-pane"), Icon::Close)
+                .label(t(cx, keys::common::CLOSE))
+                .on_click(move |_, _, cx| {
+                    let _ = ws.update(cx, |ws, cx| {
+                        ws.left.panes.close_pane(crate::panes::PaneId::Secondary);
+                        cx.notify();
+                    });
+                })
+        });
         div()
-            .id("v3-tab-row")
-            .debug_selector(|| "v3-tab-row".into())
+            .id(self.id_of("v3-tab-row"))
+            .debug_selector({
+                let sel = self.id_of("v3-tab-row");
+                move || sel.to_string()
+            })
             .when(keyed, |el| {
                 el.track_focus(&self.tab_focus)
                     .key_context(crate::keymap::LEFT_TABS)
@@ -745,8 +842,11 @@ impl Sidebar {
                 // A row, not a block: a block stretches the Tabs to the
                 // strip's width, so nothing would be left over to scroll.
                 div()
-                    .id("v3-tab-strip")
-                    .debug_selector(|| "v3-tab-strip".into())
+                    .id(self.id_of("v3-tab-strip"))
+                    .debug_selector({
+                        let sel = self.id_of("v3-tab-strip");
+                        move || sel.to_string()
+                    })
                     .flex_1()
                     .min_w_0()
                     .flex()
@@ -754,7 +854,7 @@ impl Sidebar {
                     .items_center()
                     .overflow_x_scroll()
                     .child(
-                        Segmented::new("v3-level-tabs", labels, selected)
+                        Segmented::new(self.id_of("v3-level-tabs"), labels, selected)
                             .font(Role::Structure)
                             .faint(faint)
                             .keyboard(on_row.then_some(selected))
@@ -775,13 +875,32 @@ impl Sidebar {
                             }),
                     ),
             )
+            // Smoke #6/#10: clearly separate fill layout switcher from project tabs.
             .children(controls.map(|controls| {
                 div()
-                    .id("v5-left-fill-controls")
+                    .id(self.id_of("v5-left-fill-controls"))
+                    .flex_none()
                     .max_w(relative(0.67))
-                    .overflow_x_scroll()
-                    .child(controls)
+                    .flex()
+                    .flex_row()
+                    .items_center()
+                    .gap(px(6.0))
+                    .child(div().w(px(0.5)).h(px(16.0)).bg(p.local_hairline()))
+                    .child(
+                        div()
+                            .id(self.id_of("v5-fill-layout-scroll"))
+                            .px(px(3.0))
+                            .py(px(1.0))
+                            .rounded(px(radius::SM))
+                            .bg(p.page.alpha(0.65))
+                            .border(px(0.5))
+                            .border_color(p.subtle_hairline())
+                            .overflow_x_scroll()
+                            .child(controls),
+                    )
             }))
+            .children(split_btn)
+            .children(close_pane_btn)
             .child(self.manage_button(cx))
             .into_any_element()
     }
@@ -810,19 +929,18 @@ impl Sidebar {
         let still = theme.reduce_motion;
         let mut probes = Vec::with_capacity(tabs.len());
         let mut wrap = div()
-            .id("v3-tab-wrap")
+            .id(self.id_of("v3-tab-wrap"))
             .flex_1()
             .min_w_0()
-            .pt(px(8.0))
             .flex()
             .flex_row()
             .flex_wrap()
             .items_center()
             .gap_x(px(4.0))
-            .gap_y(px(10.0));
+            .gap_y(px(8.0));
         let slot = || {
             div()
-                .id("v3-tab-slot")
+                .id(self.id_of("v3-tab-slot"))
                 .flex_none()
                 .w(px(SLOT_WIDTH))
                 .h(px(26.0))
@@ -835,29 +953,29 @@ impl Sidebar {
             if self.slot == Some(i) {
                 wrap = wrap.child(slot());
             }
-            let bounds = overlay::use_bounds(
-                SharedString::from(format!("v3-tab-bounds-{}", tab.id)),
-                window,
-                cx,
-            );
+            let bounds =
+                overlay::use_bounds(self.id_of(&format!("v3-tab-bounds-{}", tab.id)), window, cx);
             probes.push(bounds.clone());
+            // Smoke #7: hide the dragged chip in place instead of leaving a faint ghost.
+            if self.dragging.as_ref() == Some(&tab.id) {
+                continue;
+            }
             let name = self.name(tab, cx);
             let root = tab.mount == TabMount::Root;
             let on = self.selected.as_ref() == Some(&tab.id);
             let gone = tabs::is_gone(v, &tab.mount);
-            // Neighbours swing against each other, every third a little
-            // slower; under reduced motion the Tabs stand still.
+            // Smoke #7: gentle, unhurried jiggle; still under reduced motion.
             let (dx, dy) = if still {
                 (0.0, 0.0)
             } else {
-                let period = if i % 3 == 2 { 0.6 } else { 0.52 };
+                let period = if i % 3 == 2 { 0.84 } else { 0.72 };
                 let side = if i % 2 == 0 { 1.0 } else { -1.0 };
                 let a = (elapsed / period * TAU).sin() * side;
-                (0.8 * a, 0.35 * (elapsed / period * TAU).cos() * side)
+                (0.35 * a, 0.15 * (elapsed / period * TAU).cos() * side)
             };
             let id = tab.id.clone();
             let chip = div()
-                .id(SharedString::from(format!("v3-tab-chip-{}", tab.id)))
+                .id(self.id_of(&format!("v3-tab-chip-{}", tab.id)))
                 .relative()
                 .left(px(dx))
                 .top(px(dy))
@@ -902,11 +1020,11 @@ impl Sidebar {
                 );
             let remove = tab.id.clone();
             let badge = div()
-                .id(SharedString::from(format!("v3-tab-remove-{}", tab.id)))
+                .id(self.id_of(&format!("v3-tab-remove-{}", tab.id)))
                 .absolute()
-                .top(px(-6.0))
-                .right(px(-6.0))
-                .size(px(16.0))
+                .top(px(-5.0))
+                .right(px(-5.0))
+                .size(px(15.0))
                 .rounded_full()
                 .bg(p.desk.solid())
                 .border(px(0.5))
@@ -925,15 +1043,12 @@ impl Sidebar {
                 }));
             wrap = wrap.child(
                 div()
-                    .id(SharedString::from(format!("v3-tab-{}", tab.id)))
+                    .id(self.id_of(&format!("v3-tab-{}", tab.id)))
                     .relative()
                     .flex_none()
                     .child(overlay::probe(bounds))
                     .child(chip)
-                    .when(!root, |el| el.child(badge))
-                    .when(self.dragging.as_ref() == Some(&tab.id), |el| {
-                        el.opacity(0.3)
-                    }),
+                    .when(!root, |el| el.child(badge)),
             );
         }
         if self.slot == Some(tabs.len()) {
@@ -985,8 +1100,11 @@ impl Sidebar {
             }));
         let jiggling = !still;
         div()
-            .id("v3-tab-row")
-            .debug_selector(|| "v3-tab-row".into())
+            .id(self.id_of("v3-tab-row"))
+            .debug_selector({
+                let sel = self.id_of("v3-tab-row");
+                move || sel.to_string()
+            })
             .flex_shrink_0()
             .px_2()
             .pb_1()
@@ -995,7 +1113,7 @@ impl Sidebar {
             .items_start()
             .gap_1()
             .child(wrap)
-            .child(div().pt(px(6.0)).child(self.manage_button(cx)))
+            .child(self.manage_button(cx))
             .child(
                 canvas(
                     |_, _, _| (),
@@ -1173,65 +1291,251 @@ impl Sidebar {
         }
     }
 
-    /// The template collection is a summary with two entry points
-    /// (`W12Template`: 「16 个模板 · 88 个条目」).
-    fn templates(&self, window: &Window, cx: &mut Context<Self>) -> AnyElement {
-        let theme = Theme::of(window, cx);
-        let (count, entries) = self.host.book.v3().map_or((0, 0), |book| {
-            (
-                book.templates
-                    .iter()
-                    .filter(|template| template.deleted_at.is_none())
-                    .count(),
-                book.entries.len(),
-            )
+    /// Creates a new entry under the selected tab's entry (or root).
+    fn create_entry_here(&self, cx: &mut Context<Self>) {
+        let Some(v) = self.host.book.v3() else {
+            return;
+        };
+        let parent = self
+            .selected
+            .as_ref()
+            .and_then(|id| v.project.tabs.iter().find(|t| &t.id == id))
+            .and_then(|tab| match &tab.mount {
+                TabMount::Entry { entry } => Some(entry.clone()),
+                _ => None,
+            });
+        let template = parent
+            .as_deref()
+            .and_then(|pid| v.levels.get(pid))
+            .and_then(|lvl| lvl.settings.default_template.clone())
+            .filter(|tid| v.template(tid).is_some());
+        let title = t(cx, keys::v3_shell::UNTITLED_ENTRY).to_string();
+        let mut input = json!({
+            "title": title,
+            "parent": parent,
         });
-        let open = self.host.workspace.clone();
-        let host = self.host.clone();
-        let label = t(cx, keys::v5_fill::TEMPLATE_STRUCTURE);
-        div()
-            .id("v5-template-collection")
-            .flex_none()
+        if let Some(tid) = template {
+            input["template"] = json!(tid);
+        }
+        let ws = self.host.workspace.clone();
+        let expected_book = self.host.book_id.clone();
+        tabs::write(
+            &self.host,
+            "entry.create",
+            input,
+            move |out, cx| {
+                if let Some(id) = out["output"]["id"].as_str()
+                    && let Ok(eid) = id.parse()
+                {
+                    let _ = ws.update(cx, |ws, cx| {
+                        if ws.book_id == expected_book {
+                            ws.open(
+                                crate::nav::Target::Entry {
+                                    id: eid,
+                                    module: None,
+                                },
+                                crate::nav::Open::KEEP.at_title(),
+                                cx,
+                            );
+                        }
+                    });
+                }
+            },
+            cx,
+        );
+    }
+
+    /// Inline template browser shown in the left sidebar when 「模板」 is active (Smoke #11/#12).
+    fn template_list_body(&self, window: &Window, cx: &mut Context<Self>) -> AnyElement {
+        let Some(v) = self.host.book.v3() else {
+            return div().into_any_element();
+        };
+        let theme = Theme::of(window, cx);
+        let p = theme.palette;
+        let s = theme.scale;
+        let current = self
+            .host
+            .workspace
+            .upgrade()
+            .and_then(|ws| ws.read(cx).nav.current().cloned());
+        let templates: Vec<_> = v
+            .templates
+            .iter()
+            .filter(|tpl| tpl.deleted_at.is_none())
+            .collect();
+        let mut list = div()
+            .id(self.id_of("v5-template-list"))
+            .size_full()
+            .overflow_y_scroll()
             .flex()
-            .items_center()
-            .gap_2()
-            .p_2()
+            .flex_col()
+            .gap(px(2.0));
+        for tpl in templates {
+            let Ok(tid) = tpl.id.parse::<dr_model::id::EntryTemplateId>() else {
+                continue;
+            };
+            let target = crate::nav::Target::Template(tid);
+            let selected = current.as_ref() == Some(&target);
+            let count = v
+                .entries
+                .iter()
+                .filter(|e| e.template.as_deref() == Some(tpl.id.as_str()))
+                .count();
+            let (mark, color) = self.host.book.mark(&target);
+            let ws = self.host.workspace.clone();
+            let expected_book = self.host.book_id.clone();
+            let cell = SandCell::new(
+                self.id_of(&format!("v5-tpl-row-{}", tpl.id)),
+                tpl.name.clone(),
+            )
+            .mark(mark)
+            .color_opt(color)
+            .selected(selected)
+            .font(Role::Structure)
             .child(
                 div()
-                    .id("v5-template-collection-count")
-                    .debug_selector(|| "v5-template-collection-count".into())
-                    .flex_1()
-                    .min_w_0()
-                    .truncate()
+                    .flex_none()
                     .font_role(Role::Index)
-                    .type_px(13.0, 18.0)
-                    .text_color(theme.palette.ink(3).solid())
-                    .child(format!(
-                        "{} · {}",
-                        tf(cx, keys::v5_fill::TEMPLATE_COUNT, &[("count", &count)]),
-                        tp(
-                            cx,
-                            keys::v5_fill::ENTRY_COUNT,
-                            entries as u64,
-                            &[("count", &entries)]
-                        )
-                    )),
+                    .type_px(s.caption, s.line_caption)
+                    .text_color(p.muted().solid())
+                    .child(count.to_string()),
+            )
+            .on_click(move |e, _, cx| {
+                let how = if e.click_count() > 1 {
+                    crate::nav::Open::KEEP
+                } else {
+                    crate::nav::Open::PREVIEW
+                };
+                let target = target.clone();
+                let _ = ws.update(cx, |ws, cx| {
+                    if ws.book_id == expected_book {
+                        ws.open(target, how, cx);
+                    }
+                });
+            });
+            list = list.child(cell);
+        }
+        list.into_any_element()
+    }
+
+    /// Smoke #11 & #12: plain-text two-button footer.
+    /// - Normal mode: 「新建条目」 + 「模板」 (no icons, no mixed CN/EN).
+    /// - Template browsing / Template structure mode: template count + 「新建模板」 + 「返回」.
+    fn templates(&self, window: &Window, cx: &mut Context<Self>) -> AnyElement {
+        let theme = Theme::of(window, cx);
+        let p = theme.palette;
+        let count = self.host.book.v3().map_or(0, |book| {
+            book.templates
+                .iter()
+                .filter(|template| template.deleted_at.is_none())
+                .count()
+        });
+        let host = self.host.clone();
+        if self.browsing_templates || (self.filled && self.in_structure) {
+            let in_structure = self.filled && self.in_structure;
+            let ws_new = self.host.workspace.clone();
+            let ws_back = self.host.workspace.clone();
+            return div()
+                .id(self.id_of("v5-template-collection"))
+                .flex_none()
+                .border_t(px(0.5))
+                .border_color(p.subtle_hairline())
+                .px_2()
+                .py(px(6.0))
+                .flex()
+                .items_center()
+                .gap_2()
+                .child(
+                    div()
+                        .id(self.id_of("v5-template-collection-count"))
+                        .debug_selector({
+                            let sel = self.id_of("v5-template-collection-count");
+                            move || sel.to_string()
+                        })
+                        .flex_1()
+                        .min_w_0()
+                        .truncate()
+                        .font_role(Role::Index)
+                        .type_px(12.0, 16.0)
+                        .text_color(p.ink(3).solid())
+                        .child(if in_structure {
+                            format!(
+                                "{} · {}",
+                                t(cx, keys::v5_fill::TEMPLATE_STRUCTURE),
+                                tf(cx, keys::v5_fill::TEMPLATE_COUNT, &[("count", &count)])
+                            )
+                            .into()
+                        } else {
+                            tf(cx, keys::v5_fill::TEMPLATE_COUNT, &[("count", &count)])
+                        }),
+                )
+                .child(
+                    Button::new(
+                        self.id_of("v3-new-template"),
+                        t(cx, keys::v3_shell::NEW_TEMPLATE),
+                    )
+                    .text()
+                    .small()
+                    .disabled(!in_structure && !super::has_template_creator(cx))
+                    .on_click(move |_, window, cx| {
+                        if in_structure {
+                            let _ = ws_new
+                                .update(cx, |ws, cx| ws.new_template_in_structure(window, cx));
+                        } else {
+                            super::create_template(host.clone(), window, cx);
+                        }
+                    }),
+                )
+                .child(
+                    Button::new(
+                        self.id_of("v5-templates-back"),
+                        t(cx, keys::shell_ui::BACK_PLAIN),
+                    )
+                    .text()
+                    .small()
+                    .on_click(cx.listener(move |this, _, window, cx| {
+                        this.browsing_templates = false;
+                        if in_structure {
+                            let _ = ws_back.update(cx, |ws, cx| {
+                                ws.exit_fill(window, cx);
+                            });
+                        }
+                        cx.notify();
+                    })),
+                )
+                .into_any_element();
+        }
+        div()
+            .id(self.id_of("v5-template-collection"))
+            .flex_none()
+            .border_t(px(0.5))
+            .border_color(p.subtle_hairline())
+            .px_2()
+            .py(px(6.0))
+            .flex()
+            .items_center()
+            .justify_between()
+            .gap_2()
+            .child(
+                Button::new(
+                    self.id_of("v5-new-entry-plain"),
+                    t(cx, keys::shell_ui::NEW_ENTRY_PLAIN),
+                )
+                .text()
+                .small()
+                .on_click(cx.listener(|this, _, _, cx| this.create_entry_here(cx))),
             )
             .child(
-                IconButton::new("v5-open-structure", Icon::Fullscreen)
-                    .label(label)
-                    .selected(self.in_structure)
-                    .on_click(move |_, window, cx| {
-                        let _ = open.update(cx, |ws, cx| ws.open_template_structure(window, cx));
-                    }),
-            )
-            .child(
-                IconButton::new("v3-new-template", Icon::Plus)
-                    .label(t(cx, keys::v3_shell::NEW_TEMPLATE))
-                    .disabled(!super::has_template_creator(cx))
-                    .on_click(move |_, window, cx| {
-                        super::create_template(host.clone(), window, cx)
-                    }),
+                Button::new(
+                    self.id_of("v5-templates-plain"),
+                    t(cx, keys::shell_ui::TEMPLATES_PLAIN),
+                )
+                .text()
+                .small()
+                .on_click(cx.listener(|this, _, _, cx| {
+                    this.browsing_templates = true;
+                    cx.notify();
+                })),
             )
             .into_any_element()
     }
@@ -1247,8 +1551,11 @@ impl Render for Sidebar {
         let drop_host = self.host.clone();
         let wash = Theme::of(window, cx).palette.page.alpha(0.45);
         let mut content = div()
-            .id("v3-sidebar")
-            .debug_selector(|| "v3-sidebar".into())
+            .id(self.id_of("v3-sidebar"))
+            .debug_selector({
+                let sel = self.id_of("v3-sidebar");
+                move || sel.to_string()
+            })
             .track_focus(&self.focus)
             .flex()
             .flex_col()
@@ -1310,12 +1617,87 @@ impl Render for Sidebar {
                 || div().into_any_element(),
                 |view| view.clone().into_any_element(),
             )
+        } else if self.browsing_templates {
+            self.template_list_body(window, cx)
         } else {
-            selected.map_or_else(
+            selected.as_ref().map_or_else(
                 || div().into_any_element(),
-                |tab| self.body(&tab, window, cx),
+                |tab| self.body(tab, window, cx),
             )
         };
+        // Per-tab count summary, unread Activity dot, and Collapse-All / Expand-All
+        // utility strip when browsing entries in the regular sidebar.
+        let utility_strip = (!self.filled && !self.in_structure && !self.browsing_templates)
+            .then(|| {
+                let tab = selected.as_ref()?;
+                let v = self.host.book.v3()?;
+                if tabs::is_gone(v, &tab.mount) {
+                    return None;
+                }
+                let count = match &tab.mount {
+                    TabMount::Root => v.entries.len(),
+                    TabMount::Entry { entry } => {
+                        let mut seen = std::collections::HashSet::new();
+                        let mut stack = vec![entry.as_str()];
+                        while let Some(cur) = stack.pop() {
+                            if let Some(level) = v.levels.get(cur) {
+                                for c in &level.children {
+                                    if seen.insert(c.as_str()) {
+                                        stack.push(c.as_str());
+                                    }
+                                }
+                                for m in &level.members {
+                                    seen.insert(m.as_str());
+                                }
+                            }
+                        }
+                        seen.len()
+                    }
+                    TabMount::Book => v.book_entries().len(),
+                    TabMount::View { .. } => 0,
+                };
+                let badges = super::unread_badges(&self.host.library, cx);
+                let has_unread = super::tab_has_unread(v, &tab.mount, &badges);
+                let toggle_all = self
+                    .displays
+                    .get(&tab.id)
+                    .and_then(|(_, part)| part.toggle_collapse_all.clone());
+                let p = Theme::of(window, cx).palette;
+                let s = Theme::of(window, cx).scale;
+                Some(
+                    div()
+                        .flex_shrink_0()
+                        .px(px(12.0))
+                        .pt(px(2.0))
+                        .flex()
+                        .flex_row()
+                        .items_center()
+                        .gap(px(6.0))
+                        .child(
+                            div()
+                                .font_role(Role::Index)
+                                .type_px(s.caption, s.line_caption)
+                                .text_color(p.ink(4).solid())
+                                .child(tf(cx, keys::v3_shell::ENTRY_COUNT, &[("count", &count)])),
+                        )
+                        .when(has_unread, |el| {
+                            el.child(div().size(px(6.0)).rounded_full().bg(p.accent.solid()))
+                        })
+                        .child(div().flex_1())
+                        .when_some(toggle_all, |el, toggle| {
+                            el.child(
+                                PanelIconButton::new(self.id_of("v3-collapse-all"), Icon::ViewList)
+                                    .label(t(cx, keys::left_sidebar::actions::COLLAPSE_ALL))
+                                    .on_click(move |_, _, cx| toggle(cx)),
+                            )
+                        })
+                        .into_any_element(),
+                )
+            })
+            .flatten();
+        if let Some(strip) = utility_strip {
+            content = content.child(strip);
+        }
         // The keyboard asked for (⌘⇧L, ↓ on the Tab row, a click on a Tab
         // from the tree): the Tab's tree is made by now.
         if std::mem::take(&mut self.want_tree_keys) && !self.filled && !self.in_structure {

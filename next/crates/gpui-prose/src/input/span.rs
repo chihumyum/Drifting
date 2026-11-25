@@ -288,6 +288,48 @@ impl ProseEditor {
         self.after_across(&touched, window, cx);
     }
 
+    /// Clears block attributes and inline formatting marks across a multi-chapter
+    /// selection (`⌘0` / SetBody), preserving entity links and embeds.
+    pub(crate) fn set_body_across(
+        &mut self,
+        block_keys: &[&'static str],
+        inline_keys: &[&'static str],
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        use crate::text::Edit;
+        let touched = self.edit_across(cx, |doc, range, _| {
+            let (first, _) = doc.locate(range.start);
+            let (last, _) = doc.locate(range.end);
+            let mut edits: Vec<Edit> = Vec::new();
+            for line in first..=last {
+                let para = doc.line(line);
+                let nl = doc.line_start(line) + para.chars;
+                for &key in block_keys {
+                    if para.block.get(key).is_some() {
+                        edits.push(Edit::SetBlockAttr {
+                            newline: nl,
+                            key,
+                            value: None,
+                        });
+                    }
+                }
+            }
+            if !range.is_empty() {
+                for &key in inline_keys {
+                    edits.push(Edit::Unmark {
+                        range: range.clone(),
+                        key,
+                    });
+                }
+            }
+            if !edits.is_empty() {
+                doc.edit_batch(&edits, ORIGIN_USER);
+            }
+        });
+        self.after_across(&touched, window, cx);
+    }
+
     /// Whether every chapter's part of a selection across chapters has
     /// `key` (the toolbar's pressed state).
     pub(crate) fn mark_active_across(&mut self, key: &str) -> bool {

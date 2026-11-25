@@ -286,6 +286,11 @@ impl SyncEngine {
         Ok(())
     }
 
+    /// Fetch the account's current Hosted Sync storage usage and quota limits.
+    pub fn fetch_usage(&self, access_token: &str) -> Result<HostedUsage, SyncError> {
+        self.client.fetch_usage(access_token)
+    }
+
     /// Check whether importing a new local asset of `incoming_asset_bytes` is
     /// allowed under the account's Hosted Sync quota (500 MiB soft limit).
     pub fn check_new_asset_quota(

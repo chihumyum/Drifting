@@ -29,7 +29,37 @@
       "modelUnavailable": "Das gewählte Modell fehlt im aktuellen Katalog. Wähle ein anderes."
     },
     "context": {
-      "tokens": "{{count}} Tokens"
+      "allocation": {
+        "free": "Freier Platz",
+        "input": "Aktuelle Eingabe",
+        "output": "Ausgabereserve",
+        "safety": "Sicherheitspuffer",
+        "title": "Fensteraufteilung"
+      },
+      "breakdownTitle": "Inhalt der aktuellen Eingabe",
+      "categories": {
+        "assistant_messages": "Agent-Nachrichten",
+        "compaction_summaries": "Verdichtungszusammenfassungen",
+        "provider_overhead": "Anbieterrahmen",
+        "system_prompt": "Systemanweisung",
+        "task_constraints": "Aufgabenbedingungen",
+        "task_plan": "Aufgabenplan",
+        "thinking": "Denken",
+        "tool_calls": "Werkzeugaufrufe",
+        "tool_definitions": "Werkzeugdefinitionen",
+        "tool_results": "Werkzeugergebnisse",
+        "user_messages": "Benutzernachrichten"
+      },
+      "compaction": "Verdichtung",
+      "compactionDetail": "{{saved}} eingespart · {{stages}} · {{count}} Zusammenfassungen",
+      "compactionNone": "Für diesen Aufruf war keine Verdichtung nötig",
+      "description": "Basiert auf dem zuletzt tatsächlich gesendeten geprüften Kontextplan, nicht auf dem kumulierten Tokenverbrauch des Chats.",
+      "progressAria": "Aktuelle Agent-Kontextnutzung",
+      "sources": "{{count}} Quellen",
+      "summary": "{{used}} / {{limit}} ({{percent}}%)",
+      "title": "Kontextnutzung",
+      "tokens": "{{count}} Tokens",
+      "tooltip": "{{used}} / {{limit}} Tokens ({{percent}}%)\nAusgabereserve: {{output}} · Sicherheitspuffer: {{safety}}"
     },
     "control": {
       "allow": {
@@ -44,9 +74,13 @@
       "start": "Sende Agent eine Nachricht. Er kann Kapitel, Elemente und Beziehungen dieses Projekts lesen und bearbeiten."
     },
     "history": {
+      "delete": "Chat löschen",
       "empty": "Noch kein Chatverlauf",
+      "loadEarlier": "Frühere Nachrichten laden",
+      "rename": "Umbenennen",
       "untitled": "Unbenannt"
     },
+    "jumpLatest": "Zum neuesten springen",
     "newConversation": "Neuer Chat",
     "onboarding": {
       "connect": "Modell verbinden",
@@ -58,7 +92,8 @@
     "pending": {
       "cancelling": "Wird beendet…",
       "committing": "Wird gespeichert…",
-      "now": "Denkt nach…"
+      "now": "Denkt nach…",
+      "withSeconds": "Denkt nach · {{seconds}}s"
     },
     "setup": {
       "openSettings": "Einstellungen öffnen"
@@ -70,17 +105,31 @@
       "done": "Denkprotokoll",
       "streaming": "Denkt nach…"
     },
+    "todos": {
+      "plan": "Tarif"
+    },
     "tool": {
       "result": "Ergebnis"
     },
     "toolbar": {
-      "history": "Verlauf"
+      "history": "Verlauf",
+      "historyTitle": "Chatverlauf",
+      "newTitle": "Neuen Chat starten",
+      "renameTitle": "Aktuellen Chat umbenennen"
     },
     "turnChanges": "Änderungen der Runde",
     "unavailable": "Agent ist nicht verfügbar.",
+    "usage": {
+      "inputDetail": "Eingabe {{input}} (Cache gelesen {{cacheRead}} · geschrieben {{cacheWrite}} · netto {{net}})",
+      "outputTurns": "Ausgabe {{output}} · Runden {{turns}}",
+      "session": "Sitzung",
+      "toolsCount": "{{count}} Werkzeuge",
+      "workedFor": "Agent arbeitete {{duration}}"
+    },
     "workingMemory": {
       "agent": "Agent",
       "author": "Autor",
+      "budgetTitle": "Unbegrenzt; Konsolidierung wird bei über 20k und 40k Tokens sowie in jeder Runde über 80k angefordert",
       "clear": "Leeren",
       "clearConfirm": "Arbeitsgedächtnis leeren? Manuskript, langfristige Regeln und Chatverlauf bleiben erhalten.",
       "cleared": "Arbeitsgedächtnis geleert.",
@@ -170,6 +219,8 @@
     "forgotPassword": "Passwort vergessen?",
     "hasAccount": "Bereits ein Konto?",
     "legal": {
+      "agree": "Mit der Registrierung akzeptierst du die",
+      "and": "und",
       "consent": "Wenn du fortfährst, akzeptierst du {{terms}}.",
       "consentTerms": "die Bedingungen",
       "privacy": "Datenschutzerklärung",
@@ -183,6 +234,12 @@
     "resend": "Code erneut senden",
     "sendCode": "Code senden",
     "signIn": "Anmelden",
+    "signOut": {
+      "now": "Jetzt abmelden",
+      "pending": "{{count}} Änderungen dieses Macs fehlen noch in der Cloud. Beim Abmelden bleiben sie hier und werden beim erneuten Anmelden in dieses Konto hochgeladen.",
+      "title": "Abmelden",
+      "uploadFirst": "Hochladen, dann abmelden"
+    },
     "signUp": "Registrieren",
     "signingIn": "Anmeldung läuft…",
     "social": {
@@ -210,14 +267,20 @@
   },
   "commentRail": {
     "actions": {
+      "close": "Schließen",
       "reopen": "Erneut öffnen",
       "resolve": "Erledigen"
     },
     "card": {
       "emptyComment": "Leerer Kommentar"
     },
+    "original": {
+      "changed": "Text geändert · Original anzeigen"
+    },
     "snapshot": {
-      "changed": "Gelöscht/geändert"
+      "changed": "Gelöscht/geändert",
+      "emptyBlock": "(leerer Absatz)",
+      "title": "Verknüpfte Quelle · Snapshot bei Erstellung · {{count}} Absätze"
     }
   },
   "common": {
@@ -264,6 +327,37 @@
       "drifting": "Treibend",
       "finished": "Fertig",
       "resting": "Ruhend"
+    }
+  },
+  "editor_ui": {
+    "bar_add_comment": "Kommentar hinzufügen",
+    "fmt_bold": "Fett",
+    "fmt_highlight": "Hervorheben",
+    "fmt_inline_code": "Inline-Code",
+    "fmt_italic": "Kursiv",
+    "fmt_strike": "Durchgestrichen",
+    "fmt_underline": "Unterstrichen",
+    "mention_create_entry_prefix": "Eintrag „",
+    "mention_create_entry_suffix": "“ erstellen",
+    "slash_bullet_list": "Aufzählung",
+    "slash_callout": "Hinweisblock",
+    "slash_code_block": "Codeblock",
+    "slash_comment": "Kommentar",
+    "slash_entry_link": "Eintragslink",
+    "slash_ordered_list": "Nummerierte Liste",
+    "slash_position_link": "Positionslink",
+    "slash_table": "Tabelle",
+    "slash_task_list": "Checkliste",
+    "slash_todo": "Aufgabe",
+    "table_add_col": "Spalte hinzu",
+    "table_add_row": "Zeile hinzu",
+    "table_delete": "Tabelle löschen",
+    "table_delete_col": "Spalte löschen",
+    "table_delete_row": "Zeile löschen"
+  },
+  "elementEditor": {
+    "alerts": {
+      "aliasConflict": "Alias kann nicht hinzugefügt werden: „{{name}}“ wird bereits vom Element „{{conflicting}}“ verwendet."
     }
   },
   "entrySnapshot": {
@@ -532,6 +626,9 @@
     "valuePlaceholder": "Inhalt"
   },
   "leftSidebar": {
+    "actions": {
+      "collapseAll": "Alle auf- oder einklappen"
+    },
     "groups": {
       "driftCount_one": "{{count}} Idee",
       "driftCount_other": "{{count}} Ideen"
@@ -576,6 +673,8 @@
     "retry": "Erneut versuchen",
     "saved": "Exportiert",
     "scope": "Umfang",
+    "selectAll": "Alles auswählen",
+    "selectNone": "Auswahl aufheben",
     "title": "Manuskript exportieren",
     "untitledAct": "Unbenannter Akt"
   },
@@ -618,6 +717,9 @@
       "addSnippetBody": "In diese Notiz schreiben…"
     },
     "error": {
+      "codecStore": "Im Microsoft Store holen",
+      "codecUnavailable": "Diesem PC fehlt der Codec für {{format}}-Bilder. Installiere ihn aus dem Microsoft Store und importiere erneut.",
+      "fileTooLarge": "Die Datei überschreitet die Grenze von {{maxSizeMiB}} MiB und kann nicht in die lokale Materialsammlung kopiert werden.",
       "openFile": "Datei konnte nicht geöffnet werden: {{error}}",
       "pickFailed": "Datei konnte nicht importiert werden: {{error}}"
     },
@@ -814,7 +916,8 @@
     },
     "clear": "Leeren",
     "cloudSync": {
-      "source": "Cloudsynchronisierung"
+      "source": "Cloudsynchronisierung",
+      "syncing": "Wird synchronisiert…"
     },
     "crashFollowUp": {
       "source": "Drifting"
@@ -848,6 +951,21 @@
       "minutesAgo": "vor {{count}} Min."
     },
     "title": "Benachrichtigungen"
+  },
+  "paperSync": {
+    "failing": "Cloudsynchronisierung fehlgeschlagen",
+    "notStarted": "Synchronisierung konnte nicht starten",
+    "notStartedDetail": "Deine Texte bleiben auf diesem Gerät gespeichert.",
+    "offline": "Offline",
+    "offlineDetail": "Du kannst lokal weiterschreiben.",
+    "openSettings": "Einstellungen öffnen",
+    "quota": "Hosted-Speicher voll",
+    "reauth": "Sitzung abgelaufen",
+    "reauthDetail": "Melde dich wieder mit demselben Konto an.",
+    "retry": "Erneut versuchen",
+    "retrying": "Synchronisierung nicht abgeschlossen",
+    "retryingDetail": "Deine Texte sind auf diesem Gerät gespeichert. Automatischer Neuversuch.",
+    "signIn": "Erneut anmelden"
   },
   "plotGrid": {
     "addColumnShort": "Spalte",
@@ -1091,10 +1209,15 @@
     "filters": {
       "all": "Beides"
     },
+    "groupBy": {
+      "flat": "Keine",
+      "target": "Nach Position"
+    },
     "groups": {
       "deleted": "Gelöscht",
       "floating": "Nicht angehängt"
     },
+    "newComment": "Neuer Kommentar",
     "scopes": {
       "current": "Aktuell"
     },
@@ -1103,7 +1226,6 @@
   "rightSidebar": {
     "kickers": {
       "library": "Projekt · Materialsammlung",
-      "review": "Projekt · Prüfung",
       "stats": {
         "element": "Dieses Element · Detailstatistik",
         "material": "Dieses Material · Details",
@@ -1112,17 +1234,37 @@
       }
     },
     "stats": {
+      "averagePerChapter": "Durchschnitt pro Kapitel",
+      "bookOverview": "Buchübersicht",
+      "chapterLengthRhythm": "Rhythmus der Kapitellängen",
+      "completion": "Fertigstellung",
+      "created": "Erstellt",
       "dialogueRatio": "Dialoganteil",
+      "dimensions": "Abmessungen",
+      "discardedParen": " (verworfen {{count}})",
+      "embeddedMaterials": "Eingebettete Materialien",
+      "fileSize": "Größe",
+      "fileType": "Typ",
+      "longestWithWords": "Längstes · {{title}} ({{words}} Wörter)",
+      "materialCoordinates": "Material",
+      "materialFile": "Datei",
       "name": "Name",
+      "openComments": "Offene Kommentare und Aufgaben",
       "paragraphSentence": "Absätze / Sätze",
       "paragraphSentenceValue": "{{paragraphs}} Absätze · {{sentences}} Sätze",
       "recent": "Zuletzt",
+      "references": "Referenzen",
+      "shortestWithWords": "Kürzestes · {{title}} ({{words}} Wörter)",
       "snapshotButton": "Verlaufsschnappschüsse…",
+      "statusCount": "{{status}} {{count}} Kapitel",
       "storyline": "Handlungsstrang",
+      "thisChapterElements": "Elemente in diesem Kapitel",
+      "unappearedElements": "Noch nicht aufgetretene Elemente",
       "updated": "Aktualisiert",
       "wordRhythm": "Wörter · Rhythmus",
       "wordsValue": "{{count}} Wörter",
-      "writingProgress": "Schreibfortschritt"
+      "writingProgress": "Schreibfortschritt",
+      "writtenTarget": "Geschrieben / Ziel"
     },
     "status": {
       "draft": "Entwurf"
@@ -1146,6 +1288,7 @@
       "emailTeam": "Dem Team schreiben",
       "engine": "Engine",
       "feedback": "Feedback…",
+      "fonts": "Schriften",
       "knownIssues": "Bekannte Probleme",
       "knownIssuesDesc": "Bekannte Einschränkungen der aktuellen Alpha",
       "license": "Client-Lizenz",
@@ -1166,6 +1309,14 @@
       "viewSource": "Quellcode ansehen",
       "writeEmail": "E-Mail schreiben"
     },
+    "account": {
+      "export_all": "Verknüpftes Markdown exportieren",
+      "export_all_btn": "Markdown-ZIP exportieren",
+      "export_all_desc": "Exportiert alle Projekte dieser lokalen Bibliothek mit Kapiteln, Ideen, Elementen, Kommentaren, Materialnotizen und beidseitigen Wiki-Links. Bilder und PDFs sind nicht enthalten. Das Markdown-Archiv kann nicht wieder in Drifting importiert werden.",
+      "export_done": "{{count}} Markdown-Dokumente exportiert.",
+      "export_failed": "Export fehlgeschlagen: {{error}}",
+      "exporting": "Wird exportiert…"
+    },
     "agent": {
       "chatConfigDesc": "Wähle Anbieter, Modell und Denkaufwand im Menü der Agent-Eingabe rechts. Schlüssel und ChatGPT-Abo verwaltest du unter Modelle und API.",
       "effortOptions": {
@@ -1183,6 +1334,7 @@
         "args": "Argumente (eines pro Zeile)",
         "command": "Absoluter Programmpfad",
         "cwd": "Absolutes Arbeitsverzeichnis (optional)",
+        "deleteConfirm": "MCP-Server „{{name}}“ löschen? Seine dauerhaften Freigaben werden ebenfalls widerrufen.",
         "disable": "Deaktivieren",
         "editTitle": "MCP-Server bearbeiten",
         "empty": "Dieses Projekt hat keine MCP-Server.",
@@ -1192,6 +1344,7 @@
         "noProject": "Öffne ein Projekt, um MCP einzurichten.",
         "notChecked": "Noch nicht verbunden",
         "policy": {
+          "askWrite": "Schreiben · nachfragen",
           "disabled": "Deaktiviert"
         },
         "publicEnv": "Öffentliche Umgebung (NAME=value pro Zeile)",
@@ -1234,7 +1387,34 @@
       "unlimited": "Unbegrenzt",
       "unlimitedHint": "Unbegrenzt setzt kein Limit für Modellaufrufe. Du kannst die Runde manuell stoppen."
     },
+    "agentMemory": {
+      "title": "Projektgedächtnis"
+    },
+    "agentUsage": {
+      "all": "Gesamtzeit",
+      "clearConfirm": "Gesamten Verlauf leeren? Dadurch werden {{count}} Agent-Gespräche dieses Projekts entfernt.",
+      "clearHistory": "Verlauf leeren",
+      "conversationsTurns": "Gespräche / Runden",
+      "deleteConversation": "Dieses Gespräch löschen",
+      "history": "Gesprächsverlauf",
+      "historyDesc": "Alle Agent-Gespräche dieses Projekts. Vorläufiges Löschen wird im rechten Verlauf übernommen, ohne andere Projekte zu beeinflussen.",
+      "month": "Diesen Monat",
+      "noHistory": "Noch keine Gespräche. Sende dem Agent eine Nachricht, um zu beginnen.",
+      "noProjectHistory": "Öffne ein Projekt, um den Gesprächsverlauf zu verwalten.",
+      "noProjectUsage": "Öffne ein Projekt für die Agent-Nutzung.",
+      "tokenCard": "Tokens · {{scope}}",
+      "untitled": "Unbenannt",
+      "usage": "Nutzung",
+      "usageDesc": "Tokenverbrauch des Agent in diesem Projekt, je zurückgemeldeter Runde erfasst; Eingaben enthalten Cache-Lesezugriffe. Für diesen Monat oder insgesamt anzeigen."
+    },
     "appearance": {
+      "accent": "Akzentfarbe",
+      "accent_color": "Akzent der Oberfläche",
+      "accent_color_desc": "Für Schaltflächen, Fokus und aktive Zustände; die Farbe des Editorcursors bleibt unverändert.",
+      "accent_reset": "Standard wiederherstellen",
+      "agent_edit_reveal": "Animation für Änderungen",
+      "agent_edit_reveal_desc": "Zeigt Agent-Änderungen an Texten und Feldern sowie extern bearbeitete Kapitel und Ideen Zeichen für Zeichen. Ausgeschaltet erscheinen Ergebnisse sofort; Markierungen ungelesener Änderungen bleiben erhalten.",
+      "animations": "Animationen und Übergänge",
       "dark": "Dunkel",
       "guides": "Anleitungen",
       "interface_text_large": "Größer",
@@ -1292,9 +1472,51 @@
       "auto_element_link_desc": "Erkennt beim Tippen vorhandene Elementnamen und verlinkt ihre Seiten.",
       "auto_immersive": "Immersives Schreiben beim Tippen",
       "auto_immersive_desc": "Sobald du im Text schreibst, treten Seitenleisten und Werkzeuge zurück; Esc oder ein Klick außerhalb des Textes holt sie zurück.",
+      "caret_color": "Cursorfarbe",
+      "caret_color_desc": "Wähle die Farbe des Texteingabecursors.",
+      "entity_link_band_style": "Streifenstil der Entitätslinks",
+      "entity_link_band_style_desc": "Ein weicher durchgehender Streifen oder eine feine Punktreihe unter dem Text.",
+      "entity_link_band_style_dots": "Feine Punkte",
+      "entity_link_band_style_wash": "Durchgehender Streifen",
+      "entity_link_highlight": "Hervorhebungsart der Entitätslinks",
+      "entity_link_highlight_band": "Farbstreifen",
+      "entity_link_highlight_both": "Beides",
+      "entity_link_highlight_desc": "Entitätslinks mit Farbstreifen, Textfarbe oder beidem hervorheben. Gilt auch beim Darüberfahren.",
+      "entity_link_highlight_text": "Textfarbe",
+      "entity_link_kind_category": "Kategorie",
+      "entity_link_kind_chapter": "Kapitel",
+      "entity_link_kind_drift": "Idee",
+      "entity_link_kind_element": "Element",
+      "entity_link_kind_patch": "Entwicklung",
+      "entity_link_kind_storyline": "Handlungsstrang",
+      "entity_link_style": "Hervorhebung von Entitätslinks",
+      "entity_link_style_contextual": "Nach Zuordnung",
+      "entity_link_style_desc": "Verwende Zuordnungsfarben, eine eigene Farbe pro Entitätstyp, Zuordnungsfarben nur beim Darüberfahren oder Text in der normalen Schriftfarbe mit einem Farbstreifen.",
+      "entity_link_style_hover": "Nur beim Darüberfahren",
+      "entity_link_style_kind": "Nach Typ",
+      "entity_link_style_prose": "Fließtext",
       "flow": "Schreibfluss",
+      "font_error_empty": "Diese Schriftdatei ist leer.",
+      "font_error_format": "Nur TTF-, OTF-, WOFF- und WOFF2-Schriftdateien werden unterstützt.",
+      "font_error_invalid": "Diese Datei konnte nicht decodiert werden. Wähle eine gültige reguläre oder variable Schrift.",
+      "font_error_size": "Die Schriftdatei darf höchstens 64 MB groß sein.",
+      "font_import": "Schrift importieren",
+      "font_import_done": "Die Schrift wurde auf diesem Gerät gespeichert und auf die verfassten Inhalte angewendet.",
+      "font_import_help": "Unterstützt reguläre und variable TTF-, OTF-, WOFF- und WOFF2-Schriften bis 64 MB.",
+      "font_remove": "Entfernen",
+      "font_remove_done": "Die von der App gespeicherte Schriftkopie wurde entfernt.",
+      "font_replace": "Ersetzen",
+      "font_scope_desc": "Gilt für Kapiteltexte, Entitätstitel und Zusammenfassungen, Langtexte, Feldwerte, Änderungen, Referenzinhalte und Satzvorschau. Oberfläche, Seitenleisten, Dialoge und Knotenkarten nutzen die gemeinsame serifenlose Schrift. Die Auswahl bleibt lokal und gehört nicht zu den von SyncEngine synchronisierten Inhalten.",
       "font_size": "Schriftgröße",
       "font_size_desc": "Nur die Editoransicht; der Export bleibt unverändert.",
+      "font_source": "Inhaltsschrift",
+      "font_system_custom": "Systemschrift",
+      "font_system_manual_placeholder": "Zum Beispiel: Charter",
+      "font_system_mono": "System-Festbreitenschrift",
+      "font_system_placeholder": "Systemschrift auswählen",
+      "font_system_sans": "Serifenlose Systemschrift",
+      "font_system_serif": "System-Serifenschrift",
+      "font_use": "Verwenden",
       "indent": "Absatzeinzug",
       "indent_desc": "Nur im Editor. Für den Export gelten eigene Einstellungen.",
       "indent_none": "Keine",
@@ -1311,6 +1533,12 @@
       "preview_p1": "Schweigen breitete sich zwischen ihnen aus wie Flutwasser über Stein. Endlich sprach sie. Ihre Stimme, fast vom Wind davongetragen, erreichte ihn kaum noch.",
       "preview_p2": "„Kommst du zurück?“ Er antwortete nicht sofort. Er sah der Sonne zu, wie sie im Meer versank, und nickte erst nach langer Zeit. Selbst er wusste nicht, ob es ein Versprechen war oder Mitleid.",
       "reset_style": "Empfohlenen Stil wiederherstellen",
+      "tab_indent": "Tab-Einzug",
+      "tab_indent_desc": "Breite einer Einzugsstufe mit Tab; Umschalt+Tab verringert den Einzug.",
+      "text_wrap": "Zeilenumbruch",
+      "text_wrap_desc": "Stabil füllt jede Zeile und erhält frühere Umbrüche beim späteren Bearbeiten. Ausgewogen passt den ganzen Absatz an. Gilt sofort und wird auf diesem Gerät gespeichert.",
+      "text_wrap_pretty": "Ausgewogen",
+      "text_wrap_stable": "Stabil",
       "typesetting": "Satz",
       "typewriter_mode": "Schreibmaschinenmodus",
       "typewriter_mode_desc": "Hält die aktuelle Textzeile beim Tippen oder Bewegen des Cursors an einer festen Bildschirmposition. Nur im Editor.",
@@ -1346,19 +1574,37 @@
       "connect_errors": {
         "cancelled": "Abgebrochen."
       },
+      "crop_confirm": "Dieses Profilbild verwenden",
+      "crop_description": "Bild ziehen oder mit Pfeiltasten positionieren, dann den Zoom anpassen.",
+      "crop_title": "Profilbild anpassen",
+      "crop_zoom": "Zoom",
       "current_password": "Aktuelles Passwort",
       "description": "Deine Texte werden zuerst auf diesem Gerät gespeichert. Verbinde ein Konto, um Projekte zwischen deinen Geräten zu synchronisieren.",
+      "disconnect": "Synchronisierung trennen",
+      "disconnect_anyway": "Trotzdem trennen",
+      "disconnect_description": "Lädt nur auf diesem Mac vorhandene Änderungen hoch und trennt dann. Lokale Projekte und Cloudkopien bleiben erhalten.",
+      "disconnect_now": "Jetzt trennen",
+      "disconnect_unuploaded": "{{count}} Änderungen wurden nicht hochgeladen. Nach dem Trennen liegen sie nur auf diesem Mac.",
       "display_name": "Anzeigename",
+      "enabled": "Hosted-Synchronisierung verbunden",
+      "last_synced": "Zuletzt vollständig synchronisiert: {{time}}",
       "library_switch_failed": "Bibliothek konnte nicht gewechselt werden",
       "new_password": "Neues Passwort",
       "no_account": "Nicht angemeldet",
+      "not_started": "Synchronisierung konnte nicht starten. Deine Texte bleiben auf dem Gerät; öffne Drifting erneut.",
       "password_description": "8–128 Zeichen.",
       "password_saved": "Passwort geändert. Andere Geräte müssen sich neu anmelden.",
       "password_sessions": "Beim Passwortwechsel werden andere Geräte abgemeldet. Dieses Gerät bleibt angemeldet.",
       "password_title": "Passwort",
+      "pause": "Pausieren",
+      "paused": "Synchronisierung pausiert",
+      "pending": "Synchronisierung läuft oder wartet auf Abschluss.",
       "profile_saved": "Profil gespeichert.",
       "profile_title": "Profil",
+      "quota_blocked": "Hosted ist voll; ein Anhang konnte nicht hochgeladen werden und das Projekt kann vorerst nicht weiter synchronisieren. Lösche unnötige Anhänge oder Projekte zur Fortsetzung. Lokale Inhalte bleiben unberührt.",
       "remove_avatar": "Entfernen",
+      "resume": "Fortsetzen",
+      "retrying": "Synchronisierung nicht abgeschlossen. Deine Texte sind lokal gespeichert; automatischer Neuversuch.",
       "save_profile": "Profil speichern",
       "session": {
         "checking": "Konto wird geprüft…",
@@ -1369,6 +1615,10 @@
       },
       "sign_in": "Anmelden / Registrieren",
       "sign_out": "Abmelden",
+      "storage": "Hosted-Speicher",
+      "storage_description": "{{used}} von {{quota}} belegt. Anhänge zählen; Text und Struktur sind unbegrenzt.",
+      "sync_now": "Jetzt synchronisieren",
+      "sync_title": "Hosted-Synchronisierung",
       "title": "Konto und Hosted-Synchronisierung",
       "working": "In Arbeit…"
     },
@@ -1442,6 +1692,7 @@
       "diagnosticsCopied": "Bereinigte Diagnosezusammenfassung kopiert.",
       "diagnosticsCopyFailed": "Die Zwischenablage konnte nicht beschrieben werden. Möglicherweise fehlt die Berechtigung.",
       "diagnosticsDesc": "Kopiert Version, Plattform, Funktionsverfügbarkeit, Synchronisierungszahlen und Fehlerkategorien sowie Updatestatus. Ohne Manuskript, Zugangsdaten, Projektkennungen oder absolute Pfade; wird nie automatisch hochgeladen.",
+      "fullPolicy": "Vollständige Datenschutzerklärung ansehen",
       "noteLocal": "Dieser Build kontaktiert keinen Drifting-Server; dein Werk bleibt auf dem Gerät. KI- und Transkriptionsanfragen gehen direkt an den gewählten Anbieter unter dessen Daten- und Trainingsbedingungen. Entfernte MCP-Erweiterungen nutzen ebenfalls das Netzwerk."
     },
     "rail": {
@@ -1479,6 +1730,8 @@
         "restoring": "Wird wiederhergestellt…",
         "summary": "{{projects}} Projekte, {{assets}} Mediendateien, {{size}}."
       },
+      "import_files": "Importieren",
+      "import_files_desc": "Aus Word (.docx), Markdown oder reinem Text.",
       "local_data": "Lokale Daten",
       "local_sub": "Ohne Drifting-Konto oder gehostete Cloud. Exportiere jederzeit eine lesbare Kopie.",
       "local_title": "Dein Werk bleibt auf diesem Gerät.",
@@ -1486,13 +1739,20 @@
         "allProjects": "Alle Projekte",
         "allProjectsUnset": "Alle Projekte · Kein Speicherort gewählt",
         "choose": "Ordner auswählen",
+        "copied": "Pfad kopiert",
+        "copy": "Pfad kopieren",
+        "error": "Aktualisierung fehlgeschlagen",
         "offHint": "Deaktiviert: kein Markdown-Export und keine Übernahme externer Änderungen. Vorhandene Dateien bleiben erhalten.",
         "offTitle": "Markdown-Ordner deaktivieren?",
+        "pending": "Wird aktualisiert",
+        "ready": "Aktuell",
+        "refresh": "Jetzt aktualisieren",
         "reveal": "Im Finder anzeigen",
         "title": "Markdown-Ordner",
         "turnOff": "Markdown-Ordner deaktivieren",
         "turnOn": "Aktivieren"
-      }
+      },
+      "select_file": "Datei auswählen…"
     },
     "update": {
       "channel_desc": "Apple Silicon · macOS 13 oder neuer",
@@ -1516,6 +1776,49 @@
       "server_error": "Der Update-Dienst hat gerade ein Problem. Versuche es später erneut; die aktuelle Version funktioniert weiter.",
       "unavailable": "Dieser Build hat keinen Updater-Signaturschlüssel und kann nicht nach Updates suchen. Von GitHub heruntergeladene Versionen können dies."
     }
+  },
+  "shell_ui": {
+    "add_fact": "Feld hinzufügen",
+    "back_plain": "Zurück",
+    "empty_book_hint": "Erstelle einen Eintrag mit Text, um hier das gesamte Buch zu lesen.",
+    "empty_book_title": "Noch kein Manuskripttext",
+    "fact_key_placeholder": "Name (z. B. Untertitel, Genre)",
+    "fact_value_placeholder": "Wert",
+    "find_results": "Treffer",
+    "hosted_purge_note": "Wird dauerhaft von diesem Gerät und allen synchronisierten Cloud-Geräten gelöscht.",
+    "hosted_trash_note": "Wird lokal und in der Cloud entfernt; 30 Tage lang wiederherstellbar.",
+    "menu_about": "Über {{app}}",
+    "menu_bring_all_to_front": "Alle nach vorne bringen",
+    "menu_close_window": "Fenster schließen",
+    "menu_copy": "Kopieren",
+    "menu_cut": "Ausschneiden",
+    "menu_edit": "Bearbeiten",
+    "menu_hide": "{{app}} ausblenden",
+    "menu_hide_others": "Andere ausblenden",
+    "menu_minimize": "Im Dock ablegen",
+    "menu_paste": "Einsetzen",
+    "menu_quit": "{{app}} beenden",
+    "menu_redo": "Wiederholen",
+    "menu_select_all": "Alles auswählen",
+    "menu_services": "Dienste",
+    "menu_settings": "Einstellungen…",
+    "menu_show_all": "Alle einblenden",
+    "menu_undo": "Widerrufen",
+    "menu_zoom": "Zoomen",
+    "new_entry_plain": "Neuer Eintrag",
+    "open_whole_book": "Ganzes Buch lesen",
+    "pick_relation_target": "Verbinde von „{{name}}“ — anderen Eintrag anklicken (Esc zum Abbrechen)",
+    "preparing_samples": "Beispielprojekte werden vorbereitet…",
+    "project_facts": "Projektangaben",
+    "search_hint": "Suchbegriff für das gesamte Projekt eingeben",
+    "search_placeholder": "Titel, Text, Felder und Dateien durchsuchen…",
+    "swap_split": "Geteilte Bereiche tauschen",
+    "templates_plain": "Vorlagen",
+    "toggle_comment_marks": "Kommentarmarkierungen anzeigen",
+    "toggle_entity_links": "Interaktive Eintragslinks",
+    "unpin_island": "Position lösen",
+    "unsplit": "Teilung schließen",
+    "words_short": "{{count}} W."
   },
   "sidebarLayout": {
     "split": "Zwei Spalten wiederherstellen"
@@ -1541,7 +1844,8 @@
     "edge": {
       "hideKind": "„{{label}}“ ausblenden",
       "showKind": "„{{label}}“ anzeigen"
-    }
+    },
+    "spread": "Verteilen"
   },
   "storylineEditor": {
     "filters": {
@@ -1591,6 +1895,7 @@
       "relayout": "Neu anordnen"
     },
     "reset": "Zurücksetzen",
+    "startEdgeFromElement": "Beziehung von diesem Element erstellen",
     "uncategorized": "Ohne Kategorie",
     "unnamedCategory": "Unbenannte Kategorie"
   },
@@ -1609,7 +1914,10 @@
     "color": "Farbe",
     "conflict": "Vorlage wurde andernorts geändert",
     "date": "Datum",
+    "default_prose": "Standard-Textvorlage",
+    "default_prose_hint": "Wird in neue Einträge aus dieser Vorlage übernommen",
     "default_template": "Standardvorlage",
+    "default_value": "Standardwert",
     "description": "Beschreibung",
     "display": "Darstellung",
     "entity_ref": "Eintragsverweis",
@@ -1737,9 +2045,15 @@
     "originTask": "Checkliste",
     "regionPlace": "Bereich",
     "regionPlacePaged": "Seite {{page}}",
+    "retarget": "Ziel ändern…",
+    "sortNewest": "Neueste zuerst",
+    "sortOldest": "Älteste zuerst",
+    "sortPosition": "Nach Position",
     "statusOpen": "Offen",
     "statusResolved": "Gelöst",
+    "unbindTarget": "Verknüpfung lösen",
     "unlocated": "Ursprungsort fehlt",
+    "viewOriginal": "Original anzeigen",
     "wholeFile": "Ganze Datei",
     "writeComment": "Kommentar schreiben"
   },
@@ -1764,6 +2078,9 @@
     "railAgent": "Agent"
   },
   "v3Shell": {
+    "agent_unread": "Ungelesene Agent-Änderungen",
+    "aliases_add": "Alias hinzufügen…",
+    "aliases_remove": "Alias entfernen",
     "attachedEntries": "Hier zugeordnet",
     "belongTo": "Zuordnen",
     "board": "Pinnwand",
@@ -1774,7 +2091,9 @@
     "editTemplate": "Vorlage bearbeiten",
     "entries": "Einträge",
     "entryUntemplated": "Eintrag",
+    "entry_count": "{{count}} Einträge",
     "expandTimeline": "Handlungsstrang-Zeitleiste aufklappen",
+    "external_unread": "Ungelesene externe Änderungen",
     "grid": "Raster",
     "hideOutline": "Inhaltsverzeichnis ausblenden",
     "islands": "Inseln",
@@ -1818,8 +2137,10 @@
     "colorValue": "Farbwert",
     "deleteView": "Ansicht löschen",
     "detachEntry": "Eintrag lösen",
+    "empty_book_view": "Platziere zuerst mindestens einen Eintrag in dieser Ansicht",
     "laneActions": "Spuraktionen",
     "laneTrack": "Spur {{name}}",
+    "locate_current": "Aktuellen Eintrag finden",
     "members": "{{count}} Mitglieder",
     "moveDown": "Nach unten",
     "moveUp": "Nach oben",
@@ -1827,6 +2148,7 @@
     "newEntryInLane": "Neuer Eintrag",
     "newLane": "Neue Spur",
     "newView": "Neue Ansicht",
+    "pin_color": "Farbe",
     "placeEntry": "Eintrag platzieren",
     "placementActions": "Platzierungsaktionen",
     "removeEntry": "Aus Spur entfernen",
@@ -1835,9 +2157,12 @@
     "renameView": "Ansicht umbenennen",
     "resize": "Länge anpassen",
     "ruler": "Skalenlineal",
+    "section_create": "Erstellen",
+    "section_existing": "Vorhandene Einträge hinzufügen",
     "selectLane": "Spur auswählen",
     "setActTrack": "Als Aktspur verwenden · {{name}}",
     "unsetActTrack": "Als normale Spur verwenden · {{name}}",
+    "view_actions": "Ansichtsaktionen",
     "views": "Ansichten"
   },
   "v3Transfer": {
@@ -1852,8 +2177,11 @@
     "alignRight": "Rechts",
     "allFolders": "Alle",
     "clearField": "Leeren",
+    "collapseAll": "Alle einklappen",
     "currentSection": "Aktuell",
     "empty": "Keine Dateien",
+    "empty_trash": "Leeren",
+    "expandAll": "Alle ausklappen",
     "fileCount_one": "{{count}} Datei",
     "fileCount_other": "{{count}} Dateien",
     "findFile": "Datei suchen",
@@ -1953,6 +2281,16 @@
     "direction": "Richtung",
     "otherEntry": "Anderer Eintrag",
     "relation": "Beziehung"
+  },
+  "v5Stats": {
+    "childrenAggregate": "Untereinträge",
+    "entryCoordinates": "Eintragsposition",
+    "groupRhythm": "Gruppenrhythmus",
+    "inboundLinks": "Verwiesen von",
+    "outboundLinks": "Verweise",
+    "projectOverview": "Projektübersicht",
+    "templatesTotal": "Vorlagen",
+    "unreferencedNote": "Im Text noch nicht verlinkt"
   },
   "v5Tour": {
     "agent": {

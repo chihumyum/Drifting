@@ -29,7 +29,37 @@
       "modelUnavailable": "選択したモデルは現在の一覧にありません。別のモデルを選んでください。"
     },
     "context": {
-      "tokens": "{{count}}トークン"
+      "allocation": {
+        "free": "空き領域",
+        "input": "現在の入力",
+        "output": "出力の予約領域",
+        "safety": "安全余裕",
+        "title": "ウィンドウの配分"
+      },
+      "breakdownTitle": "現在の入力の内訳",
+      "categories": {
+        "assistant_messages": "Agentのメッセージ",
+        "compaction_summaries": "圧縮の要約",
+        "provider_overhead": "提供元の付加情報",
+        "system_prompt": "システムプロンプト",
+        "task_constraints": "タスク制約",
+        "task_plan": "タスク計画",
+        "thinking": "思考",
+        "tool_calls": "ツール呼び出し",
+        "tool_definitions": "ツール定義",
+        "tool_results": "ツールの結果",
+        "user_messages": "ユーザーメッセージ"
+      },
+      "compaction": "コンテキスト圧縮",
+      "compactionDetail": "{{saved}}削減・{{stages}}・要約{{count}}件",
+      "compactionNone": "今回は圧縮不要でした",
+      "description": "実際にモデルへ送った最新の検証済みコンテキスト構成です。会話全体の累積トークン使用量ではありません。",
+      "progressAria": "現在のAgentコンテキスト使用量",
+      "sources": "{{count}}件のソース",
+      "summary": "{{used}} / {{limit}}（{{percent}}%）",
+      "title": "コンテキスト使用量",
+      "tokens": "{{count}}トークン",
+      "tooltip": "{{used}} / {{limit}}トークン（{{percent}}%）\n出力予約：{{output}}・安全余裕：{{safety}}"
     },
     "control": {
       "allow": {
@@ -44,9 +74,13 @@
       "start": "Agentにメッセージを送って始めましょう。この作品の章、要素、関係を読み書きできます。"
     },
     "history": {
+      "delete": "チャットを削除",
       "empty": "チャット履歴なし",
+      "loadEarlier": "以前のメッセージを読み込む",
+      "rename": "名前を変更",
       "untitled": "無題"
     },
+    "jumpLatest": "最新へ移動",
     "newConversation": "新しいチャット",
     "onboarding": {
       "connect": "モデルを接続",
@@ -58,7 +92,8 @@
     "pending": {
       "cancelling": "停止中…",
       "committing": "保存中…",
-      "now": "思考中…"
+      "now": "思考中…",
+      "withSeconds": "思考中・{{seconds}}秒"
     },
     "setup": {
       "openSettings": "設定を開く"
@@ -70,17 +105,31 @@
       "done": "思考の記録",
       "streaming": "思考中…"
     },
+    "todos": {
+      "plan": "プラン"
+    },
     "tool": {
       "result": "結果"
     },
     "toolbar": {
-      "history": "履歴"
+      "history": "履歴",
+      "historyTitle": "チャット履歴",
+      "newTitle": "新しいチャットを開始",
+      "renameTitle": "現在のチャット名を変更"
     },
     "turnChanges": "ターンの変更",
     "unavailable": "Agentを利用できません。",
+    "usage": {
+      "inputDetail": "入力{{input}}（キャッシュ読取{{cacheRead}}・書込{{cacheWrite}}・正味{{net}}）",
+      "outputTurns": "出力{{output}}・{{turns}}ターン",
+      "session": "セッション",
+      "toolsCount": "{{count}}ツール",
+      "workedFor": "Agentの作業時間：{{duration}}"
+    },
     "workingMemory": {
       "agent": "Agent",
       "author": "作者",
+      "budgetTitle": "上限なし。2万・4万トークン超で各1回、8万超では毎ターン整理を依頼します",
       "clear": "消去",
       "clearConfirm": "作業記憶を消去しますか？原稿、長期ルール、チャット履歴は削除しません。",
       "cleared": "作業記憶を消去しました。",
@@ -170,6 +219,8 @@
     "forgotPassword": "パスワードをお忘れですか？",
     "hasAccount": "アカウントをお持ちの方",
     "legal": {
+      "agree": "登録により、次に同意します：",
+      "and": "と",
       "consent": "続行すると、{{terms}}に同意したものとみなされます",
       "consentTerms": "利用条件",
       "privacy": "プライバシーポリシー",
@@ -183,6 +234,12 @@
     "resend": "コードを再送",
     "sendCode": "コードを送信",
     "signIn": "ログイン",
+    "signOut": {
+      "now": "今すぐログアウト",
+      "pending": "このMacの未送信変更は{{count}}件です。今ログアウトしても端末に残り、同じアカウントへ再ログインすると送信します。",
+      "title": "ログアウト",
+      "uploadFirst": "送信してからログアウト"
+    },
     "signUp": "登録",
     "signingIn": "ログイン中…",
     "social": {
@@ -210,14 +267,20 @@
   },
   "commentRail": {
     "actions": {
+      "close": "閉じる",
       "reopen": "開き直す",
       "resolve": "解決済みにする"
     },
     "card": {
       "emptyComment": "空のコメント"
     },
+    "original": {
+      "changed": "本文は変更済み · 原文を表示"
+    },
     "snapshot": {
-      "changed": "削除／変更済み"
+      "changed": "削除／変更済み",
+      "emptyBlock": "（空の段落）",
+      "title": "リンク先の出典 · 作成時のスナップショット · {{count}}段落"
     }
   },
   "common": {
@@ -264,6 +327,37 @@
       "drifting": "漂流中",
       "finished": "完成",
       "resting": "停泊中"
+    }
+  },
+  "editor_ui": {
+    "bar_add_comment": "コメントを追加",
+    "fmt_bold": "太字",
+    "fmt_highlight": "ハイライト",
+    "fmt_inline_code": "インラインコード",
+    "fmt_italic": "斜体",
+    "fmt_strike": "取り消し線",
+    "fmt_underline": "下線",
+    "mention_create_entry_prefix": "項目「",
+    "mention_create_entry_suffix": "」を作成",
+    "slash_bullet_list": "箇条書き",
+    "slash_callout": "コールアウト",
+    "slash_code_block": "コードブロック",
+    "slash_comment": "コメント",
+    "slash_entry_link": "項目リンク",
+    "slash_ordered_list": "番号付きリスト",
+    "slash_position_link": "位置リンク",
+    "slash_table": "表",
+    "slash_task_list": "チェックリスト",
+    "slash_todo": "TODO",
+    "table_add_col": "列を追加",
+    "table_add_row": "行を追加",
+    "table_delete": "表を削除",
+    "table_delete_col": "列を削除",
+    "table_delete_row": "行を削除"
+  },
+  "elementEditor": {
+    "alerts": {
+      "aliasConflict": "別名を追加できません。「{{name}}」は要素「{{conflicting}}」で使用されています。"
     }
   },
   "entrySnapshot": {
@@ -524,6 +618,9 @@
     "valuePlaceholder": "内容"
   },
   "leftSidebar": {
+    "actions": {
+      "collapseAll": "すべて展開・折りたたみ"
+    },
     "groups": {
       "driftCount_one": "{{count}}件のアイデア",
       "driftCount_other": "{{count}}件のアイデア"
@@ -568,6 +665,8 @@
     "retry": "再試行",
     "saved": "エクスポートしました",
     "scope": "対象範囲",
+    "selectAll": "すべて選択",
+    "selectNone": "選択をすべて解除",
     "title": "原稿をエクスポート",
     "untitledAct": "無題の幕"
   },
@@ -610,6 +709,9 @@
       "addSnippetBody": "このメモに書く…"
     },
     "error": {
+      "codecStore": "Microsoft Store で入手",
+      "codecUnavailable": "この PC には {{format}} 画像のコーデックがありません。Microsoft Store から入手してから、もう一度読み込んでください。",
+      "fileTooLarge": "ファイルが上限の{{maxSizeMiB}} MiBを超えており、ローカル資料庫にコピーできません。",
       "openFile": "ファイルを開けません：{{error}}",
       "pickFailed": "ファイルをインポートできません：{{error}}"
     },
@@ -806,7 +908,8 @@
     },
     "clear": "消去",
     "cloudSync": {
-      "source": "クラウド同期"
+      "source": "クラウド同期",
+      "syncing": "同期中…"
     },
     "crashFollowUp": {
       "source": "Drifting"
@@ -840,6 +943,21 @@
       "minutesAgo": "{{count}}分前"
     },
     "title": "通知"
+  },
+  "paperSync": {
+    "failing": "クラウド同期に失敗",
+    "notStarted": "同期を開始できませんでした",
+    "notStartedDetail": "原稿はこの端末に保存されています。",
+    "offline": "オフライン",
+    "offlineDetail": "ローカルで執筆を続けられます。",
+    "openSettings": "設定を開く",
+    "quota": "Hostedストレージがいっぱいです",
+    "reauth": "セッション期限切れ",
+    "reauthDetail": "同じアカウントで再ログインしてください。",
+    "retry": "再試行",
+    "retrying": "同期を完了できませんでした",
+    "retryingDetail": "原稿は端末に保存済みです。自動再試行します。",
+    "signIn": "再ログイン"
   },
   "plotGrid": {
     "addColumnShort": "列",
@@ -1083,10 +1201,15 @@
     "filters": {
       "all": "両方"
     },
+    "groupBy": {
+      "flat": "なし",
+      "target": "場所別"
+    },
     "groups": {
       "deleted": "削除済み",
       "floating": "未添付"
     },
+    "newComment": "新しいコメント",
     "scopes": {
       "current": "現在"
     },
@@ -1095,7 +1218,6 @@
   "rightSidebar": {
     "kickers": {
       "library": "作品・資料庫",
-      "review": "作品・レビュー",
       "stats": {
         "element": "この要素・詳細統計",
         "material": "この資料・詳細",
@@ -1104,17 +1226,37 @@
       }
     },
     "stats": {
+      "averagePerChapter": "1章の平均",
+      "bookOverview": "全編一覧",
+      "chapterLengthRhythm": "章の長さのリズム",
+      "completion": "完成度",
+      "created": "作成済み",
       "dialogueRatio": "会話の割合",
+      "dimensions": "寸法",
+      "discardedParen": "（不採用{{count}}）",
+      "embeddedMaterials": "埋め込み資料",
+      "fileSize": "サイズ",
+      "fileType": "種類",
+      "longestWithWords": "最長・{{title}}（{{words}}文字）",
+      "materialCoordinates": "資料",
+      "materialFile": "ファイル",
       "name": "名前",
+      "openComments": "未解決コメントとTODO",
       "paragraphSentence": "段落／文",
       "paragraphSentenceValue": "{{paragraphs}}段落・{{sentences}}文",
       "recent": "最近",
+      "references": "参照",
+      "shortestWithWords": "最短・{{title}}（{{words}}文字）",
       "snapshotButton": "履歴スナップショット…",
+      "statusCount": "{{status}} {{count}}章",
       "storyline": "ストーリーライン",
+      "thisChapterElements": "この章の要素",
+      "unappearedElements": "未登場の要素",
       "updated": "更新済み",
       "wordRhythm": "文字数・リズム",
       "wordsValue": "{{count}}文字",
-      "writingProgress": "執筆の進捗"
+      "writingProgress": "執筆の進捗",
+      "writtenTarget": "執筆済み／目標"
     },
     "status": {
       "draft": "下書き"
@@ -1138,6 +1280,7 @@
       "emailTeam": "チームにメールする",
       "engine": "エンジン",
       "feedback": "フィードバック…",
+      "fonts": "フォント",
       "knownIssues": "既知の問題",
       "knownIssuesDesc": "現在のAlpha版の既知の制限",
       "license": "クライアントのライセンス",
@@ -1158,6 +1301,14 @@
       "viewSource": "ソースを見る",
       "writeEmail": "メールを作成"
     },
+    "account": {
+      "export_all": "相互リンク付きMarkdownをエクスポート",
+      "export_all_btn": "MarkdownのZIPをエクスポート",
+      "export_all_desc": "このローカルライブラリの全作品を、章、アイデア、要素、コメント、資料メモと双方向Wikiリンク付きで出力します。画像とPDFは含まれず、このMarkdownアーカイブはDriftingへ再インポートできません。",
+      "export_done": "Markdown文書を{{count}}件エクスポートしました。",
+      "export_failed": "エクスポート失敗：{{error}}",
+      "exporting": "エクスポート中…"
+    },
     "agent": {
       "chatConfigDesc": "右側のAgent入力欄で提供元、モデル、推論強度を選びます。キーとChatGPT契約は「モデルとAPI」で管理します。",
       "effortOptions": {
@@ -1175,6 +1326,7 @@
         "args": "引数（1行に1つ）",
         "command": "実行ファイルの絶対パス",
         "cwd": "作業ディレクトリの絶対パス（任意）",
+        "deleteConfirm": "MCPサーバー「{{name}}」を削除しますか？継続許可も取り消されます。",
         "disable": "無効化",
         "editTitle": "MCPサーバーを編集",
         "empty": "この作品にMCPサーバーはありません。",
@@ -1184,6 +1336,7 @@
         "noProject": "作品を開いてMCPを設定してください。",
         "notChecked": "まだ接続していません",
         "policy": {
+          "askWrite": "書き込み・確認",
           "disabled": "無効"
         },
         "publicEnv": "公開環境変数（1行にNAME=value）",
@@ -1226,7 +1379,34 @@
       "unlimited": "無制限",
       "unlimitedHint": "無制限ではモデル呼び出し回数に上限を設けません。ターンは手動で停止できます。"
     },
+    "agentMemory": {
+      "title": "作品の記憶"
+    },
+    "agentUsage": {
+      "all": "全期間",
+      "clearConfirm": "履歴をすべて消去しますか？この作品のAgent会話{{count}}件を削除します。",
+      "clearHistory": "履歴を消去",
+      "conversationsTurns": "会話／ターン",
+      "deleteConversation": "この会話を削除",
+      "history": "会話履歴",
+      "historyDesc": "この作品のAgent会話一覧です。削除は仮削除で、右側の履歴に反映されます。他の作品には影響しません。",
+      "month": "今月",
+      "noHistory": "会話はまだありません。Agentにメッセージを送って始めましょう。",
+      "noProjectHistory": "作品を開いて会話履歴を管理してください。",
+      "noProjectUsage": "作品を開いてAgentの使用量を確認してください。",
+      "tokenCard": "{{scope}} トークン",
+      "untitled": "無題",
+      "usage": "使用量",
+      "usageDesc": "各ターンの応答に基づき、この作品でAgentが使ったトークンを記録します。入力にはキャッシュ読み取りを含みます。今月または全期間を表示できます。"
+    },
     "appearance": {
+      "accent": "アクセントカラー",
+      "accent_color": "画面のアクセント",
+      "accent_color_desc": "ボタン、フォーカス、選択状態に使います。エディタのカーソル色は変わりません。",
+      "accent_reset": "既定値に戻す",
+      "agent_edit_reveal": "変更を表示するアニメーション",
+      "agent_edit_reveal_desc": "Agentによる本文・項目の編集と、他のエディタでの章・アイデアの編集を一文字ずつ表示します。無効にすると結果を即時表示します。未読の変更マークは残ります。",
+      "animations": "アニメーションと画面遷移",
       "dark": "ダーク",
       "guides": "ガイド",
       "interface_text_large": "大きめ",
@@ -1284,9 +1464,51 @@
       "auto_element_link_desc": "入力中に既存の要素名を認識し、そのページにリンクします。",
       "auto_immersive": "入力すると没入執筆",
       "auto_immersive_desc": "本文を書き始めるとサイドバーとツールを収めます。Esc か本文の外をクリックすると戻ります。",
+      "caret_color": "カーソルの色",
+      "caret_color_desc": "本文の入力カーソルの色を選びます。",
+      "entity_link_band_style": "リンクの色帯スタイル",
+      "entity_link_band_style_desc": "柔らかな連続した色帯、または文字の下に細かな点列を表示します。",
+      "entity_link_band_style_dots": "細かな点",
+      "entity_link_band_style_wash": "連続した色帯",
+      "entity_link_highlight": "エンティティリンクの強調方法",
+      "entity_link_highlight_band": "色帯",
+      "entity_link_highlight_both": "両方",
+      "entity_link_highlight_desc": "色帯、文字色、または両方でリンクを強調します。ホバー時の強調にも適用します。",
+      "entity_link_highlight_text": "文字色",
+      "entity_link_kind_category": "カテゴリ",
+      "entity_link_kind_chapter": "章",
+      "entity_link_kind_drift": "アイデア",
+      "entity_link_kind_element": "要素",
+      "entity_link_kind_patch": "変化記録",
+      "entity_link_kind_storyline": "ストーリーライン",
+      "entity_link_style": "エンティティリンクの強調",
+      "entity_link_style_contextual": "所属先別",
+      "entity_link_style_desc": "所属先の色、種類別の色、ホバー時だけ所属先の色、または本文色と色帯を使います。",
+      "entity_link_style_hover": "ホバー時のみ",
+      "entity_link_style_kind": "種類別",
+      "entity_link_style_prose": "本文",
       "flow": "執筆の流れ",
+      "font_error_empty": "フォントファイルが空です。",
+      "font_error_format": "TTF、OTF、WOFF、WOFF2のみ対応しています。",
+      "font_error_invalid": "ファイルを読み取れません。有効な標準フォントまたは可変フォントを選んでください。",
+      "font_error_size": "フォントファイルは64 MB以下にしてください。",
+      "font_import": "フォントをインポート",
+      "font_import_done": "フォントをこの端末に保存し、執筆内容に適用しました。",
+      "font_import_help": "TTF、OTF、WOFF、WOFF2の標準・可変フォントに対応。上限64 MB。",
+      "font_remove": "削除",
+      "font_remove_done": "アプリが保存したフォントのコピーを削除しました。",
+      "font_replace": "置き換え",
+      "font_scope_desc": "章の本文、エンティティのタイトル・要約・長文、項目値、変化記録、参照内容、組版プレビューに適用します。画面、サイドバー、ダイアログ、ノードカードは共通のサンセリフ体です。フォント選択は端末固有で、執筆内容のSyncEngine同期対象に含まれません。",
       "font_size": "文字サイズ",
       "font_size_desc": "エディタ表示のみに適用し、出力には影響しません。",
+      "font_source": "本文のフォント",
+      "font_system_custom": "システムフォント",
+      "font_system_manual_placeholder": "例：Charter",
+      "font_system_mono": "システムの等幅書体",
+      "font_system_placeholder": "システムフォントを選択",
+      "font_system_sans": "システムのサンセリフ体",
+      "font_system_serif": "システムのセリフ体",
+      "font_use": "使用",
       "indent": "段落の字下げ",
       "indent_desc": "エディタ表示専用です。出力には別の設定を使います。",
       "indent_none": "なし",
@@ -1303,6 +1525,12 @@
       "preview_p1": "沈黙が、石を覆う潮のように二人の間に広がった。やがて彼女が口を開いた。風にさらわれそうな声は、彼がかろうじて聞き取れるところに落ちた。",
       "preview_p2": "「戻ってくる？」彼はすぐには答えなかった。海に沈む夕日を見つめ、長い間を置いてうなずいた。それが約束なのか、憐れみなのか、自分にもわからなかった。",
       "reset_style": "推奨スタイルに戻す",
+      "tab_indent": "Tabで字下げ",
+      "tab_indent_desc": "Tabで増やす段落字下げ1段分の幅です。Shift+Tabで戻せます。",
+      "text_wrap": "折り返し",
+      "text_wrap_desc": "「安定」は各行を埋め、後方を編集しても前の改行を保ちます。「整形」は段落全体で折り返しを調整します。即時反映し、この端末に保存します。",
+      "text_wrap_pretty": "整形",
+      "text_wrap_stable": "安定",
       "typesetting": "組版",
       "typewriter_mode": "タイプライターモード",
       "typewriter_mode_desc": "入力やカーソル移動中、現在の行を画面内の一定位置に保ちます。エディタ表示のみに適用します。",
@@ -1338,19 +1566,37 @@
       "connect_errors": {
         "cancelled": "取り消しました。"
       },
+      "crop_confirm": "このアバターを使う",
+      "crop_description": "画像をドラッグするか矢印キーで位置を決め、拡大率を調整してください。",
+      "crop_title": "アバターを調整",
+      "crop_zoom": "拡大率",
       "current_password": "現在のパスワード",
       "description": "原稿はまずこの端末に保存します。アカウントを接続すると、自分の端末間で作品を同期できます。",
+      "disconnect": "同期を切断",
+      "disconnect_anyway": "それでも切断",
+      "disconnect_description": "このMacだけにある変更を送信してから切断します。ローカル作品とクラウドのコピーは残ります。",
+      "disconnect_now": "今すぐ切断",
+      "disconnect_unuploaded": "{{count}}件が未送信です。切断するとこのMacだけに残ります。",
       "display_name": "表示名",
+      "enabled": "Hosted同期に接続済み",
+      "last_synced": "前回の同期完了：{{time}}",
       "library_switch_failed": "ライブラリを切り替えられませんでした",
       "new_password": "新しいパスワード",
       "no_account": "未ログイン",
+      "not_started": "同期を開始できません。原稿は端末に保存されています。Driftingを開き直してください。",
       "password_description": "8〜128文字。",
       "password_saved": "パスワードを変更しました。他の端末では再ログインが必要です。",
       "password_sessions": "パスワードを変えると他の端末からログアウトします。この端末はログインを保ちます。",
       "password_title": "パスワード",
+      "pause": "一時停止",
+      "paused": "同期を一時停止中",
+      "pending": "同期中、または完了待ちです。",
       "profile_saved": "プロフィールを保存しました。",
       "profile_title": "プロフィール",
+      "quota_blocked": "Hostedの容量不足で添付を送信できず、作品の同期が止まっています。不要な添付や作品を削除すると再開します。ローカルの内容には影響しません。",
       "remove_avatar": "削除",
+      "resume": "再開",
+      "retrying": "同期が完了しませんでした。原稿はローカルに保存済みです。自動再試行します。",
       "save_profile": "プロフィールを保存",
       "session": {
         "checking": "アカウントを確認中…",
@@ -1361,6 +1607,10 @@
       },
       "sign_in": "ログイン／登録",
       "sign_out": "ログアウト",
+      "storage": "Hostedストレージ",
+      "storage_description": "{{quota}}中{{used}}を使用。添付ファイルを計上し、原稿と構成には上限がありません。",
+      "sync_now": "今すぐ同期",
+      "sync_title": "Hosted同期",
       "title": "アカウントとHosted同期",
       "working": "処理中…"
     },
@@ -1434,6 +1684,7 @@
       "diagnosticsCopied": "機密情報を除いた診断概要をコピーしました。",
       "diagnosticsCopyFailed": "クリップボードへ書き込めません。アクセス権限がない可能性があります。",
       "diagnosticsDesc": "バージョン、環境、機能の利用可否、同期件数・エラー種別、更新状態をコピーします。原稿、認証情報、作品ID、絶対パスは含まず、自動送信もしません。",
+      "fullPolicy": "プライバシーポリシー全文",
       "noteLocal": "このビルドはDriftingのサーバーへ接続せず、作品は端末に残ります。AI・音声文字起こしは端末から選択した提供元へ直接送られ、その提供元のデータ・学習規約が適用されます。追加したリモートMCP拡張もネットワークを使います。"
     },
     "rail": {
@@ -1471,6 +1722,8 @@
         "restoring": "復元中…",
         "summary": "{{projects}}作品、素材{{assets}}ファイル、{{size}}。"
       },
+      "import_files": "インポート",
+      "import_files_desc": "Word（.docx）、Markdown、プレーンテキストから。",
       "local_data": "ローカルデータ",
       "local_sub": "Driftingのアカウントやクラウドは使いません。いつでも読めるコピーを出力できます。",
       "local_title": "作品はこの端末に。",
@@ -1478,13 +1731,20 @@
         "allProjects": "全作品",
         "allProjectsUnset": "全作品・場所が未選択",
         "choose": "フォルダを選択",
+        "copied": "パスをコピーしました",
+        "copy": "パスをコピー",
+        "error": "更新失敗",
         "offHint": "無効：Markdownを出力せず、外部編集も統合しません。既存ファイルは元の場所に残ります。",
         "offTitle": "Markdownフォルダを無効にしますか？",
+        "pending": "更新中",
+        "ready": "最新です",
+        "refresh": "今すぐ更新",
         "reveal": "Finderで表示",
         "title": "Markdownフォルダ",
         "turnOff": "Markdownフォルダを無効化",
         "turnOn": "有効にする"
-      }
+      },
+      "select_file": "ファイルを選択…"
     },
     "update": {
       "channel_desc": "Apple Silicon・macOS 13以降",
@@ -1508,6 +1768,49 @@
       "server_error": "更新サービスで問題が起きています。後ほど再試行してください。現在の版は引き続き使えます。",
       "unavailable": "このビルドには更新署名キーがなく、更新を確認できません。GitHubからダウンロードしたリリース版では利用できます。"
     }
+  },
+  "shell_ui": {
+    "add_fact": "項目を追加",
+    "back_plain": "戻る",
+    "empty_book_hint": "項目を作成して本文を書くと、ここで全体を通読できます。",
+    "empty_book_title": "まだ本文がありません",
+    "fact_key_placeholder": "項目名（例：副題、ジャンル）",
+    "fact_value_placeholder": "内容",
+    "find_results": "一致箇所",
+    "hosted_purge_note": "この端末とすべてのクラウド同期端末から完全に削除され、元に戻せません。",
+    "hosted_trash_note": "この端末とクラウドから移動され、30日間は「最近削除した項目」から復元できます。",
+    "menu_about": "{{app}} について",
+    "menu_bring_all_to_front": "すべてを手前に移動",
+    "menu_close_window": "ウインドウを閉じる",
+    "menu_copy": "コピー",
+    "menu_cut": "カット",
+    "menu_edit": "編集",
+    "menu_hide": "{{app}} を非表示",
+    "menu_hide_others": "ほかを非表示",
+    "menu_minimize": "しまう",
+    "menu_paste": "ペースト",
+    "menu_quit": "{{app}} を終了",
+    "menu_redo": "やり直す",
+    "menu_select_all": "すべてを選択",
+    "menu_services": "サービス",
+    "menu_settings": "設定…",
+    "menu_show_all": "すべてを表示",
+    "menu_undo": "取り消す",
+    "menu_zoom": "拡大/縮小",
+    "new_entry_plain": "新規項目",
+    "open_whole_book": "全体を通読",
+    "pick_relation_target": "「{{name}}」から接続中 — 別の項目をクリック（Esc でキャンセル）",
+    "preparing_samples": "サンプルプロジェクトを準備中…",
+    "project_facts": "作品情報",
+    "search_hint": "キーワードを入力してプロジェクト全体を検索",
+    "search_placeholder": "タイトル、本文、フィールド、資料を検索…",
+    "swap_split": "左右ペインを入れ替え",
+    "templates_plain": "テンプレート",
+    "toggle_comment_marks": "注釈マークを表示",
+    "toggle_entity_links": "項目リンクを有効化",
+    "unpin_island": "固定を解除",
+    "unsplit": "分割を閉じる",
+    "words_short": "{{count}} 字"
   },
   "sidebarLayout": {
     "split": "2列表示に戻す"
@@ -1533,7 +1836,8 @@
     "edge": {
       "hideKind": "「{{label}}」を非表示",
       "showKind": "「{{label}}」を表示"
-    }
+    },
+    "spread": "分散"
   },
   "storylineEditor": {
     "filters": {
@@ -1583,6 +1887,7 @@
       "relayout": "再配置"
     },
     "reset": "リセット",
+    "startEdgeFromElement": "この要素から関係を作成",
     "uncategorized": "未分類",
     "unnamedCategory": "無題のカテゴリ"
   },
@@ -1601,7 +1906,10 @@
     "color": "色",
     "conflict": "テンプレートが別の場所で変更されました",
     "date": "日付",
+    "default_prose": "既定の本文テンプレート",
+    "default_prose_hint": "このテンプレートから新規項目を作成するときに自動で入ります",
     "default_template": "既定のテンプレート",
+    "default_value": "既定値",
     "description": "説明",
     "display": "表示",
     "entity_ref": "項目参照",
@@ -1729,9 +2037,15 @@
     "originTask": "チェックリスト",
     "regionPlace": "選択範囲",
     "regionPlacePaged": "{{page}} ページ",
+    "retarget": "紐付け先を変更…",
+    "sortNewest": "新しい順",
+    "sortOldest": "古い順",
+    "sortPosition": "位置順",
     "statusOpen": "未解決",
     "statusResolved": "解決済み",
+    "unbindTarget": "紐付けを解除",
     "unlocated": "元の場所が見つかりません",
+    "viewOriginal": "原文を表示",
     "wholeFile": "ファイル全体",
     "writeComment": "コメントを書く"
   },
@@ -1756,6 +2070,9 @@
     "railAgent": "Agent"
   },
   "v3Shell": {
+    "agent_unread": "未読の Agent 編集",
+    "aliases_add": "別名を追加…",
+    "aliases_remove": "別名を削除",
     "attachedEntries": "ここに掛けた項目",
     "belongTo": "所属先",
     "board": "ボード",
@@ -1766,7 +2083,9 @@
     "editTemplate": "テンプレートを編集",
     "entries": "項目",
     "entryUntemplated": "項目",
+    "entry_count": "{{count}} 件",
     "expandTimeline": "ストーリーラインのタイムラインを展開",
+    "external_unread": "未読の外部編集",
     "grid": "グリッド",
     "hideOutline": "目次を非表示",
     "islands": "アイランド",
@@ -1809,8 +2128,10 @@
     "colorValue": "色の値",
     "deleteView": "ビューを削除",
     "detachEntry": "項目の関連付けを解除",
+    "empty_book_view": "先にこのビューへ項目を配置してください",
     "laneActions": "レーンの操作",
     "laneTrack": "レーン {{name}}",
+    "locate_current": "現在の項目へ移動",
     "members": "メンバー {{count}} 件",
     "moveDown": "下へ移動",
     "moveUp": "上へ移動",
@@ -1818,6 +2139,7 @@
     "newEntryInLane": "項目を作成",
     "newLane": "レーンを作成",
     "newView": "ビューを作成",
+    "pin_color": "色",
     "placeEntry": "項目を配置",
     "placementActions": "配置の操作",
     "removeEntry": "レーンから外す",
@@ -1826,9 +2148,12 @@
     "renameView": "ビューの名前を変更",
     "resize": "長さを調整",
     "ruler": "目盛り",
+    "section_create": "新規作成",
+    "section_existing": "既存の項目を追加",
     "selectLane": "レーンを選択",
     "setActTrack": "幕トラックにする · {{name}}",
     "unsetActTrack": "通常のレーンに戻す · {{name}}",
+    "view_actions": "ビュー操作",
     "views": "ビュー"
   },
   "v3Transfer": {
@@ -1843,8 +2168,11 @@
     "alignRight": "右寄せ",
     "allFolders": "すべて",
     "clearField": "クリア",
+    "collapseAll": "すべて折りたたむ",
     "currentSection": "現在",
     "empty": "ファイルなし",
+    "empty_trash": "空にする",
+    "expandAll": "すべて展開",
     "fileCount_other": "{{count}} 件のファイル",
     "findFile": "ファイルを検索",
     "itemCount_other": "{{count}} 件",
@@ -1934,6 +2262,16 @@
     "direction": "方向",
     "otherEntry": "相手の項目",
     "relation": "関係"
+  },
+  "v5Stats": {
+    "childrenAggregate": "配下の集計",
+    "entryCoordinates": "項目の位置",
+    "groupRhythm": "グループ構成",
+    "inboundLinks": "被参照",
+    "outboundLinks": "参照先",
+    "projectOverview": "プロジェクト概要",
+    "templatesTotal": "テンプレート数",
+    "unreferencedNote": "本文ではまだ参照されていません"
   },
   "v5Tour": {
     "agent": {

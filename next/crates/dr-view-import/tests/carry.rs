@@ -184,7 +184,7 @@ fn the_01_settings_shortcuts_and_working_memory_come_over_once(cx: &mut TestAppC
     assert_eq!(outcome("setting", &s("bodyFontSize")), "kept-here");
     assert_eq!(outcome("setting", &s("lineHeight")), "kept-here");
     assert_eq!(outcome("setting", &s("agentProvider")), "no-equivalent");
-    assert_eq!(outcome("setting", &s("accentColor")), "no-equivalent");
+    assert_eq!(outcome("setting", &s("accentColor")), "adopted");
     assert_eq!(outcome("setting", &s("caretColor")), "default");
     assert_eq!(outcome("setting", "project-checkin.enabled"), "adopted");
     assert_eq!(outcome("shortcut", "findInEditor"), "conflict");

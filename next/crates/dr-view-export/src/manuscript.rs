@@ -68,6 +68,7 @@ pub struct ManuscriptState {
     author: Entity<TextField>,
     pub cover: Option<Cover>,
     thumb: Option<Arc<gpui::Image>>,
+    pub preferred_font: Option<String>,
     pub busy: Option<Busy>,
     pub feedback: Option<Feedback>,
     task: Option<Task<()>>,
@@ -109,6 +110,7 @@ impl ManuscriptState {
             author,
             cover: None,
             thumb: None,
+            preferred_font: None,
             busy: None,
             feedback: None,
             task: None,
@@ -390,7 +392,11 @@ impl ManuscriptState {
         let format = self.format;
         let filename = dr_export::manuscript_filename(&options.title, format);
         let path = cx.prompt_for_new_path(&crate::start_dir(), Some(&filename));
-        let (book, locale) = (self.book.clone(), self.i18n.locale().code().to_owned());
+        let (book, locale, preferred_font) = (
+            self.book.clone(),
+            self.i18n.locale().code().to_owned(),
+            self.preferred_font.clone(),
+        );
         self.busy = Some(Busy::Export);
         self.feedback = None;
         self.task = Some(cx.spawn(async move |this, cx| {
@@ -405,7 +411,16 @@ impl ManuscriptState {
                 Some(Ok(path)) => Some(
                     cx.background_executor()
                         .spawn(async move {
-                            write(&lib, &book, &options, &labels, &locale, format, &path)
+                            write(
+                                &lib,
+                                &book,
+                                &options,
+                                &labels,
+                                &locale,
+                                preferred_font,
+                                format,
+                                &path,
+                            )
                         })
                         .await,
                 ),
@@ -502,18 +517,27 @@ fn option_labels(i18n: &I18n) -> std::collections::BTreeMap<String, String> {
 }
 
 /// Reads, lays out and writes the manuscript (off the main thread).
+#[allow(clippy::too_many_arguments)]
 fn write(
     lib: &Workspace,
     book: &str,
     options: &Options,
     labels: &Labels,
     locale: &str,
+    preferred_font: Option<String>,
     format: Format,
     path: &std::path::Path,
 ) -> Result<(), String> {
-    let manuscript =
-        dr_export::read_manuscript(lib, book, options, labels, locale, None, SystemTime::now())
-            .map_err(|e| e.to_string())?;
+    let manuscript = dr_export::read_manuscript(
+        lib,
+        book,
+        options,
+        labels,
+        locale,
+        preferred_font,
+        SystemTime::now(),
+    )
+    .map_err(|e| e.to_string())?;
     let bytes = dr_export::render(&manuscript, format)?;
     dr_export::write_file(path, &bytes).map_err(|e| e.to_string())
 }
@@ -802,6 +826,66 @@ pub(crate) fn render(
             }
 
             let tree_disabled = running || m.only_book_prose;
+            if !m.only_book_prose {
+                let count = m.chapters().len() + m.hung().len();
+                let all_btn = this.clone();
+                let none_btn = this.clone();
+                scope = scope.child(
+                    div()
+                        .flex()
+                        .flex_row()
+                        .items_center()
+                        .justify_between()
+                        .gap(px(space::S2))
+                        .child(
+                            div()
+                                .id("export-selected-count")
+                                .font_role(Role::Index)
+                                .type_px(s.caption, s.line_caption)
+                                .text_color(p.muted().solid())
+                                .child(SharedString::from(i18n.plural(
+                                    keys::k4_book::ENTRY_COUNT,
+                                    count as u64,
+                                    &[("count", &count)],
+                                ))),
+                        )
+                        .child(
+                            div()
+                                .flex()
+                                .flex_row()
+                                .items_center()
+                                .gap(px(space::S1))
+                                .child(
+                                    Button::new("export-select-all", t(mx::SELECT_ALL))
+                                        .text()
+                                        .small()
+                                        .disabled(running)
+                                        .on_click(move |_, _, cx| {
+                                            all_btn.update(cx, |d, cx| {
+                                                if let Some(m) = d.manuscript_mut() {
+                                                    m.select_all(true);
+                                                }
+                                                cx.notify();
+                                            })
+                                        }),
+                                )
+                                .child(
+                                    Button::new("export-select-none", t(mx::SELECT_NONE))
+                                        .text()
+                                        .small()
+                                        .disabled(running)
+                                        .on_click(move |_, _, cx| {
+                                            none_btn.update(cx, |d, cx| {
+                                                if let Some(m) = d.manuscript_mut() {
+                                                    m.select_all(false);
+                                                }
+                                                cx.notify();
+                                            })
+                                        }),
+                                ),
+                        ),
+                );
+            }
             let mut rows = Vec::new();
             flatten_visible(&outline.tree, 0, m, &mut rows);
             let mut tree = div()

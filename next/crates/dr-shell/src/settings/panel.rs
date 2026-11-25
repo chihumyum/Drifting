@@ -23,25 +23,26 @@ use dr_i18n::{Key, keys, normalize};
 use dr_ui::{
     Theme,
     components::{
-        Button, Choice, NumberField, PanelIconButton, Range, Segmented, Select, Switch,
-        menu::section_label,
+        Button, Choice, ColorSwatch, NumberField, PanelIconButton, Range, Segmented, Select,
+        Switch, color, menu::section_label,
     },
     fonts::Role,
     glass::{self, Ground, Kind as GlassKind, Mode, Spec, Tone},
     input::{FieldEvent, TextField},
-    sand::Icon,
+    sand::{self, Icon},
     style::DrStyled,
     tokens::{menu as m, radius},
 };
 use gpui::{
     AnyElement, App, AppContext as _, Context, ElementId, Entity, EventEmitter, FocusHandle,
-    Focusable, InteractiveElement, IntoElement, Keystroke, ParentElement, Render, ScrollHandle,
-    SharedString, StatefulInteractiveElement, Styled, Subscription, Window, div,
-    prelude::FluentBuilder as _, px,
+    Focusable, InteractiveElement, IntoElement, Keystroke, ParentElement, PathPromptOptions,
+    Render, ScrollHandle, SharedString, StatefulInteractiveElement, Styled, Subscription, Window,
+    div, prelude::FluentBuilder as _, px,
 };
 use serde_json::Value;
 
 use super::Settings;
+use super::fonts;
 use super::registry::{self, InfoRow, Kind, RowAction, Section, SettingDef};
 use crate::keymap::{self, Shortcut};
 use crate::strings::{t, tf};
@@ -55,6 +56,10 @@ pub enum PanelEvent {
 pub struct SettingsPanel {
     focus: FocusHandle,
     search: Entity<TextField>,
+    font_family_input: Entity<TextField>,
+    system_fonts: Option<Vec<String>>,
+    font_status: Option<(bool, SharedString)>,
+    replayed_guides: bool,
     query: String,
     scroll: ScrollHandle,
     /// The shortcut being recorded, and the keystroke interceptor doing it.
@@ -135,6 +140,29 @@ impl SettingsPanel {
                 .placeholder(placeholder)
                 .icon(Icon::Search)
         });
+        let font_placeholder = t(cx, keys::settings::editor::FONT_SYSTEM_MANUAL_PLACEHOLDER);
+        let initial_font = Settings::read(cx)
+            .str(registry::FONT_FAMILY)
+            .unwrap_or_default();
+        let font_family_input = cx.new(|cx| {
+            TextField::new("settings-font-family-manual", window, cx)
+                .small()
+                .placeholder(font_placeholder)
+                .with_text(initial_font)
+        });
+        let font_sub = cx.subscribe(&font_family_input, |panel, field, event, cx| {
+            if let FieldEvent::Submitted(text) = event {
+                let trimmed = text.trim().to_owned();
+                if !trimmed.is_empty() {
+                    set(registry::FONT_SOURCE, Value::from("system"), cx);
+                    set(registry::FONT_FAMILY, Value::from(trimmed), cx);
+                    panel.font_status = None;
+                    cx.notify();
+                } else {
+                    field.update(cx, |f, cx| f.set_text("", cx));
+                }
+            }
+        });
         let subscription = cx.subscribe_in(&search, window, |panel, field, event, window, cx| {
             match event {
                 FieldEvent::Changed(text) => {
@@ -160,18 +188,51 @@ impl SettingsPanel {
         SettingsPanel {
             focus: cx.focus_handle(),
             search,
+            font_family_input,
+            system_fonts: None,
+            font_status: None,
+            replayed_guides: false,
             query: String::new(),
             scroll: ScrollHandle::new(),
             recording: None,
             interceptor: None,
             conflict: None,
             copied: None,
-            _subscriptions: vec![subscription, settings, strings],
+            _subscriptions: vec![subscription, font_sub, settings, strings],
         }
     }
 
     pub fn focus(&self, window: &mut Window, cx: &mut App) {
         self.search.read(cx).focus_handle(cx).focus(window, cx);
+    }
+
+    fn import_custom_font(&mut self, cx: &mut Context<Self>) {
+        let prompt = cx.prompt_for_paths(PathPromptOptions {
+            files: true,
+            directories: false,
+            multiple: false,
+            prompt: None,
+        });
+        cx.spawn(async move |this, cx| {
+            let Ok(Ok(Some(paths))) = prompt.await else {
+                return;
+            };
+            let Some(path) = paths.into_iter().next() else {
+                return;
+            };
+            let _ = this.update(cx, |panel, cx| match fonts::import_font_file(&path, cx) {
+                Ok(_family) => {
+                    panel.font_status =
+                        Some((true, t(cx, keys::settings::editor::FONT_IMPORT_DONE)));
+                    cx.notify();
+                }
+                Err(err_key) => {
+                    panel.font_status = Some((false, t(cx, err_key)));
+                    cx.notify();
+                }
+            });
+        })
+        .detach();
     }
 
     pub fn query(&self) -> &str {
@@ -302,6 +363,11 @@ impl Render for SettingsPanel {
             div()
                 .id("settings")
                 .track_focus(&self.focus)
+                .on_action(
+                    cx.listener(|panel, _: &crate::actions::FindInEditor, window, cx| {
+                        panel.focus(window, cx);
+                    }),
+                )
                 .absolute()
                 .inset_0()
                 .occlude()
@@ -327,6 +393,39 @@ impl Render for SettingsPanel {
                 .child(close),
         )
     }
+}
+
+fn section_icon(section: Section) -> Icon {
+    match section {
+        Section::Account => Icon::NameSeal,
+        Section::Appearance => Icon::Enso,
+        Section::Editor => Icon::BrushWriting,
+        Section::Language => Icon::Wen,
+        Section::Keys => Icon::MovableType,
+        Section::Models => Icon::DharmaWheel,
+        Section::Agent => Icon::Shikigami,
+        Section::LocalData => Icon::Folder,
+        Section::About => Icon::OpenBook,
+    }
+}
+
+fn section_subsections(section: Section) -> Vec<Key> {
+    let mut groups: Vec<Key> = Vec::new();
+    for def in registry::in_section(section) {
+        if let Some(g) = def.group
+            && !groups.contains(&g)
+        {
+            groups.push(g);
+        }
+    }
+    for info in registry::info_in(section) {
+        if let Some(g) = info.group
+            && !groups.contains(&g)
+        {
+            groups.push(g);
+        }
+    }
+    groups
 }
 
 fn rail(
@@ -365,7 +464,7 @@ fn rail(
         )
         .child(div().px(px(4.0)).pb(px(8.0)).child(search.clone()));
     let mut group: Option<Key> = None;
-    for (i, (section, _)) in found.iter().enumerate() {
+    for (i, (section, only)) in found.iter().enumerate() {
         if group != Some(section.group()) {
             group = Some(section.group());
             col = col.child(
@@ -375,7 +474,7 @@ fn rail(
             );
         }
         let selected = i == current;
-        let scroll = scroll.clone();
+        let scroll_row = scroll.clone();
         let row = glass::glass_box(
             ElementId::Name(format!("rail-{}", section.slug()).into()),
             GlassKind::Hidden,
@@ -388,14 +487,46 @@ fn rail(
         .h(px(s.menu_row))
         .px(px(m::ROW_PAD_X))
         .flex()
+        .flex_row()
         .items_center()
+        .gap(px(m::ICON_GAP))
         .cursor_pointer()
         .font_role(Role::Ui)
         .type_px(s.menu_text, s.menu_line)
         .text_color(if selected { p.ink(1) } else { p.ink(2) }.solid())
+        .child(sand::icon(
+            section_icon(*section),
+            14.0,
+            if selected { p.ink(1) } else { p.muted() }.solid(),
+        ))
         .child(t(cx, section.label()))
-        .on_click(move |_, _, _| scroll.scroll_to_item(i));
+        .on_click(move |_, _, _| scroll_row.scroll_to_item(i));
         col = col.child(row);
+        if selected && only.is_none() {
+            let subs = section_subsections(*section);
+            if subs.len() > 1 {
+                for (sub_i, sub_key) in subs.into_iter().enumerate() {
+                    let scroll_sub = scroll.clone();
+                    col = col.child(
+                        div()
+                            .id(ElementId::Name(
+                                format!("rail-sub-{}-{sub_i}", section.slug()).into(),
+                            ))
+                            .pl(px(m::ROW_PAD_X + 20.0))
+                            .pr(px(m::ROW_PAD_X))
+                            .py(px(3.0))
+                            .rounded(px(radius::SM))
+                            .cursor_pointer()
+                            .hover(|st| st.bg(p.ink(1).alpha(0.04)))
+                            .font_role(Role::Ui)
+                            .type_px(s.caption, s.line_caption)
+                            .text_color(p.muted().solid())
+                            .child(t(cx, sub_key))
+                            .on_click(move |_, _, _| scroll_sub.scroll_to_item(i)),
+                    );
+                }
+            }
+        }
     }
     col.into_any_element()
 }
@@ -503,6 +634,9 @@ impl SettingsPanel {
                     cx,
                 );
                 for def in registry::in_section(section).filter(|d| wanted(d.key)) {
+                    if def.key == registry::FONT_FAMILY {
+                        continue;
+                    }
                     if matches!(def.kind, Kind::Module(_)) {
                         if let Some(control) = super::module_row(def.key, window, cx) {
                             col = col.child(row(
@@ -537,6 +671,11 @@ impl SettingsPanel {
                         control,
                         &theme,
                     ));
+                    if def.key == registry::FONT_SOURCE
+                        && let Some(detail) = self.font_detail_row(window, cx)
+                    {
+                        col = col.child(detail);
+                    }
                 }
                 // Under the settings' last heading when they share it (数据使用).
                 col = self.info_rows(
@@ -599,6 +738,8 @@ impl SettingsPanel {
             }
             if info.action == RowAction::Updates {
                 if let Some(updates) = super::updates_row(window, cx) {
+                    let p = theme.palette;
+                    let s = theme.scale;
                     col = col.child(row(
                         info.id,
                         t(cx, info.label),
@@ -606,6 +747,22 @@ impl SettingsPanel {
                         updates.control.unwrap_or_else(|| div().into_any_element()),
                         &theme,
                     ));
+                    if let Some(notes) = updates.notes {
+                        col = col.child(
+                            div()
+                                .id("settings-update-notes")
+                                .mb(px(10.0))
+                                .p(px(10.0))
+                                .rounded(px(radius::MD))
+                                .bg(p.ink(1).alpha(0.03))
+                                .border_1()
+                                .border_color(p.subtle_hairline())
+                                .font_role(Role::Ui)
+                                .type_px(s.caption, s.line_caption)
+                                .text_color(p.ink(2).solid())
+                                .child(dr_ui::text::wrapped(notes)),
+                        );
+                    }
                 }
                 continue;
             }
@@ -717,17 +874,67 @@ impl SettingsPanel {
                     .into_any_element()
             }
 
-            RowAction::ReplayGuides => Button::new(
-                "replay-guides",
-                t(cx, keys::settings::appearance::REPLAY_GUIDES_ACTION),
-            )
-            .small()
-            .on_click(|_, _, cx| {
-                if let Some(guide) = crate::pages::guide(cx) {
-                    (guide.reset)(cx);
+            RowAction::ExportAllMarkdown => {
+                let panel = cx.entity();
+                Button::new(
+                    "export-all-markdown",
+                    t(cx, keys::settings::account::EXPORT_ALL_BTN),
+                )
+                .small()
+                .on_click(move |_, window, cx| {
+                    panel.update(cx, |_, cx| cx.emit(PanelEvent::Close));
+                    window
+                        .dispatch_action(Box::new(crate::actions::ExportAllRelationalMarkdown), cx);
+                })
+                .into_any_element()
+            }
+            RowAction::ImportFiles => {
+                let panel = cx.entity();
+                let has_lib = cx
+                    .try_global::<crate::Services>()
+                    .is_some_and(|s| s.library.is_some());
+                Button::new("import-files", t(cx, keys::settings::sync::SELECT_FILE))
+                    .small()
+                    .disabled(!has_lib)
+                    .on_click(move |_, window, cx| {
+                        panel.update(cx, |_, cx| cx.emit(PanelEvent::Close));
+                        window.dispatch_action(Box::new(crate::actions::ImportDocuments), cx);
+                    })
+                    .into_any_element()
+            }
+            RowAction::FontsCredit => {
+                let mut label = "Drifting Sans · Drifting Serif · Sarasa Mono SC".to_owned();
+                if let Some((_, family)) = fonts::imported_custom_font(cx) {
+                    label.push_str(&format!(" · {family}"));
                 }
-            })
-            .into_any_element(),
+                div()
+                    .font_role(Role::Index)
+                    .type_px(s.caption, s.line_caption)
+                    .text_color(p.ink(2).solid())
+                    .child(label)
+                    .into_any_element()
+            }
+            RowAction::ReplayGuides => {
+                let has_seen = crate::pages::guide(cx).is_some_and(|g| (g.has_seen)(cx))
+                    && !self.replayed_guides;
+                let panel = cx.entity();
+                Button::new(
+                    "replay-guides",
+                    t(cx, keys::settings::appearance::REPLAY_GUIDES_ACTION),
+                )
+                .small()
+                .disabled(!has_seen)
+                .on_click(move |_, _, cx| {
+                    if let Some(guide) = crate::pages::guide(cx) {
+                        (guide.reset)(cx);
+                        panel.update(cx, |p, cx| {
+                            p.replayed_guides = true;
+                            cx.notify();
+                        });
+                    }
+                })
+                .into_any_element()
+            }
             // Drawn from M42's hook in `info_rows`.
             RowAction::Updates => div().into_any_element(),
             RowAction::Version => div()
@@ -736,6 +943,167 @@ impl SettingsPanel {
                 .text_color(p.ink(2).solid())
                 .child(version_line(cx))
                 .into_any_element(),
+        }
+    }
+
+    fn font_detail_row(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Option<AnyElement> {
+        let source = Settings::read(cx)
+            .str(registry::FONT_SOURCE)
+            .unwrap_or_else(|| "system-serif".into());
+        let theme = Theme::of(window, cx);
+        let (p, s) = (theme.palette, theme.scale);
+        match source.as_str() {
+            "system" => {
+                let list = self
+                    .system_fonts
+                    .get_or_insert_with(|| fonts::system_font_families(cx))
+                    .clone();
+                let current = Settings::read(cx)
+                    .str(registry::FONT_FAMILY)
+                    .unwrap_or_default();
+                let mut choices = Vec::with_capacity(list.len() + 1);
+                choices.push(Choice::plain(t(
+                    cx,
+                    keys::settings::editor::FONT_SYSTEM_PLACEHOLDER,
+                )));
+                choices.extend(list.iter().cloned().map(Choice::plain));
+                let selected = list
+                    .iter()
+                    .position(|n| n == &current)
+                    .map(|i| i + 1)
+                    .unwrap_or(0);
+                let list_for_pick = list;
+                let input_sync = self.font_family_input.clone();
+                let input_apply = self.font_family_input.clone();
+                Some(
+                    div()
+                        .id("settings-font-system-detail")
+                        .py(px(10.0))
+                        .border_b(px(0.5))
+                        .border_color(p.subtle_hairline())
+                        .flex()
+                        .flex_col()
+                        .gap(px(8.0))
+                        .child(
+                            Select::new("settings-system-font-select", choices, selected)
+                                .on_change(move |i, _, cx| {
+                                    let chosen = i
+                                        .checked_sub(1)
+                                        .and_then(|idx| list_for_pick.get(idx))
+                                        .cloned()
+                                        .unwrap_or_default();
+                                    set(registry::FONT_FAMILY, Value::from(chosen.clone()), cx);
+                                    input_sync.update(cx, |f, cx| f.set_text(chosen, cx));
+                                }),
+                        )
+                        .child(
+                            div()
+                                .flex()
+                                .flex_row()
+                                .items_center()
+                                .gap(px(8.0))
+                                .child(
+                                    div()
+                                        .flex_1()
+                                        .min_w_0()
+                                        .child(self.font_family_input.clone()),
+                                )
+                                .child(
+                                    Button::new(
+                                        "settings-font-family-apply",
+                                        t(cx, keys::settings::editor::FONT_USE),
+                                    )
+                                    .small()
+                                    .on_click(
+                                        move |_, _, cx| {
+                                            let text =
+                                                input_apply.read(cx).text().trim().to_owned();
+                                            if !text.is_empty() {
+                                                set(registry::FONT_FAMILY, Value::from(text), cx);
+                                            }
+                                        },
+                                    ),
+                                ),
+                        )
+                        .into_any_element(),
+                )
+            }
+            "custom" => {
+                let imported = fonts::imported_custom_font(cx);
+                let panel_import = cx.entity();
+                let panel_remove = cx.entity();
+                let btn_label = if imported.is_some() {
+                    t(cx, keys::settings::editor::FONT_REPLACE)
+                } else {
+                    t(cx, keys::settings::editor::FONT_IMPORT)
+                };
+                let mut actions = div().flex().flex_row().items_center().gap(px(8.0)).child(
+                    Button::new("settings-font-import", btn_label)
+                        .small()
+                        .on_click(move |_, _, cx| {
+                            panel_import.update(cx, |p, cx| p.import_custom_font(cx));
+                        }),
+                );
+                if let Some((_, family)) = &imported {
+                    actions = actions
+                        .child(
+                            div()
+                                .font_role(Role::Index)
+                                .type_px(s.caption, s.line_caption)
+                                .text_color(p.ink(2).solid())
+                                .child(family.clone()),
+                        )
+                        .child(
+                            Button::new(
+                                "settings-font-remove",
+                                t(cx, keys::settings::editor::FONT_REMOVE),
+                            )
+                            .text()
+                            .small()
+                            .on_click(move |_, _, cx| {
+                                fonts::remove_custom_font(cx);
+                                panel_remove.update(cx, |p, cx| {
+                                    p.font_status = Some((
+                                        true,
+                                        t(cx, keys::settings::editor::FONT_REMOVE_DONE),
+                                    ));
+                                    cx.notify();
+                                });
+                            }),
+                        );
+                }
+                let mut box_el = div()
+                    .id("settings-font-custom-detail")
+                    .py(px(10.0))
+                    .border_b(px(0.5))
+                    .border_color(p.subtle_hairline())
+                    .flex()
+                    .flex_col()
+                    .gap(px(6.0))
+                    .child(actions)
+                    .child(
+                        div()
+                            .font_role(Role::Ui)
+                            .type_px(s.caption, s.line_caption)
+                            .text_color(p.muted().solid())
+                            .child(t(cx, keys::settings::editor::FONT_IMPORT_HELP)),
+                    );
+                if let Some((ok, msg)) = &self.font_status {
+                    box_el = box_el.child(
+                        div()
+                            .font_role(Role::Ui)
+                            .type_px(s.caption, s.line_caption)
+                            .text_color(if *ok { p.accent } else { p.danger }.solid())
+                            .child(msg.clone()),
+                    );
+                }
+                Some(box_el.into_any_element())
+            }
+            _ => None,
         }
     }
 
@@ -862,9 +1230,9 @@ pub fn pre_restore_folder(cx: &App) -> Option<std::path::PathBuf> {
     }
 }
 
-/// The de-identified diagnostics summary (the 0.1 client's 脱敏诊断摘要):
-/// version, platform, interface language, whether a library is open and how
-/// many books it lists, the crash-report choice. No prose, no ids, no paths.
+/// The de-identified diagnostics summary (the 0.1 client's 脱敏诊断摘要,
+/// formatVersion 2 JSON): version, platform, locale, open library book count,
+/// and privacy flags. No prose, no ids, no paths, no credentials.
 pub fn diagnostics_summary(cx: &App) -> String {
     let info = cx.try_global::<ShellInfo>();
     let books = cx
@@ -873,24 +1241,31 @@ pub fn diagnostics_summary(cx: &App) -> String {
         .and_then(|lib| lib.library().docs(None, Some("book")).ok())
         .map(|docs| docs.len());
     let file = Settings::read(cx);
-    [
-        format!("Drifting {}", info.map_or("?", |i| i.version)),
-        format!("{} {}", std::env::consts::OS, std::env::consts::ARCH),
-        format!("locale {}", Settings::locale(cx).code()),
-        match books {
-            Some(n) => format!("library open, {n} books"),
-            None => "no library".to_owned(),
+    let payload = serde_json::json!({
+        "format": "drifting.sanitized-diagnostics",
+        "formatVersion": 2,
+        "generatedAt": chrono::Utc::now().to_rfc3339(),
+        "app": {
+            "version": info.map_or("unknown", |i| i.version),
+            "platform": std::env::consts::OS,
+            "architecture": std::env::consts::ARCH,
+            "engine": "GPUI + Loro + SQLite",
         },
-        format!(
-            "crash reports {}",
-            if file.bool(registry::CRASH_REPORTS) {
-                "on"
-            } else {
-                "off"
-            }
-        ),
-    ]
-    .join("\n")
+        "locale": Settings::locale(cx).code(),
+        "library": {
+            "open": books.is_some(),
+            "books": books.unwrap_or(0),
+        },
+        "privacy": {
+            "crashReportsEnabled": file.bool(registry::CRASH_REPORTS),
+            "automaticUpload": false,
+            "manuscriptIncluded": false,
+            "credentialsIncluded": false,
+            "absolutePathsIncluded": false,
+            "rawErrorTextIncluded": false,
+        },
+    });
+    serde_json::to_string_pretty(&payload).unwrap_or_else(|_| "{}".to_owned()) + "\n"
 }
 
 /// Whether any editor setting differs from its default.
@@ -913,9 +1288,14 @@ pub fn reset_editor_style(cx: &mut App) {
 fn editor_preview(theme: &Theme, cx: &App) -> AnyElement {
     let p = theme.palette;
     let look = crate::workspace::EditorLook::read(cx);
+    let custom_family = fonts::resolved_prose_family(cx);
+    let justify = Settings::read(cx).bool(registry::JUSTIFY);
+    let apply_face = |el: gpui::Div| match &custom_family {
+        Some(fam) => el.font_family(SharedString::from(fam.clone())),
+        None => el.font_role(Role::Prose),
+    };
     let body = |text: SharedString| {
-        div()
-            .font_role(Role::Prose)
+        apply_face(div())
             .text_size(px(look.font_size))
             .line_height(px(look.font_size * look.line_height))
             .pb(px(look.font_size * look.paragraph_spacing))
@@ -923,26 +1303,41 @@ fn editor_preview(theme: &Theme, cx: &App) -> AnyElement {
             .child(format!("{}{text}", "\u{3000}".repeat(look.indent)))
     };
     let h1 = look.size_of(1);
-    div()
-        .mt(px(4.0))
-        .mb(px(8.0))
-        .p(px(24.0))
-        .max_w(px(look.page_width.min(720.0)))
-        .rounded(px(radius::SHEET))
-        .bg(p.page.solid())
-        .border_1()
-        .border_color(p.subtle_hairline())
+    let mut header = div()
+        .pb(px(8.0))
+        .flex()
+        .flex_row()
+        .items_center()
+        .justify_between()
         .child(
             div()
-                .pb(px(8.0))
                 .font_role(Role::Ui)
                 .type_px(theme.scale.caption, theme.scale.line_caption)
                 .text_color(p.muted().solid())
                 .child(t(cx, keys::settings::editor::PREVIEW)),
-        )
-        .child(
+        );
+    if justify {
+        header = header.child(
             div()
-                .font_role(Role::Prose)
+                .font_role(Role::Index)
+                .type_px(theme.scale.caption, theme.scale.line_caption)
+                .text_color(p.muted().solid())
+                .child(t(cx, keys::settings::editor::JUSTIFY)),
+        );
+    }
+    div()
+        .mt(px(4.0))
+        .mb(px(8.0))
+        .p(px(24.0))
+        .w_full()
+        .max_w(px(look.page_width))
+        .rounded(px(radius::SHEET))
+        .bg(p.page.solid())
+        .border_1()
+        .border_color(p.subtle_hairline())
+        .child(header)
+        .child(
+            apply_face(div())
                 .text_size(px(h1))
                 .line_height(px(h1 * 1.4))
                 .pb(px(look.font_size * look.paragraph_spacing))
@@ -1072,11 +1467,116 @@ pub fn decimals(step: f64) -> u32 {
 }
 
 /// The control a setting's kind calls for.
-fn control(def: &'static SettingDef, _: &mut Window, cx: &mut App) -> AnyElement {
+fn control(def: &'static SettingDef, window: &mut Window, cx: &mut App) -> AnyElement {
     let file = Settings::read(cx);
     let key = def.key;
     match def.kind {
-        Kind::Module(_) => div().into_any_element(),
+        Kind::Module(_) | Kind::Text { .. } => div().into_any_element(),
+        Kind::OptionalColor => {
+            let theme = Theme::of(window, cx);
+            let stored = file.str(key);
+            let current = stored
+                .as_deref()
+                .and_then(color::parse_hex)
+                .unwrap_or(theme.palette.accent);
+            let mut row = div().flex().flex_row().items_center().gap(px(8.0)).child(
+                ColorSwatch::new(SharedString::from(format!("color-{key}")), current)
+                    .show_value()
+                    .label(t(cx, def.label))
+                    .on_pick(move |rgb, _, cx| {
+                        set(key, Value::from(color::hex(rgb)), cx);
+                    }),
+            );
+            if stored.is_some() {
+                row = row.child(
+                    Button::new(
+                        SharedString::from(format!("color-reset-{key}")),
+                        t(cx, keys::settings::appearance::ACCENT_RESET),
+                    )
+                    .text()
+                    .small()
+                    .on_click(move |_, _, cx| {
+                        Settings::update(cx, |f| f.reset(key, None));
+                    }),
+                );
+            }
+            row.into_any_element()
+        }
+        Kind::ColorMap(defaults) => {
+            let theme = Theme::of(window, cx);
+            let p = theme.palette;
+            let s = theme.scale;
+            let current_map = file.get(key).as_object().cloned().unwrap_or_default();
+            let changed = file.is_changed(def, None);
+            let mut grid = div()
+                .flex()
+                .flex_row()
+                .flex_wrap()
+                .items_center()
+                .justify_end()
+                .gap(px(10.0));
+            for (kind_key, default_hex) in defaults {
+                let kind_label = match *kind_key {
+                    "element" => t(cx, keys::settings::editor::ENTITY_LINK_KIND_ELEMENT),
+                    "chapter" => t(cx, keys::settings::editor::ENTITY_LINK_KIND_CHAPTER),
+                    "drift" => t(cx, keys::settings::editor::ENTITY_LINK_KIND_DRIFT),
+                    "patch" => t(cx, keys::settings::editor::ENTITY_LINK_KIND_PATCH),
+                    "category" => t(cx, keys::settings::editor::ENTITY_LINK_KIND_CATEGORY),
+                    "storyline" => t(cx, keys::settings::editor::ENTITY_LINK_KIND_STORYLINE),
+                    other => SharedString::from(other.to_owned()),
+                };
+                let hex = current_map
+                    .get(*kind_key)
+                    .and_then(Value::as_str)
+                    .unwrap_or(default_hex);
+                let rgb = color::parse_hex(hex).unwrap_or(p.accent);
+                let kind_key_owned = (*kind_key).to_owned();
+                grid = grid.child(
+                    div()
+                        .flex()
+                        .flex_row()
+                        .items_center()
+                        .gap(px(4.0))
+                        .child(
+                            ColorSwatch::new(
+                                SharedString::from(format!("link-color-{kind_key}")),
+                                rgb,
+                            )
+                            .label(kind_label.clone())
+                            .on_pick(move |picked, _, cx| {
+                                let mut map = Settings::read(cx)
+                                    .get(key)
+                                    .as_object()
+                                    .cloned()
+                                    .unwrap_or_default();
+                                map.insert(kind_key_owned.clone(), Value::from(color::hex(picked)));
+                                set(key, Value::Object(map), cx);
+                            }),
+                        )
+                        .child(
+                            div()
+                                .font_role(Role::Ui)
+                                .type_px(s.caption, s.line_caption)
+                                .text_color(p.ink(2).solid())
+                                .child(kind_label),
+                        ),
+                );
+            }
+            if changed {
+                grid = grid.child(
+                    Button::new(
+                        "link-kind-colors-reset",
+                        t(cx, keys::settings::appearance::ACCENT_RESET),
+                    )
+                    .text()
+                    .small()
+                    .on_click(move |_, _, cx| {
+                        Settings::update(cx, |f| f.reset(key, None));
+                    }),
+                );
+            }
+            grid.into_any_element()
+        }
         // dr-ui's Switch draws no accessibility node; the row's name and
         // state go on a box around it (as the template editor's switches do).
         Kind::Switch => {

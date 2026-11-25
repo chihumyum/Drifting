@@ -98,6 +98,20 @@ pub static FIELDS: &[Field] = &[
         D::Str("light"),
         true,
     ),
+    field(
+        SETTINGS_STORE,
+        "accentColor",
+        registry::ACCENT_COLOR,
+        D::Null,
+        true,
+    ),
+    field(
+        SETTINGS_STORE,
+        "agentEditRevealAnimation",
+        registry::AGENT_EDIT_REVEAL_ANIMATION,
+        D::Bool(true),
+        true,
+    ),
     // The same five sizes; 0.1 renamed them at its store version 35.
     field(
         SETTINGS_STORE,
@@ -115,6 +129,20 @@ pub static FIELDS: &[Field] = &[
     ),
     field(
         SETTINGS_STORE,
+        "editorFontSource",
+        registry::FONT_SOURCE,
+        D::Str("system-serif"),
+        false,
+    ),
+    field(
+        SETTINGS_STORE,
+        "editorSystemFontFamily",
+        registry::FONT_FAMILY,
+        D::Str(""),
+        false,
+    ),
+    field(
+        SETTINGS_STORE,
         "bodyFontSize",
         registry::FONT_SIZE,
         D::Num(17.0),
@@ -126,6 +154,13 @@ pub static FIELDS: &[Field] = &[
         registry::LINE_HEIGHT,
         D::Num(1.5),
         true,
+    ),
+    field(
+        SETTINGS_STORE,
+        "editorTextWrap",
+        registry::TEXT_WRAP,
+        D::Str("stable"),
+        false,
     ),
     // 0.1 allowed up to 3 em, this client 2.5.
     field(
@@ -151,6 +186,13 @@ pub static FIELDS: &[Field] = &[
     ),
     field(
         SETTINGS_STORE,
+        "editorIndentStep",
+        registry::TAB_INDENT_WIDTH,
+        D::Num(2.0),
+        true,
+    ),
+    field(
+        SETTINGS_STORE,
         "autoImmersiveWriting",
         registry::AUTO_IMMERSIVE,
         D::Bool(false),
@@ -172,9 +214,58 @@ pub static FIELDS: &[Field] = &[
     ),
     field(
         SETTINGS_STORE,
+        "caretColor",
+        registry::CARET_COLOR,
+        D::Str("#6b7fa6"),
+        true,
+    ),
+    field(
+        SETTINGS_STORE,
         "autoElementLinkEnabled",
         registry::AUTO_ENTITY_LINKS,
         D::Bool(true),
+        true,
+    ),
+    field(
+        SETTINGS_STORE,
+        "entityLinkInteractive",
+        registry::ENTITY_LINK_INTERACTIVE,
+        D::Bool(true),
+        true,
+    ),
+    field(
+        SETTINGS_STORE,
+        "commentMarksVisible",
+        registry::COMMENT_MARKS_VISIBLE,
+        D::Bool(true),
+        true,
+    ),
+    field(
+        SETTINGS_STORE,
+        "entityLinkColorMode",
+        registry::ENTITY_LINK_COLOR_MODE,
+        D::Str("contextual"),
+        true,
+    ),
+    field(
+        SETTINGS_STORE,
+        "entityLinkHighlightMode",
+        registry::ENTITY_LINK_HIGHLIGHT_MODE,
+        D::Str("both"),
+        true,
+    ),
+    field(
+        SETTINGS_STORE,
+        "entityLinkBandStyle",
+        registry::ENTITY_LINK_BAND_STYLE,
+        D::Str("wash"),
+        true,
+    ),
+    field(
+        SETTINGS_STORE,
+        "entityLinkKindColors",
+        registry::ENTITY_LINK_KIND_COLORS,
+        D::LinkColors,
         true,
     ),
     // `null` is no cap on both sides.
@@ -219,67 +310,10 @@ const fn none(field: &'static str, default: Default01, why: &'static str) -> NoE
 
 /// Every other field of 0.1's `settings-storage` state.
 pub static NO_EQUIVALENT: &[NoEquivalent] = &[
-    none("accentColor", D::Null, "no accent colour setting here"),
-    none(
-        "agentEditRevealAnimation",
-        D::Bool(true),
-        "no reveal animation setting here",
-    ),
-    none(
-        "editorFontSource",
-        D::Str("system-serif"),
-        "no prose font choice here",
-    ),
-    none(
-        "editorSystemFontFamily",
-        D::Str(""),
-        "no prose font choice here",
-    ),
-    none("editorIndentStep", D::Num(2.0), "no Tab indent width here"),
-    none(
-        "editorTextWrap",
-        D::Str("stable"),
-        "no line wrapping choice here",
-    ),
-    none(
-        "caretColor",
-        D::Str("#6b7fa6"),
-        "no caret colour setting here",
-    ),
     none(
         "outlineRailMode",
         D::Str("visible"),
         "no outline rail switch here",
-    ),
-    none(
-        "entityLinkInteractive",
-        D::Bool(true),
-        "no entity link appearance settings here",
-    ),
-    none(
-        "commentMarksVisible",
-        D::Bool(true),
-        "no comment mark switch here",
-    ),
-    none(
-        "entityLinkColorMode",
-        D::Str("contextual"),
-        "no entity link appearance settings here",
-    ),
-    none(
-        "entityLinkHighlightMode",
-        D::Str("both"),
-        "no entity link appearance settings here",
-    ),
-    none(
-        "entityLinkBandStyle",
-        D::Str("wash"),
-        "no entity link appearance settings here",
-    ),
-    none(
-        "entityLinkKindColors",
-        D::LinkColors,
-        "no entity link appearance settings here",
     ),
     none(
         "recentEntitiesLimit",
@@ -976,7 +1010,7 @@ mod tests {
             .filter(|f| f.synced)
             .map(|f| f.field)
             .collect();
-        assert_eq!(synced.len(), 12);
+        assert_eq!(synced.len(), 22);
         for f in FIELDS.iter().filter(|f| f.synced) {
             assert_eq!(synced_source(f.key), Some(f.field));
             assert_eq!(find(f.key).unwrap().scope, Scope::Account);
@@ -995,14 +1029,28 @@ mod tests {
     #[test]
     fn each_mapped_setting_is_adopted_with_its_value() {
         let mut file = SettingsFile::in_memory();
+        let custom_colors = json!({
+            "element": "#112233",
+            "chapter": "#223344",
+            "drift": "#334455",
+            "patch": "#445566",
+            "category": "#556677",
+            "storyline": "#667788"
+        });
         let raw = entries(
             json!({
-                "themeMode": "dark", "interfaceTextSize": "large", "uiLocale": "ja",
-                "bodyFontSize": 20, "lineHeight": 1.8, "paragraphSpacing": 0.5,
-                "maxLineWidth": 900, "paragraphIndent": "two", "autoImmersiveWriting": true,
-                "typewriterMode": true, "typewriterPosition": 40,
-                "autoElementLinkEnabled": false, "agentTurnIterationLimit": null,
-                "sendCrashLogs": false
+                "themeMode": "dark", "accentColor": "#aa5500",
+                "agentEditRevealAnimation": false, "interfaceTextSize": "large", "uiLocale": "ja",
+                "editorFontSource": "system", "editorSystemFontFamily": "Georgia",
+                "bodyFontSize": 20, "lineHeight": 1.8, "editorTextWrap": "pretty",
+                "paragraphSpacing": 0.5, "maxLineWidth": 900, "paragraphIndent": "two",
+                "editorIndentStep": 4, "autoImmersiveWriting": true,
+                "typewriterMode": true, "typewriterPosition": 40, "caretColor": "#ff5500",
+                "autoElementLinkEnabled": false, "entityLinkInteractive": false,
+                "commentMarksVisible": false, "entityLinkColorMode": "kind",
+                "entityLinkHighlightMode": "text", "entityLinkBandStyle": "dots",
+                "entityLinkKindColors": custom_colors,
+                "agentTurnIterationLimit": null, "sendCrashLogs": false
             }),
             None,
             Some(json!({"enabled": false, "projects": {}})),
@@ -1010,17 +1058,30 @@ mod tests {
         let rows = adopt(&mut file, &raw, &here(&|_| false));
         for (key, value) in [
             (THEME, json!("dark")),
+            (ACCENT_COLOR, json!("#aa5500")),
+            (AGENT_EDIT_REVEAL_ANIMATION, json!(false)),
             (TEXT_SIZE, json!("large")),
             (UI_LOCALE, json!("ja")),
+            (FONT_SOURCE, json!("system")),
+            (FONT_FAMILY, json!("Georgia")),
             (FONT_SIZE, json!(20.0)),
             (LINE_HEIGHT, json!(1.8)),
+            (TEXT_WRAP, json!("pretty")),
             (PARAGRAPH_SPACING, json!(0.5)),
             (PAGE_WIDTH, json!(900.0)),
             (PARAGRAPH_INDENT, json!("two")),
+            (TAB_INDENT_WIDTH, json!(4.0)),
             (AUTO_IMMERSIVE, json!(true)),
             (TYPEWRITER, json!(true)),
             (TYPEWRITER_POSITION, json!(40.0)),
+            (CARET_COLOR, json!("#ff5500")),
             (AUTO_ENTITY_LINKS, json!(false)),
+            (ENTITY_LINK_INTERACTIVE, json!(false)),
+            (COMMENT_MARKS_VISIBLE, json!(false)),
+            (ENTITY_LINK_COLOR_MODE, json!("kind")),
+            (ENTITY_LINK_HIGHLIGHT_MODE, json!("text")),
+            (ENTITY_LINK_BAND_STYLE, json!("dots")),
+            (ENTITY_LINK_KIND_COLORS, custom_colors),
             (AGENT_MAX_MODEL_ROUNDS, Value::Null),
             (CRASH_REPORTS, json!(false)),
             (AGENT_PROACTIVE, json!(false)),
@@ -1084,8 +1145,9 @@ mod tests {
         ] {
             assert!(file.stored(find(key).unwrap(), None).is_none(), "{key}");
         }
-        // Without a setting here: recorded when the author had changed it.
-        assert_eq!(outcome(&rows, &s("caretColor")), Outcome::NoEquivalent);
+        // Restored caretColor adopts non-default hex; agentProvider still has no equivalent.
+        assert_eq!(outcome(&rows, &s("caretColor")), Outcome::Adopted);
+        assert_eq!(file.get(CARET_COLOR), json!("#ff0000"));
         assert_eq!(outcome(&rows, &s("agentProvider")), Outcome::NoEquivalent);
         assert_eq!(outcome(&rows, &s("accentColor")), Outcome::Default);
         assert_eq!(outcome(&rows, &s("entityLinkKindColors")), Outcome::Default);
