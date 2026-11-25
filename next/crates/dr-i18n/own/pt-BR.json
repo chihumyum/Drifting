@@ -1,4 +1,12 @@
 {
+  "agentImages": {
+    "image": "Imagem",
+    "remove": "Remover imagem",
+    "tooLarge": "A imagem é grande demais: no máximo {{size}} MB e {{side}} pixels de lado.",
+    "tooMany": "Uma mensagem pode levar no máximo {{max}} imagens.",
+    "unseen": "O modelo em uso não consegue ver imagens. Troque para um modelo que consiga e envie de novo.",
+    "unsupported": "Só é possível enviar imagens PNG, JPEG ou WebP."
+  },
   "allProjects": {
     "export": "Exportar este projeto (.driftingproject)",
     "import": "Importar projeto",
@@ -37,6 +45,32 @@
   },
   "customModule": {
     "countOf": "{{name}}: {{count}}"
+  },
+  "editor_ui": {
+    "bar_add_comment": "Adicionar comentário",
+    "fmt_bold": "Negrito",
+    "fmt_highlight": "Destacar",
+    "fmt_inline_code": "Código em linha",
+    "fmt_italic": "Itálico",
+    "fmt_strike": "Tachado",
+    "fmt_underline": "Sublinhado",
+    "mention_create_entry_prefix": "Criar entrada “",
+    "mention_create_entry_suffix": "”",
+    "slash_bullet_list": "Lista com marcadores",
+    "slash_callout": "Destaque",
+    "slash_code_block": "Bloco de código",
+    "slash_comment": "Comentário",
+    "slash_entry_link": "Link de entrada",
+    "slash_ordered_list": "Lista numerada",
+    "slash_position_link": "Link de posição",
+    "slash_table": "Tabela",
+    "slash_task_list": "Lista de tarefas",
+    "slash_todo": "Tarefa",
+    "table_add_col": "Adicionar coluna",
+    "table_add_row": "Adicionar linha",
+    "table_delete": "Excluir tabela",
+    "table_delete_col": "Excluir coluna",
+    "table_delete_row": "Excluir linha"
   },
   "entrySnapshot": {
     "empty": "Ainda não há instantâneos",
@@ -213,6 +247,21 @@
     "title": "Título",
     "unset": "Não definido"
   },
+  "libraryOpenFailed": {
+    "title": "Não foi possível abrir a biblioteca",
+    "unchanged": "A biblioteca não foi alterada.",
+    "keptBeforeUpgrade": "Uma cópia da biblioteca de antes da atualização foi guardada.",
+    "cause": {
+      "newer": "Uma versão mais recente do Drifting abriu esta biblioteca. Atualize o Drifting primeiro.",
+      "damaged": "O arquivo da biblioteca está danificado. Envie feedback e não apague esta pasta ainda.",
+      "upgradeUnfinished": "Esta versão não conseguiu atualizá-la. Use a versão anterior do Drifting por enquanto e envie feedback.",
+      "upgradedUnopenable": "A biblioteca atualizada não abre. Envie feedback.",
+      "noPermission": "O Drifting não consegue ler nem gravar nesta pasta. Verifique as permissões dela.",
+      "diskFull": "O disco está cheio. Libere algum espaço e abra o Drifting de novo.",
+      "unknown": "Envie feedback."
+    },
+    "feedbackMessage": "{{title}} ({{code}})"
+  },
   "mirrorV5": {
     "contents": "Sumário",
     "acknowledgePreserved": "Entendi",
@@ -230,6 +279,144 @@
     "unknownImage": "A imagem não aponta para um arquivo na biblioteca do projeto. A linha foi importada como texto.",
     "fieldConflict": "Não foi possível mesclar um campo: ele também foi editado no Drifting ou o valor não pôde ser lido. O Drifting manteve o valor e salvou uma cópia do arquivo.",
     "keyCollision": "Uma propriedade inicial tem o mesmo nome de um campo recém-adicionado. O Drifting não vai gravar este arquivo até que um dos dois seja renomeado ou removido."
+  },
+  "moduleBench": {
+    "holds": "Conteúdo",
+    "blocks": "Blocos",
+    "kind": {
+      "text": "Linha de texto",
+      "longText": "Parágrafo",
+      "number": "Número",
+      "date": "Data",
+      "select": "Escolha única",
+      "multiSelect": "Múltipla escolha",
+      "toggle": "Caixa de seleção",
+      "entry": "Entrada",
+      "image": "Imagem",
+      "group": "Grupo",
+      "list": "Lista"
+    },
+    "defaultOptions": "A|B|C",
+    "looks": "Aparência",
+    "size": {
+      "line": "Linha",
+      "block": "Bloco",
+      "full": "Cheio"
+    },
+    "follow": "Seguir o bloco",
+    "own": "Layout próprio",
+    "autoLine": "Os primeiros, numa linha",
+    "autoFull": "Como o bloco, esticado",
+    "sample": "Exemplo",
+    "blank": "Vazio",
+    "real": "Entrada real",
+    "realOf": "Entrada real · {{name}}",
+    "narrow": "Estreito",
+    "medium": "Médio",
+    "wide": "Largo",
+    "light": "Claro",
+    "dark": "Escuro",
+    "dropSketch": "Arraste um esboço ou uma captura de tela",
+    "myModules": "Meus módulos",
+    "myModule": "Meu módulo",
+    "saveAs": "Salvar uma cópia",
+    "node": {
+      "col": "Coluna",
+      "row": "Fileira",
+      "grid": "Grade",
+      "each": "Cada {{name}}",
+      "mark": "Marca"
+    },
+    "tag": {
+      "hair": "linha",
+      "glass": "vidro",
+      "sand": "areia",
+      "paper": "papel",
+      "wash": "aguada",
+      "across": "horizontal",
+      "down": "vertical",
+      "dots": "pontos",
+      "mark": "marca",
+      "count": "contagem",
+      "words": "texto"
+    },
+    "prop": {
+      "dir": "Disposição",
+      "gap": "Espaço",
+      "pad": "Preenchimento",
+      "align": "Alinhar",
+      "width": "Largura",
+      "border": "Borda",
+      "bg": "Fundo",
+      "radius": "Cantos",
+      "deco": "Enfeite",
+      "sep": "Separação",
+      "link": "Ligação",
+      "font": "Fonte",
+      "size": "Tamanho",
+      "ink": "Tinta",
+      "show": "Mostrar",
+      "text": "Texto",
+      "mark": "Marca"
+    },
+    "opt": {
+      "col": "Vertical",
+      "row": "Horizontal",
+      "grid": "Grade",
+      "start": "Início",
+      "center": "Centro",
+      "end": "Fim",
+      "stretch": "Esticar",
+      "auto": "Auto",
+      "hug": "Conteúdo",
+      "fill": "Preencher",
+      "none": "Nenhum",
+      "hairline": "Linha fina",
+      "glassLine": "Vidro",
+      "sandFrame": "Moldura de areia",
+      "paper": "Papel",
+      "wash": "Aguada",
+      "arc": "Arco",
+      "line": "Linha",
+      "axis": "Eixo",
+      "arrow": "Seta",
+      "serif": "Serifa",
+      "sans": "Sans",
+      "mono": "Mono",
+      "title": "Título",
+      "body": "Corpo",
+      "small": "Pequeno",
+      "note": "Nota",
+      "ink1": "1",
+      "ink2": "2",
+      "ink3": "3",
+      "ink4": "4",
+      "number": "Número",
+      "dots": "Pontos",
+      "words": "Texto",
+      "mark": "Marca"
+    },
+    "eachBlock": "Cada bloco",
+    "edit": "Editar",
+    "adopt": "Guardar em meus módulos",
+    "untitled": "Módulo sem nome",
+    "newModule": "Novo módulo…",
+    "openBench": "Abrir a bancada",
+    "importModule": "Importar módulo",
+    "importModuleFile": "Importar módulo (.driftingmodule)",
+    "exportFile": "Exportar (.driftingmodule)",
+    "deleteTitle": "Excluir o módulo “{{name}}”?",
+    "transfer": {
+      "notModule": "Este não é um módulo exportado do Drifting.",
+      "newer": "Este módulo foi exportado por um Drifting mais recente. Atualize o Drifting primeiro.",
+      "tooLarge": "Este módulo é grande demais para importar.",
+      "damaged": "Este arquivo está danificado e não pode ser importado.",
+      "importFailed": "Não foi possível importar o módulo. Tente novamente.",
+      "exportFailed": "Não foi possível exportar o módulo. Tente novamente."
+    },
+    "usedIn_one": "Meu módulo · em {{count}} projeto",
+    "usedIn_many": "Meu módulo · em {{count}} projetos",
+    "usedIn_other": "Meu módulo · em {{count}} projetos"
   },
   "positionLink": {
     "copied": "Link de posição copiado"
@@ -281,6 +468,12 @@
     "overwrite": "Substituir…",
     "structure": "Estrutura",
     "timePins": "Pinos de tempo"
+  },
+  "relationGraph": {
+    "create": "Criar",
+    "name": "Nome da relação",
+    "relations": "Relações",
+    "title": "Criar relação"
   },
   "settings": {
     "appearance": {
@@ -635,14 +828,6 @@
     "templateStructure": "Estrutura dos modelos",
     "unusedTemplates": "Modelos não usados"
   },
-  "v5RelationsProse": {
-    "create": "Relacionar",
-    "confirm": "Criar",
-    "direction": "Direção",
-    "otherEntry": "Outra entrada",
-    "relation": "Relação",
-    "change": "Trocar"
-  },
   "v5Relations": {
     "duplicatePair": "“{{pair}}” já está em outra linha.",
     "addEntry": "Adicionar uma entrada",
@@ -658,11 +843,13 @@
     "removeEntry": "Remover “{{name}}”",
     "tab": "Relações"
   },
-  "relationGraph": {
-    "create": "Criar",
-    "name": "Nome da relação",
-    "relations": "Relações",
-    "title": "Criar relação"
+  "v5RelationsProse": {
+    "create": "Relacionar",
+    "confirm": "Criar",
+    "direction": "Direção",
+    "otherEntry": "Outra entrada",
+    "relation": "Relação",
+    "change": "Trocar"
   },
   "v5Tour": {
     "agent": {
@@ -687,166 +874,5 @@
     "timeline": {
       "body": "Sobe de baixo da página e organiza as entradas vinculadas por visualização."
     }
-  },
-  "libraryOpenFailed": {
-    "title": "Não foi possível abrir a biblioteca",
-    "unchanged": "A biblioteca não foi alterada.",
-    "keptBeforeUpgrade": "Uma cópia da biblioteca de antes da atualização foi guardada.",
-    "cause": {
-      "newer": "Uma versão mais recente do Drifting abriu esta biblioteca. Atualize o Drifting primeiro.",
-      "damaged": "O arquivo da biblioteca está danificado. Envie feedback e não apague esta pasta ainda.",
-      "upgradeUnfinished": "Esta versão não conseguiu atualizá-la. Use a versão anterior do Drifting por enquanto e envie feedback.",
-      "upgradedUnopenable": "A biblioteca atualizada não abre. Envie feedback.",
-      "noPermission": "O Drifting não consegue ler nem gravar nesta pasta. Verifique as permissões dela.",
-      "diskFull": "O disco está cheio. Libere algum espaço e abra o Drifting de novo.",
-      "unknown": "Envie feedback."
-    },
-    "feedbackMessage": "{{title}} ({{code}})"
-  },
-  "agentImages": {
-    "image": "Imagem",
-    "remove": "Remover imagem",
-    "tooLarge": "A imagem é grande demais: no máximo {{size}} MB e {{side}} pixels de lado.",
-    "tooMany": "Uma mensagem pode levar no máximo {{max}} imagens.",
-    "unseen": "O modelo em uso não consegue ver imagens. Troque para um modelo que consiga e envie de novo.",
-    "unsupported": "Só é possível enviar imagens PNG, JPEG ou WebP."
-  },
-  "moduleBench": {
-    "holds": "Conteúdo",
-    "blocks": "Blocos",
-    "kind": {
-      "text": "Linha de texto",
-      "longText": "Parágrafo",
-      "number": "Número",
-      "date": "Data",
-      "select": "Escolha única",
-      "multiSelect": "Múltipla escolha",
-      "toggle": "Caixa de seleção",
-      "entry": "Entrada",
-      "image": "Imagem",
-      "group": "Grupo",
-      "list": "Lista"
-    },
-    "defaultOptions": "A|B|C",
-    "looks": "Aparência",
-    "size": {
-      "line": "Linha",
-      "block": "Bloco",
-      "full": "Cheio"
-    },
-    "follow": "Seguir o bloco",
-    "own": "Layout próprio",
-    "autoLine": "Os primeiros, numa linha",
-    "autoFull": "Como o bloco, esticado",
-    "sample": "Exemplo",
-    "blank": "Vazio",
-    "real": "Entrada real",
-    "realOf": "Entrada real · {{name}}",
-    "narrow": "Estreito",
-    "medium": "Médio",
-    "wide": "Largo",
-    "light": "Claro",
-    "dark": "Escuro",
-    "dropSketch": "Arraste um esboço ou uma captura de tela",
-    "myModules": "Meus módulos",
-    "myModule": "Meu módulo",
-    "saveAs": "Salvar uma cópia",
-    "node": {
-      "col": "Coluna",
-      "row": "Fileira",
-      "grid": "Grade",
-      "each": "Cada {{name}}",
-      "mark": "Marca"
-    },
-    "tag": {
-      "hair": "linha",
-      "glass": "vidro",
-      "sand": "areia",
-      "paper": "papel",
-      "wash": "aguada",
-      "across": "horizontal",
-      "down": "vertical",
-      "dots": "pontos",
-      "mark": "marca",
-      "count": "contagem",
-      "words": "texto"
-    },
-    "prop": {
-      "dir": "Disposição",
-      "gap": "Espaço",
-      "pad": "Preenchimento",
-      "align": "Alinhar",
-      "width": "Largura",
-      "border": "Borda",
-      "bg": "Fundo",
-      "radius": "Cantos",
-      "deco": "Enfeite",
-      "sep": "Separação",
-      "link": "Ligação",
-      "font": "Fonte",
-      "size": "Tamanho",
-      "ink": "Tinta",
-      "show": "Mostrar",
-      "text": "Texto",
-      "mark": "Marca"
-    },
-    "opt": {
-      "col": "Vertical",
-      "row": "Horizontal",
-      "grid": "Grade",
-      "start": "Início",
-      "center": "Centro",
-      "end": "Fim",
-      "stretch": "Esticar",
-      "auto": "Auto",
-      "hug": "Conteúdo",
-      "fill": "Preencher",
-      "none": "Nenhum",
-      "hairline": "Linha fina",
-      "glassLine": "Vidro",
-      "sandFrame": "Moldura de areia",
-      "paper": "Papel",
-      "wash": "Aguada",
-      "arc": "Arco",
-      "line": "Linha",
-      "axis": "Eixo",
-      "arrow": "Seta",
-      "serif": "Serifa",
-      "sans": "Sans",
-      "mono": "Mono",
-      "title": "Título",
-      "body": "Corpo",
-      "small": "Pequeno",
-      "note": "Nota",
-      "ink1": "1",
-      "ink2": "2",
-      "ink3": "3",
-      "ink4": "4",
-      "number": "Número",
-      "dots": "Pontos",
-      "words": "Texto",
-      "mark": "Marca"
-    },
-    "eachBlock": "Cada bloco",
-    "edit": "Editar",
-    "adopt": "Guardar em meus módulos",
-    "untitled": "Módulo sem nome",
-    "newModule": "Novo módulo…",
-    "openBench": "Abrir a bancada",
-    "importModule": "Importar módulo",
-    "importModuleFile": "Importar módulo (.driftingmodule)",
-    "exportFile": "Exportar (.driftingmodule)",
-    "deleteTitle": "Excluir o módulo “{{name}}”?",
-    "transfer": {
-      "notModule": "Este não é um módulo exportado do Drifting.",
-      "newer": "Este módulo foi exportado por um Drifting mais recente. Atualize o Drifting primeiro.",
-      "tooLarge": "Este módulo é grande demais para importar.",
-      "damaged": "Este arquivo está danificado e não pode ser importado.",
-      "importFailed": "Não foi possível importar o módulo. Tente novamente.",
-      "exportFailed": "Não foi possível exportar o módulo. Tente novamente."
-    },
-    "usedIn_one": "Meu módulo · em {{count}} projeto",
-    "usedIn_many": "Meu módulo · em {{count}} projetos",
-    "usedIn_other": "Meu módulo · em {{count}} projetos"
   }
 }

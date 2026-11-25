@@ -264,6 +264,32 @@
       "resting": "休眠"
     }
   },
+  "editor_ui": {
+    "bar_add_comment": "添加批注",
+    "fmt_bold": "粗体",
+    "fmt_highlight": "高亮",
+    "fmt_inline_code": "行内代码",
+    "fmt_italic": "斜体",
+    "fmt_strike": "删除线",
+    "fmt_underline": "下划线",
+    "mention_create_entry_prefix": "创建条目「",
+    "mention_create_entry_suffix": "」",
+    "slash_bullet_list": "无序列表",
+    "slash_callout": "提示块",
+    "slash_code_block": "代码块",
+    "slash_comment": "批注",
+    "slash_entry_link": "条目链接",
+    "slash_ordered_list": "有序列表",
+    "slash_position_link": "位置链接",
+    "slash_table": "表格",
+    "slash_task_list": "待办清单",
+    "slash_todo": "待办",
+    "table_add_col": "加一列",
+    "table_add_row": "加一行",
+    "table_delete": "删除表格",
+    "table_delete_col": "删除列",
+    "table_delete_row": "删除行"
+  },
   "entrySnapshot": {
     "empty": "暂无快照",
     "save": "保存快照",

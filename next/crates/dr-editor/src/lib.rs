@@ -46,11 +46,17 @@ pub mod view;
 pub use book::{
     BookEditor, BookEditorEvent, BookSection, PreparedBook, ReadingPosition, SectionHeading,
 };
-pub use clipboard::{ClipboardHtml, PasteAsPlainText, set_clipboard_html};
+pub use clipboard::{
+    ClipboardHtml, ClipboardHtmlWriter, PasteAsPlainText, set_clipboard_html,
+    set_clipboard_html_writer,
+};
 pub use embeds::{NoteEmbeds, NoteEvent};
 pub use links::{DriftingExtension, LinkTargets};
 pub use page::{PageChrome, PageInfo, PageKind};
-pub use settings::EditorSettings;
+pub use settings::{
+    EditorSettings, EntityLinkBandStyle, EntityLinkColorMode, EntityLinkHighlightMode,
+    LinkAppearance,
+};
 pub use source::SessionSource;
 pub use todo::TodoMarker;
 pub use view::{

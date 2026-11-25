@@ -911,3 +911,79 @@ fn v3_selected_cells_reject_peer_between_input_and_cleanup_without_fresh_authori
 ) {
     selected_cells_peer_case(cx, true);
 }
+
+#[gpui::test]
+fn internal_copy_paste_preserves_block_attributes_and_exports_html(cx: &mut TestAppContext) {
+    let e = env();
+    let (_view, editor, cx) = open(cx, &e, &e.doc);
+    // Replace document with H1 + quote + bullet item and select all.
+    editor.update_in(cx, |p, w, cx| {
+        p.edit_chapter(0, HostStep::Own, w, cx, |doc| {
+            let max = doc.max_cursor();
+            doc.replace(0..max, "主标题\n一段引用\n列表项", ORIGIN_USER);
+            doc.set_kind(0, gpui_prose::text::BlockKind::H1, ORIGIN_USER);
+            doc.set_block_attr(
+                1,
+                gpui_prose::schema::block::QUOTE,
+                Some(LoroValue::Bool(true)),
+                ORIGIN_USER,
+            );
+            doc.set_block_attr(
+                2,
+                gpui_prose::schema::block::LIST,
+                Some("bullet".into()),
+                ORIGIN_USER,
+            );
+            Some(0)
+        });
+    });
+    draw(cx);
+    let captured_html = std::rc::Rc::new(std::cell::RefCell::new(String::new()));
+    {
+        let sink = captured_html.clone();
+        cx.update(|_, cx| {
+            set_clipboard_html_writer(cx, move |html| *sink.borrow_mut() = html.to_owned());
+        });
+    }
+    let end = editor.read_with(cx, |p, _| p.book().chapters[0].doc.max_cursor());
+    editor.update_in(cx, |p, w, cx| p.select(0, 0..end, w, cx));
+    cx.update(|w, cx| assert!(copy(&editor, false, w, cx)));
+    let html = captured_html.borrow().clone();
+    assert!(html.contains("<h1>主标题</h1>"), "{html}");
+    assert!(
+        html.contains("<blockquote><p>一段引用</p></blockquote>"),
+        "{html}"
+    );
+    assert!(html.contains("<ul><li>列表项</li></ul>"), "{html}");
+
+    // Paste into a fresh empty paragraph at the bottom and verify all block attrs survive.
+    editor.update_in(cx, |p, w, cx| {
+        p.select(0, end..end, w, cx);
+        p.press_enter(w, cx);
+        // Exit bullet list to a plain empty paragraph.
+        p.press_enter(w, cx);
+    });
+    draw(cx);
+    cx.update(|w, cx| assert!(paste(&editor, w, cx)));
+    draw(cx);
+    assert_eq!(
+        stored(&e, &e.doc),
+        [
+            ("主标题".into(), Some(1), None),
+            ("一段引用".into(), None, None),
+            ("列表项".into(), None, Some("bullet".into())),
+            ("主标题".into(), Some(1), None),
+            ("一段引用".into(), None, None),
+            ("列表项".into(), None, Some("bullet".into())),
+        ]
+    );
+    editor.read_with(cx, |p, _| {
+        let doc = &p.book().chapters[0].doc;
+        assert!(
+            doc.line(4)
+                .block
+                .get(gpui_prose::schema::block::QUOTE)
+                .is_some()
+        );
+    });
+}

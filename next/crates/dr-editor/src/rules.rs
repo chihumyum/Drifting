@@ -35,7 +35,9 @@ const INLINE: &[(&str, &str)] = &[
 
 /// What `typed` turns into, if anything.
 pub fn markdown_rule(typed: &Typed<'_>) -> Option<InputRule> {
-    block_rule(typed).or_else(|| inline_rule(typed))
+    block_rule(typed)
+        .or_else(|| inline_rule(typed))
+        .or_else(|| url_rule(typed))
 }
 
 fn block_rule(typed: &Typed<'_>) -> Option<InputRule> {
@@ -47,6 +49,7 @@ fn block_rule(typed: &Typed<'_>) -> Option<InputRule> {
         "## " => (block::HEADING, LoroValue::I64(2), Some(2)),
         "### " => (block::HEADING, LoroValue::I64(3), Some(3)),
         "> " => (block::QUOTE, LoroValue::Bool(true), None),
+        "--- " | "___ " | "*** " => (block::RULE, LoroValue::Bool(true), None),
         _ => return None,
     };
     if level.is_some() && typed.kind.level() == level {
@@ -57,6 +60,76 @@ fn block_rule(typed: &Typed<'_>) -> Option<InputRule> {
         prefix: 0..len,
         key,
         value,
+    })
+}
+
+/// Auto-links `http://...` / `https://...` when the author finishes typing a
+/// URL with a space or tab. Leaves the URL characters untouched (empty `open`
+/// and `close` ranges) and marks the trimmed URL span with `inline::LINK`.
+fn url_rule(typed: &Typed<'_>) -> Option<InputRule> {
+    if !typed.typed.ends_with(' ') && !typed.typed.ends_with('\t') {
+        return None;
+    }
+    let chars: Vec<char> = typed.before.chars().collect();
+    if chars.len() < 10 {
+        return None;
+    }
+    // Exclude the trailing space/tab that triggered the rule.
+    let raw_end = chars.len() - 1;
+    let start = chars[..raw_end]
+        .iter()
+        .rposition(|c| c.is_whitespace())
+        .map_or(0, |i| i + 1);
+    let mut end = raw_end;
+    while end > start
+        && matches!(
+            chars[end - 1],
+            '.' | ','
+                | ';'
+                | ':'
+                | '!'
+                | '?'
+                | ')'
+                | ']'
+                | '}'
+                | '>'
+                | '。'
+                | '，'
+                | '、'
+                | '；'
+                | '：'
+                | '！'
+                | '？'
+                | '）'
+                | '】'
+                | '》'
+                | '」'
+                | '』'
+        )
+    {
+        end -= 1;
+    }
+    if end <= start {
+        return None;
+    }
+    let url: String = chars[start..end].iter().collect();
+    let rest = url
+        .strip_prefix("https://")
+        .or_else(|| url.strip_prefix("http://"))?;
+    let host = rest.split(['/', '?', '#']).next().unwrap_or("");
+    if host.is_empty()
+        || (!host.contains('.')
+            && !host.eq_ignore_ascii_case("localhost")
+            && !host.starts_with("localhost:"))
+    {
+        return None;
+    }
+    Some(InputRule::Mark {
+        open: start..start,
+        inner: start..end,
+        close: end..end,
+        key: inline::LINK.to_owned(),
+        value: LoroValue::String(url.into()),
     })
 }
 
@@ -374,5 +447,31 @@ mod tests {
                 value: LoroValue::String("rust".into()),
             })
         );
+    }
+
+    #[test]
+    fn horizontal_rule_and_url_autolink_rules() {
+        for marker in ["--- ", "___ ", "*** "] {
+            assert_eq!(
+                rule(marker),
+                Some(InputRule::Block {
+                    prefix: 0..4,
+                    key: block::RULE,
+                    value: LoroValue::Bool(true),
+                }),
+                "{marker:?}"
+            );
+        }
+        assert_eq!(
+            rule("看 https://example.com/a。 "),
+            Some(InputRule::Mark {
+                open: 2..2,
+                inner: 2..23,
+                close: 23..23,
+                key: inline::LINK.to_owned(),
+                value: LoroValue::String("https://example.com/a".into()),
+            })
+        );
+        assert_eq!(rule("https:// "), None);
     }
 }

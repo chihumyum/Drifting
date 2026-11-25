@@ -13,9 +13,9 @@
 use std::{rc::Rc, time::Duration};
 
 use gpui::{
-    App, BoxShadow, ElementId, Entity, InteractiveElement, IntoElement, ParentElement, RenderOnce,
-    SharedString, StatefulInteractiveElement, Styled, Window, canvas, div, point,
-    prelude::FluentBuilder as _, px,
+    App, BoxShadow, ElementId, Entity, FocusHandle, InteractiveElement, IntoElement, KeyDownEvent,
+    ParentElement, RenderOnce, SharedString, StatefulInteractiveElement, Styled, Window, canvas,
+    div, point, prelude::FluentBuilder as _, px,
 };
 
 use crate::{
@@ -71,6 +71,8 @@ pub struct Switch {
     on: bool,
     disabled: bool,
     tint: Option<Rgb>,
+    label: Option<SharedString>,
+    tooltip: Option<SharedString>,
     on_change: Option<super::OnToggle>,
 }
 
@@ -81,12 +83,31 @@ impl Switch {
             on,
             disabled: false,
             tint: None,
+            label: None,
+            tooltip: None,
             on_change: None,
         }
     }
 
     pub fn disabled(mut self, disabled: bool) -> Self {
         self.disabled = disabled;
+        self
+    }
+
+    /// Accessible name for screen readers.
+    pub fn label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        if !label.is_empty() {
+            self.label = Some(label);
+        }
+        self
+    }
+
+    pub fn tooltip(mut self, text: impl Into<SharedString>) -> Self {
+        let text = text.into();
+        if !text.is_empty() {
+            self.tooltip = Some(text);
+        }
         self
     }
 
@@ -109,6 +130,11 @@ impl RenderOnce for Switch {
         let p = theme.palette;
         let on = self.on;
         let reduce = theme.reduce_motion;
+        let focus: Entity<FocusHandle> =
+            window.use_keyed_state(crate::style::child_id(&self.id, "focus"), cx, |_, cx| {
+                cx.focus_handle()
+            });
+        let focus = focus.read(cx).clone();
         let rim = glass::use_state(
             self.id.clone(),
             Kind::Rest,
@@ -163,9 +189,9 @@ impl RenderOnce for Switch {
                     |_, _, _| (),
                     move |bounds, _, window, cx| {
                         let now = anim::now();
-                        let ground = Spec::new(Tone::Clear, h / 2.0)
-                            .filled(p.page)
-                            .resolve_ground(p);
+                        // Capsule control: always uneven ground so corners
+                        // never paint square blocks on any surface.
+                        let ground = glass::Ground::Uneven;
                         let r = paint_rim.read(cx);
                         // The track is small glass: it reads the dense patch.
                         // Its line is the clear glass at half; under the
@@ -208,9 +234,43 @@ impl RenderOnce for Switch {
                 .left_0()
                 .size_full(),
             );
+        let on_change = self.on_change.filter(|_| interactive);
+        let key_change = on_change.clone();
+        let a11y_change = on_change.clone();
         glass::wire(el, &rim, interactive)
-            .when(interactive, |el| el.cursor_pointer())
-            .when_some(self.on_change.filter(|_| interactive), |el, f| {
+            .role(gpui::Role::CheckBox)
+            .when_some(self.label, |el, label| el.aria_label(label))
+            .aria_toggled(if on {
+                gpui::Toggled::True
+            } else {
+                gpui::Toggled::False
+            })
+            .when_some(self.tooltip, |el, text| {
+                el.tooltip(super::tooltip::tooltip(text))
+            })
+            .when(interactive, |el| {
+                el.cursor_pointer()
+                    .track_focus(&focus)
+                    .tab_index(0)
+                    .when_some(key_change, |el, f| {
+                        el.on_key_down(move |e: &KeyDownEvent, w, cx| {
+                            let m = &e.keystroke.modifiers;
+                            if m.control || m.alt || m.platform || m.function || m.shift {
+                                return;
+                            }
+                            if matches!(e.keystroke.key.as_str(), "space" | "enter") {
+                                cx.stop_propagation();
+                                f(!on, w, cx);
+                            }
+                        })
+                    })
+                    .when_some(a11y_change, |el, f| {
+                        el.on_a11y_action(gpui::AccessibleAction::Click, move |_, w, cx| {
+                            f(!on, w, cx);
+                        })
+                    })
+            })
+            .when_some(on_change, |el, f| {
                 el.on_click(move |_, w, cx| f(!on, w, cx))
             })
     }
@@ -222,6 +282,8 @@ pub struct ScopeToggle {
     label: SharedString,
     on: bool,
     disabled: bool,
+    tooltip: Option<SharedString>,
+    shortcut: Option<SharedString>,
     on_change: Option<super::OnToggle>,
 }
 
@@ -232,12 +294,30 @@ impl ScopeToggle {
             label: label.into(),
             on,
             disabled: false,
+            tooltip: None,
+            shortcut: None,
             on_change: None,
         }
     }
 
     pub fn disabled(mut self, disabled: bool) -> Self {
         self.disabled = disabled;
+        self
+    }
+
+    pub fn tooltip(mut self, text: impl Into<SharedString>) -> Self {
+        let text = text.into();
+        if !text.is_empty() {
+            self.tooltip = Some(text);
+        }
+        self
+    }
+
+    pub fn shortcut(mut self, shortcut: impl Into<SharedString>) -> Self {
+        let s = shortcut.into();
+        if !s.is_empty() {
+            self.shortcut = Some(s);
+        }
         self
     }
 
@@ -261,6 +341,8 @@ impl RenderOnce for ScopeToggle {
         } else {
             p.ink(2)
         };
+        let tip = self.tooltip;
+        let tip_shortcut = self.shortcut;
         glass::glass_box(
             self.id,
             Kind::Rest,
@@ -287,6 +369,10 @@ impl RenderOnce for ScopeToggle {
             gpui::Toggled::True
         } else {
             gpui::Toggled::False
+        })
+        .when_some(tip, |el, text| match tip_shortcut {
+            Some(shortcut) => el.tooltip(super::tooltip::tooltip_with_shortcut(text, shortcut)),
+            None => el.tooltip(super::tooltip::tooltip(text)),
         })
         .child(self.label)
         .when(interactive, |el| el.cursor_pointer())

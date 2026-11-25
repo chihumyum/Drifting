@@ -266,6 +266,32 @@
       "resting": "Ruhend"
     }
   },
+  "editor_ui": {
+    "bar_add_comment": "Kommentar hinzufügen",
+    "fmt_bold": "Fett",
+    "fmt_highlight": "Hervorheben",
+    "fmt_inline_code": "Inline-Code",
+    "fmt_italic": "Kursiv",
+    "fmt_strike": "Durchgestrichen",
+    "fmt_underline": "Unterstrichen",
+    "mention_create_entry_prefix": "Eintrag „",
+    "mention_create_entry_suffix": "“ erstellen",
+    "slash_bullet_list": "Aufzählung",
+    "slash_callout": "Hinweisblock",
+    "slash_code_block": "Codeblock",
+    "slash_comment": "Kommentar",
+    "slash_entry_link": "Eintragslink",
+    "slash_ordered_list": "Nummerierte Liste",
+    "slash_position_link": "Positionslink",
+    "slash_table": "Tabelle",
+    "slash_task_list": "Checkliste",
+    "slash_todo": "Aufgabe",
+    "table_add_col": "Spalte hinzu",
+    "table_add_row": "Zeile hinzu",
+    "table_delete": "Tabelle löschen",
+    "table_delete_col": "Spalte löschen",
+    "table_delete_row": "Zeile löschen"
+  },
   "entrySnapshot": {
     "empty": "Noch keine Momentaufnahmen",
     "save": "Momentaufnahme speichern",

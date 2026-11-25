@@ -1,4 +1,12 @@
 {
+  "agentImages": {
+    "image": "圖片",
+    "remove": "移除圖片",
+    "tooLarge": "圖片太大：每張最多 {{size}} MB，邊長最多 {{side}} 像素。",
+    "tooMany": "一則訊息最多帶 {{max}} 張圖片。",
+    "unseen": "目前使用的模型看不了圖片。請換一個能看圖的模型再傳送。",
+    "unsupported": "只能傳送 PNG、JPEG 或 WebP 圖片。"
+  },
   "allProjects": {
     "export": "匯出這個專案（.driftingproject）",
     "import": "匯入專案",
@@ -35,6 +43,32 @@
   },
   "customModule": {
     "countOf": "{{count}} 個{{name}}"
+  },
+  "editor_ui": {
+    "bar_add_comment": "新增批註",
+    "fmt_bold": "粗體",
+    "fmt_highlight": "標記",
+    "fmt_inline_code": "行內程式碼",
+    "fmt_italic": "斜體",
+    "fmt_strike": "刪除線",
+    "fmt_underline": "底線",
+    "mention_create_entry_prefix": "建立條目「",
+    "mention_create_entry_suffix": "」",
+    "slash_bullet_list": "項目符號清單",
+    "slash_callout": "提示區塊",
+    "slash_code_block": "程式碼區塊",
+    "slash_comment": "批註",
+    "slash_entry_link": "條目連結",
+    "slash_ordered_list": "編號清單",
+    "slash_position_link": "位置連結",
+    "slash_table": "表格",
+    "slash_task_list": "待辦清單",
+    "slash_todo": "待辦",
+    "table_add_col": "加一欄",
+    "table_add_row": "加一列",
+    "table_delete": "刪除表格",
+    "table_delete_col": "刪除欄",
+    "table_delete_row": "刪除列"
   },
   "entrySnapshot": {
     "empty": "尚無快照",
@@ -203,6 +237,21 @@
     "title": "標題",
     "unset": "未設定"
   },
+  "libraryOpenFailed": {
+    "title": "沒能開啟資料庫",
+    "unchanged": "資料庫沒有變更。",
+    "keptBeforeUpgrade": "升級前的資料庫另外存了一份。",
+    "cause": {
+      "newer": "它曾被較新版本的 Drifting 開啟，請先更新 Drifting。",
+      "damaged": "資料庫檔案已損壞，請傳送意見回饋，先別刪除這個資料夾。",
+      "upgradeUnfinished": "這一版沒能將它升級，請先使用上一版 Drifting，並傳送意見回饋。",
+      "upgradedUnopenable": "升級後的資料庫無法開啟，請傳送意見回饋。",
+      "noPermission": "Drifting 無法讀寫這個資料夾，請檢查它的權限。",
+      "diskFull": "磁碟已滿，請騰出一些空間後重新開啟 Drifting。",
+      "unknown": "請傳送意見回饋。"
+    },
+    "feedbackMessage": "{{title}}（{{code}}）"
+  },
   "mirrorV5": {
     "contents": "目錄",
     "acknowledgePreserved": "知道了",
@@ -220,6 +269,143 @@
     "unknownImage": "圖片未指向素材庫中已有的檔案，這一行以純文字合入。",
     "fieldConflict": "有欄位沒能合入：它在 Drifting 裡也改過，或者值的寫法讀不出來。保留了 Drifting 裡的值，檔案另存了一份。",
     "keyCollision": "頂端屬性裡有一項和新加的欄位同名，這個檔案先不寫回。改名或刪掉其中一項後會繼續同步。"
+  },
+  "moduleBench": {
+    "holds": "裝什麼",
+    "blocks": "積木",
+    "kind": {
+      "text": "一行字",
+      "longText": "一段字",
+      "number": "數字",
+      "date": "日期",
+      "select": "單選",
+      "multiSelect": "多選",
+      "toggle": "勾選",
+      "entry": "條目",
+      "image": "圖片",
+      "group": "一組",
+      "list": "一串"
+    },
+    "defaultOptions": "甲|乙|丙",
+    "looks": "長什麼樣",
+    "size": {
+      "line": "一行",
+      "block": "一塊",
+      "full": "鋪滿"
+    },
+    "follow": "跟著一塊",
+    "own": "單獨擺",
+    "autoLine": "取前幾樣連成一行",
+    "autoFull": "和一塊一樣，撐滿",
+    "sample": "示例",
+    "blank": "空",
+    "real": "借真實條目",
+    "realOf": "借真實條目 · {{name}}",
+    "narrow": "窄",
+    "medium": "中",
+    "wide": "寬",
+    "light": "淺",
+    "dark": "深",
+    "dropSketch": "拖進草圖或截圖",
+    "myModules": "我的模組",
+    "myModule": "我的模組",
+    "saveAs": "另存一份",
+    "node": {
+      "col": "豎排",
+      "row": "橫排",
+      "grid": "網格",
+      "each": "每個「{{name}}」",
+      "mark": "記號"
+    },
+    "tag": {
+      "hair": "線",
+      "glass": "玻璃",
+      "sand": "砂筆",
+      "paper": "稿紙",
+      "wash": "淡墨",
+      "across": "橫",
+      "down": "豎",
+      "dots": "點數",
+      "mark": "記號",
+      "count": "件數",
+      "words": "字"
+    },
+    "prop": {
+      "dir": "排法",
+      "gap": "間距",
+      "pad": "內邊距",
+      "align": "對齊",
+      "width": "寬",
+      "border": "邊",
+      "bg": "底",
+      "radius": "圓角",
+      "deco": "裝飾",
+      "sep": "分隔",
+      "link": "連接",
+      "font": "字體",
+      "size": "大小",
+      "ink": "墨色",
+      "show": "顯示",
+      "text": "文字",
+      "mark": "記號"
+    },
+    "opt": {
+      "col": "豎",
+      "row": "橫",
+      "grid": "格",
+      "start": "起",
+      "center": "中",
+      "end": "末",
+      "stretch": "撐",
+      "auto": "自動",
+      "hug": "隨內容",
+      "fill": "填滿",
+      "none": "無",
+      "hairline": "髮絲線",
+      "glassLine": "玻璃線",
+      "sandFrame": "砂筆框",
+      "paper": "稿紙",
+      "wash": "淡墨",
+      "arc": "弧線",
+      "line": "線",
+      "axis": "軸",
+      "arrow": "箭頭",
+      "serif": "襯線",
+      "sans": "無襯線",
+      "mono": "等寬",
+      "title": "標題",
+      "body": "正文",
+      "small": "小",
+      "note": "注",
+      "ink1": "一",
+      "ink2": "二",
+      "ink3": "三",
+      "ink4": "四",
+      "number": "數字",
+      "dots": "點數",
+      "words": "字",
+      "mark": "記號"
+    },
+    "eachBlock": "每一樣",
+    "edit": "改",
+    "adopt": "存進我的模組",
+    "untitled": "未命名模組",
+    "newModule": "新建模組…",
+    "openBench": "打開工作台",
+    "importModule": "匯入模組",
+    "importModuleFile": "匯入模組（.driftingmodule）",
+    "exportFile": "匯出（.driftingmodule）",
+    "deleteTitle": "刪除模組「{{name}}」？",
+    "transfer": {
+      "notModule": "這不是 Drifting 匯出的模組。",
+      "newer": "這個模組由更新版本的 Drifting 匯出，請先更新 Drifting。",
+      "tooLarge": "這個模組太大，無法匯入。",
+      "damaged": "這個檔案已損壞，無法匯入。",
+      "importFailed": "這個模組沒能匯入，請稍後再試。",
+      "exportFailed": "這個模組沒能匯出，請稍後再試。"
+    },
+    "usedIn_one": "我的模組 · 用在 {{count}} 個專案",
+    "usedIn_other": "我的模組 · 用在 {{count}} 個專案"
   },
   "positionLink": {
     "copied": "已複製位置連結"
@@ -271,6 +457,12 @@
     "overwrite": "覆蓋…",
     "structure": "結構",
     "timePins": "時間釘"
+  },
+  "relationGraph": {
+    "create": "建立",
+    "name": "關係的名字",
+    "relations": "關係",
+    "title": "建立關係"
   },
   "settings": {
     "appearance": {
@@ -616,14 +808,6 @@
     "templateStructure": "範本結構",
     "unusedTemplates": "未使用的範本"
   },
-  "v5RelationsProse": {
-    "create": "建關係",
-    "confirm": "建立",
-    "direction": "方向",
-    "otherEntry": "另一個條目",
-    "relation": "關係",
-    "change": "換一個"
-  },
   "v5Relations": {
     "duplicatePair": "「{{pair}}」已經在另一列裡。",
     "addEntry": "加一個條目",
@@ -637,11 +821,13 @@
     "removeEntry": "移出「{{name}}」",
     "tab": "關係"
   },
-  "relationGraph": {
-    "create": "建立",
-    "name": "關係的名字",
-    "relations": "關係",
-    "title": "建立關係"
+  "v5RelationsProse": {
+    "create": "建關係",
+    "confirm": "建立",
+    "direction": "方向",
+    "otherEntry": "另一個條目",
+    "relation": "關係",
+    "change": "換一個"
   },
   "v5Tour": {
     "agent": {
@@ -666,165 +852,5 @@
     "timeline": {
       "body": "從稿紙下面滑上來，按視圖把掛著的條目排開。"
     }
-  },
-  "libraryOpenFailed": {
-    "title": "沒能開啟資料庫",
-    "unchanged": "資料庫沒有變更。",
-    "keptBeforeUpgrade": "升級前的資料庫另外存了一份。",
-    "cause": {
-      "newer": "它曾被較新版本的 Drifting 開啟，請先更新 Drifting。",
-      "damaged": "資料庫檔案已損壞，請傳送意見回饋，先別刪除這個資料夾。",
-      "upgradeUnfinished": "這一版沒能將它升級，請先使用上一版 Drifting，並傳送意見回饋。",
-      "upgradedUnopenable": "升級後的資料庫無法開啟，請傳送意見回饋。",
-      "noPermission": "Drifting 無法讀寫這個資料夾，請檢查它的權限。",
-      "diskFull": "磁碟已滿，請騰出一些空間後重新開啟 Drifting。",
-      "unknown": "請傳送意見回饋。"
-    },
-    "feedbackMessage": "{{title}}（{{code}}）"
-  },
-  "agentImages": {
-    "image": "圖片",
-    "remove": "移除圖片",
-    "tooLarge": "圖片太大：每張最多 {{size}} MB，邊長最多 {{side}} 像素。",
-    "tooMany": "一則訊息最多帶 {{max}} 張圖片。",
-    "unseen": "目前使用的模型看不了圖片。請換一個能看圖的模型再傳送。",
-    "unsupported": "只能傳送 PNG、JPEG 或 WebP 圖片。"
-  },
-  "moduleBench": {
-    "holds": "裝什麼",
-    "blocks": "積木",
-    "kind": {
-      "text": "一行字",
-      "longText": "一段字",
-      "number": "數字",
-      "date": "日期",
-      "select": "單選",
-      "multiSelect": "多選",
-      "toggle": "勾選",
-      "entry": "條目",
-      "image": "圖片",
-      "group": "一組",
-      "list": "一串"
-    },
-    "defaultOptions": "甲|乙|丙",
-    "looks": "長什麼樣",
-    "size": {
-      "line": "一行",
-      "block": "一塊",
-      "full": "鋪滿"
-    },
-    "follow": "跟著一塊",
-    "own": "單獨擺",
-    "autoLine": "取前幾樣連成一行",
-    "autoFull": "和一塊一樣，撐滿",
-    "sample": "示例",
-    "blank": "空",
-    "real": "借真實條目",
-    "realOf": "借真實條目 · {{name}}",
-    "narrow": "窄",
-    "medium": "中",
-    "wide": "寬",
-    "light": "淺",
-    "dark": "深",
-    "dropSketch": "拖進草圖或截圖",
-    "myModules": "我的模組",
-    "myModule": "我的模組",
-    "saveAs": "另存一份",
-    "node": {
-      "col": "豎排",
-      "row": "橫排",
-      "grid": "網格",
-      "each": "每個「{{name}}」",
-      "mark": "記號"
-    },
-    "tag": {
-      "hair": "線",
-      "glass": "玻璃",
-      "sand": "砂筆",
-      "paper": "稿紙",
-      "wash": "淡墨",
-      "across": "橫",
-      "down": "豎",
-      "dots": "點數",
-      "mark": "記號",
-      "count": "件數",
-      "words": "字"
-    },
-    "prop": {
-      "dir": "排法",
-      "gap": "間距",
-      "pad": "內邊距",
-      "align": "對齊",
-      "width": "寬",
-      "border": "邊",
-      "bg": "底",
-      "radius": "圓角",
-      "deco": "裝飾",
-      "sep": "分隔",
-      "link": "連接",
-      "font": "字體",
-      "size": "大小",
-      "ink": "墨色",
-      "show": "顯示",
-      "text": "文字",
-      "mark": "記號"
-    },
-    "opt": {
-      "col": "豎",
-      "row": "橫",
-      "grid": "格",
-      "start": "起",
-      "center": "中",
-      "end": "末",
-      "stretch": "撐",
-      "auto": "自動",
-      "hug": "隨內容",
-      "fill": "填滿",
-      "none": "無",
-      "hairline": "髮絲線",
-      "glassLine": "玻璃線",
-      "sandFrame": "砂筆框",
-      "paper": "稿紙",
-      "wash": "淡墨",
-      "arc": "弧線",
-      "line": "線",
-      "axis": "軸",
-      "arrow": "箭頭",
-      "serif": "襯線",
-      "sans": "無襯線",
-      "mono": "等寬",
-      "title": "標題",
-      "body": "正文",
-      "small": "小",
-      "note": "注",
-      "ink1": "一",
-      "ink2": "二",
-      "ink3": "三",
-      "ink4": "四",
-      "number": "數字",
-      "dots": "點數",
-      "words": "字",
-      "mark": "記號"
-    },
-    "eachBlock": "每一樣",
-    "edit": "改",
-    "adopt": "存進我的模組",
-    "untitled": "未命名模組",
-    "newModule": "新建模組…",
-    "openBench": "打開工作台",
-    "importModule": "匯入模組",
-    "importModuleFile": "匯入模組（.driftingmodule）",
-    "exportFile": "匯出（.driftingmodule）",
-    "deleteTitle": "刪除模組「{{name}}」？",
-    "transfer": {
-      "notModule": "這不是 Drifting 匯出的模組。",
-      "newer": "這個模組由更新版本的 Drifting 匯出，請先更新 Drifting。",
-      "tooLarge": "這個模組太大，無法匯入。",
-      "damaged": "這個檔案已損壞，無法匯入。",
-      "importFailed": "這個模組沒能匯入，請稍後再試。",
-      "exportFailed": "這個模組沒能匯出，請稍後再試。"
-    },
-    "usedIn_one": "我的模組 · 用在 {{count}} 個專案",
-    "usedIn_other": "我的模組 · 用在 {{count}} 個專案"
   }
 }

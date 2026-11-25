@@ -266,6 +266,32 @@
       "resting": "정박 중"
     }
   },
+  "editor_ui": {
+    "bar_add_comment": "주석 추가",
+    "fmt_bold": "굵게",
+    "fmt_highlight": "강조",
+    "fmt_inline_code": "인라인 코드",
+    "fmt_italic": "기울임꼴",
+    "fmt_strike": "취소선",
+    "fmt_underline": "밑줄",
+    "mention_create_entry_prefix": "항목 「",
+    "mention_create_entry_suffix": "」 만들기",
+    "slash_bullet_list": "글머리 기호 목록",
+    "slash_callout": "콜아웃",
+    "slash_code_block": "코드 블록",
+    "slash_comment": "주석",
+    "slash_entry_link": "항목 링크",
+    "slash_ordered_list": "번호 매기기 목록",
+    "slash_position_link": "위치 링크",
+    "slash_table": "표",
+    "slash_task_list": "체크리스트",
+    "slash_todo": "할 일",
+    "table_add_col": "열 추가",
+    "table_add_row": "행 추가",
+    "table_delete": "표 삭제",
+    "table_delete_col": "열 삭제",
+    "table_delete_row": "행 삭제"
+  },
   "entrySnapshot": {
     "empty": "아직 스냅샷이 없습니다",
     "save": "스냅샷 저장",

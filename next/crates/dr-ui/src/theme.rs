@@ -5,9 +5,9 @@
 //! size and reduced motion. [`Theme::of`] resolves it against the window's
 //! own appearance, so a forced switch never touches the system setting.
 
-use gpui::{App, Global, Window, WindowAppearance};
+use gpui::{App, Global, Hsla, Window, WindowAppearance};
 
-use crate::tokens::{Palette, TextSize, TypeScale};
+use crate::tokens::{Palette, Rgb, TextSize, TypeScale};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum Appearance {
@@ -40,7 +40,7 @@ impl Appearance {
 }
 
 /// How the app wants to look, independent of any one window.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct ThemeSettings {
     /// `None` follows the window (the system); `Some` forces one appearance.
     pub forced: Option<Appearance>,
@@ -48,6 +48,8 @@ pub struct ThemeSettings {
     /// Skip every movement straight to where it ends. `None` follows the
     /// platform (GPUI's `reduce_motion`).
     pub reduce_motion: Option<bool>,
+    /// Optional custom caret colour override (M08 `caretColor`).
+    pub caret: Option<Rgb>,
 }
 
 impl Global for ThemeSettings {}
@@ -59,6 +61,7 @@ pub struct Theme {
     pub palette: &'static Palette,
     pub scale: TypeScale,
     pub reduce_motion: bool,
+    pub caret: Option<Rgb>,
 }
 
 impl Theme {
@@ -75,6 +78,7 @@ impl Theme {
             palette: appearance.palette(),
             scale: settings.text_size.scale(),
             reduce_motion: settings.reduce_motion.unwrap_or_else(|| cx.reduce_motion()),
+            caret: settings.caret,
         }
     }
 
@@ -85,11 +89,17 @@ impl Theme {
             palette: appearance.palette(),
             scale: TypeScale::STANDARD,
             reduce_motion: false,
+            caret: None,
         }
     }
 
     pub fn dark(&self) -> bool {
         self.palette.dark
+    }
+
+    /// Caret colour for text inputs and editors (custom override or palette accent).
+    pub fn caret_color(&self) -> Hsla {
+        self.caret.unwrap_or(self.palette.accent).solid()
     }
 }
 
@@ -123,6 +133,17 @@ pub fn set_text_size(size: TextSize, cx: &mut App) {
         .copied()
         .unwrap_or_default();
     settings.text_size = size;
+    cx.set_global(settings);
+    cx.refresh_windows();
+}
+
+/// Sets a custom caret colour (`None` restores the theme accent) and repaints.
+pub fn set_caret_color(caret: Option<Rgb>, cx: &mut App) {
+    let mut settings = cx
+        .try_global::<ThemeSettings>()
+        .copied()
+        .unwrap_or_default();
+    settings.caret = caret;
     cx.set_global(settings);
     cx.refresh_windows();
 }

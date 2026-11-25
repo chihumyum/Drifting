@@ -272,10 +272,10 @@ impl Spec {
                 inside: fill,
                 outside: inside,
             },
-            (Some(fill), Ground::Uneven) => Ground::Flat {
-                inside: fill,
-                outside: fill,
-            },
+            // On an uneven ground (or an explicitly uneven control), never fall
+            // back to square cover erasure: `paint_flat` draws the rounded rim
+            // directly over the control's own rounded fill.
+            (Some(_), Ground::Uneven) => Ground::Uneven,
             (None, ground) => ground,
         }
     }

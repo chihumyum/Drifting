@@ -1,4 +1,12 @@
 {
+  "agentImages": {
+    "image": "Bild",
+    "remove": "Bild entfernen",
+    "tooLarge": "Das Bild ist zu groß: höchstens {{size}} MB und {{side}} Pixel pro Seite.",
+    "tooMany": "Eine Nachricht kann höchstens {{max}} Bilder enthalten.",
+    "unseen": "Das verwendete Modell kann keine Bilder sehen. Wechsle zu einem Modell, das es kann, und sende es noch einmal.",
+    "unsupported": "Es können nur PNG-, JPEG- oder WebP-Bilder gesendet werden."
+  },
   "allProjects": {
     "export": "Dieses Projekt exportieren (.driftingproject)",
     "import": "Projekt importieren",
@@ -35,6 +43,32 @@
   },
   "customModule": {
     "countOf": "{{name}}: {{count}}"
+  },
+  "editor_ui": {
+    "bar_add_comment": "Kommentar hinzufügen",
+    "fmt_bold": "Fett",
+    "fmt_highlight": "Hervorheben",
+    "fmt_inline_code": "Inline-Code",
+    "fmt_italic": "Kursiv",
+    "fmt_strike": "Durchgestrichen",
+    "fmt_underline": "Unterstrichen",
+    "mention_create_entry_prefix": "Eintrag „",
+    "mention_create_entry_suffix": "“ erstellen",
+    "slash_bullet_list": "Aufzählung",
+    "slash_callout": "Hinweisblock",
+    "slash_code_block": "Codeblock",
+    "slash_comment": "Kommentar",
+    "slash_entry_link": "Eintragslink",
+    "slash_ordered_list": "Nummerierte Liste",
+    "slash_position_link": "Positionslink",
+    "slash_table": "Tabelle",
+    "slash_task_list": "Checkliste",
+    "slash_todo": "Aufgabe",
+    "table_add_col": "Spalte hinzu",
+    "table_add_row": "Zeile hinzu",
+    "table_delete": "Tabelle löschen",
+    "table_delete_col": "Spalte löschen",
+    "table_delete_row": "Zeile löschen"
   },
   "entrySnapshot": {
     "empty": "Noch keine Momentaufnahmen",
@@ -211,6 +245,21 @@
     "title": "Titel",
     "unset": "Nicht festgelegt"
   },
+  "libraryOpenFailed": {
+    "title": "Bibliothek konnte nicht geöffnet werden",
+    "unchanged": "Die Bibliothek wurde nicht verändert.",
+    "keptBeforeUpgrade": "Eine Kopie der Bibliothek von vor dem Upgrade wurde aufbewahrt.",
+    "cause": {
+      "newer": "Eine neuere Version von Drifting hat sie geöffnet. Aktualisiere zuerst Drifting.",
+      "damaged": "Die Bibliotheksdatei ist beschädigt. Sende Feedback und lösche diesen Ordner noch nicht.",
+      "upgradeUnfinished": "Diese Version konnte sie nicht aktualisieren. Nutze vorerst die vorherige Version von Drifting und sende Feedback.",
+      "upgradedUnopenable": "Die aktualisierte Bibliothek lässt sich nicht öffnen. Sende Feedback.",
+      "noPermission": "Drifting kann diesen Ordner nicht lesen oder schreiben. Prüfe seine Berechtigungen.",
+      "diskFull": "Der Datenträger ist voll. Schaffe etwas Platz und öffne Drifting dann erneut.",
+      "unknown": "Sende Feedback."
+    },
+    "feedbackMessage": "{{title}} ({{code}})"
+  },
   "mirrorV5": {
     "contents": "Inhaltsverzeichnis",
     "acknowledgePreserved": "Verstanden",
@@ -228,6 +277,143 @@
     "unknownImage": "Das Bild verweist auf keine Datei in der Projektbibliothek. Die Zeile wurde als Text importiert.",
     "fieldConflict": "Ein Feld konnte nicht übernommen werden: Es wurde auch in Drifting bearbeitet, oder sein Wert war nicht lesbar. Drifting hat seinen Wert behalten und eine Kopie der Datei gesichert.",
     "keyCollision": "Eine Eigenschaft am Anfang heißt wie ein neu hinzugefügtes Feld. Drifting schreibt diese Datei erst wieder, wenn eines davon umbenannt oder entfernt ist."
+  },
+  "moduleBench": {
+    "holds": "Inhalt",
+    "blocks": "Bausteine",
+    "kind": {
+      "text": "Textzeile",
+      "longText": "Absatz",
+      "number": "Zahl",
+      "date": "Datum",
+      "select": "Einfachauswahl",
+      "multiSelect": "Mehrfachauswahl",
+      "toggle": "Häkchen",
+      "entry": "Eintrag",
+      "image": "Bild",
+      "group": "Gruppe",
+      "list": "Liste"
+    },
+    "defaultOptions": "A|B|C",
+    "looks": "Aussehen",
+    "size": {
+      "line": "Zeile",
+      "block": "Block",
+      "full": "Voll"
+    },
+    "follow": "Wie der Block",
+    "own": "Eigenes Layout",
+    "autoLine": "Die ersten in einer Zeile",
+    "autoFull": "Wie der Block, gestreckt",
+    "sample": "Beispiel",
+    "blank": "Leer",
+    "real": "Echter Eintrag",
+    "realOf": "Echter Eintrag · {{name}}",
+    "narrow": "Schmal",
+    "medium": "Mittel",
+    "wide": "Breit",
+    "light": "Hell",
+    "dark": "Dunkel",
+    "dropSketch": "Skizze oder Bildschirmfoto hineinziehen",
+    "myModules": "Meine Module",
+    "myModule": "Mein Modul",
+    "saveAs": "Kopie speichern",
+    "node": {
+      "col": "Spalte",
+      "row": "Reihe",
+      "grid": "Raster",
+      "each": "Jedes {{name}}",
+      "mark": "Zeichen"
+    },
+    "tag": {
+      "hair": "Linie",
+      "glass": "Glas",
+      "sand": "Sand",
+      "paper": "Papier",
+      "wash": "Lavur",
+      "across": "quer",
+      "down": "längs",
+      "dots": "Punkte",
+      "mark": "Zeichen",
+      "count": "Anzahl",
+      "words": "Text"
+    },
+    "prop": {
+      "dir": "Anordnung",
+      "gap": "Abstand",
+      "pad": "Innenabstand",
+      "align": "Ausrichtung",
+      "width": "Breite",
+      "border": "Rand",
+      "bg": "Grund",
+      "radius": "Ecken",
+      "deco": "Verzierung",
+      "sep": "Trenner",
+      "link": "Verbindung",
+      "font": "Schrift",
+      "size": "Größe",
+      "ink": "Tinte",
+      "show": "Anzeige",
+      "text": "Text",
+      "mark": "Zeichen"
+    },
+    "opt": {
+      "col": "Vertikal",
+      "row": "Horizontal",
+      "grid": "Raster",
+      "start": "Anfang",
+      "center": "Mitte",
+      "end": "Ende",
+      "stretch": "Strecken",
+      "auto": "Auto",
+      "hug": "Inhalt",
+      "fill": "Füllen",
+      "none": "Keine",
+      "hairline": "Haarlinie",
+      "glassLine": "Glas",
+      "sandFrame": "Sandrahmen",
+      "paper": "Papier",
+      "wash": "Lavur",
+      "arc": "Bogen",
+      "line": "Linie",
+      "axis": "Achse",
+      "arrow": "Pfeil",
+      "serif": "Serif",
+      "sans": "Sans",
+      "mono": "Mono",
+      "title": "Titel",
+      "body": "Text",
+      "small": "Klein",
+      "note": "Notiz",
+      "ink1": "1",
+      "ink2": "2",
+      "ink3": "3",
+      "ink4": "4",
+      "number": "Zahl",
+      "dots": "Punkte",
+      "words": "Text",
+      "mark": "Zeichen"
+    },
+    "eachBlock": "Jeder Baustein",
+    "edit": "Bearbeiten",
+    "adopt": "In meine Module",
+    "untitled": "Unbenanntes Modul",
+    "newModule": "Neues Modul…",
+    "openBench": "Werkbank öffnen",
+    "importModule": "Modul importieren",
+    "importModuleFile": "Modul importieren (.driftingmodule)",
+    "exportFile": "Exportieren (.driftingmodule)",
+    "deleteTitle": "Modul „{{name}}“ löschen?",
+    "transfer": {
+      "notModule": "Das ist kein aus Drifting exportiertes Modul.",
+      "newer": "Dieses Modul wurde mit einem neueren Drifting exportiert. Aktualisiere zuerst Drifting.",
+      "tooLarge": "Dieses Modul ist zu groß zum Importieren.",
+      "damaged": "Diese Datei ist beschädigt und kann nicht importiert werden.",
+      "importFailed": "Das Modul konnte nicht importiert werden. Bitte versuche es erneut.",
+      "exportFailed": "Das Modul konnte nicht exportiert werden. Bitte versuche es erneut."
+    },
+    "usedIn_one": "Mein Modul · in {{count}} Projekt",
+    "usedIn_other": "Mein Modul · in {{count}} Projekten"
   },
   "positionLink": {
     "copied": "Positionslink kopiert"
@@ -279,6 +465,12 @@
     "overwrite": "Überschreiben…",
     "structure": "Struktur",
     "timePins": "Zeitmarken"
+  },
+  "relationGraph": {
+    "create": "Erstellen",
+    "name": "Name der Beziehung",
+    "relations": "Beziehungen",
+    "title": "Beziehung erstellen"
   },
   "settings": {
     "appearance": {
@@ -633,14 +825,6 @@
     "templateStructure": "Vorlagenstruktur",
     "unusedTemplates": "Unbenutzte Vorlagen"
   },
-  "v5RelationsProse": {
-    "create": "Beziehung anlegen",
-    "confirm": "Anlegen",
-    "direction": "Richtung",
-    "otherEntry": "Anderer Eintrag",
-    "relation": "Beziehung",
-    "change": "Ändern"
-  },
   "v5Relations": {
     "duplicatePair": "„{{pair}}“ steht bereits in einer anderen Zeile.",
     "addEntry": "Eintrag hinzufügen",
@@ -656,11 +840,13 @@
     "removeEntry": "„{{name}}“ entfernen",
     "tab": "Beziehungen"
   },
-  "relationGraph": {
-    "create": "Erstellen",
-    "name": "Name der Beziehung",
-    "relations": "Beziehungen",
-    "title": "Beziehung erstellen"
+  "v5RelationsProse": {
+    "create": "Beziehung anlegen",
+    "confirm": "Anlegen",
+    "direction": "Richtung",
+    "otherEntry": "Anderer Eintrag",
+    "relation": "Beziehung",
+    "change": "Ändern"
   },
   "v5Tour": {
     "agent": {
@@ -685,165 +871,5 @@
     "timeline": {
       "body": "Gleitet unter der Seite hervor und ordnet die angehängten Einträge nach Ansicht."
     }
-  },
-  "libraryOpenFailed": {
-    "title": "Bibliothek konnte nicht geöffnet werden",
-    "unchanged": "Die Bibliothek wurde nicht verändert.",
-    "keptBeforeUpgrade": "Eine Kopie der Bibliothek von vor dem Upgrade wurde aufbewahrt.",
-    "cause": {
-      "newer": "Eine neuere Version von Drifting hat sie geöffnet. Aktualisiere zuerst Drifting.",
-      "damaged": "Die Bibliotheksdatei ist beschädigt. Sende Feedback und lösche diesen Ordner noch nicht.",
-      "upgradeUnfinished": "Diese Version konnte sie nicht aktualisieren. Nutze vorerst die vorherige Version von Drifting und sende Feedback.",
-      "upgradedUnopenable": "Die aktualisierte Bibliothek lässt sich nicht öffnen. Sende Feedback.",
-      "noPermission": "Drifting kann diesen Ordner nicht lesen oder schreiben. Prüfe seine Berechtigungen.",
-      "diskFull": "Der Datenträger ist voll. Schaffe etwas Platz und öffne Drifting dann erneut.",
-      "unknown": "Sende Feedback."
-    },
-    "feedbackMessage": "{{title}} ({{code}})"
-  },
-  "agentImages": {
-    "image": "Bild",
-    "remove": "Bild entfernen",
-    "tooLarge": "Das Bild ist zu groß: höchstens {{size}} MB und {{side}} Pixel pro Seite.",
-    "tooMany": "Eine Nachricht kann höchstens {{max}} Bilder enthalten.",
-    "unseen": "Das verwendete Modell kann keine Bilder sehen. Wechsle zu einem Modell, das es kann, und sende es noch einmal.",
-    "unsupported": "Es können nur PNG-, JPEG- oder WebP-Bilder gesendet werden."
-  },
-  "moduleBench": {
-    "holds": "Inhalt",
-    "blocks": "Bausteine",
-    "kind": {
-      "text": "Textzeile",
-      "longText": "Absatz",
-      "number": "Zahl",
-      "date": "Datum",
-      "select": "Einfachauswahl",
-      "multiSelect": "Mehrfachauswahl",
-      "toggle": "Häkchen",
-      "entry": "Eintrag",
-      "image": "Bild",
-      "group": "Gruppe",
-      "list": "Liste"
-    },
-    "defaultOptions": "A|B|C",
-    "looks": "Aussehen",
-    "size": {
-      "line": "Zeile",
-      "block": "Block",
-      "full": "Voll"
-    },
-    "follow": "Wie der Block",
-    "own": "Eigenes Layout",
-    "autoLine": "Die ersten in einer Zeile",
-    "autoFull": "Wie der Block, gestreckt",
-    "sample": "Beispiel",
-    "blank": "Leer",
-    "real": "Echter Eintrag",
-    "realOf": "Echter Eintrag · {{name}}",
-    "narrow": "Schmal",
-    "medium": "Mittel",
-    "wide": "Breit",
-    "light": "Hell",
-    "dark": "Dunkel",
-    "dropSketch": "Skizze oder Bildschirmfoto hineinziehen",
-    "myModules": "Meine Module",
-    "myModule": "Mein Modul",
-    "saveAs": "Kopie speichern",
-    "node": {
-      "col": "Spalte",
-      "row": "Reihe",
-      "grid": "Raster",
-      "each": "Jedes {{name}}",
-      "mark": "Zeichen"
-    },
-    "tag": {
-      "hair": "Linie",
-      "glass": "Glas",
-      "sand": "Sand",
-      "paper": "Papier",
-      "wash": "Lavur",
-      "across": "quer",
-      "down": "längs",
-      "dots": "Punkte",
-      "mark": "Zeichen",
-      "count": "Anzahl",
-      "words": "Text"
-    },
-    "prop": {
-      "dir": "Anordnung",
-      "gap": "Abstand",
-      "pad": "Innenabstand",
-      "align": "Ausrichtung",
-      "width": "Breite",
-      "border": "Rand",
-      "bg": "Grund",
-      "radius": "Ecken",
-      "deco": "Verzierung",
-      "sep": "Trenner",
-      "link": "Verbindung",
-      "font": "Schrift",
-      "size": "Größe",
-      "ink": "Tinte",
-      "show": "Anzeige",
-      "text": "Text",
-      "mark": "Zeichen"
-    },
-    "opt": {
-      "col": "Vertikal",
-      "row": "Horizontal",
-      "grid": "Raster",
-      "start": "Anfang",
-      "center": "Mitte",
-      "end": "Ende",
-      "stretch": "Strecken",
-      "auto": "Auto",
-      "hug": "Inhalt",
-      "fill": "Füllen",
-      "none": "Keine",
-      "hairline": "Haarlinie",
-      "glassLine": "Glas",
-      "sandFrame": "Sandrahmen",
-      "paper": "Papier",
-      "wash": "Lavur",
-      "arc": "Bogen",
-      "line": "Linie",
-      "axis": "Achse",
-      "arrow": "Pfeil",
-      "serif": "Serif",
-      "sans": "Sans",
-      "mono": "Mono",
-      "title": "Titel",
-      "body": "Text",
-      "small": "Klein",
-      "note": "Notiz",
-      "ink1": "1",
-      "ink2": "2",
-      "ink3": "3",
-      "ink4": "4",
-      "number": "Zahl",
-      "dots": "Punkte",
-      "words": "Text",
-      "mark": "Zeichen"
-    },
-    "eachBlock": "Jeder Baustein",
-    "edit": "Bearbeiten",
-    "adopt": "In meine Module",
-    "untitled": "Unbenanntes Modul",
-    "newModule": "Neues Modul…",
-    "openBench": "Werkbank öffnen",
-    "importModule": "Modul importieren",
-    "importModuleFile": "Modul importieren (.driftingmodule)",
-    "exportFile": "Exportieren (.driftingmodule)",
-    "deleteTitle": "Modul „{{name}}“ löschen?",
-    "transfer": {
-      "notModule": "Das ist kein aus Drifting exportiertes Modul.",
-      "newer": "Dieses Modul wurde mit einem neueren Drifting exportiert. Aktualisiere zuerst Drifting.",
-      "tooLarge": "Dieses Modul ist zu groß zum Importieren.",
-      "damaged": "Diese Datei ist beschädigt und kann nicht importiert werden.",
-      "importFailed": "Das Modul konnte nicht importiert werden. Bitte versuche es erneut.",
-      "exportFailed": "Das Modul konnte nicht exportiert werden. Bitte versuche es erneut."
-    },
-    "usedIn_one": "Mein Modul · in {{count}} Projekt",
-    "usedIn_other": "Mein Modul · in {{count}} Projekten"
   }
 }

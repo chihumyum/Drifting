@@ -160,14 +160,66 @@ pub(crate) fn validate(text: &str, marks: &[CellMark]) -> Result<(), String> {
     .map_err(|e| e.to_string())?;
     Ok(())
 }
+pub(crate) fn encode_blocks(blocks: &[gpui_prose::text::BlockAttrs]) -> Result<Value, String> {
+    let mut out = Vec::with_capacity(blocks.len());
+    for attrs in blocks {
+        let mut obj = serde_json::Map::new();
+        for &key in gpui_prose::text::PASTED_KEYS {
+            if let Some(val) = attrs.get(key) {
+                obj.insert(key.to_owned(), encode_value(val)?);
+            }
+        }
+        out.push(Value::Object(obj));
+    }
+    Ok(Value::Array(out))
+}
+
+pub(crate) fn decode_blocks(value: &Value) -> Result<Vec<gpui_prose::text::BlockAttrs>, String> {
+    let bad = || "invalid clipboard blocks".to_owned();
+    value
+        .as_array()
+        .ok_or_else(bad)?
+        .iter()
+        .map(|entry| {
+            let map = entry.as_object().ok_or_else(bad)?;
+            let mut attrs = gpui_prose::text::BlockAttrs::default();
+            for (k, v) in map {
+                if !gpui_prose::text::PASTED_KEYS.contains(&k.as_str()) {
+                    return Err(bad());
+                }
+                attrs.set(k, Some(decode_value(v)?));
+            }
+            Ok(attrs)
+        })
+        .collect()
+}
+
 fn fragment(
     doc: &ProseDoc,
     range: std::ops::Range<usize>,
-) -> Result<(String, Vec<CellMark>), String> {
+) -> Result<(String, Vec<CellMark>, Vec<gpui_prose::text::BlockAttrs>), String> {
     let text = doc.slice(range.clone());
     let mut marks = Vec::new();
-    for (ix, line) in doc.lines().iter().enumerate() {
+    let (first_line, _) = doc.locate(range.start);
+    let (last_line, _) = doc.locate(range.end);
+    let single_partial = first_line == last_line
+        && (range.start > doc.line_start(first_line)
+            || range.end < doc.line_start(first_line) + doc.line(first_line).chars);
+    let mut blocks = Vec::with_capacity(last_line.saturating_sub(first_line) + 1);
+    for ix in first_line..=last_line {
+        let line = doc.line(ix);
         let at = doc.line_start(ix);
+        if single_partial {
+            blocks.push(gpui_prose::text::BlockAttrs::default());
+        } else {
+            let mut attrs = gpui_prose::text::BlockAttrs::default();
+            for &key in gpui_prose::text::PASTED_KEYS {
+                if let Some(v) = line.block.get(key) {
+                    attrs.set(key, Some(v.clone()));
+                }
+            }
+            blocks.push(attrs);
+        }
         for span in line.spans.iter() {
             let a = at + line.text[..span.range.start].chars().count();
             let b = at + line.text[..span.range.end].chars().count();
@@ -186,19 +238,205 @@ fn fragment(
         }
     }
     validate(&text, &marks)?;
-    Ok((text, marks))
+    Ok((text, marks, blocks))
 }
-fn copied(editor: &ProseEditor) -> Result<ClipboardItem, String> {
+
+fn build_fragment(
+    text: &str,
+    marks: &[CellMark],
+    blocks: &[gpui_prose::text::BlockAttrs],
+) -> gpui_prose::text::Fragment {
+    let parts: Vec<&str> = text.split('\n').collect();
+    let mut paragraphs = Vec::with_capacity(parts.len());
+    let mut offset = 0usize;
+    for (ix, part) in parts.iter().enumerate() {
+        let len = part.chars().count();
+        let end = offset + len;
+        let mut p_marks = Vec::new();
+        for (a, b, k, v) in marks {
+            let s = (*a).max(offset);
+            let e = (*b).min(end);
+            if s < e {
+                p_marks.push((s - offset..e - offset, k.clone(), v.clone()));
+            }
+        }
+        let attrs = blocks.get(ix).cloned().unwrap_or_default();
+        paragraphs.push(gpui_prose::text::FragmentParagraph {
+            text: (*part).to_owned(),
+            marks: p_marks,
+            attrs,
+        });
+        offset = end + 1;
+    }
+    gpui_prose::text::Fragment { paragraphs }
+}
+
+fn escape_html(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            '\u{2028}' => out.push_str("<br>"),
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
+/// Renders a copied fragment as semantic HTML for external applications.
+pub(crate) fn fragment_to_html(
+    text: &str,
+    marks: &[CellMark],
+    blocks: &[gpui_prose::text::BlockAttrs],
+) -> String {
+    use gpui_prose::schema::block;
+    let frag = build_fragment(text, marks, blocks);
+    let mut out = String::new();
+    let mut open_list: Option<&str> = None;
+    let close_list = |out: &mut String, list: &mut Option<&str>| {
+        if let Some(tag) = list.take() {
+            out.push_str("</");
+            out.push_str(tag);
+            out.push('>');
+        }
+    };
+    for p in &frag.paragraphs {
+        let list_tag = match p.attrs.get(block::LIST) {
+            Some(LoroValue::String(s)) if s.as_str() == "ordered" => Some("ol"),
+            Some(LoroValue::String(_)) => Some("ul"),
+            _ => None,
+        };
+        if list_tag != open_list {
+            close_list(&mut out, &mut open_list);
+            if let Some(tag) = list_tag {
+                out.push('<');
+                out.push_str(tag);
+                out.push('>');
+                open_list = Some(tag);
+            }
+        }
+        if p.is_rule() {
+            out.push_str("<hr>");
+            continue;
+        }
+        let body = inline_html(&p.text, &p.marks);
+        if list_tag.is_some() {
+            out.push_str("<li>");
+            out.push_str(&body);
+            out.push_str("</li>");
+        } else if p.attrs.get(block::CODE_BLOCK).is_some() {
+            out.push_str("<pre><code>");
+            out.push_str(&escape_html(&p.text));
+            out.push_str("</code></pre>");
+        } else if matches!(p.attrs.get(block::QUOTE), Some(LoroValue::Bool(true))) {
+            out.push_str("<blockquote><p>");
+            out.push_str(&body);
+            out.push_str("</p></blockquote>");
+        } else if let Some(level) = p.attrs.heading() {
+            out.push_str(&format!("<h{level}>{body}</h{level}>"));
+        } else {
+            let align = match p.attrs.get(block::ALIGN) {
+                Some(LoroValue::String(a)) if a.as_str() == "center" => {
+                    " style=\"text-align:center\""
+                }
+                Some(LoroValue::String(a)) if a.as_str() == "right" => {
+                    " style=\"text-align:right\""
+                }
+                _ => "",
+            };
+            out.push_str(&format!("<p{align}>{body}</p>"));
+        }
+    }
+    close_list(&mut out, &mut open_list);
+    out
+}
+
+fn inline_html(text: &str, marks: &[(std::ops::Range<usize>, String, LoroValue)]) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    if chars.is_empty() {
+        return String::new();
+    }
+    let mut cuts: Vec<usize> = vec![0, chars.len()];
+    for (r, _, _) in marks {
+        cuts.push(r.start.min(chars.len()));
+        cuts.push(r.end.min(chars.len()));
+    }
+    cuts.sort_unstable();
+    cuts.dedup();
+    let mut out = String::new();
+    for win in cuts.windows(2) {
+        let (a, b) = (win[0], win[1]);
+        if a >= b {
+            continue;
+        }
+        let seg: String = chars[a..b].iter().collect();
+        let mut piece = escape_html(&seg);
+        let mut bold = false;
+        let mut italic = false;
+        let mut underline = false;
+        let mut strike = false;
+        let mut code = false;
+        let mut highlight = false;
+        let mut href: Option<&str> = None;
+        for (r, k, v) in marks {
+            if r.start <= a && b <= r.end {
+                match k.as_str() {
+                    "bold" => bold = true,
+                    "italic" => italic = true,
+                    "underline" => underline = true,
+                    "strike" => strike = true,
+                    "code" => code = true,
+                    "highlight" => highlight = true,
+                    "link" => {
+                        if let LoroValue::String(url) = v {
+                            href = Some(url.as_str());
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        if code {
+            piece = format!("<code>{piece}</code>");
+        }
+        if highlight {
+            piece = format!("<mark>{piece}</mark>");
+        }
+        if strike {
+            piece = format!("<s>{piece}</s>");
+        }
+        if underline {
+            piece = format!("<u>{piece}</u>");
+        }
+        if italic {
+            piece = format!("<em>{piece}</em>");
+        }
+        if bold {
+            piece = format!("<strong>{piece}</strong>");
+        }
+        if let Some(url) = href {
+            piece = format!("<a href=\"{}\">{piece}</a>", escape_html(url));
+        }
+        out.push_str(&piece);
+    }
+    out
+}
+
+fn copied(editor: &ProseEditor) -> Result<(ClipboardItem, String), String> {
     let sel = editor.selection();
     let mut text = String::new();
     let mut marks = Vec::new();
+    let mut blocks = Vec::new();
     let mut first = true;
     for chapter in sel.start().chapter..=sel.end().chapter {
         let doc = &editor.book().chapters[chapter].doc;
         let Some((range, _)) = editor.selected_in(chapter) else {
             continue;
         };
-        let (part, mut runs) = fragment(doc, range)?;
+        let (part, mut runs, part_blocks) = fragment(doc, range)?;
         if !first {
             text.push('\n');
         }
@@ -210,11 +448,19 @@ fn copied(editor: &ProseEditor) -> Result<ClipboardItem, String> {
         }
         text += &part;
         marks.extend(runs);
+        blocks.extend(part_blocks);
     }
     let payload = encode_marks(&marks)?;
-    Ok(ClipboardItem::new_string_with_json_metadata(
-        text.clone(),
-        json!({KEY:{"version":1,"text":text,"marks":payload}}),
+    let html = fragment_to_html(&text, &marks, &blocks);
+    let meta = if blocks.iter().any(|b| !b.is_empty()) {
+        let blocks_payload = encode_blocks(&blocks)?;
+        json!({KEY:{"version":1,"text":text,"marks":payload,"blocks":blocks_payload}})
+    } else {
+        json!({KEY:{"version":1,"text":text,"marks":payload}})
+    };
+    Ok((
+        ClipboardItem::new_string_with_json_metadata(text, meta),
+        html,
     ))
 }
 fn guard(doc: &mut ProseDoc) {
@@ -321,8 +567,11 @@ pub(crate) fn copy(
         return true;
     }
     match copied(e) {
-        Ok(item) => {
+        Ok((item, html)) => {
             cx.write_to_clipboard(item);
+            if let Some(write) = cx.try_global::<ClipboardHtmlWriter>().map(|w| w.0.clone()) {
+                write(&html);
+            }
             if cut {
                 editor.update(cx, |e, cx| {
                     let sel = e.selection();
@@ -384,9 +633,13 @@ pub(crate) fn paste(editor: &Entity<ProseEditor>, window: &mut Window, cx: &mut 
         }
         let marks = decode_marks(&value["marks"])?;
         validate(&text, &marks)?;
-        Ok::<_, String>((text, marks))
+        let blocks = match value.get("blocks") {
+            Some(b) => decode_blocks(b)?,
+            None => Vec::new(),
+        };
+        Ok::<_, String>((text, marks, blocks))
     })();
-    let (text, marks) = match parsed {
+    let (text, marks, blocks) = match parsed {
         Ok(p) => p,
         Err(e) => {
             crate::links::clipboard_refused(cx, e);
@@ -402,12 +655,30 @@ pub(crate) fn paste(editor: &Entity<ProseEditor>, window: &mut Window, cx: &mut 
         crate::links::clipboard_refused(cx, "unsupported embed placeholder in text paste");
         return true;
     }
+    let has_blocks =
+        blocks.iter().any(|b| !b.is_empty()) && !e.options().fit_content && takes_formatting(e);
     if sel.spans_chapters() {
         editor.update(cx, move |e, cx| {
-            if !matches!(
-                replace_group(e, rich_part(&text, &marks), window, cx),
-                Ok(true)
-            ) {
+            let ok = if has_blocks {
+                let fragment = build_fragment(&text, &marks, &blocks);
+                let part = |doc: &ProseDoc, range: std::ops::Range<usize>| {
+                    let clears = caret_clears(doc, range.start);
+                    let plan = gpui_prose::text::PastePlan::new(doc, range, &fragment);
+                    let edits = plan
+                        .edits(&clears)
+                        .into_iter()
+                        .map(crate::convert::OwnedEdit::from)
+                        .collect();
+                    (edits, plan.caret())
+                };
+                matches!(replace_group(e, part, window, cx), Ok(true))
+            } else {
+                matches!(
+                    replace_group(e, rich_part(&text, &marks), window, cx),
+                    Ok(true)
+                )
+            };
+            if !ok {
                 crate::links::clipboard_refused(cx, "stale or failed cross-document paste");
             }
         });
@@ -420,6 +691,14 @@ pub(crate) fn paste(editor: &Entity<ProseEditor>, window: &mut Window, cx: &mut 
         let completed = &saved;
         e.edit_chapter(sel.chapter, HostStep::Own, window, cx, move |doc| {
             let clears = caret_clears(doc, at);
+            if has_blocks {
+                let fragment = build_fragment(&text, &marks, &blocks);
+                let plan = gpui_prose::text::PastePlan::new(doc, range.clone(), &fragment);
+                guard(doc);
+                let out = doc.edit_batch(&plan.edits(&clears), ORIGIN_USER);
+                completed.set(out.undo_items > 0 || out.caret > 0);
+                return completed.get().then_some(plan.caret());
+            }
             let mut edits = vec![Edit::Replace {
                 range: range.clone(),
                 text: &text,
@@ -484,6 +763,18 @@ impl gpui::Global for ClipboardHtml {}
 /// Sets where ⌘V in a body reads other programs' formatting from.
 pub fn set_clipboard_html(cx: &mut App, read: impl Fn() -> Option<String> + 'static) {
     cx.set_global(ClipboardHtml(std::rc::Rc::new(read)));
+}
+
+/// How the editor writes HTML to the system clipboard on ⌘C/⌘X alongside
+/// GPUI's plain text and JSON metadata (`dr_platform::clipboard::write_html`).
+#[derive(Clone)]
+pub struct ClipboardHtmlWriter(pub std::rc::Rc<dyn Fn(&str)>);
+
+impl gpui::Global for ClipboardHtmlWriter {}
+
+/// Sets where ⌘C/⌘X in a body writes semantic HTML for external programs.
+pub fn set_clipboard_html_writer(cx: &mut App, write: impl Fn(&str) + 'static) {
+    cx.set_global(ClipboardHtmlWriter(std::rc::Rc::new(write)));
 }
 
 /// Whether a paste over the selection may bring paragraph formats: not

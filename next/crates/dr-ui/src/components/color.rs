@@ -171,7 +171,7 @@ impl RenderOnce for ColorSwatch {
             GlassKind::Rest,
             mode,
             false,
-            Spec::new(Tone::Clear, SWATCH / 2.0),
+            Spec::new(Tone::Clear, SWATCH / 2.0).ground(glass::Ground::Uneven),
             window,
             cx,
         )
@@ -183,6 +183,9 @@ impl RenderOnce for ColorSwatch {
         .justify_center()
         .role(gpui::Role::Button)
         .aria_label(self.label.clone())
+        .when(!self.label.is_empty(), |el| {
+            el.tooltip(super::tooltip::tooltip(self.label.clone()))
+        })
         .child(seal)
         .when(!self.disabled, |el| {
             el.cursor_pointer().on_click(move |_, window, cx| {

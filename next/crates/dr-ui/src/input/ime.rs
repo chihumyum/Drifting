@@ -8,11 +8,197 @@
 //! the system to discard it too, so nothing half-typed is committed or left
 //! in the candidate window.
 
-use std::rc::Rc;
+use std::{
+    ops::Range,
+    rc::Rc,
+    sync::OnceLock,
+    time::{Duration, Instant},
+};
 
 use gpui::{App, Global, Window};
-use gpui_ime::Boundaries;
+use gpui_ime::{Boundaries, LineComposer};
+use icu_segmenter::{WordSegmenter, WordSegmenterBorrowed, options::WordBreakInvariantOptions};
 use unicode_segmentation::UnicodeSegmentation as _;
+
+/// A segment between two word boundaries; `word` is true for letters,
+/// ideographs, and digits (not whitespace or punctuation).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WordSegment {
+    pub range: Range<usize>,
+    pub word: bool,
+}
+
+fn word_segmenter() -> &'static WordSegmenterBorrowed<'static> {
+    static SEGMENTER: OnceLock<WordSegmenterBorrowed<'static>> = OnceLock::new();
+    SEGMENTER.get_or_init(|| WordSegmenter::new_dictionary(WordBreakInvariantOptions::default()))
+}
+
+/// ICU4X dictionary word segments (handles CJK dictionary words + Latin UAX #29).
+pub fn word_segments(text: &str) -> Vec<WordSegment> {
+    let mut out = Vec::new();
+    let mut start = 0;
+    for (end, kind) in word_segmenter().segment_str(text).iter_with_word_type() {
+        if end > start {
+            out.push(WordSegment {
+                range: start..end,
+                word: kind.is_word_like(),
+            });
+        }
+        start = end;
+    }
+    out
+}
+
+/// The word (or whitespace/punctuation segment) around byte offset `at`:
+/// what a double-click selects in `TextField` and `TextArea`.
+pub fn word_range(text: &str, at: usize) -> Range<usize> {
+    if text.is_empty() {
+        return 0..0;
+    }
+    let segments = word_segments(text);
+    let at = at.min(text.len());
+    segments
+        .iter()
+        .find(|s| s.range.start <= at && at < s.range.end)
+        .or_else(|| segments.last())
+        .map_or(at..at, |s| s.range.clone())
+}
+
+/// Where ⌥← / Ctrl+← / ⌥⌫ / Ctrl+Backspace goes from byte offset `at`:
+/// the start of the previous word (skipping whitespace & punctuation), or `0`.
+pub fn prev_word_start(text: &str, at: usize) -> usize {
+    let at = at.min(text.len());
+    if at == 0 {
+        return 0;
+    }
+    word_segments(text)
+        .into_iter()
+        .rev()
+        .find(|s| s.word && s.range.start < at)
+        .map_or(0, |s| s.range.start)
+}
+
+/// Where ⌥→ / Ctrl+→ / ⌥⌦ / Ctrl+Delete goes from byte offset `at`:
+/// the end of the next word (skipping whitespace & punctuation), or `text.len()`.
+pub fn next_word_end(text: &str, at: usize) -> usize {
+    let at = at.min(text.len());
+    if at >= text.len() {
+        return text.len();
+    }
+    word_segments(text)
+        .into_iter()
+        .find(|s| s.word && s.range.end > at)
+        .map_or(text.len(), |s| s.range.end)
+}
+
+/// One committed text + selection snapshot for plain-input undo/redo.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EditSnapshot {
+    pub text: String,
+    pub selection: Range<usize>,
+    pub reversed: bool,
+}
+
+impl EditSnapshot {
+    pub fn from_composer(composer: &LineComposer) -> Self {
+        match composer.marked() {
+            Some(m) => Self {
+                text: composer.committed(),
+                selection: m.start..m.start,
+                reversed: false,
+            },
+            None => Self {
+                text: composer.text().to_owned(),
+                selection: composer.selection(),
+                reversed: composer.reversed(),
+            },
+        }
+    }
+
+    pub fn restore_into(&self, composer: &mut LineComposer) {
+        composer.set_text(self.text.clone());
+        let len = composer.text().len();
+        let start = self.selection.start.min(len);
+        let end = self.selection.end.min(len);
+        if self.reversed {
+            composer.move_to(end);
+            composer.select_to(start);
+        } else {
+            composer.move_to(start);
+            composer.select_to(end);
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EditKind {
+    Insert,
+    Delete,
+    Other,
+}
+
+/// Bounded undo/redo stack for `TextField` and `TextArea`, coalescing
+/// consecutive single-burst typing or deletions within 600ms.
+#[derive(Default)]
+pub struct EditHistory {
+    undo: Vec<EditSnapshot>,
+    redo: Vec<EditSnapshot>,
+    last_kind: Option<EditKind>,
+    last_at: Option<Instant>,
+}
+
+const MAX_HISTORY: usize = 200;
+const COALESCE_WINDOW: Duration = Duration::from_millis(600);
+
+impl EditHistory {
+    pub fn record(&mut self, before: EditSnapshot, kind: EditKind, break_coalesce: bool) {
+        self.redo.clear();
+        let now = Instant::now();
+        let can_coalesce = !break_coalesce
+            && matches!(kind, EditKind::Insert | EditKind::Delete)
+            && self.last_kind == Some(kind)
+            && self
+                .last_at
+                .is_some_and(|t| now.saturating_duration_since(t) <= COALESCE_WINDOW)
+            && !self.undo.is_empty();
+        if !can_coalesce {
+            if self.undo.len() >= MAX_HISTORY {
+                self.undo.remove(0);
+            }
+            self.undo.push(before);
+        }
+        self.last_kind = Some(kind);
+        self.last_at = Some(now);
+    }
+
+    pub fn break_coalesce(&mut self) {
+        self.last_kind = None;
+        self.last_at = None;
+    }
+
+    pub fn clear(&mut self) {
+        self.undo.clear();
+        self.redo.clear();
+        self.last_kind = None;
+        self.last_at = None;
+    }
+
+    pub fn undo(&mut self, current: EditSnapshot) -> Option<EditSnapshot> {
+        let prev = self.undo.pop()?;
+        self.redo.push(current);
+        self.last_kind = None;
+        self.last_at = None;
+        Some(prev)
+    }
+
+    pub fn redo(&mut self, current: EditSnapshot) -> Option<EditSnapshot> {
+        let next = self.redo.pop()?;
+        self.undo.push(current);
+        self.last_kind = None;
+        self.last_at = None;
+        Some(next)
+    }
+}
 
 /// Grapheme-cluster boundaries: a family emoji or a letter with its accent
 /// is one step of the caret and one backspace.
@@ -171,6 +357,41 @@ mod tests {
         c.move_to("e\u{301}".len());
         assert_eq!(c.backspace(&Graphemes), Change::Committed);
         assert_eq!(c.text(), "x");
+    }
+
+    #[test]
+    fn chinese_and_latin_word_boundaries() {
+        let text = "我们今天去公园 hello world";
+        assert_eq!(&text[word_range(text, 7)], "今天");
+        assert_eq!(&text[word_range(text, text.len() - 2)], "world");
+        let end_cn = "我们今天去公园".len();
+        assert_eq!(prev_word_start(text, end_cn), "我们今天去".len());
+        assert_eq!(prev_word_start(text, "我们今天去".len()), "我们今天".len());
+        assert_eq!(next_word_end(text, 0), "我们".len());
+        assert_eq!(next_word_end(text, end_cn), "我们今天去公园 hello".len());
+    }
+
+    #[test]
+    fn edit_history_undo_and_redo() {
+        let mut history = EditHistory::default();
+        let mut c = LineComposer::new("一");
+        let s0 = EditSnapshot::from_composer(&c);
+        c.insert("二");
+        history.record(s0, EditKind::Other, true);
+        let s1 = EditSnapshot::from_composer(&c);
+        c.insert("三");
+        history.record(s1, EditKind::Other, true);
+        assert_eq!(c.text(), "一二三");
+
+        let cur = EditSnapshot::from_composer(&c);
+        history.undo(cur).unwrap().restore_into(&mut c);
+        assert_eq!(c.text(), "一二");
+        let cur = EditSnapshot::from_composer(&c);
+        history.undo(cur).unwrap().restore_into(&mut c);
+        assert_eq!(c.text(), "一");
+        let cur = EditSnapshot::from_composer(&c);
+        history.redo(cur).unwrap().restore_into(&mut c);
+        assert_eq!(c.text(), "一二");
     }
 
     #[test]

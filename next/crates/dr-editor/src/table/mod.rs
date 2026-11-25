@@ -1108,8 +1108,9 @@ impl TableView {
         let bounds = self.cells.get(key)?.bounds.get()?;
         let theme = Theme::of(window, cx);
         let p = theme.palette;
+        let strings = crate::file_host::strings(cx);
         let this = cx.entity();
-        let button = |id: &'static str, label: &'static str, f: fn(&mut TableView, usize, usize, &mut Window, &mut Context<TableView>)| {
+        let button = |id: &'static str, label: gpui::SharedString, f: fn(&mut TableView, usize, usize, &mut Window, &mut Context<TableView>)| {
             let this = this.clone();
             Button::new(id, label)
                 .text()
@@ -1124,7 +1125,7 @@ impl TableView {
             .p(px(4.))
             .child(button(
                 "dr-editor-table-add-row",
-                "加一行",
+                strings.table_add_row,
                 |t, r, c, w, cx| {
                     let (rows, _) = t.bar_span(r, c);
                     t.end_cell_selection(cx);
@@ -1134,7 +1135,7 @@ impl TableView {
             ))
             .child(button(
                 "dr-editor-table-add-col",
-                "加一列",
+                strings.table_add_col,
                 |t, r, c, w, cx| {
                     let (_, cols) = t.bar_span(r, c);
                     t.end_cell_selection(cx);
@@ -1144,7 +1145,7 @@ impl TableView {
             ))
             .child(button(
                 "dr-editor-table-delete-row",
-                "删除行",
+                strings.table_delete_row,
                 |t, r, c, w, cx| {
                     let (rows, _) = t.bar_span(r, c);
                     t.delete_rows(rows, w, cx)
@@ -1152,14 +1153,14 @@ impl TableView {
             ))
             .child(button(
                 "dr-editor-table-delete-col",
-                "删除列",
+                strings.table_delete_col,
                 |t, r, c, w, cx| {
                     let (_, cols) = t.bar_span(r, c);
                     t.delete_cols(cols, w, cx)
                 },
             ))
             .child(
-                Button::new("dr-editor-table-delete", "删除表格")
+                Button::new("dr-editor-table-delete", strings.table_delete)
                     .text()
                     .small()
                     .danger()

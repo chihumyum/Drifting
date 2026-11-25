@@ -260,6 +260,7 @@ fn main() {
         dr_view_page::init(cx);
         // PF: ⌘V in a body keeps the formatting other programs copy.
         dr_editor::set_clipboard_html(cx, dr_platform::clipboard::read_html);
+        dr_editor::set_clipboard_html_writer(cx, dr_platform::clipboard::write_html);
         dr_view_elements::init(cx);
         dr_view_templates::init(cx);
         // CM3: the module workbench, a pill whose side columns are its own.

@@ -309,7 +309,7 @@ fn the_slash_menu_of_a_note_has_its_own_entries(cx: &mut TestAppContext) {
             "提示块",
             "高亮",
             "图片或 PDF…",
-            "人物链接",
+            "条目链接",
             "批注"
         ]
     );

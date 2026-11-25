@@ -340,6 +340,91 @@ impl ProseEditor {
         self.set_selection(sel, cx);
     }
 
+    pub(crate) fn move_page(
+        &mut self,
+        down: bool,
+        extend: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if !extend && self.step_off_embed(down, cx) {
+            return;
+        }
+        let mut sel = self.selection;
+        let chapter = sel.chapter;
+        let (line_ix, inner) = self.book.chapters[chapter].doc.locate(sel.head);
+        let Some((layout, line_height)) = self.line_layout(chapter, line_ix, window) else {
+            return;
+        };
+        let byte = self.book.chapters[chapter]
+            .doc
+            .line(line_ix)
+            .byte_of_char(inner);
+        let here = layout.point_for_byte(byte, sel.affinity, line_height);
+        let goal_x = sel.goal_x.unwrap_or(here.x);
+        let view_h = if self.is_flow() {
+            self.flow
+                .borrow()
+                .view
+                .map(|v| f64::from(f32::from(v.size.height)))
+                .unwrap_or(480.)
+        } else {
+            let h = f64::from(f32::from(self.list.viewport_bounds().size.height));
+            if h > 1. { h } else { 480. }
+        };
+        let delta = (view_h * 0.9).max(f64::from(f32::from(line_height)));
+        let cur_item = self.book.line_item(chapter, line_ix);
+        let (target_item, offset_in_item) = {
+            let mut heights = self.heights.borrow_mut();
+            let cur_y = heights.top(cur_item) + f64::from(f32::from(here.y));
+            let target_y = if down {
+                (cur_y + delta).min(heights.total())
+            } else {
+                (cur_y - delta).max(0.)
+            };
+            heights.item_at(target_y)
+        };
+        let (target_chapter, target_line) = match self.book.item(target_item) {
+            crate::layout::Item::Line(c, l) => (c, l),
+            crate::layout::Item::Title(c) => (c, 0),
+            crate::layout::Item::End(c) => {
+                let last = self.book.chapters[c].doc.visible_lines().saturating_sub(1);
+                (c, last)
+            }
+        };
+        let (offset, affinity) =
+            if let Some((t_layout, t_lh)) = self.line_layout(target_chapter, target_line, window) {
+                let row = if t_lh > gpui::px(0.) {
+                    ((offset_in_item / f64::from(f32::from(t_lh))).floor() as usize)
+                        .min(t_layout.row_count().saturating_sub(1))
+                } else {
+                    0
+                };
+                let (b, aff) = t_layout.byte_in_row(row, goal_x);
+                let doc = &mut self.book.chapters[target_chapter].doc;
+                let line = doc.line(target_line);
+                let b = segment::snap_grapheme(&line.text, b);
+                let inner = line.char_of_byte(b);
+                (doc.line_start(target_line) + inner, aff)
+            } else {
+                let doc = &mut self.book.chapters[target_chapter].doc;
+                let off = if down {
+                    doc.line_start(target_line) + doc.line(target_line).chars
+                } else {
+                    doc.line_start(target_line)
+                };
+                (off, Affinity::Downstream)
+            };
+        sel.chapter = target_chapter;
+        sel.head = offset;
+        if !extend {
+            sel.collapse();
+        }
+        sel.affinity = affinity;
+        sel.goal_x = Some(goal_x);
+        self.set_selection(sel, cx);
+    }
+
     // ----- action handlers --------------------------------------------------------
 
     pub(crate) fn on_move_left(&mut self, _: &MoveLeft, _: &mut Window, cx: &mut Context<Self>) {
@@ -534,6 +619,38 @@ impl ProseEditor {
         cx: &mut Context<Self>,
     ) {
         self.move_by_paragraph(ParagraphMove::Next, true, cx);
+    }
+    pub(crate) fn on_move_page_up(
+        &mut self,
+        _: &MovePageUp,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.move_page(false, false, window, cx);
+    }
+    pub(crate) fn on_move_page_down(
+        &mut self,
+        _: &MovePageDown,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.move_page(true, false, window, cx);
+    }
+    pub(crate) fn on_select_page_up(
+        &mut self,
+        _: &SelectPageUp,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.move_page(false, true, window, cx);
+    }
+    pub(crate) fn on_select_page_down(
+        &mut self,
+        _: &SelectPageDown,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.move_page(true, true, window, cx);
     }
     pub(crate) fn on_select_all(&mut self, _: &SelectAll, _: &mut Window, cx: &mut Context<Self>) {
         let chapter = self.selection.chapter;

@@ -266,6 +266,32 @@
       "resting": "停泊中"
     }
   },
+  "editor_ui": {
+    "bar_add_comment": "コメントを追加",
+    "fmt_bold": "太字",
+    "fmt_highlight": "ハイライト",
+    "fmt_inline_code": "インラインコード",
+    "fmt_italic": "斜体",
+    "fmt_strike": "取り消し線",
+    "fmt_underline": "下線",
+    "mention_create_entry_prefix": "項目「",
+    "mention_create_entry_suffix": "」を作成",
+    "slash_bullet_list": "箇条書き",
+    "slash_callout": "コールアウト",
+    "slash_code_block": "コードブロック",
+    "slash_comment": "コメント",
+    "slash_entry_link": "項目リンク",
+    "slash_ordered_list": "番号付きリスト",
+    "slash_position_link": "位置リンク",
+    "slash_table": "表",
+    "slash_task_list": "チェックリスト",
+    "slash_todo": "TODO",
+    "table_add_col": "列を追加",
+    "table_add_row": "行を追加",
+    "table_delete": "表を削除",
+    "table_delete_col": "列を削除",
+    "table_delete_row": "行を削除"
+  },
   "entrySnapshot": {
     "empty": "スナップショットはまだありません",
     "save": "スナップショットを保存",

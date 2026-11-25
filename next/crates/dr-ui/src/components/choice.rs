@@ -1060,8 +1060,9 @@ impl RenderOnce for PillGroup {
             // While the wave travels the new pill keeps its resting line.
             let lit = on && !travelling;
             let pid = keys[i].clone();
-            let spec =
-                Spec::new(pill.tone, g::PILL_HEIGHT / 2.0).origin(glass::SAMPLE_ORIGINS[i % 4]);
+            let spec = Spec::new(pill.tone, g::PILL_HEIGHT / 2.0)
+                .origin(glass::SAMPLE_ORIGINS[i % 4])
+                .ground(Ground::Uneven);
             let band_state = state.clone();
             let band_tone = pill.tone;
             let band = canvas(

@@ -436,7 +436,7 @@ fn marks_row(
                     .size(px(LOADING_RING))
                     .child(glass::layer(
                         ring,
-                        Spec::new(tone, LOADING_RING / 2.0),
+                        Spec::new(tone, LOADING_RING / 2.0).ground(glass::Ground::Uneven),
                         theme,
                     ))
             });

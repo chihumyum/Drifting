@@ -268,6 +268,32 @@
       "resting": "En reposo"
     }
   },
+  "editor_ui": {
+    "bar_add_comment": "Añadir comentario",
+    "fmt_bold": "Negrita",
+    "fmt_highlight": "Resaltar",
+    "fmt_inline_code": "Código en línea",
+    "fmt_italic": "Cursiva",
+    "fmt_strike": "Tachado",
+    "fmt_underline": "Subrayado",
+    "mention_create_entry_prefix": "Crear entrada «",
+    "mention_create_entry_suffix": "»",
+    "slash_bullet_list": "Lista con viñetas",
+    "slash_callout": "Aviso",
+    "slash_code_block": "Bloque de código",
+    "slash_comment": "Comentario",
+    "slash_entry_link": "Enlace de entrada",
+    "slash_ordered_list": "Lista numerada",
+    "slash_position_link": "Enlace de posición",
+    "slash_table": "Tabla",
+    "slash_task_list": "Lista de tareas",
+    "slash_todo": "Pendiente",
+    "table_add_col": "Añadir columna",
+    "table_add_row": "Añadir fila",
+    "table_delete": "Eliminar tabla",
+    "table_delete_col": "Eliminar columna",
+    "table_delete_row": "Eliminar fila"
+  },
   "entrySnapshot": {
     "empty": "Aún no hay instantáneas",
     "save": "Guardar instantánea",

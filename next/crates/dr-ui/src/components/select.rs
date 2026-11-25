@@ -13,14 +13,15 @@
 use std::rc::Rc;
 
 use gpui::{
-    App, Bounds, ElementId, Entity, InteractiveElement, IntoElement, ParentElement, Pixels,
-    RenderOnce, SharedString, StatefulInteractiveElement, Styled, Window, div,
-    prelude::FluentBuilder as _, px,
+    App, AppContext as _, Bounds, ElementId, Entity, FocusHandle, Focusable as _,
+    InteractiveElement, IntoElement, KeyDownEvent, ParentElement, Pixels, RenderOnce, SharedString,
+    StatefulInteractiveElement, Styled, Subscription, Window, div, prelude::FluentBuilder as _, px,
 };
 
 use crate::{
     fonts::Role,
     glass::{self, Kind, Mode, Spec, Tone},
+    input::{FieldEvent, TextField},
     sand::{self, Icon},
     style::{DrStyled, child_id},
     theme::Theme,
@@ -62,6 +63,11 @@ impl Choice {
 pub struct SelectState {
     open: bool,
     bounds: Option<Bounds<Pixels>>,
+    focus: FocusHandle,
+    highlighted: usize,
+    query: String,
+    filter: Option<Entity<TextField>>,
+    _filter_sub: Option<Subscription>,
 }
 
 type SelectHandles = (
@@ -73,6 +79,9 @@ type SelectHandles = (
 struct OpenSelectLists(std::collections::HashMap<(gpui::WindowId, ElementId), SelectHandles>);
 impl gpui::Global for OpenSelectLists {}
 
+/// Auto-enable search filtering when a select has more than this many options.
+const AUTO_SEARCH_THRESHOLD: usize = 8;
+
 #[derive(IntoElement)]
 pub struct Select {
     id: ElementId,
@@ -81,6 +90,7 @@ pub struct Select {
     open: Option<bool>,
     disabled: bool,
     in_dialog: bool,
+    searchable: Option<bool>,
     on_change: Option<super::OnIndex>,
     menu_height: Option<f32>,
 }
@@ -94,9 +104,16 @@ impl Select {
             open: None,
             disabled: false,
             in_dialog: false,
+            searchable: None,
             on_change: None,
             menu_height: None,
         }
+    }
+
+    /// Force search filtering on or off (defaults to automatic when > 8 choices).
+    pub fn searchable(mut self, searchable: bool) -> Self {
+        self.searchable = Some(searchable);
+        self
     }
 
     /// Holds the list open (galleries, captures).
@@ -167,9 +184,14 @@ impl RenderOnce for Select {
         let p = theme.palette;
         let s = theme.scale;
         let state: Entity<SelectState> =
-            window.use_keyed_state(child_id(&self.id, "select"), cx, |_, _| SelectState {
+            window.use_keyed_state(child_id(&self.id, "select"), cx, |_, cx| SelectState {
                 open: false,
                 bounds: None,
+                focus: cx.focus_handle(),
+                highlighted: self.selected,
+                query: String::new(),
+                filter: None,
+                _filter_sub: None,
             });
         if let Some(open) = self.open {
             state.update(cx, |st, _| st.open = open);
@@ -184,6 +206,55 @@ impl RenderOnce for Select {
             state.update(cx, |st, _| st.open = false);
         }
         let open = open && !disabled;
+        let searchable = self
+            .searchable
+            .unwrap_or(self.choices.len() > AUTO_SEARCH_THRESHOLD);
+        if open && searchable && state.read(cx).filter.is_none() {
+            let filter_id = child_id(&self.id, "filter");
+            let filter = cx.new(|cx| {
+                TextField::new(filter_id, window, cx)
+                    .small()
+                    .icon(Icon::Search)
+            });
+            let sub = state.update(cx, |st, cx| {
+                st.filter = Some(filter.clone());
+                cx.subscribe(&filter, |st, _, ev: &FieldEvent, cx| match ev {
+                    FieldEvent::Changed(text) => {
+                        st.query = text.clone();
+                        st.highlighted = 0;
+                        cx.notify();
+                    }
+                    FieldEvent::Cancelled => {
+                        st.open = false;
+                        st.query.clear();
+                        cx.notify();
+                    }
+                    _ => {}
+                })
+            });
+            state.update(cx, |st, _| st._filter_sub = Some(sub));
+        }
+        let query_lower = state.read(cx).query.trim().to_lowercase();
+        let visible_indices: Vec<usize> = self
+            .choices
+            .iter()
+            .enumerate()
+            .filter(|(_, c)| {
+                query_lower.is_empty() || c.label.to_lowercase().contains(&query_lower)
+            })
+            .map(|(i, _)| i)
+            .collect();
+        let highlighted = if visible_indices.is_empty() {
+            0
+        } else {
+            state.read(cx).highlighted.min(visible_indices.len() - 1)
+        };
+        let trigger_focus = state.read(cx).focus.clone();
+        let selected_index = self.selected;
+        let visible_for_keys = visible_indices.clone();
+        let key_state = state.clone();
+        let key_change = self.on_change.clone();
+        let key_focus_filter = state.read(cx).filter.clone();
         let sel_dbg = self.id.clone();
         let trigger = glass::glass_box(
             self.id.clone(),
@@ -210,7 +281,85 @@ impl RenderOnce for Select {
         .font_role(Role::Ui)
         .type_px(s.body, s.line_body)
         .text_color(if disabled { p.ink(4) } else { p.ink(1) }.solid())
-        .when(!disabled, |el| el.cursor_pointer())
+        .when(!disabled, |el| {
+            el.cursor_pointer()
+                .track_focus(&trigger_focus)
+                .tab_index(0)
+                .on_key_down(move |e: &KeyDownEvent, w, cx| {
+                    let m = &e.keystroke.modifiers;
+                    if m.control || m.alt || m.platform || m.function {
+                        return;
+                    }
+                    let is_open = key_state.read(cx).open;
+                    match e.keystroke.key.as_str() {
+                        "enter" | "space" if !is_open => {
+                            cx.stop_propagation();
+                            key_state.update(cx, |st, cx| {
+                                st.open = true;
+                                st.query.clear();
+                                st.highlighted = selected_index;
+                                if let Some(f) = &st.filter {
+                                    f.update(cx, |f, cx| f.set_text("", cx));
+                                }
+                                cx.notify();
+                            });
+                            if let Some(f) = &key_focus_filter {
+                                w.focus(&f.focus_handle(cx), cx);
+                            }
+                        }
+                        "escape" if is_open => {
+                            cx.stop_propagation();
+                            key_state.update(cx, |st, cx| {
+                                st.open = false;
+                                st.query.clear();
+                                cx.notify();
+                            });
+                        }
+                        "down" if is_open && !visible_for_keys.is_empty() => {
+                            cx.stop_propagation();
+                            key_state.update(cx, |st, cx| {
+                                st.highlighted =
+                                    (st.highlighted + 1).min(visible_for_keys.len() - 1);
+                                cx.notify();
+                            });
+                        }
+                        "up" if is_open && !visible_for_keys.is_empty() => {
+                            cx.stop_propagation();
+                            key_state.update(cx, |st, cx| {
+                                st.highlighted = st.highlighted.saturating_sub(1);
+                                cx.notify();
+                            });
+                        }
+                        "home" if is_open && !visible_for_keys.is_empty() => {
+                            cx.stop_propagation();
+                            key_state.update(cx, |st, cx| {
+                                st.highlighted = 0;
+                                cx.notify();
+                            });
+                        }
+                        "end" if is_open && !visible_for_keys.is_empty() => {
+                            cx.stop_propagation();
+                            key_state.update(cx, |st, cx| {
+                                st.highlighted = visible_for_keys.len() - 1;
+                                cx.notify();
+                            });
+                        }
+                        "enter" if is_open => {
+                            cx.stop_propagation();
+                            let picked = visible_for_keys.get(highlighted).copied();
+                            key_state.update(cx, |st, cx| {
+                                st.open = false;
+                                st.query.clear();
+                                cx.notify();
+                            });
+                            if let (Some(idx), Some(f)) = (picked, &key_change) {
+                                f(idx, w, cx);
+                            }
+                        }
+                        _ => {}
+                    }
+                })
+        })
         // In the accessibility tree as a combo box named by its choice.
         .role(gpui::Role::ComboBox)
         .when_some(current_label, |el, l| el.aria_label(l))
@@ -228,14 +377,29 @@ impl RenderOnce for Select {
             .child(div().flex_1().min_w_0().truncate().child(c.label))
         })
         .child(sand::icon(Icon::ChevronDown, 14.0, p.ink(3).solid()))
-        .on_click(move |_, _, cx| {
+        .on_click(move |_, w, cx| {
             if disabled {
                 return;
             }
-            toggle.update(cx, |st, cx| {
+            let now_open = toggle.update(cx, |st, cx| {
                 st.open = !st.open;
+                st.query.clear();
+                st.highlighted = selected_index;
+                if let Some(f) = &st.filter {
+                    f.update(cx, |f, cx| f.set_text("", cx));
+                }
                 cx.notify();
-            })
+                st.open
+            });
+            if now_open {
+                let focus_target = toggle
+                    .read(cx)
+                    .filter
+                    .as_ref()
+                    .map(|f| f.focus_handle(cx))
+                    .unwrap_or_else(|| toggle.read(cx).focus.clone());
+                w.focus(&focus_target, cx);
+            }
         });
         let bounds = *bounds_cell.read(cx);
         let list_bounds_cell = overlay::use_bounds(child_id(&self.id, "list-bounds"), window, cx);
@@ -250,8 +414,12 @@ impl RenderOnce for Select {
         let list = (open && bounds.is_some()).then(|| {
             let b = bounds.expect("checked");
             let mut menu = Menu::new(child_id(&self.id, "list")).at_least(f32::from(b.size.width));
+            if searchable && let Some(filter) = state.read(cx).filter.clone() {
+                menu = menu.child(div().px(px(6.0)).pt(px(2.0)).pb(px(6.0)).child(filter));
+            }
             let mut items = Vec::new();
-            for (i, c) in self.choices.iter().enumerate() {
+            for (pos, &i) in visible_indices.iter().enumerate() {
+                let c = &self.choices[i];
                 let f = self.on_change.clone();
                 let close = state.clone();
                 let row_id = child_id(&self.id, format!("choice-{i}"));
@@ -261,9 +429,17 @@ impl RenderOnce for Select {
                         None => MenuItem::plain(row_id, c.label.clone()),
                     }
                     .checked(i == self.selected)
+                    .current(
+                        pos == highlighted
+                            && (!query_lower.is_empty() || trigger_focus.is_focused(window)),
+                    )
                     .on_click(move |_, w, cx| {
                         close.update(cx, |st, cx| {
                             st.open = false;
+                            st.query.clear();
+                            if let Some(filter) = &st.filter {
+                                filter.update(cx, |f, cx| f.set_text("", cx));
+                            }
                             cx.notify();
                         });
                         if let Some(f) = &f {
@@ -291,12 +467,62 @@ impl RenderOnce for Select {
                 }
                 menu.into_any_element()
             };
+            let menu_key_state = state.clone();
+            let menu_key_change = self.on_change.clone();
+            let menu_visible = visible_indices.clone();
             let floated = div()
                 .relative()
                 .child(overlay::probe(list_bounds_cell.clone()))
+                .on_key_down(move |e: &KeyDownEvent, w, cx| {
+                    let m = &e.keystroke.modifiers;
+                    if m.control || m.alt || m.platform || m.function {
+                        return;
+                    }
+                    match e.keystroke.key.as_str() {
+                        "down" if !menu_visible.is_empty() => {
+                            cx.stop_propagation();
+                            menu_key_state.update(cx, |st, cx| {
+                                st.highlighted = (st.highlighted + 1).min(menu_visible.len() - 1);
+                                cx.notify();
+                            });
+                        }
+                        "up" if !menu_visible.is_empty() => {
+                            cx.stop_propagation();
+                            menu_key_state.update(cx, |st, cx| {
+                                st.highlighted = st.highlighted.saturating_sub(1);
+                                cx.notify();
+                            });
+                        }
+                        "enter" => {
+                            cx.stop_propagation();
+                            let picked = menu_visible.get(highlighted).copied();
+                            menu_key_state.update(cx, |st, cx| {
+                                st.open = false;
+                                st.query.clear();
+                                if let Some(filter) = &st.filter {
+                                    filter.update(cx, |f, cx| f.set_text("", cx));
+                                }
+                                cx.notify();
+                            });
+                            if let (Some(idx), Some(f)) = (picked, &menu_key_change) {
+                                f(idx, w, cx);
+                            }
+                        }
+                        "escape" => {
+                            cx.stop_propagation();
+                            menu_key_state.update(cx, |st, cx| {
+                                st.open = false;
+                                st.query.clear();
+                                cx.notify();
+                            });
+                        }
+                        _ => {}
+                    }
+                })
                 .on_mouse_down_out(move |_, _, cx| {
                     dismiss.update(cx, |st, cx| {
                         st.open = false;
+                        st.query.clear();
                         cx.notify();
                     })
                 })

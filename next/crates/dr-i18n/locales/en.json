@@ -266,6 +266,32 @@
       "resting": "Resting"
     }
   },
+  "editor_ui": {
+    "bar_add_comment": "Add comment",
+    "fmt_bold": "Bold",
+    "fmt_highlight": "Highlight",
+    "fmt_inline_code": "Inline code",
+    "fmt_italic": "Italic",
+    "fmt_strike": "Strikethrough",
+    "fmt_underline": "Underline",
+    "mention_create_entry_prefix": "Create entry “",
+    "mention_create_entry_suffix": "”",
+    "slash_bullet_list": "Bulleted list",
+    "slash_callout": "Callout",
+    "slash_code_block": "Code block",
+    "slash_comment": "Comment",
+    "slash_entry_link": "Entry link",
+    "slash_ordered_list": "Numbered list",
+    "slash_position_link": "Position link",
+    "slash_table": "Table",
+    "slash_task_list": "Checklist",
+    "slash_todo": "To-do",
+    "table_add_col": "Add column",
+    "table_add_row": "Add row",
+    "table_delete": "Delete table",
+    "table_delete_col": "Delete column",
+    "table_delete_row": "Delete row"
+  },
   "entrySnapshot": {
     "empty": "No snapshots yet",
     "save": "Save snapshot",

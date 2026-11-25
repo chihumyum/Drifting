@@ -268,6 +268,32 @@
       "resting": "Em repouso"
     }
   },
+  "editor_ui": {
+    "bar_add_comment": "Adicionar comentário",
+    "fmt_bold": "Negrito",
+    "fmt_highlight": "Destacar",
+    "fmt_inline_code": "Código em linha",
+    "fmt_italic": "Itálico",
+    "fmt_strike": "Tachado",
+    "fmt_underline": "Sublinhado",
+    "mention_create_entry_prefix": "Criar entrada “",
+    "mention_create_entry_suffix": "”",
+    "slash_bullet_list": "Lista com marcadores",
+    "slash_callout": "Destaque",
+    "slash_code_block": "Bloco de código",
+    "slash_comment": "Comentário",
+    "slash_entry_link": "Link de entrada",
+    "slash_ordered_list": "Lista numerada",
+    "slash_position_link": "Link de posição",
+    "slash_table": "Tabela",
+    "slash_task_list": "Lista de tarefas",
+    "slash_todo": "Tarefa",
+    "table_add_col": "Adicionar coluna",
+    "table_add_row": "Adicionar linha",
+    "table_delete": "Excluir tabela",
+    "table_delete_col": "Excluir coluna",
+    "table_delete_row": "Excluir linha"
+  },
   "entrySnapshot": {
     "empty": "Ainda não há instantâneos",
     "save": "Salvar instantâneo",

@@ -1,4 +1,12 @@
 {
+  "agentImages": {
+    "image": "图片",
+    "remove": "移除图片",
+    "tooLarge": "图片太大：每张最多 {{size}} MB，边长最多 {{side}} 像素。",
+    "tooMany": "一条消息最多带 {{max}} 张图片。",
+    "unseen": "现在用的模型看不了图片。请换一个能看图的模型再发。",
+    "unsupported": "只能发送 PNG、JPEG 或 WebP 图片。"
+  },
   "allProjects": {
     "export": "导出这个项目（.driftingproject）",
     "import": "导入项目",
@@ -33,6 +41,32 @@
   },
   "customModule": {
     "countOf": "{{count}} 个{{name}}"
+  },
+  "editor_ui": {
+    "bar_add_comment": "添加批注",
+    "fmt_bold": "粗体",
+    "fmt_highlight": "高亮",
+    "fmt_inline_code": "行内代码",
+    "fmt_italic": "斜体",
+    "fmt_strike": "删除线",
+    "fmt_underline": "下划线",
+    "mention_create_entry_prefix": "创建条目「",
+    "mention_create_entry_suffix": "」",
+    "slash_bullet_list": "无序列表",
+    "slash_callout": "提示块",
+    "slash_code_block": "代码块",
+    "slash_comment": "批注",
+    "slash_entry_link": "条目链接",
+    "slash_ordered_list": "有序列表",
+    "slash_position_link": "位置链接",
+    "slash_table": "表格",
+    "slash_task_list": "待办清单",
+    "slash_todo": "待办",
+    "table_add_col": "加一列",
+    "table_add_row": "加一行",
+    "table_delete": "删除表格",
+    "table_delete_col": "删除列",
+    "table_delete_row": "删除行"
   },
   "entrySnapshot": {
     "empty": "暂无快照",
@@ -201,6 +235,21 @@
     "title": "标题",
     "unset": "未设置"
   },
+  "libraryOpenFailed": {
+    "title": "没能打开资料库",
+    "unchanged": "资料库没有改动。",
+    "keptBeforeUpgrade": "升级前的资料库另外存了一份。",
+    "cause": {
+      "newer": "它被更新版本的 Drifting 打开过，请先更新 Drifting。",
+      "damaged": "资料库文件已损坏，请提交反馈，先别删这个文件夹。",
+      "upgradeUnfinished": "这一版没能把它升级，请先用上一版 Drifting，并提交反馈。",
+      "upgradedUnopenable": "升级后的资料库打不开，请提交反馈。",
+      "noPermission": "Drifting 不能读写这个文件夹，请检查它的权限。",
+      "diskFull": "磁盘已满，请腾出一些空间后重新打开 Drifting。",
+      "unknown": "请提交反馈。"
+    },
+    "feedbackMessage": "{{title}}（{{code}}）"
+  },
   "mirrorV5": {
     "contents": "目录",
     "acknowledgePreserved": "知道了",
@@ -218,6 +267,142 @@
     "unknownImage": "图片未指向素材库里已有的文件，这行按普通文字合入。",
     "fieldConflict": "有字段没能合入：它在 Drifting 里也改过，或者值的写法读不出来。保留了 Drifting 里的值，文件另存了一份。",
     "keyCollision": "开头的属性里有一项和新加的字段同名，这个文件先不写回。改名或删掉其中一项后会接着同步。"
+  },
+  "moduleBench": {
+    "holds": "装什么",
+    "blocks": "积木",
+    "kind": {
+      "text": "一行字",
+      "longText": "一段字",
+      "number": "数字",
+      "date": "日期",
+      "select": "单选",
+      "multiSelect": "多选",
+      "toggle": "勾选",
+      "entry": "条目",
+      "image": "图片",
+      "group": "一组",
+      "list": "一串"
+    },
+    "defaultOptions": "甲|乙|丙",
+    "looks": "长什么样",
+    "size": {
+      "line": "一行",
+      "block": "一块",
+      "full": "铺满"
+    },
+    "follow": "跟着一块",
+    "own": "单独摆",
+    "autoLine": "取前几样连成一行",
+    "autoFull": "和一块一样，撑满",
+    "sample": "示例",
+    "blank": "空",
+    "real": "借真实条目",
+    "realOf": "借真实条目 · {{name}}",
+    "narrow": "窄",
+    "medium": "中",
+    "wide": "宽",
+    "light": "浅",
+    "dark": "深",
+    "dropSketch": "拖进草图或截图",
+    "myModules": "我的模块",
+    "myModule": "我的模块",
+    "saveAs": "另存一份",
+    "node": {
+      "col": "竖排",
+      "row": "横排",
+      "grid": "网格",
+      "each": "每个「{{name}}」",
+      "mark": "记号"
+    },
+    "tag": {
+      "hair": "线",
+      "glass": "玻璃",
+      "sand": "砂笔",
+      "paper": "稿纸",
+      "wash": "淡墨",
+      "across": "横",
+      "down": "竖",
+      "dots": "点数",
+      "mark": "记号",
+      "count": "件数",
+      "words": "字"
+    },
+    "prop": {
+      "dir": "排法",
+      "gap": "间距",
+      "pad": "内边距",
+      "align": "对齐",
+      "width": "宽",
+      "border": "边",
+      "bg": "底",
+      "radius": "圆角",
+      "deco": "装饰",
+      "sep": "分隔",
+      "link": "连接",
+      "font": "字体",
+      "size": "大小",
+      "ink": "墨色",
+      "show": "显示",
+      "text": "文字",
+      "mark": "记号"
+    },
+    "opt": {
+      "col": "竖",
+      "row": "横",
+      "grid": "格",
+      "start": "起",
+      "center": "中",
+      "end": "末",
+      "stretch": "撑",
+      "auto": "自动",
+      "hug": "随内容",
+      "fill": "填满",
+      "none": "无",
+      "hairline": "发丝线",
+      "glassLine": "玻璃线",
+      "sandFrame": "砂笔框",
+      "paper": "稿纸",
+      "wash": "淡墨",
+      "arc": "弧线",
+      "line": "线",
+      "axis": "轴",
+      "arrow": "箭头",
+      "serif": "衬线",
+      "sans": "无衬线",
+      "mono": "等宽",
+      "title": "标题",
+      "body": "正文",
+      "small": "小",
+      "note": "注",
+      "ink1": "一",
+      "ink2": "二",
+      "ink3": "三",
+      "ink4": "四",
+      "number": "数字",
+      "dots": "点数",
+      "words": "字",
+      "mark": "记号"
+    },
+    "eachBlock": "每一样",
+    "edit": "改",
+    "adopt": "存进我的模块",
+    "untitled": "未命名模块",
+    "newModule": "新建模块…",
+    "openBench": "打开工作台",
+    "importModule": "导入模块",
+    "importModuleFile": "导入模块（.driftingmodule）",
+    "exportFile": "导出（.driftingmodule）",
+    "deleteTitle": "删除模块「{{name}}」？",
+    "transfer": {
+      "notModule": "这不是 Drifting 导出的模块。",
+      "newer": "这个模块由更新版本的 Drifting 导出，请先更新 Drifting。",
+      "tooLarge": "这个模块太大，无法导入。",
+      "damaged": "这个文件已损坏，无法导入。",
+      "importFailed": "这个模块没能导入，请稍后再试。",
+      "exportFailed": "这个模块没能导出，请稍后再试。"
+    },
+    "usedIn": "我的模块 · 用在 {{count}} 个项目"
   },
   "positionLink": {
     "copied": "已复制位置链接"
@@ -269,6 +454,12 @@
     "overwrite": "覆盖…",
     "structure": "结构",
     "timePins": "时间钉"
+  },
+  "relationGraph": {
+    "create": "建立",
+    "name": "关系的名字",
+    "relations": "关系",
+    "title": "建关系"
   },
   "settings": {
     "appearance": {
@@ -614,14 +805,6 @@
     "templateStructure": "模板结构",
     "unusedTemplates": "未使用的模板"
   },
-  "v5RelationsProse": {
-    "create": "建关系",
-    "confirm": "建立",
-    "direction": "方向",
-    "otherEntry": "另一个条目",
-    "relation": "关系",
-    "change": "换一个"
-  },
   "v5Relations": {
     "duplicatePair": "「{{pair}}」已经在另一行里。",
     "addEntry": "加一个条目",
@@ -635,11 +818,13 @@
     "removeEntry": "移出「{{name}}」",
     "tab": "关系"
   },
-  "relationGraph": {
-    "create": "建立",
-    "name": "关系的名字",
-    "relations": "关系",
-    "title": "建关系"
+  "v5RelationsProse": {
+    "create": "建关系",
+    "confirm": "建立",
+    "direction": "方向",
+    "otherEntry": "另一个条目",
+    "relation": "关系",
+    "change": "换一个"
   },
   "v5Tour": {
     "agent": {
@@ -664,164 +849,5 @@
     "timeline": {
       "body": "从稿纸下面滑上来，按视图把挂着的条目排开。"
     }
-  },
-  "libraryOpenFailed": {
-    "title": "没能打开资料库",
-    "unchanged": "资料库没有改动。",
-    "keptBeforeUpgrade": "升级前的资料库另外存了一份。",
-    "cause": {
-      "newer": "它被更新版本的 Drifting 打开过，请先更新 Drifting。",
-      "damaged": "资料库文件已损坏，请提交反馈，先别删这个文件夹。",
-      "upgradeUnfinished": "这一版没能把它升级，请先用上一版 Drifting，并提交反馈。",
-      "upgradedUnopenable": "升级后的资料库打不开，请提交反馈。",
-      "noPermission": "Drifting 不能读写这个文件夹，请检查它的权限。",
-      "diskFull": "磁盘已满，请腾出一些空间后重新打开 Drifting。",
-      "unknown": "请提交反馈。"
-    },
-    "feedbackMessage": "{{title}}（{{code}}）"
-  },
-  "agentImages": {
-    "image": "图片",
-    "remove": "移除图片",
-    "tooLarge": "图片太大：每张最多 {{size}} MB，边长最多 {{side}} 像素。",
-    "tooMany": "一条消息最多带 {{max}} 张图片。",
-    "unseen": "现在用的模型看不了图片。请换一个能看图的模型再发。",
-    "unsupported": "只能发送 PNG、JPEG 或 WebP 图片。"
-  },
-  "moduleBench": {
-    "holds": "装什么",
-    "blocks": "积木",
-    "kind": {
-      "text": "一行字",
-      "longText": "一段字",
-      "number": "数字",
-      "date": "日期",
-      "select": "单选",
-      "multiSelect": "多选",
-      "toggle": "勾选",
-      "entry": "条目",
-      "image": "图片",
-      "group": "一组",
-      "list": "一串"
-    },
-    "defaultOptions": "甲|乙|丙",
-    "looks": "长什么样",
-    "size": {
-      "line": "一行",
-      "block": "一块",
-      "full": "铺满"
-    },
-    "follow": "跟着一块",
-    "own": "单独摆",
-    "autoLine": "取前几样连成一行",
-    "autoFull": "和一块一样，撑满",
-    "sample": "示例",
-    "blank": "空",
-    "real": "借真实条目",
-    "realOf": "借真实条目 · {{name}}",
-    "narrow": "窄",
-    "medium": "中",
-    "wide": "宽",
-    "light": "浅",
-    "dark": "深",
-    "dropSketch": "拖进草图或截图",
-    "myModules": "我的模块",
-    "myModule": "我的模块",
-    "saveAs": "另存一份",
-    "node": {
-      "col": "竖排",
-      "row": "横排",
-      "grid": "网格",
-      "each": "每个「{{name}}」",
-      "mark": "记号"
-    },
-    "tag": {
-      "hair": "线",
-      "glass": "玻璃",
-      "sand": "砂笔",
-      "paper": "稿纸",
-      "wash": "淡墨",
-      "across": "横",
-      "down": "竖",
-      "dots": "点数",
-      "mark": "记号",
-      "count": "件数",
-      "words": "字"
-    },
-    "prop": {
-      "dir": "排法",
-      "gap": "间距",
-      "pad": "内边距",
-      "align": "对齐",
-      "width": "宽",
-      "border": "边",
-      "bg": "底",
-      "radius": "圆角",
-      "deco": "装饰",
-      "sep": "分隔",
-      "link": "连接",
-      "font": "字体",
-      "size": "大小",
-      "ink": "墨色",
-      "show": "显示",
-      "text": "文字",
-      "mark": "记号"
-    },
-    "opt": {
-      "col": "竖",
-      "row": "横",
-      "grid": "格",
-      "start": "起",
-      "center": "中",
-      "end": "末",
-      "stretch": "撑",
-      "auto": "自动",
-      "hug": "随内容",
-      "fill": "填满",
-      "none": "无",
-      "hairline": "发丝线",
-      "glassLine": "玻璃线",
-      "sandFrame": "砂笔框",
-      "paper": "稿纸",
-      "wash": "淡墨",
-      "arc": "弧线",
-      "line": "线",
-      "axis": "轴",
-      "arrow": "箭头",
-      "serif": "衬线",
-      "sans": "无衬线",
-      "mono": "等宽",
-      "title": "标题",
-      "body": "正文",
-      "small": "小",
-      "note": "注",
-      "ink1": "一",
-      "ink2": "二",
-      "ink3": "三",
-      "ink4": "四",
-      "number": "数字",
-      "dots": "点数",
-      "words": "字",
-      "mark": "记号"
-    },
-    "eachBlock": "每一样",
-    "edit": "改",
-    "adopt": "存进我的模块",
-    "untitled": "未命名模块",
-    "newModule": "新建模块…",
-    "openBench": "打开工作台",
-    "importModule": "导入模块",
-    "importModuleFile": "导入模块（.driftingmodule）",
-    "exportFile": "导出（.driftingmodule）",
-    "deleteTitle": "删除模块「{{name}}」？",
-    "transfer": {
-      "notModule": "这不是 Drifting 导出的模块。",
-      "newer": "这个模块由更新版本的 Drifting 导出，请先更新 Drifting。",
-      "tooLarge": "这个模块太大，无法导入。",
-      "damaged": "这个文件已损坏，无法导入。",
-      "importFailed": "这个模块没能导入，请稍后再试。",
-      "exportFailed": "这个模块没能导出，请稍后再试。"
-    },
-    "usedIn": "我的模块 · 用在 {{count}} 个项目"
   }
 }

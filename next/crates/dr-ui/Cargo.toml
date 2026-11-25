@@ -22,6 +22,7 @@ gpui-ime.workspace = true
 prose-linebreak.workspace = true
 # Only for the gallery's `capture` feature; apps bring their own platform.
 gpui_platform = { workspace = true, optional = true }
+icu_segmenter.workspace = true
 image.workspace = true
 log.workspace = true
 memmap2.workspace = true

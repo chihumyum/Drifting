@@ -2149,6 +2149,7 @@ dependencies = [
  "gpui",
  "gpui-ime",
  "gpui_platform",
+ "icu_segmenter",
  "image",
  "log",
  "memmap2",

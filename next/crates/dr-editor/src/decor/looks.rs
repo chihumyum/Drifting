@@ -153,6 +153,36 @@ impl DecorLooks {
         }
     }
 
+    /// Entity link underline/band under explicit [`crate::settings::LinkAppearance`]
+    /// and resolved colour.
+    pub fn entity_underline_for(
+        &self,
+        color: Hsla,
+        alive: bool,
+        appearance: &crate::settings::LinkAppearance,
+    ) -> Underline {
+        use crate::settings::{EntityLinkBandStyle, EntityLinkColorMode};
+        if !appearance.highlight_mode.styles_band()
+            || appearance.color_mode == EntityLinkColorMode::Prose
+        {
+            // Invisible decoration keeps the hover/click hitbox active.
+            return Underline::dotted(color, Strength::new(0.0, 0.0));
+        }
+        let (ink, strength) = if !alive {
+            (self.entity_dead, Strength::new(0.5, 0.6))
+        } else if appearance.color_mode == EntityLinkColorMode::Hover {
+            (color, Strength::new(0.0, 0.9))
+        } else {
+            (color, Strength::new(0.7, 0.95))
+        };
+        match appearance.band_style {
+            EntityLinkBandStyle::Dots => Underline::dotted(ink, strength),
+            EntityLinkBandStyle::Wash => {
+                Underline::sand(self.textures.underline.clone(), ink, strength)
+            }
+        }
+    }
+
     /// A suggested link: only the grains of the stroke.
     pub fn suggestion(&self) -> Underline {
         Underline::dotted(self.entity, Strength::new(0.55, 0.85))
