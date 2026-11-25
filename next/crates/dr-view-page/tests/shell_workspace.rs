@@ -1138,8 +1138,14 @@ fn settings_reset_the_editor_style_and_copy_a_plain_summary(cx: &mut TestAppCont
         assert_eq!(file.number(registry::FONT_SIZE), 17.0);
         assert_eq!(file.number(registry::PAGE_WIDTH), 720.0);
         let summary = diagnostics_summary(cx);
-        assert!(summary.starts_with("Drifting 0.2.0-dev"), "{summary}");
-        assert!(summary.contains(std::env::consts::OS));
+        let parsed: Value = serde_json::from_str(&summary)
+            .unwrap_or_else(|e| panic!("expected sanitized diagnostics JSON: {e}\n{summary}"));
+        assert_eq!(parsed["format"], "drifting.sanitized-diagnostics");
+        assert_eq!(parsed["app"]["version"], "0.2.0-dev");
+        assert_eq!(parsed["app"]["platform"], std::env::consts::OS);
+        assert_eq!(parsed["privacy"]["manuscriptIncluded"], false);
+        assert_eq!(parsed["privacy"]["credentialsIncluded"], false);
+        assert_eq!(parsed["privacy"]["absolutePathsIncluded"], false);
         assert!(!summary.contains('/'), "no paths: {summary}");
         assert!(version_line(cx).starts_with("0.2.0-dev · "));
     });
