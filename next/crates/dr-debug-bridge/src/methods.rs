@@ -886,6 +886,8 @@ async fn open_book(p: &Value, cx: &mut AsyncApp) -> Out {
 
 fn layer_name(l: Layer) -> &'static str {
     match l {
+        Layer::AccountMenu => "account_menu",
+        Layer::CornerMenu => "corner_menu",
         Layer::Notifications => "notifications",
         Layer::Projects => "projects",
         Layer::Search => "search",

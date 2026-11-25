@@ -7,6 +7,7 @@ asset.list                   query    shared   List assets in the project's buil
 asset.move                   command  book     Put a file of the asset library into another folder (or the top) and/or at another place among that folder's files (manual order).
 asset.purge                  command  book     Permanently purge a trashed asset from the book manifest and delete its stored bytes.
 asset.put                    command  book     Record an imported file in the project's built-in asset library (bytes live in storage). The same bytes are one file: when the library has them already, that file's id is given back (restored from Recently Deleted if it was there).
+asset.read_content           query    shared   Read the content of an asset-library file (extracted text for PDFs with pagination, or metadata and optional bounded data URI for images).
 asset.rename                 command  book     Rename a live asset in the built-in asset library.
 asset.restore                command  book     Restore a trashed asset from Recently Deleted back into the asset library (to the top when its folder is in Recently Deleted).
 asset.trash                  command  book     Move an asset in the built-in asset library to Recently Deleted; places referencing it read as placeholders while its bytes remain.

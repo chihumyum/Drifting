@@ -29,7 +29,37 @@
       "modelUnavailable": "選択したモデルは現在の一覧にありません。別のモデルを選んでください。"
     },
     "context": {
-      "tokens": "{{count}}トークン"
+      "allocation": {
+        "free": "空き領域",
+        "input": "現在の入力",
+        "output": "出力の予約領域",
+        "safety": "安全余裕",
+        "title": "ウィンドウの配分"
+      },
+      "breakdownTitle": "現在の入力の内訳",
+      "categories": {
+        "assistant_messages": "Agentのメッセージ",
+        "compaction_summaries": "圧縮の要約",
+        "provider_overhead": "提供元の付加情報",
+        "system_prompt": "システムプロンプト",
+        "task_constraints": "タスク制約",
+        "task_plan": "タスク計画",
+        "thinking": "思考",
+        "tool_calls": "ツール呼び出し",
+        "tool_definitions": "ツール定義",
+        "tool_results": "ツールの結果",
+        "user_messages": "ユーザーメッセージ"
+      },
+      "compaction": "コンテキスト圧縮",
+      "compactionDetail": "{{saved}}削減・{{stages}}・要約{{count}}件",
+      "compactionNone": "今回は圧縮不要でした",
+      "description": "実際にモデルへ送った最新の検証済みコンテキスト構成です。会話全体の累積トークン使用量ではありません。",
+      "progressAria": "現在のAgentコンテキスト使用量",
+      "sources": "{{count}}件のソース",
+      "summary": "{{used}} / {{limit}}（{{percent}}%）",
+      "title": "コンテキスト使用量",
+      "tokens": "{{count}}トークン",
+      "tooltip": "{{used}} / {{limit}}トークン（{{percent}}%）\n出力予約：{{output}}・安全余裕：{{safety}}"
     },
     "control": {
       "allow": {
@@ -44,9 +74,13 @@
       "start": "Agentにメッセージを送って始めましょう。この作品の章、要素、関係を読み書きできます。"
     },
     "history": {
+      "delete": "チャットを削除",
       "empty": "チャット履歴なし",
+      "loadEarlier": "以前のメッセージを読み込む",
+      "rename": "名前を変更",
       "untitled": "無題"
     },
+    "jumpLatest": "最新へ移動",
     "newConversation": "新しいチャット",
     "onboarding": {
       "connect": "モデルを接続",
@@ -58,7 +92,8 @@
     "pending": {
       "cancelling": "停止中…",
       "committing": "保存中…",
-      "now": "思考中…"
+      "now": "思考中…",
+      "withSeconds": "思考中・{{seconds}}秒"
     },
     "setup": {
       "openSettings": "設定を開く"
@@ -70,17 +105,31 @@
       "done": "思考の記録",
       "streaming": "思考中…"
     },
+    "todos": {
+      "plan": "プラン"
+    },
     "tool": {
       "result": "結果"
     },
     "toolbar": {
-      "history": "履歴"
+      "history": "履歴",
+      "historyTitle": "チャット履歴",
+      "newTitle": "新しいチャットを開始",
+      "renameTitle": "現在のチャット名を変更"
     },
     "turnChanges": "ターンの変更",
     "unavailable": "Agentを利用できません。",
+    "usage": {
+      "inputDetail": "入力{{input}}（キャッシュ読取{{cacheRead}}・書込{{cacheWrite}}・正味{{net}}）",
+      "outputTurns": "出力{{output}}・{{turns}}ターン",
+      "session": "セッション",
+      "toolsCount": "{{count}}ツール",
+      "workedFor": "Agentの作業時間：{{duration}}"
+    },
     "workingMemory": {
       "agent": "Agent",
       "author": "作者",
+      "budgetTitle": "上限なし。2万・4万トークン超で各1回、8万超では毎ターン整理を依頼します",
       "clear": "消去",
       "clearConfirm": "作業記憶を消去しますか？原稿、長期ルール、チャット履歴は削除しません。",
       "cleared": "作業記憶を消去しました。",
@@ -170,6 +219,8 @@
     "forgotPassword": "パスワードをお忘れですか？",
     "hasAccount": "アカウントをお持ちの方",
     "legal": {
+      "agree": "登録により、次に同意します：",
+      "and": "と",
       "consent": "続行すると、{{terms}}に同意したものとみなされます",
       "consentTerms": "利用条件",
       "privacy": "プライバシーポリシー",
@@ -183,6 +234,12 @@
     "resend": "コードを再送",
     "sendCode": "コードを送信",
     "signIn": "ログイン",
+    "signOut": {
+      "now": "今すぐログアウト",
+      "pending": "このMacの未送信変更は{{count}}件です。今ログアウトしても端末に残り、同じアカウントへ再ログインすると送信します。",
+      "title": "ログアウト",
+      "uploadFirst": "送信してからログアウト"
+    },
     "signUp": "登録",
     "signingIn": "ログイン中…",
     "social": {
@@ -851,7 +908,8 @@
     },
     "clear": "消去",
     "cloudSync": {
-      "source": "クラウド同期"
+      "source": "クラウド同期",
+      "syncing": "同期中…"
     },
     "crashFollowUp": {
       "source": "Drifting"
@@ -885,6 +943,21 @@
       "minutesAgo": "{{count}}分前"
     },
     "title": "通知"
+  },
+  "paperSync": {
+    "failing": "クラウド同期に失敗",
+    "notStarted": "同期を開始できませんでした",
+    "notStartedDetail": "原稿はこの端末に保存されています。",
+    "offline": "オフライン",
+    "offlineDetail": "ローカルで執筆を続けられます。",
+    "openSettings": "設定を開く",
+    "quota": "Hostedストレージがいっぱいです",
+    "reauth": "セッション期限切れ",
+    "reauthDetail": "同じアカウントで再ログインしてください。",
+    "retry": "再試行",
+    "retrying": "同期を完了できませんでした",
+    "retryingDetail": "原稿は端末に保存済みです。自動再試行します。",
+    "signIn": "再ログイン"
   },
   "plotGrid": {
     "addColumnShort": "列",
@@ -1253,6 +1326,7 @@
         "args": "引数（1行に1つ）",
         "command": "実行ファイルの絶対パス",
         "cwd": "作業ディレクトリの絶対パス（任意）",
+        "deleteConfirm": "MCPサーバー「{{name}}」を削除しますか？継続許可も取り消されます。",
         "disable": "無効化",
         "editTitle": "MCPサーバーを編集",
         "empty": "この作品にMCPサーバーはありません。",
@@ -1262,6 +1336,7 @@
         "noProject": "作品を開いてMCPを設定してください。",
         "notChecked": "まだ接続していません",
         "policy": {
+          "askWrite": "書き込み・確認",
           "disabled": "無効"
         },
         "publicEnv": "公開環境変数（1行にNAME=value）",
@@ -1303,6 +1378,26 @@
       "iterationOption": "{{value}}回",
       "unlimited": "無制限",
       "unlimitedHint": "無制限ではモデル呼び出し回数に上限を設けません。ターンは手動で停止できます。"
+    },
+    "agentMemory": {
+      "title": "作品の記憶"
+    },
+    "agentUsage": {
+      "all": "全期間",
+      "clearConfirm": "履歴をすべて消去しますか？この作品のAgent会話{{count}}件を削除します。",
+      "clearHistory": "履歴を消去",
+      "conversationsTurns": "会話／ターン",
+      "deleteConversation": "この会話を削除",
+      "history": "会話履歴",
+      "historyDesc": "この作品のAgent会話一覧です。削除は仮削除で、右側の履歴に反映されます。他の作品には影響しません。",
+      "month": "今月",
+      "noHistory": "会話はまだありません。Agentにメッセージを送って始めましょう。",
+      "noProjectHistory": "作品を開いて会話履歴を管理してください。",
+      "noProjectUsage": "作品を開いてAgentの使用量を確認してください。",
+      "tokenCard": "{{scope}} トークン",
+      "untitled": "無題",
+      "usage": "使用量",
+      "usageDesc": "各ターンの応答に基づき、この作品でAgentが使ったトークンを記録します。入力にはキャッシュ読み取りを含みます。今月または全期間を表示できます。"
     },
     "appearance": {
       "accent": "アクセントカラー",
@@ -1471,19 +1566,37 @@
       "connect_errors": {
         "cancelled": "取り消しました。"
       },
+      "crop_confirm": "このアバターを使う",
+      "crop_description": "画像をドラッグするか矢印キーで位置を決め、拡大率を調整してください。",
+      "crop_title": "アバターを調整",
+      "crop_zoom": "拡大率",
       "current_password": "現在のパスワード",
       "description": "原稿はまずこの端末に保存します。アカウントを接続すると、自分の端末間で作品を同期できます。",
+      "disconnect": "同期を切断",
+      "disconnect_anyway": "それでも切断",
+      "disconnect_description": "このMacだけにある変更を送信してから切断します。ローカル作品とクラウドのコピーは残ります。",
+      "disconnect_now": "今すぐ切断",
+      "disconnect_unuploaded": "{{count}}件が未送信です。切断するとこのMacだけに残ります。",
       "display_name": "表示名",
+      "enabled": "Hosted同期に接続済み",
+      "last_synced": "前回の同期完了：{{time}}",
       "library_switch_failed": "ライブラリを切り替えられませんでした",
       "new_password": "新しいパスワード",
       "no_account": "未ログイン",
+      "not_started": "同期を開始できません。原稿は端末に保存されています。Driftingを開き直してください。",
       "password_description": "8〜128文字。",
       "password_saved": "パスワードを変更しました。他の端末では再ログインが必要です。",
       "password_sessions": "パスワードを変えると他の端末からログアウトします。この端末はログインを保ちます。",
       "password_title": "パスワード",
+      "pause": "一時停止",
+      "paused": "同期を一時停止中",
+      "pending": "同期中、または完了待ちです。",
       "profile_saved": "プロフィールを保存しました。",
       "profile_title": "プロフィール",
+      "quota_blocked": "Hostedの容量不足で添付を送信できず、作品の同期が止まっています。不要な添付や作品を削除すると再開します。ローカルの内容には影響しません。",
       "remove_avatar": "削除",
+      "resume": "再開",
+      "retrying": "同期が完了しませんでした。原稿はローカルに保存済みです。自動再試行します。",
       "save_profile": "プロフィールを保存",
       "session": {
         "checking": "アカウントを確認中…",
@@ -1494,6 +1607,10 @@
       },
       "sign_in": "ログイン／登録",
       "sign_out": "ログアウト",
+      "storage": "Hostedストレージ",
+      "storage_description": "{{quota}}中{{used}}を使用。添付ファイルを計上し、原稿と構成には上限がありません。",
+      "sync_now": "今すぐ同期",
+      "sync_title": "Hosted同期",
       "title": "アカウントとHosted同期",
       "working": "処理中…"
     },

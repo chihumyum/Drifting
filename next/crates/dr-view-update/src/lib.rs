@@ -200,6 +200,8 @@ pub struct Updates {
     service: Service,
     status: Status,
     waiting: Option<Waiting>,
+    /// Release notes recorded for the version that was just installed on startup.
+    installed_notes: Option<(String, String)>,
     /// A check (and its download) is running.
     busy: bool,
     /// 「重启以更新」 asked for the app to reopen after installing.
@@ -222,6 +224,19 @@ impl Updates {
         Some(updates.waiting.as_ref()?.update.version.clone())
     }
 
+    /// Non-empty release notes for the pending update, or for the update that
+    /// was just installed at launch.
+    pub fn release_notes(cx: &App) -> Option<(String, String)> {
+        let updates = cx.try_global::<Updates>()?;
+        if let Some(waiting) = &updates.waiting
+            && let Some(notes) = waiting.update.notes.as_deref().map(str::trim)
+            && !notes.is_empty()
+        {
+            return Some((waiting.update.version.to_string(), notes.to_owned()));
+        }
+        updates.installed_notes.clone()
+    }
+
     /// 检查更新: checks now (unless a check is running) and says the
     /// outcome in the Settings row, whatever it is.
     pub fn check(cx: &mut App) {
@@ -242,9 +257,15 @@ impl Updates {
 /// installed (or could not), adds the Settings row and the quit hook, and
 /// schedules the checks.
 pub fn init(service: Service, cx: &mut App) {
+    let mut installed_notes = None;
     if let Some(downloads) = &service.downloads {
         downloads.clean(&service.current);
         if let Some(installed) = downloads.take_installed(&service.current) {
+            if let Some(notes) = installed.notes.as_deref().map(str::trim)
+                && !notes.is_empty()
+            {
+                installed_notes = Some((installed.version.to_string(), notes.to_owned()));
+            }
             let text = tf(
                 cx,
                 keys::notifications::app_update::INSTALLED,
@@ -273,6 +294,7 @@ pub fn init(service: Service, cx: &mut App) {
         service,
         status,
         waiting: None,
+        installed_notes,
         busy: false,
         relaunch: false,
         told: HashSet::new(),
@@ -725,8 +747,11 @@ fn row(_: &mut Window, cx: &mut App) -> UpdatesRow {
                 .into_any_element(),
         ),
     };
+    let notes = Updates::release_notes(cx)
+        .map(|(version, text)| SharedString::from(format!("Drifting {version}\n{text}")));
     UpdatesRow {
         description: status_words(&status, cx),
+        notes,
         control,
     }
 }

@@ -480,6 +480,7 @@ fn session_turn_slots_preserve_model_rounds_and_messages_without_a_local_run() {
         entries: state.entries().to_vec(),
         messages,
         runs: vec![state.snapshot()],
+        context: None,
     };
     let mut actual = Vec::new();
     let mut cards = Vec::new();

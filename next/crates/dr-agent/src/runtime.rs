@@ -911,164 +911,192 @@ impl Worker {
         })
     }
 
-    async fn model(&mut self, round: u32) -> Result<Option<Vec<ToolCall>>> {
-        let stream = if let Some(reply) = self.unseen_reply.take() {
-            // The model cannot see the images the author just sent: it is
-            // not asked, and the Agent says so (custom-modules.md §16.1).
-            self.drain()?;
-            if self.halted() {
-                return Ok(Some(Vec::new()));
-            }
-            self.set_state(State::Streaming)?;
-            futures::stream::iter([
-                Ok(DriverEvent::TextDelta {
-                    index: 0,
-                    text: reply,
-                }),
-                Ok(DriverEvent::Finish(FinishReason::Complete)),
-            ])
-            .boxed()
+    fn exposed_tools(&self) -> Vec<ToolDescriptor> {
+        if self.config.read_only_tools {
+            self.inner
+                .descriptors
+                .iter()
+                .filter(|d| d.access == ToolAccess::Read)
+                .cloned()
+                .collect()
         } else {
-            let store = crate::long_task::Store::new(self.journal.lib.clone());
-            let chain = store
-                .chain_for_session(&self.journal.session)?
-                .ok_or_else(|| Error::Protocol("run has no request chain".into()))?;
-            let snapshot = store.snapshot(&chain)?;
-            let contributions =
-                self.inner
-                    .tools
-                    .context(&self.inner.ws, &self.book, &self.journal.session)?;
-            let prepared = crate::context::prepare(
-                &self.config,
-                &snapshot,
-                self.journal.transcript()?,
-                &self.inner.descriptors,
-                contributions,
-            )?;
-            let crate::context::Prepared::Ready {
-                conversation,
-                checkpoint,
-            } = prepared
-            else {
-                self.checkpoint("context_capacity")?;
-                return Ok(None);
-            };
-            crate::context::save_checkpoint(&self.journal.lib, &snapshot, &checkpoint)?;
-            self.drain()?;
-            if self.halted() {
-                return Ok(Some(Vec::new()));
-            }
-            let images = self.request_images(&conversation);
-            self.set_state(State::Streaming)?;
-            let request = DriverRequest {
-                purpose: crate::RequestPurpose::Chat,
-                config: self.config.clone(),
-                session: self.journal.session.clone(),
-                turn: self.journal.turn,
-                round,
-                conversation,
-                tools: self.inner.descriptors.clone(),
-                images,
-            };
-            self.inner.driver.stream(request, self.cancel.clone())
-        };
-        let mut stream = stream.fuse();
-        let mut message = AssistantMessage::default();
-        let mut calls = Vec::new();
-        // Streamed text is buffered by the journal (see `Journal`); this
-        // alarm writes it when it is due while the stream is quiet. Every
-        // other event below, and the closing `AssistantMessage`, writes it
-        // first in its own transaction.
-        let interval = self.inner.options.stream_flush;
-        let mut alarm: Option<(Instant, oneshot::Receiver<()>)> = None;
-        let result = loop {
-            match self.journal.flush_due(interval) {
-                None => alarm = None,
-                Some(at) if alarm.as_ref().is_none_or(|(armed, _)| *armed != at) => {
-                    alarm = None;
-                    match self.flush_timer.at(at) {
-                        Some(woken) => alarm = Some((at, woken)),
-                        None => self.journal.flush()?,
-                    }
-                }
-                Some(_) => {}
-            }
-            let due = async {
-                match alarm.as_mut() {
-                    Some((_, woken)) => {
-                        let _ = woken.await;
-                    }
-                    None => futures::future::pending::<()>().await,
-                }
-            };
-            futures::select_biased! {
-                command = next_command(&mut self.commands).fuse() => {
-                    if let Some(command) = command { self.command(command, None)?; }
-                    if self.halted() { break Ok(()); }
-                },
-                event = stream.next() => {
-                    let event = match event {
-                        Some(Ok(event)) => event,
-                        Some(Err(error)) => break Err(error),
-                        None => break Err(Error::Protocol("driver ended without Finish".into())),
-                    };
-                    match event {
-                        DriverEvent::TextDelta { index, text } => {
-                            add_delta(&mut message, index, &text, false)?;
-                            self.journal.stream(false, index, &text, interval, Instant::now())?;
-                        }
-                        DriverEvent::ThinkingDelta { index, text } => {
-                            add_delta(&mut message, index, &text, true)?;
-                            self.journal.stream(true, index, &text, interval, Instant::now())?;
-                        }
-                        DriverEvent::ThinkingSignature { index, signature, replay } => {
-                            add_delta(&mut message, index, "", true)?;
-                            let block = message.blocks.iter_mut().find(|b| matches!(b, ContentBlock::Thinking { index: i, .. } if *i == index)).expect("thinking block");
-                            if let ContentBlock::Thinking { signature: s, replay: r, .. } = block { *s = signature.clone(); *r = replay.clone(); }
-                            self.journal.append(Event::ThinkingSignature { index, signature, replay })?;
-                        }
-                        DriverEvent::ToolCall(call) => {
-                            if call.id.is_empty() || !self.seen_calls.insert(call.id.clone()) {
-                                break Err(Error::Protocol("tool call ids must be nonempty and unique within a run".into()));
-                            }
-                            message.blocks.push(ContentBlock::ToolCall { call: call.clone() });
-                            self.journal.append(Event::ToolProposed { call: call.clone() })?;
-                            calls.push(call);
-                        }
-                        DriverEvent::Usage(usage) => {
-                            message.usage = usage;
-                            self.journal.append(Event::Usage { usage })?;
-                        }
-                        DriverEvent::Replay { replay } => {
-                            message.replay = Some(replay.clone());
-                            self.journal.append(Event::ProviderReplay { replay })?;
-                        }
-                        DriverEvent::ProviderTool { activity } => {
-                            self.journal.append(Event::ProviderTool { activity })?;
-                        }
-                        DriverEvent::Finish(reason) => {
-                            if (reason == FinishReason::Tools) == calls.is_empty() {
-                                break Err(Error::Protocol("Finish reason does not match tool calls".into()));
-                            }
-                            message.complete = true;
-                            break Ok(());
-                        }
-                    }
-                },
-                () = due.fuse() => {
-                    alarm = None;
-                    self.journal.flush()?;
-                },
-            }
-        };
-        self.journal.append(Event::AssistantMessage { message })?;
-        if result.is_err() {
-            for call in &calls {
-                self.tool_result(call, ToolStatus::Cancelled, Value::Null)?;
-            }
+            self.inner.descriptors.clone()
         }
-        result?;
-        Ok(Some(calls))
+    }
+
+    async fn model(&mut self, round: u32) -> Result<Option<Vec<ToolCall>>> {
+        let mut budget_scale = 1.0_f64;
+        for attempt in 0..2 {
+            let stream = if let Some(reply) = self.unseen_reply.take() {
+                // The model cannot see the images the author just sent: it is
+                // not asked, and the Agent says so (custom-modules.md §16.1).
+                self.drain()?;
+                if self.halted() {
+                    return Ok(Some(Vec::new()));
+                }
+                self.set_state(State::Streaming)?;
+                futures::stream::iter([
+                    Ok(DriverEvent::TextDelta {
+                        index: 0,
+                        text: reply,
+                    }),
+                    Ok(DriverEvent::Finish(FinishReason::Complete)),
+                ])
+                .boxed()
+            } else {
+                let store = crate::long_task::Store::new(self.journal.lib.clone());
+                let chain = store
+                    .chain_for_session(&self.journal.session)?
+                    .ok_or_else(|| Error::Protocol("run has no request chain".into()))?;
+                let snapshot = store.snapshot(&chain)?;
+                let contributions =
+                    self.inner
+                        .tools
+                        .context(&self.inner.ws, &self.book, &self.journal.session)?;
+                let tools = self.exposed_tools();
+                let prepared = crate::context::prepare_with_budget_scale(
+                    &self.config,
+                    &snapshot,
+                    self.journal.transcript()?,
+                    &tools,
+                    contributions,
+                    budget_scale,
+                )?;
+                let crate::context::Prepared::Ready {
+                    conversation,
+                    checkpoint,
+                } = prepared
+                else {
+                    self.checkpoint("context_capacity")?;
+                    return Ok(None);
+                };
+                crate::context::save_checkpoint(&self.journal.lib, &snapshot, &checkpoint)?;
+                self.drain()?;
+                if self.halted() {
+                    return Ok(Some(Vec::new()));
+                }
+                let images = self.request_images(&conversation);
+                self.set_state(State::Streaming)?;
+                let request = DriverRequest {
+                    purpose: crate::RequestPurpose::Chat,
+                    config: self.config.clone(),
+                    session: self.journal.session.clone(),
+                    turn: self.journal.turn,
+                    round,
+                    conversation,
+                    tools,
+                    images,
+                };
+                self.inner.driver.stream(request, self.cancel.clone())
+            };
+            let mut stream = stream.fuse();
+            let mut message = AssistantMessage::default();
+            let mut calls = Vec::new();
+            // Streamed text is buffered by the journal (see `Journal`); this
+            // alarm writes it when it is due while the stream is quiet. Every
+            // other event below, and the closing `AssistantMessage`, writes it
+            // first in its own transaction.
+            let interval = self.inner.options.stream_flush;
+            let mut alarm: Option<(Instant, oneshot::Receiver<()>)> = None;
+            let result = loop {
+                match self.journal.flush_due(interval) {
+                    None => alarm = None,
+                    Some(at) if alarm.as_ref().is_none_or(|(armed, _)| *armed != at) => {
+                        alarm = None;
+                        match self.flush_timer.at(at) {
+                            Some(woken) => alarm = Some((at, woken)),
+                            None => self.journal.flush()?,
+                        }
+                    }
+                    Some(_) => {}
+                }
+                let due = async {
+                    match alarm.as_mut() {
+                        Some((_, woken)) => {
+                            let _ = woken.await;
+                        }
+                        None => futures::future::pending::<()>().await,
+                    }
+                };
+                futures::select_biased! {
+                    command = next_command(&mut self.commands).fuse() => {
+                        if let Some(command) = command { self.command(command, None)?; }
+                        if self.halted() { break Ok(()); }
+                    },
+                    event = stream.next() => {
+                        let event = match event {
+                            Some(Ok(event)) => event,
+                            Some(Err(error)) => break Err(error),
+                            None => break Err(Error::Protocol("driver ended without Finish".into())),
+                        };
+                        match event {
+                            DriverEvent::TextDelta { index, text } => {
+                                add_delta(&mut message, index, &text, false)?;
+                                self.journal.stream(false, index, &text, interval, Instant::now())?;
+                            }
+                            DriverEvent::ThinkingDelta { index, text } => {
+                                add_delta(&mut message, index, &text, true)?;
+                                self.journal.stream(true, index, &text, interval, Instant::now())?;
+                            }
+                            DriverEvent::ThinkingSignature { index, signature, replay } => {
+                                add_delta(&mut message, index, "", true)?;
+                                let block = message.blocks.iter_mut().find(|b| matches!(b, ContentBlock::Thinking { index: i, .. } if *i == index)).expect("thinking block");
+                                if let ContentBlock::Thinking { signature: s, replay: r, .. } = block { *s = signature.clone(); *r = replay.clone(); }
+                                self.journal.append(Event::ThinkingSignature { index, signature, replay })?;
+                            }
+                            DriverEvent::ToolCall(call) => {
+                                if call.id.is_empty() || !self.seen_calls.insert(call.id.clone()) {
+                                    break Err(Error::Protocol("tool call ids must be nonempty and unique within a run".into()));
+                                }
+                                message.blocks.push(ContentBlock::ToolCall { call: call.clone() });
+                                self.journal.append(Event::ToolProposed { call: call.clone() })?;
+                                calls.push(call);
+                            }
+                            DriverEvent::Usage(usage) => {
+                                message.usage = usage;
+                                self.journal.append(Event::Usage { usage })?;
+                            }
+                            DriverEvent::Replay { replay } => {
+                                message.replay = Some(replay.clone());
+                                self.journal.append(Event::ProviderReplay { replay })?;
+                            }
+                            DriverEvent::ProviderTool { activity } => {
+                                self.journal.append(Event::ProviderTool { activity })?;
+                            }
+                            DriverEvent::Finish(reason) => {
+                                if (reason == FinishReason::Tools) == calls.is_empty() {
+                                    break Err(Error::Protocol("Finish reason does not match tool calls".into()));
+                                }
+                                message.complete = true;
+                                break Ok(());
+                            }
+                        }
+                    },
+                    () = due.fuse() => {
+                        alarm = None;
+                        self.journal.flush()?;
+                    },
+                }
+            };
+            if attempt == 0
+                && message.blocks.is_empty()
+                && calls.is_empty()
+                && let Err(error) = &result
+                && is_context_overflow_error(error)
+            {
+                budget_scale = 0.5;
+                continue;
+            }
+            self.journal.append(Event::AssistantMessage { message })?;
+            if result.is_err() {
+                for call in &calls {
+                    self.tool_result(call, ToolStatus::Cancelled, Value::Null)?;
+                }
+            }
+            result?;
+            return Ok(Some(calls));
+        }
+        unreachable!("attempt loop returns on second iteration")
     }
 
     fn descriptor(&self, call: &ToolCall) -> Option<ToolDescriptor> {
@@ -1096,6 +1124,14 @@ impl Worker {
                 self.tool_result(&call, ToolStatus::Error, json!({"error":"unknown tool"}))?;
                 continue;
             };
+            if self.config.read_only_tools && descriptor.access != ToolAccess::Read {
+                self.tool_result(
+                    &call,
+                    ToolStatus::Denied,
+                    json!({"error":"write tools are disabled in read-only mode"}),
+                )?;
+                continue;
+            }
             if descriptor.policy != ToolPolicy::Local
                 && !self.permission(&call, descriptor.policy).await?
             {
@@ -1379,6 +1415,22 @@ fn add_delta(
         }
     });
     Ok(())
+}
+
+fn is_context_overflow_error(error: &Error) -> bool {
+    let lower = error.to_string().to_lowercase();
+    [
+        "context_length_exceeded",
+        "context length",
+        "maximum context length",
+        "prompt is too long",
+        "too many tokens",
+        "exceeds the context window",
+        "context window exceeded",
+        "token limit",
+    ]
+    .iter()
+    .any(|needle| lower.contains(needle))
 }
 
 async fn next_command(commands: &mut mpsc::UnboundedReceiver<Command>) -> Option<Command> {

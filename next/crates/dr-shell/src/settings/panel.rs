@@ -738,6 +738,8 @@ impl SettingsPanel {
             }
             if info.action == RowAction::Updates {
                 if let Some(updates) = super::updates_row(window, cx) {
+                    let p = theme.palette;
+                    let s = theme.scale;
                     col = col.child(row(
                         info.id,
                         t(cx, info.label),
@@ -745,6 +747,22 @@ impl SettingsPanel {
                         updates.control.unwrap_or_else(|| div().into_any_element()),
                         &theme,
                     ));
+                    if let Some(notes) = updates.notes {
+                        col = col.child(
+                            div()
+                                .id("settings-update-notes")
+                                .mb(px(10.0))
+                                .p(px(10.0))
+                                .rounded(px(radius::MD))
+                                .bg(p.ink(1).alpha(0.03))
+                                .border_1()
+                                .border_color(p.subtle_hairline())
+                                .font_role(Role::Ui)
+                                .type_px(s.caption, s.line_caption)
+                                .text_color(p.ink(2).solid())
+                                .child(dr_ui::text::wrapped(notes)),
+                        );
+                    }
                 }
                 continue;
             }

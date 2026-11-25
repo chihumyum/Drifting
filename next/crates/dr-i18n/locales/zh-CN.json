@@ -29,7 +29,37 @@
       "modelUnavailable": "当前目录中没有已选模型，请选择其他模型。"
     },
     "context": {
-      "tokens": "{{count}} tokens"
+      "allocation": {
+        "free": "空闲空间",
+        "input": "当前输入",
+        "output": "输出预留",
+        "safety": "安全余量",
+        "title": "窗口分配"
+      },
+      "breakdownTitle": "当前输入由什么组成",
+      "categories": {
+        "assistant_messages": "Agent 消息",
+        "compaction_summaries": "Compaction 摘要",
+        "provider_overhead": "Provider framing",
+        "system_prompt": "System prompt",
+        "task_constraints": "任务约束",
+        "task_plan": "任务计划",
+        "thinking": "思考内容",
+        "tool_calls": "工具调用",
+        "tool_definitions": "工具定义",
+        "tool_results": "工具结果",
+        "user_messages": "用户消息"
+      },
+      "compaction": "Compaction",
+      "compactionDetail": "节省 {{saved}} · {{stages}} · {{count}} 份摘要",
+      "compactionNone": "本次未触发 compaction",
+      "description": "基于最近一次实际提交给模型的已验证 context 规划快照；不是整场会话的累计 token 用量。",
+      "progressAria": "当前 Agent context 占用",
+      "sources": "{{count}} 项来源",
+      "summary": "{{used}} / {{limit}}（{{percent}}%）",
+      "title": "Context 占用",
+      "tokens": "{{count}} tokens",
+      "tooltip": "{{used}} / {{limit}} tokens（{{percent}}%）\n输出预留：{{output}} · 安全余量：{{safety}}"
     },
     "control": {
       "allow": {
@@ -44,9 +74,13 @@
       "start": "给 Agent 发条消息开始。它可以读写本项目的章节、要素与关系。"
     },
     "history": {
+      "delete": "删除对话",
       "empty": "暂无历史对话",
+      "loadEarlier": "载入更早的消息",
+      "rename": "重命名",
       "untitled": "未命名"
     },
+    "jumpLatest": "回到最新",
     "newConversation": "新对话",
     "onboarding": {
       "connect": "连接模型",
@@ -58,7 +92,8 @@
     "pending": {
       "cancelling": "正在停止…",
       "committing": "正在保存…",
-      "now": "思考中…"
+      "now": "思考中…",
+      "withSeconds": "思考中 · {{seconds}}s"
     },
     "setup": {
       "openSettings": "前往设置"
@@ -70,17 +105,31 @@
       "done": "思考过程",
       "streaming": "思考中…"
     },
+    "todos": {
+      "plan": "计划"
+    },
     "tool": {
       "result": "结果"
     },
     "toolbar": {
-      "history": "历史"
+      "history": "历史",
+      "historyTitle": "历史对话",
+      "newTitle": "开始新对话",
+      "renameTitle": "点击重命名当前对话"
     },
     "turnChanges": "本轮改动",
     "unavailable": "Agent 不可用。",
+    "usage": {
+      "inputDetail": "输入 {{input}}（缓存读 {{cacheRead}} · 缓存写 {{cacheWrite}} · 净算 {{net}}）",
+      "outputTurns": "输出 {{output}} · 轮次 {{turns}}",
+      "session": "本会话",
+      "toolsCount": "{{count}} 次工具",
+      "workedFor": "Agent 工作 {{duration}}"
+    },
     "workingMemory": {
       "agent": "Agent",
       "author": "用户",
+      "budgetTitle": "没有上限；超过 2 万、4 万 tokens 时各提示 Agent 整理一次，超过 8 万后每轮都提示",
       "clear": "清空",
       "clearConfirm": "清空工作记忆？这不会删除作品内容、长期规则或对话记录。",
       "cleared": "工作记忆已清空。",
@@ -168,6 +217,8 @@
     "forgotPassword": "忘记密码？",
     "hasAccount": "已经有账号？",
     "legal": {
+      "agree": "注册即表示同意",
+      "and": "与",
       "consent": "继续即视为同意{{terms}}",
       "consentTerms": "相关条款",
       "privacy": "隐私政策",
@@ -181,6 +232,12 @@
     "resend": "重新发送",
     "sendCode": "发送验证码",
     "signIn": "登录",
+    "signOut": {
+      "now": "直接登出",
+      "pending": "这台 Mac 上还有 {{count}} 条改动没传上去。直接登出的话，它们留在这台 Mac 上，下次登录同一个账号时接着传。",
+      "title": "登出",
+      "uploadFirst": "传完再登出"
+    },
     "signUp": "注册",
     "signingIn": "登录中…",
     "social": {
@@ -848,7 +905,8 @@
     },
     "clear": "清空",
     "cloudSync": {
-      "source": "云同步"
+      "source": "云同步",
+      "syncing": "正在同步…"
     },
     "crashFollowUp": {
       "source": "Drifting"
@@ -882,6 +940,21 @@
       "minutesAgo": "{{count}} 分钟前"
     },
     "title": "通知"
+  },
+  "paperSync": {
+    "failing": "云同步失败",
+    "notStarted": "同步没能启动",
+    "notStartedDetail": "正文仍保存在本机。",
+    "offline": "网络暂不可用",
+    "offlineDetail": "你可以继续在本地写作。",
+    "openSettings": "打开设置",
+    "quota": "Hosted 存储已满",
+    "reauth": "登录已过期",
+    "reauthDetail": "请重新登录同一账号。",
+    "retry": "重试",
+    "retrying": "暂时未能完成同步",
+    "retryingDetail": "正文已保存在本机，会自动重试。",
+    "signIn": "重新登录"
   },
   "plotGrid": {
     "addColumnShort": "列",
@@ -1246,6 +1319,7 @@
         "args": "参数（每行一个）",
         "command": "可执行文件绝对路径",
         "cwd": "工作目录绝对路径（可选）",
+        "deleteConfirm": "删除 MCP 服务器“{{name}}”？它的持续授权也会被撤销。",
         "disable": "停用",
         "editTitle": "编辑 MCP 服务器",
         "empty": "当前项目还没有 MCP 服务器。",
@@ -1255,6 +1329,7 @@
         "noProject": "打开一个项目后配置 MCP。",
         "notChecked": "尚未连接",
         "policy": {
+          "askWrite": "写入 · 询问",
           "disabled": "禁用"
         },
         "publicEnv": "公开环境变量（每行 NAME=value）",
@@ -1296,6 +1371,26 @@
       "iterationOption": "{{value}} 次",
       "unlimited": "无限制",
       "unlimitedHint": "「无限制」不设模型调用次数上限，你可以手动停止本轮。"
+    },
+    "agentMemory": {
+      "title": "项目记忆"
+    },
+    "agentUsage": {
+      "all": "累计",
+      "clearConfirm": "清空全部对话历史？将移除本项目的 {{count}} 条 Agent 对话。",
+      "clearHistory": "清空历史",
+      "conversationsTurns": "对话 / 轮次",
+      "deleteConversation": "删除这条对话",
+      "history": "对话历史",
+      "historyDesc": "本项目的所有 Agent 对话。删除为软删除，会与右栏「历史」同步移除，不影响其它项目。",
+      "month": "本月",
+      "noHistory": "还没有对话 — 给 Agent 发一条消息试试。",
+      "noProjectHistory": "打开一个项目后管理其对话历史。",
+      "noProjectUsage": "打开一个项目后查看其 Agent 用量。",
+      "tokenCard": "{{scope}} Token",
+      "untitled": "未命名",
+      "usage": "用量",
+      "usageDesc": "本项目里 Agent 用了多少 token。统计自每轮返回的用量（输入含缓存读取），按本月 / 累计两个口径查看。"
     },
     "appearance": {
       "accent": "强调色",
@@ -1464,19 +1559,37 @@
       "connect_errors": {
         "cancelled": "已取消。"
       },
+      "crop_confirm": "使用此头像",
+      "crop_description": "拖动图片或使用方向键调整位置，再调整缩放。",
+      "crop_title": "调整头像",
+      "crop_zoom": "缩放",
       "current_password": "当前密码",
       "description": "正文始终先保存在本机。连接账号后，在你的设备之间同步项目。",
+      "disconnect": "断开同步",
+      "disconnect_anyway": "仍然断开",
+      "disconnect_description": "先把本机还没上传的改动传完，再断开。本地项目和云端副本都会保留。",
+      "disconnect_now": "不等了，直接断开",
+      "disconnect_unuploaded": "本机还有 {{count}} 条改动没传上去，断开后它们只留在这台 Mac 上。",
       "display_name": "昵称",
+      "enabled": "已连接托管同步",
+      "last_synced": "上次完成同步：{{time}}",
       "library_switch_failed": "没能切换书库",
       "new_password": "新密码",
       "no_account": "尚未登录",
+      "not_started": "同步没能启动；正文仍保存在本机，重新打开 Drifting 会再试一次。",
       "password_description": "8–128 个字符。",
       "password_saved": "密码已修改，其他设备需要重新登录。",
       "password_sessions": "修改密码后，其他设备需要重新登录，本机保持登录。",
       "password_title": "密码",
+      "pause": "暂停",
+      "paused": "同步已暂停",
+      "pending": "正在同步或等待同步完成。",
       "profile_saved": "资料已保存。",
       "profile_title": "个人资料",
+      "quota_blocked": "Hosted 存储已满，有附件无法上传，这个项目暂时无法继续同步。删除不需要的附件或项目后会自动恢复；本地内容不受影响。",
       "remove_avatar": "移除",
+      "resume": "继续同步",
+      "retrying": "暂时未能完成同步；正文已保存在本机，会自动重试。",
       "save_profile": "保存资料",
       "session": {
         "checking": "正在检查账号连接…",
@@ -1487,6 +1600,10 @@
       },
       "sign_in": "登录 / 注册",
       "sign_out": "退出账号",
+      "storage": "Hosted 存储",
+      "storage_description": "已用 {{used}} / {{quota}}。附件计入用量，正文和结构不受限制。",
+      "sync_now": "立即同步",
+      "sync_title": "托管同步",
       "title": "账号与托管同步",
       "working": "正在处理…"
     },

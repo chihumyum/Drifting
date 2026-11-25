@@ -16,13 +16,14 @@ use dr_shell::{
 };
 use dr_ui::{
     Theme,
-    components::Button,
-    fonts::Role,
+    components::{Button, Dialog, Layer, Place, float, tooltip},
+    fonts::{Role, weight},
     glass,
-    input::{FieldEvent, TextArea},
+    input::{FieldEvent, TextArea, TextField},
     sand,
     style::DrStyled as _,
     text,
+    tokens::radius,
 };
 use futures::{
     StreamExt as _,
@@ -31,9 +32,9 @@ use futures::{
 };
 use gpui::{
     AnyElement, App, AppContext as _, Context, Entity, Focusable as _, InteractiveElement as _,
-    IntoElement, ParentElement as _, Render, ScrollHandle, SharedString,
-    StatefulInteractiveElement as _, Styled as _, Subscription, Task, WeakEntity, Window, div,
-    prelude::FluentBuilder as _, px,
+    IntoElement, ParentElement as _, PathBuilder, Render, ScrollHandle, SharedString,
+    StatefulInteractiveElement as _, Styled as _, Subscription, Task, WeakEntity, Window, canvas,
+    div, point, prelude::FluentBuilder as _, px, relative,
 };
 use serde_json::json;
 
@@ -118,6 +119,12 @@ pub struct AgentPanel {
     /// composer, so they are taken after it.
     followed: bool,
     handed: Vec<dr_shell::pages::AgentImages>,
+    /// Context pressure breakdown modal visibility.
+    show_context_modal: bool,
+    /// Inline conversation rename state (conversation id, field, field subscription).
+    renaming: Option<(ConversationId, Entity<TextField>, Subscription)>,
+    /// Pagination window for long transcripts (number of tail items rendered).
+    visible_limit: usize,
 }
 
 impl AgentPanel {
@@ -172,6 +179,9 @@ impl AgentPanel {
             tray_generation: 0,
             followed: false,
             handed: Vec::new(),
+            show_context_modal: false,
+            renaming: None,
+            visible_limit: 40,
         };
         panel._subs.push(
             cx.subscribe_in(&composer, window, |panel, _, event, _, cx| {
@@ -446,6 +456,9 @@ impl AgentPanel {
         self.fresh = true;
         self.snapshot = None;
         self.show_list = false;
+        self.show_context_modal = false;
+        self.renaming = None;
+        self.visible_limit = 40;
         self.old.leave();
         self.starters = None;
         self.error = None;
@@ -466,6 +479,9 @@ impl AgentPanel {
         self.selected = Some(id);
         self.fresh = false;
         self.show_list = false;
+        self.show_context_modal = false;
+        self.renaming = None;
+        self.visible_limit = 40;
         self.old.leave();
         self.snapshot = None;
         self.error = None;
@@ -473,6 +489,142 @@ impl AgentPanel {
         self.invalidate();
         self.remember(cx);
         self.refresh(cx);
+        cx.notify();
+    }
+
+    pub(super) fn begin_rename(
+        &mut self,
+        id: ConversationId,
+        current_title: String,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let field =
+            cx.new(|cx| TextField::new("agent-rename-title", window, cx).with_text(current_title));
+        let sub = cx.subscribe(&field, |panel, _, event, cx| match event {
+            FieldEvent::Submitted(_) => panel.commit_rename(cx),
+            FieldEvent::Cancelled => panel.cancel_rename(cx),
+            _ => {}
+        });
+        window.focus(&field.focus_handle(cx), cx);
+        self.renaming = Some((id, field, sub));
+        cx.notify();
+    }
+
+    fn commit_rename(&mut self, cx: &mut Context<Self>) {
+        let Some((id, field, _)) = self.renaming.take() else {
+            return;
+        };
+        let title = field.read(cx).text();
+        let (Some(controller), Some(book)) = (self.controller.clone(), self.book.clone()) else {
+            cx.notify();
+            return;
+        };
+        cx.spawn(async move |this, cx| {
+            let res = cx
+                .background_executor()
+                .spawn(async move { controller.rename_conversation(&book, &id, &title) })
+                .await;
+            let _ = this.update(cx, |panel, cx| {
+                if let Err(err) = res {
+                    panel.error = Some(err);
+                }
+                panel.refresh(cx);
+                cx.notify();
+            });
+        })
+        .detach();
+        cx.notify();
+    }
+
+    fn cancel_rename(&mut self, cx: &mut Context<Self>) {
+        self.renaming = None;
+        cx.notify();
+    }
+
+    pub(super) fn delete_conversation(&mut self, id: ConversationId, cx: &mut Context<Self>) {
+        let (Some(controller), Some(book)) = (self.controller.clone(), self.book.clone()) else {
+            return;
+        };
+        let was_selected = self.selected.as_ref() == Some(&id);
+        if was_selected {
+            self.selected = None;
+            self.snapshot = None;
+            self.fresh = true;
+        }
+        cx.spawn(async move |this, cx| {
+            let res = cx
+                .background_executor()
+                .spawn(async move { controller.delete_conversation(&book, &id) })
+                .await;
+            let _ = this.update(cx, |panel, cx| {
+                if let Err(err) = res {
+                    panel.error = Some(err);
+                }
+                panel.refresh(cx);
+                cx.notify();
+            });
+        })
+        .detach();
+        cx.notify();
+    }
+
+    pub(super) fn current_title(&self, cx: &App) -> SharedString {
+        if let Some(id) = &self.selected
+            && let Some(item) = self.conversations.iter().find(|c| &c.id == id)
+        {
+            let clean = dr_shell::review_agent::clean_conversation_title(&item.title);
+            if !clean.trim().is_empty() {
+                return clean.to_owned().into();
+            }
+        }
+        t(cx, k::NEW_CONVERSATION)
+    }
+
+    pub(super) fn context_metrics(&self) -> Option<(u64, u64, u64, u64, u64)> {
+        if let Some(cp) = self.snapshot.as_ref().and_then(|s| s.context.as_ref()) {
+            let bd = &cp.breakdown;
+            let window = if bd.window > 0 {
+                bd.window
+            } else {
+                cp.input_budget
+            };
+            let used = cp.estimated_input_tokens;
+            let limit = window.max(1);
+            let percent = ((used.saturating_mul(100)) / limit).min(100);
+            return Some((used, limit, percent, bd.output_reserve, bd.safety_margin));
+        }
+        let last = self.snapshot.as_ref()?.runs.last()?;
+        let used = last.usage.input_tokens.saturating_add(
+            if last
+                .config
+                .as_ref()
+                .is_some_and(|config| config.route.provider == dr_agent::Provider::Anthropic)
+            {
+                last.usage
+                    .cached_input_tokens
+                    .saturating_add(last.usage.cache_write_tokens)
+            } else {
+                0
+            },
+        );
+        let limit = last
+            .config
+            .as_ref()
+            .and_then(|c| c.capabilities.as_ref())
+            .and_then(|c| c.context_window)?;
+        let percent = ((used.saturating_mul(100)) / limit.max(1)).min(100);
+        let output_reserve = last
+            .config
+            .as_ref()
+            .and_then(|c| c.max_output_tokens.map(u64::from))
+            .unwrap_or_else(|| (limit / 8).clamp(4_096, 8_192));
+        let safety_margin = limit / 10;
+        Some((used, limit, percent, output_reserve, safety_margin))
+    }
+
+    fn toggle_context_modal(&mut self, cx: &mut Context<Self>) {
+        self.show_context_modal = !self.show_context_modal;
         cx.notify();
     }
 
@@ -1169,11 +1321,26 @@ impl AgentPanel {
     ) -> AnyElement {
         let theme = Theme::of(window, cx);
         let p = theme.palette;
+        let ws = self.ws.clone();
+        let opener: crate::markdown::OpenTargetFn = std::rc::Rc::new(move |target, _, cx| {
+            ws.update(cx, |ws, cx| {
+                if ws.book.exists(&target) {
+                    ws.open(target, Open::KEEP, cx);
+                }
+            })
+            .ok();
+        });
         let mut column = div().flex().flex_col().gap(px(10.)).min_w_0();
         for block in &message.blocks {
             match block {
-                ContentBlock::Text { text, .. } => {
-                    column = column.child(text::wrapped(text.clone()))
+                ContentBlock::Text { index, text } => {
+                    column = column.child(crate::markdown::render_markdown(
+                        &format!("{id}:text:{index}"),
+                        text,
+                        Some(opener.clone()),
+                        window,
+                        cx,
+                    ))
                 }
                 ContentBlock::Thinking { index, text, .. } => {
                     let key = format!("{id}:thinking:{index}");
@@ -1186,6 +1353,14 @@ impl AgentPanel {
                             k::thinking::DONE
                         },
                     );
+                    let live_preview = (running && !open)
+                        .then(|| {
+                            text.lines()
+                                .rev()
+                                .find(|l| !l.trim().is_empty())
+                                .map(|l| l.trim().chars().take(72).collect::<String>())
+                        })
+                        .flatten();
                     column = column.child(
                         div()
                             .flex()
@@ -1201,6 +1376,17 @@ impl AgentPanel {
                                     .child(sand::thinking(16., p.ink(3).solid(), running, window))
                                     .child(label),
                             )
+                            .when_some(live_preview, |el, preview| {
+                                el.child(
+                                    div()
+                                        .pl(px(23.))
+                                        .font_role(Role::Index)
+                                        .type_px(theme.scale.caption, theme.scale.line_caption)
+                                        .text_color(p.ink(4).solid())
+                                        .truncate()
+                                        .child(preview),
+                                )
+                            })
                             .when(open, |el| {
                                 el.child(
                                     div()
@@ -1215,7 +1401,11 @@ impl AgentPanel {
                 ContentBlock::ToolCall { call } => {
                     let key = format!("{id}:tool:{}", call.id);
                     let open = self.expanded.contains(&key);
-                    let label = SharedString::from(data::tool_name(call).to_owned());
+                    let (title, detail) = tool_call_summary(call);
+                    let label: SharedString = match &detail {
+                        Some(d) => format!("{title} · {d}").into(),
+                        None => title.into(),
+                    };
                     column = column.child(
                         div()
                             .flex()
@@ -1223,6 +1413,11 @@ impl AgentPanel {
                             .gap(px(5.))
                             .child(
                                 self.disclosure(key.clone(), label.clone(), window, cx)
+                                    .flex()
+                                    .items_center()
+                                    .gap(px(6.))
+                                    .font_role(Role::Index)
+                                    .type_px(theme.scale.caption, theme.scale.line_caption)
                                     .text_color(p.ink(3).solid())
                                     .child(label),
                             )
@@ -1579,6 +1774,7 @@ impl AgentPanel {
         {
             let request = permission.request.clone();
             let deny = request.clone();
+            let (tool_label, tool_preview) = tool_call_summary(&permission.call);
             column = column.child(
                 div()
                     .id("agent-permission")
@@ -1589,7 +1785,10 @@ impl AgentPanel {
                     .rounded(px(12.))
                     .bg(p.paper.solid())
                     .child(t(cx, k::control::PERMISSION_TITLE))
-                    .child(data::tool_name(&permission.call).to_owned())
+                    .child(match tool_preview {
+                        Some(preview) => format!("{tool_label} · {preview}"),
+                        None => tool_label,
+                    })
                     .child(text::wrapped(data::result_text(&permission.call.arguments)))
                     .child(
                         div()
@@ -1663,7 +1862,7 @@ impl AgentPanel {
             let waiting = onboarding::waits_on_change(onboarding::step(cx), run.changes.len())
                 && latest_finished == Some((run.session.as_str(), turn));
             let first_change = index == 0;
-            let label = t(cx, k::TURN_CHANGES);
+            let label = self.change_target_label(target, cx);
             column = column.child(
                 div()
                     .flex()
@@ -1737,7 +1936,99 @@ impl AgentPanel {
                     }),
             );
         }
+        if turn == run.turn && run.state.is_terminal() {
+            let u = run.usage;
+            let total_in = u.input_tokens.saturating_add(
+                if run
+                    .config
+                    .as_ref()
+                    .is_some_and(|c| c.route.provider == dr_agent::Provider::Anthropic)
+                {
+                    u.cached_input_tokens.saturating_add(u.cache_write_tokens)
+                } else {
+                    0
+                },
+            );
+            let duration_label = run
+                .started_ms
+                .zip(run.finished_ms)
+                .filter(|(s, f)| f > s)
+                .map(|(s, f)| format_duration_ms((f - s) as u64));
+            let has_stats = total_in > 0
+                || u.output_tokens > 0
+                || duration_label.is_some()
+                || !run.tools.is_empty();
+            if has_stats {
+                let theme = Theme::of(window, cx);
+                let mut parts: Vec<String> = Vec::new();
+                if let Some(dur) = duration_label {
+                    parts.push(tf(cx, k::usage::WORKED_FOR, &[("duration", &dur)]).to_string());
+                }
+                if !run.tools.is_empty() {
+                    parts.push(
+                        tf(cx, k::usage::TOOLS_COUNT, &[("count", &run.tools.len())]).to_string(),
+                    );
+                }
+                if total_in > 0 || u.output_tokens > 0 {
+                    let net = total_in.saturating_sub(u.cached_input_tokens);
+                    parts.push(
+                        tf(
+                            cx,
+                            k::usage::INPUT_DETAIL,
+                            &[
+                                ("input", &format_compact_tokens(total_in)),
+                                ("cacheRead", &format_compact_tokens(u.cached_input_tokens)),
+                                ("cacheWrite", &format_compact_tokens(u.cache_write_tokens)),
+                                ("net", &format_compact_tokens(net)),
+                            ],
+                        )
+                        .to_string(),
+                    );
+                    parts.push(
+                        tf(
+                            cx,
+                            k::usage::OUTPUT_TURNS,
+                            &[
+                                ("output", &format_compact_tokens(u.output_tokens)),
+                                ("turns", &run.rounds.max(1)),
+                            ],
+                        )
+                        .to_string(),
+                    );
+                }
+                column = column.child(
+                    div()
+                        .font_role(Role::Index)
+                        .type_px(theme.scale.caption, theme.scale.line_caption)
+                        .text_color(p.ink(4).solid())
+                        .child(parts.join(" · ")),
+                );
+            }
+        }
         column.into_any_element()
+    }
+
+    fn change_target_label(&self, target: &data::ChangeTarget, cx: &App) -> SharedString {
+        if let Some(book) = &self.book_view {
+            let key = match target.kind.as_str() {
+                "entry" => Some(format!("entry:{}", target.id)),
+                "entry_template" | "template" => Some(format!("template:{}", target.id)),
+                "timeline_view" => Some(format!("book-view:{}", target.id)),
+                "asset" => Some(format!("material:{}", target.id)),
+                _ => None,
+            };
+            if let Some(key) = key
+                && let Some(nav_target) = dr_shell::nav::Target::from_key(&key)
+                && let Some(title) = book.title(&nav_target)
+                && !title.trim().is_empty()
+            {
+                return SharedString::from(title.to_owned());
+            }
+            if target.kind == "book" && !book.name.trim().is_empty() {
+                return SharedString::from(book.name.clone());
+            }
+        }
+        t(cx, k::TURN_CHANGES)
     }
 
     /// One image's square: its picture, or an empty place when this device
@@ -1822,7 +2113,23 @@ impl AgentPanel {
             }
         }
         let mut assistants: HashMap<(&str, u32), usize> = HashMap::new();
-        for item in snapshot.transcript() {
+        let all_items = snapshot.transcript();
+        let total_items = all_items.len();
+        let skip = total_items.saturating_sub(self.visible_limit);
+        if skip > 0 {
+            column = column.child(
+                div().flex().justify_center().child(
+                    Button::new("agent-load-earlier", t(cx, k::history::LOAD_EARLIER))
+                        .text()
+                        .small()
+                        .on_click(cx.listener(|panel, _, _, cx| {
+                            panel.visible_limit = panel.visible_limit.saturating_add(40);
+                            cx.notify();
+                        })),
+                ),
+            );
+        }
+        for (idx, item) in all_items.into_iter().enumerate() {
             match item {
                 TranscriptItem::Message(message) => {
                     let ordinal = assistants
@@ -1832,21 +2139,295 @@ impl AgentPanel {
                     if matches!(message.content, MessageContent::Assistant { .. }) {
                         *ordinal += 1;
                     }
-                    if let Some(row) = self.message(message, &id, window, cx) {
+                    if idx >= skip
+                        && let Some(row) = self.message(message, &id, window, cx)
+                    {
                         column = column.child(row);
                     }
                 }
                 TranscriptItem::Run { run, turn } => {
-                    let ordinal = assistants
-                        .get(&(run.session.as_str(), turn))
-                        .copied()
-                        .unwrap_or(0);
-                    let id = format!("assistant:{}:{turn}:{ordinal}", run.session);
-                    column = column.child(self.run(run, turn, &id, window, cx));
+                    if idx >= skip {
+                        let ordinal = assistants
+                            .get(&(run.session.as_str(), turn))
+                            .copied()
+                            .unwrap_or(0);
+                        let id = format!("assistant:{}:{turn}:{ordinal}", run.session);
+                        column = column.child(self.run(run, turn, &id, window, cx));
+                    }
                 }
             }
         }
         column.into_any_element()
+    }
+
+    fn context_modal(&self, window: &Window, cx: &mut Context<Self>) -> Option<AnyElement> {
+        if !self.show_context_modal {
+            return None;
+        }
+        let theme = Theme::of(window, cx);
+        let (p, s) = (theme.palette, theme.scale);
+        let (used, limit, percent, output_reserve, safety_margin) = self
+            .context_metrics()
+            .unwrap_or((0, 32_768, 0, 4_096, 3_276));
+        let cp = self
+            .snapshot
+            .as_ref()
+            .and_then(|snap| snap.context.as_ref());
+        let bd = cp.map(|c| c.breakdown.clone()).unwrap_or_default();
+        let window_total = bd.window.max(limit).max(1);
+        let out_res = if bd.output_reserve > 0 {
+            bd.output_reserve
+        } else {
+            output_reserve
+        };
+        let safety = if bd.safety_margin > 0 {
+            bd.safety_margin
+        } else {
+            safety_margin
+        };
+        let free = window_total
+            .saturating_sub(used)
+            .saturating_sub(out_res)
+            .saturating_sub(safety);
+        let frac = |v: u64| (v as f32 / window_total as f32).clamp(0.0, 1.0);
+        let summary_text = tf(
+            cx,
+            k::context::SUMMARY,
+            &[
+                ("used", &format_compact_tokens(used)),
+                ("limit", &format_compact_tokens(window_total)),
+                ("percent", &percent),
+            ],
+        );
+        let bar = div()
+            .w_full()
+            .h(px(10.0))
+            .rounded(px(5.0))
+            .overflow_hidden()
+            .bg(p.ink(1).alpha(0.08))
+            .flex()
+            .flex_row()
+            .child(div().h_full().w(relative(frac(used))).bg(p.accent.solid()))
+            .child(
+                div()
+                    .h_full()
+                    .w(relative(frac(out_res)))
+                    .bg(p.ink(3).alpha(0.55)),
+            )
+            .child(
+                div()
+                    .h_full()
+                    .w(relative(frac(safety)))
+                    .bg(p.ink(4).alpha(0.35)),
+            )
+            .child(div().h_full().flex_1());
+        let legend_item = |dot_color: gpui::Hsla, label: SharedString, val: u64| {
+            div()
+                .flex()
+                .items_center()
+                .gap(px(5.0))
+                .font_role(Role::Index)
+                .type_px(s.caption, s.line_caption)
+                .text_color(p.ink(3).solid())
+                .child(div().size(px(8.0)).rounded_full().bg(dot_color))
+                .child(format!("{label} {}", format_compact_tokens(val)))
+        };
+        let categories: &[(dr_i18n::Key, u64)] = &[
+            (k::context::categories::SYSTEM_PROMPT, bd.system_prompt),
+            (
+                k::context::categories::TOOL_DEFINITIONS,
+                bd.tool_definitions,
+            ),
+            (
+                k::context::categories::PROVIDER_OVERHEAD,
+                bd.provider_overhead,
+            ),
+            (k::context::categories::TASK_PLAN, bd.task_plan),
+            (
+                k::context::categories::TASK_CONSTRAINTS,
+                bd.task_constraints,
+            ),
+            (k::context::categories::USER_MESSAGES, bd.user_messages),
+            (
+                k::context::categories::ASSISTANT_MESSAGES,
+                bd.assistant_messages,
+            ),
+            (k::context::categories::THINKING, bd.thinking),
+            (k::context::categories::TOOL_CALLS, bd.tool_calls),
+            (k::context::categories::TOOL_RESULTS, bd.tool_results),
+            (
+                k::context::categories::COMPACTION_SUMMARIES,
+                bd.compaction_summaries,
+            ),
+        ];
+        let mut cat_list = div().flex().flex_col().gap(px(4.0));
+        for &(key, tokens) in categories {
+            let pct = tokens
+                .saturating_mul(100)
+                .checked_div(used)
+                .unwrap_or(0)
+                .min(100);
+            cat_list = cat_list.child(
+                div()
+                    .flex()
+                    .items_center()
+                    .justify_between()
+                    .gap(px(8.0))
+                    .type_px(s.caption, s.line_caption)
+                    .child(div().text_color(p.ink(2).solid()).child(t(cx, key)))
+                    .child(
+                        div()
+                            .font_role(Role::Index)
+                            .text_color(p.ink(3).solid())
+                            .child(format!("{} ({pct}%)", format_compact_tokens(tokens))),
+                    ),
+            );
+        }
+        let compaction_text = if bd.compacted_count == 0 {
+            t(cx, k::context::COMPACTION_NONE)
+        } else {
+            tf(
+                cx,
+                k::context::COMPACTION_DETAIL,
+                &[
+                    ("saved", &format_compact_tokens(bd.compacted_tokens_saved)),
+                    ("stages", &"bounded projection"),
+                    ("count", &bd.compacted_count),
+                ],
+            )
+        };
+        let body = div()
+            .flex()
+            .flex_col()
+            .gap(px(12.0))
+            .w(px(420.0))
+            .child(
+                div()
+                    .flex()
+                    .items_baseline()
+                    .justify_between()
+                    .child(
+                        div()
+                            .font_role(Role::Structure)
+                            .weight(weight::SEMIBOLD)
+                            .text_color(p.ink(1).solid())
+                            .child(summary_text),
+                    )
+                    .child(
+                        div()
+                            .font_role(Role::Index)
+                            .type_px(s.caption, s.line_caption)
+                            .text_color(p.ink(3).solid())
+                            .child(tf(cx, k::context::SOURCES, &[("count", &bd.source_count)])),
+                    ),
+            )
+            .child(
+                div()
+                    .type_px(s.caption, s.line_caption)
+                    .text_color(p.ink(3).solid())
+                    .child(t(cx, k::context::DESCRIPTION)),
+            )
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap(px(6.0))
+                    .child(
+                        div()
+                            .weight(weight::MEDIUM)
+                            .type_px(s.caption, s.line_caption)
+                            .text_color(p.ink(2).solid())
+                            .child(t(cx, k::context::allocation::TITLE)),
+                    )
+                    .child(bar)
+                    .child(
+                        div()
+                            .flex()
+                            .flex_wrap()
+                            .gap_x(px(12.0))
+                            .gap_y(px(4.0))
+                            .child(legend_item(
+                                p.accent.solid(),
+                                t(cx, k::context::allocation::INPUT),
+                                used,
+                            ))
+                            .child(legend_item(
+                                p.ink(3).alpha(0.55),
+                                t(cx, k::context::allocation::OUTPUT),
+                                out_res,
+                            ))
+                            .child(legend_item(
+                                p.ink(4).alpha(0.35),
+                                t(cx, k::context::allocation::SAFETY),
+                                safety,
+                            ))
+                            .child(legend_item(
+                                p.ink(1).alpha(0.14),
+                                t(cx, k::context::allocation::FREE),
+                                free,
+                            )),
+                    ),
+            )
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap(px(6.0))
+                    .pt(px(4.0))
+                    .border_t(px(0.5))
+                    .border_color(p.hairline())
+                    .child(
+                        div()
+                            .weight(weight::MEDIUM)
+                            .type_px(s.caption, s.line_caption)
+                            .text_color(p.ink(2).solid())
+                            .child(t(cx, k::context::BREAKDOWN_TITLE)),
+                    )
+                    .child(cat_list),
+            )
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap(px(3.0))
+                    .pt(px(4.0))
+                    .border_t(px(0.5))
+                    .border_color(p.hairline())
+                    .child(
+                        div()
+                            .weight(weight::MEDIUM)
+                            .type_px(s.caption, s.line_caption)
+                            .text_color(p.ink(2).solid())
+                            .child(t(cx, k::context::COMPACTION)),
+                    )
+                    .child(
+                        div()
+                            .type_px(s.caption, s.line_caption)
+                            .text_color(p.ink(3).solid())
+                            .child(compaction_text),
+                    ),
+            );
+        let dismiss = cx.entity();
+        let close = cx.entity();
+        let dialog = Dialog::new("agent-context-modal", t(cx, k::context::TITLE))
+            .body(body)
+            .action(
+                Button::new("agent-context-close", t(cx, dr_i18n::keys::common::CLOSE))
+                    .small()
+                    .on_click(move |_, _, cx| {
+                        close.update(cx, |panel, cx| {
+                            panel.show_context_modal = false;
+                            cx.notify();
+                        });
+                    }),
+            )
+            .on_close(move |_, cx| {
+                dismiss.update(cx, |panel, cx| {
+                    panel.show_context_modal = false;
+                    cx.notify();
+                });
+            });
+        Some(float(Place::Center, Layer::Dialog, dialog).into_any_element())
     }
 }
 
@@ -1901,6 +2482,12 @@ impl Render for AgentPanel {
             && !self.busy;
         let mut content = div().flex().flex_col().gap(px(12.)).min_w_0();
         content = content.child(self.continuity_header(cx));
+        if self.continuity.shown.is_none()
+            && !self.show_list
+            && let Some(plan) = self.plan_card(window, cx)
+        {
+            content = content.child(plan);
+        }
         if let Some(working) = self.continuity.shown {
             if working {
                 if let Some(view) = &self.continuity.working {
@@ -2011,6 +2598,25 @@ impl Render for AgentPanel {
             .p(px(12.))
             .flex_none();
         if let Some(run) = &active {
+            let status_text = match run.state {
+                State::Stopping => t(cx, k::pending::CANCELLING),
+                State::RunningTools => t(cx, k::pending::COMMITTING),
+                State::AwaitingAnswer => t(cx, k::control::QUESTION_TITLE),
+                State::AwaitingPermission => t(cx, k::control::PERMISSION_TITLE),
+                _ => {
+                    if let Some(started) = run.started_ms {
+                        let now = chrono::Utc::now().timestamp_millis();
+                        let secs = ((now - started).max(0) / 1000) as u64;
+                        if secs >= 1 {
+                            tf(cx, k::pending::WITH_SECONDS, &[("seconds", &secs)])
+                        } else {
+                            t(cx, k::pending::NOW)
+                        }
+                    } else {
+                        t(cx, k::pending::NOW)
+                    }
+                }
+            };
             footer = footer.child(
                 div()
                     .flex()
@@ -2023,19 +2629,12 @@ impl Render for AgentPanel {
                         run.state == State::Streaming,
                         window,
                     ))
-                    .child(t(
-                        cx,
-                        match run.state {
-                            State::Stopping => k::pending::CANCELLING,
-                            State::RunningTools => k::pending::COMMITTING,
-                            State::AwaitingAnswer => k::control::QUESTION_TITLE,
-                            State::AwaitingPermission => k::control::PERMISSION_TITLE,
-                            _ => k::pending::NOW,
-                        },
-                    )),
+                    .child(status_text),
             );
         }
-        if let Some(last) = self.snapshot.as_ref().and_then(|s| s.runs.last()) {
+        if let Some(snap) = &self.snapshot
+            && let Some(last) = snap.runs.last()
+        {
             let used =
                 last.usage.input_tokens.saturating_add(
                     if last.config.as_ref().is_some_and(|config| {
@@ -2063,11 +2662,52 @@ impl Render for AgentPanel {
             } else {
                 tf(cx, k::context::TOKENS, &[("count", &used)]).to_string()
             };
+            let session_total: u64 = snap
+                .runs
+                .iter()
+                .map(|r| {
+                    let inp = r.usage.input_tokens.saturating_add(
+                        if r.config
+                            .as_ref()
+                            .is_some_and(|c| c.route.provider == dr_agent::Provider::Anthropic)
+                        {
+                            r.usage
+                                .cached_input_tokens
+                                .saturating_add(r.usage.cache_write_tokens)
+                        } else {
+                            0
+                        },
+                    );
+                    inp.saturating_add(r.usage.output_tokens)
+                })
+                .sum();
+            let session_summary = (session_total > 0).then(|| {
+                format!(
+                    "{} {}",
+                    t(cx, k::usage::SESSION),
+                    format_compact_tokens(session_total)
+                )
+            });
             footer = footer.child(
                 div()
-                    .id("agent-context-usage")
+                    .flex()
+                    .items_center()
+                    .justify_between()
+                    .gap(px(8.))
+                    .font_role(Role::Index)
+                    .type_px(theme.scale.caption, theme.scale.line_caption)
                     .text_color(p.ink(3).solid())
-                    .child(label),
+                    .child(
+                        div()
+                            .id("agent-context-usage")
+                            .cursor_pointer()
+                            .hover(|st| st.text_color(p.ink(1).solid()))
+                            .on_click(cx.listener(|panel, _, _, cx| {
+                                panel.toggle_context_modal(cx);
+                            }))
+                            .child(label),
+                    )
+                    .when_some(session_summary, |el, s| el.child(s)),
             );
         }
         footer = footer
@@ -2130,15 +2770,36 @@ impl Render for AgentPanel {
                         .on_click(cx.listener(|panel, _, _, cx| panel.send(cx))),
                     ),
             );
+        let scrolled_up = !self.show_list
+            && self.continuity.shown.is_none()
+            && self.scroll.max_offset().y + self.scroll.offset().y > px(80.);
+        let context_modal = self.context_modal(window, cx);
         root.child(
             div()
-                .id("agent-transcript")
+                .relative()
                 .flex_1()
                 .min_h_0()
-                .overflow_y_scroll()
-                .track_scroll(&self.scroll)
-                .p(px(14.))
-                .child(content),
+                .child(
+                    div()
+                        .id("agent-transcript")
+                        .size_full()
+                        .overflow_y_scroll()
+                        .track_scroll(&self.scroll)
+                        .p(px(14.))
+                        .child(content),
+                )
+                .when(scrolled_up, |el| {
+                    el.child(
+                        div().absolute().bottom(px(10.)).right(px(14.)).child(
+                            Button::new("agent-jump-latest", t(cx, k::JUMP_LATEST))
+                                .small()
+                                .on_click(cx.listener(|panel, _, _, cx| {
+                                    panel.scroll.scroll_to_bottom();
+                                    cx.notify();
+                                })),
+                        ),
+                    )
+                }),
         )
         .when_some(error, |el, error| {
             el.child(
@@ -2149,7 +2810,107 @@ impl Render for AgentPanel {
             )
         })
         .child(footer)
+        .children(context_modal)
     }
+}
+
+fn format_compact_tokens(n: u64) -> String {
+    if n >= 1_000_000 {
+        format!("{:.2}M", n as f64 / 1_000_000.0)
+    } else if n >= 10_000 {
+        format!("{:.1}k", n as f64 / 1_000.0)
+    } else {
+        n.to_string()
+    }
+}
+
+fn format_duration_ms(ms: u64) -> String {
+    if ms < 1_000 {
+        format!("{ms}ms")
+    } else if ms < 60_000 {
+        format!("{:.1}s", ms as f64 / 1_000.0)
+    } else {
+        let secs = ms / 1_000;
+        format!("{}m{}s", secs / 60, secs % 60)
+    }
+}
+
+fn tool_call_summary(call: &dr_agent::ToolCall) -> (String, Option<String>) {
+    let name = data::tool_name(call).to_owned();
+    let args = if call.name == "call_tool" {
+        call.arguments.get("arguments").unwrap_or(&call.arguments)
+    } else {
+        &call.arguments
+    };
+    let preview = [
+        "title",
+        "name",
+        "query",
+        "find",
+        "prompt",
+        "objective",
+        "doc",
+        "id",
+    ]
+    .iter()
+    .find_map(|key| args.get(*key).and_then(|v| v.as_str()))
+    .map(str::trim)
+    .filter(|s| !s.is_empty())
+    .map(|s| {
+        let mut out: String = s.chars().take(36).collect();
+        if s.chars().count() > 36 {
+            out.push('…');
+        }
+        out
+    });
+    (name, preview)
+}
+
+fn paint_context_ring(percent: u64, track: gpui::Hsla, fill: gpui::Hsla) -> AnyElement {
+    let frac = (percent as f32 / 100.0).clamp(0.0, 1.0);
+    canvas(
+        |_, _, _| {},
+        move |bounds, _, window, _| {
+            let cx_pt = f32::from(bounds.origin.x) + f32::from(bounds.size.width) * 0.5;
+            let cy_pt = f32::from(bounds.origin.y) + f32::from(bounds.size.height) * 0.5;
+            let r = (f32::from(bounds.size.width).min(f32::from(bounds.size.height)) * 0.5 - 2.0)
+                .max(3.0);
+            let steps = 28usize;
+            let mut track_path = PathBuilder::stroke(px(2.0));
+            for i in 0..=steps {
+                let angle =
+                    (i as f32 / steps as f32) * std::f32::consts::TAU - std::f32::consts::FRAC_PI_2;
+                let pt = point(px(cx_pt + r * angle.cos()), px(cy_pt + r * angle.sin()));
+                if i == 0 {
+                    track_path.move_to(pt);
+                } else {
+                    track_path.line_to(pt);
+                }
+            }
+            if let Ok(built) = track_path.build() {
+                window.paint_path(built, track);
+            }
+            if frac > 0.005 {
+                let arc_steps = ((steps as f32 * frac).ceil() as usize).max(2);
+                let mut fill_path = PathBuilder::stroke(px(2.2));
+                for i in 0..=arc_steps {
+                    let t = (i as f32 / arc_steps as f32) * frac;
+                    let angle = t * std::f32::consts::TAU - std::f32::consts::FRAC_PI_2;
+                    let pt = point(px(cx_pt + r * angle.cos()), px(cy_pt + r * angle.sin()));
+                    if i == 0 {
+                        fill_path.move_to(pt);
+                    } else {
+                        fill_path.line_to(pt);
+                    }
+                }
+                if let Ok(built) = fill_path.build() {
+                    window.paint_path(built, fill);
+                }
+            }
+        },
+    )
+    .size(px(18.0))
+    .into_any_element()
 }
 
 /// Why an image cannot go with the message, in the author's language.
@@ -2226,26 +2987,130 @@ impl Render for PanelHead {
                 )
                 .into_any_element();
         }
+        let theme = Theme::of(window, cx);
+        let p = theme.palette;
+        let state = self.panel.read(cx);
+        let renaming_field = state.renaming.as_ref().map(|(_, f, _)| f.clone());
+        let selected_id = state.selected.clone();
+        let current_title = state.current_title(cx);
+        let metrics = state.context_metrics();
         let panel = self.panel.clone();
         let new = self.panel.clone();
+        let rename_panel = self.panel.clone();
+        let ring_panel = self.panel.clone();
+        let rename_tip = t(cx, k::toolbar::RENAME_TITLE);
+        let history_tip = t(cx, k::toolbar::HISTORY_TITLE);
+        let new_tip = t(cx, k::toolbar::NEW_TITLE);
+
+        let title_el: AnyElement = if let Some(field) = renaming_field {
+            div().flex_1().min_w_0().child(field).into_any_element()
+        } else {
+            let title_str = current_title.to_string();
+            let can_rename = selected_id.is_some();
+            div()
+                .id("agent-head-title")
+                .flex_1()
+                .min_w_0()
+                .truncate()
+                .px(px(4.))
+                .py(px(2.))
+                .rounded(px(radius::SM))
+                .text_color(p.ink(1).solid())
+                .when(can_rename, |el| {
+                    let tip = rename_tip.clone();
+                    el.cursor_pointer()
+                        .hover(move |st| st.bg(p.ink(1).alpha(0.05)))
+                        .tooltip(tooltip(tip))
+                        .on_click(move |_, window, cx| {
+                            if let Some(id) = selected_id.clone() {
+                                let title = title_str.clone();
+                                rename_panel
+                                    .update(cx, |p, cx| p.begin_rename(id, title, window, cx));
+                            }
+                        })
+                })
+                .child(current_title)
+                .into_any_element()
+        };
+
+        let ring_el: Option<AnyElement> =
+            metrics.map(|(used, limit, percent, output_res, safety)| {
+                let ring_color = if percent >= 88 {
+                    p.danger.solid()
+                } else if percent >= 70 {
+                    gpui::hsla(36.0 / 360.0, 0.85, 0.48, 1.0)
+                } else {
+                    p.accent.solid()
+                };
+                let tip = tf(
+                    cx,
+                    k::context::TOOLTIP,
+                    &[
+                        ("used", &format_compact_tokens(used)),
+                        ("limit", &format_compact_tokens(limit)),
+                        ("percent", &percent),
+                        ("output", &format_compact_tokens(output_res)),
+                        ("safety", &format_compact_tokens(safety)),
+                    ],
+                );
+                div()
+                    .id("agent-context-ring")
+                    .debug_selector(|| "agent-context-ring".into())
+                    .role(gpui::Role::Button)
+                    .aria_label(t(cx, k::context::PROGRESS_ARIA))
+                    .flex_none()
+                    .size(px(24.0))
+                    .rounded_full()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .cursor_pointer()
+                    .hover(move |st| st.bg(p.ink(1).alpha(0.06)))
+                    .tooltip(tooltip(tip))
+                    .on_click(move |_, _, cx| {
+                        ring_panel.update(cx, |p, cx| p.toggle_context_modal(cx));
+                    })
+                    .child(paint_context_ring(
+                        percent,
+                        p.ink(1).alpha(0.14),
+                        ring_color,
+                    ))
+                    .into_any_element()
+            });
+
         div()
             .flex()
             .items_center()
-            .justify_between()
+            .gap(px(4.))
             .w_full()
+            .min_w_0()
+            .child(title_el)
+            .children(ring_el)
             .child(
-                Button::new("agent-chat-list", t(cx, k::toolbar::HISTORY))
-                    .text()
-                    .small()
-                    .on_click(move |_, _, cx| {
-                        panel.update(cx, |p, cx| p.show_history(!p.show_list, cx))
-                    }),
+                div()
+                    .id("agent-chat-list-tip")
+                    .tooltip(tooltip(history_tip))
+                    .child(
+                        Button::new("agent-chat-list", t(cx, k::toolbar::HISTORY))
+                            .text()
+                            .small()
+                            .on_click(move |_, _, cx| {
+                                panel.update(cx, |p, cx| p.show_history(!p.show_list, cx))
+                            }),
+                    ),
             )
             .child(
-                Button::new("agent-new-chat", t(cx, k::NEW_CONVERSATION))
-                    .text()
-                    .small()
-                    .on_click(move |_, _, cx| new.update(cx, |p, cx| p.new_conversation(cx))),
+                div()
+                    .id("agent-new-chat-tip")
+                    .tooltip(tooltip(new_tip))
+                    .child(
+                        Button::new("agent-new-chat", t(cx, k::NEW_CONVERSATION))
+                            .text()
+                            .small()
+                            .on_click(move |_, _, cx| {
+                                new.update(cx, |p, cx| p.new_conversation(cx))
+                            }),
+                    ),
             )
             .into_any_element()
     }

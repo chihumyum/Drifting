@@ -29,7 +29,37 @@
       "modelUnavailable": "The selected model is absent from the current catalog. Choose another model."
     },
     "context": {
-      "tokens": "{{count}} tokens"
+      "allocation": {
+        "free": "Free space",
+        "input": "Current input",
+        "output": "Output reserve",
+        "safety": "Safety margin",
+        "title": "Window allocation"
+      },
+      "breakdownTitle": "What the current input contains",
+      "categories": {
+        "assistant_messages": "Agent messages",
+        "compaction_summaries": "Compaction summaries",
+        "provider_overhead": "Provider framing",
+        "system_prompt": "System prompt",
+        "task_constraints": "Task constraints",
+        "task_plan": "Task plan",
+        "thinking": "Thinking",
+        "tool_calls": "Tool calls",
+        "tool_definitions": "Tool definitions",
+        "tool_results": "Tool results",
+        "user_messages": "User messages"
+      },
+      "compaction": "Compaction",
+      "compactionDetail": "Saved {{saved}} · {{stages}} · {{count}} summaries",
+      "compactionNone": "Compaction was not needed for this call",
+      "description": "Based on the latest verified context plan actually sent to the model, not cumulative token usage for the whole chat.",
+      "progressAria": "Current Agent context usage",
+      "sources": "{{count}} sources",
+      "summary": "{{used}} / {{limit}} ({{percent}}%)",
+      "title": "Context usage",
+      "tokens": "{{count}} tokens",
+      "tooltip": "{{used}} / {{limit}} tokens ({{percent}}%)\nOutput reserve: {{output}} · safety margin: {{safety}}"
     },
     "control": {
       "allow": {
@@ -44,9 +74,13 @@
       "start": "Send Agent a message to start. It can read and write this project's chapters, elements, and relations."
     },
     "history": {
+      "delete": "Delete chat",
       "empty": "No chat history yet",
+      "loadEarlier": "Load earlier messages",
+      "rename": "Rename",
       "untitled": "Untitled"
     },
+    "jumpLatest": "Jump to latest",
     "newConversation": "New chat",
     "onboarding": {
       "connect": "Connect a model",
@@ -58,7 +92,8 @@
     "pending": {
       "cancelling": "Stopping…",
       "committing": "Saving…",
-      "now": "Thinking…"
+      "now": "Thinking…",
+      "withSeconds": "Thinking · {{seconds}}s"
     },
     "setup": {
       "openSettings": "Open settings"
@@ -70,17 +105,31 @@
       "done": "Thinking trace",
       "streaming": "Thinking…"
     },
+    "todos": {
+      "plan": "Plan"
+    },
     "tool": {
       "result": "Result"
     },
     "toolbar": {
-      "history": "History"
+      "history": "History",
+      "historyTitle": "Chat history",
+      "newTitle": "Start a new chat",
+      "renameTitle": "Rename the current chat"
     },
     "turnChanges": "Turn changes",
     "unavailable": "Agent is unavailable.",
+    "usage": {
+      "inputDetail": "Input {{input}} (cache read {{cacheRead}} · cache write {{cacheWrite}} · net {{net}})",
+      "outputTurns": "Output {{output}} · turns {{turns}}",
+      "session": "Session",
+      "toolsCount": "{{count}} tools",
+      "workedFor": "Agent worked {{duration}}"
+    },
     "workingMemory": {
       "agent": "Agent",
       "author": "author",
+      "budgetTitle": "No limit; the Agent is asked to consolidate once past 20k and 40k tokens, and on every turn past 80k",
       "clear": "Clear",
       "clearConfirm": "Clear Working Memory? This does not delete manuscript content, long-term rules, or chat history.",
       "cleared": "Working memory cleared.",
@@ -170,6 +219,8 @@
     "forgotPassword": "Forgot password?",
     "hasAccount": "Already have an account?",
     "legal": {
+      "agree": "By signing up, you agree to the",
+      "and": "and",
       "consent": "By continuing, you agree to {{terms}}.",
       "consentTerms": "the terms",
       "privacy": "Privacy Policy",
@@ -183,6 +234,12 @@
     "resend": "Resend code",
     "sendCode": "Send code",
     "signIn": "Sign in",
+    "signOut": {
+      "now": "Sign out now",
+      "pending": "Changes on this Mac the cloud doesn't have yet: {{count}}. If you sign out now, they stay on this Mac and upload when you sign back in to this account.",
+      "title": "Sign out",
+      "uploadFirst": "Upload, then sign out"
+    },
     "signUp": "Sign up",
     "signingIn": "Signing in…",
     "social": {
@@ -859,7 +916,8 @@
     },
     "clear": "Clear",
     "cloudSync": {
-      "source": "Cloud sync"
+      "source": "Cloud sync",
+      "syncing": "Syncing…"
     },
     "crashFollowUp": {
       "source": "Drifting"
@@ -893,6 +951,21 @@
       "minutesAgo": "{{count}} min ago"
     },
     "title": "Notifications"
+  },
+  "paperSync": {
+    "failing": "Cloud sync failed",
+    "notStarted": "Sync could not start",
+    "notStartedDetail": "Your writing stays saved on this device.",
+    "offline": "Offline",
+    "offlineDetail": "You can keep writing locally.",
+    "openSettings": "Open Settings",
+    "quota": "Hosted storage is full",
+    "reauth": "Session expired",
+    "reauthDetail": "Sign in to the same account again.",
+    "retry": "Retry",
+    "retrying": "Sync could not finish",
+    "retryingDetail": "Your writing is saved on this device. Retrying automatically.",
+    "signIn": "Sign in again"
   },
   "plotGrid": {
     "addColumnShort": "Column",
@@ -1261,6 +1334,7 @@
         "args": "Arguments (one per line)",
         "command": "Absolute executable path",
         "cwd": "Absolute working directory (optional)",
+        "deleteConfirm": "Delete MCP server “{{name}}”? Its durable grants will also be revoked.",
         "disable": "Disable",
         "editTitle": "Edit MCP server",
         "empty": "This project has no MCP servers.",
@@ -1270,6 +1344,7 @@
         "noProject": "Open a project to configure MCP.",
         "notChecked": "Not connected yet",
         "policy": {
+          "askWrite": "Write · ask",
           "disabled": "Disabled"
         },
         "publicEnv": "Public environment (NAME=value per line)",
@@ -1311,6 +1386,26 @@
       "iterationOption": "{{value}} iterations",
       "unlimited": "Unlimited",
       "unlimitedHint": "Unlimited sets no model-call limit. You can stop the turn manually."
+    },
+    "agentMemory": {
+      "title": "Project memory"
+    },
+    "agentUsage": {
+      "all": "All time",
+      "clearConfirm": "Clear all conversation history? This will remove {{count}} Agent conversations from this project.",
+      "clearHistory": "Clear history",
+      "conversationsTurns": "Conversations / turns",
+      "deleteConversation": "Delete this conversation",
+      "history": "Conversation history",
+      "historyDesc": "All Agent conversations in this project. Delete is soft delete and syncs with the right rail History without affecting other projects.",
+      "month": "This month",
+      "noHistory": "No conversations yet. Send Agent a message to start.",
+      "noProjectHistory": "Open a project to manage conversation history.",
+      "noProjectUsage": "Open a project to view Agent usage.",
+      "tokenCard": "{{scope}} Token",
+      "untitled": "Untitled",
+      "usage": "Usage",
+      "usageDesc": "How many tokens Agent used in this project, recorded from each returned turn (input includes cached reads). View by this month or all time."
     },
     "appearance": {
       "accent": "Accent color",
@@ -1479,19 +1574,37 @@
       "connect_errors": {
         "cancelled": "Cancelled."
       },
+      "crop_confirm": "Use this avatar",
+      "crop_description": "Drag the image or use arrow keys to position it, then adjust the zoom.",
+      "crop_title": "Adjust avatar",
+      "crop_zoom": "Zoom",
       "current_password": "Current password",
       "description": "Writing is saved on this device first. Connect an account to sync projects between your devices.",
+      "disconnect": "Disconnect sync",
+      "disconnect_anyway": "Disconnect anyway",
+      "disconnect_description": "Uploads the changes only this Mac has, then disconnects. Local projects and cloud copies are retained.",
+      "disconnect_now": "Disconnect now",
+      "disconnect_unuploaded": "{{count}} changes have not been uploaded. After disconnecting they stay on this Mac only.",
       "display_name": "Display name",
+      "enabled": "Hosted sync connected",
+      "last_synced": "Last completed sync: {{time}}",
       "library_switch_failed": "Couldn't switch libraries",
       "new_password": "New password",
       "no_account": "Not signed in",
+      "not_started": "Sync could not start. Your writing stays saved on this device; reopen Drifting to try again.",
       "password_description": "8–128 characters.",
       "password_saved": "Password changed. Other devices need to sign in again.",
       "password_sessions": "Changing your password signs out other devices. This device stays signed in.",
       "password_title": "Password",
+      "pause": "Pause",
+      "paused": "Sync paused",
+      "pending": "Syncing or waiting for sync to finish.",
       "profile_saved": "Profile saved.",
       "profile_title": "Profile",
+      "quota_blocked": "Hosted storage is full and an attachment could not be uploaded, so this project cannot sync further for now. Deleting attachments or projects you no longer need resumes it; local content is unaffected.",
       "remove_avatar": "Remove",
+      "resume": "Resume",
+      "retrying": "Sync could not finish. Writing remains saved locally; retrying automatically.",
       "save_profile": "Save profile",
       "session": {
         "checking": "Checking account…",
@@ -1502,6 +1615,10 @@
       },
       "sign_in": "Sign in / Register",
       "sign_out": "Sign out",
+      "storage": "Hosted storage",
+      "storage_description": "{{used}} of {{quota}} used. Attachments count toward it; writing and structure are not limited.",
+      "sync_now": "Sync now",
+      "sync_title": "Hosted sync",
       "title": "Account and hosted sync",
       "working": "Working…"
     },

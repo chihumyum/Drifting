@@ -744,28 +744,128 @@ impl AgentPanel {
         if self.conversations.is_empty() && old.is_empty() {
             return column.child(t(cx, k::history::EMPTY)).into_any_element();
         }
-        let items: Vec<(ConversationId, String)> = self
+        let items: Vec<(ConversationId, String, bool, bool, i64)> = self
             .conversations
             .iter()
-            .map(|item| (item.id.clone(), new_title(item)))
+            .map(|item| {
+                (
+                    item.id.clone(),
+                    new_title(item),
+                    self.selected.as_ref() == Some(&item.id),
+                    !item.active.is_empty(),
+                    item.last_created_ms,
+                )
+            })
             .collect();
-        for (id, title) in items {
-            let row = Row {
-                selector: format!("agent-history-new-{id}"),
-                title: if title.is_empty() {
-                    untitled.clone()
-                } else {
-                    title.into()
-                },
-                hits: Vec::new(),
-                line: None,
+        let theme = Theme::of(window, cx);
+        let (p, s) = (theme.palette, theme.scale);
+        for (id, title, is_current, is_running, last_ms) in items {
+            let display_title: SharedString = if title.is_empty() {
+                untitled.clone()
+            } else {
+                title.clone().into()
             };
-            column = column.child(self.row(
-                row,
-                move |panel, _, cx| panel.select_conversation(id.clone(), cx),
-                window,
-                cx,
-            ));
+            let date_label = (last_ms > 0).then(|| date(Some(last_ms))).flatten();
+            let open_id = id.clone();
+            let rename_id = id.clone();
+            let rename_title = title.clone();
+            let delete_id = id.clone();
+            let selector = format!("agent-history-new-{id}");
+            column = column.child(
+                div()
+                    .id(SharedString::from(selector.clone()))
+                    .debug_selector(move || selector)
+                    .w_full()
+                    .min_w_0()
+                    .flex()
+                    .flex_row()
+                    .items_center()
+                    .gap(px(4.0))
+                    .px(px(6.))
+                    .py(px(5.))
+                    .rounded(px(radius::SM))
+                    .when(is_current, |el| el.bg(p.accent.alpha(0.08)))
+                    .hover(move |st| st.bg(p.ink(1).alpha(0.05)))
+                    .child(
+                        div()
+                            .id(SharedString::from(format!("agent-history-open-{id}")))
+                            .flex_1()
+                            .min_w_0()
+                            .cursor_pointer()
+                            .role(gpui::Role::Button)
+                            .aria_label(display_title.clone())
+                            .flex()
+                            .flex_col()
+                            .gap(px(1.0))
+                            .on_click(cx.listener(move |panel, _, _, cx| {
+                                panel.select_conversation(open_id.clone(), cx)
+                            }))
+                            .child(
+                                div()
+                                    .flex()
+                                    .items_center()
+                                    .gap(px(5.0))
+                                    .min_w_0()
+                                    .when(is_running, |el| {
+                                        el.child(
+                                            div()
+                                                .flex_none()
+                                                .size(px(6.0))
+                                                .rounded_full()
+                                                .bg(p.accent.solid()),
+                                        )
+                                    })
+                                    .child(
+                                        div()
+                                            .flex_1()
+                                            .min_w_0()
+                                            .truncate()
+                                            .text_color(if is_current {
+                                                p.ink(1).solid()
+                                            } else {
+                                                p.ink(2).solid()
+                                            })
+                                            .child(display_title),
+                                    ),
+                            )
+                            .when_some(date_label, |el, d| {
+                                el.child(
+                                    div()
+                                        .font_role(Role::Index)
+                                        .type_px(s.caption, s.line_caption)
+                                        .text_color(p.ink(4).solid())
+                                        .child(d),
+                                )
+                            }),
+                    )
+                    .child(
+                        IconButton::new(
+                            SharedString::from(format!("agent-history-rename-{id}")),
+                            Icon::Edit,
+                        )
+                        .label(t(cx, k::history::RENAME))
+                        .on_click(cx.listener(
+                            move |panel, _, window, cx| {
+                                panel.begin_rename(
+                                    rename_id.clone(),
+                                    rename_title.clone(),
+                                    window,
+                                    cx,
+                                );
+                            },
+                        )),
+                    )
+                    .child(
+                        IconButton::new(
+                            SharedString::from(format!("agent-history-delete-{id}")),
+                            Icon::Trash,
+                        )
+                        .label(t(cx, k::history::DELETE))
+                        .on_click(cx.listener(move |panel, _, _, cx| {
+                            panel.delete_conversation(delete_id.clone(), cx);
+                        })),
+                    ),
+            );
         }
         if !old.is_empty() {
             column = column.child(self.section(old.len(), true, window, cx));

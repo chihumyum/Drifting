@@ -29,7 +29,37 @@
       "modelUnavailable": "Le modèle sélectionné ne figure pas au catalogue actuel. Choisissez-en un autre."
     },
     "context": {
-      "tokens": "{{count}} tokens"
+      "allocation": {
+        "free": "Espace libre",
+        "input": "Entrée actuelle",
+        "output": "Réserve de sortie",
+        "safety": "Marge de sécurité",
+        "title": "Répartition de la fenêtre"
+      },
+      "breakdownTitle": "Contenu de l’entrée actuelle",
+      "categories": {
+        "assistant_messages": "Messages d’Agent",
+        "compaction_summaries": "Résumés de condensation",
+        "provider_overhead": "Habillage du fournisseur",
+        "system_prompt": "Instructions système",
+        "task_constraints": "Contraintes de tâche",
+        "task_plan": "Plan de tâche",
+        "thinking": "Raisonnement",
+        "tool_calls": "Appels d’outils",
+        "tool_definitions": "Définitions d’outils",
+        "tool_results": "Résultats d’outils",
+        "user_messages": "Messages utilisateur"
+      },
+      "compaction": "Condensation",
+      "compactionDetail": "{{saved}} économisés · {{stages}} · {{count}} résumés",
+      "compactionNone": "Cet appel ne nécessitait pas de condensation",
+      "description": "Basé sur le dernier plan de contexte vérifié réellement envoyé au modèle, pas sur le total cumulé de la conversation.",
+      "progressAria": "Utilisation actuelle du contexte d’Agent",
+      "sources": "{{count}} sources",
+      "summary": "{{used}} / {{limit}} ({{percent}} %)",
+      "title": "Utilisation du contexte",
+      "tokens": "{{count}} tokens",
+      "tooltip": "{{used}} / {{limit}} tokens ({{percent}} %)\nRéserve de sortie : {{output}} · Marge de sécurité : {{safety}}"
     },
     "control": {
       "allow": {
@@ -44,9 +74,13 @@
       "start": "Envoyez un message à Agent pour commencer. Il peut lire et modifier les chapitres, éléments et relations du projet."
     },
     "history": {
+      "delete": "Supprimer la conversation",
       "empty": "Aucun historique pour le moment",
+      "loadEarlier": "Charger les messages précédents",
+      "rename": "Renommer",
       "untitled": "Sans titre"
     },
+    "jumpLatest": "Aller au plus récent",
     "newConversation": "Nouvelle conversation",
     "onboarding": {
       "connect": "Connecter un modèle",
@@ -58,7 +92,8 @@
     "pending": {
       "cancelling": "Arrêt en cours…",
       "committing": "Enregistrement…",
-      "now": "Réflexion…"
+      "now": "Réflexion…",
+      "withSeconds": "Réflexion · {{seconds}} s"
     },
     "setup": {
       "openSettings": "Ouvrir les réglages"
@@ -70,17 +105,31 @@
       "done": "Trace du raisonnement",
       "streaming": "Réflexion…"
     },
+    "todos": {
+      "plan": "Forfait"
+    },
     "tool": {
       "result": "Résultat"
     },
     "toolbar": {
-      "history": "Historique"
+      "history": "Historique",
+      "historyTitle": "Historique des conversations",
+      "newTitle": "Démarrer une conversation",
+      "renameTitle": "Renommer la conversation actuelle"
     },
     "turnChanges": "Modifications du tour",
     "unavailable": "Agent est indisponible.",
+    "usage": {
+      "inputDetail": "Entrée {{input}} (cache lu {{cacheRead}} · écrit {{cacheWrite}} · net {{net}})",
+      "outputTurns": "Sortie {{output}} · tours {{turns}}",
+      "session": "Session",
+      "toolsCount": "{{count}} outils",
+      "workedFor": "Agent a travaillé {{duration}}"
+    },
     "workingMemory": {
       "agent": "Agent",
       "author": "auteur",
+      "budgetTitle": "Sans limite ; consolidation demandée après 20k et 40k tokens, puis à chaque tour au-delà de 80k",
       "clear": "Effacer",
       "clearConfirm": "Effacer la mémoire de travail ? Le manuscrit, les règles à long terme et l’historique ne seront pas supprimés.",
       "cleared": "Mémoire de travail effacée.",
@@ -172,6 +221,8 @@
     "forgotPassword": "Mot de passe oublié ?",
     "hasAccount": "Déjà un compte ?",
     "legal": {
+      "agree": "En vous inscrivant, vous acceptez les",
+      "and": "et",
       "consent": "En continuant, vous acceptez {{terms}}.",
       "consentTerms": "les conditions",
       "privacy": "Politique de confidentialité",
@@ -185,6 +236,12 @@
     "resend": "Renvoyer le code",
     "sendCode": "Envoyer le code",
     "signIn": "Se connecter",
+    "signOut": {
+      "now": "Se déconnecter maintenant",
+      "pending": "{{count}} modifications de ce Mac manquent dans le cloud. En vous déconnectant, elles restent ici et seront envoyées à votre retour sur ce compte.",
+      "title": "Se déconnecter",
+      "uploadFirst": "Envoyer puis se déconnecter"
+    },
     "signUp": "S’inscrire",
     "signingIn": "Connexion…",
     "social": {
@@ -863,7 +920,8 @@
     },
     "clear": "Effacer",
     "cloudSync": {
-      "source": "Synchronisation cloud"
+      "source": "Synchronisation cloud",
+      "syncing": "Synchronisation…"
     },
     "crashFollowUp": {
       "source": "Drifting"
@@ -898,6 +956,21 @@
       "minutesAgo": "il y a {{count}} min"
     },
     "title": "Notifications"
+  },
+  "paperSync": {
+    "failing": "Échec de synchronisation cloud",
+    "notStarted": "Impossible de démarrer la synchronisation",
+    "notStartedDetail": "Vos écrits restent enregistrés sur cet appareil.",
+    "offline": "Hors ligne",
+    "offlineDetail": "Vous pouvez continuer à écrire en local.",
+    "openSettings": "Ouvrir les réglages",
+    "quota": "Stockage Hosted plein",
+    "reauth": "Session expirée",
+    "reauthDetail": "Reconnectez-vous au même compte.",
+    "retry": "Réessayer",
+    "retrying": "Synchronisation inachevée",
+    "retryingDetail": "Vos écrits sont enregistrés sur cet appareil. Nouvelle tentative automatique.",
+    "signIn": "Se reconnecter"
   },
   "plotGrid": {
     "addColumnShort": "Colonne",
@@ -1271,6 +1344,7 @@
         "args": "Arguments (un par ligne)",
         "command": "Chemin absolu de l’exécutable",
         "cwd": "Répertoire de travail absolu (facultatif)",
+        "deleteConfirm": "Supprimer le serveur MCP « {{name}} » ? Ses autorisations persistantes seront aussi révoquées.",
         "disable": "Désactiver",
         "editTitle": "Modifier le serveur MCP",
         "empty": "Ce projet n’a aucun serveur MCP.",
@@ -1280,6 +1354,7 @@
         "noProject": "Ouvrez un projet pour configurer MCP.",
         "notChecked": "Pas encore connecté",
         "policy": {
+          "askWrite": "Écriture · demander",
           "disabled": "Désactivé"
         },
         "publicEnv": "Variables publiques (NAME=value par ligne)",
@@ -1321,6 +1396,26 @@
       "iterationOption": "{{value}} itérations",
       "unlimited": "Illimité",
       "unlimitedHint": "Sans limite ne fixe aucun maximum d’appels au modèle. Vous pouvez arrêter le tour manuellement."
+    },
+    "agentMemory": {
+      "title": "Mémoire du projet"
+    },
+    "agentUsage": {
+      "all": "Toute la période",
+      "clearConfirm": "Effacer tout l’historique ? {{count}} conversations d’Agent de ce projet seront supprimées.",
+      "clearHistory": "Effacer l’historique",
+      "conversationsTurns": "Conversations / tours",
+      "deleteConversation": "Supprimer cette conversation",
+      "history": "Historique des conversations",
+      "historyDesc": "Toutes les conversations d’Agent du projet. La suppression est réversible et reflétée dans l’historique à droite, sans affecter les autres projets.",
+      "month": "Ce mois-ci",
+      "noHistory": "Aucune conversation. Envoyez un message à Agent pour commencer.",
+      "noProjectHistory": "Ouvrez un projet pour gérer l’historique des conversations.",
+      "noProjectUsage": "Ouvrez un projet pour voir l’utilisation d’Agent.",
+      "tokenCard": "Tokens · {{scope}}",
+      "untitled": "Sans titre",
+      "usage": "Utilisation",
+      "usageDesc": "Tokens utilisés par Agent dans ce projet, relevés à chaque tour retourné ; l’entrée inclut les lectures du cache. Affichez ce mois ou toute la période."
     },
     "appearance": {
       "accent": "Couleur d’accent",
@@ -1489,19 +1584,37 @@
       "connect_errors": {
         "cancelled": "Annulé."
       },
+      "crop_confirm": "Utiliser cet avatar",
+      "crop_description": "Faites glisser l’image ou utilisez les flèches, puis réglez le zoom.",
+      "crop_title": "Ajuster l’avatar",
+      "crop_zoom": "Zoom",
       "current_password": "Mot de passe actuel",
       "description": "Vos textes sont d’abord enregistrés sur cet appareil. Connectez un compte pour synchroniser vos projets entre vos appareils.",
+      "disconnect": "Déconnecter la synchronisation",
+      "disconnect_anyway": "Déconnecter quand même",
+      "disconnect_description": "Téléverse les modifications présentes uniquement sur ce Mac, puis déconnecte. Les projets locaux et copies cloud sont conservés.",
+      "disconnect_now": "Déconnecter maintenant",
+      "disconnect_unuploaded": "{{count}} modifications non téléversées. Après déconnexion, elles resteront uniquement sur ce Mac.",
       "display_name": "Nom affiché",
+      "enabled": "Synchronisation Hosted connectée",
+      "last_synced": "Dernière synchronisation complète : {{time}}",
       "library_switch_failed": "Impossible de changer de bibliothèque",
       "new_password": "Nouveau mot de passe",
       "no_account": "Non connecté",
+      "not_started": "Impossible de démarrer la synchronisation. Vos écrits restent sur l’appareil ; rouvrez Drifting.",
       "password_description": "8 à 128 caractères.",
       "password_saved": "Mot de passe modifié. Les autres appareils doivent se reconnecter.",
       "password_sessions": "Changer le mot de passe déconnecte les autres appareils. Celui-ci reste connecté.",
       "password_title": "Mot de passe",
+      "pause": "Mettre en pause",
+      "paused": "Synchronisation en pause",
+      "pending": "Synchronisation en cours ou en attente de fin.",
       "profile_saved": "Profil enregistré.",
       "profile_title": "Profil",
+      "quota_blocked": "Hosted est plein ; une pièce jointe n’a pas pu être envoyée, bloquant la suite de la synchronisation. Supprimez les pièces jointes ou projets inutiles pour reprendre. Le contenu local est préservé.",
       "remove_avatar": "Retirer",
+      "resume": "Reprendre",
+      "retrying": "Synchronisation inachevée. Vos textes sont enregistrés en local ; nouvelle tentative automatique.",
       "save_profile": "Enregistrer le profil",
       "session": {
         "checking": "Vérification du compte…",
@@ -1512,6 +1625,10 @@
       },
       "sign_in": "Se connecter / S’inscrire",
       "sign_out": "Se déconnecter",
+      "storage": "Stockage Hosted",
+      "storage_description": "{{used}} utilisés sur {{quota}}. Les pièces jointes comptent ; texte et structure sans limite.",
+      "sync_now": "Synchroniser maintenant",
+      "sync_title": "Synchronisation Hosted",
       "title": "Compte et synchronisation Hosted",
       "working": "En cours…"
     },

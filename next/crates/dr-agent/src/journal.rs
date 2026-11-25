@@ -88,6 +88,18 @@ impl Unflushed {
 /// incremental readers supply their last accepted cursor and only the new
 /// suffix is decoded. The already accepted prefix is immutable.
 pub fn events(lib: &Library, session: &str, after_seq: i64) -> Result<Vec<JournalEvent>> {
+    Ok(events_with_timestamps(lib, session, after_seq)?
+        .into_iter()
+        .map(|(event, _)| event)
+        .collect())
+}
+
+/// Same as [`events`], also returning each journal row's durable `ts` (epoch ms).
+pub fn events_with_timestamps(
+    lib: &Library,
+    session: &str,
+    after_seq: i64,
+) -> Result<Vec<(JournalEvent, i64)>> {
     if after_seq < 0 {
         return Err(Error::Protocol("negative journal cursor".into()));
     }
@@ -110,12 +122,15 @@ pub fn events(lib: &Library, session: &str, after_seq: i64) -> Result<Vec<Journa
             return Err(Error::Protocol("journal repeats Started".into()));
         }
         previous = row.seq;
-        result.push(JournalEvent {
-            session: row.session,
-            seq: row.seq,
-            turn: value.turn,
-            event: value.event,
-        });
+        result.push((
+            JournalEvent {
+                session: row.session,
+                seq: row.seq,
+                turn: value.turn,
+                event: value.event,
+            },
+            row.ts,
+        ));
     }
     Ok(result)
 }

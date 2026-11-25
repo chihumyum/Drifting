@@ -36,6 +36,7 @@ pub struct ChatSnapshot {
     pub entries: Vec<ConversationEntry>,
     pub messages: Vec<ChatMessage>,
     pub runs: Vec<RunSnapshot>,
+    pub context: Option<dr_agent::context::Checkpoint>,
 }
 
 /// Presentation order keeps the synchronized transcript untouched and places
@@ -219,6 +220,9 @@ pub struct RunSnapshot {
     pub error: Option<String>,
     pub model_failure: Option<ModelFailure>,
     pub last_seq: i64,
+    pub started_ms: Option<i64>,
+    pub finished_ms: Option<i64>,
+    pub rounds: u32,
 }
 
 /// A deterministic, sequence-checked reducer. A view may rebuild it or feed
@@ -249,6 +253,9 @@ impl ChatState {
                 error: None,
                 model_failure: None,
                 last_seq: 0,
+                started_ms: None,
+                finished_ms: None,
+                rounds: 0,
             },
             entries: Vec::new(),
         }
@@ -262,6 +269,20 @@ impl ChatState {
     /// The controller merges them by immutable event id; it never writes them.
     pub fn entries(&self) -> &[ConversationEntry] {
         &self.entries
+    }
+
+    pub fn apply_with_ts(&mut self, row: &JournalEvent, ts: i64) -> Result<(), String> {
+        let was_seq = self.run.last_seq;
+        self.apply(row)?;
+        if self.run.last_seq > was_seq && ts > 0 {
+            if self.run.started_ms.is_none() {
+                self.run.started_ms = Some(ts);
+            }
+            if matches!(&row.event, Event::StateChanged { state } if state.is_terminal()) {
+                self.run.finished_ms = Some(ts);
+            }
+        }
+        Ok(())
     }
 
     pub fn apply(&mut self, row: &JournalEvent) -> Result<(), String> {
@@ -324,6 +345,7 @@ impl ChatState {
             Event::AssistantMessage { message } => {
                 self.run.usage = message.usage;
                 self.run.live_message = None;
+                self.run.rounds = self.run.rounds.saturating_add(1);
             }
             Event::ProviderTool { activity } => {
                 self.run

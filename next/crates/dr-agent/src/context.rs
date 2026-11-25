@@ -17,6 +17,28 @@ pub struct Contribution {
     pub text: String,
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ContextBreakdown {
+    pub window: u64,
+    pub output_reserve: u64,
+    pub safety_margin: u64,
+    pub system_prompt: u64,
+    pub tool_definitions: u64,
+    pub provider_overhead: u64,
+    pub task_plan: u64,
+    pub task_constraints: u64,
+    pub user_messages: u64,
+    pub assistant_messages: u64,
+    pub thinking: u64,
+    pub tool_calls: u64,
+    pub tool_results: u64,
+    pub images: u64,
+    pub compaction_summaries: u64,
+    pub compacted_count: usize,
+    pub compacted_tokens_saved: u64,
+    pub source_count: usize,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Checkpoint {
     pub version: u32,
@@ -29,9 +51,12 @@ pub struct Checkpoint {
     pub projection_hash: String,
     pub estimated_input_tokens: u64,
     pub input_budget: u64,
+    #[serde(default)]
+    pub breakdown: ContextBreakdown,
 }
 
 #[derive(Clone, Debug)]
+#[allow(clippy::large_enum_variant)]
 pub enum Prepared {
     Ready {
         conversation: Vec<ConversationEntry>,
@@ -375,16 +400,38 @@ pub fn prepare(
     tools: &[ToolDescriptor],
     contributions: Vec<Contribution>,
 ) -> Result<Prepared> {
+    prepare_with_budget_scale(config, snapshot, history, tools, contributions, 1.0)
+}
+
+/// Deterministic context preparation with an optional budget multiplier
+/// (`< 1.0` used for automatic recovery after a provider reports context
+/// overflow despite our conservative token estimate).
+pub fn prepare_with_budget_scale(
+    config: &RunConfig,
+    snapshot: &ChainSnapshot,
+    history: Vec<ConversationEntry>,
+    tools: &[ToolDescriptor],
+    contributions: Vec<Contribution>,
+    budget_scale: f64,
+) -> Result<Prepared> {
     let window = context_window(config);
     let reserve = output_reserve(config, window);
-    let fixed = cost(&config.system_prompt)?
-        .saturating_add(cost(&tools)?)
-        .saturating_add(512)
-        .saturating_add(tools.len() as u64 * 8);
-    let available = window
+    let safety_margin = window / 10;
+    let system_prompt_tokens = cost(&config.system_prompt)?;
+    let tool_definitions_tokens = cost(&tools)?;
+    let provider_overhead_tokens = 512_u64.saturating_add(tools.len() as u64 * 8);
+    let fixed = system_prompt_tokens
+        .saturating_add(tool_definitions_tokens)
+        .saturating_add(provider_overhead_tokens);
+    let raw_available = window
         .saturating_sub(reserve)
-        .saturating_sub(window / 10)
+        .saturating_sub(safety_margin)
         .saturating_sub(fixed);
+    let available = if budget_scale < 1.0 {
+        ((raw_available as f64) * budget_scale.clamp(0.1, 1.0)) as u64
+    } else {
+        raw_available
+    };
     let pins = pins(snapshot, &contributions)?;
     let pinned = entry(snapshot, "pins", pins.clone());
     let required = record_cost(&pinned)?;
@@ -394,6 +441,25 @@ pub fn prepare(
             available,
         });
     }
+    let current_step = snapshot
+        .plan
+        .as_ref()
+        .and_then(|plan| {
+            plan.steps.iter().position(|step| {
+                matches!(
+                    step.status,
+                    crate::long_task::StepStatus::InProgress
+                        | crate::long_task::StepStatus::Pending
+                )
+            })
+        })
+        .unwrap_or(0);
+    let task_plan_tokens = if snapshot.plan.is_some() {
+        cost(&plan_projection(snapshot, current_step, 1))?.min(required)
+    } else {
+        0
+    };
+    let task_constraints_tokens = required.saturating_sub(task_plan_tokens);
     let history: Vec<_> = history
         .into_iter()
         .filter(|entry| entry.kind.as_str() != CHECKPOINT_ENTRY_KIND)
@@ -402,17 +468,79 @@ pub fn prepare(
     let mut covered = Vec::new();
     loop {
         let mut conversation = vec![pinned.clone()];
+        let mut compaction_summary_tokens = 0_u64;
         if !covered.is_empty() {
-            conversation.push(entry(snapshot,"earlier",serde_json::to_string(&json!({
-                "notice":"Earlier ordinary messages and whole call/result groups are omitted from this bounded projection. This is an index, not a summary of their contents. Reread exact source before relying on omitted details.",
-                "count":covered.len(),"first":covered.first().map(|e:&ConversationEntry|&e.id),"last":covered.last().map(|e|&e.id),"source_hash":hash(serde_json::to_vec(&covered)?),
-                "read_again":"The host retains exact history. Reread project sources with available tools; ask the author when omitted conversational details are required."
-            }))?));
+            let notice = entry(
+                snapshot,
+                "earlier",
+                serde_json::to_string(&json!({
+                    "notice":"Earlier ordinary messages and whole call/result groups are omitted from this bounded projection. This is an index, not a summary of their contents. Reread exact source before relying on omitted details.",
+                    "count":covered.len(),"first":covered.first().map(|e:&ConversationEntry|&e.id),"last":covered.last().map(|e|&e.id),"source_hash":hash(serde_json::to_vec(&covered)?),
+                    "read_again":"The host retains exact history. Reread project sources with available tools; ask the author when omitted conversational details are required."
+                }))?,
+            );
+            compaction_summary_tokens = record_cost(&notice)?;
+            conversation.push(notice);
         }
         conversation.extend(units.iter().flat_map(|unit| unit.entries.iter().cloned()));
-        let input =
-            records_cost(&conversation)?.saturating_add(image_tokens(config, &conversation));
+        let img_tokens = image_tokens(config, &conversation);
+        let input = records_cost(&conversation)?.saturating_add(img_tokens);
         if input <= available {
+            let mut user_messages = 0_u64;
+            let mut assistant_messages = 0_u64;
+            let mut thinking = 0_u64;
+            let mut tool_calls = 0_u64;
+            let mut tool_results = 0_u64;
+            for item in units.iter().flat_map(|u| u.entries.iter()) {
+                match item.kind {
+                    ConversationEntryKind::User => {
+                        user_messages = user_messages.saturating_add(record_cost(item)?);
+                    }
+                    ConversationEntryKind::ToolResult => {
+                        tool_results = tool_results.saturating_add(record_cost(item)?);
+                    }
+                    ConversationEntryKind::Assistant => {
+                        let mut accounted = 0_u64;
+                        if let Some(blocks) = item.payload["blocks"].as_array() {
+                            for block in blocks {
+                                let tokens = value_tokens(block);
+                                accounted = accounted.saturating_add(tokens);
+                                match block["kind"].as_str() {
+                                    Some("thinking") => {
+                                        thinking = thinking.saturating_add(tokens);
+                                    }
+                                    Some("tool_call") => {
+                                        tool_calls = tool_calls.saturating_add(tokens);
+                                    }
+                                    _ => {
+                                        assistant_messages =
+                                            assistant_messages.saturating_add(tokens);
+                                    }
+                                }
+                            }
+                        }
+                        let total = record_cost(item)?;
+                        if total > accounted {
+                            assistant_messages =
+                                assistant_messages.saturating_add(total - accounted);
+                        }
+                    }
+                    _ => {
+                        compaction_summary_tokens =
+                            compaction_summary_tokens.saturating_add(record_cost(item)?);
+                    }
+                }
+            }
+            let compacted_tokens_saved = if covered.is_empty() {
+                0
+            } else {
+                records_cost(&covered)?.saturating_sub(compaction_summary_tokens)
+            };
+            let source_count = conversation
+                .len()
+                .saturating_add(contributions.len())
+                .saturating_add(usize::from(!config.system_prompt.is_empty()))
+                .saturating_add(usize::from(!tools.is_empty()));
             let checkpoint = Checkpoint {
                 version: 1,
                 chain: snapshot.chain.clone(),
@@ -424,6 +552,26 @@ pub fn prepare(
                 projection_hash: hash(serde_json::to_vec(&conversation)?),
                 estimated_input_tokens: input + fixed,
                 input_budget: available + fixed,
+                breakdown: ContextBreakdown {
+                    window,
+                    output_reserve: reserve,
+                    safety_margin,
+                    system_prompt: system_prompt_tokens,
+                    tool_definitions: tool_definitions_tokens,
+                    provider_overhead: provider_overhead_tokens,
+                    task_plan: task_plan_tokens,
+                    task_constraints: task_constraints_tokens,
+                    user_messages,
+                    assistant_messages,
+                    thinking,
+                    tool_calls,
+                    tool_results,
+                    images: img_tokens,
+                    compaction_summaries: compaction_summary_tokens,
+                    compacted_count: covered.len(),
+                    compacted_tokens_saved,
+                    source_count,
+                },
             };
             return Ok(Prepared::Ready {
                 conversation,
@@ -440,6 +588,13 @@ pub fn prepare(
         }
         covered.extend(units.remove(0).entries);
     }
+}
+
+pub fn load_checkpoint(lib: &Library, chain: &str) -> Result<Option<Checkpoint>> {
+    let Some(raw) = lib.local_get("agent.context", chain)? else {
+        return Ok(None);
+    };
+    Ok(serde_json::from_str(&raw).ok())
 }
 
 pub fn save_checkpoint(

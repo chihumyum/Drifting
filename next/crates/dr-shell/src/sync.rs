@@ -80,6 +80,48 @@ pub struct MarkSpec {
     pub actions: Vec<MarkAction>,
 }
 
+/// UI-facing summary of Hosted Sync runtime state for Settings › Account and dialogs.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct SyncUiStatus {
+    pub hosted_enabled: bool,
+    pub connected: bool,
+    pub paused: bool,
+    pub syncing: bool,
+    pub retrying: bool,
+    pub offline: bool,
+    pub reauth_required: bool,
+    pub quota_blocked: bool,
+    pub init_failed: bool,
+    pub pending_count: usize,
+    pub completed_cycles: u64,
+    pub cursor: u64,
+    pub last_sync_ok_ms: Option<u64>,
+    pub last_error: Option<String>,
+}
+
+/// Hosted Sync cloud storage usage & quota snapshot.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SyncUsage {
+    pub used_bytes: u64,
+    pub quota_bytes: u64,
+    pub hard_limit_bytes: u64,
+}
+
+pub type SyncStatusFn = Rc<dyn Fn(&App) -> SyncUiStatus>;
+pub type SyncNowFn = Rc<dyn Fn(&mut App)>;
+pub type SyncSetPausedFn = Rc<dyn Fn(bool, &mut App)>;
+pub type SyncFetchUsageFn =
+    Rc<dyn Fn(&mut App) -> Option<LocalBoxFuture<'static, Result<SyncUsage, String>>>>;
+
+/// Control hooks registered by the desktop sync supervisor for Settings › Account
+/// and the pending-upload sign-out dialog.
+pub struct SyncControl {
+    pub status: SyncStatusFn,
+    pub sync_now: SyncNowFn,
+    pub set_paused: SyncSetPausedFn,
+    pub fetch_usage: SyncFetchUsageFn,
+}
+
 type MarkHookFn = Rc<dyn Fn(Option<&str>, bool, Option<u64>, u64, &App) -> Option<MarkSpec>>;
 type BeforeAccountActionFn = Rc<dyn Fn(&mut App) -> Option<LocalBoxFuture<'static, ()>>>;
 type HolderReleasedFn = Rc<dyn Fn(&mut App)>;
@@ -87,6 +129,9 @@ type DiagnosticsHookFn = Rc<dyn Fn(&App) -> SyncSnapshot>;
 
 struct MarkHook(MarkHookFn);
 impl Global for MarkHook {}
+
+struct ControlHook(SyncControl);
+impl Global for ControlHook {}
 
 struct DiagnosticsHook(DiagnosticsHookFn);
 impl Global for DiagnosticsHook {}
@@ -103,6 +148,49 @@ pub fn set_mark_hook(
     hook: impl Fn(Option<&str>, bool, Option<u64>, u64, &App) -> Option<MarkSpec> + 'static,
 ) {
     cx.set_global(MarkHook(Rc::new(hook)));
+}
+
+/// Registers UI control hooks (status, sync now, pause/resume, storage usage).
+pub fn set_control_hook(cx: &mut App, control: SyncControl) {
+    cx.set_global(ControlHook(control));
+}
+
+/// Returns the latest UI-facing sync status, or default inactive status when no
+/// supervisor is installed.
+#[must_use]
+pub fn status(cx: &App) -> SyncUiStatus {
+    cx.try_global::<ControlHook>()
+        .map(|h| (h.0.status)(cx))
+        .unwrap_or_default()
+}
+
+/// Number of local changes (docs + assets + purges) waiting to upload.
+#[must_use]
+pub fn pending_count(cx: &App) -> usize {
+    status(cx).pending_count
+}
+
+/// Triggers an immediate manual sync cycle (and clears any user pause).
+pub fn sync_now(cx: &mut App) {
+    if let Some(cb) = cx.try_global::<ControlHook>().map(|h| h.0.sync_now.clone()) {
+        cb(cx);
+    }
+}
+
+/// Pauses or resumes automatic background Hosted Sync cycles.
+pub fn set_paused(paused: bool, cx: &mut App) {
+    if let Some(cb) = cx
+        .try_global::<ControlHook>()
+        .map(|h| h.0.set_paused.clone())
+    {
+        cb(paused, cx);
+    }
+}
+
+/// Fetches Hosted Sync storage quota usage from the server when connected.
+pub fn fetch_usage(cx: &mut App) -> Option<LocalBoxFuture<'static, Result<SyncUsage, String>>> {
+    let cb = cx.try_global::<ControlHook>()?.0.fetch_usage.clone();
+    cb(cx)
 }
 
 /// Registers an optional async drain that runs before signing out (from the

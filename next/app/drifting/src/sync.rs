@@ -22,7 +22,9 @@ use dr_platform::{Channel, Identity, SecretStore};
 use dr_shell::notifications::{Notifications, Source};
 use dr_shell::settings::{self, registry::Section};
 use dr_shell::strings::Strings;
-use dr_shell::sync::{MarkAction, MarkActionCallback, MarkSpec, MarkVisual};
+use dr_shell::sync::{
+    MarkAction, MarkActionCallback, MarkSpec, MarkVisual, SyncControl, SyncUiStatus, SyncUsage,
+};
 use dr_sync::{
     SYNC_FAILING_FOR_MS, SYNC_MARK_SHOW_AFTER_MS, SYNC_RETRY_SHOW_AFTER_MS, SyncCornerState,
     SyncRuntime, SyncRuntimeSnapshot, SyncScheduleConfig, SyncSessionMode, SyncStatusAction,
@@ -55,6 +57,7 @@ pub const DEV_SYNC_DEBOUNCE_MS_ENV: &str = "DRIFTING_DEV_SYNC_DEBOUNCE_MS";
 struct Supervisor {
     runtime: Arc<SyncRuntime>,
     snapshot: SyncRuntimeSnapshot,
+    cycle_start_pending: usize,
     last_configured: Option<(Option<PathBuf>, SyncSessionMode)>,
     last_account_target_dir: Option<PathBuf>,
     pending_library_switch: Option<(PathBuf, u8)>,
@@ -143,6 +146,7 @@ pub fn init(platform: &Identity, cx: &mut App) {
     cx.set_global(Supervisor {
         runtime: Arc::clone(&runtime),
         snapshot: initial_snapshot,
+        cycle_start_pending: 0,
         last_configured: None,
         last_account_target_dir: initial_account_target,
         pending_library_switch: None,
@@ -211,6 +215,41 @@ pub fn init(platform: &Identity, cx: &mut App) {
 
     // Paper corner mark & hover card evaluator.
     dr_shell::sync::set_mark_hook(cx, build_mark_spec);
+
+    // Settings › Account & SignOut dialog control hooks.
+    dr_shell::sync::set_control_hook(
+        cx,
+        SyncControl {
+            status: Rc::new(build_ui_status),
+            sync_now: Rc::new(trigger_manual_retry),
+            set_paused: Rc::new({
+                let runtime = Arc::clone(&runtime);
+                move |paused, _| runtime.set_user_paused(paused)
+            }),
+            fetch_usage: Rc::new({
+                let runtime = Arc::clone(&runtime);
+                move |cx| {
+                    let attached = cx
+                        .try_global::<Supervisor>()
+                        .is_some_and(|s| s.snapshot.attached);
+                    if !attached {
+                        return None;
+                    }
+                    let rt = Arc::clone(&runtime);
+                    let bg = cx.background_executor().spawn(async move {
+                        rt.fetch_usage()
+                            .map(|u| SyncUsage {
+                                used_bytes: u.used_bytes,
+                                quota_bytes: u.quota_bytes,
+                                hard_limit_bytes: u.hard_limit_bytes,
+                            })
+                            .map_err(|e| e.to_string())
+                    });
+                    Some(bg.boxed_local())
+                }
+            }),
+        },
+    );
 
     // The sync part of the diagnostic summary feedback attaches (M39).
     dr_shell::sync::set_diagnostics_hook(cx, diagnostics_snapshot);
@@ -342,8 +381,16 @@ fn build_mark_spec(
         None
     };
 
-    let progress = matches!(corner_state, SyncCornerState::Syncing)
-        .then_some(if pending_total > 0 { 0.45 } else { 0.82 });
+    let progress = matches!(corner_state, SyncCornerState::Syncing).then(|| {
+        if sup.cycle_start_pending > 0 {
+            let done = sup.cycle_start_pending.saturating_sub(pending_total);
+            (done as f32 / sup.cycle_start_pending as f32).clamp(0.08, 0.96)
+        } else if pending_total > 0 {
+            0.25
+        } else {
+            0.92
+        }
+    });
 
     let retry_cb = retry_action_callback();
     let actions = pres
@@ -612,13 +659,56 @@ fn schedule_library_switch_retry(target_dir: PathBuf, next_attempt: u8, cx: &mut
     cx.global_mut::<Supervisor>().switch_retry_task = Some(task);
 }
 
+fn build_ui_status(cx: &App) -> SyncUiStatus {
+    let Some(sup) = cx.try_global::<Supervisor>() else {
+        return SyncUiStatus::default();
+    };
+    let snap = &sup.snapshot;
+    let h = &snap.health;
+    SyncUiStatus {
+        hosted_enabled: h.hosted_enabled,
+        connected: snap.attached,
+        paused: snap.user_paused || h.paused,
+        syncing: h.library_busy,
+        retrying: h.library_failed_cycles > 0
+            && !h.offline
+            && !h.reauth_required
+            && !h.quota_exceeded,
+        offline: h.offline,
+        reauth_required: h.reauth_required,
+        quota_blocked: h.quota_exceeded,
+        init_failed: h.init_failed,
+        pending_count: snap.pending_docs + snap.pending_assets + snap.pending_purges,
+        completed_cycles: snap.completed_cycles,
+        cursor: snap.cursor,
+        last_sync_ok_ms: snap.last_sync_ok_ms,
+        last_error: h.last_error.clone(),
+    }
+}
+
 fn on_runtime_snapshot(snap: SyncRuntimeSnapshot, cx: &mut App) {
     if !cx.has_global::<Supervisor>() {
         return;
     }
 
-    let prev_ok_ms = cx.global::<Supervisor>().snapshot.last_sync_ok_ms;
-    cx.global_mut::<Supervisor>().snapshot = snap.clone();
+    let (prev_ok_ms, prev_busy) = {
+        let sup = cx.global::<Supervisor>();
+        (
+            sup.snapshot.last_sync_ok_ms,
+            sup.snapshot.health.library_busy,
+        )
+    };
+    let cur_pending = snap.pending_docs + snap.pending_assets + snap.pending_purges;
+    cx.update_global::<Supervisor, _>(|sup, _| {
+        if snap.health.library_busy {
+            if !prev_busy || cur_pending > sup.cycle_start_pending {
+                sup.cycle_start_pending = cur_pending;
+            }
+        } else {
+            sup.cycle_start_pending = 0;
+        }
+        sup.snapshot = snap.clone();
+    });
 
     // Propagate 401 token expiry or offline recovery back into `AccountUiService`.
     if snap.health.reauth_required

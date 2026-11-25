@@ -314,6 +314,15 @@ impl Render for WorkingMemoryView {
                 ),
                 None => t(cx, k::NEVER_UPDATED),
             };
+            let budget_ratio = (snapshot.approx_tokens as f32 / 80_000.0).clamp(0.0, 1.0);
+            let budget_color = if snapshot.approx_tokens >= 80_000 {
+                theme.palette.danger.solid()
+            } else if snapshot.approx_tokens >= 40_000 {
+                theme.palette.accent.solid()
+            } else {
+                theme.palette.ink(3).solid()
+            };
+            let budget_tip = t(cx, k::BUDGET_TITLE);
             body = body
                 .child(
                     div()
@@ -321,11 +330,38 @@ impl Render for WorkingMemoryView {
                         .text_color(muted)
                         .child(updated),
                 )
-                .child(div().font_role(Role::Index).text_color(muted).child(tf(
-                    cx,
-                    k::TOKENS,
-                    &[("count", &snapshot.approx_tokens)],
-                )));
+                .child(
+                    div()
+                        .id("working-memory-budget")
+                        .flex()
+                        .flex_col()
+                        .gap(px(4.0))
+                        .tooltip(dr_ui::components::tooltip(budget_tip))
+                        .child(
+                            div()
+                                .flex()
+                                .items_center()
+                                .justify_between()
+                                .font_role(Role::Index)
+                                .text_color(muted)
+                                .child(tf(cx, k::TOKENS, &[("count", &snapshot.approx_tokens)]))
+                                .child(format!("{}%", (budget_ratio * 100.0).round() as u32)),
+                        )
+                        .child(
+                            div()
+                                .w_full()
+                                .h(px(4.0))
+                                .rounded(px(2.0))
+                                .bg(theme.palette.ink(1).alpha(0.08))
+                                .overflow_hidden()
+                                .child(
+                                    div()
+                                        .h_full()
+                                        .w(gpui::relative(budget_ratio))
+                                        .bg(budget_color),
+                                ),
+                        ),
+                );
             if self.editing.is_some() {
                 body = body.child(self.editor.clone()).child(
                     div()
@@ -361,9 +397,15 @@ impl Render for WorkingMemoryView {
                             .overflow_y_scroll()
                             .track_scroll(&self.scroll)
                             .child(if snapshot.exists {
-                                snapshot.content_md.clone()
+                                crate::markdown::render_markdown(
+                                    "working-memory-md",
+                                    &snapshot.content_md,
+                                    None,
+                                    window,
+                                    cx,
+                                )
                             } else {
-                                String::new()
+                                div().into_any_element()
                             }),
                     )
                     .child(

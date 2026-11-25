@@ -87,6 +87,9 @@ pub struct RunConfig {
     /// The author's “帮手单轮迭代上限”; None means no implicit limit.
     pub max_model_rounds: Option<u32>,
     pub web_search: bool,
+    /// When true, only read-only tools are exposed and write tool calls are refused.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub read_only_tools: bool,
 }
 
 impl RunConfig {
@@ -103,6 +106,7 @@ impl RunConfig {
             max_output_tokens: None,
             max_model_rounds: None,
             web_search: true,
+            read_only_tools: false,
         }
     }
 

@@ -29,7 +29,37 @@
       "modelUnavailable": "Das gewählte Modell fehlt im aktuellen Katalog. Wähle ein anderes."
     },
     "context": {
-      "tokens": "{{count}} Tokens"
+      "allocation": {
+        "free": "Freier Platz",
+        "input": "Aktuelle Eingabe",
+        "output": "Ausgabereserve",
+        "safety": "Sicherheitspuffer",
+        "title": "Fensteraufteilung"
+      },
+      "breakdownTitle": "Inhalt der aktuellen Eingabe",
+      "categories": {
+        "assistant_messages": "Agent-Nachrichten",
+        "compaction_summaries": "Verdichtungszusammenfassungen",
+        "provider_overhead": "Anbieterrahmen",
+        "system_prompt": "Systemanweisung",
+        "task_constraints": "Aufgabenbedingungen",
+        "task_plan": "Aufgabenplan",
+        "thinking": "Denken",
+        "tool_calls": "Werkzeugaufrufe",
+        "tool_definitions": "Werkzeugdefinitionen",
+        "tool_results": "Werkzeugergebnisse",
+        "user_messages": "Benutzernachrichten"
+      },
+      "compaction": "Verdichtung",
+      "compactionDetail": "{{saved}} eingespart · {{stages}} · {{count}} Zusammenfassungen",
+      "compactionNone": "Für diesen Aufruf war keine Verdichtung nötig",
+      "description": "Basiert auf dem zuletzt tatsächlich gesendeten geprüften Kontextplan, nicht auf dem kumulierten Tokenverbrauch des Chats.",
+      "progressAria": "Aktuelle Agent-Kontextnutzung",
+      "sources": "{{count}} Quellen",
+      "summary": "{{used}} / {{limit}} ({{percent}}%)",
+      "title": "Kontextnutzung",
+      "tokens": "{{count}} Tokens",
+      "tooltip": "{{used}} / {{limit}} Tokens ({{percent}}%)\nAusgabereserve: {{output}} · Sicherheitspuffer: {{safety}}"
     },
     "control": {
       "allow": {
@@ -44,9 +74,13 @@
       "start": "Sende Agent eine Nachricht. Er kann Kapitel, Elemente und Beziehungen dieses Projekts lesen und bearbeiten."
     },
     "history": {
+      "delete": "Chat löschen",
       "empty": "Noch kein Chatverlauf",
+      "loadEarlier": "Frühere Nachrichten laden",
+      "rename": "Umbenennen",
       "untitled": "Unbenannt"
     },
+    "jumpLatest": "Zum neuesten springen",
     "newConversation": "Neuer Chat",
     "onboarding": {
       "connect": "Modell verbinden",
@@ -58,7 +92,8 @@
     "pending": {
       "cancelling": "Wird beendet…",
       "committing": "Wird gespeichert…",
-      "now": "Denkt nach…"
+      "now": "Denkt nach…",
+      "withSeconds": "Denkt nach · {{seconds}}s"
     },
     "setup": {
       "openSettings": "Einstellungen öffnen"
@@ -70,17 +105,31 @@
       "done": "Denkprotokoll",
       "streaming": "Denkt nach…"
     },
+    "todos": {
+      "plan": "Tarif"
+    },
     "tool": {
       "result": "Ergebnis"
     },
     "toolbar": {
-      "history": "Verlauf"
+      "history": "Verlauf",
+      "historyTitle": "Chatverlauf",
+      "newTitle": "Neuen Chat starten",
+      "renameTitle": "Aktuellen Chat umbenennen"
     },
     "turnChanges": "Änderungen der Runde",
     "unavailable": "Agent ist nicht verfügbar.",
+    "usage": {
+      "inputDetail": "Eingabe {{input}} (Cache gelesen {{cacheRead}} · geschrieben {{cacheWrite}} · netto {{net}})",
+      "outputTurns": "Ausgabe {{output}} · Runden {{turns}}",
+      "session": "Sitzung",
+      "toolsCount": "{{count}} Werkzeuge",
+      "workedFor": "Agent arbeitete {{duration}}"
+    },
     "workingMemory": {
       "agent": "Agent",
       "author": "Autor",
+      "budgetTitle": "Unbegrenzt; Konsolidierung wird bei über 20k und 40k Tokens sowie in jeder Runde über 80k angefordert",
       "clear": "Leeren",
       "clearConfirm": "Arbeitsgedächtnis leeren? Manuskript, langfristige Regeln und Chatverlauf bleiben erhalten.",
       "cleared": "Arbeitsgedächtnis geleert.",
@@ -170,6 +219,8 @@
     "forgotPassword": "Passwort vergessen?",
     "hasAccount": "Bereits ein Konto?",
     "legal": {
+      "agree": "Mit der Registrierung akzeptierst du die",
+      "and": "und",
       "consent": "Wenn du fortfährst, akzeptierst du {{terms}}.",
       "consentTerms": "die Bedingungen",
       "privacy": "Datenschutzerklärung",
@@ -183,6 +234,12 @@
     "resend": "Code erneut senden",
     "sendCode": "Code senden",
     "signIn": "Anmelden",
+    "signOut": {
+      "now": "Jetzt abmelden",
+      "pending": "{{count}} Änderungen dieses Macs fehlen noch in der Cloud. Beim Abmelden bleiben sie hier und werden beim erneuten Anmelden in dieses Konto hochgeladen.",
+      "title": "Abmelden",
+      "uploadFirst": "Hochladen, dann abmelden"
+    },
     "signUp": "Registrieren",
     "signingIn": "Anmeldung läuft…",
     "social": {
@@ -859,7 +916,8 @@
     },
     "clear": "Leeren",
     "cloudSync": {
-      "source": "Cloudsynchronisierung"
+      "source": "Cloudsynchronisierung",
+      "syncing": "Wird synchronisiert…"
     },
     "crashFollowUp": {
       "source": "Drifting"
@@ -893,6 +951,21 @@
       "minutesAgo": "vor {{count}} Min."
     },
     "title": "Benachrichtigungen"
+  },
+  "paperSync": {
+    "failing": "Cloudsynchronisierung fehlgeschlagen",
+    "notStarted": "Synchronisierung konnte nicht starten",
+    "notStartedDetail": "Deine Texte bleiben auf diesem Gerät gespeichert.",
+    "offline": "Offline",
+    "offlineDetail": "Du kannst lokal weiterschreiben.",
+    "openSettings": "Einstellungen öffnen",
+    "quota": "Hosted-Speicher voll",
+    "reauth": "Sitzung abgelaufen",
+    "reauthDetail": "Melde dich wieder mit demselben Konto an.",
+    "retry": "Erneut versuchen",
+    "retrying": "Synchronisierung nicht abgeschlossen",
+    "retryingDetail": "Deine Texte sind auf diesem Gerät gespeichert. Automatischer Neuversuch.",
+    "signIn": "Erneut anmelden"
   },
   "plotGrid": {
     "addColumnShort": "Spalte",
@@ -1261,6 +1334,7 @@
         "args": "Argumente (eines pro Zeile)",
         "command": "Absoluter Programmpfad",
         "cwd": "Absolutes Arbeitsverzeichnis (optional)",
+        "deleteConfirm": "MCP-Server „{{name}}“ löschen? Seine dauerhaften Freigaben werden ebenfalls widerrufen.",
         "disable": "Deaktivieren",
         "editTitle": "MCP-Server bearbeiten",
         "empty": "Dieses Projekt hat keine MCP-Server.",
@@ -1270,6 +1344,7 @@
         "noProject": "Öffne ein Projekt, um MCP einzurichten.",
         "notChecked": "Noch nicht verbunden",
         "policy": {
+          "askWrite": "Schreiben · nachfragen",
           "disabled": "Deaktiviert"
         },
         "publicEnv": "Öffentliche Umgebung (NAME=value pro Zeile)",
@@ -1311,6 +1386,26 @@
       "iterationOption": "{{value}} Iterationen",
       "unlimited": "Unbegrenzt",
       "unlimitedHint": "Unbegrenzt setzt kein Limit für Modellaufrufe. Du kannst die Runde manuell stoppen."
+    },
+    "agentMemory": {
+      "title": "Projektgedächtnis"
+    },
+    "agentUsage": {
+      "all": "Gesamtzeit",
+      "clearConfirm": "Gesamten Verlauf leeren? Dadurch werden {{count}} Agent-Gespräche dieses Projekts entfernt.",
+      "clearHistory": "Verlauf leeren",
+      "conversationsTurns": "Gespräche / Runden",
+      "deleteConversation": "Dieses Gespräch löschen",
+      "history": "Gesprächsverlauf",
+      "historyDesc": "Alle Agent-Gespräche dieses Projekts. Vorläufiges Löschen wird im rechten Verlauf übernommen, ohne andere Projekte zu beeinflussen.",
+      "month": "Diesen Monat",
+      "noHistory": "Noch keine Gespräche. Sende dem Agent eine Nachricht, um zu beginnen.",
+      "noProjectHistory": "Öffne ein Projekt, um den Gesprächsverlauf zu verwalten.",
+      "noProjectUsage": "Öffne ein Projekt für die Agent-Nutzung.",
+      "tokenCard": "Tokens · {{scope}}",
+      "untitled": "Unbenannt",
+      "usage": "Nutzung",
+      "usageDesc": "Tokenverbrauch des Agent in diesem Projekt, je zurückgemeldeter Runde erfasst; Eingaben enthalten Cache-Lesezugriffe. Für diesen Monat oder insgesamt anzeigen."
     },
     "appearance": {
       "accent": "Akzentfarbe",
@@ -1479,19 +1574,37 @@
       "connect_errors": {
         "cancelled": "Abgebrochen."
       },
+      "crop_confirm": "Dieses Profilbild verwenden",
+      "crop_description": "Bild ziehen oder mit Pfeiltasten positionieren, dann den Zoom anpassen.",
+      "crop_title": "Profilbild anpassen",
+      "crop_zoom": "Zoom",
       "current_password": "Aktuelles Passwort",
       "description": "Deine Texte werden zuerst auf diesem Gerät gespeichert. Verbinde ein Konto, um Projekte zwischen deinen Geräten zu synchronisieren.",
+      "disconnect": "Synchronisierung trennen",
+      "disconnect_anyway": "Trotzdem trennen",
+      "disconnect_description": "Lädt nur auf diesem Mac vorhandene Änderungen hoch und trennt dann. Lokale Projekte und Cloudkopien bleiben erhalten.",
+      "disconnect_now": "Jetzt trennen",
+      "disconnect_unuploaded": "{{count}} Änderungen wurden nicht hochgeladen. Nach dem Trennen liegen sie nur auf diesem Mac.",
       "display_name": "Anzeigename",
+      "enabled": "Hosted-Synchronisierung verbunden",
+      "last_synced": "Zuletzt vollständig synchronisiert: {{time}}",
       "library_switch_failed": "Bibliothek konnte nicht gewechselt werden",
       "new_password": "Neues Passwort",
       "no_account": "Nicht angemeldet",
+      "not_started": "Synchronisierung konnte nicht starten. Deine Texte bleiben auf dem Gerät; öffne Drifting erneut.",
       "password_description": "8–128 Zeichen.",
       "password_saved": "Passwort geändert. Andere Geräte müssen sich neu anmelden.",
       "password_sessions": "Beim Passwortwechsel werden andere Geräte abgemeldet. Dieses Gerät bleibt angemeldet.",
       "password_title": "Passwort",
+      "pause": "Pausieren",
+      "paused": "Synchronisierung pausiert",
+      "pending": "Synchronisierung läuft oder wartet auf Abschluss.",
       "profile_saved": "Profil gespeichert.",
       "profile_title": "Profil",
+      "quota_blocked": "Hosted ist voll; ein Anhang konnte nicht hochgeladen werden und das Projekt kann vorerst nicht weiter synchronisieren. Lösche unnötige Anhänge oder Projekte zur Fortsetzung. Lokale Inhalte bleiben unberührt.",
       "remove_avatar": "Entfernen",
+      "resume": "Fortsetzen",
+      "retrying": "Synchronisierung nicht abgeschlossen. Deine Texte sind lokal gespeichert; automatischer Neuversuch.",
       "save_profile": "Profil speichern",
       "session": {
         "checking": "Konto wird geprüft…",
@@ -1502,6 +1615,10 @@
       },
       "sign_in": "Anmelden / Registrieren",
       "sign_out": "Abmelden",
+      "storage": "Hosted-Speicher",
+      "storage_description": "{{used}} von {{quota}} belegt. Anhänge zählen; Text und Struktur sind unbegrenzt.",
+      "sync_now": "Jetzt synchronisieren",
+      "sync_title": "Hosted-Synchronisierung",
       "title": "Konto und Hosted-Synchronisierung",
       "working": "In Arbeit…"
     },

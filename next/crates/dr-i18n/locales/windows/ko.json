@@ -4,6 +4,11 @@
       "saveFailed": "키를 Windows 자격 증명 관리자에 저장할 수 없습니다."
     }
   },
+  "auth": {
+    "signOut": {
+      "pending": "이 PC에 클라우드에 없는 변경이 {{count}}개 있습니다. 지금 로그아웃하면 이 PC에 남고 같은 계정에 다시 로그인하면 업로드됩니다."
+    }
+  },
   "settings": {
     "agent": {
       "extensions": {
@@ -14,6 +19,10 @@
       "failure": {
         "storage_failed": "로그인 정보를 Windows 자격 증명 관리자에 저장할 수 없습니다."
       }
+    },
+    "hosted": {
+      "disconnect_description": "이 PC에만 있는 변경을 업로드한 뒤 연결을 해제합니다. 로컬 작품과 클라우드 사본은 유지됩니다.",
+      "disconnect_unuploaded": "변경 {{count}}개가 업로드되지 않았습니다. 해제하면 이 PC에만 남습니다."
     },
     "sync": {
       "projection": {

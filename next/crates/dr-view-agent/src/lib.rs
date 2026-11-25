@@ -9,6 +9,7 @@ pub mod hub;
 pub mod images;
 pub mod local;
 pub mod local_view;
+pub mod markdown;
 pub mod mcp;
 pub mod mcp_settings;
 pub mod onboarding;
@@ -113,7 +114,7 @@ pub fn init_with_service(
             })
             .unwrap_or_else(|| async { Ok(()) }.boxed_local())
     });
-    settings::init(connections, cx);
+    settings::init_with_hub(connections, Some(hub.clone()), cx);
     hub::install(&hub, cx);
     mcp::attach_agent(&hub, cx);
     dr_shell::keymap::add_bindings(cx, || {

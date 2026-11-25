@@ -30,7 +30,7 @@ use crate::engine::{
     AfterRemoteImportHook, AfterRemotePurgeHook, BeforeRemotePurgeHook, SyncCycleReport, SyncEngine,
 };
 use crate::health::{SyncHealthSnapshot, SyncHealthTracker};
-use crate::protocol::SyncError;
+use crate::protocol::{HostedUsage, SyncError};
 
 static NEXT_TARGET_ID: AtomicU64 = AtomicU64::new(1);
 
@@ -167,6 +167,8 @@ pub struct SyncRuntimeSnapshot {
     pub pending_assets: usize,
     pub pending_purges: usize,
     pub blocked_on_open_doc: bool,
+    #[serde(default)]
+    pub user_paused: bool,
 }
 
 pub type StateChangeCallback = Arc<dyn Fn(&SyncRuntimeSnapshot) + Send + Sync>;
@@ -176,6 +178,13 @@ enum WorkerCommand {
         target: Option<SyncTarget>,
         mode: SyncSessionMode,
         reply: Option<mpsc::Sender<()>>,
+    },
+    SetUserPaused {
+        paused: bool,
+        reply: Option<mpsc::Sender<()>>,
+    },
+    FetchUsage {
+        reply: mpsc::Sender<Result<HostedUsage, SyncError>>,
     },
     PauseForRelease {
         reply: mpsc::Sender<()>,
@@ -234,6 +243,7 @@ struct ActiveGeneration {
     _subscription: LibrarySubscription,
     paused_for_action: bool,
     paused_for_release: bool,
+    user_paused: bool,
     drained_for_signout: bool,
     blocked_on_open_doc: bool,
     completed_cycles: u64,
@@ -336,6 +346,31 @@ impl SyncRuntime {
             cvar.notify_one();
         }
         let _ = rx.recv_timeout(self.config.drain_timeout.saturating_mul(2));
+    }
+
+    /// Pause or resume automatic background sync cycles on behalf of the author.
+    pub fn set_user_paused(&self, paused: bool) {
+        let (lock, cvar) = &*self.queue;
+        let mut q = lock.lock().unwrap_or_else(|e| e.into_inner());
+        q.commands.push_back(WorkerCommand::SetUserPaused {
+            paused,
+            reply: None,
+        });
+        cvar.notify_one();
+    }
+
+    /// Fetch the connected account's Hosted Sync storage usage and quota limits.
+    pub fn fetch_usage(&self) -> Result<HostedUsage, SyncError> {
+        let (tx, rx) = mpsc::channel();
+        {
+            let (lock, cvar) = &*self.queue;
+            let mut q = lock.lock().unwrap_or_else(|e| e.into_inner());
+            q.commands
+                .push_back(WorkerCommand::FetchUsage { reply: tx });
+            cvar.notify_one();
+        }
+        rx.recv_timeout(self.config.drain_timeout.saturating_mul(2))
+            .map_err(|_| SyncError::Offline("fetch_usage timed out".into()))?
     }
 
     /// Request an immediate retry (e.g. from the paper-corner hover card or
@@ -474,6 +509,7 @@ fn build_active_snapshot(active: &ActiveGeneration) -> SyncRuntimeSnapshot {
         pending_assets,
         pending_purges,
         blocked_on_open_doc: active.blocked_on_open_doc,
+        user_paused: active.user_paused,
     }
 }
 
@@ -590,6 +626,7 @@ fn worker_loop(
                 if let Some(generation) = active.as_ref()
                     && !generation.paused_for_action
                     && !generation.paused_for_release
+                    && !generation.user_paused
                 {
                     if generation.immediate_due {
                         q.local_dirty_first_at = None;
@@ -773,6 +810,7 @@ fn worker_loop(
                                 _subscription: sub,
                                 paused_for_action: false,
                                 paused_for_release: false,
+                                user_paused: false,
                                 drained_for_signout: false,
                                 blocked_on_open_doc: false,
                                 completed_cycles: 0,
@@ -800,6 +838,30 @@ fn worker_loop(
                 if let Some(tx) = reply {
                     let _ = tx.send(());
                 }
+            }
+            NextStep::Command(WorkerCommand::SetUserPaused { paused, reply }) => {
+                if let Some(generation) = active.as_mut() {
+                    generation.user_paused = paused;
+                    generation.engine.health_mut().set_paused(paused);
+                    if !paused {
+                        generation.immediate_due = true;
+                    }
+                    shared.publish(build_active_snapshot(generation));
+                }
+                if let Some(tx) = reply {
+                    let _ = tx.send(());
+                }
+            }
+            NextStep::Command(WorkerCommand::FetchUsage { reply }) => {
+                let res = if let Some(generation) = active.as_ref() {
+                    generation.engine.fetch_usage(&generation.access_token)
+                } else {
+                    Err(SyncError::Offline(format!(
+                        "Hosted Sync is not active ({})",
+                        current_mode.mode_name()
+                    )))
+                };
+                let _ = reply.send(res);
             }
             NextStep::Command(WorkerCommand::PauseForRelease { reply }) => {
                 if let Some(generation) = active.as_mut() {
@@ -875,6 +937,8 @@ fn run_generation_cycle(
     generation.immediate_due = false;
     if manual {
         generation.paused_for_action = false;
+        generation.user_paused = false;
+        generation.engine.health_mut().set_paused(false);
         generation.engine.health_mut().set_reauth_required(false);
         generation.engine.health_mut().set_quota_exceeded(false);
     }

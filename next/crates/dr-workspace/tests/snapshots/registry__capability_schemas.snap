@@ -633,6 +633,135 @@ expression: json
     "summary": "Record an imported file in the project's built-in asset library (bytes live in storage). The same bytes are one file: when the library has them already, that file's id is given back (restored from Recently Deleted if it was there)."
   },
   {
+    "access": "read",
+    "concurrency": "shared",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "include_data": {
+          "default": false,
+          "description": "For images up to 512 KiB, include a base64 `data:` URI when true.",
+          "type": "boolean"
+        },
+        "limit": {
+          "description": "Maximum extracted characters to return (default 8000, max 32000).",
+          "format": "uint",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "offset": {
+          "default": 0,
+          "description": "Character offset into extracted PDF text (0-based).",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "AssetReadContentIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "asset.read_content",
+    "output": {
+      "properties": {
+        "available_locally": {
+          "type": "boolean"
+        },
+        "data_url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "height": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "mime": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "next_offset": {
+          "format": "uint",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "pages": {
+          "format": "uint",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "size": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "text": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "text_total_chars": {
+          "format": "uint",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "width": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "kind",
+        "mime",
+        "size",
+        "width",
+        "height",
+        "available_locally"
+      ],
+      "title": "AssetContent",
+      "type": "object"
+    },
+    "summary": "Read the content of an asset-library file (extracted text for PDFs with pagination, or metadata and optional bounded data URI for images)."
+  },
+  {
     "access": "write",
     "concurrency": "book",
     "input": {
@@ -3567,6 +3696,23 @@ expression: json
             }
           ],
           "description": "Commands accept plain text or text with explicit entry links. Replacing\na stored text, plain text keeps the links on the spans it leaves\nunchanged, while text with links states its visible links itself (one\nleft out comes off). A link to an entry in Recently Deleted on an\nunchanged span is always kept, and comes back with the entry."
+        },
+        "Target": {
+          "description": "A reference to an entity (comment or memory target).",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "description": "Canonical `entry`, `patch` or `comment`.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "type": "object"
         }
       },
       "properties": {
@@ -3599,6 +3745,17 @@ expression: json
             "string",
             "null"
           ]
+        },
+        "target": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Target"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Re-target a non-checklist comment to another live entity, or `null` to\nunbind it into a floating comment (clearing module/part/anchor/block)."
         }
       },
       "required": [
@@ -13072,6 +13229,13 @@ expression: json
               "minimum": 0,
               "type": "integer"
             },
+            "markdown": {
+              "description": "Rich Markdown rendering of the paragraph when it contains inline marks\n(bold/italic/code/strike/links), block formatting (quote/callout/code block),\nor embeds; omitted for plain text paragraphs to save tokens.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "text": {
               "type": "string"
             }
@@ -16256,6 +16420,13 @@ expression: json
               "format": "uint32",
               "minimum": 0,
               "type": "integer"
+            },
+            "markdown": {
+              "description": "Rich Markdown rendering of the paragraph when it contains inline marks\n(bold/italic/code/strike/links), block formatting (quote/callout/code block),\nor embeds; omitted for plain text paragraphs to save tokens.",
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "text": {
               "type": "string"

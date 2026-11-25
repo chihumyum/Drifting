@@ -29,7 +29,37 @@
       "modelUnavailable": "目前目錄中沒有選取的模型，請選擇其他模型。"
     },
     "context": {
-      "tokens": "{{count}} 個 token"
+      "allocation": {
+        "free": "可用空間",
+        "input": "目前輸入",
+        "output": "輸出預留",
+        "safety": "安全餘量",
+        "title": "視窗配置"
+      },
+      "breakdownTitle": "目前輸入包含的內容",
+      "categories": {
+        "assistant_messages": "Agent 訊息",
+        "compaction_summaries": "壓縮摘要",
+        "provider_overhead": "服務商封裝",
+        "system_prompt": "系統提示詞",
+        "task_constraints": "任務限制",
+        "task_plan": "任務計畫",
+        "thinking": "思考",
+        "tool_calls": "工具呼叫",
+        "tool_definitions": "工具定義",
+        "tool_results": "工具結果",
+        "user_messages": "使用者訊息"
+      },
+      "compaction": "上下文壓縮",
+      "compactionDetail": "已節省 {{saved}} · {{stages}} · {{count}} 份摘要",
+      "compactionNone": "這次呼叫不需要壓縮",
+      "description": "以實際傳送給模型的最新已驗證上下文計畫為準，不是整段對話的累計 token 用量。",
+      "progressAria": "目前 Agent 上下文用量",
+      "sources": "{{count}} 個來源",
+      "summary": "{{used}}／{{limit}}（{{percent}}%）",
+      "title": "上下文用量",
+      "tokens": "{{count}} 個 token",
+      "tooltip": "{{used}}／{{limit}} token（{{percent}}%）\n輸出預留：{{output}} · 安全餘量：{{safety}}"
     },
     "control": {
       "allow": {
@@ -44,9 +74,13 @@
       "start": "傳送訊息給 Agent 即可開始，它能讀寫此作品的章節、要素與關係。"
     },
     "history": {
+      "delete": "刪除對話",
       "empty": "尚無對話歷史",
+      "loadEarlier": "載入更早的訊息",
+      "rename": "重新命名",
       "untitled": "未命名"
     },
+    "jumpLatest": "跳至最新訊息",
     "newConversation": "新增對話",
     "onboarding": {
       "connect": "連接模型",
@@ -58,7 +92,8 @@
     "pending": {
       "cancelling": "正在停止…",
       "committing": "正在儲存…",
-      "now": "思考中…"
+      "now": "思考中…",
+      "withSeconds": "思考中 · {{seconds}} 秒"
     },
     "setup": {
       "openSettings": "開啟設定"
@@ -70,17 +105,31 @@
       "done": "思考過程",
       "streaming": "思考中…"
     },
+    "todos": {
+      "plan": "方案"
+    },
     "tool": {
       "result": "結果"
     },
     "toolbar": {
-      "history": "歷史"
+      "history": "歷史",
+      "historyTitle": "對話歷史",
+      "newTitle": "開始新對話",
+      "renameTitle": "重新命名目前對話"
     },
     "turnChanges": "本回合變更",
     "unavailable": "Agent 目前無法使用。",
+    "usage": {
+      "inputDetail": "輸入 {{input}}（快取讀取 {{cacheRead}} · 快取寫入 {{cacheWrite}} · 淨量 {{net}}）",
+      "outputTurns": "輸出 {{output}} · 回合 {{turns}}",
+      "session": "工作階段",
+      "toolsCount": "{{count}} 個工具",
+      "workedFor": "Agent 工作了 {{duration}}"
+    },
     "workingMemory": {
       "agent": "Agent",
       "author": "作者",
+      "budgetTitle": "無上限；超過 20k、40k token 時請 Agent 整理一次，超過 80k 後每回合都請它整理",
       "clear": "清除",
       "clearConfirm": "清除工作記憶？這不會刪除書稿、長期規則或對話歷史。",
       "cleared": "工作記憶已清除。",
@@ -170,6 +219,8 @@
     "forgotPassword": "忘記密碼？",
     "hasAccount": "已經有帳號？",
     "legal": {
+      "agree": "註冊即表示同意",
+      "and": "與",
       "consent": "繼續即視為同意{{terms}}",
       "consentTerms": "相關條款",
       "privacy": "隱私權政策",
@@ -183,6 +234,12 @@
     "resend": "重寄驗證碼",
     "sendCode": "傳送驗證碼",
     "signIn": "登入",
+    "signOut": {
+      "now": "立即登出",
+      "pending": "此 Mac 尚有 {{count}} 項變更未傳至雲端。現在登出會保留在此 Mac，重新登入此帳號後上傳。",
+      "title": "登出",
+      "uploadFirst": "上傳後登出"
+    },
     "signUp": "註冊",
     "signingIn": "正在登入…",
     "social": {
@@ -851,7 +908,8 @@
     },
     "clear": "清除",
     "cloudSync": {
-      "source": "雲端同步"
+      "source": "雲端同步",
+      "syncing": "同步中…"
     },
     "crashFollowUp": {
       "source": "Drifting"
@@ -885,6 +943,21 @@
       "minutesAgo": "{{count}} 分鐘前"
     },
     "title": "通知"
+  },
+  "paperSync": {
+    "failing": "雲端同步失敗",
+    "notStarted": "無法啟動同步",
+    "notStartedDetail": "書稿仍儲存在這部裝置上。",
+    "offline": "離線",
+    "offlineDetail": "仍可在本機繼續寫作。",
+    "openSettings": "開啟設定",
+    "quota": "Hosted 儲存空間已滿",
+    "reauth": "登入已過期",
+    "reauthDetail": "請重新登入同一帳號。",
+    "retry": "重試",
+    "retrying": "同步未完成",
+    "retryingDetail": "書稿已存於此裝置，正在自動重試。",
+    "signIn": "重新登入"
   },
   "plotGrid": {
     "addColumnShort": "欄",
@@ -1253,6 +1326,7 @@
         "args": "參數（每行一個）",
         "command": "執行檔絕對路徑",
         "cwd": "工作目錄絕對路徑（選填）",
+        "deleteConfirm": "刪除 MCP 伺服器「{{name}}」？相關持續授權也會撤銷。",
         "disable": "停用",
         "editTitle": "編輯 MCP 伺服器",
         "empty": "此作品尚無 MCP 伺服器。",
@@ -1262,6 +1336,7 @@
         "noProject": "開啟作品以設定 MCP。",
         "notChecked": "尚未連接",
         "policy": {
+          "askWrite": "寫入 · 詢問",
           "disabled": "已停用"
         },
         "publicEnv": "公開環境變數（每行 NAME=value）",
@@ -1303,6 +1378,26 @@
       "iterationOption": "{{value}} 次迭代",
       "unlimited": "無上限",
       "unlimitedHint": "「無上限」不設模型呼叫次數上限，你可以手動停止本輪。"
+    },
+    "agentMemory": {
+      "title": "作品記憶"
+    },
+    "agentUsage": {
+      "all": "全部期間",
+      "clearConfirm": "清除所有對話歷史？此作品的 {{count}} 個 Agent 對話將被移除。",
+      "clearHistory": "清除歷史記錄",
+      "conversationsTurns": "對話／回合",
+      "deleteConversation": "刪除此對話",
+      "history": "對話歷史",
+      "historyDesc": "此作品的所有 Agent 對話。刪除為暫時刪除，與右側歷史記錄同步，不影響其他作品。",
+      "month": "本月",
+      "noHistory": "尚無對話，傳送訊息給 Agent 即可開始。",
+      "noProjectHistory": "開啟作品以管理對話歷史。",
+      "noProjectUsage": "開啟作品以查看 Agent 用量。",
+      "tokenCard": "{{scope}} Token",
+      "untitled": "未命名",
+      "usage": "用量",
+      "usageDesc": "依每回合回傳資料記錄 Agent 在此作品使用的 token，輸入量包含快取讀取。可查看本月或全部期間。"
     },
     "appearance": {
       "accent": "強調色",
@@ -1471,19 +1566,37 @@
       "connect_errors": {
         "cancelled": "已取消。"
       },
+      "crop_confirm": "使用此頭像",
+      "crop_description": "拖曳圖片或用方向鍵定位，再調整縮放。",
+      "crop_title": "調整頭像",
+      "crop_zoom": "縮放",
       "current_password": "目前密碼",
       "description": "書稿會先存於此裝置，連接帳號後可在你的裝置間同步作品。",
+      "disconnect": "中斷同步",
+      "disconnect_anyway": "仍要中斷",
+      "disconnect_description": "先上傳僅存於這部 Mac 的變更，再中斷連線。本機作品與雲端副本都會保留。",
+      "disconnect_now": "立即中斷",
+      "disconnect_unuploaded": "尚有 {{count}} 項變更未上傳；中斷後僅留在此 Mac。",
       "display_name": "顯示名稱",
+      "enabled": "已連接 Hosted 同步",
+      "last_synced": "上次完成同步：{{time}}",
       "library_switch_failed": "沒能切換書庫",
       "new_password": "新密碼",
       "no_account": "尚未登入",
+      "not_started": "無法啟動同步。書稿仍存於此裝置，請重新開啟 Drifting 再試。",
       "password_description": "8–128 個字元。",
       "password_saved": "密碼已變更，其他裝置需要重新登入。",
       "password_sessions": "變更密碼會登出其他裝置，此裝置維持登入。",
       "password_title": "密碼",
+      "pause": "暫停",
+      "paused": "同步已暫停",
+      "pending": "正在同步或等待同步完成。",
       "profile_saved": "已儲存個人資料。",
       "profile_title": "個人資料",
+      "quota_blocked": "Hosted 儲存空間已滿，附件無法上傳，此作品暫時無法繼續同步。刪除不需要的附件或作品後即可恢復，本機內容不受影響。",
       "remove_avatar": "移除",
+      "resume": "繼續",
+      "retrying": "同步未完成。書稿仍已存於本機，正在自動重試。",
       "save_profile": "儲存個人資料",
       "session": {
         "checking": "正在檢查帳號…",
@@ -1494,6 +1607,10 @@
       },
       "sign_in": "登入／註冊",
       "sign_out": "登出",
+      "storage": "Hosted 儲存空間",
+      "storage_description": "已用 {{used}}，共 {{quota}}。附件計入用量，書稿與結構不設限。",
+      "sync_now": "立即同步",
+      "sync_title": "Hosted 同步",
       "title": "帳號與 Hosted 同步",
       "working": "處理中…"
     },

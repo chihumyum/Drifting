@@ -135,9 +135,10 @@ pub(crate) fn take_requested_section(window: &Window, cx: &mut App) -> Option<re
 }
 
 /// The update row of 关于 (M42, `dr-view-update`): the words under its
-/// label (what the last check found) and its button.
+/// label (what the last check found), optional release notes, and its button.
 pub struct UpdatesRow {
     pub description: Option<SharedString>,
+    pub notes: Option<SharedString>,
     pub control: Option<AnyElement>,
 }
 

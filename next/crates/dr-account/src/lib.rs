@@ -39,8 +39,9 @@ pub use preferences::{
 pub use profile::{
     AVATAR_CANVAS_SIZE, AccountErrorCode, HostedUser, MAX_AVATAR_DATA_URL_BYTES,
     MAX_AVATAR_UPLOAD_BYTES, MAX_PASSWORD_LENGTH, MAX_PROFILE_NAME_UTF16_UNITS, MIN_PASSWORD_BYTES,
-    crop_and_encode_avatar, decode_avatar_rgba, is_allowed_avatar_data_url, normalize_avatar,
-    validate_password_change, validate_profile_name,
+    crop_and_encode_avatar, crop_and_encode_avatar_with_transform, decode_avatar_rgba,
+    decode_avatar_source, is_allowed_avatar_data_url, normalize_avatar, validate_password_change,
+    validate_profile_name,
 };
 pub use session::{HOSTED_PROFILE_FILE, ProfileCache, SessionStatus, SessionTokenStore};
 

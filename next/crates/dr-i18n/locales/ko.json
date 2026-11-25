@@ -29,7 +29,37 @@
       "modelUnavailable": "선택한 모델이 현재 목록에 없습니다. 다른 모델을 선택하세요."
     },
     "context": {
-      "tokens": "{{count}} 토큰"
+      "allocation": {
+        "free": "남은 공간",
+        "input": "현재 입력",
+        "output": "출력 예약",
+        "safety": "안전 여유",
+        "title": "창 할당"
+      },
+      "breakdownTitle": "현재 입력 내용",
+      "categories": {
+        "assistant_messages": "Agent 메시지",
+        "compaction_summaries": "압축 요약",
+        "provider_overhead": "제공업체 프레이밍",
+        "system_prompt": "시스템 프롬프트",
+        "task_constraints": "작업 제약",
+        "task_plan": "작업 계획",
+        "thinking": "사고",
+        "tool_calls": "도구 호출",
+        "tool_definitions": "도구 정의",
+        "tool_results": "도구 결과",
+        "user_messages": "사용자 메시지"
+      },
+      "compaction": "컨텍스트 압축",
+      "compactionDetail": "{{saved}} 절약 · {{stages}} · 요약 {{count}}개",
+      "compactionNone": "이번 호출은 압축이 필요하지 않았습니다",
+      "description": "모델에 실제 보낸 최신 검증된 컨텍스트 계획 기준입니다. 대화 전체의 누적 토큰 사용량이 아닙니다.",
+      "progressAria": "현재 Agent 컨텍스트 사용량",
+      "sources": "{{count}}개 출처",
+      "summary": "{{used}} / {{limit}}({{percent}}%)",
+      "title": "컨텍스트 사용량",
+      "tokens": "{{count}} 토큰",
+      "tooltip": "{{used}} / {{limit}} 토큰({{percent}}%)\n출력 예약: {{output}} · 안전 여유: {{safety}}"
     },
     "control": {
       "allow": {
@@ -44,9 +74,13 @@
       "start": "Agent에게 메시지를 보내 시작하세요. 이 작품의 장·요소·관계를 읽고 쓸 수 있습니다."
     },
     "history": {
+      "delete": "대화 삭제",
       "empty": "아직 대화 기록이 없습니다",
+      "loadEarlier": "이전 메시지 불러오기",
+      "rename": "이름 바꾸기",
       "untitled": "제목 없음"
     },
+    "jumpLatest": "최신으로 이동",
     "newConversation": "새 대화",
     "onboarding": {
       "connect": "모델 연결",
@@ -58,7 +92,8 @@
     "pending": {
       "cancelling": "중지 중…",
       "committing": "저장 중…",
-      "now": "생각 중…"
+      "now": "생각 중…",
+      "withSeconds": "생각 중 · {{seconds}}초"
     },
     "setup": {
       "openSettings": "설정 열기"
@@ -70,17 +105,31 @@
       "done": "사고 기록",
       "streaming": "생각 중…"
     },
+    "todos": {
+      "plan": "요금제"
+    },
     "tool": {
       "result": "결과"
     },
     "toolbar": {
-      "history": "기록"
+      "history": "기록",
+      "historyTitle": "대화 기록",
+      "newTitle": "새 대화 시작",
+      "renameTitle": "현재 대화 이름 바꾸기"
     },
     "turnChanges": "턴 변경 사항",
     "unavailable": "Agent를 사용할 수 없습니다.",
+    "usage": {
+      "inputDetail": "입력 {{input}}(캐시 읽기 {{cacheRead}} · 쓰기 {{cacheWrite}} · 순수 {{net}})",
+      "outputTurns": "출력 {{output}} · 턴 {{turns}}",
+      "session": "세션",
+      "toolsCount": "{{count}}개 도구",
+      "workedFor": "Agent 작업 시간 {{duration}}"
+    },
     "workingMemory": {
       "agent": "Agent",
       "author": "작가",
+      "budgetTitle": "제한 없음. 20k·40k 토큰 초과 시 한 번씩, 80k 초과 후에는 매 턴 정리하도록 요청합니다",
       "clear": "지우기",
       "clearConfirm": "작업 메모리를 지울까요? 원고·장기 규칙·대화 기록은 삭제되지 않습니다.",
       "cleared": "작업 메모리를 지웠습니다.",
@@ -170,6 +219,8 @@
     "forgotPassword": "비밀번호를 잊으셨나요?",
     "hasAccount": "이미 계정이 있나요?",
     "legal": {
+      "agree": "가입하면 다음에 동의합니다:",
+      "and": "및",
       "consent": "계속하면 {{terms}}에 동의하는 것으로 봅니다",
       "consentTerms": "관련 약관",
       "privacy": "개인정보 처리방침",
@@ -183,6 +234,12 @@
     "resend": "코드 다시 보내기",
     "sendCode": "코드 보내기",
     "signIn": "로그인",
+    "signOut": {
+      "now": "지금 로그아웃",
+      "pending": "이 Mac에 클라우드에 없는 변경이 {{count}}개 있습니다. 지금 로그아웃하면 이 Mac에 남고 같은 계정에 다시 로그인하면 업로드됩니다.",
+      "title": "로그아웃",
+      "uploadFirst": "업로드 후 로그아웃"
+    },
     "signUp": "가입",
     "signingIn": "로그인 중…",
     "social": {
@@ -851,7 +908,8 @@
     },
     "clear": "지우기",
     "cloudSync": {
-      "source": "클라우드 동기화"
+      "source": "클라우드 동기화",
+      "syncing": "동기화 중…"
     },
     "crashFollowUp": {
       "source": "Drifting"
@@ -885,6 +943,21 @@
       "minutesAgo": "{{count}}분 전"
     },
     "title": "알림"
+  },
+  "paperSync": {
+    "failing": "클라우드 동기화 실패",
+    "notStarted": "동기화를 시작할 수 없습니다",
+    "notStartedDetail": "원고는 이 기기에 저장되어 있습니다.",
+    "offline": "오프라인",
+    "offlineDetail": "로컬에서 계속 집필할 수 있습니다.",
+    "openSettings": "설정 열기",
+    "quota": "Hosted 저장 공간 가득 참",
+    "reauth": "세션 만료",
+    "reauthDetail": "같은 계정으로 다시 로그인하세요.",
+    "retry": "다시 시도",
+    "retrying": "동기화가 끝나지 않았습니다",
+    "retryingDetail": "원고는 이 기기에 저장되어 있습니다. 자동으로 다시 시도합니다.",
+    "signIn": "다시 로그인"
   },
   "plotGrid": {
     "addColumnShort": "열",
@@ -1253,6 +1326,7 @@
         "args": "인수(한 줄에 하나)",
         "command": "실행 파일 절대 경로",
         "cwd": "작업 폴더 절대 경로(선택)",
+        "deleteConfirm": "MCP 서버 “{{name}}”을 삭제할까요? 지속 권한도 취소됩니다.",
         "disable": "사용 안 함",
         "editTitle": "MCP 서버 편집",
         "empty": "이 작품에는 MCP 서버가 없습니다.",
@@ -1262,6 +1336,7 @@
         "noProject": "작품을 열어 MCP를 설정하세요.",
         "notChecked": "아직 연결하지 않음",
         "policy": {
+          "askWrite": "쓰기 · 확인",
           "disabled": "사용 안 함"
         },
         "publicEnv": "공개 환경 변수(한 줄에 NAME=value)",
@@ -1303,6 +1378,26 @@
       "iterationOption": "{{value}}회 반복",
       "unlimited": "무제한",
       "unlimitedHint": "무제한은 모델 호출 횟수에 상한을 두지 않습니다. 턴을 수동으로 중지할 수 있습니다."
+    },
+    "agentMemory": {
+      "title": "작품 메모리"
+    },
+    "agentUsage": {
+      "all": "전체 기간",
+      "clearConfirm": "모든 대화 기록을 지울까요? 이 작품의 Agent 대화 {{count}}개가 제거됩니다.",
+      "clearHistory": "기록 지우기",
+      "conversationsTurns": "대화 / 턴",
+      "deleteConversation": "이 대화 삭제",
+      "history": "대화 기록",
+      "historyDesc": "이 작품의 모든 Agent 대화입니다. 삭제는 임시 삭제이며 오른쪽 기록과 동기화되고 다른 작품에는 영향을 주지 않습니다.",
+      "month": "이번 달",
+      "noHistory": "아직 대화가 없습니다. Agent에게 메시지를 보내 시작하세요.",
+      "noProjectHistory": "작품을 열어 대화 기록을 관리하세요.",
+      "noProjectUsage": "작품을 열어 Agent 사용량을 확인하세요.",
+      "tokenCard": "{{scope}} 토큰",
+      "untitled": "제목 없음",
+      "usage": "사용량",
+      "usageDesc": "각 턴의 반환값을 바탕으로 Agent의 작품 내 토큰 사용량을 기록합니다. 입력에는 캐시 읽기가 포함됩니다. 이번 달 또는 전체 기간을 볼 수 있습니다."
     },
     "appearance": {
       "accent": "강조색",
@@ -1471,19 +1566,37 @@
       "connect_errors": {
         "cancelled": "취소했습니다."
       },
+      "crop_confirm": "이 사진 사용",
+      "crop_description": "이미지를 끌거나 방향키로 위치를 정한 뒤 확대 비율을 조절하세요.",
+      "crop_title": "프로필 사진 조정",
+      "crop_zoom": "확대/축소",
       "current_password": "현재 비밀번호",
       "description": "원고는 먼저 이 기기에 저장됩니다. 계정을 연결하면 기기 간에 작품을 동기화할 수 있습니다.",
+      "disconnect": "동기화 연결 해제",
+      "disconnect_anyway": "그래도 연결 해제",
+      "disconnect_description": "이 Mac에만 있는 변경을 업로드한 뒤 연결을 해제합니다. 로컬 작품과 클라우드 사본은 유지됩니다.",
+      "disconnect_now": "지금 연결 해제",
+      "disconnect_unuploaded": "변경 {{count}}개가 업로드되지 않았습니다. 해제하면 이 Mac에만 남습니다.",
       "display_name": "표시 이름",
+      "enabled": "Hosted 동기화 연결됨",
+      "last_synced": "마지막 동기화 완료: {{time}}",
       "library_switch_failed": "라이브러리를 전환하지 못했습니다",
       "new_password": "새 비밀번호",
       "no_account": "로그인 안 됨",
+      "not_started": "동기화를 시작할 수 없습니다. 원고는 이 기기에 저장되어 있습니다. Drifting을 다시 열어 시도하세요.",
       "password_description": "8~128자.",
       "password_saved": "비밀번호가 변경되었습니다. 다른 기기에서 다시 로그인해야 합니다.",
       "password_sessions": "비밀번호를 변경하면 다른 기기에서 로그아웃됩니다. 이 기기는 로그인 상태를 유지합니다.",
       "password_title": "비밀번호",
+      "pause": "일시정지",
+      "paused": "동기화 일시정지됨",
+      "pending": "동기화 중이거나 완료를 기다리는 중입니다.",
       "profile_saved": "프로필을 저장했습니다.",
       "profile_title": "프로필",
+      "quota_blocked": "Hosted 저장 공간이 가득 차 첨부를 업로드할 수 없어 작품 동기화가 멈췄습니다. 필요 없는 첨부나 작품을 삭제하면 재개됩니다. 로컬 내용은 영향을 받지 않습니다.",
       "remove_avatar": "제거",
+      "resume": "다시 시작",
+      "retrying": "동기화가 끝나지 않았습니다. 원고는 로컬에 저장되어 있으며 자동 재시도 중입니다.",
       "save_profile": "프로필 저장",
       "session": {
         "checking": "계정 확인 중…",
@@ -1494,6 +1607,10 @@
       },
       "sign_in": "로그인 / 가입",
       "sign_out": "로그아웃",
+      "storage": "Hosted 저장 공간",
+      "storage_description": "{{quota}} 중 {{used}} 사용. 첨부 파일은 용량에 포함되며 원고와 구조는 제한이 없습니다.",
+      "sync_now": "지금 동기화",
+      "sync_title": "Hosted 동기화",
       "title": "계정 및 Hosted 동기화",
       "working": "작업 중…"
     },

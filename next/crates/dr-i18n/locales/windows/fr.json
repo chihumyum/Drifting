@@ -4,6 +4,11 @@
       "saveFailed": "Impossible d’enregistrer la clé dans le Gestionnaire d’identification Windows."
     }
   },
+  "auth": {
+    "signOut": {
+      "pending": "{{count}} modifications de ce PC manquent dans le cloud. En vous déconnectant, elles restent ici et seront envoyées à votre retour sur ce compte."
+    }
+  },
   "settings": {
     "agent": {
       "extensions": {
@@ -14,6 +19,10 @@
       "failure": {
         "storage_failed": "Impossible d’enregistrer la connexion dans le Gestionnaire d’identification Windows."
       }
+    },
+    "hosted": {
+      "disconnect_description": "Téléverse les modifications présentes uniquement sur ce PC, puis déconnecte. Les projets locaux et copies cloud sont conservés.",
+      "disconnect_unuploaded": "{{count}} modifications non téléversées. Après déconnexion, elles resteront uniquement sur ce PC."
     },
     "sync": {
       "projection": {

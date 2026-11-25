@@ -3,11 +3,11 @@ use dr_mcp::outbound::{
     ConfigValue, Manager, ServerDraft, ServerInfo, Status, TransportConfig, TransportDraft,
 };
 use dr_ui::{
-    components::{Choice, Select},
+    components::{Choice, Dialog, Layer, Place, Select, float},
     input::TextArea,
     sand::Icon,
 };
-use gpui::Focusable as _;
+use gpui::{Focusable as _, prelude::FluentBuilder as _};
 use keys::settings::agent::extensions as k;
 
 struct SecretRow {
@@ -190,6 +190,7 @@ pub(super) struct ExtensionsView {
     busy: bool,
     error: Option<String>,
     editor: Option<Editor>,
+    confirm_delete: Option<ServerInfo>,
     _subscription: Subscription,
 }
 impl ExtensionsView {
@@ -202,6 +203,7 @@ impl ExtensionsView {
                 view.generation = state.generation();
                 view.book = state.book();
                 view.editor = None;
+                view.confirm_delete = None;
                 view.busy = false;
                 view.error = None;
             }
@@ -214,11 +216,13 @@ impl ExtensionsView {
             busy: false,
             error: None,
             editor: None,
+            confirm_delete: None,
             _subscription: subscription,
         }
     }
     pub(super) fn close(&mut self, cx: &mut Context<Self>) {
         self.editor = None;
+        self.confirm_delete = None;
         cx.notify();
     }
     fn scope(&self) -> (u64, Option<String>) {
@@ -351,12 +355,93 @@ impl ExtensionsView {
             Status::Ready => t(cx, keys::settings::byok_provider::AVAILABLE),
             Status::Failed { message } => message.clone().into(),
         };
+        let theme = Theme::of(window, cx);
+        let p = theme.palette;
+        let transport_label = match &server.transport {
+            TransportConfig::Stdio { .. } => "stdio",
+            TransportConfig::Http { .. } => "Streamable HTTP",
+        };
         let mut col = div()
             .flex()
             .flex_col()
             .gap(px(6.0))
-            .child(div().child(server.name.clone()))
+            .p(px(10.0))
+            .rounded(px(8.0))
+            .border(px(0.5))
+            .border_color(p.hairline())
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(px(8.0))
+                    .child(div().child(server.name.clone()))
+                    .child(
+                        div()
+                            .px(px(6.0))
+                            .py(px(1.5))
+                            .rounded(px(4.0))
+                            .bg(p.ink(1).alpha(0.06))
+                            .font_role(Role::Index)
+                            .text_size(px(11.0))
+                            .text_color(p.ink(3).solid())
+                            .child(transport_label),
+                    ),
+            )
             .child(note(status, window, cx));
+        if !server.tools.is_empty() {
+            let mut tools_list = div()
+                .flex()
+                .flex_col()
+                .gap(px(4.0))
+                .pt(px(4.0))
+                .border_t(px(0.5))
+                .border_color(p.hairline());
+            for tool in &server.tools {
+                let desc: String = tool.description.chars().take(120).collect();
+                tools_list = tools_list.child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .justify_between()
+                        .gap(px(8.0))
+                        .child(
+                            div()
+                                .flex_1()
+                                .min_w_0()
+                                .flex()
+                                .flex_col()
+                                .child(
+                                    div()
+                                        .font_role(Role::Index)
+                                        .text_size(px(12.0))
+                                        .text_color(p.ink(1).solid())
+                                        .child(tool.name.clone()),
+                                )
+                                .when(!desc.is_empty(), |el| {
+                                    el.child(
+                                        div()
+                                            .text_size(px(11.5))
+                                            .text_color(p.ink(3).solid())
+                                            .child(desc),
+                                    )
+                                }),
+                        )
+                        .child(
+                            div()
+                                .flex_none()
+                                .px(px(6.0))
+                                .py(px(1.5))
+                                .rounded(px(4.0))
+                                .bg(p.ink(1).alpha(0.05))
+                                .font_role(Role::Index)
+                                .text_size(px(11.0))
+                                .text_color(p.ink(3).solid())
+                                .child(t(cx, k::policy::ASK_WRITE)),
+                        ),
+                );
+            }
+            col = col.child(tools_list);
+        }
         let mut row = div().flex().flex_wrap().gap(px(6.0));
         let entity = cx.entity();
         let item = server.clone();
@@ -433,7 +518,8 @@ impl ExtensionsView {
             .on_click(move |_, _, cx| {
                 entity.update(cx, |view, cx| {
                     if view.current(&scope, cx) {
-                        view.remove(item.clone(), cx);
+                        view.confirm_delete = Some(item.clone());
+                        cx.notify();
                     }
                 })
             })
@@ -667,6 +753,47 @@ impl Render for ExtensionsView {
         }
         if let Some(error) = self.error.as_deref() {
             col = col.child(note(error.to_owned(), window, cx));
+        }
+        if let Some(target) = self.confirm_delete.clone() {
+            let cancel_ent = cx.entity();
+            let confirm_ent = cx.entity();
+            let dismiss_ent = cx.entity();
+            let scope = self.scope();
+            let prompt = tf(cx, k::DELETE_CONFIRM, &[("name", &target.name)]);
+            let dialog = Dialog::new("mcp-delete-confirm", t(cx, keys::settings::common::DELETE))
+                .body(div().child(prompt))
+                .action(
+                    Button::new("mcp-delete-cancel", t(cx, keys::settings::common::CANCEL))
+                        .small()
+                        .on_click(move |_, _, cx| {
+                            cancel_ent.update(cx, |view, cx| {
+                                view.confirm_delete = None;
+                                cx.notify();
+                            });
+                        }),
+                )
+                .action(
+                    Button::new("mcp-delete-ok", t(cx, keys::settings::common::DELETE))
+                        .small()
+                        .danger()
+                        .on_click(move |_, _, cx| {
+                            let target = target.clone();
+                            confirm_ent.update(cx, |view, cx| {
+                                view.confirm_delete = None;
+                                if view.current(&scope, cx) {
+                                    view.remove(target, cx);
+                                }
+                                cx.notify();
+                            });
+                        }),
+                )
+                .on_close(move |_, cx| {
+                    dismiss_ent.update(cx, |view, cx| {
+                        view.confirm_delete = None;
+                        cx.notify();
+                    });
+                });
+            col = col.child(float(Place::Center, Layer::Dialog, dialog));
         }
         col
     }

@@ -2,9 +2,13 @@
 //! email verification OTP, passwordless email OTP sign-in, forgot/reset password,
 //! and Google PKCE OAuth.
 
-use dr_account::{AccountError, AccountErrorCode, AccountState, OtpPurpose, SignUpOutcome};
+use dr_account::{
+    AccountError, AccountErrorCode, AccountState, MAX_PASSWORD_LENGTH, MIN_PASSWORD_BYTES,
+    OtpPurpose, SignUpOutcome,
+};
 use dr_i18n::{Key, keys};
 use dr_shell::dialogs::Close;
+use dr_shell::settings::registry;
 use dr_shell::strings::tf;
 use dr_shell::t;
 use dr_ui::{
@@ -62,10 +66,16 @@ impl AuthDialog {
         let pen_name =
             cx.new(|cx| TextField::new("auth-pen-name", window, cx).placeholder(pen_name_ph));
         let email = cx.new(|cx| TextField::new("auth-email", window, cx).placeholder(email_ph));
-        let password = cx
-            .new(|cx| TextField::new("auth-password", window, cx).placeholder(password_ph.clone()));
-        let confirm_password = cx
-            .new(|cx| TextField::new("auth-confirm-password", window, cx).placeholder(password_ph));
+        let password = cx.new(|cx| {
+            TextField::new("auth-password", window, cx)
+                .placeholder(password_ph.clone())
+                .secure(true)
+        });
+        let confirm_password = cx.new(|cx| {
+            TextField::new("auth-confirm-password", window, cx)
+                .placeholder(password_ph)
+                .secure(true)
+        });
         let otp = cx.new(|cx| TextField::new("auth-otp", window, cx).placeholder(code_ph));
 
         let mut subs = Vec::new();
@@ -144,6 +154,12 @@ impl AuthDialog {
                 cx.notify();
             }
         }
+    }
+
+    pub fn cancel_google(&mut self, cx: &mut Context<Self>) {
+        self.waiting_oauth = false;
+        self.error = None;
+        cx.notify();
     }
 
     pub fn send_code(&mut self, cx: &mut Context<Self>) {
@@ -230,9 +246,9 @@ impl AuthDialog {
                             Ok(state) => d.finish_signed_in(state, window, cx),
                             Err(err) if err.code == AccountErrorCode::EmailNotVerified => {
                                 d.mode = AuthMode::VerifyEmail;
-                                d.otp_sent = true;
+                                d.otp_sent = false;
                                 d.error = None;
-                                cx.notify();
+                                d.send_code(cx);
                             }
                             Err(err) => {
                                 d.error = Some(map_auth_error(&err, cx));
@@ -246,6 +262,15 @@ impl AuthDialog {
             AuthMode::SignUp => {
                 if name.is_empty() || email.is_empty() || password.is_empty() {
                     self.error = Some(t(cx, keys::auth::errors::SIGN_UP_RETRY));
+                    cx.notify();
+                    return;
+                }
+                let pw_len = password.chars().count();
+                if !(MIN_PASSWORD_BYTES..=MAX_PASSWORD_LENGTH).contains(&pw_len) {
+                    self.error = Some(t(
+                        cx,
+                        keys::settings::hosted::account_errors::INVALID_PASSWORD_LENGTH,
+                    ));
                     cx.notify();
                     return;
                 }
@@ -461,11 +486,34 @@ impl Render for AuthDialog {
                 tf(cx, soc::CONTINUE_WITH, &[("provider", &"Google")])
             };
             let e_google = entity.clone();
+            let e_cancel_oauth = entity.clone();
             body = body
                 .child(
-                    Button::new("auth-google", google_label)
-                        .disabled(self.busy)
-                        .on_click(move |_, _, cx| e_google.update(cx, |d, cx| d.start_google(cx))),
+                    div()
+                        .flex()
+                        .flex_row()
+                        .items_center()
+                        .gap(px(space::S2))
+                        .child(
+                            div().flex_1().child(
+                                Button::new("auth-google", google_label)
+                                    .disabled(self.busy || self.waiting_oauth)
+                                    .busy(self.waiting_oauth)
+                                    .on_click(move |_, _, cx| {
+                                        e_google.update(cx, |d, cx| d.start_google(cx))
+                                    }),
+                            ),
+                        )
+                        .when(self.waiting_oauth, |el| {
+                            el.child(
+                                Button::new("auth-google-cancel", t(cx, keys::common::CANCEL))
+                                    .text()
+                                    .small()
+                                    .on_click(move |_, _, cx| {
+                                        e_cancel_oauth.update(cx, |d, cx| d.cancel_google(cx))
+                                    }),
+                            )
+                        }),
                 )
                 .child(
                     div()
@@ -531,11 +579,40 @@ impl Render for AuthDialog {
                     );
             }
             AuthMode::SignUp => {
+                use keys::auth::legal;
                 let e_signin = entity.clone();
+                let mut legal_row = div()
+                    .flex()
+                    .flex_row()
+                    .flex_wrap()
+                    .items_center()
+                    .gap(px(4.0))
+                    .font_role(Role::Ui)
+                    .type_px(s.caption, s.line_caption)
+                    .text_color(p.muted().solid())
+                    .child(t(cx, legal::AGREE));
+                if let Some(terms_url) = registry::terms_url() {
+                    legal_row = legal_row
+                        .child(
+                            Button::new("auth-signup-terms", t(cx, legal::TERMS))
+                                .text()
+                                .small()
+                                .on_click(move |_, _, cx| cx.open_url(terms_url)),
+                        )
+                        .child(t(cx, legal::AND));
+                }
+                let privacy_url = registry::privacy_url();
+                legal_row = legal_row.child(
+                    Button::new("auth-signup-privacy", t(cx, legal::PRIVACY))
+                        .text()
+                        .small()
+                        .on_click(move |_, _, cx| cx.open_url(privacy_url)),
+                );
                 body = body
                     .child(field_block(t(cx, f::PEN_NAME), self.pen_name.clone()))
                     .child(field_block(t(cx, f::EMAIL), self.email.clone()))
                     .child(field_block(t(cx, f::PASSWORD), self.password.clone()))
+                    .child(legal_row)
                     .child(
                         div()
                             .flex()
@@ -638,6 +715,7 @@ impl Render for AuthDialog {
                 } else {
                     t(cx, fg::SUB)
                 };
+                let e_resend = entity.clone();
                 let e_back = entity.clone();
                 body = body
                     .child(
@@ -655,6 +733,15 @@ impl Render for AuthDialog {
                                 t(cx, fg::CONFIRM_PASSWORD),
                                 self.confirm_password.clone(),
                             ))
+                            .child(
+                                Button::new("auth-forgot-resend", t(cx, auth::RESEND))
+                                    .text()
+                                    .small()
+                                    .disabled(self.busy)
+                                    .on_click(move |_, _, cx| {
+                                        e_resend.update(cx, |d, cx| d.send_code(cx))
+                                    }),
+                            )
                     })
                     .child(
                         Button::new("auth-forgot-back", t(cx, auth::BACK_TO_SIGN_IN))
@@ -738,7 +825,7 @@ impl Render for AuthDialog {
         let reset_done = self.reset_done;
         let submit_btn = Button::new("auth-submit", primary_label)
             .primary()
-            .disabled(self.busy)
+            .disabled(self.busy || self.waiting_oauth)
             .busy(self.busy)
             .on_click(move |_, window, cx| {
                 e_submit.update(cx, |d, cx| {

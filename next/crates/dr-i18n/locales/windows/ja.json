@@ -4,6 +4,11 @@
       "saveFailed": "キーをWindows 資格情報マネージャーに保存できませんでした。"
     }
   },
+  "auth": {
+    "signOut": {
+      "pending": "このPCの未送信変更は{{count}}件です。今ログアウトしても端末に残り、同じアカウントへ再ログインすると送信します。"
+    }
+  },
   "settings": {
     "agent": {
       "extensions": {
@@ -14,6 +19,10 @@
       "failure": {
         "storage_failed": "ログイン情報をWindows 資格情報マネージャーに保存できませんでした。"
       }
+    },
+    "hosted": {
+      "disconnect_description": "このPCだけにある変更を送信してから切断します。ローカル作品とクラウドのコピーは残ります。",
+      "disconnect_unuploaded": "{{count}}件が未送信です。切断するとこのPCだけに残ります。"
     },
     "sync": {
       "projection": {

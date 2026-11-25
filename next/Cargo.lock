@@ -2771,6 +2771,7 @@ dependencies = [
  "dr-model",
  "dr-store",
  "dr-text",
+ "flate2",
  "insta",
  "log",
  "loro",
