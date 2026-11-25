@@ -1,6 +1,6 @@
 # 在 next/ 里开一路工作、交回、整合
 
-这个目录原来放的是 2026-11-08 到 11-12 交给各路会话的任务书、队列和整合流水。那些都是已经结束的过程记录，2026-11-12 删掉了，最后一版在 `git show f272963e8:docs/rust-rewrite/handoff/`。里面还开着的事项搬进了 [progress.md](../progress.md)。内核 v4 八条轨道的任务书（`v4-tracks.md`）在轨道合完、收尾做完后删了，仍然有效的规矩并进了本页。内核 v5 的任务书（`v5-tracks.md`）在各路合完、作者 2026-11-18 定完合并时攒下的清单以后删了（kernel-v5 第 15 节第 57 条），最后一版在 `git show 64563601b:docs/rust-rewrite/handoff/v5-tracks.md`；它「作者已经定下的」七十三条都在 kernel-v5 第 15 节各条里，还要做的几路小活和 PT5 在 [v5-followups.md](v5-followups.md)。
+这个目录原来放的是 2026-11-08 到 11-12 交给各路会话的任务书、队列和整合流水。那些都是已经结束的过程记录，2026-11-12 删掉了，最后一版在 `git show f272963e8:docs/rust-rewrite/handoff/`。里面还开着的事项搬进了 [progress.md](../progress.md)。内核 v4 八条轨道的任务书（`v4-tracks.md`）在轨道合完、收尾做完后删了，仍然有效的规矩并进了本页。内核 v5 的任务书（`v5-tracks.md`）在各路合完、作者 2026-11-18 定完合并时攒下的清单以后删了（kernel-v5 第 15 节第 57 条），最后一版在 `git show 64563601b:docs/rust-rewrite/handoff/v5-tracks.md`；它「作者已经定下的」七十三条都在 kernel-v5 第 15 节各条里。之后的收尾任务书 `v5-followups.md`（七路小活 2026-11-18 都合完）和 `resume-1123.md`（2026-11-24 第一轮十三路与第二轮五路都合完）在 2026-11-25 删了，最后一版分别在 `git show 9cf3d2c7d:docs/rust-rewrite/handoff/v5-followups.md` 和 `git show 9cf3d2c7d:docs/rust-rewrite/handoff/resume-1123.md`；仍然有效的省磁盘跑法并进了本页，发布后再做的 PT5 社区模板见 [project-templates.md](../project-templates.md) 与 [progress.md](../progress.md)。
 
 这一页只留下现在仍然有效、而且别处没写的规矩。别处已经写了的不重复：
 
@@ -63,6 +63,15 @@
    cd .. && pnpm public:check && pnpm ci:contract:check
    ```
 
+   省磁盘跑全套测试时可关闭增量与调试符号，但 `crash_report` 需要调试符号还原行号，必须用默认配置单独重跑；改过的 crate 再不带 `RUST_TEST_THREADS=1` 并行跑一遍（CI 是并行跑的）；动了 Windows 才编的代码或 `dr-platform` 时加一遍交叉 Clippy；每道检查单独看退出码，不接在管道后面：
+
+   ```bash
+   CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 \
+   RUST_TEST_THREADS=1 DR_UI_REQUIRE_FONTS=1 cargo test --workspace --locked --no-fail-fast
+   cargo test -p dr-platform --test crash_report --locked
+   cargo clippy -p dr-platform --all-targets --no-default-features --target x86_64-pc-windows-msvc --locked -- -D warnings
+   ```
+
 2. 真窗口冒烟自己改到的功能和场景（下一节）。
 3. 更新自己涉及的模块结论文档；`progress.md` 由监管会话改，发现它过时就写进报告。
 4. 建交回指针 `git branch -f handback/<名字> HEAD`，报告用中文，先说大白话（做了什么、作者会看到什么不同），再列改了哪些文件、出了范围的改动、删了和改了期望的测试、检查结果、真窗口结果、等作者的事、分支和提交号。
@@ -120,8 +129,8 @@
 
 都在 Git 里但不在任何分支的工作树上，`git status` 看不到。没有作者的话不删、不 rebase。
 
-- **`refs/wip/<日期>/<名字>`**（15 个）：被停掉的会话当时没提交的改动，原样存成了引用。以后要停掉一路没做完的会话，也先这样把它没提交的改动存下来，不在别人还在动的工作区里改。看某一份：`git diff <原分支> refs/wip/<日期>/<名字>`；要接着做：`git switch -c <新分支> refs/wip/<日期>/<名字>`。其中多数属于切换时已经删掉的 v2.2 按种类代码，只有参考价值。
+- **`refs/wip/<日期>/<名字>`**：被停掉的会话当时没提交的改动，原样存成的引用。以后要停掉一路没做完的会话，也先这样把它没提交的改动存下来，不在别人还在动的工作区里改。看某一份：`git diff <原分支> refs/wip/<日期>/<名字>`；要接着做：`git switch -c <新分支> refs/wip/<日期>/<名字>`。（2026-11-08 至 11-11 的 15 份旧快照已于 2026-11-25 经作者同意清理。）
 - **`handback/*` 分支**：各路交回时用的指针，指向的提交都已经在 `main` 里。作者 2026-11-20 说清，当时的都删了；以后一路合进 `main` 以后，它的交回指针可以直接删。
-- **公共 Git 目录下的 `integration-evidence/`**（34 个目录）：整合者的探针原件和失败日志。
+- **公共 Git 目录下的 `integration-evidence/`**：整合者的探针原件和失败日志。（2026-11-10 的 34 个旧目录已于 2026-11-25 经作者同意清理。）
 
 两条从没合进 `main` 的冻结分支带着已知的数据缺陷，谁再捡起来要先读当时的记录（`git show f272963e8:docs/rust-rewrite/handoff/integration.md`）：M24 样书认领会覆盖用户的书；M19 笔记任务投射有三项数据问题。

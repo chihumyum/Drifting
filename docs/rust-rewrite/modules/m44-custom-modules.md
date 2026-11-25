@@ -1,6 +1,6 @@
 # M44 条目模块自定义：数据层（CM1）、渲染（CM2）和工作台（CM3）
 
-2026-11-24，任务书 [handoff/resume-1123.md](../handoff/resume-1123.md) 的 CM1。设计是 [custom-modules.md](../custom-modules.md)（作者 2026-11-20 定稿，2026-11-23「现在就迁」）。这一路只做数据：格式和校验器、我的模块、书里的抄本和值、自动换、命令、项目模板带模块、`.driftingmodule` 文件。没有任何界面，也没有 Agent 的工具（CM2 渲染、CM3 工作台、CM4b Agent 照这一页的接口接）。
+2026-11-24，任务书 `handoff/resume-1123.md` 的 CM1。设计是 [custom-modules.md](../custom-modules.md)（作者 2026-11-20 定稿，2026-11-23「现在就迁」）。这一路只做数据：格式和校验器、我的模块、书里的抄本和值、自动换、命令、项目模板带模块、`.driftingmodule` 文件。没有任何界面，也没有 Agent 的工具（CM2 渲染、CM3 工作台、CM4b Agent 照这一页的接口接）。
 
 同一天的 CM2（画出来、能填）写在本页末尾 [「渲染（CM2）」](#渲染cm2)：盒子树画成界面、条目页上能填、铺满、悬停卡里的一行、坏了的抄本；它的三处后续（铺满的开合、英文等语言的个数写法、条目页上模块的先后）在 [「渲染的后续（CR）」](#渲染的后续cr)。CM3（工作台、我的模块、导出导入）在它后面 [「工作台、我的模块、导出导入（CM3）」](#工作台我的模块导出导入cm3)，第二轮 CW（Agent 的改动能撤回、稿纸收图片、角上没有工具、药丸收着的记号、悬停卡的比例）在最后 [「工作台的几处后续（CW）」](#工作台的几处后续cw)。
 
@@ -290,7 +290,7 @@ blocks   每块积木：id、type、name、options、list（住在哪一串）�
 
 ## 渲染（CM2）
 
-2026-11-24，任务书 [handoff/resume-1123.md](../handoff/resume-1123.md) 的 CM2。依据是 [custom-modules.md](../custom-modules.md) 第 3、4 节和第 16 节第 5、6 条，长相对着原型第二页「摆在条目页上」。
+2026-11-24，任务书 `handoff/resume-1123.md` 的 CM2。依据是 [custom-modules.md](../custom-modules.md) 第 3、4 节和第 16 节第 5、6 条，长相对着原型第二页「摆在条目页上」。
 
 ### 做了什么（大白话）
 
@@ -382,7 +382,7 @@ trait Edit { fn value(..) -> AnyElement; fn item(..) -> AnyElement; fn after_ite
 
 ## 渲染的后续（CR）
 
-2026-11-24，任务书 [handoff/resume-1123.md](../handoff/resume-1123.md) 的 CR：CM2 交回时留给作者的三处（progress.md「等作者的事」第 21 条「模块数据层和渲染（CM1、CM2）」(b)(c)(e)），作者答「都按照你的推荐来。」
+2026-11-24，任务书 `handoff/resume-1123.md` 的 CR：CM2 交回时留给作者的三处（progress.md「等作者的事」第 21 条「模块数据层和渲染（CM1、CM2）」(b)(c)(e)），作者答「都按照你的推荐来。」
 
 ### 做了什么（大白话）
 
@@ -434,7 +434,7 @@ trait Edit { fn value(..) -> AnyElement; fn item(..) -> AnyElement; fn after_ite
 
 ## 工作台、我的模块、导出导入（CM3）
 
-2026-11-24，任务书 [handoff/resume-1123.md](../handoff/resume-1123.md) 的 CM3。依据是 [custom-modules.md](../custom-modules.md) 第 2、7、8、9、10 节和第 15、16 节定下的；长相对着原型第一页「工作台」、第三页「进模板 · 导出导入 · 我的模块」、第四页「改了我的模块以后」。数据是 CM1 的命令，画法是 CM2 的渲染器，Agent 的那一半是 CM4b 的工具。
+2026-11-24，任务书 `handoff/resume-1123.md` 的 CM3。依据是 [custom-modules.md](../custom-modules.md) 第 2、7、8、9、10 节和第 15、16 节定下的；长相对着原型第一页「工作台」、第三页「进模板 · 导出导入 · 我的模块」、第四页「改了我的模块以后」。数据是 CM1 的命令，画法是 CM2 的渲染器，Agent 的那一半是 CM4b 的工具。
 
 ### 做了什么（大白话）
 
@@ -529,7 +529,7 @@ dr_view_transfer::{module, ExportModuleById};               // module::{import, 
 
 ## 工作台的几处后续（CW）
 
-2026-11-24 第二轮，任务书 [handoff/resume-1123.md](../handoff/resume-1123.md) 的 CW。依据是 progress.md「等作者的事」第 21 条里 CM4b 的 (a) 和 CM3 的 (a)(d)(e)(f)，作者答「都按照你的推荐来。」长相对着原型（`.hc-prev .zoomer { zoom: 0.62 }` 那一处是从原型的样式表里读的）。没有加界面文字。
+2026-11-24 第二轮，任务书 `handoff/resume-1123.md` 的 CW。依据是 progress.md「等作者的事」第 21 条里 CM4b 的 (a) 和 CM3 的 (a)(d)(e)(f)，作者答「都按照你的推荐来。」长相对着原型（`.hc-prev .zoomer { zoom: 0.62 }` 那一处是从原型的样式表里读的）。没有加界面文字。
 
 ### 做了什么（大白话）
 

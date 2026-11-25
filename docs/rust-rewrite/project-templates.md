@@ -1,6 +1,6 @@
 # 用户自己的项目模板（设计稿）
 
-2026-11-13 起草，同日按作者的两轮答复改过；2026-11-14 排进任务书 `handoff/v5-tracks.md`（2026-11-18 删了，最后一版 `git show 64563601b:docs/rust-rewrite/handoff/v5-tracks.md`；还要做的在 [handoff/v5-followups.md](handoff/v5-followups.md)）（PT1 到 PT4；社区模板是第二期，还没排）。2026-11-15 随格式 5 数据层落地了 PT1（模板值与唯一校验器、从项目提取、书库 `project-template:<id>` 文档与命令、统一 `project.create`），逐字段规格定稿于 [project-template-format.md](project-template-format.md)。它接着 [kernel-v5.md](kernel-v5.md) 第 2 节「项目定义」和第 15 节第 3 条往下写：把一个项目另存成项目模板、用它新建项目、把它分享给别人。
+2026-11-13 起草，同日按作者的两轮答复改过；2026-11-14 排进任务书 `handoff/v5-tracks.md`（2026-11-18 删了，最后一版 `git show 64563601b:docs/rust-rewrite/handoff/v5-tracks.md`；还要做的在 `handoff/v5-followups.md`（2026-11-25 删了，最后一版 `git show 9cf3d2c7d:docs/rust-rewrite/handoff/v5-followups.md`））（PT1 到 PT4；社区模板是第二期，还没排）。2026-11-15 随格式 5 数据层落地了 PT1（模板值与唯一校验器、从项目提取、书库 `project-template:<id>` 文档与命令、统一 `project.create`），逐字段规格定稿于 [project-template-format.md](project-template-format.md)。它接着 [kernel-v5.md](kernel-v5.md) 第 2 节「项目定义」和第 15 节第 3 条往下写：把一个项目另存成项目模板、用它新建项目、把它分享给别人。
 
 kernel-v5 的数据层（格式 5）已交回，本页涉及 `project` 根、条目模板、媒体模块摆法与指向文件的链接等处均已对照格式 5 定稿形状更新。
 
@@ -325,7 +325,7 @@ kernel-v5 的数据层（格式 5）已交回，本页涉及 `project` 根、条
 
 都排在 kernel-v5 的数据层之后（开工信号是本地分支指针 `ready/kernel-v5-data-layer`，和 kernel-v5 的 T1 到 T8 一样）。界面的两路还要等 kernel-v5 的 T1、T2 合进 `main`，并且等作者看过原型说迁。
 
-各路的任务书在 `handoff/v5-tracks.md`（2026-11-18 删了，最后一版 `git show 64563601b:docs/rust-rewrite/handoff/v5-tracks.md`；还要做的在 [handoff/v5-followups.md](handoff/v5-followups.md)）（2026-11-14 排进去的）。PT1 和 T1 到 T8 同时开工，在数据层的几个 crate 里只加不改；PT2 排在 PT1 和 T8 之后，PT3 排在 PT1、T1、T2 和原型之后，PT4 排在 PT1 和 T7 之后，各等自己的开工指针。
+各路的任务书在 `handoff/v5-tracks.md`（2026-11-18 删了，最后一版 `git show 64563601b:docs/rust-rewrite/handoff/v5-tracks.md`；还要做的在 `handoff/v5-followups.md`（2026-11-25 删了，最后一版 `git show 9cf3d2c7d:docs/rust-rewrite/handoff/v5-followups.md`））（2026-11-14 排进去的）。PT1 和 T1 到 T8 同时开工，在数据层的几个 crate 里只加不改；PT2 排在 PT1 和 T8 之后，PT3 排在 PT1、T1、T2 和原型之后，PT4 排在 PT1 和 T7 之后，各等自己的开工指针。
 
 | 路 | 做什么 | 范围 | 等谁 |
 | --- | --- | --- | --- |

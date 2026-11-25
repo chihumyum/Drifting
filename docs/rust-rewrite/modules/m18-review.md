@@ -245,7 +245,7 @@ xtask（审计 972 crate、0 漏洞、12 既有 notice）及 public（5536 文�
 
 ## 内核 v5 · 审阅铺满的列宽（2026-11-18 作者定的）
 
-kernel-v5 第 15 节第 52 条，作者「全照建议」，[v5-followups.md](../handoff/v5-followups.md) 的 SF 已把审阅铺满的分列接到 `dr-view-review/src/panel.rs` 的 `fill_columns`。铺满宽减 24 再除以 310 取整，限制在 1 到 6 列。同文件测试核对未铺满、换列临界宽度和上限。
+kernel-v5 第 15 节第 52 条，作者「全照建议」，`handoff/v5-followups.md` 的 SF 已把审阅铺满的分列接到 `dr-view-review/src/panel.rs` 的 `fill_columns`。铺满宽减 24 再除以 310 取整，限制在 1 到 6 列。同文件测试核对未铺满、换列临界宽度和上限。
 
 ## AL 批注里的链接跟着「自动链接」（2026-11-24）
 

@@ -468,7 +468,7 @@ AutomaticHistory::start_with(ws, Cadence { interval, first_points, gap, quiet })
 
 ## 恢复时原来住的地方没了：留在现在的地方（2026-11-24，SR）
 
-**依据**：作者 2026-11-23「都按推荐」，推荐是「原来的位置没了就留在现在的位置」，对所有快照点都这样，不只是从 0.1 导入的（[progress.md](../progress.md)「等作者的事」第 16 条，任务书 [handoff/resume-1123.md](../handoff/resume-1123.md) 的 SR）。
+**依据**：作者 2026-11-23「都按推荐」，推荐是「原来的位置没了就留在现在的位置」，对所有快照点都这样，不只是从 0.1 导入的（[progress.md](../progress.md)「等作者的事」第 16 条，任务书 `handoff/resume-1123.md` 的 SR）。
 
 **做了什么（大白话）：**
 
@@ -515,7 +515,7 @@ AutomaticHistory::start_with(ws, Cadence { interval, first_points, gap, quiet })
 
 ## 恢复时成环也留在原地；挂着的目标已经永久删除时跳过（2026-11-24，S2）
 
-**依据**：SR 交回时留下的两件事（[progress.md](../progress.md)「等作者的事」第 21 条 SR (a)(b)），作者 2026-11-24 答「都按照你的推荐来。」（任务书 [handoff/resume-1123.md](../handoff/resume-1123.md) 的 S2 第 5 处）。
+**依据**：SR 交回时留下的两件事（[progress.md](../progress.md)「等作者的事」第 21 条 SR (a)(b)），作者 2026-11-24 答「都按照你的推荐来。」（任务书 `handoff/resume-1123.md` 的 S2 第 5 处）。
 
 **做了什么（大白话）：**
 
