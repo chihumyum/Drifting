@@ -90,6 +90,7 @@ pub fn init(cx: &mut App) {
             }),
             layer: Rc::new(tour::layer),
             reset: Rc::new(tour::reset_seen),
+            has_seen: Rc::new(tour::is_seen),
         },
     );
 }

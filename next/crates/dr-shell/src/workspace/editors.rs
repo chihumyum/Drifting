@@ -282,6 +282,7 @@ pub fn editor_settings(cx: &App) -> EditorSettings {
     let file = Settings::read(cx);
     let mut settings = EditorSettings::from_values(|key| Some(file.get(key)));
     settings.page_width -= 2.0 * PAGE_GUTTER;
+    settings.font_family = crate::settings::fonts::resolved_prose_family(cx);
     settings
 }
 
@@ -299,7 +300,7 @@ pub fn base_style(theme: &Theme) -> ProseStyle {
         muted: p.muted().solid(),
         background: gpui::transparent_black(),
         selection: p.accent.alpha(0.22),
-        cursor: p.accent.solid(),
+        cursor: theme.caret_color(),
         link: p.accent.solid(),
         ..ProseStyle::default()
     }
@@ -458,6 +459,7 @@ impl Workspace {
         // editors on them cannot fail (`with_session`, `with_prepared`).
         let view = match (page.doc.clone(), sessions) {
             (Some(doc), Prepared::Doc(source)) => {
+                let reveal_on = settings.agent_edit_reveal_animation;
                 let editor = cx.new(|cx| {
                     ChapterEditor::with_session(lib, &book, &doc, source, settings, window, cx)
                 });
@@ -466,7 +468,7 @@ impl Workspace {
                     e.set_base_style(base, cx);
                     e.set_decor_looks(looks, cx);
                     e.set_commit_playback(
-                        Some(dr_editor::CommitPlaybackOptions::new("agent:")),
+                        reveal_on.then(|| dr_editor::CommitPlaybackOptions::new("agent:")),
                         cx,
                     );
                 });
@@ -503,6 +505,7 @@ impl Workspace {
                 PageView::Doc(editor)
             }
             (None, Prepared::Book(prepared)) => {
+                let reveal_on = settings.agent_edit_reveal_animation;
                 let editor =
                     cx.new(|cx| BookEditor::with_prepared(lib, prepared, settings, window, cx));
                 let looks = decor_looks(&Theme::of(window, cx), &base);
@@ -510,7 +513,7 @@ impl Workspace {
                     e.set_base_style(base, cx);
                     e.set_decor_looks(looks, cx);
                     e.set_commit_playback(
-                        Some(dr_editor::CommitPlaybackOptions::new("agent:")),
+                        reveal_on.then(|| dr_editor::CommitPlaybackOptions::new("agent:")),
                         cx,
                     );
                     if let Some(at) = &position {
@@ -1214,6 +1217,11 @@ impl Workspace {
             // rail follows when this workspace notifies (`kernel-v5.md` §16).
             dr_view_review::auto_links_changed(cx);
         }
+        let reveal_changed = settings.agent_edit_reveal_animation
+            != self.editor_settings.agent_edit_reveal_animation;
+        let playback = settings
+            .agent_edit_reveal_animation
+            .then(|| dr_editor::CommitPlaybackOptions::new("agent:"));
         self.editor_settings = settings.clone();
         self.editor_base = base.clone();
         self.editor_reduce = theme.reduce_motion;
@@ -1233,6 +1241,16 @@ impl Workspace {
                     p.set_reduce_motion(theme.reduce_motion, cx);
                 }
             });
+            if reveal_changed {
+                match &view {
+                    PageView::Doc(e) => {
+                        e.update(cx, |e, cx| e.set_commit_playback(playback.clone(), cx))
+                    }
+                    PageView::Book(e) => {
+                        e.update(cx, |e, cx| e.set_commit_playback(playback.clone(), cx))
+                    }
+                }
+            }
             if base_changed || reduce_changed {
                 let looks = decor_looks(&theme, &base);
                 match &view {

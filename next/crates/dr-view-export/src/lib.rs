@@ -81,6 +81,13 @@ impl ExportDialog {
         }
     }
 
+    /// Sets the author's preferred editor font family for PDF export.
+    pub fn set_preferred_font(&mut self, font: Option<String>) {
+        if let Some(m) = self.manuscript_mut() {
+            m.preferred_font = font;
+        }
+    }
+
     /// Closes the dialog, unless it is writing a file.
     pub fn close(&mut self, cx: &mut Context<Self>) {
         let busy = match &self.inner {

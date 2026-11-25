@@ -49,7 +49,7 @@ pub const ENTITY_LINK_BAND_STYLE: &str = "editor.entity_link_band_style";
 /// Per-kind/template hex colour overrides for entity links (`{"entry_kind": "#rrggbb"}`).
 pub const ENTITY_LINK_KIND_COLORS: &str = "editor.entity_link_kind_colors";
 /// Independent switch for Agent prose edit reveal playback animation.
-pub const AGENT_EDIT_REVEAL_ANIMATION: &str = "editor.agent_edit_reveal_animation";
+pub const AGENT_EDIT_REVEAL_ANIMATION: &str = "appearance.agent_edit_reveal_animation";
 
 /// How entity link colours are chosen in prose.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

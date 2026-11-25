@@ -319,6 +319,9 @@ pub struct Guide {
     pub layer: LayerFn,
     /// Settings' 重新显示.
     pub reset: InApp,
+    /// Whether this device has already seen at least one guide (used to disable
+    /// 「重新显示」 when nothing has been dismissed yet).
+    pub has_seen: Rc<dyn Fn(&App) -> bool>,
 }
 
 /// The ids of the controls the workspace tour points at (`dr-view-sea`'s

@@ -36,6 +36,7 @@ pub mod book;
 mod dialog;
 pub mod documents;
 pub mod module;
+pub mod relational_markdown;
 pub mod template;
 
 pub use dialog::{Proceed, State, TransferDialog, WIDTH};
@@ -126,5 +127,8 @@ pub fn init(cx: &mut App) {
             let replace = backup::replacer(cx);
             backup::restore(replace, cx);
         });
+    });
+    cx.on_action(|_: &dr_shell::actions::ExportAllRelationalMarkdown, cx| {
+        dr_shell::menus::after_dispatch(cx, relational_markdown::export_all);
     });
 }

@@ -451,8 +451,12 @@ impl Workspace {
         let strings = crate::Strings::get(cx);
         let (locale, platform) = (strings.locale(), strings.platform());
         let (lib, book) = (self.library.clone(), self.book_id.clone());
+        let preferred_font = crate::settings::fonts::resolved_prose_family(cx);
         let dialog = cx.new(|cx| {
-            dr_view_export::ExportDialog::new(lib, book, request, locale, platform, window, cx)
+            let mut d =
+                dr_view_export::ExportDialog::new(lib, book, request, locale, platform, window, cx);
+            d.set_preferred_font(preferred_font);
+            d
         });
         cx.subscribe_in(&dialog, window, |ws, _, event, window, cx| {
             if *event == dr_view_export::ExportEvent::Close {

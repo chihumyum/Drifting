@@ -2005,7 +2005,13 @@ impl Workspace {
             ws.set_immersive(!ws.immersive, cx);
             ws.refocus(window, cx);
         }))
-        .on_action(cx.listener(|ws, _: &FindInEditor, window, cx| ws.open_find(window, cx)))
+        .on_action(cx.listener(|ws, _: &FindInEditor, window, cx| {
+            if let Some(settings) = ws.settings.clone() {
+                settings.update(cx, |panel, cx| panel.focus(window, cx));
+            } else {
+                ws.open_find(window, cx);
+            }
+        }))
         .on_action(cx.listener(|ws, _: &ReplaceInEditor, window, cx| ws.open_replace(window, cx)))
         .on_action(cx.listener(Self::on_new_comment))
         .on_action(cx.listener(|ws, _: &GlobalSearch, window, cx| ws.toggle_search(window, cx)))

@@ -5,6 +5,9 @@
 //! size and reduced motion. [`Theme::of`] resolves it against the window's
 //! own appearance, so a forced switch never touches the system setting.
 
+use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
+
 use gpui::{App, Global, Hsla, Window, WindowAppearance};
 
 use crate::tokens::{Palette, Rgb, TextSize, TypeScale};
@@ -48,11 +51,37 @@ pub struct ThemeSettings {
     /// Skip every movement straight to where it ends. `None` follows the
     /// platform (GPUI's `reduce_motion`).
     pub reduce_motion: Option<bool>,
+    /// Optional custom interface accent colour override (M08 `accentColor`).
+    pub accent: Option<Rgb>,
     /// Optional custom caret colour override (M08 `caretColor`).
     pub caret: Option<Rgb>,
 }
 
 impl Global for ThemeSettings {}
+
+type AccentPaletteCache = Mutex<HashMap<(Appearance, [u8; 3]), &'static Palette>>;
+
+fn palette_with_accent(appearance: Appearance, accent: Option<Rgb>) -> &'static Palette {
+    let Some(rgb) = accent else {
+        return appearance.palette();
+    };
+    static CACHE: OnceLock<AccentPaletteCache> = OnceLock::new();
+    let key = (appearance, rgb.to_u8());
+    let mut map = CACHE
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
+    map.entry(key).or_insert_with(|| {
+        let mut custom = *appearance.palette();
+        custom.accent = rgb;
+        custom.accent_ink = if rgb.luminance() > 0.36 {
+            Rgb::hsl(30.0, 6.0, 12.0)
+        } else {
+            Rgb::WHITE
+        };
+        Box::leak(Box::new(custom))
+    })
+}
 
 /// What a view paints with right now.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -75,7 +104,7 @@ impl Theme {
             .unwrap_or_else(|| Appearance::from_window(window.appearance()));
         Theme {
             appearance,
-            palette: appearance.palette(),
+            palette: palette_with_accent(appearance, settings.accent),
             scale: settings.text_size.scale(),
             reduce_motion: settings.reduce_motion.unwrap_or_else(|| cx.reduce_motion()),
             caret: settings.caret,
@@ -133,6 +162,17 @@ pub fn set_text_size(size: TextSize, cx: &mut App) {
         .copied()
         .unwrap_or_default();
     settings.text_size = size;
+    cx.set_global(settings);
+    cx.refresh_windows();
+}
+
+/// Sets a custom interface accent colour (`None` restores the theme default) and repaints.
+pub fn set_accent_color(accent: Option<Rgb>, cx: &mut App) {
+    let mut settings = cx
+        .try_global::<ThemeSettings>()
+        .copied()
+        .unwrap_or_default();
+    settings.accent = accent;
     cx.set_global(settings);
     cx.refresh_windows();
 }

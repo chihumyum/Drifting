@@ -2193,6 +2193,7 @@ fn the_sea_lies_under_the_shelf_and_the_opening_wait(cx: &mut TestAppContext) {
                 start: Rc::new(move |_, _| starts.set(starts.get() + 1)),
                 layer: Rc::new(|_, _, _| None),
                 reset: Rc::new(|_| {}),
+                has_seen: Rc::new(|_| true),
             },
         );
     });
