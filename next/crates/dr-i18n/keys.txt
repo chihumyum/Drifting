@@ -9,7 +9,6 @@ rightSidebar.top.close
 rightSidebar.tabs.review
 rightSidebar.tabs.library
 rightSidebar.tabs.stats
-rightSidebar.kickers.review
 rightSidebar.kickers.library
 rightSidebar.kickers.stats.storyline
 rightSidebar.kickers.stats.element

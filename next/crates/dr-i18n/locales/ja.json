@@ -1121,7 +1121,6 @@
   "rightSidebar": {
     "kickers": {
       "library": "作品・資料庫",
-      "review": "作品・レビュー",
       "stats": {
         "element": "この要素・詳細統計",
         "material": "この資料・詳細",
@@ -1534,6 +1533,46 @@
       "server_error": "更新サービスで問題が起きています。後ほど再試行してください。現在の版は引き続き使えます。",
       "unavailable": "このビルドには更新署名キーがなく、更新を確認できません。GitHubからダウンロードしたリリース版では利用できます。"
     }
+  },
+  "shell_ui": {
+    "add_fact": "項目を追加",
+    "back_plain": "戻る",
+    "empty_book_hint": "項目を作成して本文を書くと、ここで全体を通読できます。",
+    "empty_book_title": "まだ本文がありません",
+    "fact_key_placeholder": "項目名（例：副題、ジャンル）",
+    "fact_value_placeholder": "内容",
+    "find_results": "一致箇所",
+    "hosted_purge_note": "この端末とすべてのクラウド同期端末から完全に削除され、元に戻せません。",
+    "hosted_trash_note": "この端末とクラウドから移動され、30日間は「最近削除した項目」から復元できます。",
+    "menu_about": "{{app}} について",
+    "menu_bring_all_to_front": "すべてを手前に移動",
+    "menu_close_window": "ウインドウを閉じる",
+    "menu_copy": "コピー",
+    "menu_cut": "カット",
+    "menu_edit": "編集",
+    "menu_hide": "{{app}} を非表示",
+    "menu_hide_others": "ほかを非表示",
+    "menu_minimize": "しまう",
+    "menu_paste": "ペースト",
+    "menu_quit": "{{app}} を終了",
+    "menu_redo": "やり直す",
+    "menu_select_all": "すべてを選択",
+    "menu_services": "サービス",
+    "menu_settings": "設定…",
+    "menu_show_all": "すべてを表示",
+    "menu_undo": "取り消す",
+    "menu_zoom": "拡大/縮小",
+    "new_entry_plain": "新規項目",
+    "open_whole_book": "全体を通読",
+    "preparing_samples": "サンプルプロジェクトを準備中…",
+    "project_facts": "作品情報",
+    "search_hint": "キーワードを入力してプロジェクト全体を検索",
+    "search_placeholder": "タイトル、本文、フィールド、資料を検索…",
+    "swap_split": "左右ペインを入れ替え",
+    "templates_plain": "テンプレート",
+    "toggle_comment_marks": "注釈マークを表示",
+    "toggle_entity_links": "項目リンクを有効化",
+    "unsplit": "分割を閉じる"
   },
   "sidebarLayout": {
     "split": "2列表示に戻す"

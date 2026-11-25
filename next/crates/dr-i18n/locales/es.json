@@ -1139,7 +1139,6 @@
   "rightSidebar": {
     "kickers": {
       "library": "Proyecto · Documentación",
-      "review": "Proyecto · Revisión",
       "stats": {
         "element": "Este elemento · estadísticas",
         "material": "Este material · Detalles",
@@ -1552,6 +1551,46 @@
       "server_error": "El servicio de actualizaciones tiene un problema ahora. Inténtalo más tarde. Esta versión sigue funcionando.",
       "unavailable": "Esta compilación no tiene clave de firma del actualizador y no puede buscar actualizaciones. Las versiones descargadas de GitHub sí pueden."
     }
+  },
+  "shell_ui": {
+    "add_fact": "Añadir campo",
+    "back_plain": "Volver",
+    "empty_book_hint": "Crea una entrada y escribe texto para leer el libro completo aquí.",
+    "empty_book_title": "Aún no hay texto",
+    "fact_key_placeholder": "Nombre (p. ej. Subtítulo, Género)",
+    "fact_value_placeholder": "Valor",
+    "find_results": "Coincidencias",
+    "hosted_purge_note": "Se eliminará permanentemente de este dispositivo y de todos los dispositivos en la nube.",
+    "hosted_trash_note": "Se eliminará de este dispositivo y la nube; recuperable durante 30 días.",
+    "menu_about": "Acerca de {{app}}",
+    "menu_bring_all_to_front": "Traer todo al frente",
+    "menu_close_window": "Cerrar ventana",
+    "menu_copy": "Copiar",
+    "menu_cut": "Cortar",
+    "menu_edit": "Edición",
+    "menu_hide": "Ocultar {{app}}",
+    "menu_hide_others": "Ocultar otros",
+    "menu_minimize": "Minimizar",
+    "menu_paste": "Pegar",
+    "menu_quit": "Salir de {{app}}",
+    "menu_redo": "Rehacer",
+    "menu_select_all": "Seleccionar todo",
+    "menu_services": "Servicios",
+    "menu_settings": "Ajustes…",
+    "menu_show_all": "Mostrar todo",
+    "menu_undo": "Deshacer",
+    "menu_zoom": "Zoom",
+    "new_entry_plain": "Nueva entrada",
+    "open_whole_book": "Leer libro completo",
+    "preparing_samples": "Preparando proyectos de ejemplo…",
+    "project_facts": "Datos del proyecto",
+    "search_hint": "Escribe para buscar en todo el proyecto",
+    "search_placeholder": "Buscar títulos, texto, campos y archivos…",
+    "swap_split": "Intercambiar paneles",
+    "templates_plain": "Plantillas",
+    "toggle_comment_marks": "Mostrar marcas de comentario",
+    "toggle_entity_links": "Enlaces de entradas interactivos",
+    "unsplit": "Cerrar división"
   },
   "sidebarLayout": {
     "split": "Restaurar dos columnas"

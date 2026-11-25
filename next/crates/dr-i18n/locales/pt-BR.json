@@ -1139,7 +1139,6 @@
   "rightSidebar": {
     "kickers": {
       "library": "Projeto · Biblioteca",
-      "review": "Projeto · Revisão",
       "stats": {
         "element": "Este elemento · estatísticas",
         "material": "Este material · Detalhes",
@@ -1552,6 +1551,46 @@
       "server_error": "O serviço de atualização está com problema agora. Tente mais tarde; esta versão continua funcionando.",
       "unavailable": "Esta compilação não tem chave de assinatura do atualizador e não pode buscar atualizações. Versões baixadas do GitHub podem."
     }
+  },
+  "shell_ui": {
+    "add_fact": "Adicionar campo",
+    "back_plain": "Voltar",
+    "empty_book_hint": "Crie uma entrada e escreva texto para ler o livro completo aqui.",
+    "empty_book_title": "Ainda não há texto",
+    "fact_key_placeholder": "Nome (ex.: Subtítulo, Gênero)",
+    "fact_value_placeholder": "Valor",
+    "find_results": "Ocorrências",
+    "hosted_purge_note": "Exclui permanentemente deste dispositivo e de todos os dispositivos sincronizados na nuvem.",
+    "hosted_trash_note": "Remove deste dispositivo e da nuvem; recuperável por 30 dias em Excluídos Recentemente.",
+    "menu_about": "Sobre {{app}}",
+    "menu_bring_all_to_front": "Trazer Todas para a Frente",
+    "menu_close_window": "Fechar Janela",
+    "menu_copy": "Copiar",
+    "menu_cut": "Recortar",
+    "menu_edit": "Editar",
+    "menu_hide": "Ocultar {{app}}",
+    "menu_hide_others": "Ocultar Outros",
+    "menu_minimize": "Minimizar",
+    "menu_paste": "Colar",
+    "menu_quit": "Sair do {{app}}",
+    "menu_redo": "Refazer",
+    "menu_select_all": "Selecionar Tudo",
+    "menu_services": "Serviços",
+    "menu_settings": "Ajustes…",
+    "menu_show_all": "Mostrar Tudo",
+    "menu_undo": "Desfazer",
+    "menu_zoom": "Ampliar/Reduzir",
+    "new_entry_plain": "Nova entrada",
+    "open_whole_book": "Ler livro completo",
+    "preparing_samples": "Preparando projetos de exemplo…",
+    "project_facts": "Dados do projeto",
+    "search_hint": "Digite para pesquisar em todo o projeto",
+    "search_placeholder": "Pesquisar títulos, textos, campos e arquivos…",
+    "swap_split": "Trocar painéis divididos",
+    "templates_plain": "Modelos",
+    "toggle_comment_marks": "Mostrar marcas de comentário",
+    "toggle_entity_links": "Links de entradas interativos",
+    "unsplit": "Fechar divisão"
   },
   "sidebarLayout": {
     "split": "Restaurar duas colunas"

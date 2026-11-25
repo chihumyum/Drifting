@@ -1941,7 +1941,7 @@ impl ReviewView {
                     Kind::Rest,
                     Mode::default(),
                     done,
-                    Spec::new(Tone::Clear, size / 2.0),
+                    Spec::new(Tone::Clear, size / 2.0).ground(glass::Ground::Uneven),
                     window,
                     cx,
                 )

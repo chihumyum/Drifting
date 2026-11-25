@@ -478,10 +478,21 @@ impl EntryPage {
             .get(&key)
             .and_then(|(_, part)| part.head_action.clone())
             .map(|action| action(window, cx));
+        let is_card = module.kind != "prose";
         div()
             .id(SharedString::from(key.clone()))
             .debug_selector(move || selector.clone())
-            .py_3()
+            .when(is_card, |el| {
+                // Smoke #17: give non-prose structured modules lightweight card styling
+                // distinct from bare prose modules.
+                el.rounded(px(dr_ui::tokens::radius::MD))
+                    .bg(theme.palette.desk.alpha(0.35))
+                    .border(px(0.5))
+                    .border_color(theme.palette.subtle_hairline())
+                    .px_4()
+                    .py_3()
+            })
+            .when(!is_card, |el| el.py_3())
             .flex()
             .flex_col()
             .gap_3()
@@ -1432,12 +1443,30 @@ impl Render for EntryPage {
             .font_role(FontRole::Structure)
             .text_color(theme.palette.ink(1).solid())
             .into_any_element();
-        if let Some(overlay) = &self.overlay {
+        let ticks: Vec<AnyElement> = self
+            .sections
+            .iter()
+            .filter_map(|s| self.parts.get(&format!("module:{}", s.id)))
+            .filter_map(|(_, part)| part.tick_strip.clone())
+            .filter_map(|make| make(window, cx))
+            .collect();
+        if self.overlay.is_some() || !ticks.is_empty() {
             div()
                 .relative()
                 .size_full()
                 .child(page)
-                .child(overlay.clone())
+                .children(self.overlay.clone())
+                .when(!ticks.is_empty(), |el| {
+                    el.child(
+                        div()
+                            .absolute()
+                            .top_0()
+                            .bottom_0()
+                            .right_0()
+                            .w(px(14.0))
+                            .children(ticks),
+                    )
+                })
                 .into_any_element()
         } else {
             page

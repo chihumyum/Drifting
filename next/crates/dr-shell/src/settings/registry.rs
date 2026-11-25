@@ -497,6 +497,8 @@ pub const TYPEWRITER: &str = "editor.typewriter_mode";
 pub const TYPEWRITER_POSITION: &str = "editor.typewriter_position";
 pub const JUSTIFY: &str = "editor.justify";
 pub const AUTO_ENTITY_LINKS: &str = "editor.auto_entity_links";
+pub const ENTITY_LINK_INTERACTIVE: &str = "editor.entity_link_interactive";
+pub const COMMENT_MARKS_VISIBLE: &str = "editor.comment_marks_visible";
 pub const CRASH_REPORTS: &str = "privacy.crash_reports";
 
 const THEMES: &[Opt] = &[
@@ -805,6 +807,28 @@ pub static REGISTRY: &[SettingDef] = &[
         label: keys::settings::editor::AUTO_ELEMENT_LINK,
         description: Some(keys::settings::editor::AUTO_ELEMENT_LINK_DESC),
         search: &["link", "entity", "element", "链接"],
+    },
+    SettingDef {
+        key: ENTITY_LINK_INTERACTIVE,
+        kind: Kind::Switch,
+        default: Initial::Bool(true),
+        scope: Scope::Account,
+        section: Section::Editor,
+        group: Some(keys::settings::editor::FLOW),
+        label: keys::shell_ui::TOGGLE_ENTITY_LINKS,
+        description: None,
+        search: &["link", "interactive", "hover", "要素链接", "链接"],
+    },
+    SettingDef {
+        key: COMMENT_MARKS_VISIBLE,
+        kind: Kind::Switch,
+        default: Initial::Bool(true),
+        scope: Scope::Account,
+        section: Section::Editor,
+        group: Some(keys::settings::editor::FLOW),
+        label: keys::shell_ui::TOGGLE_COMMENT_MARKS,
+        description: None,
+        search: &["comment", "review", "marks", "批注", "审阅"],
     },
     SettingDef {
         key: CRASH_REPORTS,

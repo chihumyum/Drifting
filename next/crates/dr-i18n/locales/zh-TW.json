@@ -1121,7 +1121,6 @@
   "rightSidebar": {
     "kickers": {
       "library": "作品 · 素材庫",
-      "review": "作品 · 審閱",
       "stats": {
         "element": "此要素 · 詳細統計",
         "material": "此素材 · 詳情",
@@ -1534,6 +1533,46 @@
       "server_error": "更新服務暫時出了問題，請稍後重試。目前版本仍可繼續使用。",
       "unavailable": "此版本沒有更新簽署金鑰，無法檢查更新。從 GitHub 下載的發行版可使用更新功能。"
     }
+  },
+  "shell_ui": {
+    "add_fact": "新增欄位",
+    "back_plain": "返回",
+    "empty_book_hint": "新建一個條目並寫下正文，即可在這裡通覽全書。",
+    "empty_book_title": "這裡還沒有正文內容",
+    "fact_key_placeholder": "名稱（如：副標題、體裁）",
+    "fact_value_placeholder": "內容",
+    "find_results": "尋找結果",
+    "hosted_purge_note": "永久刪除將同步清除本機與所有雲端裝置上的副本，無法復原。",
+    "hosted_trash_note": "將同時從本機與雲端移除，30 天內可在「最近刪除」中還原。",
+    "menu_about": "關於 {{app}}",
+    "menu_bring_all_to_front": "將所有視窗移至最前",
+    "menu_close_window": "關閉視窗",
+    "menu_copy": "拷貝",
+    "menu_cut": "剪下",
+    "menu_edit": "編輯",
+    "menu_hide": "隱藏 {{app}}",
+    "menu_hide_others": "隱藏其他",
+    "menu_minimize": "最小化",
+    "menu_paste": "貼上",
+    "menu_quit": "結束 {{app}}",
+    "menu_redo": "重做",
+    "menu_select_all": "全選",
+    "menu_services": "服務",
+    "menu_settings": "設定…",
+    "menu_show_all": "全部顯示",
+    "menu_undo": "還原",
+    "menu_zoom": "縮放",
+    "new_entry_plain": "新建條目",
+    "open_whole_book": "通覽全書",
+    "preparing_samples": "正在準備範例專案…",
+    "project_facts": "作品設定",
+    "search_hint": "輸入關鍵字搜尋整個專案",
+    "search_placeholder": "搜尋標題、正文、欄位與素材…",
+    "swap_split": "互換左右分欄",
+    "templates_plain": "範本",
+    "toggle_comment_marks": "顯示批註砂痕",
+    "toggle_entity_links": "啟用條目連結",
+    "unsplit": "關閉分欄"
   },
   "sidebarLayout": {
     "split": "恢復雙欄"

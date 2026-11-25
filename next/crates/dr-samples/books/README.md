@@ -1,9 +1,9 @@
 # dr-samples books
 
 The two built-in sample books a new library receives (`src/layout.rs` lays
-them out, `src/built_in.rs` writes them once). Text only: the illustrations
-are listed by name in `pride-and-prejudice.json` but their image files stay
-in the 0.1 client until stage 7 moves them.
+them out, `src/built_in.rs` writes them once). *Pride and Prejudice* also
+bundles its public-domain 1894 Hugh Thomson illustrations in
+`pride-and-prejudice/` (`src/illustrations.rs`).
 
 | File | What | Rights |
 | --- | --- | --- |

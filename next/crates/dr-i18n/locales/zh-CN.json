@@ -1114,7 +1114,6 @@
   "rightSidebar": {
     "kickers": {
       "library": "全项目 · 素材库",
-      "review": "全项目 · 审阅",
       "stats": {
         "element": "本要素 · 详细统计",
         "material": "这份素材 · 详细统计",
@@ -1527,6 +1526,46 @@
       "server_error": "更新服务暂时出了问题，稍后再试。当前版本照常可用。",
       "unavailable": "这个构建没有内置更新签名公钥，不能检查更新。从 GitHub Releases 下载的正式版可以。"
     }
+  },
+  "shell_ui": {
+    "add_fact": "添加字段",
+    "back_plain": "返回",
+    "empty_book_hint": "新建一个条目并写下正文，即可在这里通览全书。",
+    "empty_book_title": "这里还没有正文内容",
+    "fact_key_placeholder": "名称（如：副标题、体裁）",
+    "fact_value_placeholder": "内容",
+    "find_results": "查找结果",
+    "hosted_purge_note": "永久删除将同步清除本机与所有云端设备上的副本，无法撤销。",
+    "hosted_trash_note": "将同时从本机与云端移除，30 天内可在「最近删除」中恢复。",
+    "menu_about": "关于 {{app}}",
+    "menu_bring_all_to_front": "前置全部窗口",
+    "menu_close_window": "关闭窗口",
+    "menu_copy": "拷贝",
+    "menu_cut": "剪切",
+    "menu_edit": "编辑",
+    "menu_hide": "隐藏 {{app}}",
+    "menu_hide_others": "隐藏其他",
+    "menu_minimize": "最小化",
+    "menu_paste": "粘贴",
+    "menu_quit": "退出 {{app}}",
+    "menu_redo": "重做",
+    "menu_select_all": "全选",
+    "menu_services": "服务",
+    "menu_settings": "设置…",
+    "menu_show_all": "全部显示",
+    "menu_undo": "撤销",
+    "menu_zoom": "缩放",
+    "new_entry_plain": "新建条目",
+    "open_whole_book": "通览全书",
+    "preparing_samples": "正在准备示例项目…",
+    "project_facts": "作品设定",
+    "search_hint": "输入关键词搜索整个项目",
+    "search_placeholder": "搜索标题、正文、字段与素材…",
+    "swap_split": "互换左右分栏",
+    "templates_plain": "模板",
+    "toggle_comment_marks": "显示批注砂痕",
+    "toggle_entity_links": "启用条目链接",
+    "unsplit": "关闭分栏"
   },
   "sidebarLayout": {
     "split": "恢复双栏"

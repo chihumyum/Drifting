@@ -39,6 +39,7 @@
 
 pub mod build;
 mod built_in;
+pub mod illustrations;
 pub mod layout;
 pub mod v3;
 mod write_error;

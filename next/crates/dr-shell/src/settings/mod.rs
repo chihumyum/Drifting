@@ -288,6 +288,7 @@ fn apply(cx: &mut App) {
     {
         Strings::install(locale, cx);
         crate::tray::sync_locale(locale, cx);
+        cx.set_menus(crate::menus::app_menus(cx));
     }
     if now.crash_reports != before.crash_reports
         && before.crash_reports.is_some()

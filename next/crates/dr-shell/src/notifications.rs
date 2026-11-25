@@ -106,6 +106,11 @@ pub struct Notice {
     /// Active problems the author must act on stay pinned at the top and
     /// survive Clear. A notice can offer an action to resolve it.
     pub pinned: bool,
+    /// Ongoing background job (e.g. import/export/restore): shows progress bar
+    /// and survives Clear while running.
+    pub running: bool,
+    /// Optional 0.0..=1.0 completion progress for running tasks.
+    pub progress: Option<f32>,
 }
 
 #[derive(Default)]
@@ -113,9 +118,14 @@ pub struct Notifications {
     items: Vec<Notice>,
     next: u64,
     unread: bool,
+    /// Latest arriving notice's id and arrival time, for the brief arrival flash.
+    latest_arrival: Option<(u64, std::time::Instant)>,
 }
 
 impl Global for Notifications {}
+
+/// How long an arriving notice flashes near the top edge.
+pub const FLASH_DURATION: Duration = Duration::from_secs(3);
 
 /// The most kept; older ones go first.
 pub const LIMIT: usize = 50;
@@ -134,12 +144,69 @@ impl Notifications {
             .is_some_and(|n| n.items.iter().any(|item| item.pinned))
     }
 
+    pub fn has_clearable(cx: &App) -> bool {
+        cx.try_global::<Notifications>()
+            .is_some_and(|n| n.items.iter().any(|item| !item.pinned && !item.running))
+    }
+
+    pub fn has_running(cx: &App) -> bool {
+        cx.try_global::<Notifications>()
+            .is_some_and(|n| n.items.iter().any(|item| item.running))
+    }
+
+    /// Returns the most recently arrived notice while within [`FLASH_DURATION`].
+    pub fn arrival_flash(cx: &App) -> Option<&Notice> {
+        let n = cx.try_global::<Notifications>()?;
+        let (id, at) = n.latest_arrival?;
+        if at.elapsed() > FLASH_DURATION {
+            return None;
+        }
+        n.items.iter().find(|item| item.id == id)
+    }
+
     pub fn set_pinned(id: u64, pinned: bool, cx: &mut App) {
         let n = cx.global_mut::<Notifications>();
         if let Some(item) = n.items.iter_mut().find(|item| item.id == id) {
             item.pinned = pinned;
         }
         n.items.sort_by_key(|item| !item.pinned);
+        cx.refresh_windows();
+    }
+
+    /// Posts an ongoing task notice with optional `progress` (0.0..=1.0).
+    pub fn post_running(
+        source: Source,
+        text: impl Into<SharedString>,
+        progress: Option<f32>,
+        cx: &mut App,
+    ) -> u64 {
+        let id =
+            Notifications::insert(source, text.into(), SystemTime::now(), None, None, None, cx);
+        let n = cx.global_mut::<Notifications>();
+        if let Some(item) = n.items.iter_mut().find(|item| item.id == id) {
+            item.running = true;
+            item.progress = progress.map(|p| p.clamp(0.0, 1.0));
+        }
+        cx.refresh_windows();
+        id
+    }
+
+    /// Updates a running notice's label/progress or finishes it (`running = false`).
+    pub fn update_running(
+        id: u64,
+        text: Option<SharedString>,
+        progress: Option<f32>,
+        running: bool,
+        cx: &mut App,
+    ) {
+        let n = cx.global_mut::<Notifications>();
+        if let Some(item) = n.items.iter_mut().find(|item| item.id == id) {
+            if let Some(text) = text {
+                item.text = text;
+            }
+            item.progress = progress.map(|p| p.clamp(0.0, 1.0));
+            item.running = running;
+        }
         cx.refresh_windows();
     }
 
@@ -223,10 +290,13 @@ impl Notifications {
                 action,
                 opens,
                 pinned: false,
+                running: false,
+                progress: None,
             },
         );
         n.items.truncate(LIMIT);
         n.unread = true;
+        n.latest_arrival = Some((id, std::time::Instant::now()));
         cx.refresh_windows();
         id
     }
@@ -240,14 +310,17 @@ impl Notifications {
 
     pub fn clear(cx: &mut App) {
         let n = cx.global_mut::<Notifications>();
-        n.items.retain(|item| item.pinned);
+        n.items.retain(|item| item.pinned || item.running);
         n.unread = false;
+        n.latest_arrival = None;
         cx.refresh_windows();
     }
 
     /// Every row listed now has been read (the center opened or closed).
     pub fn mark_read(cx: &mut App) {
-        cx.global_mut::<Notifications>().unread = false;
+        let n = cx.global_mut::<Notifications>();
+        n.unread = false;
+        n.latest_arrival = None;
     }
 }
 

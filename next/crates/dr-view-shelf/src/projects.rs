@@ -190,6 +190,10 @@ impl Projects {
             .retarget_motion(1.0, anim::now(), motion::STRUCTURAL, reduce);
         self.open = None;
         self.opening = Tween::still(0.0);
+        self.dwell = None;
+        self.leave = None;
+        // Smoke #19: ignore stray pointer crossings while the sheet drops in.
+        self.settle_until = Some(Instant::now() + SETTLE);
         self.menu_open = false;
         self.form = None;
         self.scroll.set_offset(gpui::point(px(0.0), px(0.0)));
@@ -319,7 +323,12 @@ impl Projects {
     }
 
     fn pointed(&mut self, book: &str, on: bool, window: &Window, cx: &mut Context<Self>) {
-        if !on || self.settling() {
+        if !on {
+            // Smoke #19: cancel pending dwell as soon as pointer leaves the card.
+            self.dwell = None;
+            return;
+        }
+        if self.settling() {
             return;
         }
         self.leave = None;
@@ -397,11 +406,10 @@ impl Projects {
             .ok();
     }
 
-    fn put_away(&mut self, cx: &mut Context<Self>) {
+    fn put_away(&mut self, window: &Window, cx: &mut Context<Self>) {
         self.ws
             .update(cx, |ws, cx| {
-                ws.projects_open = false;
-                cx.notify();
+                ws.set_projects_open(false, window, cx);
             })
             .ok();
     }
@@ -462,7 +470,7 @@ impl Projects {
 
     fn import(&mut self, legacy: bool, window: &mut Window, cx: &mut Context<Self>) {
         self.menu_open = false;
-        self.put_away(cx);
+        self.put_away(window, cx);
         if legacy {
             window.dispatch_action(Box::new(ImportLegacyLibrary), cx);
         } else {
@@ -550,7 +558,7 @@ impl Render for Projects {
         div()
             .id("projects")
             .w_full()
-            .h(px(SHEET_H))
+            .h(px((SHEET_H * down).round()))
             .overflow_hidden()
             .occlude()
             .shadow(dr_ui::components::menu::float_shadow(p))

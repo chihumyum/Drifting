@@ -52,8 +52,24 @@ fn is_workbench(target: &crate::nav::Target) -> bool {
     matches!(target, crate::nav::Target::Module(_))
 }
 
-/// A page's mark at rest: its kind's, or 「线装」 for a module's workbench
-/// (CW; the pill shows the same).
+/// An entry template editor: its pill and resting mark use the movable-type
+/// icon so it reads distinctly from ordinary entries (Smoke #15).
+fn is_template(target: &crate::nav::Target) -> bool {
+    matches!(target, crate::nav::Target::Template(_))
+}
+
+fn special_icon(target: &crate::nav::Target) -> Option<Icon> {
+    if is_workbench(target) {
+        Some(Icon::Stitched)
+    } else if is_template(target) {
+        Some(Icon::MovableType)
+    } else {
+        None
+    }
+}
+
+/// A page's mark at rest: its kind's, 「线装」 for a module's workbench, or
+/// 「活字」 for an entry template editor.
 fn dock_mark(
     target: &crate::nav::Target,
     kind: sand::Kind,
@@ -61,10 +77,9 @@ fn dock_mark(
     hollow: bool,
 ) -> DockMark {
     let mark = DockMark::new(kind, color).hollow(hollow);
-    if is_workbench(target) {
-        mark.icon(Icon::Stitched)
-    } else {
-        mark
+    match special_icon(target) {
+        Some(icon) => mark.icon(icon),
+        None => mark,
     }
 }
 
@@ -88,7 +103,7 @@ pub fn dock(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>
             match tab {
                 Tab::Leaf(leaf) => {
                     let tab = DockTab::new(pill);
-                    if is_workbench(&leaf.target) {
+                    if special_icon(&leaf.target).is_some() {
                         let (kind, color) = book.mark(&leaf.target);
                         tab.marks([dock_mark(&leaf.target, kind, color, leaf.preview)], 0)
                     } else {
@@ -181,15 +196,18 @@ pub fn dock(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>
             },
         )
         .map_pill(move |i, pill, el| {
-            // A double click keeps a preview, a middle click closes; the
-            // close stroke shows under the hand.
+            // Single-leaf tabs handle double-click promote and middle-click close
+            // here; split tabs handle them per-half inside `pill()`.
             let promote = on_each.clone();
             let close = on_each.clone();
             el.group(pill_group(pill))
                 .on_click(move |e, _, cx| {
                     if e.click_count() > 1 {
                         promote.update(cx, |ws, cx| {
-                            let target = ws.nav.tabs().get(i).map(|t| t.focused().target.clone());
+                            let target = ws.nav.tabs().get(i).and_then(|t| match t {
+                                Tab::Leaf(leaf) => Some(leaf.target.clone()),
+                                Tab::Split(_) => None,
+                            });
                             if let Some(target) = target {
                                 ws.promote(&target, cx);
                             }
@@ -198,7 +216,8 @@ pub fn dock(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>
                 })
                 .on_mouse_up(MouseButton::Middle, move |_, _, cx| {
                     close.update(cx, |ws, cx| {
-                        if ws.nav.close(i) {
+                        let is_leaf = matches!(ws.nav.tabs().get(i), Some(Tab::Leaf(_)));
+                        if is_leaf && ws.nav.close(i) {
                             ws.changed(cx);
                         }
                     })
@@ -273,8 +292,9 @@ fn dock_insets(ws: &Workspace, window_w: f32) -> (f32, f32) {
 /// One page of a pill: a tab's leaf, or one side of a split.
 struct Half {
     preview: bool,
-    /// A module's workbench (CM3): drawn with the 「线装」 icon.
-    stitched: bool,
+    /// Optional brush icon replacing the kind mark (「线装」 for a module workbench,
+    /// 「活字」 for an entry template).
+    icon: Option<Icon>,
     mark: (sand::Kind, Option<Rgb>),
     name: SharedString,
     side: Option<PageSide>,
@@ -309,7 +329,7 @@ fn pill(tab: &Tab, ws: &Workspace, book: &Book, cx: &mut Context<Workspace>) -> 
     let group: SharedString = format!("pill-{key}").into();
     let half = |leaf: &Leaf, side: Option<PageSide>| Half {
         preview: leaf.preview,
-        stitched: is_workbench(&leaf.target),
+        icon: special_icon(&leaf.target),
         mark: book.mark(&leaf.target),
         name: super::title_of(book, &leaf.target, cx),
         side,
@@ -337,7 +357,7 @@ fn pill(tab: &Tab, ws: &Workspace, book: &Book, cx: &mut Context<Workspace>) -> 
                 n,
                 Half {
                     preview,
-                    stitched,
+                    icon,
                     mark: m,
                     name,
                     side,
@@ -367,13 +387,13 @@ fn pill(tab: &Tab, ws: &Workspace, book: &Book, cx: &mut Context<Workspace>) -> 
                             ws.changed(cx);
                         })
                     });
-                // A module's workbench: the one 「线装」 mark every module
-                // has (`custom-modules.md` §2).
-                let lead = if *stitched {
-                    sand::icon(Icon::Stitched, 14.0, p.ink(2).solid()).into_any_element()
-                } else {
-                    mark(format!("{pill_key}-mark-{side:?}").into(), *m, *preview)
-                        .into_any_element()
+                let lead = match icon {
+                    Some(icon) => {
+                        let tint = m.1.map_or_else(|| p.ink(2).solid(), Rgb::solid);
+                        sand::icon(*icon, 14.0, tint).into_any_element()
+                    }
+                    None => mark(format!("{pill_key}-mark-{side:?}").into(), *m, *preview)
+                        .into_any_element(),
                 };
                 let mut half = div()
                     .id(ElementId::Name(format!("{pill_key}-half-{side:?}").into()))
@@ -391,13 +411,30 @@ fn pill(tab: &Tab, ws: &Workspace, book: &Book, cx: &mut Context<Workspace>) -> 
                     .child(close);
                 if let Some(side) = side {
                     let focus = entity.clone();
-                    half = half.on_click(move |_, window, cx| {
-                        focus.update(cx, |ws, cx| {
-                            ws.exit_fill(window, cx);
-                            ws.nav.focus_side(index, side);
-                            ws.changed(cx);
+                    let mid_close = entity.clone();
+                    half = half
+                        .on_click(move |e, window, cx| {
+                            let clicks = e.click_count();
+                            focus.update(cx, |ws, cx| {
+                                ws.exit_fill(window, cx);
+                                ws.nav.focus_side(index, side);
+                                if clicks > 1
+                                    && let Some(Tab::Split(split)) = ws.nav.tabs().get(index)
+                                {
+                                    let target = split.side(side).target.clone();
+                                    ws.promote(&target, cx);
+                                }
+                                ws.changed(cx);
+                            })
                         })
-                    });
+                        .on_mouse_up(MouseButton::Middle, move |_, _, cx| {
+                            cx.stop_propagation();
+                            mid_close.update(cx, |ws, cx| {
+                                if ws.nav.close_side(index, side) {
+                                    ws.changed(cx);
+                                }
+                            })
+                        });
                 }
                 row = row.child(half);
             }
@@ -415,6 +452,9 @@ mod tests {
         let module = Target::Module(dr_model::id::CustomModuleId::new_v7());
         let mark = dock_mark(&module, sand::Kind::Element, None, false);
         assert!(matches!(mark.icon, Some(Icon::Stitched)));
+        let tpl = Target::Template(dr_model::id::EntryTemplateId::new_v7());
+        let mark = dock_mark(&tpl, sand::Kind::Element, None, false);
+        assert!(matches!(mark.icon, Some(Icon::MovableType)));
         let entry = Target::Entry {
             id: dr_model::id::EntryId::new_v7(),
             module: None,

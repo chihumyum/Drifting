@@ -1129,7 +1129,6 @@
   "rightSidebar": {
     "kickers": {
       "library": "Projekt · Materialsammlung",
-      "review": "Projekt · Prüfung",
       "stats": {
         "element": "Dieses Element · Detailstatistik",
         "material": "Dieses Material · Details",
@@ -1542,6 +1541,46 @@
       "server_error": "Der Update-Dienst hat gerade ein Problem. Versuche es später erneut; die aktuelle Version funktioniert weiter.",
       "unavailable": "Dieser Build hat keinen Updater-Signaturschlüssel und kann nicht nach Updates suchen. Von GitHub heruntergeladene Versionen können dies."
     }
+  },
+  "shell_ui": {
+    "add_fact": "Feld hinzufügen",
+    "back_plain": "Zurück",
+    "empty_book_hint": "Erstelle einen Eintrag mit Text, um hier das gesamte Buch zu lesen.",
+    "empty_book_title": "Noch kein Manuskripttext",
+    "fact_key_placeholder": "Name (z. B. Untertitel, Genre)",
+    "fact_value_placeholder": "Wert",
+    "find_results": "Treffer",
+    "hosted_purge_note": "Wird dauerhaft von diesem Gerät und allen synchronisierten Cloud-Geräten gelöscht.",
+    "hosted_trash_note": "Wird lokal und in der Cloud entfernt; 30 Tage lang wiederherstellbar.",
+    "menu_about": "Über {{app}}",
+    "menu_bring_all_to_front": "Alle nach vorne bringen",
+    "menu_close_window": "Fenster schließen",
+    "menu_copy": "Kopieren",
+    "menu_cut": "Ausschneiden",
+    "menu_edit": "Bearbeiten",
+    "menu_hide": "{{app}} ausblenden",
+    "menu_hide_others": "Andere ausblenden",
+    "menu_minimize": "Im Dock ablegen",
+    "menu_paste": "Einsetzen",
+    "menu_quit": "{{app}} beenden",
+    "menu_redo": "Wiederholen",
+    "menu_select_all": "Alles auswählen",
+    "menu_services": "Dienste",
+    "menu_settings": "Einstellungen…",
+    "menu_show_all": "Alle einblenden",
+    "menu_undo": "Widerrufen",
+    "menu_zoom": "Zoomen",
+    "new_entry_plain": "Neuer Eintrag",
+    "open_whole_book": "Ganzes Buch lesen",
+    "preparing_samples": "Beispielprojekte werden vorbereitet…",
+    "project_facts": "Projektangaben",
+    "search_hint": "Suchbegriff für das gesamte Projekt eingeben",
+    "search_placeholder": "Titel, Text, Felder und Dateien durchsuchen…",
+    "swap_split": "Geteilte Bereiche tauschen",
+    "templates_plain": "Vorlagen",
+    "toggle_comment_marks": "Kommentarmarkierungen anzeigen",
+    "toggle_entity_links": "Interaktive Eintragslinks",
+    "unsplit": "Teilung schließen"
   },
   "sidebarLayout": {
     "split": "Zwei Spalten wiederherstellen"

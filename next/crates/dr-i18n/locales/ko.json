@@ -1121,7 +1121,6 @@
   "rightSidebar": {
     "kickers": {
       "library": "작품 · 자료실",
-      "review": "작품 · 검토",
       "stats": {
         "element": "이 요소 · 상세 통계",
         "material": "이 자료 · 상세",
@@ -1534,6 +1533,46 @@
       "server_error": "업데이트 서비스에 지금 문제가 있습니다. 나중에 다시 시도해 주세요. 현재 버전은 계속 사용할 수 있습니다.",
       "unavailable": "이 빌드에는 업데이터 서명 키가 없어 업데이트를 확인할 수 없습니다. GitHub에서 받은 배포판에서는 사용할 수 있습니다."
     }
+  },
+  "shell_ui": {
+    "add_fact": "항목 추가",
+    "back_plain": "뒤로",
+    "empty_book_hint": "항목을 만들고 본문을 작성하면 여기에서 전체를 읽을 수 있습니다.",
+    "empty_book_title": "아직 본문이 없습니다",
+    "fact_key_placeholder": "이름(예: 부제, 장르)",
+    "fact_value_placeholder": "내용",
+    "find_results": "일치 항목",
+    "hosted_purge_note": "이 기기와 동기화된 모든 클라우드 기기에서 영구 삭제되며 되돌릴 수 없습니다.",
+    "hosted_trash_note": "이 기기와 클라우드에서 제거되며 30일 동안 최근 삭제에서 복원할 수 있습니다.",
+    "menu_about": "{{app}} 정보",
+    "menu_bring_all_to_front": "모두 앞으로 가져오기",
+    "menu_close_window": "윈도우 닫기",
+    "menu_copy": "복사",
+    "menu_cut": "오려두기",
+    "menu_edit": "편집",
+    "menu_hide": "{{app}} 가리기",
+    "menu_hide_others": "기타 가리기",
+    "menu_minimize": "최소화",
+    "menu_paste": "붙여넣기",
+    "menu_quit": "{{app}} 종료",
+    "menu_redo": "실행 복귀",
+    "menu_select_all": "전체 선택",
+    "menu_services": "서비스",
+    "menu_settings": "설정…",
+    "menu_show_all": "모두 보기",
+    "menu_undo": "실행 취소",
+    "menu_zoom": "확대/축소",
+    "new_entry_plain": "새 항목",
+    "open_whole_book": "전체 읽기",
+    "preparing_samples": "샘플 프로젝트 준비 중…",
+    "project_facts": "작품 정보",
+    "search_hint": "프로젝트 전체를 검색할 키워드를 입력하세요",
+    "search_placeholder": "제목, 본문, 필드 및 자료 검색…",
+    "swap_split": "좌우 분할 바꾸기",
+    "templates_plain": "템플릿",
+    "toggle_comment_marks": "주석 표시 보이기",
+    "toggle_entity_links": "항목 링크 활성화",
+    "unsplit": "분할 닫기"
   },
   "sidebarLayout": {
     "split": "두 열로 복원"

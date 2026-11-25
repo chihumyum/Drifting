@@ -103,9 +103,13 @@ pub struct Rendered {
     /// page (the key-value table's 「新增字段」), instead of a second title
     /// row of its own (UP, kernel-v5 §15 item 50).
     pub head_action: Option<HeadAction>,
+    /// Optional scrollbar tick strip (find/comment/Agent marks) pinned on the
+    /// right edge of the EntryPage scroll viewport when the module flows in page.
+    pub tick_strip: Option<TickStrip>,
 }
 pub type Leave = Rc<dyn Fn(&mut App)>;
 pub type HeadAction = Rc<dyn Fn(&Window, &App) -> AnyElement>;
+pub type TickStrip = Rc<dyn Fn(&mut Window, &mut App) -> Option<AnyElement>>;
 pub type Land = Rc<dyn Fn(&mut Window, &mut App)>;
 pub type KeyboardState = Rc<dyn Fn(&Window, &App) -> serde_json::Value>;
 impl Rendered {
@@ -120,7 +124,16 @@ impl Rendered {
             land: None,
             keyboard_state: None,
             head_action: None,
+            tick_strip: None,
         }
+    }
+    /// Optional tick strip rendered along the right edge of EntryPage.
+    pub fn on_tick_strip(
+        mut self,
+        f: impl Fn(&mut Window, &mut App) -> Option<AnyElement> + 'static,
+    ) -> Self {
+        self.tick_strip = Some(Rc::new(f));
+        self
     }
     /// Something at the right end of the module's title row
     /// ([`Rendered::head_action`]).

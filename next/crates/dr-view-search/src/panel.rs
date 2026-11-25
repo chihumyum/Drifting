@@ -129,7 +129,13 @@ impl SearchPanel {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> SearchPanel {
-        let field = cx.new(|cx| TextField::new("search-field", window, cx).icon(Icon::Search));
+        let i18n = I18n::new(locale, platform);
+        let placeholder: SharedString = i18n.t(keys::shell_ui::SEARCH_PLACEHOLDER).into();
+        let field = cx.new(|cx| {
+            TextField::new("search-field", window, cx)
+                .icon(Icon::Search)
+                .placeholder(placeholder)
+        });
         let sub = cx.subscribe(&field, |panel, _, event, cx| match event {
             FieldEvent::Changed(text) => panel.query_changed(text.clone(), cx),
             FieldEvent::Submitted(_) => panel.choose_selected(cx),
@@ -146,7 +152,7 @@ impl SearchPanel {
             hits: 0,
             selected: None,
             searched: false,
-            i18n: I18n::new(locale, platform),
+            i18n,
             scroll: UniformListScrollHandle::new(),
             search: None,
             request: 0,
@@ -360,9 +366,21 @@ impl SearchPanel {
         });
         let first_results = !same_query || !state.had_results;
         self.hits = groups.iter().map(|g| g.rows.len()).sum();
+        // Visually merge consecutive groups belonging to the same Entry so the
+        // list never shows duplicate entry headers for title + module hits,
+        // while preserving each hit's exact `(g, r)` target for navigation.
         let mut lines = Vec::new();
+        let mut last_entry: Option<&str> = None;
         for (g, group) in groups.iter().enumerate() {
-            lines.push(Line::Header(g));
+            let entry_id = match &group.target {
+                crate::v3::Target::Entry { id, .. } => Some(id.as_str()),
+                crate::v3::Target::Material(_) => None,
+            };
+            let same_as_prev = entry_id.is_some() && entry_id == last_entry;
+            if !same_as_prev {
+                lines.push(Line::Header(g));
+            }
+            last_entry = entry_id;
             lines.extend((0..group.rows.len()).map(|r| Line::Hit(g, r)));
         }
         self.selected = if first_results {
@@ -514,19 +532,56 @@ impl Render for SearchPanel {
             );
 
         let groups: Vec<DisplayGroup> = if let Some(state) = &self.v3 {
+            let mut merged_counts: Vec<usize> = state.groups.iter().map(|g| g.rows.len()).collect();
+            let mut idx = 0;
+            while idx < state.groups.len() {
+                if let crate::v3::Target::Entry { id, .. } = &state.groups[idx].target {
+                    let mut total = state.groups[idx].rows.len();
+                    let mut j = idx + 1;
+                    while j < state.groups.len() {
+                        if matches!(&state.groups[j].target, crate::v3::Target::Entry { id: next_id, .. } if next_id == id)
+                        {
+                            total += state.groups[j].rows.len();
+                            j += 1;
+                        } else {
+                            break;
+                        }
+                    }
+                    merged_counts[idx] = total;
+                    idx = j;
+                } else {
+                    idx += 1;
+                }
+            }
             state
                 .groups
                 .iter()
-                .map(|g| DisplayGroup {
-                    title: g.title.clone(),
-                    rows: g.rows.clone(),
-                    mark: (state.marks)(&g.target),
-                    kind: g.module_name.clone().unwrap_or_default().into(),
-                    fields: g
-                        .rows
-                        .iter()
-                        .map(|r| self.i18n.t(field_label(r.field)).into())
-                        .collect(),
+                .enumerate()
+                .map(|(i, g)| {
+                    let count_kind: SharedString = match &g.module_name {
+                        Some(m) if !m.is_empty() => format!("{}  {m}", merged_counts[i]).into(),
+                        _ => format!("{}", merged_counts[i]).into(),
+                    };
+                    DisplayGroup {
+                        title: g.title.clone(),
+                        rows: g.rows.clone(),
+                        mark: (state.marks)(&g.target),
+                        kind: count_kind,
+                        fields: g
+                            .rows
+                            .iter()
+                            .map(|r| {
+                                if r.field != Field::Title
+                                    && let Some(m) = g.module_name.as_deref()
+                                    && !m.is_empty()
+                                {
+                                    SharedString::from(m.to_owned())
+                                } else {
+                                    self.i18n.t(field_label(r.field)).into()
+                                }
+                            })
+                            .collect(),
+                    }
                 })
                 .collect()
         } else {
@@ -564,6 +619,7 @@ impl Render for SearchPanel {
                     .font_role(Role::Ui)
                     .type_px(s.menu_text, s.menu_line);
                     let entity = list_entity.clone();
+                    let hover_entity = list_entity.clone();
                     let row = row.on_click(move |_, _, cx| {
                         entity.update(cx, |panel, cx| panel.choose(i, cx))
                     });
@@ -602,7 +658,7 @@ impl Render for SearchPanel {
                                         .font_role(Role::Index)
                                         .type_px(s.caption, s.line_caption)
                                         .text_color(p.ink(3).solid())
-                                        .child(format!("{}  {}", group.rows.len(), kinds[g])),
+                                        .child(kinds[g].clone()),
                                 )
                         }
                         Line::Hit(g, r) => {
@@ -637,7 +693,21 @@ impl Render for SearchPanel {
                                 )
                         }
                     };
-                    div().w_full().px(px(m::ROW_INSET)).child(row)
+                    div()
+                        .id(ElementId::Name(format!("search-row-wrap-{i}").into()))
+                        .w_full()
+                        .px(px(m::ROW_INSET))
+                        .on_hover(move |on, _, cx| {
+                            if *on && matches!(line, Line::Hit(..)) {
+                                hover_entity.update(cx, |panel, cx| {
+                                    if panel.selected != Some(i) {
+                                        panel.selected = Some(i);
+                                        cx.notify();
+                                    }
+                                });
+                            }
+                        })
+                        .child(row)
                 })
                 .collect::<Vec<_>>()
         })
@@ -655,6 +725,15 @@ impl Render for SearchPanel {
                 .type_px(s.secondary, s.line_body)
                 .text_color(p.muted().solid())
                 .child(self.i18n.t(keys::global_search::NO_RESULTS))
+                .into_any_element()
+        } else if self.query.is_empty() {
+            div()
+                .px(px(m::ROW_INSET + m::ROW_PAD_X))
+                .pb(px(12.0))
+                .font_role(Role::Index)
+                .type_px(s.caption, s.line_caption)
+                .text_color(p.muted().solid())
+                .child(self.i18n.t(keys::shell_ui::SEARCH_HINT))
                 .into_any_element()
         } else {
             div().into_any_element()

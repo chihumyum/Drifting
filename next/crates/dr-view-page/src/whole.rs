@@ -4,6 +4,7 @@
 use dr_editor::BookEditor;
 use dr_model::{id::EntryId, v3::FlattenFrom};
 use dr_shell::pages::{ModulePage, PageEditorRef, PageHost, PageViewHost};
+use dr_ui::style::DrStyled as _;
 use gpui::{prelude::*, *};
 use std::rc::Rc;
 
@@ -190,12 +191,46 @@ impl Render for WholeBook {
         if self.focus.is_focused(window) {
             self.focus_editor(window, cx);
         }
+        let is_empty = self
+            .editor
+            .as_ref()
+            .is_some_and(|e| e.read(cx).chapter_docs().next().is_none());
+        let theme = dr_ui::Theme::of(window, cx);
+        let p = theme.palette;
+        let s = theme.scale;
         div()
             .id("v3-whole-book")
             .track_focus(&self.focus)
             .size_full()
             .min_h_0()
-            .children(self.editor.clone())
+            .when(!is_empty, |d| d.children(self.editor.clone()))
+            .when(is_empty && !self.failed && self.loading.is_none(), |d| {
+                d.flex()
+                    .flex_col()
+                    .items_center()
+                    .justify_center()
+                    .gap(px(10.0))
+                    .px(px(32.0))
+                    .child(dr_ui::sand::icon(
+                        dr_ui::sand::Icon::OpenBook,
+                        28.0,
+                        p.ink(4).solid(),
+                    ))
+                    .child(
+                        div()
+                            .font_role(dr_ui::fonts::Role::Structure)
+                            .type_px(s.heading, s.line_body * 1.3)
+                            .text_color(p.ink(2).solid())
+                            .child(dr_shell::t(cx, dr_i18n::keys::shell_ui::EMPTY_BOOK_TITLE)),
+                    )
+                    .child(
+                        div()
+                            .font_role(dr_ui::fonts::Role::Ui)
+                            .type_px(s.secondary, s.line_body)
+                            .text_color(p.muted().solid())
+                            .child(dr_shell::t(cx, dr_i18n::keys::shell_ui::EMPTY_BOOK_HINT)),
+                    )
+            })
             .when(self.failed, |d| {
                 d.child(dr_shell::t(cx, dr_i18n::keys::markdown_share::LOAD_FAILED))
                     .child(

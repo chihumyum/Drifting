@@ -1139,7 +1139,6 @@
   "rightSidebar": {
     "kickers": {
       "library": "Projet · Documentation",
-      "review": "Projet · Relecture",
       "stats": {
         "element": "Cet élément · statistiques détaillées",
         "material": "Cette ressource · Détails",
@@ -1552,6 +1551,46 @@
       "server_error": "Le service de mise à jour rencontre un problème. Réessayez plus tard ; cette version reste utilisable.",
       "unavailable": "Cette version n’a pas de clé de signature de mise à jour et ne peut pas en rechercher. Les versions téléchargées depuis GitHub le permettent."
     }
+  },
+  "shell_ui": {
+    "add_fact": "Ajouter un champ",
+    "back_plain": "Retour",
+    "empty_book_hint": "Créez une entrée et rédigez du texte pour lire le livre complet ici.",
+    "empty_book_title": "Aucun texte pour l'instant",
+    "fact_key_placeholder": "Nom (ex. Sous-titre, Genre)",
+    "fact_value_placeholder": "Valeur",
+    "find_results": "Résultats",
+    "hosted_purge_note": "Suppression définitive sur cet appareil et tous les appareils synchronisés dans le cloud.",
+    "hosted_trash_note": "Supprimé localement et dans le cloud ; récupérable pendant 30 jours.",
+    "menu_about": "À propos de {{app}}",
+    "menu_bring_all_to_front": "Tout ramener au premier plan",
+    "menu_close_window": "Fermer la fenêtre",
+    "menu_copy": "Copier",
+    "menu_cut": "Couper",
+    "menu_edit": "Édition",
+    "menu_hide": "Masquer {{app}}",
+    "menu_hide_others": "Masquer les autres",
+    "menu_minimize": "Placer dans le Dock",
+    "menu_paste": "Coller",
+    "menu_quit": "Quitter {{app}}",
+    "menu_redo": "Rétablir",
+    "menu_select_all": "Tout sélectionner",
+    "menu_services": "Services",
+    "menu_settings": "Réglages…",
+    "menu_show_all": "Tout afficher",
+    "menu_undo": "Annuler",
+    "menu_zoom": "Réduire/agrandir",
+    "new_entry_plain": "Nouvelle entrée",
+    "open_whole_book": "Lire tout le livre",
+    "preparing_samples": "Préparation des projets d'exemple…",
+    "project_facts": "Informations du projet",
+    "search_hint": "Saisissez un mot-clé pour rechercher dans tout le projet",
+    "search_placeholder": "Rechercher titres, textes, champs et fichiers…",
+    "swap_split": "Inverser les volets",
+    "templates_plain": "Modèles",
+    "toggle_comment_marks": "Afficher les marques de commentaire",
+    "toggle_entity_links": "Liens d'entrées interactifs",
+    "unsplit": "Fermer la division"
   },
   "sidebarLayout": {
     "split": "Rétablir deux colonnes"

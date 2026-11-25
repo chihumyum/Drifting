@@ -22,15 +22,16 @@ use dr_ui::{
     Theme,
     components::{Button, IconButton},
     fonts::Role,
-    glass::{self, Kind, Mode, Spec, Tone},
+    glass::{self, Ground, Kind, Mode, Spec, Tone},
     input::field::{FieldEvent, TextField},
     sand::Icon,
     style::DrStyled,
-    tokens::glass as g,
+    tokens::{glass as g, radius},
 };
 use gpui::{
-    AppContext as _, Context, Entity, EventEmitter, Focusable as _, InteractiveElement,
-    IntoElement, KeyBinding, ParentElement, Render, Styled, Subscription, Window, div, px,
+    AppContext as _, Context, ElementId, Entity, EventEmitter, Focusable as _, InteractiveElement,
+    IntoElement, KeyBinding, ParentElement, Render, SharedString, StatefulInteractiveElement as _,
+    Styled, Subscription, Window, div, prelude::FluentBuilder as _, px,
 };
 use gpui_prose::ProseEditor;
 use gpui_prose::input::find::{FindEvent, FindOptions, FindScope, FindStatus};
@@ -39,6 +40,14 @@ use crate::strings::t;
 
 /// The bar's key context.
 pub const KEY_CONTEXT: &str = "DrFind";
+
+type FindExcerpt = (
+    usize,
+    Option<SharedString>,
+    std::ops::Range<usize>,
+    String,
+    bool,
+);
 
 gpui::actions!(
     find,
@@ -74,12 +83,17 @@ pub enum FindBarEvent {
 }
 
 pub struct FindBar {
-    /// The editor it searches.
+    /// The active editor it searches.
     pub prose: Entity<ProseEditor>,
+    /// All prose editors on this page (multi-prose EntryPage support).
+    editors: Vec<(SharedString, Entity<ProseEditor>)>,
+    active_editor: usize,
     field: Entity<TextField>,
     replace_field: Entity<TextField>,
     /// The replace row is open.
     pub replacing: bool,
+    /// Collapsible results excerpt list dropdown is open.
+    pub results_open: bool,
     scope: FindScope,
     status: FindStatus,
     _subscriptions: Vec<Subscription>,
@@ -96,6 +110,18 @@ impl FindBar {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> FindBar {
+        Self::new_multi(vec![(SharedString::default(), prose)], 0, book, window, cx)
+    }
+
+    pub fn new_multi(
+        editors: Vec<(SharedString, Entity<ProseEditor>)>,
+        active_editor: usize,
+        book: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> FindBar {
+        let active_editor = active_editor.min(editors.len().saturating_sub(1));
+        let prose = editors[active_editor].1.clone();
         let placeholder = t(
             cx,
             if book {
@@ -104,11 +130,17 @@ impl FindBar {
                 keys::find_panel::CURRENT_PLACEHOLDER
             },
         );
-        // An earlier query of this editor comes back into the field.
-        let query = prose
-            .read(cx)
-            .find_query()
-            .map(|(q, _)| q.to_owned())
+        // Prefill from a non-empty single-line selection, else restore earlier query.
+        let selected_seed = {
+            let p = prose.read(cx);
+            let sel = p.selection();
+            (!sel.is_empty() && !sel.spans_chapters())
+                .then(|| p.selected_text())
+                .filter(|s| !s.is_empty() && !s.contains('\n') && s.chars().count() <= 120)
+        };
+        let query = selected_seed
+            .clone()
+            .or_else(|| prose.read(cx).find_query().map(|(q, _)| q.to_owned()))
             .unwrap_or_default();
         let field = cx.new(|cx| {
             TextField::new("find-field", window, cx)
@@ -154,9 +186,12 @@ impl FindBar {
         ];
         let mut bar = FindBar {
             prose,
+            editors,
+            active_editor,
             field,
             replace_field,
             replacing: false,
+            results_open: false,
             scope: if book {
                 FindScope::Book
             } else {
@@ -165,13 +200,38 @@ impl FindBar {
             status: FindStatus::default(),
             _subscriptions: subscriptions,
         };
-        bar.refresh(cx);
+        if let Some(seed) = selected_seed {
+            bar.search(&seed, window, cx);
+        } else {
+            bar.refresh(cx);
+        }
         bar
     }
 
-    /// The field takes the keyboard.
+    /// The field takes the keyboard (selecting any existing query so typing replaces it).
     pub fn focus(&self, window: &mut Window, cx: &mut Context<Self>) {
         self.field.focus_handle(cx).focus(window, cx);
+        self.field.update(cx, |f, cx| f.select_all_text(cx));
+    }
+
+    pub fn select_editor(&mut self, index: usize, window: &mut Window, cx: &mut Context<Self>) {
+        if index >= self.editors.len() || index == self.active_editor {
+            return;
+        }
+        let query = self.field.read(cx).text();
+        self.prose.update(cx, |p, cx| p.clear_find(cx));
+        self.active_editor = index;
+        self.prose = self.editors[index].1.clone();
+        if !query.is_empty() {
+            self.search(&query, window, cx);
+        } else {
+            self.refresh(cx);
+        }
+        cx.notify();
+    }
+
+    pub fn contains_editor(&self, id: gpui::EntityId) -> bool {
+        self.editors.iter().any(|(_, e)| e.entity_id() == id)
     }
 
     pub fn status(&self) -> FindStatus {
@@ -239,14 +299,12 @@ impl FindBar {
         self.replace_field.update(cx, |f, cx| f.set_text(text, cx));
     }
 
-    /// 替换: the current match (the first after the caret if none is), then
-    /// on to the next.
+    /// 替换: replaces the current match (`ProseEditor::replace_current` already
+    /// steps to the next match; calling `find_next` again would skip one).
     pub fn replace_current(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let with = self.replacement(cx);
         self.prose.update(cx, |p, cx| {
-            if p.replace_current(&with, window, cx) {
-                p.find_next(window, cx);
-            }
+            let _ = p.replace_current(&with, window, cx);
         });
         self.refresh(cx);
     }
@@ -263,7 +321,52 @@ impl FindBar {
 
     /// Drops the query (the bar is closing).
     pub fn clear(&mut self, cx: &mut Context<Self>) {
-        self.prose.update(cx, |p, cx| p.clear_find(cx));
+        for (_, editor) in &self.editors {
+            editor.update(cx, |p, cx| p.clear_find(cx));
+        }
+    }
+
+    fn collect_excerpts(&self, cx: &gpui::App) -> Vec<FindExcerpt> {
+        let p = self.prose.read(cx);
+        let current = p.find_current();
+        let chapters: Vec<usize> = match self.scope {
+            FindScope::Book => (0..p.book().chapters.len()).collect(),
+            FindScope::Chapter => vec![
+                p.selection()
+                    .chapter
+                    .min(p.book().chapters.len().saturating_sub(1)),
+            ],
+        };
+        let mut out = Vec::new();
+        for ch in chapters {
+            let Some(chapter) = p.book().chapters.get(ch) else {
+                continue;
+            };
+            let matches = p.find_matches(ch);
+            if matches.is_empty() {
+                continue;
+            }
+            let title = (self.scope == FindScope::Book && !chapter.title.is_empty())
+                .then(|| chapter.title.clone());
+            let doc = &chapter.doc;
+            for range in matches.iter() {
+                if out.len() >= 120 {
+                    return out;
+                }
+                let start = range.start.saturating_sub(18);
+                let end = (range.end + 28).min(doc.len_chars());
+                let raw = doc.slice(start..end);
+                let snippet: String = raw
+                    .chars()
+                    .map(|c| if c == '\n' || c.is_control() { ' ' } else { c })
+                    .collect();
+                let is_current = current
+                    .as_ref()
+                    .is_some_and(|hit| hit.chapter == ch && hit.range == *range);
+                out.push((ch, title.clone(), range.clone(), snippet, is_current));
+            }
+        }
+        out
     }
 
     fn refresh(&mut self, cx: &mut Context<Self>) {
@@ -292,8 +395,9 @@ impl Render for FindBar {
             entity.clone(),
             entity.clone(),
         );
-        let (one, all) = (entity.clone(), entity);
+        let (one, all, toggle_list) = (entity.clone(), entity.clone(), entity.clone());
         let replacing = self.replacing;
+        let has_hits = self.status.total > 0;
         let replace_row = replacing.then(|| {
             div()
                 .w_full()
@@ -305,6 +409,7 @@ impl Render for FindBar {
                 .child(
                     Button::new("replace-one", t(cx, keys::find_panel::REPLACE))
                         .small()
+                        .disabled(!has_hits)
                         .on_click(move |_, window, cx| {
                             one.update(cx, |bar, cx| bar.replace_current(window, cx))
                         }),
@@ -312,12 +417,101 @@ impl Render for FindBar {
                 .child(
                     Button::new("replace-all", t(cx, keys::find_panel::REPLACE_ALL))
                         .small()
+                        .disabled(!has_hits)
                         .on_click(move |_, window, cx| {
                             all.update(cx, |bar, cx| {
                                 bar.replace_all(window, cx);
                             })
                         }),
                 )
+        });
+        let module_row = (self.editors.len() > 1).then(|| {
+            let mut row = div()
+                .w_full()
+                .flex()
+                .flex_row()
+                .flex_wrap()
+                .items_center()
+                .gap(px(4.0))
+                .px(px(4.0));
+            for (i, (name, _)) in self.editors.iter().enumerate() {
+                let sw = entity.clone();
+                let label: SharedString = if name.is_empty() {
+                    format!("#{}", i + 1).into()
+                } else {
+                    name.clone()
+                };
+                let btn = Button::new(ElementId::Name(format!("find-mod-{i}").into()), label)
+                    .small()
+                    .on_click(move |_, window, cx| {
+                        sw.update(cx, |bar, cx| bar.select_editor(i, window, cx));
+                    });
+                row = row.child(if i == self.active_editor {
+                    btn.primary()
+                } else {
+                    btn.text()
+                });
+            }
+            row
+        });
+        let results_list = (self.results_open && has_hits).then(|| {
+            let excerpts = self.collect_excerpts(cx);
+            let mut list = div()
+                .id("find-results-list")
+                .w_full()
+                .max_h(px(220.0))
+                .overflow_y_scroll()
+                .border_t(px(0.5))
+                .border_color(p.subtle_hairline())
+                .pt(px(4.0))
+                .flex()
+                .flex_col()
+                .gap(px(2.0));
+            let mut last_chapter: Option<usize> = None;
+            for (idx, (ch, ch_title, range, snippet, is_current)) in
+                excerpts.into_iter().enumerate()
+            {
+                if let Some(title) = ch_title
+                    && last_chapter != Some(ch)
+                {
+                    last_chapter = Some(ch);
+                    list = list.child(
+                        div()
+                            .px(px(8.0))
+                            .pt(px(4.0))
+                            .font_role(Role::Index)
+                            .type_px(s.caption, s.line_caption)
+                            .text_color(p.muted().solid())
+                            .child(title),
+                    );
+                }
+                let jumper = entity.clone();
+                list = list.child(
+                    div()
+                        .id(ElementId::Name(format!("find-hit-{idx}").into()))
+                        .w_full()
+                        .px(px(8.0))
+                        .py(px(4.0))
+                        .rounded(px(radius::SM))
+                        .cursor_pointer()
+                        .when(is_current, |el| el.bg(p.accent.alpha(0.12)))
+                        .hover(|st| st.bg(p.ink(1).alpha(0.05)))
+                        .font_role(Role::Ui)
+                        .type_px(s.caption, s.line_caption)
+                        .text_color(p.ink(2).solid())
+                        .truncate()
+                        .on_click(move |_, window, cx| {
+                            let range = range.clone();
+                            jumper.update(cx, |bar, cx| {
+                                bar.prose
+                                    .update(cx, |p, cx| p.select(ch, range, window, cx));
+                                bar.refresh(cx);
+                            });
+                        })
+                        .child(snippet),
+                );
+            }
+            list
         });
         let find_row = div().w_full().flex().flex_row().items_center().gap(px(2.0));
         let bar = glass::glass_box(
@@ -328,6 +522,7 @@ impl Render for FindBar {
             Spec::new(Tone::Clear, (g::PILL_HEIGHT + 2.0 * g::TRAY_PADDING) / 2.0)
                 .origin(glass::SAMPLE_ORIGINS[0])
                 .rim(12.0)
+                .ground(Ground::Uneven)
                 .filled(p.page),
             window,
             cx,
@@ -336,12 +531,20 @@ impl Render for FindBar {
         .on_action(cx.listener(|bar, _: &Previous, window, cx| bar.step(false, window, cx)))
         .on_action(cx.listener(|bar, _: &Next, window, cx| bar.step(true, window, cx)))
         .occlude()
-        .w(px(if replacing { 420.0 } else { 372.0 }))
+        .w(px(if replacing || self.results_open {
+            420.0
+        } else {
+            372.0
+        }))
         .flex()
         .flex_col()
         .gap(px(4.0))
         .p(px(g::TRAY_PADDING))
-        .rounded(px((g::PILL_HEIGHT + 2.0 * g::TRAY_PADDING) / 2.0))
+        .rounded(px(if self.results_open {
+            radius::SHEET
+        } else {
+            (g::PILL_HEIGHT + 2.0 * g::TRAY_PADDING) / 2.0
+        }))
         .bg(p.page.solid());
         let find_row = find_row
             .child(div().flex_1().min_w_0().child(self.field.clone()))
@@ -359,6 +562,7 @@ impl Render for FindBar {
             .child(
                 IconButton::new("find-previous", Icon::ChevronUp)
                     .in_tray()
+                    .disabled(!has_hits)
                     .label(t(cx, keys::find_panel::PREVIOUS_TITLE))
                     .on_click(move |_, window, cx| {
                         prev.update(cx, |bar, cx| bar.step(false, window, cx))
@@ -367,9 +571,23 @@ impl Render for FindBar {
             .child(
                 IconButton::new("find-next", Icon::ChevronDown)
                     .in_tray()
+                    .disabled(!has_hits)
                     .label(t(cx, keys::find_panel::NEXT_TITLE))
                     .on_click(move |_, window, cx| {
                         next.update(cx, |bar, cx| bar.step(true, window, cx))
+                    }),
+            )
+            .child(
+                IconButton::new("find-results-toggle", Icon::ViewList)
+                    .in_tray()
+                    .disabled(!has_hits)
+                    .selected(self.results_open && has_hits)
+                    .label(t(cx, keys::shell_ui::FIND_RESULTS))
+                    .on_click(move |_, _, cx| {
+                        toggle_list.update(cx, |bar, cx| {
+                            bar.results_open = !bar.results_open;
+                            cx.notify();
+                        })
                     }),
             )
             .child(
@@ -389,7 +607,10 @@ impl Render for FindBar {
                         close.update(cx, |_, cx| cx.emit(FindBarEvent::Close))
                     }),
             );
-        bar.child(find_row).children(replace_row)
+        bar.child(find_row)
+            .children(module_row)
+            .children(replace_row)
+            .children(results_list)
     }
 }
 
@@ -408,8 +629,29 @@ impl super::Workspace {
             return;
         };
         let book = matches!(view, super::editors::PageView::Book(_));
-        let prose = view.prose(cx);
-        let bar = cx.new(|cx| FindBar::new(prose, book, window, cx));
+        let active_prose = view.prose(cx);
+        // On multi-prose EntryPage, collect all mounted prose modules in order.
+        let mut editors: Vec<(SharedString, Entity<ProseEditor>)> = Vec::new();
+        if let Some(page) = self.page_of(&target)
+            && !page.mounted.is_empty()
+            && let Some(v3_page) = &page.v3
+        {
+            for section in &v3_page.read(cx).sections {
+                if section.kind == "prose"
+                    && let Some(m) = page.mounted.get(&section.id)
+                {
+                    editors.push((section.name.clone().into(), m.view.prose(cx)));
+                }
+            }
+        }
+        if editors.is_empty() {
+            editors.push((SharedString::default(), active_prose.clone()));
+        }
+        let active_idx = editors
+            .iter()
+            .position(|(_, e)| e.entity_id() == active_prose.entity_id())
+            .unwrap_or(0);
+        let bar = cx.new(|cx| FindBar::new_multi(editors, active_idx, book, window, cx));
         cx.subscribe_in(
             &bar,
             window,
@@ -448,13 +690,12 @@ impl super::Workspace {
         let Some(bar) = &self.find else {
             return;
         };
-        let searched = bar.read(cx).prose.entity_id();
         let front = self
             .nav
             .active_tab()
             .map(|t| t.focused().target.clone())
             .and_then(|t| self.page_view(&t).map(|v| v.prose(cx).entity_id()));
-        if front != Some(searched) {
+        if !front.is_some_and(|id| bar.read(cx).contains_editor(id)) {
             self.close_find(window, cx);
             // The searched editor may have been replaced inside a stable
             // renderer (whole-book reload). Do not leave focus on its old

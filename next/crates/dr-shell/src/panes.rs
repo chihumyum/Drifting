@@ -47,7 +47,11 @@ pub struct Pane<T> {
     pub tab: T,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+fn default_split_ratio() -> f32 {
+    0.5
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Panes<T> {
     /// One or two, in order from the window's edge inwards.
     pub panes: Vec<Pane<T>>,
@@ -58,6 +62,9 @@ pub struct Panes<T> {
     pub split_edge: Edge,
     #[serde(default)]
     pub keep_single: bool,
+    /// Width share of the first pane (`panes[0]`) when two halves are shown.
+    #[serde(default = "default_split_ratio")]
+    pub ratio: f32,
 }
 
 impl<T: Copy + PartialEq> Panes<T> {
@@ -71,7 +78,28 @@ impl<T: Copy + PartialEq> Panes<T> {
             can_split: false,
             split_edge: Edge::End,
             keep_single: false,
+            ratio: 0.5,
         }
+    }
+
+    pub fn set_ratio(&mut self, ratio: f32) {
+        if ratio.is_finite() {
+            self.ratio = ratio.clamp(0.25, 0.75);
+        }
+    }
+
+    pub fn close_pane(&mut self, pane: PaneId) -> bool {
+        if self.panes.len() <= 1 {
+            return false;
+        }
+        let Some(at) = self.panes.iter().position(|p| p.id == pane) else {
+            return false;
+        };
+        self.split_edge = if at == 0 { Edge::Start } else { Edge::End };
+        self.panes.remove(at);
+        self.focused = self.panes[0].id;
+        self.keep_single = true;
+        true
     }
 
     pub fn focused_tab(&self) -> T {

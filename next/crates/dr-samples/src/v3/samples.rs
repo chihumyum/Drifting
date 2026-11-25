@@ -251,6 +251,20 @@ pub fn convert(source: &crate::SeededBook, choices: &MappingChoices) -> Result<S
                 t.entries().entry(&e.id)?.auto_link(false)?;
             }
         }
+        if id.as_str() == crate::illustrations::pride_and_prejudice_book_id() {
+            let folder_id = crate::illustrations::illustrations_folder_id();
+            let folder_pos = crate::illustrations::illustrations_folder_pos();
+            t.asset_folder(&folder_id)?
+                .name("Illustrations")?
+                .pos(Some(&folder_pos))?;
+            for asset in crate::illustrations::pride_and_prejudice_assets() {
+                t.put_asset(&asset)?;
+                t.asset(&asset.id)?
+                    .name(&asset.name)?
+                    .folder(asset.folder.as_ref())?
+                    .pos(asset.pos.as_ref())?;
+            }
+        }
         Ok(())
     });
     r?;
@@ -347,6 +361,7 @@ pub fn write_book(
         book_genesis(sample.book_id()),
         sample.book.export_updates_since(&all)?,
     )?;
+    crate::illustrations::write_pride_and_prejudice_assets(lib, sample.book_id().as_str())?;
     Ok(count)
 }
 

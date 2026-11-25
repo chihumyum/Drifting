@@ -4,14 +4,14 @@ use std::cell::Cell;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use dr_i18n::keys;
+use dr_i18n::{Locale, keys};
 use dr_shell::actions::{Dismiss, ToggleNotifications};
 use dr_shell::strings::{tf, tp};
 use dr_shell::{Services, Settings, Workspace, t};
 use dr_ui::{
     Theme,
     components::{
-        Button, Dialog, IconButton, PanelIconButton,
+        Button, Choice, Dialog, IconButton, PanelIconButton, Select,
         overlay::{self},
     },
     fonts::Role,
@@ -1280,7 +1280,38 @@ fn rail(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) -> AnyE
             window,
             cx,
         ))
+        .child(rail_language(window, cx))
         .child(rail_foot(shelf, window, cx))
+        .into_any_element()
+}
+
+/// Smoke #2: standalone interface language selector in the All Projects rail
+/// (extracted out of the shelf account menu).
+fn rail_language(window: &mut Window, cx: &mut App) -> AnyElement {
+    let p = Theme::of(window, cx).palette;
+    let current = Settings::locale(cx);
+    let selected = Locale::ALL.iter().position(|l| *l == current).unwrap_or(0);
+    let choices: Vec<Choice> = Locale::ALL
+        .iter()
+        .map(|l| Choice::plain(l.native_name()))
+        .collect();
+    div()
+        .mt(px(4.0))
+        .px(px(6.0))
+        .flex()
+        .flex_row()
+        .items_center()
+        .gap(px(8.0))
+        .child(dr_ui::sand::icon(Icon::Wen, 15.0, p.muted().solid()))
+        .child(div().flex_1().min_w_0().child(
+            Select::new("shelf-language", choices, selected).on_change(|i, _, cx| {
+                let code = Locale::ALL[i.min(Locale::ALL.len() - 1)].code();
+                Settings::update(cx, |f| {
+                    f.set(dr_shell::settings::registry::UI_LOCALE, code.into(), None)
+                        .ok()
+                });
+            }),
+        ))
         .into_any_element()
 }
 
@@ -1375,6 +1406,7 @@ fn rail_foot(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) ->
     let p = theme.palette;
     let s = theme.scale;
     let name = dr_shell::account::display_name(cx);
+    let status_line = dr_shell::account::status_line(cx);
     let open = shelf.menu_open;
     let entity = cx.entity();
     let avatar = dr_shell::account::avatar(24.0, window, cx);
@@ -1404,13 +1436,32 @@ fn rail_foot(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) ->
     .child(avatar)
     .child(
         div()
+            .flex_1()
             .min_w_0()
-            .overflow_hidden()
-            .font_role(Role::Ui)
-            .type_px(s.body, s.body * 1.3)
-            .text_color(p.ink(1).solid())
-            .truncate()
-            .child(name),
+            .flex()
+            .flex_col()
+            .child(
+                div()
+                    .min_w_0()
+                    .overflow_hidden()
+                    .font_role(Role::Ui)
+                    .type_px(s.body, s.body * 1.3)
+                    .text_color(p.ink(1).solid())
+                    .truncate()
+                    .child(name),
+            )
+            .when_some(status_line, |el, line| {
+                el.child(
+                    div()
+                        .min_w_0()
+                        .overflow_hidden()
+                        .font_role(Role::Index)
+                        .type_px(s.caption, s.line_caption)
+                        .text_color(p.muted().solid())
+                        .truncate()
+                        .child(line),
+                )
+            }),
     );
     let notifications_open = shelf
         .ws
@@ -1434,6 +1485,10 @@ fn rail_foot(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) ->
                         .on_click(|_, window, cx| {
                             window.dispatch_action(Box::new(ToggleNotifications), cx)
                         }),
+                )
+                .when(
+                    dr_shell::notifications::Notifications::has_pinned(cx),
+                    |el| el.child(dr_shell::sync::bell_danger_seal(*p)),
                 ),
         )
         .into_any_element()
@@ -1488,6 +1543,8 @@ fn books(
         None => Vec::new(),
     };
     let ready = shelf.data.is_some();
+    let preparing_samples = first_run::is_preparing_samples(cx);
+    let s = Theme::of(window, cx).scale;
     // A year of writing days over the book-enabled projects, every book together;
     // the book under the pointer alone, in its colour. Projects with `成书` off
     // neither contribute cells nor focus the heatmap.
@@ -1554,9 +1611,9 @@ fn books(
                 Sea::of(window, cx).press(e.position, 1.2, window);
             }
         })
-        // A double click on the empty desk starts a new book.
+        // A double click on the empty desk starts a new book (not while seeding samples).
         .on_click(move |e, window, cx| {
-            if e.click_count() == 2 {
+            if e.click_count() == 2 && !first_run::is_preparing_samples(cx) {
                 entity.update(cx, |shelf, cx| shelf.start_create(window, cx));
             }
         })
@@ -1573,13 +1630,35 @@ fn books(
                 .flex_col()
                 .children(heat)
                 .when(ready, |el| {
-                    el.child(
+                    let empty_preparing = preparing_samples && cards.is_empty();
+                    el.when(empty_preparing, |el| {
+                        el.child(
+                            div()
+                                .id("shelf-preparing-samples")
+                                .py(px(24.0))
+                                .flex()
+                                .flex_row()
+                                .items_center()
+                                .gap(px(10.0))
+                                .font_role(Role::Ui)
+                                .type_px(s.secondary, s.line_body)
+                                .text_color(p.muted().solid())
+                                .child(dr_ui::sand::icon(Icon::Rotate, 15.0, p.accent.solid()))
+                                .child(t(cx, keys::shell_ui::PREPARING_SAMPLES)),
+                        )
+                    })
+                    .child(
                         div()
                             .grid()
                             .grid_cols(if wide { 2 } else { 1 })
                             .gap(px(14.0))
                             .children(cards)
-                            .child(new_card(shelf.press_taken.clone(), window, cx)),
+                            .child(new_card(
+                                shelf.press_taken.clone(),
+                                preparing_samples,
+                                window,
+                                cx,
+                            )),
                     )
                     // At the foot, below the books however many: the round
                     // button that turns every cover to the next style.
@@ -2118,7 +2197,12 @@ fn card(
 
 /// The last place in the grid: a cross and a line; only the pointer brings
 /// its ring of glass.
-fn new_card(taken: Rc<Cell<bool>>, window: &mut Window, cx: &mut Context<Shelf>) -> AnyElement {
+fn new_card(
+    taken: Rc<Cell<bool>>,
+    disabled: bool,
+    window: &mut Window,
+    cx: &mut Context<Shelf>,
+) -> AnyElement {
     let theme = Theme::of(window, cx);
     let p = theme.palette;
     let s = theme.scale;
@@ -2147,15 +2231,18 @@ fn new_card(taken: Rc<Cell<bool>>, window: &mut Window, cx: &mut Context<Shelf>)
     .items_center()
     .justify_center()
     .gap(px(10.0))
-    .cursor_pointer()
+    .when(disabled, |el| el.opacity(0.45))
+    .when(!disabled, |el| {
+        el.cursor_pointer()
+            .group_hover("shelf-new", move |st| st.text_color(p.ink(1).solid()))
+            .on_click(move |_, window, cx| {
+                cx.stop_propagation();
+                entity.update(cx, |shelf, cx| shelf.start_create(window, cx));
+            })
+    })
     .role(gpui::Role::Button)
     .aria_label(t(cx, keys::all_projects::NEW_PROJECT))
     .text_color(p.ink(3).solid())
-    .group_hover("shelf-new", move |st| st.text_color(p.ink(1).solid()))
-    .on_click(move |_, window, cx| {
-        cx.stop_propagation();
-        entity.update(cx, |shelf, cx| shelf.start_create(window, cx));
-    })
     .child(
         div()
             .debug_selector(|| "shelf-new-plus".into())
@@ -2313,6 +2400,11 @@ fn dialog(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) -> An
                     )],
                 )
             };
+            let note = if dr_shell::account::is_signed_in(cx) {
+                t(cx, keys::shell_ui::HOSTED_TRASH_NOTE)
+            } else {
+                t(cx, keys::project_picker::trash::LOCAL_NOTE)
+            };
             Dialog::new(
                 "shelf-trash",
                 tf(
@@ -2322,11 +2414,7 @@ fn dialog(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) -> An
                 ),
             )
             .body(div().child(body))
-            .body(
-                div()
-                    .text_color(p.muted().solid())
-                    .child(t(cx, keys::project_picker::trash::LOCAL_NOTE)),
-            )
+            .body(div().text_color(p.muted().solid()).child(note))
             .when_some(error, |d, e| d.status(e))
             .action(
                 Button::new("shelf-trash-cancel", t(cx, keys::common::CANCEL))
@@ -2469,6 +2557,11 @@ fn dialog(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) -> An
                 let step_back = step_back.clone();
                 move |_: &ClickEvent, window: &mut Window, cx: &mut App| step_back(window, cx)
             };
+            let purge_body = if dr_shell::account::is_signed_in(cx) {
+                t(cx, keys::shell_ui::HOSTED_PURGE_NOTE)
+            } else {
+                t(cx, keys::project_picker::trash::PERMANENT_BODY)
+            };
             Dialog::new(
                 "shelf-purge",
                 tf(
@@ -2477,7 +2570,7 @@ fn dialog(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) -> An
                     &[("name", &book.name)],
                 ),
             )
-            .body(div().child(t(cx, keys::project_picker::trash::PERMANENT_BODY)))
+            .body(div().child(purge_body))
             .when_some(error, |d, e| d.status(e))
             .action(
                 Button::new("shelf-purge-cancel", t(cx, keys::common::CANCEL))

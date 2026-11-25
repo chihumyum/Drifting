@@ -678,6 +678,17 @@ impl Navigator {
         }
     }
 
+    /// Swaps the left and right sides of a split tab, keeping focus on the same page.
+    pub fn swap_split(&mut self, index: usize) -> bool {
+        let Some(Tab::Split(split)) = self.tabs.get_mut(index) else {
+            return false;
+        };
+        std::mem::swap(&mut split.left, &mut split.right);
+        split.focused = split.focused.other();
+        self.record();
+        true
+    }
+
     /// A target was deleted (or trashed): its tabs close and it leaves the
     /// history. The 0.1 client's `closeTabsForEntity`.
     pub fn forget(&mut self, target: &Target) {

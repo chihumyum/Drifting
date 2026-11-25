@@ -135,6 +135,9 @@ pub struct DockState {
     collapse: Option<Task<()>>,
     open: bool,
     opened_at: Option<Instant>,
+    scroll: gpui::ScrollHandle,
+    last_active: Option<usize>,
+    need_reveal: bool,
 }
 
 impl DockState {
@@ -264,17 +267,25 @@ impl RenderOnce for TabDock {
             collapse: None,
             open: initially,
             opened_at: None,
+            scroll: gpui::ScrollHandle::new(),
+            last_active: self.active,
+            need_reveal: false,
         });
         let open = {
             let s = state.read(cx);
             s.hovered || s.holding || self.locked || self.held_open
         };
-        let opened_at = state.update(cx, |s, _| {
+        let (opened_at, scroll_handle, need_reveal) = state.update(cx, |s, _| {
             if open && !s.open {
                 s.opened_at = Some(crate::anim::now());
+                s.need_reveal = true;
+            }
+            if s.last_active != self.active {
+                s.last_active = self.active;
+                s.need_reveal = true;
             }
             s.open = open;
-            s.opened_at
+            (s.opened_at, s.scroll.clone(), s.need_reveal)
         });
         let hover = state.clone();
         let root = div()
@@ -297,8 +308,11 @@ impl RenderOnce for TabDock {
             ));
         }
         let n = self.tabs.len();
+        let active_idx = self.active;
         let pills: Vec<Pill> = self.tabs.into_iter().map(|t| t.pill).collect();
         let holding = state.clone();
+        let reveal_state = state.clone();
+        let reveal_scroll = scroll_handle.clone();
         let mut group =
             PillGroup::new(child_id(&self.id, "pills"), pills, self.active.unwrap_or(n))
                 .grown_since(opened_at)
@@ -316,6 +330,42 @@ impl RenderOnce for TabDock {
                         cx.notify();
                     })
                 });
+        if need_reveal && let Some(active) = active_idx {
+            group = group.map_pill(move |i, _, el| {
+                if i != active {
+                    return el;
+                }
+                let st = reveal_state.clone();
+                let sc = reveal_scroll.clone();
+                el.child(
+                    gpui::canvas(
+                        move |bounds, _, cx| {
+                            let view = sc.bounds();
+                            if view.size.width > px(0.0) {
+                                let off = sc.offset();
+                                let mut next_x = f32::from(off.x);
+                                let left_diff = f32::from(bounds.left() - view.left());
+                                let right_diff = f32::from(bounds.right() - view.right());
+                                if left_diff < 0.0 {
+                                    next_x -= left_diff - 8.0;
+                                } else if right_diff > 0.0 {
+                                    next_x -= right_diff + 8.0;
+                                }
+                                let min_x = -f32::from(sc.max_offset().x).max(0.0);
+                                let clamped = next_x.clamp(min_x, 0.0);
+                                if (clamped - f32::from(off.x)).abs() > 0.5 {
+                                    sc.set_offset(gpui::point(px(clamped), off.y));
+                                }
+                                st.update(cx, |s, _| s.need_reveal = false);
+                            }
+                        },
+                        |_, _, _, _| {},
+                    )
+                    .absolute()
+                    .inset_0(),
+                )
+            });
+        }
         if let Some(f) = self.on_change {
             group = group.on_change(move |i, w, cx| f(i, w, cx));
         }
@@ -326,6 +376,7 @@ impl RenderOnce for TabDock {
             .child(
                 div()
                     .id(child_id(&self.id, "scroll"))
+                    .track_scroll(&scroll_handle)
                     .flex()
                     .flex_row()
                     .items_center()

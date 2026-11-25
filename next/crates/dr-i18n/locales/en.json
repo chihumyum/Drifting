@@ -1129,7 +1129,6 @@
   "rightSidebar": {
     "kickers": {
       "library": "Project · Library",
-      "review": "Project · Review",
       "stats": {
         "element": "This element · detailed stats",
         "material": "This material · Details",
@@ -1542,6 +1541,46 @@
       "server_error": "The update service has a problem right now. Try again later; this version keeps working.",
       "unavailable": "This build has no updater signing key, so it cannot check for updates. Releases downloaded from GitHub can."
     }
+  },
+  "shell_ui": {
+    "add_fact": "Add fact",
+    "back_plain": "Back",
+    "empty_book_hint": "Create an entry and write prose to read the whole book here.",
+    "empty_book_title": "No manuscript prose yet",
+    "fact_key_placeholder": "Key (e.g. Subtitle, Genre)",
+    "fact_value_placeholder": "Value",
+    "find_results": "Matches",
+    "hosted_purge_note": "Permanently deletes from this device and all synced cloud devices. This cannot be undone.",
+    "hosted_trash_note": "Removes from this device and cloud; recoverable from Recently Deleted for 30 days.",
+    "menu_about": "About {{app}}",
+    "menu_bring_all_to_front": "Bring All to Front",
+    "menu_close_window": "Close Window",
+    "menu_copy": "Copy",
+    "menu_cut": "Cut",
+    "menu_edit": "Edit",
+    "menu_hide": "Hide {{app}}",
+    "menu_hide_others": "Hide Others",
+    "menu_minimize": "Minimize",
+    "menu_paste": "Paste",
+    "menu_quit": "Quit {{app}}",
+    "menu_redo": "Redo",
+    "menu_select_all": "Select All",
+    "menu_services": "Services",
+    "menu_settings": "Settings…",
+    "menu_show_all": "Show All",
+    "menu_undo": "Undo",
+    "menu_zoom": "Zoom",
+    "new_entry_plain": "New Entry",
+    "open_whole_book": "Read whole book",
+    "preparing_samples": "Preparing sample projects…",
+    "project_facts": "Project facts",
+    "search_hint": "Type to search across this project",
+    "search_placeholder": "Search titles, prose, fields, and files…",
+    "swap_split": "Swap split panes",
+    "templates_plain": "Templates",
+    "toggle_comment_marks": "Show comment marks",
+    "toggle_entity_links": "Interactive entity links",
+    "unsplit": "Close split pane"
   },
   "sidebarLayout": {
     "split": "Restore two columns"
