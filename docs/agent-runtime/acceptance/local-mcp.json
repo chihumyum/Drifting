@@ -1,7 +1,7 @@
 {
   "kind": "local-mcp-runtime-and-native-ipc",
-  "generatedAt": "2026-11-27T16:47:23.127Z",
-  "sourceSha256": "45e4f80e4ef19d0afd81d4cb33308263eab19577d39729df394449c6c34fcb89",
+  "generatedAt": "2026-11-27T17:17:08.505Z",
+  "sourceSha256": "f92810bd78d431a91ab3e1a7bf011f0c9a2c42e73149677b284211f8cbc3c975",
   "status": "passed",
   "synthetic": true,
   "checks": [
@@ -642,11 +642,11 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::client_config::tests::a_moved_connection_file_rewrites_only_its_own_entry",
+      "name": "mcp_server::client_config::tests::malformed_or_colliding_config_is_never_replaced",
       "status": "passed"
     },
     {
-      "name": "mcp_server::client_config::tests::malformed_or_colliding_config_is_never_replaced",
+      "name": "mcp_server::client_config::tests::a_moved_connection_file_rewrites_only_its_own_entry",
       "status": "passed"
     },
     {
@@ -662,11 +662,11 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::initialize_says_when_no_markdown_folder_location_is_chosen",
+      "name": "mcp_server::client_config::tests::configuration_updates_back_up_original_and_reject_symlinks",
       "status": "passed"
     },
     {
-      "name": "mcp_server::client_config::tests::configuration_updates_back_up_original_and_reject_symlinks",
+      "name": "mcp_server::local::tests::initialize_says_when_no_markdown_folder_location_is_chosen",
       "status": "passed"
     },
     {
@@ -674,11 +674,11 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::initialize_sends_a_connection_to_the_open_book_for_its_folder",
+      "name": "mcp_server::local::tests::initialize_says_when_the_markdown_folder_is_turned_off",
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::a_registry_naming_retired_permission_tiers_loads_and_drops_them",
+      "name": "mcp_server::local::tests::initialize_sends_a_connection_to_the_open_book_for_its_folder",
       "status": "passed"
     },
     {
@@ -686,7 +686,7 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::initialize_reports_persisted_custom_projection_location",
+      "name": "mcp_server::local::tests::a_registry_naming_retired_permission_tiers_loads_and_drops_them",
       "status": "passed"
     },
     {
@@ -694,7 +694,11 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::initialize_says_when_the_markdown_folder_is_turned_off",
+      "name": "mcp_server::local::tests::renderer_dispatch_preserves_authorized_scope_and_cancellation",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::local::tests::initialize_reports_persisted_custom_projection_location",
       "status": "passed"
     },
     {
@@ -702,19 +706,15 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::renderer_dispatch_preserves_authorized_scope_and_cancellation",
-      "status": "passed"
-    },
-    {
       "name": "mcp_server::local::tests::changed_client_configuration_does_not_block_access_revocation",
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::a_library_too_deep_for_its_socket_listens_in_a_short_private_folder",
+      "name": "mcp_server::local::tests::socket_authentication_project_scope_revocation_and_duplicate_ids",
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::socket_authentication_project_scope_revocation_and_duplicate_ids",
+      "name": "mcp_server::local::tests::a_library_too_deep_for_its_socket_listens_in_a_short_private_folder",
       "status": "passed"
     },
     {
@@ -734,11 +734,19 @@
       "status": "passed"
     },
     {
+      "name": "markdown_projection::tests::a_folder_managed_by_another_installation_is_refused",
+      "status": "passed"
+    },
+    {
       "name": "markdown_projection::tests::hidden_metadata_rejects_symlinks_before_changing_the_readable_manuscript",
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::a_folder_managed_by_another_installation_is_refused",
+      "name": "markdown_projection::tests::a_taken_title_gets_a_number_that_stays_while_the_title_does",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::interrupted_projection_claims_can_be_retried_and_cleaned_up",
       "status": "passed"
     },
     {
@@ -750,7 +758,7 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::authored_files_are_writable_and_never_replace_unread_edits",
+      "name": "markdown_projection::tests::a_location_where_the_name_is_taken_is_accepted_and_written_around_it",
       "status": "passed"
     },
     {
@@ -758,27 +766,7 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::attachments_are_verified_hashed_read_only_and_removed_without_touching_vault_settings",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::naming_waits_while_the_folder_is_off",
-      "status": "passed"
-    },
-    {
       "name": "markdown_projection::tests::markdown_projection_rejects_symlink_parent_and_preserves_external_target",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::a_location_where_the_name_is_taken_is_accepted_and_written_around_it",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::a_taken_title_gets_a_number_that_stays_while_the_title_does",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::mirrors_written_under_the_retired_material_directory_move_to_the_new_one",
       "status": "passed"
     },
     {
@@ -786,15 +774,27 @@
       "status": "passed"
     },
     {
+      "name": "markdown_projection::tests::naming_waits_while_the_folder_is_off",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::attachments_are_verified_hashed_read_only_and_removed_without_touching_vault_settings",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::authored_files_are_writable_and_never_replace_unread_edits",
+      "status": "passed"
+    },
+    {
       "name": "markdown_projection::tests::output_selection_rejects_symlinked_managed_directory",
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::interrupted_projection_claims_can_be_retried_and_cleaned_up",
+      "name": "markdown_projection::tests::mirrors_written_under_the_retired_material_directory_move_to_the_new_one",
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::missing_corrupt_or_unowned_attachments_never_replace_the_previous_snapshot",
+      "name": "markdown_projection::tests::markdown_projection_is_incremental_read_only_and_removes_only_owned_files",
       "status": "passed"
     },
     {
@@ -802,7 +802,7 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::custom_output_persists_per_project_resets_and_preserves_old_snapshots",
+      "name": "markdown_projection::tests::folders_are_named_after_the_book_and_follow_its_title",
       "status": "passed"
     },
     {
@@ -814,7 +814,11 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::unavailable_location_does_not_fall_back_and_can_be_chosen_again",
+      "name": "markdown_projection::tests::the_location_for_all_projects_holds_those_without_their_own_and_keeps_old_folders",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::missing_corrupt_or_unowned_attachments_never_replace_the_previous_snapshot",
       "status": "passed"
     },
     {
@@ -822,11 +826,7 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::refresh_rejects_new_unowned_file_before_changing_managed_prose",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::markdown_projection_is_incremental_read_only_and_removes_only_owned_files",
+      "name": "markdown_projection::tests::upgrading_a_read_only_projection_keeps_edited_files",
       "status": "passed"
     },
     {
@@ -834,23 +834,23 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::folders_are_named_after_the_book_and_follow_its_title",
+      "name": "markdown_projection::tests::unavailable_location_does_not_fall_back_and_can_be_chosen_again",
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::upgrading_a_read_only_projection_keeps_edited_files",
+      "name": "markdown_projection::tests::custom_output_persists_per_project_resets_and_preserves_old_snapshots",
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::turned_off_folder_is_neither_written_nor_read_and_keeps_its_files",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::the_location_for_all_projects_holds_those_without_their_own_and_keeps_old_folders",
+      "name": "markdown_projection::tests::refresh_rejects_new_unowned_file_before_changing_managed_prose",
       "status": "passed"
     },
     {
       "name": "markdown_projection::tests::nothing_is_written_until_a_location_is_chosen",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::turned_off_folder_is_neither_written_nor_read_and_keeps_its_files",
       "status": "passed"
     }
   ],
