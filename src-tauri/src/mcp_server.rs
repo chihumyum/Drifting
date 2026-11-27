@@ -94,6 +94,18 @@ mod local {
     const MAX_FRAME: usize = 4 * 1024 * 1024;
     const MAX_REQUEST: usize = 1024 * 1024;
     const LIMIT: usize = 32;
+    /// How long either end waits for the credential or its answer. Only the
+    /// handshake has a limit: an authorized connection may stay idle for as
+    /// long as its Agent thinks.
+    ///
+    /// Windows gives each duplicated socket handle its own read timeout, and
+    /// clearing it on one handle leaves it on the others. Each end therefore
+    /// sets and clears the limit on the handle it reads from; clearing it
+    /// anywhere else closed every Windows connection after five idle seconds.
+    #[cfg(not(test))]
+    const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(5);
+    #[cfg(test)]
+    const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(1);
 
     #[derive(Clone)]
     struct Bridge {
@@ -729,10 +741,11 @@ mod local {
             .map_err(|_| "Invalid MCP JSON".into())
     }
     fn serve_connection(server: &Arc<Server>, stream: Stream) -> Result<(), String> {
-        stream
-            .set_read_timeout(Some(Duration::from_secs(5)))
-            .map_err(|e| e.to_string())?;
         let mut reader = BufReader::new(stream.try_clone().map_err(|e| e.to_string())?);
+        reader
+            .get_ref()
+            .set_read_timeout(Some(HANDSHAKE_TIMEOUT))
+            .map_err(|e| e.to_string())?;
         let credential: Credential =
             serde_json::from_value(read_frame(&mut reader, 4096)?.ok_or("Missing credential")?)
                 .map_err(|_| "Invalid credential")?;
@@ -753,7 +766,10 @@ mod local {
             return Err("MCP credential rejected".into());
         }
         write_frame(&mut stream, &serde_json::json!({"ok":true}))?;
-        stream.set_read_timeout(None).map_err(|e| e.to_string())?;
+        reader
+            .get_ref()
+            .set_read_timeout(None)
+            .map_err(|e| e.to_string())?;
         stream
             .set_write_timeout(Some(Duration::from_secs(5)))
             .map_err(|e| e.to_string())?;
@@ -961,22 +977,20 @@ mod local {
         }
     }
 
-    pub fn cli(path: &Path) -> Result<(), String> {
-        let credential: Credential = serde_json::from_slice(&read_private(path)?)
-            .map_err(|_| "Invalid MCP connection file")?;
-        if credential.version != 1 {
-            return Err("Unsupported MCP connection file".into());
-        }
+    /// Opens an authorized connection to the running App: the stream the
+    /// client's requests go out on, and a reader for what comes back.
+    fn open_connection(credential: &Credential) -> Result<(Stream, BufReader<Stream>), String> {
         let mut stream = connect_endpoint(&credential.socket_path)
             .map_err(|_| "Open Drifting and the authorized project, then reconnect MCP")?;
-        stream
-            .set_read_timeout(Some(Duration::from_secs(5)))
+        let mut reader = BufReader::new(stream.try_clone().map_err(|e| e.to_string())?);
+        reader
+            .get_ref()
+            .set_read_timeout(Some(HANDSHAKE_TIMEOUT))
             .map_err(|e| e.to_string())?;
         write_frame(
             &mut stream,
             &serde_json::to_value(credential).map_err(|e| e.to_string())?,
         )?;
-        let mut reader = BufReader::new(stream.try_clone().map_err(|e| e.to_string())?);
         if read_frame(&mut reader, 4096)?
             .as_ref()
             .and_then(|v| v["ok"].as_bool())
@@ -986,8 +1000,20 @@ mod local {
                 "MCP connection revoked or invalid; authorize a new connection in Drifting".into(),
             );
         }
-        stream.set_read_timeout(None).map_err(|e| e.to_string())?;
-        let input_stream = stream.try_clone().map_err(|e| e.to_string())?;
+        reader
+            .get_ref()
+            .set_read_timeout(None)
+            .map_err(|e| e.to_string())?;
+        Ok((stream, reader))
+    }
+
+    pub fn cli(path: &Path) -> Result<(), String> {
+        let credential: Credential = serde_json::from_slice(&read_private(path)?)
+            .map_err(|_| "Invalid MCP connection file")?;
+        if credential.version != 1 {
+            return Err("Unsupported MCP connection file".into());
+        }
+        let (input_stream, mut reader) = open_connection(&credential)?;
         thread::spawn(move || {
             let mut input = std::io::stdin().lock();
             let mut stream = input_stream;
@@ -1396,6 +1422,24 @@ mod local {
             );
         }
         #[test]
+        fn an_authorized_connection_stays_open_while_its_agent_is_idle() {
+            let (_dir, _server, _, credential) = fixture();
+            let (mut writer, mut reader) = open_connection(&credential).unwrap();
+            // The bridge is already waiting for an answer, as it always is,
+            // while the Agent stays quiet past the handshake's limit.
+            let quiet_agent = thread::spawn(move || {
+                thread::sleep(HANDSHAKE_TIMEOUT * 2);
+                write_frame(
+                    &mut writer,
+                    &serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize"}),
+                )
+                .unwrap();
+            });
+            let response = read_frame(&mut reader, MAX_FRAME).unwrap().unwrap();
+            assert_eq!(response["result"]["protocolVersion"], "2025-11-25");
+            quiet_agent.join().unwrap();
+        }
+        #[test]
         fn a_connection_reaches_the_open_book_and_refuses_the_first_call_after_a_switch() {
             let (_dir, server, _, credential) = fixture();
             let mut client = connect(&credential);
@@ -1517,12 +1561,12 @@ mod local {
                 let grant = inner.grants.iter_mut().find(|g| g.id == id).unwrap();
                 grant.project_id = Some("book-three".into());
             }
+            // The path as the JSON file spells it: Windows backslashes are
+            // escaped there.
+            let written = serde_json::Value::from(server.config_path(&id).display().to_string());
             let edited = fs::read_to_string(dir.path().join("claude.json"))
                 .unwrap()
-                .replace(
-                    &server.config_path(&id).display().to_string(),
-                    "/elsewhere/connection.json",
-                );
+                .replace(&written.to_string(), r#""/elsewhere/connection.json""#);
             fs::write(dir.path().join("claude.json"), edited).unwrap();
             let reconnected =
                 connect_installation(&server, synthetic_input(), claude("drifting_library"))

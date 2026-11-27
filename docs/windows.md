@@ -218,7 +218,9 @@ installer runs natively. The interface is the same WebView2 (Chromium) in both.
 12. Sign in to the ChatGPT subscription; quit and reopen: still signed in.
 13. Import a HEIC photo and an AVIF image (with the Store codecs installed).
 14. Connect Codex or Claude Code to a book (Settings › Agent › external
-    Agents) and ask it to read a chapter; quit and reopen Drifting, ask again.
+    Agents) and ask it to read a chapter; leave it quiet for a minute and ask
+    again (builds up to `0.1.0-alpha.14` dropped the connection after five
+    idle seconds); quit and reopen Drifting, ask again.
 15. Add an MCP server that starts with npx in Agent extensions; no console
     window appears, and turning it off leaves no node process behind.
 16. Updating: from an installed earlier version (a preview build or the
