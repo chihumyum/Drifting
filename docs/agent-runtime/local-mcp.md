@@ -126,6 +126,13 @@ the same path. Windows has no such socket in the standard library, so it
 listens on `127.0.0.1` alone, on a port chosen at each
 launch and written into every connection file; the token authenticates each
 stream exactly as on the socket, and nothing listens beyond loopback.
+Only the handshake has a time limit: each end waits five seconds for the
+credential or its answer, and an authorized connection then stays open however
+long its Agent is quiet. Windows gives each duplicated socket handle its own
+read timeout, so both ends set and lift that limit on the handle they read
+from. Builds up to `0.1.0-alpha.14` lifted it from the other handle, and on
+Windows every connection closed after five idle seconds (the Agent saw
+`Transport closed`).
 This is a local OS-user trust boundary, not isolation from malicious software
 already running with that user's filesystem privileges.
 
@@ -233,6 +240,14 @@ switch, per-book connections kept to their book, retirement of a client's
 per-book entries including a changed one), renderer bridge and settings-state
 tests, and a run in a development App. The packaged Mac reports below predate
 it.
+
+The 2026-11-28 fix for idle Windows connections has a native test in which the
+bridge waits for an answer while its Agent stays quiet past the handshake
+limit. On macOS it passes either way. The app's tests, cross-compiled for
+x64 Windows and run in a Windows 11 VM, failed it with the old handle order
+(os error 10060) and passed every `mcp_server` test with the fix. CI runs the
+Windows tests only for `windows/**` branches or when started by hand
+(`windows.yml`).
 
 `pnpm mcp:acceptance` runs the actual domain-runtime/SQLite integration cases and
 native IPC/authentication and client-configuration tests, then generates
